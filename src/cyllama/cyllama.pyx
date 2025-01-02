@@ -258,7 +258,7 @@ cdef void log_callback(ggml_log_level level, const char * text, void * py_log_ca
 
 def set_log_callback(object py_log_callback):
     """Set callback for all future logging events.
-    
+
     If this is not called, or NULL is supplied, everything is output on stderr.
     """
     llama_cpp.llama_log_set(<llama_cpp.ggml_log_callback>&log_callback, <void*>py_log_callback)
@@ -307,7 +307,7 @@ def ask(str prompt, str model, n_predict=512, n_ctx=2048, disable_log=True, n_th
 #     cdef llama_cpp.llama_token_data_array * ptr
 #     cdef bint owner
 #     cdef float[:] logits_view
-#     cdef int32_t[:] ids_view 
+#     cdef int32_t[:] ids_view
 #     cdef float[:] probs_view
 
 #     def __cinit__(self):
@@ -326,14 +326,14 @@ def ask(str prompt, str model, n_predict=512, n_ctx=2048, disable_log=True, n_th
 #         self.ptr = <llama_cpp.llama_token_data_array*>malloc(sizeof(llama_cpp.llama_token_data_array))
 #         if self.ptr is NULL:
 #             raise MemoryError("Failed to allocate token data array")
-            
+
 #         # Allocate the token data
 #         self.ptr.data = <llama_cpp.llama_token_data*>malloc(n_vocab * sizeof(llama_cpp.llama_token_data))
 #         if self.ptr.data is NULL:
 #             free(self.ptr)
 #             self.ptr = NULL
 #             raise MemoryError("Failed to allocate token data")
-            
+
 #         self.ptr.size = n_vocab
 #         self.ptr.sorted = False
 
@@ -343,7 +343,7 @@ def ask(str prompt, str model, n_predict=512, n_ctx=2048, disable_log=True, n_th
 #             self.ptr.data[i].id = i
 #             self.ptr.data[i].logit = 0
 #             self.ptr.data[i].p = 0
-            
+
 #         # Set up memoryviews
 #         self.logits_view = <float[:n_vocab]>(<float*>&self.ptr.data[0].logit)  # type: ignore
 #         self.ids_view = <int32_t[:n_vocab]>(<int32_t*>&self.ptr.data[0].id)  # type: ignore
@@ -358,7 +358,7 @@ def ask(str prompt, str model, n_predict=512, n_ctx=2048, disable_log=True, n_th
 #     def ids(self):
 #         """Get token ids as numpy array view"""
 #         return np.asarray(self.ids_view)
-        
+
 #     @property
 #     def probabilities(self):
 #         """Get probabilities as numpy array view"""
@@ -369,7 +369,7 @@ def ask(str prompt, str model, n_predict=512, n_ctx=2048, disable_log=True, n_th
 #         """Get size of array"""
 #         return self.ptr.size
 
-#     @property 
+#     @property
 #     def sorted(self) -> bool:
 #         """Check if array is sorted"""
 #         return self.ptr.sorted
@@ -649,7 +649,7 @@ cdef class GGMLThreadPoolParams:
     @property
     def cpumask(self) -> list[bool]:
         """mask of cpu cores (all-zeros means use default affinity settings)
-        
+
         cpumask[GGML_MAX_N_THREADS] is (by default) of size 16
         """
         res = []
@@ -831,7 +831,7 @@ cdef class LlamaSampler:
         llama_cpp.llama_sampler_accept(self.ptr, token)
 
     # cdef void llama_sampler_apply (llama_sampler * smpl, llama_token_data_array * cur_p)
-    
+
     def reset(self):
         """Reset sampler"""
         llama_cpp.llama_sampler_reset(self.ptr)
@@ -979,19 +979,19 @@ cdef class LlamaSampler:
 
         1. if the sum of the EOG probs times the number of candidates is higher than the sum of the other probs -> pick EOG
         2. combine probs of tokens that have the same prefix
-        
+
         example:
-        
+
         - before:
           "hel":   0.5
           "hell":  0.2
           "hello": 0.1
           "dummy": 0.1
-        
+
         - after:
           "hel":   0.8
           "dummy": 0.1
-        
+
         3. discard non-EOG tokens with low prob
         4. if no tokens are left -> pick EOT
         """
@@ -1008,7 +1008,7 @@ cdef class LlamaSampler:
            llama_token_data_array cur_p = { ... init from logits ... }
            llama_sampler_apply(smpl, &cur_p)
            return cur_p.data[cur_p.selected].id
-        
+
         At this point, this is mostly a convenience function.
         """
         return llama_cpp.llama_sampler_sample(self.ptr, ctx.ptr, idx)
@@ -1093,7 +1093,7 @@ cdef class CommonParamsSampling:
 
     def print(self) -> str:
         """print the parameters into a string"""
-        return ( 
+        return (
             "\trepeat_last_n = %d, repeat_penalty = %.3f, frequency_penalty = %.3f, presence_penalty = %.3f\n"
             "\tdry_multiplier = %.3f, dry_base = %.3f, dry_allowed_length = %d, dry_penalty_last_n = %d\n"
             "\ttop_k = %d, top_p = %.3f, min_p = %.3f, xtc_probability = %.3f, xtc_threshold = %.3f, typical_p = %.3f, temp = %.3f\n"
@@ -1365,7 +1365,7 @@ cdef class CommonParamsSampling:
     @property
     def samplers(self) -> list[common_sampler_type]:
         """get/set sampler types
-        
+
         std_vector[common_sampler_type] samplers
         """
         return self.p.samplers
@@ -1386,7 +1386,7 @@ cdef class CommonParamsSampling:
     @property
     def logit_bias(self) -> list[LlamaLogitBias]:
         """logit biases to apply
-        
+
         std_vector[llama_logit_bias] logit_bias
         """
         result = []
@@ -1462,7 +1462,7 @@ cdef class CommonSampler:
     # requires: idxs.size() == draft.size() + 1
     #
     # returns at least 1 token, up to idxs.size()
-    
+
     # std_vector[llama_token] common_sampler_sample_and_accept_n(common_sampler * gsmpl, llama_context * ctx, const std_vector[int] & idxs, const llama_tokens & draft, bint grammar_first)
 
     # assume idxs == [ 0, 1, 2, ..., draft.size() ]
@@ -1519,7 +1519,7 @@ cdef class CpuParams:
     @property
     def cpumask(self) -> list[bool]:
         """CPU affinity mask: mask of cpu cores (all-zeros means use default affinity settings)
-        
+
         cpumask[GGML_MAX_N_THREADS] is (by default) of size 16
         """
         res = []
@@ -2227,7 +2227,7 @@ cdef class CommonParams:
 
     @property
     def ppl_output_type(self) -> int:
-        """0 -> ppl output is as usual, = 1 -> ppl output is num_tokens, ppl, one per line 
+        """0 -> ppl output is as usual, = 1 -> ppl output is num_tokens, ppl, one per line
 
         (which is more convenient to use for plotting)
         """
@@ -3097,7 +3097,7 @@ cdef class LlamaModelParams:
     @property
     def progress_callback(self) -> Callable[[float], bool]:
         """Called with a progress value between 0.0 and 1.0. Pass NULL to disable.
-        
+
         If the provided progress_callback returns true, model loading continues.
         If it returns false, model loading is immediately aborted.
 
@@ -3112,7 +3112,7 @@ cdef class LlamaModelParams:
     # @property
     # def kv_overrides(self) -> list[str]:
     #     """override key-value pairs of the model meta data
-        
+
     #     const llama_model_kv_override * kv_overrides
     #     """
     #     return self.p.kv_overrides
@@ -3277,7 +3277,7 @@ cdef class LlamaModel:
 
         # with suppress_stdout_stderr(disable=verbose):
         self.ptr = llama_cpp.llama_load_model_from_file(
-            self.path_model.encode("utf-8"), 
+            self.path_model.encode("utf-8"),
             self.params.p
         )
 
@@ -3504,7 +3504,7 @@ cdef class LlamaModel:
 
         text: string to be converted into token.
         add_special: Allow to add BOS and EOS tokens if model is configured to do so.
-        parse_special: Allow tokenizing special and/or control tokens which otherwise 
+        parse_special: Allow tokenizing special and/or control tokens which otherwise
                        are not exposed and treated as plaintext. Does not insert a leading space.
         Returns the number of tokens on success, no more than n_tokens_max
         Returns a negative number on failure - the number of tokens that would have been returned
@@ -3536,10 +3536,10 @@ cdef class LlamaModel:
 
     def detokenize(self, tokens: list[int], text_len_max: int = 1024, remove_special: bool = False, unparse_special: bool = False) -> str:
         """Convert the provided tokens into text (inverse of llama_tokenize()).
-        
+
         @param text The char pointer must be large enough to hold the resulting text.
         @param remove_special Allow to remove BOS and EOS tokens if model is configured to do so.
-        @param unparse_special If true, special tokens are rendered in the output.        
+        @param unparse_special If true, special tokens are rendered in the output.
 
         @return Returns the number of chars/bytes on success, no more than text_len_max.
         @return Returns a negative number on failure - the number of chars/bytes that would have been returned.
@@ -3552,9 +3552,9 @@ cdef class LlamaModel:
             vec.push_back(i)
 
         cdef int32_t res = llama_cpp.llama_detokenize(
-            self.ptr, 
+            self.ptr,
             <const llama_cpp.llama_token *>vec.data(),
-            vec.size(), 
+            vec.size(),
             buf,
             text_len_max,
             remove_special,
@@ -3570,10 +3570,9 @@ cdef class LlamaModel:
 
     # chat template
 
-
     def chat_apply_template(self, str tmpl, list[LlamaChatMessage] msgs, bint add_assistant_msg) -> str:
         """Apply chat template. Inspired by hf apply_chat_template() on python.
-        
+
         Both "model" and "custom_template" are optional, but at least one is required. "custom_template" has higher precedence than "model"
         NOTE: This function does not use a jinja parser. It only support a pre-defined list of template. See more: https://github.com/ggerganov/llama.cpp/wiki/Templates-supported-by-llama_chat_apply_template
         @param tmpl A Jinja template to use for this chat. If this is nullptr, the model’s default chat template will be used instead.
@@ -3594,6 +3593,12 @@ cdef class LlamaModel:
         cdef str result = buf.decode()
         free(buf)
         return result
+
+    def get_builtin_chat_template(self) -> str:
+        """Get the built-in chat template for the model.
+
+        Return empty string if not present."""
+        return llama_cpp.common_get_builtin_chat_template(self.ptr).decode()
 
 
     # Extra
@@ -3969,7 +3974,7 @@ cdef class LlamaContext:
 
     def lora_adapter_set(self, LlamaLoraAdapter adapter, float scale):
         """Add a loaded LoRA adapter to given context
-        
+
         This will not modify model's weight
         """
         cdef int32_t res = llama_cpp.llama_lora_adapter_set(
@@ -3995,12 +4000,12 @@ cdef class LlamaContext:
     def control_vector_apply(self, data: list[float], n_embd: int, il_start: int, il_end: int) -> int:
         """Apply a loaded control vector to a llama_context, or if data is NULL, clear
         the currently loaded vector.
-        
+
         `n_embd` should be the size of a single layer's control, and data should point
         to an n_embd x n_layers buffer starting from layer 1.
 
         `il_start` and `il_end` are the layer range the vector should apply to (both inclusive)
-        
+
         See llama_control_vector_load in common to load a control vector.
         """
         cdef vector[float] vec
@@ -4025,7 +4030,7 @@ cdef class LlamaContext:
 
     def kv_cache_seq_rm(self, seq_id: int, p0: int, p1: int):
         """Removes all tokens that belong to the specified sequence and have positions in [p0, p1)
-        
+
         Returns false if a partial sequence cannot be removed. Removing a whole sequence never fails
         seq_id < 0 : match any sequence
         p0 < 0     : [0,  p1]
@@ -4035,7 +4040,7 @@ cdef class LlamaContext:
 
     def kv_cache_seq_cp(self, seq_id_src: int, seq_id_dst: int, p0: int, p1: int):
         """Copy all tokens that belong to the specified sequence to another sequence
-        
+
         Note that this does not allocate extra KV cache memory - it simply assigns the tokens to the new sequence
         p0 < 0 : [0,  p1]
         p1 < 0 : [p0, inf)
@@ -4048,7 +4053,7 @@ cdef class LlamaContext:
 
     def kv_cache_seq_shift(self, seq_id: int, p0: int, p1: int, shift: int):
         """Adds relative position "delta" to all tokens that belong to the specified sequence and have positions in [p0, p1)
-        
+
         If the KV cache is RoPEd, the KV data is updated accordingly:
           - lazily on next llama_decode()
           - explicitly with llama_kv_cache_update()
@@ -4059,7 +4064,7 @@ cdef class LlamaContext:
 
     def kv_cache_seq_div(self, seq_id: int, p0: int, p1: int, d: int):
         """Adds relative position "delta" to all tokens that belong to the specified sequence and have positions in [p0, p1)
-        
+
         If the KV cache is RoPEd, the KV data is updated accordingly:
           - lazily on next llama_decode()
           - explicitly with llama_kv_cache_update()
@@ -4075,14 +4080,14 @@ cdef class LlamaContext:
 
     def kv_cache_defrag(self):
         """Defragment the KV cache
-        
+
         This will be applied:
         - lazily on next llama_decode()
         - explicitly with llama_kv_cache_update()
         """
         llama_cpp.llama_kv_cache_defrag(self.ptr)
 
-    
+
     def kv_cache_update(self):
         """Apply the KV cache updates (such as K-shifts, defragmentation, etc.)"""
         llama_cpp.llama_kv_cache_update(self.ptr)
@@ -4105,7 +4110,7 @@ cdef class LlamaContext:
 
     def get_state_data(self) -> list[int]:
         """Copies the state to the specified destination address.
-        
+
         Destination needs to have allocated enough memory.
         Returns the number of bytes copied
         """
@@ -4131,8 +4136,8 @@ cdef class LlamaContext:
         cdef llama_cpp.llama_token * tokens_out = NULL
         cdef size_t * n_token_count_out = NULL
         cdef bint loaded = llama_cpp.llama_state_load_file(
-            self.ptr, 
-            path_session.encode(), 
+            self.ptr,
+            path_session.encode(),
             tokens_out,
             max_n_tokens,
             n_token_count_out)
@@ -4177,7 +4182,7 @@ cdef class LlamaContext:
          - Zero: Failed to load
         """
         cdef vector[int] vec
-        cdef size_t res = 0 
+        cdef size_t res = 0
         for i in src:
             vec.push_back(i)
         res = llama_cpp.llama_state_seq_set_data(
@@ -4206,7 +4211,7 @@ cdef class LlamaContext:
         cdef size_t * n_token_count_out = NULL
         cdef size_t loaded = llama_cpp.llama_state_seq_load_file(
             self.ptr,
-            filepath.encode(), 
+            filepath.encode(),
             dest_seq_id,
             tokens_out,
             max_n_tokens,
@@ -4233,7 +4238,7 @@ cdef class LlamaContext:
 
     def decode(self, LlamaBatch batch):
         """Positive return values does not mean a fatal error, but rather a warning.
-          
+
           0 - success
           1 - could not find a KV slot for the batch (try reducing the size of the batch or increase the context)
         < 0 - error
@@ -4247,7 +4252,7 @@ cdef class LlamaContext:
 
     def set_n_threads(self, n_threads: int, n_threads_batch: int):
         """Set the number of threads used for decoding
-        
+
         n_threads is the number of threads used for generation (single token)
         n_threads_batch is the number of threads used for prompt and batch processing (multiple tokens)
         """
@@ -4263,7 +4268,7 @@ cdef class LlamaContext:
 
     def set_embeddings_mode(self, embeddings: bool):
         """Set whether the model is in embeddings mode or not
-    
+
         If true, embeddings will be returned but logits will not
         """
         llama_cpp.llama_set_embeddings(self.ptr, embeddings)
@@ -4311,7 +4316,7 @@ cdef class LlamaContext:
         return vec
 
     def get_logits_ith(self, int i):
-        """Logits for the ith token. For positive indices, 
+        """Logits for the ith token. For positive indices,
 
         Equivalent to:
         llama_get_logits(ctx) + ctx->output_ids[i]*n_vocab
@@ -4348,7 +4353,7 @@ cdef class LlamaContext:
 
     def get_embeddings_ith(self, int i):
         """Get the embeddings for the ith token. For positive indices, Equivalent to:
-        
+
         llama_get_embeddings(ctx) + ctx->output_ids[i]*n_embd
         Negative indicies can be used to access embeddings in reverse order, -1 is the last embedding.
         returns NULL for invalid ids.
@@ -4380,7 +4385,7 @@ cdef class LlamaContext:
 
 cdef class LlamaBatch:
     """Input data for llama_decode
-    
+
     A llama_batch object can contain input about one or many sequences
     The provided arrays (i.e. token, embd, pos, etc.) must have size of n_tokens
 
@@ -4402,7 +4407,7 @@ cdef class LlamaBatch:
 
     def __init__(self, *, n_tokens: int, embd: int, n_seq_max: int, verbose: bool = True):
         """Allocates a batch of tokens on the heap that can hold a maximum of `n_tokens`
-        
+
         Each token can be assigned up to `n_seq_max sequence` ids
 
         If `embd != 0`, `llama_batch.embd` will be allocated with size of `n_tokens * embd * sizeof(float)`
@@ -4495,7 +4500,7 @@ cdef class CommonInitResult:
 
 def common_init():
     """call once at the start of a program if it uses libcommon
-    
+
     initializes the logging system and prints info about the build
     """
     llama_cpp.common_init()
@@ -4604,5 +4609,3 @@ def llama_backend_free():
 
 # cdef void ggml_abort(const char * file, int line, const char * fmt):
 #     llama_cpp.ggml_abort(file, line, fmt)
-
-

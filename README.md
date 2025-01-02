@@ -4,7 +4,7 @@ This project provides a cython wrapper for @ggerganov's [llama.cpp](https://gith
 
 Development goals are to:
 
-- Stay up-to-date with bleeding-edge `llama.cpp` (last stable build with llama.cpp `b4381`)
+- Stay up-to-date with bleeding-edge `llama.cpp` (last stable build with llama.cpp `b4393`)
 
 - Produce a minimal, performant, compiled, thin python wrapper around the core `llama-cli` feature-set of `llama.cpp`.
 
@@ -116,9 +116,9 @@ If all tests pass, you can type `python3 -i scripts/start.py` or `ipython -i scr
 
 ```python
 >>> from cyllama import Llama
->>> llm = Llama(model_path='models/Llama-3.2-1B-Instruct-Q8_0.gguf')
+>>> llm = Llama('models/Llama-3.2-1B-Instruct-Q8_0.gguf')
 >>> llm.ask("what is the age of the universe?")
-'estimated age of the universe\nThe estimated age of the universe is around 13.8 billion years'
+'The estimated age of the universe is around 13.8 billion years'
 ```
 
 

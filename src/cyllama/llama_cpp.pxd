@@ -469,7 +469,7 @@ cdef extern from "llama.h":
         int32_t n_gpu_layers           # number of layers to store in VRAM
         llama_split_mode split_mode    # how to split the model across multiple GPUs
         int32_t main_gpu               # the GPU that is used for the entire model when split_mode is LLAMA_SPLIT_MODE_NONE
-        const float * tensor_split     # proportion of the model (layers or rows) to offload to each GPU, size: llama_max_devices() 
+        const float * tensor_split     # proportion of the model (layers or rows) to offload to each GPU, size: llama_max_devices()
         const char * rpc_servers       # comma separated list of RPC servers to use for offloading
         # Called with a progress value between 0.0 and 1.0. Pass NULL to disable.
         # If the provided progress_callback returns true, model loading continues.
@@ -1124,7 +1124,7 @@ cdef extern from "llama.h":
 
     # -------------------------------------------------------------------------
     # Sampling API
- 
+
     # Sample usage:
     #
     #    # prepare the sampling chain at the start
@@ -1170,7 +1170,7 @@ cdef extern from "llama.h":
         void                   (*apply) (      llama_sampler * smpl, llama_token_data_array * cur_p) # required
         void                   (*reset) (      llama_sampler * smpl)                                 # can be NULL
         llama_sampler *        (*clone) (const llama_sampler * smpl)                                 # can be NULL if ctx is NULL
-        void                   (*free)  (      llama_sampler * smpl)      
+        void                   (*free)  (      llama_sampler * smpl)
 
     ctypedef struct llama_sampler:
         llama_sampler_i * iface
@@ -1305,7 +1305,7 @@ cdef extern from "llama.h":
     #    return cur_p.data[cur_p.selected].id
     #
     # At this point, this is mostly a convenience function.
-    
+
     cdef llama_token llama_sampler_sample(llama_sampler * smpl, llama_context * ctx, int32_t idx)
 
     # TODO: extend in the future
@@ -1661,7 +1661,7 @@ cdef extern from "common.h":
 
         std_vector[std_string] api_keys
 
-        std_string ssl_file_key 
+        std_string ssl_file_key
         std_string ssl_file_cert
 
         bint webui
@@ -1743,16 +1743,16 @@ cdef extern from "common.h":
         const llama_model_params & params)
 
     # Token utils
-    
+
     # longest common prefix
     cdef size_t common_lcp(const llama_tokens & a, const llama_tokens & b)
-    
+
     # longet common subsequence
     cdef size_t common_lcs(const llama_tokens & a, const llama_tokens & b)
-    
+
 
     # -------------------------------------------------------------------------
-    # String utils    
+    # String utils
 
     cdef std_string string_from(bint value)
     cdef std_string string_from(const std_vector[int] & values)
@@ -1773,7 +1773,7 @@ cdef extern from "common.h":
     cdef llama_model_params common_model_params_to_llama(common_params & params)
     cdef llama_context_params common_context_params_to_llama(const common_params & params)
     cdef ggml_threadpool_params ggml_threadpool_params_from_cpu_params(const cpu_params & params);
-    
+
     cdef llama_model * common_load_model_from_url(const std_string & model_url, const std_string & local_path, const std_string & hf_token, const llama_model_params & params)
     cdef llama_model * common_load_model_from_hf(const std_string & repo, const std_string & remote_path, const std_string & local_path, const std_string & hf_token, const llama_model_params & params)
 
@@ -1823,6 +1823,9 @@ cdef extern from "common.h":
     ctypedef struct common_chat_msg:
         std_string role
         std_string content
+
+    #  Get the built-in chat template for the model. Return empty string if not present.
+    cdef std_string common_get_builtin_chat_template(const llama_model * model)
 
     # Check if the template supplied via "--chat-template" is supported or not. Returns true if it's valid
     cdef bint common_chat_verify_template(const std_string & tmpl)
@@ -1966,7 +1969,7 @@ cdef extern from "log.h":
 #------------------------------------------------------------------------------
 # arg.h
 
-cdef extern from "arg.h":      
+cdef extern from "arg.h":
 
     ctypedef struct common_arg:
         std_set[llama_example] examples
@@ -1995,7 +1998,7 @@ cdef extern from "arg.h":
     cdef bint common_params_parse(int argc, char ** argv, common_params & params, llama_example ex, print_usage callback)
 
     # function to be used by test-arg-parser
-    cdef common_params_context common_params_parser_init(common_params & params, llama_example ex, print_usage callback)    
+    cdef common_params_context common_params_parser_init(common_params & params, llama_example ex, print_usage callback)
 
 #------------------------------------------------------------------------------
 cdef extern from "clip.h":
@@ -2116,5 +2119,3 @@ cdef extern from "llava.h":
 
 cdef extern from "llamalib.h":
     cdef std_string simple_prompt(const std_string model_path, const std_string prompt, const int n_predict, const int n_ctx, bint disable_log, int n_threads)
-
-
