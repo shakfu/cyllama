@@ -29,7 +29,7 @@ get_llamacpp() {
 	mkdir -p build ${INCLUDE} && \
 		cd build && \
 		if [ ! -d "llama.cpp" ]; then
-			git clone --depth 1 ${BRANCH} --recursive https://github.com/ggerganov/llama.cpp.git
+			git clone --depth 1 ${BRANCH} --recursive https://github.com/ggml-org/llama.cpp.git
 		fi && \
 		cd llama.cpp && \
 		cp common/*.h ${INCLUDE} && \
@@ -60,7 +60,7 @@ get_llamacpp_shared() {
 	mkdir -p build ${INCLUDE} && \
 		cd build && \
 		if [ ! -d "llama.cpp" ]; then
-			git clone --depth 1 --recursive https://github.com/ggerganov/llama.cpp.git
+			git clone --depth 1 --recursive https://github.com/ggml-org/llama.cpp.git
 		fi && \
 		cd llama.cpp && \
 		cp common/*.h ${INCLUDE} && \

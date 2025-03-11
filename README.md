@@ -2,9 +2,19 @@
 
 This project provides a cython wrapper for @ggerganov's [llama.cpp](https://github.com/ggerganov/llama.cpp) which is likely the most active open-source compiled LLM inference engine. It was spun-off from my earlier, now frozen, llama.cpp wrapper project, [llamalib](https://github.com/shakfu/llamalib)  which provided early stage, but functional, wrappers using [cython](https://github.com/cython/cython), [pybind11](https://github.com/pybind/pybind11), and [nanobind](https://github.com/wjakob/nanobind). Further development of `cyllama`, the cython wrapper from `llamalib`, will continue in this project.
 
+## Pause in Development
+
+Development in this project is temporarily paused to llama.cpp `b4381` (which can be built without errors and with all tests passing -- see below) due to the extremely fast pace of development of `llama.cpp`, and the lack of a stable reference api.
+
+Further development of this wrapper will resume when there is a stable reference implementation and api which can be wrapped, otherwise one has to update the wrapper code several times a day, which is not so interesting as an open-source project!
+
+The normal documentaton of this project follows:
+
+## Overview
+
 Development goals are to:
 
-- Stay up-to-date with bleeding-edge `llama.cpp` (last stable build with llama.cpp `b4381`)
+- Stay up-to-date with bleeding-edge `llama.cpp` (last stable build with llama.cpp `b4381`).
 
 - Produce a minimal, performant, compiled, thin python wrapper around the core `llama-cli` feature-set of `llama.cpp`.
 
