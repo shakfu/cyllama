@@ -283,9 +283,11 @@ cdef extern from "llama.h":
 
     long LLAMA_DEFAULT_SEED
 
+    ctypedef struct llama_vocab: pass
     ctypedef struct llama_model: pass
     ctypedef struct llama_context: pass
     ctypedef struct llama_sampler: pass
+    ctypedef struct llama_kv_cache: pass
 
     ctypedef int32_t llama_pos
     ctypedef int32_t llama_token
@@ -329,6 +331,12 @@ cdef extern from "llama.h":
         LLAMA_VOCAB_PRE_TYPE_EXAONE
         LLAMA_VOCAB_PRE_TYPE_CHAMELEON
         LLAMA_VOCAB_PRE_TYPE_MINERVA
+        LLAMA_VOCAB_PRE_TYPE_DEEPSEEK3_LLM
+        LLAMA_VOCAB_PRE_TYPE_GPT4O
+        LLAMA_VOCAB_PRE_TYPE_SUPERBPE
+        LLAMA_VOCAB_PRE_TYPE_TRILLION
+        LLAMA_VOCAB_PRE_TYPE_BAILINGMOE
+        LLAMA_VOCAB_PRE_TYPE_LLAMA4
 
     cdef enum llama_rope_type:
         LLAMA_ROPE_TYPE_NONE   = -1
@@ -464,13 +472,18 @@ cdef extern from "llama.h":
         bint    val_bool
         char    val_str[128]
 
+    ctypedef struct llama_model_tensor_buft_override:
+       const char * pattern
+       ggml_backend_buffer_type_t buft
+
     ctypedef struct llama_model_params:
         ggml_backend_dev_t * devices   # NULL-terminated list of devices to use for offloading (if NULL, all available devices are used)
+        # NULL-terminated list of buffer types to use for tensors that match a pattern
+        const struct llama_model_tensor_buft_override * tensor_buft_overrides;
         int32_t n_gpu_layers           # number of layers to store in VRAM
         llama_split_mode split_mode    # how to split the model across multiple GPUs
         int32_t main_gpu               # the GPU that is used for the entire model when split_mode is LLAMA_SPLIT_MODE_NONE
         const float * tensor_split     # proportion of the model (layers or rows) to offload to each GPU, size: llama_max_devices()
-        const char * rpc_servers       # comma separated list of RPC servers to use for offloading
         # Called with a progress value between 0.0 and 1.0. Pass NULL to disable.
         # If the provided progress_callback returns true, model loading continues.
         # If it returns false, model loading is immediately aborted.
@@ -547,7 +560,8 @@ cdef extern from "llama.h":
         const char * role
         const char * content
 
-    ctypedef struct llama_lora_adapter: pass
+    # TODO: rename to llama_adapter_lora
+    ctypedef struct llama_adapter_lora: pass
 
 
     # -------------------------------------------------------------------------
@@ -565,6 +579,9 @@ cdef extern from "llama.h":
     # Call once at the start of the program
     cdef void llama_backend_init()
 
+    # Call once at the end of the program - currently only used for MPI
+    cdef void llama_backend_free()
+
     #optional:
     cdef void llama_numa_init(ggml_numa_strategy numa)
 
@@ -572,17 +589,23 @@ cdef extern from "llama.h":
     cdef void llama_attach_threadpool(llama_context * ctx, ggml_threadpool_t threadpool, ggml_threadpool_t threadpool_batch)
     cdef void llama_detach_threadpool(llama_context * ctx)
 
-    # Call once at the end of the program - currently only used for MPI
-    cdef void llama_backend_free()
-
-    cdef llama_model * llama_load_model_from_file(
+    # Load the model from a file
+    # If the file is split into multiple parts, the file name must follow this pattern: <name>-%05d-of-%05d.gguf
+    # If the split file name does not follow this pattern, use llama_model_load_from_splits
+    cdef llama_model * llama_model_load_from_file(
             const char * path_model,
             llama_model_params params)
 
-    cdef void llama_free_model(llama_model * model)
+    # Load the model from multiple splits (support custom naming scheme)
+    # The paths must be in the correct order
+    cdef llama_model * llama_model_load_from_splits(
+                             const char ** paths,
+                                 size_t    n_paths,
+                     llama_model_params    params)
+    
+    cdef void llama_model_free(llama_model * model)
 
-    # TODO: rename to llama_init_from_model
-    cdef llama_context * llama_new_context_with_model(
+    cdef llama_context * llama_init_from_model(
                      llama_model * model,
             llama_context_params   params)
 
@@ -603,20 +626,26 @@ cdef extern from "llama.h":
     cdef uint32_t llama_n_ubatch   (const llama_context * ctx)
     cdef uint32_t llama_n_seq_max  (const llama_context * ctx)
 
-    cdef int32_t llama_n_vocab    (const llama_model * model)
-    cdef int32_t llama_n_ctx_train(const llama_model * model)
-    cdef int32_t llama_n_embd     (const llama_model * model)
-    cdef int32_t llama_n_layer    (const llama_model * model)
-    cdef int32_t llama_n_head     (const llama_model * model)
-
     cdef const llama_model * llama_get_model(const llama_context * ctx)
+    cdef llama_kv_cache * llama_get_kv_self(      llama_context * ctx)
+    # cdef llama_pooling_type llama_pooling_type(const llama_context * ctx) # TODO: rename to llama_get_pooling_type
 
-    cdef llama_pooling_type get_llama_pooling_type "llama_pooling_type" (const llama_context * ctx)
-    cdef llama_vocab_type   get_llama_vocab_type "llama_vocab_type" (const llama_model * model)
-    cdef llama_rope_type    get_llama_rope_type  "llama_rope_type" (const llama_model * model)
+    cdef llama_pooling_type  llama_get_pooling_type "llama_pooling_type" (const llama_context * ctx)
+    cdef const llama_vocab * llama_model_get_vocab(const llama_model * model)
+    cdef llama_rope_type     llama_model_rope_type(const llama_model * model)
+
+    cdef int32_t llama_model_n_ctx_train(const llama_model * model)
+    cdef int32_t llama_model_n_embd     (const llama_model * model)
+    cdef int32_t llama_model_n_layer    (const llama_model * model)
+    cdef int32_t llama_model_n_head     (const llama_model * model)
+    cdef int32_t llama_model_n_head_kv  (const llama_model * model)
 
     # Get the model's RoPE frequency scaling factor
-    cdef float llama_rope_freq_scale_train(const llama_model * model)
+    cdef float llama_model_rope_freq_scale_train(const llama_model * model)
+
+    cdef llama_vocab_type llama_vocab_type(const llama_vocab * vocab)
+
+    cdef int32_t llama_vocab_n_tokens(const llama_vocab * vocab)
 
     # Functions to access the model's GGUF metadata scalar values
     # - The functions return the length of the string on success, or -1 on failure
@@ -641,6 +670,10 @@ cdef extern from "llama.h":
 
     # Returns the total size of all the tensors in the model in bytes
     cdef uint64_t llama_model_size(const llama_model * model)
+
+    # Get the default chat template. Returns nullptr if not available
+    # If name is NULL, returns the default chat template
+    cdef const char * llama_model_chat_template(const llama_model * model, const char * name)
 
     # Returns the total number of parameters in the model
     cdef uint64_t llama_model_n_params(const llama_model * model)
@@ -667,29 +700,35 @@ cdef extern from "llama.h":
             const char * fname_out,
             const llama_model_quantize_params * params)
 
+    #
+    # Adapters
+    #
+
     # Load a LoRA adapter from file
-    # The loaded adapter will be associated to the given model, and will be free when the model is deleted
-    cdef llama_lora_adapter * llama_lora_adapter_init(llama_model * model, const char * path_lora)
+    # TODO: rename to llama_adapter_lora_init
+    cdef llama_adapter_lora * llama_adapter_lora_init(llama_model * model, const char * path_lora)
+
+    # Manually free a LoRA adapter
+    # Note: loaded adapters will be free when the associated model is deleted
+    cdef void llama_adapter_lora_free(llama_adapter_lora * adapter)
+
+    # The following functions operate on a llama_context, hence the naming: llama_verb_...
 
     # Add a loaded LoRA adapter to given context
     # This will not modify model's weight
-    cdef int32_t llama_lora_adapter_set(
+    cdef int32_t llama_set_adapter_lora(
             llama_context * ctx,
-            llama_lora_adapter * adapter,
+            llama_adapter_lora * adapter,
             float scale)
 
     # Remove a specific LoRA adapter from given context
     # Return -1 if the adapter is not present in the context
-    cdef int32_t llama_lora_adapter_remove(
+    cdef int32_t llama_rm_adapter_lora(
             llama_context * ctx,
-            llama_lora_adapter * adapter)
+            llama_adapter_lora * adapter)
 
     # Remove all LoRA adapters from given context
-    cdef void llama_lora_adapter_clear(llama_context * ctx)
-
-    # Manually free a LoRA adapter
-    # Note: loaded adapters will be free when the associated model is deleted
-    cdef void llama_lora_adapter_free(llama_lora_adapter * adapter)
+    cdef void llama_clear_adapter_lora(llama_context * ctx)
 
     # Apply a loaded control vector to a llama_context, or if data is NULL, clear
     # the currently loaded vector.
@@ -697,8 +736,8 @@ cdef extern from "llama.h":
     # to an n_embd x n_layers buffer starting from layer 1.
     # il_start and il_end are the layer range the vector should apply to (both inclusive)
     # See llama_control_vector_load in common to load a control vector.
-    cdef int32_t llama_control_vector_apply(
-            llama_context * lctx,
+    cdef int32_t llama_apply_adapter_cvec(
+            llama_context * ctx,
                      const float * data,
                           size_t   len,
                          int32_t   n_embd,
@@ -708,6 +747,8 @@ cdef extern from "llama.h":
 
     # -------------------------------------------------------------------------
     # KV cache
+
+    # TODO: start using struct llama_kv_cache
 
     ctypedef struct llama_kv_cache_view_cell:
         # The position for this cell. Takes KV cache shifts into account.
@@ -756,13 +797,13 @@ cdef extern from "llama.h":
 
     # Returns the number of tokens in the KV cache (slow, use only for debug)
     # If a KV cell has multiple sequences assigned to it, it will be counted multiple times
-    cdef int32_t llama_get_kv_cache_token_count(const llama_context * ctx)
+    cdef int32_t llama_kv_self_n_tokens(const struct llama_context * ctx)
 
     # Returns the number of used KV cells (i.e. have at least one sequence assigned to them)
-    cdef int32_t llama_get_kv_cache_used_cells(const llama_context * ctx)
+    cdef int32_t llama_kv_self_used_cells(const llama_context * ctx)
 
     # Clear the KV cache - both cell info is erased and KV data is zeroed
-    cdef void llama_kv_cache_clear(llama_context * ctx)
+    cdef void llama_kv_self_clear(llama_context * ctx)
 
 
     # Removes all tokens that belong to the specified sequence and have positions in [p0, p1)
@@ -770,7 +811,7 @@ cdef extern from "llama.h":
     # seq_id < 0 : match any sequence
     # p0 < 0     : [0,  p1]
     # p1 < 0     : [p0, inf)
-    cdef bint llama_kv_cache_seq_rm(
+    cdef bint llama_kv_self_seq_rm(
             llama_context * ctx,
                     llama_seq_id   seq_id,
                        llama_pos   p0,
@@ -780,7 +821,7 @@ cdef extern from "llama.h":
     # Note that this does not allocate extra KV cache memory - it simply assigns the tokens to the new sequence
     # p0 < 0 : [0,  p1]
     # p1 < 0 : [p0, inf)
-    cdef void llama_kv_cache_seq_cp(
+    cdef void llama_kv_self_seq_cp(
             llama_context * ctx,
                     llama_seq_id   seq_id_src,
                     llama_seq_id   seq_id_dst,
@@ -788,17 +829,17 @@ cdef extern from "llama.h":
                        llama_pos   p1)
 
     # Removes all tokens that do not belong to the specified sequence
-    cdef void llama_kv_cache_seq_keep(
+    cdef void llama_kv_self_seq_keep(
             llama_context * ctx,
                     llama_seq_id   seq_id)
 
     # Adds relative position "delta" to all tokens that belong to the specified sequence and have positions in [p0, p1)
     # If the KV cache is RoPEd, the KV data is updated accordingly:
     #   - lazily on next llama_decode()
-    #   - explicitly with llama_kv_cache_update()
+    #   - explicitly with llama_kv_self_update()
     # p0 < 0 : [0,  p1]
     # p1 < 0 : [p0, inf)
-    cdef void llama_kv_cache_seq_add(
+    cdef void llama_kv_self_seq_add(
             llama_context * ctx,
                     llama_seq_id   seq_id,
                        llama_pos   p0,
@@ -808,10 +849,10 @@ cdef extern from "llama.h":
     # Integer division of the positions by factor of `d > 1`
     # If the KV cache is RoPEd, the KV data is updated accordingly:
     #   - lazily on next llama_decode()
-    #   - explicitly with llama_kv_cache_update()
+    #   - explicitly with llama_kv_self_update()
     # p0 < 0 : [0,  p1]
     # p1 < 0 : [p0, inf)
-    cdef void llama_kv_cache_seq_div(
+    cdef void llama_kv_self_seq_div(
             llama_context * ctx,
                     llama_seq_id   seq_id,
                        llama_pos   p0,
@@ -819,21 +860,21 @@ cdef extern from "llama.h":
                              int   d)
 
     # Returns the largest position present in the KV cache for the specified sequence
-    cdef llama_pos llama_kv_cache_seq_pos_max(
+    cdef llama_pos llama_kv_self_seq_pos_max(
             llama_context * ctx,
                     llama_seq_id   seq_id)
 
     # Defragment the KV cache
     # This will be applied:
     #   - lazily on next llama_decode()
-    #   - explicitly with llama_kv_cache_update()
-    cdef void llama_kv_cache_defrag(llama_context * ctx)
+    #   - explicitly with llama_kv_self_update()
+    cdef void llama_kv_self_defrag(llama_context * ctx)
 
     # Apply the KV cache updates (such as K-shifts, defragmentation, etc.)
-    cdef void llama_kv_cache_update(llama_context * ctx)
+    cdef void llama_kv_self_update(llama_context * ctx)
 
     # Check if the context supports KV cache shifting
-    cdef bint llama_kv_cache_can_shift(llama_context * ctx)
+    cdef bint llama_kv_self_can_shift(llama_context * ctx)
 
     # -------------------------------------------------------------------------
     # State / sessions
@@ -1015,37 +1056,36 @@ cdef extern from "llama.h":
     # -------------------------------------------------------------------------
     # Vocab
 
-    cdef const char * llama_token_get_text(const llama_model * model, llama_token token)
+    cdef const char * llama_vocab_get_text(const struct llama_vocab * vocab, llama_token token)
 
-    cdef float llama_token_get_score(const llama_model * model, llama_token token)
+    cdef float llama_vocab_get_score(const llama_vocab * vocab, llama_token token)
 
-    cdef llama_token_attr llama_token_get_attr(const llama_model * model, llama_token token)
+    cdef llama_token_attr llama_vocab_get_attr(const llama_vocab * model, llama_token token)
 
     # Check if the token is supposed to end generation (end-of-generation, eg. EOS, EOT, etc.)
-    cdef bint llama_token_is_eog(const llama_model * model, llama_token token)
+    cdef bint llama_vocab_is_eog(const llama_vocab * vocab, llama_token token)
 
     # Identify if Token Id is a control token or a render-able token
-    cdef bint llama_token_is_control(const llama_model * model, llama_token token)
+    cdef bint llama_vocab_is_control(const llama_vocab * vocab, llama_token token)
 
     # Special tokens
-    cdef llama_token llama_token_bos(const llama_model * model) # beginning-of-sentence
-    cdef llama_token llama_token_eos(const llama_model * model) # end-of-sentence
-    cdef llama_token llama_token_eot(const llama_model * model) # end-of-turn
-    cdef llama_token llama_token_cls(const llama_model * model) # classification
-    cdef llama_token llama_token_sep(const llama_model * model) # sentence separator
-    cdef llama_token llama_token_nl (const llama_model * model) # next-line
-    cdef llama_token llama_token_pad(const llama_model * model) # padding
+    cdef llama_token llama_vocab_bos(const llama_vocab * vocab) # beginning-of-sentence
+    cdef llama_token llama_vocab_eos(const llama_vocab * vocab) # end-of-sentence
+    cdef llama_token llama_vocab_eot(const llama_vocab * vocab) # end-of-turn
+    cdef llama_token llama_vocab_cls(const llama_vocab * vocab) # classification
+    cdef llama_token llama_vocab_sep(const llama_vocab * vocab) # sentence separator
+    cdef llama_token llama_vocab_nl (const llama_vocab * vocab) # next-line
+    cdef llama_token llama_vocab_pad(const llama_vocab * vocab) # padding
 
-    cdef int32_t llama_add_bos_token(const llama_model * model)
-    cdef int32_t llama_add_eos_token(const llama_model * model)
+    cdef bint llama_vocab_get_add_bos(const llama_vocab * vocab)
+    cdef bint llama_vocab_get_add_eos(const llama_vocab * vocab)
 
-    # infill tokens
-    cdef llama_token llama_token_fim_pre(const llama_model * model) # Beginning of infill prefix
-    cdef llama_token llama_token_fim_suf(const llama_model * model) # Beginning of infill suffix
-    cdef llama_token llama_token_fim_mid(const llama_model * model) # Beginning of infill middle
-    cdef llama_token llama_token_fim_pad(const llama_model * model)
-    cdef llama_token llama_token_fim_rep(const llama_model * model)
-    cdef llama_token llama_token_fim_sep(const llama_model * model)
+    cdef llama_token llama_vocab_fim_pre(const llama_vocab * vocab)
+    cdef llama_token llama_vocab_fim_suf(const llama_vocab * vocab)
+    cdef llama_token llama_vocab_fim_mid(const llama_vocab * vocab)
+    cdef llama_token llama_vocab_fim_pad(const llama_vocab * vocab)
+    cdef llama_token llama_vocab_fim_rep(const llama_vocab * vocab)
+    cdef llama_token llama_vocab_fim_sep(const llama_vocab * vocab)
 
     # -------------------------------------------------------------------------
     # Tokenization (The API is thread-safe)
@@ -1058,7 +1098,7 @@ cdef extern from "llama.h":
     # @param parse_special Allow tokenizing special and/or control tokens which otherwise are not exposed and treated
     #                      as plaintext. Does not insert a leading space.
     cdef int32_t llama_tokenize(
-        const  llama_model * model,
+        const  llama_vocab * vocab,
                       const char * text,
                          int32_t   text_len,
                      llama_token * tokens,
@@ -1072,7 +1112,7 @@ cdef extern from "llama.h":
     # User can skip up to 'lstrip' leading spaces before copying (useful when encoding/decoding multiple tokens with 'add_space_prefix')
     # @param special If true, special tokens are rendered in the output.
     cdef int32_t llama_token_to_piece(
-              const  llama_model * model,
+              const  llama_vocab * vocab,
                            llama_token   token,
                                   char * buf,
                                int32_t   length,
@@ -1087,7 +1127,7 @@ cdef extern from "llama.h":
     # @param remove_special Allow to remove BOS and EOS tokens if model is configured to do so.
     # @param unparse_special If true, special tokens are rendered in the output.
     cdef int32_t llama_detokenize(
-        const  llama_model * model,
+        const  llama_vocab * vocab,
                const llama_token * tokens,
                          int32_t   n_tokens,
                             char * text,
@@ -1111,9 +1151,8 @@ cdef extern from "llama.h":
     # @param length The size of the allocated buffer
     # @return The total number of bytes of the formatted prompt. If is it larger than the size of buffer, you may need to re-alloc it and then re-apply the template.
     cdef int32_t llama_chat_apply_template(
-              const  llama_model * model,
                             const char * tmpl,
-       const  llama_chat_message * chat,
+             const  llama_chat_message * chat,
                                 size_t   n_msg,
                                   bint   add_ass,
                                   char * buf,
@@ -1159,7 +1198,6 @@ cdef extern from "llama.h":
     #    llama_sampler_free(smpl);
     #
     # TODO: In the future, llama_sampler will be utilized to offload the sampling to the backends (e.g. GPU).
-    # TODO: in the future, the entire sampling API that uses llama_model should start using llama_vocab
 
     ctypedef void * llama_sampler_context_t
 
@@ -1173,10 +1211,11 @@ cdef extern from "llama.h":
         void                   (*free)  (      llama_sampler * smpl)
 
     ctypedef struct llama_sampler:
-        llama_sampler_i * iface
+        const llama_sampler_i * iface
         llama_sampler_context_t ctx
 
     # mirror of llama_sampler_i:
+    cdef llama_sampler *        llama_sampler_init  (const llama_sampler_i * iface, llama_sampler_context_t ctx)
     cdef const char *           llama_sampler_name  (const llama_sampler * smpl)
     cdef void                   llama_sampler_accept(      llama_sampler * smpl, llama_token token)
     cdef void                   llama_sampler_apply (      llama_sampler * smpl, llama_token_data_array * cur_p)
@@ -1228,6 +1267,9 @@ cdef extern from "llama.h":
     # @details XTC sampler as described in https://github.com/oobabooga/text-generation-webui/pull/6335
     cdef llama_sampler * llama_sampler_init_xtc (float p, float t, size_t min_keep, uint32_t seed)
 
+    # @details Top n sigma sampling as described in academic paper "Top-nσ: Not All Logits Are You Need" https://arxiv.org/pdf/2411.07641
+    cdef llama_sampler * llama_sampler_init_top_n_sigma(float n)
+
     # @details Mirostat 1.0 algorithm described in the paper https:#arxiv.org/abs/2007.14966. Uses tokens instead of words.
     # @param candidates A vector of `llama_token_data` containing the candidate tokens, their probabilities (p), and log-odds (logit) for the current position in the generated text.
     # @param tau  The target cross-entropy (or surprise) value you want to achieve for the generated text. A higher value corresponds to more surprising or less predictable text, while a lower value corresponds to less surprising or more predictable text.
@@ -1251,10 +1293,27 @@ cdef extern from "llama.h":
                                    float   tau,
                                    float   eta)
 
+    # @details Intializes a GBNF grammar, see grammars/README.md for details.
+    # @param vocab The vocabulary that this grammar will be used with.
+    # @param grammar_str The production rules for the grammar, encoded as a string. Returns an empty grammar if empty. Returns NULL if parsing of grammar_str fails.
+    # @param grammar_root The name of the start symbol for the grammar.
     cdef llama_sampler * llama_sampler_init_grammar(
-                          const llama_model * model,
+                          const llama_vocab * vocab,
                           const char * grammar_str,
                           const char * grammar_root)
+
+    # @details Lazy grammar sampler, introduced in https://github.com/ggml-org/llama.cpp/pull/9639
+    # @param trigger_patterns A list of patterns that will trigger the grammar sampler. Pattern will be matched from the start of the generation output, and grammar sampler will be fed content starting from its first match group.
+    # @param trigger_tokens A list of tokens that will trigger the grammar sampler. Grammar sampler will be fed content starting from the trigger token included.
+    cdef llama_sampler * llama_sampler_init_grammar_lazy_patterns(
+               const llama_vocab * vocab,
+                      const char * grammar_str,
+                      const char * grammar_root,
+                     const char ** trigger_patterns,
+                            size_t num_trigger_patterns,
+               const llama_token * trigger_tokens,
+                            size_t num_trigger_tokens)
+
 
     # NOTE: Avoid using on the full vocabulary as searching for repeated tokens can become slow. For example, apply top-k or top-p sampling first.
     cdef llama_sampler * llama_sampler_init_penalties(
@@ -1262,6 +1321,17 @@ cdef extern from "llama.h":
                                float   penalty_repeat,   # 1.0 = disabled
                                float   penalty_freq,     # 0.0 = disabled
                                float   penalty_present)  # 0.0 = disabled
+
+    # @details DRY sampler, designed by p-e-w, as described in: https://github.com/oobabooga/text-generation-webui/pull/5677, porting Koboldcpp implementation authored by pi6am: https://github.com/LostRuins/koboldcpp/pull/982
+    cdef llama_sampler * llama_sampler_init_dry(
+                   const llama_vocab *  vocab,
+                             int32_t    n_ctx_train,
+                               float    dry_multiplier,
+                               float    dry_base,
+                             int32_t    dry_allowed_length,
+                             int32_t    dry_penalty_last_n,
+                          const char ** seq_breakers,
+                              size_t    num_breakers)
 
     cdef llama_sampler * llama_sampler_init_logit_bias(
                              int32_t   n_vocab,
@@ -1289,7 +1359,7 @@ cdef extern from "llama.h":
     # 3. discard non-EOG tokens with low prob
     # 4. if no tokens are left -> pick EOT
     #
-    cdef llama_sampler * llama_sampler_init_infill(const llama_model * model)
+    cdef llama_sampler * llama_sampler_init_infill(const struct llama_vocab * vocab)
 
 
     # Returns the seed used by the sampler if applicable, LLAMA_DEFAULT_SEED otherwise
@@ -1371,20 +1441,10 @@ cdef extern from "common.h":
 
     ctypedef std_vector[llama_token] llama_tokens
 
-    cdef cppclass common_lora_adapter_info:
+    ctypedef struct common_lora_adapter_info:
         std_string path
         float scale
-
-    cdef cppclass common_lora_adapter_container(common_lora_adapter_info):
-        llama_lora_adapter * adapter
-
-    # ctypedef struct common_lora_adapter_info:
-    #     std_string path
-    #     float scale
-
-    # inherits from common_lora_adapter_info
-    # ctypedef struct common_lora_adapter_container:
-    #     llama_lora_adapter * adapter
+        llama_adapter_lora * ptr
 
     ctypedef struct common_control_vector_load_info: pass
 
@@ -1580,7 +1640,7 @@ cdef extern from "common.h":
         std_vector[std_string] antiprompt   # strings upon which more user input is prompted (a.k.a. reverse prompts)
         std_vector[llama_model_kv_override] kv_overrides
 
-        bint lora_init_without_apply # only load lora to memory, but do not apply it to ctx (user can manually apply lora later using llama_lora_adapter_apply)
+        bint lora_init_without_apply # only load lora to memory, but do not apply it to ctx (user can manually apply lora later using llama_adapter_lora_apply)
         # vector[common_lora_adapter_info] lora_adapters # lora adapter path with user defined scale
 
         # vector[common_control_vector_load_info] control_vectors # control vector with user defined scale
@@ -1762,11 +1822,11 @@ cdef extern from "common.h":
     # -------------------------------------------------------------------------
     # Model utils
 
+    # note: defines object's lifetime
     ctypedef struct common_init_result:
-        llama_model   * model
-        llama_context * context
-        std_vector[common_lora_adapter_container] lora_adapters
-
+        llama_model_ptr model
+        llama_context_ptr context
+        std_vector[llama_adapter_lora_ptr] lora
 
     cdef common_init_result common_init_from_params(common_params & params)
 
@@ -1778,7 +1838,7 @@ cdef extern from "common.h":
     cdef llama_model * common_load_model_from_hf(const std_string & repo, const std_string & remote_path, const std_string & local_path, const std_string & hf_token, const llama_model_params & params)
 
     # clear LoRA adapters from context, then apply new list of adapters
-    cdef void common_lora_adapters_apply(llama_context * ctx, std_vector[common_lora_adapter_container] & lora_adapters)
+    cdef void common_lora_adapters_apply(llama_context * ctx, std_vector[common_lora_adapter_info] & lora)
 
     # -------------------------------------------------------------------------
     # Batch utils
@@ -1973,6 +2033,7 @@ cdef extern from "arg.h":
 
     ctypedef struct common_arg:
         std_set[llama_example] examples
+        std_set[llama_example] excludes
         std_vector[const char *] args
         const char * value_hint_2   # help text or example for arg value
         const char * value_hint_2   # for second arg value
