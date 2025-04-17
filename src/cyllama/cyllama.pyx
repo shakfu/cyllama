@@ -13,7 +13,7 @@ classes:
     LlamaSamplerChainParams
     LlamaSampler
     LlamaChatMessage
-    CommonChatMsg
+    - CommonChatMsg
     CommonSampler
     CpuParams
     CommonParams
@@ -1051,35 +1051,35 @@ cdef class LlamaChatMessage:
 
 
 
-cdef class CommonChatMsg:
-    """cython wrapper for llama_cpp.common_chat_msg"""
-    cdef llama_cpp.common_chat_msg p
+# cdef class CommonChatMsg:
+#     """cython wrapper for llama_cpp.common_chat_msg"""
+#     cdef llama_cpp.common_chat_msg p
 
-    def __init__(self, str role, str content):
-        self.p.role = role.encode()
-        self.p.content = content.encode()
+#     def __init__(self, str role, str content):
+#         self.p.role = role.encode()
+#         self.p.content = content.encode()
 
-    @staticmethod
-    cdef CommonChatMsg from_instance(llama_cpp.common_chat_msg msg):
-        cdef CommonChatMsg wrapper = CommonChatMsg.__new__(CommonChatMsg)
-        wrapper.p = msg
-        return wrapper
+#     @staticmethod
+#     cdef CommonChatMsg from_instance(llama_cpp.common_chat_msg msg):
+#         cdef CommonChatMsg wrapper = CommonChatMsg.__new__(CommonChatMsg)
+#         wrapper.p = msg
+#         return wrapper
 
-    @property
-    def role(self) -> str:
-        return self.p.role.decode()
+#     @property
+#     def role(self) -> str:
+#         return self.p.role.decode()
 
-    @role.setter
-    def role(self, str value):
-        self.p.role = value.encode()
+#     @role.setter
+#     def role(self, str value):
+#         self.p.role = value.encode()
 
-    @property
-    def content(self) -> str:
-        return self.p.content.decode()
+#     @property
+#     def content(self) -> str:
+#         return self.p.content.decode()
 
-    @content.setter
-    def content(self, str value):
-        self.p.content = value.encode()
+#     @content.setter
+#     def content(self, str value):
+#         self.p.content = value.encode()
 
 
 
@@ -1691,14 +1691,27 @@ cdef class CommonParamsVocoder:
     def model(self, value: str):
         self.p.model = value.encode()
 
-    @property
-    def model_url(self) -> str:
-        """model url to download."""
-        return self.p.model_url.decode()
+    # @property
+    # def model_url(self) -> str:
+    #     """model url to download."""
+    #     return self.p.model_url.decode()
 
-    @model_url.setter
-    def model_url(self, value: str):
-        self.p.model_url = value.encode()
+    # @model_url.setter
+    # def model_url(self, value: str):
+    #     self.p.model_url = value.encode()
+
+
+# cdef class CommonParamsModel:
+#     cdef llama_cpp.common_params_model m
+
+#     @property
+#     def path(self) -> str:
+#         """model path"""
+#         return self.p.model.decode()
+
+#     @path.setter
+#     def path(self, value: str):
+#         self.m.path = value.encode()
 
 
 cdef class CommonParams:
@@ -2014,11 +2027,11 @@ cdef class CommonParams:
     @property
     def model(self) -> str:
         """model path"""
-        return self.p.model.decode()
+        return self.p.model.path.decode()
 
     @model.setter
     def model(self, value: str):
-        self.p.model = value.encode('utf8')
+        self.p.model.path = value.encode('utf8')
 
     @property
     def model_alias(self) -> str:
@@ -2029,14 +2042,14 @@ cdef class CommonParams:
     def model_alias(self, value: str):
         self.p.model_alias = value.encode('utf8')
 
-    @property
-    def model_url(self) -> str:
-        """model url to download """
-        return self.p.model_url.decode()
+    # @property
+    # def model_url(self) -> str:
+    #     """model url to download """
+    #     return self.p.model_url.decode()
 
-    @model_url.setter
-    def model_url(self, value: str):
-        self.p.model_url = value.encode('utf8')
+    # @model_url.setter
+    # def model_url(self, value: str):
+    #     self.p.model_url = value.encode('utf8')
 
     @property
     def hf_token(self) -> str:
@@ -2047,23 +2060,33 @@ cdef class CommonParams:
     def hf_token(self, value: str):
         self.p.hf_token = value.encode('utf8')
 
+    # @property
+    # def hf_repo(self) -> str:
+    #     """hf repo"""
+    #     return self.p.hf_repo.decode()
+
+    # @hf_repo.setter
+    # def hf_repo(self, value: str):
+    #     self.p.hf_repo = value.encode('utf8')
+
+    # @property
+    # def hf_file(self) -> str:
+    #     """hf file"""
+    #     return self.p.hf_file.decode()
+
+    # @hf_file.setter
+    # def hf_file(self, value: str):
+    #     self.p.hf_file = value.encode('utf8')
+
     @property
-    def hf_repo(self) -> str:
-        """hf repo"""
-        return self.p.hf_repo.decode()
+    def system_prompt(self) -> str:
+        """the system_prompt text"""
+        return self.p.system_prompt.decode()
 
-    @hf_repo.setter
-    def hf_repo(self, value: str):
-        self.p.hf_repo = value.encode('utf8')
+    @system_prompt.setter
+    def system_prompt(self, value: str):
+        self.p.system_prompt = value.encode('utf8')
 
-    @property
-    def hf_file(self) -> str:
-        """hf file"""
-        return self.p.hf_file.decode()
-
-    @hf_file.setter
-    def hf_file(self, value: str):
-        self.p.hf_file = value.encode('utf8')
 
     @property
     def prompt(self) -> str:
@@ -2136,15 +2159,6 @@ cdef class CommonParams:
     @logits_file.setter
     def logits_file(self, value: str):
         self.p.logits_file = value.encode('utf8')
-
-    @property
-    def rpc_servers(self) -> str:
-        """comma separated list of RPC servers"""
-        return self.p.rpc_servers.decode()
-
-    @rpc_servers.setter
-    def rpc_servers(self, value: str):
-        self.p.rpc_servers = value.encode('utf8')
 
     @property
     def in_files(self) -> list[str]:
@@ -2346,14 +2360,14 @@ cdef class CommonParams:
     def interactive_first(self, value: bool):
         self.p.interactive_first = value
 
-    @property
-    def conversation(self) -> bool:
-        """conversation mode (does not print special tokens and suffix/prefix)"""
-        return self.p.conversation
+    # @property
+    # def conversation(self) -> bool:
+    #     """conversation mode (does not print special tokens and suffix/prefix)"""
+    #     return self.p.conversation
 
-    @conversation.setter
-    def conversation(self, value: bool):
-        self.p.conversation = value
+    # @conversation.setter
+    # def conversation(self, value: bool):
+    #     self.p.conversation = value
 
     @property
     def prompt_cache_all(self) -> bool:
@@ -2373,68 +2387,68 @@ cdef class CommonParams:
     def prompt_cache_ro(self, value: bool):
         self.p.prompt_cache_ro = value
 
-    @property
-    def use_color(self) -> bool:
-        """use color to distinguish generations and inputs"""
-        return self.p.use_color
+    # @property
+    # def use_color(self) -> bool:
+    #     """use color to distinguish generations and inputs"""
+    #     return self.p.use_color
 
-    @use_color.setter
-    def use_color(self, value: bool):
-        self.p.use_color = value
+    # @use_color.setter
+    # def use_color(self, value: bool):
+    #     self.p.use_color = value
 
-    @property
-    def special(self) -> bool:
-        """enable special token output"""
-        return self.p.special
+    # @property
+    # def special(self) -> bool:
+    #     """enable special token output"""
+    #     return self.p.special
 
-    @special.setter
-    def special(self, value: bool):
-        self.p.special = value
+    # @special.setter
+    # def special(self, value: bool):
+    #     self.p.special = value
 
-    @property
-    def interactive(self) -> bool:
-        """interactive mode"""
-        return self.p.interactive
+    # @property
+    # def interactive(self) -> bool:
+    #     """interactive mode"""
+    #     return self.p.interactive
 
-    @interactive.setter
-    def interactive(self, value: bool):
-        self.p.interactive = value
+    # @interactive.setter
+    # def interactive(self, value: bool):
+    #     self.p.interactive = value
 
-    @property
-    def interactive_first(self) -> bool:
-        """wait for user input immediately"""
-        return self.p.interactive_first
+    # @property
+    # def interactive_first(self) -> bool:
+    #     """wait for user input immediately"""
+    #     return self.p.interactive_first
 
-    @interactive_first.setter
-    def interactive_first(self, value: bool):
-        self.p.interactive_first = value
+    # @interactive_first.setter
+    # def interactive_first(self, value: bool):
+    #     self.p.interactive_first = value
 
-    @property
-    def conversation(self) -> bool:
-        """conversation mode (does not print special tokens and suffix/prefix)"""
-        return self.p.conversation
+    # @property
+    # def conversation(self) -> bool:
+    #     """conversation mode (does not print special tokens and suffix/prefix)"""
+    #     return self.p.conversation
 
-    @conversation.setter
-    def conversation(self, value: bool):
-        self.p.conversation = value
+    # @conversation.setter
+    # def conversation(self, value: bool):
+    #     self.p.conversation = value
 
-    @property
-    def prompt_cache_all(self) -> bool:
-        """save user input and generations to prompt cache"""
-        return self.p.prompt_cache_all
+    # @property
+    # def prompt_cache_all(self) -> bool:
+    #     """save user input and generations to prompt cache"""
+    #     return self.p.prompt_cache_all
 
-    @prompt_cache_all.setter
-    def prompt_cache_all(self, value: bool):
-        self.p.prompt_cache_all = value
+    # @prompt_cache_all.setter
+    # def prompt_cache_all(self, value: bool):
+    #     self.p.prompt_cache_all = value
 
-    @property
-    def prompt_cache_ro(self) -> bool:
-        """ open the prompt cache read-only and do not update it"""
-        return self.p.prompt_cache_ro
+    # @property
+    # def prompt_cache_ro(self) -> bool:
+    #     """ open the prompt cache read-only and do not update it"""
+    #     return self.p.prompt_cache_ro
 
-    @prompt_cache_ro.setter
-    def prompt_cache_ro(self, value: bool):
-        self.p.prompt_cache_ro = value
+    # @prompt_cache_ro.setter
+    # def prompt_cache_ro(self, value: bool):
+    #     self.p.prompt_cache_ro = value
 
     @property
     def escape(self) -> bool:
@@ -2607,14 +2621,14 @@ cdef class CommonParams:
     def cache_type_v(self, ggml_type value):
         self.p.cache_type_v = value
 
-    @property
-    def mmproj(self) -> str:
-        """path to multimodal projector"""
-        return self.p.mmproj.decode()
+    # @property
+    # def mmproj(self) -> str:
+    #     """path to multimodal projector"""
+    #     return self.p.mmproj.decode()
 
-    @mmproj.setter
-    def mmproj(self, value: str):
-        self.p.mmproj = value.encode('utf8')
+    # @mmproj.setter
+    # def mmproj(self, value: str):
+    #     self.p.mmproj = value.encode('utf8')
 
     @property
     def image(self) -> list[str]:
@@ -3602,11 +3616,11 @@ cdef class LlamaModel:
         free(buf)
         return result
 
-    def get_builtin_chat_template(self) -> str:
-        """Get the built-in chat template for the model.
+    # def get_builtin_chat_template(self) -> str:
+    #     """Get the built-in chat template for the model.
 
-        Return empty string if not present."""
-        return llama_cpp.common_get_builtin_chat_template(self.ptr).decode()
+    #     Return empty string if not present."""
+    #     return llama_cpp.common_get_builtin_chat_template(self.ptr).decode()
 
 
     # Extra
@@ -4530,11 +4544,11 @@ def common_model_params_to_llama(CommonParams params) -> LlamaModelParams:
 def common_context_params_to_llama(CommonParams params) -> LlamaContextParams:
     return LlamaContextParams.from_common_params(params)
 
-def common_tokenize(LlamaContext ctx, str text, bint add_special, bint parse_special = False):
-    return llama_cpp.common_tokenize(<const llama_cpp.llama_context *>ctx.ptr, <string>text.encode(), add_special, parse_special)
+# def common_tokenize(LlamaContext ctx, str text, bint add_special, bint parse_special = False):
+#     return llama_cpp.common_tokenize(<const llama_cpp.llama_context *>ctx.ptr, <string>text.encode(), add_special, parse_special)
 
-def common_tokenize_from_model(LlamaModel model, str text, bint add_special, bint parse_special = False):
-    return llama_cpp.common_tokenize(<const llama_cpp.llama_model *>model.ptr, <string>text.encode(), add_special, parse_special)
+# def common_tokenize_from_model(LlamaModel model, str text, bint add_special, bint parse_special = False):
+#     return llama_cpp.common_tokenize(<const llama_cpp.llama_model *>model.ptr, <string>text.encode(), add_special, parse_special)
 
 def common_token_to_piece(LlamaContext ctx, int token, bint special = True) -> str:
     return llama_cpp.common_token_to_piece(ctx.ptr, token, special).decode()
@@ -4542,19 +4556,19 @@ def common_token_to_piece(LlamaContext ctx, int token, bint special = True) -> s
 def common_batch_add(LlamaBatch batch, llama_cpp.llama_token id, llama_cpp.llama_pos pos, list[int] seq_ids, bint logits):
     return llama_cpp.common_batch_add(batch.p, id, pos, seq_ids, logits)
 
-def common_chat_format_example(LlamaModel model, str tmpl) -> str:
-    """Returns an example of formatted chat"""
-    return llama_cpp.common_chat_format_example(model.ptr, tmpl.encode()).decode()
+# def common_chat_format_example(LlamaModel model, str tmpl) -> str:
+#     """Returns an example of formatted chat"""
+#     return llama_cpp.common_chat_format_example(model.ptr, tmpl.encode()).decode()
 
 def common_params_get_system_info(CommonParams params) -> str:
     return llama_cpp.common_params_get_system_info(params.p).decode()
 
-def common_chat_format_single(LlamaModel model, tmpl: str, past_msg: list[CommonChatMsg], new_msg: CommonChatMsg, add_ass: bool):
-    """Format single message, while taking into account the position of that message in chat history"""
-    cdef vector[llama_cpp.common_chat_msg] vec
-    for msg in past_msg:
-        vec.push_back(msg.p)
-    return llama_cpp.common_chat_format_single(model.ptr, str.encode(), vec, new_msg.p, add_ass).decode()
+# def common_chat_format_single(LlamaModel model, tmpl: str, past_msg: list[CommonChatMsg], new_msg: CommonChatMsg, add_ass: bool):
+#     """Format single message, while taking into account the position of that message in chat history"""
+#     cdef vector[llama_cpp.common_chat_msg] vec
+#     for msg in past_msg:
+#         vec.push_back(msg.p)
+#     return llama_cpp.common_chat_format_single(model.ptr, str.encode(), vec, new_msg.p, add_ass).decode()
 
 def string_from_bool(bint value) -> str:
     return llama_cpp.string_from(value).decode()

@@ -22,7 +22,7 @@ std::string simple_prompt(
     common_params params;
 
     params.prompt = prompt;
-    params.model = model_path;
+    params.model.path = model_path;
     params.n_predict = n_predict;
     params.n_ctx = n_ctx;
     params.verbosity = -1;
@@ -46,7 +46,7 @@ std::string simple_prompt(
 
     // initialize the model
     llama_model_params model_params = common_model_params_to_llama(params);
-    llama_model * model_ptr = llama_load_model_from_file(params.model.c_str(), model_params);
+    llama_model * model_ptr = llama_model_load_from_file(params.model.path.c_str(), model_params);
     if (model_ptr == NULL) {
         LOG_ERR("%s: error: unable to load model\n" , __func__);
         return std::string();
@@ -54,7 +54,7 @@ std::string simple_prompt(
 
     // initialize the context
     llama_context_params ctx_params = common_context_params_to_llama(params);
-    llama_context * ctx = llama_new_context_with_model(model_ptr, ctx_params);
+    llama_context * ctx = llama_init_from_model(model_ptr, ctx_params);
     if (ctx == NULL) {
         LOG_ERR("%s: error: failed to create the llama_context\n" , __func__);
         return std::string();
@@ -105,6 +105,8 @@ std::string simple_prompt(
         return std::string();
     }
 
+    const struct llama_vocab * vocab_ptr = llama_model_get_vocab(model_ptr);
+
     // main loop
 
     int n_cur    = batch.n_tokens;
@@ -122,7 +124,7 @@ std::string simple_prompt(
             const llama_token new_token_id = llama_sampler_sample(smpl, ctx, -1);
 
             // is it an end of generation?
-            if (llama_token_is_eog(model_ptr, new_token_id) || n_cur == n_predict) {
+            if (llama_vocab_is_eog(vocab_ptr, new_token_id) || n_cur == n_predict) {
                 LOG("\n");
                 break;
             }
@@ -164,7 +166,7 @@ std::string simple_prompt(
     llama_batch_free(batch);
     llama_sampler_free(smpl);
     llama_free(ctx);
-    llama_free_model(model_ptr);
+    llama_model_free(model_ptr);
 
     llama_backend_free();
 

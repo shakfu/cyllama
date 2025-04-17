@@ -1612,23 +1612,20 @@ cdef extern from "common.h":
         cpu_params cpuparams
         cpu_params cpuparams_batch
 
-        std_string model       # draft model for speculative decoding
+        common_params_model model       # draft model for speculative decoding
 
 
     ctypedef struct common_params_vocoder:
-        std_string hf_repo   # HF repo                                                     // NOLINT
-        std_string hf_file   # HF file                                                     // NOLINT
+        common_params_model model
 
-        std_string model     # model path                                                // NOLINT
-        std_string model_url # model url to download                                     // NOLINT
+        std_string speaker_file     # speaker file path
+        bint use_guide_tokens       # enable guide tokens to improve TTS accuracy
 
     cdef enum common_reasoning_format:
         COMMON_REASONING_FORMAT_NONE
         COMMON_REASONING_FORMAT_DEEPSEEK # Extract thinking tag contents and return as `message.reasoning_content`
 
     ctypedef struct common_params:
-        llama_example curr_ex
-
         int32_t n_predict          # new tokens to predict
         int32_t n_ctx              # context size
         int32_t n_batch            # logical batch size for prompt processing (must be >=32 to use BLAS)
@@ -1650,11 +1647,12 @@ cdef extern from "common.h":
         float   defrag_thold       # KV cache defragmentation threshold
 
         std_vector[ggml_backend_dev_t] devices # devices to use for offloading
+        
         int32_t n_gpu_layers       # number of layers to store in VRAM (-1 - use default)
-        int32_t n_gpu_layers_draft # number of layers to store in VRAM for the draft model (-1 - use default)
         int32_t main_gpu           # the GPU that is used for scratch and small tensors
         float   tensor_split[128]  # how split tensors should be distributed across GPUs
-        llama_split_mode        split_mode         # how to split the model across GPUs
+        
+        llama_split_mode split_mode # how to split the model across GPUs
 
         cpu_params cpuparams
         cpu_params cpuparams_batch
@@ -1668,17 +1666,16 @@ cdef extern from "common.h":
         llama_pooling_type      pooling_type       # pooling type for embeddings
         llama_attention_type    attention_type     # attention type for embeddings
 
-        common_params_sampling sampling
+        common_params_sampling    sampling
         common_params_speculative speculative
         common_params_vocoder     vocoder
 
-        std_string model                # model path
+        common_params_model model 
+
         std_string model_alias          # model alias
-        std_string model_url            # model url to download
         std_string hf_token             # HF token
-        std_string hf_repo              # HF repo
-        std_string hf_file              # HF file
         std_string prompt               #
+        std_string system_prompt
         std_string prompt_file          # store the external prompt file name
         std_string path_prompt_cache    # path to file for saving/loading prompt eval state
         std_string input_prefix         # string to prefix user inputs with
@@ -1686,11 +1683,11 @@ cdef extern from "common.h":
         std_string lookup_cache_static  # path of static ngram cache file for lookup decoding
         std_string lookup_cache_dynamic # path of dynamic ngram cache file for lookup decoding
         std_string logits_file          # file for saving *all* logits
-        std_string rpc_servers          # comma separated list of RPC servers
 
         std_vector[std_string] in_files     # all input files
         std_vector[std_string] antiprompt   # strings upon which more user input is prompted (a.k.a. reverse prompts)
         std_vector[llama_model_kv_override] kv_overrides
+        # std_vector[llama_model_tensor_buft_override] tensor_buft_overrides
 
         bint lora_init_without_apply # only load lora to memory, but do not apply it to ctx (user can manually apply lora later using llama_adapter_lora_apply)
         # vector[common_adapter_lora_info] lora_adapters # lora adapter path with user defined scale
