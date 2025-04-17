@@ -38,7 +38,6 @@ cyllama build manager
     setup        setup prerequisites
     test         test modules
     wheel        build wheels
-
 """
 
 import argparse
@@ -61,6 +60,11 @@ PYTHON = sys.executable
 PLATFORM = platform.system()
 ARCH = platform.machine()
 PY_VER_MINOR = sys.version_info.minor
+STABLE_VERSION = False
+if STABLE_VERSION:
+    LLAMACPP_VERSION = "b4393"
+else:
+    LLAMACPP_VERSION = ""
 
 __version__ = "0.0.1"
 
@@ -74,11 +78,9 @@ ActionFn = Callable[[Path], None]
 # ----------------------------------------------------------------------------
 # env helpers
 
-
 def getenv(key: str, default: bool = False) -> bool:
     """convert '0','1' env values to bool {True, False}"""
     return bool(int(os.getenv(key, default)))
-
 
 def setenv(key: str, default: str):
     """get environ variable if it is exists else set default"""
@@ -87,7 +89,6 @@ def setenv(key: str, default: str):
     else:
         os.environ[key] = default
         return default
-
 
 # ----------------------------------------------------------------------------
 # constants
@@ -104,7 +105,6 @@ COLOR = getenv("COLOR", default=True)
 
 # ----------------------------------------------------------------------------
 # logging config
-
 
 class CustomFormatter(logging.Formatter):
     """custom logging formatting class"""
@@ -140,7 +140,6 @@ logging.basicConfig(level=logging.DEBUG if DEBUG else logging.INFO, handlers=[ha
 
 # ----------------------------------------------------------------------------
 # utility classes
-
 
 class ShellCmd:
     """Provides platform agnostic file/folder handling."""
@@ -397,14 +396,14 @@ class ShellCmd:
 # ----------------------------------------------------------------------------
 # main classes
 
-
 class Project(ShellCmd):
     """Utility class to hold project directory structure"""
 
     def __init__(self):
         self.cwd = Path.cwd()
         self.build = self.cwd / "build"
-        self.src = self.build / "src"
+        # self.src = self.build / "repos"
+        self.src = self.build
         self.install = self.cwd / "thirdparty"
         self.bin = self.cwd / "bin"
         self.dist = self.cwd / "dist"
@@ -423,7 +422,6 @@ class Project(ShellCmd):
         self.remove(self.bin)
         self.remove(self.build)
         self.remove(self.install)
-
 
 class AbstractBuilder(ShellCmd):
     """Abstract builder class with additional methods common to subclasses."""
@@ -498,9 +496,7 @@ class AbstractBuilder(ShellCmd):
     @property
     def src_dir(self) -> Path:
         """return extracted source folder of build target"""
-        # return self.project.build / self.name
         return self.project.src / self.name
-        # return self.project.src / self.name_version
 
     @property
     def build_dir(self) -> Path:
@@ -623,25 +619,25 @@ class AbstractBuilder(ShellCmd):
         self.clean()
         self.post_process()
 
-
 class Builder(AbstractBuilder):
     """concrete builder class"""
 
     def setup(self):
         """setup build environment"""
+        self.log.info(f"update from {self.name} main repo")
         self.project.setup()
-        archive = self.download(self.download_url, tofolder=self.project.downloads)
-        self.log.info("downloaded %s", archive)
-        if not self.src_dir.exists():
-            self.extract(archive, tofolder=self.project.src)
-            assert self.src_dir.exists(), f"could not extract from {archive}"
-
+        if self.version:
+            self.git_clone(
+                self.repo_url, branch=self.version, recurse=True, cwd=self.project.src
+            )
+        else:
+            self.git_clone(self.repo_url, recurse=True, cwd=self.project.src)
 
 class LlamaCppBuilder(Builder):
     """build llama.cpp"""
 
     name: str = "llama.cpp"
-    version: str = "b4393"
+    version: str = LLAMACPP_VERSION
     repo_url: str = "https://github.com/ggerganov/llama.cpp.git"
     libs_static: list[str] = [
         "libcommon.a",
@@ -655,17 +651,10 @@ class LlamaCppBuilder(Builder):
     ]
 
     def build(self):
-        """llama.cpp main build function"""
-        self.log.info("update from llama.cpp main repo")
-        self.project.setup()
+        """main build function"""
+        self.log.info(f"building {self.name}")
         self.prefix.mkdir(exist_ok=True)
         self.include.mkdir(exist_ok=True)
-        if self.version:
-            self.git_clone(
-                self.repo_url, branch=self.version, recurse=True, cwd=self.project.src
-            )
-        else:
-            self.git_clone(self.repo_url, recurse=True, cwd=self.project.src)
         self.glob_copy(self.src_dir / "common", self.include, patterns=["*.h", "*.hpp"])
         self.glob_copy(
             self.src_dir / "ggml" / "include", self.include, patterns=["*.h"]
@@ -683,19 +672,14 @@ class LlamaCppBuilder(Builder):
         self.cmake_install(build_dir=self.build_dir, prefix=self.prefix)
         self.copy(self.build_dir / "ggml" / "src" / "libggml-base.a", self.lib)
         self.copy(self.build_dir / "ggml" / "src" / "libggml-cpu.a", self.lib)
-        self.copy(
-            self.build_dir / "ggml" / "src" / "ggml-blas" / "libggml-blas.a", self.lib
-        )
-        self.copy(
-            self.build_dir / "ggml" / "src" / "ggml-metal" / "libggml-metal.a", self.lib
-        )
+        self.copy(self.build_dir / "ggml" / "src" / "ggml-blas" / "libggml-blas.a", self.lib)
+        self.copy(self.build_dir / "ggml" / "src" / "ggml-metal" / "libggml-metal.a", self.lib)
         self.copy(self.build_dir / "common" / "libcommon.a", self.lib)
         self.copy(
             self.build_dir / "examples" / "llava" / "libllava_static.a",
             self.lib / "libllava.a",
         )
-        self.move(self.prefix / "bin", self.project.bin)
-
+        # self.move(self.prefix / "bin", self.project.bin)
 
 class LlamaCppPythonBuilder(Builder):
     """build llama-cpp-python"""
@@ -707,16 +691,8 @@ class LlamaCppPythonBuilder(Builder):
 
     def build(self):
         """llama-cpp-python main build function"""
-        self.log.info("update from llama-cpp-python main repo")
-        self.project.setup()
-        if self.version:
-            self.git_clone(
-                self.repo_url, branch=self.version, recurse=True, cwd=self.project.src
-            )
-        else:
-            self.git_clone(self.repo_url, recurse=True, cwd=self.project.src)
+        self.log.info(f"building {self.name}")
         self.copy(self.src_dir / "llama_cpp", self.prefix)
-
 
 class WhisperCppBuilder(Builder):
     """build whisper.cpp"""
@@ -732,16 +708,9 @@ class WhisperCppBuilder(Builder):
 
     def build(self):
         """whisper.cpp main build function"""
-        self.log.info("update from whisper.cpp main repo")
-        self.project.setup()
+        self.log.info(f"building {self.name}")
         self.prefix.mkdir(exist_ok=True)
         self.include.mkdir(exist_ok=True)
-        if self.version:
-            self.git_clone(
-                self.repo_url, branch=self.version, recurse=True, cwd=self.project.src
-            )
-        else:
-            self.git_clone(self.repo_url, recurse=True, cwd=self.project.src)
         self.glob_copy(
             self.src_dir / "examples", self.include, patterns=["*.h", "*.hpp"]
         )
@@ -756,7 +725,6 @@ class WhisperCppBuilder(Builder):
         self.copy(self.build_dir / "examples" / "libcommon.a", self.lib)
         self.glob_copy(self.build_dir / "bin", self.bin, patterns=["*"])
 
-
 class StableDiffusionCppBuilder(Builder):
     """build stable-diffusion.cpp"""
 
@@ -769,16 +737,9 @@ class StableDiffusionCppBuilder(Builder):
 
     def build(self):
         """stable-diffusion.cpp main build function"""
-        self.log.info("update from whisper.cpp main repo")
-        self.project.setup()
+        self.log.info(f"building {self.name}")
         self.prefix.mkdir(exist_ok=True)
         self.include.mkdir(exist_ok=True)
-        if self.version:
-            self.git_clone(
-                self.repo_url, branch=self.version, recurse=True, cwd=self.project.src
-            )
-        else:
-            self.git_clone(self.repo_url, recurse=True, cwd=self.project.src)
         self.glob_copy(self.src_dir, self.include, patterns=["*.h", "*.hpp"])
         self.cmake_config(
             src_dir=self.src_dir,
@@ -789,7 +750,6 @@ class StableDiffusionCppBuilder(Builder):
         self.cmake_build(build_dir=self.build_dir, release=True)
         self.cmake_install(build_dir=self.build_dir, prefix=self.prefix)
         self.copy(self.build_dir / "libstable-diffusion.a", self.lib)
-
 
 # ----------------------------------------------------------------------------
 # wheel_builder
@@ -1146,9 +1106,9 @@ class Application(ShellCmd, metaclass=MetaCommander):
 
     def do_setup(self, args):
         """setup prerequisites"""
-        for Builder in [LlamaCppBuilder, LlamaCppPythonBuilder]:
+        for Builder in [LlamaCppBuilder, LlamaCppPythonBuilder, WhisperCppBuilder, StableDiffusionCppBuilder]:
             builder = Builder()
-            builder.build()
+            builder.setup()
 
 
     # ------------------------------------------------------------------------
@@ -1157,6 +1117,10 @@ class Application(ShellCmd, metaclass=MetaCommander):
     @opt("--static", "-s", "build static variant")
     def do_build(self, args):
         """build packages"""
+        for Builder in [LlamaCppBuilder, LlamaCppPythonBuilder, WhisperCppBuilder, StableDiffusionCppBuilder]:
+            builder = Builder()
+            builder.build()
+
         _cmd = f'"{PYTHON}" setup.py build_ext --inplace'
         if args.static:
             os.environ["STATIC"] = "1"

@@ -6,7 +6,7 @@ classes:
     LlamaLogitBias
     LlamaTokenData
     LlamaTokenDataArray
-    LlamaLoraAdapter
+    LlamaAdapterLora
     GGMLThreadPoolParams
     GGMLThreadPool
     GGMLTensor
@@ -21,6 +21,7 @@ classes:
     LlamaModelParams
     LlamaModelQuantizeParams
     LlamaModel
+    LlamaVocab
     LlamaContextParams
     LlamaContext
     LlamaBatch
@@ -566,8 +567,8 @@ cdef class LlamaTokenDataArray:
         self.ptr.sorted = value
 
 
-cdef class LlamaLoraAdapter:
-    cdef llama_cpp.llama_lora_adapter * ptr
+cdef class LlamaAdapterLora:
+    cdef llama_cpp.llama_adapter_lora * ptr
     cdef bint owner
 
     def __cinit__(self):
@@ -577,7 +578,7 @@ cdef class LlamaLoraAdapter:
     def __dealloc__(self):
         # De-allocate if not null and flag is set
         if self.ptr is not NULL and self.owner is True:
-            llama_cpp.llama_lora_adapter_free(self.ptr)
+            llama_cpp.llama_adapter_lora_free(self.ptr)
             self.ptr = NULL
 
     def __init__(self):
@@ -586,9 +587,9 @@ cdef class LlamaLoraAdapter:
         raise TypeError("This class cannot be instantiated directly.")
 
     @staticmethod
-    cdef LlamaLoraAdapter from_ptr(llama_cpp.llama_lora_adapter *ptr, bint owner=False):
+    cdef LlamaAdapterLora from_ptr(llama_cpp.llama_adapter_lora *ptr, bint owner=False):
         # Fast call to __new__() that bypasses the __init__() constructor.
-        cdef LlamaLoraAdapter wrapper = LlamaLoraAdapter.__new__(LlamaLoraAdapter)
+        cdef LlamaAdapterLora wrapper = LlamaAdapterLora.__new__(LlamaAdapterLora)
         wrapper.ptr = ptr
         wrapper.owner = owner
         return wrapper
@@ -943,11 +944,11 @@ cdef class LlamaSampler:
         llama_cpp.llama_sampler_chain_add(
             self.ptr, llama_cpp.llama_sampler_init_mirostat_v2(seed, tau, eta))
 
-    def add_grammar(self, LlamaModel model, str grammar_str, str grammar_root):
+    def add_grammar(self, LlamaVocab vocab, str grammar_str, str grammar_root):
         """Add grammer chain link"""
         llama_cpp.llama_sampler_chain_add(
             self.ptr, llama_cpp.llama_sampler_init_grammar(
-                model.ptr, grammar_str.encode(), grammar_root.encode()))
+                vocab.ptr, grammar_str.encode(), grammar_root.encode()))
 
     def add_penalties(self,
                          int penalty_last_n,   # last n tokens to penalize (0 = disable penalty, -1 = context size)
@@ -972,7 +973,7 @@ cdef class LlamaSampler:
     #         self.ptr, llama_cpp.llama_sampler_init_logit_bias(
     #             n_vocab, n_logit_bias, vec.data()))
 
-    def add_infill(self, LlamaModel model):
+    def add_infill(self, LlamaVocab vocab):
         """This sampler is meant to be used for fill-in-the-middle infilling
 
         it's supposed to be used after top_k + top_p sampling
@@ -996,7 +997,7 @@ cdef class LlamaSampler:
         4. if no tokens are left -> pick EOT
         """
         llama_cpp.llama_sampler_chain_add(self.ptr,
-            llama_cpp.llama_sampler_init_infill(model.ptr))
+            llama_cpp.llama_sampler_init_infill(vocab.ptr))
 
 
     def sample(self, LlamaContext ctx, int idx) -> int:
@@ -2177,14 +2178,14 @@ cdef class CommonParams:
 
     @property
     def lora_init_without_apply(self) -> bool:
-        """only load lora to memory, but do not apply it to ctx (user can manually apply lora later using llama_lora_adapter_apply)."""
+        """only load lora to memory, but do not apply it to ctx (user can manually apply lora later using llama_adapter_lora_apply)."""
         return self.p.lora_init_without_apply
 
     @lora_init_without_apply.setter
     def lora_init_without_apply(self, value: bool):
         self.p.lora_init_without_apply = value
 
-    # std::vector<llama_lora_adapter_info> lora_adapters; // lora adapter path with user defined scale
+    # std::vector<llama_adapter_lora_info> lora_adapters; // lora adapter path with user defined scale
 
     # std::vector<llama_control_vector_load_info> control_vectors; // control vector with user defined scale
 
@@ -3039,6 +3040,11 @@ cdef class LlamaModelParams:
         wrapper.p = params
         return wrapper
 
+    # @property
+    # def tensor_buft_overrides(self) -> LlamaModelTensorBuftOverride:
+    #     """NULL-terminated list of buffer types to use for tensors that match a pattern"""
+    #     return self.p.tensor_buft_overrides
+
     @property
     def n_gpu_layers(self) -> int:
         """Number of layers to store in VRAM."""
@@ -3081,18 +3087,6 @@ cdef class LlamaModelParams:
     #     for i in range(size):
     #         self.p.tensor_split[i] = value[i]
 
-    @property
-    def rpc_servers(self) -> list[str]:
-        """Comma separated list of RPC servers"""
-        cdef size_t length = sizeof(self.p.rpc_servers)
-        results = []
-        for i in range(length):
-            results.append(self.p.rpc_servers[i].decode())
-        return results
-
-    # @rpc_servers.setter
-    # def rpc_servers(self, value: list[str]):
-    #     self.p.rpc_servers = value
 
     @property
     def progress_callback(self) -> Callable[[float], bool]:
@@ -3255,247 +3249,94 @@ cdef class LlamaModelQuantizeParams:
         self.p.keep_split = value
 
 
-cdef class LlamaModel:
-    """cython wrapper for llama_cpp.cpp llama_model."""
-    cdef llama_cpp.llama_model * ptr
-    cdef public LlamaModelParams params
-    cdef public str path_model
-    cdef public bint verbose
+
+cdef class LlamaVocab:
+    """cython wrapper for llama_cpp.llama_vocab"""
+    cdef llama_cpp.llama_vocab * ptr
     cdef bint owner
 
     def __cinit__(self):
         self.ptr = NULL
         self.owner = True
 
-    def __init__(self, path_model: str, params: Optional[LlamaModelParams] = None, verbose: bool = True):
-        self.path_model = path_model
-        self.params = params if params else LlamaModelParams()
-        self.verbose = verbose
-
-        if not os.path.exists(path_model):
-            raise ValueError(f"Model path does not exist: {path_model}")
-
-        # with suppress_stdout_stderr(disable=verbose):
-        self.ptr = llama_cpp.llama_load_model_from_file(
-            self.path_model.encode("utf-8"),
-            self.params.p
-        )
-
-        if self.ptr is NULL:
-            raise ValueError(f"Failed to load model from file: {path_model}")
-
-    def __dealloc__(self):
-        if self.ptr is not NULL and self.owner is True:
-            llama_cpp.llama_free_model(self.ptr)
-            self.ptr = NULL
-
-    @staticmethod
-    cdef LlamaModel from_ptr(llama_cpp.llama_model *ptr, bint owner=False):
-        cdef LlamaModel wrapper = LlamaModel.__new__(LlamaModel)
-        wrapper.ptr = ptr
-        wrapper.owner = owner
-        return wrapper
-
-
     @property
     def vocab_type(self) -> llama_vocab_type:
-        return llama_vocab_type(llama_cpp.get_llama_vocab_type(self.ptr))
-
-    @property
-    def rope_type(self) -> llama_rope_type:
-        return llama_rope_type(llama_cpp.get_llama_rope_type(self.ptr))
+        return llama_vocab_type(llama_cpp.llama_get_vocab_type(self.ptr))
 
     @property
     def n_vocab(self) -> int:
-        return llama_cpp.llama_n_vocab(self.ptr)
+        return llama_cpp.llama_vocab_n_tokens(self.ptr)
 
-    @property
-    def n_ctx_train(self) -> int:
-        return llama_cpp.llama_n_ctx_train(self.ptr)
+    def get_text(self, llama_cpp.llama_token token) -> str:
+        return llama_cpp.llama_vocab_get_text(self.ptr, token).decode("utf-8")
 
-    @property
-    def n_embd(self) -> int:
-        return llama_cpp.llama_n_embd(self.ptr)
+    def get_score(self, llama_cpp.llama_token token) -> float:
+        return llama_cpp.llama_vocab_get_score(self.ptr, token)
 
-    @property
-    def n_layer(self) -> int:
-        return llama_cpp.llama_n_layer(self.ptr)
+    def get_attr(self, llama_cpp.llama_token token) -> llama_token_attr:
+        return llama_cpp.llama_vocab_get_attr(self.ptr, token)
 
-    @property
-    def n_head(self) -> int:
-        return llama_cpp.llama_n_head(self.ptr)
-
-    @property
-    def rope_freq_scale_train(self) -> float:
-        """Get the model's RoPE frequency scaling factor"""
-        return llama_cpp.llama_rope_freq_scale_train(self.ptr)
-
-    @property
-    def desc(self) -> str:
-        """Get a string describing the model type"""
-        cdef char buf[1024]
-        llama_cpp.llama_model_desc(self.ptr, buf, 1024)
-        return buf.decode("utf-8")
-
-    @property
-    def size(self) -> int:
-        """Returns the total size of all the tensors in the model in bytes"""
-        return <uint64_t>llama_cpp.llama_model_size(self.ptr)
-
-    @property
-    def n_params(self) -> int:
-        """Returns the total number of parameters in the model"""
-        return <uint64_t>llama_cpp.llama_model_n_params(self.ptr)
-
-    # def get_tensor(self, name: str) -> GGMLTensor:
-    #     """Get a llama model tensor"""
-    #     cdef llama_cpp.ggml_tensor * tensor = llama_cpp.llama_get_model_tensor(
-    #         self.ptr, name.encode("utf-8"))
-    #     return GGMLTensor.from_ptr(tensor)
-
-    # sampling
-
-    def sampler_init(self, CommonParamsSampling params) -> CommonSampler:
-        """initialize common_sampler"""
-        return CommonSampler(self, params)
-
-    # lora
-
-    def lora_adapter_init(self, str path_lora) -> LlamaLoraAdapter:
-        """Load a LoRA adapter from file
-
-        The loaded adapter will be associated to the given model, and will be free when the model is deleted
-        """
-        cdef llama_cpp.llama_lora_adapter * ptr = llama_cpp.llama_lora_adapter_init(
-            self.ptr, path_lora.encode())
-        cdef LlamaLoraAdapter adapter = LlamaLoraAdapter.from_ptr(ptr)
-        return adapter
-
-    # metadata
-
-    def meta_val_str(self, str key) -> str:
-        """Get metadata value as a string by key name"""
-        cdef char buf[128]
-        cdef int res = llama_cpp.llama_model_meta_val_str(self.ptr, key.encode(), buf, 128)
-        if res == -1:
-            raise ValueError(F"could not get metadata value from {key}")
-        cdef str value = buf.decode('UTF-8')
-        return value
-
-    def meta_count(self):
-        """Get the number of metadata key/value pairs"""
-        return llama_cpp.llama_model_meta_count(self.ptr)
-
-    def meta_key_by_index(self, int index) -> str:
-        """Get metadata key name by index"""
-        cdef char buf[128]
-        cdef int res = llama_cpp.llama_model_meta_key_by_index(self.ptr, index, buf, 128)
-        cdef str key = buf.decode('UTF-8')
-        return key
-
-    def meta_val_str_by_index(self, int index) -> str:
-        """Get metadata key name by index"""
-        cdef char buf[128]
-        cdef int res = llama_cpp.llama_model_meta_val_str_by_index(self.ptr, index, buf, 128)
-        cdef str value = buf.decode('UTF-8')
-        return value
-
-    # encode / decode
-
-    def has_encoder(self) -> bool:
-        """Returns true if the model contains an encoder that requires llama_encode() call"""
-        return llama_cpp.llama_model_has_encoder(self.ptr)
-
-    def has_decoder(self) -> bool:
-        """Returns true if the model contains a decoder that requires llama_decode() callD"""
-        return llama_cpp.llama_model_has_decoder(self.ptr)
-
-    def decoder_start_token(self) -> int:
-        """For encoder-decoder models, this function returns id of the token that must be provided
-        to the decoder to start generating output sequence. For other models, it returns -1.
-        """
-        return llama_cpp.llama_model_decoder_start_token(self.ptr)
-
-    def is_recurrent(self) -> bool:
-        """Returns true if the model is recurrent (like Mamba, RWKV, etc.)"""
-        return llama_cpp.llama_model_is_recurrent(self.ptr)
-
-    # Vocab
-
-    def token_get_text(self, llama_cpp.llama_token token) -> str:
-        return llama_cpp.llama_token_get_text(self.ptr, token).decode("utf-8")
-
-    def token_get_score(self, llama_cpp.llama_token token) -> float:
-        return llama_cpp.llama_token_get_score(self.ptr, token)
-
-    def token_get_attr(self, llama_cpp.llama_token token) -> llama_token_attr:
-        return llama_token_attr(llama_cpp.llama_token_get_attr(self.ptr, token))
-
-    def token_is_eog(self, llama_cpp.llama_token token) -> bool:
+    def is_eog(self, llama_cpp.llama_token token) -> bool:
         """Check if the token is supposed to end generation (end-of-generation, eg. EOS, EOT, etc.)"""
-        return llama_cpp.llama_token_is_eog(self.ptr, token)
+        return llama_cpp.llama_vocab_is_eog(self.ptr, token)
 
-    def token_is_control(self, llama_cpp.llama_token token) -> bool:
+    def is_control(self, llama_cpp.llama_token token) -> bool:
         """Identify if Token Id is a control token or a render-able token"""
-        return llama_cpp.llama_token_is_control(self.ptr, token)
+        return llama_cpp.llama_vocab_is_control(self.ptr, token)
 
     # Special tokens
 
     def token_bos(self) -> int:
         """beginning-of-sentence"""
-        return llama_cpp.llama_token_bos(self.ptr)
+        return llama_cpp.llama_vocab_bos(self.ptr)
 
     def token_eos(self) -> int:
         """end-of-sentence"""
-        return llama_cpp.llama_token_eos(self.ptr)
+        return llama_cpp.llama_vocab_eos(self.ptr)
 
     def token_eot(self) -> int:
         """end-of-turn"""
-        return llama_cpp.llama_token_eot(self.ptr)
-
-    def token_cls(self) -> int:
-        """classification"""
-        return llama_cpp.llama_token_cls(self.ptr)
+        return llama_cpp.llama_vocab_eot(self.ptr)
 
     def token_sep(self) -> int:
         """sentence separator"""
-        return llama_cpp.llama_token_sep(self.ptr)
+        return llama_cpp.llama_vocab_sep(self.ptr)
 
     def token_nl(self) -> int:
         """next-line"""
-        return llama_cpp.llama_token_nl(self.ptr)
+        return llama_cpp.llama_vocab_nl(self.ptr)
 
     def token_pad(self) -> int:
         """padding"""
-        return llama_cpp.llama_token_pad(self.ptr)
+        return llama_cpp.llama_vocab_pad(self.ptr)
 
-    def add_bos_token(self) -> bool:
+    def get_add_bos(self) -> bool:
         """add beginning-of-sentence token"""
-        return llama_cpp.llama_add_bos_token(self.ptr)
+        return llama_cpp.llama_vocab_get_add_bos(self.ptr)
 
-    def add_eos_token(self) -> bool:
+    def get_add_eos(self) -> bool:
         """add end-of-sentence token"""
-        return llama_cpp.llama_add_eos_token(self.ptr)
+        return llama_cpp.llama_vocab_get_add_eos(self.ptr)
 
     # infill tokens
 
-    def token_fim_prefix(self) -> int:
-        return llama_cpp.llama_token_fim_pre(self.ptr)
+    def fim_prefix(self) -> int:
+        return llama_cpp.llama_vocab_fim_pre(self.ptr)
 
-    def token_fim_middle(self) -> int:
-        return llama_cpp.llama_token_fim_suf(self.ptr)
+    def fim_middle(self) -> int:
+        return llama_cpp.llama_vocab_fim_suf(self.ptr)
 
-    def token_fim_suffix(self) -> int:
-        return llama_cpp.llama_token_fim_mid(self.ptr)
+    def fim_suffix(self) -> int:
+        return llama_cpp.llama_vocab_fim_mid(self.ptr)
 
-    def token_fim_pad(self) -> int:
-        return llama_cpp.llama_token_fim_pad(self.ptr)
+    def fim_pad(self) -> int:
+        return llama_cpp.llama_vocab_fim_pad(self.ptr)
 
-    def token_fim_rep(self) -> int:
-        return llama_cpp.llama_token_fim_rep(self.ptr)
+    def fim_rep(self) -> int:
+        return llama_cpp.llama_vocab_fim_rep(self.ptr)
 
-    def token_fim_sep(self) -> int:
-        return llama_cpp.llama_token_fim_sep(self.ptr)
+    def fim_sep(self) -> int:
+        return llama_cpp.llama_vocab_fim_sep(self.ptr)
 
     # Tokenization
 
@@ -3568,6 +3409,167 @@ cdef class LlamaModel:
         free(buf)
         return result.lstrip()
 
+
+cdef class LlamaModel:
+    """cython wrapper for llama_cpp.llama_model."""
+    cdef llama_cpp.llama_model * ptr
+    cdef public LlamaModelParams params
+    cdef public str path_model
+    cdef public bint verbose
+    cdef bint owner
+
+    def __cinit__(self):
+        self.ptr = NULL
+        self.owner = True
+
+    def __init__(self, path_model: str, params: Optional[LlamaModelParams] = None, verbose: bool = True):
+        self.path_model = path_model
+        self.params = params if params else LlamaModelParams()
+        self.verbose = verbose
+
+        if not os.path.exists(path_model):
+            raise ValueError(f"Model path does not exist: {path_model}")
+
+        # with suppress_stdout_stderr(disable=verbose):
+        self.ptr = llama_cpp.llama_model_load_from_file(
+            self.path_model.encode("utf-8"),
+            self.params.p
+        )
+
+        if self.ptr is NULL:
+            raise ValueError(f"Failed to load model from file: {path_model}")
+
+    def __dealloc__(self):
+        if self.ptr is not NULL and self.owner is True:
+            llama_cpp.llama_model_free(self.ptr)
+            self.ptr = NULL
+
+    @staticmethod
+    cdef LlamaModel from_ptr(llama_cpp.llama_model *ptr, bint owner=False):
+        cdef LlamaModel wrapper = LlamaModel.__new__(LlamaModel)
+        wrapper.ptr = ptr
+        wrapper.owner = owner
+        return wrapper
+
+    @property
+    def rope_type(self) -> llama_rope_type:
+        return llama_rope_type(llama_cpp.llama_get_model_rope_type(self.ptr))
+
+    @property
+    def n_ctx_train(self) -> int:
+        return llama_cpp.llama_model_n_ctx_train(self.ptr)
+
+    @property
+    def n_embd(self) -> int:
+        return llama_cpp.llama_model_n_embd(self.ptr)
+
+    @property
+    def n_layer(self) -> int:
+        return llama_cpp.llama_model_n_layer(self.ptr)
+
+    @property
+    def n_head(self) -> int:
+        return llama_cpp.llama_model_n_head(self.ptr)
+
+    @property
+    def n_head_kv(self) -> int:
+        return llama_cpp.llama_model_n_head_kv(self.ptr)
+
+    @property
+    def rope_freq_scale_train(self) -> float:
+        """Get the model's RoPE frequency scaling factor"""
+        return llama_cpp.llama_model_rope_freq_scale_train(self.ptr)
+
+    @property
+    def desc(self) -> str:
+        """Get a string describing the model type"""
+        cdef char buf[1024]
+        llama_cpp.llama_model_desc(self.ptr, buf, 1024)
+        return buf.decode("utf-8")
+
+    @property
+    def size(self) -> int:
+        """Returns the total size of all the tensors in the model in bytes"""
+        return <uint64_t>llama_cpp.llama_model_size(self.ptr)
+
+    @property
+    def n_params(self) -> int:
+        """Returns the total number of parameters in the model"""
+        return <uint64_t>llama_cpp.llama_model_n_params(self.ptr)
+
+    # def get_tensor(self, name: str) -> GGMLTensor:
+    #     """Get a llama model tensor"""
+    #     cdef llama_cpp.ggml_tensor * tensor = llama_cpp.llama_get_model_tensor(
+    #         self.ptr, name.encode("utf-8"))
+    #     return GGMLTensor.from_ptr(tensor)
+
+    # sampling
+
+    def sampler_init(self, CommonParamsSampling params) -> CommonSampler:
+        """initialize common_sampler"""
+        return CommonSampler(self, params)
+
+    # lora
+
+    def lora_adapter_init(self, str path_lora) -> LlamaAdapterLora:
+        """Load a LoRA adapter from file
+
+        The loaded adapter will be associated to the given model, and will be free when the model is deleted
+        """
+        cdef llama_cpp.llama_adapter_lora * ptr = llama_cpp.llama_adapter_lora_init(
+            self.ptr, path_lora.encode())
+        cdef LlamaAdapterLora adapter = LlamaAdapterLora.from_ptr(ptr)
+        return adapter
+
+    # metadata
+
+    def meta_val_str(self, str key) -> str:
+        """Get metadata value as a string by key name"""
+        cdef char buf[128]
+        cdef int res = llama_cpp.llama_model_meta_val_str(self.ptr, key.encode(), buf, 128)
+        if res == -1:
+            raise ValueError(F"could not get metadata value from {key}")
+        cdef str value = buf.decode('UTF-8')
+        return value
+
+    def meta_count(self):
+        """Get the number of metadata key/value pairs"""
+        return llama_cpp.llama_model_meta_count(self.ptr)
+
+    def meta_key_by_index(self, int index) -> str:
+        """Get metadata key name by index"""
+        cdef char buf[128]
+        cdef int res = llama_cpp.llama_model_meta_key_by_index(self.ptr, index, buf, 128)
+        cdef str key = buf.decode('UTF-8')
+        return key
+
+    def meta_val_str_by_index(self, int index) -> str:
+        """Get metadata key name by index"""
+        cdef char buf[128]
+        cdef int res = llama_cpp.llama_model_meta_val_str_by_index(self.ptr, index, buf, 128)
+        cdef str value = buf.decode('UTF-8')
+        return value
+
+    # encode / decode
+
+    def has_encoder(self) -> bool:
+        """Returns true if the model contains an encoder that requires llama_encode() call"""
+        return llama_cpp.llama_model_has_encoder(self.ptr)
+
+    def has_decoder(self) -> bool:
+        """Returns true if the model contains a decoder that requires llama_decode() callD"""
+        return llama_cpp.llama_model_has_decoder(self.ptr)
+
+    def decoder_start_token(self) -> int:
+        """For encoder-decoder models, this function returns id of the token that must be provided
+        to the decoder to start generating output sequence. For other models, it returns -1.
+        """
+        return llama_cpp.llama_model_decoder_start_token(self.ptr)
+
+    def is_recurrent(self) -> bool:
+        """Returns true if the model is recurrent (like Mamba, RWKV, etc.)"""
+        return llama_cpp.llama_model_is_recurrent(self.ptr)
+
     # chat template
 
     def chat_apply_template(self, str tmpl, list[LlamaChatMessage] msgs, bint add_assistant_msg) -> str:
@@ -3589,7 +3591,13 @@ cdef class LlamaModel:
         for i in range(len(msgs)):
             vec.push_back(msgs[i].p)
         cdef int n_bytes = llama_cpp.llama_chat_apply_template(
-            self.ptr, tmpl.encode(), vec.data(), vec.size(), add_assistant_msg, buf, length)
+            tmpl.encode(),
+            vec.data(),
+            vec.size(),
+            add_assistant_msg,
+            buf,
+            length
+        )
         cdef str result = buf.decode()
         free(buf)
         return result
@@ -3920,7 +3928,7 @@ cdef class LlamaContext:
 
         assert self.model.ptr is not NULL
 
-        self.ptr = llama_cpp.llama_new_context_with_model(self.model.ptr, self.params.p)
+        self.ptr = llama_cpp.llama_init_from_model(self.model.ptr, self.params.p)
 
         if self.ptr is NULL:
             raise ValueError("Failed to create llama_context")
@@ -3958,7 +3966,7 @@ cdef class LlamaContext:
 
     @property
     def pooling_type(self) -> int:
-        return <llama_pooling_type>llama_cpp.get_llama_pooling_type(self.ptr)
+        return <llama_pooling_type>llama_cpp.llama_get_pooling_type(self.ptr)
 
     # Manage Threadpools
     # -------------------------------------------------------------------------
@@ -3972,32 +3980,32 @@ cdef class LlamaContext:
     # Lora
     # -------------------------------------------------------------------------
 
-    def lora_adapter_set(self, LlamaLoraAdapter adapter, float scale):
+    def set_adapter_lora(self, LlamaAdapterLora adapter, float scale):
         """Add a loaded LoRA adapter to given context
 
         This will not modify model's weight
         """
-        cdef int32_t res = llama_cpp.llama_lora_adapter_set(
+        cdef int32_t res = llama_cpp.llama_set_adapter_lora(
             self.ptr, adapter.ptr, scale)
         if res == -1:
             raise ValueError(f"cannot load lora adapter to context")
 
-    def lora_adapter_remove(self, LlamaLoraAdapter adapter):
+    def rm_adapter_lora(self, LlamaAdapterLora adapter):
         """Remove a specific LoRA adapter from given context
 
         Return -1 if the adapter is not present in the context
         """
-        cdef int32_t res = llama_cpp.llama_lora_adapter_remove(
+        cdef int32_t res = llama_cpp.llama_rm_adapter_lora(
             self.ptr, adapter.ptr)
         if res == -1:
             raise ValueError(f"cannot remove, lora the adapter is not present in the context")
 
-    def lora_adapter_clear(self):
+    def clear_adapter_lora(self):
         """Remove all LoRA adapters from given context"""
-        llama_cpp.llama_lora_adapter_clear(self.ptr)
+        llama_cpp.llama_clear_adapter_lora(self.ptr)
 
 
-    def control_vector_apply(self, data: list[float], n_embd: int, il_start: int, il_end: int) -> int:
+    def apply_adapter_cvec(self, data: list[float], n_embd: int, il_start: int, il_end: int) -> int:
         """Apply a loaded control vector to a llama_context, or if data is NULL, clear
         the currently loaded vector.
 
@@ -4012,7 +4020,7 @@ cdef class LlamaContext:
         for i in data:
             vec.push_back(i)
 
-        return llama_cpp.llama_control_vector_apply(
+        return llama_cpp.llama_apply_adapter_cvec(
             self.ptr,
             vec.data(),
             vec.size(),
@@ -4026,7 +4034,7 @@ cdef class LlamaContext:
 
     def kv_cache_clear(self):
         """Clear the KV cache - both cell info is erased and KV data is zeroed"""
-        llama_cpp.llama_kv_cache_clear(self.ptr)
+        llama_cpp.llama_kv_self_clear(self.ptr)
 
     def kv_cache_seq_rm(self, seq_id: int, p0: int, p1: int):
         """Removes all tokens that belong to the specified sequence and have positions in [p0, p1)
@@ -4036,7 +4044,7 @@ cdef class LlamaContext:
         p0 < 0     : [0,  p1]
         p1 < 0     : [p0, inf)
         """
-        llama_cpp.llama_kv_cache_seq_rm(self.ptr, seq_id, p0, p1)
+        llama_cpp.llama_kv_self_seq_rm(self.ptr, seq_id, p0, p1)
 
     def kv_cache_seq_cp(self, seq_id_src: int, seq_id_dst: int, p0: int, p1: int):
         """Copy all tokens that belong to the specified sequence to another sequence
@@ -4045,13 +4053,13 @@ cdef class LlamaContext:
         p0 < 0 : [0,  p1]
         p1 < 0 : [p0, inf)
         """
-        llama_cpp.llama_kv_cache_seq_cp(self.ptr, seq_id_src, seq_id_dst, p0, p1)
+        llama_cpp.llama_kv_self_seq_cp(self.ptr, seq_id_src, seq_id_dst, p0, p1)
 
     def kv_cache_seq_keep(self, seq_id: int):
         """Removes all tokens that do not belong to the specified sequence"""
-        llama_cpp.llama_kv_cache_seq_keep(self.ptr, seq_id)
+        llama_cpp.llama_kv_self_seq_keep(self.ptr, seq_id)
 
-    def kv_cache_seq_shift(self, seq_id: int, p0: int, p1: int, shift: int):
+    def kv_cache_seq_add(self, seq_id: int, p0: int, p1: int, shift: int):
         """Adds relative position "delta" to all tokens that belong to the specified sequence and have positions in [p0, p1)
 
         If the KV cache is RoPEd, the KV data is updated accordingly:
@@ -4060,7 +4068,7 @@ cdef class LlamaContext:
         p0 < 0 : [0,  p1]
         p1 < 0 : [p0, inf)
         """
-        llama_cpp.llama_kv_cache_seq_add(self.ptr, seq_id, p0, p1, shift)
+        llama_cpp.llama_kv_self_seq_add(self.ptr, seq_id, p0, p1, shift)
 
     def kv_cache_seq_div(self, seq_id: int, p0: int, p1: int, d: int):
         """Adds relative position "delta" to all tokens that belong to the specified sequence and have positions in [p0, p1)
@@ -4071,11 +4079,11 @@ cdef class LlamaContext:
         p0 < 0 : [0,  p1]
         p1 < 0 : [p0, inf)
         """
-        llama_cpp.llama_kv_cache_seq_div(self.ptr, seq_id, p0, p1, d)
+        llama_cpp.llama_kv_self_seq_div(self.ptr, seq_id, p0, p1, d)
 
     def kv_cache_seq_pos_max(self, seq_id: int) -> int:
         """Returns the largest position present in the KV cache for the specified sequence"""
-        return llama_cpp.llama_kv_cache_seq_pos_max(self.ptr, seq_id)
+        return llama_cpp.llama_kv_self_seq_pos_max(self.ptr, seq_id)
 
 
     def kv_cache_defrag(self):
@@ -4085,17 +4093,17 @@ cdef class LlamaContext:
         - lazily on next llama_decode()
         - explicitly with llama_kv_cache_update()
         """
-        llama_cpp.llama_kv_cache_defrag(self.ptr)
+        llama_cpp.llama_kv_self_defrag(self.ptr)
 
 
     def kv_cache_update(self):
         """Apply the KV cache updates (such as K-shifts, defragmentation, etc.)"""
-        llama_cpp.llama_kv_cache_update(self.ptr)
+        llama_cpp.llama_kv_self_update(self.ptr)
 
 
     def kv_cache_can_shift(self) -> bool:
         """Check if the context supports KV cache shifting."""
-        return <bint>llama_cpp.llama_kv_cache_can_shift(self.ptr)
+        return <bint>llama_cpp.llama_kv_self_can_shift(self.ptr)
 
     # State / sessions
     # -------------------------------------------------------------------------
@@ -4478,22 +4486,21 @@ cdef class LlamaBatch:
 
 cdef class CommonInitResult:
     cdef llama_cpp.common_init_result p
-    cdef vector[llama_cpp.common_lora_adapter_container] lora_adapters
+    # cdef llama_cpp.llama_model_ptr model
+    # cdef llama_cpp.llama_context_ptr context
+    cdef vector[llama_cpp.llama_adapter_lora_ptr] lora
 
     def __init__(self, params: CommonParams):
         self.p = llama_cpp.common_init_from_params(params.p)
 
     @property
     def model(self) -> LlamaModel:
-        return LlamaModel.from_ptr(self.p.model, owner=True)
+        return LlamaModel.from_ptr(self.p.model.get(), owner=True)
 
     @property
     def context(self) -> LlamaContext:
-        return LlamaContext.from_ptr(self.p.context, owner=True)
+        return LlamaContext.from_ptr(self.p.context.get(), owner=True)
 
-    @property
-    def lora_adapters(self):
-        return NotImplemented("Not yet at least..")
 
 
 

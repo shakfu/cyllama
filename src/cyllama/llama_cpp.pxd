@@ -5,6 +5,8 @@ from libc.stdio cimport FILE
 from libcpp.string cimport string as std_string
 from libcpp.vector cimport vector as std_vector
 from libcpp.set cimport set as std_set
+from libcpp.memory cimport unique_ptr
+from libcpp.set cimport set as std_set
 
 
 #------------------------------------------------------------------------------
@@ -282,6 +284,7 @@ cdef extern from "ggml-backend.h":
 cdef extern from "llama.h":
 
     long LLAMA_DEFAULT_SEED
+    int LLAMA_TOKEN_NULL
 
     ctypedef struct llama_vocab: pass
     ctypedef struct llama_model: pass
@@ -474,12 +477,12 @@ cdef extern from "llama.h":
 
     ctypedef struct llama_model_tensor_buft_override:
        const char * pattern
-       ggml_backend_buffer_type_t buft
+       # ggml_backend_buffer_type_t buft # TODO
 
     ctypedef struct llama_model_params:
         ggml_backend_dev_t * devices   # NULL-terminated list of devices to use for offloading (if NULL, all available devices are used)
         # NULL-terminated list of buffer types to use for tensors that match a pattern
-        const struct llama_model_tensor_buft_override * tensor_buft_overrides;
+        const llama_model_tensor_buft_override * tensor_buft_overrides;
         int32_t n_gpu_layers           # number of layers to store in VRAM
         llama_split_mode split_mode    # how to split the model across multiple GPUs
         int32_t main_gpu               # the GPU that is used for the entire model when split_mode is LLAMA_SPLIT_MODE_NONE
@@ -548,6 +551,7 @@ cdef extern from "llama.h":
         bint keep_split                     # quantize to the same number of shards
         void * imatrix                      # pointer to importance matrix data
         void * kv_overrides                 # pointer to vector containing overrides
+        void * tensor_types                 # pointer to vector containing tensor types
 
     ctypedef struct llama_logit_bias:
         llama_token token
@@ -560,7 +564,6 @@ cdef extern from "llama.h":
         const char * role
         const char * content
 
-    # TODO: rename to llama_adapter_lora
     ctypedef struct llama_adapter_lora: pass
 
 
@@ -632,7 +635,7 @@ cdef extern from "llama.h":
 
     cdef llama_pooling_type  llama_get_pooling_type "llama_pooling_type" (const llama_context * ctx)
     cdef const llama_vocab * llama_model_get_vocab(const llama_model * model)
-    cdef llama_rope_type     llama_model_rope_type(const llama_model * model)
+    cdef llama_rope_type     llama_get_model_rope_type "llama_model_rope_type" (const llama_model * model)
 
     cdef int32_t llama_model_n_ctx_train(const llama_model * model)
     cdef int32_t llama_model_n_embd     (const llama_model * model)
@@ -643,7 +646,7 @@ cdef extern from "llama.h":
     # Get the model's RoPE frequency scaling factor
     cdef float llama_model_rope_freq_scale_train(const llama_model * model)
 
-    cdef llama_vocab_type llama_vocab_type(const llama_vocab * vocab)
+    cdef llama_vocab_type llama_get_vocab_type "llama_vocab_type" (const llama_vocab * vocab)
 
     cdef int32_t llama_vocab_n_tokens(const llama_vocab * vocab)
 
@@ -797,7 +800,7 @@ cdef extern from "llama.h":
 
     # Returns the number of tokens in the KV cache (slow, use only for debug)
     # If a KV cell has multiple sequences assigned to it, it will be counted multiple times
-    cdef int32_t llama_kv_self_n_tokens(const struct llama_context * ctx)
+    cdef int32_t llama_kv_self_n_tokens(const llama_context * ctx)
 
     # Returns the number of used KV cells (i.e. have at least one sequence assigned to them)
     cdef int32_t llama_kv_self_used_cells(const llama_context * ctx)
@@ -1056,7 +1059,7 @@ cdef extern from "llama.h":
     # -------------------------------------------------------------------------
     # Vocab
 
-    cdef const char * llama_vocab_get_text(const struct llama_vocab * vocab, llama_token token)
+    cdef const char * llama_vocab_get_text(const llama_vocab * vocab, llama_token token)
 
     cdef float llama_vocab_get_score(const llama_vocab * vocab, llama_token token)
 
@@ -1359,7 +1362,7 @@ cdef extern from "llama.h":
     # 3. discard non-EOG tokens with low prob
     # 4. if no tokens are left -> pick EOT
     #
-    cdef llama_sampler * llama_sampler_init_infill(const struct llama_vocab * vocab)
+    cdef llama_sampler * llama_sampler_init_infill(const llama_vocab * vocab)
 
 
     # Returns the seed used by the sampler if applicable, LLAMA_DEFAULT_SEED otherwise
@@ -1435,13 +1438,29 @@ cdef extern from "llama.h":
 
 
 #------------------------------------------------------------------------------
+# llama-cpp.h
+
+cdef extern from "llama-cpp.h":
+
+    ctypedef struct llama_model_deleter: pass
+    ctypedef struct llama_context_deleter: pass
+    ctypedef struct llama_sampler_deleter: pass
+    ctypedef struct llama_adapter_lora_deleter: pass
+
+    ctypedef unique_ptr[llama_model, llama_model_deleter] llama_model_ptr
+    ctypedef unique_ptr[llama_context, llama_context_deleter] llama_context_ptr
+    ctypedef unique_ptr[llama_sampler, llama_sampler_deleter] llama_sampler_ptr
+    ctypedef unique_ptr[llama_adapter_lora, llama_adapter_lora_deleter] llama_adapter_lora_ptr
+
+
+#------------------------------------------------------------------------------
 # common.h
 
 cdef extern from "common.h":
 
     ctypedef std_vector[llama_token] llama_tokens
 
-    ctypedef struct common_lora_adapter_info:
+    ctypedef struct common_adapter_lora_info:
         std_string path
         float scale
         llama_adapter_lora * ptr
@@ -1511,6 +1530,23 @@ cdef extern from "common.h":
         DIMRE_METHOD_PCA
         DIMRE_METHOD_MEAN
 
+    cdef enum common_conversation_mode:
+        COMMON_CONVERSATION_MODE_DISABLED = 0
+        COMMON_CONVERSATION_MODE_ENABLED  = 1
+        COMMON_CONVERSATION_MODE_AUTO     = 2
+
+    cdef enum common_grammar_trigger_type:
+        COMMON_GRAMMAR_TRIGGER_TYPE_TOKEN
+        COMMON_GRAMMAR_TRIGGER_TYPE_WORD
+        COMMON_GRAMMAR_TRIGGER_TYPE_PATTERN
+        COMMON_GRAMMAR_TRIGGER_TYPE_PATTERN_START
+
+    ctypedef struct common_grammar_trigger:
+        common_grammar_trigger_type type
+        std_string value
+        llama_token token
+
+
     # sampler parameters
     ctypedef struct common_params_sampling:
         uint32_t seed  # the seed used to initialize llama_sampler
@@ -1541,15 +1577,28 @@ cdef extern from "common.h":
         float   mirostat_eta               # learning rate
         bint    ignore_eos                 # ignore end-of-sentence
         bint    no_perf                    # disable performance metrics
+        bint    timing_per_token
+
+        std_vector[std_string] dry_sequence_breakers
 
         std_vector[common_sampler_type] samplers
 
         std_string grammar # optional BNF-like grammar to constrain sampling
+        bint grammar_lazy
+        std_vector[common_grammar_trigger] grammar_triggers
+        std_set[llama_token] preserved_tokens
 
         std_vector[llama_logit_bias] logit_bias # logit biases to apply
 
         # print the parameters into a string
         # std_string print() const
+
+
+    ctypedef struct common_params_model:
+        std_string path         # model local path                                           // NOLINT
+        std_string url          # model url to download                                      // NOLINT
+        std_string hf_repo      # HF repo                                                    // NOLINT
+        std_string hf_file      # HF file                                                    // NOLINT
 
     ctypedef struct common_params_speculative:
         std_vector[ggml_backend_dev_t] devices # devices to use for offloading
@@ -1573,6 +1622,9 @@ cdef extern from "common.h":
         std_string model     # model path                                                // NOLINT
         std_string model_url # model url to download                                     // NOLINT
 
+    cdef enum common_reasoning_format:
+        COMMON_REASONING_FORMAT_NONE
+        COMMON_REASONING_FORMAT_DEEPSEEK # Extract thinking tag contents and return as `message.reasoning_content`
 
     ctypedef struct common_params:
         llama_example curr_ex
@@ -1641,7 +1693,7 @@ cdef extern from "common.h":
         std_vector[llama_model_kv_override] kv_overrides
 
         bint lora_init_without_apply # only load lora to memory, but do not apply it to ctx (user can manually apply lora later using llama_adapter_lora_apply)
-        # vector[common_lora_adapter_info] lora_adapters # lora adapter path with user defined scale
+        # vector[common_adapter_lora_info] lora_adapters # lora adapter path with user defined scale
 
         # vector[common_control_vector_load_info] control_vectors # control vector with user defined scale
 
@@ -1838,7 +1890,7 @@ cdef extern from "common.h":
     cdef llama_model * common_load_model_from_hf(const std_string & repo, const std_string & remote_path, const std_string & local_path, const std_string & hf_token, const llama_model_params & params)
 
     # clear LoRA adapters from context, then apply new list of adapters
-    cdef void common_lora_adapters_apply(llama_context * ctx, std_vector[common_lora_adapter_info] & lora)
+    cdef void common_lora_adapters_apply(llama_context * ctx, std_vector[common_adapter_lora_info] & lora)
 
     # -------------------------------------------------------------------------
     # Batch utils

@@ -7,7 +7,7 @@
 
 CWD=$(pwd)
 THIRDPARTY=${CWD}/thirdparty
-LAST_WORKING="b4393" 
+LAST_WORKING="b4393"
 LLAMACPP_VERSION="${2:-${LAST_WORKING}}"
 STABLE_BUILD=0
 GET_LAST_WORKING="${1:-$STABLE_BUILD}"
@@ -29,7 +29,7 @@ get_llamacpp() {
 	mkdir -p build ${INCLUDE} && \
 		cd build && \
 		if [ ! -d "llama.cpp" ]; then
-			git clone --depth 1 ${BRANCH} --recursive https://github.com/ggerganov/llama.cpp.git
+			git clone --depth 1 ${BRANCH} --recursive https://github.com/ggml-org/llama.cpp.git
 		fi && \
 		cd llama.cpp && \
 		cp common/*.h ${INCLUDE} && \
@@ -60,7 +60,7 @@ get_llamacpp_shared() {
 	mkdir -p build ${INCLUDE} && \
 		cd build && \
 		if [ ! -d "llama.cpp" ]; then
-			git clone --depth 1 --recursive https://github.com/ggerganov/llama.cpp.git
+			git clone --depth 1 --recursive https://github.com/ggml-org/llama.cpp.git
 		fi && \
 		cd llama.cpp && \
 		cp common/*.h ${INCLUDE} && \
@@ -74,7 +74,7 @@ get_llamacpp_shared() {
 		cp common/libcommon.a ${LIB} && \
 		cp examples/llava/libllava_shared.dylib ${LIB}/libllava_shared.dylib && \
 		mv ${PREFIX}/bin ${CWD}/bin && \
-		cd ${CWD}	
+		cd ${CWD}
 }
 
 get_whispercpp() {
@@ -86,7 +86,7 @@ get_whispercpp() {
 	mkdir -p build ${INCLUDE} && \
 		cd build && \
 		if [ ! -d "whisper.cpp" ]; then
-			git clone --depth 1 --recursive https://github.com/ggerganov/whisper.cpp.git
+			git clone --depth 1 --recursive https://github.com/ggml-org/whisper.cpp.git
 		fi && \
 		cd whisper.cpp && \
 		cp examples/*.h ${INCLUDE} && \
@@ -157,5 +157,3 @@ main() {
 }
 
 main
-
-
