@@ -271,11 +271,66 @@ cdef extern from "ggml.h":
 
 
 cdef extern from "ggml-backend.h":
-    ctypedef bint (*ggml_backend_sched_eval_callback)(ggml_tensor * t, bint ask, void * user_data)
 
+    ctypedef struct ggml_backend_buffer_type: pass
+    ctypedef struct ggml_backend_buffer: pass
+    ctypedef struct ggml_backend_event: pass
+    ctypedef struct ggml_backend: pass
+    ctypedef struct ggml_backend_reg: pass
     ctypedef struct ggml_backend_device: pass
 
+    ctypedef ggml_backend_buffer_type * ggml_backend_buffer_type_t
+    ctypedef ggml_backend_buffer * ggml_backend_buffer_t
+    ctypedef ggml_backend_event * ggml_backend_event_t
+    ctypedef ggml_backend * ggml_backend_t
+    ctypedef void * ggml_backend_graph_plan_t
+    ctypedef ggml_backend_reg * ggml_backend_reg_t
     ctypedef ggml_backend_device * ggml_backend_dev_t
+
+    cdef enum ggml_backend_dev_type:
+        # CPU device using system memory
+        GGML_BACKEND_DEVICE_TYPE_CPU
+        # GPU device using dedicated memory
+        GGML_BACKEND_DEVICE_TYPE_GPU
+        # accelerator devices intended to be used together with the CPU backend (e.g. BLAS or AMX)
+        GGML_BACKEND_DEVICE_TYPE_ACCEL
+    
+
+    ctypedef bint (*ggml_backend_sched_eval_callback)(ggml_tensor * t, bint ask, void * user_data)
+
+    # ctypedef struct ggml_backend_device: pass
+
+    # ctypedef ggml_backend_device * ggml_backend_dev_t
+
+    cdef void ggml_backend_device_register(ggml_backend_dev_t device)
+
+    # Backend (reg) enumeration
+    cdef size_t             ggml_backend_reg_count()
+    cdef ggml_backend_reg_t ggml_backend_reg_get(size_t index)
+    cdef ggml_backend_reg_t ggml_backend_reg_by_name(const char * name)
+
+    # Device enumeration
+    cdef size_t             ggml_backend_dev_count()
+    cdef ggml_backend_dev_t ggml_backend_dev_get(size_t index)
+    cdef ggml_backend_dev_t ggml_backend_dev_by_name(const char * name)
+    cdef ggml_backend_dev_t ggml_backend_dev_by_type(ggml_backend_dev_type type)
+
+    # Direct backend (stream) initialization
+    # = ggml_backend_dev_init(ggml_backend_dev_by_name(name), params)
+    cdef ggml_backend_t ggml_backend_init_by_name(const char * name, const char * params)
+    # = ggml_backend_dev_init(ggml_backend_dev_by_type(type), params)
+    cdef ggml_backend_t ggml_backend_init_by_type(ggml_backend_dev_type type, const char * params)
+    # = ggml_backend_dev_init(ggml_backend_dev_by_type(GPU) OR ggml_backend_dev_by_type(CPU), NULL)
+    cdef ggml_backend_t ggml_backend_init_best()
+
+    # Load a backend from a dynamic library and register it
+    cdef ggml_backend_reg_t ggml_backend_load(const char * path)
+    # Unload a backend if loaded dynamically and unregister it
+    cdef void ggml_backend_unload(ggml_backend_reg_t reg)
+    # Load all known backends from dynamic libraries
+    cdef void ggml_backend_load_all()
+    cdef void ggml_backend_load_all_from_path(const char * dir_path)
+
 
 
 #------------------------------------------------------------------------------

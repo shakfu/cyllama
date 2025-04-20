@@ -1015,6 +1015,32 @@ cdef class LlamaSampler:
         return llama_cpp.llama_sampler_sample(self.ptr, ctx.ptr, idx)
 
 
+    #
+    # Performance utils
+    #
+    # NOTE: Used by llama.cpp examples, avoid using in third-party apps. Instead, do your own performance measurements.
+    #
+
+
+    # def get_perf_data(self):
+    #     """
+    #     # NOTE: the following work only with samplers constructed via llama_sampler_chain_init
+    #     """
+    #     cdef llama_perf_sampler_data data = llama_cpp.llama_perf_sampler(self.ptr)
+
+    def print_perf_data(self):
+        """
+        # NOTE: the following work only with samplers constructed via llama_sampler_chain_init
+        """
+        llama_cpp.llama_perf_sampler_print(self.ptr)
+
+    def reset_perf_data(self):
+        """
+        # NOTE: the following work only with samplers constructed via llama_sampler_chain_init
+        """
+        llama_cpp.llama_perf_sampler_reset(self.ptr)
+
+
 
 cdef class LlamaChatMessage:
     """cython wrapper for llama_cpp.llama_chat_message
@@ -3273,6 +3299,13 @@ cdef class LlamaVocab:
         self.ptr = NULL
         self.owner = True
 
+    @staticmethod
+    cdef LlamaVocab from_ptr(llama_cpp.llama_vocab *ptr, bint owner=False):
+        cdef LlamaVocab wrapper = LlamaVocab.__new__(LlamaVocab)
+        wrapper.ptr = ptr
+        wrapper.owner = owner
+        return wrapper
+
     @property
     def vocab_type(self) -> llama_vocab_type:
         return llama_vocab_type(llama_cpp.llama_get_vocab_type(self.ptr))
@@ -3354,6 +3387,28 @@ cdef class LlamaVocab:
 
     # Tokenization
 
+    # def tokenize(self, text: str, add_special: bool, parse_special: bool) -> list[int]:
+    #     """Convert the provided text into tokens.
+
+    #     text: string to be converted into token.
+    #     add_special: Allow to add BOS and EOS tokens if model is configured to do so.
+    #     parse_special: Allow tokenizing special and/or control tokens which otherwise
+    #                    are not exposed and treated as plaintext. Does not insert a leading space.
+    #     Returns the number of tokens on success, no more than n_tokens_max
+    #     Returns a negative number on failure - the number of tokens that would have been returned
+    #     """
+    #     cdef int n_ctx = self.n_ctx_train()
+    #     cdef vector[llama_cpp.llama_token] tokens
+    #     tokens.reserve(n_ctx)
+    #     n_tokens = llama_cpp.llama_tokenize(
+    #         self.ptr, text.encode(), len(text), tokens.data(), n_ctx, add_special, parse_special
+    #     )
+    #     if n_tokens < 0:
+    #         raise RuntimeError(
+    #             f'Failed to tokenize: text="{text}" n_tokens={n_tokens}'
+    #         )
+    #     return tokens[:n_tokens]
+
     def tokenize(self, text: str, add_special: bool, parse_special: bool) -> list[int]:
         """Convert the provided text into tokens.
 
@@ -3364,17 +3419,17 @@ cdef class LlamaVocab:
         Returns the number of tokens on success, no more than n_tokens_max
         Returns a negative number on failure - the number of tokens that would have been returned
         """
-        cdef int n_ctx = self.n_ctx_train()
+        n_ctx = 128
         cdef vector[llama_cpp.llama_token] tokens
         tokens.reserve(n_ctx)
         n_tokens = llama_cpp.llama_tokenize(
             self.ptr, text.encode(), len(text), tokens.data(), n_ctx, add_special, parse_special
         )
-        if n_tokens < 0:
+        if n_ctx < 0:
             raise RuntimeError(
                 f'Failed to tokenize: text="{text}" n_tokens={n_tokens}'
             )
-        return tokens[:n_tokens]
+        return tokens[:n_ctx]
 
     def token_to_piece(self, token: int, lstrip: int = 0, special: bool = False) -> str:
         """Token Id -> Piece.
@@ -3516,6 +3571,12 @@ cdef class LlamaModel:
     #     cdef llama_cpp.ggml_tensor * tensor = llama_cpp.llama_get_model_tensor(
     #         self.ptr, name.encode("utf-8"))
     #     return GGMLTensor.from_ptr(tensor)
+
+    # vocab
+
+    def get_vocab(self) -> LlamaVocab:
+        cdef llama_cpp.llama_vocab * vocab = <llama_cpp.llama_vocab *>llama_cpp.llama_model_get_vocab(self.ptr)
+        return LlamaVocab.from_ptr(vocab)
 
     # sampling
 
@@ -4258,7 +4319,7 @@ cdef class LlamaContext:
         if res < 0:
             raise RuntimeError("error encoding batch")
 
-    def decode(self, LlamaBatch batch):
+    def decode(self, LlamaBatch batch) -> int:
         """Positive return values does not mean a fatal error, but rather a warning.
 
           0 - success
@@ -4271,6 +4332,7 @@ cdef class LlamaContext:
             raise ValueError("could not find a KV slot for the batch (try reducing the size of the batch or increase the context)")
         if res < 0:
             raise RuntimeError(f"llama_decode failed")
+        return res
 
     def set_n_threads(self, n_threads: int, n_threads_batch: int):
         """Set the number of threads used for decoding
@@ -4404,6 +4466,25 @@ cdef class LlamaContext:
         """Get the default llama_context_params."""
         return LlamaContext()
 
+    #
+    # Performance utils
+    #
+    # NOTE: Used by llama.cpp examples, avoid using in third-party apps. Instead, do your own performance measurements.
+    #
+
+    # def get_perf_data(self):
+    #     """get performance data"""
+    #     cdef llama_perf_context_data data = llama_cpp.llama_perf_context(self.ptr)
+
+    def print_perf_data(self):
+        """print performance data"""
+        llama_cpp.llama_perf_context_print(self.ptr)
+
+    def reset_perf_data(self):
+        """reset performance data"""
+        llama_cpp.llama_perf_context_reset(self.ptr)
+
+
 
 cdef class LlamaBatch:
     """Input data for llama_decode
@@ -4453,6 +4534,12 @@ cdef class LlamaBatch:
 
     def close(self):
         self.__dealloc__()
+
+    @staticmethod
+    cdef LlamaBatch from_instance(llama_cpp.llama_batch batch):
+        cdef LlamaBatch wrapper = LlamaBatch.__new__(LlamaBatch)
+        wrapper.p = batch
+        return wrapper
 
     @property
     def n_tokens(self) -> int:
@@ -4518,6 +4605,8 @@ cdef class CommonInitResult:
 
 
 
+def ggml_backend_load_all():
+    llama_cpp.ggml_backend_load_all()
 
 def common_init():
     """call once at the start of a program if it uses libcommon
@@ -4620,6 +4709,15 @@ def llama_detach_threadpool(LlamaContext ctx):
 
 def log_set_verbosity(int verbosity):
     llama_cpp.common_log_set_verbosity_thold(verbosity)
+
+def llama_batch_get_one(list[int] tokens) -> LlamaBatch:
+    cdef int32_t n_tokens = <int32_t>len(tokens)
+    cdef llama_cpp.llama_token * _tokens = <llama_cpp.llama_token *>malloc(sizeof(llama_cpp.llama_token) * n_tokens)
+    for i in range(n_tokens):
+        _tokens[i] = tokens[i]
+    cdef llama_cpp.llama_batch batch = llama_cpp.llama_batch_get_one(_tokens, n_tokens)
+    free(_tokens)
+    return LlamaBatch.from_instance(batch)
 
 def common_batch_clear(LlamaBatch batch):
     llama_cpp.common_batch_clear(batch.p)
