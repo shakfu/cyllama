@@ -29,13 +29,13 @@ get_llamacpp() {
 	mkdir -p build ${INCLUDE} && \
 		cd build && \
 		if [ ! -d "llama.cpp" ]; then
-			git clone --depth 1 ${BRANCH} --recursive https://github.com/ggml-org/llama.cpp.git
+			git clone ${BRANCH} --recursive https://github.com/ggml-org/llama.cpp.git
 		fi && \
 		cd llama.cpp && \
 		cp common/*.h ${INCLUDE} && \
 		cp common/*.hpp ${INCLUDE} && \
 		cp ggml/include/*.h ${INCLUDE} && \
-		cp examples/llava/*.h ${INCLUDE} && \
+		# cp examples/llava/*.h ${INCLUDE} && \
 		mkdir -p build && \
 		cd build && \
 		cmake .. -DBUILD_SHARED_LIBS=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON && \
@@ -46,7 +46,7 @@ get_llamacpp() {
 		cp ggml/src/ggml-blas/libggml-blas.a ${LIB} && \
 		cp ggml/src/ggml-metal/libggml-metal.a ${LIB} && \
 		cp common/libcommon.a ${LIB} && \
-		cp examples/llava/libllava_static.a ${LIB}/libllava.a && \
+		# cp examples/llava/libllava_static.a ${LIB}/libllava.a && \
 		mv ${PREFIX}/bin ${CWD}/bin && \
 		cd ${CWD}
 }
@@ -151,7 +151,7 @@ main() {
 	remove_current
 	get_llamacpp
 	# get_llamacpp_shared
-	get_llamacpp_python
+	# get_llamacpp_python
 	# get_whispercpp
 	# get_stablediffusioncpp
 }

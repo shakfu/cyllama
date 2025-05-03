@@ -2165,118 +2165,118 @@ cdef extern from "arg.h":
     # function to be used by test-arg-parser
     cdef common_params_context common_params_parser_init(common_params & params, llama_example ex, print_usage callback)
 
-#------------------------------------------------------------------------------
-cdef extern from "clip.h":
+# #------------------------------------------------------------------------------
+# cdef extern from "clip.h":
 
-    # added this (it's in clip.cpp) ---------
+#     # added this (it's in clip.cpp) ---------
 
-    # RGB uint8 image
-    ctypedef struct clip_image_u8:
-        int nx
-        int ny
-        std_vector[uint8_t] buf
+#     # RGB uint8 image
+#     ctypedef struct clip_image_u8:
+#         int nx
+#         int ny
+#         std_vector[uint8_t] buf
 
-    # RGB float32 image (NHWC)
-    # Memory layout: RGBRGBRGB...
-    ctypedef struct clip_image_f32:
-        int nx
-        int ny
+#     # RGB float32 image (NHWC)
+#     # Memory layout: RGBRGBRGB...
+#     ctypedef struct clip_image_f32:
+#         int nx
+#         int ny
 
-        std_vector[float] buf
+#         std_vector[float] buf
 
-    # end (additions) ------------------------
+#     # end (additions) ------------------------
 
-    ctypedef struct clip_ctx: pass
+#     ctypedef struct clip_ctx: pass
 
-    ctypedef struct clip_image_size:
-        int width
-        int height
+#     ctypedef struct clip_image_size:
+#         int width
+#         int height
 
-    ctypedef struct clip_image_u8_batch:
-        clip_image_u8 * data
-        size_t size
+#     ctypedef struct clip_image_u8_batch:
+#         clip_image_u8 * data
+#         size_t size
 
-    ctypedef struct clip_image_f32_batch:
-        clip_image_f32 * data
-        size_t size
+#     ctypedef struct clip_image_f32_batch:
+#         clip_image_f32 * data
+#         size_t size
 
-    cdef clip_ctx * clip_model_load    (const char * fname, int verbosity)
-    cdef clip_ctx * clip_model_load_cpu(const char * fname, int verbosity)
+#     cdef clip_ctx * clip_model_load    (const char * fname, int verbosity)
+#     cdef clip_ctx * clip_model_load_cpu(const char * fname, int verbosity)
 
-    cdef void clip_free(clip_ctx * ctx)
+#     cdef void clip_free(clip_ctx * ctx)
 
-    cdef size_t clip_embd_nbytes(const clip_ctx * ctx)
+#     cdef size_t clip_embd_nbytes(const clip_ctx * ctx)
 
-    cdef int32_t get_clip_image_size "get_clip_image_size" (const clip_ctx * ctx)
-    cdef int32_t clip_patch_size (const clip_ctx * ctx)
-    cdef int32_t clip_hidden_size(const clip_ctx * ctx)
+#     cdef int32_t get_clip_image_size "get_clip_image_size" (const clip_ctx * ctx)
+#     cdef int32_t clip_patch_size (const clip_ctx * ctx)
+#     cdef int32_t clip_hidden_size(const clip_ctx * ctx)
 
-    # TODO: should be enum, not string
-    cdef const char * clip_patch_merge_type(const clip_ctx * ctx)
+#     # TODO: should be enum, not string
+#     cdef const char * clip_patch_merge_type(const clip_ctx * ctx)
 
-    cdef const int32_t * clip_image_grid(const clip_ctx * ctx)
+#     cdef const int32_t * clip_image_grid(const clip_ctx * ctx)
 
-    cdef int clip_n_patches    (const clip_ctx * ctx)
-    cdef int clip_n_mmproj_embd(const clip_ctx * ctx)
+#     cdef int clip_n_patches    (const clip_ctx * ctx)
+#     cdef int clip_n_mmproj_embd(const clip_ctx * ctx)
 
-    cdef int clip_uhd_num_image_embeds_col(clip_ctx * ctx_clip)
-    cdef void clip_add_load_image_size(clip_ctx * ctx_clip, clip_image_size * load_image_size)
+#     cdef int clip_uhd_num_image_embeds_col(clip_ctx * ctx_clip)
+#     cdef void clip_add_load_image_size(clip_ctx * ctx_clip, clip_image_size * load_image_size)
 
-    cdef clip_image_size * clip_image_size_init()
-    cdef clip_image_u8  * clip_image_u8_init ()
-    cdef clip_image_f32 * clip_image_f32_init()
+#     cdef clip_image_size * clip_image_size_init()
+#     cdef clip_image_u8  * clip_image_u8_init ()
+#     cdef clip_image_f32 * clip_image_f32_init()
 
-    cdef void clip_image_u8_free (clip_image_u8  * img)
-    cdef void clip_image_f32_free(clip_image_f32 * img)
-    cdef void clip_image_u8_batch_free (clip_image_u8_batch  * batch)
-    cdef void clip_image_f32_batch_free(clip_image_f32_batch * batch)
+#     cdef void clip_image_u8_free (clip_image_u8  * img)
+#     cdef void clip_image_f32_free(clip_image_f32 * img)
+#     cdef void clip_image_u8_batch_free (clip_image_u8_batch  * batch)
+#     cdef void clip_image_f32_batch_free(clip_image_f32_batch * batch)
 
-    cdef bint clip_image_load_from_file(const char * fname, clip_image_u8 * img)
+#     cdef bint clip_image_load_from_file(const char * fname, clip_image_u8 * img)
 
-    # interpret bytes as an image file with length bytes_length, and use the result to populate img
-    cdef bint clip_image_load_from_bytes(const unsigned char * bytes, size_t bytes_length, clip_image_u8 * img)
+#     # interpret bytes as an image file with length bytes_length, and use the result to populate img
+#     cdef bint clip_image_load_from_bytes(const unsigned char * bytes, size_t bytes_length, clip_image_u8 * img)
 
-    # preprocess img and store the result in res_imgs, pad_to_square may be overridden to false depending on model configuration
-    cdef bint clip_image_preprocess(clip_ctx * ctx, const clip_image_u8 * img, clip_image_f32_batch * res_imgs )
+#     # preprocess img and store the result in res_imgs, pad_to_square may be overridden to false depending on model configuration
+#     cdef bint clip_image_preprocess(clip_ctx * ctx, const clip_image_u8 * img, clip_image_f32_batch * res_imgs )
 
-    cdef ggml_tensor * clip_get_newline_tensor(const clip_ctx * ctx)
+#     cdef ggml_tensor * clip_get_newline_tensor(const clip_ctx * ctx)
 
-    cdef bint clip_image_encode      (clip_ctx * ctx, int n_threads, clip_image_f32 * img, float * vec)
-    cdef bint clip_image_batch_encode(clip_ctx * ctx, int n_threads, const clip_image_f32_batch * imgs, float * vec)
+#     cdef bint clip_image_encode      (clip_ctx * ctx, int n_threads, clip_image_f32 * img, float * vec)
+#     cdef bint clip_image_batch_encode(clip_ctx * ctx, int n_threads, const clip_image_f32_batch * imgs, float * vec)
 
-    cdef bint clip_model_quantize(const char * fname_inp, const char * fname_out, int itype)
+#     cdef bint clip_model_quantize(const char * fname_inp, const char * fname_out, int itype)
 
-    cdef int clip_is_minicpmv(const clip_ctx * ctx)
+#     cdef int clip_is_minicpmv(const clip_ctx * ctx)
 
 
-#------------------------------------------------------------------------------
-# llava.h
+# #------------------------------------------------------------------------------
+# # llava.h
 
-cdef extern from "llava.h":
+# cdef extern from "llava.h":
 
-    ctypedef struct clip_ctx: pass
+#     ctypedef struct clip_ctx: pass
 
-    ctypedef struct llava_image_embed:
-        float * embed
-        int n_image_pos
+#     ctypedef struct llava_image_embed:
+#         float * embed
+#         int n_image_pos
 
-    # sanity check for clip <-> llava embed size match
-    cdef bint llava_validate_embed_size(const llama_context * ctx_llama, const clip_ctx * ctx_clip)
+#     # sanity check for clip <-> llava embed size match
+#     cdef bint llava_validate_embed_size(const llama_context * ctx_llama, const clip_ctx * ctx_clip)
 
-    cdef bint llava_image_embed_make_with_clip_img(clip_ctx * ctx_clip, int n_threads, const clip_image_u8 * img, float ** image_embd_out, int * n_img_pos_out)
+#     cdef bint llava_image_embed_make_with_clip_img(clip_ctx * ctx_clip, int n_threads, const clip_image_u8 * img, float ** image_embd_out, int * n_img_pos_out)
 
-    # build an image embed from image file bytes
-    cdef llava_image_embed * llava_image_embed_make_with_bytes(clip_ctx * ctx_clip, int n_threads, const unsigned char * image_bytes, int image_bytes_length)
+#     # build an image embed from image file bytes
+#     cdef llava_image_embed * llava_image_embed_make_with_bytes(clip_ctx * ctx_clip, int n_threads, const unsigned char * image_bytes, int image_bytes_length)
 
-    # build an image embed from a path to an image filename
-    cdef llava_image_embed * llava_image_embed_make_with_filename(clip_ctx * ctx_clip, int n_threads, const char * image_path)
+#     # build an image embed from a path to an image filename
+#     cdef llava_image_embed * llava_image_embed_make_with_filename(clip_ctx * ctx_clip, int n_threads, const char * image_path)
 
-    # free an embedding made with llava_image_embed_make_*
-    cdef void llava_image_embed_free(llava_image_embed * embed)
+#     # free an embedding made with llava_image_embed_make_*
+#     cdef void llava_image_embed_free(llava_image_embed * embed)
 
-    # write the image represented by embed into the llama context with batch size n_batch, starting at context pos n_past.
-    # on completion, n_past points to the next position in the context after the image embed.
-    cdef bint llava_eval_image_embed(llama_context * ctx_llama, const llava_image_embed * embed, int n_batch, int * n_past)
+#     # write the image represented by embed into the llama context with batch size n_batch, starting at context pos n_past.
+#     # on completion, n_past points to the next position in the context after the image embed.
+#     cdef bint llava_eval_image_embed(llama_context * ctx_llama, const llava_image_embed * embed, int n_batch, int * n_past)
 
 
 #------------------------------------------------------------------------------
