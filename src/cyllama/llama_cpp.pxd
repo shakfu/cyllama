@@ -568,7 +568,6 @@ cdef extern from "ggml-opt.h":
             bint                            silent)         # whether or not info prints to stderr should be suppressed
 
 
-
 #------------------------------------------------------------------------------
 # llama.h
 

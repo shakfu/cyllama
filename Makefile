@@ -19,15 +19,19 @@ else
 endif
 
 
-.PHONY: all build cmake clean reset setup setup_inplace wheel bind header
+.PHONY: all build cmake clean reset setup setup_inplace \
+		wheel bind header diff
 
 all: build
 
 $(LIBLAMMA):
 	@scripts/setup.sh
 
+diff:
+	@git diff > changes.diff
+	
+
 build: $(LIBLAMMA)
-	@git diff thirdparty > changes.diff
 	@python3 setup.py build_ext --inplace
 	
 
