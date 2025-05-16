@@ -395,6 +395,9 @@ cdef extern from "llama.h":
         LLAMA_VOCAB_PRE_TYPE_TRILLION
         LLAMA_VOCAB_PRE_TYPE_BAILINGMOE
         LLAMA_VOCAB_PRE_TYPE_LLAMA4
+        LLAMA_VOCAB_PRE_TYPE_MINERVA
+        LLAMA_VOCAB_PRE_TYPE_SEED_CODER
+
 
     cdef enum llama_rope_type:
         LLAMA_ROPE_TYPE_NONE   = -1
@@ -580,18 +583,18 @@ cdef extern from "llama.h":
         ggml_type type_k # data type for K cache [EXPERIMENTAL]
         ggml_type type_v # data type for V cache [EXPERIMENTAL]
 
-        # Keep the booleans together and at the end of the struct to avoid misalignment during copy-by-value.
-        bint logits_all  # the llama_decode() call computes all logits, not just the last one (DEPRECATED - set llama_batch.logits instead)
-        bint embeddings  # if true, extract embeddings (together with logits)
-        bint offload_kqv # whether to offload the KQV ops (including the KV cache) to GPU
-        bint flash_attn  # whether to use flash attention [EXPERIMENTAL]
-        bint no_perf     # whether to measure performance timings
-
         # Abort callback
         # if it returns true, execution of llama_decode() will be aborted
         # currently works only with CPU execution
         ggml_abort_callback abort_callback
         void * abort_callback_data
+
+        # Keep the booleans together and at the end of the struct to avoid misalignment during copy-by-value.
+        bint embeddings  # if true, extract embeddings (together with logits)
+        bint offload_kqv # whether to offload the KQV ops (including the KV cache) to GPU
+        bint flash_attn  # whether to use flash attention [EXPERIMENTAL]
+        bint no_perf     # whether to measure performance timings
+        bint op_offload  # whether to offload host tensor operations to device
 
 
     ctypedef struct llama_model_quantize_params:
@@ -660,7 +663,11 @@ cdef extern from "llama.h":
                              const char ** paths,
                                  size_t    n_paths,
                      llama_model_params    params)
-    
+
+    cdef void llama_model_save_to_file(
+            const llama_model * model,
+                const char * path_model);
+
     cdef void llama_model_free(llama_model * model)
 
     cdef llama_context * llama_init_from_model(

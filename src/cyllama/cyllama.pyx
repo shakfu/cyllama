@@ -2549,15 +2549,6 @@ cdef class CommonParams:
         self.p.input_prefix_bos = value
 
     @property
-    def logits_all(self) -> bool:
-        """return logits for all tokens in the batch"""
-        return self.p.logits_all
-
-    @logits_all.setter
-    def logits_all(self, value: bool):
-        self.p.logits_all = value
-
-    @property
     def use_mmap(self) -> bool:
         """use mmap for faster loads"""
         return self.p.use_mmap
@@ -3931,14 +3922,14 @@ cdef class LlamaContextParams:
     def type_v(self, llama_cpp.ggml_type value):
         self.p.type_v = value
 
-    @property
-    def logits_all(self) -> bool:
-        """the llama_decode() call computes all logits, not just the last one (DEPRECATED - set llama_batch.logits instead)"""
-        return self.p.logits_all
+    # @property
+    # def logits_all(self) -> bool:
+    #     """the llama_decode() call computes all logits, not just the last one (DEPRECATED - set llama_batch.logits instead)"""
+    #     return self.p.logits_all
 
-    @logits_all.setter
-    def logits_all(self, value: bool):
-        self.p.logits_all = value
+    # @logits_all.setter
+    # def logits_all(self, value: bool):
+    #     self.p.logits_all = value
 
     @property
     def embeddings(self) -> bool:
