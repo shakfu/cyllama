@@ -123,6 +123,10 @@ cdef extern from "ggml.h":
         GGML_TYPE_COUNT = 39
 
 
+    cdef enum ggml_prec:
+        GGML_PREC_DEFAULT =  0
+        GGML_PREC_F32     = 10
+
     cdef enum ggml_op:
         GGML_OP_NONE = 0
 
@@ -298,7 +302,38 @@ cdef extern from "ggml-backend.h":
         GGML_BACKEND_DEVICE_TYPE_GPU
         # accelerator devices intended to be used together with the CPU backend (e.g. BLAS or AMX)
         GGML_BACKEND_DEVICE_TYPE_ACCEL
-    
+
+    # functionality supported by the device
+    ctypedef struct ggml_backend_dev_caps:
+        # asynchronous operations
+        bint async
+        # pinned host buffer
+        bint host_buffer
+        # creating buffers from host ptr
+        bint buffer_from_host_ptr
+        # event synchronization
+        bint events
+
+    ctypedef struct ggml_backend_dev_props:
+        const char * name
+        const char * description
+        size_t memory_free
+        size_t memory_total
+        ggml_backend_dev_type type
+        ggml_backend_dev_caps caps
+
+    cdef const char *               ggml_backend_dev_name(ggml_backend_dev_t device)
+    cdef const char *               ggml_backend_dev_description(ggml_backend_dev_t device)
+    cdef void                       ggml_backend_dev_memory(ggml_backend_dev_t device, size_t * free, size_t * total)
+    cdef ggml_backend_dev_type      ggml_backend_dev_type(ggml_backend_dev_t device)
+    cdef void                       ggml_backend_dev_get_props(ggml_backend_dev_t device, ggml_backend_dev_props * props)
+    cdef ggml_backend_reg_t         ggml_backend_dev_backend_reg(ggml_backend_dev_t device)
+    cdef ggml_backend_t             ggml_backend_dev_init(ggml_backend_dev_t device, const char * params)
+    cdef ggml_backend_buffer_type_t ggml_backend_dev_buffer_type(ggml_backend_dev_t device)
+    cdef ggml_backend_buffer_type_t ggml_backend_dev_host_buffer_type(ggml_backend_dev_t device)
+    cdef ggml_backend_buffer_t      ggml_backend_dev_buffer_from_host_ptr(ggml_backend_dev_t device, void * ptr, size_t size, size_t max_tensor_size)
+
+
 
     ctypedef bint (*ggml_backend_sched_eval_callback)(ggml_tensor * t, bint ask, void * user_data)
 
@@ -320,11 +355,8 @@ cdef extern from "ggml-backend.h":
     cdef ggml_backend_dev_t ggml_backend_dev_by_type(ggml_backend_dev_type type)
 
     # Direct backend (stream) initialization
-    # = ggml_backend_dev_init(ggml_backend_dev_by_name(name), params)
     cdef ggml_backend_t ggml_backend_init_by_name(const char * name, const char * params)
-    # = ggml_backend_dev_init(ggml_backend_dev_by_type(type), params)
     cdef ggml_backend_t ggml_backend_init_by_type(ggml_backend_dev_type type, const char * params)
-    # = ggml_backend_dev_init(ggml_backend_dev_by_type(GPU) OR ggml_backend_dev_by_type(CPU), NULL)
     cdef ggml_backend_t ggml_backend_init_best()
 
     # Load a backend from a dynamic library and register it
