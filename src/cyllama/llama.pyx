@@ -32,27 +32,19 @@ classes:
 """
 
 from libc.stdint cimport uint8_t, int32_t, int64_t, uint32_t, uint64_t
+from libc.string cimport strlen
 from libc.stdlib cimport malloc, calloc, realloc, free
-from libc.string cimport strcpy, strlen, strncpy
 from libcpp.vector cimport vector
-from libcpp.string cimport string
-from libcpp cimport bool as cppbool # required for func pointer sigs
+from libcpp cimport bool as cppbool  # required for func pointer sigs
 
 cimport llama as llama_cpp
-cimport ggml as gg
-
-# import numpy as np
 
 import os
 from typing import Optional, Sequence, Callable
 
 
-
 # constants
 # -----------------------------------------------------------------------------
-
-# cpdef enum:
-#      LLAMA_DEFAULT_SEED = 0xFFFFFFFF
 
 cpdef enum:
     GGML_DEFAULT_N_THREADS = 4
@@ -63,53 +55,45 @@ cpdef enum:
     GGML_MAX_SRC = 10
 
 cpdef enum:
-    GGML_ROPE_TYPE_NEOX   = 2
-    GGML_ROPE_TYPE_MROPE  = 8
+    GGML_ROPE_TYPE_NEOX = 2
+    GGML_ROPE_TYPE_MROPE = 8
     GGML_ROPE_TYPE_VISION = 24
 
 
-# build info
+# callbacks
 # -----------------------------------------------------------------------------
 
-# BUILD_INFO = {
-#     'build_number': llama_cpp.LLAMA_BUILD_NUMBER,
-#     'commit': llama_cpp.LLAMA_COMMIT.decode(),
-#     'compiler': llama_cpp.LLAMA_COMPILER.decode(),
-#     'build_target': llama_cpp.LLAMA_BUILD_TARGET.decode(),
-# }
+cdef void log_callback(ggml.ggml_log_level level, const char * text, void * py_log_callback) noexcept:
+    """ggml_log_callback wrapper to enabling python callbacks to be used"""
+    (<object>py_log_callback)(level, text.decode())
 
 
+def set_log_callback(object py_log_callback):
+    """Set callback for all future logging events.
 
-# # callbacks
-# # -----------------------------------------------------------------------------
+    If this is not called, or NULL is supplied, everything is output on stderr.
+    """
+    llama_cpp.llama_log_set(<ggml.ggml_log_callback>&log_callback, <void*>py_log_callback)
 
-# cdef void log_callback(ggml_log_level level, const char * text, void * py_log_callback) noexcept:
-#     """ggml_log_callback wrapper to enabling python callbacks to be used"""
-#     (<object>py_log_callback)(level, text.decode())
-
-# def set_log_callback(object py_log_callback):
-#     """Set callback for all future logging events.
-
-#     If this is not called, or NULL is supplied, everything is output on stderr.
-#     """
-#     llama_cpp.llama_log_set(<llama_cpp.ggml_log_callback>&log_callback, <void*>py_log_callback)
 
 cdef bint abort_callback(void * py_abort_callback) noexcept:
     """ggml_abort_callback wrapper enabling python callbacks to be used"""
     return (<object>py_abort_callback)()
+
 
 cdef cppbool sched_eval_callback(ggml.ggml_tensor * t, cppbool ask, void * py_sched_eval_callback) noexcept:
     """ggml_backend_sched_eval_callback wrapper enabling python callbacks to be used"""
     cdef GgmlTensor tensor = GgmlTensor.from_ptr(t)
     return (<object>py_sched_eval_callback)(tensor, ask)
 
+
 cdef cppbool progress_callback(float progress, void * py_progress_callback) noexcept:
     """llama_progress_callback callback wrapper enabling python callbacks to be used"""
     return (<object>py_progress_callback)(progress)
 
 
-# # high-level api
-# # -----------------------------------------------------------------------------
+# high-level api
+# -----------------------------------------------------------------------------
 
 
 # def ask(str prompt, str model, n_predict=512, n_ctx=2048, disable_log=True, n_threads=4) -> str:
@@ -123,8 +107,6 @@ cdef cppbool progress_callback(float progress, void * py_progress_callback) noex
 #         disable_log,
 #         n_threads).decode()
 #     return result.strip()
-
-
 
 
 # ggml wrapper classes
@@ -318,7 +300,6 @@ cdef class GgmlThreadPool:
 
     def resume(self):
         return ggml.ggml_threadpool_resume(self.ptr)
-
 
 
 # llama wrapper classes
@@ -1364,6 +1345,9 @@ cdef class LlamaModel:
             buf,
             length
         )
+        if (n_bytes > strlen(buf)):
+            raise MemoryError("n_bytes should less then size of buf")
+
         cdef str result = buf.decode()
         free(buf)
         return result
@@ -2117,8 +2101,10 @@ cdef class LlamaSampler:
         3. discard non-EOG tokens with low prob
         4. if no tokens are left -> pick EOT
         """
-        llama_cpp.llama_sampler_chain_add(self.ptr,
-            llama_cpp.llama_sampler_init_infill(vocab.ptr))
+        llama_cpp.llama_sampler_chain_add(
+            self.ptr,
+            llama_cpp.llama_sampler_init_infill(vocab.ptr)
+        )
 
 
     def sample(self, LlamaContext ctx, int idx) -> int:
@@ -2209,55 +2195,55 @@ def chat_builtin_templates() -> list[str]:
 
 
 
-def ggml_backend_load_all():
-    ggml.ggml_backend_load_all()
+# def ggml_backend_load_all():
+#     ggml.ggml_backend_load_all()
 
-def llama_backend_init():
-    """Initialize the llama + ggml backend
+# def llama_backend_init():
+#     """Initialize the llama + ggml backend
 
-    If numa is true, use NUMA optimizations
-    Call once at the start of the program
-    """
-    llama_cpp.llama_backend_init()
+#     If numa is true, use NUMA optimizations
+#     Call once at the start of the program
+#     """
+#     llama_cpp.llama_backend_init()
 
-def llama_numa_init(ggml.ggml_numa_strategy numa):
-    llama_cpp.llama_numa_init(numa)
+# def llama_numa_init(ggml.ggml_numa_strategy numa):
+#     llama_cpp.llama_numa_init(numa)
 
-def llama_time_us() -> int:
-    return llama_cpp.llama_time_us()
+# def llama_time_us() -> int:
+#     return llama_cpp.llama_time_us()
 
-def llama_max_devices() -> int:
-    return llama_cpp.llama_max_devices()
+# def llama_max_devices() -> int:
+#     return llama_cpp.llama_max_devices()
 
-def llama_supports_mmap() -> bool:
-    return llama_cpp.llama_supports_mmap()
+# def llama_supports_mmap() -> bool:
+#     return llama_cpp.llama_supports_mmap()
 
-def llama_supports_mlock() -> bool:
-    return llama_cpp.llama_supports_mlock()
+# def llama_supports_mlock() -> bool:
+#     return llama_cpp.llama_supports_mlock()
 
-def llama_supports_gpu_offload() -> bool:
-    return llama_cpp.llama_supports_gpu_offload()
+# def llama_supports_gpu_offload() -> bool:
+#     return llama_cpp.llama_supports_gpu_offload()
 
-def llama_supports_rpc() -> bool:
-    return llama_cpp.llama_supports_rpc()
+# def llama_supports_rpc() -> bool:
+#     return llama_cpp.llama_supports_rpc()
 
-def llama_attach_threadpool(LlamaContext ctx, GgmlThreadPool threadpool, GgmlThreadPool threadpool_batch):
-    llama_cpp.llama_attach_threadpool(ctx.ptr, threadpool.ptr, threadpool_batch.ptr)
+# def llama_attach_threadpool(LlamaContext ctx, GgmlThreadPool threadpool, GgmlThreadPool threadpool_batch):
+#     llama_cpp.llama_attach_threadpool(ctx.ptr, threadpool.ptr, threadpool_batch.ptr)
 
-def llama_detach_threadpool(LlamaContext ctx):
-    llama_cpp.llama_detach_threadpool(ctx.ptr)
+# def llama_detach_threadpool(LlamaContext ctx):
+#     llama_cpp.llama_detach_threadpool(ctx.ptr)
 
-def llama_batch_get_one(list[int] tokens) -> LlamaBatch:
-    cdef int32_t n_tokens = <int32_t>len(tokens)
-    cdef llama_cpp.llama_token * _tokens = <llama_cpp.llama_token *>malloc(sizeof(llama_cpp.llama_token) * n_tokens)
-    for i in range(n_tokens):
-        _tokens[i] = tokens[i]
-    cdef llama_cpp.llama_batch batch = llama_cpp.llama_batch_get_one(_tokens, n_tokens)
-    free(_tokens)
-    return LlamaBatch.from_instance(batch)
+# def llama_batch_get_one(list[int] tokens) -> LlamaBatch:
+#     cdef int32_t n_tokens = <int32_t>len(tokens)
+#     cdef llama_cpp.llama_token * _tokens = <llama_cpp.llama_token *>malloc(sizeof(llama_cpp.llama_token) * n_tokens)
+#     for i in range(n_tokens):
+#         _tokens[i] = tokens[i]
+#     cdef llama_cpp.llama_batch batch = llama_cpp.llama_batch_get_one(_tokens, n_tokens)
+#     free(_tokens)
+#     return LlamaBatch.from_instance(batch)
 
-def llama_backend_free():
-    """Call once at the end of the program - currently only used for MPI"""
-    llama_cpp.llama_backend_free()
+# def llama_backend_free():
+#     """Call once at the end of the program - currently only used for MPI"""
+#     llama_cpp.llama_backend_free()
 
 
