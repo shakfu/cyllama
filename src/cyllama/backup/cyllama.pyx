@@ -951,11 +951,10 @@ cdef class LlamaSampler:
                 vocab.ptr, grammar_str.encode(), grammar_root.encode()))
 
     def add_penalties(self,
-                         int penalty_last_n,   # last n tokens to penalize (0 = disable penalty, -1 = context size)
-                       float penalty_repeat,   # 1.0 = disabled
-                       float penalty_freq,     # 0.0 = disabled
-                       float penalty_present): # 0.0 = disabled
-
+         int penalty_last_n,   # last n tokens to penalize (0 = disable penalty, -1 = context size)
+       float penalty_repeat,   # 1.0 = disabled
+       float penalty_freq,     # 0.0 = disabled
+       float penalty_present): # 0.0 = disabled
         """Add penalties chain link"""
         llama_cpp.llama_sampler_chain_add(
             self.ptr, llama_cpp.llama_sampler_init_penalties(
@@ -3410,17 +3409,16 @@ cdef class LlamaVocab:
         Returns the number of tokens on success, no more than n_tokens_max
         Returns a negative number on failure - the number of tokens that would have been returned
         """
-        n_ctx = 128
         cdef vector[llama_cpp.llama_token] tokens
-        tokens.reserve(n_ctx)
+        tokens.reserve(self.n_vocab)
         n_tokens = llama_cpp.llama_tokenize(
-            self.ptr, text.encode(), len(text), tokens.data(), n_ctx, add_special, parse_special
+            self.ptr, text.encode(), len(text), tokens.data(), self.n_vocab, add_special, parse_special
         )
-        if n_ctx < 0:
+        if n_tokens < 0:
             raise RuntimeError(
                 f'Failed to tokenize: text="{text}" n_tokens={n_tokens}'
             )
-        return tokens[:n_ctx]
+        return tokens[:n_tokens]
 
     def token_to_piece(self, token: int, lstrip: int = 0, special: bool = False) -> str:
         """Token Id -> Piece.
@@ -4592,7 +4590,6 @@ cdef class CommonInitResult:
     @property
     def context(self) -> LlamaContext:
         return LlamaContext.from_ptr(self.p.context.get(), owner=True)
-
 
 
 
