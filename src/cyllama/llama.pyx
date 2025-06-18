@@ -1,35 +1,29 @@
 # distutils: language = c++
-"""
-cyllama: a thin cython wrapper of llama.cpp
+"""cyllama: a thin cython wrapper of llama.cpp"""
 
-classes:
+__all__ = [
+    'GgmlBackendDevice',
+    'GgmlBackend',
+    'GgmlTensor',
+    'GgmlThreadPoolParams',
+    'GgmlThreadPool',
+    'LlamaTokenData',
+    'LlamaTokenDataArray',
+    'LlamaBatch',
+    'LlamaModelTensorBuftOverride',
+    'LlamaModelParams',
+    'LlamaContextParams',
+    'LlamaModelQuantizeParams',
+    'LlamaLogitBias',
+    'LlamaSamplerChainParams',
+    'LlamaChatMessage',
+    'LlamaVocab',
+    'LlamaModel',
+    'LlamaContext',
+    'LlamaSampler',
+    'LlamaAdapterLora',
+]
 
-    GgmlBackendDevice
-    GgmlBackend
-    GgmlTensor
-    GgmlThreadPoolParams
-    GgmlThreadPool
-
-    LlamaTokenData
-    LlamaTokenDataArray
-    LlamaBatch
-    LlamaModelTensorBuftOverride
-    LlamaModelParams
-    LlamaContextParams
-    LlamaModelQuantizeParams
-    LlamaLogitBias
-    LlamaSamplerChainParams
-    LlamaChatMessage
-    LlamaVocab
-    LlamaModel
-    LlamaContext
-    LlamaSampler
-    LlamaAdapterLora
-
-
-
-
-"""
 
 from libc.stdint cimport uint8_t, int32_t, int64_t, uint32_t, uint64_t
 from libc.string cimport strlen
@@ -146,6 +140,19 @@ cdef class GgmlBackend:
     def __cinit__(self, GgmlBackendDevice dev, str params):
         self.ptr = ggml.ggml_backend_dev_init(dev.ptr, params.encode())
         self.owner = True
+
+    def __dealloc__(self):
+        # De-allocate if not null and flag is set
+        if self.ptr is not NULL and self.owner is True:
+            free(self.ptr)
+            self.ptr = NULL
+
+    @staticmethod
+    cdef GgmlBackendDevice from_ptr(ggml.ggml_backend_dev_t ptr, bint owner=False):
+        cdef GgmlBackendDevice wrapper = GgmlBackendDevice.__new__(GgmlBackendDevice)
+        wrapper.ptr = ptr
+        wrapper.owner = owner
+        return wrapper
 
 
 cdef class GgmlTensor:

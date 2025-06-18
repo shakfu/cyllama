@@ -1,1 +1,2 @@
-from . import cyllama as cy
+from .llama import *
+
