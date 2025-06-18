@@ -51,13 +51,13 @@ bind: build/include
 	@make -f scripts/bind/bind.mk bind
 
 
-.PHONY: test test_simple test_main test_retrieve test_model test_llava test_lora \
+.PHONY: test simple test_simple test_main test_retrieve test_model test_llava test_lora \
 		test_platform coverage memray download download_all bump clean reset remake
 
 test: build
 	@pytest
 
-test_simple:
+simple:
 	@g++ -std=c++14 -o build/simple \
 		-I $(LLAMACPP)/include -L $(LLAMACPP)/lib  \
 		-framework Foundation -framework Accelerate \
@@ -68,6 +68,21 @@ test_simple:
 		build/llama.cpp/examples/simple/simple.cpp
 	@./build/simple -m $(MODEL) \
 		-p "When did the French Revolution start?" -c 2048 -n 512
+
+
+test_simple:
+	@g++ -std=c++14 -o build/test_simple \
+		-I $(LLAMACPP)/include -L $(LLAMACPP)/lib  \
+		-framework Foundation -framework Accelerate \
+		-framework Metal -framework MetalKit \
+		$(LLAMACPP)/lib/libllama.a \
+		$(LLAMACPP)/lib/libggml-base.a \
+		$(LLAMACPP)/lib/libggml.a \
+		$(LLAMACPP)/lib/libggml-blas.a\
+		$(LLAMACPP)/lib/libggml-cpu.a \
+		$(LLAMACPP)/lib/libggml-metal.a \
+		tests/test_simple.cpp
+	@./build/test_simple
 
 test_main:
 	@g++ -std=c++14 -o build/main \
