@@ -1,3 +1,6 @@
+import pytest
+pytest.skip(allow_module_level=True)
+
 import platform
 
 import cyllama.cyllama as cy

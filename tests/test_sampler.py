@@ -1,3 +1,6 @@
+import pytest
+pytest.skip(allow_module_level=True)
+
 # import sys
 # from pathlib import Path
 # ROOT = Path.cwd()

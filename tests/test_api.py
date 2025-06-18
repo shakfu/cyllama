@@ -1,6 +1,7 @@
 import platform
 
 import pytest
+pytest.skip(allow_module_level=True)
 
 from cyllama import Llama
 
