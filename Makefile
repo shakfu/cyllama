@@ -28,7 +28,7 @@ $(LIBLAMMA):
 	@scripts/setup.sh
 
 diff:
-	@git diff > changes.diff
+	@git diff thirdparty/llama.cpp/include > changes.diff
 	
 
 build: $(LIBLAMMA)

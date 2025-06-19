@@ -2220,6 +2220,9 @@ def chat_builtin_templates() -> list[str]:
 def ggml_backend_load_all():
     ggml.ggml_backend_load_all()
 
+def ggml_time_us() -> int:
+    return ggml.ggml_time_us()
+
 def llama_backend_init():
     """Initialize the llama + ggml backend
 

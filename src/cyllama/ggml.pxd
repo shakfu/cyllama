@@ -591,3 +591,6 @@ cdef extern from "ggml-opt.h":
             float                           val_split,      # fraction of the dataset to use for validation, must be in [0.0f, 1.0f)
             bint                            silent)         # whether or not info prints to stderr should be suppressed
 
+
+    cdef int ggml_time_us()
+

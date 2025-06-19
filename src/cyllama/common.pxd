@@ -169,6 +169,9 @@ cdef extern from "common.h":
         float   p_split         # speculative decoding split probability
         float   p_min           # minimum speculative decoding probability (greedy)
 
+        ggml.ggml_type cache_type_k # KV cache data type for the K
+        ggml.ggml_type cache_type_v # KV cache data type for the V
+
         cpu_params cpuparams
         cpu_params cpuparams_batch
 

@@ -4,11 +4,11 @@ This project provides a cython wrapper for @ggerganov's [llama.cpp](https://gith
 
 Development goals are to:
 
-- Stay up-to-date with bleeding-edge `llama.cpp` (last stable build with llama.cpp `b4393`)
+- Stay up-to-date with bleeding-edge `llama.cpp` (last stable build with llama.cpp `b5709`)
 
 - Produce a minimal, performant, compiled, thin python wrapper around the core `llama-cli` feature-set of `llama.cpp`.
 
-- Integrate and wrap `llava-cli` features.
+- Maximize maintainability of code base by refactoring it into namespaced modules.
 
 - Integrate and wrap features from related projects such as [whisper.cpp](https://github.com/ggerganov/whisper.cpp) and [stable-diffusion.cpp](https://github.com/leejet/stable-diffusion.cpp)
 
@@ -127,8 +127,6 @@ If all tests pass, you can type `python3 -i scripts/start.py` or `ipython -i scr
 - [x] wrap llama-simple
 
 - [ ] wrap llama-cli (WIP: see: `cyllama.__init__`)
-
-- [ ] wrap llama-llava-cli
 
 - [ ] wrap [whisper.cpp](https://github.com/ggerganov/whisper.cpp)
 

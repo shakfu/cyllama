@@ -1,15 +1,112 @@
-# import sys
-# from pathlib import Path
-# ROOT = Path.cwd()
-# sys.path.insert(0, str(ROOT / 'src'))
+import sys
+from pathlib import Path
+ROOT = Path.cwd()
+sys.path.insert(0, str(ROOT / 'src'))
 
-import cyllama.cyllama as cy
-import cyllama
+import cyllama as cy
 
 
+def simple(model_path: str, prompt: str, ngl: int = 99, n_predict: int = 32):
+    
+    # load dynamic backends
+
+    cy.ggml_backend_load_all()
+
+    # initialize the model
+
+    model_params = cy.LlamaModelParams()
+    model_params.n_gpu_layers = ngl
+
+    model = cy.LlamaModel(model_path, model_params)
+    vocab = model.get_vocab()
+
+    # tokenize the prompt
+
+    # find the number of tokens in the prompt
+    prompt_tokens = vocab.tokenize(prompt, add_special=True, parse_special=True)
+    n_prompt = len(prompt_tokens)
+    # from IPython import embed; embed()
+
+
+    # initialize the context
+
+    ctx_params = cy.LlamaContextParams()
+    # n_ctx is the context size
+    ctx_params.n_ctx = n_prompt + n_predict - 1
+    # n_batch is the maximum number of tokens that can be processed in a single call to llama_decode
+    ctx_params.n_batch = n_prompt
+    # enable performance counters
+    ctx_params.no_perf = False
+
+    ctx = cy.LlamaContext(model, ctx_params)
+
+    # initialize the sampler
+
+    sparams = cy.LlamaSamplerChainParams()
+    sparams.no_perf = False
+
+    smplr = cy.LlamaSampler(sparams)
+    smplr.add_greedy()
+
+    # llama_sampler_chain_add(smpl, llama_sampler_init_greedy())
+
+    # print the prompt token-by-token
+
+    # print the prompt token-by-token
+    print()
+    prompt=""
+    for i in prompt_tokens:
+        prompt += cy.common_token_to_piece(ctx, i)
+    print(prompt)
+
+
+    # prepare a batch for the prompt
+
+    # make a static method of LlamaBatch
+    batch: cy.LlamaBatch = cy.llama_batch_get_one(prompt_tokens)
+
+    # main loop
+
+    t_main_start: int = cy.ggml_time_us()
+    n_decode = 0
+    
+    # llama_token new_token_id
+
+    for n_pos in range(n_prompt + n_predict):
+        ctx.decode(batch) # may raise ValueError
+
+        n_pos += batch.n_tokens
+
+        # sample the next token
+        new_token_id = smplr.sample(ctx, -1)
+
+        # is it an end of generation?
+        if vocab.is_eog(new_token_id):
+            break
+
+        piece: str = vocab.token_to_piece(new_token_id, special=True)
+        print(f"piece: %s", piece);
+
+        # prepare the next batch with the sampled token
+        batch = cy.llama_batch_get_one([new_token_id])
+
+        n_decode += 1
+
+    print()
+
+    t_main_end: int = cy.ggml_time_us()
+
+    print("decoded %d tokens in %.2f s, speed: %.2f t/s" %
+            (n_decode, (t_main_end - t_main_start) / 1000000.0, n_decode / ((t_main_end - t_main_start) / 1000000.0)))
+    print()
+
+    smplr.print_perf_data()
+    ctx.print_perf_data()
+
+    assert True
 
 def test_lowlevel_simple(model_path):
-    assert cyllama.simple(
+    assert simple(
         model_path=model_path,
         prompt="When did the universe begin?",
         n_predict = 32,
@@ -150,3 +247,6 @@ def test_lowlevel_simple(model_path):
 #     cy.llama_backend_free()
 
 #     assert True
+
+if __name__ == '__main__':
+    test_lowlevel_simple('models/Llama-3.2-1B-Instruct-Q8_0.gguf')
