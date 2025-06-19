@@ -29,7 +29,8 @@
 from libc.stdint cimport uint8_t, int32_t, int64_t, uint32_t, uint64_t
 from libc.string cimport strlen
 from libc.stdlib cimport malloc, calloc, realloc, free
-from libcpp.vector cimport vector
+from libcpp.vector cimport vector as std_vector
+from libcpp.string cimport string as std_string
 from libcpp cimport bool as cppbool  # required for func pointer sigs
 
 cimport ggml
@@ -330,9 +331,15 @@ cdef class LlamaTokenData:
     cdef public float logit
     cdef public float p
 
+    def __cinit__(self, llama.llama_token id, float logit, float p):
+        self.id = id
+        self.logit = logit
+        self.p = p
+
 
 cdef class LlamaTokenDataArray:
     cdef list[LlamaTokenData] data
+    cdef size_t size
     cdef int64_t selected
     cdef bint is_sorted
 
@@ -400,7 +407,7 @@ cdef class LlamaBatch:
         self.p.n_tokens = 0
 
     # def add(self, llama.llama_token id, llama.llama_pos pos, list[int] seq_ids, bint logits):
-    #     cdef vector[llama.llama_seq_id] _seq_ids
+    #     cdef std_vector[llama.llama_seq_id] _seq_ids
     #     for i in seq_ids:
     #         _seq_ids.push_back(i)
     #     llama.common_batch_add(self.p, id, pos, _seq_ids, logits)
@@ -1091,7 +1098,7 @@ cdef class LlamaVocab:
     #     Returns a negative number on failure - the number of tokens that would have been returned
     #     """
     #     cdef int n_ctx = self.n_ctx_train()
-    #     cdef vector[llama.llama_token] tokens
+    #     cdef std_vector[llama.llama_token] tokens
     #     tokens.reserve(n_ctx)
     #     n_tokens = llama.llama_tokenize(
     #         self.ptr, text.encode(), len(text), tokens.data(), n_ctx, add_special, parse_special
@@ -1112,7 +1119,7 @@ cdef class LlamaVocab:
         Returns the number of tokens on success, no more than n_tokens_max
         Returns a negative number on failure - the number of tokens that would have been returned
         """
-        cdef vector[llama.llama_token] tokens
+        cdef std_vector[llama.llama_token] tokens
         tokens.reserve(self.n_vocab)
         n_tokens = llama.llama_tokenize(
             self.ptr, text.encode(), len(text), tokens.data(), self.n_vocab, add_special, parse_special
@@ -1148,7 +1155,7 @@ cdef class LlamaVocab:
         """
         cdef str result = ""
         cdef char * buf = <char *>malloc(sizeof(char) * text_len_max)
-        cdef vector[int] vec
+        cdef std_vector[int] vec
 
         for i in tokens:
             vec.push_back(i)
@@ -1352,7 +1359,7 @@ cdef class LlamaModel:
         @param length The size of the allocated buffer
         @return The total number of bytes of the formatted prompt. If is it larger than the size of buffer, you may need to re-alloc it and then re-apply the template.
         """
-        cdef vector[llama.llama_chat_message] vec
+        cdef std_vector[llama.llama_chat_message] vec
         cdef char * buf = NULL
         cdef int length = 0
         for i in range(len(msgs)):
@@ -1531,7 +1538,7 @@ cdef class LlamaContext:
 
     #     See llama_control_vector_load in common to load a control vector.
     #     """
-    #     cdef vector[float] vec
+    #     cdef std_vector[float] vec
     #     for i in data:
     #         vec.push_back(i)
 
@@ -1639,7 +1646,7 @@ cdef class LlamaContext:
         """
         cdef uint8_t * dst = NULL
         cdef size_t size = 0
-        cdef vector[uint8_t] result
+        cdef std_vector[uint8_t] result
         cdef size_t copied = llama.llama_state_get_data(self.ptr, dst, size)
         for i in range(size):
             result.push_back(dst[i])
@@ -1650,7 +1657,7 @@ cdef class LlamaContext:
 
         Returns the number of bytes read
         """
-        cdef vector[uint8_t] result = data
+        cdef std_vector[uint8_t] result = data
         cdef size_t read = llama.llama_state_set_data(self.ptr, result.data(), result.size())
         return read
 
@@ -1664,7 +1671,7 @@ cdef class LlamaContext:
             tokens_out,
             max_n_tokens,
             n_token_count_out)
-        cdef vector[int] result
+        cdef std_vector[int] result
         if loaded:
             for i in range(n_token_count_out[0]):
                 result.push_back(tokens_out[i])
@@ -1672,7 +1679,7 @@ cdef class LlamaContext:
 
     def save_state_file(self, path_session: str, tokens: list[int]) -> bool:
         """Save session file"""
-        cdef vector[llama.llama_token] vec_tokens
+        cdef std_vector[llama.llama_token] vec_tokens
         for token in tokens:
             vec_tokens.push_back(<llama.llama_token>token)
         return llama.llama_state_save_file(
@@ -1691,7 +1698,7 @@ cdef class LlamaContext:
         cdef size_t size = 0
         cdef size_t copied = llama.llama_state_seq_get_data(
             self.ptr, dst, size, seq_id)
-        cdef vector[uint8_t] result
+        cdef std_vector[uint8_t] result
         if copied > 0:
             for i in range(size):
                 result.push_back(dst[i])
@@ -1704,7 +1711,7 @@ cdef class LlamaContext:
          - Positive: Ok
          - Zero: Failed to load
         """
-        cdef vector[int] vec
+        cdef std_vector[int] vec
         cdef size_t res = 0
         for i in src:
             vec.push_back(i)
@@ -1715,7 +1722,7 @@ cdef class LlamaContext:
 
     def save_state_seq_file(self, filepath: str, seq_id: int, tokens: list[int]):
         """Save state sequence data to a file"""
-        cdef vector[int] vec
+        cdef std_vector[int] vec
         cdef size_t res = 0
         for i in tokens:
             vec.push_back(i)
@@ -1739,7 +1746,7 @@ cdef class LlamaContext:
             tokens_out,
             max_n_tokens,
             n_token_count_out)
-        cdef vector[int] result
+        cdef std_vector[int] result
         if loaded:
             for i in range(n_token_count_out[0]):
                 result.push_back(tokens_out[i])
@@ -1834,7 +1841,7 @@ cdef class LlamaContext:
         if logits is NULL:
             # TODO: should one just return [] here?
             raise ValueError('no logits available')
-        cdef vector[float] vec
+        cdef std_vector[float] vec
         for i in range(n_vocab):
             vec.push_back(logits[i])
         return vec
@@ -1849,7 +1856,7 @@ cdef class LlamaContext:
         """
         cdef int n_vocab = self.model.n_vocab
         cdef float * logits = llama.llama_get_logits_ith(self.ptr, i)
-        cdef vector[float] vec
+        cdef std_vector[float] vec
         if logits is NULL:
             raise ValueError(f"{i} is an invalid id")
         for i in range(n_vocab):
@@ -1867,7 +1874,7 @@ cdef class LlamaContext:
         """
         cdef int n_embd = self.model.n_embd
         cdef float * embds = llama.llama_get_embeddings(self.ptr)
-        cdef vector[float] vec
+        cdef std_vector[float] vec
         if embds is NULL:
             # TODO: should one just return [] here?
             raise ValueError('no embeddings available')
@@ -1884,7 +1891,7 @@ cdef class LlamaContext:
         """
         cdef int n_embd = self.model.n_embd
         cdef float * embds = llama.llama_get_embeddings_ith(self.ptr, i)
-        cdef vector[float] vec
+        cdef std_vector[float] vec
         if embds is NULL:
             raise ValueError(f"{i} is an invalid id")
         for i in range(n_embd):
@@ -2093,7 +2100,7 @@ cdef class LlamaSampler:
     # XXX FIXME:
     # def add_logit_bias(self, int n_vocab, int n_logit_bias, logit_bias: list[LogitBias]):
     #     """Add grammer chain link"""
-    #     cdef vector[llama.logit_bias] vec
+    #     cdef std_vector[llama.logit_bias] vec
     #     llama.llama_sampler_chain_add(
     #         self.ptr, llama.llama_sampler_init_logit_bias(
     #             n_vocab, n_logit_bias, vec.data()))
@@ -2202,7 +2209,7 @@ cdef class LlamaAdapterLora:
 
 def chat_builtin_templates() -> list[str]:
     """Get list of built-in chat templates"""
-    cdef vector[const char *] supported_tmpl
+    cdef std_vector[const char *] supported_tmpl
     cdef int32_t res = llama.llama_chat_builtin_templates(NULL, 0)
     assert res > 0
     supported_tmpl.resize(res)
