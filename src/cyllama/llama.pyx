@@ -33,6 +33,7 @@ from libcpp cimport bool as cppbool  # required for func pointer sigs
 
 cimport llama as llama_cpp
 cimport common
+cimport sampling
 
 import os
 from typing import Optional, Sequence, Callable

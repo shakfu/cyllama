@@ -1,5 +1,17 @@
 # tool dependencies
 
+## llama-cli deps
+
+
+- [ ] arg.h
+- [x] common.h
+- [ ] console.h
+- [ ] log.h
+- [x] sampling.h
+- [x] llama.h
+- [ ] chat.h
+
+
 
 ## batched-bench
 
