@@ -11,6 +11,8 @@ from Cython.Build import cythonize
 # constants
 
 CWD = os.getcwd()
+# VENDOR_DIR = os.path.join(CWD, "build/llama.cpp/vendor")
+# SERVER_PUBLIC_DIR = os.path.join(CWD, "build/llama.cpp/build/tools/server")
 
 VERSION = '0.0.1'
 
@@ -28,6 +30,8 @@ EXTRA_OBJECTS = []
 INCLUDE_DIRS = [
     "src/cyllama",
     LLAMACPP_INCLUDE,
+    # VENDOR_DIR,
+    # SERVER_PUBLIC_DIR,
 ]
 LIBRARY_DIRS = [
     LLAMACPP_LIBS_DIR,
@@ -51,6 +55,7 @@ else:
         f'{LLAMACPP_LIBS_DIR}/libggml-blas.a',
         f'{LLAMACPP_LIBS_DIR}/libggml-cpu.a',
         f'{LLAMACPP_LIBS_DIR}/libggml-metal.a',
+        f'{LLAMACPP_LIBS_DIR}/libmtmd.a',
     ])
 
 INCLUDE_DIRS.append(os.path.join(CWD, 'include'))
@@ -109,7 +114,10 @@ if not os.path.exists('MANIFEST.in'):
         f.write("exclude src/cyllama/py.typed\n")
 
 extensions = [
-    mk_extension("cyllama.llama_cpp", sources=["src/cyllama/llama_cpp.pyx"]),
+    mk_extension("cyllama.llama_cpp", sources=[
+        "src/cyllama/llama_cpp.pyx",
+        # "build/llama.cpp/tools/server/server.cpp",
+    ]),
 ]
 
 setup(
