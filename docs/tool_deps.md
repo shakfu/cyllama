@@ -9,7 +9,7 @@
 - [ ] log.h
 - [x] sampling.h
 - [x] llama.h
-- [ ] chat.h
+- [x] chat.h
 
 
 
