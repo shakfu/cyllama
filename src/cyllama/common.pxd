@@ -3,6 +3,7 @@
 from libc.stdint cimport int32_t, int8_t, int64_t, uint32_t, uint64_t, uint8_t
 from libc.stdio cimport FILE
 from libcpp.string cimport string as std_string
+from libcpp.string cimport string_view as std_string_view
 from libcpp.vector cimport vector as std_vector
 from libcpp.set cimport set as std_set
 from libcpp.memory cimport unique_ptr
@@ -410,132 +411,166 @@ cdef extern from "common.h":
     # -------------------------------------------------------------------------
     # String utils
 
-    # cdef std_string string_from(bint value)
-    # cdef std_string string_from(const std_vector[int] & values)
-    # cdef std_string string_from(const llama_context * ctx, const std_vector[llama_token] & tokens)
-    # cdef std_string string_from(const llama_context * ctx, const llama_batch & batch)
+    cdef std_string string_format(const char * fmt, ...)
 
-    # # -------------------------------------------------------------------------
-    # # Model utils
+    cdef std_string string_strip(const std_string & str)
+    cdef std_string string_get_sortable_timestamp()
 
-    # # note: defines object's lifetime
-    # ctypedef struct common_init_result:
-    #     llama_model_ptr model
-    #     llama_context_ptr context
-    #     std_vector[llama_adapter_lora_ptr] lora
+    cdef std_string string_join(const std_vector[std_string] & values, const std_string & separator)
+    cdef std_vector[std_string] string_split(const std_string & str, const std_string & delimiter)
+    cdef std_string string_repeat(const std_string & str, size_t n)
 
-    # cdef common_init_result common_init_from_params(common_params & params)
+    cdef void string_replace_all(std_string & s, const std_string & search, const std_string & replace)
 
-    # cdef llama_model_params common_model_params_to_llama(common_params & params)
-    # cdef llama_context_params common_context_params_to_llama(const common_params & params)
-    # cdef ggml_threadpool_params ggml_threadpool_params_from_cpu_params(const cpu_params & params);
+    cdef std_string regex_escape(const std_string & s)
 
-    # cdef llama_model * common_load_model_from_url(const std_string & model_url, const std_string & local_path, const std_string & hf_token, const llama_model_params & params)
-    # cdef llama_model * common_load_model_from_hf(const std_string & repo, const std_string & remote_path, const std_string & local_path, const std_string & hf_token, const llama_model_params & params)
+    cdef bint string_starts_with(const std_string & str, const std_string & prefix)
+    cdef bint string_ends_with(const std_string_view & str, const std_string_view & suffix)
+    cdef size_t string_find_partial_stop(const std_string_view & str, const std_string_view & stop)
 
-    # # clear LoRA adapters from context, then apply new list of adapters
-    # cdef void common_lora_adapters_apply(llama_context * ctx, std_vector[common_adapter_lora_info] & lora)
+    cdef bint string_parse_kv_override(const char * data, std_vector[llama.llama_model_kv_override] & overrides)
+    cdef void string_process_escapes(std_string & input)
 
-    # # -------------------------------------------------------------------------
-    # # Batch utils
+    cdef std_string string_from(bint value)
+    cdef std_string string_from(const std_vector[int] & values)
+    cdef std_string string_from(const llama.llama_context * ctx, const std_vector[llama.llama_token] & tokens)
+    cdef std_string string_from(const llama.llama_context * ctx, const llama.llama_batch & batch)
 
-    # cdef void common_batch_add(llama_batch & batch, llama_token id, llama_pos pos, const std_vector[llama_seq_id] & seq_ids, bint logits)
+    cdef std_vector[std_string] string_split(const std_string & str, char delim)
+    cdef std_vector[std_string] string_split[std_string](const std_string & input, char separator)
 
-    # cdef void common_batch_clear(llama_batch & batch)
+    # -------------------------------------------------------------------------
+    # Filesystem utils
 
-    # # -------------------------------------------------------------------------
-    # # Token utils
+    cdef bint fs_validate_filename(const std_string & filename)
+    cdef bint fs_create_directory_with_parents(const std_string & path)
 
-    # # longest common prefix
-    # cdef size_t common_lcp(const llama_tokens & a, const llama_tokens & b)
+    cdef std_string fs_get_cache_directory()
+    cdef std_string fs_get_cache_file(const std_string & filename)
 
-    # # longet common subsequence
-    # cdef size_t common_lcs(const llama_tokens & a, const llama_tokens & b)
+    # -------------------------------------------------------------------------
+    # Model utils
+
+    # note: defines object's lifetime
+    ctypedef struct common_init_result:
+        llama.llama_model_ptr   model
+        llama.llama_context_ptr context
+
+        std_vector[llama.llama_adapter_lora_ptr] lora
+
+    cdef common_init_result common_init_from_params(common_params & params)
+
+    cdef llama.llama_model_params common_model_params_to_llama(common_params & params)
+    cdef llama.llama_context_params common_context_params_to_llama(const common_params & params)
+    cdef ggml.ggml_threadpool_params ggml_threadpool_params_from_cpu_params(const cpu_params & params)
+
+    # clear LoRA adapters from context, then apply new list of adapters
+    cdef void common_set_adapter_lora(llama.llama_context * ctx, std_vector[common_adapter_lora_info] & lora);
+
+    cdef std_string get_model_endpoint()
+
+    # -------------------------------------------------------------------------
+    # Batch utils
+
+    void common_batch_clear(llama.llama_batch & batch)
+
+    void common_batch_add(
+        llama.llama_batch & batch,
+        llama.llama_token id,
+        llama.llama_pos pos,
+        const std_vector[llama.llama_seq_id] & seq_ids,
+        bint logits)
+
+    # -------------------------------------------------------------------------
+    # Token utils
+
+    # longest common prefix
+    cdef size_t common_lcp(const llama_tokens & a, const llama_tokens & b)
+
+    # longet common subsequence
+    cdef size_t common_lcs(const llama_tokens & a, const llama_tokens & b)
+
+    # -------------------------------------------------------------------------
+    # Vocab utils
+
+    # tokenizes a string into a vector of tokens
+    # should work similar to Python's `tokenizer.encode`
+    std_vector[llama.llama_token] common_tokenize(
+            const llama.llama_context * ctx,
+            const std_string & text,
+            bint add_special,
+            bint parse_special)
+
+    std_vector[llama.llama_token] common_tokenize(
+            const llama.llama_vocab * vocab,
+            const std_string & text,
+            bint add_special,
+            bint parse_special)
+
+    # tokenizes a token into a piece, optionally renders special/control tokens
+    # should work similar to Python's `tokenizer.id_to_piece`
+    std_string common_token_to_piece(
+            const llama.llama_context * ctx,
+            llama.llama_token token,
+            bint special)
+
+    std_string common_token_to_piece(
+            const llama.llama_vocab * vocab,
+            llama.llama_token   token,
+            bint special)
+
+    # detokenizes a vector of tokens into a string
+    # should work similar to Python's `tokenizer.decode`
+    # optionally renders special/control tokens
+    std_string common_detokenize(
+            const llama.llama_context * ctx,
+            const std_vector[llama.llama_token] & tokens,
+            bint special)
+
+    std_string common_detokenize(
+            const llama.llama_vocab * vocab,
+            const std_vector[llama.llama_token] & tokens,
+            bint special)
+
+    # -------------------------------------------------------------------------
+    # Embedding utils
+
+    # TODO: repace embd_norm with an enum
+    cdef void common_embd_normalize(const float * inp, float * out, int n, int embd_norm)
+
+    cdef float common_embd_similarity_cos(const float * embd1, const float * embd2, int n)
+
+    # -------------------------------------------------------------------------
+    # Control vector utils
 
 
-    # # -------------------------------------------------------------------------
-    # # Vocab utils
+    ctypedef struct common_control_vector_data:
+        int n_embd
 
-    # cdef std_vector[llama_token] common_tokenize(const llama_context * ctx, const std_string & text, bint add_special, bint parse_special)
+        # stores data for layers [1, n_layer] where n_layer = data.size() / n_embd
+        std_vector[float] data
 
-    # cdef std_vector[llama_token] common_tokenize(const llama_model * model, const std_string & text, bint add_special, bint parse_special)
+    ctypedef struct common_control_vector_load_info:
+        float strength
 
-    # # tokenizes a token into a piece, optionally renders special/control tokens
-    # # should work similar to Python's `tokenizer.id_to_piece`
-
-    # # tokenizes a token into a piece, optionally renders special/control tokens
-    # # should work similar to Python's `tokenizer.id_to_piece`
-    # cdef std_string common_token_to_piece (const llama_context * ctx, llama_token token, bint special)
-
-    # # detokenizes a vector of tokens into a string
-    # # should work similar to Python's `tokenizer.decode`
-    # # optionally renders special/control tokens
-    # cdef std_string common_detokenize(llama_context * ctx, const std_vector[llama_token] & tokens, bint special)
-
-    # # -------------------------------------------------------------------------
-    # # Chat template utils
-
-    # # same with llama_chat_message, but uses std::string
-    # ctypedef struct common_chat_msg:
-    #     std_string role
-    #     std_string content
-
-    # #  Get the built-in chat template for the model. Return empty string if not present.
-    # cdef std_string common_get_builtin_chat_template(const llama_model * model)
-
-    # # Check if the template supplied via "--chat-template" is supported or not. Returns true if it's valid
-    # cdef bint common_chat_verify_template(const std_string & tmpl)
-
-    # # CPP wrapper for common_chat_apply_template
-    # # If the built-in template is not supported, we default to chatml
-    # # If the custom "tmpl" is not supported, we throw an error
-    # cdef std_string common_chat_apply_template(const llama_model * model, const std_string & tmpl, const std_vector[common_chat_msg] & chat, bint add_ass)
-
-    # # Format single message, while taking into account the position of that message in chat history
-    # cdef std_string common_chat_format_single(const llama_model * model, const std_string & tmpl, const std_vector[common_chat_msg] & past_msg, const common_chat_msg & new_msg, bint add_ass)
-
-    # # # Returns an example of formatted chat
-    # cdef std_string common_chat_format_example(const llama_model * model, const std_string & tmpl)
-
-    # # -------------------------------------------------------------------------
-    # # KV cache utils
-
-    # # # Dump the KV cache view with the number of sequences per cell.
-    # cdef void common_kv_cache_dump_view(const llama_kv_cache_view & view, int row_size)
-
-    # # # Dump the KV cache view showing individual sequences in each cell (long output).
-    # cdef void common_kv_cache_dump_view_seqs(const llama_kv_cache_view & view, int row_size)
-
-    # # -------------------------------------------------------------------------
-    # # Embedding utils
-
-    # # TODO: repace embd_norm with an enum
-    # cdef void common_embd_normalize(const float * inp, float * out, int n, int embd_norm)
-    # cdef float common_embd_similarity_cos(const float * embd1, const float * embd2, int n)
-
-    # # -------------------------------------------------------------------------
-    # # Control vector utils
-
-    # ctypedef struct common_control_vector_data:
-    #     int n_embd
-    #     # stores data for layers [1, n_layer] where n_layer = data.size() / n_embd
-    #     std_vector[float] data
-
-    # ctypedef struct common_control_vector_load_info:
-    #     float strength
-    #     std_string fname
-
-    # # Load control vectors, scale each by strength, and add them together.
-    # # On error, returns {-1, empty}
-    # cdef common_control_vector_data common_control_vector_load(const std_vector[common_control_vector_load_info] & load_infos)
-
-    # # -------------------------------------------------------------------------
-    # # Split Utils
-
-    # # ..
+        std_string fname
 
 
-    # # -------------------------------------------------------------------------
-    # # YAML utils
+    # Load control vectors, scale each by strength, and add them together.
+    # On error, returns {-1, empty}
+    cdef common_control_vector_data common_control_vector_load(const std_vector[common_control_vector_load_info] & load_infos);
 
-    # # ..
+
+    # -------------------------------------------------------------------------
+    # Split utils
+
+    const char * const LLM_KV_SPLIT_NO            = "split.no"
+    const char * const LLM_KV_SPLIT_COUNT         = "split.count"
+    const char * const LLM_KV_SPLIT_TENSORS_COUNT = "split.tensors.count"
+
+
+    # -------------------------------------------------------------------------
+    # Training utils
+
+    cdef ggml.ggml_opt_dataset_t common_opt_dataset_init(llama.llama_context * ctx, const std_vector[llama.llama_token] & tokens, int64_t stride);
+

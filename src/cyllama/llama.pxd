@@ -5,7 +5,7 @@ from libc.stdio cimport FILE
 from libcpp.string cimport string as std_string
 from libcpp.vector cimport vector as std_vector
 from libcpp.set cimport set as std_set
-from libcpp.memory cimport unique_ptr
+from libcpp.memory cimport unique_ptr as std_unique_ptr
 from libcpp.set cimport set as std_set
 
 cimport ggml
@@ -1175,3 +1175,26 @@ cdef extern from "llama.h":
             ggml.ggml_opt_epoch_callback   callback_train,
             ggml.ggml_opt_epoch_callback   callback_eval)
 
+
+
+#------------------------------------------------------------------------------
+# llama-cpu.h
+
+cdef extern from "llama-cpp.h":
+
+    cdef cppclass llama_model_deleter:
+        void operator()(llama_model * model)
+
+    cdef cppclass llama_context_deleter:
+        void operator()(llama_context * context)
+
+    cdef cppclass llama_sampler_deleter:
+        void operator()(llama_sampler * sampler)
+
+    cdef cppclass llama_adapter_lora_deleter:
+        void operator()(llama_adapter_lora * adapter)
+
+    ctypedef std_unique_ptr[llama_model, llama_model_deleter] llama_model_ptr
+    ctypedef std_unique_ptr[llama_context, llama_context_deleter] llama_context_ptr
+    ctypedef std_unique_ptr[llama_sampler, llama_sampler_deleter] llama_sampler_ptr
+    ctypedef std_unique_ptr[llama_adapter_lora, llama_adapter_lora_deleter] llama_adapter_lora_ptr

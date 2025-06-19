@@ -1171,6 +1171,7 @@ static CYTHON_INLINE float __PYX_NAN() {
 #include "ggml-cpu.h"
 #include "ggml-opt.h"
 #include "llama.h"
+#include "llama-cpp.h"
 #include <stdlib.h>
 #include "common.h"
 #ifdef _OPENMP
