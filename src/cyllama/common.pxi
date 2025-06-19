@@ -1947,38 +1947,6 @@ cdef class CommonParams:
 
 
 
-# cdef class CommonChatMsg:
-#     """cython wrapper for llama_cpp.common_chat_msg"""
-#     cdef llama_cpp.common_chat_msg p
-
-#     def __init__(self, str role, str content):
-#         self.p.role = role.encode()
-#         self.p.content = content.encode()
-
-#     @staticmethod
-#     cdef CommonChatMsg from_instance(llama_cpp.common_chat_msg msg):
-#         cdef CommonChatMsg wrapper = CommonChatMsg.__new__(CommonChatMsg)
-#         wrapper.p = msg
-#         return wrapper
-
-#     @property
-#     def role(self) -> str:
-#         return self.p.role.decode()
-
-#     @role.setter
-#     def role(self, str value):
-#         self.p.role = value.encode()
-
-#     @property
-#     def content(self) -> str:
-#         return self.p.content.decode()
-
-#     @content.setter
-#     def content(self, str value):
-#         self.p.content = value.encode()
-
-
-
 
 # cdef class CommonSampler:
 #     """cython wrapper of llama_cpp.common_sampler"""
