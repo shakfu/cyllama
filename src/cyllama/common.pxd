@@ -290,9 +290,9 @@ cdef extern from "common.h":
         bint flash_attn             # flash attention
         bint no_perf                # disable performance metric
         bint ctx_shift              # context shift on inifinite text generation
+        bint swa_full               # use full-size SWA cache (https://github.com/ggml-org/llama.cpp/pull/13194#issuecomment-2868343055)
 
         bint input_prefix_bos       # prefix BOS to user inputs, preceding input_prefix
-        bint logits_all             # return logits for all tokens in the batch
         bint use_mmap               # use mmap for faster loads
         bint use_mlock              # use mlock to keep model in memory
         bint verbose_prompt         # print prompt tokens before generation
@@ -302,12 +302,18 @@ cdef extern from "common.h":
         bint no_kv_offload          # disable KV offloading
         bint warmup                 # warmup run
         bint check_tensors          # validate tensor data
+        bint no_op_offload          # globally disable offload host tensor operations to device
+        bint single_turn            # single turn chat conversation
 
         ggml.ggml_type cache_type_k      # KV cache data type for the K
         ggml.ggml_type cache_type_v      # KV cache data type for the V
 
-        # multimodal models (see examples/llava)
-        std_string mmproj           # path to multimodal projector
+        common_conversation_mode conversation_mode
+
+        # multimodal models (see tools/mtmd)
+        common_params_model mmproj
+        bint mmproj_use_gpu          # use GPU for multimodal model
+        bint no_mmproj               # explicitly disable multimodal model
         std_vector[std_string] image # path to image file(s)
 
         # embedding
@@ -315,7 +321,6 @@ cdef extern from "common.h":
         int32_t embd_normalize      # normalisation for embeddings (-1=none, 0=max absolute int16, 1=taxicab, 2=euclidean, >2=p-norm)
         std_string embd_out         # empty = default, "array" = [[],[]...], "json" = openai style, "json+" = same "json" + cosine similarity matrix
         std_string embd_sep         # separator of embeddings
-        bint reranking              # enable reranking support on server
 
         # server params
         int32_t port                # server listens on this network port
@@ -327,7 +332,12 @@ cdef extern from "common.h":
         std_string hostname
         std_string public_path
         std_string chat_template
+        bint use_jinja
         bint enable_chat_template
+        common_reasoning_format reasoning_format
+        int reasoning_budget
+        bint prefill_assistant
+
 
         std_vector[std_string] api_keys
 
@@ -372,18 +382,16 @@ cdef extern from "common.h":
 
         bint process_output      # collect data for the output tensor
         bint compute_ppl         # whether to compute perplexity
-
+        bint parse_special       # whether to parse special tokens during imatrix tokenization
+        
         # cvector-generator params
         int n_pca_batch
         int n_pca_iterations
-        # dimre_method cvector_dimre_method
-        std_string cvector_outfile
+        dimre_method cvector_dimre_method
         std_string cvector_positive_file
         std_string cvector_negative_file
 
         bint spm_infill
-
-        std_string lora_outfile
 
         # batched-bench params
         bint batched_bench_output_jsonl

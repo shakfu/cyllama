@@ -7,6 +7,7 @@
 #     'GgmlTensor',
 #     'GgmlThreadPoolParams',
 #     'GgmlThreadPool',
+#     
 #     'LlamaTokenData',
 #     'LlamaTokenDataArray',
 #     'LlamaBatch',
@@ -36,9 +37,16 @@ cimport llama
 cimport common
 cimport sampling
 cimport chat
+cimport log
 
 import os
 from typing import Optional, Sequence, Callable
+
+
+# includes
+# -----------------------------------------------------------------------------
+
+include "common.pxi"
 
 
 # constants
