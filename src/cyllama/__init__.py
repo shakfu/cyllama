@@ -1,2 +1,2 @@
-from .llama import *
+from .llama_cpp import *
 
