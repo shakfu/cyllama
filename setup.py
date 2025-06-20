@@ -48,7 +48,7 @@ if WITH_DYLIB:
     ])
 else:
     EXTRA_OBJECTS.extend([
-        f'{LLAMACPP_LIBS_DIR}/libcommon.a', 
+        f'{LLAMACPP_LIBS_DIR}/libcommon.a',
         f'{LLAMACPP_LIBS_DIR}/libllama.a', 
         f'{LLAMACPP_LIBS_DIR}/libggml.a',
         f'{LLAMACPP_LIBS_DIR}/libggml-base.a',

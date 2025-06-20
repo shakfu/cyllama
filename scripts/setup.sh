@@ -7,7 +7,7 @@
 
 CWD=$(pwd)
 THIRDPARTY=${CWD}/thirdparty
-LAST_WORKING="b4393"
+LAST_WORKING="gguf-v0.17.1"
 LLAMACPP_VERSION="${2:-${LAST_WORKING}}"
 STABLE_BUILD=0
 GET_LAST_WORKING="${1:-$STABLE_BUILD}"
@@ -52,28 +52,33 @@ get_llamacpp() {
 }
 
 get_llamacpp_shared() {
-	# should be run after `get_llamacpp`
-	echo "install shared libs from llama.cpp"
+	echo "update from llama.cpp main repo"
 	PREFIX=${THIRDPARTY}/llama.cpp
 	INCLUDE=${PREFIX}/include
 	LIB=${PREFIX}/lib
 	mkdir -p build ${INCLUDE} && \
 		cd build && \
 		if [ ! -d "llama.cpp" ]; then
-			git clone --depth 1 --recursive https://github.com/ggml-org/llama.cpp.git
+			git clone ${BRANCH} --recursive https://github.com/ggml-org/llama.cpp.git
 		fi && \
 		cd llama.cpp && \
 		cp common/*.h ${INCLUDE} && \
 		cp common/*.hpp ${INCLUDE} && \
-		cp examples/llava/*.h ${INCLUDE} && \
+		cp ggml/include/*.h ${INCLUDE} && \
+		# cp examples/llava/*.h ${INCLUDE} && \
 		mkdir -p build && \
 		cd build && \
-		cmake .. -DBUILD_SHARED_LIBS=ON -DCMAKE_POSITION_INDEPENDENT_CODE=ON && \
+		cmake .. -DBUILD_SHARED_LIBS=ON -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_INSTALL_NAME_DIR=${LIB} && \
 		cmake --build . --config Release && \
 		cmake --install . --prefix ${PREFIX} && \
 		cp common/libcommon.a ${LIB} && \
-		cp examples/llava/libllava_shared.dylib ${LIB}/libllava_shared.dylib && \
-		mv ${PREFIX}/bin ${CWD}/bin && \
+		# cp ggml/src/libggml-base.dylib ${LIB} && \
+		# cp ggml/src/libggml-cpu.dylib ${LIB} && \
+		# cp ggml/src/ggml-blas/libggml-blas.dylib ${LIB} && \
+		# cp ggml/src/ggml-metal/libggml-metal.dylib ${LIB} && \
+		# cp common/libcommon.dylib ${LIB} && \
+		# # cp examples/llava/libllava_static.dylib ${LIB}/libllava.dylib && \
+		# mv ${PREFIX}/bin ${CWD}/bin && \
 		cd ${CWD}
 }
 

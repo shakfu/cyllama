@@ -797,6 +797,7 @@ cdef extern from "llama.h":
 
     cdef bint llama_vocab_get_add_bos(const llama_vocab * vocab)
     cdef bint llama_vocab_get_add_eos(const llama_vocab * vocab)
+    cdef bint llama_vocab_get_add_sep(const llama_vocab * vocab)
 
     cdef llama_token llama_vocab_fim_pre(const llama_vocab * vocab)
     cdef llama_token llama_vocab_fim_suf(const llama_vocab * vocab)
@@ -812,6 +813,7 @@ cdef extern from "llama.h":
     # @param tokens The tokens pointer must be large enough to hold the resulting tokens.
     # @return Returns the number of tokens on success, no more than n_tokens_max
     # @return Returns a negative number on failure - the number of tokens that would have been returned
+    # @return Returns INT32_MIN on overflow (e.g., tokenization result size exceeds int32_t limit)
     # @param add_special Allow to add BOS and EOS tokens if model is configured to do so.
     # @param parse_special Allow tokenizing special and/or control tokens which otherwise are not exposed and treated
     #                      as plaintext. Does not insert a leading space.

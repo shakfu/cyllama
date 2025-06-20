@@ -1,6 +1,6 @@
 # cyllama - a cython wrapper of llama.cpp
 
-This project provides a cython wrapper for @ggerganov's [llama.cpp](https://github.com/ggerganov/llama.cpp) which is likely the most active open-source compiled LLM inference engine. It was spun-off from my earlier, now frozen, llama.cpp wrapper project, [llamalib](https://github.com/shakfu/llamalib)  which provided early stage, but functional, wrappers using [cython](https://github.com/cython/cython), [pybind11](https://github.com/pybind/pybind11), and [nanobind](https://github.com/wjakob/nanobind). Further development of `cyllama`, the cython wrapper from `llamalib`, will continue in this project.
+This project provides a cython wrapper for @ggerganov's [llama.cpp](https://github.com/ggml-org/llama.cpp) which is likely the most active open-source compiled LLM inference engine. It was spun-off from my earlier, now frozen, llama.cpp wrapper project, [llamalib](https://github.com/shakfu/llamalib)  which provided early stage, but functional, wrappers using [cython](https://github.com/cython/cython), [pybind11](https://github.com/pybind/pybind11), and [nanobind](https://github.com/wjakob/nanobind). Further development of `cyllama`, the cython wrapper from `llamalib`, will continue in this project.
 
 Development goals are to:
 
@@ -28,7 +28,7 @@ Given that there is a fairly mature, well-maintained and performant ctypes-based
 
 ## Status
 
-Development is done only on macOS to keep things simple, with intermittent testing to ensure it works on Linux. 
+Development is done only on macOS to keep things simple, with intermittent testing to ensure it works on Linux.
 
 The following table provide an overview of the current wrapping/dev status:
 
@@ -58,28 +58,28 @@ As the intent is to provide a very thin wrapping layer and play to the strengths
 
 To build `cyllama`:
 
-1. A recent version of `python3` (testing on python 3.12)
+1. A recent version of `python3` (currently testing on python 3.13)
 
 2. Git clone the latest version of `cyllama`:
 
- ```sh
- git clone https://github.com/shakfu/cyllama.git
- cd cyllama
- ```
+    ```sh
+    git clone https://github.com/shakfu/cyllama.git
+    cd cyllama
+    ```
 
 3. Install dependencies of `cython`, `setuptools`, and `pytest` for testing:
 
- ```sh
- pip install -r requirements.txt
- ```
+    ```sh
+    pip install -r requirements.txt
+    ```
 
 4. Type `make` in the terminal.
 
-This will:
+    This will:
 
-1. Download and build `llama.cpp`
-2. Install it into `bin`, `include`, and `lib` in the cloned `cyllama` folder
-3. Build `cyllama`
+    1. Download and build `llama.cpp`
+    2. Install it into `bin`, `include`, and `lib` in the cloned `cyllama` folder
+    3. Build `cyllama`
 
 ## Testing
 
@@ -120,7 +120,6 @@ If all tests pass, you can type `python3 -i scripts/start.py` or `ipython -i scr
 >>> llm.ask("what is the age of the universe?")
 'The estimated age of the universe is around 13.8 billion years'
 ```
-
 
 ## TODO
 

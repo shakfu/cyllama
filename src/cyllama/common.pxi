@@ -1522,6 +1522,15 @@ cdef class CommonParams:
         self.p.embd_sep = value.encode('utf8')
 
     @property
+    def cls_sep(self) -> str:
+        """separator of classification sequences"""
+        return self.p.cls_sep.decode()
+
+    @cls_sep.setter
+    def cls_sep(self, value: str):
+        self.p.cls_sep = value.encode('utf8')
+
+    @property
     def port(self) -> int:
         """server listens on this network port"""
         return self.p.port

@@ -1065,6 +1065,10 @@ cdef class LlamaVocab:
         """add end-of-sentence token"""
         return llama.llama_vocab_get_add_eos(self.ptr)
 
+    def get_add_sep(self) -> bool:
+        """add separator token"""
+        return llama.llama_vocab_get_add_sep(self.ptr)
+
     # infill tokens
 
     def fim_prefix(self) -> int:

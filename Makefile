@@ -1,5 +1,5 @@
 # set path so `llama-cli` etc.. be in path
-export PATH := $(PWD)/bin:$(PATH)
+# export PATH := $(PWD)/thirdparty/llama.cpp/bin:$(PATH)
 export MACOSX_DEPLOYMENT_TARGET := 14.7
 
 # models
@@ -7,15 +7,34 @@ MODEL := models/Llama-3.2-1B-Instruct-Q8_0.gguf
 MODEL_RAG := models/all-MiniLM-L6-v2-Q5_K_S.gguf
 MODEL_LLAVA := models/llava-llama-3-8b-v1_1-int4.gguf
 MODEL_LLAVA_MMPROG := models/llava-llama-3-8b-v1_1-mmproj-f16.gguf
+WITH_DYLIB = 0
 
 THIRDPARTY := $(PWD)/thirdparty
 LLAMACPP := $(THIRDPARTY)/llama.cpp
-MIN_OSX_VER := -mmacosx-version-min=13.6
+MIN_OSX_VER := -mmacosx-version-min=$(MACOSX_DEPLOYMENT_TARGET)
 
 ifeq ($(WITH_DYLIB),1)
 	LIBLAMMA := $(LLAMACPP)/lib/libllama.dylib
+	LLAMACPP_LIBS := \
+		$(LLAMACPP)/lib/libcommon.dylib \
+		$(LLAMACPP)/lib/libllama.dylib \
+		$(LLAMACPP)/lib/libggml-base.dylib \
+		$(LLAMACPP)/lib/libggml.dylib \
+		$(LLAMACPP)/lib/libggml-blas.dylib\
+		$(LLAMACPP)/lib/libggml-cpu.dylib \
+		$(LLAMACPP)/lib/libggml-metal.dylib \
+		$(LLAMACPP)/lib/libmtmd.dylib
 else
-	LIBLAMMA := $(LLAMACPP)/lib/libllama.a	
+	LIBLAMMA := $(LLAMACPP)/lib/libllama.a
+	LLAMACPP_LIBS := \
+		$(LLAMACPP)/lib/libcommon.a \
+		$(LLAMACPP)/lib/libllama.a \
+		$(LLAMACPP)/lib/libggml-base.a \
+		$(LLAMACPP)/lib/libggml.a \
+		$(LLAMACPP)/lib/libggml-blas.a\
+		$(LLAMACPP)/lib/libggml-cpu.a \
+		$(LLAMACPP)/lib/libggml-metal.a \
+		$(LLAMACPP)/lib/libmtmd.a
 endif
 
 
@@ -62,9 +81,7 @@ simple:
 		-I $(LLAMACPP)/include -L $(LLAMACPP)/lib  \
 		-framework Foundation -framework Accelerate \
 		-framework Metal -framework MetalKit \
-		$(LLAMACPP)/lib/libllama.a \
-		$(LLAMACPP)/lib/libggml.a \
-		$(LLAMACPP)/lib/libcommon.a \
+		$(LLAMACPP_LIBS) \
 		build/llama.cpp/examples/simple/simple.cpp
 	@./build/simple -m $(MODEL) \
 		-p "When did the French Revolution start?" -c 2048 -n 512
@@ -75,12 +92,7 @@ test_simple:
 		-I $(LLAMACPP)/include -L $(LLAMACPP)/lib  \
 		-framework Foundation -framework Accelerate \
 		-framework Metal -framework MetalKit \
-		$(LLAMACPP)/lib/libllama.a \
-		$(LLAMACPP)/lib/libggml-base.a \
-		$(LLAMACPP)/lib/libggml.a \
-		$(LLAMACPP)/lib/libggml-blas.a\
-		$(LLAMACPP)/lib/libggml-cpu.a \
-		$(LLAMACPP)/lib/libggml-metal.a \
+		$(LLAMACPP_LIBS) \
 		tests/test_simple.cpp
 	@./build/test_simple
 
@@ -89,12 +101,10 @@ test_main:
 		-I $(LLAMACPP)/include -L $(LLAMACPP)/lib  \
 		-framework Foundation -framework Accelerate \
 		-framework Metal -framework MetalKit \
-		$(LLAMACPP)/lib/libllama.a \
-		$(LLAMACPP)/lib/libggml.a \
-		$(LLAMACPP)/lib/libcommon.a \
-		build/llama.cpp/examples/main/main.cpp
+		$(LLAMACPP_LIBS) \
+		build/llama.cpp/tools/main/main.cpp
 	@./build/main -m $(MODEL) --log-disable \
-		-p "When did the French Revolution start?" -c 2048 -n 512
+		-p "When did the French Revolution start?" -no-cnv -c 2048 -n 512
 
 $(MODEL_LLAVA):
 	@mkdir -p models && cd models && \
@@ -107,7 +117,7 @@ $(MODEL_RAG):
 		wget https://huggingface.co/second-state/All-MiniLM-L6-v2-Embedding-GGUF/resolve/main/all-MiniLM-L6-v2-Q5_K_S.gguf
 
 test_retrieve: $(MODEL_RAG)
-	@./bin/llama-retrieval --model $(MODEL_RAG) \
+	@$(LLAMACPP)/bin/llama-retrieval --model $(MODEL_RAG) \
 		--top-k 3 --context-file README.md \
 		--context-file LICENSE \
 		--chunk-size 100 \
@@ -124,16 +134,16 @@ download_all: $(MODEL) $(MODEL_RAG) $(MODEL_LLAVA)
 	@echo "all tests models downloaded to models directory"
 
 test_model: $(MODEL)
-	@./bin/llama-simple -m $(MODEL) -n 128 "Number of planets in our solar system"
+	@$(LLAMACPP)/bin/llama-simple -m $(MODEL) -n 128 "Number of planets in our solar system"
 
 test_llava: $(MODEL_LLAVA)
-	@./bin/llama-llava-cli -m models/llava-llama-3-8b-v1_1-int4.gguf \
+	@$(LLAMACPP)/bin/llama-llava-cli -m models/llava-llama-3-8b-v1_1-int4.gguf \
 		--mmproj models/llava-llama-3-8b-v1_1-mmproj-f16.gguf \
 		--image tests/media/dice.jpg -c 4096 -e \
 		-p "<|start_header_id|>user<|end_header_id|>\n\n<image>\nDescribe this image<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
 
 test_lora:
-	@./bin/llama-cli -c 2048 -n 64 \
+	@$(LLAMACPP)/bin/llama-cli -c 2048 -n 64 \
 	-p "What are your constraints?" \
 	-m models/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf \
 	--lora models/Llama-3-Instruct-abliteration-LoRA-8B-f16.gguf
@@ -143,9 +153,7 @@ test_platform:
 		-I $(LLAMACPP)/include -L $(LLAMACPP)/lib  \
 		-framework Foundation -framework Accelerate \
 		-framework Metal -framework MetalKit \
-		$(LLAMACPP)/lib/libllama.a \
-		$(LLAMACPP)/lib/libggml.a \
-		$(LLAMACPP)/lib/libcommon.a \
+		$(LLAMACPP_LIBS) \
 		tests/test_platform.cpp
 	@./build/test_platform
 
@@ -153,9 +161,7 @@ test_platform_linux:
 	@g++ -static -std=c++14 -fopenmp -o build/test_platform \
 		-I $(LLAMACPP)/include -L $(LLAMACPP)/lib  \
 		tests/test_platform.cpp \
-		$(LLAMACPP)/lib/libllama.a \
-		$(LLAMACPP)/lib/libggml.a \
-		$(LLAMACPP)/lib/libcommon.a
+		$(LLAMACPP_LIBS) \
 	@./build/test_platform
 
 coverage:
@@ -171,6 +177,8 @@ clean:
 	@rm -rf build dist src/*.egg-info .pytest_cache .coverage
 
 reset: clean
-	@rm -rf bin thirdparty/llama.cpp/lib
+	@rm -rf thirdparty/llama.cpp/bin thirdparty/llama.cpp/lib
+	@rm -rf thirdparty/whisper.cpp/bin thirdparty/whisper.cpp/lib
+	@rm -rf thirdparty/stable-diffusion.cpp/bin thirdparty/stable-diffusion.cpp/lib
 
 remake: reset build test
