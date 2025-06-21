@@ -14,7 +14,7 @@ def simple(model_path: str, prompt: str, ngl: int = 99, n_predict: int = 32):
 
     # initialize the model
 
-    model_params = cy.LlamaModelParams()
+    p = model_params = cy.LlamaModelParams()
     model_params.n_gpu_layers = ngl
 
     model = cy.LlamaModel(model_path, model_params)

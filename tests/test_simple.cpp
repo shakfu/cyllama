@@ -4,15 +4,75 @@
 #include <string>
 #include <vector>
 
-int main() {
+static void print_usage(int, char ** argv) {
+    printf("\nexample usage:\n");
+    printf("\n    %s -m model.gguf [-n n_predict] [-ngl n_gpu_layers] [prompt]\n", argv[0]);
+    printf("\n");
+}
+
+int main(int argc, char ** argv) {
     // path to the model gguf file
-    std::string model_path = "models/Llama-3.2-1B-Instruct-Q8_0.gguf";
+    std::string model_path;
     // prompt to generate text from
-    std::string prompt = "When did the universe begin?";
+    std::string prompt = "Hello my name is";
     // number of layers to offload to the GPU
     int ngl = 99;
     // number of tokens to predict
     int n_predict = 32;
+
+    // parse command line arguments
+
+    {
+        int i = 1;
+        for (; i < argc; i++) {
+            if (strcmp(argv[i], "-m") == 0) {
+                if (i + 1 < argc) {
+                    model_path = argv[++i];
+                } else {
+                    print_usage(argc, argv);
+                    return 1;
+                }
+            } else if (strcmp(argv[i], "-n") == 0) {
+                if (i + 1 < argc) {
+                    try {
+                        n_predict = std::stoi(argv[++i]);
+                    } catch (...) {
+                        print_usage(argc, argv);
+                        return 1;
+                    }
+                } else {
+                    print_usage(argc, argv);
+                    return 1;
+                }
+            } else if (strcmp(argv[i], "-ngl") == 0) {
+                if (i + 1 < argc) {
+                    try {
+                        ngl = std::stoi(argv[++i]);
+                    } catch (...) {
+                        print_usage(argc, argv);
+                        return 1;
+                    }
+                } else {
+                    print_usage(argc, argv);
+                    return 1;
+                }
+            } else {
+                // prompt starts here
+                break;
+            }
+        }
+        if (model_path.empty()) {
+            print_usage(argc, argv);
+            return 1;
+        }
+        if (i < argc) {
+            prompt = argv[i++];
+            for (; i < argc; i++) {
+                prompt += " ";
+                prompt += argv[i];
+            }
+        }
+    }
 
     // load dynamic backends
 
@@ -23,19 +83,25 @@ int main() {
     llama_model_params model_params = llama_model_default_params();
     model_params.n_gpu_layers = ngl;
 
+    if (model_params.tensor_split != NULL) {
+        size_t size = llama_max_devices();
+        for (size_t i=0; i < size; i++) {
+            printf("tensor_split[%zu] = %.6f\n", i, model_params.tensor_split[i]);
+        }
+    }
+
     llama_model * model = llama_model_load_from_file(model_path.c_str(), model_params);
-    const llama_vocab * vocab = llama_model_get_vocab(model);
 
     if (model == NULL) {
         fprintf(stderr , "%s: error: unable to load model\n" , __func__);
         return 1;
     }
 
+    const llama_vocab * vocab = llama_model_get_vocab(model);
     // tokenize the prompt
 
     // find the number of tokens in the prompt
     const int n_prompt = -llama_tokenize(vocab, prompt.c_str(), prompt.size(), NULL, 0, true, true);
-    printf("n_prompt: %d\n", n_prompt);
 
     // allocate space for the tokens and tokenize the prompt
     std::vector<llama_token> prompt_tokens(n_prompt);

@@ -94,7 +94,8 @@ test_simple:
 		-framework Metal -framework MetalKit \
 		$(LLAMACPP_LIBS) \
 		tests/test_simple.cpp
-	@./build/test_simple
+	@./build/test_simple -m $(MODEL) \
+		-p "When did the French Revolution start?" -c 2048 -n 512
 
 test_main:
 	@g++ -std=c++14 -o build/main \

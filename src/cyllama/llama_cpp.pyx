@@ -1,30 +1,6 @@
 # distutils: language = c++
 """cyllama: a thin cython wrapper of llama.cpp"""
 
-# __all__ = [
-#     'GgmlBackendDevice',
-#     'GgmlBackend',
-#     'GgmlTensor',
-#     'GgmlThreadPoolParams',
-#     'GgmlThreadPool',
-#     
-#     'LlamaTokenData',
-#     'LlamaTokenDataArray',
-#     'LlamaBatch',
-#     'LlamaModelTensorBuftOverride',
-#     'LlamaModelParams',
-#     'LlamaContextParams',
-#     'LlamaModelQuantizeParams',
-#     'LlamaLogitBias',
-#     'LlamaSamplerChainParams',
-#     'LlamaChatMessage',
-#     'LlamaVocab',
-#     'LlamaModel',
-#     'LlamaContext',
-#     'LlamaSampler',
-#     'LlamaAdapterLora',
-# ]
-
 
 from libc.stdint cimport uint8_t, int32_t, int64_t, uint32_t, uint64_t
 from libc.string cimport strlen
@@ -43,6 +19,33 @@ cimport log
 import os
 from typing import Optional, Sequence, Callable
 
+# exports
+# -----------------------------------------------------------------------------
+
+# __all__ = [
+#     'GgmlBackendDevice',
+#     'GgmlBackend',
+#     'GgmlTensor',
+#     'GgmlThreadPoolParams',
+#     'GgmlThreadPool',
+#     
+#     'LlamaTokenData',
+#     'LlamaTokenDataArray',
+#     'LlamaBatch',
+#     'LlamaModelKvOverride',
+#     'LlamaModelTensorBuftOverride',
+#     'LlamaModelParams',
+#     'LlamaContextParams',
+#     'LlamaModelQuantizeParams',
+#     'LlamaLogitBias',
+#     'LlamaSamplerChainParams',
+#     'LlamaChatMessage',
+#     'LlamaVocab',
+#     'LlamaModel',
+#     'LlamaContext',
+#     'LlamaSampler',
+#     'LlamaAdapterLora',
+# ]
 
 # includes
 # -----------------------------------------------------------------------------
@@ -443,8 +446,69 @@ cdef class LlamaBatch:
         self.p.logits[self.p.n_tokens - 1] = True
 
 
+cdef class LlamaModelKvOverride:
+    cdef llama.llama_model_kv_override * ptr
+    cdef bint owner
+
+    def __cinit__(self):
+        self.ptr = NULL
+        self.owner = False
+
+    def __dealloc__(self):
+        # De-allocate if not null and flag is set
+        if self.ptr is not NULL and self.owner is True:
+            free(self.ptr)
+            self.ptr = NULL
+
+    def __init__(self):
+        # Prevent accidental instantiation from normal Python code
+        # since we cannot pass a struct pointer into a Python constructor.
+        raise TypeError("This class cannot be instantiated directly.")
+
+    @staticmethod
+    cdef LlamaModelKvOverride from_ptr(llama.llama_model_kv_override *ptr, bint owner=False):
+        cdef LlamaModelKvOverride wrapper = LlamaModelKvOverride.__new__(LlamaModelKvOverride)
+        wrapper.ptr = ptr
+        wrapper.owner = owner
+        return wrapper
+
+    @property
+    def tag(self) -> llama.llama_model_kv_override_type:
+        return self.ptr.tag
+
+    @property
+    def key(self) -> str:
+        return self.ptr.key.decode()
+
+    @property
+    def val_i64(self) -> int:
+        return self.ptr.val_i64
+
+    @property
+    def val_f64(self) -> float:
+        return self.ptr.val_f64
+
+    @property
+    def val_bool(self) -> bool:
+        return <bint>self.ptr.val_bool
+
+    @property
+    def val_str(self) -> str:
+        return self.ptr.val_str.decode()
+
+
 cdef class LlamaModelTensorBuftOverride:
     cdef llama.llama_model_tensor_buft_override * ptr
+
+    @property
+    def pattern(self) -> str:
+        return self.ptr.pattern.decode()
+
+    # @property
+    # def buft(self) -> ggml.ggml_backend_buffer_type_t:
+    #     return self.ptr.buft
+
+
 
 
 cdef class LlamaModelParams:
@@ -502,17 +566,13 @@ cdef class LlamaModelParams:
     @property
     def tensor_split(self) -> list[float]:
         """Proportion of the model (layers or rows) to offload to each GPU, size: llama_max_devices()"""
-        cdef size_t length = sizeof(self.p.tensor_split)
+        cdef size_t length = llama.llama_max_devices()
         results = []
-        for i in range(length):
-            results.append(self.p.tensor_split[i])
+        if self.p.tensor_split:
+            for i in range(length):
+                n = <float>self.p.tensor_split[i]
+                results.append(n)
         return results
-
-    # @tensor_split.setter
-    # def tensor_split(self, value: list[float]):
-    #     cdef size_t size = llama.llama_max_devices()
-    #     for i in range(size):
-    #         self.p.tensor_split[i] = value[i]
 
     @property
     def progress_callback(self) -> Callable[[float], bool]:
@@ -529,17 +589,15 @@ cdef class LlamaModelParams:
     def progress_callback(self, object py_progress_callback):
         self.p.progress_callback_user_data = <void*>py_progress_callback
 
-    # @property
-    # def kv_overrides(self) -> list[str]:
-    #     """override key-value pairs of the model meta data
+    @property
+    def kv_overrides(self) -> list[LlamaModelKvOverride]:
+        """override key-value pairs of the model meta data
 
-    #     const llama_model_kv_override * kv_overrides
-    #     """
-    #     return self.p.kv_overrides
+        const llama_model_kv_override * kv_overrides
+        """
 
-    # @kv_overrides.setter
-    # def kv_overrides(self, value: list[str]):
-    #     self.p.kv_overrides = value
+
+
 
     @property
     def vocab_only(self) -> bool:
@@ -584,11 +642,11 @@ cdef class LlamaContextParams:
     def __init__(self):
         self.p = llama.llama_context_default_params()
 
-    # @staticmethod
-    # cdef LlamaContextParams from_common_params(CommonParams params):
-    #     cdef LlamaContextParams wrapper = LlamaContextParams.__new__(LlamaContextParams)
-    #     wrapper.p = llama.common_context_params_to_llama(params.p)
-    #     return wrapper
+    @staticmethod
+    cdef LlamaContextParams from_common_params(CommonParams params):
+        cdef LlamaContextParams wrapper = LlamaContextParams.__new__(LlamaContextParams)
+        wrapper.p = common.common_context_params_to_llama(params.p)
+        return wrapper
 
     @property
     def n_ctx(self) -> int:
