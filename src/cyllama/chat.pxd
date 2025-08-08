@@ -8,6 +8,7 @@ from libcpp.set cimport set as std_set
 from libcpp.memory cimport unique_ptr as std_unique_ptr
 from libcpp.set cimport set as std_set
 from libcpp.functional cimport function as std_function
+from libcpp.map cimport map as std_map
 
 cimport common
 cimport llama
@@ -74,6 +75,8 @@ cdef extern from "chat.h":
         COMMON_CHAT_FORMAT_FUNCTIONARY_V3_1_LLAMA_3_1
         COMMON_CHAT_FORMAT_HERMES_2_PRO
         COMMON_CHAT_FORMAT_COMMAND_R7B
+        COMMON_CHAT_FORMAT_GRANITE,
+        COMMON_CHAT_FORMAT_GPT_OSS
         COMMON_CHAT_FORMAT_COUNT
 
     # Chat templates inputs structure
@@ -89,6 +92,10 @@ cdef extern from "chat.h":
         common.common_reasoning_format reasoning_format
         bint enable_thinking
         # std::chrono::system_clock::time_point now - not directly supported in Cython
+        std_map[std_string, std_string] chat_template_kwargs
+        bint add_bos
+        bint add_eos
+
 
     # Chat parameters structure
     ctypedef struct common_chat_params:
