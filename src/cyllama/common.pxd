@@ -8,6 +8,8 @@ from libcpp.vector cimport vector as std_vector
 from libcpp.set cimport set as std_set
 from libcpp.memory cimport unique_ptr
 from libcpp.set cimport set as std_set
+from libcpp.pair cimport pair as std_pair
+from libcpp.map cimport map as std_map
 
 cimport ggml
 cimport llama
@@ -69,6 +71,7 @@ cdef extern from "common.h":
         LLAMA_EXAMPLE_LOOKUP
         LLAMA_EXAMPLE_PARALLEL
         LLAMA_EXAMPLE_TTS
+        LLAMA_EXAMPLE_DIFFUSION
         LLAMA_EXAMPLE_COUNT
 
     cdef enum common_sampler_type:
@@ -148,7 +151,8 @@ cdef extern from "common.h":
         std_vector[common_grammar_trigger] grammar_triggers
         std_set[llama.llama_token] preserved_tokens
 
-        std_vector[llama.llama_logit_bias] logit_bias # logit biases to apply
+        std_vector[llama.llama_logit_bias] logit_bias     # logit biases to apply
+        std_vector[llama.llama_logit_bias] logit_bias_eog # pre-calculated logit biases for EOG tokens
 
         # print the parameters into a string
         std_string print()
@@ -168,6 +172,7 @@ cdef extern from "common.h":
         int32_t n_gpu_layers    # number of layers to store in VRAM for the draft model (-1 - use default)
         float   p_split         # speculative decoding split probability
         float   p_min           # minimum speculative decoding probability (greedy)
+        std_vector[std_pair[std_string, std_string]] replacements
 
         ggml.ggml_type cache_type_k # KV cache data type for the K
         ggml.ggml_type cache_type_v # KV cache data type for the V
@@ -177,17 +182,28 @@ cdef extern from "common.h":
 
         common_params_model model       # draft model for speculative decoding
 
-
     ctypedef struct common_params_vocoder:
         common_params_model model
 
         std_string speaker_file     # speaker file path
         bint use_guide_tokens       # enable guide tokens to improve TTS accuracy
 
+    ctypedef struct common_params_diffusion:
+        int32_t steps
+        bint visual_mode
+        float eps               # epsilon for timesteps
+        int32_t block_length    # block length for generation
+        int32_t algorithm       # default algorithm: low-confidence
+        float alg_temp          # algorithm temperature
+        float cfg_scale         # classifier-free guidance scale
+        bint add_gumbel_noise   # add gumbel noise to the logits if temp > 0.0
+
     cdef enum common_reasoning_format:
         COMMON_REASONING_FORMAT_NONE
+        COMMON_REASONING_FORMAT_AUTO
         COMMON_REASONING_FORMAT_DEEPSEEK_LEGACY # Extract thinking tag contents and return as `message.reasoning_content`, or leave inline in <think> tags in stream mode
         COMMON_REASONING_FORMAT_DEEPSEEK        # Extract thinking tag contents and return as `message.reasoning_content`
+        COMMON_REASONING_FORMAT_GRANITE         # Extract thinking tag contents and return as `message.reasoning_content`, including in streaming deltas.
 
     ctypedef struct common_params:
         int32_t n_predict          # new tokens to predict
@@ -233,6 +249,7 @@ cdef extern from "common.h":
         common_params_sampling    sampling
         common_params_speculative speculative
         common_params_vocoder     vocoder
+        common_params_diffusion   diffusion
 
         common_params_model model 
 
@@ -294,6 +311,7 @@ cdef extern from "common.h":
         bint no_perf                # disable performance metric
         bint ctx_shift              # context shift on inifinite text generation
         bint swa_full               # use full-size SWA cache (https://github.com/ggml-org/llama.cpp/pull/13194#issuecomment-2868343055)
+        bint kv_unified             # enable unified KV cache
 
         bint input_prefix_bos       # prefix BOS to user inputs, preceding input_prefix
         bint use_mmap               # use mmap for faster loads
@@ -306,6 +324,7 @@ cdef extern from "common.h":
         bint warmup                 # warmup run
         bint check_tensors          # validate tensor data
         bint no_op_offload          # globally disable offload host tensor operations to device
+        bint no_extra_bufts         # disable extra buffer types (used for weight repacking)
         bint single_turn            # single turn chat conversation
 
         ggml.ggml_type cache_type_k      # KV cache data type for the K
@@ -335,6 +354,7 @@ cdef extern from "common.h":
 
         std_string hostname
         std_string public_path
+        std_string api_prefix
         std_string chat_template
         bint use_jinja
         bint enable_chat_template
@@ -347,6 +367,8 @@ cdef extern from "common.h":
 
         std_string ssl_file_key
         std_string ssl_file_cert
+
+        std_map[std_string, std_string] default_template_kwargs
 
         bint webui
         bint endpoint_slots
@@ -383,9 +405,11 @@ cdef extern from "common.h":
         int32_t n_out_freq       # output the imatrix every n_out_freq iterations
         int32_t n_save_freq      # save the imatrix every n_save_freq iterations
         int32_t i_chunk          # start processing from this chunk
+        int8_t  imat_dat         # whether the legacy imatrix.dat format should be output (gguf <= 0 < dat)
 
         bint process_output      # collect data for the output tensor
         bint compute_ppl         # whether to compute perplexity
+        bint show_statistics     # show imatrix statistics per tensor
         bint parse_special       # whether to parse special tokens during imatrix tokenization
         
         # cvector-generator params
@@ -438,6 +462,7 @@ cdef extern from "common.h":
 
     cdef bint string_starts_with(const std_string & str, const std_string & prefix)
     cdef bint string_ends_with(const std_string_view & str, const std_string_view & suffix)
+    cdef bint string_remove_suffix(std_string & str, const std_string_view & suffix)
     cdef size_t string_find_partial_stop(const std_string_view & str, const std_string_view & stop)
 
     cdef bint string_parse_kv_override(const char * data, std_vector[llama.llama_model_kv_override] & overrides)
