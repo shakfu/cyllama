@@ -35,51 +35,13 @@ cdef extern from "llama.h":
     ctypedef int32_t llama_seq_id
 
     cdef enum llama_vocab_type:
-        LLAMA_VOCAB_TYPE_NONE = 0  # For models without vocab
-        LLAMA_VOCAB_TYPE_SPM  = 1  # LLaMA tokenizer based on byte-level BPE with byte fallback
-        LLAMA_VOCAB_TYPE_BPE  = 2  # GPT-2 tokenizer based on byte-level BPE
-        LLAMA_VOCAB_TYPE_WPM  = 3  # BERT tokenizer based on WordPiece
-        LLAMA_VOCAB_TYPE_UGM  = 4  # T5 tokenizer based on Unigram
-        LLAMA_VOCAB_TYPE_RWKV = 5  # RWKV tokenizer based on greedy tokenization
-
-    # pre-tokenization types
-    cdef enum llama_vocab_pre_type:
-        LLAMA_VOCAB_PRE_TYPE_DEFAULT
-        LLAMA_VOCAB_PRE_TYPE_LLAMA3
-        LLAMA_VOCAB_PRE_TYPE_DEEPSEEK_LLM
-        LLAMA_VOCAB_PRE_TYPE_DEEPSEEK_CODER
-        LLAMA_VOCAB_PRE_TYPE_FALCON
-        LLAMA_VOCAB_PRE_TYPE_MPT
-        LLAMA_VOCAB_PRE_TYPE_STARCODER
-        LLAMA_VOCAB_PRE_TYPE_GPT2
-        LLAMA_VOCAB_PRE_TYPE_REFACT
-        LLAMA_VOCAB_PRE_TYPE_COMMAND_R
-        LLAMA_VOCAB_PRE_TYPE_STABLELM2
-        LLAMA_VOCAB_PRE_TYPE_QWEN2
-        LLAMA_VOCAB_PRE_TYPE_OLMO
-        LLAMA_VOCAB_PRE_TYPE_DBRX
-        LLAMA_VOCAB_PRE_TYPE_SMAUG
-        LLAMA_VOCAB_PRE_TYPE_PORO
-        LLAMA_VOCAB_PRE_TYPE_CHATGLM3
-        LLAMA_VOCAB_PRE_TYPE_CHATGLM4
-        LLAMA_VOCAB_PRE_TYPE_VIKING
-        LLAMA_VOCAB_PRE_TYPE_JAIS
-        LLAMA_VOCAB_PRE_TYPE_TEKKEN
-        LLAMA_VOCAB_PRE_TYPE_SMOLLM
-        LLAMA_VOCAB_PRE_TYPE_CODESHELL
-        LLAMA_VOCAB_PRE_TYPE_BLOOM
-        LLAMA_VOCAB_PRE_TYPE_GPT3_FINNISH
-        LLAMA_VOCAB_PRE_TYPE_EXAONE
-        LLAMA_VOCAB_PRE_TYPE_CHAMELEON
-        LLAMA_VOCAB_PRE_TYPE_MINERVA
-        LLAMA_VOCAB_PRE_TYPE_DEEPSEEK3_LLM
-        LLAMA_VOCAB_PRE_TYPE_GPT4O
-        LLAMA_VOCAB_PRE_TYPE_SUPERBPE
-        LLAMA_VOCAB_PRE_TYPE_TRILLION
-        LLAMA_VOCAB_PRE_TYPE_BAILINGMOE
-        LLAMA_VOCAB_PRE_TYPE_LLAMA4
-        LLAMA_VOCAB_PRE_TYPE_SEED_CODER
-
+        LLAMA_VOCAB_TYPE_NONE = 0   # For models without vocab
+        LLAMA_VOCAB_TYPE_SPM  = 1   # LLaMA tokenizer based on byte-level BPE with byte fallback
+        LLAMA_VOCAB_TYPE_BPE  = 2   # GPT-2 tokenizer based on byte-level BPE
+        LLAMA_VOCAB_TYPE_WPM  = 3   # BERT tokenizer based on WordPiece
+        LLAMA_VOCAB_TYPE_UGM  = 4   # T5 tokenizer based on Unigram
+        LLAMA_VOCAB_TYPE_RWKV = 5   # RWKV tokenizer based on greedy tokenization
+        LLAMA_VOCAB_TYPE_PLAMO2 = 6 # PLaMo-2 tokenizer based on Aho-Corasick with dynamic programming
 
     cdef enum llama_rope_type:
         LLAMA_ROPE_TYPE_NONE   = -1
@@ -147,8 +109,9 @@ cdef extern from "llama.h":
         # LLAMA_FTYPE_MOSTLY_Q4_0_4_4      = 33, # removed from gguf files, use Q4_0 and runtime repack
         # LLAMA_FTYPE_MOSTLY_Q4_0_4_8      = 34, # removed from gguf files, use Q4_0 and runtime repack
         # LLAMA_FTYPE_MOSTLY_Q4_0_8_8      = 35, # removed from gguf files, use Q4_0 and runtime repack
-        LLAMA_FTYPE_MOSTLY_TQ1_0         = 36 # except 1d tensors
-        LLAMA_FTYPE_MOSTLY_TQ2_0         = 37 # except 1d tensors
+        LLAMA_FTYPE_MOSTLY_TQ1_0         = 36   # except 1d tensors
+        LLAMA_FTYPE_MOSTLY_TQ2_0         = 37   # except 1d tensors
+        LLAMA_FTYPE_MOSTLY_MXFP4_MOE     = 38   # except 1d tensors
         LLAMA_FTYPE_GUESSED              = 1024
 
     cdef enum llama_rope_scaling_type:
@@ -249,10 +212,12 @@ cdef extern from "llama.h":
         llama_progress_callback progress_callback
         void * progress_callback_user_data
         const llama_model_kv_override * kv_overrides
-        bint vocab_only
-        bint use_mmap
-        bint use_mlock
-        bint check_tensors
+        # Keep the booleans together to avoid misalignment during copy-by-value.
+        bint vocab_only       # only load the vocabulary, no weights
+        bint use_mmap         # use mmap if possible
+        bint use_mlock        # force system to keep model in RAM
+        bint check_tensors    # validate model tensor data
+        bint use_extra_bufts  # use extra buffer types (used for weight repacking)
 
     ctypedef struct llama_context_params:
         uint32_t n_ctx             # text context, 0 = from model
@@ -295,7 +260,9 @@ cdef extern from "llama.h":
         bint swa_full     # use full-size SWA cache (https://github.com/ggml-org/llama.cpp/pull/13194#issuecomment-2868343055)
                           # NOTE: setting to false when n_seq_max > 1 can cause bad performance in some cases
                           #       ref: https://github.com/ggml-org/llama.cpp/pull/13845#issuecomment-2924800573
-
+        bint kv_unified   # use a unified buffer across the input sequences when computing the attention
+                          # try to disable when n_seq_max > 1 for improved performance when the sequences do not share a large prefix
+                          # ref: https://github.com/ggml-org/llama.cpp/pull/14363
 
     ctypedef struct llama_model_quantize_params:
         int32_t nthread                     # number of threads to use for quantizing, if <=0 will use std::thread::hardware_concurrency()
@@ -310,6 +277,7 @@ cdef extern from "llama.h":
         void * imatrix                      # pointer to importance matrix data
         void * kv_overrides                 # pointer to vector containing overrides
         void * tensor_types                 # pointer to vector containing tensor types
+        void * prune_layers                 # pointer to vector containing layer indices to prune
 
     ctypedef struct llama_logit_bias:
         llama_token token
@@ -464,6 +432,9 @@ cdef extern from "llama.h":
 
     # Returns true if the model is recurrent (like Mamba, RWKV, etc.)
     cdef bint llama_model_is_recurrent(const llama_model * model)
+
+    # Returns true if the model is diffusion-based (like LLaDA, Dream, etc.)
+    cdef bint llama_model_is_diffusion(const llama_model * model)
 
     # Returns 0 on success
     cdef uint32_t llama_model_quantize(
@@ -699,12 +670,18 @@ cdef extern from "llama.h":
     # < 0 - error. the memory state is restored to the state before this call
     cdef int32_t llama_encode(llama_context * ctx, llama_batch batch)
 
-    # Upon non-zero return values, the memory state is restored to the state before this call
+    # Process a batch of tokens.
+    # Requires the context to have a memory.
+    # For encode-decoder contexts, processes the batch using the decoder.
+    # Positive return values does not mean a fatal error, but rather a warning.
+    # Upon fatal-error or abort, the ubatches that managed to be been processed will remain in the memory state of the context
+    #   To handle this correctly, query the memory state using llama_memory_seq_pos_min() and llama_memory_seq_pos_max()
+    # Upon other return values, the memory state is restored to the state before this call
     #    0 - success
     #    1 - could not find a KV slot for the batch (try reducing the size of the batch or increase the context)
-    #    2 - aborted
+    #    2 - aborted     (processed ubatches will remain in the context's memory)
     #   -1 - invalid input batch
-    # < -1 - error
+    # < -1 - fatal error (processed ubatches will remain in the context's memory)
     cdef int32_t llama_decode(llama_context * ctx, llama_batch batch)
 
     # Set the number of threads used for decoding
@@ -739,6 +716,7 @@ cdef extern from "llama.h":
     # in the order they have appeared in the batch.
     # Rows: number of tokens for which llama_batch.logits[i] != 0
     # Cols: n_vocab
+    # TODO: deprecate in favor of llama_get_logits_ith() (ref: https://github.com/ggml-org/llama.cpp/pull/14853#issuecomment-3113143522)
     cdef float * llama_get_logits( llama_context * ctx)
 
     # FIXME: should this be added
@@ -756,6 +734,7 @@ cdef extern from "llama.h":
     # in the order they have appeared in the batch.
     # shape: [n_outputs*n_embd]
     # Otherwise, returns NULL.
+    # TODO: deprecate in favor of llama_get_embeddings_ith() (ref: https://github.com/ggml-org/llama.cpp/pull/14853#issuecomment-3113143522)
     cdef float * llama_get_embeddings( llama_context * ctx)
 
     # Get the embeddings for the ith token. For positive indices, Equivalent to:
@@ -787,13 +766,14 @@ cdef extern from "llama.h":
     cdef bint llama_vocab_is_control(const llama_vocab * vocab, llama_token token)
 
     # Special tokens
-    cdef llama_token llama_vocab_bos(const llama_vocab * vocab) # beginning-of-sentence
-    cdef llama_token llama_vocab_eos(const llama_vocab * vocab) # end-of-sentence
-    cdef llama_token llama_vocab_eot(const llama_vocab * vocab) # end-of-turn
-    cdef llama_token llama_vocab_cls(const llama_vocab * vocab) # classification
-    cdef llama_token llama_vocab_sep(const llama_vocab * vocab) # sentence separator
-    cdef llama_token llama_vocab_nl (const llama_vocab * vocab) # next-line
-    cdef llama_token llama_vocab_pad(const llama_vocab * vocab) # padding
+    cdef llama_token llama_vocab_bos(const llama_vocab * vocab)  # beginning-of-sentence
+    cdef llama_token llama_vocab_eos(const llama_vocab * vocab)  # end-of-sentence
+    cdef llama_token llama_vocab_eot(const llama_vocab * vocab)  # end-of-turn
+    cdef llama_token llama_vocab_cls(const llama_vocab * vocab)  # classification
+    cdef llama_token llama_vocab_sep(const llama_vocab * vocab)  # sentence separator
+    cdef llama_token llama_vocab_nl (const llama_vocab * vocab)  # next-line
+    cdef llama_token llama_vocab_pad(const llama_vocab * vocab)  # padding
+    cdef llama_token llama_vocab_mask(const llama_vocab * vocab) # mask
 
     cdef bint llama_vocab_get_add_bos(const llama_vocab * vocab)
     cdef bint llama_vocab_get_add_eos(const llama_vocab * vocab)
@@ -1135,6 +1115,7 @@ cdef extern from "llama.h":
 
         int32_t n_p_eval
         int32_t n_eval
+        int32_t n_reused  # number of times a ggml compute graph had been reused
 
     ctypedef struct llama_perf_sampler_data:
         double t_sample_ms
