@@ -1149,28 +1149,6 @@ cdef class LlamaVocab:
 
     # Tokenization
 
-    # def tokenize(self, text: str, add_special: bool, parse_special: bool) -> list[int]:
-    #     """Convert the provided text into tokens.
-
-    #     text: string to be converted into token.
-    #     add_special: Allow to add BOS and EOS tokens if model is configured to do so.
-    #     parse_special: Allow tokenizing special and/or control tokens which otherwise
-    #                    are not exposed and treated as plaintext. Does not insert a leading space.
-    #     Returns the number of tokens on success, no more than n_tokens_max
-    #     Returns a negative number on failure - the number of tokens that would have been returned
-    #     """
-    #     cdef int n_ctx = self.n_ctx_train()
-    #     cdef std_vector[llama.llama_token] tokens
-    #     tokens.reserve(n_ctx)
-    #     n_tokens = llama.llama_tokenize(
-    #         self.ptr, text.encode(), len(text), tokens.data(), n_ctx, add_special, parse_special
-    #     )
-    #     if n_tokens < 0:
-    #         raise RuntimeError(
-    #             f'Failed to tokenize: text="{text}" n_tokens={n_tokens}'
-    #         )
-    #     return tokens[:n_tokens]
-
     def tokenize(self, text: str, add_special: bool, parse_special: bool) -> list[int]:
         """Convert the provided text into tokens.
 
@@ -1181,16 +1159,19 @@ cdef class LlamaVocab:
         Returns the number of tokens on success, no more than n_tokens_max
         Returns a negative number on failure - the number of tokens that would have been returned
         """
-        cdef std_vector[llama.llama_token] tokens
-        tokens.reserve(self.n_vocab)
+        cdef list[int] _tokens = []
+        cdef llama.llama_token * tokens = <llama.llama_token *>malloc(sizeof(llama.llama_token) * self.n_vocab)
         n_tokens = llama.llama_tokenize(
-            self.ptr, text.encode(), len(text), tokens.data(), self.n_vocab, add_special, parse_special
+            self.ptr, text.encode(), len(text), tokens, self.n_vocab, add_special, parse_special
         )
         if n_tokens < 0:
             raise RuntimeError(
                 f'Failed to tokenize: text="{text}" n_tokens={n_tokens}'
             )
-        return tokens[:n_tokens]
+        for i in range(n_tokens):
+            _tokens.append(tokens[i])
+        free(tokens)
+        return _tokens
 
     def token_to_piece(self, token: int, lstrip: int = 0, special: bool = False) -> str:
         """Token Id -> Piece.
@@ -1835,7 +1816,7 @@ cdef class LlamaContext:
           1 - could not find a KV slot for the batch (try reducing the size of the batch or increase the context)
         < 0 - error
         """
-        cdef int32_t res = llama.llama_decode(self.ptr,batch.p)
+        cdef int32_t res = llama.llama_decode(self.ptr, batch.p)
         self.n_tokens = batch.n_tokens
         if res == 1:
             raise ValueError("could not find a KV slot for the batch (try reducing the size of the batch or increase the context)")
@@ -2324,6 +2305,7 @@ def llama_batch_get_one(list[int] tokens) -> LlamaBatch:
     cdef int32_t n_tokens = <int32_t>len(tokens)
     cdef llama.llama_token * _tokens = <llama.llama_token *>malloc(sizeof(llama.llama_token) * n_tokens)
     for i in range(n_tokens):
+        print(f"tokens[{i}]: {tokens[i]}")
         _tokens[i] = tokens[i]
     cdef llama.llama_batch batch = llama.llama_batch_get_one(_tokens, n_tokens)
     free(_tokens)
