@@ -182,4 +182,4 @@ reset: clean
 	@rm -rf thirdparty/whisper.cpp/bin thirdparty/whisper.cpp/lib
 	@rm -rf thirdparty/stable-diffusion.cpp/bin thirdparty/stable-diffusion.cpp/lib
 
-remake: reset build test
+remake: reset build diff test
