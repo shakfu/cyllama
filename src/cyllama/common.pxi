@@ -793,14 +793,14 @@ cdef class CommonParams:
     def yarn_orig_ctx(self, value: int):
         self.p.yarn_orig_ctx = value
 
-    @property
-    def defrag_thold(self) -> float:
-        """KV cache defragmentation threshold."""
-        return self.p.defrag_thold
+    # @property
+    # def defrag_thold(self) -> float:
+    #     """KV cache defragmentation threshold."""
+    #     return self.p.defrag_thold
 
-    @defrag_thold.setter
-    def defrag_thold(self, value: float):
-        self.p.defrag_thold = value
+    # @defrag_thold.setter
+    # def defrag_thold(self, value: float):
+    #     self.p.defrag_thold = value
 
     @property
     def devices(self) -> list[GgmlBackendDevice]:

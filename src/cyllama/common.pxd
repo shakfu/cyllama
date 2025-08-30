@@ -224,7 +224,7 @@ cdef extern from "common.h":
         float   yarn_beta_fast     # YaRN low correction dim
         float   yarn_beta_slow     # YaRN high correction dim
         int32_t yarn_orig_ctx      # YaRN original context length
-        float   defrag_thold       # KV cache defragmentation threshold
+        # float   defrag_thold       # KV cache defragmentation threshold
 
         std_vector[ggml.ggml_backend_dev_t] devices # devices to use for offloading
         

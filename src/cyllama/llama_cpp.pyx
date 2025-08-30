@@ -793,14 +793,14 @@ cdef class LlamaContextParams:
     def yarn_orig_ctx(self, value: int):
         self.p.yarn_orig_ctx = value
 
-    @property
-    def defrag_thold(self) -> float:
-        """KV cache defragmentation threshold."""
-        return self.p.defrag_thold
+    # @property
+    # def defrag_thold(self) -> float:
+    #     """KV cache defragmentation threshold."""
+    #     return self.p.defrag_thold
 
-    @defrag_thold.setter
-    def defrag_thold(self, value: float):
-        self.p.defrag_thold = value
+    # @defrag_thold.setter
+    # def defrag_thold(self, value: float):
+    #     self.p.defrag_thold = value
 
     # ggml.ggml_backend_sched_eval_callback cb_eval;
 
@@ -1182,8 +1182,8 @@ cdef class LlamaVocab:
         User can skip up to 'lstrip' leading spaces before copying
         (useful when encoding/decoding multiple tokens with 'add_space_prefix')
         """
-        cdef char buf[32]
-        llama.llama_token_to_piece(self.ptr, token, buf, 32, lstrip, special)
+        cdef char buf[128]
+        llama.llama_token_to_piece(self.ptr, token, buf, 128, lstrip, special)
         return buf.decode()
 
     def detokenize(self, tokens: list[int], text_len_max: int = 1024, remove_special: bool = False, unparse_special: bool = False) -> str:

@@ -79,7 +79,8 @@ cdef extern from "ggml.h":
         # GGML_TYPE_IQ4_NL_4_4 = 36
         # GGML_TYPE_IQ4_NL_4_8 = 37
         # GGML_TYPE_IQ4_NL_8_8 = 38
-        GGML_TYPE_COUNT = 39
+        GGML_TYPE_MXFP4 = 39 # MXFP4 (1 block)
+        GGML_TYPE_COUNT = 40
 
 
     cdef enum ggml_prec:
@@ -91,6 +92,7 @@ cdef extern from "ggml.h":
 
         GGML_OP_DUP
         GGML_OP_ADD
+        GGML_OP_ADD_ID
         GGML_OP_ADD1
         GGML_OP_ACC
         GGML_OP_SUB
@@ -126,6 +128,7 @@ cdef extern from "ggml.h":
         GGML_OP_TRANSPOSE
         GGML_OP_GET_ROWS
         GGML_OP_GET_ROWS_BACK
+        GGML_OP_SET_ROWS
         GGML_OP_DIAG
         GGML_OP_DIAG_MASK_INF
         GGML_OP_DIAG_MASK_ZERO
@@ -139,7 +142,7 @@ cdef extern from "ggml.h":
         GGML_OP_CONV_TRANSPOSE_2D
         GGML_OP_POOL_1D
         GGML_OP_POOL_2D
-        GGML_OP_UPSCALE # nearest interpolate
+        GGML_OP_UPSCALE
         GGML_OP_PAD
         GGML_OP_ARANGE
         GGML_OP_TIMESTEP_EMBEDDING
@@ -171,6 +174,8 @@ cdef extern from "ggml.h":
         GGML_OP_CROSS_ENTROPY_LOSS
         GGML_OP_CROSS_ENTROPY_LOSS_BACK
 
+        GGML_OP_GLU
+
         GGML_OP_COUNT
 
 
@@ -184,6 +189,9 @@ cdef extern from "ggml.h":
 
     ctypedef void (*ggml_log_callback)(ggml_log_level level, const char * text, void * user_data)
     ctypedef bint (*ggml_abort_callback)(void * data)
+
+    cdef const char * ggml_version()
+    cdef const char * ggml_commit()
 
 
     # -------------------------------------------------------------------------
