@@ -75,6 +75,7 @@ def simple(model_path: str, prompt: str, ngl: int = 99, n_predict: int = 32):
     
     # llama_token new_token_id
     n_pos = n_prompt
+    response = ""
     for i in range(n_predict):
 
         ctx.decode(batch) # may raise ValueError
@@ -87,13 +88,18 @@ def simple(model_path: str, prompt: str, ngl: int = 99, n_predict: int = 32):
             break
 
         piece: str = vocab.token_to_piece(new_token_id, special=True)
-        print(f"piece: %s", piece);
+        response += piece
+        # print(f"piece: %s", piece);
 
         # prepare the next batch with the sampled token
         batch = cy.llama_batch_get_one([new_token_id], n_pos)
         n_pos += 1
 
         n_decode += 1
+
+    print()
+
+    print(f"response: {response}")
 
     print()
 

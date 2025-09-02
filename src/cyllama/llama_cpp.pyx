@@ -2309,8 +2309,8 @@ def llama_detach_threadpool(LlamaContext ctx):
 def llama_batch_get_one(list[int] tokens, int n_past = 0) -> LlamaBatch:
     """Create a batch using the proper batch API instead of the deprecated llama_batch_get_one"""
     cdef int32_t n_tokens = <int32_t>len(tokens)
-    for i in range(n_tokens):
-        print(f"tokens[{i}]: {tokens[i]}")
+    # for i in range(n_tokens):
+    #     print(f"tokens[{i}]: {tokens[i]}")
     
     # Create a proper batch using the new API
     batch = LlamaBatch(n_tokens=n_tokens, embd=0, n_seq_max=1)
