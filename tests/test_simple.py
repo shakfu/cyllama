@@ -14,19 +14,19 @@ def simple(model_path: str, prompt: str, ngl: int = 99, n_predict: int = 32):
 
     # initialize the model
 
-    p = model_params = cy.LlamaModelParams()
+    model_params = cy.LlamaModelParams()
     model_params.n_gpu_layers = ngl
 
     model = cy.LlamaModel(model_path, model_params)
     vocab = model.get_vocab()
 
     # tokenize the prompt
+    print(f"vocab.n_vocab = {vocab.n_vocab}")
 
     # find the number of tokens in the prompt
     prompt_tokens = vocab.tokenize(prompt, add_special=True, parse_special=True)
     n_prompt = len(prompt_tokens)
-    # from IPython import embed; embed()
-
+    print(f"n_prompt: {n_prompt}")
 
     # initialize the context
 
@@ -56,41 +56,47 @@ def simple(model_path: str, prompt: str, ngl: int = 99, n_predict: int = 32):
     print()
     prompt=""
     for i in prompt_tokens:
-        prompt += cy.common_token_to_piece(ctx, i)
+        try:
+            prompt += vocab.token_to_piece(i, lstrip=0, special=False)
+        except UnicodeDecodeError:
+            continue
     print(prompt)
 
 
     # prepare a batch for the prompt
 
     # make a static method of LlamaBatch
-    batch: cy.LlamaBatch = cy.llama_batch_get_one(prompt_tokens)
+    batch = cy.llama_batch_get_one(prompt_tokens)
 
     # main loop
 
     t_main_start: int = cy.ggml_time_us()
     n_decode = 0
+
+    # from IPython import embed; embed()
     
     # llama_token new_token_id
-
     for n_pos in range(n_prompt + n_predict):
+
         ctx.decode(batch) # may raise ValueError
 
         n_pos += batch.n_tokens
 
-        # sample the next token
-        new_token_id = smplr.sample(ctx, -1)
+        if True:
+            # sample the next token
+            new_token_id = smplr.sample(ctx, -1)
 
-        # is it an end of generation?
-        if vocab.is_eog(new_token_id):
-            break
+            # is it an end of generation?
+            if vocab.is_eog(new_token_id):
+                break
 
-        piece: str = vocab.token_to_piece(new_token_id, special=True)
-        print(f"piece: %s", piece);
+            piece: str = vocab.token_to_piece(new_token_id, special=True)
+            print(f"piece: %s", piece);
 
-        # prepare the next batch with the sampled token
-        batch = cy.llama_batch_get_one([new_token_id])
+            # prepare the next batch with the sampled token
+            batch = cy.llama_batch_get_one([new_token_id])
 
-        n_decode += 1
+            n_decode += 1
 
     print()
 

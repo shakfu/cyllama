@@ -83,13 +83,6 @@ int main(int argc, char ** argv) {
     llama_model_params model_params = llama_model_default_params();
     model_params.n_gpu_layers = ngl;
 
-    if (model_params.tensor_split != NULL) {
-        size_t size = llama_max_devices();
-        for (size_t i=0; i < size; i++) {
-            printf("tensor_split[%zu] = %.6f\n", i, model_params.tensor_split[i]);
-        }
-    }
-
     llama_model * model = llama_model_load_from_file(model_path.c_str(), model_params);
 
     if (model == NULL) {

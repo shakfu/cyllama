@@ -4,6 +4,7 @@ export MACOSX_DEPLOYMENT_TARGET := 14.7
 
 # models
 MODEL := models/Llama-3.2-1B-Instruct-Q8_0.gguf
+# MODEL := models/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf
 MODEL_RAG := models/all-MiniLM-L6-v2-Q5_K_S.gguf
 MODEL_LLAVA := models/llava-llama-3-8b-v1_1-int4.gguf
 MODEL_LLAVA_MMPROG := models/llava-llama-3-8b-v1_1-mmproj-f16.gguf
@@ -71,10 +72,10 @@ bind: build/include
 
 
 .PHONY: test simple test_simple test_main test_retrieve test_model test_llava test_lora \
-		test_platform coverage memray download download_all bump clean reset remake
+		test_platform coverage memray download download_all bump clean reset remake cli
 
 test: build
-	@pytest
+	@pytest -s
 
 simple:
 	@g++ -std=c++14 -o build/simple \
@@ -83,8 +84,8 @@ simple:
 		-framework Metal -framework MetalKit \
 		$(LLAMACPP_LIBS) \
 		build/llama.cpp/examples/simple/simple.cpp
-	@./build/simple -m $(MODEL) \
-		-p "When did the French Revolution start?" -c 2048 -n 512
+	@./build/simple -m $(MODEL) -n 32 -ngl 99 \
+		-p "When did the French Revolution start?"
 
 
 test_simple:
@@ -94,8 +95,13 @@ test_simple:
 		-framework Metal -framework MetalKit \
 		$(LLAMACPP_LIBS) \
 		tests/test_simple.cpp
-	@./build/test_simple -m $(MODEL) \
-		-p "When did the French Revolution start?" -c 2048 -n 512
+	@./build/test_simple -m $(MODEL) -n 32 -ngl 99 \
+		-p "When did the French Revolution start?"
+
+cli:
+	@./bin/llama-cli -n 32 -no-cnv -lv 0 \
+		-m models/Llama-3.2-1B-Instruct-Q8_0.gguf \
+		-p "When did the french revolution begin?"
 
 test_main:
 	@g++ -std=c++14 -o build/main \
