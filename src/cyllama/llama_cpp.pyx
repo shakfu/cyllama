@@ -400,6 +400,11 @@ cdef class LlamaBatch:
     cdef LlamaBatch from_instance(llama.llama_batch batch):
         cdef LlamaBatch wrapper = LlamaBatch.__new__(LlamaBatch)
         wrapper.p = batch
+        wrapper._n_tokens = batch.n_tokens
+        wrapper.embd = 0 if batch.embd == NULL else 1
+        wrapper.n_seq_max = 1  # Default for llama_batch_get_one
+        wrapper.verbose = True
+        wrapper.owner = False  # Important: we don't own this batch, so don't free it
         return wrapper
 
     @property
@@ -1184,7 +1189,7 @@ cdef class LlamaVocab:
         """
         cdef char buf[128]
         llama.llama_token_to_piece(self.ptr, token, buf, 128, lstrip, special)
-        return buf.decode()
+        return buf.decode("utf-8", errors="replace")
 
     def detokenize(self, tokens: list[int], text_len_max: int = 1024, remove_special: bool = False, unparse_special: bool = False) -> str:
         """Convert the provided tokens into text (inverse of llama_tokenize()).
@@ -2301,15 +2306,16 @@ def llama_attach_threadpool(LlamaContext ctx, GgmlThreadPool threadpool, GgmlThr
 def llama_detach_threadpool(LlamaContext ctx):
     llama.llama_detach_threadpool(ctx.ptr)
 
-def llama_batch_get_one(list[int] tokens) -> LlamaBatch:
+def llama_batch_get_one(list[int] tokens, int n_past = 0) -> LlamaBatch:
+    """Create a batch using the proper batch API instead of the deprecated llama_batch_get_one"""
     cdef int32_t n_tokens = <int32_t>len(tokens)
-    cdef llama.llama_token * _tokens = <llama.llama_token *>malloc(sizeof(llama.llama_token) * n_tokens)
     for i in range(n_tokens):
         print(f"tokens[{i}]: {tokens[i]}")
-        _tokens[i] = tokens[i]
-    cdef llama.llama_batch batch = llama.llama_batch_get_one(_tokens, n_tokens)
-    free(_tokens)
-    return LlamaBatch.from_instance(batch)
+    
+    # Create a proper batch using the new API
+    batch = LlamaBatch(n_tokens=n_tokens, embd=0, n_seq_max=1)
+    batch.set_batch(tokens, n_past=n_past, logits_all=False)
+    return batch
 
 def llama_backend_free():
     """Call once at the end of the program - currently only used for MPI"""
