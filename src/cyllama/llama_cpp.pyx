@@ -1188,8 +1188,10 @@ cdef class LlamaVocab:
         (useful when encoding/decoding multiple tokens with 'add_space_prefix')
         """
         cdef char buf[128]
-        llama.llama_token_to_piece(self.ptr, token, buf, 128, lstrip, special)
-        return buf.decode("utf-8", errors="replace")
+        cdef int32_t length = llama.llama_token_to_piece(self.ptr, token, buf, 128, lstrip, special)
+        if length < 0:
+            raise ValueError(f"Failed to convert token {token} to piece")
+        return buf[:length].decode("utf-8", errors="replace")
 
     def detokenize(self, tokens: list[int], text_len_max: int = 1024, remove_special: bool = False, unparse_special: bool = False) -> str:
         """Convert the provided tokens into text (inverse of llama_tokenize()).
