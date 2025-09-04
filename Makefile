@@ -3,8 +3,9 @@
 export MACOSX_DEPLOYMENT_TARGET := 14.7
 
 # models
-MODEL := models/Llama-3.2-1B-Instruct-Q8_0.gguf
-# MODEL := models/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf
+# MODEL := models/Llama-3.2-1B-Instruct-Q8_0.gguf
+# MODEL := models/Qwen3-0.6B-Q5_K_M.gguf
+MODEL := models/gemma-3-270m-it-Q5_K_S.gguf
 MODEL_RAG := models/all-MiniLM-L6-v2-Q5_K_S.gguf
 MODEL_LLAVA := models/llava-llama-3-8b-v1_1-int4.gguf
 MODEL_LLAVA_MMPROG := models/llava-llama-3-8b-v1_1-mmproj-f16.gguf
@@ -132,7 +133,7 @@ test_retrieve: $(MODEL_RAG)
 
 $(MODEL):
 	@mkdir -p models && cd models && \
-		wget https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q8_0.gguf
+		wget https://huggingface.co/unsloth/gemma-3-270m-it-GGUF/resolve/main/gemma-3-270m-it-Q5_K_S.gguf
 
 download: $(MODEL)
 	@echo "minimal model downloaded to models directory"
