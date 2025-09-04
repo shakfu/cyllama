@@ -2242,4 +2242,7 @@ def llama_backend_free():
     """Call once at the end of the program - currently only used for MPI"""
     llama.llama_backend_free()
 
+def llama_flash_attn_type_name(llama.llama_flash_attn_type flash_attn_type) -> str:
+    return llama.llama_flash_attn_type_name(flash_attn_type).decode()
+
 

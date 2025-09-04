@@ -135,22 +135,29 @@ cdef extern from "llama.h":
         LLAMA_ATTENTION_TYPE_CAUSAL      = 0
         LLAMA_ATTENTION_TYPE_NON_CAUSAL  = 1
 
+    cdef enum llama_flash_attn_type:
+        LLAMA_FLASH_ATTN_TYPE_AUTO     = -1
+        LLAMA_FLASH_ATTN_TYPE_DISABLED = 0
+        LLAMA_FLASH_ATTN_TYPE_ENABLED  = 1
+
+    cdef const char * llama_flash_attn_type_name(llama_flash_attn_type flash_attn_type)
+
     cdef enum llama_split_mode:
         LLAMA_SPLIT_MODE_NONE  = 0 # single GPU
         LLAMA_SPLIT_MODE_LAYER = 1 # split layers and KV across GPUs
         LLAMA_SPLIT_MODE_ROW   = 2 # split layers and KV across GPUs, use tensor parallelism if supported
 
     ctypedef struct llama_token_data:
-        llama_token id
-        float logit
-        float p
+        llama_token id  # token id
+        float logit     # log-odds of the token
+        float p         # probability of the token
 
     ctypedef struct llama_token_data_array:
         # NOTE: this pointer can be modified by the samplers
         llama_token_data * data
         size_t size
         int64_t selected  # this is the index in the data array (i.e. not the token id)
-        bint sorted
+        bint sorted       # note: do not assume the data is sorted - always check this flag
 
     ctypedef bint (*llama_progress_callback)(float progress, void * user_data)
 
@@ -230,6 +237,7 @@ cdef extern from "llama.h":
         llama_rope_scaling_type rope_scaling_type # RoPE scaling type
         llama_pooling_type      pooling_type      # whether to pool (sum) embedding results by sequence id
         llama_attention_type    attention_type    # attention type to use for embeddings
+        llama_flash_attn_type   flash_attn_type   # when to enable Flash Attention
 
         float    rope_freq_base   # RoPE base frequency, 0 = from model
         float    rope_freq_scale  # RoPE frequency scaling factor, 0 = from model
@@ -253,7 +261,6 @@ cdef extern from "llama.h":
 
         # Keep the booleans together and at the end of the struct to avoid misalignment during copy-by-value.
         bint offload_kqv  # offload the KQV ops (including the KV cache) to GPU
-        bint flash_attn   # use flash attention [EXPERIMENTAL]
         bint no_perf      # measure performance timings
         bint op_offload   # offload host tensor operations to device
         bint swa_full     # use full-size SWA cache (https://github.com/ggml-org/llama.cpp/pull/13194#issuecomment-2868343055)
@@ -981,10 +988,6 @@ cdef extern from "llama.h":
 
     cdef llama_sampler * llama_sampler_init_greedy()
     cdef llama_sampler * llama_sampler_init_dist(uint32_t seed)
-
-    # DEPRECATED
-    # @details Sorts candidate tokens by their logits in descending order and calculate probabilities based on logits.
-    # cdef llama_sampler * llama_sampler_init_softmax()
 
     # @details Top-K sampling described in academic paper "The Curious Case of Neural Text Degeneration" https:#arxiv.org/abs/1904.09751
     cdef llama_sampler * llama_sampler_init_top_k(int32_t k)
