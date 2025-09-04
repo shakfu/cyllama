@@ -434,6 +434,10 @@ cdef extern from "ggml-opt.h":
         GGML_OPT_BUILD_TYPE_GRAD    = 20
         GGML_OPT_BUILD_TYPE_OPT     = 30
 
+    ctypedef enum ggml_opt_optimizer_type:
+        GGML_OPT_OPTIMIZER_TYPE_ADAMW
+        GGML_OPT_OPTIMIZER_TYPE_SGD
+        GGML_OPT_OPTIMIZER_TYPE_COUNT
 
     ctypedef struct adamw_t:
         float alpha # learning rate

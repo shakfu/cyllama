@@ -238,7 +238,6 @@ cdef extern from "llama.h":
         float    yarn_beta_fast   # YaRN low correction dim
         float    yarn_beta_slow   # YaRN high correction dim
         uint32_t yarn_orig_ctx    # YaRN original context size
-        float    defrag_thold     # defragment the KV cache if holes/size > thold, < 0 disabled (default)
 
         ggml.ggml_backend_sched_eval_callback cb_eval
         void * cb_eval_user_data
@@ -449,6 +448,24 @@ cdef extern from "llama.h":
     # Load a LoRA adapter from file
     cdef llama_adapter_lora * llama_adapter_lora_init(llama_model * model, const char * path_lora)
 
+    # Functions to access the adapter's GGUF metadata scalar values
+    # - The functions return the length of the string on success, or -1 on failure
+    # - The output string is always null-terminated and cleared on failure
+    # - When retrieving a string, an extra byte must be allocated to account for the null terminator
+    # - GGUF array values are not supported by these functions
+
+    # Get metadata value as a string by key name
+    cdef int32_t llama_adapter_meta_val_str(const llama_adapter_lora * adapter, const char * key, char * buf, size_t buf_size)
+
+    # Get the number of metadata key/value pairs
+    cdef int32_t llama_adapter_meta_count(const llama_adapter_lora * adapter)
+
+    # Get metadata key name by index
+    cdef int32_t llama_adapter_meta_key_by_index(const llama_adapter_lora * adapter, int32_t i, char * buf, size_t buf_size)
+
+    # Get metadata value as a string by index
+    cdef int32_t llama_adapter_meta_val_str_by_index(const llama_adapter_lora * adapter, int32_t i, char * buf, size_t buf_size)
+
     # Manually free a LoRA adapter
     # Note: loaded adapters will be free when the associated model is deleted
     cdef void llama_adapter_lora_free(llama_adapter_lora * adapter)
@@ -636,6 +653,29 @@ cdef extern from "llama.h":
                      llama_token * tokens_out,
                           size_t   n_token_capacity,
                           size_t * n_token_count_out)
+
+    #define LLAMA_STATE_SEQ_FLAGS_SWA_ONLY 1
+
+    ctypedef uint32_t llama_state_seq_flags
+
+    cdef size_t llama_state_seq_get_size_ext(
+                   llama_context * ctx,
+                    llama_seq_id   seq_id,
+           llama_state_seq_flags   flags)
+
+    cdef size_t llama_state_seq_get_data_ext(
+                   llama_context * ctx,
+                         uint8_t * dst,
+                          size_t   size,
+                    llama_seq_id   seq_id,
+           llama_state_seq_flags   flags)
+
+    cdef size_t llama_state_seq_set_data_ext(
+                   llama_context * ctx,
+                   const uint8_t * src,
+                          size_t   size,
+                    llama_seq_id   dest_seq_id,
+           llama_state_seq_flags   flags)
 
     # -------------------------------------------------------------------------
     # Decoding
@@ -1149,6 +1189,8 @@ cdef extern from "llama.h":
 
         ggml.ggml_opt_get_optimizer_params get_opt_pars # callback for calculating optimizer parameters
         void * get_opt_pars_ud                     # userdata for calculating optimizer parameters
+
+        ggml.ggml_opt_optimizer_type optimizer_type
 
     cdef void llama_opt_init(llama_context * lctx, llama_model * model, llama_opt_params lopt_params)
 
