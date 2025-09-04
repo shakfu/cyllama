@@ -1,12 +1,5 @@
-import pytest
-pytest.skip(allow_module_level=True)
+import cyllama as cy
 
-# import sys
-# from pathlib import Path
-# ROOT = Path.cwd()
-# sys.path.insert(0, str(ROOT / 'src'))
-
-import cyllama.cyllama as cy
 
 
 def test_sampler_instance():

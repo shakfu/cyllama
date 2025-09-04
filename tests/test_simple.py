@@ -1,8 +1,3 @@
-import sys
-from pathlib import Path
-ROOT = Path.cwd()
-sys.path.insert(0, str(ROOT / 'src'))
-
 import cyllama as cy
 
 
@@ -13,11 +8,3 @@ def test_lowlevel_simple(model_path):
         n_predict = 32,
     )
 
-
-
-
-
-
-
-if __name__ == '__main__':
-    test_lowlevel_simple('models/Llama-3.2-1B-Instruct-Q8_0.gguf')
