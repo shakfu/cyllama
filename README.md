@@ -4,7 +4,7 @@ This project provides a cython wrapper for @ggerganov's [llama.cpp](https://gith
 
 Development goals are to:
 
-- Stay up-to-date with bleeding-edge `llama.cpp` (last tag of stable build with llama.cpp `gguf-v0.17.1`)
+- Stay up-to-date with bleeding-edge `llama.cpp` (last tag of stable build with llama.cpp `gguf-v0.17.1`).
 
 - Produce a minimal, performant, compiled, thin python wrapper around the core `llama-cli` feature-set of `llama.cpp`.
 
