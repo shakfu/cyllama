@@ -97,7 +97,7 @@ cdef extern from "sampling.h":
 
 
 	# access the internal list of current candidate tokens
-	cdef llama.llama_token_data_array * common_sampler_get_candidates(common_sampler * gsmpl)
+	# cdef llama.llama_token_data_array * common_sampler_get_candidates(common_sampler * gsmpl)
 
 	# get the last accepted token
 	cdef llama.llama_token common_sampler_last(const common_sampler * gsmpl)

@@ -1292,14 +1292,14 @@ cdef class CommonParams:
     def cont_batching(self, value: bool):
         self.p.cont_batching = value
 
-    @property
-    def flash_attn(self) -> bool:
-        """flash attention"""
-        return self.p.flash_attn
+    # @property
+    # def flash_attn(self) -> bool:
+    #     """flash attention"""
+    #     return self.p.flash_attn
 
-    @flash_attn.setter
-    def flash_attn(self, value: bool):
-        self.p.flash_attn = value
+    # @flash_attn.setter
+    # def flash_attn(self, value: bool):
+    #     self.p.flash_attn = value
 
     @property
     def no_perf(self) -> bool:

@@ -70,13 +70,13 @@ cdef class CommonSampler:
         """get random seed"""
         return sampling.common_sampler_get_seed(self.ptr)
 
-    def get_candidates(self) -> list[LlamaTokenData]:
-        """access the internal list of current candidate tokens"""
-        cdef llama.llama_token_data_array * arr =  sampling.common_sampler_get_candidates(self.ptr)
-        _result = []
-        for i in range(arr.size):
-            _result.append(LlamaTokenData(arr.data[i].id, arr.data[i].logit. arr.data[i].p))
-        return _result
+    # def get_candidates(self) -> list[LlamaTokenData]:
+    #     """access the internal list of current candidate tokens"""
+    #     cdef llama.llama_token_data_array * arr =  sampling.common_sampler_get_candidates(self.ptr)
+    #     _result = []
+    #     for i in range(arr.size):
+    #         _result.append(LlamaTokenData(arr.data[i].id, arr.data[i].logit. arr.data[i].p))
+    #     return _result
 
     def get_last(self) -> int:
         """get the last accepted token"""

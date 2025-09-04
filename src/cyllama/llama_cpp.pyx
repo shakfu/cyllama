@@ -844,14 +844,14 @@ cdef class LlamaContextParams:
     def offload_kqv(self, value: bool):
         self.p.offload_kqv = value
 
-    @property
-    def flash_attn(self) -> bool:
-        """whether to use flash attention [EXPERIMENTAL]"""
-        return self.p.flash_attn
+    # @property
+    # def flash_attn(self) -> bool:
+    #     """whether to use flash attention [EXPERIMENTAL]"""
+    #     return self.p.flash_attn
 
-    @flash_attn.setter
-    def flash_attn(self, value: bool):
-        self.p.flash_attn = value
+    # @flash_attn.setter
+    # def flash_attn(self, value: bool):
+    #     self.p.flash_attn = value
 
     @property
     def no_perf(self) -> bool:
