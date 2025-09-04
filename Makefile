@@ -184,6 +184,7 @@ clean:
 	@rm -rf build dist src/*.egg-info .pytest_cache .coverage
 
 reset: clean
+	@rm -rf bin
 	@rm -rf thirdparty/llama.cpp/bin thirdparty/llama.cpp/lib
 	@rm -rf thirdparty/whisper.cpp/bin thirdparty/whisper.cpp/lib
 	@rm -rf thirdparty/stable-diffusion.cpp/bin thirdparty/stable-diffusion.cpp/lib
