@@ -788,7 +788,6 @@ cdef class LlamaContextParams:
     def yarn_beta_slow(self, value: float):
         self.p.yarn_beta_slow = value
 
-
     @property
     def yarn_orig_ctx(self) -> int:
         """YaRN original context length."""
@@ -797,15 +796,6 @@ cdef class LlamaContextParams:
     @yarn_orig_ctx.setter
     def yarn_orig_ctx(self, value: int):
         self.p.yarn_orig_ctx = value
-
-    # @property
-    # def defrag_thold(self) -> float:
-    #     """KV cache defragmentation threshold."""
-    #     return self.p.defrag_thold
-
-    # @defrag_thold.setter
-    # def defrag_thold(self, value: float):
-    #     self.p.defrag_thold = value
 
     # ggml.ggml_backend_sched_eval_callback cb_eval;
 
@@ -1335,16 +1325,15 @@ cdef class LlamaModel:
 
     # lora
 
-    # def lora_adapter_init(self, str path_lora) -> LlamaAdapterLora:
-    #     """Load a LoRA adapter from file
+    def lora_adapter_init(self, str path_lora) -> LlamaAdapterLora:
+        """Load a LoRA adapter from file
 
-    #     The loaded adapter will be associated to the given model, and will be free when the model is deleted
-    #     """
-    #     cdef llama.llama_adapter_lora * ptr = llama.llama_adapter_lora_init(
-    #         self.ptr, path_lora.encode())
-    #     cdef LlamaAdapterLora adapter = LlamaAdapterLora.from_ptr(ptr)
-    #     return adapter
-
+        The loaded adapter will be associated to the given model, and will be free when the model is deleted
+        """
+        cdef llama.llama_adapter_lora * ptr = llama.llama_adapter_lora_init(
+            self.ptr, path_lora.encode())
+        return LlamaAdapterLora.from_ptr(ptr)
+ 
     # metadata
 
     def meta_val_str(self, str key) -> str:
@@ -1549,134 +1538,6 @@ cdef class LlamaContext:
     def detach_threadpool(self):
         llama.llama_detach_threadpool(self.ptr)
 
-    # Lora
-    # -------------------------------------------------------------------------
-
-    # def set_adapter_lora(self, LlamaAdapterLora adapter, float scale):
-    #     """Add a loaded LoRA adapter to given context
-
-    #     This will not modify model's weight
-    #     """
-    #     cdef int32_t res = llama.llama_set_adapter_lora(
-    #         self.ptr, adapter.ptr, scale)
-    #     if res == -1:
-    #         raise ValueError(f"cannot load lora adapter to context")
-
-    # def rm_adapter_lora(self, LlamaAdapterLora adapter):
-    #     """Remove a specific LoRA adapter from given context
-
-    #     Return -1 if the adapter is not present in the context
-    #     """
-    #     cdef int32_t res = llama.llama_rm_adapter_lora(
-    #         self.ptr, adapter.ptr)
-    #     if res == -1:
-    #         raise ValueError(f"cannot remove, lora the adapter is not present in the context")
-
-    # def clear_adapter_lora(self):
-    #     """Remove all LoRA adapters from given context"""
-    #     llama.llama_clear_adapter_lora(self.ptr)
-
-
-    # def apply_adapter_cvec(self, data: list[float], n_embd: int, il_start: int, il_end: int) -> int:
-    #     """Apply a loaded control vector to a llama_context, or if data is NULL, clear
-    #     the currently loaded vector.
-
-    #     `n_embd` should be the size of a single layer's control, and data should point
-    #     to an n_embd x n_layers buffer starting from layer 1.
-
-    #     `il_start` and `il_end` are the layer range the vector should apply to (both inclusive)
-
-    #     See llama_control_vector_load in common to load a control vector.
-    #     """
-    #     cdef std_vector[float] vec
-    #     for i in data:
-    #         vec.push_back(i)
-
-    #     return llama.llama_apply_adapter_cvec(
-    #         self.ptr,
-    #         vec.data(),
-    #         vec.size(),
-    #         n_embd,
-    #         il_start,
-    #         il_end
-    #     )
-
-    # # KV cache
-    # # -------------------------------------------------------------------------
-
-    # def kv_cache_clear(self):
-    #     """Clear the KV cache - both cell info is erased and KV data is zeroed"""
-    #     llama.llama_kv_self_clear(self.ptr)
-
-    # def kv_cache_seq_rm(self, seq_id: int, p0: int, p1: int):
-    #     """Removes all tokens that belong to the specified sequence and have positions in [p0, p1)
-
-    #     Returns false if a partial sequence cannot be removed. Removing a whole sequence never fails
-    #     seq_id < 0 : match any sequence
-    #     p0 < 0     : [0,  p1]
-    #     p1 < 0     : [p0, inf)
-    #     """
-    #     llama.llama_kv_self_seq_rm(self.ptr, seq_id, p0, p1)
-
-    # def kv_cache_seq_cp(self, seq_id_src: int, seq_id_dst: int, p0: int, p1: int):
-    #     """Copy all tokens that belong to the specified sequence to another sequence
-
-    #     Note that this does not allocate extra KV cache memory - it simply assigns the tokens to the new sequence
-    #     p0 < 0 : [0,  p1]
-    #     p1 < 0 : [p0, inf)
-    #     """
-    #     llama.llama_kv_self_seq_cp(self.ptr, seq_id_src, seq_id_dst, p0, p1)
-
-    # def kv_cache_seq_keep(self, seq_id: int):
-    #     """Removes all tokens that do not belong to the specified sequence"""
-    #     llama.llama_kv_self_seq_keep(self.ptr, seq_id)
-
-    # def kv_cache_seq_add(self, seq_id: int, p0: int, p1: int, shift: int):
-    #     """Adds relative position "delta" to all tokens that belong to the specified sequence and have positions in [p0, p1)
-
-    #     If the KV cache is RoPEd, the KV data is updated accordingly:
-    #       - lazily on next llama_decode()
-    #       - explicitly with llama_kv_cache_update()
-    #     p0 < 0 : [0,  p1]
-    #     p1 < 0 : [p0, inf)
-    #     """
-    #     llama.llama_kv_self_seq_add(self.ptr, seq_id, p0, p1, shift)
-
-    # def kv_cache_seq_div(self, seq_id: int, p0: int, p1: int, d: int):
-    #     """Adds relative position "delta" to all tokens that belong to the specified sequence and have positions in [p0, p1)
-
-    #     If the KV cache is RoPEd, the KV data is updated accordingly:
-    #       - lazily on next llama_decode()
-    #       - explicitly with llama_kv_cache_update()
-    #     p0 < 0 : [0,  p1]
-    #     p1 < 0 : [p0, inf)
-    #     """
-    #     llama.llama_kv_self_seq_div(self.ptr, seq_id, p0, p1, d)
-
-    # def kv_cache_seq_pos_max(self, seq_id: int) -> int:
-    #     """Returns the largest position present in the KV cache for the specified sequence"""
-    #     return llama.llama_kv_self_seq_pos_max(self.ptr, seq_id)
-
-
-    # def kv_cache_defrag(self):
-    #     """Defragment the KV cache
-
-    #     This will be applied:
-    #     - lazily on next llama_decode()
-    #     - explicitly with llama_kv_cache_update()
-    #     """
-    #     llama.llama_kv_self_defrag(self.ptr)
-
-
-    # def kv_cache_update(self):
-    #     """Apply the KV cache updates (such as K-shifts, defragmentation, etc.)"""
-    #     llama.llama_kv_self_update(self.ptr)
-
-
-    # def kv_cache_can_shift(self) -> bool:
-    #     """Check if the context supports KV cache shifting."""
-    #     return <bint>llama.llama_kv_self_can_shift(self.ptr)
-
     # State / sessions
     # -------------------------------------------------------------------------
 
@@ -1744,14 +1605,12 @@ cdef class LlamaContext:
 
     def get_state_seq_data(self, int seq_id) -> list[int]:
         """Copy the KV cache of a single sequence into the specified buffer"""
-        cdef uint8_t * dst = NULL
-        cdef size_t size = 0
+        cdef uint8_t dst[512];
         cdef size_t copied = llama.llama_state_seq_get_data(
-            self.ptr, dst, size, seq_id)
+            self.ptr, dst, 512, seq_id)
         cdef std_vector[uint8_t] result
-        if copied > 0:
-            for i in range(size):
-                result.push_back(dst[i])
+        for i in range(copied):
+            result.push_back(dst[i])
         return result
 
     def set_state_seq_data(self, src: list[int], dest_seq_id: int):
@@ -1761,18 +1620,18 @@ cdef class LlamaContext:
          - Positive: Ok
          - Zero: Failed to load
         """
-        cdef std_vector[int] vec
+        cdef std_vector[uint8_t] vec
         cdef size_t res = 0
         for i in src:
             vec.push_back(i)
         res = llama.llama_state_seq_set_data(
-            self.ptr, src.data(), src.size(), dest_seq_id)
+            self.ptr, vec.data(), vec.size(), dest_seq_id)
         if res == 0:
             raise ValueError("Failed to load sequence data")
 
     def save_state_seq_file(self, filepath: str, seq_id: int, tokens: list[int]):
         """Save state sequence data to a file"""
-        cdef std_vector[int] vec
+        cdef std_vector[uint8_t] vec
         cdef size_t res = 0
         for i in tokens:
             vec.push_back(i)
@@ -1801,6 +1660,31 @@ cdef class LlamaContext:
             for i in range(n_token_count_out[0]):
                 result.push_back(tokens_out[i])
         return result
+
+    def get_state_seq_size_with_flags(self, int seq_id, int flags) -> int:
+        """get state sequence size from seq_id and flags"""
+        return llama.llama_state_seq_get_size_ext(self.ptr, seq_id, flags)
+
+    def get_state_seq_data_with_flags(self, int seq_id, int flags) -> list[int]:
+        """get state sequence daya from seq_id and flags"""
+        cdef uint8_t dst[512];
+        cdef size_t size = llama.llama_state_seq_get_data_ext(self.ptr, dst, 512, seq_id, flags)
+        cdef std_vector[uint8_t] result
+        for i in range(size):
+            result.push_back(dst[i])
+        return result
+
+    def set_state_seq_data_with_flags(self, src: list[int], dest_seq_id: int,  flags: int):
+        """set state seq data with flags"""
+        cdef std_vector[uint8_t] vec
+        cdef size_t res = 0
+        for i in src:
+            vec.push_back(i)
+        res = llama.llama_state_seq_set_data_ext(
+            self.ptr, vec.data(), vec.size(), dest_seq_id, flags)
+        if res == 0:
+            raise ValueError("Failed to set sequence data")
+
 
     # Decoding
     # -------------------------------------------------------------------------
@@ -2252,6 +2136,41 @@ cdef class LlamaAdapterLora:
         wrapper.owner = owner
         return wrapper
 
+    # Functions to access the adapter's GGUF metadata scalar values
+    # - The functions return the length of the string on success, or -1 on failure
+    # - The output string is always null-terminated and cleared on failure
+    # - When retrieving a string, an extra byte must be allocated to account for the null terminator
+    # - GGUF array values are not supported by these functions
+
+    def meta_val_str(self, str key) -> str:
+        """Get metadata value as a string by key name"""
+        assert key != "", "key must not be an empty string"
+        cdef char buf[512]
+        cdef int32_t str_len = llama.llama_adapter_meta_val_str(self.ptr, key.encode(), buf, 512)
+        if str_len == -1:
+            raise ValueError("failed to retrieve metadata value")
+            # TODO: log.debug str_len 
+        return buf.decode()
+
+    def meta_count(self) -> int:
+        """Get the number of metadata key/value pairs"""
+        return llama.llama_adapter_meta_count(self.ptr)
+
+    def meta_key_by_index(self, int idx = 0) -> str:
+        """Get metadata key name by index"""
+        cdef char buf[512]
+        cdef int32_t str_len = llama.llama_adapter_meta_key_by_index(self.ptr, idx, buf, 512)
+        if str_len == -1:
+            raise ValueError("failed to retrieve metadata key")
+        return buf.decode()
+
+    def meta_val_str_by_index(self, int idx = 0) -> str:
+        """Get metadata value as a string by index"""
+        cdef char buf[512]
+        cdef int32_t str_len = llama.llama_adapter_meta_val_str_by_index(self.ptr, idx, buf, 512)
+        if str_len == -1:
+            raise ValueError("failed to retrieve metadata value")
+        return buf.decode()
 
 # -------------------------------------------------------------------------
 # functions
