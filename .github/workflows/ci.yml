@@ -1,0 +1,183 @@
+name: CI
+
+on: [workflow_dispatch]
+  # push:
+  #   branches: [ main, dev ]
+  # pull_request:
+  #   branches: [ main, dev ]
+
+jobs:
+  test-and-build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ['3.8', '3.9', '3.10', '3.11', '3.12']
+        exclude:
+          # Reduce matrix size by excluding some combinations
+          - os: windows-latest
+            python-version: '3.8'
+          - os: macos-latest
+            python-version: '3.8'
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    # - name: Install uv
+    #   uses: astral-sh/setup-uv@v3
+    #   with:
+    #     version: "latest"
+
+    # - name: Set up build environment (Linux)
+    #   if: matrix.os == 'ubuntu-latest'
+    #   run: |
+    #     sudo apt-get update
+    #     sudo apt-get install -y build-essential cmake
+
+    # - name: Set up build environment (macOS)
+    #   if: matrix.os == 'macos-latest'
+    #   run: |
+    #     # Install Xcode command line tools if not already installed
+    #     xcode-select --install || true
+
+    # - name: Set up build environment (Windows)
+    #   if: matrix.os == 'windows-latest'
+    #   run: |
+    #     # Install Visual Studio Build Tools
+    #     choco install visualstudio2022buildtools --package-parameters "--add Microsoft.VisualStudio.Workload.VCTools" -y
+
+    - name: Install dependencies
+      run: |
+        uv sync --group dev
+
+    - name: Build thirdparty dependencies
+      run: |
+        chmod +x scripts/setup.sh
+        ./scripts/setup.sh
+
+    - name: Run tests
+      run: |
+        uv run pytest -v
+
+    - name: Build wheel
+      run: |
+        uv build
+
+    - name: Upload wheel artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: wheel-${{ matrix.os }}-py${{ matrix.python-version }}
+        path: dist/*.whl
+        retention-days: 30
+
+  # Separate job for building and publishing wheels
+  build-wheels:
+    needs: test-and-build
+    runs-on: ${{ matrix.os }}
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev')
+    
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ['3.8', '3.9', '3.10', '3.11', '3.12']
+        exclude:
+          - os: windows-latest
+            python-version: '3.8'
+          - os: macos-latest
+            python-version: '3.8'
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+      with:
+        version: "latest"
+
+    - name: Set up build environment (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential cmake
+
+    - name: Set up build environment (macOS)
+      if: matrix.os == 'macos-latest'
+      run: |
+        xcode-select --install || true
+
+    - name: Set up build environment (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        choco install visualstudio2022buildtools --package-parameters "--add Microsoft.VisualStudio.Workload.VCTools" -y
+
+    - name: Install dependencies
+      run: |
+        uv sync --group dev
+
+    - name: Build thirdparty dependencies
+      run: |
+        chmod +x scripts/setup.sh
+        ./scripts/setup.sh
+
+    - name: Build wheel
+      run: |
+        uv build
+
+    - name: Repair wheel (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        uv run auditwheel repair dist/*.whl --plat linux_x86_64 -w dist/
+
+    - name: Repair wheel (macOS)
+      if: matrix.os == 'macos-latest'
+      run: |
+        uv run delocate-wheel -v dist/*.whl
+
+    - name: Repair wheel (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        uv run delvewheel repair dist/*.whl
+
+    - name: Upload wheel artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: wheel-${{ matrix.os }}-py${{ matrix.python-version }}
+        path: dist/*.whl
+        retention-days: 30
+
+  # Job to collect all wheels and create a release
+  # create-release:
+  #   needs: build-wheels
+  #   runs-on: ubuntu-latest
+  #   if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+  #   steps:
+  #   - name: Download all wheels
+  #     uses: actions/download-artifact@v4
+  #     with:
+  #       path: dist/
+
+  #   - name: Create release
+  #     uses: softprops/action-gh-release@v1
+  #     with:
+  #       files: dist/*.whl
+  #       generate_release_notes: true
+  #       draft: false
+  #       prerelease: false
+  #     env:
+  #       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
