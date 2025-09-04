@@ -41,7 +41,7 @@ endif
 
 
 .PHONY: all build cmake clean reset setup setup_inplace \
-		wheel bind header diff
+		wheel bind header diff sync
 
 all: build
 
@@ -51,17 +51,17 @@ $(LIBLAMMA):
 diff:
 	@git diff thirdparty/llama.cpp/include > changes.diff
 	
-
 build: $(LIBLAMMA)
-	@python3 setup.py build_ext --inplace
-	
+	uv sync
 
+inplace: $(LIBLAMMA)
+	uv run build_ext --inplace
 
-wheel:
+wheel: $(LIBLAMMA)
 	@echo "WITH_DYLIB=$(WITH_DYLIB)"
-	@python3 setup.py bdist_wheel
+	uv build
 ifeq ($(WITH_DYLIB),1)
-	delocate-wheel -v dist/*.whl 
+	uv run delocate-wheel -v dist/*.whl 
 endif
 
 build/include:
@@ -76,7 +76,7 @@ bind: build/include
 		test_platform coverage memray download download_all bump clean reset remake cli
 
 test: build
-	@pytest -s
+	uv run pytest -s
 
 simple:
 	@g++ -std=c++14 -o build/simple \
@@ -173,10 +173,10 @@ test_platform_linux:
 	@./build/test_platform
 
 coverage:
-	@pytest --cov=cyllama --cov-report html
+	uv run pytest --cov=cyllama --cov-report html
 
 memray:
-	@pytest --memray --native tests
+	uv run pytest --memray --native tests
 
 bump:
 	@scripts/bump.sh

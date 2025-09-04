@@ -1,5 +1,6 @@
 include src/cyllama/*.pxd
 include src/cyllama/*.pyx
+include src/cyllama/*.pxi
 include src/cyllama/*.cpp
 include src/cyllama/*.h
 include thirdparty/llama.cpp/include/*.h
