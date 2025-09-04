@@ -59,30 +59,33 @@ class SimpleChat:
         self.messages: List[Dict[str, str]] = []
         self.prev_len = 0
         self.n_past = 0  # Track position in context
+        
+        # Store parameters for creating fresh contexts
+        self.model_path = model_path
+        self.n_ctx = n_ctx
+        self.ngl = ngl
     
     def generate(self, prompt: str) -> str:
-        """Generate response for the given prompt"""
-        response = ""
+        """Generate response for the given prompt using a fresh context"""
+        # Create a fresh context for this generation to avoid state issues
+        fresh_context = LlamaContext(self.model, self.context.params, verbose=False)
         
-        # Check if this is the first message (no previous context)
-        # For simplicity, we'll use a basic heuristic
-        is_first = len(self.messages) == 0
+        response = ""
+        n_past = 0
         
         # Tokenize the prompt
-        prompt_tokens = self.vocab.tokenize(prompt, is_first, True)
+        prompt_tokens = self.vocab.tokenize(prompt, True, True)
         
         if not prompt_tokens:
             raise ValueError("Failed to tokenize the prompt")
         
-        # Create batch for the prompt with current position
-        batch = llama_batch_get_one(prompt_tokens, self.n_past)
-        
-        # Update position tracker
-        self.n_past += len(prompt_tokens)
+        # Create batch for the prompt starting from position 0
+        batch = llama_batch_get_one(prompt_tokens, 0)
+        n_past = len(prompt_tokens)
         
         # Decode the initial batch
         try:
-            ret = self.context.decode(batch)
+            ret = fresh_context.decode(batch)
             if ret != 0:
                 print(f"Warning: decode returned {ret}")
         except Exception as e:
@@ -90,17 +93,19 @@ class SimpleChat:
             return response
         
         # Generation loop
-        max_tokens = 100  # Reasonable limit
+        max_tokens = 50  # Reasonable limit for chat responses
+        consecutive_spaces = 0  # Track consecutive spaces/newlines to avoid infinite generation
+        
         for i in range(max_tokens):
             # Check context size
-            n_ctx = self.context.n_ctx
-            if self.n_past >= n_ctx - 1:  # Leave room for at least one more token
+            n_ctx = fresh_context.n_ctx
+            if n_past >= n_ctx - 1:  # Leave room for at least one more token
                 print("\033[0m")
                 print("context size exceeded", file=sys.stderr)
                 break
             
             # Sample next token
-            new_token_id = self.sampler.sample(self.context, -1)
+            new_token_id = self.sampler.sample(fresh_context, -1)
             
             # Check if it's end of generation
             if self.vocab.is_eog(new_token_id):
@@ -109,26 +114,36 @@ class SimpleChat:
             # Convert token to piece and add to response
             try:
                 piece = self.vocab.token_to_piece(new_token_id, 0, True)
+                
+                # Stop generating if we get too many consecutive spaces/newlines
+                if piece.strip() == "":
+                    consecutive_spaces += 1
+                    if consecutive_spaces >= 3:  # Stop after 3 consecutive whitespace tokens
+                        break
+                else:
+                    consecutive_spaces = 0
+                
                 print(piece, end='', flush=True)
                 response += piece
+                
             except Exception as e:
                 print(f"Failed to convert token to piece: {e}")
                 break
             
             # Create batch with the new token at the correct position
-            batch = llama_batch_get_one([new_token_id], self.n_past)
-            self.n_past += 1
+            batch = llama_batch_get_one([new_token_id], n_past)
+            n_past += 1
             
             # Decode for next iteration
             try:
-                ret = self.context.decode(batch)
+                ret = fresh_context.decode(batch)
                 if ret != 0:
                     print(f"Warning: decode returned {ret}")
             except Exception as e:
                 print(f"Decode failed at token {i+1}: {e}")
                 break
         
-        return response
+        return response.strip()
     
     def chat_loop(self):
         """Main chat loop"""
@@ -146,17 +161,16 @@ class SimpleChat:
             # Add user message to conversation history
             self.messages.append({"role": "user", "content": user_input})
             
-            # Format conversation using a Gemma-compatible template
-            # Gemma typically uses <start_of_turn>user / <start_of_turn>model format
+            # Format conversation with User/Assistant format (this works well with this model)
             conversation = ""
             for msg in self.messages:
                 if msg["role"] == "user":
-                    conversation += f"<start_of_turn>user\n{msg['content']}<end_of_turn>\n"
+                    conversation += f"User: {msg['content']}\n"
                 elif msg["role"] == "assistant":
-                    conversation += f"<start_of_turn>model\n{msg['content']}<end_of_turn>\n"
+                    conversation += f"Assistant: {msg['content']}\n"
             
             # Add prompt for the assistant to continue
-            conversation += "<start_of_turn>model\n"
+            conversation += "Assistant:"
             
             # Extract the prompt (new part since last message)
             prompt = conversation[self.prev_len:]
@@ -174,9 +188,9 @@ class SimpleChat:
                 full_conversation = ""
                 for msg in self.messages:
                     if msg["role"] == "user":
-                        full_conversation += f"<start_of_turn>user\n{msg['content']}<end_of_turn>\n"
+                        full_conversation += f"User: {msg['content']}\n"
                     elif msg["role"] == "assistant":
-                        full_conversation += f"<start_of_turn>model\n{msg['content']}<end_of_turn>\n"
+                        full_conversation += f"Assistant: {msg['content']}\n"
                 self.prev_len = len(full_conversation)
                 
             except Exception as e:
