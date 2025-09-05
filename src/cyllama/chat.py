@@ -10,9 +10,10 @@ import argparse
 from typing import List, Optional, Dict, Any
 
 from . import (
-    LlamaModel, LlamaContext, LlamaSampler, LlamaBatch,
+    LlamaModel, LlamaContext, LlamaSampler, LlamaBatch, LlamaChatMessage,
     LlamaModelParams, LlamaContextParams, LlamaSamplerChainParams,
-    set_log_callback, ggml_backend_load_all, llama_batch_get_one
+    set_log_callback, ggml_backend_load_all, llama_batch_get_one,
+    disable_logging
 )
 
 
@@ -158,22 +159,29 @@ class SimpleChat:
             if not user_input:
                 break
             
-            # Add user message to conversation history
-            self.messages.append({"role": "user", "content": user_input})
-            
-            # Format conversation with User/Assistant format (this works well with this model)
-            conversation = ""
-            for msg in self.messages:
-                if msg["role"] == "user":
-                    conversation += f"User: {msg['content']}\n"
-                elif msg["role"] == "assistant":
-                    conversation += f"Assistant: {msg['content']}\n"
-            
-            # Add prompt for the assistant to continue
-            conversation += "Assistant:"
-            
-            # Extract the prompt (new part since last message)
-            prompt = conversation[self.prev_len:]
+            tmpl = self.model.get_default_chat_template()
+
+            if tmpl:
+                # Use LlamaChatMessage objects for template-based chat
+                self.messages.append(LlamaChatMessage(role="user", content=user_input))
+                prompt = self.model.chat_apply_template(tmpl, self.messages, add_assistant_msg=True)
+            else:
+                # Add user message to conversation history using dict format
+                self.messages.append({"role": "user", "content": user_input})
+
+                # Format conversation with User/Assistant format (this works well with this model)
+                conversation = ""
+                for msg in self.messages:
+                    if msg["role"] == "user":
+                        conversation += f"User: {msg['content']}\n"
+                    elif msg["role"] == "assistant":
+                        conversation += f"Assistant: {msg['content']}\n"
+                
+                # Add prompt for the assistant to continue
+                conversation += "Assistant:"
+                
+                # Extract the prompt (new part since last message)
+                prompt = conversation[self.prev_len:]
             
             # Generate response
             print("\033[33m", end='')
@@ -182,16 +190,21 @@ class SimpleChat:
                 print("\n\033[0m")
                 
                 # Add assistant message
-                self.messages.append({"role": "assistant", "content": response})
-                
-                # Update previous length for next iteration
-                full_conversation = ""
-                for msg in self.messages:
-                    if msg["role"] == "user":
-                        full_conversation += f"User: {msg['content']}\n"
-                    elif msg["role"] == "assistant":
-                        full_conversation += f"Assistant: {msg['content']}\n"
-                self.prev_len = len(full_conversation)
+                if tmpl:
+                    # Use LlamaChatMessage for template-based chat
+                    self.messages.append(LlamaChatMessage(role="assistant", content=response))
+                else:
+                    # Use dict format for non-template chat
+                    self.messages.append({"role": "assistant", "content": response})
+                    
+                    # Update previous length for next iteration
+                    full_conversation = ""
+                    for msg in self.messages:
+                        if msg["role"] == "user":
+                            full_conversation += f"User: {msg['content']}\n"
+                        elif msg["role"] == "assistant":
+                            full_conversation += f"Assistant: {msg['content']}\n"
+                    self.prev_len = len(full_conversation)
                 
             except Exception as e:
                 print(f"\nError generating response: {e}", file=sys.stderr)
@@ -201,6 +214,7 @@ class SimpleChat:
 
 def main():
     """Main entry point"""
+    disable_logging()
     parser = argparse.ArgumentParser(description="Simple chat using cyllama")
     parser.add_argument("-m", "--model", required=True, help="Path to model file")
     parser.add_argument("-c", "--context", type=int, default=2048, help="Context size")

@@ -85,7 +85,7 @@ To build `cyllama`:
 
 The `tests` directory in this repo provides extensive examples of using cyllama.
 
-However, as a first step, you should download a smallish llm in the `.gguf` model from [huggingface](https://huggingface.co/models?search=gguf). A good small model to start and which is assumed by tests is [gemma-3-270m-it-Q5_K_S.gguf](https://huggingface.co/unsloth/gemma-3-270m-it-GGUF/resolve/main/gemma-3-270m-it-Q5_K_S.gguf). `cyllama` expects models to be stored in a `models` folder in the cloned `cyllama` directory. So to create the `models` directory if doesn't exist and download this model, you can just type:
+However, as a first step, you should download a smallish llm in the `.gguf` model from [huggingface](https://huggingface.co/models?search=gguf). A good small model to start and which is assumed by tests is [Llama-3.2-1B-Instruct-Q8_0.gguf](https://huggingface.co/unsloth/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q8_0.gguf). `cyllama` expects models to be stored in a `models` folder in the cloned `cyllama` directory. So to create the `models` directory if doesn't exist and download this model, you can just type:
 
 ```sh
 make download
@@ -96,13 +96,13 @@ This basically just does:
 ```sh
 cd cyllama
 mkdir models && cd models
-wget https://huggingface.co/unsloth/gemma-3-270m-it-GGUF/resolve/main/gemma-3-270m-it-Q5_K_S.gguf
+wget https://huggingface.co/unsloth/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q8_0.gguf
 ```
 
 Now you can test it using `llama-cli` or `llama-simple`:
 
 ```sh
-bin/llama-cli -c 512 -n 32 -m models/gemma-3-270m-it-Q5_K_S.gguf \
+bin/llama-cli -c 512 -n 32 -m models/Llama-3.2-1B-Instruct-Q8_0.gguf \
  -p "Is mathematics discovered or invented?"
 ```
 
@@ -116,7 +116,7 @@ If all tests pass, you can type `python3 -i scripts/start.py` or `ipython -i scr
 
 ```python
 >>> from cyllama import Llama
->>> llm = Llama('models/gemma-3-270m-it-Q5_K_S.gguf')
+>>> llm = Llama('models/Llama-3.2-1B-Instruct-Q8_0.gguf')
 >>> llm.ask("what is the age of the universe?")
 'The estimated age of the universe is around 13.8 billion years'
 ```

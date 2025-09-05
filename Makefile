@@ -3,9 +3,7 @@
 export MACOSX_DEPLOYMENT_TARGET := 14.7
 
 # models
-# MODEL := models/Llama-3.2-1B-Instruct-Q8_0.gguf
-# MODEL := models/Qwen3-0.6B-Q5_K_M.gguf
-MODEL := models/gemma-3-270m-it-Q5_K_S.gguf
+MODEL := models/Llama-3.2-1B-Instruct-Q8_0.gguf
 MODEL_RAG := models/all-MiniLM-L6-v2-Q5_K_S.gguf
 MODEL_LLAVA := models/llava-llama-3-8b-v1_1-int4.gguf
 MODEL_LLAVA_MMPROG := models/llava-llama-3-8b-v1_1-mmproj-f16.gguf
@@ -48,10 +46,17 @@ all: build
 $(LIBLAMMA):
 	@scripts/setup.sh
 
+setup: reset
+	@scripts/setup.sh
+
+build: $(LIBLAMMA)
+	@uv run python setup.py build_ext --inplace
+# 	@uv run python setup.py build_ext
+
 diff:
 	@git diff thirdparty/llama.cpp/include > changes.diff
 	
-build: $(LIBLAMMA)
+sync: $(LIBLAMMA)
 	uv sync
 
 inplace: $(LIBLAMMA)
@@ -73,7 +78,8 @@ bind: build/include
 
 
 .PHONY: test simple test_simple test_main test_retrieve test_model test_llava test_lora \
-		test_platform coverage memray download download_all bump clean reset remake cli
+		test_platform coverage memray download download_all bump clean reset remake cli \
+		test-cli test-chat
 
 test: build
 	uv run pytest -s
@@ -101,17 +107,27 @@ test_simple:
 
 cli:
 	@./bin/llama-cli -n 32 -no-cnv -lv 0 \
-		-m models/Llama-3.2-1B-Instruct-Q8_0.gguf \
-		-p "When did the french revolution begin?"
+		-m $(MODEL) \
+		-p "When did the french revolution begin?" \
+		--no-display-prompt 2> /dev/null
+
+test-chat:
+	@python3 -m src.cyllama.chat -m $(MODEL) -c 32 -ngl 99
+
+
+test-cli:
+	@python3 -m src.cyllama.cli -m $(MODEL) \
+		--no-cnv -c 32 \
+		-p "When did the French Revolution start?" 
 
 test_main:
 	@g++ -std=c++14 -o build/main \
 		-I $(LLAMACPP)/include -L $(LLAMACPP)/lib  \
 		-framework Foundation -framework Accelerate \
-		-framework Metal -framework MetalKit \
+		-framework Metal -framework MetalKit -lcurl \
 		$(LLAMACPP_LIBS) \
 		build/llama.cpp/tools/main/main.cpp
-	@./build/main -m $(MODEL) --log-disable \
+	@./build/main -m $(MODEL) \
 		-p "When did the French Revolution start?" -no-cnv -c 2048 -n 512
 
 $(MODEL_LLAVA):
@@ -133,7 +149,7 @@ test_retrieve: $(MODEL_RAG)
 
 $(MODEL):
 	@mkdir -p models && cd models && \
-		wget https://huggingface.co/unsloth/gemma-3-270m-it-GGUF/resolve/main/gemma-3-270m-it-Q5_K_S.gguf
+		wget https://huggingface.co/unsloth/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q8_0.gguf
 
 download: $(MODEL)
 	@echo "minimal model downloaded to models directory"

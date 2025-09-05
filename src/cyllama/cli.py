@@ -17,6 +17,7 @@ from pathlib import Path
 from . import llama_cpp as cy
 
 
+
 class LlamaCLI:
     """Main CLI class that replicates the functionality of llama.cpp main tool."""
     
@@ -535,6 +536,7 @@ class LlamaCLI:
 
 def main():
     """Main entry point for the CLI."""
+    cy.disable_logging()
     cli = LlamaCLI()
     sys.exit(cli.run())
 

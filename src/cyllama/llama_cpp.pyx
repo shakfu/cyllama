@@ -1025,21 +1025,41 @@ cdef class LlamaChatMessage:
     members role and content are const char *
     """
     cdef llama.llama_chat_message p
+    cdef bytes _role_bytes
+    cdef bytes _content_bytes
+
+    def __init__(self, str role, str content):
+        self._role_bytes = role.encode('utf-8')
+        self._content_bytes = content.encode('utf-8')
+        self.p.role = <const char *>self._role_bytes
+        self.p.content = <const char *>self._content_bytes
 
     @staticmethod
     cdef LlamaChatMessage from_instance(llama.llama_chat_message msg):
         cdef LlamaChatMessage wrapper = LlamaChatMessage.__new__(LlamaChatMessage)
         wrapper.p = msg
+        # Store copies of the strings to ensure proper lifetime management
+        if msg.role is not NULL:
+            wrapper._role_bytes = msg.role
+        else:
+            wrapper._role_bytes = b""
+        if msg.content is not NULL:
+            wrapper._content_bytes = msg.content  
+        else:
+            wrapper._content_bytes = b""
         return wrapper
+
+    cdef llama.llama_chat_message copy(self):
+        return self.p
 
     @property
     def role(self) -> str:
-        """readonly chat role"""
+        """chat role"""
         return self.p.role.decode()
 
     @property
     def content(self) -> str:
-        """readonly chat content"""
+        """chat content"""
         return self.p.content.decode()
 
 
@@ -1390,7 +1410,7 @@ cdef class LlamaModel:
 
         Both "model" and "custom_template" are optional, but at least one is required. "custom_template" has higher precedence than "model"
         NOTE: This function does not use a jinja parser. It only support a pre-defined list of template. See more: https://github.com/ggerganov/llama.cpp/wiki/Templates-supported-by-llama_chat_apply_template
-        @param tmpl A Jinja template to use for this chat. If this is nullptr, the model’s default chat template will be used instead.
+        @param tmpl A Jinja template to use for this chat. If this is nullptr, the model's default chat template will be used instead.
         @param chat Pointer to a list of multiple llama_chat_message
         @param n_msg Number of llama_chat_message in this chat
         @param add_ass Whether to end the prompt with the token(s) that indicate the start of an assistant message.
@@ -1399,31 +1419,74 @@ cdef class LlamaModel:
         @return The total number of bytes of the formatted prompt. If is it larger than the size of buffer, you may need to re-alloc it and then re-apply the template.
         """
         cdef std_vector[llama.llama_chat_message] vec
-        cdef char * buf = NULL
-        cdef int length = 0
+        cdef LlamaChatMessage msg
+        vec.reserve(len(msgs))
         for i in range(len(msgs)):
-            vec.push_back(msgs[i].p)
-        cdef int n_bytes = llama.llama_chat_apply_template(
-            tmpl.encode(),
+            msg = msgs[i]
+            vec.push_back(msg.p)
+        
+        # First call to get required buffer size
+        cdef const char* tmpl_ptr = NULL
+        cdef bytes tmpl_bytes
+        if tmpl is not None:
+            tmpl_bytes = tmpl.encode()
+            tmpl_ptr = tmpl_bytes
+        
+        cdef int32_t required_size = llama.llama_chat_apply_template(
+            tmpl_ptr,
+            vec.data(),
+            vec.size(),
+            add_assistant_msg,
+            NULL,
+            0
+        )
+        
+        if required_size < 0:
+            raise RuntimeError("Failed to apply chat template")
+        
+        # Allocate buffer and apply template
+        cdef char* buf = <char*>malloc(sizeof(char) * (required_size + 1))
+        if buf is NULL:
+            raise MemoryError("Failed to allocate buffer for chat template")
+        
+        cdef int32_t actual_size = llama.llama_chat_apply_template(
+            tmpl_ptr,
             vec.data(),
             vec.size(),
             add_assistant_msg,
             buf,
-            length
+            required_size
         )
-        if (n_bytes > strlen(buf)):
-            raise MemoryError("n_bytes should less then size of buf")
-
-        cdef str result = buf.decode()
+        
+        if actual_size < 0:
+            free(buf)
+            raise RuntimeError("Failed to apply chat template")
+        
+        # Ensure null termination
+        buf[actual_size] = 0
+        cdef str result = buf[:actual_size].decode("utf-8")
         free(buf)
         return result
 
-    # def get_builtin_chat_template(self) -> str:
-    #     """Get the built-in chat template for the model.
+    def get_default_chat_template(self) -> str:
+        """Get the default chat template for the model.
 
-    #     Return empty string if not present."""
-    #     return llama.common_get_builtin_chat_template(self.ptr).decode()
+        Return empty string if not present.
+        """
+        cdef const char * res = llama.llama_model_chat_template(self.ptr, NULL)
+        if res:
+            return res.decode()
+        return ""
 
+    def get_default_chat_template_by_name(self, str name) -> str:
+        """Get the default chat template for the model by name
+
+        Return empty string if not present.
+        """
+        cdef const char * res = llama.llama_model_chat_template(self.ptr, name.encode())
+        if res:
+            return res.decode()
+        return ""
 
     # Extra
 
@@ -2175,6 +2238,11 @@ cdef class LlamaAdapterLora:
 # -------------------------------------------------------------------------
 # functions
 
+cdef void no_log_cb(ggml.ggml_log_level l, const char * x, void * d) noexcept:
+    pass
+
+def disable_logging():
+    llama.llama_log_set(no_log_cb, NULL)
 
 def chat_builtin_templates() -> list[str]:
     """Get list of built-in chat templates"""
