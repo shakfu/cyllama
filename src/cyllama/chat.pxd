@@ -73,6 +73,7 @@ cdef extern from "chat.h":
         COMMON_CHAT_FORMAT_FIREFUNCTION_V2
         COMMON_CHAT_FORMAT_FUNCTIONARY_V3_2
         COMMON_CHAT_FORMAT_FUNCTIONARY_V3_1_LLAMA_3_1
+        COMMON_CHAT_FORMAT_DEEPSEEK_V3_1
         COMMON_CHAT_FORMAT_HERMES_2_PRO
         COMMON_CHAT_FORMAT_COMMAND_R7B
         COMMON_CHAT_FORMAT_GRANITE,
@@ -162,6 +163,8 @@ cdef extern from "chat.h":
     cdef common_chat_msg common_chat_parse(const std_string & input, bint is_partial, const common_chat_syntax & syntax)
     
     cdef common_chat_tool_choice common_chat_tool_choice_parse_oaicompat(const std_string & tool_choice)
+
+    cdef bint common_chat_templates_support_enable_thinking(const common_chat_templates * chat_templates)
 
     # Legacy structures for backward compatibility
     ctypedef struct chat_completion_chunk:

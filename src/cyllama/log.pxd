@@ -33,6 +33,11 @@ cdef extern from "log.h":
     cdef int LOG_DEFAULT_DEBUG
     cdef int LOG_DEFAULT_LLAMA
 
+    ctypedef enum log_colors:
+        LOG_COLORS_AUTO     = -1
+        LOG_COLORS_DISABLED = 0
+        LOG_COLORS_ENABLED  = 1
+
     # External variable for log verbosity threshold
     cdef extern int common_log_verbosity_thold
 
@@ -51,8 +56,8 @@ cdef extern from "log.h":
     
     cdef void common_log_add(common_log * log, ggml.ggml_log_level level, const char * fmt, ...)
     
-    cdef void common_log_set_file(common_log * log, const char * file)
-    cdef void common_log_set_colors(common_log * log, bint colors)
-    cdef void common_log_set_prefix(common_log * log, bint prefix)
-    cdef void common_log_set_timestamps(common_log * log, bint timestamps)
+    cdef void common_log_set_file      (common_log * log, const char * file) # not thread-safe
+    cdef void common_log_set_colors    (common_log * log, log_colors colors) # not thread-safe
+    cdef void common_log_set_prefix    (common_log * log, bint prefix)       # whether to output prefix to each log
+    cdef void common_log_set_timestamps(common_log * log, bint timestamps)   # whether to output timestamps in the prefix
 

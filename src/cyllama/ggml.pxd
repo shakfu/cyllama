@@ -1,6 +1,6 @@
 # distutils: language=c++
 
-from libc.stdint cimport int32_t, int8_t, int64_t, uint32_t, uint64_t, uint8_t
+from libc.stdint cimport int32_t, int8_t, int64_t, uint32_t, uint64_t, uint8_t, uint16_t
 from libc.stdio cimport FILE
 from libcpp.string cimport string as std_string
 from libcpp.vector cimport vector as std_vector
@@ -24,19 +24,24 @@ cpdef enum:
     GGML_ROPE_TYPE_MROPE  = 8
     GGML_ROPE_TYPE_VISION = 24
 
-
-
-
-
 #------------------------------------------------------------------------------
 # ggml.h
 
 cdef extern from "ggml.h":
 
+    ctypedef enum ggml_status:
+        GGML_STATUS_ALLOC_FAILED = -2
+        GGML_STATUS_FAILED = -1
+        GGML_STATUS_SUCCESS = 0
+        GGML_STATUS_ABORTED = 1
+
+    ctypedef uint16_t ggml_fp16_t
+    ctypedef struct ggml_bf16_t:
+        uint16_t bits
+
     ctypedef struct ggml_context: pass
     ctypedef struct ggml_object: pass
     ctypedef struct ggml_cgraph: pass
-
 
     cdef enum ggml_type:
         GGML_TYPE_F32     = 0
@@ -139,6 +144,7 @@ cdef extern from "ggml.h":
         GGML_OP_CLAMP
         GGML_OP_CONV_TRANSPOSE_1D
         GGML_OP_IM2COL
+        GGML_OP_IM2COL_3D
         GGML_OP_CONV_TRANSPOSE_2D
         GGML_OP_POOL_1D
         GGML_OP_POOL_2D
@@ -230,6 +236,34 @@ cdef extern from "ggml.h":
         void * extra # extra things e.g. for ggml-cuda.cu
 
         # char padding[4]
+
+    # -------------------------------------------------------------------------
+    # ggml threadpool
+
+    cdef enum ggml_sched_priority:
+        GGML_SCHED_PRIO_NORMAL
+        GGML_SCHED_PRIO_MEDIUM
+        GGML_SCHED_PRIO_HIGH
+        GGML_SCHED_PRIO_REALTIME
+
+    # Threadpool params
+    # Use ggml_threadpool_params_default() or ggml_threadpool_params_init() to populate the defaults
+    ctypedef struct ggml_threadpool_params:
+        bint                cpumask[GGML_MAX_N_THREADS] # mask of cpu cores (all-zeros means use default affinity settings)
+        int                 n_threads                   # number of threads
+        ggml_sched_priority prio                        # thread priority
+        uint32_t            poll                        # polling level (0 - no polling, 100 - aggressive polling)
+        bint                strict_cpu                  # strict cpu placement
+        bint                paused                      # start in paused state
+
+    ctypedef struct ggml_threadpool:
+        pass
+
+    ctypedef ggml_threadpool * ggml_threadpool_t
+
+    cdef ggml_threadpool_params ggml_threadpool_params_default(int n_threads)
+    cdef void ggml_threadpool_params_init(ggml_threadpool_params * p, int n_threads)
+    cdef bint ggml_threadpool_params_match(const ggml_threadpool_params * p0, const ggml_threadpool_params * p1)
 
 #------------------------------------------------------------------------------
 # ggml-backend.h
@@ -324,43 +358,23 @@ cdef extern from "ggml-backend.h":
     cdef void ggml_backend_load_all_from_path(const char * dir_path)
 
     ctypedef struct ggml_backend_sched: pass # FIXME: find the struct!!
-    ctypedef ggml_backend_sched * ggml_backend_sched_t;
+    ctypedef ggml_backend_sched * ggml_backend_sched_t
 
 #------------------------------------------------------------------------------
 # ggml-cpu.h
 
 cdef extern from "ggml-cpu.h":
 
-    cdef enum ggml_sched_priority:
-        GGML_SCHED_PRIO_NORMAL
-        GGML_SCHED_PRIO_MEDIUM
-        GGML_SCHED_PRIO_HIGH
-        GGML_SCHED_PRIO_REALTIME
+    ctypedef struct ggml_cplan:
+        size_t    work_size # size of work buffer, calculated by `ggml_graph_plan()`
+        uint8_t * work_data # work buffer, to be allocated by caller before calling to `ggml_graph_compute()`
 
-    # Threadpool params
-    # Use ggml_threadpool_params_default() or ggml_threadpool_params_init() to populate the defaults
-    ctypedef struct ggml_threadpool_params:
-        bint                cpumask[GGML_MAX_N_THREADS] # mask of cpu cores (all-zeros means use default affinity settings)
-        int                 n_threads                   # number of threads
-        ggml_sched_priority prio                        # thread priority
-        uint32_t            poll                        # polling level (0 - no polling, 100 - aggressive polling)
-        bint                strict_cpu                  # strict cpu placement
-        bint                paused                      # start in paused state
+        int n_threads
+        ggml_threadpool * threadpool
 
-    ctypedef struct ggml_threadpool:
-        pass
-
-    ctypedef ggml_threadpool * ggml_threadpool_t
-
-    cdef ggml_threadpool_params ggml_threadpool_params_default(int n_threads)
-    cdef void ggml_threadpool_params_init(ggml_threadpool_params * p, int n_threads)
-    cdef bint ggml_threadpool_params_match(const ggml_threadpool_params * p0, const ggml_threadpool_params * p1)
-
-    cdef ggml_threadpool * ggml_threadpool_new(ggml_threadpool_params * params)
-    cdef void ggml_threadpool_free(ggml_threadpool * threadpool)
-    cdef int ggml_threadpool_get_n_threads(ggml_threadpool * threadpool)
-    cdef void ggml_threadpool_pause(ggml_threadpool * threadpool)
-    cdef void ggml_threadpool_resume(ggml_threadpool * threadpool)
+        # abort ggml_graph_compute when true
+        ggml_abort_callback abort_callback
+        void *              abort_callback_data
 
     cdef enum ggml_numa_strategy:
         GGML_NUMA_STRATEGY_DISABLED   = 0
@@ -370,6 +384,99 @@ cdef extern from "ggml-cpu.h":
         GGML_NUMA_STRATEGY_MIRROR     = 4
         GGML_NUMA_STRATEGY_COUNT
 
+    cdef void    ggml_numa_init(ggml_numa_strategy numa); # call once for better performance on NUMA systems
+    cdef bint    ggml_is_numa() # true if init detected that system has >1 NUMA node
+
+    cdef ggml_tensor * ggml_new_i32(ggml_context * ctx, int32_t value)
+    cdef ggml_tensor * ggml_new_f32(ggml_context * ctx, float value)
+
+    cdef ggml_tensor * ggml_set_i32 (ggml_tensor * tensor, int32_t value)
+    cdef ggml_tensor * ggml_set_f32 (ggml_tensor * tensor, float value)
+
+    cdef int32_t ggml_get_i32_1d(const ggml_tensor * tensor, int i)
+    cdef void    ggml_set_i32_1d(const ggml_tensor * tensor, int i, int32_t value)
+
+    cdef int32_t ggml_get_i32_nd(const ggml_tensor * tensor, int i0, int i1, int i2, int i3)
+    cdef void    ggml_set_i32_nd(const ggml_tensor * tensor, int i0, int i1, int i2, int i3, int32_t value)
+
+    cdef float   ggml_get_f32_1d(const ggml_tensor * tensor, int i)
+    cdef void    ggml_set_f32_1d(const ggml_tensor * tensor, int i, float value)
+
+    cdef float   ggml_get_f32_nd(const ggml_tensor * tensor, int i0, int i1, int i2, int i3)
+    cdef void    ggml_set_f32_nd(const ggml_tensor * tensor, int i0, int i1, int i2, int i3, float value)
+
+    cdef ggml_threadpool * ggml_threadpool_new (ggml_threadpool_params  * params)
+    cdef void    ggml_threadpool_free          (ggml_threadpool * threadpool)
+    cdef int     ggml_threadpool_get_n_threads (ggml_threadpool * threadpool)
+    cdef void    ggml_threadpool_pause         (ggml_threadpool * threadpool)
+    cdef void    ggml_threadpool_resume        (ggml_threadpool * threadpool)
+
+    # ggml_graph_plan() has to be called before ggml_graph_compute()
+    # when plan.work_size > 0, caller must allocate memory for plan.work_data
+    cdef ggml_cplan ggml_graph_plan(
+        const ggml_cgraph * cgraph,
+        int   n_threads, # = GGML_DEFAULT_N_THREADS
+        ggml_threadpool * threadpool ) # = NULL
+    cdef ggml_status ggml_graph_compute(ggml_cgraph * cgraph, ggml_cplan * cplan)
+
+    # same as ggml_graph_compute() but the work data is allocated as a part of the context
+    # note: the drawback of this API is that you must have ensured that the context has enough memory for the work data
+    cdef ggml_status ggml_graph_compute_with_ctx( ggml_context * ctx, ggml_cgraph * cgraph, int n_threads)
+
+    #
+    # system info
+    #
+
+    # x86
+    cdef int ggml_cpu_has_sse3       ()
+    cdef int ggml_cpu_has_ssse3      ()
+    cdef int ggml_cpu_has_avx        ()
+    cdef int ggml_cpu_has_avx_vnni   ()
+    cdef int ggml_cpu_has_avx2       ()
+    cdef int ggml_cpu_has_bmi2       ()
+    cdef int ggml_cpu_has_f16c       ()
+    cdef int ggml_cpu_has_fma        ()
+    cdef int ggml_cpu_has_avx512     ()
+    cdef int ggml_cpu_has_avx512_vbmi()
+    cdef int ggml_cpu_has_avx512_vnni()
+    cdef int ggml_cpu_has_avx512_bf16()
+    cdef int ggml_cpu_has_amx_int8   ()
+    # ARM
+    cdef int ggml_cpu_has_neon       ()
+    cdef int ggml_cpu_has_arm_fma    ()
+    cdef int ggml_cpu_has_fp16_va    ()
+    cdef int ggml_cpu_has_dotprod    ()
+    cdef int ggml_cpu_has_matmul_int8()
+    cdef int ggml_cpu_has_sve        ()
+    cdef int ggml_cpu_get_sve_cnt    ()  # sve vector length in bytes
+    cdef int ggml_cpu_has_sme        ()
+    # other
+    cdef int ggml_cpu_has_riscv_v    ()
+    cdef int ggml_cpu_has_vsx        ()
+    cdef int ggml_cpu_has_vxe        ()
+    cdef int ggml_cpu_has_wasm_simd  ()
+    cdef int ggml_cpu_has_llamafile  ()
+
+    #
+    # CPU backend
+    #
+
+    cdef ggml_backend_t ggml_backend_cpu_init()
+
+    cdef bint ggml_backend_is_cpu                (ggml_backend_t backend)
+    cdef void ggml_backend_cpu_set_n_threads     (ggml_backend_t backend_cpu, int n_threads)
+    cdef void ggml_backend_cpu_set_threadpool    (ggml_backend_t backend_cpu, ggml_threadpool_t threadpool)
+    cdef void ggml_backend_cpu_set_abort_callback(ggml_backend_t backend_cpu, ggml_abort_callback abort_callback, void * abort_callback_data)
+
+    cdef ggml_backend_reg_t ggml_backend_cpu_reg()
+
+    cdef void ggml_cpu_fp32_to_fp32(const float *,       float *, int64_t)
+    cdef void ggml_cpu_fp32_to_i32 (const float *,     int32_t *, int64_t)
+    cdef void ggml_cpu_fp32_to_fp16(const float *, ggml_fp16_t *, int64_t)
+    cdef void ggml_cpu_fp16_to_fp32(const ggml_fp16_t *, float *, int64_t)
+    cdef void ggml_cpu_fp32_to_bf16(const float *, ggml_bf16_t *, int64_t)
+    cdef void ggml_cpu_bf16_to_fp32(const ggml_bf16_t *, float *, int64_t)
+# 
 #------------------------------------------------------------------------------
 # ggml-opt.h
 

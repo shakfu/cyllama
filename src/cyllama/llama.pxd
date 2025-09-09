@@ -477,6 +477,11 @@ cdef extern from "llama.h":
     # Note: loaded adapters will be free when the associated model is deleted
     cdef void llama_adapter_lora_free(llama_adapter_lora * adapter)
 
+    # Get the invocation tokens if the current lora is an alora
+    cdef uint64_t            llama_adapter_get_alora_n_invocation_tokens(const llama_adapter_lora * adapter)
+    cdef const llama_token * llama_adapter_get_alora_invocation_tokens  (const llama_adapter_lora * adapter)
+
+
     # The following functions operate on a llama_context, hence the naming: llama_verb_...
 
     # Add a loaded LoRA adapter to given context
