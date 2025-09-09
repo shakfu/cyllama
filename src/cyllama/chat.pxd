@@ -77,6 +77,8 @@ cdef extern from "chat.h":
         COMMON_CHAT_FORMAT_COMMAND_R7B
         COMMON_CHAT_FORMAT_GRANITE,
         COMMON_CHAT_FORMAT_GPT_OSS
+        COMMON_CHAT_FORMAT_SEED_OSS
+        COMMON_CHAT_FORMAT_NEMOTRON_V2
         COMMON_CHAT_FORMAT_COUNT
 
     # Chat templates inputs structure
