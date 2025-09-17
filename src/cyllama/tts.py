@@ -476,6 +476,7 @@ class TTSGenerator:
         guide_tokens = []
         if self.use_guide_tokens:
             guide_tokens = prepare_guide_tokens(self.vocab, processed_text, self.tts_version)
+            print(f"Using {len(guide_tokens)} guide tokens to ensure accurate pronunciation")
 
         # Build prompt
         prompt_tokens = []
@@ -497,15 +498,13 @@ class TTSGenerator:
         prompt_tokens.extend(end_tokens)
 
         # Add audio data (speaker profile) - this provides the voice template
+        # The model needs to see the full template pattern to understand the format
         if self.speaker_file:
             audio_data_tokens = self.vocab.tokenize(self.audio_data, False, True)
             prompt_tokens.extend(audio_data_tokens)
         else:
-            # For default speaker, we need to include the template but limit generation
-            # Add just the first few entries of the audio_data as examples
-            lines = self.audio_data.split('\n')
-            limited_audio_data = '\n'.join(lines[:10])  # Just first few entries
-            audio_data_tokens = self.vocab.tokenize(limited_audio_data, False, True)
+            # Use the full audio_data template - the model needs this pattern
+            audio_data_tokens = self.vocab.tokenize(self.audio_data, False, True)
             prompt_tokens.extend(audio_data_tokens)
 
         print(f"Prompt size: {len(prompt_tokens)} tokens")
@@ -530,8 +529,12 @@ class TTSGenerator:
         guide_token_idx = 0
         next_token_uses_guide_token = True
 
-        # Limit generation to avoid excessive output
-        max_new_tokens = min(self.n_predict, len(guide_tokens) * 3 if guide_tokens else 100)
+        # Limit generation to avoid excessive output, but allow enough for audio generation
+        if guide_tokens:
+            # Need substantial tokens for audio generation after guide tokens
+            max_new_tokens = min(self.n_predict, len(guide_tokens) + 200)
+        else:
+            max_new_tokens = min(self.n_predict, 100)
 
         for i in range(max_new_tokens):
             if n_past >= self.context_ttc.n_ctx - 1:
@@ -558,16 +561,21 @@ class TTSGenerator:
 
             codes.append(new_token_id)
 
-            # Check for end of generation
+            # Check for end of generation - but be more lenient when using guide tokens
             if self.vocab.is_eog(new_token_id):
-                print(f"Stopped at EOG token after {i+1} tokens")
+                print(f"Stopped at EOG token {new_token_id} after {i+1} tokens")
                 break
 
-            # If we've used all guide tokens and generated some audio, we can stop
+            # If using guide tokens, allow more generation after completing the guided text
             if guide_tokens and guide_token_idx >= len(guide_tokens):
-                # Generate a few more tokens for the audio codes, then stop
-                if i > len(guide_tokens) + 50:  # Allow some audio generation
-                    print(f"Completed guided generation after {i+1} tokens")
+                # Allow substantial audio generation after the guided text
+                # Each word typically needs many audio tokens
+                # For "hello world" (2 words), we should generate ~100-200 more tokens
+                words_count = len([t for t in guide_tokens if t != 198])  # Exclude newlines
+                min_additional_tokens = max(100, words_count * 50)
+
+                if i >= len(guide_tokens) + min_additional_tokens:
+                    print(f"Generated sufficient tokens after guided text completion (token {i})")
                     break
 
             # Create batch for next token
@@ -586,7 +594,7 @@ class TTSGenerator:
 
         # Filter to audio codes only (token range 151672-155772)
         audio_codes = [t for t in codes if 151672 <= t <= 155772]
-        print(f"Filtered to {len(audio_codes)} audio codes")
+        print(f"Filtered to {len(audio_codes)} audio codes for vocoder")
 
         # Adjust token values for vocoder input
         adjusted_codes = [t - 151672 for t in audio_codes]
@@ -615,15 +623,13 @@ class TTSGenerator:
         try:
             # Try to get all embeddings at once (should be n_codes * n_embd floats)
             embeddings = self.context_cts.get_embeddings()
-            print(f"Got embeddings: {len(embeddings)} floats")
-
             # If we got fewer embeddings than expected, collect them individually (slower fallback)
             if len(embeddings) < n_codes * n_embd:
-                print(f"Insufficient embeddings, collecting individually...")
+                print(f"Collecting embeddings for {n_codes} audio codes...")
                 embeddings = []
                 for i in range(n_codes):
-                    if i % 100 == 0:
-                        print(f"Processing token {i}/{n_codes}")
+                    if i % 100 == 0 and i > 0:
+                        print(f"Processing audio code {i}/{n_codes}")
                     token_embeddings = self.context_cts.get_embeddings_ith(i)
                     embeddings.extend(token_embeddings)
         except Exception as e:
@@ -634,8 +640,7 @@ class TTSGenerator:
             print("Error: no embeddings returned")
             return []
 
-        print(f"Debug: collected embeddings length: {len(embeddings)}, n_codes: {n_codes}, n_embd: {n_embd}")
-        print(f"Debug: expected embeddings length: {n_codes * n_embd}")
+        print(f"Converting {len(embeddings)} embeddings to audio waveform...")
 
         # Convert embeddings to audio
         try:
@@ -702,11 +707,15 @@ def main():
     parser.add_argument("-ngl", "--n-gpu-layers", type=int, default=99, help="Number of GPU layers")
     parser.add_argument("-n", "--n-predict", type=int, default=4096, help="Number of tokens to predict")
     parser.add_argument("--speaker-file", help="Speaker profile JSON file")
-    parser.add_argument("--use-guide-tokens", action="store_true", help="Use guide tokens to prevent hallucinations")
+    parser.add_argument("--use-guide-tokens", action="store_true", default=True, help="Use guide tokens to prevent hallucinations")
+    parser.add_argument("--no-guide-tokens", action="store_true", help="Disable guide tokens")
 
     args = parser.parse_args()
 
     try:
+        # Handle guide tokens setting
+        use_guide_tokens = args.use_guide_tokens and not args.no_guide_tokens
+
         tts = TTSGenerator(
             ttc_model_path=args.model,
             cts_model_path=args.vocoder_model,
@@ -715,7 +724,7 @@ def main():
             ngl=args.n_gpu_layers,
             n_predict=args.n_predict,
             speaker_file=args.speaker_file,
-            use_guide_tokens=args.use_guide_tokens
+            use_guide_tokens=use_guide_tokens
         )
 
         success = tts.generate(args.prompt, args.output)
