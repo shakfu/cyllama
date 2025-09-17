@@ -7,81 +7,22 @@ Based on OuteTTS model for high-quality text-to-speech synthesis.
 """
 
 import sys
-import os
 import argparse
 import math
-import re
-import threading
 import struct
-from typing import List, Optional, Dict, Any, Tuple
-import wave
+from typing import List, Optional, Dict, Tuple
 
-from . import (
-    LlamaModel, LlamaContext, LlamaSampler, LlamaBatch, LlamaChatMessage,
-    LlamaModelParams, LlamaContextParams, LlamaSamplerChainParams,
-    set_log_callback, ggml_backend_load_all, llama_batch_get_one,
-    disable_logging
-)
-
-# Import optimized Cython functions
-from .llama_cpp import (
-    save_wav16_from_list, save_wav16, fill_hann_window,
-    twiddle_factors, irfft, fold,
-    convert_less_than_thousand, number_to_words,
-    replace_numbers_with_words
-)
-
-
-def print_usage():
-    """Print usage information"""
-    print("\nexample usage:")
-    print(f"\n    {sys.argv[0]} -m model.gguf -p \"Hello!\"")
-    print()
-
-
-class WavHeader:
-    """WAV file header structure"""
-    def __init__(self, sample_rate: int, data_size: int):
-        self.riff = b'RIFF'
-        self.wave = b'WAVE'
-        self.fmt = b'fmt '
-        self.fmt_chunk_size = 16
-        self.audio_format = 1  # PCM
-        self.num_channels = 1  # Mono
-        self.sample_rate = sample_rate
-        self.bits_per_sample = 16
-        self.byte_rate = sample_rate * self.num_channels * (self.bits_per_sample // 8)
-        self.block_align = self.num_channels * (self.bits_per_sample // 8)
-        self.data = b'data'
-        self.data_size = data_size
-        self.chunk_size = 36 + data_size
-
-    def to_bytes(self) -> bytes:
-        """Convert header to bytes"""
-        return struct.pack('<4sI4s4sIHHIIHH4sI',
-                          self.riff, self.chunk_size, self.wave, self.fmt,
-                          self.fmt_chunk_size, self.audio_format, self.num_channels,
-                          self.sample_rate, self.byte_rate, self.block_align,
-                          self.bits_per_sample, self.data, self.data_size)
+from . import llama_cpp as cy
 
 
 def save_wav16(filename: str, data: List[float], sample_rate: int) -> bool:
-    """Save audio data as 16-bit WAV file using optimized Cython implementation"""
-    return save_wav16_from_list(filename, data, sample_rate)
-
-
-# fill_hann_window is imported directly from Cython
+    """Save audio data as 16-bit WAV file"""
+    return cy.save_wav16_from_list(filename, data, sample_rate)
 
 
 def twiddle(k: int, N: int) -> Tuple[float, float]:
-    """Compute twiddle factors for FFT using optimized Cython implementation"""
-    return twiddle_factors(1.0, 0.0, k, N)
-
-
-# irfft is imported directly from Cython (takes only inp_cplx parameter)
-
-
-# fold is imported directly from Cython
+    """Compute twiddle factors for FFT"""
+    return cy.twiddle_factors(1.0, 0.0, k, N)
 
 
 def embd_to_audio(embd: List[float], n_codes: int, n_embd: int, n_threads: int = 4) -> List[float]:
@@ -93,7 +34,7 @@ def embd_to_audio(embd: List[float], n_codes: int, n_embd: int, n_threads: int =
     n_out = (n_codes - 1) * n_hop + n_win
 
     # Generate Hann window
-    hann = fill_hann_window(n_fft, True)
+    hann = cy.fill_hann_window(n_fft, True)
 
     n_spec = n_embd * n_codes
 
@@ -131,7 +72,7 @@ def embd_to_audio(embd: List[float], n_codes: int, n_embd: int, n_threads: int =
     for l in range(n_codes):
         # Apply IRFFT to get time-domain signal
         frame_spec = ST[l * n_embd:(l + 1) * n_embd]
-        frame_audio = irfft(frame_spec)  # Cython version only takes inp_cplx parameter
+        frame_audio = cy.irfft(frame_spec)  # Cython version only takes inp_cplx parameter
 
         # Apply window
         windowed_frame = [frame_audio[i] * hann[i] for i in range(n_fft)]
@@ -141,8 +82,8 @@ def embd_to_audio(embd: List[float], n_codes: int, n_embd: int, n_threads: int =
         hann2.extend(squared_hann)
 
     # Overlap-add using fold operation
-    audio = fold(res, n_out, n_win, n_hop, n_pad)
-    env = fold(hann2, n_out, n_win, n_hop, n_pad)
+    audio = cy.fold(res, n_out, n_win, n_hop, n_pad)
+    env = cy.fold(hann2, n_out, n_win, n_hop, n_pad)
 
     # Normalize by envelope
     for i in range(len(audio)):
@@ -152,26 +93,12 @@ def embd_to_audio(embd: List[float], n_codes: int, n_embd: int, n_threads: int =
     return audio
 
 
-# Number to words conversion is handled by Cython implementation
-
-
-# convert_less_than_thousand is imported directly from Cython
-
-
-# number_to_words is imported directly from Cython
-
-
-# replace_numbers_with_words is imported directly from Cython
-
-
-# Import process_text from Cython as cython_process_text to avoid name conflict
-from .llama_cpp import process_text as cython_process_text
 
 def process_text(text: str, tts_version: str = "0.2") -> str:
-    """Process text for TTS input using optimized Cython implementation"""
+    """Process text for TTS input"""
     # Convert version string to int for Cython function
     version_int = 0 if tts_version == "0.2" else 1  # OUTETTS_V0_2 = 0, OUTETTS_V0_3 = 1
-    return cython_process_text(text, version_int)
+    return cy.process_text(text, version_int)
 
 
 def prepare_guide_tokens(vocab, text: str, tts_version: str = "0.2") -> List[int]:
@@ -212,38 +139,38 @@ class TTSGenerator:
         """Initialize TTS with models and parameters"""
 
         # Load dynamic backends
-        ggml_backend_load_all()
+        cy.ggml_backend_load_all()
 
         # Initialize text-to-codes model
-        model_params = LlamaModelParams()
+        model_params = cy.LlamaModelParams()
         model_params.n_gpu_layers = ngl
-        self.model_ttc = LlamaModel(ttc_model_path, model_params)
+        self.model_ttc = cy.LlamaModel(ttc_model_path, model_params)
         self.vocab = self.model_ttc.get_vocab()
 
         # Initialize text-to-codes context
-        ctx_params = LlamaContextParams()
+        ctx_params = cy.LlamaContextParams()
         ctx_params.n_ctx = n_ctx
         ctx_params.n_batch = n_batch
-        self.context_ttc = LlamaContext(self.model_ttc, ctx_params)
+        self.context_ttc = cy.LlamaContext(self.model_ttc, ctx_params)
 
         # Initialize codes-to-speech model
-        model_params_cts = LlamaModelParams()
+        model_params_cts = cy.LlamaModelParams()
         model_params_cts.n_gpu_layers = ngl
-        self.model_cts = LlamaModel(cts_model_path, model_params_cts)
+        self.model_cts = cy.LlamaModel(cts_model_path, model_params_cts)
 
         # Initialize codes-to-speech context (embedding mode)
-        ctx_params_cts = LlamaContextParams()
+        ctx_params_cts = cy.LlamaContextParams()
         ctx_params_cts.n_ctx = n_ctx
         ctx_params_cts.n_batch = n_batch
         ctx_params_cts.n_ubatch = n_batch
-        self.context_cts = LlamaContext(self.model_cts, ctx_params_cts)
+        self.context_cts = cy.LlamaContext(self.model_cts, ctx_params_cts)
 
         # Set embedding mode for codes-to-speech
         self.context_cts.set_embeddings_mode(True)
 
         # Initialize sampler for text-to-codes generation
-        sampler_params = LlamaSamplerChainParams()
-        self.sampler = LlamaSampler(sampler_params)
+        sampler_params = cy.LlamaSamplerChainParams()
+        self.sampler = cy.LlamaSampler(sampler_params)
         self.sampler.add_top_k(4)
         self.sampler.add_temp(0.8)
         self.sampler.add_dist(1337)  # Use fixed seed
@@ -376,7 +303,7 @@ class TTSGenerator:
         print(f"Prompt size: {len(prompt_tokens)} tokens")
 
         # Create batch for initial prompt
-        batch = LlamaBatch(n_tokens=max(len(prompt_tokens), 1), embd=0, n_seq_max=1)
+        batch = cy.LlamaBatch(n_tokens=max(len(prompt_tokens), 1), embd=0, n_seq_max=1)
 
         # Add prompt tokens to batch
         batch.add_sequence(prompt_tokens, 0, False)
@@ -492,7 +419,7 @@ class TTSGenerator:
         n_codes = len(codes)
 
         # Create batch for codes
-        batch = LlamaBatch(n_tokens=n_codes, embd=0, n_seq_max=1)
+        batch = cy.LlamaBatch(n_tokens=n_codes, embd=0, n_seq_max=1)
 
         batch.add_sequence(codes, 0, True)
 
@@ -581,7 +508,7 @@ class TTSGenerator:
 
 def main():
     """Main entry point"""
-    disable_logging()
+    cy.disable_logging()
 
     parser = argparse.ArgumentParser(description="Text-to-Speech using cyllama")
     parser.add_argument("-m", "--model", required=True, help="Path to text-to-codes model file")
