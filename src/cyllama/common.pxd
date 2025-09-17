@@ -607,6 +607,14 @@ cdef extern from "common.h":
 
 
     # -------------------------------------------------------------------------
+    # MoE utils
+
+    const char * const LLM_FFN_EXPS_REGEX = "\\.ffn_(up|down|gate)_exps"
+
+    cdef std_string llm_ffn_exps_block_regex(int idx)
+    cdef llama.llama_model_tensor_buft_override llm_ffn_exps_cpu_override()
+
+    # -------------------------------------------------------------------------
     # Training utils
 
     cdef ggml.ggml_opt_dataset_t common_opt_dataset_init(llama.llama_context * ctx, const std_vector[llama.llama_token] & tokens, int64_t stride);
