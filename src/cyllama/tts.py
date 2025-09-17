@@ -23,6 +23,20 @@ from . import (
     disable_logging
 )
 
+# Import optimized Cython functions
+try:
+    from .llama_cpp import (
+        save_wav16_from_list, save_wav16, fill_hann_window as cython_fill_hann_window,
+        twiddle_factors, irfft as cython_irfft, fold as cython_fold,
+        convert_less_than_thousand as cython_convert_less_than_thousand,
+        number_to_words as cython_number_to_words,
+        replace_numbers_with_words as cython_replace_numbers_with_words,
+        process_text as cython_process_text
+    )
+    USE_CYTHON_OPTIMIZATIONS = True
+except ImportError:
+    USE_CYTHON_OPTIMIZATIONS = False
+
 
 def print_usage():
     """Print usage information"""
@@ -59,6 +73,15 @@ class WavHeader:
 
 def save_wav16(filename: str, data: List[float], sample_rate: int) -> bool:
     """Save audio data as 16-bit WAV file"""
+    if USE_CYTHON_OPTIMIZATIONS:
+        try:
+            return save_wav16_from_list(filename, data, sample_rate)
+        except Exception as e:
+            print(f"Error saving WAV file with Cython: {e}", file=sys.stderr)
+            # Fall back to Python implementation
+            pass
+
+    # Python fallback implementation
     try:
         header = WavHeader(sample_rate, len(data) * 2)  # 2 bytes per sample
 
@@ -78,6 +101,14 @@ def save_wav16(filename: str, data: List[float], sample_rate: int) -> bool:
 
 def fill_hann_window(length: int, periodic: bool = True) -> List[float]:
     """Generate Hann window"""
+    if USE_CYTHON_OPTIMIZATIONS:
+        try:
+            return cython_fill_hann_window(length, periodic)
+        except Exception:
+            # Fall back to Python implementation
+            pass
+
+    # Python fallback implementation
     offset = 0 if periodic else -1
     window = []
     for i in range(length):
@@ -88,12 +119,28 @@ def fill_hann_window(length: int, periodic: bool = True) -> List[float]:
 
 def twiddle(k: int, N: int) -> Tuple[float, float]:
     """Compute twiddle factors for FFT"""
+    if USE_CYTHON_OPTIMIZATIONS:
+        try:
+            return twiddle_factors(1.0, 0.0, k, N)
+        except Exception:
+            # Fall back to Python implementation
+            pass
+
+    # Python fallback implementation
     angle = 2 * math.pi * k / N
     return math.cos(angle), math.sin(angle)
 
 
 def irfft(n: int, inp_cplx: List[float]) -> List[float]:
     """Inverse real FFT (very basic implementation)"""
+    if USE_CYTHON_OPTIMIZATIONS:
+        try:
+            return cython_irfft(inp_cplx)
+        except Exception:
+            # Fall back to Python implementation
+            pass
+
+    # Python fallback implementation
     N = n // 2 + 1
 
     # Extract real and imaginary parts
@@ -113,6 +160,14 @@ def irfft(n: int, inp_cplx: List[float]) -> List[float]:
 
 def fold(data: List[float], n_out: int, n_win: int, n_hop: int, n_pad: int) -> List[float]:
     """Fold operation equivalent to torch.nn.functional.fold"""
+    if USE_CYTHON_OPTIMIZATIONS:
+        try:
+            return cython_fold(data, n_out, n_win, n_hop, n_pad)
+        except Exception:
+            # Fall back to Python implementation
+            pass
+
+    # Python fallback implementation
     output = [0.0] * n_out
 
     col_idx = 0
@@ -213,6 +268,14 @@ TENS = {
 
 def convert_less_than_thousand(num: int) -> str:
     """Convert number less than 1000 to words"""
+    if USE_CYTHON_OPTIMIZATIONS:
+        try:
+            return cython_convert_less_than_thousand(num)
+        except Exception:
+            # Fall back to Python implementation
+            pass
+
+    # Python fallback implementation
     result = ""
 
     if num >= 100:
@@ -231,6 +294,14 @@ def convert_less_than_thousand(num: int) -> str:
 
 def number_to_words(number_str: str) -> str:
     """Convert number string to words"""
+    if USE_CYTHON_OPTIMIZATIONS:
+        try:
+            return cython_number_to_words(number_str)
+        except Exception:
+            # Fall back to Python implementation
+            pass
+
+    # Python fallback implementation
     try:
         decimal_pos = number_str.find('.')
         integer_part = number_str[:decimal_pos] if decimal_pos != -1 else number_str
@@ -273,6 +344,14 @@ def number_to_words(number_str: str) -> str:
 
 def replace_numbers_with_words(input_text: str) -> str:
     """Replace numbers in text with their word equivalents"""
+    if USE_CYTHON_OPTIMIZATIONS:
+        try:
+            return cython_replace_numbers_with_words(input_text)
+        except Exception:
+            # Fall back to Python implementation
+            pass
+
+    # Python fallback implementation
     pattern = r'\d+(\.\d+)?'
 
     def replace_func(match):
@@ -283,6 +362,16 @@ def replace_numbers_with_words(input_text: str) -> str:
 
 def process_text(text: str, tts_version: str = "0.2") -> str:
     """Process text for TTS input (based on OuteTTS prompt processor)"""
+    if USE_CYTHON_OPTIMIZATIONS:
+        try:
+            # Convert version string to int for Cython function
+            version_int = 0 if tts_version == "0.2" else 1  # OUTETTS_V0_2 = 0, OUTETTS_V0_3 = 1
+            return cython_process_text(text, version_int)
+        except Exception:
+            # Fall back to Python implementation
+            pass
+
+    # Python fallback implementation
     # Convert numbers to words
     processed_text = replace_numbers_with_words(text)
 
