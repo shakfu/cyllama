@@ -612,20 +612,18 @@ class TTSGenerator:
         if ret != 0:
             print(f"Warning: initial decode returned {ret}")
 
-        # Generation loop
+        # Generation loop - aligned with C++ implementation
         codes = []
         n_past = len(prompt_tokens)
-        guide_token_idx = 0
+        n_decode = 0
+        guide_tokens_copy = guide_tokens.copy()  # Make a copy to consume
         next_token_uses_guide_token = True
 
-        # Limit generation to avoid excessive output, but allow enough for audio generation
-        if guide_tokens:
-            # Need substantial tokens for audio generation after guide tokens
-            max_new_tokens = min(self.n_predict, len(guide_tokens) + 200)
-        else:
-            max_new_tokens = min(self.n_predict, 100)
+        # Strict generation limits for TTS
+        max_audio_generation = 200  # Limit audio generation to reasonable length
+        audio_codes_generated = 0
 
-        for i in range(max_new_tokens):
+        while n_decode <= self.n_predict and n_decode <= max_audio_generation:
             if n_past >= self.context_ttc.n_ctx - 1:
                 print("Context size exceeded")
                 break
@@ -637,39 +635,47 @@ class TTSGenerator:
                 print(f"Sampling failed: {e}")
                 break
 
-            # Use guide token if applicable - this forces the model to generate the target words
-            if (guide_tokens and next_token_uses_guide_token and
-                guide_token_idx < len(guide_tokens) and
+            # Guide tokens help prevent hallucinations by forcing the TTS to use the correct word
+            # This logic matches the C++ implementation (lines 884-889)
+            if (guide_tokens_copy and next_token_uses_guide_token and
                 not self.vocab.is_control(new_token_id) and
                 not self.vocab.is_eog(new_token_id)):
-                new_token_id = guide_tokens[guide_token_idx]
-                guide_token_idx += 1
+                guide_token = guide_tokens_copy.pop(0)  # Remove first token
+                new_token_id = guide_token  # Ensure correct word fragment is used
 
-            # Check if next token should use guide token (after newline)
+            # This is the token id that always precedes a new word (matches C++ line 892)
             next_token_uses_guide_token = (new_token_id == 198)  # newline token
+
+            # Accept the sampled token (matches C++ line 894)
+            self.sampler.accept(new_token_id)
 
             codes.append(new_token_id)
 
-            # Check for end of generation - but be more lenient when using guide tokens
-            if self.vocab.is_eog(new_token_id):
-                print(f"Stopped at EOG token {new_token_id} after {i+1} tokens")
+            # Count audio codes as we generate them
+            if 151672 <= new_token_id <= 155772:
+                audio_codes_generated += 1
+
+            # Check for end of generation (matches C++ lines 901-917)
+            if self.vocab.is_eog(new_token_id) or n_decode == self.n_predict:
+                reason = "eos" if self.vocab.is_eog(new_token_id) else "n_predict"
+                print(f"Stopped at {reason} after {n_decode+1} tokens")
                 break
 
-            # If using guide tokens, allow more generation after completing the guided text
-            if guide_tokens and guide_token_idx >= len(guide_tokens):
-                # Allow substantial audio generation after the guided text
-                # Each word typically needs many audio tokens
-                # For "hello world" (2 words), we should generate ~100-200 more tokens
-                words_count = len([t for t in guide_tokens if t != 198])  # Exclude newlines
-                min_additional_tokens = max(100, words_count * 50)
+            # Stop early if we've generated reasonable audio for the input length
+            # For "hello world" (2 words), we expect ~30-60 audio tokens max
+            if guide_tokens and len(guide_tokens_copy) == 0:  # All guide tokens consumed
+                target_words = len([t for t in guide_tokens if t != 198])  # Count non-newline tokens
+                expected_audio_tokens = target_words * 30  # ~30 audio tokens per word
 
-                if i >= len(guide_tokens) + min_additional_tokens:
-                    print(f"Generated sufficient tokens after guided text completion (token {i})")
+                if audio_codes_generated >= expected_audio_tokens:
+                    print(f"Generated sufficient audio tokens ({audio_codes_generated}) for {target_words} words")
                     break
 
-            # Create batch for next token
-            batch.set_batch([new_token_id], n_past, True)
+            n_decode += 1
             n_past += 1
+
+            # Create batch for next token
+            batch.set_batch([new_token_id], n_past-1, True)  # Use n_past-1 for position
 
             # Decode next token
             ret = self.context_ttc.decode(batch)
@@ -681,11 +687,25 @@ class TTSGenerator:
 
         print(f"Generated {len(codes)} tokens")
 
-        # Filter to audio codes only (token range 151672-155772)
+        # Debug: Show generated text
+        try:
+            generated_text = self.vocab.detokenize(codes)
+            print(f"Generated text preview: {generated_text[:200]}...")
+        except:
+            pass
+
+        # Filter to audio codes only (token range 151672-155772) - matches C++ line 1003
         audio_codes = [t for t in codes if 151672 <= t <= 155772]
         print(f"Filtered to {len(audio_codes)} audio codes for vocoder")
 
-        # Adjust token values for vocoder input
+        # Debug: Show filtered audio text
+        try:
+            audio_text = self.vocab.detokenize(audio_codes)
+            print(f"Audio codes text: {audio_text[:100]}...")
+        except:
+            pass
+
+        # Adjust token values for vocoder input (matches C++ lines 1011-1013)
         adjusted_codes = [t - 151672 for t in audio_codes]
 
         return adjusted_codes
