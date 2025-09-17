@@ -12,8 +12,8 @@ changes.diff
 .vscode
 
 # project detritus
-.ruff_cache
-
+.*_cache
+output.wav
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

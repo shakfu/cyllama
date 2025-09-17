@@ -360,19 +360,27 @@ class TTSGenerator:
         ctx_params.n_batch = n_batch
         self.context_ttc = LlamaContext(self.model_ttc, ctx_params)
 
-        # Initialize codes-to-speech model (embedding mode)
-        model_params.embedding = True
-        self.model_cts = LlamaModel(cts_model_path, model_params)
+        # Initialize codes-to-speech model
+        model_params_cts = LlamaModelParams()
+        model_params_cts.n_gpu_layers = ngl
+        self.model_cts = LlamaModel(cts_model_path, model_params_cts)
 
-        # Initialize codes-to-speech context
-        ctx_params.n_ubatch = n_batch
-        self.context_cts = LlamaContext(self.model_cts, ctx_params)
+        # Initialize codes-to-speech context (embedding mode)
+        ctx_params_cts = LlamaContextParams()
+        ctx_params_cts.n_ctx = n_ctx
+        ctx_params_cts.n_batch = n_batch
+        ctx_params_cts.n_ubatch = n_batch
+        self.context_cts = LlamaContext(self.model_cts, ctx_params_cts)
+
+        # Set embedding mode for codes-to-speech
+        self.context_cts.set_embeddings_mode(True)
 
         # Initialize sampler for text-to-codes generation
         sampler_params = LlamaSamplerChainParams()
-        sampler_params.top_k = 4
         self.sampler = LlamaSampler(sampler_params)
         self.sampler.add_top_k(4)
+        self.sampler.add_temp(0.8)
+        self.sampler.add_dist(1337)  # Use fixed seed
 
         # Store parameters
         self.n_predict = n_predict
@@ -495,7 +503,7 @@ class TTSGenerator:
         print(f"Prompt size: {len(prompt_tokens)} tokens")
 
         # Create batch for initial prompt
-        batch = LlamaBatch(max(len(prompt_tokens), 1), 0, 1)
+        batch = LlamaBatch(n_tokens=max(len(prompt_tokens), 1), embd=0, n_seq_max=1)
 
         # Add prompt tokens to batch
         batch.add_sequence(prompt_tokens, 0, False)
@@ -520,7 +528,11 @@ class TTSGenerator:
                 break
 
             # Sample next token
-            new_token_id = self.sampler.sample(self.context_ttc, -1)
+            try:
+                new_token_id = self.sampler.sample(self.context_ttc, -1)
+            except Exception as e:
+                print(f"Sampling failed: {e}")
+                break
 
             # Use guide token if applicable
             if (guide_tokens and next_token_uses_guide_token and
@@ -567,26 +579,48 @@ class TTSGenerator:
         n_codes = len(codes)
 
         # Create batch for codes
-        batch = LlamaBatch(n_codes, 0, 1)
+        batch = LlamaBatch(n_tokens=n_codes, embd=0, n_seq_max=1)
 
         batch.add_sequence(codes, 0, True)
 
         # Encode codes to get embeddings
-        ret = self.context_cts.encode(batch)
-        if ret != 0:
-            print(f"Warning: encode returned {ret}")
+        try:
+            self.context_cts.encode(batch)
+        except Exception as e:
+            print(f"Error encoding batch: {e}")
             return []
 
-        # Get embeddings
-        n_embd = self.model_cts.n_embd()
-        embeddings = self.context_cts.get_embeddings()
+        # Get embeddings for all tokens
+        n_embd = self.model_cts.n_embd
+        embeddings = []
+
+        try:
+            # Collect embeddings for each token
+            print(f"Collecting embeddings for {n_codes} tokens...")
+            for i in range(n_codes):
+                if i % 100 == 0:
+                    print(f"Processing token {i}/{n_codes}")
+                token_embeddings = self.context_cts.get_embeddings_ith(i)
+                embeddings.extend(token_embeddings)
+        except Exception as e:
+            print(f"Error getting embeddings: {e}")
+            return []
 
         if not embeddings:
             print("Error: no embeddings returned")
             return []
 
+        print(f"Debug: collected embeddings length: {len(embeddings)}, n_codes: {n_codes}, n_embd: {n_embd}")
+        print(f"Debug: expected embeddings length: {n_codes * n_embd}")
+
         # Convert embeddings to audio
-        audio = embd_to_audio(embeddings, n_codes, n_embd, 4)
+        try:
+            audio = embd_to_audio(embeddings, n_codes, n_embd, 4)
+        except Exception as e:
+            print(f"Error in embd_to_audio: {e}")
+            import traceback
+            traceback.print_exc()
+            return []
 
         # Batch will be automatically freed when it goes out of scope
 

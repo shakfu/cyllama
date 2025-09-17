@@ -79,7 +79,7 @@ bind: build/include
 
 .PHONY: test simple test_simple test_main test_retrieve test_model test_llava test_lora \
 		test_platform coverage memray download download_all bump clean reset remake cli \
-		test-cli test-chat
+		test-cli test-chat test-tts test_llama_tts
 
 test: build
 	uv run pytest -s
