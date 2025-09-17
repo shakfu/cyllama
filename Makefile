@@ -120,6 +120,12 @@ test-cli:
 		--no-cnv -c 32 \
 		-p "When did the French Revolution start?" 
 
+test-tts:
+	@python3 -m src.cyllama.tts -m models/tts.gguf \
+		-mv models/WavTokenizer-Large-75-F16.gguf \
+		-p "Hello World"
+
+
 test_main:
 	@g++ -std=c++14 -o build/main \
 		-I $(LLAMACPP)/include -L $(LLAMACPP)/lib  \
@@ -187,6 +193,11 @@ test_platform_linux:
 		tests/test_platform.cpp \
 		$(LLAMACPP_LIBS) \
 	@./build/test_platform
+
+test_llama_tts:
+	@bin/llama-tts -m models/tts.gguf \
+		-mv models/WavTokenizer-Large-75-F16.gguf \
+		-p "Hello World"
 
 coverage:
 	uv run pytest --cov=cyllama --cov-report html
