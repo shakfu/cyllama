@@ -24,18 +24,12 @@ from . import (
 )
 
 # Import optimized Cython functions
-try:
-    from .llama_cpp import (
-        save_wav16_from_list, save_wav16, fill_hann_window as cython_fill_hann_window,
-        twiddle_factors, irfft as cython_irfft, fold as cython_fold,
-        convert_less_than_thousand as cython_convert_less_than_thousand,
-        number_to_words as cython_number_to_words,
-        replace_numbers_with_words as cython_replace_numbers_with_words,
-        process_text as cython_process_text
-    )
-    USE_CYTHON_OPTIMIZATIONS = True
-except ImportError:
-    USE_CYTHON_OPTIMIZATIONS = False
+from .llama_cpp import (
+    save_wav16_from_list, save_wav16, fill_hann_window,
+    twiddle_factors, irfft, fold,
+    convert_less_than_thousand, number_to_words,
+    replace_numbers_with_words
+)
 
 
 def print_usage():
@@ -72,116 +66,22 @@ class WavHeader:
 
 
 def save_wav16(filename: str, data: List[float], sample_rate: int) -> bool:
-    """Save audio data as 16-bit WAV file"""
-    if USE_CYTHON_OPTIMIZATIONS:
-        try:
-            return save_wav16_from_list(filename, data, sample_rate)
-        except Exception as e:
-            print(f"Error saving WAV file with Cython: {e}", file=sys.stderr)
-            # Fall back to Python implementation
-            pass
-
-    # Python fallback implementation
-    try:
-        header = WavHeader(sample_rate, len(data) * 2)  # 2 bytes per sample
-
-        with open(filename, 'wb') as f:
-            f.write(header.to_bytes())
-
-            # Convert float samples to 16-bit PCM
-            for sample in data:
-                pcm_sample = int(max(-32768, min(32767, sample * 32767.0)))
-                f.write(struct.pack('<h', pcm_sample))
-
-        return True
-    except Exception as e:
-        print(f"Error saving WAV file: {e}", file=sys.stderr)
-        return False
+    """Save audio data as 16-bit WAV file using optimized Cython implementation"""
+    return save_wav16_from_list(filename, data, sample_rate)
 
 
-def fill_hann_window(length: int, periodic: bool = True) -> List[float]:
-    """Generate Hann window"""
-    if USE_CYTHON_OPTIMIZATIONS:
-        try:
-            return cython_fill_hann_window(length, periodic)
-        except Exception:
-            # Fall back to Python implementation
-            pass
-
-    # Python fallback implementation
-    offset = 0 if periodic else -1
-    window = []
-    for i in range(length):
-        value = 0.5 * (1.0 - math.cos((2.0 * math.pi * i) / (length + offset)))
-        window.append(value)
-    return window
+# fill_hann_window is imported directly from Cython
 
 
 def twiddle(k: int, N: int) -> Tuple[float, float]:
-    """Compute twiddle factors for FFT"""
-    if USE_CYTHON_OPTIMIZATIONS:
-        try:
-            return twiddle_factors(1.0, 0.0, k, N)
-        except Exception:
-            # Fall back to Python implementation
-            pass
-
-    # Python fallback implementation
-    angle = 2 * math.pi * k / N
-    return math.cos(angle), math.sin(angle)
+    """Compute twiddle factors for FFT using optimized Cython implementation"""
+    return twiddle_factors(1.0, 0.0, k, N)
 
 
-def irfft(n: int, inp_cplx: List[float]) -> List[float]:
-    """Inverse real FFT (very basic implementation)"""
-    if USE_CYTHON_OPTIMIZATIONS:
-        try:
-            return cython_irfft(inp_cplx)
-        except Exception:
-            # Fall back to Python implementation
-            pass
-
-    # Python fallback implementation
-    N = n // 2 + 1
-
-    # Extract real and imaginary parts
-    real_input = [inp_cplx[2*i] for i in range(N)]
-    imag_input = [inp_cplx[2*i + 1] for i in range(N)]
-
-    real_output = [0.0] * n
-
-    for k in range(n):
-        for m in range(N):
-            twiddle_real, twiddle_imag = twiddle(k * m, n)
-            real_output[k] += real_input[m] * twiddle_real - imag_input[m] * twiddle_imag
-
-    # Normalize
-    return [x / N for x in real_output]
+# irfft is imported directly from Cython (takes only inp_cplx parameter)
 
 
-def fold(data: List[float], n_out: int, n_win: int, n_hop: int, n_pad: int) -> List[float]:
-    """Fold operation equivalent to torch.nn.functional.fold"""
-    if USE_CYTHON_OPTIMIZATIONS:
-        try:
-            return cython_fold(data, n_out, n_win, n_hop, n_pad)
-        except Exception:
-            # Fall back to Python implementation
-            pass
-
-    # Python fallback implementation
-    output = [0.0] * n_out
-
-    col_idx = 0
-    for w_col in range((len(data) // n_win)):
-        start = w_col * n_hop - n_pad
-        end = start + n_win
-
-        for w_im in range(start, end):
-            if 0 <= w_im < n_out and col_idx < len(data):
-                output[w_im] += data[col_idx]
-            col_idx += 1
-
-    # Return trimmed output
-    return output[n_pad:n_out-n_pad]
+# fold is imported directly from Cython
 
 
 def embd_to_audio(embd: List[float], n_codes: int, n_embd: int, n_threads: int = 4) -> List[float]:
@@ -231,7 +131,7 @@ def embd_to_audio(embd: List[float], n_codes: int, n_embd: int, n_threads: int =
     for l in range(n_codes):
         # Apply IRFFT to get time-domain signal
         frame_spec = ST[l * n_embd:(l + 1) * n_embd]
-        frame_audio = irfft(n_fft, frame_spec)
+        frame_audio = irfft(frame_spec)  # Cython version only takes inp_cplx parameter
 
         # Apply window
         windowed_frame = [frame_audio[i] * hann[i] for i in range(n_fft)]
@@ -252,149 +152,26 @@ def embd_to_audio(embd: List[float], n_codes: int, n_embd: int, n_threads: int =
     return audio
 
 
-# Number to words conversion
-ONES = {
-    0: "zero", 1: "one", 2: "two", 3: "three", 4: "four",
-    5: "five", 6: "six", 7: "seven", 8: "eight", 9: "nine",
-    10: "ten", 11: "eleven", 12: "twelve", 13: "thirteen", 14: "fourteen",
-    15: "fifteen", 16: "sixteen", 17: "seventeen", 18: "eighteen", 19: "nineteen"
-}
-
-TENS = {
-    2: "twenty", 3: "thirty", 4: "forty", 5: "fifty",
-    6: "sixty", 7: "seventy", 8: "eighty", 9: "ninety"
-}
+# Number to words conversion is handled by Cython implementation
 
 
-def convert_less_than_thousand(num: int) -> str:
-    """Convert number less than 1000 to words"""
-    if USE_CYTHON_OPTIMIZATIONS:
-        try:
-            return cython_convert_less_than_thousand(num)
-        except Exception:
-            # Fall back to Python implementation
-            pass
-
-    # Python fallback implementation
-    result = ""
-
-    if num >= 100:
-        result += ONES[num // 100] + " hundred "
-        num %= 100
-
-    if num >= 20:
-        result += TENS[num // 10]
-        if num % 10 > 0:
-            result += "-" + ONES[num % 10]
-    elif num > 0:
-        result += ONES[num]
-
-    return result
+# convert_less_than_thousand is imported directly from Cython
 
 
-def number_to_words(number_str: str) -> str:
-    """Convert number string to words"""
-    if USE_CYTHON_OPTIMIZATIONS:
-        try:
-            return cython_number_to_words(number_str)
-        except Exception:
-            # Fall back to Python implementation
-            pass
-
-    # Python fallback implementation
-    try:
-        decimal_pos = number_str.find('.')
-        integer_part = number_str[:decimal_pos] if decimal_pos != -1 else number_str
-
-        int_number = int(integer_part)
-        result = ""
-
-        if int_number == 0:
-            result = "zero"
-        else:
-            if int_number >= 1000000000:
-                billions = int_number // 1000000000
-                result += convert_less_than_thousand(billions) + " billion "
-                int_number %= 1000000000
-
-            if int_number >= 1000000:
-                millions = int_number // 1000000
-                result += convert_less_than_thousand(millions) + " million "
-                int_number %= 1000000
-
-            if int_number >= 1000:
-                thousands = int_number // 1000
-                result += convert_less_than_thousand(thousands) + " thousand "
-                int_number %= 1000
-
-            if int_number > 0:
-                result += convert_less_than_thousand(int_number)
-
-        # Handle decimal part
-        if decimal_pos != -1:
-            result += " point"
-            decimal_part = number_str[decimal_pos + 1:]
-            for digit in decimal_part:
-                result += " " + ONES[int(digit)]
-
-        return result.strip()
-    except:
-        return " "
+# number_to_words is imported directly from Cython
 
 
-def replace_numbers_with_words(input_text: str) -> str:
-    """Replace numbers in text with their word equivalents"""
-    if USE_CYTHON_OPTIMIZATIONS:
-        try:
-            return cython_replace_numbers_with_words(input_text)
-        except Exception:
-            # Fall back to Python implementation
-            pass
+# replace_numbers_with_words is imported directly from Cython
 
-    # Python fallback implementation
-    pattern = r'\d+(\.\d+)?'
 
-    def replace_func(match):
-        return number_to_words(match.group())
-
-    return re.sub(pattern, replace_func, input_text)
-
+# Import process_text from Cython as cython_process_text to avoid name conflict
+from .llama_cpp import process_text as cython_process_text
 
 def process_text(text: str, tts_version: str = "0.2") -> str:
-    """Process text for TTS input (based on OuteTTS prompt processor)"""
-    if USE_CYTHON_OPTIMIZATIONS:
-        try:
-            # Convert version string to int for Cython function
-            version_int = 0 if tts_version == "0.2" else 1  # OUTETTS_V0_2 = 0, OUTETTS_V0_3 = 1
-            return cython_process_text(text, version_int)
-        except Exception:
-            # Fall back to Python implementation
-            pass
-
-    # Python fallback implementation
-    # Convert numbers to words
-    processed_text = replace_numbers_with_words(text)
-
-    # Convert to lowercase
-    processed_text = processed_text.lower()
-
-    # Replace special characters with spaces
-    processed_text = re.sub(r'[-_/,\.\\]', ' ', processed_text)
-
-    # Remove non-alphabetic characters (except spaces)
-    processed_text = re.sub(r'[^a-z\s]', '', processed_text)
-
-    # Collapse multiple spaces
-    processed_text = re.sub(r'\s+', ' ', processed_text)
-
-    # Trim whitespace
-    processed_text = processed_text.strip()
-
-    # Replace spaces with separator tokens
-    separator = "<|space|>" if tts_version == "0.3" else "<|text_sep|>"
-    processed_text = re.sub(r'\s', separator, processed_text)
-
-    return processed_text
+    """Process text for TTS input using optimized Cython implementation"""
+    # Convert version string to int for Cython function
+    version_int = 0 if tts_version == "0.2" else 1  # OUTETTS_V0_2 = 0, OUTETTS_V0_3 = 1
+    return cython_process_text(text, version_int)
 
 
 def prepare_guide_tokens(vocab, text: str, tts_version: str = "0.2") -> List[int]:
