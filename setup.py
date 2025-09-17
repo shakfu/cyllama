@@ -24,11 +24,12 @@ LLAMACPP_INCLUDE = os.path.join(CWD, "thirdparty/llama.cpp/include")
 LLAMACPP_LIBS_DIR = os.path.join(CWD, "thirdparty/llama.cpp/lib")
 
 DEFINE_MACROS = []
-EXTRA_COMPILE_ARGS = ['-std=c++14']
+EXTRA_COMPILE_ARGS = ['-std=c++17']
 EXTRA_LINK_ARGS = []
 EXTRA_OBJECTS = []
 INCLUDE_DIRS = [
     "src/cyllama",
+    "src/cyllama/helpers",
     LLAMACPP_INCLUDE,
     # VENDOR_DIR,
     # SERVER_PUBLIC_DIR,
@@ -116,6 +117,7 @@ if not os.path.exists('MANIFEST.in'):
 extensions = [
     mk_extension("cyllama.llama_cpp", sources=[
         "src/cyllama/llama_cpp.pyx",
+        "src/cyllama/helpers/tts.cpp",
         # "build/llama.cpp/tools/server/server.cpp",
     ]),
 ]
