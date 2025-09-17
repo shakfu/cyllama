@@ -79,7 +79,7 @@ bind: build/include
 
 .PHONY: test simple test_simple test_main test_retrieve test_model test_llava test_lora \
 		test_platform coverage memray download download_all bump clean reset remake cli \
-		test-cli test-chat test-tts test_llama_tts
+		test-cli test-chat test-tts test-llama-tts
 
 test: build
 	uv run pytest -s
@@ -121,7 +121,13 @@ test-cli:
 		-p "When did the French Revolution start?" 
 
 test-tts:
-	@python3 -m src.cyllama.tts -m models/tts.gguf \
+	@python3 -m src.cyllama.tts \
+		-m models/tts.gguf \
+		-mv models/WavTokenizer-Large-75-F16.gguf \
+		-p "Hello World"
+
+test-llama-tts:
+	@bin/llama-tts -m models/tts.gguf \
 		-mv models/WavTokenizer-Large-75-F16.gguf \
 		-p "Hello World"
 
@@ -194,10 +200,7 @@ test_platform_linux:
 		$(LLAMACPP_LIBS) \
 	@./build/test_platform
 
-test_llama_tts:
-	@bin/llama-tts -m models/tts.gguf \
-		-mv models/WavTokenizer-Large-75-F16.gguf \
-		-p "Hello World"
+
 
 coverage:
 	uv run pytest --cov=cyllama --cov-report html
