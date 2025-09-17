@@ -342,7 +342,7 @@ class TTSGenerator:
                  ngl: int = 99,
                  n_predict: int = 4096,
                  speaker_file: Optional[str] = None,
-                 use_guide_tokens: bool = False):
+                 use_guide_tokens: bool = True):
         """Initialize TTS with models and parameters"""
 
         # Load dynamic backends
@@ -496,9 +496,17 @@ class TTSGenerator:
         end_tokens = self.vocab.tokenize("<|text_end|>\n", False, True)
         prompt_tokens.extend(end_tokens)
 
-        # Add audio data (speaker profile)
-        audio_data_tokens = self.vocab.tokenize(self.audio_data, False, True)
-        prompt_tokens.extend(audio_data_tokens)
+        # Add audio data (speaker profile) - this provides the voice template
+        if self.speaker_file:
+            audio_data_tokens = self.vocab.tokenize(self.audio_data, False, True)
+            prompt_tokens.extend(audio_data_tokens)
+        else:
+            # For default speaker, we need to include the template but limit generation
+            # Add just the first few entries of the audio_data as examples
+            lines = self.audio_data.split('\n')
+            limited_audio_data = '\n'.join(lines[:10])  # Just first few entries
+            audio_data_tokens = self.vocab.tokenize(limited_audio_data, False, True)
+            prompt_tokens.extend(audio_data_tokens)
 
         print(f"Prompt size: {len(prompt_tokens)} tokens")
 
@@ -522,7 +530,10 @@ class TTSGenerator:
         guide_token_idx = 0
         next_token_uses_guide_token = True
 
-        for i in range(self.n_predict):
+        # Limit generation to avoid excessive output
+        max_new_tokens = min(self.n_predict, len(guide_tokens) * 3 if guide_tokens else 100)
+
+        for i in range(max_new_tokens):
             if n_past >= self.context_ttc.n_ctx - 1:
                 print("Context size exceeded")
                 break
@@ -534,7 +545,7 @@ class TTSGenerator:
                 print(f"Sampling failed: {e}")
                 break
 
-            # Use guide token if applicable
+            # Use guide token if applicable - this forces the model to generate the target words
             if (guide_tokens and next_token_uses_guide_token and
                 guide_token_idx < len(guide_tokens) and
                 not self.vocab.is_control(new_token_id) and
@@ -549,7 +560,15 @@ class TTSGenerator:
 
             # Check for end of generation
             if self.vocab.is_eog(new_token_id):
+                print(f"Stopped at EOG token after {i+1} tokens")
                 break
+
+            # If we've used all guide tokens and generated some audio, we can stop
+            if guide_tokens and guide_token_idx >= len(guide_tokens):
+                # Generate a few more tokens for the audio codes, then stop
+                if i > len(guide_tokens) + 50:  # Allow some audio generation
+                    print(f"Completed guided generation after {i+1} tokens")
+                    break
 
             # Create batch for next token
             batch.set_batch([new_token_id], n_past, True)
@@ -590,18 +609,23 @@ class TTSGenerator:
             print(f"Error encoding batch: {e}")
             return []
 
-        # Get embeddings for all tokens
+        # Get embeddings for all tokens at once
         n_embd = self.model_cts.n_embd
-        embeddings = []
 
         try:
-            # Collect embeddings for each token
-            print(f"Collecting embeddings for {n_codes} tokens...")
-            for i in range(n_codes):
-                if i % 100 == 0:
-                    print(f"Processing token {i}/{n_codes}")
-                token_embeddings = self.context_cts.get_embeddings_ith(i)
-                embeddings.extend(token_embeddings)
+            # Try to get all embeddings at once (should be n_codes * n_embd floats)
+            embeddings = self.context_cts.get_embeddings()
+            print(f"Got embeddings: {len(embeddings)} floats")
+
+            # If we got fewer embeddings than expected, collect them individually (slower fallback)
+            if len(embeddings) < n_codes * n_embd:
+                print(f"Insufficient embeddings, collecting individually...")
+                embeddings = []
+                for i in range(n_codes):
+                    if i % 100 == 0:
+                        print(f"Processing token {i}/{n_codes}")
+                    token_embeddings = self.context_cts.get_embeddings_ith(i)
+                    embeddings.extend(token_embeddings)
         except Exception as e:
             print(f"Error getting embeddings: {e}")
             return []
