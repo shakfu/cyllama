@@ -106,7 +106,7 @@ test_simple:
 		-p "When did the French Revolution start?"
 
 cli:
-	@./bin/llama-cli -n 32 -no-cnv -lv 0 \
+	@$(LLAMACPP)/bin/llama-cli -n 32 -no-cnv -lv 0 \
 		-m $(MODEL) \
 		-p "When did the french revolution begin?" \
 		--no-display-prompt 2> /dev/null
@@ -127,7 +127,7 @@ test-tts:
 		-p "Hello World"
 
 test-llama-tts:
-	@bin/llama-tts -m models/tts.gguf \
+	@$(LLAMACPP)/bin/llama-tts -m models/tts.gguf \
 		-mv models/WavTokenizer-Large-75-F16.gguf \
 		-p "Hello World"
 
@@ -212,10 +212,9 @@ bump:
 	@scripts/bump.sh
 
 clean:
-	@rm -rf build dist src/*.egg-info .pytest_cache .coverage
+	@rm -rf build dist src/*.egg-info .pytest_cache .coverage src/cyllama/*.so
 
 reset: clean
-	@rm -rf bin
 	@rm -rf thirdparty/llama.cpp/bin thirdparty/llama.cpp/lib
 	@rm -rf thirdparty/whisper.cpp/bin thirdparty/whisper.cpp/lib
 	@rm -rf thirdparty/stable-diffusion.cpp/bin thirdparty/stable-diffusion.cpp/lib

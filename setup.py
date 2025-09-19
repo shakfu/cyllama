@@ -23,6 +23,9 @@ WITH_DYLIB = os.getenv("WITH_DYLIB", False)
 LLAMACPP_INCLUDE = os.path.join(CWD, "thirdparty/llama.cpp/include")
 LLAMACPP_LIBS_DIR = os.path.join(CWD, "thirdparty/llama.cpp/lib")
 
+WHISPERCPP_INCLUDE = os.path.join(CWD, "thirdparty/whisper.cpp/include")
+WHISPERCPP_LIBS_DIR = os.path.join(CWD, "thirdparty/whisper.cpp/lib")
+
 DEFINE_MACROS = []
 EXTRA_COMPILE_ARGS = ['-std=c++17']
 EXTRA_LINK_ARGS = []
@@ -31,11 +34,13 @@ INCLUDE_DIRS = [
     "src/cyllama",
     "src/cyllama/helpers",
     LLAMACPP_INCLUDE,
+    WHISPERCPP_INCLUDE,
     # VENDOR_DIR,
     # SERVER_PUBLIC_DIR,
 ]
 LIBRARY_DIRS = [
     LLAMACPP_LIBS_DIR,
+    WHISPERCPP_LIBS_DIR,
 ]
 LIBRARIES = ["pthread"]
 
@@ -53,18 +58,26 @@ else:
         f'{LLAMACPP_LIBS_DIR}/libllama.a', 
         f'{LLAMACPP_LIBS_DIR}/libggml.a',
         f'{LLAMACPP_LIBS_DIR}/libggml-base.a',
-        f'{LLAMACPP_LIBS_DIR}/libggml-blas.a',
         f'{LLAMACPP_LIBS_DIR}/libggml-cpu.a',
-        f'{LLAMACPP_LIBS_DIR}/libggml-metal.a',
         f'{LLAMACPP_LIBS_DIR}/libmtmd.a',
+        f'{WHISPERCPP_LIBS_DIR}/libcommon.a',
+        f'{WHISPERCPP_LIBS_DIR}/libwhisper.a',
     ])
 
 INCLUDE_DIRS.append(os.path.join(CWD, 'include'))
 
 if PLATFORM == 'Darwin':
+    EXTRA_OBJECTS.extend([
+        f'{LLAMACPP_LIBS_DIR}/libggml-blas.a',
+        f'{LLAMACPP_LIBS_DIR}/libggml-metal.a',
+    ])
     EXTRA_LINK_ARGS.append('-mmacosx-version-min=14.7')
     # add local rpath
-    EXTRA_LINK_ARGS.append('-Wl,-rpath,' + LLAMACPP_LIBS_DIR)
+    EXTRA_LINK_ARGS.extend([
+        '-Wl,-rpath,' + LLAMACPP_LIBS_DIR,
+        '-Wl,-rpath,' + WHISPERCPP_LIBS_DIR,
+        
+    ])
     os.environ['LDFLAGS'] = ' '.join([
         '-framework Accelerate',
         '-framework Foundation',
@@ -119,6 +132,9 @@ extensions = [
         "src/cyllama/llama_cpp.pyx",
         "src/cyllama/helpers/tts.cpp",
         # "build/llama.cpp/tools/server/server.cpp",
+    ]),
+    mk_extension("cyllama.whisper", sources=[
+        "src/cyllama/whisper.pyx",
     ]),
 ]
 

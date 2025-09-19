@@ -47,7 +47,6 @@ get_llamacpp() {
 		cp ggml/src/ggml-metal/libggml-metal.a ${LIB} && \
 		cp common/libcommon.a ${LIB} && \
 		# cp examples/llava/libllava_static.a ${LIB}/libllava.a && \
-		mv ${PREFIX}/bin ${CWD}/bin && \
 		cd ${CWD}
 }
 
@@ -155,9 +154,9 @@ remove_current() {
 main() {
 	remove_current
 	get_llamacpp
+	get_whispercpp
 	# get_llamacpp_shared
 	# get_llamacpp_python
-	# get_whispercpp
 	# get_stablediffusioncpp
 }
 
