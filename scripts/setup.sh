@@ -154,7 +154,7 @@ remove_current() {
 main() {
 	remove_current
 	get_llamacpp
-	get_whispercpp
+	# get_whispercpp
 	# get_llamacpp_shared
 	# get_llamacpp_python
 	# get_stablediffusioncpp

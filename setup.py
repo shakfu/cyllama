@@ -18,6 +18,8 @@ VERSION = '0.0.1'
 
 PLATFORM = platform.system()
 
+WITH_WHISPER = os.getenv("WITH_WHISPER", False)
+
 WITH_DYLIB = os.getenv("WITH_DYLIB", False)
 
 LLAMACPP_INCLUDE = os.path.join(CWD, "thirdparty/llama.cpp/include")
@@ -34,16 +36,21 @@ INCLUDE_DIRS = [
     "src/cyllama",
     "src/cyllama/helpers",
     LLAMACPP_INCLUDE,
-    WHISPERCPP_INCLUDE,
     # VENDOR_DIR,
     # SERVER_PUBLIC_DIR,
 ]
 LIBRARY_DIRS = [
     LLAMACPP_LIBS_DIR,
-    WHISPERCPP_LIBS_DIR,
 ]
 LIBRARIES = ["pthread"]
 
+if WITH_WHISPER:
+    INCLUDE_DIRS.extend([
+        WHISPERCPP_INCLUDE,
+    ])
+    LIBRARY_DIRS.extend([
+        WHISPERCPP_LIBS_DIR,
+    ])
 
 if WITH_DYLIB:
     EXTRA_OBJECTS.append(f'{LLAMACPP_LIBS_DIR}/libcommon.a')
@@ -52,6 +59,11 @@ if WITH_DYLIB:
         'ggml',
         'llama',
     ])
+    if WITH_WHISPER:
+        LIBRARIES.extend([
+            "whisper",
+        ])
+
 else:
     EXTRA_OBJECTS.extend([
         f'{LLAMACPP_LIBS_DIR}/libcommon.a',
@@ -60,9 +72,14 @@ else:
         f'{LLAMACPP_LIBS_DIR}/libggml-base.a',
         f'{LLAMACPP_LIBS_DIR}/libggml-cpu.a',
         f'{LLAMACPP_LIBS_DIR}/libmtmd.a',
-        f'{WHISPERCPP_LIBS_DIR}/libcommon.a',
-        f'{WHISPERCPP_LIBS_DIR}/libwhisper.a',
     ])
+
+    if WITH_WHISPER:
+        EXTRA_OBJECTS.extend([
+            f'{WHISPERCPP_LIBS_DIR}/libcommon.a',
+            f'{WHISPERCPP_LIBS_DIR}/libwhisper.a',
+        ])
+
 
 INCLUDE_DIRS.append(os.path.join(CWD, 'include'))
 
@@ -75,9 +92,13 @@ if PLATFORM == 'Darwin':
     # add local rpath
     EXTRA_LINK_ARGS.extend([
         '-Wl,-rpath,' + LLAMACPP_LIBS_DIR,
-        '-Wl,-rpath,' + WHISPERCPP_LIBS_DIR,
-        
     ])
+
+    if WITH_WHISPER:
+        EXTRA_LINK_ARGS.extend([
+            '-Wl,-rpath,' + WHISPERCPP_LIBS_DIR,
+        ])
+
     os.environ['LDFLAGS'] = ' '.join([
         '-framework Accelerate',
         '-framework Foundation',
@@ -117,7 +138,11 @@ common = {
 
 
 # forces cythonize in this case
-subprocess.call("cythonize *.pyx", cwd="src/cyllama", shell=True)
+# subprocess.call("cythonize *.pyx", cwd="src/cyllama", shell=True)
+subprocess.call("cythonize llama_cpp.pyx", cwd="src/cyllama", shell=True)
+if WITH_WHISPER:
+    subprocess.call("cythonize whisper.pyx", cwd="src/cyllama", shell=True)
+
 
 if not os.path.exists('MANIFEST.in'):
     with open("MANIFEST.in", "w") as f:
@@ -133,10 +158,15 @@ extensions = [
         "src/cyllama/helpers/tts.cpp",
         # "build/llama.cpp/tools/server/server.cpp",
     ]),
-    mk_extension("cyllama.whisper", sources=[
-        "src/cyllama/whisper.pyx",
-    ]),
 ]
+
+if WITH_WHISPER:
+    extensions.append(
+        mk_extension("cyllama.whisper", sources=[
+            "src/cyllama/whisper.pyx",
+        ])
+    )
+
 
 setup(
     **common,
