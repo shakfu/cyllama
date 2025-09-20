@@ -22,6 +22,7 @@ def test_chat_builtin_templates():
     'glmedge',
     'gpt-oss',
     'granite',
+    'grok-2',
     'hunyuan-dense',
     'hunyuan-moe',
     'kimi-k2',

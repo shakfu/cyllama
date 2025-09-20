@@ -23,8 +23,8 @@ def test_tts_generation():
     tts = TTSGenerator(
         ttc_model_path=ttc_model,
         cts_model_path=cts_model,
-        n_ctx=2048,  # Smaller context for testing
-        n_batch=512,
+        n_ctx=8192,  # Larger context to accommodate the prompt
+        n_batch=8192,  # Much larger batch size to handle the long prompt
         ngl=99,
         n_predict=1000,  # Limited tokens for testing
         use_guide_tokens=True

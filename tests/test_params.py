@@ -38,9 +38,9 @@ def test_default_context_params():
     assert params.rope_freq_base      == 0.0
     assert params.rope_freq_scale     == 0.0
     assert params.yarn_ext_factor     == -1.0
-    assert params.yarn_attn_factor    == 1.0
-    assert params.yarn_beta_fast      == 32.0
-    assert params.yarn_beta_slow      == 1.0
+    assert params.yarn_attn_factor    == approx(-1.0)
+    assert params.yarn_beta_fast      == -1.0
+    assert params.yarn_beta_slow      == -1.0
     assert params.yarn_orig_ctx       == 0
     # defrag_thold is not available in LlamaContextParams
     # assert params.defrag_thold        == -1.0
@@ -131,9 +131,9 @@ def test_common_params():
     assert params.rope_freq_base       ==   0.0
     assert params.rope_freq_scale      ==   0.0
     assert params.yarn_ext_factor      ==  approx(-1.0)
-    assert params.yarn_attn_factor     ==  approx(1.0)
-    assert params.yarn_beta_fast       ==  approx(32.0)
-    assert params.yarn_beta_slow       ==  approx(1.0)
+    assert params.yarn_attn_factor     ==  approx(-1.0)
+    assert params.yarn_beta_fast       ==  approx(-1.0)
+    assert params.yarn_beta_slow       ==  approx(-1.0)
     assert params.yarn_orig_ctx        ==  0
     # defrag_thold is not available in CommonParams
     # assert params.defrag_thold         ==  approx(0.1)
@@ -259,7 +259,7 @@ def test_common_params():
 
     assert params.slot_save_path       == ""
 
-    assert params.slot_prompt_similarity == approx(0.5)
+    assert params.slot_prompt_similarity == approx(0.1)
 
     assert params.is_pp_shared         == False
 

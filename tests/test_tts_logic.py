@@ -23,44 +23,41 @@ def test_text_processing():
             processed = process_text(text, version)
             print(f"  '{text}' (v{version}) -> '{processed}'")
 
-        return True
+        assert True
 
     except Exception as e:
         print(f"Text processing test failed: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        assert False, f"Text processing test failed: {e}"
 
 def test_cython_optimizations():
     """Test that Cython optimizations are working"""
     try:
-        from cyllama.tts import USE_CYTHON_OPTIMIZATIONS
-        print(f"Cython optimizations enabled: {USE_CYTHON_OPTIMIZATIONS}")
+        from cyllama.tts import save_wav16
+        from cyllama import llama_cpp as cy
 
-        if USE_CYTHON_OPTIMIZATIONS:
-            from cyllama.tts import fill_hann_window, save_wav16
+        # Test Hann window using the Cython function directly
+        window = cy.fill_hann_window(10, True)
+        print(f"Hann window test: {len(window)} samples, first value: {window[0]:.6f}")
 
-            # Test Hann window
-            window = fill_hann_window(10, True)
-            print(f"Hann window test: {len(window)} samples, first value: {window[0]:.6f}")
+        # Test WAV saving with dummy data
+        import tempfile
+        import os
+        test_data = [0.1, 0.2, -0.1, -0.2] * 100
+        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp:
+            success = save_wav16(tmp.name, test_data, 24000)
+            file_size = os.path.getsize(tmp.name)
+            print(f"WAV save test: {'SUCCESS' if success else 'FAILED'} ({file_size} bytes)")
+            os.unlink(tmp.name)
 
-            # Test WAV saving with dummy data
-            import tempfile
-            import os
-            test_data = [0.1, 0.2, -0.1, -0.2] * 100
-            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp:
-                success = save_wav16(tmp.name, test_data, 24000)
-                file_size = os.path.getsize(tmp.name)
-                print(f"WAV save test: {'SUCCESS' if success else 'FAILED'} ({file_size} bytes)")
-                os.unlink(tmp.name)
-
-        return True
+        assert True
 
     except Exception as e:
         print(f"Cython optimization test failed: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        assert False, f"Cython optimization test failed: {e}"
 
 if __name__ == "__main__":
     print("=== TTS Logic Tests ===")
