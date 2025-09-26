@@ -327,7 +327,7 @@ class TestEstimateMemoryUsage:
         assert result['kv_cache_mb']['f32'] > result['kv_cache_mb']['f16']
 
 
-@pytest.mark.integration
+# @pytest.mark.integration
 class TestMemoryIntegration:
     """Integration tests that require a real model file."""
 
