@@ -18,7 +18,11 @@ from typing import List, Optional, Dict, Any
 import threading
 
 # Import the whisper module
-from . import whisper_cpp as wh
+try:
+    from . import whisper_cpp as wh
+except ImportError:
+    # When running as script, use absolute import
+    import whisper_cpp as wh
 
 
 class WhisperParams:
