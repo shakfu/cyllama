@@ -1265,9 +1265,28 @@ cdef class LlamaModel:
     cdef public bint verbose
     cdef bint owner
 
+    # Cached property values for performance optimization
+    cdef int _cached_n_embd
+    cdef int _cached_n_layer
+    cdef int _cached_n_head
+    cdef int _cached_n_head_kv
+    cdef int _cached_n_ctx_train
+    cdef uint64_t _cached_n_params
+    cdef uint64_t _cached_size
+    cdef bint _cache_initialized
+
     def __cinit__(self):
         self.ptr = NULL
         self.owner = True
+        self._cache_initialized = False
+        # Initialize cached values to -1/0 to indicate they need to be computed
+        self._cached_n_embd = -1
+        self._cached_n_layer = -1
+        self._cached_n_head = -1
+        self._cached_n_head_kv = -1
+        self._cached_n_ctx_train = -1
+        self._cached_n_params = 0
+        self._cached_size = 0
 
     def __init__(self, path_model: str, params: Optional[LlamaModelParams] = None, verbose: bool = True):
         self.path_model = path_model
@@ -1286,6 +1305,9 @@ cdef class LlamaModel:
         if self.ptr is NULL:
             raise ValueError(f"Failed to load model from file: {path_model}")
 
+        # Initialize property cache after model is loaded
+        self._initialize_cache()
+
     def __dealloc__(self):
         if self.ptr is not NULL and self.owner is True:
             llama.llama_model_free(self.ptr)
@@ -1296,7 +1318,21 @@ cdef class LlamaModel:
         cdef LlamaModel wrapper = LlamaModel.__new__(LlamaModel)
         wrapper.ptr = ptr
         wrapper.owner = owner
+        if ptr is not NULL:
+            wrapper._initialize_cache()
         return wrapper
+
+    cdef void _initialize_cache(self):
+        """Initialize cached property values for performance optimization."""
+        if self.ptr is not NULL and not self._cache_initialized:
+            self._cached_n_embd = llama.llama_model_n_embd(self.ptr)
+            self._cached_n_layer = llama.llama_model_n_layer(self.ptr)
+            self._cached_n_head = llama.llama_model_n_head(self.ptr)
+            self._cached_n_head_kv = llama.llama_model_n_head_kv(self.ptr)
+            self._cached_n_ctx_train = llama.llama_model_n_ctx_train(self.ptr)
+            self._cached_n_params = llama.llama_model_n_params(self.ptr)
+            self._cached_size = llama.llama_model_size(self.ptr)
+            self._cache_initialized = True
 
     @property
     def rope_type(self) -> llama_rope_type:
@@ -1304,22 +1340,32 @@ cdef class LlamaModel:
 
     @property
     def n_ctx_train(self) -> int:
+        if self._cache_initialized:
+            return self._cached_n_ctx_train
         return llama.llama_model_n_ctx_train(self.ptr)
 
     @property
     def n_embd(self) -> int:
+        if self._cache_initialized:
+            return self._cached_n_embd
         return llama.llama_model_n_embd(self.ptr)
 
     @property
     def n_layer(self) -> int:
+        if self._cache_initialized:
+            return self._cached_n_layer
         return llama.llama_model_n_layer(self.ptr)
 
     @property
     def n_head(self) -> int:
+        if self._cache_initialized:
+            return self._cached_n_head
         return llama.llama_model_n_head(self.ptr)
 
     @property
     def n_head_kv(self) -> int:
+        if self._cache_initialized:
+            return self._cached_n_head_kv
         return llama.llama_model_n_head_kv(self.ptr)
 
     @property
@@ -1337,11 +1383,15 @@ cdef class LlamaModel:
     @property
     def size(self) -> int:
         """Returns the total size of all the tensors in the model in bytes"""
+        if self._cache_initialized:
+            return self._cached_size
         return <uint64_t>llama.llama_model_size(self.ptr)
 
     @property
     def n_params(self) -> int:
         """Returns the total number of parameters in the model"""
+        if self._cache_initialized:
+            return self._cached_n_params
         return <uint64_t>llama.llama_model_n_params(self.ptr)
 
     # def get_tensor(self, name: str) -> GgmlTensor:
