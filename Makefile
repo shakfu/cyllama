@@ -11,6 +11,7 @@ WITH_DYLIB = 0
 
 THIRDPARTY := $(PWD)/thirdparty
 LLAMACPP := $(THIRDPARTY)/llama.cpp
+WHISPERCPP := $(THIRDPARTY)/whisper.cpp
 MIN_OSX_VER := -mmacosx-version-min=$(MACOSX_DEPLOYMENT_TARGET)
 
 ifeq ($(WITH_DYLIB),1)
@@ -79,7 +80,7 @@ bind: build/include
 
 .PHONY: test simple test_simple test_main test_retrieve test_model test_llava test_lora \
 		test_platform coverage memray download download_all bump clean reset remake cli \
-		test-cli test-chat test-tts test-llama-tts
+		test-cli test-chat test-tts test-llama-tts test-whisper
 
 test: build
 	uv run pytest -s
@@ -131,6 +132,8 @@ test-llama-tts:
 		-mv models/WavTokenizer-Large-75-F16.gguf \
 		-p "Hello World"
 
+test-whisper:
+	@$(WHISPERCPP)/bin/whisper-cli -m models/ggml-base.en.bin -f samples/jfk.wav
 
 test_main:
 	@g++ -std=c++14 -o build/main \
