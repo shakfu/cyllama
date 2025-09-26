@@ -1,5 +1,6 @@
 from .llama import llama_cpp as cy
 
+
 def simple(model_path: str, prompt: str, ngl: int = 99, n_predict: int = 32, n_ctx: int = None):
     
     # load dynamic backends
