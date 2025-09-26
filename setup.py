@@ -14,7 +14,7 @@ CWD = os.getcwd()
 # VENDOR_DIR = os.path.join(CWD, "build/llama.cpp/vendor")
 # SERVER_PUBLIC_DIR = os.path.join(CWD, "build/llama.cpp/build/tools/server")
 
-VERSION = '0.0.1'
+VERSION = '0.1.5'
 
 PLATFORM = platform.system()
 
