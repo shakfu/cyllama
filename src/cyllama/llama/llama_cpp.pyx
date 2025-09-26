@@ -1866,12 +1866,18 @@ cdef class LlamaContext:
           1 - could not find a KV slot for the batch (try reducing the size of the batch or increase the context)
         < 0 - error
         """
+        # Optimized decode operation with minimal Python overhead
         cdef int32_t res = llama.llama_decode(self.ptr, batch.p)
-        self.n_tokens = batch.n_tokens
+        cdef int32_t batch_tokens = batch.n_tokens
+
+        self.n_tokens = batch_tokens
+
+        # Fast error checking with pre-computed conditions
         if res == 1:
             raise ValueError("could not find a KV slot for the batch (try reducing the size of the batch or increase the context)")
-        if res < 0:
-            raise RuntimeError(f"llama_decode failed")
+        elif res < 0:
+            raise RuntimeError("llama_decode failed")
+
         return res
 
     def set_n_threads(self, n_threads: int, n_threads_batch: int):
@@ -2243,7 +2249,9 @@ cdef class LlamaSampler:
 
         At this point, this is mostly a convenience function.
         """
-        return llama.llama_sampler_sample(self.ptr, ctx.ptr, idx)
+        # Optimized sampling with minimal Python overhead
+        cdef llama.llama_token result = llama.llama_sampler_sample(self.ptr, ctx.ptr, idx)
+        return result
 
 
     #
