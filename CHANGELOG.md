@@ -14,13 +14,84 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 - Security: in case of vulnerabilities.
 
 ---
-## [0.1.x]
 
+## [0.1.x]
 
 ## [0.1.5]
 
+### Added
 
+- **REST API Server Infrastructure**: Complete Python wrapper for llama.cpp server functionality
+  - New `src/cyllama/llama/server.py` module with comprehensive server management capabilities
+  - `ServerConfig` class for complete configuration management of all llama-server parameters
+  - `LlamaServer` class with full subprocess lifecycle management (start, stop, restart, status)
+  - `LlamaServerClient` class providing OpenAI-compatible API client functionality
+  - Automatic binary detection with fallback paths for llama-server executable
+  - Context manager support for automatic server cleanup and resource management
 
+- **OpenAI-Compatible API Support**: Full compatibility with OpenAI API standards
+  - Chat completions endpoint (`/v1/chat/completions`) with streaming support
+  - Embeddings endpoint (`/v1/embeddings`) for vector generation
+  - Models endpoint (`/v1/models`) for available model listing
+  - Health check endpoint (`/health`) for server monitoring
+  - Complete request/response handling with proper error management
+  - Authentication support with API keys and SSL certificates
+
+- **Server Management Features**: Production-ready server control and monitoring
+  - Graceful shutdown with configurable timeouts and fallback force-kill
+  - Health checking and readiness detection with automatic retry logic
+  - Server status monitoring with API readiness detection
+  - Comprehensive logging and error reporting
+  - Support for all llama-server configuration options and parameters
+  - Web UI integration and metrics endpoint support
+
+- **Developer Tools and Examples**: Complete development and integration support
+  - `examples/server_example.py` - Full-featured server demonstration script
+  - `examples/server_simple.py` - Minimal server setup example
+  - Convenience `start_server()` function for quick server initialization
+  - Comprehensive documentation and usage examples
+  - Integration with existing cyllama module structure
+
+- **Comprehensive Testing**: Extensive test coverage for reliability
+  - `tests/test_server.py` with 28 comprehensive test cases covering all functionality
+  - Unit tests for configuration, server lifecycle, and client operations
+  - Integration tests with real model files and llama-server binary
+  - Mock-based testing for edge cases and error conditions
+  - Graceful handling of optional dependencies (requests library)
+  - All tests passing with proper skip behavior for missing dependencies
+
+### Changed
+
+- **Module Structure**: Enhanced cyllama.llama module with server functionality
+  - Added server classes to `src/cyllama/llama/__init__.py` exports
+  - Updated module imports for easy access to server components
+  - Maintained backward compatibility with existing API structure
+
+- **Dependency Management**: Optional dependency handling for enhanced functionality
+  - Graceful degradation when `requests` library is not available
+  - Clear error messages and installation guidance for missing dependencies
+  - Server functionality works without requests (health checking disabled)
+  - Client functionality requires requests with helpful error messages
+
+### Technical Implementation
+
+- **Subprocess Management**: Robust process control and monitoring
+  - Automatic binary discovery across multiple installation paths
+  - Comprehensive parameter translation from Python config to command-line arguments
+  - Process health monitoring with PID tracking and status detection
+  - Proper signal handling for graceful shutdown sequences
+
+- **Error Handling and Reliability**: Production-ready error management
+  - Comprehensive exception handling with descriptive error messages
+  - Timeout handling for server startup and shutdown operations
+  - Resource cleanup and memory management for long-running servers
+  - Proper handling of network connectivity issues and API failures
+
+- **Performance and Scalability**: Optimized for production use cases
+  - Minimal overhead Python wrapper around native llama-server binary
+  - Efficient configuration management with parameter validation
+  - Support for high-performance server configurations and GPU utilization
+  - Integration with existing cyllama performance optimizations
 
 ## [0.1.4]
 
