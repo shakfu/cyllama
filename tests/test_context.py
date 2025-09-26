@@ -1,6 +1,6 @@
 import platform
 
-import cyllama as cy
+import cyllama.llama.llama_cpp as cy
 
 PLATFORM = platform.system()
 

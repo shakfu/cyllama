@@ -18,7 +18,7 @@ VERSION = '0.0.1'
 
 PLATFORM = platform.system()
 
-WITH_WHISPER = os.getenv("WITH_WHISPER", False)
+WITH_WHISPER = os.getenv("WITH_WHISPER", True)
 
 WITH_DYLIB = os.getenv("WITH_DYLIB", False)
 
@@ -34,7 +34,7 @@ EXTRA_LINK_ARGS = []
 EXTRA_OBJECTS = []
 INCLUDE_DIRS = [
     "src/cyllama",
-    "src/cyllama/helpers",
+    "src/cyllama/llama/helpers",
     LLAMACPP_INCLUDE,
     # VENDOR_DIR,
     # SERVER_PUBLIC_DIR,
@@ -139,9 +139,9 @@ common = {
 
 # forces cythonize in this case
 # subprocess.call("cythonize *.pyx", cwd="src/cyllama", shell=True)
-subprocess.call("cythonize llama_cpp.pyx", cwd="src/cyllama", shell=True)
+subprocess.call("cythonize llama_cpp.pyx", cwd="src/cyllama/llama", shell=True)
 if WITH_WHISPER:
-    subprocess.call("cythonize whisper.pyx", cwd="src/cyllama", shell=True)
+    subprocess.call("cythonize whisper_cpp.pyx", cwd="src/cyllama/whisper", shell=True)
 
 
 if not os.path.exists('MANIFEST.in'):
@@ -153,17 +153,17 @@ if not os.path.exists('MANIFEST.in'):
         f.write("exclude src/cyllama/py.typed\n")
 
 extensions = [
-    mk_extension("cyllama.llama_cpp", sources=[
-        "src/cyllama/llama_cpp.pyx",
-        "src/cyllama/helpers/tts.cpp",
+    mk_extension("cyllama.llama.llama_cpp", sources=[
+        "src/cyllama/llama/llama_cpp.pyx",
+        "src/cyllama/llama/helpers/tts.cpp",
         # "build/llama.cpp/tools/server/server.cpp",
     ]),
 ]
 
 if WITH_WHISPER:
     extensions.append(
-        mk_extension("cyllama.whisper", sources=[
-            "src/cyllama/whisper.pyx",
+        mk_extension("cyllama.whisper.whisper_cpp", sources=[
+            "src/cyllama/whisper/whisper_cpp.pyx",
         ])
     )
 

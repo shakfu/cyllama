@@ -1,6 +1,6 @@
-from . import llama_cpp as cy
+from .llama import llama_cpp as cy
 
-def simple(model_path: str, prompt: str, ngl: int = 99, n_predict: int = 32):
+def simple(model_path: str, prompt: str, ngl: int = 99, n_predict: int = 32, n_ctx: int = None):
     
     # load dynamic backends
 
@@ -26,7 +26,10 @@ def simple(model_path: str, prompt: str, ngl: int = 99, n_predict: int = 32):
 
     ctx_params = cy.LlamaContextParams()
     # n_ctx is the context size
-    ctx_params.n_ctx = n_prompt + n_predict - 1
+    if n_ctx is not None:
+        ctx_params.n_ctx = n_ctx
+    else:
+        ctx_params.n_ctx = n_prompt + n_predict - 1
     # n_batch is the maximum number of tokens that can be processed in a single call to llama_decode
     ctx_params.n_batch = n_prompt
     # enable performance counters

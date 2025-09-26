@@ -1,7 +1,7 @@
 # import pytest
 # pytest.skip(allow_module_level=True)
 
-import cyllama as cy
+import cyllama.llama.llama_cpp as cy
 
 
 def test_chat_builtin_templates():

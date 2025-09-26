@@ -1,4 +1,4 @@
-import cyllama as cy
+import cyllama.api as cy
 
 
 def test_lowlevel_simple(model_path):

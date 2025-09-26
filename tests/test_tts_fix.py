@@ -9,7 +9,7 @@ import os
 
 def test_tts_generation():
     """Test TTS generation with 'Hello world' to see if we get clean output"""
-    from cyllama.tts import TTSGenerator
+    from cyllama.llama.tts import TTSGenerator
 
     # Use the existing model files
     ttc_model = "models/tts.gguf"

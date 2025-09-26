@@ -1,4 +1,4 @@
-import cyllama as cy
+import cyllama.llama.llama_cpp as cy
 
 
 

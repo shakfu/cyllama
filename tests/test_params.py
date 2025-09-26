@@ -8,7 +8,7 @@ from pytest import approx
 PLATFORM = platform.system()
 # ARCH = platform.machine()
 
-import cyllama as cy
+import cyllama.llama.llama_cpp as cy
 
 
 def test_default_model_params():

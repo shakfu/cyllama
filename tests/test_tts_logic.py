@@ -9,7 +9,7 @@ sys.path.insert(0, 'src')
 def test_text_processing():
     """Test the text processing functions"""
     try:
-        from cyllama.tts import process_text, prepare_guide_tokens
+        from cyllama.llama.tts import process_text, prepare_guide_tokens
 
         # Test text processing
         test_cases = [
@@ -34,8 +34,8 @@ def test_text_processing():
 def test_cython_optimizations():
     """Test that Cython optimizations are working"""
     try:
-        from cyllama.tts import save_wav16
-        from cyllama import llama_cpp as cy
+        from cyllama.llama.tts import save_wav16
+        from cyllama.llama import llama_cpp as cy
 
         # Test Hann window using the Cython function directly
         window = cy.fill_hann_window(10, True)

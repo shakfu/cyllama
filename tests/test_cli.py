@@ -16,7 +16,7 @@ import pytest
 from pytest_mock import MockerFixture
 
 # Import the CLI module
-from cyllama.cli import LlamaCLI
+from cyllama.llama.cli import LlamaCLI
 
 
 @pytest.fixture
@@ -249,7 +249,7 @@ def test_print_performance_with_timing(cli: LlamaCLI, mocker: MockerFixture):
     cli.n_decode = 50
     
     # Mock the cyllama module
-    mock_cy = mocker.patch('cyllama.cli.cy')
+    mock_cy = mocker.patch('cyllama.llama.cli.cy')
     mock_print = mocker.patch('builtins.print')
     
     mock_cy.ggml_time_us.return_value = 2000000  # 2 seconds total
@@ -297,7 +297,7 @@ def test_tokenize_prompt_non_empty(cli: LlamaCLI, mocker: MockerFixture):
 def test_load_model_basic(cli: LlamaCLI, test_model_path, mocker: MockerFixture):
     """Test basic model loading with mocked cyllama."""
     # Setup mocks
-    mock_cy = mocker.patch('cyllama.cli.cy')
+    mock_cy = mocker.patch('cyllama.llama.cli.cy')
     mocker.patch('builtins.print')
     
     mock_model = mocker.Mock()
@@ -354,7 +354,7 @@ def test_load_model_basic(cli: LlamaCLI, test_model_path, mocker: MockerFixture)
 def test_load_model_failure(cli: LlamaCLI, test_model_path, mocker: MockerFixture):
     """Test model loading failure."""
     # Setup mock to return None (failure)
-    mock_cy = mocker.patch('cyllama.cli.cy')
+    mock_cy = mocker.patch('cyllama.llama.cli.cy')
     mocker.patch('builtins.print')
     mock_exit = mocker.patch('sys.exit', side_effect=SystemExit)
     
@@ -390,7 +390,7 @@ def test_load_model_failure(cli: LlamaCLI, test_model_path, mocker: MockerFixtur
 def test_generate_text_basic(cli, mocker: MockerFixture):
     """Test basic text generation with mocked components."""
     # Setup mocks
-    mock_cy = mocker.patch('cyllama.cli.cy')
+    mock_cy = mocker.patch('cyllama.llama.cli.cy')
     mocker.patch('builtins.print')
     
     mock_vocab = mocker.Mock()
@@ -438,7 +438,7 @@ def test_generate_text_basic(cli, mocker: MockerFixture):
 def test_generate_text_empty_prompt(cli, mocker: MockerFixture):
     """Test text generation with empty prompt."""
     # Setup mocks
-    mocker.patch('cyllama.cli.cy')
+    mocker.patch('cyllama.llama.cli.cy')
     mocker.patch('builtins.print')
     mock_exit = mocker.patch('sys.exit', side_effect=SystemExit)
     
@@ -463,7 +463,7 @@ def test_generate_text_empty_prompt(cli, mocker: MockerFixture):
 def test_generate_text_prompt_too_long(cli, mocker: MockerFixture):
     """Test text generation with prompt too long."""
     # Setup mocks
-    mocker.patch('cyllama.cli.cy')
+    mocker.patch('cyllama.llama.cli.cy')
     mocker.patch('builtins.print')
     mock_exit = mocker.patch('sys.exit', side_effect=SystemExit)
     
