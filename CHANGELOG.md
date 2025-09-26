@@ -17,6 +17,61 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [0.1.x]
 
+## [0.1.4]
+
+### Added
+
+- **GPU Memory Estimation Module**: Advanced memory management and GPU allocation optimization
+  - New `src/cyllama/memory.py` module with sophisticated memory estimation capabilities
+  - `estimate_gpu_layers()` function for intelligent GPU layer allocation across single or multiple GPUs
+  - `estimate_memory_usage()` function for comprehensive memory analysis without GPU constraints
+  - `MemoryEstimate` dataclass for structured memory allocation results
+  - Support for multi-GPU tensor splitting with optimal layer distribution
+
+- **Memory CLI Tool**: Complete command-line interface for memory analysis
+  - `src/cyllama/memory_cli.py` - Interactive memory estimation tool
+  - Memory overview with model parameter analysis and architecture details
+  - GPU allocation estimation with hardware-specific recommendations
+  - Multi-GPU configuration support with tensor split visualization
+  - Human-readable output formatting with size conversions (B/KB/MB/GB)
+  - Performance guidance for optimal hardware utilization
+
+- **Multi-Architecture Support**: Comprehensive model architecture compatibility
+  - LLaMA, Gemma, Qwen2, StableLM, DeepSeek architecture-specific calculations
+  - Automatic fallback handling for unknown architectures
+  - Architecture-aware graph memory computation with optimization factors
+
+- **Advanced Memory Features**: Professional-grade memory management capabilities
+  - Multiple quantization level support (F32, F16, Q4_0, Q8_0, etc.)
+  - KV cache precision options (F16/F32) with memory impact analysis
+  - Context size and batch size memory scaling
+  - Memory safety margins and optimization hints
+  - Projector memory requirements for multimodal models
+
+- **Integration and Testing**: Seamless codebase integration
+  - Added memory estimation functions to main `__init__.py` exports
+  - Comprehensive test suite with unit tests for all core functionality
+  - Mock-based testing for model loading scenarios
+  - Integration tests with real model files
+
+### Changed
+
+- **Module Exports**: Enhanced main module interface
+  - Added `estimate_gpu_layers`, `estimate_memory_usage`, and `MemoryEstimate` to public API
+  - Updated import structure for easy access to memory estimation features
+
+### Technical Implementation
+
+- **xllamacpp Integration**: Adapted best practices from xllamacpp fork analysis
+  - Implemented memory estimation algorithms based on xllamacpp's sophisticated approach
+  - Maintained compatibility with existing cyllama architecture and design principles
+  - Selective integration focusing on memory management without breaking existing functionality
+
+- **Performance Optimization**: Efficient memory calculation algorithms
+  - Architecture-specific memory computation with minimal overhead
+  - Intelligent layer size estimation based on quantization schemes
+  - Optimized graph memory calculations with attention mechanism considerations
+
 
 ## [0.1.3]
 
