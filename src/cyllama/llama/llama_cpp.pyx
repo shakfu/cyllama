@@ -427,31 +427,58 @@ cdef class LlamaBatch:
     #     llama.common_batch_clear(self.p)
 
     def set_batch(self, batch: Sequence[int], n_past: int, logits_all: bool):
-        n_tokens = len(batch)
+        cdef int n_tokens = len(batch)
+        cdef int i
+        cdef int past_pos = n_past
+        cdef bint logits_flag = logits_all
+
         self.p.n_tokens = n_tokens
+
+        # Optimized batch setup loop - core operations can run without GIL
+        with nogil:
+            for i in range(n_tokens):
+                self.p.pos[i] = past_pos + i
+                self.p.seq_id[i][0] = 0
+                self.p.n_seq_id[i] = 1
+                self.p.logits[i] = logits_flag
+
+        # Set tokens (requires GIL for Python sequence access)
         for i in range(n_tokens):
             self.p.token[i] = batch[i]
-            self.p.pos[i] = n_past + i
-            self.p.seq_id[i][0] = 0
-            self.p.n_seq_id[i] = 1
-            self.p.logits[i] = logits_all
+
+        # Ensure last token generates logits
         self.p.logits[n_tokens - 1] = True
 
     def add_sequence(self, batch: Sequence[int], seq_id: int, logits_all: bool):
-        n_tokens = len(batch)
-        n_tokens0 = self.p.n_tokens
+        cdef int n_tokens = len(batch)
+        cdef int n_tokens0 = self.p.n_tokens
+        cdef int i, j
+        cdef int seq_id_val = seq_id
+        cdef bint logits_flag = logits_all
+
         self.p.n_tokens += n_tokens
+
+        # Optimized sequence addition loop - core operations can run without GIL
+        with nogil:
+            for i in range(n_tokens):
+                j = n_tokens0 + i
+                self.p.pos[j] = i
+                self.p.seq_id[j][0] = seq_id_val
+                self.p.n_seq_id[j] = 1
+                self.p.logits[j] = logits_flag
+
+        # Set tokens (requires GIL for Python sequence access)
         for i in range(n_tokens):
             j = n_tokens0 + i
             self.p.token[j] = batch[i]
-            self.p.pos[j] = i
-            self.p.seq_id[j][0] = seq_id
-            self.p.n_seq_id[j] = 1
-            self.p.logits[j] = logits_all
-        self.p.logits[n_tokens - 1] = True
+
+        # Ensure last token generates logits
+        self.p.logits[n_tokens0 + n_tokens - 1] = True
 
     def set_last_logits_to_true(self):
-        self.p.logits[self.p.n_tokens - 1] = True
+        # Simple operation can run without GIL
+        with nogil:
+            self.p.logits[self.p.n_tokens - 1] = True
 
 
 cdef class LlamaModelKvOverride:
@@ -2376,14 +2403,30 @@ def llama_detach_threadpool(LlamaContext ctx):
     llama.llama_detach_threadpool(ctx.ptr)
 
 def llama_batch_get_one(list[int] tokens, int n_past = 0) -> LlamaBatch:
-    """Create a batch using the proper batch API instead of the deprecated llama_batch_get_one"""
+    """Create a batch using the proper batch API with optimized token handling"""
     cdef int32_t n_tokens = <int32_t>len(tokens)
-    # for i in range(n_tokens):
-    #     print(f"tokens[{i}]: {tokens[i]}")
-    
+    cdef int i
+
     # Create a proper batch using the new API
     batch = LlamaBatch(n_tokens=n_tokens, embd=0, n_seq_max=1)
-    batch.set_batch(tokens, n_past=n_past, logits_all=False)
+
+    # Optimized batch creation - set up structure efficiently
+    batch.p.n_tokens = n_tokens
+
+    # Fast setup of positions, sequence IDs, and logits without GIL
+    with nogil:
+        for i in range(n_tokens):
+            batch.p.pos[i] = n_past + i
+            batch.p.seq_id[i][0] = 0
+            batch.p.n_seq_id[i] = 1
+            batch.p.logits[i] = False  # Default to False for all tokens
+        # Last token should generate logits
+        batch.p.logits[n_tokens - 1] = True
+
+    # Set tokens (requires GIL for Python list access)
+    for i in range(n_tokens):
+        batch.p.token[i] = tokens[i]
+
     return batch
 
 def llama_backend_free():
