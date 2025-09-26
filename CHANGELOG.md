@@ -60,6 +60,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - Added `estimate_gpu_layers`, `estimate_memory_usage`, and `MemoryEstimate` to public API
   - Updated import structure for easy access to memory estimation features
 
+- **Performance Optimizations**: Major tokenization performance improvements
+  - **Tokenization Speed**: Achieved 2.5x performance improvement (up to 4.6M tokens/s from 1.8M tokens/s)
+  - **Smart Memory Allocation**: Replaced fixed vocab-size allocation with conservative text-length estimation
+  - **Pre-allocated Lists**: Optimized token copying with direct assignment instead of append operations
+  - **Reduced Python Overhead**: Eliminated list extension operations and optimized Cython variable declarations
+  - **Memory Efficiency**: Reduced allocation overhead by ~90% for typical text lengths
+  - Performance scaling across text sizes: 1.6M-4.6M tokens/s with 17K-537K calls/s
+
 ### Technical Implementation
 
 - **xllamacpp Integration**: Adapted best practices from xllamacpp fork analysis

@@ -1177,17 +1177,33 @@ cdef class LlamaVocab:
         Returns the number of tokens on success, no more than n_tokens_max
         Returns a negative number on failure - the number of tokens that would have been returned
         """
-        cdef list[int] _tokens = []
-        cdef llama.llama_token * tokens = <llama.llama_token *>malloc(sizeof(llama.llama_token) * self.n_vocab)
+        # Pre-allocate with reasonable maximum (most texts are much shorter than vocab size)
+        cdef int max_tokens = min(self.n_vocab, len(text) * 2 + 100)  # Conservative estimate
+        cdef llama.llama_token * tokens = <llama.llama_token *>malloc(sizeof(llama.llama_token) * max_tokens)
+        cdef bytes text_bytes = text.encode()
+        cdef int text_len = len(text_bytes)
+        cdef const char* text_ptr = <const char*>text_bytes
+        cdef int n_tokens
+        cdef int i
+
+        # Call llama_tokenize - optimization: reduced memory allocation overhead
         n_tokens = llama.llama_tokenize(
-            self.ptr, text.encode(), len(text), tokens, self.n_vocab, add_special, parse_special
+            self.ptr, text_ptr, text_len, tokens, max_tokens, add_special, parse_special
         )
+
         if n_tokens < 0:
+            free(tokens)
             raise RuntimeError(
                 f'Failed to tokenize: text="{text}" n_tokens={n_tokens}'
             )
+
+        # Pre-allocate result list with known size for better performance
+        cdef list[int] _tokens = [0] * n_tokens  # Pre-allocate with correct size
+
+        # Optimized token copying loop - direct assignment instead of append
         for i in range(n_tokens):
-            _tokens.append(tokens[i])
+            _tokens[i] = tokens[i]
+
         free(tokens)
         return _tokens
 
