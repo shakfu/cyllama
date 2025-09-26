@@ -21,6 +21,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 ## [0.1.3]
 
 ### Added
+
 - **Whisper Support**: Added Whisper.cpp integration for speech-to-text functionality
   - New `src/cyllama/whisper/` module with Cython bindings for whisper.cpp
   - `whisper_cpp.pyx` - Primary Whisper Cython extension module
@@ -28,7 +29,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - `samples/jfk.wav` - Sample audio file for testing
   - `scripts/download-ggml-model.sh` - Script to download Whisper models
 
+- **Whisper CLI**: Complete Python CLI wrapper equivalent to whisper.cpp CLI
+  - `src/cyllama/whisper/cli.py` - Full command-line interface for speech-to-text
+  - Support for all major whisper.cpp CLI parameters and options
+  - Multiple output formats: TXT, SRT, VTT, CSV, JSON (basic and full), LRC
+  - Audio file loading with automatic resampling to 16kHz
+  - WAV format support for 8, 16, 24, and 32-bit audio files
+  - GPU acceleration support with Metal backend on macOS
+  - Language detection and translation capabilities
+  - Comprehensive argument parsing with help documentation
+
 ### Changed
+
 - **Major Code Restructuring**: Reorganized codebase to support multiple AI modalities
   - Moved LLaMA-specific code to `src/cyllama/llama/` subdirectory
   - Separated Whisper functionality into `src/cyllama/whisper/` subdirectory
@@ -46,10 +58,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - Updated `MANIFEST.in` and `pyproject.toml` for new package structure
 
 ### Fixed
+
 - **Token Decoding**: Fixed `token_to_piece` method corruption issues
   - Resolved text output with replacement characters
   - Proper buffer length handling for token decoding
   - Added error handling for negative return values
+
+- **Whisper Transcription**: Enabled and fixed the `full()` method in Whisper wrapper
+  - Uncommented and activated the main transcription functionality
+  - Fixed Cython compilation issues with proper memory view handling
+  - Corrected import paths for whisper.pxd module
+  - Proper error handling for transcription failures
 
 ## [0.1.2]
 

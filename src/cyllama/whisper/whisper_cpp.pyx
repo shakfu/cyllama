@@ -2,7 +2,7 @@
 
 from libc.stdlib cimport malloc, calloc, realloc, free
 
-cimport whisper as wh
+from . cimport whisper as wh
 
 # Constants
 class WHISPER:
@@ -493,20 +493,22 @@ cdef class WhisperContext:
         if result != 0:
             raise RuntimeError(f"Encoding failed with error {result}")
 
-    # def full(self, samples, WhisperFullParams params=None):
-    #     cdef const float * c_samples = NULL
-    #     cdef int n_samples = 0
-    #     cdef int result = 0
+    def full(self, samples, WhisperFullParams params=None):
+        cdef const float * c_samples = NULL
+        cdef int n_samples = 0
+        cdef int result = 0
 
-    #     if params is None:
-    #         params = WhisperFullParams()
+        if params is None:
+            params = WhisperFullParams()
 
-    #     c_samples = <const float *>(<float[::1]>samples).data
-    #     n_samples = len(samples)
+        cdef float[::1] samples_view = samples
+        c_samples = &samples_view[0]
+        n_samples = len(samples)
 
-    #     result = whisper_full(self._c_ctx, params._c_params, c_samples, n_samples)
-    #     if result != 0:
-    #         raise RuntimeError(f"Whisper full processing failed with error {result}")
+        result = wh.whisper_full(self._c_ctx, params._c_params, c_samples, n_samples)
+        if result != 0:
+            raise RuntimeError(f"Whisper full processing failed with error {result}")
+        return result
 
     def full_n_segments(self):
         return wh.whisper_full_n_segments(self._c_ctx)
