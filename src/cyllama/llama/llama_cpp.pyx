@@ -106,6 +106,227 @@ cdef cppbool progress_callback(float progress, void * py_progress_callback) noex
     return (<object>py_progress_callback)(progress)
 
 
+# Memory Pool System for Performance Optimization
+# ==============================================
+
+cdef class TokenMemoryPool:
+    """Memory pool for efficient token list reuse
+
+    Reduces frequent small allocations by maintaining pools of
+    reusable token lists for common sizes.
+    """
+    cdef dict _pools          # dict[int, list] - pools by size
+    cdef dict _usage_count   # dict[int, int] - usage statistics
+    cdef int _max_pool_size  # maximum items per pool
+    cdef int _max_token_size # maximum token list size to pool
+
+    def __init__(self, max_pool_size: int = 10, max_token_size: int = 1024):
+        """Initialize token memory pool
+
+        Args:
+            max_pool_size: Maximum number of lists to cache per size
+            max_token_size: Maximum token list size to pool (larger allocations not pooled)
+        """
+        self._pools = {}
+        self._usage_count = {}
+        self._max_pool_size = max_pool_size
+        self._max_token_size = max_token_size
+
+        # Pre-populate pools for common sizes
+        common_sizes = [8, 16, 32, 64, 128, 256, 512]
+        for size in common_sizes:
+            if size <= max_token_size:
+                self._pools[size] = []
+
+    cdef list[int] get_token_list(self, int size):
+        """Get a reusable token list of specified size
+
+        Returns either a pooled list or creates a new one if pool is empty.
+        """
+        cdef list[int] token_list
+
+        # Don't pool very large allocations
+        if size > self._max_token_size:
+            return [0] * size
+
+        # Track usage for this size
+        self._usage_count[size] = self._usage_count.get(size, 0) + 1
+
+        # Try to get from pool
+        if size in self._pools and self._pools[size]:
+            token_list = self._pools[size].pop()
+            # Ensure correct size (lists may have been resized)
+            if len(token_list) != size:
+                token_list = [0] * size
+            else:
+                # Clear existing data
+                for i in range(size):
+                    token_list[i] = 0
+            return token_list
+        else:
+            # Create new list
+            return [0] * size
+
+    cdef void return_token_list(self, list[int] token_list):
+        """Return a token list to the pool for reuse
+
+        Args:
+            token_list: Token list to return to pool
+        """
+        cdef int size = len(token_list)
+
+        # Don't pool very large allocations
+        if size > self._max_token_size:
+            return
+
+        # Initialize pool for this size if needed
+        if size not in self._pools:
+            self._pools[size] = []
+
+        # Only pool if under the limit
+        if len(self._pools[size]) < self._max_pool_size:
+            self._pools[size].append(token_list)
+
+    def get_stats(self):
+        """Get pool usage statistics"""
+        stats = {
+            "pool_sizes": {size: len(pool) for size, pool in self._pools.items()},
+            "usage_count": dict(self._usage_count),
+            "total_pools": len(self._pools),
+            "total_pooled_lists": sum(len(pool) for pool in self._pools.values())
+        }
+        return stats
+
+# Global token memory pool instance
+cdef TokenMemoryPool _global_token_pool = TokenMemoryPool()
+
+def get_token_pool_stats():
+    """Get statistics from the global token memory pool"""
+    return _global_token_pool.get_stats()
+
+def reset_token_pool():
+    """Reset the global token memory pool (useful for testing)"""
+    global _global_token_pool
+    _global_token_pool = TokenMemoryPool()
+
+cdef class BatchMemoryPool:
+    """Memory pool for efficient LlamaBatch reuse
+
+    Reduces frequent batch object allocations by maintaining pools of
+    reusable batch objects for common configurations.
+    """
+    cdef dict _pools          # dict[tuple, list] - pools by (n_tokens, embd, n_seq_max)
+    cdef dict _usage_count   # dict[tuple, int] - usage statistics
+    cdef int _max_pool_size  # maximum items per pool
+    cdef int _max_batch_size # maximum batch size to pool
+
+    def __init__(self, max_pool_size: int = 5, max_batch_size: int = 512):
+        """Initialize batch memory pool
+
+        Args:
+            max_pool_size: Maximum number of batches to cache per configuration
+            max_batch_size: Maximum batch size to pool (larger allocations not pooled)
+        """
+        self._pools = {}
+        self._usage_count = {}
+        self._max_pool_size = max_pool_size
+        self._max_batch_size = max_batch_size
+
+    cdef LlamaBatch get_batch(self, int n_tokens, int embd, int n_seq_max):
+        """Get a reusable batch of specified configuration
+
+        Returns either a pooled batch or creates a new one if pool is empty.
+        """
+        cdef tuple key = (n_tokens, embd, n_seq_max)
+        cdef LlamaBatch batch
+
+        # Don't pool very large allocations
+        if n_tokens > self._max_batch_size:
+            return LlamaBatch(n_tokens=n_tokens, embd=embd, n_seq_max=n_seq_max)
+
+        # Track usage for this configuration
+        self._usage_count[key] = self._usage_count.get(key, 0) + 1
+
+        # Try to get from pool
+        if key in self._pools and self._pools[key]:
+            batch = self._pools[key].pop()
+            # Reset batch state for reuse
+            batch._n_tokens = n_tokens
+            batch.p.n_tokens = 0  # Will be set by user
+            return batch
+        else:
+            # Create new batch
+            return LlamaBatch(n_tokens=n_tokens, embd=embd, n_seq_max=n_seq_max)
+
+    cdef void return_batch(self, LlamaBatch batch):
+        """Return a batch to the pool for reuse
+
+        Args:
+            batch: Batch object to return to pool
+        """
+        cdef tuple key = (batch._n_tokens, batch.embd, batch.n_seq_max)
+
+        # Don't pool very large allocations
+        if batch._n_tokens > self._max_batch_size:
+            return
+
+        # Initialize pool for this configuration if needed
+        if key not in self._pools:
+            self._pools[key] = []
+
+        # Only pool if under the limit
+        if len(self._pools[key]) < self._max_pool_size:
+            self._pools[key].append(batch)
+
+    def get_stats(self):
+        """Get pool usage statistics"""
+        stats = {
+            "pool_configs": {str(config): len(pool) for config, pool in self._pools.items()},
+            "usage_count": {str(config): count for config, count in self._usage_count.items()},
+            "total_pools": len(self._pools),
+            "total_pooled_batches": sum(len(pool) for pool in self._pools.values())
+        }
+        return stats
+
+# Global batch memory pool instance
+cdef BatchMemoryPool _global_batch_pool = BatchMemoryPool()
+
+def get_batch_pool_stats():
+    """Get statistics from the global batch memory pool"""
+    return _global_batch_pool.get_stats()
+
+def reset_batch_pool():
+    """Reset the global batch memory pool (useful for testing)"""
+    global _global_batch_pool
+    _global_batch_pool = BatchMemoryPool()
+
+def return_batch_to_pool(LlamaBatch batch):
+    """Return a batch to the memory pool for reuse
+
+    This should be called when a batch is no longer needed to allow
+    it to be reused, reducing memory allocation overhead.
+
+    Args:
+        batch: The LlamaBatch object to return to the pool
+    """
+    _global_batch_pool.return_batch(batch)
+
+def get_pooled_batch(int n_tokens, int embd = 0, int n_seq_max = 1) -> LlamaBatch:
+    """Get a batch from the memory pool
+
+    This is an alternative to LlamaBatch() constructor that uses pooling
+    for better performance on frequently allocated batch sizes.
+
+    Args:
+        n_tokens: Number of tokens in the batch
+        embd: Embedding dimension (0 for token mode)
+        n_seq_max: Maximum number of sequences
+
+    Returns:
+        A LlamaBatch object (either from pool or newly created)
+    """
+    return _global_batch_pool.get_batch(n_tokens, embd, n_seq_max)
+
 # high-level api
 # -----------------------------------------------------------------------------
 
@@ -1224,8 +1445,12 @@ cdef class LlamaVocab:
                 f'Failed to tokenize: text="{text}" n_tokens={n_tokens}'
             )
 
+        # OLD WAY
         # Pre-allocate result list with known size for better performance
-        cdef list[int] _tokens = [0] * n_tokens  # Pre-allocate with correct size
+        # cdef list[int] _tokens = [0] * n_tokens  # Pre-allocate with correct size
+
+        # Get token list from memory pool for better performance
+        cdef list[int] _tokens = _global_token_pool.get_token_list(n_tokens)
 
         # Optimized token copying loop - direct assignment instead of append
         for i in range(n_tokens):
@@ -2411,12 +2636,16 @@ def llama_detach_threadpool(LlamaContext ctx):
     llama.llama_detach_threadpool(ctx.ptr)
 
 def llama_batch_get_one(list[int] tokens, int n_past = 0) -> LlamaBatch:
-    """Create a batch using the proper batch API with optimized token handling"""
+    """Create a batch using the proper batch API with optimized token handling and memory pooling"""
     cdef int32_t n_tokens = <int32_t>len(tokens)
     cdef int i
 
+    # OLD WAY
     # Create a proper batch using the new API
-    batch = LlamaBatch(n_tokens=n_tokens, embd=0, n_seq_max=1)
+    # batch = LlamaBatch(n_tokens=n_tokens, embd=0, n_seq_max=1)
+
+    # Get batch from memory pool for better performance
+    batch = _global_batch_pool.get_batch(n_tokens, 0, 1)
 
     # Optimized batch creation - set up structure efficiently
     batch.p.n_tokens = n_tokens

@@ -30,7 +30,6 @@ class MemoryEstimate:
 
 def get_file_host_endian(file_path: Union[str, Path]) -> Tuple[str, str]:
     """Determine file and host endianness."""
-    import sys
 
     # Host endianness
     host_endian = 'little' if sys.byteorder == 'little' else 'big'
