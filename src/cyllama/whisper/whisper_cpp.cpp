@@ -1563,15 +1563,16 @@ struct __pyx_obj_7cyllama_7whisper_11whisper_cpp_WhisperVadParams {
  * 
  * cdef class WhisperFullParams:             # <<<<<<<<<<<<<<
  *     cdef wh.whisper_full_params _c_params
- * 
+ *     cdef bytes _language_bytes  # Keep bytes object alive for language parameter
 */
 struct __pyx_obj_7cyllama_7whisper_11whisper_cpp_WhisperFullParams {
   PyObject_HEAD
   whisper_full_params _c_params;
+  PyObject *_language_bytes;
 };
 
 
-/* "cyllama/whisper/whisper_cpp.pyx":282
+/* "cyllama/whisper/whisper_cpp.pyx":285
  * 
  * 
  * cdef class WhisperTokenData:             # <<<<<<<<<<<<<<
@@ -1584,7 +1585,7 @@ struct __pyx_obj_7cyllama_7whisper_11whisper_cpp_WhisperTokenData {
 };
 
 
-/* "cyllama/whisper/whisper_cpp.pyx":329
+/* "cyllama/whisper/whisper_cpp.pyx":332
  * 
  * 
  * cdef class WhisperContext:             # <<<<<<<<<<<<<<
@@ -1597,7 +1598,7 @@ struct __pyx_obj_7cyllama_7whisper_11whisper_cpp_WhisperContext {
 };
 
 
-/* "cyllama/whisper/whisper_cpp.pyx":557
+/* "cyllama/whisper/whisper_cpp.pyx":560
  *         wh.whisper_reset_timings(self._c_ctx)
  * 
  * cdef class WhisperState:             # <<<<<<<<<<<<<<
@@ -1942,18 +1943,21 @@ static CYTHON_INLINE PyObject* __Pyx_decode_c_string(
          const char* encoding, const char* errors,
          PyObject* (*decode_func)(const char *s, Py_ssize_t size, const char *errors));
 
-/* ArgTypeTest.proto */
-#define __Pyx_ArgTypeTest(obj, type, none_allowed, name, exact)\
-    ((likely(__Pyx_IS_TYPE(obj, type) | (none_allowed && (obj == Py_None)))) ? 1 :\
-        __Pyx__ArgTypeTest(obj, type, name, exact))
-static int __Pyx__ArgTypeTest(PyObject *obj, PyTypeObject *type, const char *name, int exact);
-
 /* PyObjectFastCallMethod.proto */
 #if CYTHON_VECTORCALL && PY_VERSION_HEX >= 0x03090000
 #define __Pyx_PyObject_FastCallMethod(name, args, nargsf) PyObject_VectorcallMethod(name, args, nargsf, NULL)
 #else
 static PyObject *__Pyx_PyObject_FastCallMethod(PyObject *name, PyObject *const *args, size_t nargsf);
 #endif
+
+/* RaiseUnexpectedTypeError.proto */
+static int __Pyx_RaiseUnexpectedTypeError(const char *expected, PyObject *obj);
+
+/* ArgTypeTest.proto */
+#define __Pyx_ArgTypeTest(obj, type, none_allowed, name, exact)\
+    ((likely(__Pyx_IS_TYPE(obj, type) | (none_allowed && (obj == Py_None)))) ? 1 :\
+        __Pyx__ArgTypeTest(obj, type, name, exact))
+static int __Pyx__ArgTypeTest(PyObject *obj, PyTypeObject *type, const char *name, int exact);
 
 /* PyObjectFormatSimple.proto */
 #if CYTHON_COMPILING_IN_PYPY
@@ -5065,12 +5069,12 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_16WhisperVadParams_4__
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":144
- *     cdef wh.whisper_full_params _c_params
+/* "cyllama/whisper/whisper_cpp.pyx":145
+ *     cdef bytes _language_bytes  # Keep bytes object alive for language parameter
  * 
  *     def __init__(self, strategy=wh.WHISPER_SAMPLING_GREEDY):             # <<<<<<<<<<<<<<
  *         self._c_params = wh.whisper_full_default_params(strategy)
- * 
+ *         self._language_bytes = None
 */
 
 /* Python wrapper */
@@ -5095,24 +5099,24 @@ static int __pyx_pw_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_1__init_
   {
     PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_strategy,0};
     const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_VARARGS(__pyx_kwds) : 0;
-    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 144, __pyx_L3_error)
+    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 145, __pyx_L3_error)
     if (__pyx_kwds_len > 0) {
       switch (__pyx_nargs) {
         case  1:
         values[0] = __Pyx_ArgRef_VARARGS(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 144, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 145, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  0: break;
         default: goto __pyx_L5_argtuple_error;
       }
       const Py_ssize_t kwd_pos_args = __pyx_nargs;
-      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "__init__", 0) < 0) __PYX_ERR(0, 144, __pyx_L3_error)
+      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "__init__", 0) < 0) __PYX_ERR(0, 145, __pyx_L3_error)
       if (!values[0]) values[0] = __Pyx_NewRef(__pyx_mstate_global->__pyx_k_);
     } else {
       switch (__pyx_nargs) {
         case  1:
         values[0] = __Pyx_ArgRef_VARARGS(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 144, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 145, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  0: break;
         default: goto __pyx_L5_argtuple_error;
@@ -5123,7 +5127,7 @@ static int __pyx_pw_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_1__init_
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("__init__", 0, 0, 1, __pyx_nargs); __PYX_ERR(0, 144, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("__init__", 0, 0, 1, __pyx_nargs); __PYX_ERR(0, 145, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -5146,27 +5150,42 @@ static int __pyx_pw_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_1__init_
 
 static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams___init__(struct __pyx_obj_7cyllama_7whisper_11whisper_cpp_WhisperFullParams *__pyx_v_self, PyObject *__pyx_v_strategy) {
   int __pyx_r;
+  __Pyx_RefNannyDeclarations
   whisper_sampling_strategy __pyx_t_1;
   int __pyx_lineno = 0;
   const char *__pyx_filename = NULL;
   int __pyx_clineno = 0;
+  __Pyx_RefNannySetupContext("__init__", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":145
+  /* "cyllama/whisper/whisper_cpp.pyx":146
  * 
  *     def __init__(self, strategy=wh.WHISPER_SAMPLING_GREEDY):
  *         self._c_params = wh.whisper_full_default_params(strategy)             # <<<<<<<<<<<<<<
+ *         self._language_bytes = None
+ * 
+*/
+  __pyx_t_1 = ((whisper_sampling_strategy)__Pyx_PyLong_As_whisper_sampling_strategy(__pyx_v_strategy)); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 146, __pyx_L1_error)
+  __pyx_v_self->_c_params = whisper_full_default_params(__pyx_t_1);
+
+  /* "cyllama/whisper/whisper_cpp.pyx":147
+ *     def __init__(self, strategy=wh.WHISPER_SAMPLING_GREEDY):
+ *         self._c_params = wh.whisper_full_default_params(strategy)
+ *         self._language_bytes = None             # <<<<<<<<<<<<<<
  * 
  *     @property
 */
-  __pyx_t_1 = ((whisper_sampling_strategy)__Pyx_PyLong_As_whisper_sampling_strategy(__pyx_v_strategy)); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 145, __pyx_L1_error)
-  __pyx_v_self->_c_params = whisper_full_default_params(__pyx_t_1);
+  __Pyx_INCREF(Py_None);
+  __Pyx_GIVEREF(Py_None);
+  __Pyx_GOTREF(__pyx_v_self->_language_bytes);
+  __Pyx_DECREF(__pyx_v_self->_language_bytes);
+  __pyx_v_self->_language_bytes = ((PyObject*)Py_None);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":144
- *     cdef wh.whisper_full_params _c_params
+  /* "cyllama/whisper/whisper_cpp.pyx":145
+ *     cdef bytes _language_bytes  # Keep bytes object alive for language parameter
  * 
  *     def __init__(self, strategy=wh.WHISPER_SAMPLING_GREEDY):             # <<<<<<<<<<<<<<
  *         self._c_params = wh.whisper_full_default_params(strategy)
- * 
+ *         self._language_bytes = None
 */
 
   /* function exit code */
@@ -5176,11 +5195,12 @@ static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams___init__
   __Pyx_AddTraceback("cyllama.whisper.whisper_cpp.WhisperFullParams.__init__", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __pyx_r = -1;
   __pyx_L0:;
+  __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":147
- *         self._c_params = wh.whisper_full_default_params(strategy)
+/* "cyllama/whisper/whisper_cpp.pyx":149
+ *         self._language_bytes = None
  * 
  *     @property             # <<<<<<<<<<<<<<
  *     def strategy(self):
@@ -5211,7 +5231,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_8s
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("__get__", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":149
+  /* "cyllama/whisper/whisper_cpp.pyx":151
  *     @property
  *     def strategy(self):
  *         return self._c_params.strategy             # <<<<<<<<<<<<<<
@@ -5219,14 +5239,14 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_8s
  *     @strategy.setter
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_whisper_sampling_strategy(__pyx_v_self->_c_params.strategy); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 149, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_whisper_sampling_strategy(__pyx_v_self->_c_params.strategy); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 151, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":147
- *         self._c_params = wh.whisper_full_default_params(strategy)
+  /* "cyllama/whisper/whisper_cpp.pyx":149
+ *         self._language_bytes = None
  * 
  *     @property             # <<<<<<<<<<<<<<
  *     def strategy(self):
@@ -5244,7 +5264,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_8s
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":151
+/* "cyllama/whisper/whisper_cpp.pyx":153
  *         return self._c_params.strategy
  * 
  *     @strategy.setter             # <<<<<<<<<<<<<<
@@ -5265,7 +5285,7 @@ static int __pyx_pw_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_8strateg
   __Pyx_RefNannySetupContext("__set__ (wrapper)", 0);
   __pyx_kwvalues = __Pyx_KwValues_VARARGS(__pyx_args, __pyx_nargs);
   assert(__pyx_arg_value); {
-    __pyx_v_value = ((whisper_sampling_strategy)__Pyx_PyLong_As_whisper_sampling_strategy(__pyx_arg_value)); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 152, __pyx_L3_error)
+    __pyx_v_value = ((whisper_sampling_strategy)__Pyx_PyLong_As_whisper_sampling_strategy(__pyx_arg_value)); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 154, __pyx_L3_error)
   }
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -5283,7 +5303,7 @@ static int __pyx_pw_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_8strateg
 static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_8strategy_2__set__(struct __pyx_obj_7cyllama_7whisper_11whisper_cpp_WhisperFullParams *__pyx_v_self, whisper_sampling_strategy __pyx_v_value) {
   int __pyx_r;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":153
+  /* "cyllama/whisper/whisper_cpp.pyx":155
  *     @strategy.setter
  *     def strategy(self, wh.whisper_sampling_strategy value):
  *         self._c_params.strategy = value             # <<<<<<<<<<<<<<
@@ -5292,7 +5312,7 @@ static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_8strateg
 */
   __pyx_v_self->_c_params.strategy = __pyx_v_value;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":151
+  /* "cyllama/whisper/whisper_cpp.pyx":153
  *         return self._c_params.strategy
  * 
  *     @strategy.setter             # <<<<<<<<<<<<<<
@@ -5305,7 +5325,7 @@ static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_8strateg
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":155
+/* "cyllama/whisper/whisper_cpp.pyx":157
  *         self._c_params.strategy = value
  * 
  *     @property             # <<<<<<<<<<<<<<
@@ -5337,7 +5357,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_9n
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("__get__", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":157
+  /* "cyllama/whisper/whisper_cpp.pyx":159
  *     @property
  *     def n_threads(self):
  *         return self._c_params.n_threads             # <<<<<<<<<<<<<<
@@ -5345,13 +5365,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_9n
  *     @n_threads.setter
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_int(__pyx_v_self->_c_params.n_threads); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 157, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int(__pyx_v_self->_c_params.n_threads); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 159, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":155
+  /* "cyllama/whisper/whisper_cpp.pyx":157
  *         self._c_params.strategy = value
  * 
  *     @property             # <<<<<<<<<<<<<<
@@ -5370,7 +5390,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_9n
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":159
+/* "cyllama/whisper/whisper_cpp.pyx":161
  *         return self._c_params.n_threads
  * 
  *     @n_threads.setter             # <<<<<<<<<<<<<<
@@ -5391,7 +5411,7 @@ static int __pyx_pw_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_9n_threa
   __Pyx_RefNannySetupContext("__set__ (wrapper)", 0);
   __pyx_kwvalues = __Pyx_KwValues_VARARGS(__pyx_args, __pyx_nargs);
   assert(__pyx_arg_value); {
-    __pyx_v_value = __Pyx_PyLong_As_int(__pyx_arg_value); if (unlikely((__pyx_v_value == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 160, __pyx_L3_error)
+    __pyx_v_value = __Pyx_PyLong_As_int(__pyx_arg_value); if (unlikely((__pyx_v_value == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 162, __pyx_L3_error)
   }
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -5409,7 +5429,7 @@ static int __pyx_pw_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_9n_threa
 static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_9n_threads_2__set__(struct __pyx_obj_7cyllama_7whisper_11whisper_cpp_WhisperFullParams *__pyx_v_self, int __pyx_v_value) {
   int __pyx_r;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":161
+  /* "cyllama/whisper/whisper_cpp.pyx":163
  *     @n_threads.setter
  *     def n_threads(self, int value):
  *         self._c_params.n_threads = value             # <<<<<<<<<<<<<<
@@ -5418,7 +5438,7 @@ static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_9n_threa
 */
   __pyx_v_self->_c_params.n_threads = __pyx_v_value;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":159
+  /* "cyllama/whisper/whisper_cpp.pyx":161
  *         return self._c_params.n_threads
  * 
  *     @n_threads.setter             # <<<<<<<<<<<<<<
@@ -5431,7 +5451,7 @@ static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_9n_threa
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":163
+/* "cyllama/whisper/whisper_cpp.pyx":165
  *         self._c_params.n_threads = value
  * 
  *     @property             # <<<<<<<<<<<<<<
@@ -5463,7 +5483,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_14
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("__get__", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":165
+  /* "cyllama/whisper/whisper_cpp.pyx":167
  *     @property
  *     def n_max_text_ctx(self):
  *         return self._c_params.n_max_text_ctx             # <<<<<<<<<<<<<<
@@ -5471,13 +5491,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_14
  *     @n_max_text_ctx.setter
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_int(__pyx_v_self->_c_params.n_max_text_ctx); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 165, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int(__pyx_v_self->_c_params.n_max_text_ctx); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 167, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":163
+  /* "cyllama/whisper/whisper_cpp.pyx":165
  *         self._c_params.n_threads = value
  * 
  *     @property             # <<<<<<<<<<<<<<
@@ -5496,7 +5516,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_14
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":167
+/* "cyllama/whisper/whisper_cpp.pyx":169
  *         return self._c_params.n_max_text_ctx
  * 
  *     @n_max_text_ctx.setter             # <<<<<<<<<<<<<<
@@ -5517,7 +5537,7 @@ static int __pyx_pw_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_14n_max_
   __Pyx_RefNannySetupContext("__set__ (wrapper)", 0);
   __pyx_kwvalues = __Pyx_KwValues_VARARGS(__pyx_args, __pyx_nargs);
   assert(__pyx_arg_value); {
-    __pyx_v_value = __Pyx_PyLong_As_int(__pyx_arg_value); if (unlikely((__pyx_v_value == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 168, __pyx_L3_error)
+    __pyx_v_value = __Pyx_PyLong_As_int(__pyx_arg_value); if (unlikely((__pyx_v_value == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 170, __pyx_L3_error)
   }
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -5535,7 +5555,7 @@ static int __pyx_pw_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_14n_max_
 static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_14n_max_text_ctx_2__set__(struct __pyx_obj_7cyllama_7whisper_11whisper_cpp_WhisperFullParams *__pyx_v_self, int __pyx_v_value) {
   int __pyx_r;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":169
+  /* "cyllama/whisper/whisper_cpp.pyx":171
  *     @n_max_text_ctx.setter
  *     def n_max_text_ctx(self, int value):
  *         self._c_params.n_max_text_ctx = value             # <<<<<<<<<<<<<<
@@ -5544,7 +5564,7 @@ static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_14n_max_
 */
   __pyx_v_self->_c_params.n_max_text_ctx = __pyx_v_value;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":167
+  /* "cyllama/whisper/whisper_cpp.pyx":169
  *         return self._c_params.n_max_text_ctx
  * 
  *     @n_max_text_ctx.setter             # <<<<<<<<<<<<<<
@@ -5557,7 +5577,7 @@ static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_14n_max_
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":171
+/* "cyllama/whisper/whisper_cpp.pyx":173
  *         self._c_params.n_max_text_ctx = value
  * 
  *     @property             # <<<<<<<<<<<<<<
@@ -5589,7 +5609,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_9o
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("__get__", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":173
+  /* "cyllama/whisper/whisper_cpp.pyx":175
  *     @property
  *     def offset_ms(self):
  *         return self._c_params.offset_ms             # <<<<<<<<<<<<<<
@@ -5597,13 +5617,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_9o
  *     @offset_ms.setter
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_int(__pyx_v_self->_c_params.offset_ms); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 173, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int(__pyx_v_self->_c_params.offset_ms); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 175, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":171
+  /* "cyllama/whisper/whisper_cpp.pyx":173
  *         self._c_params.n_max_text_ctx = value
  * 
  *     @property             # <<<<<<<<<<<<<<
@@ -5622,7 +5642,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_9o
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":175
+/* "cyllama/whisper/whisper_cpp.pyx":177
  *         return self._c_params.offset_ms
  * 
  *     @offset_ms.setter             # <<<<<<<<<<<<<<
@@ -5643,7 +5663,7 @@ static int __pyx_pw_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_9offset_
   __Pyx_RefNannySetupContext("__set__ (wrapper)", 0);
   __pyx_kwvalues = __Pyx_KwValues_VARARGS(__pyx_args, __pyx_nargs);
   assert(__pyx_arg_value); {
-    __pyx_v_value = __Pyx_PyLong_As_int(__pyx_arg_value); if (unlikely((__pyx_v_value == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 176, __pyx_L3_error)
+    __pyx_v_value = __Pyx_PyLong_As_int(__pyx_arg_value); if (unlikely((__pyx_v_value == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 178, __pyx_L3_error)
   }
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -5661,7 +5681,7 @@ static int __pyx_pw_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_9offset_
 static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_9offset_ms_2__set__(struct __pyx_obj_7cyllama_7whisper_11whisper_cpp_WhisperFullParams *__pyx_v_self, int __pyx_v_value) {
   int __pyx_r;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":177
+  /* "cyllama/whisper/whisper_cpp.pyx":179
  *     @offset_ms.setter
  *     def offset_ms(self, int value):
  *         self._c_params.offset_ms = value             # <<<<<<<<<<<<<<
@@ -5670,7 +5690,7 @@ static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_9offset_
 */
   __pyx_v_self->_c_params.offset_ms = __pyx_v_value;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":175
+  /* "cyllama/whisper/whisper_cpp.pyx":177
  *         return self._c_params.offset_ms
  * 
  *     @offset_ms.setter             # <<<<<<<<<<<<<<
@@ -5683,7 +5703,7 @@ static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_9offset_
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":179
+/* "cyllama/whisper/whisper_cpp.pyx":181
  *         self._c_params.offset_ms = value
  * 
  *     @property             # <<<<<<<<<<<<<<
@@ -5715,7 +5735,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_11
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("__get__", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":181
+  /* "cyllama/whisper/whisper_cpp.pyx":183
  *     @property
  *     def duration_ms(self):
  *         return self._c_params.duration_ms             # <<<<<<<<<<<<<<
@@ -5723,13 +5743,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_11
  *     @duration_ms.setter
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_int(__pyx_v_self->_c_params.duration_ms); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 181, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int(__pyx_v_self->_c_params.duration_ms); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 183, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":179
+  /* "cyllama/whisper/whisper_cpp.pyx":181
  *         self._c_params.offset_ms = value
  * 
  *     @property             # <<<<<<<<<<<<<<
@@ -5748,7 +5768,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_11
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":183
+/* "cyllama/whisper/whisper_cpp.pyx":185
  *         return self._c_params.duration_ms
  * 
  *     @duration_ms.setter             # <<<<<<<<<<<<<<
@@ -5769,7 +5789,7 @@ static int __pyx_pw_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_11durati
   __Pyx_RefNannySetupContext("__set__ (wrapper)", 0);
   __pyx_kwvalues = __Pyx_KwValues_VARARGS(__pyx_args, __pyx_nargs);
   assert(__pyx_arg_value); {
-    __pyx_v_value = __Pyx_PyLong_As_int(__pyx_arg_value); if (unlikely((__pyx_v_value == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 184, __pyx_L3_error)
+    __pyx_v_value = __Pyx_PyLong_As_int(__pyx_arg_value); if (unlikely((__pyx_v_value == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 186, __pyx_L3_error)
   }
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -5787,7 +5807,7 @@ static int __pyx_pw_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_11durati
 static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_11duration_ms_2__set__(struct __pyx_obj_7cyllama_7whisper_11whisper_cpp_WhisperFullParams *__pyx_v_self, int __pyx_v_value) {
   int __pyx_r;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":185
+  /* "cyllama/whisper/whisper_cpp.pyx":187
  *     @duration_ms.setter
  *     def duration_ms(self, int value):
  *         self._c_params.duration_ms = value             # <<<<<<<<<<<<<<
@@ -5796,7 +5816,7 @@ static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_11durati
 */
   __pyx_v_self->_c_params.duration_ms = __pyx_v_value;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":183
+  /* "cyllama/whisper/whisper_cpp.pyx":185
  *         return self._c_params.duration_ms
  * 
  *     @duration_ms.setter             # <<<<<<<<<<<<<<
@@ -5809,7 +5829,7 @@ static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_11durati
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":187
+/* "cyllama/whisper/whisper_cpp.pyx":189
  *         self._c_params.duration_ms = value
  * 
  *     @property             # <<<<<<<<<<<<<<
@@ -5841,7 +5861,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_9t
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("__get__", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":189
+  /* "cyllama/whisper/whisper_cpp.pyx":191
  *     @property
  *     def translate(self):
  *         return self._c_params.translate             # <<<<<<<<<<<<<<
@@ -5849,13 +5869,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_9t
  *     @translate.setter
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyBool_FromLong(__pyx_v_self->_c_params.translate); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 189, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyBool_FromLong(__pyx_v_self->_c_params.translate); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 191, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":187
+  /* "cyllama/whisper/whisper_cpp.pyx":189
  *         self._c_params.duration_ms = value
  * 
  *     @property             # <<<<<<<<<<<<<<
@@ -5874,7 +5894,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_9t
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":191
+/* "cyllama/whisper/whisper_cpp.pyx":193
  *         return self._c_params.translate
  * 
  *     @translate.setter             # <<<<<<<<<<<<<<
@@ -5895,7 +5915,7 @@ static int __pyx_pw_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_9transla
   __Pyx_RefNannySetupContext("__set__ (wrapper)", 0);
   __pyx_kwvalues = __Pyx_KwValues_VARARGS(__pyx_args, __pyx_nargs);
   assert(__pyx_arg_value); {
-    __pyx_v_value = __Pyx_PyObject_IsTrue(__pyx_arg_value); if (unlikely((__pyx_v_value == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 192, __pyx_L3_error)
+    __pyx_v_value = __Pyx_PyObject_IsTrue(__pyx_arg_value); if (unlikely((__pyx_v_value == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 194, __pyx_L3_error)
   }
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -5913,7 +5933,7 @@ static int __pyx_pw_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_9transla
 static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_9translate_2__set__(struct __pyx_obj_7cyllama_7whisper_11whisper_cpp_WhisperFullParams *__pyx_v_self, int __pyx_v_value) {
   int __pyx_r;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":193
+  /* "cyllama/whisper/whisper_cpp.pyx":195
  *     @translate.setter
  *     def translate(self, bint value):
  *         self._c_params.translate = value             # <<<<<<<<<<<<<<
@@ -5922,7 +5942,7 @@ static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_9transla
 */
   __pyx_v_self->_c_params.translate = __pyx_v_value;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":191
+  /* "cyllama/whisper/whisper_cpp.pyx":193
  *         return self._c_params.translate
  * 
  *     @translate.setter             # <<<<<<<<<<<<<<
@@ -5935,7 +5955,7 @@ static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_9transla
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":195
+/* "cyllama/whisper/whisper_cpp.pyx":197
  *         self._c_params.translate = value
  * 
  *     @property             # <<<<<<<<<<<<<<
@@ -5967,7 +5987,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_10
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("__get__", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":197
+  /* "cyllama/whisper/whisper_cpp.pyx":199
  *     @property
  *     def no_context(self):
  *         return self._c_params.no_context             # <<<<<<<<<<<<<<
@@ -5975,13 +5995,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_10
  *     @no_context.setter
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyBool_FromLong(__pyx_v_self->_c_params.no_context); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 197, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyBool_FromLong(__pyx_v_self->_c_params.no_context); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 199, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":195
+  /* "cyllama/whisper/whisper_cpp.pyx":197
  *         self._c_params.translate = value
  * 
  *     @property             # <<<<<<<<<<<<<<
@@ -6000,7 +6020,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_10
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":199
+/* "cyllama/whisper/whisper_cpp.pyx":201
  *         return self._c_params.no_context
  * 
  *     @no_context.setter             # <<<<<<<<<<<<<<
@@ -6021,7 +6041,7 @@ static int __pyx_pw_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_10no_con
   __Pyx_RefNannySetupContext("__set__ (wrapper)", 0);
   __pyx_kwvalues = __Pyx_KwValues_VARARGS(__pyx_args, __pyx_nargs);
   assert(__pyx_arg_value); {
-    __pyx_v_value = __Pyx_PyObject_IsTrue(__pyx_arg_value); if (unlikely((__pyx_v_value == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 200, __pyx_L3_error)
+    __pyx_v_value = __Pyx_PyObject_IsTrue(__pyx_arg_value); if (unlikely((__pyx_v_value == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 202, __pyx_L3_error)
   }
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -6039,7 +6059,7 @@ static int __pyx_pw_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_10no_con
 static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_10no_context_2__set__(struct __pyx_obj_7cyllama_7whisper_11whisper_cpp_WhisperFullParams *__pyx_v_self, int __pyx_v_value) {
   int __pyx_r;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":201
+  /* "cyllama/whisper/whisper_cpp.pyx":203
  *     @no_context.setter
  *     def no_context(self, bint value):
  *         self._c_params.no_context = value             # <<<<<<<<<<<<<<
@@ -6048,7 +6068,7 @@ static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_10no_con
 */
   __pyx_v_self->_c_params.no_context = __pyx_v_value;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":199
+  /* "cyllama/whisper/whisper_cpp.pyx":201
  *         return self._c_params.no_context
  * 
  *     @no_context.setter             # <<<<<<<<<<<<<<
@@ -6061,7 +6081,7 @@ static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_10no_con
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":203
+/* "cyllama/whisper/whisper_cpp.pyx":205
  *         self._c_params.no_context = value
  * 
  *     @property             # <<<<<<<<<<<<<<
@@ -6093,7 +6113,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_13
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("__get__", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":205
+  /* "cyllama/whisper/whisper_cpp.pyx":207
  *     @property
  *     def no_timestamps(self):
  *         return self._c_params.no_timestamps             # <<<<<<<<<<<<<<
@@ -6101,13 +6121,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_13
  *     @no_timestamps.setter
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyBool_FromLong(__pyx_v_self->_c_params.no_timestamps); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 205, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyBool_FromLong(__pyx_v_self->_c_params.no_timestamps); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 207, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":203
+  /* "cyllama/whisper/whisper_cpp.pyx":205
  *         self._c_params.no_context = value
  * 
  *     @property             # <<<<<<<<<<<<<<
@@ -6126,7 +6146,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_13
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":207
+/* "cyllama/whisper/whisper_cpp.pyx":209
  *         return self._c_params.no_timestamps
  * 
  *     @no_timestamps.setter             # <<<<<<<<<<<<<<
@@ -6147,7 +6167,7 @@ static int __pyx_pw_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_13no_tim
   __Pyx_RefNannySetupContext("__set__ (wrapper)", 0);
   __pyx_kwvalues = __Pyx_KwValues_VARARGS(__pyx_args, __pyx_nargs);
   assert(__pyx_arg_value); {
-    __pyx_v_value = __Pyx_PyObject_IsTrue(__pyx_arg_value); if (unlikely((__pyx_v_value == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 208, __pyx_L3_error)
+    __pyx_v_value = __Pyx_PyObject_IsTrue(__pyx_arg_value); if (unlikely((__pyx_v_value == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 210, __pyx_L3_error)
   }
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -6165,7 +6185,7 @@ static int __pyx_pw_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_13no_tim
 static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_13no_timestamps_2__set__(struct __pyx_obj_7cyllama_7whisper_11whisper_cpp_WhisperFullParams *__pyx_v_self, int __pyx_v_value) {
   int __pyx_r;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":209
+  /* "cyllama/whisper/whisper_cpp.pyx":211
  *     @no_timestamps.setter
  *     def no_timestamps(self, bint value):
  *         self._c_params.no_timestamps = value             # <<<<<<<<<<<<<<
@@ -6174,7 +6194,7 @@ static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_13no_tim
 */
   __pyx_v_self->_c_params.no_timestamps = __pyx_v_value;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":207
+  /* "cyllama/whisper/whisper_cpp.pyx":209
  *         return self._c_params.no_timestamps
  * 
  *     @no_timestamps.setter             # <<<<<<<<<<<<<<
@@ -6187,7 +6207,7 @@ static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_13no_tim
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":211
+/* "cyllama/whisper/whisper_cpp.pyx":213
  *         self._c_params.no_timestamps = value
  * 
  *     @property             # <<<<<<<<<<<<<<
@@ -6219,7 +6239,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_14
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("__get__", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":213
+  /* "cyllama/whisper/whisper_cpp.pyx":215
  *     @property
  *     def single_segment(self):
  *         return self._c_params.single_segment             # <<<<<<<<<<<<<<
@@ -6227,13 +6247,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_14
  *     @single_segment.setter
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyBool_FromLong(__pyx_v_self->_c_params.single_segment); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 213, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyBool_FromLong(__pyx_v_self->_c_params.single_segment); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 215, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":211
+  /* "cyllama/whisper/whisper_cpp.pyx":213
  *         self._c_params.no_timestamps = value
  * 
  *     @property             # <<<<<<<<<<<<<<
@@ -6252,7 +6272,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_14
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":215
+/* "cyllama/whisper/whisper_cpp.pyx":217
  *         return self._c_params.single_segment
  * 
  *     @single_segment.setter             # <<<<<<<<<<<<<<
@@ -6273,7 +6293,7 @@ static int __pyx_pw_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_14single
   __Pyx_RefNannySetupContext("__set__ (wrapper)", 0);
   __pyx_kwvalues = __Pyx_KwValues_VARARGS(__pyx_args, __pyx_nargs);
   assert(__pyx_arg_value); {
-    __pyx_v_value = __Pyx_PyObject_IsTrue(__pyx_arg_value); if (unlikely((__pyx_v_value == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 216, __pyx_L3_error)
+    __pyx_v_value = __Pyx_PyObject_IsTrue(__pyx_arg_value); if (unlikely((__pyx_v_value == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 218, __pyx_L3_error)
   }
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -6291,7 +6311,7 @@ static int __pyx_pw_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_14single
 static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_14single_segment_2__set__(struct __pyx_obj_7cyllama_7whisper_11whisper_cpp_WhisperFullParams *__pyx_v_self, int __pyx_v_value) {
   int __pyx_r;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":217
+  /* "cyllama/whisper/whisper_cpp.pyx":219
  *     @single_segment.setter
  *     def single_segment(self, bint value):
  *         self._c_params.single_segment = value             # <<<<<<<<<<<<<<
@@ -6300,7 +6320,7 @@ static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_14single
 */
   __pyx_v_self->_c_params.single_segment = __pyx_v_value;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":215
+  /* "cyllama/whisper/whisper_cpp.pyx":217
  *         return self._c_params.single_segment
  * 
  *     @single_segment.setter             # <<<<<<<<<<<<<<
@@ -6313,7 +6333,7 @@ static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_14single
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":219
+/* "cyllama/whisper/whisper_cpp.pyx":221
  *         self._c_params.single_segment = value
  * 
  *     @property             # <<<<<<<<<<<<<<
@@ -6345,7 +6365,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_13
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("__get__", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":221
+  /* "cyllama/whisper/whisper_cpp.pyx":223
  *     @property
  *     def print_special(self):
  *         return self._c_params.print_special             # <<<<<<<<<<<<<<
@@ -6353,13 +6373,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_13
  *     @print_special.setter
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyBool_FromLong(__pyx_v_self->_c_params.print_special); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 221, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyBool_FromLong(__pyx_v_self->_c_params.print_special); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 223, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":219
+  /* "cyllama/whisper/whisper_cpp.pyx":221
  *         self._c_params.single_segment = value
  * 
  *     @property             # <<<<<<<<<<<<<<
@@ -6378,7 +6398,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_13
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":223
+/* "cyllama/whisper/whisper_cpp.pyx":225
  *         return self._c_params.print_special
  * 
  *     @print_special.setter             # <<<<<<<<<<<<<<
@@ -6399,7 +6419,7 @@ static int __pyx_pw_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_13print_
   __Pyx_RefNannySetupContext("__set__ (wrapper)", 0);
   __pyx_kwvalues = __Pyx_KwValues_VARARGS(__pyx_args, __pyx_nargs);
   assert(__pyx_arg_value); {
-    __pyx_v_value = __Pyx_PyObject_IsTrue(__pyx_arg_value); if (unlikely((__pyx_v_value == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 224, __pyx_L3_error)
+    __pyx_v_value = __Pyx_PyObject_IsTrue(__pyx_arg_value); if (unlikely((__pyx_v_value == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 226, __pyx_L3_error)
   }
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -6417,7 +6437,7 @@ static int __pyx_pw_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_13print_
 static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_13print_special_2__set__(struct __pyx_obj_7cyllama_7whisper_11whisper_cpp_WhisperFullParams *__pyx_v_self, int __pyx_v_value) {
   int __pyx_r;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":225
+  /* "cyllama/whisper/whisper_cpp.pyx":227
  *     @print_special.setter
  *     def print_special(self, bint value):
  *         self._c_params.print_special = value             # <<<<<<<<<<<<<<
@@ -6426,7 +6446,7 @@ static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_13print_
 */
   __pyx_v_self->_c_params.print_special = __pyx_v_value;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":223
+  /* "cyllama/whisper/whisper_cpp.pyx":225
  *         return self._c_params.print_special
  * 
  *     @print_special.setter             # <<<<<<<<<<<<<<
@@ -6439,7 +6459,7 @@ static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_13print_
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":227
+/* "cyllama/whisper/whisper_cpp.pyx":229
  *         self._c_params.print_special = value
  * 
  *     @property             # <<<<<<<<<<<<<<
@@ -6471,7 +6491,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_14
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("__get__", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":229
+  /* "cyllama/whisper/whisper_cpp.pyx":231
  *     @property
  *     def print_progress(self):
  *         return self._c_params.print_progress             # <<<<<<<<<<<<<<
@@ -6479,13 +6499,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_14
  *     @print_progress.setter
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyBool_FromLong(__pyx_v_self->_c_params.print_progress); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 229, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyBool_FromLong(__pyx_v_self->_c_params.print_progress); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 231, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":227
+  /* "cyllama/whisper/whisper_cpp.pyx":229
  *         self._c_params.print_special = value
  * 
  *     @property             # <<<<<<<<<<<<<<
@@ -6504,7 +6524,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_14
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":231
+/* "cyllama/whisper/whisper_cpp.pyx":233
  *         return self._c_params.print_progress
  * 
  *     @print_progress.setter             # <<<<<<<<<<<<<<
@@ -6525,7 +6545,7 @@ static int __pyx_pw_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_14print_
   __Pyx_RefNannySetupContext("__set__ (wrapper)", 0);
   __pyx_kwvalues = __Pyx_KwValues_VARARGS(__pyx_args, __pyx_nargs);
   assert(__pyx_arg_value); {
-    __pyx_v_value = __Pyx_PyObject_IsTrue(__pyx_arg_value); if (unlikely((__pyx_v_value == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 232, __pyx_L3_error)
+    __pyx_v_value = __Pyx_PyObject_IsTrue(__pyx_arg_value); if (unlikely((__pyx_v_value == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 234, __pyx_L3_error)
   }
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -6543,7 +6563,7 @@ static int __pyx_pw_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_14print_
 static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_14print_progress_2__set__(struct __pyx_obj_7cyllama_7whisper_11whisper_cpp_WhisperFullParams *__pyx_v_self, int __pyx_v_value) {
   int __pyx_r;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":233
+  /* "cyllama/whisper/whisper_cpp.pyx":235
  *     @print_progress.setter
  *     def print_progress(self, bint value):
  *         self._c_params.print_progress = value             # <<<<<<<<<<<<<<
@@ -6552,7 +6572,7 @@ static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_14print_
 */
   __pyx_v_self->_c_params.print_progress = __pyx_v_value;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":231
+  /* "cyllama/whisper/whisper_cpp.pyx":233
  *         return self._c_params.print_progress
  * 
  *     @print_progress.setter             # <<<<<<<<<<<<<<
@@ -6565,7 +6585,7 @@ static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_14print_
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":235
+/* "cyllama/whisper/whisper_cpp.pyx":237
  *         self._c_params.print_progress = value
  * 
  *     @property             # <<<<<<<<<<<<<<
@@ -6597,7 +6617,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_14
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("__get__", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":237
+  /* "cyllama/whisper/whisper_cpp.pyx":239
  *     @property
  *     def print_realtime(self):
  *         return self._c_params.print_realtime             # <<<<<<<<<<<<<<
@@ -6605,13 +6625,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_14
  *     @print_realtime.setter
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyBool_FromLong(__pyx_v_self->_c_params.print_realtime); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 237, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyBool_FromLong(__pyx_v_self->_c_params.print_realtime); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 239, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":235
+  /* "cyllama/whisper/whisper_cpp.pyx":237
  *         self._c_params.print_progress = value
  * 
  *     @property             # <<<<<<<<<<<<<<
@@ -6630,7 +6650,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_14
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":239
+/* "cyllama/whisper/whisper_cpp.pyx":241
  *         return self._c_params.print_realtime
  * 
  *     @print_realtime.setter             # <<<<<<<<<<<<<<
@@ -6651,7 +6671,7 @@ static int __pyx_pw_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_14print_
   __Pyx_RefNannySetupContext("__set__ (wrapper)", 0);
   __pyx_kwvalues = __Pyx_KwValues_VARARGS(__pyx_args, __pyx_nargs);
   assert(__pyx_arg_value); {
-    __pyx_v_value = __Pyx_PyObject_IsTrue(__pyx_arg_value); if (unlikely((__pyx_v_value == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 240, __pyx_L3_error)
+    __pyx_v_value = __Pyx_PyObject_IsTrue(__pyx_arg_value); if (unlikely((__pyx_v_value == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 242, __pyx_L3_error)
   }
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -6669,7 +6689,7 @@ static int __pyx_pw_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_14print_
 static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_14print_realtime_2__set__(struct __pyx_obj_7cyllama_7whisper_11whisper_cpp_WhisperFullParams *__pyx_v_self, int __pyx_v_value) {
   int __pyx_r;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":241
+  /* "cyllama/whisper/whisper_cpp.pyx":243
  *     @print_realtime.setter
  *     def print_realtime(self, bint value):
  *         self._c_params.print_realtime = value             # <<<<<<<<<<<<<<
@@ -6678,7 +6698,7 @@ static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_14print_
 */
   __pyx_v_self->_c_params.print_realtime = __pyx_v_value;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":239
+  /* "cyllama/whisper/whisper_cpp.pyx":241
  *         return self._c_params.print_realtime
  * 
  *     @print_realtime.setter             # <<<<<<<<<<<<<<
@@ -6691,7 +6711,7 @@ static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_14print_
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":243
+/* "cyllama/whisper/whisper_cpp.pyx":245
  *         self._c_params.print_realtime = value
  * 
  *     @property             # <<<<<<<<<<<<<<
@@ -6723,7 +6743,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_16
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("__get__", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":245
+  /* "cyllama/whisper/whisper_cpp.pyx":247
  *     @property
  *     def print_timestamps(self):
  *         return self._c_params.print_timestamps             # <<<<<<<<<<<<<<
@@ -6731,13 +6751,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_16
  *     @print_timestamps.setter
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyBool_FromLong(__pyx_v_self->_c_params.print_timestamps); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 245, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyBool_FromLong(__pyx_v_self->_c_params.print_timestamps); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 247, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":243
+  /* "cyllama/whisper/whisper_cpp.pyx":245
  *         self._c_params.print_realtime = value
  * 
  *     @property             # <<<<<<<<<<<<<<
@@ -6756,7 +6776,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_16
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":247
+/* "cyllama/whisper/whisper_cpp.pyx":249
  *         return self._c_params.print_timestamps
  * 
  *     @print_timestamps.setter             # <<<<<<<<<<<<<<
@@ -6777,7 +6797,7 @@ static int __pyx_pw_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_16print_
   __Pyx_RefNannySetupContext("__set__ (wrapper)", 0);
   __pyx_kwvalues = __Pyx_KwValues_VARARGS(__pyx_args, __pyx_nargs);
   assert(__pyx_arg_value); {
-    __pyx_v_value = __Pyx_PyObject_IsTrue(__pyx_arg_value); if (unlikely((__pyx_v_value == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 248, __pyx_L3_error)
+    __pyx_v_value = __Pyx_PyObject_IsTrue(__pyx_arg_value); if (unlikely((__pyx_v_value == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 250, __pyx_L3_error)
   }
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -6795,7 +6815,7 @@ static int __pyx_pw_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_16print_
 static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_16print_timestamps_2__set__(struct __pyx_obj_7cyllama_7whisper_11whisper_cpp_WhisperFullParams *__pyx_v_self, int __pyx_v_value) {
   int __pyx_r;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":249
+  /* "cyllama/whisper/whisper_cpp.pyx":251
  *     @print_timestamps.setter
  *     def print_timestamps(self, bint value):
  *         self._c_params.print_timestamps = value             # <<<<<<<<<<<<<<
@@ -6804,7 +6824,7 @@ static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_16print_
 */
   __pyx_v_self->_c_params.print_timestamps = __pyx_v_value;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":247
+  /* "cyllama/whisper/whisper_cpp.pyx":249
  *         return self._c_params.print_timestamps
  * 
  *     @print_timestamps.setter             # <<<<<<<<<<<<<<
@@ -6817,7 +6837,7 @@ static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_16print_
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":251
+/* "cyllama/whisper/whisper_cpp.pyx":253
  *         self._c_params.print_timestamps = value
  * 
  *     @property             # <<<<<<<<<<<<<<
@@ -6849,7 +6869,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_16
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("__get__", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":253
+  /* "cyllama/whisper/whisper_cpp.pyx":255
  *     @property
  *     def token_timestamps(self):
  *         return self._c_params.token_timestamps             # <<<<<<<<<<<<<<
@@ -6857,13 +6877,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_16
  *     @token_timestamps.setter
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyBool_FromLong(__pyx_v_self->_c_params.token_timestamps); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 253, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyBool_FromLong(__pyx_v_self->_c_params.token_timestamps); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 255, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":251
+  /* "cyllama/whisper/whisper_cpp.pyx":253
  *         self._c_params.print_timestamps = value
  * 
  *     @property             # <<<<<<<<<<<<<<
@@ -6882,7 +6902,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_16
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":255
+/* "cyllama/whisper/whisper_cpp.pyx":257
  *         return self._c_params.token_timestamps
  * 
  *     @token_timestamps.setter             # <<<<<<<<<<<<<<
@@ -6903,7 +6923,7 @@ static int __pyx_pw_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_16token_
   __Pyx_RefNannySetupContext("__set__ (wrapper)", 0);
   __pyx_kwvalues = __Pyx_KwValues_VARARGS(__pyx_args, __pyx_nargs);
   assert(__pyx_arg_value); {
-    __pyx_v_value = __Pyx_PyObject_IsTrue(__pyx_arg_value); if (unlikely((__pyx_v_value == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 256, __pyx_L3_error)
+    __pyx_v_value = __Pyx_PyObject_IsTrue(__pyx_arg_value); if (unlikely((__pyx_v_value == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 258, __pyx_L3_error)
   }
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -6921,7 +6941,7 @@ static int __pyx_pw_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_16token_
 static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_16token_timestamps_2__set__(struct __pyx_obj_7cyllama_7whisper_11whisper_cpp_WhisperFullParams *__pyx_v_self, int __pyx_v_value) {
   int __pyx_r;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":257
+  /* "cyllama/whisper/whisper_cpp.pyx":259
  *     @token_timestamps.setter
  *     def token_timestamps(self, bint value):
  *         self._c_params.token_timestamps = value             # <<<<<<<<<<<<<<
@@ -6930,7 +6950,7 @@ static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_16token_
 */
   __pyx_v_self->_c_params.token_timestamps = __pyx_v_value;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":255
+  /* "cyllama/whisper/whisper_cpp.pyx":257
  *         return self._c_params.token_timestamps
  * 
  *     @token_timestamps.setter             # <<<<<<<<<<<<<<
@@ -6943,7 +6963,7 @@ static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_16token_
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":259
+/* "cyllama/whisper/whisper_cpp.pyx":261
  *         self._c_params.token_timestamps = value
  * 
  *     @property             # <<<<<<<<<<<<<<
@@ -6975,7 +6995,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_11
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("__get__", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":261
+  /* "cyllama/whisper/whisper_cpp.pyx":263
  *     @property
  *     def temperature(self):
  *         return self._c_params.temperature             # <<<<<<<<<<<<<<
@@ -6983,13 +7003,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_11
  *     @temperature.setter
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = PyFloat_FromDouble(__pyx_v_self->_c_params.temperature); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 261, __pyx_L1_error)
+  __pyx_t_1 = PyFloat_FromDouble(__pyx_v_self->_c_params.temperature); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 263, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":259
+  /* "cyllama/whisper/whisper_cpp.pyx":261
  *         self._c_params.token_timestamps = value
  * 
  *     @property             # <<<<<<<<<<<<<<
@@ -7008,7 +7028,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_11
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":263
+/* "cyllama/whisper/whisper_cpp.pyx":265
  *         return self._c_params.temperature
  * 
  *     @temperature.setter             # <<<<<<<<<<<<<<
@@ -7029,7 +7049,7 @@ static int __pyx_pw_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_11temper
   __Pyx_RefNannySetupContext("__set__ (wrapper)", 0);
   __pyx_kwvalues = __Pyx_KwValues_VARARGS(__pyx_args, __pyx_nargs);
   assert(__pyx_arg_value); {
-    __pyx_v_value = __Pyx_PyFloat_AsFloat(__pyx_arg_value); if (unlikely((__pyx_v_value == (float)-1) && PyErr_Occurred())) __PYX_ERR(0, 264, __pyx_L3_error)
+    __pyx_v_value = __Pyx_PyFloat_AsFloat(__pyx_arg_value); if (unlikely((__pyx_v_value == (float)-1) && PyErr_Occurred())) __PYX_ERR(0, 266, __pyx_L3_error)
   }
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -7047,7 +7067,7 @@ static int __pyx_pw_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_11temper
 static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_11temperature_2__set__(struct __pyx_obj_7cyllama_7whisper_11whisper_cpp_WhisperFullParams *__pyx_v_self, float __pyx_v_value) {
   int __pyx_r;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":265
+  /* "cyllama/whisper/whisper_cpp.pyx":267
  *     @temperature.setter
  *     def temperature(self, float value):
  *         self._c_params.temperature = value             # <<<<<<<<<<<<<<
@@ -7056,7 +7076,7 @@ static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_11temper
 */
   __pyx_v_self->_c_params.temperature = __pyx_v_value;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":263
+  /* "cyllama/whisper/whisper_cpp.pyx":265
  *         return self._c_params.temperature
  * 
  *     @temperature.setter             # <<<<<<<<<<<<<<
@@ -7069,7 +7089,7 @@ static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_11temper
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":267
+/* "cyllama/whisper/whisper_cpp.pyx":269
  *         self._c_params.temperature = value
  * 
  *     @property             # <<<<<<<<<<<<<<
@@ -7104,7 +7124,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_8l
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("__get__", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":269
+  /* "cyllama/whisper/whisper_cpp.pyx":271
  *     @property
  *     def language(self):
  *         if self._c_params.language == NULL:             # <<<<<<<<<<<<<<
@@ -7114,7 +7134,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_8l
   __pyx_t_1 = (__pyx_v_self->_c_params.language == NULL);
   if (__pyx_t_1) {
 
-    /* "cyllama/whisper/whisper_cpp.pyx":270
+    /* "cyllama/whisper/whisper_cpp.pyx":272
  *     def language(self):
  *         if self._c_params.language == NULL:
  *             return None             # <<<<<<<<<<<<<<
@@ -7125,7 +7145,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_8l
     __pyx_r = Py_None; __Pyx_INCREF(Py_None);
     goto __pyx_L0;
 
-    /* "cyllama/whisper/whisper_cpp.pyx":269
+    /* "cyllama/whisper/whisper_cpp.pyx":271
  *     @property
  *     def language(self):
  *         if self._c_params.language == NULL:             # <<<<<<<<<<<<<<
@@ -7134,7 +7154,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_8l
 */
   }
 
-  /* "cyllama/whisper/whisper_cpp.pyx":271
+  /* "cyllama/whisper/whisper_cpp.pyx":273
  *         if self._c_params.language == NULL:
  *             return None
  *         return self._c_params.language.decode('utf-8')             # <<<<<<<<<<<<<<
@@ -7143,15 +7163,15 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_8l
 */
   __Pyx_XDECREF(__pyx_r);
   __pyx_t_2 = __pyx_v_self->_c_params.language;
-  __pyx_t_3 = __Pyx_ssize_strlen(__pyx_t_2); if (unlikely(__pyx_t_3 == ((Py_ssize_t)-1))) __PYX_ERR(0, 271, __pyx_L1_error)
-  __pyx_t_4 = __Pyx_decode_c_string(__pyx_t_2, 0, __pyx_t_3, NULL, NULL, PyUnicode_DecodeUTF8); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 271, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_ssize_strlen(__pyx_t_2); if (unlikely(__pyx_t_3 == ((Py_ssize_t)-1))) __PYX_ERR(0, 273, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_decode_c_string(__pyx_t_2, 0, __pyx_t_3, NULL, NULL, PyUnicode_DecodeUTF8); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 273, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
   __Pyx_INCREF(__pyx_t_4);
   __pyx_r = __pyx_t_4;
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":267
+  /* "cyllama/whisper/whisper_cpp.pyx":269
  *         self._c_params.temperature = value
  * 
  *     @property             # <<<<<<<<<<<<<<
@@ -7170,126 +7190,142 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_8l
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":273
+/* "cyllama/whisper/whisper_cpp.pyx":275
  *         return self._c_params.language.decode('utf-8')
  * 
  *     @language.setter             # <<<<<<<<<<<<<<
- *     def language(self, str value):
- *         cdef bytes bstring = value.encode('utf-8')
+ *     def language(self, value):
+ *         if value is None:
 */
 
 /* Python wrapper */
 static int __pyx_pw_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_8language_3__set__(PyObject *__pyx_v_self, PyObject *__pyx_v_value); /*proto*/
 static int __pyx_pw_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_8language_3__set__(PyObject *__pyx_v_self, PyObject *__pyx_v_value) {
   CYTHON_UNUSED PyObject *const *__pyx_kwvalues;
-  int __pyx_lineno = 0;
-  const char *__pyx_filename = NULL;
-  int __pyx_clineno = 0;
   int __pyx_r;
   __Pyx_RefNannyDeclarations
   __Pyx_RefNannySetupContext("__set__ (wrapper)", 0);
   __pyx_kwvalues = __Pyx_KwValues_VARARGS(__pyx_args, __pyx_nargs);
-  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_value), (&PyUnicode_Type), 1, "value", 1))) __PYX_ERR(0, 274, __pyx_L1_error)
-  __pyx_r = __pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_8language_2__set__(((struct __pyx_obj_7cyllama_7whisper_11whisper_cpp_WhisperFullParams *)__pyx_v_self), ((PyObject*)__pyx_v_value));
+  __pyx_r = __pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_8language_2__set__(((struct __pyx_obj_7cyllama_7whisper_11whisper_cpp_WhisperFullParams *)__pyx_v_self), ((PyObject *)__pyx_v_value));
 
   /* function exit code */
-  goto __pyx_L0;
-  __pyx_L1_error:;
-  __pyx_r = -1;
-  goto __pyx_L5_cleaned_up;
-  __pyx_L0:;
-  __pyx_L5_cleaned_up:;
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
 static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_8language_2__set__(struct __pyx_obj_7cyllama_7whisper_11whisper_cpp_WhisperFullParams *__pyx_v_self, PyObject *__pyx_v_value) {
-  PyObject *__pyx_v_bstring = 0;
   int __pyx_r;
   __Pyx_RefNannyDeclarations
-  PyObject *__pyx_t_1 = NULL;
-  int __pyx_t_2;
-  char const *__pyx_t_3;
+  int __pyx_t_1;
+  PyObject *__pyx_t_2 = NULL;
+  PyObject *__pyx_t_3 = NULL;
+  size_t __pyx_t_4;
+  char const *__pyx_t_5;
   int __pyx_lineno = 0;
   const char *__pyx_filename = NULL;
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("__set__", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":275
+  /* "cyllama/whisper/whisper_cpp.pyx":277
  *     @language.setter
- *     def language(self, str value):
- *         cdef bytes bstring = value.encode('utf-8')             # <<<<<<<<<<<<<<
- *         if value is None:
- *             self._c_params.language = NULL
-*/
-  if (unlikely(__pyx_v_value == Py_None)) {
-    PyErr_Format(PyExc_AttributeError, "'NoneType' object has no attribute '%.30s'", "encode");
-    __PYX_ERR(0, 275, __pyx_L1_error)
-  }
-  __pyx_t_1 = PyUnicode_AsUTF8String(__pyx_v_value); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 275, __pyx_L1_error)
-  __Pyx_GOTREF(__pyx_t_1);
-  __pyx_v_bstring = ((PyObject*)__pyx_t_1);
-  __pyx_t_1 = 0;
-
-  /* "cyllama/whisper/whisper_cpp.pyx":276
- *     def language(self, str value):
- *         cdef bytes bstring = value.encode('utf-8')
+ *     def language(self, value):
  *         if value is None:             # <<<<<<<<<<<<<<
  *             self._c_params.language = NULL
- *         else:
+ *             self._language_bytes = None
 */
-  __pyx_t_2 = (__pyx_v_value == ((PyObject*)Py_None));
-  if (__pyx_t_2) {
+  __pyx_t_1 = (__pyx_v_value == Py_None);
+  if (__pyx_t_1) {
 
-    /* "cyllama/whisper/whisper_cpp.pyx":277
- *         cdef bytes bstring = value.encode('utf-8')
+    /* "cyllama/whisper/whisper_cpp.pyx":278
+ *     def language(self, value):
  *         if value is None:
  *             self._c_params.language = NULL             # <<<<<<<<<<<<<<
+ *             self._language_bytes = None
  *         else:
- *             self._c_params.language = bstring
 */
     __pyx_v_self->_c_params.language = NULL;
 
-    /* "cyllama/whisper/whisper_cpp.pyx":276
- *     def language(self, str value):
- *         cdef bytes bstring = value.encode('utf-8')
+    /* "cyllama/whisper/whisper_cpp.pyx":279
+ *         if value is None:
+ *             self._c_params.language = NULL
+ *             self._language_bytes = None             # <<<<<<<<<<<<<<
+ *         else:
+ *             self._language_bytes = value.encode('utf-8')
+*/
+    __Pyx_INCREF(Py_None);
+    __Pyx_GIVEREF(Py_None);
+    __Pyx_GOTREF(__pyx_v_self->_language_bytes);
+    __Pyx_DECREF(__pyx_v_self->_language_bytes);
+    __pyx_v_self->_language_bytes = ((PyObject*)Py_None);
+
+    /* "cyllama/whisper/whisper_cpp.pyx":277
+ *     @language.setter
+ *     def language(self, value):
  *         if value is None:             # <<<<<<<<<<<<<<
  *             self._c_params.language = NULL
- *         else:
+ *             self._language_bytes = None
 */
     goto __pyx_L3;
   }
 
-  /* "cyllama/whisper/whisper_cpp.pyx":279
- *             self._c_params.language = NULL
+  /* "cyllama/whisper/whisper_cpp.pyx":281
+ *             self._language_bytes = None
  *         else:
- *             self._c_params.language = bstring             # <<<<<<<<<<<<<<
- * 
+ *             self._language_bytes = value.encode('utf-8')             # <<<<<<<<<<<<<<
+ *             self._c_params.language = <const char*>self._language_bytes
  * 
 */
   /*else*/ {
-    __pyx_t_3 = __Pyx_PyBytes_AsString(__pyx_v_bstring); if (unlikely((!__pyx_t_3) && PyErr_Occurred())) __PYX_ERR(0, 279, __pyx_L1_error)
-    __pyx_v_self->_c_params.language = __pyx_t_3;
+    __pyx_t_3 = __pyx_v_value;
+    __Pyx_INCREF(__pyx_t_3);
+    __pyx_t_4 = 0;
+    {
+      PyObject *__pyx_callargs[2] = {__pyx_t_3, __pyx_mstate_global->__pyx_kp_u_utf_8};
+      __pyx_t_2 = __Pyx_PyObject_FastCallMethod(__pyx_mstate_global->__pyx_n_u_encode, __pyx_callargs+__pyx_t_4, (2-__pyx_t_4) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
+      __Pyx_XDECREF(__pyx_t_3); __pyx_t_3 = 0;
+      if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 281, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_2);
+    }
+    if (!(likely(PyBytes_CheckExact(__pyx_t_2))||((__pyx_t_2) == Py_None) || __Pyx_RaiseUnexpectedTypeError("bytes", __pyx_t_2))) __PYX_ERR(0, 281, __pyx_L1_error)
+    __Pyx_GIVEREF(__pyx_t_2);
+    __Pyx_GOTREF(__pyx_v_self->_language_bytes);
+    __Pyx_DECREF(__pyx_v_self->_language_bytes);
+    __pyx_v_self->_language_bytes = ((PyObject*)__pyx_t_2);
+    __pyx_t_2 = 0;
+
+    /* "cyllama/whisper/whisper_cpp.pyx":282
+ *         else:
+ *             self._language_bytes = value.encode('utf-8')
+ *             self._c_params.language = <const char*>self._language_bytes             # <<<<<<<<<<<<<<
+ * 
+ * 
+*/
+    if (unlikely(__pyx_v_self->_language_bytes == Py_None)) {
+      PyErr_SetString(PyExc_TypeError, "expected bytes, NoneType found");
+      __PYX_ERR(0, 282, __pyx_L1_error)
+    }
+    __pyx_t_5 = __Pyx_PyBytes_AsString(__pyx_v_self->_language_bytes); if (unlikely((!__pyx_t_5) && PyErr_Occurred())) __PYX_ERR(0, 282, __pyx_L1_error)
+    __pyx_v_self->_c_params.language = ((char const *)__pyx_t_5);
   }
   __pyx_L3:;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":273
+  /* "cyllama/whisper/whisper_cpp.pyx":275
  *         return self._c_params.language.decode('utf-8')
  * 
  *     @language.setter             # <<<<<<<<<<<<<<
- *     def language(self, str value):
- *         cdef bytes bstring = value.encode('utf-8')
+ *     def language(self, value):
+ *         if value is None:
 */
 
   /* function exit code */
   __pyx_r = 0;
   goto __pyx_L0;
   __pyx_L1_error:;
-  __Pyx_XDECREF(__pyx_t_1);
+  __Pyx_XDECREF(__pyx_t_2);
+  __Pyx_XDECREF(__pyx_t_3);
   __Pyx_AddTraceback("cyllama.whisper.whisper_cpp.WhisperFullParams.language.__set__", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __pyx_r = -1;
   __pyx_L0:;
-  __Pyx_XDECREF(__pyx_v_bstring);
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
@@ -7498,7 +7534,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_17WhisperFullParams_4_
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":285
+/* "cyllama/whisper/whisper_cpp.pyx":288
  *     cdef wh.whisper_token_data _c_data
  * 
  *     def __init__(self):             # <<<<<<<<<<<<<<
@@ -7539,7 +7575,7 @@ static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_16WhisperTokenData___init__(
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":288
+/* "cyllama/whisper/whisper_cpp.pyx":291
  *         pass
  * 
  *     @property             # <<<<<<<<<<<<<<
@@ -7571,7 +7607,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_16WhisperTokenData_2id
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("__get__", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":290
+  /* "cyllama/whisper/whisper_cpp.pyx":293
  *     @property
  *     def id(self):
  *         return self._c_data.id             # <<<<<<<<<<<<<<
@@ -7579,13 +7615,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_16WhisperTokenData_2id
  *     @property
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_int32_t(__pyx_v_self->_c_data.id); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 290, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int32_t(__pyx_v_self->_c_data.id); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 293, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":288
+  /* "cyllama/whisper/whisper_cpp.pyx":291
  *         pass
  * 
  *     @property             # <<<<<<<<<<<<<<
@@ -7604,7 +7640,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_16WhisperTokenData_2id
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":292
+/* "cyllama/whisper/whisper_cpp.pyx":295
  *         return self._c_data.id
  * 
  *     @property             # <<<<<<<<<<<<<<
@@ -7636,7 +7672,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_16WhisperTokenData_3ti
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("__get__", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":294
+  /* "cyllama/whisper/whisper_cpp.pyx":297
  *     @property
  *     def tid(self):
  *         return self._c_data.tid             # <<<<<<<<<<<<<<
@@ -7644,13 +7680,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_16WhisperTokenData_3ti
  *     @property
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_int32_t(__pyx_v_self->_c_data.tid); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 294, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int32_t(__pyx_v_self->_c_data.tid); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 297, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":292
+  /* "cyllama/whisper/whisper_cpp.pyx":295
  *         return self._c_data.id
  * 
  *     @property             # <<<<<<<<<<<<<<
@@ -7669,7 +7705,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_16WhisperTokenData_3ti
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":296
+/* "cyllama/whisper/whisper_cpp.pyx":299
  *         return self._c_data.tid
  * 
  *     @property             # <<<<<<<<<<<<<<
@@ -7701,7 +7737,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_16WhisperTokenData_1p_
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("__get__", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":298
+  /* "cyllama/whisper/whisper_cpp.pyx":301
  *     @property
  *     def p(self):
  *         return self._c_data.p             # <<<<<<<<<<<<<<
@@ -7709,13 +7745,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_16WhisperTokenData_1p_
  *     @property
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = PyFloat_FromDouble(__pyx_v_self->_c_data.p); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 298, __pyx_L1_error)
+  __pyx_t_1 = PyFloat_FromDouble(__pyx_v_self->_c_data.p); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 301, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":296
+  /* "cyllama/whisper/whisper_cpp.pyx":299
  *         return self._c_data.tid
  * 
  *     @property             # <<<<<<<<<<<<<<
@@ -7734,7 +7770,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_16WhisperTokenData_1p_
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":300
+/* "cyllama/whisper/whisper_cpp.pyx":303
  *         return self._c_data.p
  * 
  *     @property             # <<<<<<<<<<<<<<
@@ -7766,7 +7802,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_16WhisperTokenData_4pl
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("__get__", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":302
+  /* "cyllama/whisper/whisper_cpp.pyx":305
  *     @property
  *     def plog(self):
  *         return self._c_data.plog             # <<<<<<<<<<<<<<
@@ -7774,13 +7810,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_16WhisperTokenData_4pl
  *     @property
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = PyFloat_FromDouble(__pyx_v_self->_c_data.plog); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 302, __pyx_L1_error)
+  __pyx_t_1 = PyFloat_FromDouble(__pyx_v_self->_c_data.plog); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 305, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":300
+  /* "cyllama/whisper/whisper_cpp.pyx":303
  *         return self._c_data.p
  * 
  *     @property             # <<<<<<<<<<<<<<
@@ -7799,7 +7835,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_16WhisperTokenData_4pl
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":304
+/* "cyllama/whisper/whisper_cpp.pyx":307
  *         return self._c_data.plog
  * 
  *     @property             # <<<<<<<<<<<<<<
@@ -7831,7 +7867,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_16WhisperTokenData_2pt
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("__get__", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":306
+  /* "cyllama/whisper/whisper_cpp.pyx":309
  *     @property
  *     def pt(self):
  *         return self._c_data.pt             # <<<<<<<<<<<<<<
@@ -7839,13 +7875,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_16WhisperTokenData_2pt
  *     @property
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = PyFloat_FromDouble(__pyx_v_self->_c_data.pt); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 306, __pyx_L1_error)
+  __pyx_t_1 = PyFloat_FromDouble(__pyx_v_self->_c_data.pt); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 309, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":304
+  /* "cyllama/whisper/whisper_cpp.pyx":307
  *         return self._c_data.plog
  * 
  *     @property             # <<<<<<<<<<<<<<
@@ -7864,7 +7900,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_16WhisperTokenData_2pt
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":308
+/* "cyllama/whisper/whisper_cpp.pyx":311
  *         return self._c_data.pt
  * 
  *     @property             # <<<<<<<<<<<<<<
@@ -7896,7 +7932,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_16WhisperTokenData_5pt
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("__get__", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":310
+  /* "cyllama/whisper/whisper_cpp.pyx":313
  *     @property
  *     def ptsum(self):
  *         return self._c_data.ptsum             # <<<<<<<<<<<<<<
@@ -7904,13 +7940,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_16WhisperTokenData_5pt
  *     @property
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = PyFloat_FromDouble(__pyx_v_self->_c_data.ptsum); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 310, __pyx_L1_error)
+  __pyx_t_1 = PyFloat_FromDouble(__pyx_v_self->_c_data.ptsum); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 313, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":308
+  /* "cyllama/whisper/whisper_cpp.pyx":311
  *         return self._c_data.pt
  * 
  *     @property             # <<<<<<<<<<<<<<
@@ -7929,7 +7965,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_16WhisperTokenData_5pt
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":312
+/* "cyllama/whisper/whisper_cpp.pyx":315
  *         return self._c_data.ptsum
  * 
  *     @property             # <<<<<<<<<<<<<<
@@ -7961,7 +7997,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_16WhisperTokenData_2t0
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("__get__", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":314
+  /* "cyllama/whisper/whisper_cpp.pyx":317
  *     @property
  *     def t0(self):
  *         return self._c_data.t0             # <<<<<<<<<<<<<<
@@ -7969,13 +8005,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_16WhisperTokenData_2t0
  *     @property
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_int64_t(__pyx_v_self->_c_data.t0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 314, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int64_t(__pyx_v_self->_c_data.t0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 317, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":312
+  /* "cyllama/whisper/whisper_cpp.pyx":315
  *         return self._c_data.ptsum
  * 
  *     @property             # <<<<<<<<<<<<<<
@@ -7994,7 +8030,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_16WhisperTokenData_2t0
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":316
+/* "cyllama/whisper/whisper_cpp.pyx":319
  *         return self._c_data.t0
  * 
  *     @property             # <<<<<<<<<<<<<<
@@ -8026,7 +8062,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_16WhisperTokenData_2t1
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("__get__", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":318
+  /* "cyllama/whisper/whisper_cpp.pyx":321
  *     @property
  *     def t1(self):
  *         return self._c_data.t1             # <<<<<<<<<<<<<<
@@ -8034,13 +8070,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_16WhisperTokenData_2t1
  *     @property
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_int64_t(__pyx_v_self->_c_data.t1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 318, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int64_t(__pyx_v_self->_c_data.t1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 321, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":316
+  /* "cyllama/whisper/whisper_cpp.pyx":319
  *         return self._c_data.t0
  * 
  *     @property             # <<<<<<<<<<<<<<
@@ -8059,7 +8095,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_16WhisperTokenData_2t1
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":320
+/* "cyllama/whisper/whisper_cpp.pyx":323
  *         return self._c_data.t1
  * 
  *     @property             # <<<<<<<<<<<<<<
@@ -8091,7 +8127,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_16WhisperTokenData_5t_
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("__get__", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":322
+  /* "cyllama/whisper/whisper_cpp.pyx":325
  *     @property
  *     def t_dtw(self):
  *         return self._c_data.t_dtw             # <<<<<<<<<<<<<<
@@ -8099,13 +8135,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_16WhisperTokenData_5t_
  *     @property
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_int64_t(__pyx_v_self->_c_data.t_dtw); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 322, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int64_t(__pyx_v_self->_c_data.t_dtw); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 325, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":320
+  /* "cyllama/whisper/whisper_cpp.pyx":323
  *         return self._c_data.t1
  * 
  *     @property             # <<<<<<<<<<<<<<
@@ -8124,7 +8160,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_16WhisperTokenData_5t_
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":324
+/* "cyllama/whisper/whisper_cpp.pyx":327
  *         return self._c_data.t_dtw
  * 
  *     @property             # <<<<<<<<<<<<<<
@@ -8156,7 +8192,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_16WhisperTokenData_4vl
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("__get__", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":326
+  /* "cyllama/whisper/whisper_cpp.pyx":329
  *     @property
  *     def vlen(self):
  *         return self._c_data.vlen             # <<<<<<<<<<<<<<
@@ -8164,13 +8200,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_16WhisperTokenData_4vl
  * 
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = PyFloat_FromDouble(__pyx_v_self->_c_data.vlen); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 326, __pyx_L1_error)
+  __pyx_t_1 = PyFloat_FromDouble(__pyx_v_self->_c_data.vlen); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 329, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":324
+  /* "cyllama/whisper/whisper_cpp.pyx":327
  *         return self._c_data.t_dtw
  * 
  *     @property             # <<<<<<<<<<<<<<
@@ -8393,7 +8429,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_16WhisperTokenData_4__
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":332
+/* "cyllama/whisper/whisper_cpp.pyx":335
  *     cdef wh.whisper_context * _c_ctx
  * 
  *     def __init__(self, model_path, WhisperContextParams params=None):             # <<<<<<<<<<<<<<
@@ -8424,35 +8460,35 @@ static int __pyx_pw_7cyllama_7whisper_11whisper_cpp_14WhisperContext_1__init__(P
   {
     PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_model_path,&__pyx_mstate_global->__pyx_n_u_params,0};
     const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_VARARGS(__pyx_kwds) : 0;
-    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 332, __pyx_L3_error)
+    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 335, __pyx_L3_error)
     if (__pyx_kwds_len > 0) {
       switch (__pyx_nargs) {
         case  2:
         values[1] = __Pyx_ArgRef_VARARGS(__pyx_args, 1);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 332, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 335, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  1:
         values[0] = __Pyx_ArgRef_VARARGS(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 332, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 335, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  0: break;
         default: goto __pyx_L5_argtuple_error;
       }
       const Py_ssize_t kwd_pos_args = __pyx_nargs;
-      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "__init__", 0) < 0) __PYX_ERR(0, 332, __pyx_L3_error)
+      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "__init__", 0) < 0) __PYX_ERR(0, 335, __pyx_L3_error)
       if (!values[1]) values[1] = __Pyx_NewRef((PyObject *)((struct __pyx_obj_7cyllama_7whisper_11whisper_cpp_WhisperContextParams *)Py_None));
       for (Py_ssize_t i = __pyx_nargs; i < 1; i++) {
-        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("__init__", 0, 1, 2, i); __PYX_ERR(0, 332, __pyx_L3_error) }
+        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("__init__", 0, 1, 2, i); __PYX_ERR(0, 335, __pyx_L3_error) }
       }
     } else {
       switch (__pyx_nargs) {
         case  2:
         values[1] = __Pyx_ArgRef_VARARGS(__pyx_args, 1);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 332, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 335, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  1:
         values[0] = __Pyx_ArgRef_VARARGS(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 332, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 335, __pyx_L3_error)
         break;
         default: goto __pyx_L5_argtuple_error;
       }
@@ -8463,7 +8499,7 @@ static int __pyx_pw_7cyllama_7whisper_11whisper_cpp_14WhisperContext_1__init__(P
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("__init__", 0, 1, 2, __pyx_nargs); __PYX_ERR(0, 332, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("__init__", 0, 1, 2, __pyx_nargs); __PYX_ERR(0, 335, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -8474,7 +8510,7 @@ static int __pyx_pw_7cyllama_7whisper_11whisper_cpp_14WhisperContext_1__init__(P
   __Pyx_RefNannyFinishContext();
   return -1;
   __pyx_L4_argument_unpacking_done:;
-  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_params), __pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContextParams, 1, "params", 0))) __PYX_ERR(0, 332, __pyx_L1_error)
+  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_params), __pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContextParams, 1, "params", 0))) __PYX_ERR(0, 335, __pyx_L1_error)
   __pyx_r = __pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext___init__(((struct __pyx_obj_7cyllama_7whisper_11whisper_cpp_WhisperContext *)__pyx_v_self), __pyx_v_model_path, __pyx_v_params);
 
   /* function exit code */
@@ -8512,7 +8548,7 @@ static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext___init__(st
   __Pyx_RefNannySetupContext("__init__", 0);
   __Pyx_INCREF((PyObject *)__pyx_v_params);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":333
+  /* "cyllama/whisper/whisper_cpp.pyx":336
  * 
  *     def __init__(self, model_path, WhisperContextParams params=None):
  *         if params is None:             # <<<<<<<<<<<<<<
@@ -8522,7 +8558,7 @@ static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext___init__(st
   __pyx_t_1 = (((PyObject *)__pyx_v_params) == Py_None);
   if (__pyx_t_1) {
 
-    /* "cyllama/whisper/whisper_cpp.pyx":334
+    /* "cyllama/whisper/whisper_cpp.pyx":337
  *     def __init__(self, model_path, WhisperContextParams params=None):
  *         if params is None:
  *             params = WhisperContextParams()             # <<<<<<<<<<<<<<
@@ -8538,13 +8574,13 @@ static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext___init__(st
       __pyx_t_2 = __Pyx_PyObject_FastCall(__pyx_t_4, __pyx_callargs+__pyx_t_5, (1-__pyx_t_5) | (__pyx_t_5*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
       __Pyx_XDECREF(__pyx_t_3); __pyx_t_3 = 0;
       __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-      if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 334, __pyx_L1_error)
+      if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 337, __pyx_L1_error)
       __Pyx_GOTREF((PyObject *)__pyx_t_2);
     }
     __Pyx_DECREF_SET(__pyx_v_params, ((struct __pyx_obj_7cyllama_7whisper_11whisper_cpp_WhisperContextParams *)__pyx_t_2));
     __pyx_t_2 = 0;
 
-    /* "cyllama/whisper/whisper_cpp.pyx":333
+    /* "cyllama/whisper/whisper_cpp.pyx":336
  * 
  *     def __init__(self, model_path, WhisperContextParams params=None):
  *         if params is None:             # <<<<<<<<<<<<<<
@@ -8553,7 +8589,7 @@ static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext___init__(st
 */
   }
 
-  /* "cyllama/whisper/whisper_cpp.pyx":336
+  /* "cyllama/whisper/whisper_cpp.pyx":339
  *             params = WhisperContextParams()
  * 
  *         model_path_bytes = model_path.encode('utf-8')             # <<<<<<<<<<<<<<
@@ -8567,23 +8603,23 @@ static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext___init__(st
     PyObject *__pyx_callargs[2] = {__pyx_t_4, __pyx_mstate_global->__pyx_kp_u_utf_8};
     __pyx_t_2 = __Pyx_PyObject_FastCallMethod(__pyx_mstate_global->__pyx_n_u_encode, __pyx_callargs+__pyx_t_5, (2-__pyx_t_5) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
     __Pyx_XDECREF(__pyx_t_4); __pyx_t_4 = 0;
-    if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 336, __pyx_L1_error)
+    if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 339, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_2);
   }
   __pyx_v_model_path_bytes = __pyx_t_2;
   __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":337
+  /* "cyllama/whisper/whisper_cpp.pyx":340
  * 
  *         model_path_bytes = model_path.encode('utf-8')
  *         self._c_ctx = wh.whisper_init_from_file_with_params(model_path_bytes, params._c_params)             # <<<<<<<<<<<<<<
  * 
  *         if self._c_ctx == NULL:
 */
-  __pyx_t_6 = __Pyx_PyObject_AsString(__pyx_v_model_path_bytes); if (unlikely((!__pyx_t_6) && PyErr_Occurred())) __PYX_ERR(0, 337, __pyx_L1_error)
+  __pyx_t_6 = __Pyx_PyObject_AsString(__pyx_v_model_path_bytes); if (unlikely((!__pyx_t_6) && PyErr_Occurred())) __PYX_ERR(0, 340, __pyx_L1_error)
   __pyx_v_self->_c_ctx = whisper_init_from_file_with_params(__pyx_t_6, __pyx_v_params->_c_params);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":339
+  /* "cyllama/whisper/whisper_cpp.pyx":342
  *         self._c_ctx = wh.whisper_init_from_file_with_params(model_path_bytes, params._c_params)
  * 
  *         if self._c_ctx == NULL:             # <<<<<<<<<<<<<<
@@ -8593,7 +8629,7 @@ static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext___init__(st
   __pyx_t_1 = (__pyx_v_self->_c_ctx == NULL);
   if (unlikely(__pyx_t_1)) {
 
-    /* "cyllama/whisper/whisper_cpp.pyx":340
+    /* "cyllama/whisper/whisper_cpp.pyx":343
  * 
  *         if self._c_ctx == NULL:
  *             raise RuntimeError(f"Failed to load whisper model from {model_path}")             # <<<<<<<<<<<<<<
@@ -8603,9 +8639,9 @@ static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext___init__(st
     __pyx_t_4 = NULL;
     __Pyx_INCREF(__pyx_builtin_RuntimeError);
     __pyx_t_3 = __pyx_builtin_RuntimeError; 
-    __pyx_t_7 = __Pyx_PyObject_FormatSimple(__pyx_v_model_path, __pyx_mstate_global->__pyx_empty_unicode); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 340, __pyx_L1_error)
+    __pyx_t_7 = __Pyx_PyObject_FormatSimple(__pyx_v_model_path, __pyx_mstate_global->__pyx_empty_unicode); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 343, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_7);
-    __pyx_t_8 = __Pyx_PyUnicode_Concat(__pyx_mstate_global->__pyx_kp_u_Failed_to_load_whisper_model_fro, __pyx_t_7); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 340, __pyx_L1_error)
+    __pyx_t_8 = __Pyx_PyUnicode_Concat(__pyx_mstate_global->__pyx_kp_u_Failed_to_load_whisper_model_fro, __pyx_t_7); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 343, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_8);
     __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
     __pyx_t_5 = 1;
@@ -8615,14 +8651,14 @@ static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext___init__(st
       __Pyx_XDECREF(__pyx_t_4); __pyx_t_4 = 0;
       __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
       __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-      if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 340, __pyx_L1_error)
+      if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 343, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_2);
     }
     __Pyx_Raise(__pyx_t_2, 0, 0, 0);
     __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-    __PYX_ERR(0, 340, __pyx_L1_error)
+    __PYX_ERR(0, 343, __pyx_L1_error)
 
-    /* "cyllama/whisper/whisper_cpp.pyx":339
+    /* "cyllama/whisper/whisper_cpp.pyx":342
  *         self._c_ctx = wh.whisper_init_from_file_with_params(model_path_bytes, params._c_params)
  * 
  *         if self._c_ctx == NULL:             # <<<<<<<<<<<<<<
@@ -8631,7 +8667,7 @@ static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext___init__(st
 */
   }
 
-  /* "cyllama/whisper/whisper_cpp.pyx":332
+  /* "cyllama/whisper/whisper_cpp.pyx":335
  *     cdef wh.whisper_context * _c_ctx
  * 
  *     def __init__(self, model_path, WhisperContextParams params=None):             # <<<<<<<<<<<<<<
@@ -8657,7 +8693,7 @@ static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext___init__(st
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":342
+/* "cyllama/whisper/whisper_cpp.pyx":345
  *             raise RuntimeError(f"Failed to load whisper model from {model_path}")
  * 
  *     def __dealloc__(self):             # <<<<<<<<<<<<<<
@@ -8681,7 +8717,7 @@ static void __pyx_pw_7cyllama_7whisper_11whisper_cpp_14WhisperContext_3__dealloc
 static void __pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_2__dealloc__(struct __pyx_obj_7cyllama_7whisper_11whisper_cpp_WhisperContext *__pyx_v_self) {
   int __pyx_t_1;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":343
+  /* "cyllama/whisper/whisper_cpp.pyx":346
  * 
  *     def __dealloc__(self):
  *         if self._c_ctx != NULL:             # <<<<<<<<<<<<<<
@@ -8691,7 +8727,7 @@ static void __pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_2__dealloc
   __pyx_t_1 = (__pyx_v_self->_c_ctx != NULL);
   if (__pyx_t_1) {
 
-    /* "cyllama/whisper/whisper_cpp.pyx":344
+    /* "cyllama/whisper/whisper_cpp.pyx":347
  *     def __dealloc__(self):
  *         if self._c_ctx != NULL:
  *             wh.whisper_free(self._c_ctx)             # <<<<<<<<<<<<<<
@@ -8700,7 +8736,7 @@ static void __pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_2__dealloc
 */
     whisper_free(__pyx_v_self->_c_ctx);
 
-    /* "cyllama/whisper/whisper_cpp.pyx":345
+    /* "cyllama/whisper/whisper_cpp.pyx":348
  *         if self._c_ctx != NULL:
  *             wh.whisper_free(self._c_ctx)
  *             self._c_ctx = NULL             # <<<<<<<<<<<<<<
@@ -8709,7 +8745,7 @@ static void __pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_2__dealloc
 */
     __pyx_v_self->_c_ctx = NULL;
 
-    /* "cyllama/whisper/whisper_cpp.pyx":343
+    /* "cyllama/whisper/whisper_cpp.pyx":346
  * 
  *     def __dealloc__(self):
  *         if self._c_ctx != NULL:             # <<<<<<<<<<<<<<
@@ -8718,7 +8754,7 @@ static void __pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_2__dealloc
 */
   }
 
-  /* "cyllama/whisper/whisper_cpp.pyx":342
+  /* "cyllama/whisper/whisper_cpp.pyx":345
  *             raise RuntimeError(f"Failed to load whisper model from {model_path}")
  * 
  *     def __dealloc__(self):             # <<<<<<<<<<<<<<
@@ -8729,7 +8765,7 @@ static void __pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_2__dealloc
   /* function exit code */
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":347
+/* "cyllama/whisper/whisper_cpp.pyx":350
  *             self._c_ctx = NULL
  * 
  *     def version(self):             # <<<<<<<<<<<<<<
@@ -8790,7 +8826,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_4vers
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("version", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":348
+  /* "cyllama/whisper/whisper_cpp.pyx":351
  * 
  *     def version(self):
  *         return wh.whisper_version().decode('utf-8')             # <<<<<<<<<<<<<<
@@ -8799,15 +8835,15 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_4vers
 */
   __Pyx_XDECREF(__pyx_r);
   __pyx_t_1 = whisper_version();
-  __pyx_t_2 = __Pyx_ssize_strlen(__pyx_t_1); if (unlikely(__pyx_t_2 == ((Py_ssize_t)-1))) __PYX_ERR(0, 348, __pyx_L1_error)
-  __pyx_t_3 = __Pyx_decode_c_string(__pyx_t_1, 0, __pyx_t_2, NULL, NULL, PyUnicode_DecodeUTF8); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 348, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_ssize_strlen(__pyx_t_1); if (unlikely(__pyx_t_2 == ((Py_ssize_t)-1))) __PYX_ERR(0, 351, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_decode_c_string(__pyx_t_1, 0, __pyx_t_2, NULL, NULL, PyUnicode_DecodeUTF8); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 351, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __Pyx_INCREF(__pyx_t_3);
   __pyx_r = __pyx_t_3;
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":347
+  /* "cyllama/whisper/whisper_cpp.pyx":350
  *             self._c_ctx = NULL
  * 
  *     def version(self):             # <<<<<<<<<<<<<<
@@ -8826,7 +8862,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_4vers
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":350
+/* "cyllama/whisper/whisper_cpp.pyx":353
  *         return wh.whisper_version().decode('utf-8')
  * 
  *     def system_info(self):             # <<<<<<<<<<<<<<
@@ -8887,7 +8923,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_6syst
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("system_info", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":351
+  /* "cyllama/whisper/whisper_cpp.pyx":354
  * 
  *     def system_info(self):
  *         return wh.whisper_print_system_info().decode('utf-8')             # <<<<<<<<<<<<<<
@@ -8896,15 +8932,15 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_6syst
 */
   __Pyx_XDECREF(__pyx_r);
   __pyx_t_1 = whisper_print_system_info();
-  __pyx_t_2 = __Pyx_ssize_strlen(__pyx_t_1); if (unlikely(__pyx_t_2 == ((Py_ssize_t)-1))) __PYX_ERR(0, 351, __pyx_L1_error)
-  __pyx_t_3 = __Pyx_decode_c_string(__pyx_t_1, 0, __pyx_t_2, NULL, NULL, PyUnicode_DecodeUTF8); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 351, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_ssize_strlen(__pyx_t_1); if (unlikely(__pyx_t_2 == ((Py_ssize_t)-1))) __PYX_ERR(0, 354, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_decode_c_string(__pyx_t_1, 0, __pyx_t_2, NULL, NULL, PyUnicode_DecodeUTF8); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 354, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __Pyx_INCREF(__pyx_t_3);
   __pyx_r = __pyx_t_3;
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":350
+  /* "cyllama/whisper/whisper_cpp.pyx":353
  *         return wh.whisper_version().decode('utf-8')
  * 
  *     def system_info(self):             # <<<<<<<<<<<<<<
@@ -8923,7 +8959,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_6syst
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":353
+/* "cyllama/whisper/whisper_cpp.pyx":356
  *         return wh.whisper_print_system_info().decode('utf-8')
  * 
  *     def n_vocab(self):             # <<<<<<<<<<<<<<
@@ -8982,7 +9018,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_8n_vo
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("n_vocab", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":354
+  /* "cyllama/whisper/whisper_cpp.pyx":357
  * 
  *     def n_vocab(self):
  *         return wh.whisper_n_vocab(self._c_ctx)             # <<<<<<<<<<<<<<
@@ -8990,13 +9026,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_8n_vo
  *     def n_text_ctx(self):
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_int(whisper_n_vocab(__pyx_v_self->_c_ctx)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 354, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int(whisper_n_vocab(__pyx_v_self->_c_ctx)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 357, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":353
+  /* "cyllama/whisper/whisper_cpp.pyx":356
  *         return wh.whisper_print_system_info().decode('utf-8')
  * 
  *     def n_vocab(self):             # <<<<<<<<<<<<<<
@@ -9015,7 +9051,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_8n_vo
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":356
+/* "cyllama/whisper/whisper_cpp.pyx":359
  *         return wh.whisper_n_vocab(self._c_ctx)
  * 
  *     def n_text_ctx(self):             # <<<<<<<<<<<<<<
@@ -9074,7 +9110,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_10n_t
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("n_text_ctx", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":357
+  /* "cyllama/whisper/whisper_cpp.pyx":360
  * 
  *     def n_text_ctx(self):
  *         return wh.whisper_n_text_ctx(self._c_ctx)             # <<<<<<<<<<<<<<
@@ -9082,13 +9118,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_10n_t
  *     def n_audio_ctx(self):
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_int(whisper_n_text_ctx(__pyx_v_self->_c_ctx)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 357, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int(whisper_n_text_ctx(__pyx_v_self->_c_ctx)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 360, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":356
+  /* "cyllama/whisper/whisper_cpp.pyx":359
  *         return wh.whisper_n_vocab(self._c_ctx)
  * 
  *     def n_text_ctx(self):             # <<<<<<<<<<<<<<
@@ -9107,7 +9143,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_10n_t
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":359
+/* "cyllama/whisper/whisper_cpp.pyx":362
  *         return wh.whisper_n_text_ctx(self._c_ctx)
  * 
  *     def n_audio_ctx(self):             # <<<<<<<<<<<<<<
@@ -9166,7 +9202,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_12n_a
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("n_audio_ctx", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":360
+  /* "cyllama/whisper/whisper_cpp.pyx":363
  * 
  *     def n_audio_ctx(self):
  *         return wh.whisper_n_audio_ctx(self._c_ctx)             # <<<<<<<<<<<<<<
@@ -9174,13 +9210,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_12n_a
  *     def is_multilingual(self):
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_int(whisper_n_audio_ctx(__pyx_v_self->_c_ctx)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 360, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int(whisper_n_audio_ctx(__pyx_v_self->_c_ctx)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 363, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":359
+  /* "cyllama/whisper/whisper_cpp.pyx":362
  *         return wh.whisper_n_text_ctx(self._c_ctx)
  * 
  *     def n_audio_ctx(self):             # <<<<<<<<<<<<<<
@@ -9199,7 +9235,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_12n_a
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":362
+/* "cyllama/whisper/whisper_cpp.pyx":365
  *         return wh.whisper_n_audio_ctx(self._c_ctx)
  * 
  *     def is_multilingual(self):             # <<<<<<<<<<<<<<
@@ -9259,7 +9295,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_14is_
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("is_multilingual", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":363
+  /* "cyllama/whisper/whisper_cpp.pyx":366
  * 
  *     def is_multilingual(self):
  *         return bool(wh.whisper_is_multilingual(self._c_ctx))             # <<<<<<<<<<<<<<
@@ -9267,17 +9303,17 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_14is_
  *     def model_n_vocab(self):
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_int(whisper_is_multilingual(__pyx_v_self->_c_ctx)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 363, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int(whisper_is_multilingual(__pyx_v_self->_c_ctx)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 366, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_2 = __Pyx_PyObject_IsTrue(__pyx_t_1); if (unlikely((__pyx_t_2 < 0))) __PYX_ERR(0, 363, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyObject_IsTrue(__pyx_t_1); if (unlikely((__pyx_t_2 < 0))) __PYX_ERR(0, 366, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-  __pyx_t_1 = __Pyx_PyBool_FromLong((!(!__pyx_t_2))); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 363, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyBool_FromLong((!(!__pyx_t_2))); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 366, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":362
+  /* "cyllama/whisper/whisper_cpp.pyx":365
  *         return wh.whisper_n_audio_ctx(self._c_ctx)
  * 
  *     def is_multilingual(self):             # <<<<<<<<<<<<<<
@@ -9296,7 +9332,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_14is_
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":365
+/* "cyllama/whisper/whisper_cpp.pyx":368
  *         return bool(wh.whisper_is_multilingual(self._c_ctx))
  * 
  *     def model_n_vocab(self):             # <<<<<<<<<<<<<<
@@ -9355,7 +9391,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_16mod
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("model_n_vocab", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":366
+  /* "cyllama/whisper/whisper_cpp.pyx":369
  * 
  *     def model_n_vocab(self):
  *         return wh.whisper_model_n_vocab(self._c_ctx)             # <<<<<<<<<<<<<<
@@ -9363,13 +9399,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_16mod
  *     def model_n_audio_ctx(self):
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_int(whisper_model_n_vocab(__pyx_v_self->_c_ctx)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 366, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int(whisper_model_n_vocab(__pyx_v_self->_c_ctx)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 369, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":365
+  /* "cyllama/whisper/whisper_cpp.pyx":368
  *         return bool(wh.whisper_is_multilingual(self._c_ctx))
  * 
  *     def model_n_vocab(self):             # <<<<<<<<<<<<<<
@@ -9388,7 +9424,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_16mod
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":368
+/* "cyllama/whisper/whisper_cpp.pyx":371
  *         return wh.whisper_model_n_vocab(self._c_ctx)
  * 
  *     def model_n_audio_ctx(self):             # <<<<<<<<<<<<<<
@@ -9447,7 +9483,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_18mod
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("model_n_audio_ctx", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":369
+  /* "cyllama/whisper/whisper_cpp.pyx":372
  * 
  *     def model_n_audio_ctx(self):
  *         return wh.whisper_model_n_audio_ctx(self._c_ctx)             # <<<<<<<<<<<<<<
@@ -9455,13 +9491,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_18mod
  *     def model_n_audio_state(self):
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_int(whisper_model_n_audio_ctx(__pyx_v_self->_c_ctx)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 369, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int(whisper_model_n_audio_ctx(__pyx_v_self->_c_ctx)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 372, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":368
+  /* "cyllama/whisper/whisper_cpp.pyx":371
  *         return wh.whisper_model_n_vocab(self._c_ctx)
  * 
  *     def model_n_audio_ctx(self):             # <<<<<<<<<<<<<<
@@ -9480,7 +9516,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_18mod
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":371
+/* "cyllama/whisper/whisper_cpp.pyx":374
  *         return wh.whisper_model_n_audio_ctx(self._c_ctx)
  * 
  *     def model_n_audio_state(self):             # <<<<<<<<<<<<<<
@@ -9539,7 +9575,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_20mod
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("model_n_audio_state", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":372
+  /* "cyllama/whisper/whisper_cpp.pyx":375
  * 
  *     def model_n_audio_state(self):
  *         return wh.whisper_model_n_audio_state(self._c_ctx)             # <<<<<<<<<<<<<<
@@ -9547,13 +9583,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_20mod
  *     def model_n_audio_head(self):
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_int(whisper_model_n_audio_state(__pyx_v_self->_c_ctx)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 372, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int(whisper_model_n_audio_state(__pyx_v_self->_c_ctx)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 375, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":371
+  /* "cyllama/whisper/whisper_cpp.pyx":374
  *         return wh.whisper_model_n_audio_ctx(self._c_ctx)
  * 
  *     def model_n_audio_state(self):             # <<<<<<<<<<<<<<
@@ -9572,7 +9608,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_20mod
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":374
+/* "cyllama/whisper/whisper_cpp.pyx":377
  *         return wh.whisper_model_n_audio_state(self._c_ctx)
  * 
  *     def model_n_audio_head(self):             # <<<<<<<<<<<<<<
@@ -9631,7 +9667,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_22mod
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("model_n_audio_head", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":375
+  /* "cyllama/whisper/whisper_cpp.pyx":378
  * 
  *     def model_n_audio_head(self):
  *         return wh.whisper_model_n_audio_head(self._c_ctx)             # <<<<<<<<<<<<<<
@@ -9639,13 +9675,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_22mod
  *     def model_n_audio_layer(self):
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_int(whisper_model_n_audio_head(__pyx_v_self->_c_ctx)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 375, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int(whisper_model_n_audio_head(__pyx_v_self->_c_ctx)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 378, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":374
+  /* "cyllama/whisper/whisper_cpp.pyx":377
  *         return wh.whisper_model_n_audio_state(self._c_ctx)
  * 
  *     def model_n_audio_head(self):             # <<<<<<<<<<<<<<
@@ -9664,7 +9700,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_22mod
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":377
+/* "cyllama/whisper/whisper_cpp.pyx":380
  *         return wh.whisper_model_n_audio_head(self._c_ctx)
  * 
  *     def model_n_audio_layer(self):             # <<<<<<<<<<<<<<
@@ -9723,7 +9759,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_24mod
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("model_n_audio_layer", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":378
+  /* "cyllama/whisper/whisper_cpp.pyx":381
  * 
  *     def model_n_audio_layer(self):
  *         return wh.whisper_model_n_audio_layer(self._c_ctx)             # <<<<<<<<<<<<<<
@@ -9731,13 +9767,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_24mod
  *     def model_n_text_ctx(self):
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_int(whisper_model_n_audio_layer(__pyx_v_self->_c_ctx)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 378, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int(whisper_model_n_audio_layer(__pyx_v_self->_c_ctx)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 381, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":377
+  /* "cyllama/whisper/whisper_cpp.pyx":380
  *         return wh.whisper_model_n_audio_head(self._c_ctx)
  * 
  *     def model_n_audio_layer(self):             # <<<<<<<<<<<<<<
@@ -9756,7 +9792,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_24mod
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":380
+/* "cyllama/whisper/whisper_cpp.pyx":383
  *         return wh.whisper_model_n_audio_layer(self._c_ctx)
  * 
  *     def model_n_text_ctx(self):             # <<<<<<<<<<<<<<
@@ -9815,7 +9851,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_26mod
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("model_n_text_ctx", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":381
+  /* "cyllama/whisper/whisper_cpp.pyx":384
  * 
  *     def model_n_text_ctx(self):
  *         return wh.whisper_model_n_text_ctx(self._c_ctx)             # <<<<<<<<<<<<<<
@@ -9823,13 +9859,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_26mod
  *     def model_n_text_state(self):
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_int(whisper_model_n_text_ctx(__pyx_v_self->_c_ctx)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 381, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int(whisper_model_n_text_ctx(__pyx_v_self->_c_ctx)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 384, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":380
+  /* "cyllama/whisper/whisper_cpp.pyx":383
  *         return wh.whisper_model_n_audio_layer(self._c_ctx)
  * 
  *     def model_n_text_ctx(self):             # <<<<<<<<<<<<<<
@@ -9848,7 +9884,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_26mod
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":383
+/* "cyllama/whisper/whisper_cpp.pyx":386
  *         return wh.whisper_model_n_text_ctx(self._c_ctx)
  * 
  *     def model_n_text_state(self):             # <<<<<<<<<<<<<<
@@ -9907,7 +9943,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_28mod
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("model_n_text_state", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":384
+  /* "cyllama/whisper/whisper_cpp.pyx":387
  * 
  *     def model_n_text_state(self):
  *         return wh.whisper_model_n_text_state(self._c_ctx)             # <<<<<<<<<<<<<<
@@ -9915,13 +9951,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_28mod
  *     def model_n_text_head(self):
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_int(whisper_model_n_text_state(__pyx_v_self->_c_ctx)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 384, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int(whisper_model_n_text_state(__pyx_v_self->_c_ctx)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 387, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":383
+  /* "cyllama/whisper/whisper_cpp.pyx":386
  *         return wh.whisper_model_n_text_ctx(self._c_ctx)
  * 
  *     def model_n_text_state(self):             # <<<<<<<<<<<<<<
@@ -9940,7 +9976,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_28mod
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":386
+/* "cyllama/whisper/whisper_cpp.pyx":389
  *         return wh.whisper_model_n_text_state(self._c_ctx)
  * 
  *     def model_n_text_head(self):             # <<<<<<<<<<<<<<
@@ -9999,7 +10035,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_30mod
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("model_n_text_head", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":387
+  /* "cyllama/whisper/whisper_cpp.pyx":390
  * 
  *     def model_n_text_head(self):
  *         return wh.whisper_model_n_text_head(self._c_ctx)             # <<<<<<<<<<<<<<
@@ -10007,13 +10043,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_30mod
  *     def model_n_text_layer(self):
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_int(whisper_model_n_text_head(__pyx_v_self->_c_ctx)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 387, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int(whisper_model_n_text_head(__pyx_v_self->_c_ctx)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 390, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":386
+  /* "cyllama/whisper/whisper_cpp.pyx":389
  *         return wh.whisper_model_n_text_state(self._c_ctx)
  * 
  *     def model_n_text_head(self):             # <<<<<<<<<<<<<<
@@ -10032,7 +10068,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_30mod
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":389
+/* "cyllama/whisper/whisper_cpp.pyx":392
  *         return wh.whisper_model_n_text_head(self._c_ctx)
  * 
  *     def model_n_text_layer(self):             # <<<<<<<<<<<<<<
@@ -10091,7 +10127,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_32mod
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("model_n_text_layer", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":390
+  /* "cyllama/whisper/whisper_cpp.pyx":393
  * 
  *     def model_n_text_layer(self):
  *         return wh.whisper_model_n_text_layer(self._c_ctx)             # <<<<<<<<<<<<<<
@@ -10099,13 +10135,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_32mod
  *     def model_n_mels(self):
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_int(whisper_model_n_text_layer(__pyx_v_self->_c_ctx)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 390, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int(whisper_model_n_text_layer(__pyx_v_self->_c_ctx)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 393, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":389
+  /* "cyllama/whisper/whisper_cpp.pyx":392
  *         return wh.whisper_model_n_text_head(self._c_ctx)
  * 
  *     def model_n_text_layer(self):             # <<<<<<<<<<<<<<
@@ -10124,7 +10160,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_32mod
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":392
+/* "cyllama/whisper/whisper_cpp.pyx":395
  *         return wh.whisper_model_n_text_layer(self._c_ctx)
  * 
  *     def model_n_mels(self):             # <<<<<<<<<<<<<<
@@ -10183,7 +10219,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_34mod
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("model_n_mels", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":393
+  /* "cyllama/whisper/whisper_cpp.pyx":396
  * 
  *     def model_n_mels(self):
  *         return wh.whisper_model_n_mels(self._c_ctx)             # <<<<<<<<<<<<<<
@@ -10191,13 +10227,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_34mod
  *     def model_ftype(self):
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_int(whisper_model_n_mels(__pyx_v_self->_c_ctx)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 393, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int(whisper_model_n_mels(__pyx_v_self->_c_ctx)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 396, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":392
+  /* "cyllama/whisper/whisper_cpp.pyx":395
  *         return wh.whisper_model_n_text_layer(self._c_ctx)
  * 
  *     def model_n_mels(self):             # <<<<<<<<<<<<<<
@@ -10216,7 +10252,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_34mod
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":395
+/* "cyllama/whisper/whisper_cpp.pyx":398
  *         return wh.whisper_model_n_mels(self._c_ctx)
  * 
  *     def model_ftype(self):             # <<<<<<<<<<<<<<
@@ -10275,7 +10311,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_36mod
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("model_ftype", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":396
+  /* "cyllama/whisper/whisper_cpp.pyx":399
  * 
  *     def model_ftype(self):
  *         return wh.whisper_model_ftype(self._c_ctx)             # <<<<<<<<<<<<<<
@@ -10283,13 +10319,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_36mod
  *     def model_type(self):
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_int(whisper_model_ftype(__pyx_v_self->_c_ctx)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 396, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int(whisper_model_ftype(__pyx_v_self->_c_ctx)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 399, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":395
+  /* "cyllama/whisper/whisper_cpp.pyx":398
  *         return wh.whisper_model_n_mels(self._c_ctx)
  * 
  *     def model_ftype(self):             # <<<<<<<<<<<<<<
@@ -10308,7 +10344,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_36mod
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":398
+/* "cyllama/whisper/whisper_cpp.pyx":401
  *         return wh.whisper_model_ftype(self._c_ctx)
  * 
  *     def model_type(self):             # <<<<<<<<<<<<<<
@@ -10367,7 +10403,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_38mod
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("model_type", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":399
+  /* "cyllama/whisper/whisper_cpp.pyx":402
  * 
  *     def model_type(self):
  *         return wh.whisper_model_type(self._c_ctx)             # <<<<<<<<<<<<<<
@@ -10375,13 +10411,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_38mod
  *     def model_type_readable(self):
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_int(whisper_model_type(__pyx_v_self->_c_ctx)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 399, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int(whisper_model_type(__pyx_v_self->_c_ctx)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 402, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":398
+  /* "cyllama/whisper/whisper_cpp.pyx":401
  *         return wh.whisper_model_ftype(self._c_ctx)
  * 
  *     def model_type(self):             # <<<<<<<<<<<<<<
@@ -10400,7 +10436,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_38mod
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":401
+/* "cyllama/whisper/whisper_cpp.pyx":404
  *         return wh.whisper_model_type(self._c_ctx)
  * 
  *     def model_type_readable(self):             # <<<<<<<<<<<<<<
@@ -10461,7 +10497,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_40mod
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("model_type_readable", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":402
+  /* "cyllama/whisper/whisper_cpp.pyx":405
  * 
  *     def model_type_readable(self):
  *         return wh.whisper_model_type_readable(self._c_ctx).decode('utf-8')             # <<<<<<<<<<<<<<
@@ -10470,15 +10506,15 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_40mod
 */
   __Pyx_XDECREF(__pyx_r);
   __pyx_t_1 = whisper_model_type_readable(__pyx_v_self->_c_ctx);
-  __pyx_t_2 = __Pyx_ssize_strlen(__pyx_t_1); if (unlikely(__pyx_t_2 == ((Py_ssize_t)-1))) __PYX_ERR(0, 402, __pyx_L1_error)
-  __pyx_t_3 = __Pyx_decode_c_string(__pyx_t_1, 0, __pyx_t_2, NULL, NULL, PyUnicode_DecodeUTF8); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 402, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_ssize_strlen(__pyx_t_1); if (unlikely(__pyx_t_2 == ((Py_ssize_t)-1))) __PYX_ERR(0, 405, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_decode_c_string(__pyx_t_1, 0, __pyx_t_2, NULL, NULL, PyUnicode_DecodeUTF8); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 405, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __Pyx_INCREF(__pyx_t_3);
   __pyx_r = __pyx_t_3;
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":401
+  /* "cyllama/whisper/whisper_cpp.pyx":404
  *         return wh.whisper_model_type(self._c_ctx)
  * 
  *     def model_type_readable(self):             # <<<<<<<<<<<<<<
@@ -10497,7 +10533,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_40mod
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":404
+/* "cyllama/whisper/whisper_cpp.pyx":407
  *         return wh.whisper_model_type_readable(self._c_ctx).decode('utf-8')
  * 
  *     def token_to_str(self, int token):             # <<<<<<<<<<<<<<
@@ -10544,32 +10580,32 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   {
     PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_token,0};
     const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
-    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 404, __pyx_L3_error)
+    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 407, __pyx_L3_error)
     if (__pyx_kwds_len > 0) {
       switch (__pyx_nargs) {
         case  1:
         values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 404, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 407, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  0: break;
         default: goto __pyx_L5_argtuple_error;
       }
       const Py_ssize_t kwd_pos_args = __pyx_nargs;
-      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "token_to_str", 0) < 0) __PYX_ERR(0, 404, __pyx_L3_error)
+      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "token_to_str", 0) < 0) __PYX_ERR(0, 407, __pyx_L3_error)
       for (Py_ssize_t i = __pyx_nargs; i < 1; i++) {
-        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("token_to_str", 1, 1, 1, i); __PYX_ERR(0, 404, __pyx_L3_error) }
+        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("token_to_str", 1, 1, 1, i); __PYX_ERR(0, 407, __pyx_L3_error) }
       }
     } else if (unlikely(__pyx_nargs != 1)) {
       goto __pyx_L5_argtuple_error;
     } else {
       values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 404, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 407, __pyx_L3_error)
     }
-    __pyx_v_token = __Pyx_PyLong_As_int(values[0]); if (unlikely((__pyx_v_token == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 404, __pyx_L3_error)
+    __pyx_v_token = __Pyx_PyLong_As_int(values[0]); if (unlikely((__pyx_v_token == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 407, __pyx_L3_error)
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("token_to_str", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 404, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("token_to_str", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 407, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -10602,7 +10638,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_42tok
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("token_to_str", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":405
+  /* "cyllama/whisper/whisper_cpp.pyx":408
  * 
  *     def token_to_str(self, int token):
  *         cdef const char * result = wh.whisper_token_to_str(self._c_ctx, token)             # <<<<<<<<<<<<<<
@@ -10611,7 +10647,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_42tok
 */
   __pyx_v_result = whisper_token_to_str(__pyx_v_self->_c_ctx, __pyx_v_token);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":406
+  /* "cyllama/whisper/whisper_cpp.pyx":409
  *     def token_to_str(self, int token):
  *         cdef const char * result = wh.whisper_token_to_str(self._c_ctx, token)
  *         if result == NULL:             # <<<<<<<<<<<<<<
@@ -10621,7 +10657,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_42tok
   __pyx_t_1 = (__pyx_v_result == NULL);
   if (__pyx_t_1) {
 
-    /* "cyllama/whisper/whisper_cpp.pyx":407
+    /* "cyllama/whisper/whisper_cpp.pyx":410
  *         cdef const char * result = wh.whisper_token_to_str(self._c_ctx, token)
  *         if result == NULL:
  *             return ""             # <<<<<<<<<<<<<<
@@ -10633,7 +10669,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_42tok
     __pyx_r = __pyx_mstate_global->__pyx_kp_u__2;
     goto __pyx_L0;
 
-    /* "cyllama/whisper/whisper_cpp.pyx":406
+    /* "cyllama/whisper/whisper_cpp.pyx":409
  *     def token_to_str(self, int token):
  *         cdef const char * result = wh.whisper_token_to_str(self._c_ctx, token)
  *         if result == NULL:             # <<<<<<<<<<<<<<
@@ -10642,7 +10678,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_42tok
 */
   }
 
-  /* "cyllama/whisper/whisper_cpp.pyx":408
+  /* "cyllama/whisper/whisper_cpp.pyx":411
  *         if result == NULL:
  *             return ""
  *         return result.decode('utf-8')             # <<<<<<<<<<<<<<
@@ -10650,14 +10686,14 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_42tok
  *     def token_eot(self):
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_2 = __Pyx_ssize_strlen(__pyx_v_result); if (unlikely(__pyx_t_2 == ((Py_ssize_t)-1))) __PYX_ERR(0, 408, __pyx_L1_error)
-  __pyx_t_3 = __Pyx_decode_c_string(__pyx_v_result, 0, __pyx_t_2, NULL, NULL, PyUnicode_DecodeUTF8); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 408, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_ssize_strlen(__pyx_v_result); if (unlikely(__pyx_t_2 == ((Py_ssize_t)-1))) __PYX_ERR(0, 411, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_decode_c_string(__pyx_v_result, 0, __pyx_t_2, NULL, NULL, PyUnicode_DecodeUTF8); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 411, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __pyx_r = __pyx_t_3;
   __pyx_t_3 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":404
+  /* "cyllama/whisper/whisper_cpp.pyx":407
  *         return wh.whisper_model_type_readable(self._c_ctx).decode('utf-8')
  * 
  *     def token_to_str(self, int token):             # <<<<<<<<<<<<<<
@@ -10676,7 +10712,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_42tok
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":410
+/* "cyllama/whisper/whisper_cpp.pyx":413
  *         return result.decode('utf-8')
  * 
  *     def token_eot(self):             # <<<<<<<<<<<<<<
@@ -10735,7 +10771,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_44tok
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("token_eot", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":411
+  /* "cyllama/whisper/whisper_cpp.pyx":414
  * 
  *     def token_eot(self):
  *         return wh.whisper_token_eot(self._c_ctx)             # <<<<<<<<<<<<<<
@@ -10743,13 +10779,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_44tok
  *     def token_sot(self):
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_int32_t(whisper_token_eot(__pyx_v_self->_c_ctx)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 411, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int32_t(whisper_token_eot(__pyx_v_self->_c_ctx)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 414, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":410
+  /* "cyllama/whisper/whisper_cpp.pyx":413
  *         return result.decode('utf-8')
  * 
  *     def token_eot(self):             # <<<<<<<<<<<<<<
@@ -10768,7 +10804,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_44tok
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":413
+/* "cyllama/whisper/whisper_cpp.pyx":416
  *         return wh.whisper_token_eot(self._c_ctx)
  * 
  *     def token_sot(self):             # <<<<<<<<<<<<<<
@@ -10827,7 +10863,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_46tok
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("token_sot", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":414
+  /* "cyllama/whisper/whisper_cpp.pyx":417
  * 
  *     def token_sot(self):
  *         return wh.whisper_token_sot(self._c_ctx)             # <<<<<<<<<<<<<<
@@ -10835,13 +10871,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_46tok
  *     def token_solm(self):
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_int32_t(whisper_token_sot(__pyx_v_self->_c_ctx)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 414, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int32_t(whisper_token_sot(__pyx_v_self->_c_ctx)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 417, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":413
+  /* "cyllama/whisper/whisper_cpp.pyx":416
  *         return wh.whisper_token_eot(self._c_ctx)
  * 
  *     def token_sot(self):             # <<<<<<<<<<<<<<
@@ -10860,7 +10896,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_46tok
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":416
+/* "cyllama/whisper/whisper_cpp.pyx":419
  *         return wh.whisper_token_sot(self._c_ctx)
  * 
  *     def token_solm(self):             # <<<<<<<<<<<<<<
@@ -10919,7 +10955,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_48tok
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("token_solm", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":417
+  /* "cyllama/whisper/whisper_cpp.pyx":420
  * 
  *     def token_solm(self):
  *         return wh.whisper_token_solm(self._c_ctx)             # <<<<<<<<<<<<<<
@@ -10927,13 +10963,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_48tok
  *     def token_prev(self):
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_int32_t(whisper_token_solm(__pyx_v_self->_c_ctx)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 417, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int32_t(whisper_token_solm(__pyx_v_self->_c_ctx)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 420, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":416
+  /* "cyllama/whisper/whisper_cpp.pyx":419
  *         return wh.whisper_token_sot(self._c_ctx)
  * 
  *     def token_solm(self):             # <<<<<<<<<<<<<<
@@ -10952,7 +10988,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_48tok
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":419
+/* "cyllama/whisper/whisper_cpp.pyx":422
  *         return wh.whisper_token_solm(self._c_ctx)
  * 
  *     def token_prev(self):             # <<<<<<<<<<<<<<
@@ -11011,7 +11047,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_50tok
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("token_prev", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":420
+  /* "cyllama/whisper/whisper_cpp.pyx":423
  * 
  *     def token_prev(self):
  *         return wh.whisper_token_prev(self._c_ctx)             # <<<<<<<<<<<<<<
@@ -11019,13 +11055,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_50tok
  *     def token_nosp(self):
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_int32_t(whisper_token_prev(__pyx_v_self->_c_ctx)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 420, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int32_t(whisper_token_prev(__pyx_v_self->_c_ctx)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 423, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":419
+  /* "cyllama/whisper/whisper_cpp.pyx":422
  *         return wh.whisper_token_solm(self._c_ctx)
  * 
  *     def token_prev(self):             # <<<<<<<<<<<<<<
@@ -11044,7 +11080,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_50tok
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":422
+/* "cyllama/whisper/whisper_cpp.pyx":425
  *         return wh.whisper_token_prev(self._c_ctx)
  * 
  *     def token_nosp(self):             # <<<<<<<<<<<<<<
@@ -11103,7 +11139,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_52tok
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("token_nosp", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":423
+  /* "cyllama/whisper/whisper_cpp.pyx":426
  * 
  *     def token_nosp(self):
  *         return wh.whisper_token_nosp(self._c_ctx)             # <<<<<<<<<<<<<<
@@ -11111,13 +11147,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_52tok
  *     def token_not(self):
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_int32_t(whisper_token_nosp(__pyx_v_self->_c_ctx)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 423, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int32_t(whisper_token_nosp(__pyx_v_self->_c_ctx)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 426, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":422
+  /* "cyllama/whisper/whisper_cpp.pyx":425
  *         return wh.whisper_token_prev(self._c_ctx)
  * 
  *     def token_nosp(self):             # <<<<<<<<<<<<<<
@@ -11136,7 +11172,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_52tok
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":425
+/* "cyllama/whisper/whisper_cpp.pyx":428
  *         return wh.whisper_token_nosp(self._c_ctx)
  * 
  *     def token_not(self):             # <<<<<<<<<<<<<<
@@ -11195,7 +11231,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_54tok
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("token_not", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":426
+  /* "cyllama/whisper/whisper_cpp.pyx":429
  * 
  *     def token_not(self):
  *         return wh.whisper_token_not(self._c_ctx)             # <<<<<<<<<<<<<<
@@ -11203,13 +11239,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_54tok
  *     def token_beg(self):
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_int32_t(whisper_token_not(__pyx_v_self->_c_ctx)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 426, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int32_t(whisper_token_not(__pyx_v_self->_c_ctx)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 429, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":425
+  /* "cyllama/whisper/whisper_cpp.pyx":428
  *         return wh.whisper_token_nosp(self._c_ctx)
  * 
  *     def token_not(self):             # <<<<<<<<<<<<<<
@@ -11228,7 +11264,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_54tok
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":428
+/* "cyllama/whisper/whisper_cpp.pyx":431
  *         return wh.whisper_token_not(self._c_ctx)
  * 
  *     def token_beg(self):             # <<<<<<<<<<<<<<
@@ -11287,7 +11323,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_56tok
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("token_beg", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":429
+  /* "cyllama/whisper/whisper_cpp.pyx":432
  * 
  *     def token_beg(self):
  *         return wh.whisper_token_beg(self._c_ctx)             # <<<<<<<<<<<<<<
@@ -11295,13 +11331,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_56tok
  *     def token_lang(self, int lang_id):
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_int32_t(whisper_token_beg(__pyx_v_self->_c_ctx)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 429, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int32_t(whisper_token_beg(__pyx_v_self->_c_ctx)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 432, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":428
+  /* "cyllama/whisper/whisper_cpp.pyx":431
  *         return wh.whisper_token_not(self._c_ctx)
  * 
  *     def token_beg(self):             # <<<<<<<<<<<<<<
@@ -11320,7 +11356,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_56tok
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":431
+/* "cyllama/whisper/whisper_cpp.pyx":434
  *         return wh.whisper_token_beg(self._c_ctx)
  * 
  *     def token_lang(self, int lang_id):             # <<<<<<<<<<<<<<
@@ -11367,32 +11403,32 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   {
     PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_lang_id,0};
     const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
-    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 431, __pyx_L3_error)
+    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 434, __pyx_L3_error)
     if (__pyx_kwds_len > 0) {
       switch (__pyx_nargs) {
         case  1:
         values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 431, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 434, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  0: break;
         default: goto __pyx_L5_argtuple_error;
       }
       const Py_ssize_t kwd_pos_args = __pyx_nargs;
-      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "token_lang", 0) < 0) __PYX_ERR(0, 431, __pyx_L3_error)
+      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "token_lang", 0) < 0) __PYX_ERR(0, 434, __pyx_L3_error)
       for (Py_ssize_t i = __pyx_nargs; i < 1; i++) {
-        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("token_lang", 1, 1, 1, i); __PYX_ERR(0, 431, __pyx_L3_error) }
+        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("token_lang", 1, 1, 1, i); __PYX_ERR(0, 434, __pyx_L3_error) }
       }
     } else if (unlikely(__pyx_nargs != 1)) {
       goto __pyx_L5_argtuple_error;
     } else {
       values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 431, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 434, __pyx_L3_error)
     }
-    __pyx_v_lang_id = __Pyx_PyLong_As_int(values[0]); if (unlikely((__pyx_v_lang_id == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 431, __pyx_L3_error)
+    __pyx_v_lang_id = __Pyx_PyLong_As_int(values[0]); if (unlikely((__pyx_v_lang_id == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 434, __pyx_L3_error)
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("token_lang", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 431, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("token_lang", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 434, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -11422,7 +11458,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_58tok
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("token_lang", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":432
+  /* "cyllama/whisper/whisper_cpp.pyx":435
  * 
  *     def token_lang(self, int lang_id):
  *         return wh.whisper_token_lang(self._c_ctx, lang_id)             # <<<<<<<<<<<<<<
@@ -11430,13 +11466,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_58tok
  *     def token_translate(self):
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_int32_t(whisper_token_lang(__pyx_v_self->_c_ctx, __pyx_v_lang_id)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 432, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int32_t(whisper_token_lang(__pyx_v_self->_c_ctx, __pyx_v_lang_id)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 435, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":431
+  /* "cyllama/whisper/whisper_cpp.pyx":434
  *         return wh.whisper_token_beg(self._c_ctx)
  * 
  *     def token_lang(self, int lang_id):             # <<<<<<<<<<<<<<
@@ -11455,7 +11491,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_58tok
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":434
+/* "cyllama/whisper/whisper_cpp.pyx":437
  *         return wh.whisper_token_lang(self._c_ctx, lang_id)
  * 
  *     def token_translate(self):             # <<<<<<<<<<<<<<
@@ -11514,7 +11550,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_60tok
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("token_translate", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":435
+  /* "cyllama/whisper/whisper_cpp.pyx":438
  * 
  *     def token_translate(self):
  *         return wh.whisper_token_translate(self._c_ctx)             # <<<<<<<<<<<<<<
@@ -11522,13 +11558,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_60tok
  *     def token_transcribe(self):
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_int32_t(whisper_token_translate(__pyx_v_self->_c_ctx)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 435, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int32_t(whisper_token_translate(__pyx_v_self->_c_ctx)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 438, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":434
+  /* "cyllama/whisper/whisper_cpp.pyx":437
  *         return wh.whisper_token_lang(self._c_ctx, lang_id)
  * 
  *     def token_translate(self):             # <<<<<<<<<<<<<<
@@ -11547,7 +11583,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_60tok
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":437
+/* "cyllama/whisper/whisper_cpp.pyx":440
  *         return wh.whisper_token_translate(self._c_ctx)
  * 
  *     def token_transcribe(self):             # <<<<<<<<<<<<<<
@@ -11606,7 +11642,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_62tok
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("token_transcribe", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":438
+  /* "cyllama/whisper/whisper_cpp.pyx":441
  * 
  *     def token_transcribe(self):
  *         return wh.whisper_token_transcribe(self._c_ctx)             # <<<<<<<<<<<<<<
@@ -11614,13 +11650,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_62tok
  *     def tokenize(self, str text, int max_tokens=512):
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_int32_t(whisper_token_transcribe(__pyx_v_self->_c_ctx)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 438, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int32_t(whisper_token_transcribe(__pyx_v_self->_c_ctx)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 441, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":437
+  /* "cyllama/whisper/whisper_cpp.pyx":440
  *         return wh.whisper_token_translate(self._c_ctx)
  * 
  *     def token_transcribe(self):             # <<<<<<<<<<<<<<
@@ -11639,7 +11675,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_62tok
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":440
+/* "cyllama/whisper/whisper_cpp.pyx":443
  *         return wh.whisper_token_transcribe(self._c_ctx)
  * 
  *     def tokenize(self, str text, int max_tokens=512):             # <<<<<<<<<<<<<<
@@ -11687,48 +11723,48 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   {
     PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_text,&__pyx_mstate_global->__pyx_n_u_max_tokens,0};
     const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
-    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 440, __pyx_L3_error)
+    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 443, __pyx_L3_error)
     if (__pyx_kwds_len > 0) {
       switch (__pyx_nargs) {
         case  2:
         values[1] = __Pyx_ArgRef_FASTCALL(__pyx_args, 1);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 440, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 443, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  1:
         values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 440, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 443, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  0: break;
         default: goto __pyx_L5_argtuple_error;
       }
       const Py_ssize_t kwd_pos_args = __pyx_nargs;
-      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "tokenize", 0) < 0) __PYX_ERR(0, 440, __pyx_L3_error)
+      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "tokenize", 0) < 0) __PYX_ERR(0, 443, __pyx_L3_error)
       for (Py_ssize_t i = __pyx_nargs; i < 1; i++) {
-        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("tokenize", 0, 1, 2, i); __PYX_ERR(0, 440, __pyx_L3_error) }
+        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("tokenize", 0, 1, 2, i); __PYX_ERR(0, 443, __pyx_L3_error) }
       }
     } else {
       switch (__pyx_nargs) {
         case  2:
         values[1] = __Pyx_ArgRef_FASTCALL(__pyx_args, 1);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 440, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 443, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  1:
         values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 440, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 443, __pyx_L3_error)
         break;
         default: goto __pyx_L5_argtuple_error;
       }
     }
     __pyx_v_text = ((PyObject*)values[0]);
     if (values[1]) {
-      __pyx_v_max_tokens = __Pyx_PyLong_As_int(values[1]); if (unlikely((__pyx_v_max_tokens == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 440, __pyx_L3_error)
+      __pyx_v_max_tokens = __Pyx_PyLong_As_int(values[1]); if (unlikely((__pyx_v_max_tokens == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 443, __pyx_L3_error)
     } else {
       __pyx_v_max_tokens = ((int)0x200);
     }
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("tokenize", 0, 1, 2, __pyx_nargs); __PYX_ERR(0, 440, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("tokenize", 0, 1, 2, __pyx_nargs); __PYX_ERR(0, 443, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -11739,7 +11775,7 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   __Pyx_RefNannyFinishContext();
   return NULL;
   __pyx_L4_argument_unpacking_done:;
-  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_text), (&PyUnicode_Type), 1, "text", 1))) __PYX_ERR(0, 440, __pyx_L1_error)
+  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_text), (&PyUnicode_Type), 1, "text", 1))) __PYX_ERR(0, 443, __pyx_L1_error)
   __pyx_r = __pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_64tokenize(((struct __pyx_obj_7cyllama_7whisper_11whisper_cpp_WhisperContext *)__pyx_v_self), __pyx_v_text, __pyx_v_max_tokens);
 
   /* function exit code */
@@ -11793,7 +11829,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_64tok
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("tokenize", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":441
+  /* "cyllama/whisper/whisper_cpp.pyx":444
  * 
  *     def tokenize(self, str text, int max_tokens=512):
  *         cdef int n_tokens = 0             # <<<<<<<<<<<<<<
@@ -11802,7 +11838,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_64tok
 */
   __pyx_v_n_tokens = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":442
+  /* "cyllama/whisper/whisper_cpp.pyx":445
  *     def tokenize(self, str text, int max_tokens=512):
  *         cdef int n_tokens = 0
  *         cdef bytes text_bytes = text.encode('utf-8')             # <<<<<<<<<<<<<<
@@ -11811,14 +11847,14 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_64tok
 */
   if (unlikely(__pyx_v_text == Py_None)) {
     PyErr_Format(PyExc_AttributeError, "'NoneType' object has no attribute '%.30s'", "encode");
-    __PYX_ERR(0, 442, __pyx_L1_error)
+    __PYX_ERR(0, 445, __pyx_L1_error)
   }
-  __pyx_t_1 = PyUnicode_AsUTF8String(__pyx_v_text); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 442, __pyx_L1_error)
+  __pyx_t_1 = PyUnicode_AsUTF8String(__pyx_v_text); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 445, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_v_text_bytes = ((PyObject*)__pyx_t_1);
   __pyx_t_1 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":443
+  /* "cyllama/whisper/whisper_cpp.pyx":446
  *         cdef int n_tokens = 0
  *         cdef bytes text_bytes = text.encode('utf-8')
  *         cdef wh.whisper_token * tokens = <wh.whisper_token *>malloc(max_tokens * sizeof(wh.whisper_token))             # <<<<<<<<<<<<<<
@@ -11827,7 +11863,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_64tok
 */
   __pyx_v_tokens = ((whisper_token *)malloc((__pyx_v_max_tokens * (sizeof(whisper_token)))));
 
-  /* "cyllama/whisper/whisper_cpp.pyx":445
+  /* "cyllama/whisper/whisper_cpp.pyx":448
  *         cdef wh.whisper_token * tokens = <wh.whisper_token *>malloc(max_tokens * sizeof(wh.whisper_token))
  * 
  *         try:             # <<<<<<<<<<<<<<
@@ -11836,17 +11872,17 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_64tok
 */
   /*try:*/ {
 
-    /* "cyllama/whisper/whisper_cpp.pyx":446
+    /* "cyllama/whisper/whisper_cpp.pyx":449
  * 
  *         try:
  *             n_tokens = wh.whisper_tokenize(self._c_ctx, text_bytes, tokens, max_tokens)             # <<<<<<<<<<<<<<
  *             if n_tokens < 0:
  *                 raise RuntimeError(f"Tokenization failed, need {-n_tokens} tokens but only {max_tokens} provided")
 */
-    __pyx_t_2 = __Pyx_PyBytes_AsString(__pyx_v_text_bytes); if (unlikely((!__pyx_t_2) && PyErr_Occurred())) __PYX_ERR(0, 446, __pyx_L4_error)
+    __pyx_t_2 = __Pyx_PyBytes_AsString(__pyx_v_text_bytes); if (unlikely((!__pyx_t_2) && PyErr_Occurred())) __PYX_ERR(0, 449, __pyx_L4_error)
     __pyx_v_n_tokens = whisper_tokenize(__pyx_v_self->_c_ctx, __pyx_t_2, __pyx_v_tokens, __pyx_v_max_tokens);
 
-    /* "cyllama/whisper/whisper_cpp.pyx":447
+    /* "cyllama/whisper/whisper_cpp.pyx":450
  *         try:
  *             n_tokens = wh.whisper_tokenize(self._c_ctx, text_bytes, tokens, max_tokens)
  *             if n_tokens < 0:             # <<<<<<<<<<<<<<
@@ -11856,7 +11892,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_64tok
     __pyx_t_3 = (__pyx_v_n_tokens < 0);
     if (unlikely(__pyx_t_3)) {
 
-      /* "cyllama/whisper/whisper_cpp.pyx":448
+      /* "cyllama/whisper/whisper_cpp.pyx":451
  *             n_tokens = wh.whisper_tokenize(self._c_ctx, text_bytes, tokens, max_tokens)
  *             if n_tokens < 0:
  *                 raise RuntimeError(f"Tokenization failed, need {-n_tokens} tokens but only {max_tokens} provided")             # <<<<<<<<<<<<<<
@@ -11866,9 +11902,9 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_64tok
       __pyx_t_4 = NULL;
       __Pyx_INCREF(__pyx_builtin_RuntimeError);
       __pyx_t_5 = __pyx_builtin_RuntimeError; 
-      __pyx_t_6 = __Pyx_PyUnicode_From_int((-__pyx_v_n_tokens), 0, ' ', 'd'); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 448, __pyx_L4_error)
+      __pyx_t_6 = __Pyx_PyUnicode_From_int((-__pyx_v_n_tokens), 0, ' ', 'd'); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 451, __pyx_L4_error)
       __Pyx_GOTREF(__pyx_t_6);
-      __pyx_t_7 = __Pyx_PyUnicode_From_int(__pyx_v_max_tokens, 0, ' ', 'd'); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 448, __pyx_L4_error)
+      __pyx_t_7 = __Pyx_PyUnicode_From_int(__pyx_v_max_tokens, 0, ' ', 'd'); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 451, __pyx_L4_error)
       __Pyx_GOTREF(__pyx_t_7);
       __pyx_t_8[0] = __pyx_mstate_global->__pyx_kp_u_Tokenization_failed_need;
       __pyx_t_8[1] = __pyx_t_6;
@@ -11876,7 +11912,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_64tok
       __pyx_t_8[3] = __pyx_t_7;
       __pyx_t_8[4] = __pyx_mstate_global->__pyx_kp_u_provided;
       __pyx_t_9 = __Pyx_PyUnicode_Join(__pyx_t_8, 5, 26 + __Pyx_PyUnicode_GET_LENGTH(__pyx_t_6) + 17 + __Pyx_PyUnicode_GET_LENGTH(__pyx_t_7) + 9, 127);
-      if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 448, __pyx_L4_error)
+      if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 451, __pyx_L4_error)
       __Pyx_GOTREF(__pyx_t_9);
       __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
       __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
@@ -11887,14 +11923,14 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_64tok
         __Pyx_XDECREF(__pyx_t_4); __pyx_t_4 = 0;
         __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
         __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
-        if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 448, __pyx_L4_error)
+        if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 451, __pyx_L4_error)
         __Pyx_GOTREF(__pyx_t_1);
       }
       __Pyx_Raise(__pyx_t_1, 0, 0, 0);
       __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-      __PYX_ERR(0, 448, __pyx_L4_error)
+      __PYX_ERR(0, 451, __pyx_L4_error)
 
-      /* "cyllama/whisper/whisper_cpp.pyx":447
+      /* "cyllama/whisper/whisper_cpp.pyx":450
  *         try:
  *             n_tokens = wh.whisper_tokenize(self._c_ctx, text_bytes, tokens, max_tokens)
  *             if n_tokens < 0:             # <<<<<<<<<<<<<<
@@ -11903,19 +11939,19 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_64tok
 */
     }
 
-    /* "cyllama/whisper/whisper_cpp.pyx":450
+    /* "cyllama/whisper/whisper_cpp.pyx":453
  *                 raise RuntimeError(f"Tokenization failed, need {-n_tokens} tokens but only {max_tokens} provided")
  * 
  *             result = []             # <<<<<<<<<<<<<<
  *             for i in range(n_tokens):
  *                 result.append(tokens[i])
 */
-    __pyx_t_1 = PyList_New(0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 450, __pyx_L4_error)
+    __pyx_t_1 = PyList_New(0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 453, __pyx_L4_error)
     __Pyx_GOTREF(__pyx_t_1);
     __pyx_v_result = ((PyObject*)__pyx_t_1);
     __pyx_t_1 = 0;
 
-    /* "cyllama/whisper/whisper_cpp.pyx":451
+    /* "cyllama/whisper/whisper_cpp.pyx":454
  * 
  *             result = []
  *             for i in range(n_tokens):             # <<<<<<<<<<<<<<
@@ -11927,20 +11963,20 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_64tok
     for (__pyx_t_13 = 0; __pyx_t_13 < __pyx_t_12; __pyx_t_13+=1) {
       __pyx_v_i = __pyx_t_13;
 
-      /* "cyllama/whisper/whisper_cpp.pyx":452
+      /* "cyllama/whisper/whisper_cpp.pyx":455
  *             result = []
  *             for i in range(n_tokens):
  *                 result.append(tokens[i])             # <<<<<<<<<<<<<<
  *             return result
  *         finally:
 */
-      __pyx_t_1 = __Pyx_PyLong_From_int32_t((__pyx_v_tokens[__pyx_v_i])); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 452, __pyx_L4_error)
+      __pyx_t_1 = __Pyx_PyLong_From_int32_t((__pyx_v_tokens[__pyx_v_i])); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 455, __pyx_L4_error)
       __Pyx_GOTREF(__pyx_t_1);
-      __pyx_t_14 = __Pyx_PyList_Append(__pyx_v_result, __pyx_t_1); if (unlikely(__pyx_t_14 == ((int)-1))) __PYX_ERR(0, 452, __pyx_L4_error)
+      __pyx_t_14 = __Pyx_PyList_Append(__pyx_v_result, __pyx_t_1); if (unlikely(__pyx_t_14 == ((int)-1))) __PYX_ERR(0, 455, __pyx_L4_error)
       __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
     }
 
-    /* "cyllama/whisper/whisper_cpp.pyx":453
+    /* "cyllama/whisper/whisper_cpp.pyx":456
  *             for i in range(n_tokens):
  *                 result.append(tokens[i])
  *             return result             # <<<<<<<<<<<<<<
@@ -11953,7 +11989,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_64tok
     goto __pyx_L3_return;
   }
 
-  /* "cyllama/whisper/whisper_cpp.pyx":455
+  /* "cyllama/whisper/whisper_cpp.pyx":458
  *             return result
  *         finally:
  *             free(tokens)             # <<<<<<<<<<<<<<
@@ -12006,7 +12042,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_64tok
     }
   }
 
-  /* "cyllama/whisper/whisper_cpp.pyx":440
+  /* "cyllama/whisper/whisper_cpp.pyx":443
  *         return wh.whisper_token_transcribe(self._c_ctx)
  * 
  *     def tokenize(self, str text, int max_tokens=512):             # <<<<<<<<<<<<<<
@@ -12032,7 +12068,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_64tok
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":457
+/* "cyllama/whisper/whisper_cpp.pyx":460
  *             free(tokens)
  * 
  *     def token_count(self, str text):             # <<<<<<<<<<<<<<
@@ -12079,32 +12115,32 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   {
     PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_text,0};
     const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
-    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 457, __pyx_L3_error)
+    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 460, __pyx_L3_error)
     if (__pyx_kwds_len > 0) {
       switch (__pyx_nargs) {
         case  1:
         values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 457, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 460, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  0: break;
         default: goto __pyx_L5_argtuple_error;
       }
       const Py_ssize_t kwd_pos_args = __pyx_nargs;
-      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "token_count", 0) < 0) __PYX_ERR(0, 457, __pyx_L3_error)
+      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "token_count", 0) < 0) __PYX_ERR(0, 460, __pyx_L3_error)
       for (Py_ssize_t i = __pyx_nargs; i < 1; i++) {
-        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("token_count", 1, 1, 1, i); __PYX_ERR(0, 457, __pyx_L3_error) }
+        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("token_count", 1, 1, 1, i); __PYX_ERR(0, 460, __pyx_L3_error) }
       }
     } else if (unlikely(__pyx_nargs != 1)) {
       goto __pyx_L5_argtuple_error;
     } else {
       values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 457, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 460, __pyx_L3_error)
     }
     __pyx_v_text = ((PyObject*)values[0]);
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("token_count", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 457, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("token_count", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 460, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -12115,7 +12151,7 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   __Pyx_RefNannyFinishContext();
   return NULL;
   __pyx_L4_argument_unpacking_done:;
-  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_text), (&PyUnicode_Type), 1, "text", 1))) __PYX_ERR(0, 457, __pyx_L1_error)
+  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_text), (&PyUnicode_Type), 1, "text", 1))) __PYX_ERR(0, 460, __pyx_L1_error)
   __pyx_r = __pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_66token_count(((struct __pyx_obj_7cyllama_7whisper_11whisper_cpp_WhisperContext *)__pyx_v_self), __pyx_v_text);
 
   /* function exit code */
@@ -12146,7 +12182,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_66tok
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("token_count", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":458
+  /* "cyllama/whisper/whisper_cpp.pyx":461
  * 
  *     def token_count(self, str text):
  *         text_bytes = text.encode('utf-8')             # <<<<<<<<<<<<<<
@@ -12155,14 +12191,14 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_66tok
 */
   if (unlikely(__pyx_v_text == Py_None)) {
     PyErr_Format(PyExc_AttributeError, "'NoneType' object has no attribute '%.30s'", "encode");
-    __PYX_ERR(0, 458, __pyx_L1_error)
+    __PYX_ERR(0, 461, __pyx_L1_error)
   }
-  __pyx_t_1 = PyUnicode_AsUTF8String(__pyx_v_text); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 458, __pyx_L1_error)
+  __pyx_t_1 = PyUnicode_AsUTF8String(__pyx_v_text); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 461, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_v_text_bytes = ((PyObject*)__pyx_t_1);
   __pyx_t_1 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":459
+  /* "cyllama/whisper/whisper_cpp.pyx":462
  *     def token_count(self, str text):
  *         text_bytes = text.encode('utf-8')
  *         return wh.whisper_token_count(self._c_ctx, text_bytes)             # <<<<<<<<<<<<<<
@@ -12170,14 +12206,14 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_66tok
  *     def lang_max_id(self):
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_2 = __Pyx_PyBytes_AsString(__pyx_v_text_bytes); if (unlikely((!__pyx_t_2) && PyErr_Occurred())) __PYX_ERR(0, 459, __pyx_L1_error)
-  __pyx_t_1 = __Pyx_PyLong_From_int(whisper_token_count(__pyx_v_self->_c_ctx, __pyx_t_2)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 459, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyBytes_AsString(__pyx_v_text_bytes); if (unlikely((!__pyx_t_2) && PyErr_Occurred())) __PYX_ERR(0, 462, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int(whisper_token_count(__pyx_v_self->_c_ctx, __pyx_t_2)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 462, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":457
+  /* "cyllama/whisper/whisper_cpp.pyx":460
  *             free(tokens)
  * 
  *     def token_count(self, str text):             # <<<<<<<<<<<<<<
@@ -12197,7 +12233,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_66tok
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":461
+/* "cyllama/whisper/whisper_cpp.pyx":464
  *         return wh.whisper_token_count(self._c_ctx, text_bytes)
  * 
  *     def lang_max_id(self):             # <<<<<<<<<<<<<<
@@ -12256,7 +12292,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_68lan
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("lang_max_id", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":462
+  /* "cyllama/whisper/whisper_cpp.pyx":465
  * 
  *     def lang_max_id(self):
  *         return wh.whisper_lang_max_id()             # <<<<<<<<<<<<<<
@@ -12264,13 +12300,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_68lan
  *     def lang_id(self, str lang):
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_int(whisper_lang_max_id()); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 462, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int(whisper_lang_max_id()); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 465, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":461
+  /* "cyllama/whisper/whisper_cpp.pyx":464
  *         return wh.whisper_token_count(self._c_ctx, text_bytes)
  * 
  *     def lang_max_id(self):             # <<<<<<<<<<<<<<
@@ -12289,7 +12325,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_68lan
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":464
+/* "cyllama/whisper/whisper_cpp.pyx":467
  *         return wh.whisper_lang_max_id()
  * 
  *     def lang_id(self, str lang):             # <<<<<<<<<<<<<<
@@ -12336,32 +12372,32 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   {
     PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_lang,0};
     const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
-    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 464, __pyx_L3_error)
+    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 467, __pyx_L3_error)
     if (__pyx_kwds_len > 0) {
       switch (__pyx_nargs) {
         case  1:
         values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 464, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 467, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  0: break;
         default: goto __pyx_L5_argtuple_error;
       }
       const Py_ssize_t kwd_pos_args = __pyx_nargs;
-      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "lang_id", 0) < 0) __PYX_ERR(0, 464, __pyx_L3_error)
+      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "lang_id", 0) < 0) __PYX_ERR(0, 467, __pyx_L3_error)
       for (Py_ssize_t i = __pyx_nargs; i < 1; i++) {
-        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("lang_id", 1, 1, 1, i); __PYX_ERR(0, 464, __pyx_L3_error) }
+        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("lang_id", 1, 1, 1, i); __PYX_ERR(0, 467, __pyx_L3_error) }
       }
     } else if (unlikely(__pyx_nargs != 1)) {
       goto __pyx_L5_argtuple_error;
     } else {
       values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 464, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 467, __pyx_L3_error)
     }
     __pyx_v_lang = ((PyObject*)values[0]);
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("lang_id", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 464, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("lang_id", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 467, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -12372,7 +12408,7 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   __Pyx_RefNannyFinishContext();
   return NULL;
   __pyx_L4_argument_unpacking_done:;
-  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_lang), (&PyUnicode_Type), 1, "lang", 1))) __PYX_ERR(0, 464, __pyx_L1_error)
+  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_lang), (&PyUnicode_Type), 1, "lang", 1))) __PYX_ERR(0, 467, __pyx_L1_error)
   __pyx_r = __pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_70lang_id(((struct __pyx_obj_7cyllama_7whisper_11whisper_cpp_WhisperContext *)__pyx_v_self), __pyx_v_lang);
 
   /* function exit code */
@@ -12403,7 +12439,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_70lan
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("lang_id", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":465
+  /* "cyllama/whisper/whisper_cpp.pyx":468
  * 
  *     def lang_id(self, str lang):
  *         lang_bytes = lang.encode('utf-8')             # <<<<<<<<<<<<<<
@@ -12412,14 +12448,14 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_70lan
 */
   if (unlikely(__pyx_v_lang == Py_None)) {
     PyErr_Format(PyExc_AttributeError, "'NoneType' object has no attribute '%.30s'", "encode");
-    __PYX_ERR(0, 465, __pyx_L1_error)
+    __PYX_ERR(0, 468, __pyx_L1_error)
   }
-  __pyx_t_1 = PyUnicode_AsUTF8String(__pyx_v_lang); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 465, __pyx_L1_error)
+  __pyx_t_1 = PyUnicode_AsUTF8String(__pyx_v_lang); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 468, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_v_lang_bytes = ((PyObject*)__pyx_t_1);
   __pyx_t_1 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":466
+  /* "cyllama/whisper/whisper_cpp.pyx":469
  *     def lang_id(self, str lang):
  *         lang_bytes = lang.encode('utf-8')
  *         return wh.whisper_lang_id(lang_bytes)             # <<<<<<<<<<<<<<
@@ -12427,14 +12463,14 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_70lan
  *     def lang_str(self, int id):
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_2 = __Pyx_PyBytes_AsString(__pyx_v_lang_bytes); if (unlikely((!__pyx_t_2) && PyErr_Occurred())) __PYX_ERR(0, 466, __pyx_L1_error)
-  __pyx_t_1 = __Pyx_PyLong_From_int(whisper_lang_id(__pyx_t_2)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 466, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyBytes_AsString(__pyx_v_lang_bytes); if (unlikely((!__pyx_t_2) && PyErr_Occurred())) __PYX_ERR(0, 469, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int(whisper_lang_id(__pyx_t_2)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 469, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":464
+  /* "cyllama/whisper/whisper_cpp.pyx":467
  *         return wh.whisper_lang_max_id()
  * 
  *     def lang_id(self, str lang):             # <<<<<<<<<<<<<<
@@ -12454,7 +12490,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_70lan
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":468
+/* "cyllama/whisper/whisper_cpp.pyx":471
  *         return wh.whisper_lang_id(lang_bytes)
  * 
  *     def lang_str(self, int id):             # <<<<<<<<<<<<<<
@@ -12501,32 +12537,32 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   {
     PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_id,0};
     const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
-    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 468, __pyx_L3_error)
+    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 471, __pyx_L3_error)
     if (__pyx_kwds_len > 0) {
       switch (__pyx_nargs) {
         case  1:
         values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 468, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 471, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  0: break;
         default: goto __pyx_L5_argtuple_error;
       }
       const Py_ssize_t kwd_pos_args = __pyx_nargs;
-      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "lang_str", 0) < 0) __PYX_ERR(0, 468, __pyx_L3_error)
+      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "lang_str", 0) < 0) __PYX_ERR(0, 471, __pyx_L3_error)
       for (Py_ssize_t i = __pyx_nargs; i < 1; i++) {
-        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("lang_str", 1, 1, 1, i); __PYX_ERR(0, 468, __pyx_L3_error) }
+        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("lang_str", 1, 1, 1, i); __PYX_ERR(0, 471, __pyx_L3_error) }
       }
     } else if (unlikely(__pyx_nargs != 1)) {
       goto __pyx_L5_argtuple_error;
     } else {
       values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 468, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 471, __pyx_L3_error)
     }
-    __pyx_v_id = __Pyx_PyLong_As_int(values[0]); if (unlikely((__pyx_v_id == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 468, __pyx_L3_error)
+    __pyx_v_id = __Pyx_PyLong_As_int(values[0]); if (unlikely((__pyx_v_id == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 471, __pyx_L3_error)
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("lang_str", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 468, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("lang_str", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 471, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -12559,7 +12595,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_72lan
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("lang_str", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":469
+  /* "cyllama/whisper/whisper_cpp.pyx":472
  * 
  *     def lang_str(self, int id):
  *         cdef const char * result = wh.whisper_lang_str(id)             # <<<<<<<<<<<<<<
@@ -12568,7 +12604,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_72lan
 */
   __pyx_v_result = whisper_lang_str(__pyx_v_id);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":470
+  /* "cyllama/whisper/whisper_cpp.pyx":473
  *     def lang_str(self, int id):
  *         cdef const char * result = wh.whisper_lang_str(id)
  *         if result == NULL:             # <<<<<<<<<<<<<<
@@ -12578,7 +12614,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_72lan
   __pyx_t_1 = (__pyx_v_result == NULL);
   if (__pyx_t_1) {
 
-    /* "cyllama/whisper/whisper_cpp.pyx":471
+    /* "cyllama/whisper/whisper_cpp.pyx":474
  *         cdef const char * result = wh.whisper_lang_str(id)
  *         if result == NULL:
  *             return None             # <<<<<<<<<<<<<<
@@ -12589,7 +12625,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_72lan
     __pyx_r = Py_None; __Pyx_INCREF(Py_None);
     goto __pyx_L0;
 
-    /* "cyllama/whisper/whisper_cpp.pyx":470
+    /* "cyllama/whisper/whisper_cpp.pyx":473
  *     def lang_str(self, int id):
  *         cdef const char * result = wh.whisper_lang_str(id)
  *         if result == NULL:             # <<<<<<<<<<<<<<
@@ -12598,7 +12634,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_72lan
 */
   }
 
-  /* "cyllama/whisper/whisper_cpp.pyx":472
+  /* "cyllama/whisper/whisper_cpp.pyx":475
  *         if result == NULL:
  *             return None
  *         return result.decode('utf-8')             # <<<<<<<<<<<<<<
@@ -12606,14 +12642,14 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_72lan
  *     def lang_str_full(self, int id):
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_2 = __Pyx_ssize_strlen(__pyx_v_result); if (unlikely(__pyx_t_2 == ((Py_ssize_t)-1))) __PYX_ERR(0, 472, __pyx_L1_error)
-  __pyx_t_3 = __Pyx_decode_c_string(__pyx_v_result, 0, __pyx_t_2, NULL, NULL, PyUnicode_DecodeUTF8); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 472, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_ssize_strlen(__pyx_v_result); if (unlikely(__pyx_t_2 == ((Py_ssize_t)-1))) __PYX_ERR(0, 475, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_decode_c_string(__pyx_v_result, 0, __pyx_t_2, NULL, NULL, PyUnicode_DecodeUTF8); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 475, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __pyx_r = __pyx_t_3;
   __pyx_t_3 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":468
+  /* "cyllama/whisper/whisper_cpp.pyx":471
  *         return wh.whisper_lang_id(lang_bytes)
  * 
  *     def lang_str(self, int id):             # <<<<<<<<<<<<<<
@@ -12632,7 +12668,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_72lan
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":474
+/* "cyllama/whisper/whisper_cpp.pyx":477
  *         return result.decode('utf-8')
  * 
  *     def lang_str_full(self, int id):             # <<<<<<<<<<<<<<
@@ -12679,32 +12715,32 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   {
     PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_id,0};
     const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
-    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 474, __pyx_L3_error)
+    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 477, __pyx_L3_error)
     if (__pyx_kwds_len > 0) {
       switch (__pyx_nargs) {
         case  1:
         values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 474, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 477, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  0: break;
         default: goto __pyx_L5_argtuple_error;
       }
       const Py_ssize_t kwd_pos_args = __pyx_nargs;
-      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "lang_str_full", 0) < 0) __PYX_ERR(0, 474, __pyx_L3_error)
+      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "lang_str_full", 0) < 0) __PYX_ERR(0, 477, __pyx_L3_error)
       for (Py_ssize_t i = __pyx_nargs; i < 1; i++) {
-        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("lang_str_full", 1, 1, 1, i); __PYX_ERR(0, 474, __pyx_L3_error) }
+        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("lang_str_full", 1, 1, 1, i); __PYX_ERR(0, 477, __pyx_L3_error) }
       }
     } else if (unlikely(__pyx_nargs != 1)) {
       goto __pyx_L5_argtuple_error;
     } else {
       values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 474, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 477, __pyx_L3_error)
     }
-    __pyx_v_id = __Pyx_PyLong_As_int(values[0]); if (unlikely((__pyx_v_id == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 474, __pyx_L3_error)
+    __pyx_v_id = __Pyx_PyLong_As_int(values[0]); if (unlikely((__pyx_v_id == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 477, __pyx_L3_error)
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("lang_str_full", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 474, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("lang_str_full", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 477, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -12737,7 +12773,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_74lan
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("lang_str_full", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":475
+  /* "cyllama/whisper/whisper_cpp.pyx":478
  * 
  *     def lang_str_full(self, int id):
  *         cdef const char * result = wh.whisper_lang_str_full(id)             # <<<<<<<<<<<<<<
@@ -12746,7 +12782,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_74lan
 */
   __pyx_v_result = whisper_lang_str_full(__pyx_v_id);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":476
+  /* "cyllama/whisper/whisper_cpp.pyx":479
  *     def lang_str_full(self, int id):
  *         cdef const char * result = wh.whisper_lang_str_full(id)
  *         if result == NULL:             # <<<<<<<<<<<<<<
@@ -12756,7 +12792,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_74lan
   __pyx_t_1 = (__pyx_v_result == NULL);
   if (__pyx_t_1) {
 
-    /* "cyllama/whisper/whisper_cpp.pyx":477
+    /* "cyllama/whisper/whisper_cpp.pyx":480
  *         cdef const char * result = wh.whisper_lang_str_full(id)
  *         if result == NULL:
  *             return None             # <<<<<<<<<<<<<<
@@ -12767,7 +12803,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_74lan
     __pyx_r = Py_None; __Pyx_INCREF(Py_None);
     goto __pyx_L0;
 
-    /* "cyllama/whisper/whisper_cpp.pyx":476
+    /* "cyllama/whisper/whisper_cpp.pyx":479
  *     def lang_str_full(self, int id):
  *         cdef const char * result = wh.whisper_lang_str_full(id)
  *         if result == NULL:             # <<<<<<<<<<<<<<
@@ -12776,7 +12812,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_74lan
 */
   }
 
-  /* "cyllama/whisper/whisper_cpp.pyx":478
+  /* "cyllama/whisper/whisper_cpp.pyx":481
  *         if result == NULL:
  *             return None
  *         return result.decode('utf-8')             # <<<<<<<<<<<<<<
@@ -12784,14 +12820,14 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_74lan
  *     # def pcm_to_mel(self, samples, int n_threads=1):
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_2 = __Pyx_ssize_strlen(__pyx_v_result); if (unlikely(__pyx_t_2 == ((Py_ssize_t)-1))) __PYX_ERR(0, 478, __pyx_L1_error)
-  __pyx_t_3 = __Pyx_decode_c_string(__pyx_v_result, 0, __pyx_t_2, NULL, NULL, PyUnicode_DecodeUTF8); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 478, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_ssize_strlen(__pyx_v_result); if (unlikely(__pyx_t_2 == ((Py_ssize_t)-1))) __PYX_ERR(0, 481, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_decode_c_string(__pyx_v_result, 0, __pyx_t_2, NULL, NULL, PyUnicode_DecodeUTF8); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 481, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __pyx_r = __pyx_t_3;
   __pyx_t_3 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":474
+  /* "cyllama/whisper/whisper_cpp.pyx":477
  *         return result.decode('utf-8')
  * 
  *     def lang_str_full(self, int id):             # <<<<<<<<<<<<<<
@@ -12810,7 +12846,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_74lan
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":488
+/* "cyllama/whisper/whisper_cpp.pyx":491
  *     #         raise RuntimeError(f"PCM to mel conversion failed with error {result}")
  * 
  *     def encode(self, int offset=0, int n_threads=1):             # <<<<<<<<<<<<<<
@@ -12858,50 +12894,50 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   {
     PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_offset,&__pyx_mstate_global->__pyx_n_u_n_threads,0};
     const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
-    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 488, __pyx_L3_error)
+    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 491, __pyx_L3_error)
     if (__pyx_kwds_len > 0) {
       switch (__pyx_nargs) {
         case  2:
         values[1] = __Pyx_ArgRef_FASTCALL(__pyx_args, 1);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 488, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 491, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  1:
         values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 488, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 491, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  0: break;
         default: goto __pyx_L5_argtuple_error;
       }
       const Py_ssize_t kwd_pos_args = __pyx_nargs;
-      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "encode", 0) < 0) __PYX_ERR(0, 488, __pyx_L3_error)
+      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "encode", 0) < 0) __PYX_ERR(0, 491, __pyx_L3_error)
     } else {
       switch (__pyx_nargs) {
         case  2:
         values[1] = __Pyx_ArgRef_FASTCALL(__pyx_args, 1);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 488, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 491, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  1:
         values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 488, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 491, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  0: break;
         default: goto __pyx_L5_argtuple_error;
       }
     }
     if (values[0]) {
-      __pyx_v_offset = __Pyx_PyLong_As_int(values[0]); if (unlikely((__pyx_v_offset == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 488, __pyx_L3_error)
+      __pyx_v_offset = __Pyx_PyLong_As_int(values[0]); if (unlikely((__pyx_v_offset == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 491, __pyx_L3_error)
     } else {
       __pyx_v_offset = ((int)0);
     }
     if (values[1]) {
-      __pyx_v_n_threads = __Pyx_PyLong_As_int(values[1]); if (unlikely((__pyx_v_n_threads == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 488, __pyx_L3_error)
+      __pyx_v_n_threads = __Pyx_PyLong_As_int(values[1]); if (unlikely((__pyx_v_n_threads == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 491, __pyx_L3_error)
     } else {
       __pyx_v_n_threads = ((int)1);
     }
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("encode", 0, 0, 2, __pyx_nargs); __PYX_ERR(0, 488, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("encode", 0, 0, 2, __pyx_nargs); __PYX_ERR(0, 491, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -12938,7 +12974,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_76enc
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("encode", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":489
+  /* "cyllama/whisper/whisper_cpp.pyx":492
  * 
  *     def encode(self, int offset=0, int n_threads=1):
  *         cdef int result = wh.whisper_encode(self._c_ctx, offset, n_threads)             # <<<<<<<<<<<<<<
@@ -12947,7 +12983,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_76enc
 */
   __pyx_v_result = whisper_encode(__pyx_v_self->_c_ctx, __pyx_v_offset, __pyx_v_n_threads);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":490
+  /* "cyllama/whisper/whisper_cpp.pyx":493
  *     def encode(self, int offset=0, int n_threads=1):
  *         cdef int result = wh.whisper_encode(self._c_ctx, offset, n_threads)
  *         if result != 0:             # <<<<<<<<<<<<<<
@@ -12957,7 +12993,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_76enc
   __pyx_t_1 = (__pyx_v_result != 0);
   if (unlikely(__pyx_t_1)) {
 
-    /* "cyllama/whisper/whisper_cpp.pyx":491
+    /* "cyllama/whisper/whisper_cpp.pyx":494
  *         cdef int result = wh.whisper_encode(self._c_ctx, offset, n_threads)
  *         if result != 0:
  *             raise RuntimeError(f"Encoding failed with error {result}")             # <<<<<<<<<<<<<<
@@ -12967,9 +13003,9 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_76enc
     __pyx_t_3 = NULL;
     __Pyx_INCREF(__pyx_builtin_RuntimeError);
     __pyx_t_4 = __pyx_builtin_RuntimeError; 
-    __pyx_t_5 = __Pyx_PyUnicode_From_int(__pyx_v_result, 0, ' ', 'd'); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 491, __pyx_L1_error)
+    __pyx_t_5 = __Pyx_PyUnicode_From_int(__pyx_v_result, 0, ' ', 'd'); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 494, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_5);
-    __pyx_t_6 = __Pyx_PyUnicode_Concat(__pyx_mstate_global->__pyx_kp_u_Encoding_failed_with_error, __pyx_t_5); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 491, __pyx_L1_error)
+    __pyx_t_6 = __Pyx_PyUnicode_Concat(__pyx_mstate_global->__pyx_kp_u_Encoding_failed_with_error, __pyx_t_5); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 494, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_6);
     __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
     __pyx_t_7 = 1;
@@ -12979,14 +13015,14 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_76enc
       __Pyx_XDECREF(__pyx_t_3); __pyx_t_3 = 0;
       __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
       __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-      if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 491, __pyx_L1_error)
+      if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 494, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_2);
     }
     __Pyx_Raise(__pyx_t_2, 0, 0, 0);
     __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-    __PYX_ERR(0, 491, __pyx_L1_error)
+    __PYX_ERR(0, 494, __pyx_L1_error)
 
-    /* "cyllama/whisper/whisper_cpp.pyx":490
+    /* "cyllama/whisper/whisper_cpp.pyx":493
  *     def encode(self, int offset=0, int n_threads=1):
  *         cdef int result = wh.whisper_encode(self._c_ctx, offset, n_threads)
  *         if result != 0:             # <<<<<<<<<<<<<<
@@ -12995,7 +13031,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_76enc
 */
   }
 
-  /* "cyllama/whisper/whisper_cpp.pyx":488
+  /* "cyllama/whisper/whisper_cpp.pyx":491
  *     #         raise RuntimeError(f"PCM to mel conversion failed with error {result}")
  * 
  *     def encode(self, int offset=0, int n_threads=1):             # <<<<<<<<<<<<<<
@@ -13020,7 +13056,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_76enc
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":508
+/* "cyllama/whisper/whisper_cpp.pyx":511
  *     #         raise RuntimeError(f"Whisper full processing failed with error {result}")
  * 
  *     def full_n_segments(self):             # <<<<<<<<<<<<<<
@@ -13079,7 +13115,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_78ful
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("full_n_segments", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":509
+  /* "cyllama/whisper/whisper_cpp.pyx":512
  * 
  *     def full_n_segments(self):
  *         return wh.whisper_full_n_segments(self._c_ctx)             # <<<<<<<<<<<<<<
@@ -13087,13 +13123,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_78ful
  *     def full_lang_id(self):
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_int(whisper_full_n_segments(__pyx_v_self->_c_ctx)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 509, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int(whisper_full_n_segments(__pyx_v_self->_c_ctx)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 512, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":508
+  /* "cyllama/whisper/whisper_cpp.pyx":511
  *     #         raise RuntimeError(f"Whisper full processing failed with error {result}")
  * 
  *     def full_n_segments(self):             # <<<<<<<<<<<<<<
@@ -13112,7 +13148,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_78ful
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":511
+/* "cyllama/whisper/whisper_cpp.pyx":514
  *         return wh.whisper_full_n_segments(self._c_ctx)
  * 
  *     def full_lang_id(self):             # <<<<<<<<<<<<<<
@@ -13171,7 +13207,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_80ful
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("full_lang_id", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":512
+  /* "cyllama/whisper/whisper_cpp.pyx":515
  * 
  *     def full_lang_id(self):
  *         return wh.whisper_full_lang_id(self._c_ctx)             # <<<<<<<<<<<<<<
@@ -13179,13 +13215,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_80ful
  *     def full_get_segment_t0(self, int i_segment):
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_int(whisper_full_lang_id(__pyx_v_self->_c_ctx)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 512, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int(whisper_full_lang_id(__pyx_v_self->_c_ctx)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 515, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":511
+  /* "cyllama/whisper/whisper_cpp.pyx":514
  *         return wh.whisper_full_n_segments(self._c_ctx)
  * 
  *     def full_lang_id(self):             # <<<<<<<<<<<<<<
@@ -13204,7 +13240,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_80ful
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":514
+/* "cyllama/whisper/whisper_cpp.pyx":517
  *         return wh.whisper_full_lang_id(self._c_ctx)
  * 
  *     def full_get_segment_t0(self, int i_segment):             # <<<<<<<<<<<<<<
@@ -13251,32 +13287,32 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   {
     PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_i_segment,0};
     const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
-    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 514, __pyx_L3_error)
+    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 517, __pyx_L3_error)
     if (__pyx_kwds_len > 0) {
       switch (__pyx_nargs) {
         case  1:
         values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 514, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 517, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  0: break;
         default: goto __pyx_L5_argtuple_error;
       }
       const Py_ssize_t kwd_pos_args = __pyx_nargs;
-      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "full_get_segment_t0", 0) < 0) __PYX_ERR(0, 514, __pyx_L3_error)
+      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "full_get_segment_t0", 0) < 0) __PYX_ERR(0, 517, __pyx_L3_error)
       for (Py_ssize_t i = __pyx_nargs; i < 1; i++) {
-        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("full_get_segment_t0", 1, 1, 1, i); __PYX_ERR(0, 514, __pyx_L3_error) }
+        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("full_get_segment_t0", 1, 1, 1, i); __PYX_ERR(0, 517, __pyx_L3_error) }
       }
     } else if (unlikely(__pyx_nargs != 1)) {
       goto __pyx_L5_argtuple_error;
     } else {
       values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 514, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 517, __pyx_L3_error)
     }
-    __pyx_v_i_segment = __Pyx_PyLong_As_int(values[0]); if (unlikely((__pyx_v_i_segment == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 514, __pyx_L3_error)
+    __pyx_v_i_segment = __Pyx_PyLong_As_int(values[0]); if (unlikely((__pyx_v_i_segment == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 517, __pyx_L3_error)
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("full_get_segment_t0", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 514, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("full_get_segment_t0", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 517, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -13306,7 +13342,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_82ful
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("full_get_segment_t0", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":515
+  /* "cyllama/whisper/whisper_cpp.pyx":518
  * 
  *     def full_get_segment_t0(self, int i_segment):
  *         return wh.whisper_full_get_segment_t0(self._c_ctx, i_segment)             # <<<<<<<<<<<<<<
@@ -13314,13 +13350,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_82ful
  *     def full_get_segment_t1(self, int i_segment):
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_int64_t(whisper_full_get_segment_t0(__pyx_v_self->_c_ctx, __pyx_v_i_segment)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 515, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int64_t(whisper_full_get_segment_t0(__pyx_v_self->_c_ctx, __pyx_v_i_segment)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 518, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":514
+  /* "cyllama/whisper/whisper_cpp.pyx":517
  *         return wh.whisper_full_lang_id(self._c_ctx)
  * 
  *     def full_get_segment_t0(self, int i_segment):             # <<<<<<<<<<<<<<
@@ -13339,7 +13375,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_82ful
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":517
+/* "cyllama/whisper/whisper_cpp.pyx":520
  *         return wh.whisper_full_get_segment_t0(self._c_ctx, i_segment)
  * 
  *     def full_get_segment_t1(self, int i_segment):             # <<<<<<<<<<<<<<
@@ -13386,32 +13422,32 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   {
     PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_i_segment,0};
     const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
-    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 517, __pyx_L3_error)
+    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 520, __pyx_L3_error)
     if (__pyx_kwds_len > 0) {
       switch (__pyx_nargs) {
         case  1:
         values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 517, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 520, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  0: break;
         default: goto __pyx_L5_argtuple_error;
       }
       const Py_ssize_t kwd_pos_args = __pyx_nargs;
-      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "full_get_segment_t1", 0) < 0) __PYX_ERR(0, 517, __pyx_L3_error)
+      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "full_get_segment_t1", 0) < 0) __PYX_ERR(0, 520, __pyx_L3_error)
       for (Py_ssize_t i = __pyx_nargs; i < 1; i++) {
-        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("full_get_segment_t1", 1, 1, 1, i); __PYX_ERR(0, 517, __pyx_L3_error) }
+        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("full_get_segment_t1", 1, 1, 1, i); __PYX_ERR(0, 520, __pyx_L3_error) }
       }
     } else if (unlikely(__pyx_nargs != 1)) {
       goto __pyx_L5_argtuple_error;
     } else {
       values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 517, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 520, __pyx_L3_error)
     }
-    __pyx_v_i_segment = __Pyx_PyLong_As_int(values[0]); if (unlikely((__pyx_v_i_segment == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 517, __pyx_L3_error)
+    __pyx_v_i_segment = __Pyx_PyLong_As_int(values[0]); if (unlikely((__pyx_v_i_segment == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 520, __pyx_L3_error)
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("full_get_segment_t1", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 517, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("full_get_segment_t1", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 520, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -13441,7 +13477,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_84ful
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("full_get_segment_t1", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":518
+  /* "cyllama/whisper/whisper_cpp.pyx":521
  * 
  *     def full_get_segment_t1(self, int i_segment):
  *         return wh.whisper_full_get_segment_t1(self._c_ctx, i_segment)             # <<<<<<<<<<<<<<
@@ -13449,13 +13485,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_84ful
  *     def full_get_segment_text(self, int i_segment):
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_int64_t(whisper_full_get_segment_t1(__pyx_v_self->_c_ctx, __pyx_v_i_segment)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 518, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int64_t(whisper_full_get_segment_t1(__pyx_v_self->_c_ctx, __pyx_v_i_segment)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 521, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":517
+  /* "cyllama/whisper/whisper_cpp.pyx":520
  *         return wh.whisper_full_get_segment_t0(self._c_ctx, i_segment)
  * 
  *     def full_get_segment_t1(self, int i_segment):             # <<<<<<<<<<<<<<
@@ -13474,7 +13510,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_84ful
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":520
+/* "cyllama/whisper/whisper_cpp.pyx":523
  *         return wh.whisper_full_get_segment_t1(self._c_ctx, i_segment)
  * 
  *     def full_get_segment_text(self, int i_segment):             # <<<<<<<<<<<<<<
@@ -13521,32 +13557,32 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   {
     PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_i_segment,0};
     const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
-    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 520, __pyx_L3_error)
+    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 523, __pyx_L3_error)
     if (__pyx_kwds_len > 0) {
       switch (__pyx_nargs) {
         case  1:
         values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 520, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 523, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  0: break;
         default: goto __pyx_L5_argtuple_error;
       }
       const Py_ssize_t kwd_pos_args = __pyx_nargs;
-      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "full_get_segment_text", 0) < 0) __PYX_ERR(0, 520, __pyx_L3_error)
+      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "full_get_segment_text", 0) < 0) __PYX_ERR(0, 523, __pyx_L3_error)
       for (Py_ssize_t i = __pyx_nargs; i < 1; i++) {
-        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("full_get_segment_text", 1, 1, 1, i); __PYX_ERR(0, 520, __pyx_L3_error) }
+        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("full_get_segment_text", 1, 1, 1, i); __PYX_ERR(0, 523, __pyx_L3_error) }
       }
     } else if (unlikely(__pyx_nargs != 1)) {
       goto __pyx_L5_argtuple_error;
     } else {
       values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 520, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 523, __pyx_L3_error)
     }
-    __pyx_v_i_segment = __Pyx_PyLong_As_int(values[0]); if (unlikely((__pyx_v_i_segment == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 520, __pyx_L3_error)
+    __pyx_v_i_segment = __Pyx_PyLong_As_int(values[0]); if (unlikely((__pyx_v_i_segment == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 523, __pyx_L3_error)
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("full_get_segment_text", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 520, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("full_get_segment_text", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 523, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -13579,7 +13615,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_86ful
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("full_get_segment_text", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":521
+  /* "cyllama/whisper/whisper_cpp.pyx":524
  * 
  *     def full_get_segment_text(self, int i_segment):
  *         cdef const char * result = wh.whisper_full_get_segment_text(self._c_ctx, i_segment)             # <<<<<<<<<<<<<<
@@ -13588,7 +13624,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_86ful
 */
   __pyx_v_result = whisper_full_get_segment_text(__pyx_v_self->_c_ctx, __pyx_v_i_segment);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":522
+  /* "cyllama/whisper/whisper_cpp.pyx":525
  *     def full_get_segment_text(self, int i_segment):
  *         cdef const char * result = wh.whisper_full_get_segment_text(self._c_ctx, i_segment)
  *         if result == NULL:             # <<<<<<<<<<<<<<
@@ -13598,7 +13634,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_86ful
   __pyx_t_1 = (__pyx_v_result == NULL);
   if (__pyx_t_1) {
 
-    /* "cyllama/whisper/whisper_cpp.pyx":523
+    /* "cyllama/whisper/whisper_cpp.pyx":526
  *         cdef const char * result = wh.whisper_full_get_segment_text(self._c_ctx, i_segment)
  *         if result == NULL:
  *             return ""             # <<<<<<<<<<<<<<
@@ -13610,7 +13646,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_86ful
     __pyx_r = __pyx_mstate_global->__pyx_kp_u__2;
     goto __pyx_L0;
 
-    /* "cyllama/whisper/whisper_cpp.pyx":522
+    /* "cyllama/whisper/whisper_cpp.pyx":525
  *     def full_get_segment_text(self, int i_segment):
  *         cdef const char * result = wh.whisper_full_get_segment_text(self._c_ctx, i_segment)
  *         if result == NULL:             # <<<<<<<<<<<<<<
@@ -13619,7 +13655,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_86ful
 */
   }
 
-  /* "cyllama/whisper/whisper_cpp.pyx":524
+  /* "cyllama/whisper/whisper_cpp.pyx":527
  *         if result == NULL:
  *             return ""
  *         return result.decode('utf-8')             # <<<<<<<<<<<<<<
@@ -13627,14 +13663,14 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_86ful
  *     def full_n_tokens(self, int i_segment):
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_2 = __Pyx_ssize_strlen(__pyx_v_result); if (unlikely(__pyx_t_2 == ((Py_ssize_t)-1))) __PYX_ERR(0, 524, __pyx_L1_error)
-  __pyx_t_3 = __Pyx_decode_c_string(__pyx_v_result, 0, __pyx_t_2, NULL, NULL, PyUnicode_DecodeUTF8); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 524, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_ssize_strlen(__pyx_v_result); if (unlikely(__pyx_t_2 == ((Py_ssize_t)-1))) __PYX_ERR(0, 527, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_decode_c_string(__pyx_v_result, 0, __pyx_t_2, NULL, NULL, PyUnicode_DecodeUTF8); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 527, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __pyx_r = __pyx_t_3;
   __pyx_t_3 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":520
+  /* "cyllama/whisper/whisper_cpp.pyx":523
  *         return wh.whisper_full_get_segment_t1(self._c_ctx, i_segment)
  * 
  *     def full_get_segment_text(self, int i_segment):             # <<<<<<<<<<<<<<
@@ -13653,7 +13689,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_86ful
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":526
+/* "cyllama/whisper/whisper_cpp.pyx":529
  *         return result.decode('utf-8')
  * 
  *     def full_n_tokens(self, int i_segment):             # <<<<<<<<<<<<<<
@@ -13700,32 +13736,32 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   {
     PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_i_segment,0};
     const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
-    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 526, __pyx_L3_error)
+    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 529, __pyx_L3_error)
     if (__pyx_kwds_len > 0) {
       switch (__pyx_nargs) {
         case  1:
         values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 526, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 529, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  0: break;
         default: goto __pyx_L5_argtuple_error;
       }
       const Py_ssize_t kwd_pos_args = __pyx_nargs;
-      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "full_n_tokens", 0) < 0) __PYX_ERR(0, 526, __pyx_L3_error)
+      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "full_n_tokens", 0) < 0) __PYX_ERR(0, 529, __pyx_L3_error)
       for (Py_ssize_t i = __pyx_nargs; i < 1; i++) {
-        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("full_n_tokens", 1, 1, 1, i); __PYX_ERR(0, 526, __pyx_L3_error) }
+        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("full_n_tokens", 1, 1, 1, i); __PYX_ERR(0, 529, __pyx_L3_error) }
       }
     } else if (unlikely(__pyx_nargs != 1)) {
       goto __pyx_L5_argtuple_error;
     } else {
       values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 526, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 529, __pyx_L3_error)
     }
-    __pyx_v_i_segment = __Pyx_PyLong_As_int(values[0]); if (unlikely((__pyx_v_i_segment == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 526, __pyx_L3_error)
+    __pyx_v_i_segment = __Pyx_PyLong_As_int(values[0]); if (unlikely((__pyx_v_i_segment == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 529, __pyx_L3_error)
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("full_n_tokens", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 526, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("full_n_tokens", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 529, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -13755,7 +13791,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_88ful
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("full_n_tokens", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":527
+  /* "cyllama/whisper/whisper_cpp.pyx":530
  * 
  *     def full_n_tokens(self, int i_segment):
  *         return wh.whisper_full_n_tokens(self._c_ctx, i_segment)             # <<<<<<<<<<<<<<
@@ -13763,13 +13799,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_88ful
  *     def full_get_token_text(self, int i_segment, int i_token):
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_int(whisper_full_n_tokens(__pyx_v_self->_c_ctx, __pyx_v_i_segment)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 527, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int(whisper_full_n_tokens(__pyx_v_self->_c_ctx, __pyx_v_i_segment)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 530, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":526
+  /* "cyllama/whisper/whisper_cpp.pyx":529
  *         return result.decode('utf-8')
  * 
  *     def full_n_tokens(self, int i_segment):             # <<<<<<<<<<<<<<
@@ -13788,7 +13824,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_88ful
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":529
+/* "cyllama/whisper/whisper_cpp.pyx":532
  *         return wh.whisper_full_n_tokens(self._c_ctx, i_segment)
  * 
  *     def full_get_token_text(self, int i_segment, int i_token):             # <<<<<<<<<<<<<<
@@ -13836,39 +13872,39 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   {
     PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_i_segment,&__pyx_mstate_global->__pyx_n_u_i_token,0};
     const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
-    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 529, __pyx_L3_error)
+    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 532, __pyx_L3_error)
     if (__pyx_kwds_len > 0) {
       switch (__pyx_nargs) {
         case  2:
         values[1] = __Pyx_ArgRef_FASTCALL(__pyx_args, 1);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 529, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 532, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  1:
         values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 529, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 532, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  0: break;
         default: goto __pyx_L5_argtuple_error;
       }
       const Py_ssize_t kwd_pos_args = __pyx_nargs;
-      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "full_get_token_text", 0) < 0) __PYX_ERR(0, 529, __pyx_L3_error)
+      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "full_get_token_text", 0) < 0) __PYX_ERR(0, 532, __pyx_L3_error)
       for (Py_ssize_t i = __pyx_nargs; i < 2; i++) {
-        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("full_get_token_text", 1, 2, 2, i); __PYX_ERR(0, 529, __pyx_L3_error) }
+        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("full_get_token_text", 1, 2, 2, i); __PYX_ERR(0, 532, __pyx_L3_error) }
       }
     } else if (unlikely(__pyx_nargs != 2)) {
       goto __pyx_L5_argtuple_error;
     } else {
       values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 529, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 532, __pyx_L3_error)
       values[1] = __Pyx_ArgRef_FASTCALL(__pyx_args, 1);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 529, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 532, __pyx_L3_error)
     }
-    __pyx_v_i_segment = __Pyx_PyLong_As_int(values[0]); if (unlikely((__pyx_v_i_segment == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 529, __pyx_L3_error)
-    __pyx_v_i_token = __Pyx_PyLong_As_int(values[1]); if (unlikely((__pyx_v_i_token == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 529, __pyx_L3_error)
+    __pyx_v_i_segment = __Pyx_PyLong_As_int(values[0]); if (unlikely((__pyx_v_i_segment == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 532, __pyx_L3_error)
+    __pyx_v_i_token = __Pyx_PyLong_As_int(values[1]); if (unlikely((__pyx_v_i_token == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 532, __pyx_L3_error)
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("full_get_token_text", 1, 2, 2, __pyx_nargs); __PYX_ERR(0, 529, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("full_get_token_text", 1, 2, 2, __pyx_nargs); __PYX_ERR(0, 532, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -13901,7 +13937,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_90ful
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("full_get_token_text", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":530
+  /* "cyllama/whisper/whisper_cpp.pyx":533
  * 
  *     def full_get_token_text(self, int i_segment, int i_token):
  *         cdef const char * result = wh.whisper_full_get_token_text(self._c_ctx, i_segment, i_token)             # <<<<<<<<<<<<<<
@@ -13910,7 +13946,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_90ful
 */
   __pyx_v_result = whisper_full_get_token_text(__pyx_v_self->_c_ctx, __pyx_v_i_segment, __pyx_v_i_token);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":531
+  /* "cyllama/whisper/whisper_cpp.pyx":534
  *     def full_get_token_text(self, int i_segment, int i_token):
  *         cdef const char * result = wh.whisper_full_get_token_text(self._c_ctx, i_segment, i_token)
  *         if result == NULL:             # <<<<<<<<<<<<<<
@@ -13920,7 +13956,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_90ful
   __pyx_t_1 = (__pyx_v_result == NULL);
   if (__pyx_t_1) {
 
-    /* "cyllama/whisper/whisper_cpp.pyx":532
+    /* "cyllama/whisper/whisper_cpp.pyx":535
  *         cdef const char * result = wh.whisper_full_get_token_text(self._c_ctx, i_segment, i_token)
  *         if result == NULL:
  *             return ""             # <<<<<<<<<<<<<<
@@ -13932,7 +13968,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_90ful
     __pyx_r = __pyx_mstate_global->__pyx_kp_u__2;
     goto __pyx_L0;
 
-    /* "cyllama/whisper/whisper_cpp.pyx":531
+    /* "cyllama/whisper/whisper_cpp.pyx":534
  *     def full_get_token_text(self, int i_segment, int i_token):
  *         cdef const char * result = wh.whisper_full_get_token_text(self._c_ctx, i_segment, i_token)
  *         if result == NULL:             # <<<<<<<<<<<<<<
@@ -13941,7 +13977,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_90ful
 */
   }
 
-  /* "cyllama/whisper/whisper_cpp.pyx":533
+  /* "cyllama/whisper/whisper_cpp.pyx":536
  *         if result == NULL:
  *             return ""
  *         return result.decode('utf-8')             # <<<<<<<<<<<<<<
@@ -13949,14 +13985,14 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_90ful
  *     def full_get_token_id(self, int i_segment, int i_token):
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_2 = __Pyx_ssize_strlen(__pyx_v_result); if (unlikely(__pyx_t_2 == ((Py_ssize_t)-1))) __PYX_ERR(0, 533, __pyx_L1_error)
-  __pyx_t_3 = __Pyx_decode_c_string(__pyx_v_result, 0, __pyx_t_2, NULL, NULL, PyUnicode_DecodeUTF8); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 533, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_ssize_strlen(__pyx_v_result); if (unlikely(__pyx_t_2 == ((Py_ssize_t)-1))) __PYX_ERR(0, 536, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_decode_c_string(__pyx_v_result, 0, __pyx_t_2, NULL, NULL, PyUnicode_DecodeUTF8); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 536, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __pyx_r = __pyx_t_3;
   __pyx_t_3 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":529
+  /* "cyllama/whisper/whisper_cpp.pyx":532
  *         return wh.whisper_full_n_tokens(self._c_ctx, i_segment)
  * 
  *     def full_get_token_text(self, int i_segment, int i_token):             # <<<<<<<<<<<<<<
@@ -13975,7 +14011,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_90ful
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":535
+/* "cyllama/whisper/whisper_cpp.pyx":538
  *         return result.decode('utf-8')
  * 
  *     def full_get_token_id(self, int i_segment, int i_token):             # <<<<<<<<<<<<<<
@@ -14023,39 +14059,39 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   {
     PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_i_segment,&__pyx_mstate_global->__pyx_n_u_i_token,0};
     const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
-    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 535, __pyx_L3_error)
+    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 538, __pyx_L3_error)
     if (__pyx_kwds_len > 0) {
       switch (__pyx_nargs) {
         case  2:
         values[1] = __Pyx_ArgRef_FASTCALL(__pyx_args, 1);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 535, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 538, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  1:
         values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 535, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 538, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  0: break;
         default: goto __pyx_L5_argtuple_error;
       }
       const Py_ssize_t kwd_pos_args = __pyx_nargs;
-      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "full_get_token_id", 0) < 0) __PYX_ERR(0, 535, __pyx_L3_error)
+      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "full_get_token_id", 0) < 0) __PYX_ERR(0, 538, __pyx_L3_error)
       for (Py_ssize_t i = __pyx_nargs; i < 2; i++) {
-        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("full_get_token_id", 1, 2, 2, i); __PYX_ERR(0, 535, __pyx_L3_error) }
+        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("full_get_token_id", 1, 2, 2, i); __PYX_ERR(0, 538, __pyx_L3_error) }
       }
     } else if (unlikely(__pyx_nargs != 2)) {
       goto __pyx_L5_argtuple_error;
     } else {
       values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 535, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 538, __pyx_L3_error)
       values[1] = __Pyx_ArgRef_FASTCALL(__pyx_args, 1);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 535, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 538, __pyx_L3_error)
     }
-    __pyx_v_i_segment = __Pyx_PyLong_As_int(values[0]); if (unlikely((__pyx_v_i_segment == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 535, __pyx_L3_error)
-    __pyx_v_i_token = __Pyx_PyLong_As_int(values[1]); if (unlikely((__pyx_v_i_token == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 535, __pyx_L3_error)
+    __pyx_v_i_segment = __Pyx_PyLong_As_int(values[0]); if (unlikely((__pyx_v_i_segment == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 538, __pyx_L3_error)
+    __pyx_v_i_token = __Pyx_PyLong_As_int(values[1]); if (unlikely((__pyx_v_i_token == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 538, __pyx_L3_error)
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("full_get_token_id", 1, 2, 2, __pyx_nargs); __PYX_ERR(0, 535, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("full_get_token_id", 1, 2, 2, __pyx_nargs); __PYX_ERR(0, 538, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -14085,7 +14121,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_92ful
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("full_get_token_id", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":536
+  /* "cyllama/whisper/whisper_cpp.pyx":539
  * 
  *     def full_get_token_id(self, int i_segment, int i_token):
  *         return wh.whisper_full_get_token_id(self._c_ctx, i_segment, i_token)             # <<<<<<<<<<<<<<
@@ -14093,13 +14129,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_92ful
  *     def full_get_token_data(self, int i_segment, int i_token):
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_int32_t(whisper_full_get_token_id(__pyx_v_self->_c_ctx, __pyx_v_i_segment, __pyx_v_i_token)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 536, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int32_t(whisper_full_get_token_id(__pyx_v_self->_c_ctx, __pyx_v_i_segment, __pyx_v_i_token)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 539, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":535
+  /* "cyllama/whisper/whisper_cpp.pyx":538
  *         return result.decode('utf-8')
  * 
  *     def full_get_token_id(self, int i_segment, int i_token):             # <<<<<<<<<<<<<<
@@ -14118,7 +14154,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_92ful
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":538
+/* "cyllama/whisper/whisper_cpp.pyx":541
  *         return wh.whisper_full_get_token_id(self._c_ctx, i_segment, i_token)
  * 
  *     def full_get_token_data(self, int i_segment, int i_token):             # <<<<<<<<<<<<<<
@@ -14166,39 +14202,39 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   {
     PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_i_segment,&__pyx_mstate_global->__pyx_n_u_i_token,0};
     const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
-    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 538, __pyx_L3_error)
+    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 541, __pyx_L3_error)
     if (__pyx_kwds_len > 0) {
       switch (__pyx_nargs) {
         case  2:
         values[1] = __Pyx_ArgRef_FASTCALL(__pyx_args, 1);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 538, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 541, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  1:
         values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 538, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 541, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  0: break;
         default: goto __pyx_L5_argtuple_error;
       }
       const Py_ssize_t kwd_pos_args = __pyx_nargs;
-      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "full_get_token_data", 0) < 0) __PYX_ERR(0, 538, __pyx_L3_error)
+      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "full_get_token_data", 0) < 0) __PYX_ERR(0, 541, __pyx_L3_error)
       for (Py_ssize_t i = __pyx_nargs; i < 2; i++) {
-        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("full_get_token_data", 1, 2, 2, i); __PYX_ERR(0, 538, __pyx_L3_error) }
+        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("full_get_token_data", 1, 2, 2, i); __PYX_ERR(0, 541, __pyx_L3_error) }
       }
     } else if (unlikely(__pyx_nargs != 2)) {
       goto __pyx_L5_argtuple_error;
     } else {
       values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 538, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 541, __pyx_L3_error)
       values[1] = __Pyx_ArgRef_FASTCALL(__pyx_args, 1);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 538, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 541, __pyx_L3_error)
     }
-    __pyx_v_i_segment = __Pyx_PyLong_As_int(values[0]); if (unlikely((__pyx_v_i_segment == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 538, __pyx_L3_error)
-    __pyx_v_i_token = __Pyx_PyLong_As_int(values[1]); if (unlikely((__pyx_v_i_token == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 538, __pyx_L3_error)
+    __pyx_v_i_segment = __Pyx_PyLong_As_int(values[0]); if (unlikely((__pyx_v_i_segment == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 541, __pyx_L3_error)
+    __pyx_v_i_token = __Pyx_PyLong_As_int(values[1]); if (unlikely((__pyx_v_i_token == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 541, __pyx_L3_error)
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("full_get_token_data", 1, 2, 2, __pyx_nargs); __PYX_ERR(0, 538, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("full_get_token_data", 1, 2, 2, __pyx_nargs); __PYX_ERR(0, 541, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -14233,7 +14269,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_94ful
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("full_get_token_data", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":539
+  /* "cyllama/whisper/whisper_cpp.pyx":542
  * 
  *     def full_get_token_data(self, int i_segment, int i_token):
  *         cdef wh.whisper_token_data c_data = wh.whisper_full_get_token_data(self._c_ctx, i_segment, i_token)             # <<<<<<<<<<<<<<
@@ -14242,7 +14278,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_94ful
 */
   __pyx_v_c_data = whisper_full_get_token_data(__pyx_v_self->_c_ctx, __pyx_v_i_segment, __pyx_v_i_token);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":541
+  /* "cyllama/whisper/whisper_cpp.pyx":544
  *         cdef wh.whisper_token_data c_data = wh.whisper_full_get_token_data(self._c_ctx, i_segment, i_token)
  * 
  *         data = WhisperTokenData()             # <<<<<<<<<<<<<<
@@ -14258,13 +14294,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_94ful
     __pyx_t_1 = __Pyx_PyObject_FastCall(__pyx_t_3, __pyx_callargs+__pyx_t_4, (1-__pyx_t_4) | (__pyx_t_4*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
     __Pyx_XDECREF(__pyx_t_2); __pyx_t_2 = 0;
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 541, __pyx_L1_error)
+    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 544, __pyx_L1_error)
     __Pyx_GOTREF((PyObject *)__pyx_t_1);
   }
   __pyx_v_data = ((struct __pyx_obj_7cyllama_7whisper_11whisper_cpp_WhisperTokenData *)__pyx_t_1);
   __pyx_t_1 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":542
+  /* "cyllama/whisper/whisper_cpp.pyx":545
  * 
  *         data = WhisperTokenData()
  *         data._c_data = c_data             # <<<<<<<<<<<<<<
@@ -14273,7 +14309,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_94ful
 */
   __pyx_v_data->_c_data = __pyx_v_c_data;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":543
+  /* "cyllama/whisper/whisper_cpp.pyx":546
  *         data = WhisperTokenData()
  *         data._c_data = c_data
  *         return data             # <<<<<<<<<<<<<<
@@ -14285,7 +14321,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_94ful
   __pyx_r = ((PyObject *)__pyx_v_data);
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":538
+  /* "cyllama/whisper/whisper_cpp.pyx":541
  *         return wh.whisper_full_get_token_id(self._c_ctx, i_segment, i_token)
  * 
  *     def full_get_token_data(self, int i_segment, int i_token):             # <<<<<<<<<<<<<<
@@ -14307,7 +14343,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_94ful
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":545
+/* "cyllama/whisper/whisper_cpp.pyx":548
  *         return data
  * 
  *     def full_get_token_p(self, int i_segment, int i_token):             # <<<<<<<<<<<<<<
@@ -14355,39 +14391,39 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   {
     PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_i_segment,&__pyx_mstate_global->__pyx_n_u_i_token,0};
     const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
-    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 545, __pyx_L3_error)
+    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 548, __pyx_L3_error)
     if (__pyx_kwds_len > 0) {
       switch (__pyx_nargs) {
         case  2:
         values[1] = __Pyx_ArgRef_FASTCALL(__pyx_args, 1);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 545, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 548, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  1:
         values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 545, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 548, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  0: break;
         default: goto __pyx_L5_argtuple_error;
       }
       const Py_ssize_t kwd_pos_args = __pyx_nargs;
-      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "full_get_token_p", 0) < 0) __PYX_ERR(0, 545, __pyx_L3_error)
+      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "full_get_token_p", 0) < 0) __PYX_ERR(0, 548, __pyx_L3_error)
       for (Py_ssize_t i = __pyx_nargs; i < 2; i++) {
-        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("full_get_token_p", 1, 2, 2, i); __PYX_ERR(0, 545, __pyx_L3_error) }
+        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("full_get_token_p", 1, 2, 2, i); __PYX_ERR(0, 548, __pyx_L3_error) }
       }
     } else if (unlikely(__pyx_nargs != 2)) {
       goto __pyx_L5_argtuple_error;
     } else {
       values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 545, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 548, __pyx_L3_error)
       values[1] = __Pyx_ArgRef_FASTCALL(__pyx_args, 1);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 545, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 548, __pyx_L3_error)
     }
-    __pyx_v_i_segment = __Pyx_PyLong_As_int(values[0]); if (unlikely((__pyx_v_i_segment == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 545, __pyx_L3_error)
-    __pyx_v_i_token = __Pyx_PyLong_As_int(values[1]); if (unlikely((__pyx_v_i_token == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 545, __pyx_L3_error)
+    __pyx_v_i_segment = __Pyx_PyLong_As_int(values[0]); if (unlikely((__pyx_v_i_segment == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 548, __pyx_L3_error)
+    __pyx_v_i_token = __Pyx_PyLong_As_int(values[1]); if (unlikely((__pyx_v_i_token == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 548, __pyx_L3_error)
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("full_get_token_p", 1, 2, 2, __pyx_nargs); __PYX_ERR(0, 545, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("full_get_token_p", 1, 2, 2, __pyx_nargs); __PYX_ERR(0, 548, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -14417,7 +14453,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_96ful
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("full_get_token_p", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":546
+  /* "cyllama/whisper/whisper_cpp.pyx":549
  * 
  *     def full_get_token_p(self, int i_segment, int i_token):
  *         return wh.whisper_full_get_token_p(self._c_ctx, i_segment, i_token)             # <<<<<<<<<<<<<<
@@ -14425,13 +14461,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_96ful
  *     def full_get_segment_no_speech_prob(self, int i_segment):
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = PyFloat_FromDouble(whisper_full_get_token_p(__pyx_v_self->_c_ctx, __pyx_v_i_segment, __pyx_v_i_token)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 546, __pyx_L1_error)
+  __pyx_t_1 = PyFloat_FromDouble(whisper_full_get_token_p(__pyx_v_self->_c_ctx, __pyx_v_i_segment, __pyx_v_i_token)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 549, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":545
+  /* "cyllama/whisper/whisper_cpp.pyx":548
  *         return data
  * 
  *     def full_get_token_p(self, int i_segment, int i_token):             # <<<<<<<<<<<<<<
@@ -14450,7 +14486,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_96ful
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":548
+/* "cyllama/whisper/whisper_cpp.pyx":551
  *         return wh.whisper_full_get_token_p(self._c_ctx, i_segment, i_token)
  * 
  *     def full_get_segment_no_speech_prob(self, int i_segment):             # <<<<<<<<<<<<<<
@@ -14497,32 +14533,32 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   {
     PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_i_segment,0};
     const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
-    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 548, __pyx_L3_error)
+    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 551, __pyx_L3_error)
     if (__pyx_kwds_len > 0) {
       switch (__pyx_nargs) {
         case  1:
         values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 548, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 551, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  0: break;
         default: goto __pyx_L5_argtuple_error;
       }
       const Py_ssize_t kwd_pos_args = __pyx_nargs;
-      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "full_get_segment_no_speech_prob", 0) < 0) __PYX_ERR(0, 548, __pyx_L3_error)
+      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "full_get_segment_no_speech_prob", 0) < 0) __PYX_ERR(0, 551, __pyx_L3_error)
       for (Py_ssize_t i = __pyx_nargs; i < 1; i++) {
-        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("full_get_segment_no_speech_prob", 1, 1, 1, i); __PYX_ERR(0, 548, __pyx_L3_error) }
+        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("full_get_segment_no_speech_prob", 1, 1, 1, i); __PYX_ERR(0, 551, __pyx_L3_error) }
       }
     } else if (unlikely(__pyx_nargs != 1)) {
       goto __pyx_L5_argtuple_error;
     } else {
       values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 548, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 551, __pyx_L3_error)
     }
-    __pyx_v_i_segment = __Pyx_PyLong_As_int(values[0]); if (unlikely((__pyx_v_i_segment == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 548, __pyx_L3_error)
+    __pyx_v_i_segment = __Pyx_PyLong_As_int(values[0]); if (unlikely((__pyx_v_i_segment == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 551, __pyx_L3_error)
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("full_get_segment_no_speech_prob", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 548, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("full_get_segment_no_speech_prob", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 551, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -14552,7 +14588,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_98ful
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("full_get_segment_no_speech_prob", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":549
+  /* "cyllama/whisper/whisper_cpp.pyx":552
  * 
  *     def full_get_segment_no_speech_prob(self, int i_segment):
  *         return wh.whisper_full_get_segment_no_speech_prob(self._c_ctx, i_segment)             # <<<<<<<<<<<<<<
@@ -14560,13 +14596,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_98ful
  *     def print_timings(self):
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = PyFloat_FromDouble(whisper_full_get_segment_no_speech_prob(__pyx_v_self->_c_ctx, __pyx_v_i_segment)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 549, __pyx_L1_error)
+  __pyx_t_1 = PyFloat_FromDouble(whisper_full_get_segment_no_speech_prob(__pyx_v_self->_c_ctx, __pyx_v_i_segment)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 552, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":548
+  /* "cyllama/whisper/whisper_cpp.pyx":551
  *         return wh.whisper_full_get_token_p(self._c_ctx, i_segment, i_token)
  * 
  *     def full_get_segment_no_speech_prob(self, int i_segment):             # <<<<<<<<<<<<<<
@@ -14585,7 +14621,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_98ful
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":551
+/* "cyllama/whisper/whisper_cpp.pyx":554
  *         return wh.whisper_full_get_segment_no_speech_prob(self._c_ctx, i_segment)
  * 
  *     def print_timings(self):             # <<<<<<<<<<<<<<
@@ -14640,7 +14676,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_100pr
   __Pyx_RefNannyDeclarations
   __Pyx_RefNannySetupContext("print_timings", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":552
+  /* "cyllama/whisper/whisper_cpp.pyx":555
  * 
  *     def print_timings(self):
  *         wh.whisper_print_timings(self._c_ctx)             # <<<<<<<<<<<<<<
@@ -14649,7 +14685,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_100pr
 */
   whisper_print_timings(__pyx_v_self->_c_ctx);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":551
+  /* "cyllama/whisper/whisper_cpp.pyx":554
  *         return wh.whisper_full_get_segment_no_speech_prob(self._c_ctx, i_segment)
  * 
  *     def print_timings(self):             # <<<<<<<<<<<<<<
@@ -14664,7 +14700,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_100pr
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":554
+/* "cyllama/whisper/whisper_cpp.pyx":557
  *         wh.whisper_print_timings(self._c_ctx)
  * 
  *     def reset_timings(self):             # <<<<<<<<<<<<<<
@@ -14719,7 +14755,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_102re
   __Pyx_RefNannyDeclarations
   __Pyx_RefNannySetupContext("reset_timings", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":555
+  /* "cyllama/whisper/whisper_cpp.pyx":558
  * 
  *     def reset_timings(self):
  *         wh.whisper_reset_timings(self._c_ctx)             # <<<<<<<<<<<<<<
@@ -14728,7 +14764,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_102re
 */
   whisper_reset_timings(__pyx_v_self->_c_ctx);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":554
+  /* "cyllama/whisper/whisper_cpp.pyx":557
  *         wh.whisper_print_timings(self._c_ctx)
  * 
  *     def reset_timings(self):             # <<<<<<<<<<<<<<
@@ -14947,7 +14983,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_14WhisperContext_106__
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":561
+/* "cyllama/whisper/whisper_cpp.pyx":564
  *     cdef WhisperContext _ctx
  * 
  *     def __init__(self, WhisperContext ctx):             # <<<<<<<<<<<<<<
@@ -14977,32 +15013,32 @@ static int __pyx_pw_7cyllama_7whisper_11whisper_cpp_12WhisperState_1__init__(PyO
   {
     PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_ctx,0};
     const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_VARARGS(__pyx_kwds) : 0;
-    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 561, __pyx_L3_error)
+    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 564, __pyx_L3_error)
     if (__pyx_kwds_len > 0) {
       switch (__pyx_nargs) {
         case  1:
         values[0] = __Pyx_ArgRef_VARARGS(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 561, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 564, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  0: break;
         default: goto __pyx_L5_argtuple_error;
       }
       const Py_ssize_t kwd_pos_args = __pyx_nargs;
-      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "__init__", 0) < 0) __PYX_ERR(0, 561, __pyx_L3_error)
+      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "__init__", 0) < 0) __PYX_ERR(0, 564, __pyx_L3_error)
       for (Py_ssize_t i = __pyx_nargs; i < 1; i++) {
-        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("__init__", 1, 1, 1, i); __PYX_ERR(0, 561, __pyx_L3_error) }
+        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("__init__", 1, 1, 1, i); __PYX_ERR(0, 564, __pyx_L3_error) }
       }
     } else if (unlikely(__pyx_nargs != 1)) {
       goto __pyx_L5_argtuple_error;
     } else {
       values[0] = __Pyx_ArgRef_VARARGS(__pyx_args, 0);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 561, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 564, __pyx_L3_error)
     }
     __pyx_v_ctx = ((struct __pyx_obj_7cyllama_7whisper_11whisper_cpp_WhisperContext *)values[0]);
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("__init__", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 561, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("__init__", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 564, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -15013,7 +15049,7 @@ static int __pyx_pw_7cyllama_7whisper_11whisper_cpp_12WhisperState_1__init__(PyO
   __Pyx_RefNannyFinishContext();
   return -1;
   __pyx_L4_argument_unpacking_done:;
-  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_ctx), __pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, 1, "ctx", 0))) __PYX_ERR(0, 561, __pyx_L1_error)
+  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_ctx), __pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, 1, "ctx", 0))) __PYX_ERR(0, 564, __pyx_L1_error)
   __pyx_r = __pyx_pf_7cyllama_7whisper_11whisper_cpp_12WhisperState___init__(((struct __pyx_obj_7cyllama_7whisper_11whisper_cpp_WhisperState *)__pyx_v_self), __pyx_v_ctx);
 
   /* function exit code */
@@ -15046,7 +15082,7 @@ static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_12WhisperState___init__(stru
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("__init__", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":562
+  /* "cyllama/whisper/whisper_cpp.pyx":565
  * 
  *     def __init__(self, WhisperContext ctx):
  *         self._ctx = ctx             # <<<<<<<<<<<<<<
@@ -15059,7 +15095,7 @@ static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_12WhisperState___init__(stru
   __Pyx_DECREF((PyObject *)__pyx_v_self->_ctx);
   __pyx_v_self->_ctx = __pyx_v_ctx;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":563
+  /* "cyllama/whisper/whisper_cpp.pyx":566
  *     def __init__(self, WhisperContext ctx):
  *         self._ctx = ctx
  *         self._c_state = wh.whisper_init_state(ctx._c_ctx)             # <<<<<<<<<<<<<<
@@ -15068,7 +15104,7 @@ static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_12WhisperState___init__(stru
 */
   __pyx_v_self->_c_state = whisper_init_state(__pyx_v_ctx->_c_ctx);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":565
+  /* "cyllama/whisper/whisper_cpp.pyx":568
  *         self._c_state = wh.whisper_init_state(ctx._c_ctx)
  * 
  *         if self._c_state == NULL:             # <<<<<<<<<<<<<<
@@ -15078,7 +15114,7 @@ static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_12WhisperState___init__(stru
   __pyx_t_1 = (__pyx_v_self->_c_state == NULL);
   if (unlikely(__pyx_t_1)) {
 
-    /* "cyllama/whisper/whisper_cpp.pyx":566
+    /* "cyllama/whisper/whisper_cpp.pyx":569
  * 
  *         if self._c_state == NULL:
  *             raise RuntimeError("Failed to initialize whisper state")             # <<<<<<<<<<<<<<
@@ -15094,14 +15130,14 @@ static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_12WhisperState___init__(stru
       __pyx_t_2 = __Pyx_PyObject_FastCall(__pyx_t_4, __pyx_callargs+__pyx_t_5, (2-__pyx_t_5) | (__pyx_t_5*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
       __Pyx_XDECREF(__pyx_t_3); __pyx_t_3 = 0;
       __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-      if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 566, __pyx_L1_error)
+      if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 569, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_2);
     }
     __Pyx_Raise(__pyx_t_2, 0, 0, 0);
     __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-    __PYX_ERR(0, 566, __pyx_L1_error)
+    __PYX_ERR(0, 569, __pyx_L1_error)
 
-    /* "cyllama/whisper/whisper_cpp.pyx":565
+    /* "cyllama/whisper/whisper_cpp.pyx":568
  *         self._c_state = wh.whisper_init_state(ctx._c_ctx)
  * 
  *         if self._c_state == NULL:             # <<<<<<<<<<<<<<
@@ -15110,7 +15146,7 @@ static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_12WhisperState___init__(stru
 */
   }
 
-  /* "cyllama/whisper/whisper_cpp.pyx":561
+  /* "cyllama/whisper/whisper_cpp.pyx":564
  *     cdef WhisperContext _ctx
  * 
  *     def __init__(self, WhisperContext ctx):             # <<<<<<<<<<<<<<
@@ -15132,7 +15168,7 @@ static int __pyx_pf_7cyllama_7whisper_11whisper_cpp_12WhisperState___init__(stru
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":568
+/* "cyllama/whisper/whisper_cpp.pyx":571
  *             raise RuntimeError("Failed to initialize whisper state")
  * 
  *     def __dealloc__(self):             # <<<<<<<<<<<<<<
@@ -15156,7 +15192,7 @@ static void __pyx_pw_7cyllama_7whisper_11whisper_cpp_12WhisperState_3__dealloc__
 static void __pyx_pf_7cyllama_7whisper_11whisper_cpp_12WhisperState_2__dealloc__(struct __pyx_obj_7cyllama_7whisper_11whisper_cpp_WhisperState *__pyx_v_self) {
   int __pyx_t_1;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":569
+  /* "cyllama/whisper/whisper_cpp.pyx":572
  * 
  *     def __dealloc__(self):
  *         if self._c_state != NULL:             # <<<<<<<<<<<<<<
@@ -15166,7 +15202,7 @@ static void __pyx_pf_7cyllama_7whisper_11whisper_cpp_12WhisperState_2__dealloc__
   __pyx_t_1 = (__pyx_v_self->_c_state != NULL);
   if (__pyx_t_1) {
 
-    /* "cyllama/whisper/whisper_cpp.pyx":570
+    /* "cyllama/whisper/whisper_cpp.pyx":573
  *     def __dealloc__(self):
  *         if self._c_state != NULL:
  *             wh.whisper_free_state(self._c_state)             # <<<<<<<<<<<<<<
@@ -15175,7 +15211,7 @@ static void __pyx_pf_7cyllama_7whisper_11whisper_cpp_12WhisperState_2__dealloc__
 */
     whisper_free_state(__pyx_v_self->_c_state);
 
-    /* "cyllama/whisper/whisper_cpp.pyx":571
+    /* "cyllama/whisper/whisper_cpp.pyx":574
  *         if self._c_state != NULL:
  *             wh.whisper_free_state(self._c_state)
  *             self._c_state = NULL             # <<<<<<<<<<<<<<
@@ -15184,7 +15220,7 @@ static void __pyx_pf_7cyllama_7whisper_11whisper_cpp_12WhisperState_2__dealloc__
 */
     __pyx_v_self->_c_state = NULL;
 
-    /* "cyllama/whisper/whisper_cpp.pyx":569
+    /* "cyllama/whisper/whisper_cpp.pyx":572
  * 
  *     def __dealloc__(self):
  *         if self._c_state != NULL:             # <<<<<<<<<<<<<<
@@ -15193,7 +15229,7 @@ static void __pyx_pf_7cyllama_7whisper_11whisper_cpp_12WhisperState_2__dealloc__
 */
   }
 
-  /* "cyllama/whisper/whisper_cpp.pyx":568
+  /* "cyllama/whisper/whisper_cpp.pyx":571
  *             raise RuntimeError("Failed to initialize whisper state")
  * 
  *     def __dealloc__(self):             # <<<<<<<<<<<<<<
@@ -15408,7 +15444,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_12WhisperState_6__sets
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":574
+/* "cyllama/whisper/whisper_cpp.pyx":577
  * 
  * # Module-level functions
  * def version():             # <<<<<<<<<<<<<<
@@ -15443,7 +15479,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_version(CYTHON_UNUSED 
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("version", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":575
+  /* "cyllama/whisper/whisper_cpp.pyx":578
  * # Module-level functions
  * def version():
  *     return wh.whisper_version().decode('utf-8')             # <<<<<<<<<<<<<<
@@ -15452,15 +15488,15 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_version(CYTHON_UNUSED 
 */
   __Pyx_XDECREF(__pyx_r);
   __pyx_t_1 = whisper_version();
-  __pyx_t_2 = __Pyx_ssize_strlen(__pyx_t_1); if (unlikely(__pyx_t_2 == ((Py_ssize_t)-1))) __PYX_ERR(0, 575, __pyx_L1_error)
-  __pyx_t_3 = __Pyx_decode_c_string(__pyx_t_1, 0, __pyx_t_2, NULL, NULL, PyUnicode_DecodeUTF8); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 575, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_ssize_strlen(__pyx_t_1); if (unlikely(__pyx_t_2 == ((Py_ssize_t)-1))) __PYX_ERR(0, 578, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_decode_c_string(__pyx_t_1, 0, __pyx_t_2, NULL, NULL, PyUnicode_DecodeUTF8); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 578, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __Pyx_INCREF(__pyx_t_3);
   __pyx_r = __pyx_t_3;
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":574
+  /* "cyllama/whisper/whisper_cpp.pyx":577
  * 
  * # Module-level functions
  * def version():             # <<<<<<<<<<<<<<
@@ -15479,7 +15515,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_version(CYTHON_UNUSED 
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":577
+/* "cyllama/whisper/whisper_cpp.pyx":580
  *     return wh.whisper_version().decode('utf-8')
  * 
  * def print_system_info():             # <<<<<<<<<<<<<<
@@ -15514,7 +15550,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_2print_system_info(CYT
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("print_system_info", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":578
+  /* "cyllama/whisper/whisper_cpp.pyx":581
  * 
  * def print_system_info():
  *     return wh.whisper_print_system_info().decode('utf-8')             # <<<<<<<<<<<<<<
@@ -15523,15 +15559,15 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_2print_system_info(CYT
 */
   __Pyx_XDECREF(__pyx_r);
   __pyx_t_1 = whisper_print_system_info();
-  __pyx_t_2 = __Pyx_ssize_strlen(__pyx_t_1); if (unlikely(__pyx_t_2 == ((Py_ssize_t)-1))) __PYX_ERR(0, 578, __pyx_L1_error)
-  __pyx_t_3 = __Pyx_decode_c_string(__pyx_t_1, 0, __pyx_t_2, NULL, NULL, PyUnicode_DecodeUTF8); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 578, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_ssize_strlen(__pyx_t_1); if (unlikely(__pyx_t_2 == ((Py_ssize_t)-1))) __PYX_ERR(0, 581, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_decode_c_string(__pyx_t_1, 0, __pyx_t_2, NULL, NULL, PyUnicode_DecodeUTF8); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 581, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __Pyx_INCREF(__pyx_t_3);
   __pyx_r = __pyx_t_3;
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":577
+  /* "cyllama/whisper/whisper_cpp.pyx":580
  *     return wh.whisper_version().decode('utf-8')
  * 
  * def print_system_info():             # <<<<<<<<<<<<<<
@@ -15550,7 +15586,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_2print_system_info(CYT
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":580
+/* "cyllama/whisper/whisper_cpp.pyx":583
  *     return wh.whisper_print_system_info().decode('utf-8')
  * 
  * def lang_max_id():             # <<<<<<<<<<<<<<
@@ -15583,7 +15619,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_4lang_max_id(CYTHON_UN
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("lang_max_id", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":581
+  /* "cyllama/whisper/whisper_cpp.pyx":584
  * 
  * def lang_max_id():
  *     return wh.whisper_lang_max_id()             # <<<<<<<<<<<<<<
@@ -15591,13 +15627,13 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_4lang_max_id(CYTHON_UN
  * def lang_id(str lang):
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_int(whisper_lang_max_id()); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 581, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int(whisper_lang_max_id()); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 584, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":580
+  /* "cyllama/whisper/whisper_cpp.pyx":583
  *     return wh.whisper_print_system_info().decode('utf-8')
  * 
  * def lang_max_id():             # <<<<<<<<<<<<<<
@@ -15616,7 +15652,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_4lang_max_id(CYTHON_UN
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":583
+/* "cyllama/whisper/whisper_cpp.pyx":586
  *     return wh.whisper_lang_max_id()
  * 
  * def lang_id(str lang):             # <<<<<<<<<<<<<<
@@ -15663,32 +15699,32 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   {
     PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_lang,0};
     const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
-    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 583, __pyx_L3_error)
+    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 586, __pyx_L3_error)
     if (__pyx_kwds_len > 0) {
       switch (__pyx_nargs) {
         case  1:
         values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 583, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 586, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  0: break;
         default: goto __pyx_L5_argtuple_error;
       }
       const Py_ssize_t kwd_pos_args = __pyx_nargs;
-      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "lang_id", 0) < 0) __PYX_ERR(0, 583, __pyx_L3_error)
+      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "lang_id", 0) < 0) __PYX_ERR(0, 586, __pyx_L3_error)
       for (Py_ssize_t i = __pyx_nargs; i < 1; i++) {
-        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("lang_id", 1, 1, 1, i); __PYX_ERR(0, 583, __pyx_L3_error) }
+        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("lang_id", 1, 1, 1, i); __PYX_ERR(0, 586, __pyx_L3_error) }
       }
     } else if (unlikely(__pyx_nargs != 1)) {
       goto __pyx_L5_argtuple_error;
     } else {
       values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 583, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 586, __pyx_L3_error)
     }
     __pyx_v_lang = ((PyObject*)values[0]);
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("lang_id", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 583, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("lang_id", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 586, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -15699,7 +15735,7 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   __Pyx_RefNannyFinishContext();
   return NULL;
   __pyx_L4_argument_unpacking_done:;
-  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_lang), (&PyUnicode_Type), 1, "lang", 1))) __PYX_ERR(0, 583, __pyx_L1_error)
+  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_lang), (&PyUnicode_Type), 1, "lang", 1))) __PYX_ERR(0, 586, __pyx_L1_error)
   __pyx_r = __pyx_pf_7cyllama_7whisper_11whisper_cpp_6lang_id(__pyx_self, __pyx_v_lang);
 
   /* function exit code */
@@ -15730,7 +15766,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_6lang_id(CYTHON_UNUSED
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("lang_id", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":584
+  /* "cyllama/whisper/whisper_cpp.pyx":587
  * 
  * def lang_id(str lang):
  *     lang_bytes = lang.encode('utf-8')             # <<<<<<<<<<<<<<
@@ -15739,14 +15775,14 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_6lang_id(CYTHON_UNUSED
 */
   if (unlikely(__pyx_v_lang == Py_None)) {
     PyErr_Format(PyExc_AttributeError, "'NoneType' object has no attribute '%.30s'", "encode");
-    __PYX_ERR(0, 584, __pyx_L1_error)
+    __PYX_ERR(0, 587, __pyx_L1_error)
   }
-  __pyx_t_1 = PyUnicode_AsUTF8String(__pyx_v_lang); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 584, __pyx_L1_error)
+  __pyx_t_1 = PyUnicode_AsUTF8String(__pyx_v_lang); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 587, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_v_lang_bytes = ((PyObject*)__pyx_t_1);
   __pyx_t_1 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":585
+  /* "cyllama/whisper/whisper_cpp.pyx":588
  * def lang_id(str lang):
  *     lang_bytes = lang.encode('utf-8')
  *     return wh.whisper_lang_id(lang_bytes)             # <<<<<<<<<<<<<<
@@ -15754,14 +15790,14 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_6lang_id(CYTHON_UNUSED
  * def lang_str(int id):
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_2 = __Pyx_PyBytes_AsString(__pyx_v_lang_bytes); if (unlikely((!__pyx_t_2) && PyErr_Occurred())) __PYX_ERR(0, 585, __pyx_L1_error)
-  __pyx_t_1 = __Pyx_PyLong_From_int(whisper_lang_id(__pyx_t_2)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 585, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyBytes_AsString(__pyx_v_lang_bytes); if (unlikely((!__pyx_t_2) && PyErr_Occurred())) __PYX_ERR(0, 588, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int(whisper_lang_id(__pyx_t_2)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 588, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":583
+  /* "cyllama/whisper/whisper_cpp.pyx":586
  *     return wh.whisper_lang_max_id()
  * 
  * def lang_id(str lang):             # <<<<<<<<<<<<<<
@@ -15781,7 +15817,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_6lang_id(CYTHON_UNUSED
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":587
+/* "cyllama/whisper/whisper_cpp.pyx":590
  *     return wh.whisper_lang_id(lang_bytes)
  * 
  * def lang_str(int id):             # <<<<<<<<<<<<<<
@@ -15828,32 +15864,32 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   {
     PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_id,0};
     const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
-    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 587, __pyx_L3_error)
+    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 590, __pyx_L3_error)
     if (__pyx_kwds_len > 0) {
       switch (__pyx_nargs) {
         case  1:
         values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 587, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 590, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  0: break;
         default: goto __pyx_L5_argtuple_error;
       }
       const Py_ssize_t kwd_pos_args = __pyx_nargs;
-      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "lang_str", 0) < 0) __PYX_ERR(0, 587, __pyx_L3_error)
+      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "lang_str", 0) < 0) __PYX_ERR(0, 590, __pyx_L3_error)
       for (Py_ssize_t i = __pyx_nargs; i < 1; i++) {
-        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("lang_str", 1, 1, 1, i); __PYX_ERR(0, 587, __pyx_L3_error) }
+        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("lang_str", 1, 1, 1, i); __PYX_ERR(0, 590, __pyx_L3_error) }
       }
     } else if (unlikely(__pyx_nargs != 1)) {
       goto __pyx_L5_argtuple_error;
     } else {
       values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 587, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 590, __pyx_L3_error)
     }
-    __pyx_v_id = __Pyx_PyLong_As_int(values[0]); if (unlikely((__pyx_v_id == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 587, __pyx_L3_error)
+    __pyx_v_id = __Pyx_PyLong_As_int(values[0]); if (unlikely((__pyx_v_id == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 590, __pyx_L3_error)
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("lang_str", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 587, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("lang_str", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 590, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -15886,7 +15922,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_8lang_str(CYTHON_UNUSE
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("lang_str", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":588
+  /* "cyllama/whisper/whisper_cpp.pyx":591
  * 
  * def lang_str(int id):
  *     cdef const char * result = wh.whisper_lang_str(id)             # <<<<<<<<<<<<<<
@@ -15895,7 +15931,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_8lang_str(CYTHON_UNUSE
 */
   __pyx_v_result = whisper_lang_str(__pyx_v_id);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":589
+  /* "cyllama/whisper/whisper_cpp.pyx":592
  * def lang_str(int id):
  *     cdef const char * result = wh.whisper_lang_str(id)
  *     if result == NULL:             # <<<<<<<<<<<<<<
@@ -15905,7 +15941,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_8lang_str(CYTHON_UNUSE
   __pyx_t_1 = (__pyx_v_result == NULL);
   if (__pyx_t_1) {
 
-    /* "cyllama/whisper/whisper_cpp.pyx":590
+    /* "cyllama/whisper/whisper_cpp.pyx":593
  *     cdef const char * result = wh.whisper_lang_str(id)
  *     if result == NULL:
  *         return None             # <<<<<<<<<<<<<<
@@ -15916,7 +15952,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_8lang_str(CYTHON_UNUSE
     __pyx_r = Py_None; __Pyx_INCREF(Py_None);
     goto __pyx_L0;
 
-    /* "cyllama/whisper/whisper_cpp.pyx":589
+    /* "cyllama/whisper/whisper_cpp.pyx":592
  * def lang_str(int id):
  *     cdef const char * result = wh.whisper_lang_str(id)
  *     if result == NULL:             # <<<<<<<<<<<<<<
@@ -15925,7 +15961,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_8lang_str(CYTHON_UNUSE
 */
   }
 
-  /* "cyllama/whisper/whisper_cpp.pyx":591
+  /* "cyllama/whisper/whisper_cpp.pyx":594
  *     if result == NULL:
  *         return None
  *     return result.decode('utf-8')             # <<<<<<<<<<<<<<
@@ -15933,14 +15969,14 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_8lang_str(CYTHON_UNUSE
  * def lang_str_full(int id):
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_2 = __Pyx_ssize_strlen(__pyx_v_result); if (unlikely(__pyx_t_2 == ((Py_ssize_t)-1))) __PYX_ERR(0, 591, __pyx_L1_error)
-  __pyx_t_3 = __Pyx_decode_c_string(__pyx_v_result, 0, __pyx_t_2, NULL, NULL, PyUnicode_DecodeUTF8); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 591, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_ssize_strlen(__pyx_v_result); if (unlikely(__pyx_t_2 == ((Py_ssize_t)-1))) __PYX_ERR(0, 594, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_decode_c_string(__pyx_v_result, 0, __pyx_t_2, NULL, NULL, PyUnicode_DecodeUTF8); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 594, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __pyx_r = __pyx_t_3;
   __pyx_t_3 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":587
+  /* "cyllama/whisper/whisper_cpp.pyx":590
  *     return wh.whisper_lang_id(lang_bytes)
  * 
  * def lang_str(int id):             # <<<<<<<<<<<<<<
@@ -15959,7 +15995,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_8lang_str(CYTHON_UNUSE
   return __pyx_r;
 }
 
-/* "cyllama/whisper/whisper_cpp.pyx":593
+/* "cyllama/whisper/whisper_cpp.pyx":596
  *     return result.decode('utf-8')
  * 
  * def lang_str_full(int id):             # <<<<<<<<<<<<<<
@@ -16006,32 +16042,32 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   {
     PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_id,0};
     const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
-    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 593, __pyx_L3_error)
+    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 596, __pyx_L3_error)
     if (__pyx_kwds_len > 0) {
       switch (__pyx_nargs) {
         case  1:
         values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 593, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 596, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  0: break;
         default: goto __pyx_L5_argtuple_error;
       }
       const Py_ssize_t kwd_pos_args = __pyx_nargs;
-      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "lang_str_full", 0) < 0) __PYX_ERR(0, 593, __pyx_L3_error)
+      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "lang_str_full", 0) < 0) __PYX_ERR(0, 596, __pyx_L3_error)
       for (Py_ssize_t i = __pyx_nargs; i < 1; i++) {
-        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("lang_str_full", 1, 1, 1, i); __PYX_ERR(0, 593, __pyx_L3_error) }
+        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("lang_str_full", 1, 1, 1, i); __PYX_ERR(0, 596, __pyx_L3_error) }
       }
     } else if (unlikely(__pyx_nargs != 1)) {
       goto __pyx_L5_argtuple_error;
     } else {
       values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 593, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 596, __pyx_L3_error)
     }
-    __pyx_v_id = __Pyx_PyLong_As_int(values[0]); if (unlikely((__pyx_v_id == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 593, __pyx_L3_error)
+    __pyx_v_id = __Pyx_PyLong_As_int(values[0]); if (unlikely((__pyx_v_id == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 596, __pyx_L3_error)
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("lang_str_full", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 593, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("lang_str_full", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 596, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -16064,7 +16100,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_10lang_str_full(CYTHON
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("lang_str_full", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":594
+  /* "cyllama/whisper/whisper_cpp.pyx":597
  * 
  * def lang_str_full(int id):
  *     cdef const char * result = wh.whisper_lang_str_full(id)             # <<<<<<<<<<<<<<
@@ -16073,7 +16109,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_10lang_str_full(CYTHON
 */
   __pyx_v_result = whisper_lang_str_full(__pyx_v_id);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":595
+  /* "cyllama/whisper/whisper_cpp.pyx":598
  * def lang_str_full(int id):
  *     cdef const char * result = wh.whisper_lang_str_full(id)
  *     if result == NULL:             # <<<<<<<<<<<<<<
@@ -16083,7 +16119,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_10lang_str_full(CYTHON
   __pyx_t_1 = (__pyx_v_result == NULL);
   if (__pyx_t_1) {
 
-    /* "cyllama/whisper/whisper_cpp.pyx":596
+    /* "cyllama/whisper/whisper_cpp.pyx":599
  *     cdef const char * result = wh.whisper_lang_str_full(id)
  *     if result == NULL:
  *         return None             # <<<<<<<<<<<<<<
@@ -16093,7 +16129,7 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_10lang_str_full(CYTHON
     __pyx_r = Py_None; __Pyx_INCREF(Py_None);
     goto __pyx_L0;
 
-    /* "cyllama/whisper/whisper_cpp.pyx":595
+    /* "cyllama/whisper/whisper_cpp.pyx":598
  * def lang_str_full(int id):
  *     cdef const char * result = wh.whisper_lang_str_full(id)
  *     if result == NULL:             # <<<<<<<<<<<<<<
@@ -16102,20 +16138,20 @@ static PyObject *__pyx_pf_7cyllama_7whisper_11whisper_cpp_10lang_str_full(CYTHON
 */
   }
 
-  /* "cyllama/whisper/whisper_cpp.pyx":597
+  /* "cyllama/whisper/whisper_cpp.pyx":600
  *     if result == NULL:
  *         return None
  *     return result.decode('utf-8')             # <<<<<<<<<<<<<<
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_2 = __Pyx_ssize_strlen(__pyx_v_result); if (unlikely(__pyx_t_2 == ((Py_ssize_t)-1))) __PYX_ERR(0, 597, __pyx_L1_error)
-  __pyx_t_3 = __Pyx_decode_c_string(__pyx_v_result, 0, __pyx_t_2, NULL, NULL, PyUnicode_DecodeUTF8); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 597, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_ssize_strlen(__pyx_v_result); if (unlikely(__pyx_t_2 == ((Py_ssize_t)-1))) __PYX_ERR(0, 600, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_decode_c_string(__pyx_v_result, 0, __pyx_t_2, NULL, NULL, PyUnicode_DecodeUTF8); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 600, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __pyx_r = __pyx_t_3;
   __pyx_t_3 = 0;
   goto __pyx_L0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":593
+  /* "cyllama/whisper/whisper_cpp.pyx":596
  *     return result.decode('utf-8')
  * 
  * def lang_str_full(int id):             # <<<<<<<<<<<<<<
@@ -16589,6 +16625,7 @@ static PyObject *__pyx_tp_new_7cyllama_7whisper_11whisper_cpp_WhisperFullParams(
   #endif
   p = ((struct __pyx_obj_7cyllama_7whisper_11whisper_cpp_WhisperFullParams *)o);
   __Pyx_default_placement_construct(&(p->_c_params));
+  p->_language_bytes = ((PyObject*)Py_None); Py_INCREF(Py_None);
   return o;
 }
 
@@ -16602,6 +16639,7 @@ static void __pyx_tp_dealloc_7cyllama_7whisper_11whisper_cpp_WhisperFullParams(P
   }
   #endif
   __Pyx_call_destructor(p->_c_params);
+  Py_CLEAR(p->_language_bytes);
   #if CYTHON_USE_TYPE_SLOTS
   (*Py_TYPE(o)->tp_free)(o);
   #else
@@ -17623,59 +17661,59 @@ static int __Pyx_modinit_type_init_code(__pyx_mstatetype *__pyx_mstate) {
   if (PyObject_SetAttr(__pyx_m, __pyx_mstate_global->__pyx_n_u_WhisperFullParams, (PyObject *) __pyx_mstate->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperFullParams) < 0) __PYX_ERR(0, 141, __pyx_L1_error)
   if (__Pyx_setup_reduce((PyObject *) __pyx_mstate->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperFullParams) < 0) __PYX_ERR(0, 141, __pyx_L1_error)
   #if CYTHON_USE_TYPE_SPECS
-  __pyx_mstate->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperTokenData = (PyTypeObject *) __Pyx_PyType_FromModuleAndSpec(__pyx_m, &__pyx_type_7cyllama_7whisper_11whisper_cpp_WhisperTokenData_spec, NULL); if (unlikely(!__pyx_mstate->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperTokenData)) __PYX_ERR(0, 282, __pyx_L1_error)
-  if (__Pyx_fix_up_extension_type_from_spec(&__pyx_type_7cyllama_7whisper_11whisper_cpp_WhisperTokenData_spec, __pyx_mstate->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperTokenData) < 0) __PYX_ERR(0, 282, __pyx_L1_error)
+  __pyx_mstate->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperTokenData = (PyTypeObject *) __Pyx_PyType_FromModuleAndSpec(__pyx_m, &__pyx_type_7cyllama_7whisper_11whisper_cpp_WhisperTokenData_spec, NULL); if (unlikely(!__pyx_mstate->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperTokenData)) __PYX_ERR(0, 285, __pyx_L1_error)
+  if (__Pyx_fix_up_extension_type_from_spec(&__pyx_type_7cyllama_7whisper_11whisper_cpp_WhisperTokenData_spec, __pyx_mstate->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperTokenData) < 0) __PYX_ERR(0, 285, __pyx_L1_error)
   #else
   __pyx_mstate->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperTokenData = &__pyx_type_7cyllama_7whisper_11whisper_cpp_WhisperTokenData;
   #endif
   #if !CYTHON_COMPILING_IN_LIMITED_API
   #endif
   #if !CYTHON_USE_TYPE_SPECS
-  if (__Pyx_PyType_Ready(__pyx_mstate->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperTokenData) < 0) __PYX_ERR(0, 282, __pyx_L1_error)
+  if (__Pyx_PyType_Ready(__pyx_mstate->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperTokenData) < 0) __PYX_ERR(0, 285, __pyx_L1_error)
   #endif
   #if !CYTHON_COMPILING_IN_LIMITED_API
   if ((CYTHON_USE_TYPE_SLOTS && CYTHON_USE_PYTYPE_LOOKUP) && likely(!__pyx_mstate->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperTokenData->tp_dictoffset && __pyx_mstate->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperTokenData->tp_getattro == PyObject_GenericGetAttr)) {
     __pyx_mstate->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperTokenData->tp_getattro = PyObject_GenericGetAttr;
   }
   #endif
-  if (PyObject_SetAttr(__pyx_m, __pyx_mstate_global->__pyx_n_u_WhisperTokenData, (PyObject *) __pyx_mstate->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperTokenData) < 0) __PYX_ERR(0, 282, __pyx_L1_error)
-  if (__Pyx_setup_reduce((PyObject *) __pyx_mstate->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperTokenData) < 0) __PYX_ERR(0, 282, __pyx_L1_error)
+  if (PyObject_SetAttr(__pyx_m, __pyx_mstate_global->__pyx_n_u_WhisperTokenData, (PyObject *) __pyx_mstate->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperTokenData) < 0) __PYX_ERR(0, 285, __pyx_L1_error)
+  if (__Pyx_setup_reduce((PyObject *) __pyx_mstate->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperTokenData) < 0) __PYX_ERR(0, 285, __pyx_L1_error)
   #if CYTHON_USE_TYPE_SPECS
-  __pyx_mstate->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext = (PyTypeObject *) __Pyx_PyType_FromModuleAndSpec(__pyx_m, &__pyx_type_7cyllama_7whisper_11whisper_cpp_WhisperContext_spec, NULL); if (unlikely(!__pyx_mstate->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext)) __PYX_ERR(0, 329, __pyx_L1_error)
-  if (__Pyx_fix_up_extension_type_from_spec(&__pyx_type_7cyllama_7whisper_11whisper_cpp_WhisperContext_spec, __pyx_mstate->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext) < 0) __PYX_ERR(0, 329, __pyx_L1_error)
+  __pyx_mstate->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext = (PyTypeObject *) __Pyx_PyType_FromModuleAndSpec(__pyx_m, &__pyx_type_7cyllama_7whisper_11whisper_cpp_WhisperContext_spec, NULL); if (unlikely(!__pyx_mstate->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext)) __PYX_ERR(0, 332, __pyx_L1_error)
+  if (__Pyx_fix_up_extension_type_from_spec(&__pyx_type_7cyllama_7whisper_11whisper_cpp_WhisperContext_spec, __pyx_mstate->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext) < 0) __PYX_ERR(0, 332, __pyx_L1_error)
   #else
   __pyx_mstate->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext = &__pyx_type_7cyllama_7whisper_11whisper_cpp_WhisperContext;
   #endif
   #if !CYTHON_COMPILING_IN_LIMITED_API
   #endif
   #if !CYTHON_USE_TYPE_SPECS
-  if (__Pyx_PyType_Ready(__pyx_mstate->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext) < 0) __PYX_ERR(0, 329, __pyx_L1_error)
+  if (__Pyx_PyType_Ready(__pyx_mstate->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext) < 0) __PYX_ERR(0, 332, __pyx_L1_error)
   #endif
   #if !CYTHON_COMPILING_IN_LIMITED_API
   if ((CYTHON_USE_TYPE_SLOTS && CYTHON_USE_PYTYPE_LOOKUP) && likely(!__pyx_mstate->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext->tp_dictoffset && __pyx_mstate->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext->tp_getattro == PyObject_GenericGetAttr)) {
     __pyx_mstate->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext->tp_getattro = PyObject_GenericGetAttr;
   }
   #endif
-  if (PyObject_SetAttr(__pyx_m, __pyx_mstate_global->__pyx_n_u_WhisperContext, (PyObject *) __pyx_mstate->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext) < 0) __PYX_ERR(0, 329, __pyx_L1_error)
-  if (__Pyx_setup_reduce((PyObject *) __pyx_mstate->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext) < 0) __PYX_ERR(0, 329, __pyx_L1_error)
+  if (PyObject_SetAttr(__pyx_m, __pyx_mstate_global->__pyx_n_u_WhisperContext, (PyObject *) __pyx_mstate->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext) < 0) __PYX_ERR(0, 332, __pyx_L1_error)
+  if (__Pyx_setup_reduce((PyObject *) __pyx_mstate->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext) < 0) __PYX_ERR(0, 332, __pyx_L1_error)
   #if CYTHON_USE_TYPE_SPECS
-  __pyx_mstate->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperState = (PyTypeObject *) __Pyx_PyType_FromModuleAndSpec(__pyx_m, &__pyx_type_7cyllama_7whisper_11whisper_cpp_WhisperState_spec, NULL); if (unlikely(!__pyx_mstate->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperState)) __PYX_ERR(0, 557, __pyx_L1_error)
-  if (__Pyx_fix_up_extension_type_from_spec(&__pyx_type_7cyllama_7whisper_11whisper_cpp_WhisperState_spec, __pyx_mstate->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperState) < 0) __PYX_ERR(0, 557, __pyx_L1_error)
+  __pyx_mstate->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperState = (PyTypeObject *) __Pyx_PyType_FromModuleAndSpec(__pyx_m, &__pyx_type_7cyllama_7whisper_11whisper_cpp_WhisperState_spec, NULL); if (unlikely(!__pyx_mstate->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperState)) __PYX_ERR(0, 560, __pyx_L1_error)
+  if (__Pyx_fix_up_extension_type_from_spec(&__pyx_type_7cyllama_7whisper_11whisper_cpp_WhisperState_spec, __pyx_mstate->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperState) < 0) __PYX_ERR(0, 560, __pyx_L1_error)
   #else
   __pyx_mstate->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperState = &__pyx_type_7cyllama_7whisper_11whisper_cpp_WhisperState;
   #endif
   #if !CYTHON_COMPILING_IN_LIMITED_API
   #endif
   #if !CYTHON_USE_TYPE_SPECS
-  if (__Pyx_PyType_Ready(__pyx_mstate->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperState) < 0) __PYX_ERR(0, 557, __pyx_L1_error)
+  if (__Pyx_PyType_Ready(__pyx_mstate->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperState) < 0) __PYX_ERR(0, 560, __pyx_L1_error)
   #endif
   #if !CYTHON_COMPILING_IN_LIMITED_API
   if ((CYTHON_USE_TYPE_SLOTS && CYTHON_USE_PYTYPE_LOOKUP) && likely(!__pyx_mstate->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperState->tp_dictoffset && __pyx_mstate->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperState->tp_getattro == PyObject_GenericGetAttr)) {
     __pyx_mstate->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperState->tp_getattro = PyObject_GenericGetAttr;
   }
   #endif
-  if (PyObject_SetAttr(__pyx_m, __pyx_mstate_global->__pyx_n_u_WhisperState, (PyObject *) __pyx_mstate->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperState) < 0) __PYX_ERR(0, 557, __pyx_L1_error)
-  if (__Pyx_setup_reduce((PyObject *) __pyx_mstate->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperState) < 0) __PYX_ERR(0, 557, __pyx_L1_error)
+  if (PyObject_SetAttr(__pyx_m, __pyx_mstate_global->__pyx_n_u_WhisperState, (PyObject *) __pyx_mstate->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperState) < 0) __PYX_ERR(0, 560, __pyx_L1_error)
+  if (__Pyx_setup_reduce((PyObject *) __pyx_mstate->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperState) < 0) __PYX_ERR(0, 560, __pyx_L1_error)
   __Pyx_RefNannyFinishContext();
   return 0;
   __pyx_L1_error:;
@@ -18463,14 +18501,14 @@ __Pyx_RefNannySetupContext("PyInit_whisper_cpp", 0);
   if (PyDict_SetItem(__pyx_mstate_global->__pyx_d, __pyx_mstate_global->__pyx_n_u_setstate_cython, __pyx_t_2) < 0) __PYX_ERR(1, 3, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":144
- *     cdef wh.whisper_full_params _c_params
+  /* "cyllama/whisper/whisper_cpp.pyx":145
+ *     cdef bytes _language_bytes  # Keep bytes object alive for language parameter
  * 
  *     def __init__(self, strategy=wh.WHISPER_SAMPLING_GREEDY):             # <<<<<<<<<<<<<<
  *         self._c_params = wh.whisper_full_default_params(strategy)
- * 
+ *         self._language_bytes = None
 */
-  __pyx_t_2 = __Pyx_PyLong_From_whisper_sampling_strategy(WHISPER_SAMPLING_GREEDY); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 144, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyLong_From_whisper_sampling_strategy(WHISPER_SAMPLING_GREEDY); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 145, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   __pyx_mstate_global->__pyx_k_ = __pyx_t_2;
   __Pyx_GIVEREF(__pyx_t_2);
@@ -18518,606 +18556,606 @@ __Pyx_RefNannySetupContext("PyInit_whisper_cpp", 0);
   if (PyDict_SetItem(__pyx_mstate_global->__pyx_d, __pyx_mstate_global->__pyx_n_u_setstate_cython, __pyx_t_2) < 0) __PYX_ERR(1, 3, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":347
+  /* "cyllama/whisper/whisper_cpp.pyx":350
  *             self._c_ctx = NULL
  * 
  *     def version(self):             # <<<<<<<<<<<<<<
  *         return wh.whisper_version().decode('utf-8')
  * 
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_5version, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_version, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[8])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 347, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_5version, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_version, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[8])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 350, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_version, __pyx_t_2) < 0) __PYX_ERR(0, 347, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_version, __pyx_t_2) < 0) __PYX_ERR(0, 350, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":350
+  /* "cyllama/whisper/whisper_cpp.pyx":353
  *         return wh.whisper_version().decode('utf-8')
  * 
  *     def system_info(self):             # <<<<<<<<<<<<<<
  *         return wh.whisper_print_system_info().decode('utf-8')
  * 
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_7system_info, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_system_info, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[9])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 350, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_7system_info, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_system_info, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[9])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 353, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_system_info, __pyx_t_2) < 0) __PYX_ERR(0, 350, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_system_info, __pyx_t_2) < 0) __PYX_ERR(0, 353, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":353
+  /* "cyllama/whisper/whisper_cpp.pyx":356
  *         return wh.whisper_print_system_info().decode('utf-8')
  * 
  *     def n_vocab(self):             # <<<<<<<<<<<<<<
  *         return wh.whisper_n_vocab(self._c_ctx)
  * 
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_9n_vocab, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_n_vocab, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[10])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 353, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_9n_vocab, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_n_vocab, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[10])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 356, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_n_vocab, __pyx_t_2) < 0) __PYX_ERR(0, 353, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_n_vocab, __pyx_t_2) < 0) __PYX_ERR(0, 356, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":356
+  /* "cyllama/whisper/whisper_cpp.pyx":359
  *         return wh.whisper_n_vocab(self._c_ctx)
  * 
  *     def n_text_ctx(self):             # <<<<<<<<<<<<<<
  *         return wh.whisper_n_text_ctx(self._c_ctx)
  * 
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_11n_text_ctx, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_n_text_ctx, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[11])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 356, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_11n_text_ctx, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_n_text_ctx, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[11])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 359, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_n_text_ctx, __pyx_t_2) < 0) __PYX_ERR(0, 356, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_n_text_ctx, __pyx_t_2) < 0) __PYX_ERR(0, 359, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":359
+  /* "cyllama/whisper/whisper_cpp.pyx":362
  *         return wh.whisper_n_text_ctx(self._c_ctx)
  * 
  *     def n_audio_ctx(self):             # <<<<<<<<<<<<<<
  *         return wh.whisper_n_audio_ctx(self._c_ctx)
  * 
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_13n_audio_ctx, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_n_audio_ctx, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[12])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 359, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_13n_audio_ctx, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_n_audio_ctx, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[12])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 362, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_n_audio_ctx, __pyx_t_2) < 0) __PYX_ERR(0, 359, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_n_audio_ctx, __pyx_t_2) < 0) __PYX_ERR(0, 362, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":362
+  /* "cyllama/whisper/whisper_cpp.pyx":365
  *         return wh.whisper_n_audio_ctx(self._c_ctx)
  * 
  *     def is_multilingual(self):             # <<<<<<<<<<<<<<
  *         return bool(wh.whisper_is_multilingual(self._c_ctx))
  * 
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_15is_multilingual, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_is_multilingual, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[13])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 362, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_15is_multilingual, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_is_multilingual, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[13])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 365, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_is_multilingual, __pyx_t_2) < 0) __PYX_ERR(0, 362, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_is_multilingual, __pyx_t_2) < 0) __PYX_ERR(0, 365, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":365
+  /* "cyllama/whisper/whisper_cpp.pyx":368
  *         return bool(wh.whisper_is_multilingual(self._c_ctx))
  * 
  *     def model_n_vocab(self):             # <<<<<<<<<<<<<<
  *         return wh.whisper_model_n_vocab(self._c_ctx)
  * 
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_17model_n_vocab, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_model_n_vocab, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[14])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 365, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_17model_n_vocab, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_model_n_vocab, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[14])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 368, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_model_n_vocab, __pyx_t_2) < 0) __PYX_ERR(0, 365, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_model_n_vocab, __pyx_t_2) < 0) __PYX_ERR(0, 368, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":368
+  /* "cyllama/whisper/whisper_cpp.pyx":371
  *         return wh.whisper_model_n_vocab(self._c_ctx)
  * 
  *     def model_n_audio_ctx(self):             # <<<<<<<<<<<<<<
  *         return wh.whisper_model_n_audio_ctx(self._c_ctx)
  * 
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_19model_n_audio_ctx, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_model_n_audio_ctx, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[15])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 368, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_19model_n_audio_ctx, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_model_n_audio_ctx, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[15])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 371, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_model_n_audio_ctx, __pyx_t_2) < 0) __PYX_ERR(0, 368, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_model_n_audio_ctx, __pyx_t_2) < 0) __PYX_ERR(0, 371, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":371
+  /* "cyllama/whisper/whisper_cpp.pyx":374
  *         return wh.whisper_model_n_audio_ctx(self._c_ctx)
  * 
  *     def model_n_audio_state(self):             # <<<<<<<<<<<<<<
  *         return wh.whisper_model_n_audio_state(self._c_ctx)
  * 
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_21model_n_audio_state, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_model_n_audio_sta, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[16])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 371, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_21model_n_audio_state, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_model_n_audio_sta, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[16])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 374, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_model_n_audio_state, __pyx_t_2) < 0) __PYX_ERR(0, 371, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_model_n_audio_state, __pyx_t_2) < 0) __PYX_ERR(0, 374, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":374
+  /* "cyllama/whisper/whisper_cpp.pyx":377
  *         return wh.whisper_model_n_audio_state(self._c_ctx)
  * 
  *     def model_n_audio_head(self):             # <<<<<<<<<<<<<<
  *         return wh.whisper_model_n_audio_head(self._c_ctx)
  * 
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_23model_n_audio_head, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_model_n_audio_hea, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[17])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 374, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_23model_n_audio_head, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_model_n_audio_hea, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[17])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 377, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_model_n_audio_head, __pyx_t_2) < 0) __PYX_ERR(0, 374, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_model_n_audio_head, __pyx_t_2) < 0) __PYX_ERR(0, 377, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":377
+  /* "cyllama/whisper/whisper_cpp.pyx":380
  *         return wh.whisper_model_n_audio_head(self._c_ctx)
  * 
  *     def model_n_audio_layer(self):             # <<<<<<<<<<<<<<
  *         return wh.whisper_model_n_audio_layer(self._c_ctx)
  * 
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_25model_n_audio_layer, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_model_n_audio_lay, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[18])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 377, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_25model_n_audio_layer, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_model_n_audio_lay, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[18])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 380, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_model_n_audio_layer, __pyx_t_2) < 0) __PYX_ERR(0, 377, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_model_n_audio_layer, __pyx_t_2) < 0) __PYX_ERR(0, 380, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":380
+  /* "cyllama/whisper/whisper_cpp.pyx":383
  *         return wh.whisper_model_n_audio_layer(self._c_ctx)
  * 
  *     def model_n_text_ctx(self):             # <<<<<<<<<<<<<<
  *         return wh.whisper_model_n_text_ctx(self._c_ctx)
  * 
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_27model_n_text_ctx, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_model_n_text_ctx, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[19])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 380, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_27model_n_text_ctx, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_model_n_text_ctx, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[19])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 383, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_model_n_text_ctx, __pyx_t_2) < 0) __PYX_ERR(0, 380, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_model_n_text_ctx, __pyx_t_2) < 0) __PYX_ERR(0, 383, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":383
+  /* "cyllama/whisper/whisper_cpp.pyx":386
  *         return wh.whisper_model_n_text_ctx(self._c_ctx)
  * 
  *     def model_n_text_state(self):             # <<<<<<<<<<<<<<
  *         return wh.whisper_model_n_text_state(self._c_ctx)
  * 
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_29model_n_text_state, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_model_n_text_stat, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[20])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 383, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_29model_n_text_state, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_model_n_text_stat, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[20])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 386, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_model_n_text_state, __pyx_t_2) < 0) __PYX_ERR(0, 383, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_model_n_text_state, __pyx_t_2) < 0) __PYX_ERR(0, 386, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":386
+  /* "cyllama/whisper/whisper_cpp.pyx":389
  *         return wh.whisper_model_n_text_state(self._c_ctx)
  * 
  *     def model_n_text_head(self):             # <<<<<<<<<<<<<<
  *         return wh.whisper_model_n_text_head(self._c_ctx)
  * 
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_31model_n_text_head, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_model_n_text_head, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[21])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 386, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_31model_n_text_head, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_model_n_text_head, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[21])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 389, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_model_n_text_head, __pyx_t_2) < 0) __PYX_ERR(0, 386, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_model_n_text_head, __pyx_t_2) < 0) __PYX_ERR(0, 389, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":389
+  /* "cyllama/whisper/whisper_cpp.pyx":392
  *         return wh.whisper_model_n_text_head(self._c_ctx)
  * 
  *     def model_n_text_layer(self):             # <<<<<<<<<<<<<<
  *         return wh.whisper_model_n_text_layer(self._c_ctx)
  * 
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_33model_n_text_layer, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_model_n_text_laye, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[22])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 389, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_33model_n_text_layer, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_model_n_text_laye, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[22])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 392, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_model_n_text_layer, __pyx_t_2) < 0) __PYX_ERR(0, 389, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_model_n_text_layer, __pyx_t_2) < 0) __PYX_ERR(0, 392, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":392
+  /* "cyllama/whisper/whisper_cpp.pyx":395
  *         return wh.whisper_model_n_text_layer(self._c_ctx)
  * 
  *     def model_n_mels(self):             # <<<<<<<<<<<<<<
  *         return wh.whisper_model_n_mels(self._c_ctx)
  * 
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_35model_n_mels, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_model_n_mels, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[23])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 392, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_35model_n_mels, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_model_n_mels, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[23])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 395, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_model_n_mels, __pyx_t_2) < 0) __PYX_ERR(0, 392, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_model_n_mels, __pyx_t_2) < 0) __PYX_ERR(0, 395, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":395
+  /* "cyllama/whisper/whisper_cpp.pyx":398
  *         return wh.whisper_model_n_mels(self._c_ctx)
  * 
  *     def model_ftype(self):             # <<<<<<<<<<<<<<
  *         return wh.whisper_model_ftype(self._c_ctx)
  * 
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_37model_ftype, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_model_ftype, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[24])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 395, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_37model_ftype, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_model_ftype, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[24])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 398, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_model_ftype, __pyx_t_2) < 0) __PYX_ERR(0, 395, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_model_ftype, __pyx_t_2) < 0) __PYX_ERR(0, 398, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":398
+  /* "cyllama/whisper/whisper_cpp.pyx":401
  *         return wh.whisper_model_ftype(self._c_ctx)
  * 
  *     def model_type(self):             # <<<<<<<<<<<<<<
  *         return wh.whisper_model_type(self._c_ctx)
  * 
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_39model_type, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_model_type, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[25])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 398, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_39model_type, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_model_type, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[25])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 401, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_model_type, __pyx_t_2) < 0) __PYX_ERR(0, 398, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_model_type, __pyx_t_2) < 0) __PYX_ERR(0, 401, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":401
+  /* "cyllama/whisper/whisper_cpp.pyx":404
  *         return wh.whisper_model_type(self._c_ctx)
  * 
  *     def model_type_readable(self):             # <<<<<<<<<<<<<<
  *         return wh.whisper_model_type_readable(self._c_ctx).decode('utf-8')
  * 
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_41model_type_readable, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_model_type_readab, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[26])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 401, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_41model_type_readable, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_model_type_readab, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[26])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 404, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_model_type_readable, __pyx_t_2) < 0) __PYX_ERR(0, 401, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_model_type_readable, __pyx_t_2) < 0) __PYX_ERR(0, 404, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":404
+  /* "cyllama/whisper/whisper_cpp.pyx":407
  *         return wh.whisper_model_type_readable(self._c_ctx).decode('utf-8')
  * 
  *     def token_to_str(self, int token):             # <<<<<<<<<<<<<<
  *         cdef const char * result = wh.whisper_token_to_str(self._c_ctx, token)
  *         if result == NULL:
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_43token_to_str, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_token_to_str, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[27])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 404, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_43token_to_str, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_token_to_str, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[27])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 407, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_token_to_str, __pyx_t_2) < 0) __PYX_ERR(0, 404, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_token_to_str, __pyx_t_2) < 0) __PYX_ERR(0, 407, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":410
+  /* "cyllama/whisper/whisper_cpp.pyx":413
  *         return result.decode('utf-8')
  * 
  *     def token_eot(self):             # <<<<<<<<<<<<<<
  *         return wh.whisper_token_eot(self._c_ctx)
  * 
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_45token_eot, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_token_eot, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[28])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 410, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_45token_eot, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_token_eot, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[28])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 413, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_token_eot, __pyx_t_2) < 0) __PYX_ERR(0, 410, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_token_eot, __pyx_t_2) < 0) __PYX_ERR(0, 413, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":413
+  /* "cyllama/whisper/whisper_cpp.pyx":416
  *         return wh.whisper_token_eot(self._c_ctx)
  * 
  *     def token_sot(self):             # <<<<<<<<<<<<<<
  *         return wh.whisper_token_sot(self._c_ctx)
  * 
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_47token_sot, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_token_sot, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[29])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 413, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_47token_sot, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_token_sot, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[29])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 416, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_token_sot, __pyx_t_2) < 0) __PYX_ERR(0, 413, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_token_sot, __pyx_t_2) < 0) __PYX_ERR(0, 416, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":416
+  /* "cyllama/whisper/whisper_cpp.pyx":419
  *         return wh.whisper_token_sot(self._c_ctx)
  * 
  *     def token_solm(self):             # <<<<<<<<<<<<<<
  *         return wh.whisper_token_solm(self._c_ctx)
  * 
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_49token_solm, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_token_solm, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[30])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 416, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_49token_solm, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_token_solm, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[30])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 419, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_token_solm, __pyx_t_2) < 0) __PYX_ERR(0, 416, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_token_solm, __pyx_t_2) < 0) __PYX_ERR(0, 419, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":419
+  /* "cyllama/whisper/whisper_cpp.pyx":422
  *         return wh.whisper_token_solm(self._c_ctx)
  * 
  *     def token_prev(self):             # <<<<<<<<<<<<<<
  *         return wh.whisper_token_prev(self._c_ctx)
  * 
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_51token_prev, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_token_prev, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[31])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 419, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_51token_prev, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_token_prev, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[31])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 422, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_token_prev, __pyx_t_2) < 0) __PYX_ERR(0, 419, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_token_prev, __pyx_t_2) < 0) __PYX_ERR(0, 422, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":422
+  /* "cyllama/whisper/whisper_cpp.pyx":425
  *         return wh.whisper_token_prev(self._c_ctx)
  * 
  *     def token_nosp(self):             # <<<<<<<<<<<<<<
  *         return wh.whisper_token_nosp(self._c_ctx)
  * 
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_53token_nosp, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_token_nosp, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[32])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 422, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_53token_nosp, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_token_nosp, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[32])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 425, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_token_nosp, __pyx_t_2) < 0) __PYX_ERR(0, 422, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_token_nosp, __pyx_t_2) < 0) __PYX_ERR(0, 425, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":425
+  /* "cyllama/whisper/whisper_cpp.pyx":428
  *         return wh.whisper_token_nosp(self._c_ctx)
  * 
  *     def token_not(self):             # <<<<<<<<<<<<<<
  *         return wh.whisper_token_not(self._c_ctx)
  * 
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_55token_not, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_token_not, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[33])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 425, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_55token_not, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_token_not, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[33])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 428, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_token_not, __pyx_t_2) < 0) __PYX_ERR(0, 425, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_token_not, __pyx_t_2) < 0) __PYX_ERR(0, 428, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":428
+  /* "cyllama/whisper/whisper_cpp.pyx":431
  *         return wh.whisper_token_not(self._c_ctx)
  * 
  *     def token_beg(self):             # <<<<<<<<<<<<<<
  *         return wh.whisper_token_beg(self._c_ctx)
  * 
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_57token_beg, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_token_beg, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[34])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 428, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_57token_beg, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_token_beg, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[34])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 431, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_token_beg, __pyx_t_2) < 0) __PYX_ERR(0, 428, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_token_beg, __pyx_t_2) < 0) __PYX_ERR(0, 431, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":431
+  /* "cyllama/whisper/whisper_cpp.pyx":434
  *         return wh.whisper_token_beg(self._c_ctx)
  * 
  *     def token_lang(self, int lang_id):             # <<<<<<<<<<<<<<
  *         return wh.whisper_token_lang(self._c_ctx, lang_id)
  * 
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_59token_lang, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_token_lang, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[35])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 431, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_59token_lang, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_token_lang, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[35])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 434, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_token_lang, __pyx_t_2) < 0) __PYX_ERR(0, 431, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_token_lang, __pyx_t_2) < 0) __PYX_ERR(0, 434, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":434
+  /* "cyllama/whisper/whisper_cpp.pyx":437
  *         return wh.whisper_token_lang(self._c_ctx, lang_id)
  * 
  *     def token_translate(self):             # <<<<<<<<<<<<<<
  *         return wh.whisper_token_translate(self._c_ctx)
  * 
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_61token_translate, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_token_translate, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[36])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 434, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_61token_translate, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_token_translate, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[36])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 437, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_token_translate, __pyx_t_2) < 0) __PYX_ERR(0, 434, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_token_translate, __pyx_t_2) < 0) __PYX_ERR(0, 437, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":437
+  /* "cyllama/whisper/whisper_cpp.pyx":440
  *         return wh.whisper_token_translate(self._c_ctx)
  * 
  *     def token_transcribe(self):             # <<<<<<<<<<<<<<
  *         return wh.whisper_token_transcribe(self._c_ctx)
  * 
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_63token_transcribe, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_token_transcribe, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[37])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 437, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_63token_transcribe, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_token_transcribe, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[37])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 440, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_token_transcribe, __pyx_t_2) < 0) __PYX_ERR(0, 437, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_token_transcribe, __pyx_t_2) < 0) __PYX_ERR(0, 440, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":440
+  /* "cyllama/whisper/whisper_cpp.pyx":443
  *         return wh.whisper_token_transcribe(self._c_ctx)
  * 
  *     def tokenize(self, str text, int max_tokens=512):             # <<<<<<<<<<<<<<
  *         cdef int n_tokens = 0
  *         cdef bytes text_bytes = text.encode('utf-8')
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_65tokenize, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_tokenize, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[38])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 440, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_65tokenize, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_tokenize, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[38])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 443, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   __Pyx_CyFunction_SetDefaultsTuple(__pyx_t_2, __pyx_mstate_global->__pyx_tuple[0]);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_tokenize, __pyx_t_2) < 0) __PYX_ERR(0, 440, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_tokenize, __pyx_t_2) < 0) __PYX_ERR(0, 443, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":457
+  /* "cyllama/whisper/whisper_cpp.pyx":460
  *             free(tokens)
  * 
  *     def token_count(self, str text):             # <<<<<<<<<<<<<<
  *         text_bytes = text.encode('utf-8')
  *         return wh.whisper_token_count(self._c_ctx, text_bytes)
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_67token_count, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_token_count, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[39])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 457, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_67token_count, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_token_count, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[39])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 460, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_token_count, __pyx_t_2) < 0) __PYX_ERR(0, 457, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_token_count, __pyx_t_2) < 0) __PYX_ERR(0, 460, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":461
+  /* "cyllama/whisper/whisper_cpp.pyx":464
  *         return wh.whisper_token_count(self._c_ctx, text_bytes)
  * 
  *     def lang_max_id(self):             # <<<<<<<<<<<<<<
  *         return wh.whisper_lang_max_id()
  * 
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_69lang_max_id, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_lang_max_id, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[40])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 461, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_69lang_max_id, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_lang_max_id, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[40])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 464, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_lang_max_id, __pyx_t_2) < 0) __PYX_ERR(0, 461, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_lang_max_id, __pyx_t_2) < 0) __PYX_ERR(0, 464, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":464
+  /* "cyllama/whisper/whisper_cpp.pyx":467
  *         return wh.whisper_lang_max_id()
  * 
  *     def lang_id(self, str lang):             # <<<<<<<<<<<<<<
  *         lang_bytes = lang.encode('utf-8')
  *         return wh.whisper_lang_id(lang_bytes)
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_71lang_id, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_lang_id, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[41])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 464, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_71lang_id, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_lang_id, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[41])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 467, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_lang_id, __pyx_t_2) < 0) __PYX_ERR(0, 464, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_lang_id, __pyx_t_2) < 0) __PYX_ERR(0, 467, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":468
+  /* "cyllama/whisper/whisper_cpp.pyx":471
  *         return wh.whisper_lang_id(lang_bytes)
  * 
  *     def lang_str(self, int id):             # <<<<<<<<<<<<<<
  *         cdef const char * result = wh.whisper_lang_str(id)
  *         if result == NULL:
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_73lang_str, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_lang_str, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[42])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 468, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_73lang_str, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_lang_str, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[42])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 471, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_lang_str, __pyx_t_2) < 0) __PYX_ERR(0, 468, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_lang_str, __pyx_t_2) < 0) __PYX_ERR(0, 471, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":474
+  /* "cyllama/whisper/whisper_cpp.pyx":477
  *         return result.decode('utf-8')
  * 
  *     def lang_str_full(self, int id):             # <<<<<<<<<<<<<<
  *         cdef const char * result = wh.whisper_lang_str_full(id)
  *         if result == NULL:
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_75lang_str_full, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_lang_str_full, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[43])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 474, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_75lang_str_full, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_lang_str_full, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[43])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 477, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_lang_str_full, __pyx_t_2) < 0) __PYX_ERR(0, 474, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_lang_str_full, __pyx_t_2) < 0) __PYX_ERR(0, 477, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":488
+  /* "cyllama/whisper/whisper_cpp.pyx":491
  *     #         raise RuntimeError(f"PCM to mel conversion failed with error {result}")
  * 
  *     def encode(self, int offset=0, int n_threads=1):             # <<<<<<<<<<<<<<
  *         cdef int result = wh.whisper_encode(self._c_ctx, offset, n_threads)
  *         if result != 0:
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_77encode, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_encode, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[44])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 488, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_77encode, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_encode, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[44])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 491, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   __Pyx_CyFunction_SetDefaultsTuple(__pyx_t_2, __pyx_mstate_global->__pyx_tuple[1]);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_encode, __pyx_t_2) < 0) __PYX_ERR(0, 488, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_encode, __pyx_t_2) < 0) __PYX_ERR(0, 491, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":508
+  /* "cyllama/whisper/whisper_cpp.pyx":511
  *     #         raise RuntimeError(f"Whisper full processing failed with error {result}")
  * 
  *     def full_n_segments(self):             # <<<<<<<<<<<<<<
  *         return wh.whisper_full_n_segments(self._c_ctx)
  * 
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_79full_n_segments, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_full_n_segments, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[45])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 508, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_79full_n_segments, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_full_n_segments, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[45])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 511, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_full_n_segments, __pyx_t_2) < 0) __PYX_ERR(0, 508, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_full_n_segments, __pyx_t_2) < 0) __PYX_ERR(0, 511, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":511
+  /* "cyllama/whisper/whisper_cpp.pyx":514
  *         return wh.whisper_full_n_segments(self._c_ctx)
  * 
  *     def full_lang_id(self):             # <<<<<<<<<<<<<<
  *         return wh.whisper_full_lang_id(self._c_ctx)
  * 
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_81full_lang_id, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_full_lang_id, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[46])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 511, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_81full_lang_id, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_full_lang_id, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[46])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 514, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_full_lang_id, __pyx_t_2) < 0) __PYX_ERR(0, 511, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_full_lang_id, __pyx_t_2) < 0) __PYX_ERR(0, 514, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":514
+  /* "cyllama/whisper/whisper_cpp.pyx":517
  *         return wh.whisper_full_lang_id(self._c_ctx)
  * 
  *     def full_get_segment_t0(self, int i_segment):             # <<<<<<<<<<<<<<
  *         return wh.whisper_full_get_segment_t0(self._c_ctx, i_segment)
  * 
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_83full_get_segment_t0, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_full_get_segment, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[47])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 514, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_83full_get_segment_t0, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_full_get_segment, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[47])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 517, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_full_get_segment_t0, __pyx_t_2) < 0) __PYX_ERR(0, 514, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_full_get_segment_t0, __pyx_t_2) < 0) __PYX_ERR(0, 517, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":517
+  /* "cyllama/whisper/whisper_cpp.pyx":520
  *         return wh.whisper_full_get_segment_t0(self._c_ctx, i_segment)
  * 
  *     def full_get_segment_t1(self, int i_segment):             # <<<<<<<<<<<<<<
  *         return wh.whisper_full_get_segment_t1(self._c_ctx, i_segment)
  * 
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_85full_get_segment_t1, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_full_get_segment_2, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[48])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 517, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_85full_get_segment_t1, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_full_get_segment_2, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[48])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 520, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_full_get_segment_t1, __pyx_t_2) < 0) __PYX_ERR(0, 517, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_full_get_segment_t1, __pyx_t_2) < 0) __PYX_ERR(0, 520, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":520
+  /* "cyllama/whisper/whisper_cpp.pyx":523
  *         return wh.whisper_full_get_segment_t1(self._c_ctx, i_segment)
  * 
  *     def full_get_segment_text(self, int i_segment):             # <<<<<<<<<<<<<<
  *         cdef const char * result = wh.whisper_full_get_segment_text(self._c_ctx, i_segment)
  *         if result == NULL:
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_87full_get_segment_text, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_full_get_segment_3, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[49])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 520, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_87full_get_segment_text, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_full_get_segment_3, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[49])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 523, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_full_get_segment_text, __pyx_t_2) < 0) __PYX_ERR(0, 520, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_full_get_segment_text, __pyx_t_2) < 0) __PYX_ERR(0, 523, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":526
+  /* "cyllama/whisper/whisper_cpp.pyx":529
  *         return result.decode('utf-8')
  * 
  *     def full_n_tokens(self, int i_segment):             # <<<<<<<<<<<<<<
  *         return wh.whisper_full_n_tokens(self._c_ctx, i_segment)
  * 
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_89full_n_tokens, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_full_n_tokens, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[50])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 526, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_89full_n_tokens, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_full_n_tokens, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[50])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 529, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_full_n_tokens, __pyx_t_2) < 0) __PYX_ERR(0, 526, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_full_n_tokens, __pyx_t_2) < 0) __PYX_ERR(0, 529, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":529
+  /* "cyllama/whisper/whisper_cpp.pyx":532
  *         return wh.whisper_full_n_tokens(self._c_ctx, i_segment)
  * 
  *     def full_get_token_text(self, int i_segment, int i_token):             # <<<<<<<<<<<<<<
  *         cdef const char * result = wh.whisper_full_get_token_text(self._c_ctx, i_segment, i_token)
  *         if result == NULL:
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_91full_get_token_text, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_full_get_token_te, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[51])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 529, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_91full_get_token_text, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_full_get_token_te, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[51])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 532, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_full_get_token_text, __pyx_t_2) < 0) __PYX_ERR(0, 529, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_full_get_token_text, __pyx_t_2) < 0) __PYX_ERR(0, 532, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":535
+  /* "cyllama/whisper/whisper_cpp.pyx":538
  *         return result.decode('utf-8')
  * 
  *     def full_get_token_id(self, int i_segment, int i_token):             # <<<<<<<<<<<<<<
  *         return wh.whisper_full_get_token_id(self._c_ctx, i_segment, i_token)
  * 
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_93full_get_token_id, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_full_get_token_id, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[52])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 535, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_93full_get_token_id, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_full_get_token_id, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[52])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 538, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_full_get_token_id, __pyx_t_2) < 0) __PYX_ERR(0, 535, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_full_get_token_id, __pyx_t_2) < 0) __PYX_ERR(0, 538, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":538
+  /* "cyllama/whisper/whisper_cpp.pyx":541
  *         return wh.whisper_full_get_token_id(self._c_ctx, i_segment, i_token)
  * 
  *     def full_get_token_data(self, int i_segment, int i_token):             # <<<<<<<<<<<<<<
  *         cdef wh.whisper_token_data c_data = wh.whisper_full_get_token_data(self._c_ctx, i_segment, i_token)
  * 
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_95full_get_token_data, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_full_get_token_da, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[53])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 538, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_95full_get_token_data, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_full_get_token_da, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[53])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 541, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_full_get_token_data, __pyx_t_2) < 0) __PYX_ERR(0, 538, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_full_get_token_data, __pyx_t_2) < 0) __PYX_ERR(0, 541, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":545
+  /* "cyllama/whisper/whisper_cpp.pyx":548
  *         return data
  * 
  *     def full_get_token_p(self, int i_segment, int i_token):             # <<<<<<<<<<<<<<
  *         return wh.whisper_full_get_token_p(self._c_ctx, i_segment, i_token)
  * 
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_97full_get_token_p, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_full_get_token_p, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[54])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 545, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_97full_get_token_p, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_full_get_token_p, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[54])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 548, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_full_get_token_p, __pyx_t_2) < 0) __PYX_ERR(0, 545, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_full_get_token_p, __pyx_t_2) < 0) __PYX_ERR(0, 548, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":548
+  /* "cyllama/whisper/whisper_cpp.pyx":551
  *         return wh.whisper_full_get_token_p(self._c_ctx, i_segment, i_token)
  * 
  *     def full_get_segment_no_speech_prob(self, int i_segment):             # <<<<<<<<<<<<<<
  *         return wh.whisper_full_get_segment_no_speech_prob(self._c_ctx, i_segment)
  * 
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_99full_get_segment_no_speech_prob, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_full_get_segment_4, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[55])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 548, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_99full_get_segment_no_speech_prob, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_full_get_segment_4, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[55])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 551, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_full_get_segment_no_speech_prob, __pyx_t_2) < 0) __PYX_ERR(0, 548, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_full_get_segment_no_speech_prob, __pyx_t_2) < 0) __PYX_ERR(0, 551, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":551
+  /* "cyllama/whisper/whisper_cpp.pyx":554
  *         return wh.whisper_full_get_segment_no_speech_prob(self._c_ctx, i_segment)
  * 
  *     def print_timings(self):             # <<<<<<<<<<<<<<
  *         wh.whisper_print_timings(self._c_ctx)
  * 
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_101print_timings, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_print_timings, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[56])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 551, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_101print_timings, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_print_timings, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[56])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 554, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_print_timings, __pyx_t_2) < 0) __PYX_ERR(0, 551, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_print_timings, __pyx_t_2) < 0) __PYX_ERR(0, 554, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":554
+  /* "cyllama/whisper/whisper_cpp.pyx":557
  *         wh.whisper_print_timings(self._c_ctx)
  * 
  *     def reset_timings(self):             # <<<<<<<<<<<<<<
  *         wh.whisper_reset_timings(self._c_ctx)
  * 
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_103reset_timings, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_reset_timings, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[57])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 554, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_14WhisperContext_103reset_timings, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_WhisperContext_reset_timings, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[57])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 557, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_reset_timings, __pyx_t_2) < 0) __PYX_ERR(0, 554, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7cyllama_7whisper_11whisper_cpp_WhisperContext, __pyx_mstate_global->__pyx_n_u_reset_timings, __pyx_t_2) < 0) __PYX_ERR(0, 557, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
   /* "(tree fragment)":1
@@ -19162,76 +19200,76 @@ __Pyx_RefNannySetupContext("PyInit_whisper_cpp", 0);
   if (PyDict_SetItem(__pyx_mstate_global->__pyx_d, __pyx_mstate_global->__pyx_n_u_setstate_cython, __pyx_t_2) < 0) __PYX_ERR(1, 3, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":574
+  /* "cyllama/whisper/whisper_cpp.pyx":577
  * 
  * # Module-level functions
  * def version():             # <<<<<<<<<<<<<<
  *     return wh.whisper_version().decode('utf-8')
  * 
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_1version, 0, __pyx_mstate_global->__pyx_n_u_version, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[62])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 574, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_1version, 0, __pyx_mstate_global->__pyx_n_u_version, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[62])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 577, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (PyDict_SetItem(__pyx_mstate_global->__pyx_d, __pyx_mstate_global->__pyx_n_u_version, __pyx_t_2) < 0) __PYX_ERR(0, 574, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_mstate_global->__pyx_d, __pyx_mstate_global->__pyx_n_u_version, __pyx_t_2) < 0) __PYX_ERR(0, 577, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":577
+  /* "cyllama/whisper/whisper_cpp.pyx":580
  *     return wh.whisper_version().decode('utf-8')
  * 
  * def print_system_info():             # <<<<<<<<<<<<<<
  *     return wh.whisper_print_system_info().decode('utf-8')
  * 
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_3print_system_info, 0, __pyx_mstate_global->__pyx_n_u_print_system_info, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[63])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 577, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_3print_system_info, 0, __pyx_mstate_global->__pyx_n_u_print_system_info, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[63])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 580, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (PyDict_SetItem(__pyx_mstate_global->__pyx_d, __pyx_mstate_global->__pyx_n_u_print_system_info, __pyx_t_2) < 0) __PYX_ERR(0, 577, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_mstate_global->__pyx_d, __pyx_mstate_global->__pyx_n_u_print_system_info, __pyx_t_2) < 0) __PYX_ERR(0, 580, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":580
+  /* "cyllama/whisper/whisper_cpp.pyx":583
  *     return wh.whisper_print_system_info().decode('utf-8')
  * 
  * def lang_max_id():             # <<<<<<<<<<<<<<
  *     return wh.whisper_lang_max_id()
  * 
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_5lang_max_id, 0, __pyx_mstate_global->__pyx_n_u_lang_max_id, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[64])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 580, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_5lang_max_id, 0, __pyx_mstate_global->__pyx_n_u_lang_max_id, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[64])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 583, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (PyDict_SetItem(__pyx_mstate_global->__pyx_d, __pyx_mstate_global->__pyx_n_u_lang_max_id, __pyx_t_2) < 0) __PYX_ERR(0, 580, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_mstate_global->__pyx_d, __pyx_mstate_global->__pyx_n_u_lang_max_id, __pyx_t_2) < 0) __PYX_ERR(0, 583, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":583
+  /* "cyllama/whisper/whisper_cpp.pyx":586
  *     return wh.whisper_lang_max_id()
  * 
  * def lang_id(str lang):             # <<<<<<<<<<<<<<
  *     lang_bytes = lang.encode('utf-8')
  *     return wh.whisper_lang_id(lang_bytes)
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_7lang_id, 0, __pyx_mstate_global->__pyx_n_u_lang_id, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[65])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 583, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_7lang_id, 0, __pyx_mstate_global->__pyx_n_u_lang_id, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[65])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 586, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (PyDict_SetItem(__pyx_mstate_global->__pyx_d, __pyx_mstate_global->__pyx_n_u_lang_id, __pyx_t_2) < 0) __PYX_ERR(0, 583, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_mstate_global->__pyx_d, __pyx_mstate_global->__pyx_n_u_lang_id, __pyx_t_2) < 0) __PYX_ERR(0, 586, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":587
+  /* "cyllama/whisper/whisper_cpp.pyx":590
  *     return wh.whisper_lang_id(lang_bytes)
  * 
  * def lang_str(int id):             # <<<<<<<<<<<<<<
  *     cdef const char * result = wh.whisper_lang_str(id)
  *     if result == NULL:
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_9lang_str, 0, __pyx_mstate_global->__pyx_n_u_lang_str, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[66])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 587, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_9lang_str, 0, __pyx_mstate_global->__pyx_n_u_lang_str, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[66])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 590, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (PyDict_SetItem(__pyx_mstate_global->__pyx_d, __pyx_mstate_global->__pyx_n_u_lang_str, __pyx_t_2) < 0) __PYX_ERR(0, 587, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_mstate_global->__pyx_d, __pyx_mstate_global->__pyx_n_u_lang_str, __pyx_t_2) < 0) __PYX_ERR(0, 590, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cyllama/whisper/whisper_cpp.pyx":593
+  /* "cyllama/whisper/whisper_cpp.pyx":596
  *     return result.decode('utf-8')
  * 
  * def lang_str_full(int id):             # <<<<<<<<<<<<<<
  *     cdef const char * result = wh.whisper_lang_str_full(id)
  *     if result == NULL:
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_11lang_str_full, 0, __pyx_mstate_global->__pyx_n_u_lang_str_full, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[67])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 593, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7cyllama_7whisper_11whisper_cpp_11lang_str_full, 0, __pyx_mstate_global->__pyx_n_u_lang_str_full, NULL, __pyx_mstate_global->__pyx_n_u_cyllama_whisper_whisper_cpp, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[67])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 596, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (PyDict_SetItem(__pyx_mstate_global->__pyx_d, __pyx_mstate_global->__pyx_n_u_lang_str_full, __pyx_t_2) < 0) __PYX_ERR(0, 593, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_mstate_global->__pyx_d, __pyx_mstate_global->__pyx_n_u_lang_str_full, __pyx_t_2) < 0) __PYX_ERR(0, 596, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
   /* "cyllama/whisper/whisper_cpp.pyx":1
@@ -19533,8 +19571,8 @@ static int __Pyx_InitStrings(__Pyx_StringTabEntry const *t, PyObject **target, c
 static int __Pyx_InitCachedBuiltins(__pyx_mstatetype *__pyx_mstate) {
   CYTHON_UNUSED_VAR(__pyx_mstate);
   __pyx_builtin_TypeError = __Pyx_GetBuiltinName(__pyx_mstate->__pyx_n_u_TypeError); if (!__pyx_builtin_TypeError) __PYX_ERR(1, 2, __pyx_L1_error)
-  __pyx_builtin_RuntimeError = __Pyx_GetBuiltinName(__pyx_mstate->__pyx_n_u_RuntimeError); if (!__pyx_builtin_RuntimeError) __PYX_ERR(0, 340, __pyx_L1_error)
-  __pyx_builtin_range = __Pyx_GetBuiltinName(__pyx_mstate->__pyx_n_u_range); if (!__pyx_builtin_range) __PYX_ERR(0, 451, __pyx_L1_error)
+  __pyx_builtin_RuntimeError = __Pyx_GetBuiltinName(__pyx_mstate->__pyx_n_u_RuntimeError); if (!__pyx_builtin_RuntimeError) __PYX_ERR(0, 343, __pyx_L1_error)
+  __pyx_builtin_range = __Pyx_GetBuiltinName(__pyx_mstate->__pyx_n_u_range); if (!__pyx_builtin_range) __PYX_ERR(0, 454, __pyx_L1_error)
   return 0;
   __pyx_L1_error:;
   return -1;
@@ -19546,25 +19584,25 @@ static int __Pyx_InitCachedConstants(__pyx_mstatetype *__pyx_mstate) {
   CYTHON_UNUSED_VAR(__pyx_mstate);
   __Pyx_RefNannySetupContext("__Pyx_InitCachedConstants", 0);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":440
+  /* "cyllama/whisper/whisper_cpp.pyx":443
  *         return wh.whisper_token_transcribe(self._c_ctx)
  * 
  *     def tokenize(self, str text, int max_tokens=512):             # <<<<<<<<<<<<<<
  *         cdef int n_tokens = 0
  *         cdef bytes text_bytes = text.encode('utf-8')
 */
-  __pyx_mstate_global->__pyx_tuple[0] = PyTuple_Pack(1, __pyx_mstate_global->__pyx_int_512); if (unlikely(!__pyx_mstate_global->__pyx_tuple[0])) __PYX_ERR(0, 440, __pyx_L1_error)
+  __pyx_mstate_global->__pyx_tuple[0] = PyTuple_Pack(1, __pyx_mstate_global->__pyx_int_512); if (unlikely(!__pyx_mstate_global->__pyx_tuple[0])) __PYX_ERR(0, 443, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_mstate_global->__pyx_tuple[0]);
   __Pyx_GIVEREF(__pyx_mstate_global->__pyx_tuple[0]);
 
-  /* "cyllama/whisper/whisper_cpp.pyx":488
+  /* "cyllama/whisper/whisper_cpp.pyx":491
  *     #         raise RuntimeError(f"PCM to mel conversion failed with error {result}")
  * 
  *     def encode(self, int offset=0, int n_threads=1):             # <<<<<<<<<<<<<<
  *         cdef int result = wh.whisper_encode(self._c_ctx, offset, n_threads)
  *         if result != 0:
 */
-  __pyx_mstate_global->__pyx_tuple[1] = PyTuple_Pack(2, __pyx_mstate_global->__pyx_int_0, __pyx_mstate_global->__pyx_int_1); if (unlikely(!__pyx_mstate_global->__pyx_tuple[1])) __PYX_ERR(0, 488, __pyx_L1_error)
+  __pyx_mstate_global->__pyx_tuple[1] = PyTuple_Pack(2, __pyx_mstate_global->__pyx_int_0, __pyx_mstate_global->__pyx_int_1); if (unlikely(!__pyx_mstate_global->__pyx_tuple[1])) __PYX_ERR(0, 491, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_mstate_global->__pyx_tuple[1]);
   __Pyx_GIVEREF(__pyx_mstate_global->__pyx_tuple[1]);
   __Pyx_RefNannyFinishContext();
@@ -19653,252 +19691,252 @@ static int __Pyx_CreateCodeObjects(__pyx_mstatetype *__pyx_mstate) {
     __pyx_mstate_global->__pyx_codeobj_tab[7] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_stringsource, __pyx_mstate->__pyx_n_u_setstate_cython, __pyx_k_Q, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[7])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 347, 16};
+    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 350, 16};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self};
     __pyx_mstate_global->__pyx_codeobj_tab[8] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_version, __pyx_k_A_7_1, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[8])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 350, 16};
+    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 353, 16};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self};
     __pyx_mstate_global->__pyx_codeobj_tab[9] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_system_info, __pyx_k_A_2WAQ, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[9])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 353, 14};
+    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 356, 14};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self};
     __pyx_mstate_global->__pyx_codeobj_tab[10] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_n_vocab, __pyx_k_A_a, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[10])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 356, 14};
+    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 359, 14};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self};
     __pyx_mstate_global->__pyx_codeobj_tab[11] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_n_text_ctx, __pyx_k_A_AT, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[11])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 359, 14};
+    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 362, 14};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self};
     __pyx_mstate_global->__pyx_codeobj_tab[12] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_n_audio_ctx, __pyx_k_A_Qd, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[12])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 362, 18};
+    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 365, 18};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self};
     __pyx_mstate_global->__pyx_codeobj_tab[13] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_is_multilingual, __pyx_k_A_t3_at1, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[13])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 365, 14};
+    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 368, 14};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self};
     __pyx_mstate_global->__pyx_codeobj_tab[14] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_model_n_vocab, __pyx_k_A_q_A, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[14])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 368, 14};
+    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 371, 14};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self};
     __pyx_mstate_global->__pyx_codeobj_tab[15] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_model_n_audio_ctx, __pyx_k_A_1D, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[15])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 371, 14};
+    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 374, 14};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self};
     __pyx_mstate_global->__pyx_codeobj_tab[16] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_model_n_audio_state, __pyx_k_A_Qd_2, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[16])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 374, 14};
+    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 377, 14};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self};
     __pyx_mstate_global->__pyx_codeobj_tab[17] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_model_n_audio_head, __pyx_k_A_AT_2, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[17])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 377, 14};
+    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 380, 14};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self};
     __pyx_mstate_global->__pyx_codeobj_tab[18] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_model_n_audio_layer, __pyx_k_A_Qd_2, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[18])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 380, 14};
+    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 383, 14};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self};
     __pyx_mstate_global->__pyx_codeobj_tab[19] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_model_n_text_ctx, __pyx_k_A_4q, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[19])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 383, 14};
+    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 386, 14};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self};
     __pyx_mstate_global->__pyx_codeobj_tab[20] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_model_n_text_state, __pyx_k_A_AT_2, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[20])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 386, 14};
+    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 389, 14};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self};
     __pyx_mstate_global->__pyx_codeobj_tab[21] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_model_n_text_head, __pyx_k_A_1D, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[21])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 389, 14};
+    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 392, 14};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self};
     __pyx_mstate_global->__pyx_codeobj_tab[22] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_model_n_text_layer, __pyx_k_A_AT_2, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[22])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 392, 14};
+    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 395, 14};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self};
     __pyx_mstate_global->__pyx_codeobj_tab[23] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_model_n_mels, __pyx_k_A_at1, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[23])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 395, 14};
+    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 398, 14};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self};
     __pyx_mstate_global->__pyx_codeobj_tab[24] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_model_ftype, __pyx_k_A_Qd, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[24])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 398, 14};
+    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 401, 14};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self};
     __pyx_mstate_global->__pyx_codeobj_tab[25] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_model_type, __pyx_k_A_AT, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[25])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 401, 20};
+    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 404, 20};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self};
     __pyx_mstate_global->__pyx_codeobj_tab[26] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_model_type_readable, __pyx_k_A_Qd_3, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[26])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {2, 0, 0, 3, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 404, 41};
+    const __Pyx_PyCode_New_function_description descr = {2, 0, 0, 3, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 407, 41};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self, __pyx_mstate->__pyx_n_u_token, __pyx_mstate->__pyx_n_u_result};
     __pyx_mstate_global->__pyx_codeobj_tab[27] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_token_to_str, __pyx_k_A_4y_7_Q_1_vWAQ, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[27])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 410, 14};
+    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 413, 14};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self};
     __pyx_mstate_global->__pyx_codeobj_tab[28] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_token_eot, __pyx_k_A_1D_2, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[28])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 413, 14};
+    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 416, 14};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self};
     __pyx_mstate_global->__pyx_codeobj_tab[29] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_token_sot, __pyx_k_A_1D_2, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[29])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 416, 14};
+    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 419, 14};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self};
     __pyx_mstate_global->__pyx_codeobj_tab[30] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_token_solm, __pyx_k_A_AT, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[30])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 419, 14};
+    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 422, 14};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self};
     __pyx_mstate_global->__pyx_codeobj_tab[31] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_token_prev, __pyx_k_A_AT, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[31])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 422, 14};
+    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 425, 14};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self};
     __pyx_mstate_global->__pyx_codeobj_tab[32] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_token_nosp, __pyx_k_A_AT, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[32])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 425, 14};
+    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 428, 14};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self};
     __pyx_mstate_global->__pyx_codeobj_tab[33] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_token_not, __pyx_k_A_1D_2, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[33])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 428, 14};
+    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 431, 14};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self};
     __pyx_mstate_global->__pyx_codeobj_tab[34] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_token_beg, __pyx_k_A_1D_2, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[34])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {2, 0, 0, 2, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 431, 16};
+    const __Pyx_PyCode_New_function_description descr = {2, 0, 0, 2, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 434, 16};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self, __pyx_mstate->__pyx_n_u_lang_id};
     __pyx_mstate_global->__pyx_codeobj_tab[35] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_token_lang, __pyx_k_A_AT_3, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[35])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 434, 14};
+    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 437, 14};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self};
     __pyx_mstate_global->__pyx_codeobj_tab[36] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_token_translate, __pyx_k_A_a_2, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[36])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 437, 14};
+    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 440, 14};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self};
     __pyx_mstate_global->__pyx_codeobj_tab[37] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_token_transcribe, __pyx_k_A_4q, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[37])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {3, 0, 0, 8, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 440, 129};
+    const __Pyx_PyCode_New_function_description descr = {3, 0, 0, 8, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 443, 129};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self, __pyx_mstate->__pyx_n_u_text, __pyx_mstate->__pyx_n_u_max_tokens, __pyx_mstate->__pyx_n_u_n_tokens, __pyx_mstate->__pyx_n_u_text_bytes, __pyx_mstate->__pyx_n_u_tokens, __pyx_mstate->__pyx_n_u_result, __pyx_mstate->__pyx_n_u_i};
     __pyx_mstate_global->__pyx_codeobj_tab[38] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_tokenize, __pyx_k_0_A_G1A_V1KrQR_4y_HA_y_l_2_C1D, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[38])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {2, 0, 0, 3, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 457, 27};
+    const __Pyx_PyCode_New_function_description descr = {2, 0, 0, 3, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 460, 27};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self, __pyx_mstate->__pyx_n_u_text, __pyx_mstate->__pyx_n_u_text_bytes};
     __pyx_mstate_global->__pyx_codeobj_tab[39] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_token_count, __pyx_k_A_T_Qd_1, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[39])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 461, 10};
+    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 464, 10};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self};
     __pyx_mstate_global->__pyx_codeobj_tab[40] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_lang_max_id, __pyx_k_A_Q, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[40])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {2, 0, 0, 3, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 464, 23};
+    const __Pyx_PyCode_New_function_description descr = {2, 0, 0, 3, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 467, 23};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self, __pyx_mstate->__pyx_n_u_lang, __pyx_mstate->__pyx_n_u_lang_bytes};
     __pyx_mstate_global->__pyx_codeobj_tab[41] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_lang_id, __pyx_k_A_T, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[41])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {2, 0, 0, 3, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 468, 37};
+    const __Pyx_PyCode_New_function_description descr = {2, 0, 0, 3, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 471, 37};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self, __pyx_mstate->__pyx_n_u_id, __pyx_mstate->__pyx_n_u_result};
     __pyx_mstate_global->__pyx_codeobj_tab[42] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_lang_str, __pyx_k_A_6aq_7_Q_1_vWAQ, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[42])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {2, 0, 0, 3, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 474, 37};
+    const __Pyx_PyCode_New_function_description descr = {2, 0, 0, 3, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 477, 37};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self, __pyx_mstate->__pyx_n_u_id, __pyx_mstate->__pyx_n_u_result};
     __pyx_mstate_global->__pyx_codeobj_tab[43] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_lang_str_full, __pyx_k_A_1A_7_Q_1_vWAQ, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[43])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {3, 0, 0, 4, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 488, 46};
+    const __Pyx_PyCode_New_function_description descr = {3, 0, 0, 4, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 491, 46};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self, __pyx_mstate->__pyx_n_u_offset, __pyx_mstate->__pyx_n_u_n_threads, __pyx_mstate->__pyx_n_u_result};
     __pyx_mstate_global->__pyx_codeobj_tab[44] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_encode, __pyx_k_1_O1D_7_Q_ar, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[44])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 508, 14};
+    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 511, 14};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self};
     __pyx_mstate_global->__pyx_codeobj_tab[45] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_full_n_segments, __pyx_k_A_a_2, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[45])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 511, 14};
+    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 514, 14};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self};
     __pyx_mstate_global->__pyx_codeobj_tab[46] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_full_lang_id, __pyx_k_A_at1, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[46])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {2, 0, 0, 2, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 514, 16};
+    const __Pyx_PyCode_New_function_description descr = {2, 0, 0, 2, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 517, 16};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self, __pyx_mstate->__pyx_n_u_i_segment};
     __pyx_mstate_global->__pyx_codeobj_tab[47] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_full_get_segment_t0, __pyx_k_A_Qd_1, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[47])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {2, 0, 0, 2, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 517, 16};
+    const __Pyx_PyCode_New_function_description descr = {2, 0, 0, 2, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 520, 16};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self, __pyx_mstate->__pyx_n_u_i_segment};
     __pyx_mstate_global->__pyx_codeobj_tab[48] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_full_get_segment_t1, __pyx_k_A_Qd_1, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[48])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {2, 0, 0, 3, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 520, 42};
+    const __Pyx_PyCode_New_function_description descr = {2, 0, 0, 3, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 523, 42};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self, __pyx_mstate->__pyx_n_u_i_segment, __pyx_mstate->__pyx_n_u_result};
     __pyx_mstate_global->__pyx_codeobj_tab[49] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_full_get_segment_text, __pyx_k_A_C1D_QR_7_Q_1_vWAQ, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[49])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {2, 0, 0, 2, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 526, 16};
+    const __Pyx_PyCode_New_function_description descr = {2, 0, 0, 2, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 529, 16};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self, __pyx_mstate->__pyx_n_u_i_segment};
     __pyx_mstate_global->__pyx_codeobj_tab[50] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_full_n_tokens, __pyx_k_A_q_IQ, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[50])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {3, 0, 0, 4, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 529, 44};
+    const __Pyx_PyCode_New_function_description descr = {3, 0, 0, 4, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 532, 44};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self, __pyx_mstate->__pyx_n_u_i_segment, __pyx_mstate->__pyx_n_u_i_token, __pyx_mstate->__pyx_n_u_result};
     __pyx_mstate_global->__pyx_codeobj_tab[51] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_full_get_token_text, __pyx_k_A_A_i_Z_7_Q_1_vWAQ, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[51])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {3, 0, 0, 3, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 535, 18};
+    const __Pyx_PyCode_New_function_description descr = {3, 0, 0, 3, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 538, 18};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self, __pyx_mstate->__pyx_n_u_i_segment, __pyx_mstate->__pyx_n_u_i_token};
     __pyx_mstate_global->__pyx_codeobj_tab[52] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_full_get_token_id, __pyx_k_A_1D_A, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[52])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {3, 0, 0, 5, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 538, 40};
+    const __Pyx_PyCode_New_function_description descr = {3, 0, 0, 5, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 541, 40};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self, __pyx_mstate->__pyx_n_u_i_segment, __pyx_mstate->__pyx_n_u_i_token, __pyx_mstate->__pyx_n_u_c_data, __pyx_mstate->__pyx_n_u_data};
     __pyx_mstate_global->__pyx_codeobj_tab[53] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_full_get_token_data, __pyx_k_A_J_4yXccd_q_Kq_q, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[53])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {3, 0, 0, 3, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 545, 18};
+    const __Pyx_PyCode_New_function_description descr = {3, 0, 0, 3, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 548, 18};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self, __pyx_mstate->__pyx_n_u_i_segment, __pyx_mstate->__pyx_n_u_i_token};
     __pyx_mstate_global->__pyx_codeobj_tab[54] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_full_get_token_p, __pyx_k_A_4y_1, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[54])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {2, 0, 0, 2, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 548, 16};
+    const __Pyx_PyCode_New_function_description descr = {2, 0, 0, 2, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 551, 16};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self, __pyx_mstate->__pyx_n_u_i_segment};
     __pyx_mstate_global->__pyx_codeobj_tab[55] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_full_get_segment_no_speech_prob, __pyx_k_A_9_iq, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[55])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 551, 11};
+    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 554, 11};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self};
     __pyx_mstate_global->__pyx_codeobj_tab[56] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_print_timings, __pyx_k_A_Q_2, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[56])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 554, 11};
+    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 557, 11};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self};
     __pyx_mstate_global->__pyx_codeobj_tab[57] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_reset_timings, __pyx_k_A_Q_2, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[57])) goto bad;
   }
@@ -19923,32 +19961,32 @@ static int __Pyx_CreateCodeObjects(__pyx_mstatetype *__pyx_mstate) {
     __pyx_mstate_global->__pyx_codeobj_tab[61] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_stringsource, __pyx_mstate->__pyx_n_u_setstate_cython, __pyx_k_Q, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[61])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {0, 0, 0, 0, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 574, 16};
+    const __Pyx_PyCode_New_function_description descr = {0, 0, 0, 0, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 577, 16};
     PyObject* const varnames[] = {0};
     __pyx_mstate_global->__pyx_codeobj_tab[62] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_version, __pyx_k_Rwaq, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[62])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {0, 0, 0, 0, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 577, 16};
+    const __Pyx_PyCode_New_function_description descr = {0, 0, 0, 0, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 580, 16};
     PyObject* const varnames[] = {0};
     __pyx_mstate_global->__pyx_codeobj_tab[63] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_print_system_info, __pyx_k_r, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[63])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {0, 0, 0, 0, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 580, 10};
+    const __Pyx_PyCode_New_function_description descr = {0, 0, 0, 0, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 583, 10};
     PyObject* const varnames[] = {0};
     __pyx_mstate_global->__pyx_codeobj_tab[64] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_lang_max_id, __pyx_k__4, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[64])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 2, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 583, 23};
+    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 2, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 586, 23};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_lang, __pyx_mstate->__pyx_n_u_lang_bytes};
     __pyx_mstate_global->__pyx_codeobj_tab[65] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_lang_id, __pyx_k_WAQ_Qa, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[65])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 2, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 587, 37};
+    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 2, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 590, 37};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_id, __pyx_mstate->__pyx_n_u_result};
     __pyx_mstate_global->__pyx_codeobj_tab[66] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_lang_str, __pyx_k_2_1_wc_q_6, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[66])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 2, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 593, 37};
+    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 2, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 596, 37};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_id, __pyx_mstate->__pyx_n_u_result};
     __pyx_mstate_global->__pyx_codeobj_tab[67] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_whisper_cpp_pyx, __pyx_mstate->__pyx_n_u_lang_str_full, __pyx_k_7q_wc_q_6, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[67])) goto bad;
   }
@@ -21361,6 +21399,30 @@ static CYTHON_INLINE PyObject* __Pyx_decode_c_string(
     }
 }
 
+/* PyObjectFastCallMethod */
+#if !CYTHON_VECTORCALL || PY_VERSION_HEX < 0x03090000
+static PyObject *__Pyx_PyObject_FastCallMethod(PyObject *name, PyObject *const *args, size_t nargsf) {
+    PyObject *result;
+    PyObject *attr = PyObject_GetAttr(args[0], name);
+    if (unlikely(!attr))
+        return NULL;
+    result = __Pyx_PyObject_FastCall(attr, args+1, nargsf - 1);
+    Py_DECREF(attr);
+    return result;
+}
+#endif
+
+/* RaiseUnexpectedTypeError */
+static int
+__Pyx_RaiseUnexpectedTypeError(const char *expected, PyObject *obj)
+{
+    __Pyx_TypeName obj_type_name = __Pyx_PyType_GetFullyQualifiedName(Py_TYPE(obj));
+    PyErr_Format(PyExc_TypeError, "Expected %s, got " __Pyx_FMT_TYPENAME,
+                 expected, obj_type_name);
+    __Pyx_DECREF_TypeName(obj_type_name);
+    return 0;
+}
+
 /* ArgTypeTest */
 static int __Pyx__ArgTypeTest(PyObject *obj, PyTypeObject *type, const char *name, int exact)
 {
@@ -21408,19 +21470,6 @@ static int __Pyx__ArgTypeTest(PyObject *obj, PyTypeObject *type, const char *nam
     __Pyx_DECREF_TypeName(obj_type_name);
     return 0;
 }
-
-/* PyObjectFastCallMethod */
-#if !CYTHON_VECTORCALL || PY_VERSION_HEX < 0x03090000
-static PyObject *__Pyx_PyObject_FastCallMethod(PyObject *name, PyObject *const *args, size_t nargsf) {
-    PyObject *result;
-    PyObject *attr = PyObject_GetAttr(args[0], name);
-    if (unlikely(!attr))
-        return NULL;
-    result = __Pyx_PyObject_FastCall(attr, args+1, nargsf - 1);
-    Py_DECREF(attr);
-    return result;
-}
-#endif
 
 /* CIntToDigits */
 static const char DIGIT_PAIRS_10[2*10*10+1] = {

@@ -140,9 +140,11 @@ cdef class WhisperVadParams:
 
 cdef class WhisperFullParams:
     cdef wh.whisper_full_params _c_params
+    cdef bytes _language_bytes  # Keep bytes object alive for language parameter
 
     def __init__(self, strategy=wh.WHISPER_SAMPLING_GREEDY):
         self._c_params = wh.whisper_full_default_params(strategy)
+        self._language_bytes = None
 
     @property
     def strategy(self):
@@ -271,12 +273,13 @@ cdef class WhisperFullParams:
         return self._c_params.language.decode('utf-8')
 
     @language.setter
-    def language(self, str value):
-        cdef bytes bstring = value.encode('utf-8')
+    def language(self, value):
         if value is None:
             self._c_params.language = NULL
+            self._language_bytes = None
         else:
-            self._c_params.language = bstring
+            self._language_bytes = value.encode('utf-8')
+            self._c_params.language = <const char*>self._language_bytes
 
 
 cdef class WhisperTokenData:
