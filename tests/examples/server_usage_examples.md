@@ -1,0 +1,129 @@
+# Cyllama Server Usage Examples
+
+Cyllama provides multiple server implementations for different use cases:
+
+## Server Types
+
+### 1. Embedded Python Server (Default)
+- Built-in Python HTTP server
+- Good for development and testing
+- Subject to Python GIL limitations
+
+### 2. Mongoose C Server (High-Performance)
+- Native C networking via Mongoose web server
+- Production-ready performance
+- Handles thousands of concurrent connections
+- Recommended for high-throughput applications
+
+## Basic Usage
+
+### Start Default Embedded Server
+```bash
+python -m cyllama.llama.server -m models/Llama-3.2-1B-Instruct-Q8_0.gguf
+```
+
+### Start High-Performance Mongoose Server
+```bash
+python -m cyllama.llama.server -m models/Llama-3.2-1B-Instruct-Q8_0.gguf --server-type mongoose
+```
+
+## Advanced Configuration
+
+### Custom Host and Port
+```bash
+python -m cyllama.llama.server \
+    -m models/Llama-3.2-1B-Instruct-Q8_0.gguf \
+    --server-type mongoose \
+    --host 0.0.0.0 \
+    --port 8080
+```
+
+### Multiple Parallel Processing Slots
+```bash
+python -m cyllama.llama.server \
+    -m models/Llama-3.2-1B-Instruct-Q8_0.gguf \
+    --server-type mongoose \
+    --n-parallel 4 \
+    --ctx-size 2048
+```
+
+### GPU Configuration
+```bash
+python -m cyllama.llama.server \
+    -m models/Llama-3.2-1B-Instruct-Q8_0.gguf \
+    --server-type mongoose \
+    --gpu-layers 32 \
+    --ctx-size 4096
+```
+
+## API Endpoints
+
+Both server implementations provide the same OpenAI-compatible API:
+
+### Health Check
+```bash
+curl http://localhost:8080/health
+```
+
+### List Models
+```bash
+curl http://localhost:8080/v1/models
+```
+
+### Chat Completion
+```bash
+curl -X POST http://localhost:8080/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "messages": [
+      {"role": "user", "content": "What is 2+2?"}
+    ],
+    "max_tokens": 100
+  }'
+```
+
+## Performance Comparison
+
+| Feature | Embedded Server | Mongoose Server |
+|---------|----------------|-----------------|
+| Networking | Python HTTP | Native C |
+| Concurrency | GIL Limited | High |
+| Memory Usage | Higher | Lower |
+| Startup Time | Fast | Fast |
+| Production Ready | Development | Yes |
+| Dependencies | Built-in | Compiled-in |
+
+## When to Use Each
+
+### Use Embedded Server When:
+- Developing or testing
+- Single-user applications
+- Simplicity is preferred
+- No performance requirements
+
+### Use Mongoose Server When:
+- Production deployments
+- Multiple concurrent users
+- High-throughput requirements
+- Performance is critical
+- Serving many requests per second
+
+## Fallback Behavior
+
+If Mongoose server is not available (not compiled), the CLI automatically falls back to the embedded server:
+
+```bash
+python -m cyllama.llama.server -m model.gguf --server-type mongoose
+# Output: "Mongoose server not available. Install with 'make build' to compile Mongoose support."
+# Output: "Falling back to embedded Python server..."
+```
+
+## Building Mongoose Support
+
+To enable Mongoose server support:
+
+```bash
+make build
+```
+
+This compiles the Cython extensions including the Mongoose integration.

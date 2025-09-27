@@ -80,7 +80,7 @@ bind: build/include
 
 .PHONY: test simple test_simple test_main test_retrieve test_model test_llava test_lora \
 		test_platform coverage memray download download_all bump clean reset remake cli \
-		test-cli test-chat test-tts test-llama-tts test-whisper
+		test-cli test-chat test-tts test-llama-tts test-whisper test-server test-mongoose
 
 test: build
 	uv run pytest -s
@@ -134,6 +134,16 @@ test-llama-tts:
 
 test-whisper:
 	@$(WHISPERCPP)/bin/whisper-cli -m models/ggml-base.en.bin -f tests/samples/jfk.wav
+
+
+test-server:
+	@cd src && python3 -m cyllama.llama.server \
+			-m ../models/Llama-3.2-1B-Instruct-Q8_0.gguf
+
+test-mongoose:
+	@cd src && python3 -m cyllama.llama.server \
+			--server-type mongoose \
+			-m ../models/Llama-3.2-1B-Instruct-Q8_0.gguf
 
 test_main:
 	@g++ -std=c++14 -o build/main \

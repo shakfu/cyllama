@@ -121,9 +121,11 @@ cdef class MongooseServer:
             addr_bytes = listen_addr.encode('utf-8')
 
             # Start HTTP listener with our event handler
+            # Store reference to self to prevent garbage collection
+            self._mgr.userdata = <void*>self
             self._listener = cyllama_mg_http_listen(&self._mgr, addr_bytes,
                                                   <mg_event_handler_t>_http_event_handler,
-                                                  <void*>self)
+                                                  NULL)  # Use NULL, get server from mgr.userdata
 
             if self._listener == NULL:
                 self._logger.error("Failed to create HTTP listener")
@@ -336,11 +338,15 @@ cdef void _http_event_handler(mg_connection *c, int ev, void *ev_data, void *fn_
     cdef MongooseServer server
     cdef MongooseConnection conn_wrapper
 
-    if fn_data == NULL:
+    if c == NULL or c.mgr == NULL:
         return
 
-    # Cast fn_data back to our Python server object
-    server = <MongooseServer>fn_data
+    # Get server from manager userdata instead of fn_data
+    cdef mg_mgr *mgr = <mg_mgr*>c.mgr
+    if mgr.userdata == NULL:
+        return
+
+    server = <MongooseServer>mgr.userdata
 
     if ev == MG_EV_HTTP_MSG:
         hm = <mg_http_message*>ev_data
