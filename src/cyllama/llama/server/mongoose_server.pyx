@@ -65,6 +65,16 @@ cdef class MongooseServer:
     cdef object _server_thread
     cdef int _signal_received
 
+    @property
+    def signal_received(self):
+        """Get the received signal number (0 if no signal)."""
+        return self._signal_received
+
+    @signal_received.setter
+    def signal_received(self, value):
+        """Set the signal received value."""
+        self._signal_received = value
+
     def __cinit__(self):
         cyllama_mg_mgr_init(&self._mgr)
         self._listener = NULL
@@ -144,7 +154,7 @@ cdef class MongooseServer:
             return False
 
         # Setup signal handlers for graceful shutdown
-        # self._setup_signal_handlers()
+        self._setup_signal_handlers()
 
         try:
             # Create listener address - try different format that might work better
@@ -218,18 +228,15 @@ cdef class MongooseServer:
 
 
     def wait_for_shutdown(self):
-        """Wait for shutdown signal using Mongoose pattern."""
+        """Wait for shutdown signal using Mongoose pattern exactly like C version."""
         self._logger.info("Starting Mongoose event loop...")
-        try:
-            # Modified Mongoose pattern with shorter polling for signal responsiveness
-            while self._signal_received == 0:
-                cyllama_mg_mgr_poll(&self._mgr, 100)  # 100ms timeout for faster signal response
-        except Exception as e:
-            self._logger.error(f"Event loop error: {e}")
-        finally:
-            self._logger.info(f"Exiting on signal {self._signal_received}")
-            # Close connections gracefully
-            self._close_all_connections_from_main_thread()
+        # Simple loop exactly like the C version: while (s_signo == 0) mg_mgr_poll(&mgr, 1000);
+        while self._signal_received == 0:
+            cyllama_mg_mgr_poll(&self._mgr, 1000)  # Use 1000ms timeout like C version
+
+        self._logger.info(f"Exiting on signal {self._signal_received}")
+        # Close connections gracefully
+        self._close_all_connections_from_main_thread()
 
     def _close_all_connections_from_main_thread(self):
         """Close all Mongoose connections from the main thread."""

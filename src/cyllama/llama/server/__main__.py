@@ -36,16 +36,31 @@ def main():
             from .mongoose_server import MongooseServer
             print(f"Starting Mongoose server (high-performance C implementation)")
 
-            with MongooseServer(config) as server:
+            server = MongooseServer(config)
+
+            if not server.start():
+                print("Failed to start Mongoose server")
+                return 1
+
+            try:
                 print(f"Mongoose server running at http://{args.host}:{args.port}")
                 print("Press Ctrl+C to stop...")
 
-                # Use the server's integrated signal handling
-                server.wait_for_shutdown()
+                # Use simple KeyboardInterrupt handling for Ctrl+C
+                try:
+                    while True:
+                        time.sleep(1)
+                except KeyboardInterrupt:
+                    print("\nReceived Ctrl+C, shutting down...")
+                    # Set the signal to break the mongoose loop
+                    server.signal_received = 2  # SIGINT
                 print("\nShutting down Mongoose server...")
 
+            finally:
+                server.stop()
+
         except KeyboardInterrupt:
-          print("\ncaught KeyboardInterrupt...")
+            print("\nReceived KeyboardInterrupt, shutting down...")
 
         except ImportError:
             print("Mongoose server not available. Install with 'make build' to compile Mongoose support.")

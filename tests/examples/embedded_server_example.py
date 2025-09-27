@@ -139,7 +139,7 @@ def main():
                 while True:
                     time.sleep(1)
             except KeyboardInterrupt:
-                print("\n\nShutting down server...")
+                print("\n\nReceived Ctrl+C, shutting down server...")
 
     except Exception as e:
         print(f"✗ Server failed: {e}")

@@ -225,7 +225,7 @@ bump:
 	@scripts/bump.sh
 
 clean:
-	@rm -rf build dist src/*.egg-info .pytest_cache .coverage src/cyllama/*.so
+	@rm -rf build/lib.* build/temp.* dist src/*.egg-info .*_cache .coverage src/**/*.so
 
 reset: clean
 	@rm -rf thirdparty/llama.cpp/bin thirdparty/llama.cpp/lib
