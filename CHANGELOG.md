@@ -93,6 +93,46 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - Support for high-performance server configurations and GPU utilization
   - Integration with existing cyllama performance optimizations
 
+- **Embedded Server Infrastructure**: Native Python server using existing cyllama bindings
+  - New `src/cyllama/llama/server/embedded.py` module with direct llama.cpp integration
+  - `EmbeddedLlamaServer` class providing OpenAI-compatible API without external binaries
+  - `ServerSlot` class for concurrent request processing using native cyllama objects
+  - Direct memory sharing with `LlamaModel`, `LlamaContext`, and `LlamaSampler` instances
+  - Built-in HTTP server using Python's standard library for zero external dependencies
+  - CLI interface via `python -m cyllama.llama.server` for easy deployment
+
+- **Zero-Binary Deployment**: Complete server functionality without subprocess management
+  - No requirement for llama-server executable or external process spawning
+  - Direct integration with existing libllama.a linkage through cyllama bindings
+  - Better error handling with Python-level exception management
+  - Simplified deployment as single Python process with embedded functionality
+  - Resource cleanup through context manager support and automatic slot management
+  - Fixed critical issues with context creation, token processing, and state management
+
+- **Native API Endpoints**: Full OpenAI-compatible server implementation
+  - `/health` endpoint for server monitoring and readiness checks
+  - `/v1/models` endpoint for available model listing and metadata
+  - `/v1/chat/completions` endpoint with complete chat completion functionality
+  - Proper JSON request/response handling with error management
+  - Support for streaming responses and standard OpenAI parameters
+  - Successfully generating responses like "2 + 2 = 4" with proper token handling
+
+- **Server Implementation Fixes**: Critical bug fixes for production stability
+  - Fixed `vocab.is_eog_token()` method name error to correct `vocab.is_eog()`
+  - Corrected token conversion from `token_to_piece(token_id)` to `token_to_piece(token_id, 0, True)`
+  - Resolved LlamaContext constructor parameter handling with proper `LlamaContextParams` objects
+  - Refactored from creating new contexts per request to slot-based persistent contexts
+  - Added proper context state reset between requests to prevent response contamination
+  - Eliminated segmentation faults and server crashes during chat completion processing
+
+- **Comprehensive Testing and Examples**: Production-ready development support
+  - `tests/test_embedded_server.py` with 26 comprehensive test cases
+  - `examples/embedded_server_example.py` - Full demonstration with API testing
+  - Unit tests covering configuration, server lifecycle, and HTTP endpoints
+  - Integration tests with real model files and complete request/response cycles
+  - Mock-based testing for edge cases and error conditions with proper isolation
+  - Verified working implementation with successful chat completion generation
+
 ## [0.1.4]
 
 ### Added

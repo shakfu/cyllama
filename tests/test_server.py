@@ -13,7 +13,7 @@ import threading
 from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock
 
-from cyllama.llama.server import (
+from cyllama.llama.server.launcher import (
     ServerConfig,
     LlamaServer,
     LlamaServerClient,
@@ -459,7 +459,7 @@ class TestLlamaServerClient:
 class TestConvenienceFunctions:
     """Test convenience functions."""
 
-    @patch('cyllama.llama.server.LlamaServer')
+    @patch('cyllama.llama.server.launcher.LlamaServer')
     def test_start_server_function(self, mock_server_class):
         """Test start_server convenience function."""
         mock_server = Mock()
