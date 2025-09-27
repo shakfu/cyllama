@@ -133,7 +133,7 @@ test-llama-tts:
 		-p "Hello World"
 
 test-whisper:
-	@$(WHISPERCPP)/bin/whisper-cli -m models/ggml-base.en.bin -f samples/jfk.wav
+	@$(WHISPERCPP)/bin/whisper-cli -m models/ggml-base.en.bin -f tests/samples/jfk.wav
 
 test_main:
 	@g++ -std=c++14 -o build/main \

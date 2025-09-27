@@ -35,6 +35,7 @@ EXTRA_OBJECTS = []
 INCLUDE_DIRS = [
     "src/cyllama",
     "src/cyllama/llama/helpers",
+    "src/cyllama/llama/server",
     LLAMACPP_INCLUDE,
     # VENDOR_DIR,
     # SERVER_PUBLIC_DIR,
@@ -110,7 +111,7 @@ if PLATFORM == 'Linux':
     EXTRA_LINK_ARGS.append('-fopenmp')
 
 
-def mk_extension(name, sources, define_macros=None):
+def mk_extension(name, sources, define_macros=None, extra_compile_args=None, language="c++"):
     return Extension(
         name=name,
         sources=sources,
@@ -119,9 +120,9 @@ def mk_extension(name, sources, define_macros=None):
         libraries=LIBRARIES,
         library_dirs=LIBRARY_DIRS,
         extra_objects=EXTRA_OBJECTS,
-        extra_compile_args=EXTRA_COMPILE_ARGS,
+        extra_compile_args=extra_compile_args if extra_compile_args else EXTRA_COMPILE_ARGS,
         extra_link_args=EXTRA_LINK_ARGS,
-        language="c++",
+        language=language,
     )
 
 
@@ -158,6 +159,21 @@ extensions = [
         "src/cyllama/llama/helpers/tts.cpp",
         # "build/llama.cpp/tools/server/server.cpp",
     ]),
+    Extension(
+        name="cyllama.llama.server.mongoose_server",
+        sources=[
+            "src/cyllama/llama/server/mongoose_server.pyx",
+            "src/cyllama/llama/server/mongoose.c",
+            "src/cyllama/llama/server/mongoose_wrapper.c",
+        ],
+        include_dirs=INCLUDE_DIRS,
+        libraries=LIBRARIES,
+        library_dirs=LIBRARY_DIRS,
+        extra_objects=EXTRA_OBJECTS,
+        extra_compile_args=[],  # No C++ flags for the C code
+        extra_link_args=EXTRA_LINK_ARGS,
+        language="c++",  # Overall extension language
+    ),
 ]
 
 if WITH_WHISPER:

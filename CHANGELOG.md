@@ -21,6 +21,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Added
 
+- **High-Performance Mongoose HTTP Server**: Production-ready C-based server alternative
+  - New `src/cyllama/llama/server/mongoose_server.pyx` - Cython bindings for Mongoose web server
+  - Complete integration of Mongoose v7.19 (single-file embedded web server)
+  - `MongooseServer` class providing high-performance alternative to Python HTTP server
+  - Zero external dependencies beyond existing cyllama requirements
+  - Direct C networking with concurrent connection handling (vs. Python GIL limitations)
+  - Uses same `ServerSlot` logic and OpenAI-compatible API as embedded server
+  - Production-ready performance for high-throughput LLM inference scenarios
+
 - **REST API Server Infrastructure**: Complete Python wrapper for llama.cpp server functionality
   - New `src/cyllama/llama/server.py` module with comprehensive server management capabilities
   - `ServerConfig` class for complete configuration management of all llama-server parameters

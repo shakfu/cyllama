@@ -16,5 +16,15 @@ from .launcher import (
     start_server
 )
 
+# Import from the Mongoose server (high-performance C server)
+try:
+    from .mongoose_server import (
+        MongooseServer,
+        start_mongoose_server
+    )
+    _MONGOOSE_AVAILABLE = True
+except ImportError:
+    _MONGOOSE_AVAILABLE = False
+
 # Default to embedded server config for new usage
 ServerConfig = EmbeddedServerConfig
