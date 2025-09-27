@@ -3,6 +3,7 @@
 
 import json
 import logging
+import signal
 import threading
 import time
 from typing import Dict, List, Optional, Any, Callable
@@ -62,16 +63,31 @@ cdef class MongooseServer:
     cdef object _logger
     cdef bint _running
     cdef object _server_thread
+    cdef int _signal_received
 
     def __cinit__(self):
         cyllama_mg_mgr_init(&self._mgr)
         self._listener = NULL
         self._running = False
         self._server_thread = None
+        self._signal_received = 0
 
     def __dealloc__(self):
         self.stop()
         cyllama_mg_mgr_free(&self._mgr)
+
+    def __enter__(self):
+        """Context manager entry."""
+        if self.start():
+            return self
+        else:
+            raise RuntimeError("Failed to start Mongoose server")
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit."""
+        self._logger.info("Context manager __exit__ called - starting graceful shutdown")
+        self.stop()
+        self._logger.info("Context manager __exit__ completed")
 
     def __init__(self, config: ServerConfig):
         self._config = config
@@ -97,6 +113,7 @@ cdef class MongooseServer:
                 self._slots.append(slot)
 
             self._logger.info(f"Model loaded successfully with {len(self._slots)} slots")
+            self._logger.info("About to return True from load_model()")
             return True
 
         except Exception as e:
@@ -110,33 +127,50 @@ cdef class MongooseServer:
                 return slot
         return None
 
+    def _signal_handler(self, signum, frame):
+        """Handle SIGINT/SIGTERM signals for graceful shutdown."""
+        self._logger.info(f"Received signal {signum}, requesting graceful shutdown...")
+        self._signal_received = signum
+
+    def _setup_signal_handlers(self):
+        """Setup signal handlers for graceful shutdown."""
+        signal.signal(signal.SIGINT, self._signal_handler)
+        signal.signal(signal.SIGTERM, self._signal_handler)
+        self._logger.debug("Signal handlers registered for SIGINT and SIGTERM")
+
     def start(self) -> bool:
         """Start the Mongoose server."""
         if not self.load_model():
             return False
 
+        # Setup signal handlers for graceful shutdown
+        # self._setup_signal_handlers()
+
         try:
-            # Create listener address
-            listen_addr = f"http://{self._config.host}:{self._config.port}"
+            # Create listener address - try different format that might work better
+            if self._config.host == "127.0.0.1" or self._config.host == "localhost":
+                listen_addr = f"http://0.0.0.0:{self._config.port}"
+            else:
+                listen_addr = f"http://{self._config.host}:{self._config.port}"
+
+            self._logger.info(f"Attempting to bind to: {listen_addr}")
             addr_bytes = listen_addr.encode('utf-8')
 
             # Start HTTP listener with our event handler
             # Store reference to self to prevent garbage collection
             self._mgr.userdata = <void*>self
+
+            self._logger.info("Calling cyllama_mg_http_listen...")
             self._listener = cyllama_mg_http_listen(&self._mgr, addr_bytes,
                                                   <mg_event_handler_t>_http_event_handler,
                                                   NULL)  # Use NULL, get server from mgr.userdata
+            self._logger.info(f"cyllama_mg_http_listen returned: {<unsigned long>self._listener}")
 
             if self._listener == NULL:
                 self._logger.error("Failed to create HTTP listener")
                 return False
 
             self._running = True
-
-            # Start server loop in background thread
-            self._server_thread = threading.Thread(target=self._server_loop, daemon=True)
-            self._server_thread.start()
-
             self._logger.info(f"Mongoose server started on {listen_addr}")
             return True
 
@@ -146,20 +180,71 @@ cdef class MongooseServer:
 
     def stop(self):
         """Stop the Mongoose server."""
+        self._logger.info("Stop method called")
         if self._running:
+            self._logger.info("Stopping Mongoose server...")
             self._running = False
-            if self._server_thread:
-                self._server_thread.join(timeout=5.0)
+
+            # Set signal to trigger event loop exit
+            if self._signal_received == 0:
+                self._signal_received = signal.SIGTERM  # Simulate SIGTERM
+
+            # Close connections
+            self._close_all_connections_from_main_thread()
+
+            # Clean up Mongoose resources
+            if self._listener:
+                self._listener = NULL
+
+            # Clear userdata reference to prevent memory leaks
+            self._mgr.userdata = NULL
+
             self._logger.info("Mongoose server stopped")
 
-    def _server_loop(self):
-        """Main server event loop."""
+    def _close_all_connections(self):
+        """Close all Mongoose connections using the documented approach."""
+        cdef mg_connection *conn = self._mgr.conns
+        cdef int closed_count = 0
+
+        self._logger.debug("Closing all Mongoose connections...")
+
+        while conn != NULL:
+            # For shutdown, use immediate closure for faster response
+            conn.is_closing = 1
+            closed_count += 1
+            conn = conn.next
+
+        self._logger.debug(f"Set closing flag on {closed_count} connections")
+
+
+    def wait_for_shutdown(self):
+        """Wait for shutdown signal using Mongoose pattern."""
+        self._logger.info("Starting Mongoose event loop...")
         try:
-            while self._running:
-                cyllama_mg_mgr_poll(&self._mgr, 100)  # 100ms timeout
+            # Modified Mongoose pattern with shorter polling for signal responsiveness
+            while self._signal_received == 0:
+                cyllama_mg_mgr_poll(&self._mgr, 100)  # 100ms timeout for faster signal response
         except Exception as e:
-            if self._running:  # Only log if we didn't shutdown intentionally
-                self._logger.error(f"Server loop error: {e}")
+            self._logger.error(f"Event loop error: {e}")
+        finally:
+            self._logger.info(f"Exiting on signal {self._signal_received}")
+            # Close connections gracefully
+            self._close_all_connections_from_main_thread()
+
+    def _close_all_connections_from_main_thread(self):
+        """Close all Mongoose connections from the main thread."""
+        cdef mg_connection *conn = self._mgr.conns
+        cdef int closed_count = 0
+
+        self._logger.info("Closing all Mongoose connections from main thread...")
+
+        while conn != NULL:
+            # For shutdown, use immediate closure for faster response
+            conn.is_closing = 1
+            closed_count += 1
+            conn = conn.next
+
+        self._logger.info(f"Set closing flag on {closed_count} connections")
 
     def handle_http_request(self, conn: MongooseConnection, method: str, uri: str,
                           headers: dict, body: str):

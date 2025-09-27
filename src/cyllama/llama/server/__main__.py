@@ -4,6 +4,7 @@ import time
 import sys
 
 from .embedded import ServerConfig, EmbeddedLlamaServer
+from .mongoose_server import MongooseServer
 
 
 def main():
@@ -35,21 +36,16 @@ def main():
             from .mongoose_server import MongooseServer
             print(f"Starting Mongoose server (high-performance C implementation)")
 
-            server = MongooseServer(config)
+            with MongooseServer(config) as server:
+                print(f"Mongoose server running at http://{args.host}:{args.port}")
+                print("Press Ctrl+C to stop...")
 
-            if not server.start():
-                print("Failed to start Mongoose server")
-                sys.exit(1)
-
-            print(f"Mongoose server running at http://{args.host}:{args.port}")
-            print("Press Ctrl+C to stop...")
-
-            try:
-                while True:
-                    time.sleep(1)
-            except KeyboardInterrupt:
+                # Use the server's integrated signal handling
+                server.wait_for_shutdown()
                 print("\nShutting down Mongoose server...")
-                server.stop()
+
+        except KeyboardInterrupt:
+          print("\ncaught KeyboardInterrupt...")
 
         except ImportError:
             print("Mongoose server not available. Install with 'make build' to compile Mongoose support.")
