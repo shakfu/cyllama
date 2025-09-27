@@ -38,8 +38,17 @@ cdef class MongooseConnection:
         cdef bytes json_bytes = json_str.encode('utf-8')
         cdef bytes headers_bytes = headers.encode('utf-8')
 
-        cyllama_mg_http_reply(self._conn, status_code, headers_bytes, "%s", json_bytes)
+        # Extract C pointers from bytes objects before nogil section
+        cdef const char* headers_ptr = headers_bytes
+        cdef const char* json_ptr = json_bytes
+
+        # Send HTTP reply without GIL for better performance
+        self._send_reply_nogil(status_code, headers_ptr, json_ptr)
         return True
+
+    cdef void _send_reply_nogil(self, int status_code, const char* headers_ptr, const char* json_ptr) nogil:
+        """Send HTTP reply without holding GIL."""
+        cyllama_mg_http_reply(self._conn, status_code, headers_ptr, "%s", json_ptr)
 
     def send_error(self, status_code: int, message: str):
         """Send error response."""
@@ -213,10 +222,16 @@ cdef class MongooseServer:
 
     def _close_all_connections(self):
         """Close all Mongoose connections using the documented approach."""
+        self._logger.debug("Closing all Mongoose connections...")
+
+        cdef int closed_count = self._close_connections_nogil()
+
+        self._logger.debug(f"Set closing flag on {closed_count} connections")
+
+    cdef int _close_connections_nogil(self) nogil:
+        """Close connections without GIL for better performance."""
         cdef mg_connection *conn = self._mgr.conns
         cdef int closed_count = 0
-
-        self._logger.debug("Closing all Mongoose connections...")
 
         while conn != NULL:
             # For shutdown, use immediate closure for faster response
@@ -224,32 +239,39 @@ cdef class MongooseServer:
             closed_count += 1
             conn = conn.next
 
-        self._logger.debug(f"Set closing flag on {closed_count} connections")
+        return closed_count
 
 
     def wait_for_shutdown(self):
         """Wait for shutdown signal using Mongoose pattern exactly like C version."""
         self._logger.info("Starting Mongoose event loop...")
         # Simple loop exactly like the C version: while (s_signo == 0) mg_mgr_poll(&mgr, 1000);
-        while self._signal_received == 0:
-            cyllama_mg_mgr_poll(&self._mgr, 1000)  # Use 1000ms timeout like C version
+        self._wait_for_shutdown_nogil()
 
         self._logger.info(f"Exiting on signal {self._signal_received}")
         # Close connections gracefully
         self._close_all_connections_from_main_thread()
 
+    cdef void _wait_for_shutdown_nogil(self) nogil:
+        """Wait for shutdown signal without GIL for maximum performance."""
+        cdef int signal_received
+
+        with gil:
+            signal_received = self._signal_received
+
+        while signal_received == 0:
+            # This poll operation runs completely without GIL
+            cyllama_mg_mgr_poll(&self._mgr, 1000)  # Use 1000ms timeout like C version
+
+            # Check signal status periodically
+            with gil:
+                signal_received = self._signal_received
+
     def _close_all_connections_from_main_thread(self):
         """Close all Mongoose connections from the main thread."""
-        cdef mg_connection *conn = self._mgr.conns
-        cdef int closed_count = 0
-
         self._logger.info("Closing all Mongoose connections from main thread...")
 
-        while conn != NULL:
-            # For shutdown, use immediate closure for faster response
-            conn.is_closing = 1
-            closed_count += 1
-            conn = conn.next
+        cdef int closed_count = self._close_connections_nogil()
 
         self._logger.info(f"Set closing flag on {closed_count} connections")
 

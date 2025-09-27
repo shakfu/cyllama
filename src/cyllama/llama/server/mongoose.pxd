@@ -83,26 +83,26 @@ cdef extern from "mongoose.h":
         int epoll_fd
         void *userdata
 
-    # Core API functions (using wrapper)
-    void cyllama_mg_mgr_init(mg_mgr *mgr)
-    void cyllama_mg_mgr_free(mg_mgr *mgr)
-    void cyllama_mg_mgr_poll(mg_mgr *mgr, int timeout_ms)
+    # Core API functions (using wrapper) - optimized with nogil
+    void cyllama_mg_mgr_init(mg_mgr *mgr) nogil
+    void cyllama_mg_mgr_free(mg_mgr *mgr) nogil
+    void cyllama_mg_mgr_poll(mg_mgr *mgr, int timeout_ms) nogil
 
     mg_connection *cyllama_mg_http_listen(mg_mgr *mgr, const char *url,
-                                          mg_event_handler_t fn, void *fn_data)
+                                          mg_event_handler_t fn, void *fn_data) nogil
 
-    # HTTP response functions (using wrapper)
+    # HTTP response functions (using wrapper) - optimized with nogil
     void cyllama_mg_http_reply(mg_connection *c, int status_code, const char *headers,
-                               const char *body_fmt, ...)
+                               const char *body_fmt, ...) nogil
 
-    # Helper functions for HTTP (using wrapper)
-    mg_str *cyllama_mg_http_get_header(mg_http_message *hm, const char *name)
-    int cyllama_mg_http_get_var(const mg_str *buf, const char *name, char *dst, size_t dst_len)
+    # Helper functions for HTTP (using wrapper) - optimized with nogil
+    mg_str *cyllama_mg_http_get_header(mg_http_message *hm, const char *name) nogil
+    int cyllama_mg_http_get_var(const mg_str *buf, const char *name, char *dst, size_t dst_len) nogil
 
-    # String utilities (using wrapper)
-    mg_str cyllama_mg_str_n(const char *s, size_t n)
-    mg_str cyllama_mg_str(const char *s)
+    # String utilities (using wrapper) - optimized with nogil
+    mg_str cyllama_mg_str_n(const char *s, size_t n) nogil
+    mg_str cyllama_mg_str(const char *s) nogil
 
-    # Print utilities
-    size_t mg_printf(mg_connection *c, const char *fmt, ...)
-    bint mg_send(mg_connection *c, const void *buf, size_t len)
+    # Print utilities - optimized with nogil
+    size_t mg_printf(mg_connection *c, const char *fmt, ...) nogil
+    bint mg_send(mg_connection *c, const void *buf, size_t len) nogil
