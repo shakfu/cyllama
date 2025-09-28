@@ -6,6 +6,7 @@ import logging
 import signal
 import threading
 import time
+import sys
 from typing import Dict, List, Optional, Any, Callable
 from dataclasses import dataclass
 
@@ -150,6 +151,8 @@ cdef class MongooseServer:
         """Handle SIGINT/SIGTERM signals for graceful shutdown."""
         self._logger.info(f"Received signal {signum}, requesting graceful shutdown...")
         self._signal_received = signum
+        cyllama_mg_mgr_free(&self._mgr)
+        sys.exit()
 
     def _setup_signal_handlers(self):
         """Setup signal handlers for graceful shutdown."""

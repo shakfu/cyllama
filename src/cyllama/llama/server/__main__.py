@@ -54,6 +54,7 @@ def main():
                     print("\nReceived Ctrl+C, shutting down...")
                     # Set the signal to break the mongoose loop
                     server.signal_received = 2  # SIGINT
+                    server.stop()
                 print("\nShutting down Mongoose server...")
 
             finally:
