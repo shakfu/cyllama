@@ -38,7 +38,12 @@ get_llamacpp() {
 		# cp examples/llava/*.h ${INCLUDE} && \
 		mkdir -p build && \
 		cd build && \
-		cmake .. -DBUILD_SHARED_LIBS=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON && \
+		cmake .. \
+			-DBUILD_SHARED_LIBS=OFF \
+			-DLLAMA_BUILD_COMMON=ON \
+			-DLLAMA_BUILD_TOOLS=ON \
+			-DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+			&& \
 		cmake --build . --config Release && \
 		cmake --install . --prefix ${PREFIX} && \
 		cp ggml/src/libggml-base.a ${LIB} && \
@@ -67,17 +72,15 @@ get_llamacpp_shared() {
 		# cp examples/llava/*.h ${INCLUDE} && \
 		mkdir -p build && \
 		cd build && \
-		cmake .. -DBUILD_SHARED_LIBS=ON -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_INSTALL_NAME_DIR=${LIB} && \
+		cmake .. \
+			-DBUILD_SHARED_LIBS=ON \
+			-DLLAMA_BUILD_COMMON=ON \
+			-DLLAMA_BUILD_TOOLS=ON \
+			-DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+			&& \
 		cmake --build . --config Release && \
 		cmake --install . --prefix ${PREFIX} && \
 		cp common/libcommon.a ${LIB} && \
-		# cp ggml/src/libggml-base.dylib ${LIB} && \
-		# cp ggml/src/libggml-cpu.dylib ${LIB} && \
-		# cp ggml/src/ggml-blas/libggml-blas.dylib ${LIB} && \
-		# cp ggml/src/ggml-metal/libggml-metal.dylib ${LIB} && \
-		# cp common/libcommon.dylib ${LIB} && \
-		# # cp examples/llava/libllava_static.dylib ${LIB}/libllava.dylib && \
-		# mv ${PREFIX}/bin ${CWD}/bin && \
 		cd ${CWD}
 }
 
@@ -98,6 +101,30 @@ get_whispercpp() {
 		mkdir -p build && \
 		cd build && \
 		cmake .. -DBUILD_SHARED_LIBS=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON && \
+		cmake --build . --config Release && \
+		cmake --install . --prefix ${PREFIX} && \
+		cp examples/libcommon.a ${LIB} && \
+		cp -rf bin/* ${BIN} && \
+		cd ${CWD}
+}
+
+get_whispercpp_shared() {
+	echo "update from whisper.cpp main repo"
+	PREFIX=${THIRDPARTY}/whisper.cpp
+	INCLUDE=${PREFIX}/include
+	LIB=${PREFIX}/lib
+	BIN=${PREFIX}/bin
+	mkdir -p build ${INCLUDE} && \
+		cd build && \
+		if [ ! -d "whisper.cpp" ]; then
+			git clone --depth 1 --recursive https://github.com/ggml-org/whisper.cpp.git
+		fi && \
+		cd whisper.cpp && \
+		cp examples/*.h ${INCLUDE} && \
+		cp examples/*.hpp ${INCLUDE} && \
+		mkdir -p build && \
+		cd build && \
+		cmake .. -DBUILD_SHARED_LIBS=ON -DCMAKE_POSITION_INDEPENDENT_CODE=ON && \
 		cmake --build . --config Release && \
 		cmake --install . --prefix ${PREFIX} && \
 		cp examples/libcommon.a ${LIB} && \
@@ -153,9 +180,10 @@ remove_current() {
 
 main() {
 	remove_current
-	get_llamacpp
-	get_whispercpp
-	# get_llamacpp_shared
+	get_llamacpp_shared
+	get_whispercpp_shared
+	# get_llamacpp
+	# get_whispercpp
 	# get_llamacpp_python
 	# get_stablediffusioncpp
 }

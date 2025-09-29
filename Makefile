@@ -7,7 +7,7 @@ MODEL := models/Llama-3.2-1B-Instruct-Q8_0.gguf
 MODEL_RAG := models/all-MiniLM-L6-v2-Q5_K_S.gguf
 MODEL_LLAVA := models/llava-llama-3-8b-v1_1-int4.gguf
 MODEL_LLAVA_MMPROG := models/llava-llama-3-8b-v1_1-mmproj-f16.gguf
-WITH_DYLIB = 0
+WITH_DYLIB = 1
 
 THIRDPARTY := $(PWD)/thirdparty
 LLAMACPP := $(THIRDPARTY)/llama.cpp
@@ -17,7 +17,7 @@ MIN_OSX_VER := -mmacosx-version-min=$(MACOSX_DEPLOYMENT_TARGET)
 ifeq ($(WITH_DYLIB),1)
 	LIBLAMMA := $(LLAMACPP)/lib/libllama.dylib
 	LLAMACPP_LIBS := \
-		$(LLAMACPP)/lib/libcommon.dylib \
+		$(LLAMACPP)/lib/libcommon.a \
 		$(LLAMACPP)/lib/libllama.dylib \
 		$(LLAMACPP)/lib/libggml-base.dylib \
 		$(LLAMACPP)/lib/libggml.dylib \
@@ -51,8 +51,11 @@ setup: reset
 	@scripts/setup.sh
 
 build: $(LIBLAMMA)
+ifeq ($(WITH_DYLIB),1)
+	@uv run python setup.py build_ext
+else
 	@uv run python setup.py build_ext --inplace
-# 	@uv run python setup.py build_ext
+endif
 
 diff:
 	@git diff thirdparty/llama.cpp/include > changes.diff
@@ -80,7 +83,7 @@ bind: build/include
 
 .PHONY: test simple test_simple test_main test_retrieve test_model test_llava test_lora \
 		test_platform coverage memray download download_all bump clean reset remake cli \
-		test-cli test-chat test-tts test-llama-tts test-whisper
+		test-cli test-chat test-tts test-llama-tts test-whisper test-server test-mongoose
 
 test: build
 	uv run pytest -s
@@ -133,7 +136,17 @@ test-llama-tts:
 		-p "Hello World"
 
 test-whisper:
-	@$(WHISPERCPP)/bin/whisper-cli -m models/ggml-base.en.bin -f samples/jfk.wav
+	@$(WHISPERCPP)/bin/whisper-cli -m models/ggml-base.en.bin -f tests/samples/jfk.wav
+
+
+test-server:
+	@cd src && python3 -m cyllama.llama.server \
+			-m ../models/Llama-3.2-1B-Instruct-Q8_0.gguf
+
+test-mongoose:
+	@cd src && python3 -m cyllama.llama.server \
+			--server-type mongoose \
+			-m ../models/Llama-3.2-1B-Instruct-Q8_0.gguf
 
 test_main:
 	@g++ -std=c++14 -o build/main \
@@ -215,7 +228,7 @@ bump:
 	@scripts/bump.sh
 
 clean:
-	@rm -rf build dist src/*.egg-info .pytest_cache .coverage src/cyllama/*.so
+	@rm -rf build/lib.* build/temp.* dist src/*.egg-info .*_cache .coverage src/**/*.so
 
 reset: clean
 	@rm -rf thirdparty/llama.cpp/bin thirdparty/llama.cpp/lib

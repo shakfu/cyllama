@@ -17,7 +17,7 @@ requires = ["setuptools >= 61", "cython"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-include-package-data = true
+include-package-data = false
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
