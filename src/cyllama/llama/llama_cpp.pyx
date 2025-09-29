@@ -55,6 +55,7 @@ from typing import Optional, Sequence, Callable
 include "common.pxi"
 include "sampling.pxi"
 include "tts_helpers.pxi"
+include "mtmd.pxi"
 
 
 # constants
