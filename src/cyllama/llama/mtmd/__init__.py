@@ -26,7 +26,7 @@ from .multimodal import (
     UnsupportedModalityError,
 )
 
-from ..mtmd import (
+from ..llama_cpp import (
     MtmdContext,
     MtmdContextParams,
     MtmdBitmap,

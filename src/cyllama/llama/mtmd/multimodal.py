@@ -23,7 +23,7 @@ try:
 except ImportError:
     HAS_NUMPY = False
 
-from ..mtmd import (
+from ..llama_cpp import (
     MtmdContext,
     MtmdContextParams,
     MtmdBitmap,
@@ -55,6 +55,10 @@ class MultimodalProcessor:
             llama_model: LlamaModel instance
             **kwargs: Additional parameters passed to MtmdContextParams
         """
+        # Check file exists before doing anything else
+        if not os.path.exists(mmproj_path):
+            raise FileNotFoundError(f"Multimodal projector file not found: {mmproj_path}")
+
         self.mmproj_path = mmproj_path
         self.llama_model = llama_model
 

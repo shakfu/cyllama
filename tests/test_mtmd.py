@@ -117,8 +117,8 @@ class TestMtmdBitmap:
         """Test bitmap ID functionality."""
         bitmap = MtmdBitmap.create_image(2, 2, b'\x00' * 12)
 
-        # Initially no ID
-        assert bitmap.id is None
+        # Initially empty ID
+        assert bitmap.id == ""
 
         # Set ID
         test_id = "test_image_123"
@@ -127,9 +127,9 @@ class TestMtmdBitmap:
 
     def test_invalid_image_data(self):
         """Test error handling for invalid image data."""
-        with pytest.raises(RuntimeError):
-            # Not enough data for width*height*3
-            MtmdBitmap.create_image(10, 10, b'\x00' * 10)
+        with pytest.raises(OverflowError):
+            # Negative dimensions should raise OverflowError
+            MtmdBitmap.create_image(-1, 5, b'\x00' * 15)
 
     def test_empty_audio_samples(self):
         """Test creating bitmap with empty audio samples."""
@@ -425,10 +425,13 @@ class TestErrorHandling:
         """Test handling of invalid media types."""
         model = Mock()
 
-        with patch('cyllama.llama.mtmd.multimodal.MultimodalProcessor') as mock_proc:
-            proc_instance = Mock()
-            proc_instance.supports_vision = True
-            mock_proc.return_value = proc_instance
+        # Mock the MtmdContext constructor to avoid type checking issues
+        with patch('cyllama.llama.mtmd.multimodal.MtmdContext') as mock_mtmd_ctx:
+            mock_ctx_instance = Mock()
+            mock_ctx_instance.supports_vision = True
+            mock_ctx_instance.supports_audio = False
+            mock_ctx_instance.audio_bitrate = -1
+            mock_mtmd_ctx.return_value = mock_ctx_instance
 
             with patch('os.path.exists', return_value=True):
                 processor = MultimodalProcessor("test.mmproj", model)

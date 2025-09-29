@@ -96,7 +96,7 @@ cdef class MtmdBitmap:
             mtmd_bitmap_free(self._bitmap)
 
     @staticmethod
-    def create_image(width: int, height: int, data: str) -> 'MtmdBitmap':
+    def create_image(width: int, height: int, data: bytes) -> 'MtmdBitmap':
         """Create a bitmap from image data.
 
         Args:
