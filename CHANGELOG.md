@@ -260,7 +260,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - Intelligent layer size estimation based on quantization schemes
   - Optimized graph memory calculations with attention mechanism considerations
 
-
 ## [0.1.3]
 
 ### Added

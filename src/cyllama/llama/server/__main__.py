@@ -1,7 +1,6 @@
 import argparse
 import logging
 import time
-import sys
 
 from .embedded import ServerConfig, EmbeddedLlamaServer
 from .mongoose_server import MongooseServer

@@ -9,10 +9,7 @@ The wrapper manages the llama-server subprocess and provides a convenient
 interface for starting, stopping, and monitoring the server.
 """
 
-import os
 import time
-import json
-import signal
 import logging
 import subprocess
 import threading

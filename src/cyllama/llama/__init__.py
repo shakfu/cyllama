@@ -3,7 +3,7 @@ from .server import ServerConfig, LlamaServer, LlamaServerClient, start_server
 
 # Import embedded server only when needed to avoid circular imports
 def get_embedded_server():
-    from .embedded_server import (
+    from .server.embedded import (
         EmbeddedLlamaServer,
         ServerConfig as EmbeddedServerConfig,
         ChatMessage,

@@ -125,8 +125,10 @@ If all tests pass, you can type `python3 -i scripts/start.py` or `ipython -i scr
 
 - [x] wrap llama-simple
 
-- [ ] wrap llama-cli
+- [x] wrap llama-cli
 
-- [ ] wrap [whisper.cpp](https://github.com/ggerganov/whisper.cpp)
+- [x] create an open-ai compatible server
+
+- [x] wrap [whisper.cpp](https://github.com/ggerganov/whisper.cpp)
 
 - [ ] wrap [stable-diffusion.cpp](https://github.com/leejet/stable-diffusion.cpp)
