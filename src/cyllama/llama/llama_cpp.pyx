@@ -2272,10 +2272,13 @@ cdef class LlamaSampler:
         self.owner = True
 
     def __init__(self, params: Optional[LlamaSamplerChainParams] = None):
+        cdef LlamaSamplerChainParams _params
         if not params:
-            self.ptr = llama.llama_sampler_chain_init(self.params.p)
+            _params = LlamaSamplerChainParams()
         else:
-            self.ptr = llama.llama_sampler_chain_init(params.p)
+            _params = params
+        self.params = _params
+        self.ptr = llama.llama_sampler_chain_init(_params.p)
 
         if self.ptr is NULL:
             raise ValueError("Failed to init Sampler")
