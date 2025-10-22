@@ -7,6 +7,8 @@ import cyllama.llama.llama_cpp as cy
 def test_chat_builtin_templates():
     assert cy.chat_builtin_templates() == [
     'bailing',
+    'bailing-think',
+    'bailing2',
     'chatglm3',
     'chatglm4',
     'chatml',
