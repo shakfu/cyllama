@@ -225,6 +225,7 @@ cdef extern from "llama.h":
         bint use_mlock        # force system to keep model in RAM
         bint check_tensors    # validate model tensor data
         bint use_extra_bufts  # use extra buffer types (used for weight repacking)
+        bint no_host          # bypass host buffer allowing extra buffers to be used
 
     ctypedef struct llama_context_params:
         uint32_t n_ctx             # text context, 0 = from model
@@ -438,6 +439,9 @@ cdef extern from "llama.h":
 
     # Returns true if the model is recurrent (like Mamba, RWKV, etc.)
     cdef bint llama_model_is_recurrent(const llama_model * model)
+
+    # Returns true if the model is hybrid (like Jamba, Granite, etc.)
+    cdef bint llama_model_is_hybrid(const llama_model * model)
 
     # Returns true if the model is diffusion-based (like LLaDA, Dream, etc.)
     cdef bint llama_model_is_diffusion(const llama_model * model)
@@ -666,7 +670,11 @@ cdef extern from "llama.h":
                           size_t   n_token_capacity,
                           size_t * n_token_count_out)
 
+    # for backwards-compat
     #define LLAMA_STATE_SEQ_FLAGS_SWA_ONLY 1
+ 
+    # work only with partial states, such as SWA KV cache or recurrent cache (e.g. Mamba)
+    #define LLAMA_STATE_SEQ_FLAGS_PARTIAL_ONLY 1
 
     ctypedef uint32_t llama_state_seq_flags
 

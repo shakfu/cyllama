@@ -1725,6 +1725,10 @@ cdef class LlamaModel:
         """Returns true if the model is recurrent (like Mamba, RWKV, etc.)"""
         return llama.llama_model_is_recurrent(self.ptr)
 
+    def is_hybrid(self) -> bool:
+        """Returns true if the model is hybrid (like Jamba, Granite, etc.)"""
+        return llama.llama_model_is_hybrid(self.ptr)
+
     # chat template
 
     def chat_apply_template(self, str tmpl, list[LlamaChatMessage] msgs, bint add_assistant_msg) -> str:
