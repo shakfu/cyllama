@@ -508,7 +508,12 @@ class TestServerIntegration:
             n_gpu_layers=0  # CPU only for reliability
         )
 
-        server = LlamaServer(config)
+        try:
+            server = LlamaServer(config)
+        except FileNotFoundError as e:
+            if "llama-server binary" in str(e) or "Could not find llama-server binary" in str(e):
+                pytest.skip("llama-server binary not found")
+            raise
 
         try:
             # Start server
@@ -545,7 +550,14 @@ class TestServerIntegration:
             n_gpu_layers=0
         )
 
-        with LlamaServer(config) as server:
+        try:
+            server = LlamaServer(config)
+        except FileNotFoundError as e:
+            if "llama-server binary" in str(e) or "Could not find llama-server binary" in str(e):
+                pytest.skip("llama-server binary not found")
+            raise
+
+        with server:
             assert server.is_running()
 
             # Quick API test

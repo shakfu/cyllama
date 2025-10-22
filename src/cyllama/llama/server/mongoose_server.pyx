@@ -16,6 +16,9 @@ from .mongoose cimport *
 # Import existing server logic
 from .embedded import ServerConfig, ServerSlot, ChatMessage, ChatRequest, ChatResponse, ChatChoice
 
+# Global shutdown flag for signal handling (following pymongoose pattern)
+_shutdown_requested = False
+
 
 cdef class MongooseConnection:
     """Wrapper for mg_connection pointer."""
@@ -149,10 +152,10 @@ cdef class MongooseServer:
 
     def _signal_handler(self, signum, frame):
         """Handle SIGINT/SIGTERM signals for graceful shutdown."""
+        global _shutdown_requested
         self._logger.info(f"Received signal {signum}, requesting graceful shutdown...")
+        _shutdown_requested = True
         self._signal_received = signum
-        cyllama_mg_mgr_free(&self._mgr)
-        sys.exit()
 
     def _setup_signal_handlers(self):
         """Setup signal handlers for graceful shutdown."""
@@ -162,6 +165,11 @@ cdef class MongooseServer:
 
     def start(self) -> bool:
         """Start the Mongoose server."""
+        global _shutdown_requested
+
+        # Reset global shutdown flag
+        _shutdown_requested = False
+
         if not self.load_model():
             return False
 
@@ -246,29 +254,23 @@ cdef class MongooseServer:
 
 
     def wait_for_shutdown(self):
-        """Wait for shutdown signal using Mongoose pattern exactly like C version."""
+        """Wait for shutdown signal using pymongoose pattern for reliable signal handling."""
+        global _shutdown_requested
         self._logger.info("Starting Mongoose event loop...")
-        # Simple loop exactly like the C version: while (s_signo == 0) mg_mgr_poll(&mgr, 1000);
-        self._wait_for_shutdown_nogil()
+
+        # Follow pymongoose pattern: check flag in Python, poll in C
+        # This ensures signal handling works correctly across the GIL boundary
+        while not _shutdown_requested:
+            # Poll with GIL released for performance
+            self._poll_nogil(100)  # 100ms like pymongoose
 
         self._logger.info(f"Exiting on signal {self._signal_received}")
         # Close connections gracefully
         self._close_all_connections_from_main_thread()
 
-    cdef void _wait_for_shutdown_nogil(self) nogil:
-        """Wait for shutdown signal without GIL for maximum performance."""
-        cdef int signal_received
-
-        with gil:
-            signal_received = self._signal_received
-
-        while signal_received == 0:
-            # This poll operation runs completely without GIL
-            cyllama_mg_mgr_poll(&self._mgr, 1000)  # Use 1000ms timeout like C version
-
-            # Check signal status periodically
-            with gil:
-                signal_received = self._signal_received
+    cdef void _poll_nogil(self, int timeout_ms) nogil:
+        """Poll Mongoose manager without GIL for maximum performance."""
+        cyllama_mg_mgr_poll(&self._mgr, timeout_ms)
 
     def _close_all_connections_from_main_thread(self):
         """Close all Mongoose connections from the main thread."""

@@ -1750,14 +1750,14 @@ cdef class LlamaModel:
         for i in range(len(msgs)):
             msg = msgs[i]
             vec.push_back(msg.p)
-        
+
         # First call to get required buffer size
         cdef const char* tmpl_ptr = NULL
         cdef bytes tmpl_bytes
         if tmpl is not None:
             tmpl_bytes = tmpl.encode()
             tmpl_ptr = tmpl_bytes
-        
+
         cdef int32_t required_size = llama.llama_chat_apply_template(
             tmpl_ptr,
             vec.data(),
@@ -1766,15 +1766,15 @@ cdef class LlamaModel:
             NULL,
             0
         )
-        
+
         if required_size < 0:
             raise RuntimeError("Failed to apply chat template")
-        
+
         # Allocate buffer and apply template
         cdef char* buf = <char*>malloc(sizeof(char) * (required_size + 1))
         if buf is NULL:
             raise MemoryError("Failed to allocate buffer for chat template")
-        
+
         cdef int32_t actual_size = llama.llama_chat_apply_template(
             tmpl_ptr,
             vec.data(),
@@ -1783,11 +1783,11 @@ cdef class LlamaModel:
             buf,
             required_size
         )
-        
+
         if actual_size < 0:
             free(buf)
             raise RuntimeError("Failed to apply chat template")
-        
+
         # Ensure null termination
         buf[actual_size] = 0
         cdef str result = buf[:actual_size].decode("utf-8")

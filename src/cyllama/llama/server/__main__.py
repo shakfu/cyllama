@@ -45,15 +45,8 @@ def main():
                 print(f"Mongoose server running at http://{args.host}:{args.port}")
                 print("Press Ctrl+C to stop...")
 
-                # Use simple KeyboardInterrupt handling for Ctrl+C
-                try:
-                    while True:
-                        time.sleep(1)
-                except KeyboardInterrupt:
-                    print("\nReceived Ctrl+C, shutting down...")
-                    # Set the signal to break the mongoose loop
-                    server.signal_received = 2  # SIGINT
-                    server.stop()
+                # Run the Mongoose event loop - this blocks until signal received
+                server.wait_for_shutdown()
                 print("\nShutting down Mongoose server...")
 
             finally:
