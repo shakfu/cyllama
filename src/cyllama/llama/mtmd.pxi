@@ -96,7 +96,7 @@ cdef class MtmdBitmap:
             mtmd_bitmap_free(self._bitmap)
 
     @staticmethod
-    def create_image(width: int, height: int, data: bytes) -> 'MtmdBitmap':
+    def create_image(width: int, height: int, data: bytes) -> MtmdBitmap:
         """Create a bitmap from image data.
 
         Args:
@@ -119,7 +119,7 @@ cdef class MtmdBitmap:
         return bitmap
 
     @staticmethod
-    def create_audio(samples: List[float]) -> 'MtmdBitmap':
+    def create_audio(samples: List[float]) -> MtmdBitmap:
         """Create a bitmap from audio data.
 
         Args:
@@ -152,7 +152,7 @@ cdef class MtmdBitmap:
         return bitmap
 
     @staticmethod
-    def from_file(mtmd_ctx, file_path: str) -> 'MtmdBitmap':
+    def from_file(mtmd_ctx, file_path: str) -> MtmdBitmap:
         """Load bitmap from file.
 
         Args:
@@ -178,7 +178,7 @@ cdef class MtmdBitmap:
         return bitmap
 
     @staticmethod
-    def from_buffer(mtmd_ctx, data: bytes) -> 'MtmdBitmap':
+    def from_buffer(mtmd_ctx, data: bytes) -> MtmdBitmap:
         """Load bitmap from buffer.
 
         Args:
