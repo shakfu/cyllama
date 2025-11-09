@@ -44,6 +44,7 @@ def test_chat_builtin_templates():
     'monarch',
     'openchat',
     'orion',
+    'pangu-embedded',
     'phi3',
     'phi4',
     'rwkv-world',
