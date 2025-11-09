@@ -23,6 +23,7 @@ cpdef enum:
     GGML_ROPE_TYPE_NEOX   = 2
     GGML_ROPE_TYPE_MROPE  = 8
     GGML_ROPE_TYPE_VISION = 24
+    GGML_ROPE_TYPE_IMROPE = 40
 
 #------------------------------------------------------------------------------
 # ggml.h

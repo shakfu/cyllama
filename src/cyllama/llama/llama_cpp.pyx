@@ -1579,6 +1579,7 @@ cdef class LlamaModel:
         """Initialize cached property values for performance optimization."""
         if self.ptr is not NULL and not self._cache_initialized:
             self._cached_n_embd = llama.llama_model_n_embd(self.ptr)
+            self._cached_n_embd_inp = llama.llama_model_n_embd_inp(self.ptr)
             self._cached_n_layer = llama.llama_model_n_layer(self.ptr)
             self._cached_n_head = llama.llama_model_n_head(self.ptr)
             self._cached_n_head_kv = llama.llama_model_n_head_kv(self.ptr)
@@ -1602,6 +1603,12 @@ cdef class LlamaModel:
         if self._cache_initialized:
             return self._cached_n_embd
         return llama.llama_model_n_embd(self.ptr)
+
+    @property
+    def n_embd_inp(self) -> int:
+        if self._cache_initialized:
+            return self._cached_n_embd_inp
+        return llama.llama_model_n_embd_inp(self.ptr)
 
     @property
     def n_layer(self) -> int:
@@ -1901,6 +1908,10 @@ cdef class LlamaContext:
     @property
     def n_ctx(self) -> int:
         return llama.llama_n_ctx(self.ptr)
+
+    @property
+    def n_ctx_seq(self) -> int:
+        return llama.llama_n_ctx_seq(self.ptr)
 
     @property
     def n_batch(self) -> int:

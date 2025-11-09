@@ -49,6 +49,7 @@ cdef extern from "llama.h":
         LLAMA_ROPE_TYPE_NEOX   = ggml.GGML_ROPE_TYPE_NEOX
         LLAMA_ROPE_TYPE_MROPE  = ggml.GGML_ROPE_TYPE_MROPE
         LLAMA_ROPE_TYPE_VISION = ggml.GGML_ROPE_TYPE_VISION
+        LLAMA_ROPE_TYPE_IMROPE = ggml.GGML_ROPE_TYPE_IMROPE
 
     cdef enum llama_token_type:
         LLAMA_TOKEN_TYPE_UNDEFINED    = 0
@@ -362,7 +363,11 @@ cdef extern from "llama.h":
     cdef bint llama_supports_gpu_offload()
     cdef bint llama_supports_rpc()
 
+    # NOTE: After creating a llama_context, it is recommended to query the actual values using these functions
+    #       In some cases the requested values via llama_context_params may differ from the actual values used by the context
+    #       ref: https://github.com/ggml-org/llama.cpp/pull/17046#discussion_r2503085732
     cdef uint32_t llama_n_ctx      (const llama_context * ctx)
+    cdef uint32_t llama_n_ctx_seq  (const llama_context * ctx)
     cdef uint32_t llama_n_batch    (const llama_context * ctx)
     cdef uint32_t llama_n_ubatch   (const llama_context * ctx)
     cdef uint32_t llama_n_seq_max  (const llama_context * ctx)
@@ -377,6 +382,7 @@ cdef extern from "llama.h":
 
     cdef int32_t llama_model_n_ctx_train(const llama_model * model)
     cdef int32_t llama_model_n_embd     (const llama_model * model)
+    cdef int32_t llama_model_n_embd_inp (const llama_model * model)
     cdef int32_t llama_model_n_layer    (const llama_model * model)
     cdef int32_t llama_model_n_head     (const llama_model * model)
     cdef int32_t llama_model_n_head_kv  (const llama_model * model)
@@ -478,7 +484,7 @@ cdef extern from "llama.h":
     cdef int32_t llama_adapter_meta_val_str_by_index(const llama_adapter_lora * adapter, int32_t i, char * buf, size_t buf_size)
 
     # Manually free a LoRA adapter
-    # Note: loaded adapters will be free when the associated model is deleted
+    # NOTE: loaded adapters will be free when the associated model is deleted
     cdef void llama_adapter_lora_free(llama_adapter_lora * adapter)
 
     # Get the invocation tokens if the current lora is an alora
