@@ -15,6 +15,7 @@ cimport common
 cimport sampling
 cimport chat
 cimport log
+cimport gguf
 
 
 import os
@@ -2693,5 +2694,358 @@ def llama_backend_free():
 
 def llama_flash_attn_type_name(llama.llama_flash_attn_type flash_attn_type) -> str:
     return llama.llama_flash_attn_type_name(flash_attn_type).decode()
+
+
+#------------------------------------------------------------------------------
+# GGUF File Format API
+#------------------------------------------------------------------------------
+
+cdef class GGUFContext:
+    """
+    Wrapper for GGUF file format context.
+
+    GGUF (GGML Universal File Format) is the binary file format used by ggml
+    for storing models. It contains:
+    - Key-value metadata
+    - Tensor information (names, shapes, types, offsets)
+    - Tensor data
+
+    Example usage:
+        # Read GGUF file
+        ctx = GGUFContext.from_file("model.gguf")
+        print(f"Version: {ctx.version}")
+        print(f"Tensors: {ctx.n_tensors}")
+        print(f"Metadata: {ctx.get_all_metadata()}")
+
+        # Create new GGUF
+        ctx = GGUFContext.empty()
+        ctx.set_val_str("model.name", "MyModel")
+        ctx.set_val_u32("model.version", 1)
+        ctx.write_to_file("output.gguf")
+    """
+    cdef gguf.gguf_context * ptr
+    cdef bint owner
+
+    def __cinit__(self):
+        self.ptr = NULL
+        self.owner = False
+
+    def __dealloc__(self):
+        if self.ptr != NULL and self.owner:
+            gguf.gguf_free(self.ptr)
+            self.ptr = NULL
+
+    @staticmethod
+    def empty():
+        """Create an empty GGUF context."""
+        cdef GGUFContext ctx = GGUFContext.__new__(GGUFContext)
+        ctx.ptr = gguf.gguf_init_empty()
+        if ctx.ptr == NULL:
+            raise MemoryError("Failed to create empty GGUF context")
+        ctx.owner = True
+        return ctx
+
+    @staticmethod
+    def from_file(str filename, bint no_alloc=True):
+        """
+        Load GGUF context from file.
+
+        Args:
+            filename: Path to GGUF file
+            no_alloc: If True, don't allocate tensor data in memory
+
+        Returns:
+            GGUFContext object
+        """
+        cdef GGUFContext ctx = GGUFContext.__new__(GGUFContext)
+        cdef gguf.gguf_init_params params
+        params.no_alloc = no_alloc
+        params.ctx = NULL
+
+        filename_bytes = filename.encode('utf-8')
+        ctx.ptr = gguf.gguf_init_from_file(filename_bytes, params)
+        if ctx.ptr == NULL:
+            raise IOError(f"Failed to load GGUF file: {filename}")
+        ctx.owner = True
+        return ctx
+
+    @property
+    def version(self) -> int:
+        """Get GGUF file version."""
+        return gguf.gguf_get_version(self.ptr)
+
+    @property
+    def alignment(self) -> int:
+        """Get tensor data alignment."""
+        return gguf.gguf_get_alignment(self.ptr)
+
+    @property
+    def data_offset(self) -> int:
+        """Get offset to tensor data in file."""
+        return gguf.gguf_get_data_offset(self.ptr)
+
+    @property
+    def n_kv(self) -> int:
+        """Get number of key-value pairs."""
+        return gguf.gguf_get_n_kv(self.ptr)
+
+    @property
+    def n_tensors(self) -> int:
+        """Get number of tensors."""
+        return gguf.gguf_get_n_tensors(self.ptr)
+
+    def find_key(self, str key) -> int:
+        """
+        Find key by name.
+
+        Args:
+            key: Key name to search for
+
+        Returns:
+            Key ID (>= 0) if found, -1 if not found
+        """
+        key_bytes = key.encode('utf-8')
+        return gguf.gguf_find_key(self.ptr, key_bytes)
+
+    def get_key(self, int key_id) -> str:
+        """Get key name by ID."""
+        cdef const char * key_c = gguf.gguf_get_key(self.ptr, key_id)
+        if key_c == NULL:
+            raise ValueError(f"Invalid key ID: {key_id}")
+        return key_c.decode('utf-8')
+
+    def get_kv_type(self, int key_id) -> int:
+        """Get value type for key."""
+        return gguf.gguf_get_kv_type(self.ptr, key_id)
+
+    def get_value(self, str key):
+        """
+        Get value by key name (auto-detects type).
+
+        Args:
+            key: Key name
+
+        Returns:
+            Value (type depends on GGUF type)
+        """
+        cdef int64_t key_id = self.find_key(key)
+        if key_id < 0:
+            raise KeyError(f"Key not found: {key}")
+
+        cdef int vtype = self.get_kv_type(key_id)
+        cdef const char * s
+
+        if vtype == gguf.GGUF_TYPE_UINT8:
+            return gguf.gguf_get_val_u8(self.ptr, key_id)
+        elif vtype == gguf.GGUF_TYPE_INT8:
+            return gguf.gguf_get_val_i8(self.ptr, key_id)
+        elif vtype == gguf.GGUF_TYPE_UINT16:
+            return gguf.gguf_get_val_u16(self.ptr, key_id)
+        elif vtype == gguf.GGUF_TYPE_INT16:
+            return gguf.gguf_get_val_i16(self.ptr, key_id)
+        elif vtype == gguf.GGUF_TYPE_UINT32:
+            return gguf.gguf_get_val_u32(self.ptr, key_id)
+        elif vtype == gguf.GGUF_TYPE_INT32:
+            return gguf.gguf_get_val_i32(self.ptr, key_id)
+        elif vtype == gguf.GGUF_TYPE_FLOAT32:
+            return gguf.gguf_get_val_f32(self.ptr, key_id)
+        elif vtype == gguf.GGUF_TYPE_UINT64:
+            return gguf.gguf_get_val_u64(self.ptr, key_id)
+        elif vtype == gguf.GGUF_TYPE_INT64:
+            return gguf.gguf_get_val_i64(self.ptr, key_id)
+        elif vtype == gguf.GGUF_TYPE_FLOAT64:
+            return gguf.gguf_get_val_f64(self.ptr, key_id)
+        elif vtype == gguf.GGUF_TYPE_BOOL:
+            return bool(gguf.gguf_get_val_bool(self.ptr, key_id))
+        elif vtype == gguf.GGUF_TYPE_STRING:
+            s = gguf.gguf_get_val_str(self.ptr, key_id)
+            return s.decode('utf-8') if s != NULL else None
+        elif vtype == gguf.GGUF_TYPE_ARRAY:
+            return self._get_array_value(key_id)
+        else:
+            raise ValueError(f"Unknown GGUF type: {vtype}")
+
+    def _get_array_value(self, int64_t key_id):
+        """Get array value by key ID."""
+        cdef int arr_type = gguf.gguf_get_arr_type(self.ptr, key_id)
+        cdef size_t n = gguf.gguf_get_arr_n(self.ptr, key_id)
+        cdef const char * s
+        cdef size_t i
+
+        if arr_type == gguf.GGUF_TYPE_STRING:
+            result = []
+            for i in range(n):
+                s = gguf.gguf_get_arr_str(self.ptr, key_id, i)
+                result.append(s.decode('utf-8') if s != NULL else None)
+            return result
+        else:
+            # For numeric arrays, return raw pointer info
+            # User would need to use get_arr_data_raw for direct access
+            return {"type": arr_type, "length": n}
+
+    def get_all_metadata(self) -> dict:
+        """
+        Get all key-value metadata as a dictionary.
+
+        Returns:
+            Dictionary of all metadata
+        """
+        result = {}
+        cdef int64_t n = self.n_kv
+        for i in range(n):
+            key = self.get_key(i)
+            try:
+                result[key] = self.get_value(key)
+            except Exception as e:
+                # Skip keys that can't be read
+                result[key] = f"<error: {e}>"
+        return result
+
+    def set_val_str(self, str key, str value):
+        """Set string value."""
+        key_bytes = key.encode('utf-8')
+        value_bytes = value.encode('utf-8')
+        gguf.gguf_set_val_str(self.ptr, key_bytes, value_bytes)
+
+    def set_val_bool(self, str key, bint value):
+        """Set boolean value."""
+        key_bytes = key.encode('utf-8')
+        gguf.gguf_set_val_bool(self.ptr, key_bytes, value)
+
+    def set_val_u8(self, str key, int value):
+        """Set uint8 value."""
+        key_bytes = key.encode('utf-8')
+        gguf.gguf_set_val_u8(self.ptr, key_bytes, value)
+
+    def set_val_i8(self, str key, int value):
+        """Set int8 value."""
+        key_bytes = key.encode('utf-8')
+        gguf.gguf_set_val_i8(self.ptr, key_bytes, value)
+
+    def set_val_u16(self, str key, int value):
+        """Set uint16 value."""
+        key_bytes = key.encode('utf-8')
+        gguf.gguf_set_val_u16(self.ptr, key_bytes, value)
+
+    def set_val_i16(self, str key, int value):
+        """Set int16 value."""
+        key_bytes = key.encode('utf-8')
+        gguf.gguf_set_val_i16(self.ptr, key_bytes, value)
+
+    def set_val_u32(self, str key, int value):
+        """Set uint32 value."""
+        key_bytes = key.encode('utf-8')
+        gguf.gguf_set_val_u32(self.ptr, key_bytes, value)
+
+    def set_val_i32(self, str key, int value):
+        """Set int32 value."""
+        key_bytes = key.encode('utf-8')
+        gguf.gguf_set_val_i32(self.ptr, key_bytes, value)
+
+    def set_val_f32(self, str key, float value):
+        """Set float32 value."""
+        key_bytes = key.encode('utf-8')
+        gguf.gguf_set_val_f32(self.ptr, key_bytes, value)
+
+    def set_val_u64(self, str key, int value):
+        """Set uint64 value."""
+        key_bytes = key.encode('utf-8')
+        gguf.gguf_set_val_u64(self.ptr, key_bytes, value)
+
+    def set_val_i64(self, str key, int value):
+        """Set int64 value."""
+        key_bytes = key.encode('utf-8')
+        gguf.gguf_set_val_i64(self.ptr, key_bytes, value)
+
+    def set_val_f64(self, str key, float value):
+        """Set float64 value."""
+        key_bytes = key.encode('utf-8')
+        gguf.gguf_set_val_f64(self.ptr, key_bytes, value)
+
+    def remove_key(self, str key) -> int:
+        """
+        Remove key if it exists.
+
+        Args:
+            key: Key name to remove
+
+        Returns:
+            Key ID that was removed, or -1 if key didn't exist
+        """
+        key_bytes = key.encode('utf-8')
+        return gguf.gguf_remove_key(self.ptr, key_bytes)
+
+    def find_tensor(self, str name) -> int:
+        """
+        Find tensor by name.
+
+        Args:
+            name: Tensor name
+
+        Returns:
+            Tensor ID (>= 0) if found, -1 if not found
+        """
+        name_bytes = name.encode('utf-8')
+        return gguf.gguf_find_tensor(self.ptr, name_bytes)
+
+    def get_tensor_name(self, int tensor_id) -> str:
+        """Get tensor name by ID."""
+        cdef const char * name = gguf.gguf_get_tensor_name(self.ptr, tensor_id)
+        if name == NULL:
+            raise ValueError(f"Invalid tensor ID: {tensor_id}")
+        return name.decode('utf-8')
+
+    def get_tensor_type(self, int tensor_id) -> int:
+        """Get tensor type (ggml_type enum)."""
+        return gguf.gguf_get_tensor_type(self.ptr, tensor_id)
+
+    def get_tensor_offset(self, int tensor_id) -> int:
+        """Get tensor data offset in file."""
+        return gguf.gguf_get_tensor_offset(self.ptr, tensor_id)
+
+    def get_tensor_size(self, int tensor_id) -> int:
+        """Get tensor size in bytes."""
+        return gguf.gguf_get_tensor_size(self.ptr, tensor_id)
+
+    def get_all_tensor_info(self) -> list:
+        """
+        Get information about all tensors.
+
+        Returns:
+            List of dicts with tensor info
+        """
+        result = []
+        cdef int64_t n = self.n_tensors
+        for i in range(n):
+            result.append({
+                "id": i,
+                "name": self.get_tensor_name(i),
+                "type": self.get_tensor_type(i),
+                "offset": self.get_tensor_offset(i),
+                "size": self.get_tensor_size(i),
+            })
+        return result
+
+    def write_to_file(self, str filename, bint only_meta=False) -> bool:
+        """
+        Write GGUF context to file.
+
+        Args:
+            filename: Output file path
+            only_meta: If True, write only metadata (no tensor data)
+
+        Returns:
+            True if successful
+        """
+        filename_bytes = filename.encode('utf-8')
+        return gguf.gguf_write_to_file(self.ptr, filename_bytes, only_meta)
+
+    def get_meta_size(self) -> int:
+        """Get size of metadata in bytes."""
+        return gguf.gguf_get_meta_size(self.ptr)
+
+    def __repr__(self):
+        return f"<GGUFContext: version={self.version}, tensors={self.n_tensors}, kv_pairs={self.n_kv}>"
+
 
 

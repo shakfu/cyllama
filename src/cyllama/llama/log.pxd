@@ -47,15 +47,16 @@ cdef extern from "log.h":
 
     # Function declarations
     cdef void common_log_set_verbosity_thold(int verbosity)
-    
+    cdef void common_log_default_callback(ggml.ggml_log_level level, const char * text, void * user_data)
+
     cdef common_log * common_log_init()
     cdef common_log * common_log_main()
     cdef void common_log_pause(common_log * log)
     cdef void common_log_resume(common_log * log)
     cdef void common_log_free(common_log * log)
-    
+
     cdef void common_log_add(common_log * log, ggml.ggml_log_level level, const char * fmt, ...)
-    
+
     cdef void common_log_set_file      (common_log * log, const char * file) # not thread-safe
     cdef void common_log_set_colors    (common_log * log, log_colors colors) # not thread-safe
     cdef void common_log_set_prefix    (common_log * log, bint prefix)       # whether to output prefix to each log

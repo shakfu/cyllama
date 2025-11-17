@@ -109,6 +109,7 @@ cdef extern from "ggml.h":
         GGML_OP_LOG
         GGML_OP_SUM
         GGML_OP_SUM_ROWS
+        GGML_OP_CUMSUM
         GGML_OP_MEAN
         GGML_OP_ARGMAX
         GGML_OP_REPEAT
@@ -146,15 +147,22 @@ cdef extern from "ggml.h":
         GGML_OP_CONV_TRANSPOSE_1D
         GGML_OP_IM2COL
         GGML_OP_IM2COL_3D
+        GGML_OP_CONV_3D
+        GGML_OP_CONV_2D_DW
         GGML_OP_CONV_TRANSPOSE_2D
         GGML_OP_POOL_1D
         GGML_OP_POOL_2D
+        GGML_OP_POOL_2D_BACK
         GGML_OP_UPSCALE
         GGML_OP_PAD
+        GGML_OP_PAD_REFLECT_1D
+        GGML_OP_ROLL
         GGML_OP_ARANGE
         GGML_OP_TIMESTEP_EMBEDDING
         GGML_OP_ARGSORT
         GGML_OP_LEAKY_RELU
+        GGML_OP_TRI
+        GGML_OP_FILL
 
         GGML_OP_FLASH_ATTN_EXT
         GGML_OP_FLASH_ATTN_BACK
@@ -164,27 +172,64 @@ cdef extern from "ggml.h":
         GGML_OP_WIN_UNPART
         GGML_OP_GET_REL_POS
         GGML_OP_ADD_REL_POS
+        GGML_OP_RWKV_WKV6
+        GGML_OP_GATED_LINEAR_ATTN
+        GGML_OP_RWKV_WKV7
+        GGML_OP_SOLVE_TRI
 
         GGML_OP_UNARY
-
-        GGML_OP_MAP_UNARY
-        GGML_OP_MAP_BINARY
-
-        GGML_OP_MAP_CUSTOM1_F32
-        GGML_OP_MAP_CUSTOM2_F32
-        GGML_OP_MAP_CUSTOM3_F32
 
         GGML_OP_MAP_CUSTOM1
         GGML_OP_MAP_CUSTOM2
         GGML_OP_MAP_CUSTOM3
 
+        GGML_OP_CUSTOM
+
         GGML_OP_CROSS_ENTROPY_LOSS
         GGML_OP_CROSS_ENTROPY_LOSS_BACK
+        GGML_OP_OPT_STEP_ADAMW
+        GGML_OP_OPT_STEP_SGD
 
         GGML_OP_GLU
 
         GGML_OP_COUNT
 
+    cdef enum ggml_unary_op:
+        GGML_UNARY_OP_ABS
+        GGML_UNARY_OP_SGN
+        GGML_UNARY_OP_NEG
+        GGML_UNARY_OP_STEP
+        GGML_UNARY_OP_TANH
+        GGML_UNARY_OP_ELU
+        GGML_UNARY_OP_RELU
+        GGML_UNARY_OP_SIGMOID
+        GGML_UNARY_OP_GELU
+        GGML_UNARY_OP_GELU_QUICK
+        GGML_UNARY_OP_SILU
+        GGML_UNARY_OP_HARDSWISH
+        GGML_UNARY_OP_HARDSIGMOID
+        GGML_UNARY_OP_EXP
+        GGML_UNARY_OP_EXPM1
+        GGML_UNARY_OP_SOFTPLUS
+        GGML_UNARY_OP_GELU_ERF
+        GGML_UNARY_OP_XIELU
+        GGML_UNARY_OP_FLOOR
+        GGML_UNARY_OP_CEIL
+        GGML_UNARY_OP_ROUND
+        GGML_UNARY_OP_TRUNC
+        GGML_UNARY_OP_COUNT
+
+    cdef enum ggml_tri_type:
+        GGML_TRI_TYPE_UPPER_DIAG = 0
+        GGML_TRI_TYPE_UPPER = 1
+        GGML_TRI_TYPE_LOWER_DIAG = 2
+        GGML_TRI_TYPE_LOWER = 3
+
+    cdef enum ggml_scale_mode:
+        GGML_SCALE_MODE_NEAREST = 0
+        GGML_SCALE_MODE_BILINEAR = 1
+        GGML_SCALE_MODE_BICUBIC = 2
+        GGML_SCALE_MODE_COUNT
 
     cdef enum ggml_log_level:
         GGML_LOG_LEVEL_NONE  = 0
@@ -346,6 +391,7 @@ cdef extern from "ggml-backend.h":
 
     # ctypedef ggml_backend_device * ggml_backend_dev_t
 
+    cdef void ggml_backend_register(ggml_backend_reg_t reg)
     cdef void ggml_backend_device_register(ggml_backend_dev_t device)
 
     # Backend (reg) enumeration
