@@ -1520,6 +1520,7 @@ cdef class LlamaModel:
 
     # Cached property values for performance optimization
     cdef int _cached_n_embd
+    cdef int _cached_n_embd_inp
     cdef int _cached_n_layer
     cdef int _cached_n_head
     cdef int _cached_n_head_kv
@@ -1534,6 +1535,7 @@ cdef class LlamaModel:
         self._cache_initialized = False
         # Initialize cached values to -1/0 to indicate they need to be computed
         self._cached_n_embd = -1
+        self._cached_n_embd_inp = -1
         self._cached_n_layer = -1
         self._cached_n_head = -1
         self._cached_n_head_kv = -1

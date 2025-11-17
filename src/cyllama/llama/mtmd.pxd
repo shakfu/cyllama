@@ -45,9 +45,9 @@ cdef extern from "mtmd.h":
         bint use_gpu
         bint print_timings
         int n_threads
-        ggml_log_level verbosity
         const char * image_marker  # deprecated
         const char * media_marker
+        # Note: flash_attn_type, image_min_tokens, image_max_tokens also exist but not wrapped yet
 
     # Constants and defaults
     cdef const char * mtmd_default_marker()

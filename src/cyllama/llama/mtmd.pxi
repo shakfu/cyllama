@@ -35,21 +35,19 @@ cdef class MtmdContextParams:
     cdef mtmd_context_params _params
 
     def __init__(self, use_gpu: bool = True, print_timings: bool = False,
-                 n_threads: int = 1, verbosity: int = 2, media_marker: str = None):
+                 n_threads: int = 1, media_marker: str = None):
         """Initialize mtmd context parameters.
 
         Args:
             use_gpu: Whether to use GPU acceleration
             print_timings: Whether to print timing information
             n_threads: Number of threads for processing
-            verbosity: Logging verbosity level (0-4)
             media_marker: Custom media marker (defaults to mtmd default)
         """
         self._params = mtmd_context_params_default()
         self._params.use_gpu = use_gpu
         self._params.print_timings = print_timings
         self._params.n_threads = n_threads
-        self._params.verbosity = <ggml_log_level>verbosity
 
         if media_marker is not None:
             # Store the marker (Note: this requires careful memory management)

@@ -60,8 +60,7 @@ class TestMtmdContextParams:
         params = MtmdContextParams(
             use_gpu=False,
             print_timings=True,
-            n_threads=4,
-            verbosity=1
+            n_threads=4
         )
         assert params.use_gpu is False
         assert params.print_timings is True
