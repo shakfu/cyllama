@@ -20,6 +20,7 @@ cimport sampling
 cimport chat
 cimport log
 cimport gguf
+cimport download
 
 
 import os
@@ -3128,6 +3129,156 @@ def json_schema_to_grammar(schema, force_gbnf=False):
     finally:
         # Free the C string
         free(grammar_c)
+
+
+# =============================================================================
+# Download API
+# =============================================================================
+
+def get_hf_file(hf_repo_with_tag, bearer_token="", offline=False):
+    """
+    Get HF file information from HuggingFace repo with optional tag.
+
+    Supports Ollama-style tags:
+    - bartowski/Llama-3.2-3B-Instruct-GGUF:q4
+    - bartowski/Llama-3.2-3B-Instruct-GGUF:Q4_K_M
+    - bartowski/Llama-3.2-3B-Instruct-GGUF:q5_k_s
+
+    Tag is optional, defaults to "latest" (checks Q4_K_M, then Q4, then first GGUF).
+
+    Args:
+        hf_repo_with_tag: HuggingFace repo with optional :tag suffix
+        bearer_token: HuggingFace API token (optional)
+        offline: If True, only check local cache
+
+    Returns:
+        dict with keys: repo, gguf_file, mmproj_file
+
+    Raises:
+        RuntimeError: If download/manifest fetch fails
+
+    Example:
+        info = get_hf_file("bartowski/Llama-3.2-3B-Instruct-GGUF:q4")
+        print(info['gguf_file'])
+    """
+    cdef bytes repo_bytes = hf_repo_with_tag.encode('utf-8')
+    cdef bytes token_bytes = bearer_token.encode('utf-8')
+
+    cdef download.common_hf_file_res res = download.common_get_hf_file(
+        repo_bytes,
+        token_bytes,
+        offline
+    )
+
+    return {
+        'repo': res.repo.decode('utf-8'),
+        'gguf_file': res.ggufFile.decode('utf-8'),
+        'mmproj_file': res.mmprojFile.decode('utf-8')
+    }
+
+
+def download_model(model_path=None, url=None, hf_repo=None, hf_file=None,
+                   docker_repo=None, bearer_token="", offline=False):
+    """
+    Download a model from various sources.
+
+    Args:
+        model_path: Local path to save/load model (optional)
+        url: Direct URL to download from (optional)
+        hf_repo: HuggingFace repo name (optional, can include :tag)
+        hf_file: Specific file in HF repo (optional)
+        docker_repo: Docker registry repo (optional)
+        bearer_token: HuggingFace API token (optional)
+        offline: If True, only use local cache
+
+    Returns:
+        True if download succeeded, False otherwise
+
+    Examples:
+        # Download from HuggingFace with tag
+        download_model(hf_repo="bartowski/Llama-3.2-3B-Instruct-GGUF:q4")
+
+        # Download specific file
+        download_model(
+            hf_repo="bartowski/Llama-3.2-3B-Instruct-GGUF",
+            hf_file="Llama-3.2-3B-Instruct-Q4_K_M.gguf"
+        )
+
+        # Download from URL
+        download_model(url="https://example.com/model.gguf")
+
+        # Download from Docker registry
+        download_model(docker_repo="registry.example.com/model:tag")
+    """
+    cdef download.common_params_model model
+
+    # Set model parameters
+    if model_path:
+        model.path = model_path.encode('utf-8')
+    if url:
+        model.url = url.encode('utf-8')
+    if hf_repo:
+        model.hf_repo = hf_repo.encode('utf-8')
+    if hf_file:
+        model.hf_file = hf_file.encode('utf-8')
+    if docker_repo:
+        model.docker_repo = docker_repo.encode('utf-8')
+
+    cdef bytes token_bytes = bearer_token.encode('utf-8')
+
+    cdef bint success = download.common_download_model(model, token_bytes, offline)
+
+    return success
+
+
+def list_cached_models():
+    """
+    List all models in the local cache.
+
+    Returns:
+        List of dicts with keys: manifest_path, user, model, tag, size
+
+    Example:
+        models = list_cached_models()
+        for m in models:
+            print(f"{m['user']}/{m['model']}:{m['tag']} - {m['size']} bytes")
+    """
+    cdef std_vector[download.common_cached_model_info] cached = download.common_list_cached_models()
+
+    result = []
+    cdef size_t i
+    for i in range(cached.size()):
+        result.append({
+            'manifest_path': cached[i].manifest_path.decode('utf-8'),
+            'user': cached[i].user.decode('utf-8'),
+            'model': cached[i].model.decode('utf-8'),
+            'tag': cached[i].tag.decode('utf-8'),
+            'size': cached[i].size
+        })
+
+    return result
+
+
+def resolve_docker_model(docker_repo):
+    """
+    Resolve and download model from Docker registry.
+
+    Args:
+        docker_repo: Docker registry repository (e.g., "registry.example.com/model:tag")
+
+    Returns:
+        Local path to downloaded model file
+
+    Raises:
+        RuntimeError: If Docker resolution/download fails
+
+    Example:
+        path = resolve_docker_model("myregistry.io/llama:latest")
+        model = LlamaModel(path)
+    """
+    cdef bytes repo_bytes = docker_repo.encode('utf-8')
+    cdef std_string path = download.common_docker_resolve_model(repo_bytes)
+    return path.decode('utf-8')
 
 
 
