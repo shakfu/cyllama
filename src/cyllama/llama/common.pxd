@@ -325,6 +325,7 @@ cdef extern from "common.h":
         bint check_tensors          # validate tensor data
         bint no_op_offload          # globally disable offload host tensor operations to device
         bint no_extra_bufts         # disable extra buffer types (used for weight repacking)
+        bint no_host                # bypass host buffer allowing extra buffers to be used
         bint single_turn            # single turn chat conversation
 
         ggml.ggml_type cache_type_k      # KV cache data type for the K
@@ -337,6 +338,8 @@ cdef extern from "common.h":
         bint mmproj_use_gpu          # use GPU for multimodal model
         bint no_mmproj               # explicitly disable multimodal model
         std_vector[std_string] image # path to image file(s)
+        int image_min_tokens         # minimum number of tokens for image input
+        int image_max_tokens         # maximum number of tokens for image input
 
         # embedding
         bint embedding              # get only sentence embedding
@@ -351,6 +354,8 @@ cdef extern from "common.h":
         int32_t timeout_write       # http write timeout in seconds
         int32_t n_threads_http      # number of threads to process HTTP requests (TODO: support threadpool)
         int32_t n_cache_reuse       # min chunk size to reuse from the cache via KV shifting
+        int32_t n_ctx_checkpoints   # max number of context checkpoints per slot
+        int32_t cache_ram_mib       # -1 = no limit, 0 = disable, 1 = 1 MiB, etc.
 
         std_string hostname
         std_string public_path
@@ -383,6 +388,7 @@ cdef extern from "common.h":
 
         # batched-bench params
         bint is_pp_shared
+        bint is_tg_separate
 
         std_vector[int32_t] n_pp
         std_vector[int32_t] n_tg
@@ -484,6 +490,13 @@ cdef extern from "common.h":
 
     cdef std_string fs_get_cache_directory()
     cdef std_string fs_get_cache_file(const std_string & filename)
+
+    ctypedef struct common_file_info:
+        std_string path
+        std_string name
+        size_t size  # in bytes
+
+    cdef std_vector[common_file_info] fs_list_files(const std_string & path)
 
     # -------------------------------------------------------------------------
     # Model utils

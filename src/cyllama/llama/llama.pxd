@@ -46,10 +46,10 @@ cdef extern from "llama.h":
     cdef enum llama_rope_type:
         LLAMA_ROPE_TYPE_NONE   = -1
         LLAMA_ROPE_TYPE_NORM   = 0
-        LLAMA_ROPE_TYPE_NEOX   = ggml.GGML_ROPE_TYPE_NEOX
-        LLAMA_ROPE_TYPE_MROPE  = ggml.GGML_ROPE_TYPE_MROPE
-        LLAMA_ROPE_TYPE_VISION = ggml.GGML_ROPE_TYPE_VISION
-        LLAMA_ROPE_TYPE_IMROPE = ggml.GGML_ROPE_TYPE_IMROPE
+        LLAMA_ROPE_TYPE_NEOX   = 2   # ggml.GGML_ROPE_TYPE_NEOX
+        LLAMA_ROPE_TYPE_MROPE  = 8   # ggml.GGML_ROPE_TYPE_MROPE
+        LLAMA_ROPE_TYPE_VISION = 24  # ggml.GGML_ROPE_TYPE_VISION
+        LLAMA_ROPE_TYPE_IMROPE = 40  # ggml.GGML_ROPE_TYPE_IMROPE
 
     cdef enum llama_token_type:
         LLAMA_TOKEN_TYPE_UNDEFINED    = 0

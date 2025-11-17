@@ -35,7 +35,8 @@ cdef class MtmdContextParams:
     cdef mtmd_context_params _params
 
     def __init__(self, use_gpu: bool = True, print_timings: bool = False,
-                 n_threads: int = 1, media_marker: str = None):
+                 n_threads: int = 1, media_marker: str = None,
+                 flash_attn_type: int = 0, image_min_tokens: int = -1, image_max_tokens: int = -1):
         """Initialize mtmd context parameters.
 
         Args:
@@ -43,11 +44,17 @@ cdef class MtmdContextParams:
             print_timings: Whether to print timing information
             n_threads: Number of threads for processing
             media_marker: Custom media marker (defaults to mtmd default)
+            flash_attn_type: Flash attention type (0=auto, see llama_flash_attn_type enum)
+            image_min_tokens: Minimum number of tokens for image input (-1=from metadata)
+            image_max_tokens: Maximum number of tokens for image input (-1=from metadata)
         """
         self._params = mtmd_context_params_default()
         self._params.use_gpu = use_gpu
         self._params.print_timings = print_timings
         self._params.n_threads = n_threads
+        self._params.flash_attn_type = <llama_flash_attn_type>flash_attn_type
+        self._params.image_min_tokens = image_min_tokens
+        self._params.image_max_tokens = image_max_tokens
 
         if media_marker is not None:
             # Store the marker (Note: this requires careful memory management)
@@ -77,6 +84,30 @@ cdef class MtmdContextParams:
     @n_threads.setter
     def n_threads(self, value: int):
         self._params.n_threads = value
+
+    @property
+    def flash_attn_type(self) -> int:
+        return self._params.flash_attn_type
+
+    @flash_attn_type.setter
+    def flash_attn_type(self, value: int):
+        self._params.flash_attn_type = <llama_flash_attn_type>value
+
+    @property
+    def image_min_tokens(self) -> int:
+        return self._params.image_min_tokens
+
+    @image_min_tokens.setter
+    def image_min_tokens(self, value: int):
+        self._params.image_min_tokens = value
+
+    @property
+    def image_max_tokens(self) -> int:
+        return self._params.image_max_tokens
+
+    @image_max_tokens.setter
+    def image_max_tokens(self, value: int):
+        self._params.image_max_tokens = value
 
 
 cdef class MtmdBitmap:

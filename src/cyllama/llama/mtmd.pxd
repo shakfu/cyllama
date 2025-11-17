@@ -6,8 +6,8 @@
 from libc.stdint cimport uint32_t, int32_t
 from libc.stddef cimport size_t
 
-from .ggml cimport ggml_log_level
-from .llama cimport llama_model, llama_context, llama_token, llama_pos, llama_seq_id
+from .ggml cimport ggml_log_level, ggml_log_callback
+from .llama cimport llama_model, llama_context, llama_token, llama_pos, llama_seq_id, llama_flash_attn_type
 
 # Forward declarations for Cython classes from llama_cpp
 # We'll import these at runtime to avoid circular imports
@@ -47,7 +47,9 @@ cdef extern from "mtmd.h":
         int n_threads
         const char * image_marker  # deprecated
         const char * media_marker
-        # Note: flash_attn_type, image_min_tokens, image_max_tokens also exist but not wrapped yet
+        llama_flash_attn_type flash_attn_type
+        int image_min_tokens  # minimum number of tokens for image input (default: read from metadata)
+        int image_max_tokens  # maximum number of tokens for image input (default: read from metadata)
 
     # Constants and defaults
     cdef const char * mtmd_default_marker()
@@ -118,11 +120,17 @@ cdef extern from "mtmd.h":
 
     cdef float * mtmd_get_output_embd(mtmd_context * ctx)
 
+    # Logging
+    cdef void mtmd_log_set(ggml_log_callback log_callback, void * user_data)
+
     # Test function
     cdef mtmd_input_chunks * mtmd_test_create_input_chunks()
 
 
 cdef extern from "mtmd-helper.h":
+    # Logging
+    cdef void mtmd_helper_log_set(ggml_log_callback log_callback, void * user_data)
+
     # Helper functions for file/buffer loading
     cdef mtmd_bitmap * mtmd_helper_bitmap_init_from_file(mtmd_context * ctx, const char * fname)
     cdef mtmd_bitmap * mtmd_helper_bitmap_init_from_buf(mtmd_context * ctx,

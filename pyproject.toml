@@ -27,9 +27,6 @@ markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')"
 ]
 
-[tool.uv]
-python-preference = "only-system"
-
 [dependency-groups]
 dev = [
     "cython>=3.1.3",

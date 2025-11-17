@@ -30,14 +30,14 @@ cdef class CpuParams:
         cpumask[GGML_MAX_N_THREADS] is (by default) of size 16
         """
         res = []
-        for i in range(ggml.GGML_MAX_N_THREADS):
+        for i in range(16):  # GGML_MAX_N_THREADS
             res.append(<bint>self.ptr.cpumask[i])
         return res
 
     @cpumask.setter
     def cpumask(self, values: list[bool]):
-        assert len(values) == ggml.GGML_MAX_N_THREADS
-        for i in range(ggml.GGML_MAX_N_THREADS):
+        assert len(values) == 16  # GGML_MAX_N_THREADS
+        for i in range(16):  # GGML_MAX_N_THREADS
             self.ptr.cpumask[i] = <bint>values[i]
 
     @property
