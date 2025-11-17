@@ -157,6 +157,7 @@ extensions = [
     mk_extension("cyllama.llama.llama_cpp", sources=[
         "src/cyllama/llama/llama_cpp.pyx",
         "src/cyllama/llama/helpers/tts.cpp",
+        "src/cyllama/llama/helpers/json_schema.cpp",
         # "build/llama.cpp/tools/server/server.cpp",
     ]),
     Extension(
