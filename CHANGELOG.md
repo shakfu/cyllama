@@ -17,6 +17,57 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [0.1.x]
 
+## [0.1.7] - 2025-11-17
+
+### Added
+
+- **GGUF File Format API** (`gguf.h` wrapper)
+  - Added `GGUFContext` class for reading and writing GGUF model files
+  - Methods: `from_file()`, `write_to_file()`, `get_value()`, `get_all_metadata()`, `set_val_*()`, `get_all_tensor_info()`, `find_tensor()`, `remove_key()`
+  - 6 comprehensive tests in `tests/test_gguf.py`
+  - Example: `tests/examples/gguf_example.py`
+  - Enables model inspection, metadata manipulation, and custom GGUF creation
+
+- **JSON Schema to Grammar API** (`json-schema-to-grammar.h` wrapper)
+  - Added `json_schema_to_grammar()` function to convert JSON schemas to GBNF grammars
+  - Supports nested objects, arrays, enums, and complex schemas
+  - Force GBNF mode with `force_gbnf` parameter
+  - C++ wrapper layer to bridge nlohmann::json library
+  - 11 comprehensive tests in `tests/test_json_schema.py`
+  - Example: `tests/examples/json_schema_example.py`
+  - Essential for structured JSON output from language models
+
+- **Download Helper API** (`download.h` wrapper)
+  - Added `download_model()` function for downloading from HuggingFace, URLs, and Docker registries
+  - Added `get_hf_file()` function with Ollama-style quantization tags (`:q4`, `:q8`, etc.)
+  - Added `list_cached_models()` function to enumerate cached models
+  - Added `resolve_docker_model()` function for Docker registry integration
+  - Support for bearer token authentication
+  - 11 comprehensive tests in `tests/test_download.py`
+  - Example: `tests/examples/download_example.py`
+  - Models cached in `~/.cache/llama.cpp/`
+
+- **N-gram Cache API** (`ngram-cache.h` wrapper)
+  - Added `NgramCache` class for accelerating generation with repeated patterns
+  - Methods: `update()`, `draft()`, `save()`, `load()`, `merge()`
+  - Support for context/dynamic/static cache types
+  - Configurable ngram_min and ngram_max parameters (2-4)
+  - 14 comprehensive tests in `tests/test_ngram_cache.py`
+  - Example: `tests/examples/ngram_cache_example.py`
+  - Provides 2-10x speedup for repetitive text (code, templates, structured data)
+
+### Changed
+
+- **Exception Handling**: All new C++ API bindings use `except +` for automatic exception translation
+- **Documentation**: Updated `RECOMMENDED_TO_WRAP.md` to reflect completion of 4 new high-priority APIs
+
+### Technical Implementation
+
+- **GGUF API**: Created `gguf.pxd` with complete C API declarations, wrapper methods in `llama_cpp.pyx`
+- **JSON Schema**: C++ bridge (`json_schema.cpp/h`) for nlohmann::json, installed v3.12.0 headers
+- **Download API**: Created `download.pxd`, Cython wrappers with memory-safe string handling
+- **N-gram Cache**: Created `ngram_cache.pxd`, draft vector seed token initialization, proper memory management
+
 ## [0.1.6]
 
 ### Fixed

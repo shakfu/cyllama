@@ -121,6 +121,86 @@ If all tests pass, you can type `python3 -i scripts/start.py` or `ipython -i scr
 'The estimated age of the universe is around 13.8 billion years'
 ```
 
+## Features
+
+### Core LLM Inference
+- Full llama.cpp API wrapper with Cython extension classes
+- High-level simple API for quick prototyping
+- Low-level API for fine-grained control
+- OpenAI-compatible server implementations (embedded, mongoose, launcher)
+- Chat templates and conversation management
+- Advanced sampling strategies
+
+### New in v0.1.7 (November 2025)
+
+**GGUF File Format API** - Inspect and manipulate GGUF model files
+```python
+from cyllama.llama.llama_cpp import GGUFContext
+
+# Inspect model metadata
+ctx = GGUFContext.from_file("model.gguf")
+metadata = ctx.get_all_metadata()
+print(f"Architecture: {metadata['general.architecture']}")
+
+# Create custom GGUF files
+ctx = GGUFContext.empty()
+ctx.set_val_str("custom.key", "value")
+ctx.write_to_file("custom.gguf")
+```
+
+**JSON Schema to Grammar** - Generate structured JSON output
+```python
+from cyllama.llama.llama_cpp import json_schema_to_grammar
+
+schema = {
+    "type": "object",
+    "properties": {
+        "name": {"type": "string"},
+        "age": {"type": "integer"}
+    },
+    "required": ["name"]
+}
+
+grammar = json_schema_to_grammar(schema)
+# Use grammar to constrain model output to valid JSON
+```
+
+**Download Helper** - Easy model downloads with Ollama-style tags
+```python
+from cyllama.llama.llama_cpp import download_model, list_cached_models
+
+# Download from HuggingFace with short tags
+download_model(hf_repo="bartowski/Llama-3.2-1B-Instruct-GGUF:q4")
+
+# List cached models
+models = list_cached_models()
+for m in models:
+    print(f"{m['user']}/{m['model']}:{m['tag']}")
+```
+
+**N-gram Cache** - 2-10x speedup for repetitive text
+```python
+from cyllama.llama.llama_cpp import NgramCache
+
+# Learn patterns from token sequences
+cache = NgramCache()
+cache.update(tokens, ngram_min=2, ngram_max=4)
+
+# Predict likely continuations
+draft = cache.draft(input_tokens, n_draft=16)
+
+# Save/load for reuse
+cache.save("patterns.bin")
+```
+
+### Additional Features
+- **Multimodal Support** - LLAVA and other vision-language models
+- **Whisper.cpp Integration** - Speech-to-text transcription
+- **TTS Support** - Text-to-speech generation
+- **Memory Management** - Efficient memory utilities and monitoring
+
+For detailed examples, see `tests/examples/`.
+
 ## TODO
 
 - [x] wrap llama-simple

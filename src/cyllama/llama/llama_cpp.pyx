@@ -21,6 +21,7 @@ cimport chat
 cimport log
 cimport gguf
 cimport download
+cimport ngram_cache
 
 
 import os
@@ -3279,6 +3280,222 @@ def resolve_docker_model(docker_repo):
     cdef bytes repo_bytes = docker_repo.encode('utf-8')
     cdef std_string path = download.common_docker_resolve_model(repo_bytes)
     return path.decode('utf-8')
+
+
+# =============================================================================
+# N-gram Cache API
+# =============================================================================
+
+cdef class NgramCache:
+    """
+    N-gram cache for accelerating text generation with repeated patterns.
+
+    N-gram caching stores patterns of previously generated tokens and uses them
+    to predict likely continuations, speeding up generation when text contains
+    repetitive patterns.
+
+    Example:
+        # Create and update cache
+        cache = NgramCache()
+        tokens = [1, 2, 3, 4, 5, 2, 3, 4]  # Repeated pattern [2,3,4]
+        cache.update(tokens, ngram_min=2, ngram_max=4)
+
+        # Use for drafting
+        inp = [1, 2]
+        draft = cache.draft(inp, n_draft=5, ngram_min=2, ngram_max=4)
+
+        # Save/load
+        cache.save("cache.bin")
+        cache2 = NgramCache.load("cache.bin")
+
+        # Merge caches
+        cache.merge(cache2)
+    """
+    cdef ngram_cache.common_ngram_cache * ptr
+    cdef bint owner
+
+    def __cinit__(self):
+        self.ptr = new ngram_cache.common_ngram_cache()
+        self.owner = True
+
+    def __dealloc__(self):
+        if self.owner and self.ptr != NULL:
+            del self.ptr
+
+    def update(self, tokens, ngram_min=2, ngram_max=4, nnew=None, print_progress=False):
+        """
+        Update the n-gram cache with new tokens.
+
+        Args:
+            tokens: List of token IDs to add to the cache
+            ngram_min: Minimum n-gram size (default: 2)
+            ngram_max: Maximum n-gram size (default: 4, max: LLAMA_NGRAM_MAX)
+            nnew: Number of new tokens appended (default: len(tokens))
+            print_progress: Print progress to stderr (default: False)
+
+        Note:
+            For correct results, tokens should ONLY be appended to.
+            Changes in the middle require rebuilding the cache.
+
+        Example:
+            cache = NgramCache()
+            cache.update([1, 2, 3, 4, 5])
+            cache.update([1, 2, 3, 4, 5, 6, 7], nnew=2)  # Only 6, 7 are new
+        """
+        cdef std_vector[llama.llama_token] token_vec
+        cdef int i
+
+        # Convert Python list to C++ vector
+        for token in tokens:
+            token_vec.push_back(token)
+
+        # Default nnew to all tokens if not specified
+        if nnew is None:
+            nnew = len(tokens)
+
+        # Clamp to valid range
+        ngram_min = max(ngram_cache.LLAMA_NGRAM_MIN, min(ngram_min, ngram_cache.LLAMA_NGRAM_MAX))
+        ngram_max = max(ngram_cache.LLAMA_NGRAM_MIN, min(ngram_max, ngram_cache.LLAMA_NGRAM_MAX))
+
+        ngram_cache.common_ngram_cache_update(
+            self.ptr[0],
+            ngram_min,
+            ngram_max,
+            token_vec,
+            nnew,
+            print_progress
+        )
+
+    def draft(self, inp, n_draft=16, ngram_min=2, ngram_max=4,
+              context_cache=None, dynamic_cache=None, static_cache=None):
+        """
+        Draft tokens using n-gram prediction.
+
+        Args:
+            inp: Input tokens generated so far
+            n_draft: Maximum number of tokens to draft (default: 16)
+            ngram_min: Minimum n-gram size (default: 2)
+            ngram_max: Maximum n-gram size (default: 4)
+            context_cache: NgramCache based on current context (default: self)
+            dynamic_cache: NgramCache based on previous generations (default: empty)
+            static_cache: NgramCache from large corpus for validation (default: empty)
+
+        Returns:
+            List of drafted token IDs
+
+        Example:
+            cache = NgramCache()
+            cache.update([1, 2, 3, 4, 5, 2, 3])
+
+            inp = [1, 2]
+            draft = cache.draft(inp, n_draft=5)
+            # Likely to predict [3, 4, ...] based on pattern
+        """
+        cdef std_vector[llama.llama_token] inp_vec
+        cdef std_vector[llama.llama_token] draft_vec
+        cdef NgramCache ctx_cache = context_cache if context_cache is not None else self
+        cdef NgramCache dyn_cache = dynamic_cache if dynamic_cache is not None else NgramCache()
+        cdef NgramCache sta_cache = static_cache if static_cache is not None else NgramCache()
+        cdef int i
+
+        # Convert input to C++ vector
+        for token in inp:
+            inp_vec.push_back(token)
+
+        # Initialize draft_vec with seed token (required by C++ function)
+        # The draft function expects draft_vec to have exactly 1 element initially
+        if len(inp) > 0:
+            draft_vec.push_back(inp[-1])  # Use last token as seed
+        else:
+            draft_vec.push_back(0)  # Use 0 as seed if no input
+
+        # Clamp to valid range
+        ngram_min = max(ngram_cache.LLAMA_NGRAM_MIN, min(ngram_min, ngram_cache.LLAMA_NGRAM_MAX))
+        ngram_max = max(ngram_cache.LLAMA_NGRAM_MIN, min(ngram_max, ngram_cache.LLAMA_NGRAM_MAX))
+
+        ngram_cache.common_ngram_cache_draft(
+            inp_vec,
+            draft_vec,
+            n_draft,
+            ngram_min,
+            ngram_max,
+            ctx_cache.ptr[0],
+            dyn_cache.ptr[0],
+            sta_cache.ptr[0]
+        )
+
+        # Convert C++ vector to Python list
+        # Skip the first element (seed token) and return only the drafted tokens
+        result = []
+        for i in range(1, draft_vec.size()):  # Start from 1 to skip seed
+            result.append(draft_vec[i])
+
+        return result
+
+    def save(self, filename):
+        """
+        Save the n-gram cache to a file.
+
+        Args:
+            filename: Path where to save the cache
+
+        Example:
+            cache = NgramCache()
+            cache.update([1, 2, 3, 4, 5])
+            cache.save("my_cache.bin")
+        """
+        cdef std_string fname = filename.encode('utf-8')
+        ngram_cache.common_ngram_cache_save(self.ptr[0], fname)
+
+    @staticmethod
+    def load(filename):
+        """
+        Load an n-gram cache from a file.
+
+        Args:
+            filename: Path from which to load the cache
+
+        Returns:
+            NgramCache instance with loaded data
+
+        Example:
+            cache = NgramCache.load("my_cache.bin")
+            draft = cache.draft([1, 2], n_draft=5)
+        """
+        cdef NgramCache cache = NgramCache.__new__(NgramCache)
+        cdef std_string fname = filename.encode('utf-8')
+
+        cache.ptr = new ngram_cache.common_ngram_cache(
+            ngram_cache.common_ngram_cache_load(fname)
+        )
+        cache.owner = True
+
+        return cache
+
+    def merge(self, other):
+        """
+        Merge another n-gram cache into this one.
+
+        Args:
+            other: Another NgramCache to merge into this cache
+
+        Example:
+            cache1 = NgramCache()
+            cache1.update([1, 2, 3])
+
+            cache2 = NgramCache()
+            cache2.update([4, 5, 6])
+
+            cache1.merge(cache2)  # cache1 now contains both patterns
+        """
+        if not isinstance(other, NgramCache):
+            raise TypeError("Can only merge with another NgramCache")
+
+        cdef NgramCache other_cache = other
+        ngram_cache.common_ngram_cache_merge(self.ptr[0], other_cache.ptr[0])
+
+    def __repr__(self):
+        return f"<NgramCache at {hex(id(self))}>"
 
 
 
