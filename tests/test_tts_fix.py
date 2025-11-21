@@ -5,6 +5,7 @@ Test the fixed TTS implementation
 
 import sys
 import os
+import pytest
 
 
 def test_tts_generation():
@@ -15,7 +16,8 @@ def test_tts_generation():
     ttc_model = "models/tts.gguf"
     cts_model = "models/WavTokenizer-Large-75-F16.gguf"
 
-    assert os.path.exists(ttc_model), f"Model file {ttc_model} not found. Please ensure you have the TTS models."
+    if not os.path.exists(ttc_model):
+        pytest.skip(f"Model file {ttc_model} not found. Please ensure you have the TTS models.")
 
     # Create TTS generator with the fixed implementation
     tts = TTSGenerator(
