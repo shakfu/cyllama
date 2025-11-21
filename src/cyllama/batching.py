@@ -34,6 +34,7 @@ from .llama.llama_cpp import (
     LlamaSamplerChainParams,
     LlamaBatch,
     ggml_backend_load_all,
+    disable_logging,
 )
 from .generate import GenerationConfig
 
@@ -95,6 +96,10 @@ class BatchGenerator:
         self.batch_size = batch_size
         self.n_ctx = n_ctx
         self.verbose = verbose
+
+        # Disable llama.cpp logging unless verbose mode is enabled
+        if not verbose:
+            disable_logging()
 
         # Load backends
         ggml_backend_load_all()

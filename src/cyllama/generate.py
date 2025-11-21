@@ -29,6 +29,7 @@ from .llama.llama_cpp import (
     LlamaSamplerChainParams,
     llama_batch_get_one,
     ggml_backend_load_all,
+    disable_logging,
 )
 
 
@@ -113,6 +114,10 @@ class Generator:
         self.model_path = model_path
         self.config = config or GenerationConfig()
         self.verbose = verbose
+
+        # Disable llama.cpp logging unless verbose mode is enabled
+        if not verbose:
+            disable_logging()
 
         # Load backends
         ggml_backend_load_all()
@@ -346,6 +351,7 @@ def generate(
     model_path: str,
     config: Optional[GenerationConfig] = None,
     stream: bool = False,
+    verbose: bool = False,
     **kwargs
 ) -> str | Iterator[str]:
     """
@@ -358,6 +364,7 @@ def generate(
         model_path: Path to GGUF model file
         config: Generation configuration
         stream: If True, return iterator of text chunks
+        verbose: Enable detailed logging from llama.cpp
         **kwargs: Additional config parameters (override config values)
 
     Returns:
@@ -384,7 +391,7 @@ def generate(
             if hasattr(config, key):
                 setattr(config, key, value)
 
-    generator = Generator(model_path, config=config)
+    generator = Generator(model_path, config=config, verbose=verbose)
     return generator(prompt, stream=stream)
 
 
@@ -393,6 +400,7 @@ def chat(
     model_path: str,
     config: Optional[GenerationConfig] = None,
     stream: bool = False,
+    verbose: bool = False,
     **kwargs
 ) -> str | Iterator[str]:
     """
@@ -403,6 +411,7 @@ def chat(
         model_path: Path to GGUF model file
         config: Generation configuration
         stream: If True, return iterator of text chunks
+        verbose: Enable detailed logging from llama.cpp
         **kwargs: Additional config parameters
 
     Returns:
@@ -425,4 +434,4 @@ def chat(
 
     prompt = "\n\n".join(prompt_parts) + "\n\nAssistant:"
 
-    return generate(prompt, model_path, config, stream, **kwargs)
+    return generate(prompt, model_path, config, stream, verbose=verbose, **kwargs)

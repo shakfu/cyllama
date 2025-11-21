@@ -1,9 +1,12 @@
 from .llama import llama_cpp as cy
 
 
-def simple(model_path: str, prompt: str, ngl: int = 99, n_predict: int = 32, n_ctx: int = None):
+def simple(model_path: str, prompt: str, ngl: int = 99, n_predict: int = 32, n_ctx: int = None, verbose=False):
     
     # load dynamic backends
+
+    if not verbose:
+        cy.disable_logging()
 
     cy.ggml_backend_load_all()
 
