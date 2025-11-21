@@ -1,6 +1,5 @@
 # example dependencies
 
-
 ## batched
 
 The example demonstrates batched generation from a given prompt
@@ -12,7 +11,7 @@ The example demonstrates batched generation from a given prompt
 #include "llama.h"
 ```
 
-# convert-llama2c-to-ggml
+### convert-llama2c-to-ggml
 
 This example reads weights from project [llama2.c](https://github.com/karpathy/llama2.c) and saves them in ggml compatible format. The vocab that is available in `models/ggml-vocab.bin` is used by default.
 
@@ -24,8 +23,7 @@ This example reads weights from project [llama2.c](https://github.com/karpathy/l
 #include "log.h"
 ```
 
-
-# embedding
+### embedding
 
 This example demonstrates generate high-dimensional embedding vector of a given text with llama.cpp.
 
@@ -36,8 +34,7 @@ This example demonstrates generate high-dimensional embedding vector of a given 
 #include "llama.h"
 ```
 
-
-# eval-callback
+### eval-callback
 
 A simple example which demonstrates how to use callback during the inference.
 It simply prints to the console all operations and tensor data.
@@ -50,7 +47,7 @@ It simply prints to the console all operations and tensor data.
 #include "ggml.h"
 ```
 
-# gen-docs
+### gen-docs
 
 This example reads weights from project [llama2.c](https://github.com/karpathy/llama2.c) and saves them in ggml compatible format. The vocab that is available in `models/ggml-vocab.bin` is used by default.
 
@@ -59,7 +56,7 @@ This example reads weights from project [llama2.c](https://github.com/karpathy/l
 #include "common.h"
 ```
 
-# gguf
+### gguf
 
 This example reads weights from project [llama2.c](https://github.com/karpathy/llama2.c) and saves them in ggml compatible format. The vocab that is available in `models/ggml-vocab.bin` is used by default.
 
@@ -68,7 +65,7 @@ This example reads weights from project [llama2.c](https://github.com/karpathy/l
 #include "gguf.h"
 ```
 
-# gguf-hash
+### gguf-hash
 
 CLI to hash GGUF files to detect difference on a per model and per tensor level.
 
@@ -77,7 +74,7 @@ CLI to hash GGUF files to detect difference on a per model and per tensor level.
 #include "gguf.h"
 ```
 
-# gritlm
+### gritlm
 
 Generative Representational Instruction Tuning (GRIT): a model which can generate embeddings as well as "normal" text generation depending on the instructions in the prompt.
 
@@ -87,7 +84,7 @@ Generative Representational Instruction Tuning (GRIT): a model which can generat
 #include "llama.h"
 ```
 
-# lookahead
+### lookahead
 
 Demonstration of lookahead decoding technique.
 
@@ -99,7 +96,7 @@ Demonstration of lookahead decoding technique.
 #include "llama.h"
 ```
 
-# lookup
+### lookup
 
 Demonstration of Prompt Lookup Decoding.
 
@@ -113,7 +110,7 @@ Demonstration of Prompt Lookup Decoding.
 #include "llama.h"
 ```
 
-# parallel
+### parallel
 
 Simplified simulation of serving incoming requests in parallel.
 
@@ -125,7 +122,7 @@ Simplified simulation of serving incoming requests in parallel.
 #include "llama.h"
 ```
 
-# passkey
+### passkey
 
 A passkey retrieval task is an evaluation method used to measure a language
 models ability to recall information from long contexts.
@@ -137,7 +134,7 @@ models ability to recall information from long contexts.
 #include "llama.h"
 ```
 
-# retrieval
+### retrieval
 
 Demonstration of simple retrieval technique based on cosine similarity.
 
@@ -148,7 +145,7 @@ Demonstration of simple retrieval technique based on cosine similarity.
 #include "llama.h"
 ```
 
-# save-load-state
+### save-load-state
 
 ```c++
 #include "arg.h"
@@ -156,7 +153,7 @@ Demonstration of simple retrieval technique based on cosine similarity.
 #include "llama.h"
 ```
 
-# simple
+### simple
 
 The purpose of this example is to demonstrate a minimal usage of llama.cpp for generating text with a given prompt.
 
@@ -164,7 +161,7 @@ The purpose of this example is to demonstrate a minimal usage of llama.cpp for g
 #include "llama.h"
 ```
 
-# simple-chat
+### simple-chat
 
 The purpose of this example is to demonstrate a minimal usage of llama.cpp to create a simple chat program using the chat template from the GGUF file.
 
@@ -172,7 +169,7 @@ The purpose of this example is to demonstrate a minimal usage of llama.cpp to cr
 #include "llama.h"
 ```
 
-# speculative
+### speculative
 
 Demonstration of speculative decoding and tree-based speculative decoding techniques.
 
@@ -184,7 +181,7 @@ Demonstration of speculative decoding and tree-based speculative decoding techni
 #include "llama.h"
 ```
 
-# speculative-simple
+### speculative-simple
 
 Demonstration of basic greedy speculative decoding.
 
@@ -197,7 +194,7 @@ Demonstration of basic greedy speculative decoding.
 #include "llama.h"
 ```
 
-# training
+### training
 
 This directory contains examples related to language model training using llama.cpp/GGML.
 
@@ -209,11 +206,9 @@ Finetuning of Stories 260K and LLaMA 3.2 1b seems to work with 24 GB of memory.
 
 **For CUDA training, use the maximum number of GPU layers.**
 
-
 ```c++
 #include "arg.h"
 #include "common.h"
 #include "log.h"
 #include "llama.h"
 ```
-
