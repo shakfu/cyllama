@@ -36,6 +36,8 @@ get_llamacpp() {
 		cp common/*.hpp ${INCLUDE} && \
 		cp ggml/include/*.h ${INCLUDE} && \
 		# cp examples/llava/*.h ${INCLUDE} && \
+		mkdir -p ${INCLUDE}/nlohmann && \
+		cp vendor/nlohmann/*.hpp ${INCLUDE}/nlohmann/ && \
 		mkdir -p build && \
 		cd build && \
 		cmake .. -DBUILD_SHARED_LIBS=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON && \
@@ -65,6 +67,8 @@ get_llamacpp_shared() {
 		cp common/*.hpp ${INCLUDE} && \
 		cp ggml/include/*.h ${INCLUDE} && \
 		# cp examples/llava/*.h ${INCLUDE} && \
+		mkdir -p ${INCLUDE}/nlohmann && \
+		cp vendor/nlohmann/*.hpp ${INCLUDE}/nlohmann/ && \
 		mkdir -p build && \
 		cd build && \
 		cmake .. -DBUILD_SHARED_LIBS=ON -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_INSTALL_NAME_DIR=${LIB} && \
