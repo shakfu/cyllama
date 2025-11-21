@@ -198,7 +198,7 @@ class ServerSlot:
 
 
 
-class EmbeddedLlamaServer:
+class EmbeddedServer:
     """
     Embedded Llama.cpp server using existing cyllama bindings.
 
@@ -515,7 +515,7 @@ class EmbeddedLlamaServer:
 
 
 # Convenience function
-def start_embedded_server(model_path: str, **kwargs) -> EmbeddedLlamaServer:
+def start_embedded_server(model_path: str, **kwargs) -> EmbeddedServer:
     """
     Start an embedded server with simple configuration.
 
@@ -524,10 +524,10 @@ def start_embedded_server(model_path: str, **kwargs) -> EmbeddedLlamaServer:
         **kwargs: Additional configuration parameters
 
     Returns:
-        Started EmbeddedLlamaServer instance
+        Started EmbeddedServer instance
     """
     config = ServerConfig(model_path=model_path, **kwargs)
-    server = EmbeddedLlamaServer(config)
+    server = EmbeddedServer(config)
 
     if not server.start():
         raise RuntimeError("Failed to start embedded server")
@@ -558,7 +558,7 @@ def start_embedded_server(model_path: str, **kwargs) -> EmbeddedLlamaServer:
 #         n_gpu_layers=args.gpu_layers
 #     )
 
-#     with EmbeddedLlamaServer(config) as server:
+#     with EmbeddedServer(config) as server:
 #         print(f"Server running at http://{args.host}:{args.port}")
 #         print("Press Ctrl+C to stop...")
 

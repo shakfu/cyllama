@@ -2,7 +2,7 @@
 """
 Tests for embedded llama.cpp server functionality.
 
-These tests cover the EmbeddedLlamaServer class and related components,
+These tests cover the EmbeddedServer class and related components,
 ensuring proper server functionality using existing cyllama bindings.
 """
 
@@ -15,7 +15,7 @@ from unittest.mock import Mock, patch, MagicMock
 
 from cyllama.llama.server.embedded import (
     ServerConfig,
-    EmbeddedLlamaServer,
+    EmbeddedServer,
     ServerSlot,
     ChatMessage,
     ChatRequest,
@@ -244,8 +244,8 @@ class TestServerSlot:
             assert result == ""  # Should return empty string on error
 
 
-class TestEmbeddedLlamaServer:
-    """Test EmbeddedLlamaServer class functionality."""
+class TestEmbeddedServer:
+    """Test EmbeddedServer class functionality."""
 
     @pytest.fixture
     def config(self):
@@ -265,7 +265,7 @@ class TestEmbeddedLlamaServer:
 
     def test_server_creation(self, config):
         """Test creating an embedded server."""
-        server = EmbeddedLlamaServer(config)
+        server = EmbeddedServer(config)
 
         assert server.config == config
         assert server.model is None
@@ -279,7 +279,7 @@ class TestEmbeddedLlamaServer:
         MockLlamaModel.return_value = mock_model
         MockServerSlot.return_value = Mock()
 
-        server = EmbeddedLlamaServer(config)
+        server = EmbeddedServer(config)
         result = server.load_model()
 
         assert result is True
@@ -292,7 +292,7 @@ class TestEmbeddedLlamaServer:
         """Test model loading failure."""
         MockLlamaModel.side_effect = Exception("Model load failed")
 
-        server = EmbeddedLlamaServer(config)
+        server = EmbeddedServer(config)
         result = server.load_model()
 
         assert result is False
@@ -300,7 +300,7 @@ class TestEmbeddedLlamaServer:
 
     def test_get_available_slot(self, config):
         """Test getting available slots."""
-        server = EmbeddedLlamaServer(config)
+        server = EmbeddedServer(config)
 
         # Create mock slots
         slot1 = Mock()
@@ -317,7 +317,7 @@ class TestEmbeddedLlamaServer:
 
     def test_get_available_slot_none_available(self, config):
         """Test getting available slots when none are available."""
-        server = EmbeddedLlamaServer(config)
+        server = EmbeddedServer(config)
 
         # All slots busy
         slot1 = Mock()
@@ -332,7 +332,7 @@ class TestEmbeddedLlamaServer:
 
     def test_messages_to_prompt(self, config):
         """Test converting messages to prompt."""
-        server = EmbeddedLlamaServer(config)
+        server = EmbeddedServer(config)
 
         messages = [
             ChatMessage(role="system", content="You are helpful"),
@@ -348,7 +348,7 @@ class TestEmbeddedLlamaServer:
 
     def test_process_chat_completion_success(self, config, mock_model):
         """Test successful chat completion processing."""
-        server = EmbeddedLlamaServer(config)
+        server = EmbeddedServer(config)
         server.model = mock_model
 
         # Create mock slot
@@ -386,7 +386,7 @@ class TestEmbeddedLlamaServer:
 
     def test_process_chat_completion_no_slots(self, config):
         """Test chat completion with no available slots."""
-        server = EmbeddedLlamaServer(config)
+        server = EmbeddedServer(config)
         server.slots = []  # No slots
 
         messages = [ChatMessage(role="user", content="Hello")]
@@ -397,7 +397,7 @@ class TestEmbeddedLlamaServer:
 
     def test_context_manager(self, config):
         """Test server as context manager."""
-        server = EmbeddedLlamaServer(config)
+        server = EmbeddedServer(config)
 
         with patch.object(server, 'start', return_value=True) as mock_start, \
              patch.object(server, 'stop') as mock_stop:
@@ -410,7 +410,7 @@ class TestEmbeddedLlamaServer:
 
     def test_context_manager_start_failure(self, config):
         """Test context manager when start fails."""
-        server = EmbeddedLlamaServer(config)
+        server = EmbeddedServer(config)
 
         with patch.object(server, 'start', return_value=False):
             with pytest.raises(RuntimeError, match="Failed to start server"):
@@ -429,7 +429,7 @@ class TestHTTPEndpoints:
     @pytest.fixture
     def mock_server(self, server_config):
         """Create a mock server for testing."""
-        server = EmbeddedLlamaServer(server_config)
+        server = EmbeddedServer(server_config)
         server.model = Mock()
         server.slots = [Mock()]
         return server
@@ -478,17 +478,17 @@ class TestHTTPEndpoints:
 class TestConvenienceFunction:
     """Test convenience functions."""
 
-    @patch('cyllama.llama.server.embedded.EmbeddedLlamaServer')
-    def test_start_embedded_server_success(self, MockEmbeddedLlamaServer):
+    @patch('cyllama.llama.server.embedded.EmbeddedServer')
+    def test_start_embedded_server_success(self, MockEmbeddedServer):
         """Test start_embedded_server convenience function."""
         mock_server = Mock()
         mock_server.start.return_value = True
-        MockEmbeddedLlamaServer.return_value = mock_server
+        MockEmbeddedServer.return_value = mock_server
 
         result = start_embedded_server("test.gguf", port=9090, n_ctx=8192)
 
-        MockEmbeddedLlamaServer.assert_called_once()
-        config_arg = MockEmbeddedLlamaServer.call_args[0][0]
+        MockEmbeddedServer.assert_called_once()
+        config_arg = MockEmbeddedServer.call_args[0][0]
         assert config_arg.model_path == "test.gguf"
         assert config_arg.port == 9090
         assert config_arg.n_ctx == 8192
@@ -496,12 +496,12 @@ class TestConvenienceFunction:
         mock_server.start.assert_called_once()
         assert result == mock_server
 
-    @patch('cyllama.llama.server.embedded.EmbeddedLlamaServer')
-    def test_start_embedded_server_failure(self, MockEmbeddedLlamaServer):
+    @patch('cyllama.llama.server.embedded.EmbeddedServer')
+    def test_start_embedded_server_failure(self, MockEmbeddedServer):
         """Test start_embedded_server when server fails to start."""
         mock_server = Mock()
         mock_server.start.return_value = False
-        MockEmbeddedLlamaServer.return_value = mock_server
+        MockEmbeddedServer.return_value = mock_server
 
         with pytest.raises(RuntimeError, match="Failed to start embedded server"):
             start_embedded_server("test.gguf")
@@ -529,7 +529,7 @@ class TestEmbeddedServerIntegration:
             n_gpu_layers=0  # CPU only for reliability
         )
 
-        server = EmbeddedLlamaServer(config)
+        server = EmbeddedServer(config)
 
         try:
             # Load model
@@ -561,7 +561,7 @@ class TestEmbeddedServerIntegration:
         )
 
         # This should work without errors
-        with EmbeddedLlamaServer(config) as server:
+        with EmbeddedServer(config) as server:
             assert server.model is not None
             assert len(server.slots) > 0
 

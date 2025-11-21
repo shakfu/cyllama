@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Simple chat implementation equivalent to build/llama.cpp/examples/simple-chat/simple-chat.cpp
+Chat implementation equivalent to build/llama.cpp/examples/simple-chat/simple-chat.cpp
 
-This module provides a Python implementation of the simple-chat example using the cyllama wrapper.
+This module provides a Python implementation of the chat example using the cyllama wrapper.
 """
 
 import sys
@@ -24,8 +24,8 @@ def print_usage():
     print()
 
 
-class SimpleChat:
-    """Simple chat interface using cyllama"""
+class Chat:
+    """Chat interface using cyllama"""
     
     def __init__(self, model_path: str, n_ctx: int = 2048, ngl: int = 99):
         """Initialize the chat with model and parameters"""
@@ -223,7 +223,7 @@ def main():
     args = parser.parse_args()
     
     try:
-        chat = SimpleChat(args.model, args.context, args.n_gpu_layers)
+        chat = Chat(args.model, args.context, args.n_gpu_layers)
         chat.chat_loop()
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)

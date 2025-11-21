@@ -1,7 +1,7 @@
 # Import from the embedded server
 from .embedded import (
     ServerConfig as EmbeddedServerConfig,
-    EmbeddedLlamaServer,
+    EmbeddedServer,
     ChatMessage,
     ChatRequest,
     ChatResponse,

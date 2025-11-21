@@ -38,21 +38,30 @@ response = chat(messages, model_path="model.gguf")
 
 ### 2. **Chat Templates & Conversation Support**
 
-Full support for chat templates and multi-turn conversations:
+Full support for chat templates and multi-turn conversations through the high-level API:
 
 ```python
-from cyllama.llama import Chat
+from cyllama import chat
 
-# Automatic chat template detection and formatting
-chat = Chat(model_path="model.gguf")
-chat.add_message("system", "You are a helpful assistant")
-chat.add_message("user", "What is Python?")
+# Multi-turn conversation with automatic template formatting
+messages = [
+    {"role": "system", "content": "You are a helpful assistant"},
+    {"role": "user", "content": "What is Python?"}
+]
+response = chat(messages, model_path="model.gguf")
 
-# Generates properly formatted prompt for the model
-response = chat.generate()
+# Or use the Chat class for interactive CLI
+from cyllama.llama.chat import Chat
+
+chat_session = Chat(model_path="model.gguf")
+chat_session.chat_loop()  # Interactive chat with template auto-detection
 ```
 
-Supports built-in templates (ChatML, Llama-3, Mistral, etc.) and custom templates. The library automatically detects and applies the correct template from the model metadata.
+**Features:**
+- Automatic chat template detection from model metadata
+- Supports built-in templates (ChatML, Llama-3, Mistral, etc.)
+- Custom template support via `LlamaChatMessage` and `chat_apply_template()`
+- Conversation history management
 
 ### 3. **Batch Processing**
 

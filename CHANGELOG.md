@@ -25,6 +25,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - `generate.py` → `api.py` - New unified API module
   - `Generator` class → `LLM` class - Better semantic naming
   - `generate()` function → `complete()` function - More precise terminology
+  - `SimpleChat` class → `Chat` class - Clearer naming for chat interface
+  - `EmbeddedLlamaServer` class → `EmbeddedServer` class - Simpler naming
   - Merged `api.simple()` into new `api.py` module
   - Updated all integrations and tests to use new naming
   - All exports remain available from `cyllama` package root

@@ -1,4 +1,4 @@
-# cyllama - High-Performance LLM Inference for Python
+# cyllama - LLM Inference for Python
 
 Fast, Pythonic LLM Inference -- Cyllama is a comprehensive no-dependencies Python library for LLM inference built on [llama.cpp](https://github.com/ggml-org/llama.cpp), the leading open-source C++ LLM inference engine. It combines the performance of compiled Cython wrappers with a simple, high-level Python API.
 
