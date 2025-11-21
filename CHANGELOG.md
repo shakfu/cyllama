@@ -17,6 +17,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [0.1.x]
 
+## [0.1.8] - 2025-11-21
+
+### Added
+
+- **Speculative Decoding API** (`speculative.h` wrapper)
+  - Added `SpeculativeParams` class for configuring speculative decoding parameters
+  - Added `Speculative` class for managing speculative decoding with target and draft models
+  - Methods: `are_compatible()`, `add_replacement()`, `gen_draft()`
+  - Parameters: `n_draft` (max drafted tokens), `n_reuse` (token reuse), `p_min` (acceptance probability)
+  - 17 comprehensive tests in `tests/test_speculative.py`
+  - Example: `tests/examples/speculative_example.py` with parameter tuning demonstrations
+  - Enables 2-3x inference speedup when using compatible draft/target model pairs
+  - Supports token replacement mappings for models with different tokenizers
+
+### Changed
+
+- **Documentation**: Updated `RECOMMENDED_TO_WRAP.md` to mark speculative decoding as completed
+  - All five high-priority APIs now fully implemented
+  - Updated implementation status and remaining priorities
+
+### Technical Implementation
+
+- **Speculative API**: Created `speculative.pxd` with C API declarations, wrapper implementation in `speculative.pxi`
+- **Context Management**: Proper handling of LlamaContext pointer access via `.ptr` attribute
+- **Memory Safety**: Automatic resource cleanup with `__dealloc__` method
+- **Exception Handling**: All C++ API bindings use `except +` for automatic exception translation
+- **Integration**: Seamlessly integrated into main module via `llama_cpp.pyx` includes
+
 ## [0.1.7] - 2025-11-17
 
 ### Added

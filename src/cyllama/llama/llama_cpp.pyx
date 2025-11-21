@@ -22,6 +22,7 @@ cimport log
 cimport gguf
 cimport download
 cimport ngram_cache
+cimport speculative
 
 
 import os
@@ -63,6 +64,7 @@ include "common.pxi"
 include "sampling.pxi"
 include "tts_helpers.pxi"
 include "mtmd.pxi"
+include "speculative.pxi"
 
 
 # constants
