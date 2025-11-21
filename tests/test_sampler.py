@@ -1,9 +1,5 @@
-# import sys
-# from pathlib import Path
-# ROOT = Path.cwd()
-# sys.path.insert(0, str(ROOT / 'src'))
+import cyllama.llama.llama_cpp as cy
 
-import cyllama.cyllama as cy
 
 
 def test_sampler_instance():

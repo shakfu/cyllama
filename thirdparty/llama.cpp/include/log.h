@@ -2,9 +2,20 @@
 
 #include "ggml.h" // for ggml_log_level
 
+#define LOG_CLR_TO_EOL  "\033[K\r"
+#define LOG_COL_DEFAULT "\033[0m"
+#define LOG_COL_BOLD    "\033[1m"
+#define LOG_COL_RED     "\033[31m"
+#define LOG_COL_GREEN   "\033[32m"
+#define LOG_COL_YELLOW  "\033[33m"
+#define LOG_COL_BLUE    "\033[34m"
+#define LOG_COL_MAGENTA "\033[35m"
+#define LOG_COL_CYAN    "\033[36m"
+#define LOG_COL_WHITE   "\033[37m"
+
 #ifndef __GNUC__
 #    define LOG_ATTRIBUTE_FORMAT(...)
-#elif defined(__MINGW32__)
+#elif defined(__MINGW32__) && !defined(__clang__)
 #    define LOG_ATTRIBUTE_FORMAT(...) __attribute__((format(gnu_printf, __VA_ARGS__)))
 #else
 #    define LOG_ATTRIBUTE_FORMAT(...) __attribute__((format(printf, __VA_ARGS__)))
@@ -13,11 +24,19 @@
 #define LOG_DEFAULT_DEBUG 1
 #define LOG_DEFAULT_LLAMA 0
 
+enum log_colors {
+    LOG_COLORS_AUTO     = -1,
+    LOG_COLORS_DISABLED = 0,
+    LOG_COLORS_ENABLED  = 1,
+};
+
 // needed by the LOG_TMPL macro to avoid computing log arguments if the verbosity lower
 // set via common_log_set_verbosity()
 extern int common_log_verbosity_thold;
 
 void common_log_set_verbosity_thold(int verbosity); // not thread-safe
+
+void common_log_default_callback(enum ggml_log_level level, const char * text, void * user_data);
 
 // the common_log uses an internal worker thread to print/write log messages
 // when the worker thread is paused, incoming log messages are discarded
@@ -54,10 +73,10 @@ void common_log_add(struct common_log * log, enum ggml_log_level level, const ch
 // D - debug   (stderr, V = LOG_DEFAULT_DEBUG)
 //
 
-void common_log_set_file      (struct common_log * log, const char * file);       // not thread-safe
-void common_log_set_colors    (struct common_log * log,       bool   colors);     // not thread-safe
-void common_log_set_prefix    (struct common_log * log,       bool   prefix);     // whether to output prefix to each log
-void common_log_set_timestamps(struct common_log * log,       bool   timestamps); // whether to output timestamps in the prefix
+void common_log_set_file      (struct common_log * log, const char * file); // not thread-safe
+void common_log_set_colors    (struct common_log * log, log_colors colors); // not thread-safe
+void common_log_set_prefix    (struct common_log * log, bool prefix);       // whether to output prefix to each log
+void common_log_set_timestamps(struct common_log * log, bool timestamps);   // whether to output timestamps in the prefix
 
 // helper macros for logging
 // use these to avoid computing log arguments if the verbosity of the log is higher than the threshold

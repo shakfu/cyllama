@@ -7,9 +7,9 @@
 
 CWD=$(pwd)
 THIRDPARTY=${CWD}/thirdparty
-LAST_WORKING="b4381"
+LAST_WORKING="b6387"
 LLAMACPP_VERSION="${2:-${LAST_WORKING}}"
-STABLE_BUILD=1
+STABLE_BUILD=0
 GET_LAST_WORKING="${1:-$STABLE_BUILD}"
 
 if [ $GET_LAST_WORKING = 1 ]; then
@@ -29,13 +29,13 @@ get_llamacpp() {
 	mkdir -p build ${INCLUDE} && \
 		cd build && \
 		if [ ! -d "llama.cpp" ]; then
-			git clone --depth 1 ${BRANCH} --recursive https://github.com/ggml-org/llama.cpp.git
+			git clone ${BRANCH} --recursive https://github.com/ggml-org/llama.cpp.git
 		fi && \
 		cd llama.cpp && \
 		cp common/*.h ${INCLUDE} && \
 		cp common/*.hpp ${INCLUDE} && \
 		cp ggml/include/*.h ${INCLUDE} && \
-		cp examples/llava/*.h ${INCLUDE} && \
+		# cp examples/llava/*.h ${INCLUDE} && \
 		mkdir -p build && \
 		cd build && \
 		cmake .. -DBUILD_SHARED_LIBS=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON && \
@@ -46,35 +46,39 @@ get_llamacpp() {
 		cp ggml/src/ggml-blas/libggml-blas.a ${LIB} && \
 		cp ggml/src/ggml-metal/libggml-metal.a ${LIB} && \
 		cp common/libcommon.a ${LIB} && \
-		cp examples/llava/libllava_static.a ${LIB}/libllava.a && \
-		mv ${PREFIX}/bin ${CWD}/bin && \
+		# cp examples/llava/libllava_static.a ${LIB}/libllava.a && \
 		cd ${CWD}
 }
 
 get_llamacpp_shared() {
-	# should be run after `get_llamacpp`
-	echo "install shared libs from llama.cpp"
+	echo "update from llama.cpp main repo"
 	PREFIX=${THIRDPARTY}/llama.cpp
 	INCLUDE=${PREFIX}/include
 	LIB=${PREFIX}/lib
 	mkdir -p build ${INCLUDE} && \
 		cd build && \
 		if [ ! -d "llama.cpp" ]; then
-			git clone --depth 1 --recursive https://github.com/ggml-org/llama.cpp.git
+			git clone ${BRANCH} --recursive https://github.com/ggml-org/llama.cpp.git
 		fi && \
 		cd llama.cpp && \
 		cp common/*.h ${INCLUDE} && \
 		cp common/*.hpp ${INCLUDE} && \
-		cp examples/llava/*.h ${INCLUDE} && \
+		cp ggml/include/*.h ${INCLUDE} && \
+		# cp examples/llava/*.h ${INCLUDE} && \
 		mkdir -p build && \
 		cd build && \
-		cmake .. -DBUILD_SHARED_LIBS=ON -DCMAKE_POSITION_INDEPENDENT_CODE=ON && \
+		cmake .. -DBUILD_SHARED_LIBS=ON -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_INSTALL_NAME_DIR=${LIB} && \
 		cmake --build . --config Release && \
 		cmake --install . --prefix ${PREFIX} && \
 		cp common/libcommon.a ${LIB} && \
-		cp examples/llava/libllava_shared.dylib ${LIB}/libllava_shared.dylib && \
-		mv ${PREFIX}/bin ${CWD}/bin && \
-		cd ${CWD}	
+		# cp ggml/src/libggml-base.dylib ${LIB} && \
+		# cp ggml/src/libggml-cpu.dylib ${LIB} && \
+		# cp ggml/src/ggml-blas/libggml-blas.dylib ${LIB} && \
+		# cp ggml/src/ggml-metal/libggml-metal.dylib ${LIB} && \
+		# cp common/libcommon.dylib ${LIB} && \
+		# # cp examples/llava/libllava_static.dylib ${LIB}/libllava.dylib && \
+		# mv ${PREFIX}/bin ${CWD}/bin && \
+		cd ${CWD}
 }
 
 get_whispercpp() {
@@ -86,7 +90,7 @@ get_whispercpp() {
 	mkdir -p build ${INCLUDE} && \
 		cd build && \
 		if [ ! -d "whisper.cpp" ]; then
-			git clone --depth 1 --recursive https://github.com/ggerganov/whisper.cpp.git
+			git clone --depth 1 --recursive https://github.com/ggml-org/whisper.cpp.git
 		fi && \
 		cd whisper.cpp && \
 		cp examples/*.h ${INCLUDE} && \
@@ -150,12 +154,10 @@ remove_current() {
 main() {
 	remove_current
 	get_llamacpp
+	get_whispercpp
 	# get_llamacpp_shared
-	get_llamacpp_python
-	# get_whispercpp
+	# get_llamacpp_python
 	# get_stablediffusioncpp
 }
 
 main
-
-

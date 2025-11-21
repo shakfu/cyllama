@@ -1,38 +1,58 @@
+# import pytest
+# pytest.skip(allow_module_level=True)
 
-import cyllama.cyllama as cy
+import cyllama.llama.llama_cpp as cy
 
 
 def test_chat_builtin_templates():
     assert cy.chat_builtin_templates() == [
+    'bailing',
+    'bailing-think',
+    'bailing2',
     'chatglm3',
     'chatglm4',
     'chatml',
     'command-r',
     'deepseek',
     'deepseek2',
+    'deepseek3',
     'exaone3',
+    'exaone4',
     'falcon3',
     'gemma',
     'gigachat',
+    'glmedge',
+    'gpt-oss',
     'granite',
+    'grok-2',
+    'hunyuan-dense',
+    'hunyuan-moe',
+    'kimi-k2',
     'llama2',
     'llama2-sys',
     'llama2-sys-bos',
     'llama2-sys-strip',
     'llama3',
+    'llama4',
     'megrez',
     'minicpm',
     'mistral-v1',
     'mistral-v3',
     'mistral-v3-tekken',
     'mistral-v7',
+    'mistral-v7-tekken',
     'monarch',
     'openchat',
     'orion',
+    'pangu-embedded',
     'phi3',
+    'phi4',
     'rwkv-world',
+    'seed_oss',
+    'smolvlm',
     'vicuna',
     'vicuna-orca',
+    'yandex',
     'zephyr',
 ]
 

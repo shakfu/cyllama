@@ -7,9 +7,9 @@ git add --all .
 git commit -m "synced to llama.cpp tag:${TAG} short:${SHORT}"
 git push
 
-git switch main
-git merge dev
-git push
-git switch dev
+# git switch main
+# git merge dev
+# git push
+# git switch dev
 
 

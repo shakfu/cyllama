@@ -1,15 +1,14 @@
+import datetime
+import logging
 import os
 import sys
-import logging
-import datetime
-
 
 # ----------------------------------------------------------------------------
 # env helpers
 
 
 def getenv(key: str, default: bool = False) -> bool:
-    """convert '0','1' env values to bool {True, False}"""
+    """Convert '0','1' env values to bool {True, False}"""
     return bool(int(os.getenv(key, default)))
 
 
@@ -55,15 +54,13 @@ class CustomFormatter(logging.Formatter):
         self.use_color = use_color
 
     def format(self, record):
-        """custom logger formatting method"""
+        """Custom logger formatting method"""
         if not self.use_color:
             log_fmt = self.fmt
         else:
             log_fmt = self.FORMATS.get(record.levelno)
         if PY_VER_MINOR > 10:
-            duration = datetime.datetime.fromtimestamp(
-                record.relativeCreated / 1000, datetime.UTC
-            )
+            duration = datetime.datetime.fromtimestamp(record.relativeCreated / 1000, datetime.UTC)
         else:
             duration = datetime.datetime.utcfromtimestamp(record.relativeCreated / 1000)
         record.delta = duration.strftime("%H:%M:%S")

@@ -3,7 +3,7 @@ from pathlib import Path
 ROOT = Path.cwd().parent
 sys.path.insert(0, str(ROOT / 'src'))
 
-import cyllama.cyllama as cy
+import cyllama.llama.llama_cpp as cy
 
 model_path = str(ROOT / 'models' / 'Llama-3.2-1B-Instruct-Q8_0.gguf')
 
