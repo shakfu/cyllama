@@ -1,92 +1,181 @@
-# Cyllama Update
+# Cyllama Update - November 2025
 
-## What's New Since December 4, 2024
+## Update on the Cyllama Project
 
-This document summarizes the major features, improvements, and changes to cyllama since the last announcement.
+It's been nearly a year since my last announcement, and I wanted to share what's new with **cyllama** - the thin Cython wrapper for llama.cpp.
+
+For those just joining: cyllama is a minimal, performant, compiled Python extension wrapping llama.cpp's core functionality. It statically links libllama.a and libggml.a for simplicity and performance (~1.2 MB wheel).
 
 ---
 
-## Major New Features
+## What's Changed Since December 2024
 
-### 1. High-Level API (`LLM`, `complete()`, `chat()`)
+Thanks to the use of helpful AI agents, the project has managed to keep up with the fast pace of changes at llama.cpp and is currently tracking release `b7126`. Here is a summary of some changes since the last post.
 
-A complete rewrite of the user-facing API for simplicity and clarity:
+### 1. **High-Level Python API** - The Big One
+
+We now have a complete, Pythonic API layer that makes cyllama actually pleasant to use:
 
 ```python
 from cyllama import complete, chat, LLM
 
-# Simple one-line completion
+# Simple one-liner
 response = complete("What is Python?", model_path="model.gguf")
 
-# Multi-turn chat
+# Reusable LLM instance (model stays loaded)
+llm = LLM("model.gguf")
+response = llm("Your question here")
+
+# Multi-turn chat with proper message formatting
 messages = [
     {"role": "system", "content": "You are a helpful assistant."},
     {"role": "user", "content": "Explain quantum computing"}
 ]
 response = chat(messages, model_path="model.gguf")
-
-# Reusable LLM instance (faster for multiple prompts)
-llm = LLM("model.gguf")
-response1 = llm("First question")
-response2 = llm("Second question")  # Model stays loaded!
 ```
 
-**Key Benefits:**
-- Automatic model lifecycle management
-- Streaming support with token-by-token callbacks
-- Configurable generation parameters (temperature, top-k, top-p, etc.)
-- Built-in performance statistics
-- Clean, Pythonic interface
+**Why this matters:** Previously, you had to manually manage models, contexts, samplers, and batches. Now it's automatic with sensible defaults, but full control is still available when needed.
 
-### 2. Batch Processing
+### 2. **Chat Templates & Conversation Support**
 
-Efficient parallel inference for multiple prompts (3-10x throughput improvement):
+Full support for chat templates and multi-turn conversations:
 
 ```python
-from cyllama import batch_generate, BatchGenerator
+from cyllama.llama import Chat
 
-# Simple batch processing
-prompts = ["What is 2+2?", "What is 3+3?", "What is 4+4?"]
-responses = batch_generate(prompts, model_path="model.gguf")
+# Automatic chat template detection and formatting
+chat = Chat(model_path="model.gguf")
+chat.add_message("system", "You are a helpful assistant")
+chat.add_message("user", "What is Python?")
 
-# Advanced batch processing with detailed stats
-batch_gen = BatchGenerator("model.gguf", batch_size=8)
-results = batch_gen.generate_batch_detailed(requests)
+# Generates properly formatted prompt for the model
+response = chat.generate()
 ```
 
-**Performance:**
-- Utilizes llama.cpp's native batching
-- Shared model and KV cache across sequences
-- Per-sequence statistics and error handling
+Supports built-in templates (ChatML, Llama-3, Mistral, etc.) and custom templates. The library automatically detects and applies the correct template from the model metadata.
 
-### 3. Framework Integrations
+### 3. **Batch Processing**
 
-#### OpenAI-Compatible API
+Process multiple prompts in parallel (3-10x throughput improvement):
 
-Drop-in replacement for OpenAI's Python client:
+```python
+from cyllama import batch_generate
 
+prompts = ["What is 2+2?", "What is 3+3?", "What is 4+4?"]
+responses = batch_generate(prompts, model_path="model.gguf")
+```
+
+Uses llama.cpp's native batching with shared KV cache.
+
+### 4. **Text-to-Speech (TTS) Support**
+
+Full TTS integration for voice generation:
+
+```python
+from cyllama.llama import TTSGenerator
+
+tts = TTSGenerator("models/outetts-0.2-500M-Q8_0.gguf")
+
+# Generate speech from text
+tts.generate(
+    text="Hello, this is a test of the text to speech system.",
+    output_file="output.wav"
+)
+```
+
+**Features:**
+- Supports OuteTTS and similar TTS models
+- WAV file output with configurable sample rate
+- Speaker voice cloning support
+- Handles text preprocessing (numbers to words, etc.)
+- Streaming audio generation
+
+### 5. **Multimodal (LLAVA/Vision) Support**
+
+Vision-language models for image understanding:
+
+```python
+from cyllama.llama.mtmd import MultimodalProcessor, VisionLanguageChat
+from cyllama import LlamaModel, LlamaContext
+
+# Load model and create processor
+model = LlamaModel("models/llava-v1.6-mistral-7b.Q4_K_M.gguf")
+ctx = LlamaContext(model)
+
+# Initialize vision processor
+processor = MultimodalProcessor("models/mmproj-model-f16.gguf", model)
+
+# Or use high-level chat interface
+vision_chat = VisionLanguageChat("models/mmproj-model-f16.gguf", model, ctx)
+response = vision_chat.ask_about_image("What's in this image?", "image.jpg")
+```
+
+**Capabilities:**
+- Image understanding and description
+- Visual question answering
+- Support for multiple images in conversation
+- Works with LLAVA, BakLLaVA, and similar vision-language models
+- Automatic vision capability detection
+
+### 6. **Embedded HTTP Server (Mongoose)**
+
+Production-ready [embedded HTTP server](https://github.com/cesanta/mongoose) with OpenAI-compatible API:
+
+```python
+from cyllama.llama.server import EmbeddedServer
+
+# Create server with configuration
+server = EmbeddedServer(
+    model_path="model.gguf",
+    host="127.0.0.1",
+    port=8080
+)
+
+# Start server (runs in background thread)
+server.start()
+
+# Server provides OpenAI-compatible endpoints:
+# POST /v1/chat/completions
+# POST /v1/completions
+# GET /v1/models
+# GET /health
+```
+
+**Server Features:**
+- OpenAI API compatibility (drop-in replacement)
+- Streaming support (SSE)
+- CORS support
+- Graceful shutdown
+- Thread-safe request handling
+- Multiple server implementations:
+  - `EmbeddedServer`: Python-based with threading
+  - `MongooseServer`: High-performance C-based server
+  - `ServerLauncher`: Process-based isolation
+
+**Example with curl:**
+```bash
+curl http://localhost:8080/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "messages": [{"role": "user", "content": "Hello!"}],
+    "temperature": 0.7
+  }'
+```
+
+### 7. **Framework Integrations**
+
+**OpenAI-Compatible API:**
 ```python
 from cyllama.integrations import OpenAIClient
 
 client = OpenAIClient(model_path="model.gguf")
-
 response = client.chat.completions.create(
     messages=[{"role": "user", "content": "Hello!"}],
     temperature=0.7
 )
-print(response.choices[0].message.content)
 ```
 
-**Features:**
-- Full chat completions API compatibility
-- Streaming support with proper chunking
-- Compatible message format and response objects
-- Usage statistics (prompt tokens, completion tokens)
-
-#### LangChain Integration
-
-Seamless integration with the LangChain ecosystem:
-
+**LangChain:**
 ```python
 from cyllama.integrations import CyllamaLLM
 from langchain.chains import LLMChain
@@ -96,355 +185,138 @@ chain = LLMChain(llm=llm, prompt=prompt_template)
 result = chain.run(topic="AI")
 ```
 
-**Features:**
-- Full LLM interface implementation
-- Works with chains, agents, and tools
-- Streaming support with callback managers
-- Proper error handling
+Both work seamlessly with existing code expecting OpenAI or LangChain interfaces.
 
-### 4. Speculative Decoding
+### 8. **Performance Features**
 
-2-3x inference speedup using draft models:
+- **Speculative Decoding**: 2-3x speedup using draft models
+- **N-gram Cache**: 2-10x speedup for repetitive patterns (great for code completion)
+- **Memory Optimization**: Automatic GPU layer estimation based on available VRAM
 
-```python
-from cyllama import Speculative, SpeculativeParams
+### 9. **Utility Features**
 
-spec = Speculative(ctx_target, ctx_draft)
-params = SpeculativeParams(n_draft=16, p_min=0.75)
-draft_tokens = spec.gen_draft(params, prompt_tokens, last_token)
-```
+- **GGUF Manipulation**: Read/write model files, inspect/modify metadata
+- **JSON Schema → Grammar**: Generate structured output with type safety
+- **Model Downloads**: Ollama-style downloads from HuggingFace (`download_model("user/repo:quantization")`)
 
-### 5. N-gram Cache
+### 10. **Quality of Life**
 
-Pattern-based acceleration for repetitive text (2-10x speedup):
-
-```python
-from cyllama import NgramCache
-
-cache = NgramCache()
-cache.update(tokens, ngram_min=2, ngram_max=4)
-draft = cache.draft(input_tokens, n_draft=16)
-```
-
-**Use Cases:**
-- Code completion with repeated patterns
-- Template-based text generation
-- Structured output generation
-
-### 6. GGUF File Manipulation
-
-Inspect and modify GGUF model files:
-
-```python
-from cyllama import GGUFContext
-
-# Read model metadata
-ctx = GGUFContext.from_file("model.gguf")
-metadata = ctx.get_all_metadata()
-print(f"Model: {metadata['general.name']}")
-
-# Create new GGUF files
-writer = GGUFContext()
-writer.set_metadata("custom.key", "value")
-writer.write_to_file("custom.gguf")
-```
-
-### 7. JSON Schema to Grammar
-
-Generate structured output with type safety:
-
-```python
-from cyllama import json_schema_to_grammar
-
-schema = {
-    "type": "object",
-    "properties": {
-        "name": {"type": "string"},
-        "age": {"type": "integer"}
-    }
-}
-grammar = json_schema_to_grammar(schema)
-# Use grammar in generation to ensure valid JSON output
-```
-
-### 8. Model Download Helper
-
-Ollama-style convenience for downloading models:
-
-```python
-from cyllama import download_model, list_cached_models
-
-# Download from HuggingFace
-download_model("bartowski/Llama-3.2-1B-Instruct-GGUF:q4")
-
-# List cached models
-models = list_cached_models()
-```
-
-### 9. Memory Optimization
-
-Smart GPU layer allocation based on available VRAM:
-
-```python
-from cyllama import estimate_gpu_layers
-
-estimate = estimate_gpu_layers(
-    model_path="model.gguf",
-    available_vram_mb=8000
-)
-print(f"Recommended GPU layers: {estimate.n_gpu_layers}")
-```
+- **Logging**: Debug output disabled by default (add `verbose=True` to enable)
+- **Documentation**: Comprehensive user guide, API reference, and cookbook (1,200+ lines total)
+- **Tests**: 253 passing tests for reliability
+- **API Clarity**: Renamed `generate()` → `complete()` and `Generator` → `LLM` for better semantics
 
 ---
 
-## API Improvements
+## Current Status
 
-### Renamed for Clarity (Latest Changes)
+**Version:** 0.1.9 (November 21, 2025)
+**llama.cpp Version:** b7126 (tracking bleeding-edge)
+**whisper.cpp:** Integrated and tested
+**Tests:** 253 passing, 32 skipped (optional dependencies)
+**Platform:** macOS (primary), Linux (tested)
 
-To improve consistency and clarity, the core API has been renamed:
-
-| Old Name | New Name | Purpose |
-|----------|----------|---------|
-| `generate()` | `complete()` | Text completion function |
-| `Generator` | `LLM` | Main LLM class |
-| `generate.py` | `api.py` | Unified API module |
-
-**Example:**
-```python
-# Old API (still works for compatibility)
-from cyllama import generate, Generator
-
-# New API (recommended)
-from cyllama import complete, LLM
-```
-
-### Logging Improvements
-
-Debug output is now disabled by default for a cleaner experience:
-
-```python
-# Quiet by default
-llm = LLM("model.gguf")
-
-# Enable detailed logging when needed
-llm = LLM("model.gguf", verbose=True)
-```
-
-### Cleaner Integration Imports
-
-```python
-# OpenAI integration - shorter import path
-from cyllama.integrations import OpenAIClient  # New!
-# vs
-from cyllama.integrations.openai_compat import OpenAICompatibleClient  # Old
-
-# Both work for backward compatibility
-```
-
----
-
-## Documentation
-
-Comprehensive documentation added:
-
-1. **User Guide** (`docs/user_guide.md`) - 450+ lines covering all APIs
-2. **API Reference** (`docs/api_reference.md`) - Complete API documentation
-3. **Cookbook** (`docs/cookbook.md`) - 350+ lines of practical recipes
-4. **Improvements Summary** (`docs/improvements_summary.md`) - Detailed feature overview
-
-**Topics Covered:**
-- Text generation patterns
-- Chat application examples
-- Structured output generation
-- Performance optimization
-- Framework integration examples
-- FastAPI/Flask/Gradio servers
-- Error handling and best practices
-
----
-
-## Testing
-
-Comprehensive test coverage ensures reliability:
-
-- **253 tests passing** (32 skipped for optional features)
-- Unit tests for all new APIs
-- Integration tests with real models
-- Edge case testing
-- Performance validation
-
----
-
-## What This Means For You
-
-### For Quick Prototyping
-
-```python
-from cyllama import complete
-
-# One line to get started
-response = complete("Your prompt", model_path="model.gguf")
-```
-
-### For Production Applications
-
-```python
-from cyllama import LLM, GenerationConfig
-
-# Efficient model reuse
-llm = LLM("model.gguf")
-config = GenerationConfig(temperature=0.7, max_tokens=100)
-
-# Fast repeated inference
-for prompt in prompts:
-    response = llm(prompt, config=config)
-```
-
-### For Framework Integration
-
-```python
-# OpenAI compatibility
-from cyllama.integrations import OpenAIClient
-
-# LangChain integration
-from cyllama.integrations import CyllamaLLM
-
-# Works seamlessly with existing code
-```
-
-### For Performance
-
-```python
-# Batch processing for throughput
-from cyllama import batch_generate
-
-# Speculative decoding for speed
-from cyllama import Speculative
-
-# N-gram cache for patterns
-from cyllama import NgramCache
-```
-
----
-
-## Migration Guide
-
-If you were using the old API:
-
-```python
-# Old code
-from cyllama import generate
-response = generate(prompt, model_path="model.gguf")
-
-# New code (recommended, but old still works)
-from cyllama import complete
-response = complete(prompt, model_path="model.gguf")
-```
-
-```python
-# Old code
-from cyllama import Generator
-gen = Generator("model.gguf")
-
-# New code (recommended, but old still works)
-from cyllama import LLM
-llm = LLM("model.gguf")
-```
-
-**Note:** All old APIs remain available for backward compatibility.
-
----
-
-## Performance Highlights
-
-- **Model Reuse:** 5-10s saved per generation by keeping model loaded
-- **Batch Processing:** 3-10x throughput improvement for multiple prompts
-- **Speculative Decoding:** 2-3x speedup with draft models
-- **N-gram Cache:** 2-10x speedup for repetitive patterns
-- **Memory Optimization:** Smart GPU layer allocation for available VRAM
-
----
-
-## Technical Details
-
-### llama.cpp Version
-Currently tracking llama.cpp **b7126** (November 2054)
-
-### Platform Support
-- macOS (primary, fully tested)
-- Linux (tested)
-- GPU acceleration via Metal/CUDA/Vulkan
-
-### Python Version
-Python 3.13+ (tested on 3.13.2)
-
----
-
-## Status
-
-**Current Version:** 0.1.9 (November 21, 2025)
-
-**API Coverage:**
+**API Coverage - All Major Goals Met:**
 - [x] Core llama.cpp wrapper (complete)
-- [x] High-level API (complete)
-- [x] Batch processing (complete)
-- [x] Framework integrations (complete)
-- [x] GGUF manipulation (complete)
-- [x] JSON schema grammar (complete)
-- [x] Model downloads (complete)
-- [x] Speculative decoding (complete)
-- [x] N-gram cache (complete)
-- [x] Memory optimization (complete)
-- [x] Multimodal (LLAVA) (complete)
-- [x] Whisper.cpp (complete)
+- [x] High-level Python API (complete)
+- [x] llava-cli features (multimodal complete)
+- [x] whisper.cpp integration (complete)
+- [x] Chat templates and conversation support (complete)
+- [x] TTS support (complete)
+- [x] HTTP server with OpenAI API (complete)
+- [ ] stable-diffusion.cpp (future)
 
 ---
 
-## Getting Started
+## Why This Update Matters
 
-1. Clone and build:
-```bash
-git clone https://github.com/shakfu/cyllama.git
-cd cyllama
-pip install -r requirements.txt
-make
-```
+**Before:** You needed 50+ lines of boilerplate to do basic inference, manually managing model lifecycle.
 
-2. Download a model:
-```bash
-make download
-```
+**Now:** One line for simple cases, with full power available when needed:
 
-3. Try it out:
 ```python
-from cyllama import complete
+# Text generation - one line!
+response = complete("Your prompt", model_path="model.gguf")
 
-response = complete(
-    "What is Python?",
-    model_path="models/Llama-3.2-1B-Instruct-Q8_0.gguf"
-)
-print(response)
+# Chat conversations - easy!
+response = chat(messages, model_path="model.gguf")
+
+# TTS - simple!
+tts.generate("Hello world", "output.wav")
+
+# Vision - straightforward!
+response = vision_chat.ask_about_image("What's in this?", "image.jpg")
+
+# HTTP server - production-ready!
+server = EmbeddedServer(model_path="model.gguf")
+server.start()
 ```
 
+The library is now genuinely production-ready for:
+- Quick prototyping and experiments
+- Chat applications with proper conversation handling
+- Voice applications (TTS)
+- Vision/multimodal applications (LLAVA)
+- API servers (OpenAI-compatible)
+- Integration into existing Python stacks (FastAPI, Flask, LangChain)
+- Performance-critical applications (batching, speculative decoding)
+
 ---
 
-## Learn More
+## Use Cases Now Supported
 
-- **Repository:** https://github.com/shakfu/cyllama
-- **Documentation:** See `docs/` directory
+1. **Text Generation**: Simple completions, structured output, batch processing
+2. **Chat Applications**: Multi-turn conversations with template support
+3. **Voice Applications**: Text-to-speech with WAV output
+4. **Vision Applications**: Image understanding and visual Q&A
+5. **API Services**: Production HTTP servers with OpenAI compatibility
+6. **Framework Integration**: Works with LangChain, OpenAI clients
+7. **Performance**: Speculative decoding, n-gram caching, batching
+
+---
+
+## Resources
+
+- **Repo:** https://github.com/shakfu/cyllama
+- **Docs:** See `docs/` directory (user guide, API reference, cookbook)
 - **Examples:** See `tests/examples/` directory
+  - Chat applications
+  - TTS examples
+  - Multimodal demos
+  - Server implementations
 
 ---
 
-## What's Next
+## Feedback Welcome
 
-Potential future features:
-- Async API support
+As always, if you try it out:
+- Questions? Ask away!
+- Bugs? Please report them!
+- Features? Suggestions welcome!
+- Contributions? Pull requests accepted!
+
+The goal remains: stay lean, stay fast, stay current with llama.cpp, and make it easy to use from Python.
+
+---
+
+## What's Next?
+
+Potential future work:
+- Async API support (`async def complete_async()`)
 - Response caching
-- Built-in prompt templates
 - RAG utilities
-- Web UI for testing
+- stable-diffusion.cpp integration
+
+But for now, the core feature set is comprehensive and ready to use.
 
 ---
 
-**Questions or feedback?** Feel free to open an issue on GitHub!
+**TL;DR:** Cyllama went from a thin wrapper requiring boilerplate to a batteries-included library with:
+- High-level APIs for text, chat, TTS, and vision
+- Production HTTP servers (Mongoose integration)
+- Framework integrations (OpenAI, LangChain)
+- Performance optimizations (batching, speculative decoding, n-gram cache)
+
+All while staying true to its minimal, compiled, performant roots (~1.2 MB wheel).
+
+Give it a try and let me know what you think! 🚀
