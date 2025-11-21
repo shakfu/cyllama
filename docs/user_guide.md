@@ -29,9 +29,9 @@ make download  # Download default test model
 The simplest way to generate text:
 
 ```python
-from cyllama import generate
+from cyllama import complete
 
-response = generate(
+response = complete(
     "What is Python?",
     model_path="models/Llama-3.2-1B-Instruct-Q8_0.gguf"
 )
@@ -42,13 +42,13 @@ print(response)
 
 ### Basic Generation
 
-The `generate()` function provides the simplest interface:
+The `complete()` function provides the simplest interface:
 
 ```python
-from cyllama import generate, GenerationConfig
+from cyllama import complete, GenerationConfig
 
 # Simple generation
-response = generate(
+response = complete(
     "Explain quantum computing",
     model_path="models/llama.gguf",
     max_tokens=200,
@@ -64,7 +64,7 @@ config = GenerationConfig(
     repeat_penalty=1.1
 )
 
-response = generate(
+response = complete(
     "Write a poem about AI",
     model_path="models/llama.gguf",
     config=config
@@ -93,15 +93,15 @@ response = chat(
 )
 ```
 
-### Generator Class
+### LLM Class
 
-For repeated generations, use the `Generator` class for better performance:
+For repeated generations, use the `LLM` class for better performance:
 
 ```python
-from cyllama import Generator, GenerationConfig
+from cyllama import LLM, GenerationConfig
 
 # Create generator (loads model once)
-gen = Generator("models/llama.gguf")
+gen = LLM("models/llama.gguf")
 
 # Generate multiple times
 prompts = [
@@ -121,9 +121,9 @@ for prompt in prompts:
 Stream responses token-by-token:
 
 ```python
-from cyllama import Generator
+from cyllama import LLM
 
-gen = Generator("models/llama.gguf")
+gen = LLM("models/llama.gguf")
 
 # Stream to console
 for chunk in gen("Tell me a story", stream=True):
@@ -142,9 +142,9 @@ full_response = "".join(chunks)
 Process each token as it's generated:
 
 ```python
-from cyllama import Generator
+from cyllama import LLM
 
-gen = Generator("models/llama.gguf")
+gen = LLM("models/llama.gguf")
 
 tokens_seen = []
 
@@ -379,11 +379,11 @@ print(f"Total: {memory_info.total_mb:.0f} MB")
 ### GPU Acceleration
 
 ```python
-from cyllama import Generator, GenerationConfig
+from cyllama import LLM, GenerationConfig
 
 # Offload all layers to GPU
 config = GenerationConfig(n_gpu_layers=-1)  # or 99
-gen = Generator("models/llama.gguf", config=config)
+gen = LLM("models/llama.gguf", config=config)
 
 # Partial GPU offloading (for large models)
 config = GenerationConfig(n_gpu_layers=20)  # First 20 layers only

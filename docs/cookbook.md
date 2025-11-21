@@ -16,9 +16,9 @@ Common patterns and recipes for using cyllama effectively.
 ### Simple Question Answering
 
 ```python
-from cyllama import Generator, GenerationConfig
+from cyllama import LLM, GenerationConfig
 
-gen = Generator("models/llama.gguf")
+gen = LLM("models/llama.gguf")
 config = GenerationConfig(
     temperature=0.3,  # Low for factual responses
     max_tokens=200
@@ -35,9 +35,9 @@ print(ask_question("Who invented the telephone?"))
 ### Creative Writing
 
 ```python
-from cyllama import Generator, GenerationConfig
+from cyllama import LLM, GenerationConfig
 
-gen = Generator("models/llama.gguf")
+gen = LLM("models/llama.gguf")
 config = GenerationConfig(
     temperature=0.9,  # High for creativity
     top_p=0.95,
@@ -55,9 +55,9 @@ print(story)
 ### Code Generation
 
 ```python
-from cyllama import Generator, GenerationConfig
+from cyllama import LLM, GenerationConfig
 
-gen = Generator("models/codellama.gguf")  # Use code-specific model
+gen = LLM("models/codellama.gguf")  # Use code-specific model
 config = GenerationConfig(
     temperature=0.2,  # Low for correct syntax
     max_tokens=300,
@@ -78,9 +78,9 @@ print(code)
 ### Summarization
 
 ```python
-from cyllama import Generator, GenerationConfig
+from cyllama import LLM, GenerationConfig
 
-gen = Generator("models/llama.gguf")
+gen = LLM("models/llama.gguf")
 config = GenerationConfig(
     temperature=0.3,
     max_tokens=150
@@ -107,11 +107,11 @@ print(summary)
 ### Simple Chatbot
 
 ```python
-from cyllama import Generator, GenerationConfig
+from cyllama import LLM, GenerationConfig
 
 class SimpleChatbot:
     def __init__(self, model_path: str, system_prompt: str = "You are a helpful assistant."):
-        self.gen = Generator(model_path)
+        self.gen = LLM(model_path)
         self.config = GenerationConfig(temperature=0.7, max_tokens=200)
         self.history = [{"role": "system", "content": system_prompt}]
 
@@ -152,11 +152,11 @@ print(bot.chat("Can you show an example?"))
 ### Streaming Chatbot
 
 ```python
-from cyllama import Generator, GenerationConfig
+from cyllama import LLM, GenerationConfig
 
 class StreamingChatbot:
     def __init__(self, model_path: str):
-        self.gen = Generator(model_path)
+        self.gen = LLM(model_path)
         self.config = GenerationConfig(temperature=0.7, max_tokens=300)
 
     def chat_stream(self, message: str):
@@ -181,10 +181,10 @@ print()
 ### JSON Generation
 
 ```python
-from cyllama import Generator, GenerationConfig
+from cyllama import LLM, GenerationConfig
 import json
 
-gen = Generator("models/llama.gguf")
+gen = LLM("models/llama.gguf")
 config = GenerationConfig(
     temperature=0.3,
     max_tokens=200,
@@ -230,7 +230,7 @@ schema = {
 # Convert to grammar
 grammar = json_schema_to_grammar(schema)
 
-gen = Generator("models/llama.gguf")
+gen = LLM("models/llama.gguf")
 
 # Note: Grammar support requires additional integration
 # This shows the concept; actual implementation may vary
@@ -239,9 +239,9 @@ gen = Generator("models/llama.gguf")
 ### List Generation
 
 ```python
-from cyllama import Generator, GenerationConfig
+from cyllama import LLM, GenerationConfig
 
-gen = Generator("models/llama.gguf")
+gen = LLM("models/llama.gguf")
 config = GenerationConfig(
     temperature=0.5,
     max_tokens=200
@@ -295,7 +295,7 @@ results = process_batch_with_progress(prompts, "models/llama.gguf")
 ### Parallel Generation with Threading
 
 ```python
-from cyllama import Generator, GenerationConfig
+from cyllama import LLM, GenerationConfig
 import concurrent.futures
 import threading
 
@@ -328,7 +328,7 @@ results = generate_parallel(prompts, "models/llama.gguf", max_workers=2)
 ### Memory-Efficient Generation
 
 ```python
-from cyllama import Generator, GenerationConfig, estimate_memory_usage
+from cyllama import LLM, GenerationConfig, estimate_memory_usage
 
 def create_memory_efficient_generator(model_path: str, available_memory_mb: int):
     """Create generator optimized for available memory."""
@@ -362,7 +362,7 @@ def create_memory_efficient_generator(model_path: str, available_memory_mb: int)
 ```python
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from cyllama import Generator, GenerationConfig
+from cyllama import LLM, GenerationConfig
 
 app = FastAPI()
 
@@ -396,7 +396,7 @@ async def generate_text(request: GenerateRequest):
 
 ```python
 from flask import Flask, request, Response, stream_with_context
-from cyllama import Generator, GenerationConfig
+from cyllama import LLM, GenerationConfig
 import json
 
 app = Flask(__name__)
@@ -427,7 +427,7 @@ def generate_stream():
 
 ```python
 import gradio as gr
-from cyllama import Generator, GenerationConfig
+from cyllama import LLM, GenerationConfig
 
 generator = Generator("models/llama.gguf")
 
@@ -457,7 +457,7 @@ interface.launch()
 ### Robust Generation with Retries
 
 ```python
-from cyllama import Generator, GenerationConfig
+from cyllama import LLM, GenerationConfig
 import time
 
 def generate_with_retry(
@@ -479,7 +479,7 @@ def generate_with_retry(
             time.sleep(wait_time)
 
 # Usage
-gen = Generator("models/llama.gguf")
+gen = LLM("models/llama.gguf")
 config = GenerationConfig(max_tokens=100)
 
 try:
@@ -492,7 +492,7 @@ except Exception as e:
 ### Timeout Handling
 
 ```python
-from cyllama import Generator, GenerationConfig
+from cyllama import LLM, GenerationConfig
 import signal
 from contextlib import contextmanager
 
@@ -511,7 +511,7 @@ def time_limit(seconds):
         signal.alarm(0)
 
 def generate_with_timeout(prompt: str, timeout_seconds: int = 30) -> str:
-    gen = Generator("models/llama.gguf")
+    gen = LLM("models/llama.gguf")
     config = GenerationConfig(max_tokens=200)
 
     try:
@@ -527,7 +527,7 @@ result = generate_with_timeout("Generate a very long essay", timeout_seconds=10)
 ### Validation and Sanitization
 
 ```python
-from cyllama import Generator, GenerationConfig
+from cyllama import LLM, GenerationConfig
 import re
 
 def safe_generate(prompt: str, model_path: str) -> str:
@@ -545,7 +545,7 @@ def safe_generate(prompt: str, model_path: str) -> str:
     prompt = re.sub(r'\s+', ' ', prompt)  # Normalize whitespace
 
     # Generate
-    gen = Generator(model_path)
+    gen = LLM(model_path)
     config = GenerationConfig(
         max_tokens=200,
         temperature=0.7

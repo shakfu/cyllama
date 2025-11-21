@@ -4,9 +4,9 @@ Tests for high-level generation API.
 
 import pytest
 from cyllama import (
-    generate,
+    complete,
     chat,
-    Generator,
+    LLM,
     GenerationConfig,
 )
 
@@ -51,13 +51,13 @@ class TestGenerationConfig:
         assert config.stop_sequences == ["STOP", "END"]
 
 
-class TestGenerator:
-    """Tests for Generator class."""
+class TestLLM:
+    """Tests for LLM class."""
 
     @pytest.mark.slow
     def test_initialization(self):
-        """Test generator initialization."""
-        gen = Generator(DEFAULT_MODEL, verbose=False)
+        """Test LLM initialization."""
+        gen = LLM(DEFAULT_MODEL, verbose=False)
         assert gen.model_path == DEFAULT_MODEL
         assert gen.model is not None
         assert gen.vocab is not None
@@ -65,7 +65,7 @@ class TestGenerator:
     @pytest.mark.slow
     def test_simple_generation(self):
         """Test basic text generation."""
-        gen = Generator(DEFAULT_MODEL)
+        gen = LLM(DEFAULT_MODEL)
         config = GenerationConfig(max_tokens=20, temperature=0.0)  # Greedy for consistency
         response = gen("What is 2+2?", config=config)
 
@@ -75,7 +75,7 @@ class TestGenerator:
     @pytest.mark.slow
     def test_streaming_generation(self):
         """Test streaming text generation."""
-        gen = Generator(DEFAULT_MODEL)
+        gen = LLM(DEFAULT_MODEL)
         config = GenerationConfig(max_tokens=20, temperature=0.0)
 
         chunks = list(gen("Count to 3:", config=config, stream=True))
@@ -90,7 +90,7 @@ class TestGenerator:
     @pytest.mark.slow
     def test_token_callback(self):
         """Test on_token callback."""
-        gen = Generator(DEFAULT_MODEL)
+        gen = LLM(DEFAULT_MODEL)
         config = GenerationConfig(max_tokens=10, temperature=0.0)
 
         tokens = []
@@ -105,7 +105,7 @@ class TestGenerator:
     @pytest.mark.slow
     def test_generation_with_stats(self):
         """Test generation with statistics."""
-        gen = Generator(DEFAULT_MODEL)
+        gen = LLM(DEFAULT_MODEL)
         config = GenerationConfig(max_tokens=20, temperature=0.0)
 
         response, stats = gen.generate_with_stats("Test prompt", config=config)
@@ -119,7 +119,7 @@ class TestGenerator:
     @pytest.mark.slow
     def test_different_temperatures(self):
         """Test generation with different temperatures."""
-        gen = Generator(DEFAULT_MODEL)
+        gen = LLM(DEFAULT_MODEL)
 
         # Greedy (deterministic with same seed)
         config_greedy = GenerationConfig(max_tokens=10, temperature=0.0, seed=42)
@@ -141,9 +141,9 @@ class TestConvenienceFunctions:
     """Tests for convenience functions."""
 
     @pytest.mark.slow
-    def test_generate_function(self):
-        """Test generate() convenience function."""
-        response = generate(
+    def test_complete_function(self):
+        """Test complete() convenience function."""
+        response = complete(
             "What is Python?",
             model_path=DEFAULT_MODEL,
             max_tokens=30,
@@ -154,9 +154,9 @@ class TestConvenienceFunctions:
         assert len(response) > 0
 
     @pytest.mark.slow
-    def test_generate_streaming(self):
-        """Test generate() with streaming."""
-        chunks = list(generate(
+    def test_complete_streaming(self):
+        """Test complete() with streaming."""
+        chunks = list(complete(
             "Count to 3:",
             model_path=DEFAULT_MODEL,
             max_tokens=20,
@@ -210,7 +210,7 @@ class TestEdgeCases:
     @pytest.mark.slow
     def test_empty_prompt(self):
         """Test generation with empty prompt."""
-        gen = Generator(DEFAULT_MODEL)
+        gen = LLM(DEFAULT_MODEL)
         config = GenerationConfig(max_tokens=10)
 
         # Empty prompt should still work (BOS token)
@@ -220,7 +220,7 @@ class TestEdgeCases:
     @pytest.mark.slow
     def test_max_tokens_zero(self):
         """Test generation with max_tokens=0."""
-        gen = Generator(DEFAULT_MODEL)
+        gen = LLM(DEFAULT_MODEL)
         config = GenerationConfig(max_tokens=0)
 
         response = gen("Test", config=config)
@@ -229,7 +229,7 @@ class TestEdgeCases:
     @pytest.mark.slow
     def test_very_long_prompt(self):
         """Test generation with long prompt."""
-        gen = Generator(DEFAULT_MODEL)
+        gen = LLM(DEFAULT_MODEL)
         config = GenerationConfig(max_tokens=10, n_ctx=2048)
 
         long_prompt = "Hello " * 100
@@ -239,7 +239,7 @@ class TestEdgeCases:
     @pytest.mark.slow
     def test_context_recreation(self):
         """Test that context is recreated when needed."""
-        gen = Generator(DEFAULT_MODEL)
+        gen = LLM(DEFAULT_MODEL)
 
         # Generate with small context
         config1 = GenerationConfig(max_tokens=10, n_ctx=512)

@@ -23,12 +23,12 @@ Complete API reference for cyllama, a high-performance Python library for LLM in
 
 The high-level API provides simple, Pythonic functions and classes for text generation.
 
-### `generate()`
+### `complete()`
 
 One-shot text generation function.
 
 ```python
-def generate(
+def complete(
     prompt: str,
     model_path: str,
     config: Optional[GenerationConfig] = None,
@@ -53,9 +53,9 @@ def generate(
 **Example:**
 
 ```python
-from cyllama import generate
+from cyllama import complete
 
-response = generate(
+response = complete(
     "What is Python?",
     model_path="models/llama.gguf",
     temperature=0.7,
@@ -63,7 +63,7 @@ response = generate(
 )
 
 # Streaming
-for chunk in generate("Tell me a story", model_path="models/llama.gguf", stream=True):
+for chunk in complete("Tell me a story", model_path="models/llama.gguf", stream=True):
     print(chunk, end="", flush=True)
 ```
 
@@ -110,12 +110,12 @@ response = chat(messages, model_path="models/llama.gguf")
 
 ---
 
-### `Generator` Class
+### `LLM` Class
 
 Reusable generator with model caching for improved performance.
 
 ```python
-class Generator:
+class LLM:
     def __init__(
         self,
         model_path: str,
@@ -172,9 +172,9 @@ def generate_with_stats(
 **Example:**
 
 ```python
-from cyllama import Generator, GenerationConfig
+from cyllama import LLM, GenerationConfig
 
-gen = Generator("models/llama.gguf")
+gen = LLM("models/llama.gguf")
 
 # Simple generation
 response = gen("What is Python?")
@@ -1012,10 +1012,10 @@ print(result.text)
 All cyllama functions raise appropriate Python exceptions:
 
 ```python
-from cyllama import generate, Generator
+from cyllama import complete, Generator
 
 try:
-    response = generate("Hello", model_path="nonexistent.gguf")
+    response = complete("Hello", model_path="nonexistent.gguf")
 except FileNotFoundError:
     print("Model file not found")
 except RuntimeError as e:
@@ -1025,7 +1025,7 @@ except Exception as e:
 
 # Generator with error handling
 try:
-    gen = Generator("models/llama.gguf")
+    gen = LLM("models/llama.gguf")
     response = gen("What is Python?")
 except Exception as e:
     print(f"Generation failed: {e}")
@@ -1057,10 +1057,10 @@ from cyllama import (
 ```python
 # BAD: Reloads model each time (slow)
 for prompt in prompts:
-    response = generate(prompt, model_path="model.gguf")
+    response = complete(prompt, model_path="model.gguf")
 
 # GOOD: Reuses loaded model (fast)
-gen = Generator("model.gguf")
+gen = LLM("model.gguf")
 for prompt in prompts:
     response = gen(prompt)
 ```
@@ -1085,7 +1085,7 @@ estimate = estimate_gpu_layers("model.gguf", available_vram_mb=8000)
 
 # Use recommended settings
 config = GenerationConfig(n_gpu_layers=estimate.n_gpu_layers)
-gen = Generator("model.gguf", config=config)
+gen = LLM("model.gguf", config=config)
 ```
 
 ### 4. Context Sizing
@@ -1102,10 +1102,10 @@ config = GenerationConfig(n_ctx=2048, max_tokens=200)
 
 ```python
 # Non-streaming: waits for complete response
-response = generate("Write a long essay", model_path="model.gguf", max_tokens=2000)
+response = complete("Write a long essay", model_path="model.gguf", max_tokens=2000)
 
 # Streaming: see output as it generates
-for chunk in generate("Write a long essay", model_path="model.gguf",
+for chunk in complete("Write a long essay", model_path="model.gguf",
                      max_tokens=2000, stream=True):
     print(chunk, end="", flush=True)
 ```

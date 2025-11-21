@@ -17,6 +17,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [0.1.x]
 
+## [Unreleased]
+
+### Changed
+
+- **API Refactoring** - Renamed core API for clarity and consistency
+  - `generate.py` → `api.py` - New unified API module
+  - `Generator` class → `LLM` class - Better semantic naming
+  - `generate()` function → `complete()` function - More precise terminology
+  - Merged `api.simple()` into new `api.py` module
+  - Updated all integrations and tests to use new naming
+  - All exports remain available from `cyllama` package root
+
+### Added
+
+- **Integration Improvements** - Cleaner import paths for framework integrations
+  - Added `OpenAIClient` alias for `OpenAICompatibleClient` in `cyllama.integrations`
+  - Now supports `from cyllama.integrations import OpenAIClient` (shorter import path)
+  - Maintains backward compatibility with full path import
+
+### Fixed
+
+- **Logging** - Disabled verbose llama.cpp logging by default in `LLM`, `complete()`, `chat()`, and `BatchGenerator`
+  - Added `verbose` parameter to control logging output
+  - Calls `disable_logging()` when `verbose=False` (the default)
+  - Significantly reduces debug output for cleaner user experience
+
 ## [0.1.9] - 2025-11-21
 
 ### Added

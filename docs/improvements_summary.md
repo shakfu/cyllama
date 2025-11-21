@@ -11,7 +11,7 @@ Following the completion of all high-priority llama.cpp API wrappers (GGUF, JSON
 
 ## What Was Added
 
-### 1. High-Level Generation API (`src/cyllama/generate.py`)
+### 1. High-Level API (`src/cyllama/api.py`)
 
 **Problem**: The existing low-level API required manual management of models, contexts, batches, and samplers.
 
@@ -19,9 +19,9 @@ Following the completion of all high-priority llama.cpp API wrappers (GGUF, JSON
 
 **Key Features**:
 
-- `generate()` - One-line text generation
+- `complete()` - One-line text generation
 - `chat()` - Multi-turn conversation interface
-- `Generator` class - Reusable generator with model caching
+- `LLM` class - Reusable generator with model caching
 - `GenerationConfig` - Comprehensive configuration dataclass
 - Streaming support with token callbacks
 - Automatic context and sampler management
@@ -29,9 +29,9 @@ Following the completion of all high-priority llama.cpp API wrappers (GGUF, JSON
 **Example**:
 
 ```python
-from cyllama import generate
+from cyllama import complete
 
-response = generate(
+response = complete(
     "What is Python?",
     model_path="models/llama.gguf",
     temperature=0.7,
@@ -122,7 +122,7 @@ chain = LLMChain(llm=llm, prompt=prompt_template)
 ```python
 from cyllama import (
     # High-level generation
-    generate, chat, Generator, GenerationConfig,
+    complete, chat, LLM, GenerationConfig,
 
     # Batching
     batch_generate, BatchGenerator,
@@ -170,7 +170,7 @@ Complete overview of all improvements with examples and migration guidance.
 
 ### New Test Files
 
-1. **`tests/test_generate.py`** - 60+ tests for high-level generation API
+1. **`tests/test_generate.py` (tests for LLM, complete, chat)** - 60+ tests for high-level generation API
    - Configuration management
    - Simple and streaming generation
    - Token callbacks
@@ -224,9 +224,9 @@ ctx = LlamaContext(model, ctx_params)
 **After (High-Level)**:
 
 ```python
-from cyllama import generate
+from cyllama import complete
 
-response = generate(
+response = complete(
     "Your prompt",
     model_path="model.gguf",
     temperature=0.7,
@@ -234,7 +234,7 @@ response = generate(
 )
 ```
 
-### From Simple API to Generator Class
+### From Simple API to LLM Class
 
 **When**: Processing multiple prompts with the same model
 
@@ -242,14 +242,14 @@ response = generate(
 
 ```python
 for prompt in prompts:
-    response = generate(prompt, model_path="model.gguf")
+    response = complete(prompt, model_path="model.gguf")
     # Model reloaded each time! Slow!
 ```
 
 **After**:
 
 ```python
-gen = Generator("model.gguf")
+gen = LLM("model.gguf")
 for prompt in prompts:
     response = gen(prompt)
     # Model loaded once! Fast!
@@ -259,7 +259,7 @@ for prompt in prompts:
 
 ### 1. Model Reuse
 
-**Generator class** caches model between generations:
+**LLM class** caches model between generations:
 
 - **Before**: 5-10 seconds per generation (including load time)
 - **After**: <1 second per generation (after first load)
@@ -295,7 +295,7 @@ All new APIs follow these principles:
 ### Lines of Code Added
 
 - **Production Code**: ~1,200 lines
-  - `generate.py`: ~350 lines
+  - `api.py`: ~350 lines
   - `batching.py`: ~280 lines
   - `integrations/`: ~400 lines
   - Updates to `__init__.py`: ~30 lines
@@ -366,7 +366,7 @@ The library is now ready for both quick prototyping and production deployment!
 - `src/cyllama/integrations/__init__.py`
 - `src/cyllama/integrations/langchain.py`
 - `src/cyllama/integrations/openai_compat.py`
-- `tests/test_generate.py`
+- `tests/test_generate.py` (tests for LLM, complete, chat)
 - `tests/test_integrations.py`
 - `docs/USER_GUIDE.md`
 - `docs/COOKBOOK.md`

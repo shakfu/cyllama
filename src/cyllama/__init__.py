@@ -1,11 +1,11 @@
-from .api import simple
 from .llama.llama_cpp import *
 
-# High-level generation APIs
-from .generate import (
-    generate,
+# High-level API
+from .api import (
+    LLM,
+    complete,
     chat,
-    Generator,
+    simple,
     GenerationConfig,
     GenerationStats,
 )

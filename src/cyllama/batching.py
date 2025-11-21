@@ -36,7 +36,7 @@ from .llama.llama_cpp import (
     ggml_backend_load_all,
     disable_logging,
 )
-from .generate import GenerationConfig
+from .api import GenerationConfig
 
 
 @dataclass

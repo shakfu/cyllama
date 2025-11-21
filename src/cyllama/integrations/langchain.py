@@ -17,23 +17,23 @@ Example:
 from typing import Any, List, Optional, Iterator, Dict
 import warnings
 
-from ..generate import Generator, GenerationConfig
+from ..api import LLM as CyllamaLLMCore, GenerationConfig
 
 
 try:
-    from langchain.llms.base import LLM
+    from langchain.llms.base import LLM as LangChainLLM
     from langchain.callbacks.manager import CallbackManagerForLLMRun
     LANGCHAIN_AVAILABLE = True
 except ImportError:
     LANGCHAIN_AVAILABLE = False
     # Create dummy base class and types
-    class LLM:
+    class LangChainLLM:
         pass
     # Dummy type for type hints
     CallbackManagerForLLMRun = None
 
 
-class CyllamaLLM(LLM):
+class CyllamaLLM(LangChainLLM):
     """
     LangChain-compatible LLM wrapper for cyllama.
 
@@ -64,7 +64,7 @@ class CyllamaLLM(LLM):
     verbose: bool = False
 
     # LangChain-specific attributes
-    _generator: Optional[Generator] = None
+    _generator: Optional[CyllamaLLMCore] = None
 
     def __init__(self, **kwargs):
         """Initialize the LLM."""
@@ -80,7 +80,7 @@ class CyllamaLLM(LLM):
         return "cyllama"
 
     @property
-    def generator(self) -> Generator:
+    def generator(self) -> CyllamaLLMCore:
         """Lazy-load the generator."""
         if self._generator is None:
             config = GenerationConfig(
@@ -94,7 +94,7 @@ class CyllamaLLM(LLM):
                 n_ctx=self.n_ctx,
                 stop_sequences=self.stop_sequences,
             )
-            self._generator = Generator(
+            self._generator = CyllamaLLMCore(
                 self.model_path,
                 config=config,
                 verbose=self.verbose

@@ -5,10 +5,10 @@ Fast, Pythonic LLM Inference -- Cyllama is a comprehensive no-dependencies Pytho
 ## Quick Start
 
 ```python
-from cyllama import generate
+from cyllama import complete
 
 # One line is all you need
-response = generate(
+response = complete(
     "Explain quantum computing in simple terms",
     model_path="models/llama.gguf",
     temperature=0.7,
@@ -24,10 +24,10 @@ print(response)
 **High-Level API** - Get started in seconds:
 
 ```python
-from cyllama import generate, chat, Generator
+from cyllama import complete, chat, LLM
 
-# One-shot generation
-response = generate("What is Python?", model_path="model.gguf")
+# One-shot completion
+response = complete("What is Python?", model_path="model.gguf")
 
 # Multi-turn chat
 messages = [
@@ -36,16 +36,16 @@ messages = [
 ]
 response = chat(messages, model_path="model.gguf")
 
-# Reusable generator (faster for multiple prompts)
-gen = Generator("model.gguf")
-response1 = gen("Question 1")
-response2 = gen("Question 2")  # Model stays loaded!
+# Reusable LLM instance (faster for multiple prompts)
+llm = LLM("model.gguf")
+response1 = llm("Question 1")
+response2 = llm("Question 2")  # Model stays loaded!
 ```
 
 **Streaming Support** - Real-time token-by-token output:
 
 ```python
-for chunk in generate("Tell me a story", model_path="model.gguf", stream=True):
+for chunk in complete("Tell me a story", model_path="model.gguf", stream=True):
     print(chunk, end="", flush=True)
 ```
 
@@ -87,9 +87,9 @@ print(f"Recommended GPU layers: {estimate.n_gpu_layers}")
 **OpenAI-Compatible API** - Drop-in replacement:
 
 ```python
-from cyllama.integrations.openai_compat import OpenAICompatibleClient
+from cyllama.integrations import OpenAIClient
 
-client = OpenAICompatibleClient(model_path="model.gguf")
+client = OpenAIClient(model_path="model.gguf")
 
 response = client.chat.completions.create(
     messages=[{"role": "user", "content": "Hello!"}],
@@ -154,7 +154,7 @@ draft = cache.draft(input_tokens, n_draft=16)
 ### Core Capabilities
 
 - [x] **Full llama.cpp API** - Complete Cython wrapper with strong typing
-- [x] **High-Level Generation** - Simple, Pythonic API for common tasks
+- [x] **High-Level API** - Simple, Pythonic interface (`LLM`, `complete`, `chat`)
 - [x] **Streaming Support** - Token-by-token generation with callbacks
 - [x] **Batch Processing** - Efficient parallel inference
 - [x] **GPU Acceleration** - Automatic Metal/CUDA/Vulkan backend support
@@ -302,8 +302,8 @@ You can also explore interactively:
 ```python
 python3 -i scripts/start.py
 
->>> from cyllama import generate
->>> response = generate("What is 2+2?", model_path="models/Llama-3.2-1B-Instruct-Q8_0.gguf")
+>>> from cyllama import complete
+>>> response = complete("What is 2+2?", model_path="models/Llama-3.2-1B-Instruct-Q8_0.gguf")
 >>> print(response)
 ```
 
@@ -320,7 +320,7 @@ python3 -i scripts/start.py
 ### Completed
 
 - [x] Full llama.cpp API wrapper with Cython
-- [x] High-level generation API (generate, chat, Generator)
+- [x] High-level API (`LLM`, `complete`, `chat`)
 - [x] Batch processing utilities
 - [x] OpenAI-compatible API client
 - [x] LangChain integration
@@ -336,7 +336,7 @@ python3 -i scripts/start.py
 
 ### Future
 
-- [ ] Async API support (`async def generate_async()`)
+- [ ] Async API support (`async def complete_async()`)
 - [ ] Response caching for identical prompts
 - [ ] Built-in prompt template system
 - [ ] RAG utilities

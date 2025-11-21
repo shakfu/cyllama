@@ -33,7 +33,7 @@ from dataclasses import dataclass, field
 import time
 import uuid
 
-from ..generate import Generator, GenerationConfig
+from ..api import LLM, GenerationConfig
 
 
 @dataclass
@@ -99,7 +99,7 @@ class ChatCompletionChunk:
 class ChatCompletions:
     """Chat completions API."""
 
-    def __init__(self, generator: Generator):
+    def __init__(self, generator: LLM):
         self.generator = generator
 
     def create(
@@ -247,7 +247,7 @@ class ChatCompletions:
 class Chat:
     """Chat API."""
 
-    def __init__(self, generator: Generator):
+    def __init__(self, generator: LLM):
         self.completions = ChatCompletions(generator)
 
 
@@ -288,12 +288,12 @@ class OpenAICompatibleClient:
             n_gpu_layers=n_gpu_layers
         )
 
-        self._generator = Generator(model_path, config=config, verbose=verbose)
+        self._generator = LLM(model_path, config=config, verbose=verbose)
         self.chat = Chat(self._generator)
 
     @property
-    def generator(self) -> Generator:
-        """Access underlying generator."""
+    def generator(self) -> LLM:
+        """Access underlying LLM."""
         return self._generator
 
 
