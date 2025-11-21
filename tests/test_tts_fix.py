@@ -15,9 +15,7 @@ def test_tts_generation():
     ttc_model = "models/tts.gguf"
     cts_model = "models/WavTokenizer-Large-75-F16.gguf"
 
-    if not os.path.exists(ttc_model):
-        print(f"Model file {ttc_model} not found. Please ensure you have the TTS models.")
-        return False
+    assert os.path.exists(ttc_model), f"Model file {ttc_model} not found. Please ensure you have the TTS models."
 
     # Create TTS generator with the fixed implementation
     tts = TTSGenerator(
