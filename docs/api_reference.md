@@ -809,27 +809,27 @@ server.stop()
 
 ---
 
-### Launcher
+### LlamaServer
 
-Wrapper around llama.cpp's binary server.
+Python wrapper around the llama.cpp server binary.
 
 ```python
-from cyllama.llama.server.launcher import ServerLauncher
+from cyllama.llama.server import LlamaServer, LauncherServerConfig
 
-launcher = ServerLauncher(
+config = LauncherServerConfig(
     model_path="models/llama.gguf",
     host="127.0.0.1",
-    port=8080,
-    server_binary="bin/llama-server"
+    port=8080
 )
 
-launcher.start()
+server = LlamaServer(config, server_binary="bin/llama-server")
+server.start()
 
 # Check status
-if launcher.is_running():
+if server.is_running():
     print("Server is running")
 
-launcher.stop()
+server.stop()
 ```
 
 ---
@@ -1003,7 +1003,7 @@ for chunk in complete("Write a long essay", model_path="model.gguf",
 ## Version Compatibility
 
 - **Python**: ≥3.8 (tested on 3.13)
-- **llama.cpp**: b6374 (November 2025)
+- **llama.cpp**: b7126 (November 2025)
 - **Platform**: macOS (primary), Linux (tested)
 
 ---

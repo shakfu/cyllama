@@ -162,7 +162,7 @@ Complete overview of all improvements with examples and migration guidance.
 ### Test Results
 
 ```text
-271 passed, 32 skipped in 49.41s
+276 tests passing
 ```
 
 All tests passing, including new high-level API and batch processing tests!
@@ -320,7 +320,7 @@ These improvements transform cyllama from a thin C++ wrapper into a comprehensiv
 [x] Batch processing utilities (fixed and fully functional with 13 comprehensive tests)
 [x] Framework integrations (OpenAI, LangChain)
 [x] Comprehensive documentation (guide, cookbook, examples)
-[x] Full test coverage (271 tests passing)
+[x] Full test coverage (276 tests passing)
 [x] Zero breaking changes (backward compatible)
 
 ### Impact

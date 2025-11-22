@@ -1,20 +1,20 @@
-# Cyllama Update - November 2025
+# cyllama Update - November 2025
 
-## Update on the Cyllama Project
+## Update on the cyllama Project
 
-It's been nearly a year since my last announcement, and I wanted to share what's new with **cyllama** - the thin Cython wrapper for llama.cpp.
+It's been nearly a year since my last announcement, and I wanted to share what's new with [cyllama](https://github.com/shakfu/cyllama) - the thin cython wrapper for llama.cpp.
 
-For those just joining: cyllama is a minimal, performant, compiled Python extension wrapping llama.cpp's core functionality. It statically links libllama.a and libggml.a for simplicity and performance (~1.2 MB wheel).
+A quick reminder: cyllama is a minimal, performant, compiled Python extension wrapping llama.cpp's core functionality. It statically links libllama.a and libggml.a for simplicity and performance (~1.2 MB wheel).
 
 ---
 
 ## What's Changed Since December 2024
 
-Thanks to the use of helpful AI agents, the project has managed to keep up with the fast pace of changes at llama.cpp and is currently tracking release `b7126`. Here is a summary of some changes since the last post.
+Thanks to the targeted use of AI agents, the project has managed to keep up with the fast pace of changes at llama.cpp and is currently tracking release `b7126`. Here is a summary of some changes since the last post.
 
-### 1. **High-Level Python API** - The Big One
+### 1. **High-Level Python API**
 
-We now have a complete, Pythonic API layer that makes cyllama actually pleasant to use:
+We now have a complete, Pythonic API layer that makes cyllama more pleasant to use:
 
 ```python
 from cyllama import complete, chat, LLM
@@ -146,7 +146,7 @@ server.start()
 - Multiple server implementations:
   - `EmbeddedServer`: Python-based with threading
   - `MongooseServer`: High-performance C-based server
-  - `ServerLauncher`: Process-based isolation
+  - `LlamaServer`: Python wrapper around the llama.cpp server binary
 
 **Example with curl:**
 ```bash
@@ -199,7 +199,7 @@ Both work seamlessly with existing code expecting OpenAI or LangChain interfaces
 
 - **Logging**: Debug output disabled by default (add `verbose=True` to enable)
 - **Documentation**: Comprehensive user guide, API reference, and cookbook (1,200+ lines total)
-- **Tests**: 253 passing tests for reliability
+- **Tests**: 276 passing tests for reliability
 - **API Clarity**: Renamed `generate()` → `complete()` and `Generator` → `LLM` for better semantics
 
 ---
@@ -209,7 +209,7 @@ Both work seamlessly with existing code expecting OpenAI or LangChain interfaces
 **Version:** 0.1.9 (November 21, 2025)
 **llama.cpp Version:** b7126 (tracking bleeding-edge)
 **whisper.cpp:** Integrated and tested
-**Tests:** 271 passing, 32 skipped (optional dependencies)
+**Tests:** 276 passing
 **Platform:** macOS (primary), Linux (tested)
 
 **API Coverage - All Major Goals Met:**

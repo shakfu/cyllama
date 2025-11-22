@@ -145,7 +145,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - Integration tests with real models
   - Edge case testing (empty prompts, zero tokens, etc.)
   - Performance validation tests
-  - All 264 tests passing with 21 skipped (optional dependencies)
+  - All 276 tests passing
 
 ### Performance Improvements
 

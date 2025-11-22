@@ -191,12 +191,12 @@ draft = cache.draft(input_tokens, n_draft=16)
 
 **Production-Ready**: Battle-tested and comprehensive
 
-- 264 passing tests with extensive coverage
+- 276 passing tests with extensive coverage
 - Comprehensive documentation and examples
 - Proper error handling and logging
 - Framework integration for real applications
 
-**Up-to-Date**: Tracks bleeding-edge llama.cpp (currently b6374)
+**Up-to-Date**: Tracks bleeding-edge llama.cpp (currently b7126)
 
 - Regular updates with latest features
 - All high-priority APIs wrapped
@@ -205,8 +205,8 @@ draft = cache.draft(input_tokens, n_draft=16)
 ## Status
 
 **Current Version**: 0.1.9 (November 2025)
-**llama.cpp Version**: b6374
-**Test Coverage**: 264 tests passing
+**llama.cpp Version**: b7126
+**Test Coverage**: 276 tests passing
 **Platform**: macOS (primary), Linux (tested)
 
 ### API Coverage
@@ -226,7 +226,7 @@ draft = cache.draft(input_tokens, n_draft=16)
 | Multimodal (LLAVA) | [x] Complete | Vision-language models |
 | Whisper.cpp | [x] Complete | Speech-to-text |
 | Memory optimization | [x] Complete | GPU layer estimation |
-| Server implementations | [x] Complete | Embedded, Mongoose, Launcher |
+| Server implementations | [x] Complete | EmbeddedServer, MongooseServer, LlamaServer |
 
 ### Recent Releases
 
@@ -291,7 +291,7 @@ bin/llama-cli -c 512 -n 32 -m models/Llama-3.2-1B-Instruct-Q8_0.gguf \
  -p "Is mathematics discovered or invented?"
 ```
 
-With 264 passing tests, the library is ready for both quick prototyping and production use:
+With 276 passing tests, the library is ready for both quick prototyping and production use:
 
 ```sh
 make test  # Run full test suite
@@ -329,7 +329,7 @@ python3 -i scripts/start.py
 - [x] JSON schema to grammar conversion
 - [x] Model download helper
 - [x] N-gram cache
-- [x] OpenAI-compatible servers (embedded, mongoose, launcher)
+- [x] OpenAI-compatible servers (EmbeddedServer, MongooseServer, LlamaServer)
 - [x] Whisper.cpp integration
 - [x] Multimodal support (LLAVA)
 - [x] Memory estimation utilities
