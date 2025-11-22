@@ -41,6 +41,7 @@ dev = [
     "ruff>=0.12.12",
     "numpy>=1.24.4",
     "requests>=2.32.4",
+    "langchain>=0.0.27",
 ]
 # addopts = "--cov=cyllama --cov-report html"
 # addopts = "-ra -q"

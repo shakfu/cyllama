@@ -158,8 +158,101 @@ class TestLangChainIntegration:
             # If LangChain is not installed, should get helpful error
             assert "langchain" in str(e).lower()
 
-    # Note: Full LangChain tests would require langchain to be installed
-    # These are integration tests that should be run separately
+    @pytest.mark.skipif(
+        not pytest.importorskip("langchain", reason="langchain not installed"),
+        reason="Requires langchain"
+    )
+    @pytest.mark.slow
+    def test_langchain_basic_generation(self):
+        """Test basic LangChain generation."""
+        from cyllama.integrations import CyllamaLLM
+
+        llm = CyllamaLLM(
+            model_path=DEFAULT_MODEL,
+            temperature=0.0,
+            max_tokens=30,
+            verbose=False
+        )
+
+        result = llm.invoke("What is 2+2? Answer briefly.")
+        assert isinstance(result, str)
+        assert len(result) > 0
+
+    @pytest.mark.skipif(
+        not pytest.importorskip("langchain", reason="langchain not installed"),
+        reason="Requires langchain"
+    )
+    @pytest.mark.slow
+    def test_langchain_with_stop_sequences(self):
+        """Test LangChain generation with stop sequences."""
+        from cyllama.integrations import CyllamaLLM
+
+        llm = CyllamaLLM(
+            model_path=DEFAULT_MODEL,
+            temperature=0.0,
+            max_tokens=50,
+            stop_sequences=["\n\n"],
+            verbose=False
+        )
+
+        result = llm.invoke("Count to 5")
+        assert isinstance(result, str)
+        assert len(result) > 0
+
+    @pytest.mark.skipif(
+        not pytest.importorskip("langchain", reason="langchain not installed"),
+        reason="Requires langchain"
+    )
+    @pytest.mark.slow
+    def test_langchain_streaming(self):
+        """Test LangChain streaming generation."""
+        from cyllama.integrations import CyllamaLLM
+
+        llm = CyllamaLLM(
+            model_path=DEFAULT_MODEL,
+            temperature=0.0,
+            max_tokens=30,
+            verbose=False
+        )
+
+        chunks = list(llm.stream("Say hello"))
+        assert len(chunks) > 0
+        # Chunks should be strings (LangChain extracts .text automatically in newer versions)
+        full_text = "".join(str(chunk) for chunk in chunks)
+        assert len(full_text) > 0
+
+    @pytest.mark.skipif(
+        not pytest.importorskip("langchain", reason="langchain not installed"),
+        reason="Requires langchain"
+    )
+    @pytest.mark.slow
+    def test_langchain_identifying_params(self):
+        """Test that LangChain can identify the LLM."""
+        from cyllama.integrations import CyllamaLLM
+
+        llm = CyllamaLLM(
+            model_path=DEFAULT_MODEL,
+            temperature=0.5,
+            max_tokens=100,
+            verbose=False
+        )
+
+        params = llm._identifying_params
+        assert params["model_path"] == DEFAULT_MODEL
+        assert params["temperature"] == 0.5
+        assert params["max_tokens"] == 100
+
+    @pytest.mark.skipif(
+        not pytest.importorskip("langchain", reason="langchain not installed"),
+        reason="Requires langchain"
+    )
+    @pytest.mark.slow
+    def test_langchain_llm_type(self):
+        """Test LLM type identifier."""
+        from cyllama.integrations import CyllamaLLM
+
+        llm = CyllamaLLM(model_path=DEFAULT_MODEL, verbose=False)
+        assert llm._llm_type == "cyllama"
 
 
 if __name__ == "__main__":

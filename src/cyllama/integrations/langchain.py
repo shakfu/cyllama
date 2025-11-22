@@ -21,16 +21,23 @@ from ..api import LLM as CyllamaLLMCore, GenerationConfig
 
 
 try:
-    from langchain.llms.base import LLM as LangChainLLM
-    from langchain.callbacks.manager import CallbackManagerForLLMRun
+    # Try new LangChain API first (langchain-core)
+    from langchain_core.language_models.llms import BaseLLM as LangChainLLM
+    from langchain_core.callbacks.manager import CallbackManagerForLLMRun
     LANGCHAIN_AVAILABLE = True
 except ImportError:
-    LANGCHAIN_AVAILABLE = False
-    # Create dummy base class and types
-    class LangChainLLM:
-        pass
-    # Dummy type for type hints
-    CallbackManagerForLLMRun = None
+    try:
+        # Fall back to old LangChain API
+        from langchain.llms.base import LLM as LangChainLLM
+        from langchain.callbacks.manager import CallbackManagerForLLMRun
+        LANGCHAIN_AVAILABLE = True
+    except ImportError:
+        LANGCHAIN_AVAILABLE = False
+        # Create dummy base class and types
+        class LangChainLLM:
+            pass
+        # Dummy type for type hints
+        CallbackManagerForLLMRun = None
 
 
 class CyllamaLLM(LangChainLLM):
@@ -101,6 +108,38 @@ class CyllamaLLM(LangChainLLM):
             )
         return self._generator
 
+    def _generate(
+        self,
+        prompts: List[str],
+        stop: Optional[List[str]] = None,
+        run_manager: Optional[CallbackManagerForLLMRun] = None,
+        **kwargs: Any,
+    ) -> Any:
+        """
+        Generate text from prompts (new LangChain API).
+
+        Args:
+            prompts: List of input text prompts
+            stop: List of stop sequences
+            run_manager: LangChain callback manager
+            **kwargs: Additional generation parameters
+
+        Returns:
+            LLMResult object with generations
+        """
+        try:
+            from langchain_core.outputs import LLMResult, Generation
+        except ImportError:
+            # Fall back to old API
+            from langchain.schema import LLMResult, Generation
+
+        generations = []
+        for prompt in prompts:
+            text = self._call(prompt, stop=stop, run_manager=run_manager, **kwargs)
+            generations.append([Generation(text=text)])
+
+        return LLMResult(generations=generations)
+
     def _call(
         self,
         prompt: str,
@@ -148,7 +187,7 @@ class CyllamaLLM(LangChainLLM):
         stop: Optional[List[str]] = None,
         run_manager: Optional[CallbackManagerForLLMRun] = None,
         **kwargs: Any,
-    ) -> Iterator[str]:
+    ) -> Iterator[Any]:
         """
         Stream text generation from a prompt.
 
@@ -159,8 +198,13 @@ class CyllamaLLM(LangChainLLM):
             **kwargs: Additional generation parameters
 
         Yields:
-            Text chunks as they are generated
+            Generation chunks as they are generated
         """
+        try:
+            from langchain_core.outputs import GenerationChunk
+        except ImportError:
+            from langchain.schema import GenerationChunk
+
         config = GenerationConfig(
             max_tokens=kwargs.get("max_tokens", self.max_tokens),
             temperature=kwargs.get("temperature", self.temperature),
@@ -178,7 +222,7 @@ class CyllamaLLM(LangChainLLM):
                 run_manager.on_llm_new_token(token)
 
         for chunk in self.generator(prompt, config=config, stream=True, on_token=on_token):
-            yield chunk
+            yield GenerationChunk(text=chunk)
 
     @property
     def _identifying_params(self) -> Dict[str, Any]:
