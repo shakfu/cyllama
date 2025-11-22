@@ -648,14 +648,23 @@ cdef class LlamaBatch:
     def reset(self):
         self.p.n_tokens = 0
 
-    # def add(self, llama.llama_token id, llama.llama_pos pos, list[int] seq_ids, bint logits):
-    #     cdef std_vector[llama.llama_seq_id] _seq_ids
-    #     for i in seq_ids:
-    #         _seq_ids.push_back(i)
-    #     llama.common_batch_add(self.p, id, pos, _seq_ids, logits)
+    def add(self, llama.llama_token id, llama.llama_pos pos, list[int] seq_ids, bint logits):
+        """Add a single token to the batch with position and sequence ID tracking.
 
-    # def clear(self):
-    #     llama.common_batch_clear(self.p)
+        Args:
+            id: Token ID to add
+            pos: Position in the sequence
+            seq_ids: List of sequence IDs this token belongs to
+            logits: Whether to compute logits for this token
+        """
+        cdef std_vector[llama.llama_seq_id] _seq_ids
+        for i in seq_ids:
+            _seq_ids.push_back(i)
+        common.common_batch_add(self.p, id, pos, _seq_ids, logits)
+
+    def clear(self):
+        """Clear the batch, resetting n_tokens to 0."""
+        common.common_batch_clear(self.p)
 
     def set_batch(self, batch: Sequence[int], n_past: int, logits_all: bool):
         cdef int n_tokens = len(batch)

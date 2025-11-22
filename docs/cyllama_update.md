@@ -63,20 +63,7 @@ chat_session.chat_loop()  # Interactive chat with template auto-detection
 - Custom template support via `LlamaChatMessage` and `chat_apply_template()`
 - Conversation history management
 
-### 3. **Batch Processing**
-
-Process multiple prompts in parallel (3-10x throughput improvement):
-
-```python
-from cyllama import batch_generate
-
-prompts = ["What is 2+2?", "What is 3+3?", "What is 4+4?"]
-responses = batch_generate(prompts, model_path="model.gguf")
-```
-
-Uses llama.cpp's native batching with shared KV cache.
-
-### 4. **Text-to-Speech (TTS) Support**
+### 3. **Text-to-Speech (TTS) Support**
 
 Full TTS integration for voice generation:
 
@@ -99,7 +86,7 @@ tts.generate(
 - Handles text preprocessing (numbers to words, etc.)
 - Streaming audio generation
 
-### 5. **Multimodal (LLAVA/Vision) Support**
+### 4. **Multimodal (LLAVA/Vision) Support**
 
 Vision-language models for image understanding:
 
@@ -126,7 +113,7 @@ response = vision_chat.ask_about_image("What's in this image?", "image.jpg")
 - Works with LLAVA, BakLLaVA, and similar vision-language models
 - Automatic vision capability detection
 
-### 6. **Embedded HTTP Server (Mongoose)**
+### 5. **Embedded HTTP Server (Mongoose)**
 
 Production-ready [embedded HTTP server](https://github.com/cesanta/mongoose) with OpenAI-compatible API:
 
@@ -171,7 +158,7 @@ curl http://localhost:8080/v1/chat/completions \
   }'
 ```
 
-### 7. **Framework Integrations**
+### 6. **Framework Integrations**
 
 **OpenAI-Compatible API:**
 ```python
@@ -196,19 +183,19 @@ result = chain.run(topic="AI")
 
 Both work seamlessly with existing code expecting OpenAI or LangChain interfaces.
 
-### 8. **Performance Features**
+### 7. **Performance Features**
 
 - **Speculative Decoding**: 2-3x speedup using draft models
 - **N-gram Cache**: 2-10x speedup for repetitive patterns (great for code completion)
 - **Memory Optimization**: Automatic GPU layer estimation based on available VRAM
 
-### 9. **Utility Features**
+### 8. **Utility Features**
 
 - **GGUF Manipulation**: Read/write model files, inspect/modify metadata
 - **JSON Schema → Grammar**: Generate structured output with type safety
 - **Model Downloads**: Ollama-style downloads from HuggingFace (`download_model("user/repo:quantization")`)
 
-### 10. **Quality of Life**
+### 9. **Quality of Life**
 
 - **Logging**: Debug output disabled by default (add `verbose=True` to enable)
 - **Documentation**: Comprehensive user guide, API reference, and cookbook (1,200+ lines total)
@@ -222,7 +209,7 @@ Both work seamlessly with existing code expecting OpenAI or LangChain interfaces
 **Version:** 0.1.9 (November 21, 2025)
 **llama.cpp Version:** b7126 (tracking bleeding-edge)
 **whisper.cpp:** Integrated and tested
-**Tests:** 253 passing, 32 skipped (optional dependencies)
+**Tests:** 271 passing, 32 skipped (optional dependencies)
 **Platform:** macOS (primary), Linux (tested)
 
 **API Coverage - All Major Goals Met:**
@@ -268,19 +255,19 @@ The library is now genuinely production-ready for:
 - Vision/multimodal applications (LLAVA)
 - API servers (OpenAI-compatible)
 - Integration into existing Python stacks (FastAPI, Flask, LangChain)
-- Performance-critical applications (batching, speculative decoding)
+- Performance-critical applications (speculative decoding, n-gram caching)
 
 ---
 
 ## Use Cases Now Supported
 
-1. **Text Generation**: Simple completions, structured output, batch processing
+1. **Text Generation**: Simple completions, structured output
 2. **Chat Applications**: Multi-turn conversations with template support
 3. **Voice Applications**: Text-to-speech with WAV output
 4. **Vision Applications**: Image understanding and visual Q&A
 5. **API Services**: Production HTTP servers with OpenAI compatibility
 6. **Framework Integration**: Works with LangChain, OpenAI clients
-7. **Performance**: Speculative decoding, n-gram caching, batching
+7. **Performance**: Speculative decoding, n-gram caching
 
 ---
 
@@ -324,8 +311,8 @@ But for now, the core feature set is comprehensive and ready to use.
 - High-level APIs for text, chat, TTS, and vision
 - Production HTTP servers (Mongoose integration)
 - Framework integrations (OpenAI, LangChain)
-- Performance optimizations (batching, speculative decoding, n-gram cache)
+- Performance optimizations (speculative decoding, n-gram cache)
 
 All while staying true to its minimal, compiled, performant roots (~1.2 MB wheel).
 
-Give it a try and let me know what you think! 🚀
+Give it a try and let me know what you think!

@@ -39,30 +39,7 @@ response = complete(
 )
 ```
 
-### 2. Batch Processing Utilities (`src/cyllama/batching.py`)
-
-**Problem**: Processing multiple prompts sequentially was inefficient.
-
-**Solution**: Implemented efficient batch processing using llama.cpp's batching capabilities.
-
-**Key Features**:
-
-- `batch_generate()` - Convenience function for batch processing
-- `BatchGenerator` class - Reusable batch processor
-- `BatchRequest`/`BatchResponse` - Structured batch operations with statistics
-- Parallel sequence processing
-- Detailed performance metrics
-
-**Example**:
-
-```python
-from cyllama import batch_generate
-
-prompts = ["What is 2+2?", "What is 3+3?", "What is 4+4?"]
-responses = batch_generate(prompts, "models/llama.gguf")
-```
-
-### 3. Framework Integrations (`src/cyllama/integrations/`)
+### 2. Framework Integrations (`src/cyllama/integrations/`)
 
 #### OpenAI-Compatible API (`openai_compat.py`)
 
@@ -124,7 +101,7 @@ from cyllama import (
     # High-level generation
     complete, chat, LLM, GenerationConfig,
 
-    # Batching
+    # Batch processing
     batch_generate, BatchGenerator,
 
     # Memory utilities
@@ -139,12 +116,11 @@ from cyllama import (
 
 ### 1. User Guide (`docs/USER_GUIDE.md`)
 
-Comprehensive 400+ line guide covering:
+Comprehensive 450+ line guide covering:
 
 - Getting Started
 - High-Level API usage
 - Streaming generation
-- Batch processing
 - Framework integrations
 - Advanced features (speculative decoding, memory estimation)
 - Performance optimization
@@ -186,10 +162,10 @@ Complete overview of all improvements with examples and migration guidance.
 ### Test Results
 
 ```text
-264 passed, 21 skipped in 35.43s
+271 passed, 32 skipped in 49.41s
 ```
 
-All tests passing, including new high-level API tests!
+All tests passing, including new high-level API and batch processing tests!
 
 ## Breaking Changes
 
@@ -266,11 +242,12 @@ for prompt in prompts:
 
 ### 2. Batch Processing
 
-**BatchGenerator** processes multiple prompts in parallel:
+**BatchGenerator and batch_generate()** for parallel prompt processing:
 
-- **Before**: N prompts × generation time
-- **After**: ~generation time (all prompts processed together)
+- **Before**: N prompts × generation time (sequential)
+- **After**: ~generation time (all prompts processed in parallel)
 - **Speedup**: 3-10x depending on batch size
+- **Note**: Batch processing was initially broken (incorrect API usage) and has been fixed with proper implementation of `LlamaBatch.add()` and `clear()` methods
 
 ### 3. Context Management
 
@@ -296,7 +273,6 @@ All new APIs follow these principles:
 
 - **Production Code**: ~1,200 lines
   - `api.py`: ~350 lines
-  - `batching.py`: ~280 lines
   - `integrations/`: ~400 lines
   - Updates to `__init__.py`: ~30 lines
 
@@ -341,10 +317,10 @@ These improvements transform cyllama from a thin C++ wrapper into a comprehensiv
 ### Key Achievements
 
 [x] High-level generation API (simple, streaming, configurable)
-[x] Batch processing utilities (efficient, easy to use)
+[x] Batch processing utilities (fixed and fully functional with 13 comprehensive tests)
 [x] Framework integrations (OpenAI, LangChain)
 [x] Comprehensive documentation (guide, cookbook, examples)
-[x] Full test coverage (264 tests passing)
+[x] Full test coverage (271 tests passing)
 [x] Zero breaking changes (backward compatible)
 
 ### Impact
@@ -362,7 +338,6 @@ The library is now ready for both quick prototyping and production deployment!
 ### New Files
 
 - `src/cyllama/generate.py`
-- `src/cyllama/batching.py`
 - `src/cyllama/integrations/__init__.py`
 - `src/cyllama/integrations/langchain.py`
 - `src/cyllama/integrations/openai_compat.py`

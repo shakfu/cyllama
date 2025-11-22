@@ -7,11 +7,10 @@ Complete guide to using cyllama for LLM inference.
 1. [Getting Started](#getting-started)
 2. [High-Level API](#high-level-api)
 3. [Streaming Generation](#streaming-generation)
-4. [Batch Processing](#batch-processing)
-5. [Framework Integrations](#framework-integrations)
-6. [Advanced Features](#advanced-features)
-7. [Performance Optimization](#performance-optimization)
-8. [Troubleshooting](#troubleshooting)
+4. [Framework Integrations](#framework-integrations)
+5. [Advanced Features](#advanced-features)
+6. [Performance Optimization](#performance-optimization)
+7. [Troubleshooting](#troubleshooting)
 
 ## Getting Started
 
@@ -158,48 +157,6 @@ response = gen(
 )
 
 print(f"\nTotal tokens: {len(tokens_seen)}")
-```
-
-## Batch Processing
-
-Process multiple prompts efficiently:
-
-```python
-from cyllama import batch_generate, BatchGenerator
-
-# Simple batch generation
-prompts = [
-    "What is 2+2?",
-    "What is 3+3?",
-    "What is 4+4?"
-]
-
-responses = batch_generate(
-    prompts,
-    model_path="models/llama.gguf",
-    max_tokens=50
-)
-
-for prompt, response in zip(prompts, responses):
-    print(f"{prompt} -> {response}")
-
-# Advanced batching with statistics
-batch_gen = BatchGenerator("models/llama.gguf", batch_size=8)
-
-from cyllama import BatchRequest
-
-requests = [
-    BatchRequest(id=i, prompt=prompt, max_tokens=100)
-    for i, prompt in enumerate(prompts)
-]
-
-results = batch_gen.generate_batch_detailed(requests)
-
-for result in results:
-    print(f"ID: {result.id}")
-    print(f"Tokens: {result.tokens_generated}")
-    print(f"Time: {result.time_taken:.2f}s")
-    print(f"Response: {result.response}\n")
 ```
 
 ## Framework Integrations
@@ -468,7 +425,7 @@ python -c "import cyllama; print(cyllama.__file__)"
 ## Best Practices
 
 1. **Reuse Generators**: Create once, generate many times
-2. **Batch When Possible**: Use batch processing for multiple prompts
+2. **Reuse LLM Instances**: Keep the model loaded for multiple requests
 3. **Monitor Memory**: Use memory estimation tools
 4. **Tune Temperature**: Start at 0.7, adjust based on needs
 5. **Use Stop Sequences**: Prevent over-generation
@@ -481,7 +438,6 @@ See the `tests/examples/` directory for complete working examples:
 
 - `generate_example.py` - Basic generation
 - `speculative_example.py` - Speculative decoding
-- `batch_example.py` - Batch processing
 - `integration_example.py` - Framework integrations
 
 ## Next Steps

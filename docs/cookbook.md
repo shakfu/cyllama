@@ -270,11 +270,13 @@ print(cities)
 ### Batch Processing with Progress
 
 ```python
-from cyllama import BatchGenerator
 from tqdm import tqdm
+from cyllama import BatchGenerator, GenerationConfig
 
 def process_batch_with_progress(prompts: list, model_path: str) -> list:
-    batch_gen = BatchGenerator(model_path, batch_size=8)
+    # Create batch generator
+    batch_gen = BatchGenerator(model_path, n_seq_max=10)
+    config = GenerationConfig(max_tokens=50, temperature=0.7)
 
     # Split into chunks for progress tracking
     chunk_size = 10
@@ -282,7 +284,7 @@ def process_batch_with_progress(prompts: list, model_path: str) -> list:
 
     results = []
     for chunk in tqdm(chunks, desc="Processing batches"):
-        batch_results = batch_gen.generate_batch(chunk)
+        batch_results = batch_gen.generate_batch(chunk, config)
         results.extend(batch_results)
 
     return results

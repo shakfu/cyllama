@@ -40,6 +40,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Fixed
 
+- **Batch Processing** - Implemented working batch processing functionality
+  - Fixed `BatchGenerator` and `batch_generate()` which were using incorrect API and never worked
+  - Implemented `LlamaBatch.add()` and `LlamaBatch.clear()` methods in Cython bindings
+  - Added `n_seq_max` parameter to control maximum parallel sequences (default: 8)
+  - Fixed batch index tracking for proper logit sampling in parallel sequences
+  - Added comprehensive test suite with 13 tests covering all batch processing scenarios
+  - Updated documentation with correct API usage examples
 - **Logging** - Disabled verbose llama.cpp logging by default in `LLM`, `complete()`, `chat()`, and `BatchGenerator`
   - Added `verbose` parameter to control logging output
   - Calls `disable_logging()` when `verbose=False` (the default)

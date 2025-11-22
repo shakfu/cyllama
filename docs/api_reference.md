@@ -8,14 +8,13 @@ Complete API reference for cyllama, a high-performance Python library for LLM in
 ## Table of Contents
 
 1. [High-Level Generation API](#high-level-generation-api)
-2. [Batch Processing API](#batch-processing-api)
-3. [Framework Integrations](#framework-integrations)
-4. [Memory Utilities](#memory-utilities)
-5. [Core llama.cpp API](#core-llamacpp-api)
-6. [Advanced Features](#advanced-features)
-7. [Server Implementations](#server-implementations)
-8. [Multimodal Support](#multimodal-support)
-9. [Whisper Integration](#whisper-integration)
+2. [Framework Integrations](#framework-integrations)
+3. [Memory Utilities](#memory-utilities)
+4. [Core llama.cpp API](#core-llamacpp-api)
+5. [Advanced Features](#advanced-features)
+6. [Server Implementations](#server-implementations)
+7. [Multimodal Support](#multimodal-support)
+8. [Whisper Integration](#whisper-integration)
 
 ---
 
@@ -244,124 +243,6 @@ class GenerationStats:
     tokens_per_second: float
     prompt_time: float = 0.0
     generation_time: float = 0.0
-```
-
----
-
-## Batch Processing API
-
-Efficient parallel processing of multiple prompts.
-
-### `batch_generate()`
-
-Convenience function for batch processing.
-
-```python
-def batch_generate(
-    prompts: List[str],
-    model_path: str,
-    config: Optional[GenerationConfig] = None,
-    **kwargs
-) -> List[str]
-```
-
-**Parameters:**
-
-- `prompts` (List[str]): List of input prompts
-- `model_path` (str): Path to GGUF model file
-- `config` (GenerationConfig, optional): Generation configuration
-- `**kwargs`: Override config parameters
-
-**Returns:**
-
-- `List[str]`: List of generated responses
-
-**Example:**
-
-```python
-from cyllama import batch_generate
-
-prompts = ["What is 2+2?", "What is 3+3?", "What is 4+4?"]
-responses = batch_generate(prompts, model_path="models/llama.gguf")
-
-for prompt, response in zip(prompts, responses):
-    print(f"{prompt} -> {response}")
-```
-
----
-
-### `BatchGenerator` Class
-
-Reusable batch processor for improved performance.
-
-```python
-class BatchGenerator:
-    def __init__(
-        self,
-        model_path: str,
-        batch_size: int = 512,
-        n_ctx: int = 2048,
-        n_gpu_layers: int = 99,
-        verbose: bool = False
-    )
-```
-
-**Parameters:**
-
-- `model_path` (str): Path to GGUF model file
-- `batch_size` (int): Maximum batch size (default: 512)
-- `n_ctx` (int): Context window size (default: 2048)
-- `n_gpu_layers` (int): GPU layers to offload (default: 99)
-- `verbose` (bool): Print detailed information
-
-**Methods:**
-
-#### `generate_batch()`
-
-Process multiple prompts in parallel.
-
-```python
-def generate_batch(
-    self,
-    prompts: List[str],
-    config: Optional[GenerationConfig] = None
-) -> List[str]
-```
-
-**Example:**
-
-```python
-from cyllama import BatchGenerator
-
-batch_gen = BatchGenerator("models/llama.gguf", batch_size=8)
-responses = batch_gen.generate_batch([
-    "What is Python?",
-    "What is Rust?",
-    "What is Go?"
-])
-```
-
----
-
-### `BatchRequest` / `BatchResponse` Dataclasses
-
-Structured batch operations.
-
-```python
-@dataclass
-class BatchRequest:
-    id: int
-    prompt: str
-    max_tokens: int = 128
-    temperature: float = 0.7
-
-@dataclass
-class BatchResponse:
-    id: int
-    prompt: str
-    response: str
-    tokens_generated: int
-    time_taken: float
 ```
 
 ---
@@ -1044,7 +925,6 @@ from cyllama import (
     chat,              # str | Iterator[str]
     Generator,         # class
     GenerationConfig,  # @dataclass
-    batch_generate,    # List[str]
 )
 ```
 
@@ -1068,11 +948,19 @@ for prompt in prompts:
 ### 2. Batch Processing
 
 ```python
+from cyllama import batch_generate, GenerationConfig
+
 # BAD: Sequential processing
 responses = [generate(p, model_path="model.gguf") for p in prompts]
 
 # GOOD: Parallel batch processing (3-10x faster)
-responses = batch_generate(prompts, model_path="model.gguf")
+prompts = ["What is 2+2?", "What is 3+3?", "What is 4+4?"]
+responses = batch_generate(
+    prompts,
+    model_path="model.gguf",
+    n_seq_max=8,  # Max parallel sequences
+    config=GenerationConfig(max_tokens=50, temperature=0.7)
+)
 ```
 
 ### 3. GPU Offloading

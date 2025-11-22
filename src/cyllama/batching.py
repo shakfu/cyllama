@@ -80,6 +80,7 @@ class BatchGenerator:
         batch_size: int = 512,
         n_ctx: int = 2048,
         n_gpu_layers: int = 99,
+        n_seq_max: int = 8,
         verbose: bool = False
     ):
         """
@@ -90,11 +91,13 @@ class BatchGenerator:
             batch_size: Maximum batch size for processing
             n_ctx: Context window size
             n_gpu_layers: Number of layers to offload to GPU
+            n_seq_max: Maximum number of parallel sequences (default: 8)
             verbose: Print detailed information
         """
         self.model_path = model_path
         self.batch_size = batch_size
         self.n_ctx = n_ctx
+        self.n_seq_max = n_seq_max
         self.verbose = verbose
 
         # Disable llama.cpp logging unless verbose mode is enabled
@@ -118,6 +121,7 @@ class BatchGenerator:
         ctx_params = LlamaContextParams()
         ctx_params.n_ctx = n_ctx
         ctx_params.n_batch = batch_size
+        ctx_params.n_seq_max = n_seq_max  # Support parallel sequences
 
         self.ctx = LlamaContext(self.model, ctx_params)
 
@@ -145,6 +149,12 @@ class BatchGenerator:
         """
         if not prompts:
             return []
+
+        if len(prompts) > self.n_seq_max:
+            raise ValueError(
+                f"Too many prompts ({len(prompts)}) for configured n_seq_max ({self.n_seq_max}). "
+                f"Either reduce the number of prompts or increase n_seq_max when creating BatchGenerator."
+            )
 
         config = config or GenerationConfig()
 
@@ -177,21 +187,22 @@ class BatchGenerator:
             sampler.add_dist(config.seed if config.seed != -1 else int(time.time()))
 
         # Process prompts in batch
-        batch = LlamaBatch(self.batch_size)
+        batch = LlamaBatch(n_tokens=self.batch_size, embd=0, n_seq_max=self.n_seq_max)
         responses = [""] * len(prompts)
         active_sequences = set(range(len(prompts)))
         seq_positions = {i: 0 for i in range(len(prompts))}
 
-        # Add all prompt tokens to batch
+        # Add all prompt tokens to batch, tracking batch index for each sequence's logits
+        seq_logits_idx = {}
+        batch_idx = 0
         for seq_id, tokens in enumerate(tokenized_prompts):
             for i, token in enumerate(tokens):
                 is_last = (i == len(tokens) - 1)
-                batch.add_sequence(
-                    token=token,
-                    pos=i,
-                    seq_ids=[seq_id],
-                    logits=is_last  # Only compute logits for last token
-                )
+                batch.add(token, i, [seq_id], is_last)  # Use add() with positional args
+                if is_last:
+                    # Remember the batch index where this sequence's logits will be
+                    seq_logits_idx[seq_id] = batch_idx
+                batch_idx += 1
             seq_positions[seq_id] = len(tokens)
 
         # Decode initial batch
@@ -204,10 +215,12 @@ class BatchGenerator:
 
             batch.clear()
 
-            # Sample next token for each active sequence
+            # Sample next token for each active sequence using previous logits
+            batch_idx = 0
             for seq_id in list(active_sequences):
-                # Sample token
-                new_token = sampler.sample(self.ctx, seq_id)
+                # Sample token using the batch index from last decode
+                logits_idx = seq_logits_idx[seq_id]
+                new_token = sampler.sample(self.ctx, logits_idx)
 
                 # Check for end of generation
                 if self.vocab.is_eog(new_token):
@@ -221,13 +234,10 @@ class BatchGenerator:
                 except UnicodeDecodeError:
                     pass
 
-                # Add to batch for next iteration
-                batch.add_sequence(
-                    token=new_token,
-                    pos=seq_positions[seq_id],
-                    seq_ids=[seq_id],
-                    logits=True
-                )
+                # Add to batch for next iteration and remember new logits index
+                batch.add(new_token, seq_positions[seq_id], [seq_id], True)
+                seq_logits_idx[seq_id] = batch_idx
+                batch_idx += 1
                 seq_positions[seq_id] += 1
 
             # Decode batch if not empty
@@ -286,6 +296,7 @@ def batch_generate(
     prompts: List[str],
     model_path: str,
     batch_size: int = 512,
+    n_seq_max: int = 8,
     config: Optional[GenerationConfig] = None,
     **kwargs
 ) -> List[str]:
@@ -296,6 +307,7 @@ def batch_generate(
         prompts: List of input prompts
         model_path: Path to GGUF model file
         batch_size: Maximum batch size
+        n_seq_max: Maximum number of parallel sequences (default: 8)
         config: Generation configuration
         **kwargs: Additional config parameters
 
@@ -314,5 +326,5 @@ def batch_generate(
             if hasattr(config, key):
                 setattr(config, key, value)
 
-    generator = BatchGenerator(model_path, batch_size=batch_size)
+    generator = BatchGenerator(model_path, batch_size=batch_size, n_seq_max=n_seq_max)
     return generator.generate_batch(prompts, config)
