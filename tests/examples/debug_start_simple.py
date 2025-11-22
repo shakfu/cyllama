@@ -11,13 +11,13 @@ from pathlib import Path
 # Add the src directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from cyllama.llama.server.embedded import ServerConfig
+from cyllama.llama.server.python import ServerConfig
 
 def test_start_with_timeout():
     print("Testing server.start() with timeout...")
 
     try:
-        from cyllama.llama.server.mongoose_server import MongooseServer
+        from cyllama.llama.server.embedded import EmbeddedServer
 
         config = ServerConfig(
             model_path="models/Llama-3.2-1B-Instruct-Q8_0.gguf",
@@ -26,7 +26,7 @@ def test_start_with_timeout():
             n_ctx=256
         )
 
-        server = MongooseServer(config)
+        server = EmbeddedServer(config)
         print("✓ Server created")
 
         # Use threading to test if start() hangs

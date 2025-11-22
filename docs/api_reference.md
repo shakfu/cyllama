@@ -789,9 +789,9 @@ response = openai.ChatCompletion.create(
 High-performance C server using Mongoose library.
 
 ```python
-from cyllama.llama.server.mongoose_server import MongooseServer
+from cyllama.llama.server.mongoose_server import EmbeddedServer
 
-server = MongooseServer(
+server = EmbeddedServer(
     model_path="models/llama.gguf",
     host="127.0.0.1",
     port=8080,

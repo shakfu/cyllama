@@ -1,11 +1,11 @@
-# Import from the embedded server
-from .embedded import (
-    ServerConfig as EmbeddedServerConfig,
-    EmbeddedServer,
+# Import from the Python server (pure Python implementation)
+from .python import (
+    ServerConfig as PythonServerConfig,
+    PythonServer,
     ChatMessage,
     ChatRequest,
     ChatResponse,
-    start_embedded_server
+    start_python_server
 )
 
 # Import from the launcher (external binary wrapper)
@@ -16,15 +16,15 @@ from .launcher import (
     start_server
 )
 
-# Import from the Mongoose server (high-performance C server)
+# Import from the embedded server (high-performance C server using Mongoose)
 try:
-    from .mongoose_server import (
-        MongooseServer,
-        start_mongoose_server
+    from .embedded import (
+        EmbeddedServer,
+        start_embedded_server
     )
-    _MONGOOSE_AVAILABLE = True
+    _EMBEDDED_AVAILABLE = True
 except ImportError:
-    _MONGOOSE_AVAILABLE = False
+    _EMBEDDED_AVAILABLE = False
 
-# Default to embedded server config for new usage
-ServerConfig = EmbeddedServerConfig
+# Default to Python server config for new usage
+ServerConfig = PythonServerConfig

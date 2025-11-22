@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Embedded Llama.cpp Server
+Python-based Llama.cpp Server
 
-High-level Python wrapper that embeds llama.cpp server functionality
-without requiring external binaries. Uses the existing cyllama bindings
+High-level Python wrapper that provides llama.cpp server functionality
+using a pure Python HTTP server implementation. Uses the existing cyllama bindings
 to provide OpenAI-compatible API endpoints through a lightweight Python HTTP server.
 
 This approach avoids the complexity of wrapping cpp-httplib and complex C++ templates
@@ -198,9 +198,9 @@ class ServerSlot:
 
 
 
-class EmbeddedServer:
+class PythonServer:
     """
-    Embedded Llama.cpp server using existing cyllama bindings.
+    Python-based Llama.cpp server using existing cyllama bindings.
 
     Provides OpenAI-compatible endpoints without requiring external binaries.
     Uses the existing libllama.a linkage through cyllama Python bindings.
@@ -515,22 +515,22 @@ class EmbeddedServer:
 
 
 # Convenience function
-def start_embedded_server(model_path: str, **kwargs) -> EmbeddedServer:
+def start_python_server(model_path: str, **kwargs) -> PythonServer:
     """
-    Start an embedded server with simple configuration.
+    Start a Python server with simple configuration.
 
     Args:
         model_path: Path to the model file
         **kwargs: Additional configuration parameters
 
     Returns:
-        Started EmbeddedServer instance
+        Started PythonServer instance
     """
     config = ServerConfig(model_path=model_path, **kwargs)
-    server = EmbeddedServer(config)
+    server = PythonServer(config)
 
     if not server.start():
-        raise RuntimeError("Failed to start embedded server")
+        raise RuntimeError("Failed to start Python server")
 
     return server
 
@@ -558,7 +558,7 @@ def start_embedded_server(model_path: str, **kwargs) -> EmbeddedServer:
 #         n_gpu_layers=args.gpu_layers
 #     )
 
-#     with EmbeddedServer(config) as server:
+#     with PythonServer(config) as server:
 #         print(f"Server running at http://{args.host}:{args.port}")
 #         print("Press Ctrl+C to stop...")
 

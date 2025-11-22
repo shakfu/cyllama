@@ -113,15 +113,15 @@ response = vision_chat.ask_about_image("What's in this image?", "image.jpg")
 - Works with LLAVA, BakLLaVA, and similar vision-language models
 - Automatic vision capability detection
 
-### 5. **Embedded HTTP Server (Mongoose)**
+### 5. **Embedded HTTP Server**
 
-Production-ready [embedded HTTP server](https://github.com/cesanta/mongoose) with OpenAI-compatible API:
+Production-ready embedded HTTP servers with OpenAI-compatible API:
 
 ```python
-from cyllama.llama.server import EmbeddedServer
+from cyllama.llama.server import PythonServer
 
 # Create server with configuration
-server = EmbeddedServer(
+server = PythonServer(
     model_path="model.gguf",
     host="127.0.0.1",
     port=8080
@@ -144,8 +144,8 @@ server.start()
 - Graceful shutdown
 - Thread-safe request handling
 - Multiple server implementations:
-  - `EmbeddedServer`: Python-based with threading
-  - `MongooseServer`: High-performance C-based server
+  - `PythonServer`: Python-based with threading
+  - `EmbeddedServer`: High-performance [C-based server using Mongoose](https://github.com/cesanta/mongoose)
   - `LlamaServer`: Python wrapper around the llama.cpp server binary
 
 **Example with curl:**
@@ -244,7 +244,7 @@ tts.generate("Hello world", "output.wav")
 response = vision_chat.ask_about_image("What's in this?", "image.jpg")
 
 # HTTP server - production-ready!
-server = EmbeddedServer(model_path="model.gguf")
+server = PythonServer(model_path="model.gguf")
 server.start()
 ```
 
