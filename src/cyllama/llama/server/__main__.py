@@ -2,8 +2,7 @@ import argparse
 import logging
 import time
 
-from .embedded import ServerConfig, EmbeddedLlamaServer
-from .mongoose_server import MongooseServer
+from .python import ServerConfig, PythonServer
 
 
 def main():
@@ -14,8 +13,8 @@ def main():
     parser.add_argument("--ctx-size", type=int, default=2048, help="Context size")
     parser.add_argument("--gpu-layers", type=int, default=-1, help="GPU layers")
     parser.add_argument("--n-parallel", type=int, default=1, help="Number of parallel processing slots")
-    parser.add_argument("--server-type", choices=["embedded", "mongoose"], default="embedded",
-                       help="Server implementation to use (default: embedded)")
+    parser.add_argument("--server-type", choices=["python", "embedded"], default="embedded",
+                       help="Server implementation to use: python (pure Python) or embedded (high-performance C). Default: embedded")
 
     args = parser.parse_args()
 
@@ -30,24 +29,24 @@ def main():
         n_parallel=args.n_parallel
     )
 
-    if args.server_type == "mongoose":
+    if args.server_type == "embedded":
         try:
-            from .mongoose_server import MongooseServer
-            print(f"Starting Mongoose server (high-performance C implementation)")
+            from .mongoose_server import EmbeddedServer
+            print(f"Starting embedded server (high-performance C implementation)")
 
-            server = MongooseServer(config)
+            server = EmbeddedServer(config)
 
             if not server.start():
-                print("Failed to start Mongoose server")
+                print("Failed to start embedded server")
                 return 1
 
             try:
-                print(f"Mongoose server running at http://{args.host}:{args.port}")
+                print(f"Embedded server running at http://{args.host}:{args.port}")
                 print("Press Ctrl+C to stop...")
 
                 # Run the Mongoose event loop - this blocks until signal received
                 server.wait_for_shutdown()
-                print("\nShutting down Mongoose server...")
+                print("\nShutting down embedded server...")
 
             finally:
                 server.stop()
@@ -56,22 +55,22 @@ def main():
             print("\nReceived KeyboardInterrupt, shutting down...")
 
         except ImportError:
-            print("Mongoose server not available. Install with 'make build' to compile Mongoose support.")
-            print("Falling back to embedded Python server...")
-            args.server_type = "embedded"
+            print("Embedded server not available. Install with 'make build' to compile Mongoose support.")
+            print("Falling back to Python server...")
+            args.server_type = "python"
 
-    if args.server_type == "embedded":
-        print(f"Starting embedded Python server")
+    if args.server_type == "python":
+        print(f"Starting Python server")
 
-        with EmbeddedLlamaServer(config) as server:
-            print(f"Embedded server running at http://{args.host}:{args.port}")
+        with PythonServer(config) as server:
+            print(f"Python server running at http://{args.host}:{args.port}")
             print("Press Ctrl+C to stop...")
 
             try:
                 while True:
                     time.sleep(1)
             except KeyboardInterrupt:
-                print("\nShutting down embedded server...")
+                print("\nShutting down Python server...")
 
 
 if __name__ == '__main__':

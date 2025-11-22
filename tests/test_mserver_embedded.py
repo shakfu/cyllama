@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Tests for embedded llama.cpp server functionality.
+Tests for Python-based llama.cpp server functionality.
 
-These tests cover the EmbeddedServer class and related components,
+These tests cover the PythonServer class and related components,
 ensuring proper server functionality using existing cyllama bindings.
 """
 
@@ -13,14 +13,14 @@ import threading
 from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock
 
-from cyllama.llama.server.embedded import (
+from cyllama.llama.server.python import (
     ServerConfig,
-    EmbeddedServer,
+    PythonServer,
     ServerSlot,
     ChatMessage,
     ChatRequest,
     ChatResponse,
-    start_embedded_server
+    start_python_server
 )
 
 
@@ -140,8 +140,8 @@ class TestServerSlot:
         """Test creating a server slot."""
         config = ServerConfig(model_path="test.gguf")
 
-        with patch('cyllama.llama.server.embedded.LlamaContext'), \
-             patch('cyllama.llama.server.embedded.LlamaSampler'):
+        with patch('cyllama.llama.server.python.LlamaContext'), \
+             patch('cyllama.llama.server.python.LlamaSampler'):
             slot = ServerSlot(0, mock_model, config)
 
             assert slot.id == 0
@@ -153,8 +153,8 @@ class TestServerSlot:
         """Test resetting a server slot."""
         config = ServerConfig(model_path="test.gguf")
 
-        with patch('cyllama.llama.server.embedded.LlamaContext') as MockContext, \
-             patch('cyllama.llama.server.embedded.LlamaSampler'):
+        with patch('cyllama.llama.server.python.LlamaContext') as MockContext, \
+             patch('cyllama.llama.server.python.LlamaSampler'):
 
             mock_context = Mock()
             MockContext.return_value = mock_context
@@ -180,9 +180,9 @@ class TestServerSlot:
         """Test successful prompt processing and generation."""
         config = ServerConfig(model_path="test.gguf")
 
-        with patch('cyllama.llama.server.embedded.LlamaContext') as MockContext, \
-             patch('cyllama.llama.server.embedded.LlamaSampler') as MockSampler, \
-             patch('cyllama.llama.server.embedded.llama_batch_get_one') as mock_batch:
+        with patch('cyllama.llama.server.python.LlamaContext') as MockContext, \
+             patch('cyllama.llama.server.python.LlamaSampler') as MockSampler, \
+             patch('cyllama.llama.server.python.llama_batch_get_one') as mock_batch:
 
             mock_context = Mock()
             mock_context.decode.return_value = 0  # Success
@@ -215,8 +215,8 @@ class TestServerSlot:
         mock_vocab = mock_model.get_vocab()
         mock_vocab.tokenize.return_value = [1, 2, 3, 4, 5]  # 5 tokens > 3 ctx
 
-        with patch('cyllama.llama.server.embedded.LlamaContext'), \
-             patch('cyllama.llama.server.embedded.LlamaSampler'):
+        with patch('cyllama.llama.server.python.LlamaContext'), \
+             patch('cyllama.llama.server.python.LlamaSampler'):
             slot = ServerSlot(0, mock_model, config)
 
             result = slot.process_and_generate("Very long prompt")
@@ -227,8 +227,8 @@ class TestServerSlot:
         """Test handling of generation errors."""
         config = ServerConfig(model_path="test.gguf")
 
-        with patch('cyllama.llama.server.embedded.LlamaContext') as MockContext, \
-             patch('cyllama.llama.server.embedded.LlamaSampler'):
+        with patch('cyllama.llama.server.python.LlamaContext') as MockContext, \
+             patch('cyllama.llama.server.python.LlamaSampler'):
 
             mock_context = Mock()
             mock_context.decode.side_effect = Exception("Decode error")
@@ -244,8 +244,8 @@ class TestServerSlot:
             assert result == ""  # Should return empty string on error
 
 
-class TestEmbeddedServer:
-    """Test EmbeddedServer class functionality."""
+class TestPythonServer:
+    """Test PythonServer class functionality."""
 
     @pytest.fixture
     def config(self):
@@ -264,22 +264,22 @@ class TestEmbeddedServer:
         return model
 
     def test_server_creation(self, config):
-        """Test creating an embedded server."""
-        server = EmbeddedServer(config)
+        """Test creating a Python server."""
+        server = PythonServer(config)
 
         assert server.config == config
         assert server.model is None
         assert len(server.slots) == 0
         assert not server.running
 
-    @patch('cyllama.llama.server.embedded.LlamaModel')
-    @patch('cyllama.llama.server.embedded.ServerSlot')
+    @patch('cyllama.llama.server.python.LlamaModel')
+    @patch('cyllama.llama.server.python.ServerSlot')
     def test_load_model_success(self, MockServerSlot, MockLlamaModel, config, mock_model):
         """Test successful model loading."""
         MockLlamaModel.return_value = mock_model
         MockServerSlot.return_value = Mock()
 
-        server = EmbeddedServer(config)
+        server = PythonServer(config)
         result = server.load_model()
 
         assert result is True
@@ -287,12 +287,12 @@ class TestEmbeddedServer:
         MockLlamaModel.assert_called_once()
         assert len(server.slots) == config.n_parallel
 
-    @patch('cyllama.llama.server.embedded.LlamaModel')
+    @patch('cyllama.llama.server.python.LlamaModel')
     def test_load_model_failure(self, MockLlamaModel, config):
         """Test model loading failure."""
         MockLlamaModel.side_effect = Exception("Model load failed")
 
-        server = EmbeddedServer(config)
+        server = PythonServer(config)
         result = server.load_model()
 
         assert result is False
@@ -300,7 +300,7 @@ class TestEmbeddedServer:
 
     def test_get_available_slot(self, config):
         """Test getting available slots."""
-        server = EmbeddedServer(config)
+        server = PythonServer(config)
 
         # Create mock slots
         slot1 = Mock()
@@ -317,7 +317,7 @@ class TestEmbeddedServer:
 
     def test_get_available_slot_none_available(self, config):
         """Test getting available slots when none are available."""
-        server = EmbeddedServer(config)
+        server = PythonServer(config)
 
         # All slots busy
         slot1 = Mock()
@@ -332,7 +332,7 @@ class TestEmbeddedServer:
 
     def test_messages_to_prompt(self, config):
         """Test converting messages to prompt."""
-        server = EmbeddedServer(config)
+        server = PythonServer(config)
 
         messages = [
             ChatMessage(role="system", content="You are helpful"),
@@ -348,7 +348,7 @@ class TestEmbeddedServer:
 
     def test_process_chat_completion_success(self, config, mock_model):
         """Test successful chat completion processing."""
-        server = EmbeddedServer(config)
+        server = PythonServer(config)
         server.model = mock_model
 
         # Create mock slot
@@ -386,7 +386,7 @@ class TestEmbeddedServer:
 
     def test_process_chat_completion_no_slots(self, config):
         """Test chat completion with no available slots."""
-        server = EmbeddedServer(config)
+        server = PythonServer(config)
         server.slots = []  # No slots
 
         messages = [ChatMessage(role="user", content="Hello")]
@@ -397,7 +397,7 @@ class TestEmbeddedServer:
 
     def test_context_manager(self, config):
         """Test server as context manager."""
-        server = EmbeddedServer(config)
+        server = PythonServer(config)
 
         with patch.object(server, 'start', return_value=True) as mock_start, \
              patch.object(server, 'stop') as mock_stop:
@@ -410,7 +410,7 @@ class TestEmbeddedServer:
 
     def test_context_manager_start_failure(self, config):
         """Test context manager when start fails."""
-        server = EmbeddedServer(config)
+        server = PythonServer(config)
 
         with patch.object(server, 'start', return_value=False):
             with pytest.raises(RuntimeError, match="Failed to start server"):
@@ -429,7 +429,7 @@ class TestHTTPEndpoints:
     @pytest.fixture
     def mock_server(self, server_config):
         """Create a mock server for testing."""
-        server = EmbeddedServer(server_config)
+        server = PythonServer(server_config)
         server.model = Mock()
         server.slots = [Mock()]
         return server
@@ -478,17 +478,17 @@ class TestHTTPEndpoints:
 class TestConvenienceFunction:
     """Test convenience functions."""
 
-    @patch('cyllama.llama.server.embedded.EmbeddedServer')
-    def test_start_embedded_server_success(self, MockEmbeddedServer):
-        """Test start_embedded_server convenience function."""
+    @patch('cyllama.llama.server.python.PythonServer')
+    def test_start_python_server_success(self, MockPythonServer):
+        """Test start_python_server convenience function."""
         mock_server = Mock()
         mock_server.start.return_value = True
-        MockEmbeddedServer.return_value = mock_server
+        MockPythonServer.return_value = mock_server
 
-        result = start_embedded_server("test.gguf", port=9090, n_ctx=8192)
+        result = start_python_server("test.gguf", port=9090, n_ctx=8192)
 
-        MockEmbeddedServer.assert_called_once()
-        config_arg = MockEmbeddedServer.call_args[0][0]
+        MockPythonServer.assert_called_once()
+        config_arg = MockPythonServer.call_args[0][0]
         assert config_arg.model_path == "test.gguf"
         assert config_arg.port == 9090
         assert config_arg.n_ctx == 8192
@@ -496,21 +496,21 @@ class TestConvenienceFunction:
         mock_server.start.assert_called_once()
         assert result == mock_server
 
-    @patch('cyllama.llama.server.embedded.EmbeddedServer')
-    def test_start_embedded_server_failure(self, MockEmbeddedServer):
-        """Test start_embedded_server when server fails to start."""
+    @patch('cyllama.llama.server.python.PythonServer')
+    def test_start_python_server_failure(self, MockPythonServer):
+        """Test start_python_server when server fails to start."""
         mock_server = Mock()
         mock_server.start.return_value = False
-        MockEmbeddedServer.return_value = mock_server
+        MockPythonServer.return_value = mock_server
 
-        with pytest.raises(RuntimeError, match="Failed to start embedded server"):
-            start_embedded_server("test.gguf")
+        with pytest.raises(RuntimeError, match="Failed to start Python server"):
+            start_python_server("test.gguf")
 
 
 # Integration tests (require actual models)
 @pytest.mark.slow
-class TestEmbeddedServerIntegration:
-    """Integration tests for embedded server functionality."""
+class TestPythonServerIntegration:
+    """Integration tests for Python server functionality."""
 
     @pytest.fixture
     def model_path(self):
@@ -529,7 +529,7 @@ class TestEmbeddedServerIntegration:
             n_gpu_layers=0  # CPU only for reliability
         )
 
-        server = EmbeddedServer(config)
+        server = PythonServer(config)
 
         try:
             # Load model
@@ -561,7 +561,7 @@ class TestEmbeddedServerIntegration:
         )
 
         # This should work without errors
-        with EmbeddedServer(config) as server:
+        with PythonServer(config) as server:
             assert server.model is not None
             assert len(server.slots) > 0
 

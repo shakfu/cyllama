@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """
-Test of Mongoose server start/stop using context manager.
+Test of embedded server start/stop using context manager.
 """
 
 import time
 import logging
 
-from cyllama.llama.server.embedded import ServerConfig
-from cyllama.llama.server.mongoose_server import MongooseServer
+from cyllama.llama.server.python import ServerConfig
+from cyllama.llama.server.embedded import EmbeddedServer
 
 
 def test_manual_stop():
-    """Test that Mongoose server context manager properly starts and stops the server."""
+    """Test that embedded server context manager properly starts and stops the server."""
     # Enable info level logging to see debug messages
     logging.basicConfig(level=logging.INFO, format='%(levelname)s:%(name)s:%(message)s')
 
@@ -23,7 +23,7 @@ def test_manual_stop():
     )
 
     # Use context manager - should start server on entry and stop on exit
-    with MongooseServer(config) as server:
+    with EmbeddedServer(config) as server:
         # Server should be started (no direct way to verify since _running is cdef)
         # But if we reach here without exception, start was successful
 

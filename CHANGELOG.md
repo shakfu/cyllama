@@ -26,10 +26,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - `Generator` class → `LLM` class - Better semantic naming
   - `generate()` function → `complete()` function - More precise terminology
   - `SimpleChat` class → `Chat` class - Clearer naming for chat interface
-  - `EmbeddedLlamaServer` class → `EmbeddedServer` class - Simpler naming
+  - `EmbeddedLlamaServer` class → `PythonServer` class - Simpler naming
   - Merged `api.simple()` into new `api.py` module
   - Updated all integrations and tests to use new naming
   - All exports remain available from `cyllama` package root
+
+- **Server Module Reorganization** - Renamed server implementations for clarity
+  - `embedded.py` → `python.py` - Pure Python HTTP server implementation
+  - `mongoose_server.pyx` → `embedded.pyx` - Embedded C server using Mongoose library
+  - `MongooseServer` class → `EmbeddedServer` class - Better reflects embedded C implementation
+  - Updated `__main__.py` server type choices: `["embedded", "mongoose"]` → `["embedded", "python"]`
+  - Default server type is now `"embedded"` (high-performance C implementation)
+  - All imports updated: `from cyllama.llama.server import PythonServer, EmbeddedServer`
+  - Convenience functions renamed: `start_mongoose_server()` → `start_embedded_server()`
+  - Updated documentation, tests, and examples to reflect new naming
+  - Maintains backward compatibility through proper module exports
 
 ### Added
 
@@ -284,13 +295,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Added
 
-- **High-Performance Mongoose HTTP Server**: Production-ready C-based server alternative
-  - New `src/cyllama/llama/server/mongoose_server.pyx` - Cython bindings for Mongoose web server
+- **High-Performance Embedded HTTP Server**: Production-ready C-based server alternative
+  - New `src/cyllama/llama/server/embedded.pyx` (formerly `mongoose_server.pyx`) - Cython bindings for Mongoose web server
   - Complete integration of Mongoose v7.19 (single-file embedded web server)
-  - `MongooseServer` class providing high-performance alternative to Python HTTP server
+  - `EmbeddedServer` class (formerly MongooseServer) providing high-performance C-based alternative to Python HTTP server
   - Zero external dependencies beyond existing cyllama requirements
   - Direct C networking with concurrent connection handling (vs. Python GIL limitations)
-  - Uses same `ServerSlot` logic and OpenAI-compatible API as embedded server
+  - Uses same `ServerSlot` logic and OpenAI-compatible API as Python server
   - Production-ready performance for high-throughput LLM inference scenarios
 
 - **Mongoose Server nogil Optimizations**: Advanced GIL-free operations for maximum performance

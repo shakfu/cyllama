@@ -161,9 +161,9 @@ extensions = [
         # "build/llama.cpp/tools/server/server.cpp",
     ]),
     Extension(
-        name="cyllama.llama.server.mongoose_server",
+        name="cyllama.llama.server.embedded",
         sources=[
-            "src/cyllama/llama/server/mongoose_server.pyx",
+            "src/cyllama/llama/server/embedded.pyx",
             "src/cyllama/llama/server/mongoose.c",
             "src/cyllama/llama/server/mongoose_wrapper.c",
         ],

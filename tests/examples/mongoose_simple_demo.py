@@ -10,8 +10,8 @@ from pathlib import Path
 # Add the src directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from cyllama.llama.server.mongoose_server import MongooseServer
-from cyllama.llama.server.embedded import ServerConfig
+from cyllama.llama.server.embedded import EmbeddedServer
+from cyllama.llama.server.python import ServerConfig
 
 def main():
     print("Mongoose Server Demonstration")
@@ -28,7 +28,7 @@ def main():
 
     # Create server
     print("Creating Mongoose server...")
-    server = MongooseServer(config)
+    server = EmbeddedServer(config)
     print("✓ Server created")
 
     # Load model

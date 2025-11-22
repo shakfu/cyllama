@@ -15,8 +15,8 @@ def test_minimal_mongoose():
     print("Testing minimal Mongoose functionality...")
 
     try:
-        from cyllama.llama.server.mongoose_server import MongooseServer
-        from cyllama.llama.server.embedded import ServerConfig
+        from cyllama.llama.server.embedded import EmbeddedServer
+        from cyllama.llama.server.python import ServerConfig
 
         print("✓ Import successful")
 
@@ -29,7 +29,7 @@ def test_minimal_mongoose():
 
         print("✓ Config created")
 
-        server = MongooseServer(config)
+        server = EmbeddedServer(config)
         print("✓ Server instance created")
 
         # Test model loading separately

@@ -226,7 +226,7 @@ draft = cache.draft(input_tokens, n_draft=16)
 | Multimodal (LLAVA) | [x] Complete | Vision-language models |
 | Whisper.cpp | [x] Complete | Speech-to-text |
 | Memory optimization | [x] Complete | GPU layer estimation |
-| Server implementations | [x] Complete | EmbeddedServer, MongooseServer, LlamaServer |
+| Server implementations | [x] Complete | PythonServer, EmbeddedServer, LlamaServer |
 
 ### Recent Releases
 
@@ -329,7 +329,7 @@ python3 -i scripts/start.py
 - [x] JSON schema to grammar conversion
 - [x] Model download helper
 - [x] N-gram cache
-- [x] OpenAI-compatible servers (EmbeddedServer, MongooseServer, LlamaServer)
+- [x] OpenAI-compatible servers (PythonServer, EmbeddedServer, LlamaServer)
 - [x] Whisper.cpp integration
 - [x] Multimodal support (LLAVA)
 - [x] Memory estimation utilities

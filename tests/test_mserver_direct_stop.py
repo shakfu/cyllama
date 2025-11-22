@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """
-Test Mongoose server direct start/stop without context manager.
+Test embedded server direct start/stop without context manager.
 """
 
 import time
-from cyllama.llama.server.embedded import ServerConfig
-from cyllama.llama.server.mongoose_server import MongooseServer
+from cyllama.llama.server.python import ServerConfig
+from cyllama.llama.server.embedded import EmbeddedServer
 
 
 def test_direct_stop():
-    """Test that Mongoose server can be started and stopped directly without context manager."""
+    """Test that embedded server can be started and stopped directly without context manager."""
     config = ServerConfig(
         model_path="models/Llama-3.2-1B-Instruct-Q8_0.gguf",
         host="127.0.0.1",
@@ -17,7 +17,7 @@ def test_direct_stop():
         n_ctx=256
     )
 
-    server = MongooseServer(config)
+    server = EmbeddedServer(config)
 
     # Start server
     result = server.start()

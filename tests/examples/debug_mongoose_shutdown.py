@@ -11,7 +11,7 @@ from pathlib import Path
 # Add the src directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from cyllama.llama.server.embedded import ServerConfig
+from cyllama.llama.server.python import ServerConfig
 
 def test_mongoose_shutdown():
     print("Testing Mongoose server shutdown behavior...")
@@ -20,7 +20,7 @@ def test_mongoose_shutdown():
     logging.basicConfig(level=logging.DEBUG)
 
     try:
-        from cyllama.llama.server.mongoose_server import MongooseServer
+        from cyllama.llama.server.embedded import EmbeddedServer
 
         config = ServerConfig(
             model_path="models/Llama-3.2-1B-Instruct-Q8_0.gguf",
@@ -30,7 +30,7 @@ def test_mongoose_shutdown():
         )
 
         print("Creating MongooseServer...")
-        server = MongooseServer(config)
+        server = EmbeddedServer(config)
 
         print("Starting server...")
         if not server.start():

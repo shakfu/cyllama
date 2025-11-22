@@ -5,8 +5,8 @@ import time
 import pytest
 from multiprocessing import Process
 
-from cyllama.llama.server.embedded import ServerConfig
-from cyllama.llama.server.mongoose_server import MongooseServer
+from cyllama.llama.server.python import ServerConfig
+from cyllama.llama.server.embedded import EmbeddedServer
 
 
 def run_server():
@@ -20,7 +20,7 @@ def run_server():
         n_parallel=1
     )
 
-    server = MongooseServer(config)
+    server = EmbeddedServer(config)
 
     if not server.start():
         return
@@ -34,7 +34,7 @@ def run_server():
 
 @pytest.mark.skip(reason="Graceful shutdown from external process has signal handling issues - similar to test_mserver_signal.py")
 def test_shutdown():
-    """Test graceful shutdown of Mongoose server."""
+    """Test graceful shutdown of embedded server."""
     # Start server in a separate process
     server_process = Process(target=run_server)
     server_process.start()

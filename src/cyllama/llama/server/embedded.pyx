@@ -13,8 +13,8 @@ from dataclasses import dataclass
 # Import Mongoose C API
 from .mongoose cimport *
 
-# Import existing server logic
-from .embedded import ServerConfig, ServerSlot, ChatMessage, ChatRequest, ChatResponse, ChatChoice
+# Import from Python server implementation
+from .python import ServerConfig, ServerSlot, ChatMessage, ChatRequest, ChatResponse, ChatChoice
 
 # Global shutdown flag for signal handling (following pymongoose pattern)
 _shutdown_requested = False
@@ -65,8 +65,8 @@ cdef class MongooseConnection:
         self.send_json(error_data, status_code)
 
 
-cdef class MongooseServer:
-    """High-performance Mongoose-based HTTP server for LLM inference."""
+cdef class EmbeddedServer:
+    """High-performance embedded HTTP server for LLM inference using Mongoose."""
 
     cdef mg_mgr _mgr
     cdef mg_connection *_listener
@@ -104,7 +104,7 @@ cdef class MongooseServer:
         if self.start():
             return self
         else:
-            raise RuntimeError("Failed to start Mongoose server")
+            raise RuntimeError("Failed to start embedded server")
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Context manager exit."""
@@ -164,7 +164,7 @@ cdef class MongooseServer:
         self._logger.debug("Signal handlers registered for SIGINT and SIGTERM")
 
     def start(self) -> bool:
-        """Start the Mongoose server."""
+        """Start the embedded server."""
         global _shutdown_requested
 
         # Reset global shutdown flag
@@ -201,7 +201,7 @@ cdef class MongooseServer:
                 return False
 
             self._running = True
-            self._logger.info(f"Mongoose server started on {listen_addr}")
+            self._logger.info(f"Embedded server started on {listen_addr}")
             return True
 
         except Exception as e:
@@ -209,10 +209,10 @@ cdef class MongooseServer:
             return False
 
     def stop(self):
-        """Stop the Mongoose server."""
+        """Stop the embedded server."""
         self._logger.info("Stop method called")
         if self._running:
-            self._logger.info("Stopping Mongoose server...")
+            self._logger.info("Stopping embedded server...")
             self._running = False
 
             # Set signal to trigger event loop exit
@@ -229,7 +229,7 @@ cdef class MongooseServer:
             # Clear userdata reference to prevent memory leaks
             self._mgr.userdata = NULL
 
-            self._logger.info("Mongoose server stopped")
+            self._logger.info("Embedded server stopped")
 
     def _close_all_connections(self):
         """Close all Mongoose connections using the documented approach."""
@@ -256,7 +256,7 @@ cdef class MongooseServer:
     def wait_for_shutdown(self):
         """Wait for shutdown signal using pymongoose pattern for reliable signal handling."""
         global _shutdown_requested
-        self._logger.info("Starting Mongoose event loop...")
+        self._logger.info("Starting embedded server event loop...")
 
         # Follow pymongoose pattern: check flag in Python, poll in C
         # This ensures signal handling works correctly across the GIL boundary
@@ -454,7 +454,7 @@ cdef class MongooseServer:
 cdef void _http_event_handler(mg_connection *c, int ev, void *ev_data, void *fn_data) noexcept:
     """C callback for Mongoose HTTP events."""
     cdef mg_http_message *hm
-    cdef MongooseServer server
+    cdef EmbeddedServer server
     cdef MongooseConnection conn_wrapper
 
     if c == NULL or c.mgr == NULL:
@@ -465,7 +465,7 @@ cdef void _http_event_handler(mg_connection *c, int ev, void *ev_data, void *fn_
     if mgr.userdata == NULL:
         return
 
-    server = <MongooseServer>mgr.userdata
+    server = <EmbeddedServer>mgr.userdata
 
     if ev == MG_EV_HTTP_MSG:
         hm = <mg_http_message*>ev_data
@@ -496,21 +496,21 @@ cdef void _http_event_handler(mg_connection *c, int ev, void *ev_data, void *fn_
 
 
 # Convenience function
-def start_mongoose_server(model_path: str, **kwargs) -> MongooseServer:
+def start_embedded_server(model_path: str, **kwargs) -> EmbeddedServer:
     """
-    Start a Mongoose-based server with simple configuration.
+    Start an embedded server with simple configuration.
 
     Args:
         model_path: Path to the model file
         **kwargs: Additional configuration parameters
 
     Returns:
-        Started MongooseServer instance
+        Started EmbeddedServer instance
     """
     config = ServerConfig(model_path=model_path, **kwargs)
-    server = MongooseServer(config)
+    server = EmbeddedServer(config)
 
     if not server.start():
-        raise RuntimeError("Failed to start Mongoose server")
+        raise RuntimeError("Failed to start embedded server")
 
     return server
