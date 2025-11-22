@@ -115,7 +115,7 @@ response = vision_chat.ask_about_image("What's in this image?", "image.jpg")
 
 ### 5. **Embedded HTTP Server**
 
-Production-ready embedded HTTP servers with OpenAI-compatible API:
+Embedded HTTP servers with OpenAI-compatible API:
 
 ```python
 from cyllama.llama.server import PythonServer
@@ -143,10 +143,10 @@ server.start()
 - CORS support
 - Graceful shutdown
 - Thread-safe request handling
-- Multiple server implementations:
+- Includes multiple server implementations:
   - `PythonServer`: Python-based with threading
   - `EmbeddedServer`: High-performance [C-based server using Mongoose](https://github.com/cesanta/mongoose)
-  - `LlamaServer`: Python wrapper around the llama.cpp server binary
+  - `LlamaServer`: Python wrapper around the llama.cpp server binary (if it can be found)
 
 **Example with curl:**
 ```bash
@@ -243,12 +243,12 @@ tts.generate("Hello world", "output.wav")
 # Vision - straightforward!
 response = vision_chat.ask_about_image("What's in this?", "image.jpg")
 
-# HTTP server - production-ready!
+# HTTP server
 server = PythonServer(model_path="model.gguf")
 server.start()
 ```
 
-The library is now genuinely production-ready for:
+The library is now genuinely ready for:
 - Quick prototyping and experiments
 - Chat applications with proper conversation handling
 - Voice applications (TTS)
@@ -265,7 +265,7 @@ The library is now genuinely production-ready for:
 2. **Chat Applications**: Multi-turn conversations with template support
 3. **Voice Applications**: Text-to-speech with WAV output
 4. **Vision Applications**: Image understanding and visual Q&A
-5. **API Services**: Production HTTP servers with OpenAI compatibility
+5. **API Services**: HTTP servers with OpenAI compatibility
 6. **Framework Integration**: Works with LangChain, OpenAI clients
 7. **Performance**: Speculative decoding, n-gram caching
 
@@ -283,6 +283,16 @@ The library is now genuinely production-ready for:
 
 ---
 
+## What's Next?
+
+Potential future work:
+- Async API support (`async def complete_async()`)
+- Response caching
+- RAG utilities
+- stable-diffusion.cpp integration
+
+---
+
 ## Feedback Welcome
 
 As always, if you try it out:
@@ -292,27 +302,3 @@ As always, if you try it out:
 - Contributions? Pull requests accepted!
 
 The goal remains: stay lean, stay fast, stay current with llama.cpp, and make it easy to use from Python.
-
----
-
-## What's Next?
-
-Potential future work:
-- Async API support (`async def complete_async()`)
-- Response caching
-- RAG utilities
-- stable-diffusion.cpp integration
-
-But for now, the core feature set is comprehensive and ready to use.
-
----
-
-**TL;DR:** Cyllama went from a thin wrapper requiring boilerplate to a batteries-included library with:
-- High-level APIs for text, chat, TTS, and vision
-- Production HTTP servers (Mongoose integration)
-- Framework integrations (OpenAI, LangChain)
-- Performance optimizations (speculative decoding, n-gram cache)
-
-All while staying true to its minimal, compiled, performant roots (~1.2 MB wheel).
-
-Give it a try and let me know what you think!
