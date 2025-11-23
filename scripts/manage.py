@@ -4,12 +4,13 @@
 
 It only uses python stdlib modules to do the following:
 
-- General Shell ops
 - Dependency download, build, install
 - Module compilation
 - Wheel building
 - Alternative frontend to Makefile
 - Downloads/build a local version python for testing
+- Multi-backend GPU support (Metal, CUDA, Vulkan, SYCL, HIP/ROCm, OpenCL)
+- General Shell ops
 
 models:
     CustomFormatter(logging.Formatter)
@@ -34,10 +35,27 @@ usage: manage.py [-h] [-v]  ...
 cyllama build manager
 
     clean        clean detritus
-    build        build application
+    build        build application (with backend options)
     setup        setup prerequisites
     test         test modules
     wheel        build wheels
+
+Backend support (via build command flags or environment variables):
+    --metal, -m       Enable Metal backend (macOS)
+    --cuda, -c        Enable CUDA backend (NVIDIA GPUs)
+    --vulkan, -V      Enable Vulkan backend (cross-platform)
+    --sycl, -y        Enable SYCL backend (Intel GPUs)
+    --hip, -H         Enable HIP/ROCm backend (AMD GPUs)
+    --opencl, -o      Enable OpenCL backend
+    --cpu-only, -C    Disable all GPU backends
+
+Environment variables:
+    GGML_METAL=1      Enable Metal backend
+    GGML_CUDA=1       Enable CUDA backend
+    GGML_VULKAN=1     Enable Vulkan backend
+    GGML_SYCL=1       Enable SYCL backend
+    GGML_HIP=1        Enable HIP/ROCm backend
+    GGML_OPENCL=1     Enable OpenCL backend
 """
 
 import argparse
@@ -54,20 +72,10 @@ import zipfile
 from fnmatch import fnmatch
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Union, Callable
+from typing import List, Optional, Union, Callable, NoReturn
 from urllib.request import urlretrieve
 
-PYTHON = sys.executable
-PLATFORM = platform.system()
-ARCH = platform.machine()
-PY_VER_MINOR = sys.version_info.minor
-STABLE_VERSION = False
-if STABLE_VERSION:
-    LLAMACPP_VERSION = "gguf-v0.17.1"
-else:
-    LLAMACPP_VERSION = ""
-
-__version__ = "0.0.1"
+__version__ = "0.1.0"
 
 # ----------------------------------------------------------------------------
 # type aliases
@@ -80,10 +88,30 @@ ActionFn = Callable[[Path], None]
 # env helpers
 
 def getenv(key: str, default: bool = False) -> bool:
-    """convert '0','1' env values to bool {True, False}"""
-    return bool(int(os.getenv(key, default)))
+    """Convert '0','1' env values to bool {True, False}
 
-def setenv(key: str, default: str):
+    Args:
+        key: Environment variable name
+        default: Default value if not set
+
+    Returns:
+        Boolean value from environment variable
+
+    Raises:
+        ValueError: If environment variable value is not a valid integer
+    """
+    value = os.getenv(key)
+    if value is None:
+        return default
+    try:
+        return bool(int(value))
+    except ValueError:
+        logging.getLogger(__name__).warning(
+            f"Invalid boolean value for {key}: {value}, using default {default}"
+        )
+        return default
+
+def setenv(key: str, default: str) -> str:
     """get environ variable if it is exists else set default"""
     if key in os.environ:
         return os.getenv(key, default)
@@ -98,9 +126,14 @@ PYTHON = sys.executable
 PLATFORM = platform.system()
 ARCH = platform.machine()
 PY_VER_MINOR = sys.version_info.minor
+
+STABLE_VERSION = False
+if STABLE_VERSION:
+    LLAMACPP_VERSION = "b7126"
+else:
+    LLAMACPP_VERSION = ""
 if PLATFORM == "Darwin":
     MACOSX_DEPLOYMENT_TARGET = setenv("MACOSX_DEPLOYMENT_TARGET", "12.6")
-DEFAULT_PY_VERSION = "3.13.5"
 DEBUG = getenv("DEBUG", default=True)
 COLOR = getenv("COLOR", default=True)
 
@@ -128,16 +161,14 @@ class CustomFormatter(logging.Formatter):
         logging.CRITICAL: fmt.format(bold_red, reset),
     }
 
-    def format(self, record):
+    def format(self, record: logging.LogRecord) -> str:
         log_fmt = self.FORMATS.get(record.levelno)
         formatter = logging.Formatter(log_fmt, datefmt="%H:%M:%S")
         return formatter.format(record)
 
-
 handler = logging.StreamHandler()
 handler.setFormatter(CustomFormatter())
 logging.basicConfig(level=logging.DEBUG if DEBUG else logging.INFO, handlers=[handler])
-
 
 # ----------------------------------------------------------------------------
 # utility classes
@@ -147,37 +178,104 @@ class ShellCmd:
 
     log: logging.Logger
 
-    def cmd(self, shellcmd: str, cwd: Pathlike = "."):
-        """Run shell command within working directory"""
+    def cmd(self, shellcmd: str, cwd: Pathlike = ".") -> None:
+        """Run shell command within working directory
+
+        WARNING: Uses shell=True for convenience. Only call with trusted input.
+
+        Args:
+            shellcmd: Shell command to execute (must be trusted input)
+            cwd: Working directory for command execution
+
+        Raises:
+            SystemExit: If command fails
+        """
+        # Resolve and validate cwd path
+        cwd_path = Path(cwd).resolve()
+
         self.log.info(shellcmd)
         try:
-            subprocess.check_call(shellcmd, shell=True, cwd=str(cwd))
+            subprocess.check_call(shellcmd, shell=True, cwd=str(cwd_path))
         except subprocess.CalledProcessError:
             self.log.critical("", exc_info=True)
             sys.exit(1)
 
-    def download(self, url: str, tofolder: Optional[Pathlike] = None) -> Pathlike:
-        """Download a file from a url to an optional folder"""
-        _path = Path(os.path.basename(url))
+    def download(self, url: str, tofolder: Optional[Pathlike] = None, max_size: int = 1024*1024*100) -> Pathlike:
+        """Download a file from a url to an optional folder
+
+        Args:
+            url: URL to download from (must be http:// or https://)
+            tofolder: Optional destination folder
+            max_size: Maximum file size in bytes (default: 100MB)
+
+        Returns:
+            Path to downloaded file
+
+        Raises:
+            ValueError: If URL scheme is invalid, filename is unsafe, or file exceeds size limit
+        """
+        # Validate URL scheme
+        if not url.startswith(('https://', 'http://')):
+            raise ValueError(f"Unsupported URL scheme: {url}")
+
+        # Sanitize basename to prevent path traversal
+        basename = os.path.basename(url)
+        if '..' in basename or basename.startswith('/'):
+            raise ValueError(f"Invalid filename in URL: {url}")
+
+        _path = Path(basename)
         if tofolder:
-            _path = Path(tofolder).joinpath(_path)
+            _path = Path(tofolder).resolve().joinpath(_path)
             if _path.exists():
                 return _path
+
+        self.log.info(f"Downloading {url} to {_path}")
         filename, _ = urlretrieve(url, filename=_path)
+
+        # Check file size
+        if _path.stat().st_size > max_size:
+            _path.unlink()
+            raise ValueError(f"Downloaded file exceeds size limit: {_path.stat().st_size} > {max_size}")
+
         return Path(filename)
 
-    def extract(self, archive: Pathlike, tofolder: Pathlike = "."):
-        """extract a tar archive"""
+    def extract(self, archive: Pathlike, tofolder: Pathlike = ".") -> None:
+        """Extract archive with path traversal protection
+
+        Args:
+            archive: Path to archive file
+            tofolder: Destination folder for extraction
+
+        Raises:
+            ValueError: If archive contains files with path traversal attempts
+            TypeError: If archive format is not supported
+        """
+        tofolder_resolved = Path(tofolder).resolve()
+
+        def safe_extract_tar(members, dest):
+            """Validate tar members before extraction"""
+            for member in members:
+                member_path = (dest / member.name).resolve()
+                if not str(member_path).startswith(str(dest)):
+                    raise ValueError(f"Attempted path traversal in tar: {member.name}")
+            return members
+
         if tarfile.is_tarfile(archive):
-            with tarfile.open(archive) as f:
-                f.extractall(tofolder)
+            with tarfile.open(archive) as tar:
+                safe_members = safe_extract_tar(tar.getmembers(), tofolder_resolved)
+                tar.extractall(tofolder_resolved, members=safe_members)
         elif zipfile.is_zipfile(archive):
-            with zipfile.ZipFile(archive) as f:
-                f.extractall(tofolder)
+            with zipfile.ZipFile(archive) as zip_file:
+                # Validate all zip members before extraction
+                for info in zip_file.infolist():
+                    extracted_path = (tofolder_resolved / info.filename).resolve()
+                    if not str(extracted_path).startswith(str(tofolder_resolved)):
+                        raise ValueError(f"Attempted path traversal in zip: {info.filename}")
+                zip_file.extractall(tofolder_resolved)
         else:
             raise TypeError("cannot extract from this file.")
 
-    def fail(self, msg, *args):
+    def fail(self, msg: str, *args: object) -> NoReturn:
         """exits the program with an error msg."""
         self.log.critical(msg, *args)
         sys.exit(1)
@@ -189,7 +287,7 @@ class ShellCmd:
         directory: Optional[Pathlike] = None,
         recurse: bool = False,
         cwd: Pathlike = ".",
-    ):
+    ) -> None:
         """git clone a repository source tree from a url"""
         _cmds = ["git clone --depth 1"]
         if branch:
@@ -206,35 +304,41 @@ class ShellCmd:
         self.log.info("checking env variable: %s", key)
         return bool(int(os.getenv(key, default)))
 
-    def chdir(self, path: Pathlike):
+    def chdir(self, path: Pathlike) -> None:
         """Change current workding directory to path"""
         self.log.info("changing working dir to: %s", path)
         os.chdir(path)
 
-    def chmod(self, path: Pathlike, perm=0o777):
+    def chmod(self, path: Pathlike, perm: int = 0o777) -> None:
         """Change permission of file"""
         self.log.info("change permission of %s to %s", path, perm)
         os.chmod(path, perm)
 
-    def get(self, shellcmd, cwd: Pathlike = ".", shell: bool = False) -> str:
+    def get(self, shellcmd: Union[str, list[str]], cwd: Pathlike = ".", shell: bool = False) -> str:
         """get output of shellcmd"""
+        cmd_list: Union[str, list[str]]
         if not shell:
-            shellcmd = shellcmd.split()
+            if isinstance(shellcmd, str):
+                cmd_list = shellcmd.split()
+            else:
+                cmd_list = shellcmd
+        else:
+            cmd_list = shellcmd
         return subprocess.check_output(
-            shellcmd, encoding="utf8", shell=shell, cwd=str(cwd)
+            cmd_list, encoding="utf8", shell=shell, cwd=str(cwd)
         ).strip()
 
-    def makedirs(self, path: Pathlike, mode: int = 511, exist_ok: bool = True):
+    def makedirs(self, path: Pathlike, mode: int = 511, exist_ok: bool = True) -> None:
         """Recursive directory creation function"""
         self.log.info("making directory: %s", path)
         os.makedirs(path, mode, exist_ok)
 
-    def move(self, src: Pathlike, dst: Pathlike):
+    def move(self, src: Pathlike, dst: Pathlike) -> None:
         """Move from src path to dst path."""
         self.log.info("move path %s to %s", src, dst)
         shutil.move(src, dst)
 
-    def copy(self, src: Pathlike, dst: Pathlike):
+    def copy(self, src: Pathlike, dst: Pathlike) -> None:
         """copy file or folders -- tries to be behave like `cp -rf`"""
         self.log.info("copy %s to %s", src, dst)
         src, dst = Path(src), Path(dst)
@@ -243,7 +347,7 @@ class ShellCmd:
         else:
             shutil.copy2(src, dst)
 
-    def remove(self, path: Pathlike, silent: bool = False):
+    def remove(self, path: Pathlike, silent: bool = False) -> None:
         """Remove file or folder."""
 
         # handle windows error on read-only files
@@ -281,7 +385,7 @@ class ShellCmd:
         match_func: MatchFn,
         action_func: ActionFn,
         skip_patterns: list[str],
-    ):
+    ) -> None:
         """general recursive walk from root path with match and action functions"""
         for root_, dirs, filenames in os.walk(root):
             _root = Path(root_)
@@ -304,7 +408,7 @@ class ShellCmd:
         src: Pathlike,
         dest: Pathlike,
         patterns: list[str],
-    ):
+    ) -> None:
         """copy glob patterns from src dir to destination dir"""
 
         src = Path(src)
@@ -320,7 +424,7 @@ class ShellCmd:
             for f in src.glob(p):
                 self.copy(f, dest)
 
-    def glob_remove(self, root: Pathlike, patterns: list[str], skip_dirs: list[str]):
+    def glob_remove(self, root: Pathlike, patterns: list[str], skip_dirs: list[str]) -> None:
         """applies recursive glob remove using a list of patterns"""
 
         def _match(entry: Path) -> bool:
@@ -334,11 +438,11 @@ class ShellCmd:
 
     def pip_install(
         self,
-        *pkgs,
+        *pkgs: str,
         reqs: Optional[str] = None,
         upgrade: bool = False,
         pip: Optional[str] = None,
-    ):
+    ) -> None:
         """Install python packages using pip"""
         _cmds = []
         if pip:
@@ -354,7 +458,7 @@ class ShellCmd:
             _cmds.extend(pkgs)
         self.cmd(" ".join(_cmds))
 
-    def apt_install(self, *pkgs, update: bool = False):
+    def apt_install(self, *pkgs: str, update: bool = False) -> None:
         """install debian packages using apt"""
         _cmds = []
         _cmds.append("sudo apt install")
@@ -363,14 +467,14 @@ class ShellCmd:
         _cmds.extend(pkgs)
         self.cmd(" ".join(_cmds))
 
-    def brew_install(self, *pkgs, update: bool = False):
+    def brew_install(self, *pkgs: str, update: bool = False) -> None:
         """install using homebrew"""
         _pkgs = " ".join(pkgs)
         if update:
             self.cmd("brew update")
         self.cmd(f"brew install {_pkgs}")
 
-    def cmake_config(self, src_dir: Pathlike, build_dir: Pathlike, *scripts, **options):
+    def cmake_config(self, src_dir: Pathlike, build_dir: Pathlike, *scripts: str, **options: Union[str, bool, int]) -> None:
         """activate cmake configuration / generation stage"""
         _cmds = [f"cmake -S {src_dir} -B {build_dir}"]
         if scripts:
@@ -379,18 +483,18 @@ class ShellCmd:
             _cmds.append(" ".join(f"-D{k}={v}" for k, v in options.items()))
         self.cmd(" ".join(_cmds))
 
-    def cmake_build(self, build_dir: Pathlike, release: bool = False):
+    def cmake_build(self, build_dir: Pathlike, release: bool = False) -> None:
         """activate cmake build stage"""
         _cmd = f"cmake --build {build_dir}"
         if release:
             _cmd += " --config Release"
         self.cmd(_cmd)
 
-    def cmake_install(self, build_dir: Pathlike, prefix: Optional[str] = None):
+    def cmake_install(self, build_dir: Pathlike, prefix: Optional[Pathlike] = None) -> None:
         """activate cmake install stage"""
         _cmds = ["cmake --install", str(build_dir)]
         if prefix:
-            _cmds.append(f"--prefix {prefix}")
+            _cmds.append(f"--prefix {str(prefix)}")
         self.cmd(" ".join(_cmds))
 
 
@@ -400,7 +504,18 @@ class ShellCmd:
 class Project(ShellCmd):
     """Utility class to hold project directory structure"""
 
-    def __init__(self):
+    cwd: Path
+    build: Path
+    src: Path
+    thirdparty: Path
+    install: Path
+    dist: Path
+    scripts: Path
+    tests: Path
+    wheels: Path
+    lib: Path
+
+    def __init__(self) -> None:
         self.cwd = Path.cwd()
         self.build = self.cwd / "build"
         # self.src = self.build / "repos"
@@ -410,20 +525,22 @@ class Project(ShellCmd):
         self.dist = self.cwd / "dist"
         self.scripts = self.cwd / "scripts"
         self.tests = self.cwd / "tests"
+        self.wheels = self.cwd / "wheels"
+        self.lib = self.thirdparty / "llama.cpp" / "lib"
 
-    def setup(self):
+    def setup(self) -> None:
         """create main project directories"""
         # self.bin.mkdir(exist_ok=True)
         self.build.mkdir(exist_ok=True)
         self.src.mkdir(exist_ok=True)
         self.install.mkdir(exist_ok=True)
 
-    def clean(self):
+    def clean(self) -> None:
         """prepare project for a partial rebuild"""
         self.remove(self.build)
         self.remove(self.dist)
 
-    def reset(self):
+    def reset(self) -> None:
         """prepare project for a full rebuild"""
         self.clean()
         self.remove(self.install)
@@ -594,28 +711,28 @@ class AbstractBuilder(ShellCmd):
         """check if all built stati libs already exist"""
         return all((self.lib / lib).exists() for lib in self.libs_static)
 
-    def pre_process(self):
+    def pre_process(self) -> None:
         """override by subclass if needed"""
 
-    def setup(self):
+    def setup(self) -> None:
         """setup build environment"""
 
-    def configure(self):
+    def configure(self) -> None:
         """configure build"""
 
-    def build(self, shared: bool = False):
+    def build(self, shared: bool = False) -> None:
         """build target"""
 
-    def install(self):
+    def install(self) -> None:
         """install target"""
 
-    def clean(self):
+    def clean(self) -> None:
         """clean build"""
 
-    def post_process(self):
+    def post_process(self) -> None:
         """override by subclass if needed"""
 
-    def process(self):
+    def process(self) -> None:
         """main builder process"""
         self.pre_process()
         self.setup()
@@ -629,7 +746,7 @@ class AbstractBuilder(ShellCmd):
 class Builder(AbstractBuilder):
     """concrete builder class"""
 
-    def setup(self):
+    def setup(self) -> None:
         """setup build environment"""
         self.log.info(f"update from {self.name} main repo")
         self.project.setup()
@@ -654,11 +771,113 @@ class LlamaCppBuilder(Builder):
         "libggml-cpu.a",
         "libggml-metal.a",
         "libggml.a",
-        "libllama.a", 
+        "libllama.a",
         "libmtmd.a",
     ]
 
-    def build(self, shared: bool = False):
+    def get_backend_cmake_options(self) -> dict:
+        """Get CMake options based on backend environment variables."""
+        options = {}
+
+        # Read backend flags from environment (default Metal=1 on macOS, others=0)
+        ggml_metal = getenv("GGML_METAL", default=(True if PLATFORM == "Darwin" else False))
+        ggml_cuda = getenv("GGML_CUDA", default=False)
+        ggml_vulkan = getenv("GGML_VULKAN", default=False)
+        ggml_sycl = getenv("GGML_SYCL", default=False)
+        ggml_hip = getenv("GGML_HIP", default=False)
+        ggml_opencl = getenv("GGML_OPENCL", default=False)
+
+        # Add CMake options for enabled backends
+        if ggml_metal:
+            options["GGML_METAL"] = "ON"
+            self.log.info("✓ Enabling Metal backend")
+
+        if ggml_cuda:
+            options["GGML_CUDA"] = "ON"
+            self.log.info("✓ Enabling CUDA backend")
+
+        if ggml_vulkan:
+            options["GGML_VULKAN"] = "ON"
+            self.log.info("✓ Enabling Vulkan backend")
+
+        if ggml_sycl:
+            options["GGML_SYCL"] = "ON"
+            self.log.info("✓ Enabling SYCL backend")
+
+        if ggml_hip:
+            options["GGML_HIP"] = "ON"
+            self.log.info("✓ Enabling HIP/ROCm backend")
+
+        if ggml_opencl:
+            options["GGML_OPENCL"] = "ON"
+            self.log.info("✓ Enabling OpenCL backend")
+
+        return options
+
+    def copy_backend_libs(self) -> None:
+        """Copy backend-specific libraries based on enabled backends."""
+        # Read backend flags from environment
+        ggml_metal = getenv("GGML_METAL", default=(True if PLATFORM == "Darwin" else False))
+        ggml_cuda = getenv("GGML_CUDA", default=False)
+        ggml_vulkan = getenv("GGML_VULKAN", default=False)
+        ggml_sycl = getenv("GGML_SYCL", default=False)
+        ggml_hip = getenv("GGML_HIP", default=False)
+        ggml_opencl = getenv("GGML_OPENCL", default=False)
+
+        # Copy Metal backend libraries
+        if ggml_metal:
+            metal_blas = self.build_dir / "ggml" / "src" / "ggml-blas" / "libggml-blas.a"
+            metal_lib = self.build_dir / "ggml" / "src" / "ggml-metal" / "libggml-metal.a"
+            if metal_blas.exists():
+                self.copy(metal_blas, self.lib)
+            else:
+                self.log.warning(f"Metal BLAS library not found: {metal_blas}")
+            if metal_lib.exists():
+                self.copy(metal_lib, self.lib)
+            else:
+                self.log.warning(f"Metal library not found: {metal_lib}")
+
+        # Copy CUDA backend library
+        if ggml_cuda:
+            cuda_lib = self.build_dir / "ggml" / "src" / "ggml-cuda" / "libggml-cuda.a"
+            if cuda_lib.exists():
+                self.copy(cuda_lib, self.lib)
+            else:
+                self.log.warning(f"CUDA library not found: {cuda_lib}")
+
+        # Copy Vulkan backend library
+        if ggml_vulkan:
+            vulkan_lib = self.build_dir / "ggml" / "src" / "ggml-vulkan" / "libggml-vulkan.a"
+            if vulkan_lib.exists():
+                self.copy(vulkan_lib, self.lib)
+            else:
+                self.log.warning(f"Vulkan library not found: {vulkan_lib}")
+
+        # Copy SYCL backend library
+        if ggml_sycl:
+            sycl_lib = self.build_dir / "ggml" / "src" / "ggml-sycl" / "libggml-sycl.a"
+            if sycl_lib.exists():
+                self.copy(sycl_lib, self.lib)
+            else:
+                self.log.warning(f"SYCL library not found: {sycl_lib}")
+
+        # Copy HIP backend library
+        if ggml_hip:
+            hip_lib = self.build_dir / "ggml" / "src" / "ggml-hip" / "libggml-hip.a"
+            if hip_lib.exists():
+                self.copy(hip_lib, self.lib)
+            else:
+                self.log.warning(f"HIP library not found: {hip_lib}")
+
+        # Copy OpenCL backend library
+        if ggml_opencl:
+            opencl_lib = self.build_dir / "ggml" / "src" / "ggml-opencl" / "libggml-opencl.a"
+            if opencl_lib.exists():
+                self.copy(opencl_lib, self.lib)
+            else:
+                self.log.warning(f"OpenCL library not found: {opencl_lib}")
+
+    def build(self, shared: bool = False) -> None:
         """main build function"""
         if not self.src_dir.exists():
             self.setup()
@@ -669,17 +888,28 @@ class LlamaCppBuilder(Builder):
         self.glob_copy(
             self.src_dir / "ggml" / "include", self.include, patterns=["*.h"]
         )
+
+        # Get backend-specific CMake options
+        backend_options = self.get_backend_cmake_options()
+
         self.cmake_config(
             src_dir=self.src_dir,
             build_dir=self.build_dir,
             BUILD_SHARED_LIBS=shared,
             CMAKE_POSITION_INDEPENDENT_CODE=True,
             LLAMA_CURL=False,
+            **backend_options,
         )
         self.cmake_build(build_dir=self.build_dir, release=True)
         self.cmake_install(build_dir=self.build_dir, prefix=self.prefix)
+
+        # Copy base libraries
         self.copy(self.build_dir / "common" / "libcommon.a", self.lib)
         self.copy(self.build_dir / "tools" / "mtmd" / "libmtmd.a", self.lib)
+
+        # Copy backend-specific libraries
+        self.copy_backend_libs()
+
         # self.move(self.prefix / "bin", self.project.bin)
 
 
@@ -695,7 +925,7 @@ class WhisperCppBuilder(Builder):
         "libggml.a",
     ]
 
-    def build(self, shared: bool = False):
+    def build(self, shared: bool = False) -> None:
         """whisper.cpp main build function"""
         if not self.src_dir.exists():
             self.setup()
@@ -727,7 +957,7 @@ class StableDiffusionCppBuilder(Builder):
         "libstable-diffusion.a",
     ]
 
-    def build(self, shared: bool = False):
+    def build(self, shared: bool = False) -> None:
         """stable-diffusion.cpp main build function"""
         if not self.src_dir.exists():
             self.setup()
@@ -824,7 +1054,10 @@ class WheelBuilder(ShellCmd):
         {dynamic, static} * {macos, linux} * {x86_64, arm64|aarch64}
     """
 
-    def __init__(self, universal: bool = False):
+    universal: bool
+    project: Project
+
+    def __init__(self, universal: bool = False) -> None:
         self.universal = universal
         self.project = Project()
         self.log = logging.getLogger(self.__class__.__name__)
@@ -847,46 +1080,47 @@ class WheelBuilder(ShellCmd):
         return min_osx_ver
 
     @property
-    def is_static(self):
+    def is_static(self) -> bool:
         return self.getenv("STATIC")
 
     @property
-    def is_macos_arm64(self):
+    def is_macos_arm64(self) -> bool:
         return PLATFORM == "Darwin" and ARCH == "arm64"
 
     @property
-    def is_macos_x86_64(self):
+    def is_macos_x86_64(self) -> bool:
         return PLATFORM == "Darwin" and ARCH == "x86_64"
 
     @property
-    def is_linux_x86_64(self):
+    def is_linux_x86_64(self) -> bool:
         return PLATFORM == "Linux" and ARCH == "x86_64"
 
     @property
-    def is_linux_aarch64(self):
+    def is_linux_aarch64(self) -> bool:
         return PLATFORM == "Linux" and ARCH == "aarch64"
 
-    def clean(self):
+    def clean(self) -> None:
         if self.project.build.exists():
             shutil.rmtree(self.project.build, ignore_errors=True)
         if self.project.dist.exists():
             shutil.rmtree(self.project.dist)
 
-    def reset(self):
+    def reset(self) -> None:
         self.clean()
         if self.project.wheels.exists():
             shutil.rmtree(self.project.wheels)
 
-    def check(self):
+    def check(self) -> None:
         have_wheels = bool(self.project.wheels.glob("*.whl"))
         if not have_wheels:
             self.fail("no wheels created")
 
-    def makedirs(self):
+    def ensure_wheels_dir(self) -> None:
+        """Ensure wheels directory exists"""
         if not self.project.wheels.exists():
             self.project.wheels.mkdir()
 
-    def build_wheel(self, static: bool = False, override: bool = True):
+    def build_wheel(self, static: bool = False, override: bool = True) -> None:
         assert PY_VER_MINOR >= 8, "only supporting python >= 3.8"
 
         _cmd = f'"{PYTHON}" setup.py bdist_wheel'
@@ -910,7 +1144,7 @@ class WheelBuilder(ShellCmd):
             os.environ["STATIC"] = "1"
         self.cmd(_cmd)
 
-    def test_wheels(self):
+    def test_wheels(self) -> None:
         venv = self.project.wheels / "venv"
         if venv.exists():
             shutil.rmtree(venv)
@@ -946,10 +1180,10 @@ class WheelBuilder(ShellCmd):
             if venv.exists():
                 shutil.rmtree(venv)
 
-    def build_dynamic_wheel(self):
+    def build_dynamic_wheel(self) -> None:
         self.log.info("building dynamic build wheel")
         self.clean()
-        self.makedirs()
+        self.ensure_wheels_dir()
         self.build_wheel()
         src = self.project.dist
         dst = self.project.wheels
@@ -966,10 +1200,10 @@ class WheelBuilder(ShellCmd):
         else:
             raise self.fail("platform not supported")
 
-    def build_static_wheel(self):
+    def build_static_wheel(self) -> None:
         self.log.info("building static build wheel")
         self.clean()
-        self.makedirs()
+        self.ensure_wheels_dir()
         self.build_wheel(static=True)
         for wheel in self.project.dist.glob("*.whl"):
             w = WheelFilename.from_path(wheel)
@@ -978,7 +1212,7 @@ class WheelBuilder(ShellCmd):
             os.rename(wheel, renamed_wheel)
             shutil.move(renamed_wheel, self.project.wheels)
 
-    def build(self):
+    def build(self) -> None:
         if self.is_static:
             self.build_static_wheel()
         else:
@@ -986,7 +1220,7 @@ class WheelBuilder(ShellCmd):
         self.check()
         self.clean()
 
-    def release(self):
+    def release(self) -> None:
         self.reset()
         self.build_dynamic_wheel()
         self.build_static_wheel()
@@ -1048,15 +1282,19 @@ class MetaCommander(type):
 class Application(ShellCmd, metaclass=MetaCommander):
     """cyllama build manager"""
 
-    version = "0.0.4"
-    epilog = ""
-    default_args = ["--help"]
+    version: str = "0.0.4"
+    epilog: str = ""
+    default_args: list[str] = ["--help"]
+    project: Project
+    parser: argparse.ArgumentParser
+    options: argparse.Namespace
+    _argparse_subcmds: dict  # Added by metaclass
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.project = Project()
         self.log = logging.getLogger(self.__class__.__name__)
 
-    def parse_args(self):
+    def parse_args(self) -> argparse.ArgumentParser:
         parser = argparse.ArgumentParser(
             # prog = self.name,
             formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -1065,7 +1303,7 @@ class Application(ShellCmd, metaclass=MetaCommander):
         )
         return parser
 
-    def cmdline(self):
+    def cmdline(self) -> None:
         self.parser = self.parse_args()
 
         self.parser.add_argument(
@@ -1099,7 +1337,7 @@ class Application(ShellCmd, metaclass=MetaCommander):
     # ------------------------------------------------------------------------
     # setup
 
-    def do_setup(self, args):
+    def do_setup(self, args: argparse.Namespace) -> None:
         """setup prerequisites"""
         # for Builder in [LlamaCppBuilder, WhisperCppBuilder, StableDiffusionCppBuilder]:
         for Builder in [LlamaCppBuilder]:
@@ -1110,13 +1348,42 @@ class Application(ShellCmd, metaclass=MetaCommander):
     # ------------------------------------------------------------------------
     # build
 
+    @opt("--metal", "-m", "enable Metal backend (macOS)")
+    @opt("--cuda", "-c", "enable CUDA backend (NVIDIA GPUs)")
+    @opt("--vulkan", "-V", "enable Vulkan backend (cross-platform)")
+    @opt("--sycl", "-y", "enable SYCL backend (Intel GPUs)")
+    @opt("--hip", "-H", "enable HIP/ROCm backend (AMD GPUs)")
+    @opt("--opencl", "-o", "enable OpenCL backend")
+    @opt("--cpu-only", "-C", "disable all GPU backends (CPU only)")
     @opt("-w", "--whisper-cpp", "build whisper-cpp")
     @opt("-d", "--stable-diffusion", "build stable-diffusion")
     @opt("-l", "--llama-cpp", "build llama-cpp")
     @opt("-s", "--shared",  "build shared libraries")
     @opt("-a", "--all", "build all")
-    def do_build(self, args):
+    def do_build(self, args: argparse.Namespace) -> None:
         """build packages"""
+        # Set backend environment variables based on command-line args
+        if args.cpu_only:
+            os.environ["GGML_METAL"] = "0"
+            os.environ["GGML_CUDA"] = "0"
+            os.environ["GGML_VULKAN"] = "0"
+            os.environ["GGML_SYCL"] = "0"
+            os.environ["GGML_HIP"] = "0"
+            os.environ["GGML_OPENCL"] = "0"
+        else:
+            if args.metal:
+                os.environ["GGML_METAL"] = "1"
+            if args.cuda:
+                os.environ["GGML_CUDA"] = "1"
+            if args.vulkan:
+                os.environ["GGML_VULKAN"] = "1"
+            if args.sycl:
+                os.environ["GGML_SYCL"] = "1"
+            if args.hip:
+                os.environ["GGML_HIP"] = "1"
+            if args.opencl:
+                os.environ["GGML_OPENCL"] = "1"
+
         _builders = []
 
         if args.all:
@@ -1147,7 +1414,7 @@ class Application(ShellCmd, metaclass=MetaCommander):
     @opt("--static", "-s", "build static variant")
     @opt("--universal", "-u", "build universal wheel")
     @opt("--test", "-t", "test built wheels")
-    def do_wheel(self, args):
+    def do_wheel(self, args: argparse.Namespace) -> None:
         """build wheels"""
 
         if args.release:
@@ -1178,7 +1445,7 @@ class Application(ShellCmd, metaclass=MetaCommander):
     # test
 
     @opt("--pytest", "-p", "run pytest")
-    def do_test(self, args):
+    def do_test(self, args: argparse.Namespace) -> None:
         """test modules"""
         if args.pytest:
             self.cmd("pytest -vv tests")
@@ -1191,7 +1458,7 @@ class Application(ShellCmd, metaclass=MetaCommander):
 
     @opt("--reset", "-r", "reset project")
     @opt("--verbose", "-v", "verbose cleaning ops")
-    def do_clean(self, args):
+    def do_clean(self, args: argparse.Namespace) -> None:
         """clean detritus"""
         cwd = self.project.cwd
         _targets = ["build", "dist", "venv", "MANIFEST.in", ".task"]

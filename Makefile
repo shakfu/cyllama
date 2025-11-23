@@ -2,6 +2,18 @@
 # export PATH := $(PWD)/thirdparty/llama.cpp/bin:$(PATH)
 export MACOSX_DEPLOYMENT_TARGET := 14.7
 
+# Backend flags (can be overridden via environment variables)
+# Default: Metal enabled on macOS, all others disabled
+GGML_METAL ?= 1
+GGML_CUDA ?= 0
+GGML_VULKAN ?= 0
+GGML_SYCL ?= 0
+GGML_HIP ?= 0
+GGML_OPENCL ?= 0
+
+# Export backend flags for setup.sh and setup.py
+export GGML_METAL GGML_CUDA GGML_VULKAN GGML_SYCL GGML_HIP GGML_OPENCL
+
 # models
 MODEL := models/Llama-3.2-1B-Instruct-Q8_0.gguf
 MODEL_RAG := models/all-MiniLM-L6-v2-Q5_K_S.gguf
@@ -233,3 +245,36 @@ reset: clean
 	@rm -rf thirdparty/stable-diffusion.cpp/bin thirdparty/stable-diffusion.cpp/lib
 
 remake: reset build diff test
+
+# Backend-specific build targets
+.PHONY: build-cpu build-metal build-cuda build-vulkan build-sycl build-hip build-all show-backends
+
+show-backends:
+	@echo "Current backend configuration:"
+	@echo "  GGML_METAL:   $(GGML_METAL)"
+	@echo "  GGML_CUDA:    $(GGML_CUDA)"
+	@echo "  GGML_VULKAN:  $(GGML_VULKAN)"
+	@echo "  GGML_SYCL:    $(GGML_SYCL)"
+	@echo "  GGML_HIP:     $(GGML_HIP)"
+	@echo "  GGML_OPENCL:  $(GGML_OPENCL)"
+
+build-cpu:
+	@GGML_METAL=0 GGML_CUDA=0 GGML_VULKAN=0 $(MAKE) build
+
+build-metal:
+	@GGML_METAL=1 GGML_CUDA=0 GGML_VULKAN=0 $(MAKE) build
+
+build-cuda:
+	@GGML_METAL=0 GGML_CUDA=1 GGML_VULKAN=0 $(MAKE) build
+
+build-vulkan:
+	@GGML_METAL=0 GGML_CUDA=0 GGML_VULKAN=1 $(MAKE) build
+
+build-sycl:
+	@GGML_METAL=0 GGML_CUDA=0 GGML_SYCL=1 $(MAKE) build
+
+build-hip:
+	@GGML_METAL=0 GGML_CUDA=0 GGML_HIP=1 $(MAKE) build
+
+build-all:
+	@GGML_METAL=1 GGML_CUDA=1 GGML_VULKAN=1 $(MAKE) build

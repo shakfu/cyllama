@@ -1,0 +1,379 @@
+# Building cyllama with Different Backends
+
+cyllama supports multiple GPU acceleration backends through llama.cpp. This guide shows you how to build with different backends using either the Makefile or the Python build manager (`scripts/manage.py`).
+
+## Quick Start
+
+### Default Build (Metal on macOS, CPU-only on Linux)
+
+**Using Makefile:**
+```bash
+make build
+```
+
+**Using manage.py:**
+```bash
+python3 scripts/manage.py build --llama-cpp
+```
+
+### Build with Specific Backend
+
+**Using Makefile:**
+```bash
+# CUDA (NVIDIA GPUs)
+make build-cuda
+
+# Vulkan (Cross-platform GPU)
+make build-vulkan
+
+# CPU-only (no GPU)
+make build-cpu
+
+# SYCL (Intel GPUs)
+make build-sycl
+
+# HIP/ROCm (AMD GPUs)
+make build-hip
+
+# All backends (Metal + CUDA + Vulkan)
+make build-all
+```
+
+**Using manage.py:**
+```bash
+# CUDA (NVIDIA GPUs)
+python3 scripts/manage.py build --llama-cpp --cuda
+
+# Vulkan (Cross-platform GPU)
+python3 scripts/manage.py build --llama-cpp --vulkan
+
+# CPU-only (no GPU)
+python3 scripts/manage.py build --llama-cpp --cpu-only
+
+# SYCL (Intel GPUs)
+python3 scripts/manage.py build --llama-cpp --sycl
+
+# HIP/ROCm (AMD GPUs)
+python3 scripts/manage.py build --llama-cpp --hip
+
+# Multiple backends (CUDA + Vulkan)
+python3 scripts/manage.py build --llama-cpp --cuda --vulkan
+
+# Metal on macOS (default, or explicit)
+python3 scripts/manage.py build --llama-cpp --metal
+```
+
+## Environment Variable Control
+
+You can fine-tune backend selection using environment variables (works with both Makefile and manage.py):
+
+**Using Makefile:**
+```bash
+# Enable specific backends
+export GGML_CUDA=1
+export GGML_VULKAN=1
+make build
+
+# Disable Metal on macOS
+export GGML_METAL=0
+make build
+
+# Build with multiple backends
+export GGML_CUDA=1 GGML_VULKAN=1
+make build
+```
+
+**Using manage.py:**
+```bash
+# Environment variables work the same way
+export GGML_CUDA=1
+export GGML_VULKAN=1
+python3 scripts/manage.py build --llama-cpp
+
+# Or combine with command-line flags (flags override env vars)
+export GGML_METAL=1
+python3 scripts/manage.py build --llama-cpp --cuda  # Enables both Metal and CUDA
+```
+
+### Available Backend Flags
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `GGML_METAL` | `1` | Apple Metal (macOS GPU) |
+| `GGML_CUDA` | `0` | NVIDIA CUDA |
+| `GGML_VULKAN` | `0` | Vulkan (cross-platform GPU) |
+| `GGML_SYCL` | `0` | Intel SYCL (oneAPI) |
+| `GGML_HIP` | `0` | AMD ROCm/HIP |
+| `GGML_OPENCL` | `0` | OpenCL (Adreno, mobile GPUs) |
+
+## Backend Requirements
+
+### CUDA (NVIDIA GPUs)
+
+**Requirements:**
+- NVIDIA GPU with compute capability 6.0+
+- CUDA Toolkit 11.0+ installed
+- `nvcc` compiler in PATH
+
+**Install CUDA:**
+
+```bash
+# Ubuntu/Debian
+wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb
+sudo dpkg -i cuda-keyring_1.1-1_all.deb
+sudo apt-get update
+sudo apt-get install -y cuda-toolkit-12-6
+
+# Verify installation
+nvcc --version
+```
+
+**Build:**
+
+```bash
+export GGML_CUDA=1
+make build
+```
+
+### Vulkan (Cross-platform GPU)
+
+**Requirements:**
+- Vulkan-capable GPU (NVIDIA, AMD, Intel, or Apple)
+- Vulkan SDK installed
+- Vulkan headers in system include path
+
+**Install Vulkan SDK:**
+
+```bash
+# Ubuntu/Debian
+sudo apt-get install -y libvulkan-dev vulkan-tools
+
+# macOS
+brew install vulkan-headers vulkan-loader molten-vk
+
+# Verify installation
+vulkaninfo --summary
+```
+
+**Build:**
+
+```bash
+export GGML_VULKAN=1
+make build
+```
+
+### Metal (Apple Silicon/macOS)
+
+**Requirements:**
+- macOS 11.0+ (Big Sur or later)
+- Apple Silicon (M1/M2/M3) or Intel Mac with AMD GPU
+- Xcode Command Line Tools
+
+**Build (enabled by default on macOS):**
+
+```bash
+make build
+# or explicitly:
+export GGML_METAL=1
+make build
+```
+
+### SYCL (Intel GPUs)
+
+**Requirements:**
+- Intel GPU (Iris Xe, Arc, or Flex)
+- Intel oneAPI Base Toolkit installed
+
+**Install Intel oneAPI:**
+
+```bash
+# Ubuntu/Debian
+wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
+sudo apt-key add GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
+echo "deb https://apt.repos.intel.com/oneapi all main" | sudo tee /etc/apt/sources.list.d/oneAPI.list
+sudo apt-get update
+sudo apt-get install -y intel-basekit
+
+# Setup environment
+source /opt/intel/oneapi/setvars.sh
+```
+
+**Build:**
+
+```bash
+export GGML_SYCL=1
+make build
+```
+
+### HIP/ROCm (AMD GPUs)
+
+**Requirements:**
+- AMD GPU with ROCm support
+- ROCm 5.0+ installed
+
+**Install ROCm:**
+
+```bash
+# Ubuntu 22.04
+wget https://repo.radeon.com/amdgpu-install/latest/ubuntu/jammy/amdgpu-install_6.2.60200-1_all.deb
+sudo apt-get install -y ./amdgpu-install_6.2.60200-1_all.deb
+sudo amdgpu-install --usecase=rocm
+
+# Verify installation
+rocm-smi
+```
+
+**Build:**
+
+```bash
+export GGML_HIP=1
+make build
+```
+
+## Multi-Backend Builds
+
+You can build with multiple backends simultaneously:
+
+```bash
+# CUDA + Vulkan + Metal (on macOS)
+export GGML_METAL=1 GGML_CUDA=1 GGML_VULKAN=1
+make build
+
+# CUDA + Vulkan (on Linux)
+export GGML_CUDA=1 GGML_VULKAN=1
+make build
+```
+
+At runtime, llama.cpp will automatically select the best available backend, or you can specify one explicitly via the model configuration.
+
+## Checking Your Build
+
+After building, you can verify which backends were compiled:
+
+```bash
+# Show current backend configuration
+make show-backends
+
+# Check compiled libraries
+ls -lh thirdparty/llama.cpp/lib/
+```
+
+Expected libraries for each backend:
+
+| Backend | Library |
+|---------|---------|
+| CPU | `libggml-cpu.a` (always built) |
+| Metal | `libggml-metal.a` + `libggml-blas.a` |
+| CUDA | `libggml-cuda.a` |
+| Vulkan | `libggml-vulkan.a` |
+| SYCL | `libggml-sycl.a` |
+| HIP/ROCm | `libggml-hip.a` |
+| OpenCL | `libggml-opencl.a` |
+
+## Troubleshooting
+
+### "nvcc: command not found" (CUDA)
+
+Make sure CUDA toolkit is installed and in your PATH:
+
+```bash
+export PATH=/usr/local/cuda/bin:$PATH
+export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
+```
+
+### "vulkan/vulkan.h: No such file" (Vulkan)
+
+Install Vulkan SDK:
+
+```bash
+# Ubuntu/Debian
+sudo apt-get install -y libvulkan-dev
+
+# macOS
+brew install vulkan-headers molten-vk
+```
+
+### "cannot find -lcuda" (CUDA linking error)
+
+Add CUDA library path:
+
+```bash
+export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
+```
+
+### Metal not working on macOS
+
+Ensure you have the latest Xcode Command Line Tools:
+
+```bash
+xcode-select --install
+```
+
+### Performance is slow with GPU backend
+
+Make sure you're enabling GPU offloading in your model configuration:
+
+```python
+from cyllama import LLM
+
+model = LLM(
+    model_path="model.gguf",
+    n_gpu_layers=99,  # Offload all layers to GPU
+)
+```
+
+## Clean Rebuild
+
+If you encounter issues after changing backends:
+
+```bash
+# Clean everything and rebuild
+make reset
+export GGML_CUDA=1  # or your desired backend
+make build
+```
+
+## Performance Comparison
+
+Approximate relative performance (inference speed):
+
+| Backend | Relative Speed | Notes |
+|---------|----------------|-------|
+| CPU only | 1x (baseline) | Good for small models |
+| Metal (M1/M2/M3) | 5-15x | Best on Apple Silicon |
+| CUDA (RTX 4090) | 10-30x | Best on NVIDIA GPUs |
+| Vulkan | 5-20x | Good cross-platform option |
+| SYCL (Arc A770) | 3-8x | Intel GPUs |
+| HIP/ROCm | 8-25x | AMD GPUs |
+
+*Performance varies greatly based on model size, quantization, and hardware.*
+
+## Recommended Backends by Platform
+
+| Platform | Recommended Backend | Alternative |
+|----------|-------------------|-------------|
+| **Apple Silicon Mac** | Metal | Vulkan |
+| **Linux + NVIDIA GPU** | CUDA | Vulkan |
+| **Linux + AMD GPU** | HIP/ROCm | Vulkan |
+| **Linux + Intel GPU** | SYCL | Vulkan |
+| **Windows + NVIDIA GPU** | CUDA | Vulkan |
+| **Windows + AMD GPU** | Vulkan | HIP/ROCm |
+
+## Advanced: Custom CMake Flags
+
+For advanced users, you can pass additional CMake flags via the build script:
+
+```bash
+# Edit scripts/setup.sh and modify CMAKE_ARGS
+# Example: Enable CUDA with custom architecture
+CMAKE_ARGS="$CMAKE_ARGS -DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=86"
+```
+
+## References
+
+- [llama.cpp Build Documentation](https://github.com/ggml-org/llama.cpp/blob/master/docs/build.md)
+- [llama.cpp GPU Acceleration Guide](https://www.ywian.com/blog/llama-cpp-gpu-acceleration-complete-guide)
+- [CUDA Installation Guide](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/)
+- [Vulkan SDK](https://www.lunarg.com/vulkan-sdk/)
+- [Intel oneAPI](https://www.intel.com/content/www/us/en/developer/tools/oneapi/overview.html)
+- [ROCm Documentation](https://rocm.docs.amd.com/)
