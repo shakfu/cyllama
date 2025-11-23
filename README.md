@@ -266,6 +266,24 @@ To build `cyllama`:
     2. Install it into `bin`, `include`, and `lib` in the cloned `cyllama` folder
     3. Build `cyllama`
 
+### GPU Acceleration
+
+By default, cyllama builds with Metal support on macOS and CPU-only on Linux. To enable other GPU backends (CUDA, Vulkan, etc.):
+
+```sh
+# CUDA (NVIDIA GPUs)
+make build-cuda
+
+# Vulkan (Cross-platform GPU)
+make build-vulkan
+
+# Multiple backends
+export GGML_CUDA=1 GGML_VULKAN=1
+make build
+```
+
+See [docs/BUILD_BACKENDS.md](docs/BUILD_BACKENDS.md) for comprehensive backend build instructions.
+
 ## Testing
 
 The `tests` directory in this repo provides extensive examples of using cyllama.

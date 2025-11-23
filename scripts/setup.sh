@@ -26,6 +26,41 @@ get_llamacpp() {
 	PREFIX=${THIRDPARTY}/llama.cpp
 	INCLUDE=${PREFIX}/include
 	LIB=${PREFIX}/lib
+
+	# Build CMake args based on environment variables
+	CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON"
+
+	# Check backend environment variables and add appropriate flags
+	if [ "${GGML_METAL:-1}" = "1" ]; then
+		CMAKE_ARGS="$CMAKE_ARGS -DGGML_METAL=ON"
+		echo "✓ Enabling Metal backend"
+	fi
+
+	if [ "${GGML_CUDA:-0}" = "1" ]; then
+		CMAKE_ARGS="$CMAKE_ARGS -DGGML_CUDA=ON"
+		echo "✓ Enabling CUDA backend"
+	fi
+
+	if [ "${GGML_VULKAN:-0}" = "1" ]; then
+		CMAKE_ARGS="$CMAKE_ARGS -DGGML_VULKAN=ON"
+		echo "✓ Enabling Vulkan backend"
+	fi
+
+	if [ "${GGML_SYCL:-0}" = "1" ]; then
+		CMAKE_ARGS="$CMAKE_ARGS -DGGML_SYCL=ON"
+		echo "✓ Enabling SYCL backend"
+	fi
+
+	if [ "${GGML_HIP:-0}" = "1" ]; then
+		CMAKE_ARGS="$CMAKE_ARGS -DGGML_HIP=ON"
+		echo "✓ Enabling HIP/ROCm backend"
+	fi
+
+	if [ "${GGML_OPENCL:-0}" = "1" ]; then
+		CMAKE_ARGS="$CMAKE_ARGS -DGGML_OPENCL=ON"
+		echo "✓ Enabling OpenCL backend"
+	fi
+
 	mkdir -p build ${INCLUDE} && \
 		cd build && \
 		if [ ! -d "llama.cpp" ]; then
@@ -40,13 +75,31 @@ get_llamacpp() {
 		cp vendor/nlohmann/*.hpp ${INCLUDE}/nlohmann/ && \
 		mkdir -p build && \
 		cd build && \
-		cmake .. -DBUILD_SHARED_LIBS=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON && \
+		echo "Building with: cmake .. $CMAKE_ARGS" && \
+		cmake .. $CMAKE_ARGS && \
 		cmake --build . --config Release && \
 		cmake --install . --prefix ${PREFIX} && \
 		cp ggml/src/libggml-base.a ${LIB} && \
 		cp ggml/src/libggml-cpu.a ${LIB} && \
-		cp ggml/src/ggml-blas/libggml-blas.a ${LIB} && \
-		cp ggml/src/ggml-metal/libggml-metal.a ${LIB} && \
+		if [ "${GGML_METAL:-1}" = "1" ]; then
+			cp ggml/src/ggml-blas/libggml-blas.a ${LIB} 2>/dev/null || true && \
+			cp ggml/src/ggml-metal/libggml-metal.a ${LIB} 2>/dev/null || true
+		fi && \
+		if [ "${GGML_CUDA:-0}" = "1" ]; then
+			cp ggml/src/ggml-cuda/libggml-cuda.a ${LIB} 2>/dev/null || true
+		fi && \
+		if [ "${GGML_VULKAN:-0}" = "1" ]; then
+			cp ggml/src/ggml-vulkan/libggml-vulkan.a ${LIB} 2>/dev/null || true
+		fi && \
+		if [ "${GGML_SYCL:-0}" = "1" ]; then
+			cp ggml/src/ggml-sycl/libggml-sycl.a ${LIB} 2>/dev/null || true
+		fi && \
+		if [ "${GGML_HIP:-0}" = "1" ]; then
+			cp ggml/src/ggml-hip/libggml-hip.a ${LIB} 2>/dev/null || true
+		fi && \
+		if [ "${GGML_OPENCL:-0}" = "1" ]; then
+			cp ggml/src/ggml-opencl/libggml-opencl.a ${LIB} 2>/dev/null || true
+		fi && \
 		cp common/libcommon.a ${LIB} && \
 		# cp examples/llava/libllava_static.a ${LIB}/libllava.a && \
 		cd ${CWD}
