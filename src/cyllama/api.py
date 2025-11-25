@@ -255,13 +255,20 @@ class LLM:
         self._ensure_context(n_prompt, config)
         self._ensure_sampler(config)
 
-        # Process prompt
-        batch = llama_batch_get_one(prompt_tokens)
-        self._ctx.decode(batch)
+        # Process prompt in batches to avoid exceeding n_batch limit
+        n_batch = config.n_batch
+        for i in range(0, n_prompt, n_batch):
+            batch_tokens = prompt_tokens[i:i + n_batch]
+            batch = llama_batch_get_one(batch_tokens, i)  # Pass position offset
+            self._ctx.decode(batch)
 
         # Generate tokens
         n_pos = n_prompt
         n_generated = 0
+
+        # Buffer for stop sequence checking (accumulates recent output)
+        stop_buffer = ""
+        max_stop_len = max((len(s) for s in config.stop_sequences), default=0) if config.stop_sequences else 0
 
         for _ in range(config.max_tokens):
             # Sample next token
@@ -277,14 +284,38 @@ class LLM:
             except UnicodeDecodeError:
                 piece = ""
 
-            # Check stop sequences
+            # Check stop sequences against accumulated buffer
             if config.stop_sequences:
-                # This is a simple check; more sophisticated implementations
-                # would buffer tokens to check for multi-token sequences
-                if any(stop in piece for stop in config.stop_sequences):
+                stop_buffer += piece
+                # Keep buffer size manageable
+                if len(stop_buffer) > max_stop_len * 2:
+                    stop_buffer = stop_buffer[-max_stop_len * 2:]
+
+                # Check if any stop sequence appears in the buffer
+                stop_found = False
+                for stop in config.stop_sequences:
+                    if stop in stop_buffer:
+                        # Trim output to exclude stop sequence
+                        stop_idx = stop_buffer.find(stop)
+                        # Calculate how much of current piece to yield (if any)
+                        piece_start_in_buffer = len(stop_buffer) - len(piece)
+                        if stop_idx > piece_start_in_buffer:
+                            # Part of current piece should be yielded
+                            partial_len = stop_idx - piece_start_in_buffer
+                            if partial_len > 0:
+                                partial_piece = piece[:partial_len]
+                                if on_token:
+                                    on_token(partial_piece)
+                                yield partial_piece
+                        # else: stop sequence was already in buffer before this piece,
+                        # or starts at beginning of piece - don't yield anything
+                        stop_found = True
+                        break
+
+                if stop_found:
                     break
 
-            # Yield or callback
+            # Yield or callback (only if no stop sequence was found)
             if on_token:
                 on_token(piece)
 

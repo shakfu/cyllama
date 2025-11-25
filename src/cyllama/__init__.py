@@ -25,6 +25,12 @@ from .memory import (
     MemoryEstimate,
 )
 
+# Agent support
+from . import agents
+
+# Utilities (logging, colors)
+from . import utils
+
 # Multimodal support (optional import)
 try:
     from .llama import mtmd
