@@ -19,7 +19,7 @@ from pathlib import Path
 from cyllama import LLM, GenerationConfig
 from cyllama.agents import ConstrainedAgent, tool
 from cyllama.utils.color import (
-    header, section, subheader, success, error, info,
+    header, section, subsection, subheader, success, error, info,
     bullet, numbered, kv
 )
 import json
@@ -250,13 +250,13 @@ def example_basic_analysis(llm: LLM):
         format="json"
     )
 
-    section("Task: Analyze sales data revenue statistics", color='yellow')
+    subsection("Task: Analyze sales data revenue statistics", color='yellow')
 
     result = agent.run(
         "Load the sales_data dataset and calculate statistics for the revenue column"
     )
 
-    section("RESULT", color='bright_green')
+    subsection("RESULT", color='bright_green')
     kv("Success", str(result.success), value_color='green' if result.success else 'red')
     kv("Answer", result.answer)
 
@@ -279,13 +279,13 @@ def example_advanced_analysis(llm: LLM):
         format="json"
     )
 
-    section("Task: Find high-value customers", color='yellow')
+    subsection("Task: Find high-value customers", color='yellow')
 
     result = agent.run(
         "Analyze customer_data to find customers who spent more than 500 dollars total"
     )
 
-    section("RESULT", color='bright_green')
+    subsection("RESULT", color='bright_green')
     kv("Answer", result.answer)
 
 
@@ -305,7 +305,7 @@ def example_correlation_analysis(llm: LLM):
         "Calculate the correlation between age and total_spent in customer_data"
     )
 
-    section("RESULT", color='bright_green')
+    subsection("RESULT", color='bright_green')
     kv("Answer", result.answer)
 
 

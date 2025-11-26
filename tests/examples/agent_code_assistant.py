@@ -19,7 +19,7 @@ from pathlib import Path
 from cyllama import LLM, GenerationConfig
 from cyllama.agents import ReActAgent, tool
 from cyllama.utils.color import (
-    header, section, subheader, success, error, info,
+    header, section, subsection, subheader, success, error, info,
     bullet, numbered, kv, divider
 )
 import subprocess
@@ -275,13 +275,13 @@ def example_code_reading(llm: LLM):
         verbose=True
     )
 
-    section("Task: Read and analyze calculator.py", color='yellow')
+    subsection("Task: Read and analyze calculator.py", color='yellow')
 
     result = agent.run(
         "Read calculator.py and check it for code style issues using the linter"
     )
 
-    section("RESULT", color='bright_green')
+    subsection("RESULT", color='bright_green')
     kv("Answer", result.answer)
 
 
@@ -296,14 +296,14 @@ def example_code_generation(llm: LLM):
         verbose=True
     )
 
-    section("Task: Generate a power function", color='yellow')
+    subsection("Task: Generate a power function", color='yellow')
 
     result = agent.run(
         "Generate a Python function called 'power' that raises a number to an exponent, "
         "with parameters base: float and exponent: int"
     )
 
-    section("RESULT", color='bright_green')
+    subsection("RESULT", color='bright_green')
     kv("Answer", result.answer)
 
 
@@ -318,13 +318,13 @@ def example_test_running(llm: LLM):
         verbose=True
     )
 
-    section("Task: Run tests for calculator", color='yellow')
+    subsection("Task: Run tests for calculator", color='yellow')
 
     result = agent.run(
         "Run the tests in test_calculator.py and tell me if they all pass"
     )
 
-    section("RESULT", color='bright_green')
+    subsection("RESULT", color='bright_green')
     kv("Answer", result.answer)
 
 
@@ -339,14 +339,14 @@ def example_code_execution(llm: LLM):
         verbose=True
     )
 
-    section("Task: Execute a simple Python script", color='yellow')
+    subsection("Task: Execute a simple Python script", color='yellow')
 
     result = agent.run(
         "Write and execute Python code that prints the first 10 Fibonacci numbers. "
         "Use the run_python_code tool with the 'code' parameter containing the Python code."
     )
 
-    section("RESULT", color='bright_green')
+    subsection("RESULT", color='bright_green')
     kv("Answer", result.answer)
 
 

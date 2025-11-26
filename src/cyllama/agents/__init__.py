@@ -8,8 +8,9 @@ This module provides agent architectures that leverage cyllama's strengths:
 - Framework-agnostic design
 
 Available agents:
-- ReAct: Reasoning + Acting agent with tool calling
+- ReActAgent: Reasoning + Acting agent with tool calling
 - ConstrainedAgent: Grammar-enforced tool calling for 100% reliability
+- ContractAgent: Contract-based agent with C++26-inspired pre/post conditions
 """
 
 from .tools import Tool, tool, ToolRegistry
@@ -24,6 +25,20 @@ from .grammar import (
     get_cached_answer_or_tool_grammar,
     clear_grammar_cache,
 )
+from .contract import (
+    ContractAgent,
+    ContractPolicy,
+    ContractViolation,
+    ContractTermination,
+    ContractContext,
+    ContractSpec,
+    PreCondition,
+    PostCondition,
+    IterationState,
+    pre,
+    post,
+    contract_assert,
+)
 
 __all__ = [
     # Tools
@@ -34,6 +49,7 @@ __all__ = [
     # Agents
     "ReActAgent",
     "ConstrainedAgent",
+    "ContractAgent",
 
     # Events and Results
     "EventType",
@@ -52,4 +68,17 @@ __all__ = [
     "get_cached_tool_grammar",
     "get_cached_answer_or_tool_grammar",
     "clear_grammar_cache",
+
+    # Contract types
+    "ContractPolicy",
+    "ContractViolation",
+    "ContractTermination",
+    "ContractContext",
+    "ContractSpec",
+    "PreCondition",
+    "PostCondition",
+    "IterationState",
+    "pre",
+    "post",
+    "contract_assert",
 ]

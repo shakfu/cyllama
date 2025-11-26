@@ -1,6 +1,6 @@
-# cyllama - LLM Inference for Python
+# cyllama - Fast, Pythonic LLM Inference
 
-Fast, Pythonic LLM Inference -- Cyllama is a comprehensive no-dependencies Python library for LLM inference built on [llama.cpp](https://github.com/ggml-org/llama.cpp), the leading open-source C++ LLM inference engine. It combines the performance of compiled Cython wrappers with a simple, high-level Python API.
+cyllama is a comprehensive no-dependencies Python library for LLM inference built on [llama.cpp](https://github.com/ggml-org/llama.cpp), the leading open-source C++ LLM inference engine. It combines the performance of compiled Cython wrappers with a simple, high-level Python API.
 
 ## Quick Start
 
@@ -109,6 +109,60 @@ chain = LLMChain(llm=llm, prompt=prompt_template)
 result = chain.run(topic="AI")
 ```
 
+### Agent Framework
+
+Cyllama includes a zero-dependency agent framework with three agent architectures:
+
+**ReActAgent** - Reasoning + Acting agent with tool calling:
+
+```python
+from cyllama import LLM
+from cyllama.agents import ReActAgent, tool
+
+@tool
+def calculate(expression: str) -> str:
+    """Evaluate a math expression."""
+    return str(eval(expression))
+
+llm = LLM("model.gguf")
+agent = ReActAgent(llm=llm, tools=[calculate])
+result = agent.run("What is 25 * 4?")
+print(result.answer)
+```
+
+**ConstrainedAgent** - Grammar-enforced tool calling for 100% reliability:
+
+```python
+from cyllama.agents import ConstrainedAgent
+
+agent = ConstrainedAgent(llm=llm, tools=[calculate])
+result = agent.run("Calculate 100 / 4")  # Guaranteed valid tool calls
+```
+
+**ContractAgent** - Contract-based agent with C++26-inspired pre/post conditions:
+
+```python
+from cyllama.agents import ContractAgent, tool, pre, post, ContractPolicy
+
+@tool
+@pre(lambda args: args['x'] != 0, "cannot divide by zero")
+@post(lambda r: r is not None, "result must not be None")
+def divide(a: float, x: float) -> float:
+    """Divide a by x."""
+    return a / x
+
+agent = ContractAgent(
+    llm=llm,
+    tools=[divide],
+    policy=ContractPolicy.ENFORCE,
+    task_precondition=lambda task: len(task) > 10,
+    answer_postcondition=lambda ans: len(ans) > 0,
+)
+result = agent.run("What is 100 divided by 4?")
+```
+
+See [contract_agent.md](docs/contract_agent.md) for detailed `ContractAgent` documentation.
+
 ### Advanced Features
 
 **GGUF File Manipulation** - Inspect and modify model files:
@@ -130,12 +184,29 @@ schema = {"type": "object", "properties": {"name": {"type": "string"}}}
 grammar = json_schema_to_grammar(schema)
 ```
 
-**Model Downloads** - Ollama-style convenience:
+**Huggingface Model Downloads**:
 
 ```python
-from cyllama import download_model, list_cached_models
+from cyllama import download_model, list_cached_models, get_hf_file
 
-download_model("bartowski/Llama-3.2-1B-Instruct-GGUF:q4")
+# Download from HuggingFace (saves to ~/.cache/llama.cpp/)
+download_model("bartowski/Llama-3.2-1B-Instruct-GGUF:latest")
+
+# Or with explicit parameters
+download_model(hf_repo="bartowski/Llama-3.2-1B-Instruct-GGUF:latest")
+
+# Download specific file to custom path
+download_model(
+    hf_repo="bartowski/Llama-3.2-1B-Instruct-GGUF",
+    hf_file="Llama-3.2-1B-Instruct-Q8_0.gguf",
+    model_path="./models/my_model.gguf"
+)
+
+# Get file info without downloading
+info = get_hf_file("bartowski/Llama-3.2-1B-Instruct-GGUF:latest")
+print(info)  # {'repo': '...', 'gguf_file': '...', 'mmproj_file': '...'}
+
+# List cached models
 models = list_cached_models()
 ```
 
@@ -166,6 +237,12 @@ draft = cache.draft(input_tokens, n_draft=16)
 - [x] **LangChain** - Full LLM interface implementation
 - [x] **FastAPI/Flask** - Ready-to-use server examples
 - [x] **Gradio** - Interactive UI integration
+
+### Agent Framework
+
+- [x] **ReActAgent** - Reasoning + Acting agent with tool calling
+- [x] **ConstrainedAgent** - Grammar-enforced tool calling for 100% reliability
+- [x] **ContractAgent** - Contract-based agent with pre/post conditions
 
 ### Additional Features
 
@@ -223,6 +300,7 @@ draft = cache.draft(input_tokens, n_draft=16)
 | Speculative decoding | [x] Complete | Draft model speedup |
 | OpenAI compatibility | [x] Complete | Drop-in API replacement |
 | LangChain integration | [x] Complete | Ecosystem access |
+| Agent Framework | [x] Complete | ReActAgent, ConstrainedAgent, ContractAgent |
 | Multimodal (LLAVA) | [x] Complete | Vision-language models |
 | Whisper.cpp | [x] Complete | Speech-to-text |
 | Memory optimization | [x] Complete | GPU layer estimation |
@@ -282,7 +360,7 @@ export GGML_CUDA=1 GGML_VULKAN=1
 make build
 ```
 
-See [docs/BUILD_BACKENDS.md](docs/BUILD_BACKENDS.md) for comprehensive backend build instructions.
+See [docs/build_backends.md](docs/BUILD_BACKENDS.md) for comprehensive backend build instructions.
 
 ## Testing
 
@@ -351,6 +429,7 @@ python3 -i scripts/start.py
 - [x] Whisper.cpp integration
 - [x] Multimodal support (LLAVA)
 - [x] Memory estimation utilities
+- [x] Agent Framework (ReActAgent, ConstrainedAgent, ContractAgent)
 
 ### Future
 

@@ -400,6 +400,8 @@ Use tools when needed, then provide a helpful final answer based on the results.
         recent_tools: List[str] = []
         # Track observations for potential summary
         observations: List[str] = []
+        # Track if last action had an error (for loop detection relaxation)
+        last_action_had_error: bool = False
 
         for iteration in range(self.max_iterations):
             self._metrics.iterations = iteration + 1
@@ -452,9 +454,16 @@ Use tools when needed, then provide a helpful final answer based on the results.
                     logger.debug("Tool call: %s", action_str)
 
                     # Loop detection: check if same action or same tool repeated too many times
+                    # But allow one retry after an error (model may self-correct based on error feedback)
                     if self.detect_loops:
-                        recent_actions.append(action_str)
-                        recent_tools.append(tool_name)
+                        # Only add to loop detection if the previous action didn't result in an error
+                        # This gives the model a chance to retry after seeing error feedback
+                        if not last_action_had_error:
+                            recent_actions.append(action_str)
+                            recent_tools.append(tool_name)
+                        else:
+                            # Reset error flag - we've given one retry chance
+                            last_action_had_error = False
 
                         # Check for exact same action repeated
                         if len(recent_actions) >= self.max_consecutive_same_action:
@@ -519,6 +528,7 @@ Use tools when needed, then provide a helpful final answer based on the results.
                     except Exception as e:
                         self._metrics.error_count += 1
                         observation = f"Error: {str(e)}"
+                        last_action_had_error = True  # Allow retry without loop detection
                         logger.error("Tool %s failed: %s", tool_name, str(e))
                         error_event = AgentEvent(
                             type=EventType.ERROR,

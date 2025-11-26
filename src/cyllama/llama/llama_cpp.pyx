@@ -3195,10 +3195,11 @@ def download_model(model_path=None, url=None, hf_repo=None, hf_file=None,
     Download a model from various sources.
 
     Args:
-        model_path: Local path to save/load model (optional)
+        model_path: Local path to save model, OR HuggingFace repo shorthand
+                   (e.g., "user/repo:tag" is auto-detected as hf_repo)
         url: Direct URL to download from (optional)
-        hf_repo: HuggingFace repo name (optional, can include :tag)
-        hf_file: Specific file in HF repo (optional)
+        hf_repo: HuggingFace repo name (optional, can include :tag like ":latest")
+        hf_file: Specific file in HF repo (optional, auto-resolved if not provided)
         docker_repo: Docker registry repo (optional)
         bearer_token: HuggingFace API token (optional)
         offline: If True, only use local cache
@@ -3207,13 +3208,16 @@ def download_model(model_path=None, url=None, hf_repo=None, hf_file=None,
         True if download succeeded, False otherwise
 
     Examples:
-        # Download from HuggingFace with tag
-        download_model(hf_repo="bartowski/Llama-3.2-3B-Instruct-GGUF:q4")
+        # Shorthand: auto-detects HuggingFace repo format
+        download_model("bartowski/Llama-3.2-1B-Instruct-GGUF:latest")
+
+        # Explicit HuggingFace repo
+        download_model(hf_repo="bartowski/Llama-3.2-1B-Instruct-GGUF:latest")
 
         # Download specific file
         download_model(
-            hf_repo="bartowski/Llama-3.2-3B-Instruct-GGUF",
-            hf_file="Llama-3.2-3B-Instruct-Q4_K_M.gguf"
+            hf_repo="bartowski/Llama-3.2-1B-Instruct-GGUF",
+            hf_file="Llama-3.2-1B-Instruct-Q4_K_M.gguf"
         )
 
         # Download from URL
@@ -3222,6 +3226,45 @@ def download_model(model_path=None, url=None, hf_repo=None, hf_file=None,
         # Download from Docker registry
         download_model(docker_repo="registry.example.com/model:tag")
     """
+    import os
+
+    # Auto-detect HuggingFace repo format in model_path
+    # Pattern: "user/repo" or "user/repo:tag" (not a local path, not a URL)
+    if model_path and hf_repo is None and url is None:
+        path_str = str(model_path)
+        # Check if it looks like a HF repo: "user/repo" or "user/repo:tag"
+        # Must have exactly one /, not be a URL, not be an absolute path,
+        # and not contain backslashes (Windows paths)
+        is_hf = ('/' in path_str and
+            path_str.count('/') == 1 and
+            not path_str.startswith(('http://', 'https://', 'file://', '/')) and
+            '\\' not in path_str and
+            not os.path.exists(path_str))
+        if is_hf:
+            # Looks like "user/repo" or "user/repo:tag"
+            hf_repo = model_path
+            model_path = None
+
+    # Handle HuggingFace repo - resolve to URL
+    if hf_repo:
+        # Get file info from HF API
+        hf_info = get_hf_file(hf_repo, bearer_token, offline)
+        repo = hf_info['repo']  # repo with tag removed
+        gguf_file = hf_file or hf_info['gguf_file']
+
+        if not gguf_file:
+            raise ValueError(f"Could not determine GGUF file for repo: {hf_repo}")
+
+        # Construct HuggingFace download URL
+        url = f"https://huggingface.co/{repo}/resolve/main/{gguf_file}"
+
+        # Set default local path if not specified
+        if not model_path:
+            # Use cache directory structure
+            cache_dir = os.path.expanduser("~/.cache/llama.cpp")
+            os.makedirs(cache_dir, exist_ok=True)
+            model_path = os.path.join(cache_dir, gguf_file)
+
     cdef download.common_params_model model
 
     # Set model parameters
@@ -3229,10 +3272,6 @@ def download_model(model_path=None, url=None, hf_repo=None, hf_file=None,
         model.path = model_path.encode('utf-8')
     if url:
         model.url = url.encode('utf-8')
-    if hf_repo:
-        model.hf_repo = hf_repo.encode('utf-8')
-    if hf_file:
-        model.hf_file = hf_file.encode('utf-8')
     if docker_repo:
         model.docker_repo = docker_repo.encode('utf-8')
 

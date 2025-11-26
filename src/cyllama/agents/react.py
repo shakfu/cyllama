@@ -31,6 +31,9 @@ class EventType(Enum):
     OBSERVATION = "observation"
     ANSWER = "answer"
     ERROR = "error"
+    # Contract-related events
+    CONTRACT_CHECK = "contract_check"
+    CONTRACT_VIOLATION = "contract_violation"
 
 
 @dataclass
@@ -113,11 +116,17 @@ You have access to the following tools:
 Use the following format:
 
 Thought: think about what to do next
-Action: tool_name(arg1="value1", arg2="value2")
+Action: tool_name({{"arg1": "value1", "arg2": "value2"}})
 Observation: the result of the action
 ... (repeat Thought/Action/Observation as needed)
 Thought: I now know the final answer
 Answer: the final answer to the user's question
+
+IMPORTANT RULES:
+1. Only call ONE tool at a time - do not nest tool calls
+2. For multi-line strings, use escaped newlines: {{"code": "line1\\nline2\\nline3"}}
+3. Do NOT use triple quotes (\"\"\" or ''') - they are not valid JSON
+4. Wait for the Observation before deciding the next action
 
 Begin!"""
 
@@ -164,11 +173,11 @@ Begin!"""
             temperature=0.7,
             max_tokens=512,
             stop_sequences=[
-                "Observation:",
-                "\nObservation:",
-                "Observation :",
-                "\nObservation",  # Without colon - model sometimes omits it
-                "Observation\n",  # Observation followed by newline
+                "\nObservation:",   # Most common - newline then Observation:
+                "\nObservation :",  # With space before colon
+                "\nObservation\n",  # Newline, Observation, newline (no colon)
+                "Observation:",     # At start or mid-text
+                "Observation :",    # With space before colon
             ]
         )
 
@@ -373,17 +382,23 @@ Begin!"""
                 event = AgentEvent(
                     type=EventType.ACTION,
                     content=action_str,
-                    metadata={"iteration": iteration + 1}
+                    metadata={
+                        "iteration": iteration + 1,
+                        "tool_name": tool_name,
+                        "tool_args": tool_args
+                    }
                 )
                 yield event
 
                 # Execute tool call (already parsed above)
+                raw_result = None
                 try:
                     if tool_name is None:
                         # Re-parse if initial parse failed
                         tool_name, tool_args = self._parse_action(action_str)
                     tool_start = time.perf_counter()
-                    observation = self._execute_tool(tool_name, tool_args)
+                    raw_result = self._execute_tool_raw(tool_name, tool_args)
+                    observation = str(raw_result)
                     tool_time = (time.perf_counter() - tool_start) * 1000
                     self._metrics.tool_time_ms += tool_time
                     logger.debug("Tool %s executed in %.1fms", tool_name, tool_time)
@@ -402,7 +417,12 @@ Begin!"""
                 obs_event = AgentEvent(
                     type=EventType.OBSERVATION,
                     content=observation,
-                    metadata={"action": action_str}
+                    metadata={
+                        "action": action_str,
+                        "tool_name": tool_name,
+                        "tool_args": tool_args,
+                        "raw_result": raw_result  # Actual return value for contract checking
+                    }
                 )
                 yield obs_event
 
@@ -451,21 +471,27 @@ Begin!"""
         The model should not generate observations - those come from actual
         tool execution. This prevents the model from hallucinating results.
         """
-        # Find "Observation" (with or without colon) and truncate everything after it
-        # Order matters - check longer patterns first
+        # Find "Observation" patterns and truncate everything after it
+        # Order matters - check longer/more specific patterns first
         patterns = [
-            "Observation:",
             "\nObservation:",
+            "\nObservation :",
+            "\nObservation\n",
+            "\nObservation",   # Observation at end after newline
+            "Observation:",
             "Observation :",
-            "\nObservation",
-            "Observation\n",
-            "Observation",  # Last resort - just the word
         ]
         for pattern in patterns:
             if pattern in text:
                 text = text[:text.index(pattern)]
                 break  # Stop after first match
-        return text.strip()
+
+        # Also strip trailing "Observation" at end of text (no newline before)
+        text = text.strip()
+        if text.endswith("Observation"):
+            text = text[:-len("Observation")].strip()
+
+        return text
 
     def _extract_thought(self, text: str) -> Optional[str]:
         """Extract thought from agent response."""
@@ -546,8 +572,11 @@ Begin!"""
         Raises:
             ValueError: If action string is malformed
         """
+        import json
+
         # Try function call format: tool_name(arg1="val", arg2="val")
-        match = re.match(r"(\w+)\((.*)\)", action_str.strip())
+        # Use DOTALL to handle multi-line arguments
+        match = re.match(r"(\w+)\((.*)\)", action_str.strip(), re.DOTALL)
         if not match:
             raise ValueError(f"Invalid action format: {action_str}")
 
@@ -562,20 +591,46 @@ Begin!"""
 
         # Try JSON object format first
         if args_str.startswith("{"):
-            import json
+            # Handle triple-quoted strings - these aren't valid JSON
+            # Provide helpful error message guiding the model to use \n escapes
+            if '"""' in args_str or "'''" in args_str:
+                raise ValueError(
+                    f"Triple-quoted strings are not valid JSON. "
+                    f"Use escaped newlines instead: {{\"code\": \"line1\\nline2\"}}"
+                )
+
             try:
                 args = json.loads(args_str)
+                # Post-process string values to convert literal \n to actual newlines
+                # This handles cases where the model outputs {"code": "line1\nline2"}
+                # where the \n is meant to be a newline but JSON didn't interpret it
+                args = self._convert_escape_sequences(args)
                 return tool_name, args
-            except json.JSONDecodeError:
-                pass
+            except json.JSONDecodeError as e:
+                # If JSON parsing fails, provide helpful error
+                raise ValueError(
+                    f"Invalid JSON in tool arguments. "
+                    f"For multi-line strings, use escaped newlines: {{\"code\": \"line1\\nline2\"}}"
+                )
 
-        # Parse key=value pairs
-        # Handle both single and double quotes
+        # Parse key=value pairs with proper string handling
+        # First, check for triple-quoted strings which aren't valid
+        if '"""' in args_str or "'''" in args_str:
+            raise ValueError(
+                f"Triple-quoted strings are not supported. "
+                f"Use escaped newlines instead: code=\"line1\\nline2\""
+            )
+
+        # Handle both single and double quotes, including escaped quotes within
+        # Pattern matches: key="value" or key='value'
+        # This simpler pattern works for basic cases
         pattern = r'(\w+)\s*=\s*["\']([^"\']*)["\']'
         matches = re.findall(pattern, args_str)
 
         if matches:
             args = {key: value for key, value in matches}
+            # Convert escape sequences in parsed values
+            args = self._convert_escape_sequences(args)
         else:
             # Try positional argument (single value)
             # Remove quotes if present
@@ -586,8 +641,65 @@ Begin!"""
                 param_names = list(tool.parameters.get("properties", {}).keys())
                 if param_names:
                     args = {param_names[0]: value}
+                    # Convert escape sequences
+                    args = self._convert_escape_sequences(args)
 
         return tool_name, args
+
+    def _convert_escape_sequences(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Convert literal escape sequences in string values to actual characters.
+
+        This handles cases where the model outputs strings like "line1\\nline2"
+        where the \\n should be interpreted as a newline character.
+
+        Args:
+            args: Dictionary of arguments
+
+        Returns:
+            Dictionary with escape sequences converted in string values
+        """
+        result = {}
+        for key, value in args.items():
+            if isinstance(value, str):
+                # Convert common escape sequences that may be literal
+                # Only convert if the string contains literal backslash-n patterns
+                value = value.replace('\\n', '\n')
+                value = value.replace('\\t', '\t')
+                value = value.replace('\\r', '\r')
+                value = value.replace('\\"', '"')
+                value = value.replace("\\'", "'")
+            elif isinstance(value, dict):
+                value = self._convert_escape_sequences(value)
+            elif isinstance(value, list):
+                value = [
+                    self._convert_escape_sequences({'_': v})['_']
+                    if isinstance(v, (str, dict, list)) else v
+                    for v in value
+                ]
+            result[key] = value
+        return result
+
+    def _execute_tool_raw(self, tool_name: str, args: Dict[str, Any]) -> Any:
+        """
+        Execute a tool and return the raw result.
+
+        Args:
+            tool_name: Name of tool to execute
+            args: Arguments to pass to tool
+
+        Returns:
+            Raw tool result (not converted to string)
+
+        Raises:
+            ValueError: If tool not found
+            Exception: If tool execution fails
+        """
+        tool = self.registry.get(tool_name)
+        if not tool:
+            raise ValueError(f"Unknown tool: {tool_name}")
+
+        return tool(**args)
 
     def _execute_tool(self, tool_name: str, args: Dict[str, Any]) -> str:
         """
@@ -603,12 +715,13 @@ Begin!"""
         Raises:
             ValueError: If tool not found
         """
+        # Check if tool exists first (raises ValueError if not)
         tool = self.registry.get(tool_name)
         if not tool:
             raise ValueError(f"Unknown tool: {tool_name}")
 
         try:
-            result = tool(**args)
+            result = self._execute_tool_raw(tool_name, args)
             return str(result)
         except Exception as e:
             return f"Tool execution error: {str(e)}"

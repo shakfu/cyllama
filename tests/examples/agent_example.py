@@ -13,7 +13,7 @@ import argparse
 from cyllama import LLM, GenerationConfig
 from cyllama.agents import ReActAgent, tool
 from cyllama.utils.color import (
-    header, section, success, error, info, bullet, kv
+    header, section, subsection, success, error, info, bullet, kv
 )
 from pathlib import Path
 
@@ -156,7 +156,7 @@ Examples:
     ]
 
     for i, task in enumerate(tasks, 1):
-        section(f"Task {i}: {task}", color='yellow')
+        subsection(f"Task {i}: {task}", color='yellow')
 
         result = agent.run(task)
 

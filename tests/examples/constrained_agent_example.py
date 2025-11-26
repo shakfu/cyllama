@@ -13,7 +13,7 @@ from cyllama.agents.grammar import (
     GrammarFormat
 )
 from cyllama.utils.color import (
-    header, section, subheader, success, error, info,
+    header, section, subsection, subheader, success, error, info,
     bullet, kv, divider
 )
 from pathlib import Path
@@ -139,7 +139,7 @@ def demonstrate_constrained_agent():
         allow_reasoning=False  # Simpler for demo
     )
 
-    section("Agent initialized with tools:")
+    subsection("Agent initialized with tools:")
     for tool_obj in agent.list_tools():
         bullet(f"{tool_obj.name}: {tool_obj.description}")
 
@@ -151,7 +151,7 @@ def demonstrate_constrained_agent():
     ]
 
     for i, task in enumerate(tasks, 1):
-        section(f"Task {i}: {task}", color='yellow')
+        subsection(f"Task {i}: {task}", color='yellow')
 
         try:
             result = agent.run(task)

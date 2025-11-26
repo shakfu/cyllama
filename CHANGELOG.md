@@ -17,7 +17,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [0.1.x]
 
-## [Unreleased]
+## [0.1.10]
+
+### Added
+
+- **ContractAgent** - C++26-inspired contract-based agent with preconditions, postconditions, and runtime assertions
+  - `ContractAgent` class wrapping inner agents (ReActAgent or ConstrainedAgent) with contract verification
+  - `@pre` decorator for tool preconditions (validate inputs before execution)
+  - `@post` decorator for tool postconditions (validate outputs after execution)
+  - `contract_assert()` function for runtime invariants within tool implementations
+  - `ContractPolicy` enum with four evaluation modes: `IGNORE`, `OBSERVE`, `ENFORCE`, `QUICK_ENFORCE`
+  - `ContractViolation` dataclass for detailed violation reporting
+  - Agent-level contracts: `task_precondition`, `answer_postcondition`, `iteration_invariant`
+  - Custom violation handlers for logging, alerting, or custom error handling
+  - New event types: `CONTRACT_CHECK`, `CONTRACT_VIOLATION`
+  - Thread-safe `ContractContext` for `contract_assert` integration
+  - Postconditions receive actual typed return values (`raw_result`) for accurate type checking
+  - 53 comprehensive tests in `tests/test_agents_contract.py`
+  - Example: `tests/examples/agent_contract_example.py`
+  - Design documentation: `CONTRACT_AGENT.md`, `CONTRACT_AGENT_IMPL.md`
+
+- **ReActAgent Event Metadata Enhancement** - Added tool execution details to event metadata
+  - ACTION events now include `tool_name` and `tool_args` in metadata
+  - OBSERVATION events now include `tool_name`, `tool_args`, and `raw_result` in metadata
+  - `raw_result` preserves actual typed return value (not stringified) for programmatic use
+  - Enables ContractAgent and other wrappers to intercept and validate tool calls
 
 ### Changed
 

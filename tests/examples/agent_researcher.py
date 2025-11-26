@@ -19,7 +19,7 @@ from pathlib import Path
 from cyllama import LLM, GenerationConfig
 from cyllama.agents import ReActAgent, ConstrainedAgent, tool
 from cyllama.utils.color import (
-    header, section, subheader, success, error, info,
+    header, section, subsection, subheader, success, error, info,
     bullet, numbered, kv, divider
 )
 from datetime import datetime
@@ -116,18 +116,30 @@ def search_specific(category: str, subtopic: str) -> str:
     Search for specific information within a category.
 
     Args:
-        category: Main category to search in
-        subtopic: Specific subtopic
+        category: Main category (valid: machine_learning, neural_networks, python)
+        subtopic: Specific subtopic within the category
 
     Returns:
         Detailed information
     """
-    if category in KNOWLEDGE_BASE:
-        if subtopic in KNOWLEDGE_BASE[category]:
-            return f"{subtopic}: {KNOWLEDGE_BASE[category][subtopic]}"
-        else:
-            available = ", ".join(KNOWLEDGE_BASE[category].keys())
-            return f"Subtopic '{subtopic}' not found in {category}. Available: {available}"
+    # Normalize category: lowercase, replace spaces with underscores
+    category_normalized = category.lower().strip().replace(" ", "_")
+
+    # Normalize subtopic: lowercase
+    subtopic_normalized = subtopic.lower().strip()
+
+    if category_normalized in KNOWLEDGE_BASE:
+        # Try exact match first
+        if subtopic_normalized in KNOWLEDGE_BASE[category_normalized]:
+            return f"{subtopic}: {KNOWLEDGE_BASE[category_normalized][subtopic_normalized]}"
+
+        # Try case-insensitive match
+        for key in KNOWLEDGE_BASE[category_normalized]:
+            if key.lower() == subtopic_normalized:
+                return f"{key}: {KNOWLEDGE_BASE[category_normalized][key]}"
+
+        available = ", ".join(KNOWLEDGE_BASE[category_normalized].keys())
+        return f"Subtopic '{subtopic}' not found in {category_normalized}. Available: {available}"
     else:
         available = ", ".join(KNOWLEDGE_BASE.keys())
         return f"Category '{category}' not found. Available: {available}"
@@ -251,7 +263,7 @@ def example_basic_research(llm: LLM):
         verbose=True
     )
 
-    section("Task: Research machine learning and take notes", color='yellow')
+    subsection("Task: Research machine learning and take notes", color='yellow')
 
     global research_notes
     research_notes = []  # Reset notes
@@ -260,7 +272,7 @@ def example_basic_research(llm: LLM):
         "Search for information about machine learning and take notes on the main types"
     )
 
-    section("RESULT", color='bright_green')
+    subsection("RESULT", color='bright_green')
     kv("Success", str(result.success), value_color='green' if result.success else 'red')
     kv("Answer", result.answer)
 
@@ -284,7 +296,7 @@ def example_multi_step_research(llm: LLM):
         format="json"
     )
 
-    section("Task: Compare supervised vs unsupervised learning", color='yellow')
+    subsection("Task: Compare supervised vs unsupervised learning", color='yellow')
 
     global research_notes
     research_notes = []  # Reset notes
@@ -294,7 +306,7 @@ def example_multi_step_research(llm: LLM):
         "Take notes on key differences."
     )
 
-    section("RESULT", color='bright_green')
+    subsection("RESULT", color='bright_green')
     kv("Answer", result.answer)
 
 
@@ -315,7 +327,7 @@ def example_research_report(llm: LLM):
         verbose=True
     )
 
-    section("Task: Create a report on neural networks", color='yellow')
+    subsection("Task: Create a report on neural networks", color='yellow')
 
     global research_notes
     research_notes = []  # Reset notes
@@ -325,7 +337,7 @@ def example_research_report(llm: LLM):
         "and then summarize your findings"
     )
 
-    section("RESULT", color='bright_green')
+    subsection("RESULT", color='bright_green')
     kv("Answer", result.answer)
 
 
@@ -412,6 +424,7 @@ Examples:
     show_research_workflow()
 
     # Initialize LLM once and share across examples
+    print()
     info(f"Loading model: {model_path.name}...")
     config = GenerationConfig(n_batch=4096, n_ctx=8192)
     llm = LLM(str(model_path), config=config, verbose=args.verbose)
@@ -421,23 +434,6 @@ Examples:
     example_basic_research(llm)
     example_multi_step_research(llm)
     example_research_report(llm)
-
-    section("EXAMPLES COMPLETE", color='bright_green')
-
-    subheader("Key Takeaways")
-    bullet("Agents can manage complex research workflows")
-    bullet("Natural language queries for research tasks")
-    bullet("Automatic note-taking and organization")
-    bullet("Can synthesize information from multiple sources")
-
-    print()
-    subheader("Production Extensions")
-    bullet("Add real web search (Google, Bing APIs)")
-    bullet("Add document retrieval (PDF, arXiv, PubMed)")
-    bullet("Add citation management")
-    bullet("Add fact-checking tools")
-    bullet("Add knowledge graph integration")
-    bullet("Export to markdown, LaTeX, or Word")
 
     return 0
 

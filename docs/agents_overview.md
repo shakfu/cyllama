@@ -1,0 +1,555 @@
+# Cyllama Agent Framework Overview
+
+Cyllama includes a zero-dependency agent framework for building tool-using LLM agents. The framework provides three agent architectures, each designed for different reliability and control requirements.
+
+## Table of Contents
+
+1. [Quick Start](#quick-start)
+2. [Architecture](#architecture)
+3. [Tools](#tools)
+4. [Agents](#agents)
+   - [ReActAgent](#reactagent)
+   - [ConstrainedAgent](#constrainedagent)
+   - [ContractAgent](#contractagent)
+5. [Events and Results](#events-and-results)
+6. [Configuration](#configuration)
+7. [Best Practices](#best-practices)
+
+## Quick Start
+
+```python
+from cyllama import LLM
+from cyllama.agents import ReActAgent, tool
+
+# Define a tool
+@tool
+def calculate(expression: str) -> str:
+    """Evaluate a mathematical expression."""
+    return str(eval(expression))
+
+# Create agent
+llm = LLM("models/Llama-3.2-1B-Instruct-Q8_0.gguf")
+agent = ReActAgent(llm=llm, tools=[calculate])
+
+# Run task
+result = agent.run("What is 25 * 4?")
+print(result.answer)  # "100"
+```
+
+## Architecture
+
+```
+                        ┌──────────────────────────────────┐
+                        │           User Task              │
+                        └──────────────┬───────────────────┘
+                                       │
+                        ┌──────────────▼───────────────────┐
+                        │         Agent Layer              │
+                        │  ┌─────────────────────────────┐ │
+                        │  │ ReActAgent | ContractAgent  │ │
+                        │  │      ConstrainedAgent       │ │
+                        │  └─────────────────────────────┘ │
+                        └──────────────┬───────────────────┘
+                                       │
+              ┌────────────────────────┼──────────────────────┐
+              │                        │                      │
+    ┌─────────▼─────────┐   ┌──────────▼────────┐   ┌─────────▼─────────┐
+    │   Tool Registry   │   │       LLM         │   │  Event Stream     │
+    │  - Tool lookup    │   │  - Generation     │   │  - THOUGHT        │
+    │  - Schema gen     │   │  - Streaming      │   │  - ACTION         │
+    │  - Execution      │   │  - Grammar (opt)  │   │  - OBSERVATION    │
+    └───────────────────┘   └───────────────────┘   │  - ANSWER         │
+                                                    │  - ERROR          │
+                                                    └───────────────────┘
+```
+
+## Tools
+
+Tools are Python functions that agents can invoke. The `@tool` decorator automatically extracts type information and generates JSON schemas.
+
+### Defining Tools
+
+```python
+from cyllama.agents import tool
+
+@tool
+def search_web(query: str, max_results: int = 5) -> str:
+    """
+    Search the web for information.
+
+    Args:
+        query: Search query string
+        max_results: Maximum number of results to return
+    """
+    # Implementation
+    return f"Results for: {query}"
+
+@tool(name="calc", description="Evaluate math expressions")
+def calculate(expression: str) -> float:
+    """Safe math evaluation."""
+    return eval(expression)
+```
+
+### Tool Parameters
+
+Type hints are automatically converted to JSON schema types:
+
+| Python Type | JSON Schema Type |
+|------------|------------------|
+| `str` | `string` |
+| `int` | `integer` |
+| `float` | `number` |
+| `bool` | `boolean` |
+| `list` | `array` |
+| `dict` | `object` |
+
+Parameters without default values are marked as required.
+
+### Tool Registry
+
+Tools can be managed via the `ToolRegistry` class:
+
+```python
+from cyllama.agents import Tool, ToolRegistry
+
+registry = ToolRegistry()
+registry.register(search_web)
+registry.register(calculate)
+
+# Get tool by name
+tool = registry.get("search_web")
+
+# Generate prompt descriptions
+prompt = registry.to_prompt_string()
+
+# Generate JSON schemas (OpenAI format)
+schemas = registry.to_json_schema()
+```
+
+## Agents
+
+### ReActAgent
+
+Implements the ReAct (Reasoning + Acting) pattern where the agent alternates between thinking and acting.
+
+**Pattern:**
+```
+Thought: [reasoning about what to do]
+Action: tool_name({"arg": "value"})
+Observation: [result from tool]
+... (repeat)
+Thought: I now know the answer
+Answer: [final answer]
+```
+
+**Reference:** [ReAct: Synergizing Reasoning and Acting in Language Models](https://arxiv.org/abs/2210.03629)
+
+**Usage:**
+
+```python
+from cyllama import LLM
+from cyllama.agents import ReActAgent, tool
+
+@tool
+def search(query: str) -> str:
+    return f"Results for: {query}"
+
+agent = ReActAgent(
+    llm=LLM("model.gguf"),
+    tools=[search],
+    max_iterations=10,
+    verbose=True,
+)
+
+result = agent.run("Search for Python tutorials")
+```
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `llm` | `LLM` | required | LLM instance for generation |
+| `tools` | `List[Tool]` | `None` | Available tools |
+| `system_prompt` | `str` | default | Custom system prompt |
+| `max_iterations` | `int` | `10` | Maximum thought/action cycles |
+| `verbose` | `bool` | `False` | Print reasoning to stdout |
+| `generation_config` | `GenerationConfig` | default | LLM generation settings |
+| `detect_loops` | `bool` | `True` | Enable loop detection |
+| `max_consecutive_same_action` | `int` | `2` | Same action repeat limit |
+| `max_consecutive_same_tool` | `int` | `4` | Same tool repeat limit |
+| `max_context_chars` | `int` | `6000` | Context truncation limit |
+
+**Strengths:**
+- Natural reasoning trace for debugging
+- Works well with most instruction-tuned models
+- Flexible action format
+
+**Weaknesses:**
+- Parsing can fail on malformed output
+- Requires larger models for reliable tool calling
+
+---
+
+### ConstrainedAgent
+
+Uses GBNF grammar constraints to guarantee valid JSON tool calls. Eliminates parsing failures by constraining the LLM's output space.
+
+**Usage:**
+
+```python
+from cyllama import LLM
+from cyllama.agents import ConstrainedAgent, tool
+
+@tool
+def calculate(expression: str) -> str:
+    return str(eval(expression))
+
+agent = ConstrainedAgent(
+    llm=LLM("model.gguf"),
+    tools=[calculate],
+    format="json",
+    allow_reasoning=True,
+)
+
+result = agent.run("What is 100 / 4?")
+```
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `llm` | `LLM` | required | LLM instance for generation |
+| `tools` | `List[Tool]` | `None` | Available tools |
+| `system_prompt` | `str` | default | Custom system prompt |
+| `max_iterations` | `int` | `10` | Maximum tool call cycles |
+| `verbose` | `bool` | `False` | Print actions to stdout |
+| `generation_config` | `ConstrainedGenerationConfig` | default | Generation settings |
+| `format` | `str` | `"json"` | Output format (`json`, `json_array`, `function_call`) |
+| `allow_reasoning` | `bool` | `False` | Include reasoning field |
+| `use_cache` | `bool` | `True` | Cache compiled grammars |
+| `detect_loops` | `bool` | `True` | Enable loop detection |
+
+**Output Format:**
+
+```json
+{"type": "tool_call", "tool_name": "calculate", "tool_args": {"expression": "100/4"}}
+```
+
+or
+
+```json
+{"type": "answer", "content": "The result is 25"}
+```
+
+**Strengths:**
+- 100% valid JSON output (grammar-enforced)
+- Works with smaller models
+- Eliminates parsing failures
+
+**Weaknesses:**
+- Less natural output format
+- Grammar compilation overhead (mitigated by caching)
+
+---
+
+### ContractAgent
+
+Contract-based agent inspired by C++26 contracts (P2900). Adds preconditions, postconditions, and runtime assertions to tool calls.
+
+**Usage:**
+
+```python
+from cyllama import LLM
+from cyllama.agents import ContractAgent, tool, pre, post, ContractPolicy
+
+@tool
+@pre(lambda args: args['x'] != 0, "cannot divide by zero")
+@post(lambda r: r is not None, "result must not be None")
+def divide(a: float, x: float) -> float:
+    """Divide a by x."""
+    return a / x
+
+agent = ContractAgent(
+    llm=LLM("model.gguf"),
+    tools=[divide],
+    policy=ContractPolicy.ENFORCE,
+    task_precondition=lambda task: len(task) > 10,
+    answer_postcondition=lambda ans: len(ans) > 0,
+)
+
+result = agent.run("What is 100 divided by 4?")
+```
+
+**Contract Decorators:**
+
+```python
+# Precondition - checked before tool execution
+@pre(lambda args: args['count'] > 0, "count must be positive")
+
+# Postcondition - checked after tool execution
+@post(lambda result: len(result) > 0, "must return non-empty result")
+
+# Postcondition with access to original arguments
+@post(lambda r, args: len(r) <= args['max_len'], "result too long")
+```
+
+**Contract Policies:**
+
+| Policy | Checks | Handler Called | Continues | Terminates |
+|--------|--------|----------------|-----------|------------|
+| `IGNORE` | No | No | Yes | No |
+| `OBSERVE` | Yes | Yes (on fail) | Yes | No |
+| `ENFORCE` | Yes | Yes (on fail) | No | Yes |
+| `QUICK_ENFORCE` | Yes | No | No | Yes |
+
+**Runtime Assertions:**
+
+```python
+from cyllama.agents import contract_assert
+
+@tool
+def process_data(data: str) -> str:
+    parsed = json.loads(data)
+    contract_assert(isinstance(parsed, dict), "data must be JSON object")
+    return str(parsed)
+```
+
+**Agent-Level Contracts:**
+
+```python
+agent = ContractAgent(
+    llm=llm,
+    tools=[...],
+    task_precondition=lambda task: len(task) >= 10,
+    answer_postcondition=lambda ans: "error" not in ans.lower(),
+    iteration_invariant=lambda state: state.iterations < 20,
+)
+```
+
+**Violation Handler:**
+
+```python
+def my_handler(violation: ContractViolation) -> None:
+    print(f"VIOLATION: {violation.kind} at {violation.location}")
+    print(f"  Message: {violation.message}")
+    # Log, alert, etc.
+
+agent = ContractAgent(
+    llm=llm,
+    tools=[...],
+    violation_handler=my_handler,
+)
+```
+
+**Strengths:**
+- Runtime verification of tool behavior
+- Configurable violation handling
+- Agent-level invariants
+
+**Weaknesses:**
+- Additional overhead for contract checking
+- Requires explicit contract definitions
+
+See [CONTRACT_AGENT.md](../CONTRACT_AGENT.md) and [CONTRACT_AGENT_IMPL.md](../CONTRACT_AGENT_IMPL.md) for detailed documentation.
+
+## Events and Results
+
+### Event Types
+
+Agents emit events during execution:
+
+```python
+from cyllama.agents import EventType
+
+class EventType(Enum):
+    THOUGHT = "thought"           # Agent reasoning
+    ACTION = "action"             # Tool invocation
+    OBSERVATION = "observation"   # Tool result
+    ANSWER = "answer"             # Final answer
+    ERROR = "error"               # Error occurred
+    CONTRACT_CHECK = "contract_check"         # Contract being evaluated
+    CONTRACT_VIOLATION = "contract_violation" # Violation detected
+```
+
+### Streaming Events
+
+```python
+for event in agent.stream("What is 2+2?"):
+    if event.type == EventType.THOUGHT:
+        print(f"Thinking: {event.content}")
+    elif event.type == EventType.ACTION:
+        print(f"Calling: {event.content}")
+    elif event.type == EventType.OBSERVATION:
+        print(f"Result: {event.content}")
+    elif event.type == EventType.ANSWER:
+        print(f"Answer: {event.content}")
+```
+
+### AgentResult
+
+```python
+result = agent.run("What is 2+2?")
+
+print(result.answer)      # Final answer string
+print(result.success)     # True if completed without error
+print(result.error)       # Error message if failed
+print(result.iterations)  # Number of iterations
+print(result.steps)       # List of AgentEvent
+print(result.metrics)     # AgentMetrics (timing, counts)
+```
+
+### AgentMetrics
+
+```python
+metrics = result.metrics
+print(f"Total time: {metrics.total_time_ms}ms")
+print(f"Iterations: {metrics.iterations}")
+print(f"Tool calls: {metrics.tool_calls}")
+print(f"Generation time: {metrics.generation_time_ms}ms")
+print(f"Tool time: {metrics.tool_time_ms}ms")
+print(f"Loop detected: {metrics.loop_detected}")
+print(f"Errors: {metrics.error_count}")
+```
+
+## Configuration
+
+### GenerationConfig (ReActAgent)
+
+```python
+from cyllama import GenerationConfig
+
+config = GenerationConfig(
+    temperature=0.7,
+    max_tokens=512,
+    top_k=40,
+    top_p=0.95,
+    min_p=0.05,
+    stop_sequences=["Observation:"],
+)
+
+agent = ReActAgent(llm=llm, tools=tools, generation_config=config)
+```
+
+### ConstrainedGenerationConfig
+
+```python
+from cyllama.agents import ConstrainedGenerationConfig
+
+config = ConstrainedGenerationConfig(
+    temperature=0.7,
+    max_tokens=512,
+    top_k=40,
+    top_p=0.95,
+    min_p=0.05,
+)
+
+agent = ConstrainedAgent(llm=llm, tools=tools, generation_config=config)
+```
+
+## Best Practices
+
+### 1. Choose the Right Agent
+
+| Use Case | Recommended Agent |
+|----------|-------------------|
+| General-purpose tasks | ReActAgent |
+| Smaller models | ConstrainedAgent |
+| Critical applications | ContractAgent |
+| Debugging/explainability | ReActAgent (verbose) |
+| High reliability required | ConstrainedAgent + ContractAgent |
+
+### 2. Tool Design
+
+```python
+# Good: Clear description, typed parameters, docstring
+@tool
+def search_database(query: str, limit: int = 10) -> str:
+    """
+    Search the database for records matching query.
+
+    Args:
+        query: Search term
+        limit: Maximum results to return
+    """
+    return db.search(query, limit)
+
+# Bad: Vague description, no types
+@tool
+def search(q):
+    return db.search(q)
+```
+
+### 3. Error Handling
+
+```python
+@tool
+def risky_operation(data: str) -> str:
+    """Perform operation that might fail."""
+    try:
+        result = process(data)
+        return f"Success: {result}"
+    except ValueError as e:
+        return f"Error: Invalid data - {e}"
+    except Exception as e:
+        return f"Error: {e}"
+```
+
+### 4. Loop Prevention
+
+Configure loop detection to prevent infinite loops:
+
+```python
+agent = ReActAgent(
+    llm=llm,
+    tools=tools,
+    detect_loops=True,
+    max_consecutive_same_action=2,  # Same exact action
+    max_consecutive_same_tool=4,    # Same tool with any args
+    max_iterations=10,              # Hard limit
+)
+```
+
+### 5. Context Management
+
+Prevent context overflow with truncation:
+
+```python
+agent = ReActAgent(
+    llm=llm,
+    tools=tools,
+    max_context_chars=6000,  # Truncate older history
+)
+```
+
+### 6. Contracts for Safety
+
+Use contracts for safety-critical tools:
+
+```python
+@tool
+@pre(lambda args: 0 <= args['amount'] <= 1000, "amount must be 0-1000")
+@pre(lambda args: args['account_id'].isalnum(), "invalid account ID")
+@post(lambda r: r.startswith("TX"), "must return transaction ID")
+def transfer_funds(account_id: str, amount: float) -> str:
+    """Transfer funds to account."""
+    return banking_api.transfer(account_id, amount)
+```
+
+## Files
+
+| File | Description |
+|------|-------------|
+| `src/cyllama/agents/__init__.py` | Public exports |
+| `src/cyllama/agents/tools.py` | Tool decorator and registry |
+| `src/cyllama/agents/react.py` | ReActAgent implementation |
+| `src/cyllama/agents/constrained.py` | ConstrainedAgent implementation |
+| `src/cyllama/agents/contract.py` | ContractAgent implementation |
+| `src/cyllama/agents/grammar.py` | GBNF grammar generation |
+| `tests/test_agents_*.py` | Unit tests |
+| `tests/examples/agent_*.py` | Example scripts |
+
+## References
+
+- [ReAct: Synergizing Reasoning and Acting in Language Models](https://arxiv.org/abs/2210.03629)
+- [C++26 Contract Assertions](https://en.cppreference.com/w/cpp/language/contracts.html)
+- [Contracts for C++ P2900R14](https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2025/p2900r14.pdf)

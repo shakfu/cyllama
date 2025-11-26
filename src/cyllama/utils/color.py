@@ -417,6 +417,18 @@ def section(txt: str, color: str = 'bright_cyan', width: int = 70, char: str = '
     cprint(txt, color)
     print(char * width)
 
+def subsection(txt: str, color: str = 'bright_cyan', width: int = 70, char: str = '-') -> None:
+    """Print a subsection header with decorative below.
+
+    Args:
+        txt: Section title
+        color: Color for the title text
+        width: Width of the decorative lines
+        char: Character to use for decorative lines
+    """
+    print()
+    cprint(txt, color)
+    print(char * width)
 
 def header(txt: str, color: str = 'bold', width: int = 70, char: str = '=') -> None:
     """Print a centered header with decorative lines above and below.

@@ -19,7 +19,7 @@ from pathlib import Path
 from cyllama import LLM, GenerationConfig
 from cyllama.agents import ReActAgent, tool
 from cyllama.utils.color import (
-    header, section, subheader, success, error, info,
+    header, section, subsection, subheader, success, error, info,
     bullet, numbered, kv
 )
 import re
@@ -173,13 +173,13 @@ def example_basic_scraping(llm: LLM):
         verbose=True
     )
 
-    section("Task: Extract contact information from example.com", color='yellow')
+    subsection("Task: Extract contact information from example.com", color='yellow')
 
     result = agent.run(
         "Fetch https://example.com and extract all email addresses and phone numbers"
     )
 
-    section("RESULT", color='bright_green')
+    subsection("RESULT", color='bright_green')
     kv("Success", str(result.success), value_color='green' if result.success else 'red')
     kv("Answer", result.answer)
     kv("Steps taken", str(result.iterations))
@@ -196,13 +196,13 @@ def example_structured_extraction(llm: LLM):
         verbose=True
     )
 
-    section("Task: Extract article titles from news page", color='yellow')
+    subsection("Task: Extract article titles from news page", color='yellow')
 
     result = agent.run(
         "Fetch https://news.example.com and extract all article titles (h2 tags)"
     )
 
-    section("RESULT", color='bright_green')
+    subsection("RESULT", color='bright_green')
     kv("Answer", result.answer)
 
 
