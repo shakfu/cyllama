@@ -318,7 +318,7 @@ common = {
 # Force cythonize - cross-platform compatible
 def run_cythonize(pyx_file, cwd):
     """Run cythonize in a cross-platform way."""
-    cmd = [sys.executable, '-m', 'cython', pyx_file]
+    cmd = [sys.executable, '-m', 'cython', '--cplus', pyx_file]
     subprocess.call(cmd, cwd=cwd)
 
 run_cythonize("llama_cpp.pyx", cwd="src/cyllama/llama")
