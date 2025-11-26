@@ -43,6 +43,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - `raw_result` preserves actual typed return value (not stringified) for programmatic use
   - Enables ContractAgent and other wrappers to intercept and validate tool calls
 
+- **HuggingFace Model Downloads** - Improved `download_model()` function with HuggingFace support
+  - Auto-detection of HuggingFace repo format (e.g., `"user/repo:tag"`) as first positional argument
+  - Resolves HuggingFace repos to download URLs via `get_hf_file()` API
+  - Default download location: `~/.cache/llama.cpp/`
+  - Supports `:latest` tag which auto-selects best quantization (Q4_K_M)
+  - Custom download paths via `model_path` parameter
+  - Specific file selection via `hf_file` parameter
+
 ### Changed
 
 - **API Refactoring** - Renamed core API for clarity and consistency

@@ -308,12 +308,13 @@ draft = cache.draft(input_tokens, n_draft=16)
 
 ### Recent Releases
 
-**v0.1.9** (Nov 2025) - High-level APIs, integrations, batch processing, comprehensive documentation
-**v0.1.8** (Nov 2025) - Speculative decoding API
-**v0.1.7** (Nov 2025) - GGUF, JSON Schema, Downloads, N-gram Cache
-**v0.1.6** (Nov 2025) - Multimodal test fixes
-**v0.1.5** (Oct 2025) - Mongoose server, embedded server
-**v0.1.4** (Oct 2025) - Memory estimation, performance optimizations
+- **v0.1.10** (Nov 2025) - Agent Framework, bug fixes
+- **v0.1.9** (Nov 2025) - High-level APIs, integrations, batch processing, comprehensive documentation
+- **v0.1.8** (Nov 2025) - Speculative decoding API
+- **v0.1.7** (Nov 2025) - GGUF, JSON Schema, Downloads, N-gram Cache
+- **v0.1.6** (Nov 2025) - Multimodal test fixes
+- **v0.1.5** (Oct 2025) - Mongoose server, embedded server
+- **v0.1.4** (Oct 2025) - Memory estimation, performance optimizations
 
 See [CHANGELOG.md](CHANGELOG.md) for complete release history.
 
