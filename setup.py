@@ -3,6 +3,7 @@
 import os
 import platform
 import subprocess
+import sys
 from setuptools import Extension, setup
 
 from Cython.Build import cythonize
@@ -11,22 +12,33 @@ from Cython.Build import cythonize
 # constants
 
 CWD = os.getcwd()
-# VENDOR_DIR = os.path.join(CWD, "build/llama.cpp/vendor")
-# SERVER_PUBLIC_DIR = os.path.join(CWD, "build/llama.cpp/build/tools/server")
 
 VERSION = '0.1.10'
 
 PLATFORM = platform.system()
+IS_WINDOWS = PLATFORM == 'Windows'
+IS_MACOS = PLATFORM == 'Darwin'
+IS_LINUX = PLATFORM == 'Linux'
 
-WITH_WHISPER = os.getenv("WITH_WHISPER", True)
+WITH_WHISPER = os.getenv("WITH_WHISPER", "1") == "1"
+WITH_DYLIB = os.getenv("WITH_DYLIB", "0") == "1"
 
-WITH_DYLIB = os.getenv("WITH_DYLIB", False)
+# Library file extensions per platform
+if IS_WINDOWS:
+    STATIC_LIB_EXT = '.lib'
+    SHARED_LIB_EXT = '.dll'
+else:
+    STATIC_LIB_EXT = '.a'
+    SHARED_LIB_EXT = '.dylib' if IS_MACOS else '.so'
 
 # -----------------------------------------------------------------------------
 # Backend detection helpers
 
 def detect_cuda():
     """Check if CUDA toolkit is available."""
+    if IS_WINDOWS:
+        cuda_path = os.environ.get('CUDA_PATH', r'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA')
+        return os.path.exists(cuda_path)
     try:
         result = subprocess.run(["nvcc", "--version"],
                                capture_output=True, text=True)
@@ -36,6 +48,9 @@ def detect_cuda():
 
 def detect_vulkan():
     """Check if Vulkan SDK is available."""
+    if IS_WINDOWS:
+        vulkan_sdk = os.environ.get('VULKAN_SDK', r'C:\VulkanSDK')
+        return os.path.exists(vulkan_sdk)
     vulkan_headers = [
         "/usr/include/vulkan/vulkan.h",
         "/usr/local/include/vulkan/vulkan.h",
@@ -45,15 +60,19 @@ def detect_vulkan():
 
 def detect_sycl():
     """Check if Intel oneAPI/SYCL is available."""
+    if IS_WINDOWS:
+        return os.path.exists(r'C:\Program Files (x86)\Intel\oneAPI')
     return os.path.exists("/opt/intel/oneapi")
 
 def detect_rocm():
     """Check if ROCm/HIP is available."""
+    if IS_WINDOWS:
+        return False  # ROCm not available on Windows
     return os.path.exists("/opt/rocm")
 
 def detect_metal():
     """Check if Metal is available (macOS only)."""
-    if PLATFORM != 'Darwin':
+    if not IS_MACOS:
         return False
     try:
         result = subprocess.run(["xcrun", "--sdk", "macosx", "--show-sdk-path"],
@@ -71,11 +90,12 @@ print(f"  ROCm/HIP available: {detect_rocm()}")
 print(f"  Metal available:   {detect_metal()}")
 
 # Backend flags (read from environment)
-GGML_METAL = os.getenv("GGML_METAL", "1") == "1"
+# Metal is only available on macOS, default enabled there
+GGML_METAL = os.getenv("GGML_METAL", "1" if IS_MACOS else "0") == "1" and IS_MACOS
 GGML_CUDA = os.getenv("GGML_CUDA", "0") == "1"
 GGML_VULKAN = os.getenv("GGML_VULKAN", "0") == "1"
 GGML_SYCL = os.getenv("GGML_SYCL", "0") == "1"
-GGML_HIP = os.getenv("GGML_HIP", "0") == "1"
+GGML_HIP = os.getenv("GGML_HIP", "0") == "1" and not IS_WINDOWS  # ROCm not on Windows
 GGML_OPENCL = os.getenv("GGML_OPENCL", "0") == "1"
 
 print("\nEnabled backends:")
@@ -101,7 +121,13 @@ WHISPERCPP_INCLUDE = os.path.join(CWD, "thirdparty/whisper.cpp/include")
 WHISPERCPP_LIBS_DIR = os.path.join(CWD, "thirdparty/whisper.cpp/lib")
 
 DEFINE_MACROS = []
-EXTRA_COMPILE_ARGS = ['-std=c++17']
+
+# Platform-specific compiler flags
+if IS_WINDOWS:
+    EXTRA_COMPILE_ARGS = ['/std:c++17', '/EHsc', '/MD']
+else:
+    EXTRA_COMPILE_ARGS = ['-std=c++17']
+
 EXTRA_LINK_ARGS = []
 EXTRA_OBJECTS = []
 INCLUDE_DIRS = [
@@ -109,13 +135,16 @@ INCLUDE_DIRS = [
     "src/cyllama/llama/helpers",
     "src/cyllama/llama/server",
     LLAMACPP_INCLUDE,
-    # VENDOR_DIR,
-    # SERVER_PUBLIC_DIR,
 ]
 LIBRARY_DIRS = [
     LLAMACPP_LIBS_DIR,
 ]
-LIBRARIES = ["pthread"]
+
+# Platform-specific libraries
+if IS_WINDOWS:
+    LIBRARIES = []  # Windows doesn't need pthread
+else:
+    LIBRARIES = ["pthread"]
 
 if WITH_WHISPER:
     INCLUDE_DIRS.extend([
@@ -125,8 +154,17 @@ if WITH_WHISPER:
         WHISPERCPP_LIBS_DIR,
     ])
 
+def static_lib(lib_dir, name):
+    """Get platform-appropriate static library path."""
+    if IS_WINDOWS:
+        # Windows uses name.lib (no 'lib' prefix)
+        return os.path.join(lib_dir, f'{name}.lib')
+    else:
+        # Unix uses libname.a
+        return os.path.join(lib_dir, f'lib{name}.a')
+
 if WITH_DYLIB:
-    EXTRA_OBJECTS.append(f'{LLAMACPP_LIBS_DIR}/libcommon.a')
+    EXTRA_OBJECTS.append(static_lib(LLAMACPP_LIBS_DIR, 'common'))
     LIBRARIES.extend([
         'common',
         'ggml',
@@ -139,30 +177,30 @@ if WITH_DYLIB:
 
 else:
     EXTRA_OBJECTS.extend([
-        f'{LLAMACPP_LIBS_DIR}/libcommon.a',
-        f'{LLAMACPP_LIBS_DIR}/libllama.a', 
-        f'{LLAMACPP_LIBS_DIR}/libggml.a',
-        f'{LLAMACPP_LIBS_DIR}/libggml-base.a',
-        f'{LLAMACPP_LIBS_DIR}/libggml-cpu.a',
-        f'{LLAMACPP_LIBS_DIR}/libmtmd.a',
+        static_lib(LLAMACPP_LIBS_DIR, 'common'),
+        static_lib(LLAMACPP_LIBS_DIR, 'llama'),
+        static_lib(LLAMACPP_LIBS_DIR, 'ggml'),
+        static_lib(LLAMACPP_LIBS_DIR, 'ggml-base'),
+        static_lib(LLAMACPP_LIBS_DIR, 'ggml-cpu'),
+        static_lib(LLAMACPP_LIBS_DIR, 'mtmd'),
     ])
 
     if WITH_WHISPER:
         EXTRA_OBJECTS.extend([
-            f'{WHISPERCPP_LIBS_DIR}/libcommon.a',
-            f'{WHISPERCPP_LIBS_DIR}/libwhisper.a',
+            static_lib(WHISPERCPP_LIBS_DIR, 'common'),
+            static_lib(WHISPERCPP_LIBS_DIR, 'whisper'),
         ])
 
 
 INCLUDE_DIRS.append(os.path.join(CWD, 'include'))
 
 # Platform-specific configurations
-if PLATFORM == 'Darwin':
+if IS_MACOS:
     # macOS-specific backends
     if GGML_METAL:
         EXTRA_OBJECTS.extend([
-            f'{LLAMACPP_LIBS_DIR}/libggml-blas.a',
-            f'{LLAMACPP_LIBS_DIR}/libggml-metal.a',
+            static_lib(LLAMACPP_LIBS_DIR, 'ggml-blas'),
+            static_lib(LLAMACPP_LIBS_DIR, 'ggml-metal'),
         ])
         os.environ['LDFLAGS'] = ' '.join([
             '-framework Accelerate',
@@ -171,7 +209,9 @@ if PLATFORM == 'Darwin':
             '-framework MetalKit',
         ])
 
-    EXTRA_LINK_ARGS.append('-mmacosx-version-min=14.7')
+    # macOS deployment target
+    macos_target = os.getenv('MACOSX_DEPLOYMENT_TARGET', '11.0')
+    EXTRA_LINK_ARGS.append(f'-mmacosx-version-min={macos_target}')
     # add local rpath
     EXTRA_LINK_ARGS.extend([
         '-Wl,-rpath,' + LLAMACPP_LIBS_DIR,
@@ -182,32 +222,61 @@ if PLATFORM == 'Darwin':
             '-Wl,-rpath,' + WHISPERCPP_LIBS_DIR,
         ])
 
+elif IS_LINUX:
+    # Linux-specific configuration
+    EXTRA_LINK_ARGS.append('-fopenmp')
+    # Add rpath for shared libraries
+    EXTRA_LINK_ARGS.extend([
+        '-Wl,-rpath,$ORIGIN',
+        '-Wl,-rpath,' + LLAMACPP_LIBS_DIR,
+    ])
+    if WITH_WHISPER:
+        EXTRA_LINK_ARGS.extend([
+            '-Wl,-rpath,' + WHISPERCPP_LIBS_DIR,
+        ])
+
+elif IS_WINDOWS:
+    # Windows-specific configuration
+    # Add Windows system libraries that may be needed
+    LIBRARIES.extend(['kernel32', 'user32', 'advapi32'])
+
 # Cross-platform backends
 if GGML_CUDA:
-    EXTRA_OBJECTS.append(f'{LLAMACPP_LIBS_DIR}/libggml-cuda.a')
+    EXTRA_OBJECTS.append(static_lib(LLAMACPP_LIBS_DIR, 'ggml-cuda'))
     LIBRARIES.extend(['cuda', 'cudart', 'cublas'])
     # Try common CUDA paths
-    cuda_paths = ['/usr/local/cuda/lib64', '/usr/local/cuda/lib', '/opt/cuda/lib64']
+    if IS_WINDOWS:
+        cuda_path = os.environ.get('CUDA_PATH', r'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.0')
+        cuda_paths = [os.path.join(cuda_path, 'lib', 'x64')]
+    else:
+        cuda_paths = ['/usr/local/cuda/lib64', '/usr/local/cuda/lib', '/opt/cuda/lib64']
     for path in cuda_paths:
         if os.path.exists(path):
             LIBRARY_DIRS.append(path)
             break
 
 if GGML_VULKAN:
-    EXTRA_OBJECTS.append(f'{LLAMACPP_LIBS_DIR}/libggml-vulkan.a')
+    EXTRA_OBJECTS.append(static_lib(LLAMACPP_LIBS_DIR, 'ggml-vulkan'))
     LIBRARIES.append('vulkan')
+    if IS_WINDOWS:
+        vulkan_sdk = os.environ.get('VULKAN_SDK', '')
+        if vulkan_sdk:
+            LIBRARY_DIRS.append(os.path.join(vulkan_sdk, 'Lib'))
 
 if GGML_SYCL:
-    EXTRA_OBJECTS.append(f'{LLAMACPP_LIBS_DIR}/libggml-sycl.a')
+    EXTRA_OBJECTS.append(static_lib(LLAMACPP_LIBS_DIR, 'ggml-sycl'))
     # SYCL libraries will be added based on Intel oneAPI setup
-    sycl_path = '/opt/intel/oneapi/compiler/latest/lib'
+    if IS_WINDOWS:
+        sycl_path = r'C:\Program Files (x86)\Intel\oneAPI\compiler\latest\lib'
+    else:
+        sycl_path = '/opt/intel/oneapi/compiler/latest/lib'
     if os.path.exists(sycl_path):
         LIBRARY_DIRS.append(sycl_path)
 
 if GGML_HIP:
-    EXTRA_OBJECTS.append(f'{LLAMACPP_LIBS_DIR}/libggml-hip.a')
+    EXTRA_OBJECTS.append(static_lib(LLAMACPP_LIBS_DIR, 'ggml-hip'))
     LIBRARIES.extend(['amdhip64', 'rocblas'])
-    # Try common ROCm paths
+    # Try common ROCm paths (Linux only)
     rocm_paths = ['/opt/rocm/lib', '/opt/rocm/hip/lib']
     for path in rocm_paths:
         if os.path.exists(path):
@@ -215,11 +284,8 @@ if GGML_HIP:
             break
 
 if GGML_OPENCL:
-    EXTRA_OBJECTS.append(f'{LLAMACPP_LIBS_DIR}/libggml-opencl.a')
+    EXTRA_OBJECTS.append(static_lib(LLAMACPP_LIBS_DIR, 'ggml-opencl'))
     LIBRARIES.append('OpenCL')
-
-if PLATFORM == 'Linux':
-    EXTRA_LINK_ARGS.append('-fopenmp')
 
 
 def mk_extension(name, sources, define_macros=None, extra_compile_args=None, language="c++"):
@@ -249,11 +315,15 @@ common = {
 }
 
 
-# forces cythonize in this case
-# subprocess.call("cythonize *.pyx", cwd="src/cyllama", shell=True)
-subprocess.call("cythonize llama_cpp.pyx", cwd="src/cyllama/llama", shell=True)
+# Force cythonize - cross-platform compatible
+def run_cythonize(pyx_file, cwd):
+    """Run cythonize in a cross-platform way."""
+    cmd = [sys.executable, '-m', 'cython', pyx_file]
+    subprocess.call(cmd, cwd=cwd)
+
+run_cythonize("llama_cpp.pyx", cwd="src/cyllama/llama")
 if WITH_WHISPER:
-    subprocess.call("cythonize whisper_cpp.pyx", cwd="src/cyllama/whisper", shell=True)
+    run_cythonize("whisper_cpp.pyx", cwd="src/cyllama/whisper")
 
 
 if not os.path.exists('MANIFEST.in'):

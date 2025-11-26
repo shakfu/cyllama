@@ -1,0 +1,249 @@
+name: Publish Wheels
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish_pypi:
+        description: 'Publish to PyPI'
+        required: false
+        default: false
+        type: boolean
+      publish_test_pypi:
+        description: 'Publish to Test PyPI'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  CIBW_BUILD_VERBOSITY: 1
+
+jobs:
+  build_wheels:
+    name: Build ${{ matrix.os }} ${{ matrix.arch }} wheels
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # macOS x86_64
+          - os: macos
+            arch: x86_64
+            runner: macos-13
+            cibw_archs: x86_64
+
+          # macOS arm64 (Apple Silicon)
+          - os: macos
+            arch: arm64
+            runner: macos-14
+            cibw_archs: arm64
+
+          # Linux x86_64
+          - os: linux
+            arch: x86_64
+            runner: ubuntu-latest
+            cibw_archs: x86_64
+
+          # Linux aarch64
+          - os: linux
+            arch: aarch64
+            runner: ubuntu-latest
+            cibw_archs: aarch64
+
+          # Windows x86_64
+          - os: windows
+            arch: x86_64
+            runner: windows-2022
+            cibw_archs: AMD64
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Set up QEMU for cross-compilation on Linux aarch64
+      - name: Set up QEMU
+        if: matrix.os == 'linux' && matrix.arch == 'aarch64'
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      # macOS dependencies
+      - name: Install dependencies (macOS)
+        if: matrix.os == 'macos'
+        run: |
+          brew install cmake ninja
+
+      # Linux dependencies
+      - name: Install dependencies (Linux)
+        if: matrix.os == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake ninja-build
+
+      # Windows dependencies
+      - name: Install dependencies (Windows)
+        if: matrix.os == 'windows'
+        run: |
+          choco install cmake ninja -y
+
+      # Build thirdparty libraries (llama.cpp, whisper.cpp)
+      - name: Build thirdparty (Unix)
+        if: matrix.os != 'windows'
+        run: |
+          python scripts/manage.py build --llama-cpp --whisper-cpp
+        env:
+          # Disable Metal on Linux
+          GGML_METAL: ${{ matrix.os == 'macos' && '1' || '0' }}
+
+      - name: Build thirdparty (Windows)
+        if: matrix.os == 'windows'
+        shell: pwsh
+        run: |
+          python scripts/manage.py build --llama-cpp --whisper-cpp
+        env:
+          GGML_METAL: '0'
+
+      # Install cibuildwheel
+      - name: Install cibuildwheel
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install cibuildwheel==2.21.3
+
+      # Build wheels
+      - name: Build wheels
+        run: python -m cibuildwheel --output-dir wheelhouse
+        env:
+          CIBW_ARCHS: ${{ matrix.cibw_archs }}
+          CIBW_BUILD: "cp39-* cp310-* cp311-* cp312-* cp313-*"
+          CIBW_SKIP: "*-musllinux_*"
+
+          # macOS configuration
+          CIBW_ENVIRONMENT_MACOS: >
+            MACOSX_DEPLOYMENT_TARGET=11.0
+            GGML_METAL=1
+
+          # Linux configuration
+          CIBW_ENVIRONMENT_LINUX: >
+            GGML_METAL=0
+          CIBW_MANYLINUX_X86_64_IMAGE: manylinux2014
+          CIBW_MANYLINUX_AARCH64_IMAGE: manylinux2014
+          CIBW_BEFORE_ALL_LINUX: |
+            yum install -y cmake ninja-build
+
+          # Windows configuration
+          CIBW_ENVIRONMENT_WINDOWS: >
+            GGML_METAL=0
+
+          # Repair wheels
+          CIBW_REPAIR_WHEEL_COMMAND_MACOS: >
+            delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel}
+          CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
+            auditwheel repair -w {dest_dir} {wheel}
+          CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: >
+            delvewheel repair -w {dest_dir} {wheel}
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.os }}-${{ matrix.arch }}
+          path: ./wheelhouse/*.whl
+
+  # Build source distribution
+  build_sdist:
+    name: Build source distribution
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install build tools
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install build
+
+      - name: Build sdist
+        run: python -m build --sdist
+
+      - name: Upload sdist
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: dist/*.tar.gz
+
+  # Collect all artifacts
+  collect_artifacts:
+    name: Collect all wheels
+    needs: [build_wheels, build_sdist]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: List artifacts
+        run: ls -la dist/
+
+      - name: Upload combined artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: all-wheels
+          path: dist/*
+
+  # Publish to Test PyPI
+  publish_test_pypi:
+    name: Publish to Test PyPI
+    needs: collect_artifacts
+    runs-on: ubuntu-latest
+    if: ${{ inputs.publish_test_pypi }}
+    environment:
+      name: test-pypi
+      url: https://test.pypi.org/p/cyllama
+    permissions:
+      id-token: write
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: all-wheels
+          path: dist
+
+      - name: Publish to Test PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+
+  # Publish to PyPI
+  publish_pypi:
+    name: Publish to PyPI
+    needs: collect_artifacts
+    runs-on: ubuntu-latest
+    if: ${{ inputs.publish_pypi }}
+    environment:
+      name: pypi
+      url: https://pypi.org/p/cyllama
+    permissions:
+      id-token: write
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: all-wheels
+          path: dist
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
