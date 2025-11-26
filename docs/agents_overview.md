@@ -38,7 +38,7 @@ print(result.answer)  # "100"
 
 ## Architecture
 
-```
+```text
                         ┌──────────────────────────────────┐
                         │           User Task              │
                         └──────────────┬───────────────────┘
@@ -133,7 +133,8 @@ schemas = registry.to_json_schema()
 Implements the ReAct (Reasoning + Acting) pattern where the agent alternates between thinking and acting.
 
 **Pattern:**
-```
+
+```text
 Thought: [reasoning about what to do]
 Action: tool_name({"arg": "value"})
 Observation: [result from tool]
@@ -180,11 +181,13 @@ result = agent.run("Search for Python tutorials")
 | `max_context_chars` | `int` | `6000` | Context truncation limit |
 
 **Strengths:**
+
 - Natural reasoning trace for debugging
 - Works well with most instruction-tuned models
 - Flexible action format
 
 **Weaknesses:**
+
 - Parsing can fail on malformed output
 - Requires larger models for reliable tool calling
 
@@ -242,11 +245,13 @@ or
 ```
 
 **Strengths:**
+
 - 100% valid JSON output (grammar-enforced)
 - Works with smaller models
 - Eliminates parsing failures
 
 **Weaknesses:**
+
 - Less natural output format
 - Grammar compilation overhead (mitigated by caching)
 
@@ -342,11 +347,13 @@ agent = ContractAgent(
 ```
 
 **Strengths:**
+
 - Runtime verification of tool behavior
 - Configurable violation handling
 - Agent-level invariants
 
 **Weaknesses:**
+
 - Additional overhead for contract checking
 - Requires explicit contract definitions
 

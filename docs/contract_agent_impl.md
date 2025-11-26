@@ -8,7 +8,7 @@ Technical documentation for the ContractAgent implementation in cyllama.
 
 ## Architecture
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │                      ContractAgent                          │
 │  ┌───────────────────────────────────────────────────────┐  │
@@ -34,7 +34,7 @@ Technical documentation for the ContractAgent implementation in cyllama.
 
 ## Module Structure
 
-```
+```text
 src/cyllama/agents/
 ├── __init__.py      # Exports ContractAgent and related types
 ├── contract.py      # ContractAgent implementation
@@ -125,6 +125,7 @@ def fetch_items(count: int) -> str:
 ```
 
 Implementation details:
+
 - Decorators are applied bottom-up, so `@pre` runs before `@tool`
 - Contracts are stored on the function's `_contracts` attribute
 - Multiple preconditions are stored in order and checked sequentially
@@ -143,6 +144,7 @@ def search(query: str, max_len: int = 100) -> str:
 ```
 
 Implementation details:
+
 - Automatically detects if predicate takes 1 or 2 arguments
 - Sets `needs_args=True` if predicate signature has 2+ parameters
 - When `needs_args=True`, passes both result and original args to predicate
@@ -234,7 +236,7 @@ for tool in self.tools:
 
 ### Execution Flow
 
-```
+```text
 run(task)
   │
   ├─ stream(task) [generator]
@@ -389,6 +391,7 @@ class ContractTermination(Exception):
 ```
 
 This exception can be raised by:
+
 - `contract_assert()` with ENFORCE or QUICK_ENFORCE policy
 - `ContractContext.handle_violation()` with ENFORCE or QUICK_ENFORCE policy
 

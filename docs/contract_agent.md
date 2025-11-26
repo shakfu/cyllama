@@ -15,7 +15,7 @@ Contract-based agent inspired by C++26's contract specification (P2900). Now imp
 
 ## Architecture
 
-```
+```text
 ┌─────────────────────────────────────────────────────┐
 │                  ContractAgent                      │
 │  ┌───────────────────────────────────────────────┐  │
@@ -198,7 +198,7 @@ def complex_operation(data: str) -> str:
 
 ## Execution Flow with Contracts
 
-```
+```text
 run(task)
   │
   ├─ CHECK task_precondition(task)
@@ -258,6 +258,7 @@ Contracts can specify policy per-tool via the `policy` parameter on `@pre`/`@pos
 ### 2. Postcondition Access
 
 Postconditions can access both the result AND original arguments. The decorator auto-detects if the predicate takes 1 or 2 parameters:
+
 - `@post(lambda r: r > 0)` - result only
 - `@post(lambda r, args: r <= args['max'])` - result and args
 

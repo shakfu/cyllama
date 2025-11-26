@@ -13,6 +13,7 @@ Successfully implemented Phase 1 (Environment Variable Support) for multi-backen
 ### 1. Makefile (`/Makefile`)
 
 **Added backend environment variables:**
+
 ```makefile
 # Backend flags (can be overridden via environment variables)
 GGML_METAL ?= 1
@@ -27,6 +28,7 @@ export GGML_METAL GGML_CUDA GGML_VULKAN GGML_SYCL GGML_HIP GGML_OPENCL
 ```
 
 **Added convenience build targets:**
+
 - `make show-backends` - Display current backend configuration
 - `make build-cpu` - Build CPU-only (no GPU)
 - `make build-metal` - Build with Metal support
@@ -39,13 +41,15 @@ export GGML_METAL GGML_CUDA GGML_VULKAN GGML_SYCL GGML_HIP GGML_OPENCL
 ### 2. Build Script (`scripts/setup.sh`)
 
 **Enhanced CMake configuration:**
+
 - Reads backend environment variables (`GGML_CUDA`, `GGML_VULKAN`, etc.)
 - Passes appropriate CMake flags (`-DGGML_CUDA=ON`, etc.)
 - Conditionally copies backend-specific libraries to lib directory
 - Provides visual feedback for enabled backends
 
 **Example output:**
-```
+
+```text
 [x] Enabling Metal backend
 [x] Enabling CUDA backend
 Building with: cmake .. -DBUILD_SHARED_LIBS=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DGGML_METAL=ON -DGGML_CUDA=ON
@@ -54,6 +58,7 @@ Building with: cmake .. -DBUILD_SHARED_LIBS=OFF -DCMAKE_POSITION_INDEPENDENT_COD
 ### 3. Setup Script (`setup.py`)
 
 **Added backend detection:**
+
 ```python
 def detect_cuda():
     """Check if CUDA toolkit is available."""
@@ -77,13 +82,15 @@ def detect_metal():
 ```
 
 **Dynamic backend configuration:**
+
 - Reads environment variables to determine enabled backends
 - Links backend-specific libraries (`libggml-cuda.a`, `libggml-vulkan.a`, etc.)
 - Adds platform-specific library paths (CUDA, ROCm, SYCL)
 - Conditionally sets framework linking (Metal frameworks only when enabled)
 
 **Build feedback:**
-```
+
+```text
 Backend detection:
   CUDA available:    False
   Vulkan available:  False
@@ -98,6 +105,7 @@ Enabled backends:
 ### 4. Documentation
 
 **Created `docs/BUILD_BACKENDS.md`:**
+
 - Comprehensive guide for building with different backends
 - Installation instructions for each backend (CUDA, Vulkan, SYCL, HIP/ROCm)
 - Environment variable reference
@@ -106,15 +114,18 @@ Enabled backends:
 - Performance comparison table
 
 **Updated `README.md`:**
+
 - Added GPU Acceleration section in Setup
 - Quick examples of backend-specific builds
 - Reference to full backend documentation
 
 **Updated `BUILD_SYSTEM_ANALYSIS.md`:**
+
 - Changed status from "Hardcoded" to "Multi-backend support implemented"
 - Added implementation date and changes summary
 
 **Updated `CHANGELOG.md`:**
+
 - Documented new multi-backend GPU support feature
 - Listed all environment variables and make targets
 - Noted backend detection and dynamic linking

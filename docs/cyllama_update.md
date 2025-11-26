@@ -58,6 +58,7 @@ chat_session.chat_loop()  # Interactive chat with template auto-detection
 ```
 
 **Features:**
+
 - Automatic chat template detection from model metadata
 - Supports built-in templates (ChatML, Llama-3, Mistral, etc.)
 - Custom template support via `LlamaChatMessage` and `chat_apply_template()`
@@ -80,6 +81,7 @@ tts.generate(
 ```
 
 **Features:**
+
 - Supports OuteTTS and similar TTS models
 - WAV file output with configurable sample rate
 - Speaker voice cloning support
@@ -107,6 +109,7 @@ response = vision_chat.ask_about_image("What's in this image?", "image.jpg")
 ```
 
 **Capabilities:**
+
 - Image understanding and description
 - Visual question answering
 - Support for multiple images in conversation
@@ -138,6 +141,7 @@ server.start()
 ```
 
 **Server Features:**
+
 - OpenAI API compatibility (drop-in replacement)
 - Streaming support (SSE)
 - CORS support
@@ -149,6 +153,7 @@ server.start()
   - `LlamaServer`: Python wrapper around the llama.cpp server binary (if it can be found)
 
 **Example with curl:**
+
 ```bash
 curl http://localhost:8080/v1/chat/completions \
   -H "Content-Type: application/json" \
@@ -161,6 +166,7 @@ curl http://localhost:8080/v1/chat/completions \
 ### 6. **Framework Integrations**
 
 **OpenAI-Compatible API:**
+
 ```python
 from cyllama.integrations import OpenAIClient
 
@@ -172,6 +178,7 @@ response = client.chat.completions.create(
 ```
 
 **LangChain:**
+
 ```python
 from cyllama.integrations import CyllamaLLM
 from langchain.chains import LLMChain
@@ -213,6 +220,7 @@ Both work seamlessly with existing code expecting OpenAI or LangChain interfaces
 **Platform:** macOS (primary), Linux (tested)
 
 **API Coverage - All Major Goals Met:**
+
 - [x] Core llama.cpp wrapper (complete)
 - [x] High-level Python API (complete)
 - [x] llava-cli features (multimodal complete)
@@ -249,6 +257,7 @@ server.start()
 ```
 
 The library is now genuinely ready for:
+
 - Quick prototyping and experiments
 - Chat applications with proper conversation handling
 - Voice applications (TTS)
@@ -273,7 +282,7 @@ The library is now genuinely ready for:
 
 ## Resources
 
-- **Repo:** https://github.com/shakfu/cyllama
+- **Repo:** <https://github.com/shakfu/cyllama>
 - **Docs:** See `docs/` directory (user guide, API reference, cookbook)
 - **Examples:** See `tests/examples/` directory
   - Chat applications
@@ -286,6 +295,7 @@ The library is now genuinely ready for:
 ## What's Next?
 
 Potential future work:
+
 - Async API support (`async def complete_async()`)
 - Response caching
 - RAG utilities
@@ -296,6 +306,7 @@ Potential future work:
 ## Feedback Welcome
 
 As always, if you try it out:
+
 - Questions? Ask away!
 - Bugs? Please report them!
 - Features? Suggestions welcome!

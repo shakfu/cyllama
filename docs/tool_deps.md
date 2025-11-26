@@ -2,7 +2,6 @@
 
 ## llama-cli deps
 
-
 - [ ] arg.h
 - [x] common.h
 - [ ] console.h
@@ -10,8 +9,6 @@
 - [x] sampling.h
 - [x] llama.h
 - [x] chat.h
-
-
 
 ## batched-bench
 

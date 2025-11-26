@@ -7,11 +7,13 @@ cyllama supports multiple GPU acceleration backends through llama.cpp. This guid
 ### Default Build (Metal on macOS, CPU-only on Linux)
 
 **Using Makefile:**
+
 ```bash
 make build
 ```
 
 **Using manage.py:**
+
 ```bash
 python3 scripts/manage.py build --llama-cpp
 ```
@@ -19,6 +21,7 @@ python3 scripts/manage.py build --llama-cpp
 ### Build with Specific Backend
 
 **Using Makefile:**
+
 ```bash
 # CUDA (NVIDIA GPUs)
 make build-cuda
@@ -40,6 +43,7 @@ make build-all
 ```
 
 **Using manage.py:**
+
 ```bash
 # CUDA (NVIDIA GPUs)
 python3 scripts/manage.py build --llama-cpp --cuda
@@ -68,6 +72,7 @@ python3 scripts/manage.py build --llama-cpp --metal
 You can fine-tune backend selection using environment variables (works with both Makefile and manage.py):
 
 **Using Makefile:**
+
 ```bash
 # Enable specific backends
 export GGML_CUDA=1
@@ -84,6 +89,7 @@ make build
 ```
 
 **Using manage.py:**
+
 ```bash
 # Environment variables work the same way
 export GGML_CUDA=1
@@ -111,6 +117,7 @@ python3 scripts/manage.py build --llama-cpp --cuda  # Enables both Metal and CUD
 ### CUDA (NVIDIA GPUs)
 
 **Requirements:**
+
 - NVIDIA GPU with compute capability 6.0+
 - CUDA Toolkit 11.0+ installed
 - `nvcc` compiler in PATH
@@ -138,6 +145,7 @@ make build
 ### Vulkan (Cross-platform GPU)
 
 **Requirements:**
+
 - Vulkan-capable GPU (NVIDIA, AMD, Intel, or Apple)
 - Vulkan SDK installed
 - Vulkan headers in system include path
@@ -165,6 +173,7 @@ make build
 ### Metal (Apple Silicon/macOS)
 
 **Requirements:**
+
 - macOS 11.0+ (Big Sur or later)
 - Apple Silicon (M1/M2/M3) or Intel Mac with AMD GPU
 - Xcode Command Line Tools
@@ -181,6 +190,7 @@ make build
 ### SYCL (Intel GPUs)
 
 **Requirements:**
+
 - Intel GPU (Iris Xe, Arc, or Flex)
 - Intel oneAPI Base Toolkit installed
 
@@ -208,6 +218,7 @@ make build
 ### HIP/ROCm (AMD GPUs)
 
 **Requirements:**
+
 - AMD GPU with ROCm support
 - ROCm 5.0+ installed
 

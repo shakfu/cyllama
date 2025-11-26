@@ -17,6 +17,67 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [0.1.x]
 
+## [0.1.11]
+
+### Added
+
+- **Agent Client Protocol (ACP) Support** - Full ACP implementation for editor/IDE integration
+  - `ACPAgent` class providing ACP-compliant agent that can be spawned by editors (Zed, Neovim, etc.)
+  - JSON-RPC 2.0 transport layer over stdio for bidirectional communication
+  - Session management with `session/new`, `session/load`, `session/prompt`, `session/cancel` methods
+  - Tool permission flow with `session/request_permission` for user approval
+  - File operations delegated to editor via `fs/read_text_file`, `fs/write_text_file`
+  - Terminal operations via `terminal/create`, `terminal/output`, `terminal/kill`, `terminal/release`
+  - Async bridge for sending notifications from synchronous agent execution
+  - 30 comprehensive tests in `tests/test_acp.py`
+  - Documentation: `docs/protocol_support.md`
+
+- **Model Context Protocol (MCP) Client** - Connect to external MCP servers for tool/resource access
+  - `McpClient` class for managing connections to multiple MCP servers
+  - Stdio transport (subprocess) and HTTP transport support
+  - Automatic tool and resource discovery from connected servers
+  - MCP tools exposed as cyllama `Tool` instances for seamless agent integration
+  - `McpServerConfig` for server connection configuration
+  - 23 comprehensive tests in `tests/test_mcp.py`
+
+- **Session Storage Backends** - Persistent session storage for ACP agents
+  - `MemorySessionStore` - In-memory storage (default, non-persistent)
+  - `FileSessionStore` - JSON file-based storage in a directory
+  - `SqliteSessionStore` - SQLite database storage (Python built-in)
+  - `Session` dataclass with messages, tool calls, and permission caching
+  - Permission caching for "allow always" / "reject always" decisions
+  - `create_session_store()` factory function
+  - 27 comprehensive tests in `tests/test_session.py`
+
+- **JSON-RPC 2.0 Transport Layer** - Foundation for ACP and MCP protocols
+  - `JsonRpcRequest`, `JsonRpcResponse`, `JsonRpcError` message classes
+  - `StdioTransport` for newline-delimited JSON over stdin/stdout
+  - `JsonRpcServer` for request dispatching and handler registration
+  - `AsyncBridge` for queue-based notification sending from sync code
+  - Standard error codes (Parse Error, Method Not Found, Internal Error, etc.)
+  - 23 comprehensive tests in `tests/test_jsonrpc.py`
+
+- **Agents CLI** - Command-line interface for ACP server and agent operations
+  - `python -m cyllama.agents.cli acp` - Start ACP server for editor integration
+  - `python -m cyllama.agents.cli run` - Run single agent query
+  - `python -m cyllama.agents.cli mcp-test` - Test MCP server connections
+  - Support for MCP server configuration via command-line flags
+  - Session storage configuration (memory, file, sqlite)
+
+### Changed
+
+- **Module Exports**: Enhanced `cyllama.agents` module with protocol support
+  - Added `ACPAgent`, `serve_acp` for ACP functionality
+  - Added `McpClient`, `McpServerConfig`, `McpTransportType`, `McpTool` for MCP
+  - Added `Session`, `SessionStore`, `MemorySessionStore`, `FileSessionStore`, `SqliteSessionStore`
+  - Added `JsonRpcServer`, `JsonRpcRequest`, `JsonRpcResponse`, `JsonRpcError`, `StdioTransport`
+
+### Fixed
+
+- **Cython Build** - Fixed `setup.py` to generate C++ files instead of C files
+  - Added `--cplus` flag to `run_cythonize()` function
+  - Ensures `.cpp` files are generated for C++ language extensions
+
 ## [0.1.10]
 
 ### Added

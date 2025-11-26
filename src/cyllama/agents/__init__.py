@@ -11,6 +11,7 @@ Available agents:
 - ReActAgent: Reasoning + Acting agent with tool calling
 - ConstrainedAgent: Grammar-enforced tool calling for 100% reliability
 - ContractAgent: Contract-based agent with C++26-inspired pre/post conditions
+- ACPAgent: Agent Client Protocol compliant agent for editor integration
 """
 
 from .tools import Tool, tool, ToolRegistry
@@ -38,6 +39,25 @@ from .contract import (
     pre,
     post,
     contract_assert,
+)
+
+# ACP/MCP support
+from .acp import ACPAgent, serve_acp
+from .mcp import McpClient, McpServerConfig, McpTransportType, McpTool
+from .session import (
+    Session,
+    SessionStore,
+    MemorySessionStore,
+    FileSessionStore,
+    SqliteSessionStore,
+    create_session_store,
+)
+from .jsonrpc import (
+    JsonRpcServer,
+    JsonRpcRequest,
+    JsonRpcResponse,
+    JsonRpcError,
+    StdioTransport,
 )
 
 __all__ = [
@@ -81,4 +101,29 @@ __all__ = [
     "pre",
     "post",
     "contract_assert",
+
+    # ACP (Agent Client Protocol)
+    "ACPAgent",
+    "serve_acp",
+
+    # MCP (Model Context Protocol)
+    "McpClient",
+    "McpServerConfig",
+    "McpTransportType",
+    "McpTool",
+
+    # Session storage
+    "Session",
+    "SessionStore",
+    "MemorySessionStore",
+    "FileSessionStore",
+    "SqliteSessionStore",
+    "create_session_store",
+
+    # JSON-RPC transport
+    "JsonRpcServer",
+    "JsonRpcRequest",
+    "JsonRpcResponse",
+    "JsonRpcError",
+    "StdioTransport",
 ]
