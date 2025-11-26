@@ -52,7 +52,7 @@ endif
 
 
 .PHONY: all build cmake clean reset setup setup_inplace \
-		wheel bind header diff sync
+		wheel wheel-check bind header diff sync
 
 all: build
 
@@ -81,6 +81,9 @@ wheel: $(LIBLAMMA)
 ifeq ($(WITH_DYLIB),1)
 	uv run delocate-wheel -v dist/*.whl 
 endif
+
+wheel-check:
+	@uv run twine check dist/*.whl
 
 build/include:
 	@scripts/header_utils.py --force-overwrite --output_dir build/include include
