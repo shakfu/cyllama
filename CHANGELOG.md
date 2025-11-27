@@ -17,6 +17,39 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [0.1.x]
 
+## [0.1.12]
+
+### Added
+
+- **Stable Diffusion Support** - Full integration of stable-diffusion.cpp for image generation
+  - New `cyllama.stablediffusion` module with Cython bindings for stable-diffusion.cpp
+  - `SDContext` class for model loading and image generation
+  - `SDContextParams` class for context configuration (model paths, threads, backends)
+  - `SDImage` class with numpy/PIL conversion (`to_numpy()`, `to_pil()`, `from_numpy()`, `save()`)
+  - `SDImageGenParams` class for generation parameters (prompt, dimensions, seed, steps, CFG)
+  - `SDSampleParams` class for sampling configuration (method, scheduler, steps, eta)
+  - Convenience functions: `text_to_image()`, `image_to_image()` for simple usage
+  - Utility functions: `get_num_cores()`, `get_system_info()`, `type_name()`, `sample_method_name()`, `scheduler_name()`
+  - Callback support: `set_log_callback()`, `set_progress_callback()` for monitoring
+  - Full enum support: `RngType`, `SampleMethod`, `Scheduler`, `Prediction`, `SDType`, `LogLevel`, `PreviewMode`, `LoraApplyMode`
+  - Support for GGUF, safetensors, and ckpt model formats
+  - SDXL, SD 1.x/2.x, SD3, FLUX model architecture support
+  - 29 comprehensive tests in `tests/test_stablediffusion.py`
+  - Example: `tests/examples/stablediffusion_example.py` with CLI interface
+  - Build configuration via `WITH_STABLEDIFFUSION` environment variable (default: enabled)
+
+### Changed
+
+- **setup.py** - Added stable-diffusion.cpp extension build support
+  - Added `SDCPP_INCLUDE` and `SDCPP_LIBS_DIR` paths for stable-diffusion headers and libraries
+  - Added `libstable-diffusion.a` to static library linking
+  - Added rpath configuration for stable-diffusion shared libraries
+  - Cythonize support for `stable_diffusion.pyx`
+
+- **MANIFEST.in** - Added stable-diffusion source files for distribution
+  - Added `src/cyllama/stablediffusion/*.pxd`, `*.pyx`, `*.pxi`, `*.cpp`, `*.h`
+  - Added `thirdparty/stable-diffusion.cpp/include` and `lib` directories
+
 ## [0.1.11]
 
 ### Added

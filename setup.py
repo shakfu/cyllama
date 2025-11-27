@@ -21,6 +21,7 @@ IS_MACOS = PLATFORM == 'Darwin'
 IS_LINUX = PLATFORM == 'Linux'
 
 WITH_WHISPER = os.getenv("WITH_WHISPER", "1") == "1"
+WITH_STABLEDIFFUSION = os.getenv("WITH_STABLEDIFFUSION", "1") == "1"
 WITH_DYLIB = os.getenv("WITH_DYLIB", "0") == "1"
 
 # Library file extensions per platform
@@ -120,6 +121,9 @@ LLAMACPP_LIBS_DIR = os.path.join(CWD, "thirdparty/llama.cpp/lib")
 WHISPERCPP_INCLUDE = os.path.join(CWD, "thirdparty/whisper.cpp/include")
 WHISPERCPP_LIBS_DIR = os.path.join(CWD, "thirdparty/whisper.cpp/lib")
 
+SDCPP_INCLUDE = os.path.join(CWD, "thirdparty/stable-diffusion.cpp/include")
+SDCPP_LIBS_DIR = os.path.join(CWD, "thirdparty/stable-diffusion.cpp/lib")
+
 DEFINE_MACROS = []
 
 # Platform-specific compiler flags
@@ -152,6 +156,14 @@ if WITH_WHISPER:
     ])
     LIBRARY_DIRS.extend([
         WHISPERCPP_LIBS_DIR,
+    ])
+
+if WITH_STABLEDIFFUSION:
+    INCLUDE_DIRS.extend([
+        SDCPP_INCLUDE,
+    ])
+    LIBRARY_DIRS.extend([
+        SDCPP_LIBS_DIR,
     ])
 
 def static_lib(lib_dir, name):
@@ -191,6 +203,11 @@ else:
             static_lib(WHISPERCPP_LIBS_DIR, 'whisper'),
         ])
 
+    if WITH_STABLEDIFFUSION:
+        EXTRA_OBJECTS.extend([
+            static_lib(SDCPP_LIBS_DIR, 'stable-diffusion'),
+        ])
+
 
 INCLUDE_DIRS.append(os.path.join(CWD, 'include'))
 
@@ -222,6 +239,11 @@ if IS_MACOS:
             '-Wl,-rpath,' + WHISPERCPP_LIBS_DIR,
         ])
 
+    if WITH_STABLEDIFFUSION:
+        EXTRA_LINK_ARGS.extend([
+            '-Wl,-rpath,' + SDCPP_LIBS_DIR,
+        ])
+
 elif IS_LINUX:
     # Linux-specific configuration
     EXTRA_LINK_ARGS.append('-fopenmp')
@@ -233,6 +255,11 @@ elif IS_LINUX:
     if WITH_WHISPER:
         EXTRA_LINK_ARGS.extend([
             '-Wl,-rpath,' + WHISPERCPP_LIBS_DIR,
+        ])
+
+    if WITH_STABLEDIFFUSION:
+        EXTRA_LINK_ARGS.extend([
+            '-Wl,-rpath,' + SDCPP_LIBS_DIR,
         ])
 
 elif IS_WINDOWS:
@@ -324,6 +351,8 @@ def run_cythonize(pyx_file, cwd):
 run_cythonize("llama_cpp.pyx", cwd="src/cyllama/llama")
 if WITH_WHISPER:
     run_cythonize("whisper_cpp.pyx", cwd="src/cyllama/whisper")
+if WITH_STABLEDIFFUSION:
+    run_cythonize("stable_diffusion.pyx", cwd="src/cyllama/stablediffusion")
 
 
 if not os.path.exists('MANIFEST.in'):
@@ -362,6 +391,13 @@ if WITH_WHISPER:
     extensions.append(
         mk_extension("cyllama.whisper.whisper_cpp", sources=[
             "src/cyllama/whisper/whisper_cpp.pyx",
+        ])
+    )
+
+if WITH_STABLEDIFFUSION:
+    extensions.append(
+        mk_extension("cyllama.stablediffusion.stable_diffusion", sources=[
+            "src/cyllama/stablediffusion/stable_diffusion.pyx",
         ])
     )
 

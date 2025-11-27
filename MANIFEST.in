@@ -13,8 +13,15 @@ include src/cyllama/whisper/*.pyx
 include src/cyllama/whisper/*.pxi
 include src/cyllama/whisper/*.cpp
 include src/cyllama/whisper/*.h
+include src/cyllama/stablediffusion/*.pxd
+include src/cyllama/stablediffusion/*.pyx
+include src/cyllama/stablediffusion/*.pxi
+include src/cyllama/stablediffusion/*.cpp
+include src/cyllama/stablediffusion/*.h
 recursive-include thirdparty/llama.cpp/include *.h *.hpp
 recursive-include thirdparty/llama.cpp/lib *.a
 recursive-include thirdparty/whisper.cpp/include *.h *.hpp
 recursive-include thirdparty/whisper.cpp/lib *.a
+recursive-include thirdparty/stable-diffusion.cpp/include *.h *.hpp
+recursive-include thirdparty/stable-diffusion.cpp/lib *.a
 recursive-include include *.h *.hpp
