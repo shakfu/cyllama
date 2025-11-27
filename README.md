@@ -389,18 +389,20 @@ To build `cyllama`:
     cd cyllama
     ```
 
-3. Install dependencies of `cython`, `setuptools`, and `pytest` for testing:
+3. We use [uv](https://github.com/astral-sh/uv) for package management:
+
+    If you don't have it see the link above to install it, otherwise:
 
     ```sh
-    pip install -r requirements.txt
+    uv sync
     ```
 
 4. Type `make` in the terminal.
 
     This will:
 
-    1. Download and build `llama.cpp`
-    2. Install it into `bin`, `include`, and `lib` in the cloned `cyllama` folder
+    1. Download and build `llama.cpp`, `whisper.cpp` and `stablediffusion.cpp`
+    2. Install them into the `thirdparty` folder
     3. Build `cyllama`
 
 ### GPU Acceleration
