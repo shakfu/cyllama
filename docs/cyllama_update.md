@@ -1,312 +1,342 @@
-# cyllama Update - November 2025
+# cyllama Update - November 2025 (v0.1.12)
 
-## Update on the cyllama Project
+## What's New in cyllama
 
-It's been nearly a year since my last announcement, and I wanted to share what's new with [cyllama](https://github.com/shakfu/cyllama) - the thin cython wrapper for llama.cpp.
+I'm excited to share the latest updates to [cyllama](https://github.com/shakfu/cyllama) - the comprehensive Python library for LLM inference built on llama.cpp. This release brings two major new capabilities: a zero-dependency **Agent Framework** and **Stable Diffusion** image generation support.
 
-A quick reminder: cyllama is a minimal, performant, compiled Python extension wrapping llama.cpp's core functionality. It statically links libllama.a and libggml.a for simplicity and performance (~1.2 MB wheel).
+A quick reminder: cyllama is a performant, compiled Cython wrapper for llama.cpp that provides both low-level access and a high-level Pythonic API. It statically links the core libraries for simplicity and performance.
 
 ---
 
-## What's Changed Since December 2024
+## Major New Features
 
-Thanks to the targeted use of AI agents, the project has managed to keep up with the fast pace of changes at llama.cpp and is currently tracking release `b7126`. Here is a summary of some changes since the last post.
+### 1. Agent Framework (Zero Dependencies)
 
-### 1. **High-Level Python API**
+cyllama now includes a complete agent framework with three agent architectures, all with zero external dependencies:
 
-We now have a complete, Pythonic API layer that makes cyllama more pleasant to use:
+**ReActAgent** - Reasoning + Acting agent with tool calling:
 
 ```python
-from cyllama import complete, chat, LLM
+from cyllama import LLM
+from cyllama.agents import ReActAgent, tool
 
-# Simple one-liner
-response = complete("What is Python?", model_path="model.gguf")
+@tool
+def calculate(expression: str) -> str:
+    """Evaluate a math expression."""
+    return str(eval(expression))
 
-# Reusable LLM instance (model stays loaded)
+@tool
+def search(query: str) -> str:
+    """Search for information."""
+    return f"Results for: {query}"
+
 llm = LLM("model.gguf")
-response = llm("Your question here")
-
-# Multi-turn chat with proper message formatting
-messages = [
-    {"role": "system", "content": "You are a helpful assistant."},
-    {"role": "user", "content": "Explain quantum computing"}
-]
-response = chat(messages, model_path="model.gguf")
+agent = ReActAgent(llm=llm, tools=[calculate, search])
+result = agent.run("What is 25 * 4 + 10?")
+print(result.answer)  # "The result is 110"
 ```
 
-**Why this matters:** Previously, you had to manually manage models, contexts, samplers, and batches. Now it's automatic with sensible defaults, but full control is still available when needed.
-
-### 2. **Chat Templates & Conversation Support**
-
-Full support for chat templates and multi-turn conversations through the high-level API:
+**ConstrainedAgent** - Grammar-enforced tool calling for 100% reliability:
 
 ```python
-from cyllama import chat
+from cyllama.agents import ConstrainedAgent
 
-# Multi-turn conversation with automatic template formatting
-messages = [
-    {"role": "system", "content": "You are a helpful assistant"},
-    {"role": "user", "content": "What is Python?"}
-]
-response = chat(messages, model_path="model.gguf")
-
-# Or use the Chat class for interactive CLI
-from cyllama.llama.chat import Chat
-
-chat_session = Chat(model_path="model.gguf")
-chat_session.chat_loop()  # Interactive chat with template auto-detection
+# Uses GBNF grammars to guarantee valid JSON tool calls
+agent = ConstrainedAgent(llm=llm, tools=[calculate])
+result = agent.run("Calculate 100 / 4")  # Always produces valid tool calls
 ```
 
-**Features:**
-
-- Automatic chat template detection from model metadata
-- Supports built-in templates (ChatML, Llama-3, Mistral, etc.)
-- Custom template support via `LlamaChatMessage` and `chat_apply_template()`
-- Conversation history management
-
-### 3. **Text-to-Speech (TTS) Support**
-
-Full TTS integration for voice generation:
+**ContractAgent** - Contract-based agent with pre/post conditions (C++26-inspired):
 
 ```python
-from cyllama.llama import TTSGenerator
+from cyllama.agents import ContractAgent, tool, pre, post, ContractPolicy
 
-tts = TTSGenerator("models/outetts-0.2-500M-Q8_0.gguf")
+@tool
+@pre(lambda args: args['x'] != 0, "cannot divide by zero")
+@post(lambda r: r is not None, "result must not be None")
+def divide(a: float, x: float) -> float:
+    """Divide a by x."""
+    return a / x
 
-# Generate speech from text
-tts.generate(
-    text="Hello, this is a test of the text to speech system.",
-    output_file="output.wav"
+agent = ContractAgent(
+    llm=llm,
+    tools=[divide],
+    policy=ContractPolicy.ENFORCE,  # AUDIT, ENFORCE, or DISABLED
+    task_precondition=lambda task: len(task) > 10,
+    answer_postcondition=lambda ans: len(ans) > 0,
+)
+result = agent.run("What is 100 divided by 4?")
+```
+
+**Key Features:**
+- Zero external dependencies - uses only Python stdlib
+- Three agent architectures for different use cases
+- `@tool` decorator for easy function registration
+- Automatic JSON schema generation from type hints
+- Grammar-constrained generation for reliable tool calls
+- Contract-based validation with configurable policies
+- Comprehensive audit logging
+
+See [contract_agent.md](contract_agent.md) for detailed ContractAgent documentation.
+
+---
+
+### 2. Stable Diffusion Integration
+
+Full integration of [stable-diffusion.cpp](https://github.com/leejet/stable-diffusion.cpp) for image and video generation:
+
+**Simple Text-to-Image:**
+
+```python
+from cyllama.stablediffusion import text_to_image
+
+images = text_to_image(
+    model_path="models/sd_xl_turbo_1.0.q8_0.gguf",
+    prompt="a photo of a cute cat sitting on a windowsill",
+    width=512,
+    height=512,
+    sample_steps=4,  # Turbo models need fewer steps
+    cfg_scale=1.0
+)
+images[0].save("output.png")
+```
+
+**Advanced Generation with SDContext:**
+
+```python
+from cyllama.stablediffusion import (
+    SDContext, SDContextParams,
+    SampleMethod, Scheduler,
+    set_progress_callback
+)
+
+# Progress tracking
+def progress_cb(step, steps, time_ms):
+    pct = (step / steps) * 100
+    print(f'Step {step}/{steps} ({pct:.1f}%)')
+
+set_progress_callback(progress_cb)
+
+# Create context with full control
+params = SDContextParams()
+params.model_path = "models/sd_xl_turbo_1.0.q8_0.gguf"
+params.n_threads = 4
+params.vae_path = "models/vae.safetensors"  # Optional
+
+ctx = SDContext(params)
+images = ctx.generate(
+    prompt="a beautiful mountain landscape at sunset",
+    negative_prompt="blurry, ugly, distorted",
+    width=512,
+    height=512,
+    sample_method=SampleMethod.EULER,
+    scheduler=Scheduler.DISCRETE,
+    seed=42
 )
 ```
 
-**Features:**
-
-- Supports OuteTTS and similar TTS models
-- WAV file output with configurable sample rate
-- Speaker voice cloning support
-- Handles text preprocessing (numbers to words, etc.)
-- Streaming audio generation
-
-### 4. **Multimodal (LLAVA/Vision) Support**
-
-Vision-language models for image understanding:
+**Image-to-Image:**
 
 ```python
-from cyllama.llama.mtmd import MultimodalProcessor, VisionLanguageChat
-from cyllama import LlamaModel, LlamaContext
+from cyllama.stablediffusion import image_to_image, SDImage
 
-# Load model and create processor
-model = LlamaModel("models/llava-v1.6-mistral-7b.Q4_K_M.gguf")
-ctx = LlamaContext(model)
-
-# Initialize vision processor
-processor = MultimodalProcessor("models/mmproj-model-f16.gguf", model)
-
-# Or use high-level chat interface
-vision_chat = VisionLanguageChat("models/mmproj-model-f16.gguf", model, ctx)
-response = vision_chat.ask_about_image("What's in this image?", "image.jpg")
-```
-
-**Capabilities:**
-
-- Image understanding and description
-- Visual question answering
-- Support for multiple images in conversation
-- Works with LLAVA, BakLLaVA, and similar vision-language models
-- Automatic vision capability detection
-
-### 5. **Embedded HTTP Server**
-
-Embedded HTTP servers with OpenAI-compatible API:
-
-```python
-from cyllama.llama.server import PythonServer
-
-# Create server with configuration
-server = PythonServer(
-    model_path="model.gguf",
-    host="127.0.0.1",
-    port=8080
+init_img = SDImage.load("input.png")
+images = image_to_image(
+    model_path="models/sd_xl_turbo_1.0.q8_0.gguf",
+    init_image=init_img,
+    prompt="make it a watercolor painting",
+    strength=0.75
 )
-
-# Start server (runs in background thread)
-server.start()
-
-# Server provides OpenAI-compatible endpoints:
-# POST /v1/chat/completions
-# POST /v1/completions
-# GET /v1/models
-# GET /health
 ```
 
-**Server Features:**
+**ESRGAN Upscaling:**
 
-- OpenAI API compatibility (drop-in replacement)
-- Streaming support (SSE)
-- CORS support
-- Graceful shutdown
-- Thread-safe request handling
-- Includes multiple server implementations:
-  - `PythonServer`: Python-based with threading
-  - `EmbeddedServer`: High-performance [C-based server using Mongoose](https://github.com/cesanta/mongoose)
-  - `LlamaServer`: Python wrapper around the llama.cpp server binary (if it can be found)
+```python
+from cyllama.stablediffusion import Upscaler, SDImage
 
-**Example with curl:**
+upscaler = Upscaler("models/esrgan-x4.bin")
+img = SDImage.load("small.png")
+upscaled = upscaler.upscale(img)  # 4x resolution
+upscaled.save("large.png")
+```
+
+**ControlNet with Canny Preprocessing:**
+
+```python
+from cyllama.stablediffusion import SDImage, canny_preprocess
+
+img = SDImage.load("photo.png")
+canny_preprocess(img, high_threshold=0.8, low_threshold=0.1)
+# Use img as control image for ControlNet generation
+```
+
+**CLI Tool:**
 
 ```bash
-curl http://localhost:8080/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{
-    "messages": [{"role": "user", "content": "Hello!"}],
-    "temperature": 0.7
-  }'
+# Generate image
+python -m cyllama.stablediffusion generate \
+    --model models/sd_xl_turbo_1.0.q8_0.gguf \
+    --prompt "a beautiful sunset over mountains" \
+    --output sunset.png \
+    --steps 4 --cfg 1.0 --progress
+
+# Upscale image
+python -m cyllama.stablediffusion upscale \
+    --model models/esrgan-x4.bin \
+    --input image.png \
+    --output image_4x.png
+
+# Convert model format
+python -m cyllama.stablediffusion convert \
+    --input sd-v1-5.safetensors \
+    --output sd-v1-5-q4_0.gguf \
+    --type q4_0
+
+# Show system info
+python -m cyllama.stablediffusion info
 ```
 
-### 6. **Framework Integrations**
+**Supported Models:**
+- SD 1.x/2.x - Standard Stable Diffusion
+- SDXL/SDXL Turbo - High-quality generation (use cfg_scale=1.0, steps=1-4 for Turbo)
+- SD3/SD3.5 - Latest Stable Diffusion 3.x
+- FLUX - FLUX.1 models (dev, schnell)
+- Wan/CogVideoX - Video generation (use `generate_video()`)
+- LoRA - Low-rank adaptation files
+- ControlNet - Conditional generation
+- ESRGAN - Image upscaling
 
-**OpenAI-Compatible API:**
+**Key Features:**
+- Full numpy/PIL integration (`SDImage.to_numpy()`, `SDImage.to_pil()`)
+- Progress, log, and preview callbacks
+- All samplers (Euler, Euler_A, DPM2, DPMPP2M, LCM, etc.)
+- All schedulers (Discrete, Karras, Exponential, AYS, etc.)
+- Model conversion with quantization support
+- Video generation for compatible models
+
+---
+
+### 3. Agent Client Protocol (ACP) Support
+
+New ACP implementation for editor/IDE integration:
 
 ```python
-from cyllama.integrations import OpenAIClient
+from cyllama.agents import ACPAgent
 
-client = OpenAIClient(model_path="model.gguf")
-response = client.chat.completions.create(
-    messages=[{"role": "user", "content": "Hello!"}],
-    temperature=0.7
-)
+# ACP agent for editor integration (Zed, Neovim, etc.)
+agent = ACPAgent(model_path="model.gguf")
+agent.run()  # Starts JSON-RPC server over stdio
 ```
 
-**LangChain:**
-
-```python
-from cyllama.integrations import CyllamaLLM
-from langchain.chains import LLMChain
-
-llm = CyllamaLLM(model_path="model.gguf", temperature=0.7)
-chain = LLMChain(llm=llm, prompt=prompt_template)
-result = chain.run(topic="AI")
-```
-
-Both work seamlessly with existing code expecting OpenAI or LangChain interfaces.
-
-### 7. **Performance Features**
-
-- **Speculative Decoding**: 2-3x speedup using draft models
-- **N-gram Cache**: 2-10x speedup for repetitive patterns (great for code completion)
-- **Memory Optimization**: Automatic GPU layer estimation based on available VRAM
-
-### 8. **Utility Features**
-
-- **GGUF Manipulation**: Read/write model files, inspect/modify metadata
-- **JSON Schema → Grammar**: Generate structured output with type safety
-- **Model Downloads**: Ollama-style downloads from HuggingFace (`download_model("user/repo:quantization")`)
-
-### 9. **Quality of Life**
-
-- **Logging**: Debug output disabled by default (add `verbose=True` to enable)
-- **Documentation**: Comprehensive user guide, API reference, and cookbook (1,200+ lines total)
-- **Tests**: 276 passing tests for reliability
-- **API Clarity**: Renamed `generate()` → `complete()` and `Generator` → `LLM` for better semantics
+**Features:**
+- JSON-RPC 2.0 transport over stdio
+- Session management (new, load, prompt, cancel)
+- Tool permission flow for user approval
+- File operations delegated to editor
+- Terminal operations support
 
 ---
 
 ## Current Status
 
-**Version:** 0.1.9 (November 21, 2025)
+**Version:** 0.1.12 (November 2025)
 **llama.cpp Version:** b7126 (tracking bleeding-edge)
+**stable-diffusion.cpp:** Integrated and tested
 **whisper.cpp:** Integrated and tested
-**Tests:** 276 passing
+**Tests:** 600+ passing
 **Platform:** macOS (primary), Linux (tested)
 
 **API Coverage - All Major Goals Met:**
 
-- [x] Core llama.cpp wrapper (complete)
-- [x] High-level Python API (complete)
-- [x] llava-cli features (multimodal complete)
-- [x] whisper.cpp integration (complete)
-- [x] Chat templates and conversation support (complete)
-- [x] TTS support (complete)
-- [x] HTTP server with OpenAI API (complete)
-- [ ] stable-diffusion.cpp (future)
+| Component | Status |
+|-----------|--------|
+| Core llama.cpp wrapper | Complete |
+| High-level Python API | Complete |
+| Agent Framework | Complete |
+| Stable Diffusion | Complete |
+| Multimodal (LLAVA) | Complete |
+| Whisper.cpp | Complete |
+| TTS | Complete |
+| HTTP Servers | Complete |
+| Framework Integrations | Complete |
 
 ---
 
 ## Why This Update Matters
 
-**Before:** You needed 50+ lines of boilerplate to do basic inference, manually managing model lifecycle.
+**Agents without dependencies:** Build tool-using AI agents with just cyllama - no LangChain, no AutoGen, no external frameworks required. Three architectures cover different reliability/flexibility tradeoffs.
 
-**Now:** One line for simple cases, with full power available when needed:
+**Image generation in Python:** Generate images with the same library you use for LLM inference. Full control over samplers, schedulers, and all generation parameters. Support for the latest models including SDXL Turbo, SD3, and FLUX.
 
-```python
-# Text generation - one line!
-response = complete("Your prompt", model_path="model.gguf")
-
-# Chat conversations - easy!
-response = chat(messages, model_path="model.gguf")
-
-# TTS - simple!
-tts.generate("Hello world", "output.wav")
-
-# Vision - straightforward!
-response = vision_chat.ask_about_image("What's in this?", "image.jpg")
-
-# HTTP server
-server = PythonServer(model_path="model.gguf")
-server.start()
-```
-
-The library is now genuinely ready for:
-
-- Quick prototyping and experiments
-- Chat applications with proper conversation handling
-- Voice applications (TTS)
-- Vision/multimodal applications (LLAVA)
-- API servers (OpenAI-compatible)
-- Integration into existing Python stacks (FastAPI, Flask, LangChain)
-- Performance-critical applications (speculative decoding, n-gram caching)
+**Production-ready:** 600+ tests, comprehensive documentation, proper error handling. Ready for both quick prototyping and production use.
 
 ---
 
-## Use Cases Now Supported
+## Quick Start Examples
 
-1. **Text Generation**: Simple completions, structured output
-2. **Chat Applications**: Multi-turn conversations with template support
-3. **Voice Applications**: Text-to-speech with WAV output
-4. **Vision Applications**: Image understanding and visual Q&A
-5. **API Services**: HTTP servers with OpenAI compatibility
-6. **Framework Integration**: Works with LangChain, OpenAI clients
-7. **Performance**: Speculative decoding, n-gram caching
+```python
+# Text generation
+from cyllama import complete
+response = complete("What is Python?", model_path="model.gguf")
+
+# Agent with tools
+from cyllama import LLM
+from cyllama.agents import ReActAgent, tool
+
+@tool
+def get_weather(city: str) -> str:
+    return f"Weather in {city}: Sunny, 72F"
+
+agent = ReActAgent(llm=LLM("model.gguf"), tools=[get_weather])
+result = agent.run("What's the weather in Paris?")
+
+# Image generation
+from cyllama.stablediffusion import text_to_image
+images = text_to_image(
+    model_path="sd_xl_turbo.gguf",
+    prompt="a cyberpunk cityscape",
+    sample_steps=4
+)
+images[0].save("cityscape.png")
+
+# Speech transcription
+from cyllama.whisper import WhisperContext
+ctx = WhisperContext("whisper-base.bin")
+result = ctx.transcribe("audio.wav")
+print(result.text)
+```
 
 ---
 
 ## Resources
 
 - **Repo:** <https://github.com/shakfu/cyllama>
-- **Docs:** See `docs/` directory (user guide, API reference, cookbook)
+- **Docs:** See `docs/` directory
+  - [User Guide](user_guide.md)
+  - [API Reference](api_reference.md)
+  - [Contract Agent Guide](contract_agent.md)
+  - [Cookbook](cookbook.md)
 - **Examples:** See `tests/examples/` directory
-  - Chat applications
-  - TTS examples
-  - Multimodal demos
+  - Agent examples (`agent_*.py`)
+  - Stable Diffusion examples (`stablediffusion_*.py`)
   - Server implementations
+  - Multimodal demos
 
 ---
 
 ## What's Next?
 
 Potential future work:
-
 - Async API support (`async def complete_async()`)
-- Response caching
+- Response caching for identical prompts
 - RAG utilities
-- stable-diffusion.cpp integration
+- Web UI for testing
 
 ---
 
 ## Feedback Welcome
 
-As always, if you try it out:
-
+As always, feedback is appreciated:
 - Questions? Ask away!
 - Bugs? Please report them!
 - Features? Suggestions welcome!

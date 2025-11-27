@@ -220,6 +220,60 @@ cache.update(tokens, ngram_min=2, ngram_max=4)
 draft = cache.draft(input_tokens, n_draft=16)
 ```
 
+### Stable Diffusion
+
+**Image Generation** - Generate images from text using stable-diffusion.cpp:
+
+```python
+from cyllama.stablediffusion import text_to_image
+
+# Simple text-to-image
+images = text_to_image(
+    model_path="models/sd_xl_turbo_1.0.q8_0.gguf",
+    prompt="a photo of a cute cat",
+    width=512,
+    height=512,
+    sample_steps=4,
+    cfg_scale=1.0
+)
+images[0].save("output.png")
+```
+
+**Advanced Generation** - Full control with SDContext:
+
+```python
+from cyllama.stablediffusion import SDContext, SDContextParams, SampleMethod, Scheduler
+
+params = SDContextParams()
+params.model_path = "models/sd_xl_turbo_1.0.q8_0.gguf"
+params.n_threads = 4
+
+ctx = SDContext(params)
+images = ctx.generate(
+    prompt="a beautiful mountain landscape",
+    negative_prompt="blurry, ugly",
+    width=512,
+    height=512,
+    sample_method=SampleMethod.EULER,
+    scheduler=Scheduler.DISCRETE
+)
+```
+
+**CLI Tool** - Command-line interface:
+
+```bash
+# Generate image
+python -m cyllama.stablediffusion generate \
+    --model models/sd_xl_turbo_1.0.q8_0.gguf \
+    --prompt "a beautiful sunset" \
+    --output sunset.png
+
+# Show system info
+python -m cyllama.stablediffusion info
+```
+
+Supports SD 1.x/2.x, SDXL, SD3, FLUX, video generation (Wan/CogVideoX), LoRA, ControlNet, and ESRGAN upscaling. See [API Reference](docs/api_reference.md#stable-diffusion-integration) for full documentation.
+
 ## What's Inside
 
 ### Core Capabilities
@@ -248,6 +302,7 @@ draft = cache.draft(input_tokens, n_draft=16)
 
 - [x] **Multimodal** - LLAVA and vision-language models
 - [x] **Whisper.cpp** - Speech-to-text transcription
+- [x] **Stable Diffusion** - Image generation with stable-diffusion.cpp
 - [x] **TTS** - Text-to-speech generation
 - [x] **Speculative Decoding** - 2-3x inference speedup
 
@@ -268,7 +323,7 @@ draft = cache.draft(input_tokens, n_draft=16)
 
 **Production-Ready**: Battle-tested and comprehensive
 
-- 276 passing tests with extensive coverage
+- 600+ passing tests with extensive coverage
 - Comprehensive documentation and examples
 - Proper error handling and logging
 - Framework integration for real applications
@@ -281,9 +336,9 @@ draft = cache.draft(input_tokens, n_draft=16)
 
 ## Status
 
-**Current Version**: 0.1.9 (November 2025)
+**Current Version**: 0.1.12 (November 2025)
 **llama.cpp Version**: b7126
-**Test Coverage**: 276 tests passing
+**Test Coverage**: 600+ tests passing
 **Platform**: macOS (primary), Linux (tested)
 
 ### API Coverage
@@ -303,11 +358,14 @@ draft = cache.draft(input_tokens, n_draft=16)
 | Agent Framework | [x] Complete | ReActAgent, ConstrainedAgent, ContractAgent |
 | Multimodal (LLAVA) | [x] Complete | Vision-language models |
 | Whisper.cpp | [x] Complete | Speech-to-text |
+| Stable Diffusion | [x] Complete | Image generation with stable-diffusion.cpp |
 | Memory optimization | [x] Complete | GPU layer estimation |
 | Server implementations | [x] Complete | PythonServer, EmbeddedServer, LlamaServer |
 
 ### Recent Releases
 
+- **v0.1.12** (Nov 2025) - Stable Diffusion integration with stable-diffusion.cpp
+- **v0.1.11** (Nov 2025) - ACP support, build improvements
 - **v0.1.10** (Nov 2025) - Agent Framework, bug fixes
 - **v0.1.9** (Nov 2025) - High-level APIs, integrations, batch processing, comprehensive documentation
 - **v0.1.8** (Nov 2025) - Speculative decoding API
@@ -388,7 +446,7 @@ bin/llama-cli -c 512 -n 32 -m models/Llama-3.2-1B-Instruct-Q8_0.gguf \
  -p "Is mathematics discovered or invented?"
 ```
 
-With 276 passing tests, the library is ready for both quick prototyping and production use:
+With 600+ passing tests, the library is ready for both quick prototyping and production use:
 
 ```sh
 make test  # Run full test suite
@@ -431,6 +489,7 @@ python3 -i scripts/start.py
 - [x] Multimodal support (LLAVA)
 - [x] Memory estimation utilities
 - [x] Agent Framework (ReActAgent, ConstrainedAgent, ContractAgent)
+- [x] Stable Diffusion (stable-diffusion.cpp) - image/video generation
 
 ### Future
 
@@ -439,7 +498,6 @@ python3 -i scripts/start.py
 - [ ] Built-in prompt template system
 - [ ] RAG utilities
 - [ ] Web UI for testing
-- [ ] Wrap [stable-diffusion.cpp](https://github.com/leejet/stable-diffusion.cpp)
 
 ## Contributing
 

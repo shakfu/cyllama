@@ -16,60 +16,60 @@ Common patterns and recipes for using cyllama effectively.
 ### Simple Question Answering
 
     from cyllama import LLM, GenerationConfig
-    
+
     gen = LLM("models/llama.gguf")
     config = GenerationConfig(
     temperature=0.3,  # Low for factual responses
     max_tokens=200
     )
-    
+
     def ask_question(question: str) -> str:
     prompt = f"Question: {question}\nAnswer:"
     return gen(prompt, config=config)
-    
+
     print(ask_question("What is Python?"))
     print(ask_question("Who invented the telephone?"))
 
 ### Creative Writing
 
     from cyllama import LLM, GenerationConfig
-    
+
     gen = LLM("models/llama.gguf")
     config = GenerationConfig(
     temperature=0.9,  # High for creativity
     top_p=0.95,
     max_tokens=500
     )
-    
+
     def write_story(theme: str) -> str:
     prompt = f"Write a short story about {theme}:"
     return gen(prompt, config=config, stream=False)
-    
+
     story = write_story("a robot learning to paint")
     print(story)
 
 ### Code Generation
 
     from cyllama import LLM, GenerationConfig
-    
+
     gen = LLM("models/codellama.gguf")  # Use code-specific model
     config = GenerationConfig(
     temperature=0.2,  # Low for correct syntax
     max_tokens=300,
     stop_sequences=["```"]  # Stop at code fence
     )
-    
+
     def generate_code(task: str, language: str = "python") -> str:
     prompt = f"""Write a {language} function to {task}:
-    
+
 """
     return gen(prompt, config=config)
 
 code = generate_code("calculate fibonacci numbers", "python")
 print(code)
-    
+
     ### Summarization
-    
+
 from cyllama import LLM, GenerationConfig
 
 gen = LLM("models/llama.gguf")
@@ -92,11 +92,11 @@ long_text = """
 
 summary = summarize(long_text)
 print(summary)
-    
+
     ## Chat Applications
-    
+
     ### Simple Chatbot
-    
+
 from cyllama import LLM, GenerationConfig
 
 class SimpleChatbot:
@@ -138,9 +138,9 @@ class SimpleChatbot:
 bot = SimpleChatbot("models/llama.gguf", system_prompt="You are a Python expert.")
 print(bot.chat("What is a decorator?"))
 print(bot.chat("Can you show an example?"))
-    
+
     ### Streaming Chatbot
-    
+
 from cyllama import LLM, GenerationConfig
 
 class StreamingChatbot:
@@ -164,11 +164,11 @@ print("Bot: ", end="")
 for chunk in bot.chat_stream("Tell me about Python"):
     print(chunk, end="", flush=True)
 print()
-    
+
     ## Structured Output
-    
+
     ### JSON Generation
-    
+
 from cyllama import LLM, GenerationConfig
 import json
 
@@ -198,9 +198,9 @@ Respond with valid JSON only:
 
 result = generate_json("Create a person with name, age, and occupation")
 print(json.dumps(result, indent=2))
-    
+
     ### Constrained Generation with JSON Schema
-    
+
 from cyllama import json_schema_to_grammar, Generator, GenerationConfig
 
 ## Define JSON schema
@@ -224,9 +224,9 @@ gen = LLM("models/llama.gguf")
 ## Note: Grammar support requires additional integration
 
 ## This shows the concept; actual implementation may vary
-    
+
     ### List Generation
-    
+
 from cyllama import LLM, GenerationConfig
 
 gen = LLM("models/llama.gguf")
@@ -252,11 +252,11 @@ def generate_list(topic: str, count: int = 5) -> list:
 
 cities = generate_list("major cities in Europe", 5)
 print(cities)
-    
+
     ## Performance Patterns
-    
+
     ### Batch Processing with Progress
-    
+
 from tqdm import tqdm
 from cyllama import BatchGenerator, GenerationConfig
 
@@ -282,9 +282,9 @@ def process_batch_with_progress(prompts: list, model_path: str) -> list:
 
 prompts = [f"What is {i}+{i}?" for i in range(100)]
 results = process_batch_with_progress(prompts, "models/llama.gguf")
-    
+
     ### Parallel Generation with Threading
-    
+
 from cyllama import LLM, GenerationConfig
 import concurrent.futures
 import threading
@@ -315,9 +315,9 @@ def generate_parallel(prompts: list, model_path: str, max_workers: int = 4) -> l
 
 prompts = ["Question 1", "Question 2", "Question 3", "Question 4"]
 results = generate_parallel(prompts, "models/llama.gguf", max_workers=2)
-    
+
     ### Memory-Efficient Generation
-    
+
 from cyllama import LLM, GenerationConfig, estimate_memory_usage
 
 def create_memory_efficient_generator(model_path: str, available_memory_mb: int):
@@ -343,11 +343,11 @@ def create_memory_efficient_generator(model_path: str, available_memory_mb: int)
     )
 
     return Generator(model_path, config=config)
-    
+
     ## Integration Patterns
-    
+
     ### FastAPI Server
-    
+
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from cyllama import LLM, GenerationConfig
@@ -379,9 +379,9 @@ async def generate_text(request: GenerateRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 ## Run with: uvicorn server:app --reload
-    
+
     ### Flask Streaming Server
-    
+
 from flask import Flask, request, Response, stream_with_context
 from cyllama import LLM, GenerationConfig
 import json
@@ -408,9 +408,9 @@ def generate_stream():
     )
 
 ## Run with: flask run
-    
+
     ### Gradio Interface
-    
+
 import gradio as gr
 from cyllama import LLM, GenerationConfig
 
@@ -435,11 +435,11 @@ interface = gr.Interface(
 )
 
 interface.launch()
-    
+
     ## Error Handling
-    
+
     ### Robust Generation with Retries
-    
+
 from cyllama import LLM, GenerationConfig
 import time
 
@@ -471,9 +471,9 @@ try:
     print(result)
 except Exception as e:
     print(f"Failed after retries: {e}")
-    
+
     ### Timeout Handling
-    
+
 from cyllama import LLM, GenerationConfig
 import signal
 from contextlib import contextmanager
@@ -505,9 +505,9 @@ def generate_with_timeout(prompt: str, timeout_seconds: int = 30) -> str:
 ## Usage
 
 result = generate_with_timeout("Generate a very long essay", timeout_seconds=10)
-    
+
     ### Validation and Sanitization
-    
+
 from cyllama import LLM, GenerationConfig
 import re
 
@@ -547,11 +547,11 @@ try:
     print(result)
 except ValueError as e:
     print(f"Invalid input: {e}")
-    
+
     ## Tips and Tricks
-    
+
     ### Prompt Engineering
-    
+
 
 ## Be specific
 
@@ -572,9 +572,9 @@ A:"""
 ## Set context
 
 prompt = "You are an expert Python programmer. Explain list comprehensions in simple terms:"
-    
+
     ### Response Post-Processing
-    
+
 def clean_response(response: str) -> str:
     """Clean up generated response."""
 
@@ -590,9 +590,9 @@ def clean_response(response: str) -> str:
         sentences = sentences[:-1]
 
     return ".".join(sentences) + "."
-    
+
     ## See Also
-    
+
     - [User Guide](USER_GUIDE.md) - Complete API documentation
     - [Examples](../tests/examples/) - Working code samples
     - [API Reference](API_REFERENCE.md) - Detailed API docs

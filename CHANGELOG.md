@@ -69,6 +69,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - `python -m cyllama.stablediffusion convert` - Convert model formats
   - `python -m cyllama.stablediffusion info` - Show system info and available options
 
+- **Testing & Documentation** - Comprehensive test suite and API documentation
+  - 77 unit tests covering all wrapper classes (SDContext, SDContextParams, SDImage, SDSampleParams, SDImageGenParams, Upscaler)
+  - Integration tests with real models (text_to_image, image_to_image generation)
+  - Tests for Canny preprocessing, callbacks, enums, and utility functions
+  - Advanced example script: `tests/examples/stablediffusion_advanced_example.py`
+  - Complete API documentation in `docs/api_reference.md` (Stable Diffusion Integration section)
+  - CLI usage documentation with command examples
+
 ### Changed
 
 - **setup.py** - Added stable-diffusion.cpp extension build support

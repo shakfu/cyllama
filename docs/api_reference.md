@@ -15,6 +15,7 @@ Complete API reference for cyllama, a high-performance Python library for LLM in
 6. [Server Implementations](#server-implementations)
 7. [Multimodal Support](#multimodal-support)
 8. [Whisper Integration](#whisper-integration)
+9. [Stable Diffusion Integration](#stable-diffusion-integration)
 
 ---
 
@@ -885,6 +886,410 @@ for segment in result.segments:
 # Full text
 print(result.text)
 ```
+
+---
+
+## Stable Diffusion Integration
+
+Image generation using stable-diffusion.cpp. Supports SD 1.x/2.x, SDXL, SD3, FLUX, video generation (Wan/CogVideoX), and ESRGAN upscaling.
+
+**Note**: Build with `WITH_STABLEDIFFUSION=1` to enable this module.
+
+### Quick Start
+
+```python
+from cyllama.stablediffusion import text_to_image
+
+# Simple text-to-image generation
+images = text_to_image(
+    model_path="models/sd_xl_turbo_1.0.q8_0.gguf",
+    prompt="a photo of a cute cat",
+    width=512,
+    height=512,
+    sample_steps=4,
+    cfg_scale=1.0
+)
+
+# Save the result
+images[0].save("output.png")
+```
+
+### `text_to_image()`
+
+Convenience function for text-to-image generation.
+
+```python
+def text_to_image(
+    model_path: str,
+    prompt: str,
+    negative_prompt: str = "",
+    width: int = 512,
+    height: int = 512,
+    seed: int = -1,
+    batch_count: int = 1,
+    sample_steps: int = 20,
+    cfg_scale: float = 7.0,
+    sample_method: Optional[SampleMethod] = None,
+    scheduler: Optional[Scheduler] = None,
+    clip_skip: int = -1,
+    n_threads: int = -1
+) -> List[SDImage]
+```
+
+**Parameters:**
+
+- `model_path` (str): Path to model file (.gguf, .safetensors, or .ckpt)
+- `prompt` (str): Text prompt for generation
+- `negative_prompt` (str): Negative prompt (what to avoid)
+- `width` (int): Output image width (default: 512)
+- `height` (int): Output image height (default: 512)
+- `seed` (int): Random seed (-1 for random)
+- `batch_count` (int): Number of images to generate
+- `sample_steps` (int): Sampling steps (use 1-4 for turbo models, 20+ for others)
+- `cfg_scale` (float): CFG scale (use 1.0 for turbo, 7.0 for others)
+- `sample_method` (SampleMethod): Sampling method (EULER, EULER_A, DPM2, etc.)
+- `scheduler` (Scheduler): Scheduler (DISCRETE, KARRAS, EXPONENTIAL, etc.)
+- `clip_skip` (int): CLIP skip layers (-1 for default)
+- `n_threads` (int): Number of threads (-1 for auto)
+
+**Returns:**
+
+- `List[SDImage]`: List of generated images
+
+### `image_to_image()`
+
+Image-to-image generation with an initial image.
+
+```python
+def image_to_image(
+    model_path: str,
+    init_image: SDImage,
+    prompt: str,
+    negative_prompt: str = "",
+    strength: float = 0.75,
+    seed: int = -1,
+    sample_steps: int = 20,
+    cfg_scale: float = 7.0,
+    sample_method: Optional[SampleMethod] = None,
+    scheduler: Optional[Scheduler] = None,
+    clip_skip: int = -1,
+    n_threads: int = -1
+) -> List[SDImage]
+```
+
+**Parameters:**
+
+- `init_image` (SDImage): Initial image to transform
+- `strength` (float): Transformation strength (0.0-1.0)
+- Other parameters same as `text_to_image()`
+
+### `SDContext`
+
+Main context class for model reuse and advanced generation.
+
+```python
+from cyllama.stablediffusion import SDContext, SDContextParams, SampleMethod, Scheduler
+
+# Create context
+params = SDContextParams()
+params.model_path = "models/sd_xl_turbo_1.0.q8_0.gguf"
+params.n_threads = 4
+
+ctx = SDContext(params)
+
+# Generate images
+images = ctx.generate(
+    prompt="a beautiful landscape",
+    negative_prompt="blurry, ugly",
+    width=512,
+    height=512,
+    sample_steps=4,
+    cfg_scale=1.0,
+    sample_method=SampleMethod.EULER,
+    scheduler=Scheduler.DISCRETE
+)
+
+# Check if context is valid
+print(ctx.is_valid)
+```
+
+**Methods:**
+
+- `generate(...)`: Generate images from text prompt
+- `generate_with_params(params: SDImageGenParams)`: Low-level generation
+- `generate_video(...)`: Generate video frames (requires video-capable model)
+
+### `SDContextParams`
+
+Configuration for model loading.
+
+```python
+params = SDContextParams()
+params.model_path = "model.gguf"         # Main model
+params.vae_path = "vae.safetensors"      # Optional VAE
+params.clip_l_path = "clip_l.safetensors" # Optional CLIP-L (for SDXL)
+params.clip_g_path = "clip_g.safetensors" # Optional CLIP-G (for SDXL)
+params.t5xxl_path = "t5xxl.safetensors"  # Optional T5-XXL (for SD3/FLUX)
+params.lora_model_dir = "loras/"         # LoRA directory
+params.n_threads = 4                      # Thread count
+params.vae_decode_only = True            # VAE decode only mode
+params.diffusion_flash_attn = False      # Flash attention
+params.wtype = SDType.F16                # Weight type
+params.rng_type = RngType.CPU            # RNG type
+```
+
+### `SDImage`
+
+Image wrapper with numpy and PIL integration.
+
+```python
+from cyllama.stablediffusion import SDImage
+import numpy as np
+
+# Create from numpy array
+arr = np.zeros((512, 512, 3), dtype=np.uint8)
+img = SDImage.from_numpy(arr)
+
+# Properties
+print(img.width, img.height, img.channels)
+
+# Convert to numpy
+arr = img.to_numpy()  # Returns (H, W, C) uint8 array
+
+# Convert to PIL (requires Pillow)
+pil_img = img.to_pil()
+
+# Save to file
+img.save("output.png")
+
+# Load from file
+img = SDImage.load("input.png")
+```
+
+### `SDImageGenParams`
+
+Detailed generation parameters.
+
+```python
+from cyllama.stablediffusion import SDImageGenParams, SDImage
+
+params = SDImageGenParams()
+params.prompt = "a cute cat"
+params.negative_prompt = "ugly, blurry"
+params.width = 512
+params.height = 512
+params.seed = 42
+params.batch_count = 1
+params.strength = 0.75           # For img2img
+params.clip_skip = -1
+
+# Set init image for img2img
+init_img = SDImage.from_numpy(arr)
+params.set_init_image(init_img)
+
+# Set control image for ControlNet
+params.set_control_image(control_img, strength=0.8)
+
+# Access sample parameters
+sample = params.sample_params
+sample.sample_steps = 20
+sample.cfg_scale = 7.0
+sample.sample_method = SampleMethod.EULER
+sample.scheduler = Scheduler.KARRAS
+```
+
+### `SDSampleParams`
+
+Sampling configuration.
+
+```python
+from cyllama.stablediffusion import SDSampleParams, SampleMethod, Scheduler
+
+params = SDSampleParams()
+params.sample_method = SampleMethod.EULER_A
+params.scheduler = Scheduler.KARRAS
+params.sample_steps = 20
+params.cfg_scale = 7.0
+params.eta = 0.0                 # Noise multiplier
+```
+
+### `Upscaler`
+
+ESRGAN-based image upscaling.
+
+```python
+from cyllama.stablediffusion import Upscaler, SDImage
+
+# Load upscaler model
+upscaler = Upscaler("models/esrgan-x4.bin", n_threads=4)
+
+# Check upscale factor
+print(f"Factor: {upscaler.upscale_factor}x")
+
+# Upscale an image
+img = SDImage.load("input.png")
+upscaled = upscaler.upscale(img)
+
+# Or specify custom factor
+upscaled = upscaler.upscale(img, factor=2)
+
+upscaled.save("upscaled.png")
+```
+
+### `convert_model()`
+
+Convert models between formats.
+
+```python
+from cyllama.stablediffusion import convert_model, SDType
+
+# Convert safetensors to GGUF with quantization
+convert_model(
+    input_path="sd-v1-5.safetensors",
+    output_path="sd-v1-5-q4_0.gguf",
+    output_type=SDType.Q4_0,
+    vae_path="vae-ft-mse.safetensors"  # Optional
+)
+```
+
+### `canny_preprocess()`
+
+Canny edge detection for ControlNet.
+
+```python
+from cyllama.stablediffusion import SDImage, canny_preprocess
+
+img = SDImage.load("photo.png")
+
+# Apply Canny preprocessing (modifies image in place)
+success = canny_preprocess(
+    img,
+    high_threshold=0.8,
+    low_threshold=0.1,
+    weak=0.5,
+    strong=1.0,
+    inverse=False
+)
+```
+
+### Callbacks
+
+Set callbacks for logging, progress, and preview.
+
+```python
+from cyllama.stablediffusion import (
+    set_log_callback,
+    set_progress_callback,
+    set_preview_callback
+)
+
+# Log callback
+def log_cb(level, text):
+    level_names = {0: 'DEBUG', 1: 'INFO', 2: 'WARN', 3: 'ERROR'}
+    print(f'[{level_names.get(level, level)}] {text}', end='')
+
+set_log_callback(log_cb)
+
+# Progress callback
+def progress_cb(step, steps, time_ms):
+    pct = (step / steps) * 100 if steps > 0 else 0
+    print(f'Step {step}/{steps} ({pct:.1f}%) - {time_ms:.2f}s')
+
+set_progress_callback(progress_cb)
+
+# Preview callback (for real-time preview during generation)
+def preview_cb(step, frames, is_noisy):
+    for i, frame in enumerate(frames):
+        frame.save(f"preview_{step}_{i}.png")
+
+set_preview_callback(preview_cb)
+
+# Clear callbacks
+set_log_callback(None)
+set_progress_callback(None)
+set_preview_callback(None)
+```
+
+### Enums
+
+**`SampleMethod`**: Sampling methods
+- `EULER`, `EULER_A`, `HEUN`, `DPM2`, `DPMPP2S_A`, `DPMPP2M`, `DPMPP2Mv2`
+- `IPNDM`, `IPNDM_V`, `LCM`, `DDIM_TRAILING`, `TCD`
+
+**`Scheduler`**: Schedulers
+- `DISCRETE`, `KARRAS`, `EXPONENTIAL`, `AYS`, `GITS`
+- `SGM_UNIFORM`, `SIMPLE`, `SMOOTHSTEP`, `LCM`
+
+**`SDType`**: Data types for quantization
+- `F32`, `F16`, `BF16`
+- `Q4_0`, `Q4_1`, `Q5_0`, `Q5_1`, `Q8_0`, `Q8_1`
+- `Q2_K`, `Q3_K`, `Q4_K`, `Q5_K`, `Q6_K`, `Q8_K`
+
+**`RngType`**: Random number generators
+- `STD_DEFAULT`, `CUDA`, `CPU`
+
+**`LogLevel`**: Log levels
+- `DEBUG`, `INFO`, `WARN`, `ERROR`
+
+### Utility Functions
+
+```python
+from cyllama.stablediffusion import (
+    get_num_cores,
+    get_system_info,
+    type_name,
+    sample_method_name,
+    scheduler_name
+)
+
+# System info
+print(f"CPU cores: {get_num_cores()}")
+print(get_system_info())
+
+# Get string names
+print(type_name(SDType.Q4_0))           # "q4_0"
+print(sample_method_name(SampleMethod.EULER))  # "euler"
+print(scheduler_name(Scheduler.KARRAS))  # "karras"
+```
+
+### CLI Tool
+
+Command-line interface for stable diffusion operations.
+
+```bash
+# Generate image
+python -m cyllama.stablediffusion generate \
+    --model models/sd_xl_turbo_1.0.q8_0.gguf \
+    --prompt "a beautiful sunset" \
+    --output sunset.png \
+    --steps 4 --cfg 1.0
+
+# Upscale image
+python -m cyllama.stablediffusion upscale \
+    --model models/esrgan-x4.bin \
+    --input image.png \
+    --output image_4x.png
+
+# Convert model
+python -m cyllama.stablediffusion convert \
+    --input sd-v1-5.safetensors \
+    --output sd-v1-5-q4_0.gguf \
+    --type q4_0
+
+# Show system info
+python -m cyllama.stablediffusion info
+```
+
+### Supported Models
+
+- **SD 1.x/2.x**: Standard Stable Diffusion models
+- **SDXL/SDXL Turbo**: Stable Diffusion XL (use cfg_scale=1.0, steps=1-4 for Turbo)
+- **SD3/SD3.5**: Stable Diffusion 3.x
+- **FLUX**: FLUX.1 models (dev, schnell)
+- **Wan/CogVideoX**: Video generation models (use `generate_video()`)
+- **LoRA**: Low-rank adaptation files
+- **ControlNet**: Conditional generation with control images
+- **ESRGAN**: Image upscaling models
 
 ---
 
