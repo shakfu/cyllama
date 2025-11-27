@@ -293,7 +293,7 @@ result = agent.run("What's the weather in Paris?")
 # Image generation
 from cyllama.stablediffusion import text_to_image
 images = text_to_image(
-    model_path="sd_xl_turbo.gguf",
+    model_path="sd_xl_turbo_1.0.q8_0.gguf",
     prompt="a cyberpunk cityscape",
     sample_steps=4
 )
@@ -321,16 +321,6 @@ print(result.text)
   - Stable Diffusion examples (`stablediffusion_*.py`)
   - Server implementations
   - Multimodal demos
-
----
-
-## What's Next?
-
-Potential future work:
-- Async API support (`async def complete_async()`)
-- Response caching for identical prompts
-- RAG utilities
-- Web UI for testing
 
 ---
 
