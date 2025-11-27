@@ -40,3 +40,5 @@ except ImportError as e:
     HAS_MULTIMODAL = False
     import warnings
     warnings.warn(f"Multimodal support not available: {e}", ImportWarning)
+
+__version__ = "0.1.12"
