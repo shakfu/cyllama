@@ -106,6 +106,241 @@ class TestSDImage:
 
         assert np.array_equal(arr, arr2)
 
+    def test_save_ppm(self):
+        """Test saving image as PPM format (no PIL required)."""
+        arr = np.zeros((64, 64, 3), dtype=np.uint8)
+        arr[10:20, 10:20] = [255, 0, 0]  # Red square
+        img = SDImage.from_numpy(arr)
+
+        with tempfile.NamedTemporaryFile(suffix='.ppm', delete=False) as f:
+            ppm_path = f.name
+
+        try:
+            img.save_ppm(ppm_path)
+            assert os.path.exists(ppm_path)
+            assert os.path.getsize(ppm_path) > 0
+
+            # Verify PPM header
+            with open(ppm_path, 'rb') as f:
+                header = f.read(20)
+                assert header.startswith(b'P6\n')
+        finally:
+            os.unlink(ppm_path)
+
+    def test_save_bmp(self):
+        """Test saving image as BMP format (no PIL required)."""
+        arr = np.zeros((64, 64, 3), dtype=np.uint8)
+        arr[10:20, 10:20] = [0, 255, 0]  # Green square
+        img = SDImage.from_numpy(arr)
+
+        with tempfile.NamedTemporaryFile(suffix='.bmp', delete=False) as f:
+            bmp_path = f.name
+
+        try:
+            img.save_bmp(bmp_path)
+            assert os.path.exists(bmp_path)
+            assert os.path.getsize(bmp_path) > 0
+
+            # Verify BMP header
+            with open(bmp_path, 'rb') as f:
+                header = f.read(2)
+                assert header == b'BM'
+        finally:
+            os.unlink(bmp_path)
+
+    def test_ppm_roundtrip(self):
+        """Test save/load PPM preserves image data."""
+        arr = np.random.randint(0, 256, (32, 48, 3), dtype=np.uint8)
+        img = SDImage.from_numpy(arr)
+
+        with tempfile.NamedTemporaryFile(suffix='.ppm', delete=False) as f:
+            ppm_path = f.name
+
+        try:
+            img.save_ppm(ppm_path)
+            img2 = SDImage.load_ppm(ppm_path)
+
+            arr2 = img2.to_numpy()
+            assert arr2.shape == arr.shape
+            assert np.array_equal(arr, arr2)
+        finally:
+            os.unlink(ppm_path)
+
+    def test_bmp_roundtrip(self):
+        """Test save/load BMP preserves image data."""
+        arr = np.random.randint(0, 256, (32, 48, 3), dtype=np.uint8)
+        img = SDImage.from_numpy(arr)
+
+        with tempfile.NamedTemporaryFile(suffix='.bmp', delete=False) as f:
+            bmp_path = f.name
+
+        try:
+            img.save_bmp(bmp_path)
+            img2 = SDImage.load_bmp(bmp_path)
+
+            arr2 = img2.to_numpy()
+            assert arr2.shape == arr.shape
+            assert np.array_equal(arr, arr2)
+        finally:
+            os.unlink(bmp_path)
+
+    def test_save_auto_format(self):
+        """Test save() auto-detects format from extension."""
+        arr = np.zeros((32, 32, 3), dtype=np.uint8)
+        arr[:] = [128, 64, 32]
+        img = SDImage.from_numpy(arr)
+
+        with tempfile.NamedTemporaryFile(suffix='.ppm', delete=False) as f:
+            ppm_path = f.name
+        with tempfile.NamedTemporaryFile(suffix='.bmp', delete=False) as f:
+            bmp_path = f.name
+
+        try:
+            # save() should use built-in writers for ppm/bmp
+            img.save(ppm_path)
+            img.save(bmp_path)
+
+            assert os.path.exists(ppm_path)
+            assert os.path.exists(bmp_path)
+
+            # Verify formats
+            with open(ppm_path, 'rb') as f:
+                assert f.read(2) == b'P6'
+            with open(bmp_path, 'rb') as f:
+                assert f.read(2) == b'BM'
+        finally:
+            os.unlink(ppm_path)
+            os.unlink(bmp_path)
+
+    def test_grayscale_to_ppm(self):
+        """Test grayscale image saves to PPM correctly."""
+        arr = np.zeros((32, 32, 1), dtype=np.uint8)
+        arr[10:20, 10:20] = 200
+        img = SDImage.from_numpy(arr)
+
+        with tempfile.NamedTemporaryFile(suffix='.ppm', delete=False) as f:
+            ppm_path = f.name
+
+        try:
+            img.save_ppm(ppm_path)
+            assert os.path.exists(ppm_path)
+
+            # Load and verify grayscale was expanded to RGB
+            img2 = SDImage.load_ppm(ppm_path)
+            arr2 = img2.to_numpy()
+            assert arr2.shape == (32, 32, 3)
+            # Grayscale values should be replicated to RGB
+            assert arr2[15, 15, 0] == 200
+            assert arr2[15, 15, 1] == 200
+            assert arr2[15, 15, 2] == 200
+        finally:
+            os.unlink(ppm_path)
+
+    def test_save_png(self):
+        """Test saving image as PNG format (stb_image_write, no PIL required)."""
+        arr = np.zeros((64, 64, 3), dtype=np.uint8)
+        arr[10:20, 10:20] = [255, 0, 0]  # Red square
+        img = SDImage.from_numpy(arr)
+
+        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as f:
+            png_path = f.name
+
+        try:
+            img.save_png(png_path)
+            assert os.path.exists(png_path)
+            assert os.path.getsize(png_path) > 0
+
+            # Verify PNG header (magic bytes)
+            with open(png_path, 'rb') as f:
+                header = f.read(8)
+                assert header[:4] == b'\x89PNG'
+        finally:
+            os.unlink(png_path)
+
+    def test_save_jpg(self):
+        """Test saving image as JPEG format (stb_image_write, no PIL required)."""
+        arr = np.zeros((64, 64, 3), dtype=np.uint8)
+        arr[10:20, 10:20] = [0, 255, 0]  # Green square
+        img = SDImage.from_numpy(arr)
+
+        with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as f:
+            jpg_path = f.name
+
+        try:
+            img.save_jpg(jpg_path, quality=85)
+            assert os.path.exists(jpg_path)
+            assert os.path.getsize(jpg_path) > 0
+
+            # Verify JPEG header (magic bytes)
+            with open(jpg_path, 'rb') as f:
+                header = f.read(2)
+                assert header == b'\xff\xd8'  # JPEG SOI marker
+        finally:
+            os.unlink(jpg_path)
+
+    def test_png_roundtrip(self):
+        """Test save/load PNG preserves image data (via stb)."""
+        arr = np.random.randint(0, 256, (32, 48, 3), dtype=np.uint8)
+        img = SDImage.from_numpy(arr)
+
+        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as f:
+            png_path = f.name
+
+        try:
+            img.save_png(png_path)
+            img2 = SDImage.load(png_path)
+
+            arr2 = img2.to_numpy()
+            assert arr2.shape == arr.shape
+            # PNG is lossless, so should be exact
+            assert np.array_equal(arr, arr2)
+        finally:
+            os.unlink(png_path)
+
+    def test_jpg_roundtrip(self):
+        """Test save/load JPEG (via stb). Note: JPEG is lossy."""
+        # Use a simple solid color to minimize compression artifacts
+        arr = np.full((32, 48, 3), [128, 128, 128], dtype=np.uint8)
+        img = SDImage.from_numpy(arr)
+
+        with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as f:
+            jpg_path = f.name
+
+        try:
+            img.save_jpg(jpg_path, quality=100)  # Max quality
+            img2 = SDImage.load(jpg_path)
+
+            arr2 = img2.to_numpy()
+            assert arr2.shape == arr.shape
+            # JPEG is lossy, so check values are close (within 5)
+            assert np.allclose(arr, arr2, atol=5)
+        finally:
+            os.unlink(jpg_path)
+
+    def test_load_with_channel_conversion(self):
+        """Test loading image with channel conversion (stb feature)."""
+        # Create and save an RGB image
+        arr = np.random.randint(0, 256, (32, 32, 3), dtype=np.uint8)
+        img = SDImage.from_numpy(arr)
+
+        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as f:
+            png_path = f.name
+
+        try:
+            img.save_png(png_path)
+
+            # Load as RGBA (4 channels)
+            img2 = SDImage.load(png_path, channels=4)
+            arr2 = img2.to_numpy()
+            assert arr2.shape == (32, 32, 4)
+
+            # Load as grayscale (1 channel)
+            img3 = SDImage.load(png_path, channels=1)
+            arr3 = img3.to_numpy()
+            assert arr3.shape == (32, 32, 1)
+        finally:
+            os.unlink(png_path)
+
 
 class TestSDContextParams:
     """Test SDContextParams class."""

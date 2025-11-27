@@ -17,6 +17,40 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [0.1.x]
 
+## [0.1.13]
+
+### Added
+
+- **Zero-Dependency Image I/O** - Native PNG/JPEG/BMP support via bundled stb library
+  - `SDImage.save_png(path)` - Save images as PNG format without PIL
+  - `SDImage.save_jpg(path, quality=90)` - Save images as JPEG format without PIL
+  - `SDImage.save_bmp(path)` - Save images as BMP format (pure Python)
+  - `SDImage.save_ppm(path)` - Save images as PPM format (pure Python)
+  - `SDImage.load(path, channels=0)` - Load PNG, JPEG, BMP, TGA, GIF, PSD, HDR, PIC formats via stb
+  - `SDImage.load_ppm(path)` - Load PPM format (pure Python)
+  - `SDImage.load_bmp(path)` - Load BMP format (pure Python)
+  - Updated `save()` method to auto-detect format and use stb for PNG/JPEG/BMP
+  - Channel conversion support on load (auto/grayscale/RGB/RGBA)
+  - 5 new tests for PNG/JPEG roundtrip and channel conversion
+
+- **stb Library Integration** - Bundled stb_image for image I/O
+  - Added `stb_impl.cpp` to compile stb_image and stb_image_write implementations
+  - Updated `setup.py` to include stb_impl.cpp in stable_diffusion extension
+  - Updated `scripts/setup.sh` to copy stb headers from stable-diffusion.cpp
+  - Updated `scripts/manage.py` StableDiffusionCppBuilder to copy stb headers
+
+### Changed
+
+- **Build Scripts** - Consistent stb header handling across build systems
+  - `scripts/setup.sh` now copies `stb_image.h`, `stb_image_write.h`, `stb_image_resize.h` to thirdparty includes
+  - `scripts/manage.py` StableDiffusionCppBuilder now copies stb headers during build
+  - Both build methods (shell-based and Python-based) produce identical results
+
+- **manage.py Version Constants** - Added version tracking for all dependencies
+  - Added `WHISPERCPP_VERSION` constant for whisper.cpp version tracking
+  - Added `SDCPP_VERSION` constant for stable-diffusion.cpp version tracking
+  - `STABLE_BUILD` environment variable controls whether to use pinned versions
+
 ## [0.1.12]
 
 ### Fixed

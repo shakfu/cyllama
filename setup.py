@@ -13,7 +13,7 @@ from Cython.Build import cythonize
 
 CWD = os.getcwd()
 
-VERSION = '0.1.12'
+VERSION = '0.1.13'
 
 PLATFORM = platform.system()
 IS_WINDOWS = PLATFORM == 'Windows'
@@ -396,9 +396,20 @@ if WITH_WHISPER:
 
 if WITH_STABLEDIFFUSION:
     extensions.append(
-        mk_extension("cyllama.stablediffusion.stable_diffusion", sources=[
-            "src/cyllama/stablediffusion/stable_diffusion.pyx",
-        ])
+        Extension(
+            name="cyllama.stablediffusion.stable_diffusion",
+            sources=[
+                "src/cyllama/stablediffusion/stable_diffusion.pyx",
+                "src/cyllama/stablediffusion/stb_impl.cpp",
+            ],
+            include_dirs=INCLUDE_DIRS,
+            libraries=LIBRARIES,
+            library_dirs=LIBRARY_DIRS,
+            extra_objects=EXTRA_OBJECTS,
+            extra_compile_args=EXTRA_COMPILE_ARGS,
+            extra_link_args=EXTRA_LINK_ARGS,
+            language="c++",
+        )
     )
 
 

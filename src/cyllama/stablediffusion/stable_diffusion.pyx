@@ -19,6 +19,16 @@ from libcpp cimport bool as cpp_bool
 
 from .stable_diffusion cimport *
 
+# stb_image declarations
+cdef extern from "stb_image.h":
+    unsigned char* stbi_load(const char* filename, int* x, int* y, int* channels_in_file, int desired_channels)
+    void stbi_image_free(void* retval_from_stbi_load)
+
+cdef extern from "stb_image_write.h":
+    int stbi_write_png(const char* filename, int w, int h, int comp, const void* data, int stride_in_bytes)
+    int stbi_write_bmp(const char* filename, int w, int h, int comp, const void* data)
+    int stbi_write_jpg(const char* filename, int w, int h, int comp, const void* data, int quality)
+
 # Try to import numpy - optional but recommended
 try:
     import numpy as np
@@ -316,18 +326,217 @@ cdef class SDImage:
         else:
             return PILImage.fromarray(arr)
 
-    def save(self, path: str):
+    def save_ppm(self, path: str):
         """
-        Save image to file using PIL.
+        Save image as PPM (Portable Pixmap) format.
+
+        PPM is a simple uncompressed format that requires no dependencies.
+        Most image viewers can open PPM files.
 
         Args:
-            path: Output file path (format determined by extension)
+            path: Output file path (should end with .ppm)
         """
-        img = self.to_pil()
-        img.save(path)
+        if not self.is_valid:
+            raise ValueError("Image has no valid data")
+
+        cdef uint32_t w = self._image.width
+        cdef uint32_t h = self._image.height
+        cdef uint32_t c = self._image.channel
+        cdef size_t size = w * h * c
+        cdef bytes raw_data
+
+        # Get raw bytes from image data
+        raw_data = <bytes>self._image.data[:size]
+
+        with open(path, 'wb') as f:
+            # PPM header: P6 for binary RGB
+            header = f"P6\n{w} {h}\n255\n".encode('ascii')
+            f.write(header)
+
+            if c == 3:
+                # RGB - write directly
+                f.write(raw_data)
+            elif c == 4:
+                # RGBA - strip alpha channel
+                rgb_data = bytearray(w * h * 3)
+                for i in range(w * h):
+                    rgb_data[i * 3] = raw_data[i * 4]
+                    rgb_data[i * 3 + 1] = raw_data[i * 4 + 1]
+                    rgb_data[i * 3 + 2] = raw_data[i * 4 + 2]
+                f.write(bytes(rgb_data))
+            elif c == 1:
+                # Grayscale - expand to RGB
+                rgb_data = bytearray(w * h * 3)
+                for i in range(w * h):
+                    rgb_data[i * 3] = raw_data[i]
+                    rgb_data[i * 3 + 1] = raw_data[i]
+                    rgb_data[i * 3 + 2] = raw_data[i]
+                f.write(bytes(rgb_data))
+            else:
+                raise ValueError(f"Unsupported channel count: {c}")
+
+    def save_bmp(self, path: str):
+        """
+        Save image as BMP (Bitmap) format.
+
+        BMP is a simple uncompressed format that requires no dependencies.
+        Universally supported by all image viewers and editors.
+
+        Args:
+            path: Output file path (should end with .bmp)
+        """
+        if not self.is_valid:
+            raise ValueError("Image has no valid data")
+
+        cdef uint32_t w = self._image.width
+        cdef uint32_t h = self._image.height
+        cdef uint32_t c = self._image.channel
+        cdef size_t size = w * h * c
+        cdef bytes raw_data
+
+        # Get raw bytes from image data
+        raw_data = <bytes>self._image.data[:size]
+
+        # BMP requires rows to be padded to 4-byte boundaries
+        row_size = w * 3
+        padding = (4 - (row_size % 4)) % 4
+        padded_row_size = row_size + padding
+        pixel_data_size = padded_row_size * h
+
+        # BMP file header (14 bytes) + DIB header (40 bytes) = 54 bytes
+        file_size = 54 + pixel_data_size
+
+        with open(path, 'wb') as f:
+            import struct
+
+            # BMP file header (14 bytes)
+            f.write(b'BM')                              # Signature
+            f.write(struct.pack('<I', file_size))       # File size
+            f.write(struct.pack('<HH', 0, 0))           # Reserved
+            f.write(struct.pack('<I', 54))              # Pixel data offset
+
+            # DIB header - BITMAPINFOHEADER (40 bytes)
+            f.write(struct.pack('<I', 40))              # Header size
+            f.write(struct.pack('<i', w))               # Width
+            f.write(struct.pack('<i', h))               # Height (positive = bottom-up)
+            f.write(struct.pack('<HH', 1, 24))          # Planes, bits per pixel
+            f.write(struct.pack('<I', 0))               # Compression (none)
+            f.write(struct.pack('<I', pixel_data_size)) # Image size
+            f.write(struct.pack('<i', 2835))            # X pixels per meter (72 DPI)
+            f.write(struct.pack('<i', 2835))            # Y pixels per meter (72 DPI)
+            f.write(struct.pack('<I', 0))               # Colors in color table
+            f.write(struct.pack('<I', 0))               # Important colors
+
+            # Pixel data (bottom-up, BGR order)
+            pad_bytes = b'\x00' * padding
+            for y in range(h - 1, -1, -1):  # Bottom to top
+                for x in range(w):
+                    idx = (y * w + x) * c
+                    if c >= 3:
+                        # BGR order for BMP
+                        f.write(bytes([raw_data[idx + 2], raw_data[idx + 1], raw_data[idx]]))
+                    elif c == 1:
+                        # Grayscale to BGR
+                        val = raw_data[idx]
+                        f.write(bytes([val, val, val]))
+                if padding:
+                    f.write(pad_bytes)
+
+    def save_png(self, path: str):
+        """
+        Save image as PNG format using stb_image_write.
+
+        No external dependencies required. Uses the bundled stb library.
+
+        Args:
+            path: Output file path (should end with .png)
+        """
+        if not self.is_valid:
+            raise ValueError("Image has no valid data")
+
+        cdef bytes path_bytes = path.encode('utf-8')
+        cdef int result = stbi_write_png(
+            path_bytes,
+            self._image.width,
+            self._image.height,
+            self._image.channel,
+            self._image.data,
+            self._image.width * self._image.channel  # stride
+        )
+        if result == 0:
+            raise IOError(f"Failed to write PNG file: {path}")
+
+    def save_jpg(self, path: str, quality: int = 90):
+        """
+        Save image as JPEG format using stb_image_write.
+
+        No external dependencies required. Uses the bundled stb library.
+
+        Args:
+            path: Output file path (should end with .jpg or .jpeg)
+            quality: JPEG quality (1-100, default 90)
+        """
+        if not self.is_valid:
+            raise ValueError("Image has no valid data")
+
+        cdef bytes path_bytes = path.encode('utf-8')
+        cdef int result = stbi_write_jpg(
+            path_bytes,
+            self._image.width,
+            self._image.height,
+            self._image.channel,
+            self._image.data,
+            quality
+        )
+        if result == 0:
+            raise IOError(f"Failed to write JPEG file: {path}")
+
+    def save(self, path: str, quality: int = 90):
+        """
+        Save image to file.
+
+        Uses stb_image_write for PNG, JPEG, and BMP formats (no dependencies).
+        Falls back to PIL for other formats if available.
+
+        Args:
+            path: Output file path. Format determined by extension.
+            quality: JPEG quality (1-100, only used for .jpg/.jpeg)
+        """
+        ext = path.lower().rsplit('.', 1)[-1] if '.' in path else ''
+
+        # Use stb for common formats (no dependencies)
+        if ext == 'png':
+            self.save_png(path)
+            return
+        if ext in ('jpg', 'jpeg'):
+            self.save_jpg(path, quality)
+            return
+        if ext == 'bmp':
+            self.save_bmp(path)
+            return
+        if ext == 'ppm':
+            self.save_ppm(path)
+            return
+
+        # Try PIL for other formats (gif, tiff, webp, etc.)
+        if HAS_PIL:
+            img = self.to_pil()
+            img.save(path)
+        else:
+            # Unknown extension without PIL - default to PNG
+            if ext in ('gif', 'tiff', 'webp'):
+                png_path = path.rsplit('.', 1)[0] + '.png'
+                self.save_png(png_path)
+                raise ImportError(
+                    f"PIL/Pillow required for {ext.upper()} format. "
+                    f"Image saved as PNG instead: {png_path}"
+                )
+            else:
+                # Unknown extension - save as PNG
+                self.save_png(path)
 
     @staticmethod
-    def from_numpy(arr) -> "SDImage":
+    def from_numpy(arr) -> SDImage:
         """
         Create SDImage from numpy array.
 
@@ -360,7 +569,7 @@ cdef class SDImage:
         return img
 
     @staticmethod
-    def from_pil(pil_image) -> "SDImage":
+    def from_pil(pil_image) -> SDImage:
         """
         Create SDImage from PIL Image.
 
@@ -383,9 +592,11 @@ cdef class SDImage:
         return SDImage.from_numpy(arr)
 
     @staticmethod
-    def load(path: str) -> "SDImage":
+    def load_ppm(path: str) -> SDImage:
         """
-        Load image from file using PIL.
+        Load image from PPM (Portable Pixmap) file.
+
+        Supports binary PPM (P6) format. No dependencies required.
 
         Args:
             path: Input file path
@@ -393,10 +604,176 @@ cdef class SDImage:
         Returns:
             SDImage: Loaded image
         """
-        if not HAS_PIL:
-            raise ImportError("PIL/Pillow is required for load()")
-        pil_image = PILImage.open(path)
-        return SDImage.from_pil(pil_image)
+        with open(path, 'rb') as f:
+            # Read magic number
+            magic = f.readline().strip()
+            if magic != b'P6':
+                raise ValueError(f"Unsupported PPM format: {magic}. Only P6 (binary RGB) supported.")
+
+            # Skip comments
+            line = f.readline()
+            while line.startswith(b'#'):
+                line = f.readline()
+
+            # Read dimensions
+            parts = line.strip().split()
+            if len(parts) == 2:
+                w, h = int(parts[0]), int(parts[1])
+            else:
+                # Dimensions might be on separate lines
+                w = int(parts[0])
+                h = int(f.readline().strip())
+
+            # Read max value
+            max_val = int(f.readline().strip())
+            if max_val != 255:
+                raise ValueError(f"Unsupported max value: {max_val}. Only 255 supported.")
+
+            # Read pixel data
+            pixel_data = f.read(w * h * 3)
+
+        # Create SDImage
+        cdef SDImage img = SDImage()
+        img._image.width = w
+        img._image.height = h
+        img._image.channel = 3
+
+        cdef size_t size = w * h * 3
+        img._image.data = <uint8_t*>malloc(size)
+        if img._image.data == NULL:
+            raise MemoryError("Failed to allocate image data")
+
+        memcpy(img._image.data, <const char*>pixel_data, size)
+        img._owns_data = True
+        return img
+
+    @staticmethod
+    def load_bmp(path: str) -> SDImage:
+        """
+        Load image from BMP (Bitmap) file.
+
+        Supports uncompressed 24-bit BMP. No dependencies required.
+
+        Args:
+            path: Input file path
+
+        Returns:
+            SDImage: Loaded image
+        """
+        import struct
+
+        with open(path, 'rb') as f:
+            # BMP file header
+            sig = f.read(2)
+            if sig != b'BM':
+                raise ValueError(f"Not a BMP file: {sig}")
+
+            file_size = struct.unpack('<I', f.read(4))[0]
+            f.read(4)  # Reserved
+            pixel_offset = struct.unpack('<I', f.read(4))[0]
+
+            # DIB header
+            header_size = struct.unpack('<I', f.read(4))[0]
+            w = struct.unpack('<i', f.read(4))[0]
+            h = struct.unpack('<i', f.read(4))[0]
+
+            # Handle negative height (top-down bitmap)
+            top_down = h < 0
+            h = abs(h)
+
+            planes = struct.unpack('<H', f.read(2))[0]
+            bpp = struct.unpack('<H', f.read(2))[0]
+            compression = struct.unpack('<I', f.read(4))[0]
+
+            if bpp != 24:
+                raise ValueError(f"Unsupported BMP bit depth: {bpp}. Only 24-bit supported.")
+            if compression != 0:
+                raise ValueError(f"Compressed BMP not supported.")
+
+            # Seek to pixel data
+            f.seek(pixel_offset)
+
+            # Calculate row padding
+            row_size = w * 3
+            padding = (4 - (row_size % 4)) % 4
+            padded_row_size = row_size + padding
+
+            # Read pixel data
+            pixel_data = bytearray(w * h * 3)
+
+            for y in range(h):
+                row_y = y if top_down else (h - 1 - y)
+                row_data = f.read(padded_row_size)
+                for x in range(w):
+                    idx = (row_y * w + x) * 3
+                    src_idx = x * 3
+                    # Convert BGR to RGB
+                    pixel_data[idx] = row_data[src_idx + 2]
+                    pixel_data[idx + 1] = row_data[src_idx + 1]
+                    pixel_data[idx + 2] = row_data[src_idx]
+
+        # Create SDImage
+        cdef SDImage img = SDImage()
+        img._image.width = w
+        img._image.height = h
+        img._image.channel = 3
+
+        cdef size_t size = w * h * 3
+        img._image.data = <uint8_t*>malloc(size)
+        if img._image.data == NULL:
+            raise MemoryError("Failed to allocate image data")
+
+        cdef bytes pixel_bytes = bytes(pixel_data)
+        memcpy(img._image.data, <const char*>pixel_bytes, size)
+        img._owns_data = True
+        return img
+
+    @staticmethod
+    def load(path: str, channels: int = 0) -> SDImage:
+        """
+        Load image from file using stb_image.
+
+        Supports PNG, JPEG, BMP, TGA, GIF, PSD, HDR, PIC, PNM formats.
+        No external dependencies required.
+
+        Args:
+            path: Input file path
+            channels: Desired number of channels (0=auto, 1=gray, 3=RGB, 4=RGBA)
+
+        Returns:
+            SDImage: Loaded image
+        """
+        # Use built-in PPM loader for PPM files (stb doesn't support PPM well)
+        ext = path.lower().rsplit('.', 1)[-1] if '.' in path else ''
+        if ext == 'ppm':
+            return SDImage.load_ppm(path)
+
+        cdef bytes path_bytes = path.encode('utf-8')
+        cdef int w, h, c
+        cdef unsigned char* data = stbi_load(path_bytes, &w, &h, &c, channels)
+
+        if data == NULL:
+            raise IOError(f"Failed to load image: {path}")
+
+        # Use requested channels if specified, otherwise use file's channels
+        cdef int actual_channels = channels if channels > 0 else c
+
+        # Create SDImage and copy data
+        cdef SDImage img = SDImage()
+        img._image.width = w
+        img._image.height = h
+        img._image.channel = actual_channels
+
+        cdef size_t size = w * h * actual_channels
+        img._image.data = <uint8_t*>malloc(size)
+        if img._image.data == NULL:
+            stbi_image_free(data)
+            raise MemoryError("Failed to allocate image data")
+
+        memcpy(img._image.data, data, size)
+        stbi_image_free(data)
+        img._owns_data = True
+        return img
 
     @staticmethod
     cdef SDImage _from_c_image(sd_image_t c_image, bint owns_data=True):
