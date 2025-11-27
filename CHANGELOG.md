@@ -21,6 +21,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Added
 
+- **manage.py Build Improvements** - Fixed compatibility with latest llama.cpp (main branch)
+  - Added `cmake_build_targets()` method to build specific CMake targets without building all tools
+  - Added nlohmann JSON header copying from `vendor/nlohmann/` for `json-partial.h` compatibility
+  - Added `cmake_value()` helper to convert Python booleans to CMake ON/OFF values
+  - Manual library copying to avoid cmake install failures when tools are disabled
+
 - **Agent Client Protocol (ACP) Support** - Full ACP implementation for editor/IDE integration
   - `ACPAgent` class providing ACP-compliant agent that can be spawned by editors (Zed, Neovim, etc.)
   - JSON-RPC 2.0 transport layer over stdio for bidirectional communication
@@ -73,6 +79,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - Added `JsonRpcServer`, `JsonRpcRequest`, `JsonRpcResponse`, `JsonRpcError`, `StdioTransport`
 
 ### Fixed
+
+- **manage.py Build Script** - Fixed build errors when using latest llama.cpp
+  - Disabled `LLAMA_HTTPLIB` to prevent linker errors with httplib symbols
+  - Disabled `LLAMA_BUILD_SERVER`, `LLAMA_BUILD_TESTS`, `LLAMA_BUILD_EXAMPLES` (require httplib)
+  - Build only required targets (`llama`, `common`, `mtmd`) to avoid httplib-dependent tools like `llama-run`
+  - Fixed library paths for manual copying (`libggml-cpu.a` path correction)
+
+- **Source Distribution (MANIFEST.in)** - Fixed missing files in sdist/wheel builds
+  - Added `*.hpp` files for `nlohmann/json.hpp` header
+  - Added `*.a` static libraries from `thirdparty/llama.cpp/lib` and `thirdparty/whisper.cpp/lib`
+  - Ensures `uv build` and `pip install` from source work correctly
+
+- **GitHub Workflow (build-wheels.yml)** - Fixed CI build failures
+  - Added Cython installation step before `manage.py build` runs
+  - Ensures Cython is available for thirdparty library compilation
 
 - **Cython Build** - Fixed `setup.py` to generate C++ files instead of C files
   - Added `--cplus` flag to `run_cythonize()` function

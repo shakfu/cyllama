@@ -480,7 +480,12 @@ class ShellCmd:
         if scripts:
             _cmds.append(" ".join(f"-C {path}" for path in scripts))
         if options:
-            _cmds.append(" ".join(f"-D{k}={v}" for k, v in options.items()))
+            # Convert Python bools to CMake ON/OFF
+            def cmake_value(v):
+                if isinstance(v, bool):
+                    return "ON" if v else "OFF"
+                return v
+            _cmds.append(" ".join(f"-D{k}={cmake_value(v)}" for k, v in options.items()))
         self.cmd(" ".join(_cmds))
 
     def cmake_build(self, build_dir: Pathlike, release: bool = False) -> None:
@@ -488,6 +493,15 @@ class ShellCmd:
         _cmd = f"cmake --build {build_dir}"
         if release:
             _cmd += " --config Release"
+        self.cmd(_cmd)
+
+    def cmake_build_targets(self, build_dir: Pathlike, targets: list[str], release: bool = False) -> None:
+        """build specific cmake targets"""
+        _cmd = f"cmake --build {build_dir}"
+        if release:
+            _cmd += " --config Release"
+        for target in targets:
+            _cmd += f" --target {target}"
         self.cmd(_cmd)
 
     def cmake_install(self, build_dir: Pathlike, prefix: Optional[Pathlike] = None) -> None:
@@ -888,6 +902,12 @@ class LlamaCppBuilder(Builder):
         self.glob_copy(
             self.src_dir / "ggml" / "include", self.include, patterns=["*.h"]
         )
+        # Copy nlohmann JSON headers (required by json-partial.h)
+        nlohmann_include = self.include / "nlohmann"
+        nlohmann_include.mkdir(exist_ok=True)
+        self.glob_copy(
+            self.src_dir / "vendor" / "nlohmann", nlohmann_include, patterns=["*.hpp"]
+        )
 
         # Get backend-specific CMake options
         backend_options = self.get_backend_cmake_options()
@@ -898,13 +918,25 @@ class LlamaCppBuilder(Builder):
             BUILD_SHARED_LIBS=shared,
             CMAKE_POSITION_INDEPENDENT_CODE=True,
             LLAMA_CURL=False,
+            LLAMA_HTTPLIB=False,  # Disable httplib to avoid linking issues
+            LLAMA_BUILD_SERVER=False,  # Server requires httplib
+            LLAMA_BUILD_TESTS=False,  # Tests require httplib
+            LLAMA_BUILD_EXAMPLES=False,  # Don't need examples
             **backend_options,
         )
-        self.cmake_build(build_dir=self.build_dir, release=True)
-        self.cmake_install(build_dir=self.build_dir, prefix=self.prefix)
+        # Build specific targets to avoid httplib-dependent tools like llama-run
+        # We need: llama, ggml, common, mtmd
+        self.cmake_build_targets(build_dir=self.build_dir, targets=["llama", "common", "mtmd"], release=True)
 
-        # Copy base libraries
+        # Manually copy required libraries instead of cmake install (which tries to install all components)
+        self.lib.mkdir(parents=True, exist_ok=True)
+
+        # Copy core libraries from build directory
         self.copy(self.build_dir / "common" / "libcommon.a", self.lib)
+        self.copy(self.build_dir / "src" / "libllama.a", self.lib)
+        self.copy(self.build_dir / "ggml" / "src" / "libggml.a", self.lib)
+        self.copy(self.build_dir / "ggml" / "src" / "libggml-base.a", self.lib)
+        self.copy(self.build_dir / "ggml" / "src" / "libggml-cpu.a", self.lib)
         self.copy(self.build_dir / "tools" / "mtmd" / "libmtmd.a", self.lib)
 
         # Copy backend-specific libraries
@@ -1400,7 +1432,8 @@ class Application(ShellCmd, metaclass=MetaCommander):
             builder = Builder()
             builder.build()
 
-        _cmd = f'"{PYTHON}" setup.py build_ext --inplace'
+        # _cmd = f'"{PYTHON}" setup.py build_ext --inplace'
+        _cmd = "uv run python setup.py build_ext --inplace"
         if not args.shared:
             os.environ["STATIC"] = "1"
         self.cmd(_cmd)
