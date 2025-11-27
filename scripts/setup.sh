@@ -7,13 +7,15 @@
 
 CWD=$(pwd)
 THIRDPARTY=${CWD}/thirdparty
-LAST_WORKING="b7126"
-LLAMACPP_VERSION="${2:-${LAST_WORKING}}"
+LAST_WORKING_LLAMACPP="b7126"
+LAST_WORKING_SDCPP="master-377-2034588"
+LAST_WORKING_WHISPERCPP="v1.8.2"
+LLAMACPP_VERSION="${2:-${LAST_WORKING_LLAMACPP}}"
 STABLE_BUILD=1
-GET_LAST_WORKING="${1:-$STABLE_BUILD}"
+GET_LAST_WORKING_LLAMACPP="${1:-$STABLE_BUILD}"
 
 if [ $GET_LAST_WORKING = 1 ]; then
-	echo "get last working release: ${LAST_WORKING}"
+	echo "get last working release: ${LAST_WORKING_LLAMACPP}"
 	BRANCH="--branch ${LLAMACPP_VERSION}"
 else
 	echo "get bleeding edge llama.cpp from main"
@@ -140,6 +142,7 @@ get_llamacpp_shared() {
 
 get_whispercpp() {
 	echo "update from whisper.cpp main repo"
+	WHISPERCPP_VERSION=${LAST_WORKING_WHISPERCPP}
 	PREFIX=${THIRDPARTY}/whisper.cpp
 	INCLUDE=${PREFIX}/include
 	LIB=${PREFIX}/lib
@@ -147,7 +150,7 @@ get_whispercpp() {
 	mkdir -p build ${INCLUDE} && \
 		cd build && \
 		if [ ! -d "whisper.cpp" ]; then
-			git clone --depth 1 --recursive https://github.com/ggml-org/whisper.cpp.git
+			git clone --branch ${WHISPERCPP_VERSION} --depth 1 --recursive https://github.com/ggml-org/whisper.cpp.git
 		fi && \
 		cd whisper.cpp && \
 		cp examples/*.h ${INCLUDE} && \
@@ -164,6 +167,7 @@ get_whispercpp() {
 
 get_stablediffusioncpp() {
 	echo "update from stable-diffusion.cpp main repo"
+	SDCPP_VERSION=${LAST_WORKING_SDCPP}
 	PREFIX=${THIRDPARTY}/stable-diffusion.cpp
 	INCLUDE=${PREFIX}/include
 	LIB=${PREFIX}/lib
@@ -171,7 +175,7 @@ get_stablediffusioncpp() {
 	mkdir -p build ${INCLUDE} && \
 		cd build && \
 		if [ ! -d "stable-diffusion.cpp" ]; then
-			git clone --depth 1 --recursive https://github.com/leejet/stable-diffusion.cpp.git
+			git clone --branch ${SDCPP_VERSION} --depth 1 --recursive https://github.com/leejet/stable-diffusion.cpp.git
 		fi && \
 		cd stable-diffusion.cpp && \
 		cp *.h ${INCLUDE} && \
@@ -212,9 +216,9 @@ main() {
 	remove_current
 	get_llamacpp
 	get_whispercpp
+	get_stablediffusioncpp
 	# get_llamacpp_shared
 	# get_llamacpp_python
-	# get_stablediffusioncpp
 }
 
 main
