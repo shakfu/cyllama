@@ -13,7 +13,15 @@ Example:
         width=512,
         height=512
     )
+
+    # Save in common formats (no dependencies - uses bundled stb library)
     images[0].save("output.png")
+    images[0].save("output.jpg", quality=90)
+    images[0].save("output.bmp")
+
+    # Load images (PNG, JPEG, BMP, TGA, GIF, PSD, HDR, PIC supported)
+    img = SDImage.load("input.png")
+    img = SDImage.load("input.jpg", channels=3)  # Force RGB
 
     # With model reuse
     params = SDContextParams(model_path="sd-v1-5.safetensors")

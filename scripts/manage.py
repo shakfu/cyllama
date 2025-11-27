@@ -75,7 +75,7 @@ from pathlib import Path
 from typing import List, Optional, Union, Callable, NoReturn
 from urllib.request import urlretrieve
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 # ----------------------------------------------------------------------------
 # type aliases
@@ -127,11 +127,15 @@ PLATFORM = platform.system()
 ARCH = platform.machine()
 PY_VER_MINOR = sys.version_info.minor
 
-STABLE_VERSION = False
-if STABLE_VERSION:
+STABLE_BUILD = getenv("STABLE_BUILD", False)
+if STABLE_BUILD:
     LLAMACPP_VERSION = "b7126"
+    WHISPERCPP_VERSION = "v1.8.2"
+    SDCPP_VERSION = "master-377-2034588"
 else:
     LLAMACPP_VERSION = ""
+    WHISPERCPP_VERSION = ""
+    SDCPP_VERSION = ""
 if PLATFORM == "Darwin":
     MACOSX_DEPLOYMENT_TARGET = setenv("MACOSX_DEPLOYMENT_TARGET", "12.6")
 DEBUG = getenv("DEBUG", default=True)
@@ -949,7 +953,7 @@ class WhisperCppBuilder(Builder):
     """build whisper.cpp"""
 
     name: str = "whisper.cpp"
-    version: str = ""
+    version: str = WHISPERCPP_VERSION
     repo_url: str = "https://github.com/ggml-org/whisper.cpp"
     libs_static: list[str] = [
         "libcommon.a",
@@ -983,7 +987,7 @@ class StableDiffusionCppBuilder(Builder):
     """build stable-diffusion.cpp"""
 
     name: str = "stable-diffusion.cpp"
-    version: str = ""
+    version: str = SDCPP_VERSION
     repo_url: str = "https://github.com/leejet/stable-diffusion.cpp.git"
     libs_static: list[str] = [
         "libstable-diffusion.a",
@@ -997,6 +1001,14 @@ class StableDiffusionCppBuilder(Builder):
         self.prefix.mkdir(exist_ok=True)
         self.include.mkdir(exist_ok=True)
         self.glob_copy(self.src_dir, self.include, patterns=["*.h", "*.hpp"])
+        # Copy stb headers for zero-dependency image I/O
+        stb_src = self.src_dir / "thirdparty"
+        if stb_src.exists():
+            for stb_file in ["stb_image.h", "stb_image_write.h", "stb_image_resize.h"]:
+                stb_path = stb_src / stb_file
+                if stb_path.exists():
+                    self.copy(stb_path, self.include)
+                    self.log.info(f"Copied {stb_file} to include directory")
         self.cmake_config(
             src_dir=self.src_dir,
             build_dir=self.build_dir,
