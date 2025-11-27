@@ -241,8 +241,14 @@ bump:
 
 clean:
 	@rm -rf build/lib.* build/temp.* dist src/*.egg-info .*_cache .coverage src/**/*.so
+	@rm -f src/cyllama/llama/llama_cpp.cpp
+	@rm -f src/cyllama/llama/server/embedded.cpp
+	@rm -f src/cyllama/whisper/whisper_cpp.cpp
+	@rm -f src/cyllama/stablediffusion/stable_diffusion.cpp
 
 reset: clean
+	@rm -rf build
+	@rm -rf thirdparty/llama.cpp/bin thirdparty/llama.cpp/lib
 	@rm -rf thirdparty/llama.cpp/bin thirdparty/llama.cpp/lib
 	@rm -rf thirdparty/whisper.cpp/bin thirdparty/whisper.cpp/lib
 	@rm -rf thirdparty/stable-diffusion.cpp/bin thirdparty/stable-diffusion.cpp/lib
