@@ -4,7 +4,13 @@ bin/
 models/
 models
 thirdparty/llama-cpp-python
-src/cyllama/cyllama.cpp
+
+# cython generated code
+src/cyllama/llama/llama_cpp.cpp
+src/cyllama/llama/server/embedded.cpp
+src/cyllama/whisper/whisper_cpp.cpp
+src/cyllama/stablediffusion/stable_diffusion.cpp
+
 tests/cpp
 changes.diff
 
