@@ -20,6 +20,23 @@ Example:
     with SDContext(params) as ctx:
         for prompt in prompts:
             images = ctx.generate(prompt)
+
+    # Video generation (requires video-capable model like Wan)
+    frames = ctx.generate_video(
+        prompt="a cat walking",
+        video_frames=16
+    )
+
+    # Upscaling with ESRGAN
+    from cyllama.stablediffusion import Upscaler
+    upscaler = Upscaler("esrgan-x4.bin")
+    upscaled = upscaler.upscale(image)
+
+CLI Usage:
+    python -m cyllama.stablediffusion generate --model MODEL --prompt "..."
+    python -m cyllama.stablediffusion upscale --model MODEL --input IMAGE
+    python -m cyllama.stablediffusion convert --input MODEL --output MODEL
+    python -m cyllama.stablediffusion info
 """
 
 from .stable_diffusion import (
@@ -29,6 +46,7 @@ from .stable_diffusion import (
     SDImage,
     SDImageGenParams,
     SDSampleParams,
+    Upscaler,
 
     # Enums
     RngType,
@@ -44,6 +62,10 @@ from .stable_diffusion import (
     text_to_image,
     image_to_image,
 
+    # Model utilities
+    convert_model,
+    canny_preprocess,
+
     # Utility functions
     get_num_cores,
     get_system_info,
@@ -54,6 +76,7 @@ from .stable_diffusion import (
     # Callback setters
     set_log_callback,
     set_progress_callback,
+    set_preview_callback,
 )
 
 __all__ = [
@@ -63,6 +86,7 @@ __all__ = [
     "SDImage",
     "SDImageGenParams",
     "SDSampleParams",
+    "Upscaler",
 
     # Enums
     "RngType",
@@ -78,6 +102,10 @@ __all__ = [
     "text_to_image",
     "image_to_image",
 
+    # Model utilities
+    "convert_model",
+    "canny_preprocess",
+
     # Utility functions
     "get_num_cores",
     "get_system_info",
@@ -88,4 +116,5 @@ __all__ = [
     # Callback setters
     "set_log_callback",
     "set_progress_callback",
+    "set_preview_callback",
 ]

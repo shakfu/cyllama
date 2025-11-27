@@ -15,6 +15,7 @@ cimport cython
 from libc.stdlib cimport malloc, free
 from libc.string cimport memcpy, memset
 from libc.stdint cimport uint8_t, uint32_t, int64_t
+from libcpp cimport bool as cpp_bool
 
 from .stable_diffusion cimport *
 
@@ -1115,6 +1116,368 @@ cdef class SDContext:
         if self._ctx != NULL:
             free_sd_ctx(self._ctx)
             self._ctx = NULL
+
+    def generate_video(self,
+                       prompt: str,
+                       negative_prompt: str = "",
+                       width: int = 512,
+                       height: int = 512,
+                       seed: int = -1,
+                       video_frames: int = 16,
+                       sample_steps: int = 20,
+                       cfg_scale: float = 7.0,
+                       sample_method: Optional[SampleMethod] = None,
+                       scheduler: Optional[Scheduler] = None,
+                       init_image: Optional[SDImage] = None,
+                       end_image: Optional[SDImage] = None,
+                       strength: float = 0.75,
+                       clip_skip: int = -1) -> List[SDImage]:
+        """
+        Generate video frames from a text prompt.
+
+        Args:
+            prompt: Text prompt for generation
+            negative_prompt: Negative prompt
+            width: Output frame width
+            height: Output frame height
+            seed: Random seed (-1 for random)
+            video_frames: Number of video frames to generate
+            sample_steps: Number of diffusion steps
+            cfg_scale: Classifier-free guidance scale
+            sample_method: Sampling method (None for model default)
+            scheduler: Noise scheduler (None for model default)
+            init_image: Initial image for video (optional)
+            end_image: End image for video interpolation (optional)
+            strength: Denoising strength (0.0-1.0)
+            clip_skip: Number of CLIP layers to skip
+
+        Returns:
+            List of SDImage objects representing video frames
+
+        Raises:
+            RuntimeError: If generation fails
+        """
+        if self._ctx == NULL:
+            raise RuntimeError("Context not initialized")
+
+        # Use model defaults if not specified
+        if sample_method is None:
+            sample_method = self.get_default_sample_method()
+        if scheduler is None:
+            scheduler = self.get_default_scheduler()
+
+        # Initialize video generation parameters
+        cdef sd_vid_gen_params_t vid_params
+        sd_vid_gen_params_init(&vid_params)
+
+        # Set prompt
+        cdef bytes prompt_bytes = prompt.encode('utf-8')
+        cdef bytes neg_prompt_bytes = negative_prompt.encode('utf-8')
+        vid_params.prompt = prompt_bytes
+        vid_params.negative_prompt = neg_prompt_bytes
+
+        # Set dimensions and frames
+        vid_params.width = width
+        vid_params.height = height
+        vid_params.video_frames = video_frames
+        vid_params.clip_skip = clip_skip
+        vid_params.strength = strength
+        vid_params.seed = seed
+
+        # Set sample params
+        vid_params.sample_params.sample_method = <sample_method_t>sample_method
+        vid_params.sample_params.scheduler = <scheduler_t>scheduler
+        vid_params.sample_params.sample_steps = sample_steps
+        vid_params.sample_params.guidance.txt_cfg = cfg_scale
+
+        # Set init/end images if provided
+        if init_image is not None:
+            vid_params.init_image = init_image._image
+        if end_image is not None:
+            vid_params.end_image = end_image._image
+
+        # Generate video
+        cdef int num_frames_out = 0
+        cdef sd_image_t* result = generate_video(self._ctx, &vid_params, &num_frames_out)
+
+        if result == NULL:
+            raise RuntimeError("Video generation failed")
+
+        # Convert results to Python list
+        frames = []
+        cdef int i
+        for i in range(num_frames_out):
+            frame = SDImage._from_c_image(result[i], owns_data=True)
+            frames.append(frame)
+
+        # Free the array
+        free(result)
+
+        return frames
+
+
+# =============================================================================
+# Upscaler class
+# =============================================================================
+
+cdef class Upscaler:
+    """
+    ESRGAN upscaler for image super-resolution.
+
+    Example:
+        upscaler = Upscaler("esrgan-x4.bin")
+        upscaled = upscaler.upscale(image, factor=4)
+    """
+    cdef upscaler_ctx_t* _ctx
+    cdef bytes _model_path_bytes
+
+    def __cinit__(self):
+        self._ctx = NULL
+
+    def __dealloc__(self):
+        if self._ctx != NULL:
+            free_upscaler_ctx(self._ctx)
+            self._ctx = NULL
+
+    def __init__(self,
+                 model_path: str,
+                 n_threads: int = -1,
+                 offload_to_cpu: bool = False,
+                 direct: bool = False):
+        """
+        Create an upscaler context.
+
+        Args:
+            model_path: Path to ESRGAN model file
+            n_threads: Number of threads (-1 for auto)
+            offload_to_cpu: Offload parameters to CPU
+            direct: Use direct convolution
+        """
+        if not os.path.exists(model_path):
+            raise FileNotFoundError(f"Model not found: {model_path}")
+
+        self._model_path_bytes = model_path.encode('utf-8')
+
+        if n_threads < 0:
+            n_threads = get_num_physical_cores()
+
+        self._ctx = new_upscaler_ctx(
+            self._model_path_bytes,
+            offload_to_cpu,
+            direct,
+            n_threads
+        )
+
+        if self._ctx == NULL:
+            raise RuntimeError(f"Failed to load upscaler model: {model_path}")
+
+    @property
+    def is_valid(self) -> bool:
+        """Check if upscaler is valid."""
+        return self._ctx != NULL
+
+    @property
+    def upscale_factor(self) -> int:
+        """Get the upscale factor for this model."""
+        if self._ctx == NULL:
+            return 0
+        return get_upscale_factor(self._ctx)
+
+    def upscale(self, image: SDImage, factor: int = 0) -> SDImage:
+        """
+        Upscale an image.
+
+        Args:
+            image: Input image to upscale
+            factor: Upscale factor (0 to use model's default)
+
+        Returns:
+            Upscaled SDImage
+
+        Raises:
+            RuntimeError: If upscaling fails
+        """
+        if self._ctx == NULL:
+            raise RuntimeError("Upscaler not initialized")
+
+        if factor == 0:
+            factor = self.upscale_factor
+
+        cdef sd_image_t result = upscale(self._ctx, image._image, factor)
+
+        if result.data == NULL:
+            raise RuntimeError("Upscaling failed")
+
+        return SDImage._from_c_image(result, owns_data=True)
+
+    def __enter__(self):
+        """Context manager entry."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit."""
+        if self._ctx != NULL:
+            free_upscaler_ctx(self._ctx)
+            self._ctx = NULL
+
+
+# =============================================================================
+# Model conversion function
+# =============================================================================
+
+def convert_model(
+    input_path: str,
+    output_path: str,
+    output_type: SDType = SDType.F16,
+    vae_path: Optional[str] = None,
+    tensor_type_rules: Optional[str] = None
+) -> bool:
+    """
+    Convert a model to a different format/quantization.
+
+    Args:
+        input_path: Path to input model
+        output_path: Path for output model
+        output_type: Output quantization type
+        vae_path: Path to VAE model (optional)
+        tensor_type_rules: Custom tensor type rules (optional)
+
+    Returns:
+        True if conversion successful
+
+    Raises:
+        FileNotFoundError: If input model not found
+        RuntimeError: If conversion fails
+    """
+    if not os.path.exists(input_path):
+        raise FileNotFoundError(f"Input model not found: {input_path}")
+
+    cdef bytes input_bytes = input_path.encode('utf-8')
+    cdef bytes output_bytes = output_path.encode('utf-8')
+    cdef bytes vae_bytes
+    cdef bytes rules_bytes
+    cdef const char* vae_ptr = NULL
+    cdef const char* rules_ptr = NULL
+
+    if vae_path:
+        vae_bytes = vae_path.encode('utf-8')
+        vae_ptr = vae_bytes
+
+    if tensor_type_rules:
+        rules_bytes = tensor_type_rules.encode('utf-8')
+        rules_ptr = rules_bytes
+
+    cdef bint success = convert(
+        input_bytes,
+        vae_ptr,
+        output_bytes,
+        <sd_type_t>output_type,
+        rules_ptr
+    )
+
+    if not success:
+        raise RuntimeError(f"Model conversion failed: {input_path} -> {output_path}")
+
+    return True
+
+
+# =============================================================================
+# Preprocessing functions
+# =============================================================================
+
+def canny_preprocess(
+    image: SDImage,
+    high_threshold: float = 0.8,
+    low_threshold: float = 0.1,
+    weak: float = 0.5,
+    strong: float = 1.0,
+    inverse: bool = False
+) -> bool:
+    """
+    Apply Canny edge detection preprocessing to an image.
+
+    This is useful for ControlNet conditioning.
+
+    Args:
+        image: Input image (modified in-place)
+        high_threshold: High threshold for edge detection
+        low_threshold: Low threshold for edge detection
+        weak: Weak edge value
+        strong: Strong edge value
+        inverse: Invert the result
+
+    Returns:
+        True if preprocessing successful
+    """
+    cdef bint success = preprocess_canny(
+        image._image,
+        high_threshold,
+        low_threshold,
+        weak,
+        strong,
+        inverse
+    )
+    return success
+
+
+# =============================================================================
+# Preview callback support
+# =============================================================================
+
+cdef object _preview_callback = None
+
+cdef void _preview_callback_wrapper(int step, int frame_count, sd_image_t* frames, cpp_bool is_noisy) noexcept with gil:
+    """Internal wrapper for preview callback."""
+    global _preview_callback
+    cdef int i
+    if _preview_callback is not None:
+        try:
+            # Convert frames to Python list
+            frame_list = []
+            for i in range(frame_count):
+                # Create SDImage without owning data (preview only)
+                img = SDImage._from_c_image(frames[i], owns_data=False)
+                frame_list.append(img)
+            _preview_callback(step, frame_list, bool(is_noisy))
+        except Exception:
+            pass  # Ignore exceptions in callback
+
+
+def set_preview_callback(
+    callback: Optional[Callable[[int, List[SDImage], bool], None]],
+    mode: PreviewMode = PreviewMode.NONE,
+    interval: int = 1,
+    denoised: bool = True,
+    noisy: bool = False
+) -> None:
+    """
+    Set a callback for generation previews.
+
+    The callback receives:
+    - step: Current step number
+    - frames: List of preview images
+    - is_noisy: Whether the preview is noisy (not denoised)
+
+    Args:
+        callback: Callback function or None to disable
+        mode: Preview mode (NONE, PROJ, TAE, VAE)
+        interval: How often to call the callback (every N steps)
+        denoised: Include denoised previews
+        noisy: Include noisy previews
+    """
+    global _preview_callback
+    _preview_callback = callback
+
+    if callback is None:
+        sd_set_preview_callback(NULL, PREVIEW_NONE, 1, False, False)
+    else:
+        sd_set_preview_callback(
+            _preview_callback_wrapper,
+            <preview_t>mode,
+            interval,
+            denoised,
+            noisy
+        )
 
 
 # =============================================================================

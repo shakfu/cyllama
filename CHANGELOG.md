@@ -30,13 +30,44 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - `SDSampleParams` class for sampling configuration (method, scheduler, steps, eta)
   - Convenience functions: `text_to_image()`, `image_to_image()` for simple usage
   - Utility functions: `get_num_cores()`, `get_system_info()`, `type_name()`, `sample_method_name()`, `scheduler_name()`
-  - Callback support: `set_log_callback()`, `set_progress_callback()` for monitoring
+  - Callback support: `set_log_callback()`, `set_progress_callback()`, `set_preview_callback()` for monitoring
   - Full enum support: `RngType`, `SampleMethod`, `Scheduler`, `Prediction`, `SDType`, `LogLevel`, `PreviewMode`, `LoraApplyMode`
   - Support for GGUF, safetensors, and ckpt model formats
   - SDXL, SD 1.x/2.x, SD3, FLUX model architecture support
   - 29 comprehensive tests in `tests/test_stablediffusion.py`
   - Example: `tests/examples/stablediffusion_example.py` with CLI interface
   - Build configuration via `WITH_STABLEDIFFUSION` environment variable (default: enabled)
+
+- **Video Generation** - Support for video generation models (Wan, CogVideoX)
+  - `SDContext.generate_video()` method for video frame generation
+  - Support for init/end image for video interpolation
+  - Configurable frame count, dimensions, and sampling parameters
+
+- **Upscaler Class** - ESRGAN image upscaling support
+  - `Upscaler` class for loading ESRGAN models
+  - `upscale()` method for image super-resolution
+  - Automatic upscale factor detection from model
+  - Context manager support for resource management
+
+- **Model Conversion** - Convert models between formats and quantizations
+  - `convert_model()` function for model format conversion
+  - Support for all quantization types (F16, Q4_0, Q8_0, etc.)
+  - Optional VAE path and tensor type rules
+
+- **ControlNet Preprocessing** - Canny edge detection for ControlNet
+  - `canny_preprocess()` function for in-place image preprocessing
+  - Configurable high/low thresholds, weak/strong values, inverse option
+
+- **Preview Callbacks** - Real-time generation preview support
+  - `set_preview_callback()` for monitoring generation progress with preview images
+  - Configurable preview modes (PROJ, TAE, VAE)
+  - Interval and denoised/noisy preview options
+
+- **CLI Tool** - Command-line interface for stable diffusion
+  - `python -m cyllama.stablediffusion generate` - Generate images from text
+  - `python -m cyllama.stablediffusion upscale` - Upscale images with ESRGAN
+  - `python -m cyllama.stablediffusion convert` - Convert model formats
+  - `python -m cyllama.stablediffusion info` - Show system info and available options
 
 ### Changed
 
