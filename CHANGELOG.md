@@ -19,6 +19,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [0.1.12]
 
+### Fixed
+
+- stable diffusion wasn't building by default via the `setup.sh` script. This is fixed now.
+- cython generated .cpp files should not be included in the repository. This was inconsistently applied, and is now fixed.
+
 ### Added
 
 - **Stable Diffusion Support** - Full integration of stable-diffusion.cpp for image generation
