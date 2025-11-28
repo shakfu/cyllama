@@ -17,6 +17,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [0.1.x]
 
+## [0.1.14]
+
+### Fixed
+
+- **Python 3.8-3.9 Compatibility** - Fixed type hint syntax incompatibility
+  - Changed `str | Iterator[str]` to `Union[str, Iterator[str]]` in `api.py`
+  - Now compatible with declared `requires-python = ">=3.8"` in pyproject.toml
+
+- **Bare Except Clauses** - Replaced unsafe bare `except:` with specific exceptions
+  - `memory.py:47` - Changed to `except (OSError, IOError):` for file operations
+  - `memory.py:80` - Changed to `except (AttributeError, TypeError):` for vocab access
+  - `tts.py:419, 430` - Changed to `except (UnicodeDecodeError, ValueError, AttributeError):` for debug output
+
+- **Silent Unicode Errors** - Added warning logs for UnicodeDecodeError in token decoding
+  - `api.py` - Now logs warning with token ID when decoding fails
+  - `batching.py` - Now logs warning with token ID and sequence ID when decoding fails
+  - `constrained.py` - Now logs warning with token ID when decoding fails
+  - Errors are logged via Python's `logging` module at WARNING level
+
 ## [0.1.13]
 
 ### Added

@@ -119,6 +119,7 @@ class GrammarConstrainedLLM(LLM):
             try:
                 piece = self.vocab.token_to_piece(new_token_id, special=True)
             except UnicodeDecodeError:
+                logger.warning("Failed to decode token %d: UnicodeDecodeError", new_token_id)
                 piece = ""
 
             output_tokens.append(piece)

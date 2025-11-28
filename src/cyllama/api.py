@@ -20,9 +20,12 @@ Example:
     >>> response = llm("What is Python?")
 """
 
-from typing import Iterator, Optional, Dict, Any, List, Callable
+from typing import Iterator, Optional, Dict, Any, List, Callable, Union
 from dataclasses import dataclass, field
+import logging
 import time
+
+logger = logging.getLogger(__name__)
 
 from .llama.llama_cpp import (
     LlamaModel,
@@ -196,7 +199,7 @@ class LLM:
         config: Optional[GenerationConfig] = None,
         stream: bool = False,
         on_token: Optional[Callable[[str], None]] = None
-    ) -> str | Iterator[str]:
+    ) -> Union[str, Iterator[str]]:
         """
         Generate text from a prompt.
 
@@ -282,6 +285,7 @@ class LLM:
             try:
                 piece = self.vocab.token_to_piece(new_token_id, special=True)
             except UnicodeDecodeError:
+                logger.warning("Failed to decode token %d: UnicodeDecodeError", new_token_id)
                 piece = ""
 
             # Check stop sequences against accumulated buffer
@@ -388,7 +392,7 @@ def complete(
     stream: bool = False,
     verbose: bool = False,
     **kwargs
-) -> str | Iterator[str]:
+) -> Union[str, Iterator[str]]:
     """
     Convenience function for one-off text completion.
 
@@ -437,7 +441,7 @@ def chat(
     stream: bool = False,
     verbose: bool = False,
     **kwargs
-) -> str | Iterator[str]:
+) -> Union[str, Iterator[str]]:
     """
     Convenience function for chat-style generation.
 

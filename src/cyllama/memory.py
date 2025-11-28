@@ -44,7 +44,7 @@ def get_file_host_endian(file_path: Union[str, Path]) -> Tuple[str, str]:
                 file_endian = 'big'
             else:
                 file_endian = 'little'  # default
-    except:
+    except (OSError, IOError):
         file_endian = 'little'  # default
 
     return file_endian, host_endian
@@ -77,7 +77,7 @@ def dump_metadata_json(model_path: Union[str, Path]) -> Dict:
         # Try to get actual vocab size
         try:
             metadata['tokenizer.ggml.tokens'] = [f"token_{i}" for i in range(vocab.n_vocab)]
-        except:
+        except (AttributeError, TypeError):
             metadata['tokenizer.ggml.tokens'] = [f"token_{i}" for i in range(32000)]
 
         return metadata

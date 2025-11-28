@@ -23,7 +23,10 @@ Example:
 
 from typing import List, Optional, Tuple, Dict, Any
 from dataclasses import dataclass
+import logging
 import time
+
+logger = logging.getLogger(__name__)
 
 from .llama.llama_cpp import (
     LlamaModel,
@@ -232,7 +235,7 @@ class BatchGenerator:
                     piece = self.vocab.token_to_piece(new_token, special=True)
                     responses[seq_id] += piece
                 except UnicodeDecodeError:
-                    pass
+                    logger.warning("Failed to decode token %d in sequence %d: UnicodeDecodeError", new_token, seq_id)
 
                 # Add to batch for next iteration and remember new logits index
                 batch.add(new_token, seq_positions[seq_id], [seq_id], True)
