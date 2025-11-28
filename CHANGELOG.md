@@ -43,6 +43,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - Returning `False` from callback properly aborts model loading
   - Added 4 new tests for progress callback functionality
 
+- **GenerationConfig Validation** - Added parameter validation to `GenerationConfig`
+  - `max_tokens` must be >= 1
+  - `temperature` must be >= 0.0
+  - `top_k` must be >= 0
+  - `top_p` must be between 0.0 and 1.0
+  - `min_p` must be between 0.0 and 1.0
+  - `repeat_penalty` must be >= 0.0
+  - `n_gpu_layers` must be >= 0
+  - `n_ctx` must be >= 1 or None
+  - `n_batch` must be >= 1
+  - `seed` must be >= -1
+  - Multiple validation errors are reported together in a single exception
+  - Added 11 new validation tests
+
 ## [0.1.13]
 
 ### Added

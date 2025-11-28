@@ -59,6 +59,9 @@ class GenerationConfig:
         stop_sequences: List of strings that stop generation (default: [])
         add_bos: Add beginning-of-sequence token (default: True)
         parse_special: Parse special tokens in prompt (default: True)
+
+    Raises:
+        ValueError: If any parameter is outside its valid range.
     """
     max_tokens: int = 512
     temperature: float = 0.8
@@ -73,6 +76,43 @@ class GenerationConfig:
     stop_sequences: List[str] = field(default_factory=list)
     add_bos: bool = True
     parse_special: bool = True
+
+    def __post_init__(self):
+        """Validate parameters after initialization."""
+        errors = []
+
+        if self.max_tokens < 1:
+            errors.append(f"max_tokens must be >= 1, got {self.max_tokens}")
+
+        if self.temperature < 0.0:
+            errors.append(f"temperature must be >= 0.0, got {self.temperature}")
+
+        if self.top_k < 0:
+            errors.append(f"top_k must be >= 0, got {self.top_k}")
+
+        if not 0.0 <= self.top_p <= 1.0:
+            errors.append(f"top_p must be between 0.0 and 1.0, got {self.top_p}")
+
+        if not 0.0 <= self.min_p <= 1.0:
+            errors.append(f"min_p must be between 0.0 and 1.0, got {self.min_p}")
+
+        if self.repeat_penalty < 0.0:
+            errors.append(f"repeat_penalty must be >= 0.0, got {self.repeat_penalty}")
+
+        if self.n_gpu_layers < 0:
+            errors.append(f"n_gpu_layers must be >= 0, got {self.n_gpu_layers}")
+
+        if self.n_ctx is not None and self.n_ctx < 1:
+            errors.append(f"n_ctx must be >= 1 or None, got {self.n_ctx}")
+
+        if self.n_batch < 1:
+            errors.append(f"n_batch must be >= 1, got {self.n_batch}")
+
+        if self.seed < -1:
+            errors.append(f"seed must be >= -1, got {self.seed}")
+
+        if errors:
+            raise ValueError("Invalid GenerationConfig: " + "; ".join(errors))
 
 
 @dataclass

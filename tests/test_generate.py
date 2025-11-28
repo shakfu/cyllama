@@ -50,6 +50,117 @@ class TestGenerationConfig:
         assert config.n_gpu_layers == 0
         assert config.stop_sequences == ["STOP", "END"]
 
+    def test_validation_max_tokens(self):
+        """Test max_tokens validation."""
+        with pytest.raises(ValueError, match="max_tokens must be >= 1"):
+            GenerationConfig(max_tokens=0)
+        with pytest.raises(ValueError, match="max_tokens must be >= 1"):
+            GenerationConfig(max_tokens=-1)
+        # Valid edge case
+        config = GenerationConfig(max_tokens=1)
+        assert config.max_tokens == 1
+
+    def test_validation_temperature(self):
+        """Test temperature validation."""
+        with pytest.raises(ValueError, match="temperature must be >= 0.0"):
+            GenerationConfig(temperature=-0.1)
+        # Valid edge cases
+        config = GenerationConfig(temperature=0.0)
+        assert config.temperature == 0.0
+        config = GenerationConfig(temperature=2.0)  # High but valid
+        assert config.temperature == 2.0
+
+    def test_validation_top_k(self):
+        """Test top_k validation."""
+        with pytest.raises(ValueError, match="top_k must be >= 0"):
+            GenerationConfig(top_k=-1)
+        # Valid edge case (0 means disabled)
+        config = GenerationConfig(top_k=0)
+        assert config.top_k == 0
+
+    def test_validation_top_p(self):
+        """Test top_p validation."""
+        with pytest.raises(ValueError, match="top_p must be between 0.0 and 1.0"):
+            GenerationConfig(top_p=-0.1)
+        with pytest.raises(ValueError, match="top_p must be between 0.0 and 1.0"):
+            GenerationConfig(top_p=1.1)
+        # Valid edge cases
+        config = GenerationConfig(top_p=0.0)
+        assert config.top_p == 0.0
+        config = GenerationConfig(top_p=1.0)
+        assert config.top_p == 1.0
+
+    def test_validation_min_p(self):
+        """Test min_p validation."""
+        with pytest.raises(ValueError, match="min_p must be between 0.0 and 1.0"):
+            GenerationConfig(min_p=-0.1)
+        with pytest.raises(ValueError, match="min_p must be between 0.0 and 1.0"):
+            GenerationConfig(min_p=1.1)
+        # Valid edge cases
+        config = GenerationConfig(min_p=0.0)
+        assert config.min_p == 0.0
+        config = GenerationConfig(min_p=1.0)
+        assert config.min_p == 1.0
+
+    def test_validation_repeat_penalty(self):
+        """Test repeat_penalty validation."""
+        with pytest.raises(ValueError, match="repeat_penalty must be >= 0.0"):
+            GenerationConfig(repeat_penalty=-0.1)
+        # Valid edge case
+        config = GenerationConfig(repeat_penalty=0.0)
+        assert config.repeat_penalty == 0.0
+
+    def test_validation_n_gpu_layers(self):
+        """Test n_gpu_layers validation."""
+        with pytest.raises(ValueError, match="n_gpu_layers must be >= 0"):
+            GenerationConfig(n_gpu_layers=-1)
+        # Valid edge case
+        config = GenerationConfig(n_gpu_layers=0)
+        assert config.n_gpu_layers == 0
+
+    def test_validation_n_ctx(self):
+        """Test n_ctx validation."""
+        with pytest.raises(ValueError, match="n_ctx must be >= 1 or None"):
+            GenerationConfig(n_ctx=0)
+        with pytest.raises(ValueError, match="n_ctx must be >= 1 or None"):
+            GenerationConfig(n_ctx=-1)
+        # Valid cases
+        config = GenerationConfig(n_ctx=None)
+        assert config.n_ctx is None
+        config = GenerationConfig(n_ctx=1)
+        assert config.n_ctx == 1
+
+    def test_validation_n_batch(self):
+        """Test n_batch validation."""
+        with pytest.raises(ValueError, match="n_batch must be >= 1"):
+            GenerationConfig(n_batch=0)
+        with pytest.raises(ValueError, match="n_batch must be >= 1"):
+            GenerationConfig(n_batch=-1)
+        # Valid edge case
+        config = GenerationConfig(n_batch=1)
+        assert config.n_batch == 1
+
+    def test_validation_seed(self):
+        """Test seed validation."""
+        with pytest.raises(ValueError, match="seed must be >= -1"):
+            GenerationConfig(seed=-2)
+        # Valid edge cases
+        config = GenerationConfig(seed=-1)  # random
+        assert config.seed == -1
+        config = GenerationConfig(seed=0)
+        assert config.seed == 0
+        config = GenerationConfig(seed=42)
+        assert config.seed == 42
+
+    def test_validation_multiple_errors(self):
+        """Test that multiple validation errors are reported together."""
+        with pytest.raises(ValueError) as exc_info:
+            GenerationConfig(max_tokens=0, temperature=-1.0, top_p=2.0)
+        error_msg = str(exc_info.value)
+        assert "max_tokens" in error_msg
+        assert "temperature" in error_msg
+        assert "top_p" in error_msg
+
 
 class TestLLM:
     """Tests for LLM class."""
