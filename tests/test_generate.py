@@ -495,5 +495,116 @@ class TestEdgeCases:
         assert isinstance(response2, str)
 
 
+class TestStopSequences:
+    """Tests for stop sequence handling."""
+
+    @pytest.mark.slow
+    def test_basic_stop_sequence(self, model_path):
+        """Test that generation stops at stop sequence."""
+        gen = LLM(model_path)
+        # Use a common token that's likely to appear
+        config = GenerationConfig(
+            max_tokens=100,
+            temperature=0.0,
+            stop_sequences=["\n\n"]  # Stop at double newline
+        )
+
+        response = gen("Count from 1 to 10:", config=config)
+        assert isinstance(response, str)
+        # Should not contain the stop sequence
+        assert "\n\n" not in response
+
+    @pytest.mark.slow
+    def test_multiple_stop_sequences(self, model_path):
+        """Test with multiple stop sequences."""
+        gen = LLM(model_path)
+        config = GenerationConfig(
+            max_tokens=100,
+            temperature=0.0,
+            stop_sequences=[".", "!", "?"]  # Stop at any sentence ending
+        )
+
+        response = gen("Tell me something about Python", config=config)
+        assert isinstance(response, str)
+        # Should not contain any stop sequence
+        assert "." not in response
+        assert "!" not in response
+        assert "?" not in response
+
+    @pytest.mark.slow
+    def test_stop_sequence_not_in_output(self, model_path):
+        """Test that stop sequence is excluded from output."""
+        gen = LLM(model_path)
+        config = GenerationConfig(
+            max_tokens=50,
+            temperature=0.0,
+            stop_sequences=["."]
+        )
+
+        response = gen("Say hello", config=config)
+        # The stop sequence itself should not be included
+        assert not response.endswith(".")
+
+    @pytest.mark.slow
+    def test_empty_stop_sequences(self, model_path):
+        """Test with empty stop sequences list."""
+        gen = LLM(model_path)
+        config = GenerationConfig(
+            max_tokens=20,
+            temperature=0.0,
+            stop_sequences=[]  # No stop sequences
+        )
+
+        response = gen("Hello", config=config)
+        assert isinstance(response, str)
+        assert len(response) > 0
+
+    @pytest.mark.slow
+    def test_stop_sequence_streaming(self, model_path):
+        """Test stop sequences work in streaming mode."""
+        gen = LLM(model_path)
+        config = GenerationConfig(
+            max_tokens=100,
+            temperature=0.0,
+            stop_sequences=["."]
+        )
+
+        chunks = list(gen("Say hello", config=config, stream=True))
+        full_response = "".join(chunks)
+
+        assert isinstance(full_response, str)
+        # Stop sequence should not be in output
+        assert not full_response.endswith(".")
+
+    def test_find_stop_sequence_helper(self, model_path):
+        """Test the _find_stop_sequence helper method."""
+        gen = LLM(model_path)
+
+        # Single stop sequence
+        pos, length = gen._find_stop_sequence("hello world", ["world"])
+        assert pos == 6
+        assert length == 5
+
+        # Multiple stop sequences - should find earliest
+        pos, length = gen._find_stop_sequence("hello world", ["world", "ell"])
+        assert pos == 1  # "ell" starts at position 1
+        assert length == 3
+
+        # No match
+        pos, length = gen._find_stop_sequence("hello world", ["xyz", "abc"])
+        assert pos is None
+        assert length == 0
+
+        # Empty stop sequences
+        pos, length = gen._find_stop_sequence("hello world", [])
+        assert pos is None
+        assert length == 0
+
+        # Stop sequence at start
+        pos, length = gen._find_stop_sequence("hello world", ["hello"])
+        assert pos == 0
+        assert length == 5
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

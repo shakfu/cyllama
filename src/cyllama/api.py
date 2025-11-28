@@ -408,9 +408,10 @@ class LLM:
         n_pos = n_prompt
         n_generated = 0
 
-        # Buffer for stop sequence checking (accumulates recent output)
+        # Stop sequence handling: buffer recent output to detect sequences spanning tokens
+        # We only need to buffer enough to detect the longest stop sequence
         stop_buffer = ""
-        max_stop_len = max((len(s) for s in config.stop_sequences), default=0) if config.stop_sequences else 0
+        max_stop_len = max(len(s) for s in config.stop_sequences) if config.stop_sequences else 0
 
         for _ in range(config.max_tokens):
             # Sample next token
@@ -427,42 +428,41 @@ class LLM:
                 logger.warning("Failed to decode token %d: UnicodeDecodeError", new_token_id)
                 piece = ""
 
-            # Check stop sequences against accumulated buffer
+            # Handle stop sequences
             if config.stop_sequences:
+                # Add piece to buffer and check for stop sequences
                 stop_buffer += piece
-                # Keep buffer size manageable
-                if len(stop_buffer) > max_stop_len * 2:
-                    stop_buffer = stop_buffer[-max_stop_len * 2:]
 
-                # Check if any stop sequence appears in the buffer
-                stop_found = False
-                for stop in config.stop_sequences:
-                    if stop in stop_buffer:
-                        # Trim output to exclude stop sequence
-                        stop_idx = stop_buffer.find(stop)
-                        # Calculate how much of current piece to yield (if any)
-                        piece_start_in_buffer = len(stop_buffer) - len(piece)
-                        if stop_idx > piece_start_in_buffer:
-                            # Part of current piece should be yielded
-                            partial_len = stop_idx - piece_start_in_buffer
-                            if partial_len > 0:
-                                partial_piece = piece[:partial_len]
-                                if on_token:
-                                    on_token(partial_piece)
-                                yield partial_piece
-                        # else: stop sequence was already in buffer before this piece,
-                        # or starts at beginning of piece - don't yield anything
-                        stop_found = True
-                        break
+                # Find earliest stop sequence in buffer
+                stop_pos, stop_len = self._find_stop_sequence(stop_buffer, config.stop_sequences)
 
-                if stop_found:
+                if stop_pos is not None:
+                    # Stop sequence found - yield text before it and stop
+                    text_before_stop = stop_buffer[:stop_pos]
+                    if text_before_stop:
+                        if on_token:
+                            on_token(text_before_stop)
+                        yield text_before_stop
+                    # Clear buffer to prevent flush at end
+                    stop_buffer = ""
                     break
 
-            # Yield or callback (only if no stop sequence was found)
-            if on_token:
-                on_token(piece)
-
-            yield piece
+                # No stop found yet - yield text that can't be part of a stop sequence
+                # Keep (max_stop_len - 1) characters to detect sequences spanning tokens
+                # Example: if max_stop_len=2 and buffer="abc", safe to yield "ab", keep "c"
+                chars_to_keep = max_stop_len - 1
+                safe_len = len(stop_buffer) - chars_to_keep
+                if safe_len > 0:
+                    safe_text = stop_buffer[:safe_len]
+                    stop_buffer = stop_buffer[safe_len:]
+                    if on_token:
+                        on_token(safe_text)
+                    yield safe_text
+            else:
+                # No stop sequences - yield immediately
+                if on_token:
+                    on_token(piece)
+                yield piece
 
             # Prepare next batch
             batch = llama_batch_get_one([new_token_id], n_pos)
@@ -471,10 +471,45 @@ class LLM:
             n_pos += 1
             n_generated += 1
 
+        # Flush remaining buffer (no stop sequence found)
+        if config.stop_sequences and stop_buffer:
+            if on_token:
+                on_token(stop_buffer)
+            yield stop_buffer
+
         if self.verbose:
             print(f"\nGenerated {n_generated} tokens")
             self._sampler.print_perf_data()
             self._ctx.print_perf_data()
+
+    def _find_stop_sequence(
+        self,
+        text: str,
+        stop_sequences: List[str]
+    ) -> Tuple[Optional[int], int]:
+        """
+        Find the earliest stop sequence in text.
+
+        Args:
+            text: Text to search
+            stop_sequences: List of stop sequences to look for
+
+        Returns:
+            Tuple of (position, length) where position is the start index of the
+            earliest stop sequence found, or (None, 0) if none found.
+        """
+        earliest_pos = None
+        earliest_len = 0
+
+        for stop in stop_sequences:
+            pos = text.find(stop)
+            if pos != -1:
+                # Found a stop sequence - keep track of earliest one
+                if earliest_pos is None or pos < earliest_pos:
+                    earliest_pos = pos
+                    earliest_len = len(stop)
+
+        return earliest_pos, earliest_len
 
     def generate_with_stats(
         self,
@@ -615,7 +650,7 @@ def chat(
     return complete(prompt, model_path, config, stream, verbose=verbose, **kwargs)
 
 
-def simple(model_path: str, prompt: str, ngl: int = 99, n_predict: int = 32, n_ctx: int = None, verbose=False):
+def simple(model_path: str, prompt: str, ngl: int = 99, n_predict: int = 32, n_ctx: Optional[int] = None, verbose: bool = False) -> bool:
     """
     Simple, educational example showing raw llama.cpp usage.
 

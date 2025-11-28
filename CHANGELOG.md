@@ -118,7 +118,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - Script files (`scripts/`) now use argparse with `-m/--model` argument
   - Eliminates scattered hardcoded paths, simplifying model path changes
 
+- **Type Hints** - Added missing type hints to remaining functions
+  - `api.py:simple()` - Added `Optional[int]`, `bool`, and `-> bool` return type hints
+  - `memory.py:parse_gpu_memory()` - Added `-> Union[int, List[int]]` return type
+  - `memory.py:format_bytes()` - Added `Union[int, float]` parameter and `-> str` return type
+  - `memory.py:main()` - Added `-> int` return type
+
+- **Stop Sequence Logic Simplified** - Refactored stop sequence handling in `api.py`
+  - Extracted `_find_stop_sequence()` helper method for cleaner code
+  - Fixed buffer flush bug that was including stop sequences in output
+  - Improved buffer management: only keeps `max_stop_len - 1` chars for sequence detection
+  - Added 6 new tests for stop sequence handling (basic, multiple, streaming, edge cases)
+
 ### Added
+
+- **Benchmark Script** - New `scripts/benchmark.py` for comprehensive performance measurement
+  - Separates prefill (prompt processing) and decode (token generation) metrics
+  - Reports time-to-first-token (TTFT)
+  - Includes warmup run to exclude cold-start effects
+  - Shows avg, median, min, max statistics
+  - Configurable via `-m` (model), `-n` (runs), `-p` (prompt), `-t` (max tokens), `-c` (context size)
 
 - **Batch Memory Pooling Integration** - Added optional memory pooling to `BatchGenerator`
   - Added `use_pooling` parameter to `BatchGenerator` (default: `False`)

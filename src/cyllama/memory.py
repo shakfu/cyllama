@@ -414,7 +414,7 @@ def estimate_memory_usage(
     return result
 
 
-def parse_gpu_memory(gpu_memory_str: str):
+def parse_gpu_memory(gpu_memory_str: str) -> Union[int, List[int]]:
     """Parse GPU memory specification.
 
     Args:
@@ -431,7 +431,7 @@ def parse_gpu_memory(gpu_memory_str: str):
         return int(gpu_memory_str)
 
 
-def format_bytes(bytes_val):
+def format_bytes(bytes_val: Union[int, float]) -> str:
     """Format bytes value in human readable format."""
     for unit in ['B', 'KB', 'MB', 'GB']:
         if bytes_val < 1024:
@@ -440,7 +440,7 @@ def format_bytes(bytes_val):
     return f"{bytes_val:.1f} TB"
 
 
-def main():
+def main() -> int:
     """Command-line interface for GPU memory estimation.
 
     This utility helps users estimate optimal GPU layer allocation for their models
