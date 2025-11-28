@@ -447,3 +447,284 @@ class TestBatchPooling:
         assert len(responses2) == 2
 
         reset_batch_pool()
+
+
+class TestBatchGeneratorCleanup:
+    """Test BatchGenerator resource cleanup mechanisms."""
+
+    def test_close_method(self, model_path):
+        """Test that close() releases resources."""
+        gen = BatchGenerator(
+            model_path=model_path,
+            n_seq_max=2,
+            verbose=False
+        )
+
+        assert gen.model is not None
+        assert gen.ctx is not None
+        assert gen.is_closed is False
+
+        gen.close()
+
+        assert gen.is_closed is True
+        assert gen.model is None
+        assert gen.ctx is None
+
+    def test_close_idempotent(self, model_path):
+        """Test that close() can be called multiple times safely."""
+        gen = BatchGenerator(
+            model_path=model_path,
+            n_seq_max=1,
+            verbose=False
+        )
+
+        gen.close()
+        gen.close()  # Should not raise
+        gen.close()  # Should not raise
+
+        assert gen.is_closed is True
+
+    def test_context_manager(self, model_path):
+        """Test context manager protocol."""
+        with BatchGenerator(model_path=model_path, n_seq_max=1, verbose=False) as gen:
+            assert gen.is_closed is False
+            responses = gen.generate_batch(["Hi"], GenerationConfig(max_tokens=3, temperature=0.0))
+            assert len(responses) == 1
+
+        # After exiting context, generator should be closed
+        assert gen.is_closed is True
+
+    def test_context_manager_with_exception(self, model_path):
+        """Test that context manager cleans up even when exception occurs."""
+        gen = None
+        try:
+            with BatchGenerator(model_path=model_path, n_seq_max=1, verbose=False) as gen:
+                raise ValueError("Test exception")
+        except ValueError:
+            pass
+
+        # Generator should still be closed
+        assert gen is not None
+        assert gen.is_closed is True
+
+    def test_generate_after_close_raises(self, model_path):
+        """Test that generate_batch raises after close()."""
+        gen = BatchGenerator(
+            model_path=model_path,
+            n_seq_max=1,
+            verbose=False
+        )
+
+        gen.close()
+
+        with pytest.raises(RuntimeError, match="has been closed"):
+            gen.generate_batch(["Hello"])
+
+    def test_generate_batch_detailed_after_close_raises(self, model_path):
+        """Test that generate_batch_detailed raises after close()."""
+        gen = BatchGenerator(
+            model_path=model_path,
+            n_seq_max=1,
+            verbose=False
+        )
+
+        gen.close()
+
+        with pytest.raises(RuntimeError, match="has been closed"):
+            gen.generate_batch_detailed([BatchRequest(id=0, prompt="Hello")])
+
+
+class TestBatchGeneratorInputValidation:
+    """Test input validation and error messages."""
+
+    def test_prompts_none_raises_type_error(self, model_path):
+        """Test that None prompts raises TypeError."""
+        gen = BatchGenerator(model_path=model_path, n_seq_max=1, verbose=False)
+
+        with pytest.raises(TypeError, match="prompts cannot be None"):
+            gen.generate_batch(None)
+
+    def test_prompts_not_list_raises_type_error(self, model_path):
+        """Test that non-list prompts raises TypeError."""
+        gen = BatchGenerator(model_path=model_path, n_seq_max=1, verbose=False)
+
+        with pytest.raises(TypeError, match="prompts must be a list"):
+            gen.generate_batch("single string")
+
+        with pytest.raises(TypeError, match="prompts must be a list"):
+            gen.generate_batch({"prompt": "test"})
+
+    def test_prompt_not_string_raises_type_error(self, model_path):
+        """Test that non-string prompt in list raises TypeError."""
+        gen = BatchGenerator(model_path=model_path, n_seq_max=2, verbose=False)
+
+        with pytest.raises(TypeError, match="All prompts must be strings"):
+            gen.generate_batch(["valid", 123])
+
+        with pytest.raises(TypeError, match="prompt at index 0"):
+            gen.generate_batch([None, "valid"])
+
+    def test_requests_none_raises_type_error(self, model_path):
+        """Test that None requests raises TypeError."""
+        gen = BatchGenerator(model_path=model_path, n_seq_max=1, verbose=False)
+
+        with pytest.raises(TypeError, match="requests cannot be None"):
+            gen.generate_batch_detailed(None)
+
+    def test_requests_not_list_raises_type_error(self, model_path):
+        """Test that non-list requests raises TypeError."""
+        gen = BatchGenerator(model_path=model_path, n_seq_max=1, verbose=False)
+
+        with pytest.raises(TypeError, match="requests must be a list"):
+            gen.generate_batch_detailed(BatchRequest(id=0, prompt="test"))
+
+    def test_requests_empty_raises_value_error(self, model_path):
+        """Test that empty requests list raises ValueError."""
+        gen = BatchGenerator(model_path=model_path, n_seq_max=1, verbose=False)
+
+        with pytest.raises(ValueError, match="requests list cannot be empty"):
+            gen.generate_batch_detailed([])
+
+    def test_request_not_batch_request_raises_type_error(self, model_path):
+        """Test that non-BatchRequest in list raises TypeError."""
+        gen = BatchGenerator(model_path=model_path, n_seq_max=2, verbose=False)
+
+        with pytest.raises(TypeError, match="All requests must be BatchRequest"):
+            gen.generate_batch_detailed([
+                BatchRequest(id=0, prompt="valid"),
+                {"id": 1, "prompt": "invalid"}
+            ])
+
+    def test_too_many_prompts_error_message(self, model_path):
+        """Test that too many prompts error message is helpful."""
+        gen = BatchGenerator(model_path=model_path, n_seq_max=2, verbose=False)
+
+        with pytest.raises(ValueError) as exc_info:
+            gen.generate_batch(["A", "B", "C"])
+
+        error_msg = str(exc_info.value)
+        assert "Too many prompts (3)" in error_msg
+        assert "n_seq_max (2)" in error_msg
+        assert "process prompts in batches" in error_msg
+
+
+class TestBatchEdgeCases:
+    """Test edge cases and boundary conditions."""
+
+    def test_very_long_prompt(self, model_path):
+        """Test handling of very long prompt."""
+        gen = BatchGenerator(
+            model_path=model_path,
+            n_seq_max=1,
+            n_ctx=512,  # Smaller context
+            verbose=False
+        )
+
+        # Create a long prompt (but not too long to cause issues)
+        long_prompt = "Hello " * 50  # ~300 tokens
+
+        config = GenerationConfig(max_tokens=5, temperature=0.0)
+        responses = gen.generate_batch([long_prompt], config)
+
+        assert len(responses) == 1
+        assert isinstance(responses[0], str)
+
+    def test_empty_string_prompt(self, model_path):
+        """Test handling of empty string prompt."""
+        gen = BatchGenerator(
+            model_path=model_path,
+            n_seq_max=1,
+            verbose=False
+        )
+
+        config = GenerationConfig(max_tokens=5, temperature=0.0)
+        responses = gen.generate_batch([""], config)
+
+        assert len(responses) == 1
+        # Empty prompt should still produce some output (model generates from nothing)
+
+    def test_whitespace_only_prompt(self, model_path):
+        """Test handling of whitespace-only prompt."""
+        gen = BatchGenerator(
+            model_path=model_path,
+            n_seq_max=1,
+            verbose=False
+        )
+
+        config = GenerationConfig(max_tokens=5, temperature=0.0)
+        responses = gen.generate_batch(["   \n\t  "], config)
+
+        assert len(responses) == 1
+        assert isinstance(responses[0], str)
+
+    def test_unicode_prompt(self, model_path):
+        """Test handling of unicode characters in prompt."""
+        gen = BatchGenerator(
+            model_path=model_path,
+            n_seq_max=1,
+            verbose=False
+        )
+
+        config = GenerationConfig(max_tokens=5, temperature=0.0)
+        responses = gen.generate_batch(["Hello world!"], config)
+
+        assert len(responses) == 1
+        assert isinstance(responses[0], str)
+
+    def test_special_characters_prompt(self, model_path):
+        """Test handling of special characters in prompt."""
+        gen = BatchGenerator(
+            model_path=model_path,
+            n_seq_max=1,
+            verbose=False
+        )
+
+        config = GenerationConfig(max_tokens=5, temperature=0.0)
+        prompts = ["<|test|> [special] {chars} \"quotes\""]
+        responses = gen.generate_batch(prompts, config)
+
+        assert len(responses) == 1
+        assert isinstance(responses[0], str)
+
+    def test_max_tokens_zero(self, model_path):
+        """Test generation with max_tokens=0."""
+        gen = BatchGenerator(
+            model_path=model_path,
+            n_seq_max=1,
+            verbose=False
+        )
+
+        config = GenerationConfig(max_tokens=0, temperature=0.0)
+        responses = gen.generate_batch(["Hello"], config)
+
+        assert len(responses) == 1
+        # With max_tokens=0, no generation should occur
+        assert responses[0] == ""
+
+    def test_n_seq_max_one(self, model_path):
+        """Test with n_seq_max=1 (minimum)."""
+        gen = BatchGenerator(
+            model_path=model_path,
+            n_seq_max=1,
+            verbose=False
+        )
+
+        config = GenerationConfig(max_tokens=5, temperature=0.0)
+        responses = gen.generate_batch(["Test"], config)
+
+        assert len(responses) == 1
+        assert len(responses[0]) > 0
+
+    def test_batch_size_boundary(self, model_path):
+        """Test with small batch_size."""
+        gen = BatchGenerator(
+            model_path=model_path,
+            batch_size=64,  # Very small batch size
+            n_seq_max=2,
+            verbose=False
+        )
+
+        config = GenerationConfig(max_tokens=5, temperature=0.0)
+        responses = gen.generate_batch(["Hi", "Hello"], config)
+
+        assert len(responses) == 2

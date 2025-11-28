@@ -70,13 +70,20 @@ class BatchGenerator:
     This class processes multiple prompts in parallel using llama.cpp's
     batching capabilities for improved throughput.
 
-    Example:
+    Supports context manager protocol for automatic resource cleanup:
+        >>> with BatchGenerator("models/llama.gguf", batch_size=8) as batch_gen:
+        >>>     responses = batch_gen.generate_batch([
+        >>>         "What is Python?",
+        >>>         "What is Rust?",
+        >>>         "What is Go?"
+        >>>     ])
+
+    Or explicit cleanup:
         >>> batch_gen = BatchGenerator("models/llama.gguf", batch_size=8)
-        >>> responses = batch_gen.generate_batch([
-        >>>     "What is Python?",
-        >>>     "What is Rust?",
-        >>>     "What is Go?"
-        >>> ])
+        >>> try:
+        >>>     responses = batch_gen.generate_batch(["What is Python?"])
+        >>> finally:
+        >>>     batch_gen.close()
     """
 
     def __init__(
@@ -134,9 +141,68 @@ class BatchGenerator:
         ctx_params.n_seq_max = n_seq_max  # Support parallel sequences
 
         self.ctx = LlamaContext(self.model, ctx_params)
+        self._closed = False
 
         if self.verbose:
             print(f"Model loaded with context size {n_ctx}, batch size {batch_size}")
+
+    def close(self) -> None:
+        """
+        Release resources held by this BatchGenerator.
+
+        This method releases the model and context resources. After calling close(),
+        the BatchGenerator cannot be used for further generation.
+
+        It's safe to call close() multiple times.
+        """
+        if self._closed:
+            return
+
+        self._closed = True
+
+        # Release context first (depends on model)
+        if hasattr(self, 'ctx') and self.ctx is not None:
+            self.ctx = None
+
+        # Release model
+        if hasattr(self, 'model') and self.model is not None:
+            self.model = None
+
+        # Clear vocab reference
+        if hasattr(self, 'vocab'):
+            self.vocab = None
+
+        if self.verbose:
+            print("BatchGenerator resources released")
+
+    def __del__(self) -> None:
+        """Destructor to ensure resources are cleaned up."""
+        try:
+            self.close()
+        except Exception:
+            # Suppress exceptions during garbage collection
+            pass
+
+    def __enter__(self) -> "BatchGenerator":
+        """Context manager entry."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Context manager exit - ensures cleanup."""
+        self.close()
+
+    @property
+    def is_closed(self) -> bool:
+        """Check if the BatchGenerator has been closed."""
+        return self._closed
+
+    def _check_closed(self) -> None:
+        """Raise an error if the generator has been closed."""
+        if self._closed:
+            raise RuntimeError(
+                "BatchGenerator has been closed and cannot be used for generation. "
+                "Create a new BatchGenerator instance to continue."
+            )
 
     def generate_batch(
         self,
@@ -156,14 +222,39 @@ class BatchGenerator:
         Example:
             >>> prompts = ["Hello", "Hi", "Hey"]
             >>> responses = batch_gen.generate_batch(prompts)
+
+        Raises:
+            RuntimeError: If the BatchGenerator has been closed
+            ValueError: If too many prompts for configured n_seq_max
+            TypeError: If prompts is not a list
         """
+        self._check_closed()
+
+        if prompts is None:
+            raise TypeError("prompts cannot be None, expected a list of strings")
+
+        if not isinstance(prompts, list):
+            raise TypeError(
+                f"prompts must be a list of strings, got {type(prompts).__name__}. "
+                f"For a single prompt, use: generate_batch([prompt])"
+            )
+
         if not prompts:
             return []
+
+        # Validate all prompts are strings
+        for i, prompt in enumerate(prompts):
+            if not isinstance(prompt, str):
+                raise TypeError(
+                    f"All prompts must be strings, but prompt at index {i} is {type(prompt).__name__}. "
+                    f"Value: {repr(prompt)[:50]}{'...' if len(repr(prompt)) > 50 else ''}"
+                )
 
         if len(prompts) > self.n_seq_max:
             raise ValueError(
                 f"Too many prompts ({len(prompts)}) for configured n_seq_max ({self.n_seq_max}). "
-                f"Either reduce the number of prompts or increase n_seq_max when creating BatchGenerator."
+                f"Either reduce the number of prompts, increase n_seq_max when creating BatchGenerator, "
+                f"or process prompts in batches of {self.n_seq_max} or fewer."
             )
 
         config = config or GenerationConfig()
@@ -282,7 +373,35 @@ class BatchGenerator:
 
         Returns:
             List of BatchResponse objects with statistics
+
+        Raises:
+            RuntimeError: If the BatchGenerator has been closed
+            TypeError: If requests is not a list of BatchRequest objects
+            ValueError: If requests list is empty
         """
+        self._check_closed()
+
+        if requests is None:
+            raise TypeError("requests cannot be None, expected a list of BatchRequest objects")
+
+        if not isinstance(requests, list):
+            raise TypeError(
+                f"requests must be a list of BatchRequest objects, got {type(requests).__name__}"
+            )
+
+        if not requests:
+            raise ValueError(
+                "requests list cannot be empty. Provide at least one BatchRequest."
+            )
+
+        # Validate all requests are BatchRequest objects
+        for i, req in enumerate(requests):
+            if not isinstance(req, BatchRequest):
+                raise TypeError(
+                    f"All requests must be BatchRequest objects, but request at index {i} "
+                    f"is {type(req).__name__}"
+                )
+
         start_time = time.time()
 
         prompts = [req.prompt for req in requests]

@@ -108,6 +108,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - Performance improvement: reduces context allocation overhead for repeated generations
   - 7 new tests for resource management
 
+- **BatchGenerator Resource Management** - Added proper cleanup and validation to batch processing
+  - Added `close()` method for explicit resource cleanup
+  - Added `__del__` destructor for automatic cleanup
+  - Added context manager support (`with BatchGenerator(...) as gen:`)
+  - Added `is_closed` property to check generator state
+  - Added `_check_closed()` internal method to prevent use after close
+  - Improved input validation with detailed error messages:
+    - `TypeError` for None or wrong type prompts/requests
+    - `TypeError` with index and value info for invalid items in lists
+    - Enhanced `ValueError` message for too many prompts (includes batch suggestion)
+  - 22 new tests for cleanup, validation, and edge cases
+
 ### Changed
 
 - **Centralized Model Path Configuration** - Consolidated hardcoded model paths across the codebase
