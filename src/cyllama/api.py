@@ -131,17 +131,33 @@ class LLM:
     High-level LLM interface with model caching and convenient API.
 
     This class manages model lifecycle and provides simple methods for
-    text generation with streaming support.
+    text generation with streaming support. It supports context reuse
+    for improved performance when the context size doesn't change.
+
+    Resource Management:
+        The LLM class manages GPU memory and contexts. For proper cleanup:
+        - Use as a context manager: `with LLM(...) as llm:`
+        - Call `llm.close()` explicitly when done
+        - Or let Python's garbage collector handle it via `__del__`
 
     Example:
+        >>> # Recommended: Use as context manager
+        >>> with LLM("models/llama.gguf") as llm:
+        >>>     response = llm("What is Python?")
+        >>>     print(response)
+        >>>
+        >>> # Or with explicit cleanup
         >>> llm = LLM("models/llama.gguf")
-        >>> response = llm("What is Python?")
-        >>> print(response)
+        >>> try:
+        >>>     response = llm("What is Python?")
+        >>> finally:
+        >>>     llm.close()
         >>>
         >>> # With custom configuration
         >>> config = GenerationConfig(temperature=0.9, max_tokens=100)
-        >>> for chunk in llm("Tell me a joke", config=config, stream=True):
-        >>>     print(chunk, end="")
+        >>> with LLM("models/llama.gguf", config=config) as llm:
+        >>>     for chunk in llm("Tell me a joke", stream=True):
+        >>>         print(chunk, end="")
     """
 
     def __init__(
@@ -161,6 +177,7 @@ class LLM:
         self.model_path = model_path
         self.config = config or GenerationConfig()
         self.verbose = verbose
+        self._closed = False
 
         # Disable llama.cpp logging unless verbose mode is enabled
         if not verbose:
@@ -183,30 +200,112 @@ class LLM:
             print(f"Model loaded: {self.model.n_params} parameters")
             print(f"Vocabulary size: {self.vocab.n_vocab}")
 
-        # Context will be created on-demand for each generation
+        # Context will be created on-demand and cached when possible
         self._ctx = None
+        self._ctx_size = 0  # Track current context size for reuse decisions
         self._sampler = None
 
+    def __enter__(self):
+        """Context manager entry."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit - ensures cleanup."""
+        self.close()
+        return False
+
+    def __del__(self):
+        """Destructor - cleanup resources if not already done."""
+        if not getattr(self, '_closed', True):
+            self.close()
+
+    def close(self):
+        """
+        Explicitly release resources (context, sampler).
+
+        This method frees the context and sampler to release GPU memory.
+        The model remains loaded for potential reuse. Call this when you're
+        done with generation or want to free memory.
+
+        After calling close(), the LLM instance can still be used - new
+        contexts will be created as needed.
+        """
+        if self._closed:
+            return
+
+        if self.verbose:
+            print("Closing LLM resources")
+
+        # Release context and sampler
+        if self._ctx is not None:
+            self._ctx = None
+            self._ctx_size = 0
+
+        if self._sampler is not None:
+            self._sampler = None
+
+        self._closed = True
+
+    def reset_context(self):
+        """
+        Force recreation of context on next generation.
+
+        This clears the KV cache and ensures a fresh context is created.
+        Useful when you want to start a completely new conversation without
+        any prior context.
+        """
+        if self._ctx is not None:
+            if self.verbose:
+                print("Resetting context")
+            self._ctx = None
+            self._ctx_size = 0
+
     def _ensure_context(self, prompt_length: int, config: GenerationConfig):
-        """Create or recreate context if needed."""
+        """
+        Create or recreate context if needed.
+
+        Context is reused when possible to avoid allocation overhead.
+        A new context is created when:
+        - No context exists
+        - The required size exceeds current context size
+        - The instance was closed (will reopen)
+
+        The KV cache is cleared via llama_kv_cache_clear() when reusing
+        a context to ensure clean state for new generations.
+        """
+        # Reopen if closed
+        if self._closed:
+            self._closed = False
+
         # Calculate required context size
         if config.n_ctx is None:
-            n_ctx = prompt_length + config.max_tokens
+            required_ctx = prompt_length + config.max_tokens
         else:
-            n_ctx = config.n_ctx
+            required_ctx = config.n_ctx
 
-        # Always recreate context to clear KV cache
-        # This is simpler than trying to manage cache state
-        if self.verbose and self._ctx is not None:
-            print(f"Recreating context: {n_ctx} tokens")
+        # Check if we can reuse existing context
+        if self._ctx is not None and self._ctx_size >= required_ctx:
+            # Reuse existing context - just clear the KV cache
+            if self.verbose:
+                print(f"Reusing context (size {self._ctx_size}, need {required_ctx})")
+            self._ctx.kv_cache_clear()
+            return
+
+        # Need to create new context (either none exists or too small)
+        if self.verbose:
+            if self._ctx is not None:
+                print(f"Recreating context: {self._ctx_size} -> {required_ctx} tokens")
+            else:
+                print(f"Creating context: {required_ctx} tokens")
 
         ctx_params = LlamaContextParams()
-        ctx_params.n_ctx = n_ctx
+        ctx_params.n_ctx = required_ctx
         ctx_params.n_batch = config.n_batch
         ctx_params.no_perf = not self.verbose
 
         # Note: Seed is set in sampler, not context
         self._ctx = LlamaContext(self.model, ctx_params)
+        self._ctx_size = required_ctx
 
     def _ensure_sampler(self, config: GenerationConfig):
         """Create or recreate sampler if needed."""

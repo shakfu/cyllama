@@ -316,10 +316,8 @@ class CyllamaProfiler:
                 f.write(s.getvalue())
 
 
-def main():
+def main(model_path):
     """Main profiling function."""
-    model_path = "models/Llama-3.2-1B-Instruct-Q8_0.gguf"
-
     if not os.path.exists(model_path):
         print(f"Model file not found: {model_path}")
         print("Please download a model or update the path")
@@ -383,4 +381,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    import argparse
+    parser = argparse.ArgumentParser(description="Performance Profiling for cyllama")
+    parser.add_argument("-m", "--model", required=True, help="Path to model file")
+    args = parser.parse_args()
+    main(args.model)

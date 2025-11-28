@@ -4,10 +4,8 @@ import pytest
 from cyllama.llama.llama_cpp import GGUFContext
 
 
-def test_gguf_read_model():
+def test_gguf_read_model(model_path):
     """Test reading GGUF file metadata."""
-    model_path = "models/Llama-3.2-1B-Instruct-Q8_0.gguf"
-
     # Load GGUF file
     ctx = GGUFContext.from_file(model_path)
 
@@ -31,9 +29,8 @@ def test_gguf_read_model():
     print(f"  Data offset: {ctx.data_offset}")
 
 
-def test_gguf_metadata():
+def test_gguf_metadata(model_path):
     """Test reading metadata from GGUF file."""
-    model_path = "models/Llama-3.2-1B-Instruct-Q8_0.gguf"
     ctx = GGUFContext.from_file(model_path)
 
     # Get all metadata
@@ -64,9 +61,8 @@ def test_gguf_metadata():
         assert key_name == "general.architecture"
 
 
-def test_gguf_tensor_info():
+def test_gguf_tensor_info(model_path):
     """Test reading tensor information."""
-    model_path = "models/Llama-3.2-1B-Instruct-Q8_0.gguf"
     ctx = GGUFContext.from_file(model_path)
 
     # Get tensor info

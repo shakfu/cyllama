@@ -8,6 +8,7 @@ import signal
 import subprocess
 import time
 import pytest
+from conftest import DEFAULT_MODEL
 
 
 @pytest.mark.skip(reason="Signal handling works interactively (Ctrl+C) but not via subprocess.send_signal() - Python signal handlers may not be invoked properly across process boundaries")
@@ -17,7 +18,7 @@ def test_mongoose_signal():
     cmd = [
         sys.executable, "-m", "cyllama.llama.server",
         "--server-type", "mongoose",
-        "-m", "models/Llama-3.2-1B-Instruct-Q8_0.gguf",
+        "-m", DEFAULT_MODEL,
         "--port", "8099",
         "--ctx-size", "256"
     ]

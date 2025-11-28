@@ -11,10 +11,6 @@ from cyllama import (
 )
 
 
-# Test data
-DEFAULT_MODEL = "models/Llama-3.2-1B-Instruct-Q8_0.gguf"
-
-
 class TestGenerationConfig:
     """Tests for GenerationConfig dataclass."""
 
@@ -166,17 +162,17 @@ class TestLLM:
     """Tests for LLM class."""
 
     @pytest.mark.slow
-    def test_initialization(self):
+    def test_initialization(self, model_path):
         """Test LLM initialization."""
-        gen = LLM(DEFAULT_MODEL, verbose=False)
-        assert gen.model_path == DEFAULT_MODEL
+        gen = LLM(model_path, verbose=False)
+        assert gen.model_path == model_path
         assert gen.model is not None
         assert gen.vocab is not None
 
     @pytest.mark.slow
-    def test_simple_generation(self):
+    def test_simple_generation(self, model_path):
         """Test basic text generation."""
-        gen = LLM(DEFAULT_MODEL)
+        gen = LLM(model_path)
         config = GenerationConfig(max_tokens=20, temperature=0.0)  # Greedy for consistency
         response = gen("What is 2+2?", config=config)
 
@@ -184,9 +180,9 @@ class TestLLM:
         assert len(response) > 0
 
     @pytest.mark.slow
-    def test_streaming_generation(self):
+    def test_streaming_generation(self, model_path):
         """Test streaming text generation."""
-        gen = LLM(DEFAULT_MODEL)
+        gen = LLM(model_path)
         config = GenerationConfig(max_tokens=20, temperature=0.0)
 
         chunks = list(gen("Count to 3:", config=config, stream=True))
@@ -199,9 +195,9 @@ class TestLLM:
         assert len(full_response) > 0
 
     @pytest.mark.slow
-    def test_token_callback(self):
+    def test_token_callback(self, model_path):
         """Test on_token callback."""
-        gen = LLM(DEFAULT_MODEL)
+        gen = LLM(model_path)
         config = GenerationConfig(max_tokens=10, temperature=0.0)
 
         tokens = []
@@ -214,9 +210,9 @@ class TestLLM:
         assert "".join(tokens) == response
 
     @pytest.mark.slow
-    def test_generation_with_stats(self):
+    def test_generation_with_stats(self, model_path):
         """Test generation with statistics."""
-        gen = LLM(DEFAULT_MODEL)
+        gen = LLM(model_path)
         config = GenerationConfig(max_tokens=20, temperature=0.0)
 
         response, stats = gen.generate_with_stats("Test prompt", config=config)
@@ -228,9 +224,9 @@ class TestLLM:
         assert stats.tokens_per_second >= 0
 
     @pytest.mark.slow
-    def test_different_temperatures(self):
+    def test_different_temperatures(self, model_path):
         """Test generation with different temperatures."""
-        gen = LLM(DEFAULT_MODEL)
+        gen = LLM(model_path)
 
         # Greedy (deterministic with same seed)
         config_greedy = GenerationConfig(max_tokens=10, temperature=0.0, seed=42)
@@ -248,15 +244,150 @@ class TestLLM:
         assert isinstance(response3, str)
 
 
+class TestLLMResourceManagement:
+    """Tests for LLM resource management (context reuse, cleanup)."""
+
+    @pytest.mark.slow
+    def test_context_manager(self, model_path):
+        """Test LLM as context manager."""
+        with LLM(model_path) as llm:
+            config = GenerationConfig(max_tokens=10, temperature=0.0)
+            response = llm("Hello", config=config)
+            assert isinstance(response, str)
+            assert len(response) > 0
+        # After exiting, resources should be cleaned up
+        assert llm._closed is True
+
+    @pytest.mark.slow
+    def test_explicit_close(self, model_path):
+        """Test explicit close() method."""
+        llm = LLM(model_path)
+        config = GenerationConfig(max_tokens=10, temperature=0.0)
+        response = llm("Hello", config=config)
+        assert isinstance(response, str)
+
+        # Close explicitly
+        llm.close()
+        assert llm._closed is True
+
+        # Should be safe to call close() multiple times
+        llm.close()
+        assert llm._closed is True
+
+    @pytest.mark.slow
+    def test_context_reuse(self, model_path):
+        """Test that context is reused when size permits."""
+        llm = LLM(model_path, verbose=False)
+        config = GenerationConfig(max_tokens=20, temperature=0.0)
+
+        # First generation creates context
+        response1 = llm("Hello", config=config)
+        assert response1
+
+        # Record context size
+        ctx_size_after_first = llm._ctx_size
+        assert ctx_size_after_first > 0
+
+        # Second generation with same config should reuse context
+        response2 = llm("Hi", config=config)
+        assert response2
+
+        # Context size should remain the same (reused)
+        assert llm._ctx_size == ctx_size_after_first
+
+        llm.close()
+
+    @pytest.mark.slow
+    def test_context_recreation_when_needed(self, model_path):
+        """Test that context is recreated when larger size needed."""
+        llm = LLM(model_path, verbose=False)
+
+        # Small generation
+        config_small = GenerationConfig(max_tokens=10, temperature=0.0)
+        llm("A", config=config_small)
+        small_ctx_size = llm._ctx_size
+
+        # Large generation should recreate context
+        config_large = GenerationConfig(max_tokens=500, temperature=0.0)
+        llm("B", config=config_large)
+        large_ctx_size = llm._ctx_size
+
+        assert large_ctx_size > small_ctx_size
+
+        llm.close()
+
+    @pytest.mark.slow
+    def test_reset_context(self, model_path):
+        """Test reset_context() method."""
+        llm = LLM(model_path, verbose=False)
+        config = GenerationConfig(max_tokens=10, temperature=0.0)
+
+        # Generate to create context
+        llm("Hello", config=config)
+        assert llm._ctx is not None
+        assert llm._ctx_size > 0
+
+        # Reset context
+        llm.reset_context()
+        assert llm._ctx is None
+        assert llm._ctx_size == 0
+
+        # Next generation should create new context
+        llm("World", config=config)
+        assert llm._ctx is not None
+        assert llm._ctx_size > 0
+
+        llm.close()
+
+    @pytest.mark.slow
+    def test_reopen_after_close(self, model_path):
+        """Test that LLM can be used after close()."""
+        llm = LLM(model_path, verbose=False)
+        config = GenerationConfig(max_tokens=10, temperature=0.0)
+
+        # First generation
+        response1 = llm("Hello", config=config)
+        assert response1
+
+        # Close
+        llm.close()
+        assert llm._closed is True
+
+        # Use again (should reopen)
+        response2 = llm("Hi", config=config)
+        assert response2
+        assert llm._closed is False  # Reopened
+
+        llm.close()
+
+    @pytest.mark.slow
+    def test_multiple_generations_same_instance(self, model_path):
+        """Test multiple generations reuse context efficiently."""
+        with LLM(model_path, verbose=False) as llm:
+            config = GenerationConfig(max_tokens=15, temperature=0.0)
+
+            responses = []
+            for prompt in ["One", "Two", "Three", "Four"]:
+                response = llm(prompt, config=config)
+                responses.append(response)
+
+            # All should have generated valid responses
+            assert len(responses) == 4
+            assert all(len(r) > 0 for r in responses)
+
+            # Context should exist and be reused
+            assert llm._ctx is not None
+
+
 class TestConvenienceFunctions:
     """Tests for convenience functions."""
 
     @pytest.mark.slow
-    def test_complete_function(self):
+    def test_complete_function(self, model_path):
         """Test complete() convenience function."""
         response = complete(
             "What is Python?",
-            model_path=DEFAULT_MODEL,
+            model_path=model_path,
             max_tokens=30,
             temperature=0.0
         )
@@ -265,11 +396,11 @@ class TestConvenienceFunctions:
         assert len(response) > 0
 
     @pytest.mark.slow
-    def test_complete_streaming(self):
+    def test_complete_streaming(self, model_path):
         """Test complete() with streaming."""
         chunks = list(complete(
             "Count to 3:",
-            model_path=DEFAULT_MODEL,
+            model_path=model_path,
             max_tokens=20,
             temperature=0.0,
             stream=True
@@ -280,7 +411,7 @@ class TestConvenienceFunctions:
         assert len(full_response) > 0
 
     @pytest.mark.slow
-    def test_chat_function(self):
+    def test_chat_function(self, model_path):
         """Test chat() convenience function."""
         messages = [
             {"role": "system", "content": "You are a helpful assistant."},
@@ -289,7 +420,7 @@ class TestConvenienceFunctions:
 
         response = chat(
             messages,
-            model_path=DEFAULT_MODEL,
+            model_path=model_path,
             max_tokens=30,
             temperature=0.0
         )
@@ -298,7 +429,7 @@ class TestConvenienceFunctions:
         assert len(response) > 0
 
     @pytest.mark.slow
-    def test_chat_streaming(self):
+    def test_chat_streaming(self, model_path):
         """Test chat() with streaming."""
         messages = [
             {"role": "user", "content": "Count to 3"}
@@ -306,7 +437,7 @@ class TestConvenienceFunctions:
 
         chunks = list(chat(
             messages,
-            model_path=DEFAULT_MODEL,
+            model_path=model_path,
             max_tokens=20,
             temperature=0.0,
             stream=True
@@ -319,9 +450,9 @@ class TestEdgeCases:
     """Tests for edge cases."""
 
     @pytest.mark.slow
-    def test_empty_prompt(self):
+    def test_empty_prompt(self, model_path):
         """Test generation with empty prompt."""
-        gen = LLM(DEFAULT_MODEL)
+        gen = LLM(model_path)
         config = GenerationConfig(max_tokens=10)
 
         # Empty prompt should still work (BOS token)
@@ -329,18 +460,18 @@ class TestEdgeCases:
         assert isinstance(response, str)
 
     @pytest.mark.slow
-    def test_max_tokens_zero(self):
+    def test_max_tokens_zero(self, model_path):
         """Test generation with max_tokens=0."""
-        gen = LLM(DEFAULT_MODEL)
+        gen = LLM(model_path)
         config = GenerationConfig(max_tokens=0)
 
         response = gen("Test", config=config)
         assert response == ""
 
     @pytest.mark.slow
-    def test_very_long_prompt(self):
+    def test_very_long_prompt(self, model_path):
         """Test generation with long prompt."""
-        gen = LLM(DEFAULT_MODEL)
+        gen = LLM(model_path)
         config = GenerationConfig(max_tokens=10, n_ctx=2048)
 
         long_prompt = "Hello " * 100
@@ -348,9 +479,9 @@ class TestEdgeCases:
         assert isinstance(response, str)
 
     @pytest.mark.slow
-    def test_context_recreation(self):
+    def test_context_recreation(self, model_path):
         """Test that context is recreated when needed."""
-        gen = LLM(DEFAULT_MODEL)
+        gen = LLM(model_path)
 
         # Generate with small context
         config1 = GenerationConfig(max_tokens=10, n_ctx=512)

@@ -2199,6 +2199,28 @@ cdef class LlamaContext:
         """
         llama.llama_synchronize(self.ptr)
 
+    # Memory / KV Cache Management
+    # -------------------------------------------------------------------------
+
+    def kv_cache_clear(self, bint clear_data=True):
+        """Clear the KV cache.
+
+        This removes all cached key-value pairs from the context's memory,
+        allowing the context to be reused for new generations without
+        recreating it.
+
+        Args:
+            clear_data: If True (default), also clear the data buffers.
+                       If False, only clear metadata.
+
+        Note:
+            This is useful for reusing a context across multiple independent
+            generations without the overhead of context recreation.
+        """
+        cdef llama.llama_memory_t mem = llama.llama_get_memory(self.ptr)
+        if mem is not NULL:
+            llama.llama_memory_clear(mem, clear_data)
+
     # def n_outputs(self) -> int:
     #     return llama.llama_n_outputs(self.ptr)
 

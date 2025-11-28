@@ -234,16 +234,13 @@ def statistics_callback_example(model_path: str):
     return model
 
 
-def main():
+def main(model_path):
     """Run all progress callback examples."""
-    # Default model path - adjust as needed
-    model_path = "models/Llama-3.2-1B-Instruct-Q8_0.gguf"
-
     # Check if model exists
     if not Path(model_path).exists():
         print(f"Model not found: {model_path}")
         print("Please run 'make download' or provide a valid model path.")
-        print("\nUsage: python progress_callback_example.py [model_path]")
+        print("\nUsage: python progress_callback_example.py -m <model_path>")
         return
 
     # Initialize backend and disable verbose logging
@@ -266,12 +263,10 @@ def main():
 
 
 if __name__ == "__main__":
-    import sys
+    import argparse
 
-    if len(sys.argv) > 1:
-        model_path = sys.argv[1]
-    else:
-        model_path = "models/Llama-3.2-1B-Instruct-Q8_0.gguf"
+    parser = argparse.ArgumentParser(description="Progress Callback Examples")
+    parser.add_argument("-m", "--model", required=True, help="Path to model file")
+    args = parser.parse_args()
 
-    # Override model_path in main
-    main()
+    main(args.model)

@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 """
 Simple debug to test if server.start() hangs.
+
+Usage:
+    python debug_start_simple.py -m models/Llama-3.2-1B-Instruct-Q8_0.gguf
 """
 
 import sys
 import time
 import threading
+import argparse
 from pathlib import Path
 
 # Add the src directory to path for imports
@@ -13,14 +17,14 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from cyllama.llama.server.python import ServerConfig
 
-def test_start_with_timeout():
+def test_start_with_timeout(model_path):
     print("Testing server.start() with timeout...")
 
     try:
         from cyllama.llama.server.embedded import EmbeddedServer
 
         config = ServerConfig(
-            model_path="models/Llama-3.2-1B-Instruct-Q8_0.gguf",
+            model_path=model_path,
             host="127.0.0.1",
             port=8099,
             n_ctx=256
@@ -83,7 +87,10 @@ def test_start_with_timeout():
         return False
 
 if __name__ == "__main__":
-    success = test_start_with_timeout()
+    parser = argparse.ArgumentParser(description="Debug server start/stop")
+    parser.add_argument("-m", "--model", required=True, help="Path to model file")
+    args = parser.parse_args()
+    success = test_start_with_timeout(args.model)
     if success:
         print("\n✓ Start/stop cycle works correctly")
     else:

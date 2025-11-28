@@ -98,6 +98,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - Added logging for parse errors and file read errors
   - Continues processing remaining files if one fails
 
+- **LLM Resource Management** - Improved context lifecycle and memory management
+  - Added context reuse: contexts are cached and reused when size permits
+  - Added `kv_cache_clear()` method to `LlamaContext` for clearing KV cache
+  - Added `close()` method to `LLM` for explicit resource cleanup
+  - Added `reset_context()` method to force context recreation
+  - Added context manager support (`with LLM(...) as llm:`)
+  - Added `__del__` destructor for automatic cleanup
+  - Performance improvement: reduces context allocation overhead for repeated generations
+  - 7 new tests for resource management
+
+### Changed
+
+- **Centralized Model Path Configuration** - Consolidated hardcoded model paths across the codebase
+  - Added `DEFAULT_MODEL` constant in `tests/conftest.py` as single source of truth
+  - Test files now use `model_path` pytest fixture from `conftest.py`
+  - Subprocess tests import `DEFAULT_MODEL` from `conftest.py` where fixtures aren't available
+  - Example files (`tests/examples/`) now use argparse with `-m/--model` argument
+  - Script files (`scripts/`) now use argparse with `-m/--model` argument
+  - Eliminates scattered hardcoded paths, simplifying model path changes
+
 ### Added
 
 - **Batch Memory Pooling Integration** - Added optional memory pooling to `BatchGenerator`

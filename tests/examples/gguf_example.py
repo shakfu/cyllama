@@ -138,12 +138,9 @@ def search_tensor(model_path, tensor_name):
         print(f"Tensor '{tensor_name}' not found")
 
 
-def main():
+def main(model_path):
     """Run all examples."""
     import os
-
-    # Path to test model (assumes default test model exists)
-    model_path = "models/Llama-3.2-1B-Instruct-Q8_0.gguf"
 
     if not os.path.exists(model_path):
         print(f"Model not found: {model_path}")
@@ -171,4 +168,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    import argparse
+    parser = argparse.ArgumentParser(description="GGUF API Examples")
+    parser.add_argument("-m", "--model", required=True, help="Path to model file")
+    args = parser.parse_args()
+    main(args.model)
