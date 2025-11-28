@@ -81,8 +81,8 @@ class GenerationConfig:
         """Validate parameters after initialization."""
         errors = []
 
-        if self.max_tokens < 1:
-            errors.append(f"max_tokens must be >= 1, got {self.max_tokens}")
+        if self.max_tokens < 0:
+            errors.append(f"max_tokens must be >= 0, got {self.max_tokens}")
 
         if self.temperature < 0.0:
             errors.append(f"temperature must be >= 0.0, got {self.temperature}")

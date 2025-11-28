@@ -44,7 +44,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - Added 4 new tests for progress callback functionality
 
 - **GenerationConfig Validation** - Added parameter validation to `GenerationConfig`
-  - `max_tokens` must be >= 1
+  - `max_tokens` must be >= 0 (0 means "generate nothing")
   - `temperature` must be >= 0.0
   - `top_k` must be >= 0
   - `top_p` must be between 0.0 and 1.0
@@ -56,6 +56,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - `seed` must be >= -1
   - Multiple validation errors are reported together in a single exception
   - Added 11 new validation tests
+
+- **Sampler Docstrings and Implementation** - Fixed XXX/FIXME markers in `LlamaSampler`
+  - Fixed incorrect docstrings for `add_mirostat()` and `add_mirostat_v2()` methods
+    - Removed references to non-existent parameters (`candidates`, `mu`)
+    - Added proper Args documentation matching actual function signatures
+    - Fixed URL format (https:# -> https://)
+  - Implemented `add_logit_bias()` method (was commented out)
+    - Allows biasing specific token probabilities during sampling
+    - Takes list of (token_id, bias) tuples
 
 ## [0.1.13]
 

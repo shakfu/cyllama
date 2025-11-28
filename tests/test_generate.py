@@ -52,11 +52,11 @@ class TestGenerationConfig:
 
     def test_validation_max_tokens(self):
         """Test max_tokens validation."""
-        with pytest.raises(ValueError, match="max_tokens must be >= 1"):
-            GenerationConfig(max_tokens=0)
-        with pytest.raises(ValueError, match="max_tokens must be >= 1"):
+        with pytest.raises(ValueError, match="max_tokens must be >= 0"):
             GenerationConfig(max_tokens=-1)
-        # Valid edge case
+        # Valid edge cases
+        config = GenerationConfig(max_tokens=0)  # 0 means "generate nothing"
+        assert config.max_tokens == 0
         config = GenerationConfig(max_tokens=1)
         assert config.max_tokens == 1
 
@@ -155,7 +155,7 @@ class TestGenerationConfig:
     def test_validation_multiple_errors(self):
         """Test that multiple validation errors are reported together."""
         with pytest.raises(ValueError) as exc_info:
-            GenerationConfig(max_tokens=0, temperature=-1.0, top_p=2.0)
+            GenerationConfig(max_tokens=-1, temperature=-1.0, top_p=2.0)
         error_msg = str(exc_info.value)
         assert "max_tokens" in error_msg
         assert "temperature" in error_msg

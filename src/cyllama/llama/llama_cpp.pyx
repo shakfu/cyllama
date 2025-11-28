@@ -2435,26 +2435,36 @@ cdef class LlamaSampler:
         llama.llama_sampler_chain_add(
             self.ptr, llama.llama_sampler_init_xtc(p, t, min_keep, seed))
 
-    # XXX: docstring incorrect
     def add_mirostat(self, int n_vocab, uint32_t seed, float tau, float eta, int m):
-        """Mirostat 1.0 algorithm described in the paper https:#arxiv.org/abs/2007.14966. Uses tokens instead of words.
+        """Mirostat 1.0 algorithm described in the paper https://arxiv.org/abs/2007.14966.
 
-        candidates: A vector of `llama_token_data` containing the candidate tokens, their probabilities (p), and log-odds (logit) for the current position in the generated text.
-        tau:     The target cross-entropy (or surprise) value you want to achieve for the generated text. A higher value corresponds to more surprising or less predictable text, while a lower value corresponds to less surprising or more predictable text.
-        eta:     The learning rate used to update `mu` based on the error between the target and observed surprisal of the sampled word. A larger learning rate will cause `mu` to be updated more quickly, while a smaller learning rate will result in slower updates.
-        m:       The number of tokens considered in the estimation of `s_hat`. This is an arbitrary value that is used to calculate `s_hat`, which in turn helps to calculate the value of `k`. In the paper, they use `m = 100`, but you can experiment with different values to see how it affects the performance of the algorithm.
-        mu:      Maximum cross-entropy. This value is initialized to be twice the target cross-entropy (`2 * tau`) and is updated in the algorithm based on the error between the target and observed surprisal.
+        Uses tokens instead of words.
+
+        Args:
+            n_vocab: Size of the vocabulary.
+            seed: Random seed for sampling.
+            tau: The target cross-entropy (or surprise) value. A higher value
+                corresponds to more surprising or less predictable text.
+            eta: The learning rate used to update `mu` based on the error between
+                the target and observed surprisal. Larger values update faster.
+            m: The number of tokens considered in the estimation of `s_hat`.
+                The paper uses m=100, but other values can be experimented with.
         """
         llama.llama_sampler_chain_add(
             self.ptr, llama.llama_sampler_init_mirostat(n_vocab, seed, tau, eta, m))
 
     def add_mirostat_v2(self, uint32_t seed, float tau, float eta):
-        """Mirostat 2.0 algorithm described in the paper https:#arxiv.org/abs/2007.14966. Uses tokens instead of words.
+        """Mirostat 2.0 algorithm described in the paper https://arxiv.org/abs/2007.14966.
 
-        candidates: A vector of `llama_token_data` containing the candidate tokens, their probabilities (p), and log-odds (logit) for the current position in the generated text.
-        tau:  The target cross-entropy (or surprise) value you want to achieve for the generated text. A higher value corresponds to more surprising or less predictable text, while a lower value corresponds to less surprising or more predictable text.
-        eta: The learning rate used to update `mu` based on the error between the target and observed surprisal of the sampled word. A larger learning rate will cause `mu` to be updated more quickly, while a smaller learning rate will result in slower updates.
-        mu: Maximum cross-entropy. This value is initialized to be twice the target cross-entropy (`2 * tau`) and is updated in the algorithm based on the error between the target and observed surprisal.
+        Uses tokens instead of words. This is a simplified version of Mirostat
+        that doesn't require the vocabulary size or m parameter.
+
+        Args:
+            seed: Random seed for sampling.
+            tau: The target cross-entropy (or surprise) value. A higher value
+                corresponds to more surprising or less predictable text.
+            eta: The learning rate used to update `mu` based on the error between
+                the target and observed surprisal. Larger values update faster.
         """
         llama.llama_sampler_chain_add(
             self.ptr, llama.llama_sampler_init_mirostat_v2(seed, tau, eta))
@@ -2479,13 +2489,43 @@ cdef class LlamaSampler:
                 penalty_present,
             ))
 
-    # XXX FIXME:
-    # def add_logit_bias(self, int n_vocab, int n_logit_bias, logit_bias: list[LogitBias]):
-    #     """Add grammer chain link"""
-    #     cdef std_vector[llama.logit_bias] vec
-    #     llama.llama_sampler_chain_add(
-    #         self.ptr, llama.llama_sampler_init_logit_bias(
-    #             n_vocab, n_logit_bias, vec.data()))
+    def add_logit_bias(self, int n_vocab, logit_biases: list):
+        """Add logit bias sampler to modify token probabilities.
+
+        Applies additive biases to specific token logits before sampling.
+        Positive bias increases probability, negative decreases it.
+
+        Args:
+            n_vocab: Size of the vocabulary.
+            logit_biases: List of (token_id, bias) tuples. Each tuple contains
+                a token ID (int) and a bias value (float) to add to that token's logit.
+
+        Example:
+            # Increase probability of token 123, decrease token 456
+            sampler.add_logit_bias(vocab_size, [(123, 5.0), (456, -5.0)])
+        """
+        cdef int n_logit_bias = len(logit_biases)
+        cdef llama.llama_logit_bias* bias_array = NULL
+
+        if n_logit_bias > 0:
+            bias_array = <llama.llama_logit_bias*>malloc(
+                n_logit_bias * sizeof(llama.llama_logit_bias))
+            if bias_array == NULL:
+                raise MemoryError("Failed to allocate logit bias array")
+
+            try:
+                for i, (token, bias) in enumerate(logit_biases):
+                    bias_array[i].token = token
+                    bias_array[i].bias = bias
+
+                llama.llama_sampler_chain_add(
+                    self.ptr, llama.llama_sampler_init_logit_bias(
+                        n_vocab, n_logit_bias, bias_array))
+            finally:
+                free(bias_array)
+        else:
+            llama.llama_sampler_chain_add(
+                self.ptr, llama.llama_sampler_init_logit_bias(n_vocab, 0, NULL))
 
     def add_infill(self, LlamaVocab vocab):
         """This sampler is meant to be used for fill-in-the-middle infilling
