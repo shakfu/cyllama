@@ -1,11 +1,10 @@
 import platform
+import pytest
 
 import cyllama.llama.llama_cpp as cy
 
 PLATFORM = platform.system()
 
-def progress_callback(progress: float) -> bool:
-    return progress > 0.50
 
 def test_model_instance(model_path):
     cy.llama_backend_init()
@@ -13,13 +12,39 @@ def test_model_instance(model_path):
     assert model
     cy.llama_backend_free()
 
-def test_model_load_cancel(model_path):
+
+def test_model_load_with_progress_callback(model_path):
+    """Test model loading with a progress callback that allows loading to complete."""
+    progress_values = []
+
+    def on_progress(progress: float) -> bool:
+        progress_values.append(progress)
+        return True  # continue loading
+
     cy.llama_backend_init()
     params = cy.LlamaModelParams()
     params.use_mmap = False
-    params.progress_callback = progress_callback
+    params.progress_callback = on_progress
     model = cy.LlamaModel(model_path, params)
     assert model
+    assert len(progress_values) > 0, "Progress callback should have been called"
+    cy.llama_backend_free()
+
+
+def test_model_load_cancel(model_path):
+    """Test that returning False from progress callback aborts model loading."""
+    def abort_at_50_percent(progress: float) -> bool:
+        return progress < 0.50  # abort after 50%
+
+    cy.llama_backend_init()
+    params = cy.LlamaModelParams()
+    params.use_mmap = False
+    params.progress_callback = abort_at_50_percent
+
+    # Loading should fail because we abort after 50%
+    with pytest.raises(ValueError, match="Failed to load model"):
+        model = cy.LlamaModel(model_path, params)
+
     cy.llama_backend_free()
 
 def test_autorelease(model_path):

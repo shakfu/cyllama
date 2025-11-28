@@ -23,6 +23,69 @@ def test_default_model_params():
     assert params.use_mmap == True
     assert params.use_mlock == False
     assert params.check_tensors == False
+    assert params.progress_callback is None
+
+
+def test_model_params_progress_callback():
+    """Test that progress callback can be set and retrieved."""
+    params = cy.LlamaModelParams()
+
+    # Initially None
+    assert params.progress_callback is None
+
+    # Set a callback
+    progress_values = []
+    def on_progress(progress: float) -> bool:
+        progress_values.append(progress)
+        return True  # continue loading
+
+    params.progress_callback = on_progress
+    assert params.progress_callback is on_progress
+
+    # Set to None to disable
+    params.progress_callback = None
+    assert params.progress_callback is None
+
+
+def test_model_params_progress_callback_with_model(model_path):
+    """Test that progress callback is actually called during model loading."""
+    progress_values = []
+
+    def on_progress(progress: float) -> bool:
+        progress_values.append(progress)
+        return True  # continue loading
+
+    params = cy.LlamaModelParams()
+    params.progress_callback = on_progress
+
+    # Load model - this should trigger progress callbacks
+    model = cy.LlamaModel(model_path, params)
+
+    # Verify callback was called with progress values
+    assert len(progress_values) > 0, "Progress callback should have been called"
+    assert all(0.0 <= p <= 1.0 for p in progress_values), "Progress values should be between 0 and 1"
+    # The final progress should be 1.0 (complete)
+    assert progress_values[-1] == 1.0, "Final progress should be 1.0"
+
+
+def test_model_params_progress_callback_abort(model_path):
+    """Test that returning False from progress callback aborts loading."""
+    progress_values = []
+
+    def on_progress(progress: float) -> bool:
+        progress_values.append(progress)
+        # Abort after first callback
+        return False
+
+    params = cy.LlamaModelParams()
+    params.progress_callback = on_progress
+
+    # Loading should fail due to abort
+    with pytest.raises(Exception):
+        model = cy.LlamaModel(model_path, params)
+
+    # Callback should have been called at least once
+    assert len(progress_values) >= 1, "Progress callback should have been called before abort"
 
 def test_default_context_params():
     params = cy.LlamaContextParams()

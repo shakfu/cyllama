@@ -36,6 +36,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - `constrained.py` - Now logs warning with token ID when decoding fails
   - Errors are logged via Python's `logging` module at WARNING level
 
+- **Progress Callback Crash** - Fixed crash when using `progress_callback` on `LlamaModelParams`
+  - The setter now correctly sets both the C wrapper function and stores Python callback reference
+  - Added `_progress_callback` attribute to prevent garbage collection of Python callback
+  - Progress callback now works correctly to monitor model loading progress
+  - Returning `False` from callback properly aborts model loading
+  - Added 4 new tests for progress callback functionality
+
 ## [0.1.13]
 
 ### Added

@@ -788,15 +788,17 @@ cdef class LlamaModelTensorBuftOverride:
 
 cdef class LlamaModelParams:
     cdef llama.llama_model_params p
+    cdef object _progress_callback  # prevent garbage collection of Python callback
 
     def __init__(self):
         self.p = llama.llama_model_default_params()
-        # self.p.progress_callback = &progress_callback # FIXME: causes crash
+        self._progress_callback = None
 
     @staticmethod
     cdef LlamaModelParams from_instance(llama.llama_model_params params):
         cdef LlamaModelParams wrapper = LlamaModelParams.__new__(LlamaModelParams)
         wrapper.p = params
+        wrapper._progress_callback = None
         return wrapper
 
     @property
@@ -851,18 +853,31 @@ cdef class LlamaModelParams:
 
     @property
     def progress_callback(self) -> Callable[[float], bool]:
-        """Called with a progress value between 0.0 and 1.0. Pass NULL to disable.
+        """Called with a progress value between 0.0 and 1.0. Pass None to disable.
 
         If the provided progress_callback returns true, model loading continues.
         If it returns false, model loading is immediately aborted.
 
-        progress_callback_user_data is context pointer passed to the progress callback
+        Example:
+            def on_progress(progress: float) -> bool:
+                print(f"Loading: {progress * 100:.1f}%")
+                return True  # continue loading
+
+            params = LlamaModelParams()
+            params.progress_callback = on_progress
         """
-        return <object>self.p.progress_callback_user_data
+        return self._progress_callback
 
     @progress_callback.setter
     def progress_callback(self, object py_progress_callback):
-        self.p.progress_callback_user_data = <void*>py_progress_callback
+        if py_progress_callback is None:
+            self._progress_callback = None
+            self.p.progress_callback = NULL
+            self.p.progress_callback_user_data = NULL
+        else:
+            self._progress_callback = py_progress_callback
+            self.p.progress_callback = <llama.llama_progress_callback>&progress_callback
+            self.p.progress_callback_user_data = <void*>py_progress_callback
 
     @property
     def kv_overrides(self) -> list[LlamaModelKvOverride]:
