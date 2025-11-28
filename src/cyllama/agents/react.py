@@ -13,7 +13,7 @@ Reference: https://arxiv.org/abs/2210.03629
 import logging
 import re
 import time
-from typing import List, Optional, Iterator, Callable, Dict, Any
+from typing import List, Optional, Iterator, Callable, Dict, Any, Tuple
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -554,7 +554,7 @@ Begin!"""
             return answer.strip()
         return None
 
-    def _parse_action(self, action_str: str) -> tuple[str, Dict[str, Any]]:
+    def _parse_action(self, action_str: str) -> Tuple[str, Dict[str, Any]]:
         """
         Parse action string into tool name and arguments.
 

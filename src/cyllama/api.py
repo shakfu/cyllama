@@ -20,7 +20,7 @@ Example:
     >>> response = llm("What is Python?")
 """
 
-from typing import Iterator, Optional, Dict, Any, List, Callable, Union
+from typing import Iterator, Optional, Dict, Any, List, Callable, Union, Tuple
 from dataclasses import dataclass, field
 import logging
 import time
@@ -381,7 +381,7 @@ class LLM:
         self,
         prompt: str,
         config: Optional[GenerationConfig] = None
-    ) -> tuple[str, GenerationStats]:
+    ) -> Tuple[str, GenerationStats]:
         """
         Generate text and return detailed statistics.
 

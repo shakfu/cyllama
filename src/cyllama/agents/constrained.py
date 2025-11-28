@@ -774,15 +774,22 @@ Use tools when needed, then provide a helpful final answer based on the results.
         return self.registry.list_tools()
 
 
-# TODO: Enhanced version with true grammar constraint support
-# This requires extending the LLM class to accept grammar parameter
 class EnhancedConstrainedAgent(ConstrainedAgent):
     """
-    Future enhancement: Agent with true grammar-constrained generation.
+    Agent with true grammar-constrained generation.
 
     This will use the LlamaSampler.add_grammar() method to enforce
     grammar constraints during generation, ensuring 100% valid JSON.
 
-    Currently not implemented - requires LLM class enhancement.
+    Note:
+        This class is not yet implemented. Instantiating it will raise
+        NotImplementedError. Use ConstrainedAgent instead.
     """
-    pass
+
+    def __init__(self, *args, **kwargs):
+        """Raise NotImplementedError as this class is not yet implemented."""
+        raise NotImplementedError(
+            "EnhancedConstrainedAgent is not yet implemented. "
+            "Use ConstrainedAgent instead, which provides JSON validation "
+            "through post-processing rather than grammar constraints."
+        )

@@ -66,6 +66,46 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
     - Allows biasing specific token probabilities during sampling
     - Takes list of (token_id, bias) tuples
 
+- **MCP Race Condition** - Fixed thread safety issue in `McpStdioConnection.send_notification()`
+  - Now acquires `_read_lock` before writing to stdin, matching `send_request()` behavior
+  - Prevents message interleaving when notifications and requests are sent concurrently
+
+- **Additional Python 3.9 Compatibility** - Fixed `tuple[...]` syntax in more files
+  - `api.py:384` - Changed `tuple[str, GenerationStats]` to `Tuple[str, GenerationStats]`
+  - `agents/react.py:557` - Changed `tuple[str, Dict[str, Any]]` to `Tuple[str, Dict[str, Any]]`
+  - `whisper/cli.py:107` - Changed `tuple[np.ndarray, int]` to `Tuple[np.ndarray, int]`
+
+- **EnhancedConstrainedAgent Stub** - Made non-functional class explicit
+  - Now raises `NotImplementedError` on instantiation with helpful message
+  - Directs users to use `ConstrainedAgent` instead
+
+- **MCP Error Handling** - Improved robustness of MCP connections
+  - Added stdin/stdout null checks before I/O operations
+  - Added `BrokenPipeError` and `OSError` handling for connection failures
+  - Errors now raise `RuntimeError` with descriptive messages
+
+- **MCP Configurable Timeouts** - Added timeout configuration to `McpServerConfig`
+  - New `request_timeout` field (default: 30.0 seconds)
+  - New `shutdown_timeout` field (default: 5.0 seconds)
+  - Module constants `DEFAULT_REQUEST_TIMEOUT` and `DEFAULT_SHUTDOWN_TIMEOUT`
+
+- **Thread Safety in color.py** - Added lock protection for global color settings
+  - `use_color_no_tty()` and `use_color()` now use threading lock
+  - Prevents race conditions when color settings are modified concurrently
+
+- **Session Storage Error Handling** - Improved `FileSessionStore.list_sessions()`
+  - Added OSError handling for directory listing failures
+  - Added logging for parse errors and file read errors
+  - Continues processing remaining files if one fails
+
+### Added
+
+- **Batch Memory Pooling Integration** - Added optional memory pooling to `BatchGenerator`
+  - Added `use_pooling` parameter to `BatchGenerator` (default: `False`)
+  - When `use_pooling=True`, batches are reused instead of allocated/deallocated each generation
+  - Reduces memory allocation overhead in high-throughput scenarios
+  - 6 new tests for batch pooling functionality
+
 ## [0.1.13]
 
 ### Added

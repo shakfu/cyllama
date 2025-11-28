@@ -38,6 +38,8 @@ from .llama.llama_cpp import (
     LlamaBatch,
     ggml_backend_load_all,
     disable_logging,
+    get_pooled_batch,
+    return_batch_to_pool,
 )
 from .api import GenerationConfig
 
@@ -84,7 +86,8 @@ class BatchGenerator:
         n_ctx: int = 2048,
         n_gpu_layers: int = 99,
         n_seq_max: int = 8,
-        verbose: bool = False
+        verbose: bool = False,
+        use_pooling: bool = False
     ):
         """
         Initialize batch generator.
@@ -96,12 +99,16 @@ class BatchGenerator:
             n_gpu_layers: Number of layers to offload to GPU
             n_seq_max: Maximum number of parallel sequences (default: 8)
             verbose: Print detailed information
+            use_pooling: Enable batch memory pooling for reduced allocation overhead.
+                This can improve performance in high-throughput scenarios by reusing
+                batch memory instead of allocating/deallocating for each generation.
         """
         self.model_path = model_path
         self.batch_size = batch_size
         self.n_ctx = n_ctx
         self.n_seq_max = n_seq_max
         self.verbose = verbose
+        self.use_pooling = use_pooling
 
         # Disable llama.cpp logging unless verbose mode is enabled
         if not verbose:
@@ -189,8 +196,11 @@ class BatchGenerator:
             sampler.add_temp(config.temperature)
             sampler.add_dist(config.seed if config.seed != -1 else int(time.time()))
 
-        # Process prompts in batch
-        batch = LlamaBatch(n_tokens=self.batch_size, embd=0, n_seq_max=self.n_seq_max)
+        # Process prompts in batch (use pooling if enabled)
+        if self.use_pooling:
+            batch = get_pooled_batch(n_tokens=self.batch_size, embd=0, n_seq_max=self.n_seq_max)
+        else:
+            batch = LlamaBatch(n_tokens=self.batch_size, embd=0, n_seq_max=self.n_seq_max)
         responses = [""] * len(prompts)
         active_sequences = set(range(len(prompts)))
         seq_positions = {i: 0 for i in range(len(prompts))}
@@ -246,6 +256,10 @@ class BatchGenerator:
             # Decode batch if not empty
             if batch.n_tokens > 0:
                 self.ctx.decode(batch)
+
+        # Return batch to pool if pooling is enabled
+        if self.use_pooling:
+            return_batch_to_pool(batch)
 
         if self.verbose:
             print(f"Generated {len(prompts)} responses")

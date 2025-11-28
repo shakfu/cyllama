@@ -1,6 +1,6 @@
 [project]
 name = "cyllama"
-version = "0.1.13"
+version = "0.1.14"
 description = "A cython wrapper of llama.cpp"
 readme = "README.md"
 authors = [

@@ -272,3 +272,177 @@ class TestBatchConfiguration:
         responses = gen.generate_batch(prompts, config)
 
         assert len(responses) == 1
+
+
+class TestBatchPooling:
+    """Test batch memory pooling functionality."""
+
+    def test_pooling_api_available(self):
+        """Test that batch pooling API is available from llama_cpp module."""
+        from cyllama.llama.llama_cpp import (
+            get_pooled_batch,
+            return_batch_to_pool,
+            get_batch_pool_stats,
+            reset_batch_pool,
+        )
+
+        # Verify functions are callable
+        assert callable(get_pooled_batch)
+        assert callable(return_batch_to_pool)
+        assert callable(get_batch_pool_stats)
+        assert callable(reset_batch_pool)
+
+    def test_batch_pooling_basic(self):
+        """Test basic batch pooling get/return cycle."""
+        from cyllama.llama.llama_cpp import (
+            get_pooled_batch,
+            return_batch_to_pool,
+            get_batch_pool_stats,
+            reset_batch_pool,
+        )
+
+        # Reset pool to known state
+        reset_batch_pool()
+        stats = get_batch_pool_stats()
+        assert stats["total_pools"] == 0
+        assert stats["total_pooled_batches"] == 0
+
+        # Get a batch from pool (creates new one)
+        batch = get_pooled_batch(n_tokens=256, embd=0, n_seq_max=4)
+        assert batch is not None
+
+        # Return batch to pool
+        return_batch_to_pool(batch)
+        stats = get_batch_pool_stats()
+        assert stats["total_pools"] == 1
+        assert stats["total_pooled_batches"] == 1
+
+        # Get batch again (should reuse from pool)
+        batch2 = get_pooled_batch(n_tokens=256, embd=0, n_seq_max=4)
+        stats = get_batch_pool_stats()
+        # Pool now empty since we took the batch
+        assert stats["total_pooled_batches"] == 0
+
+        # Clean up
+        return_batch_to_pool(batch2)
+        reset_batch_pool()
+
+    def test_batch_pooling_multiple_batches(self):
+        """Test pooling with multiple batches of different sizes."""
+        from cyllama.llama.llama_cpp import (
+            get_pooled_batch,
+            return_batch_to_pool,
+            get_batch_pool_stats,
+            reset_batch_pool,
+        )
+
+        reset_batch_pool()
+
+        # Get batches of different sizes
+        batch1 = get_pooled_batch(n_tokens=128, embd=0, n_seq_max=2)
+        batch2 = get_pooled_batch(n_tokens=256, embd=0, n_seq_max=4)
+        batch3 = get_pooled_batch(n_tokens=512, embd=0, n_seq_max=8)
+
+        # Batches are in use, pool is empty
+        stats = get_batch_pool_stats()
+        assert stats["total_pooled_batches"] == 0
+
+        # Return all
+        return_batch_to_pool(batch1)
+        return_batch_to_pool(batch2)
+        return_batch_to_pool(batch3)
+
+        stats = get_batch_pool_stats()
+        assert stats["total_pools"] == 3  # 3 different configurations
+        assert stats["total_pooled_batches"] == 3  # 3 batches available
+
+        # Clean up
+        reset_batch_pool()
+
+    def test_batch_generator_with_pooling(self):
+        """Test BatchGenerator with use_pooling=True."""
+        gen = BatchGenerator(
+            model_path=DEFAULT_MODEL,
+            n_seq_max=2,
+            verbose=False,
+            use_pooling=True
+        )
+
+        assert gen.use_pooling is True
+
+        prompts = ["Hello", "Hi"]
+        config = GenerationConfig(max_tokens=5, temperature=0.0)
+
+        responses = gen.generate_batch(prompts, config)
+
+        assert len(responses) == 2
+        for response in responses:
+            assert isinstance(response, str)
+            assert len(response) > 0
+
+    def test_batch_generator_pooling_consistency(self):
+        """Test that pooling produces same results as non-pooling."""
+        prompts = ["What is 2+2?"]
+        config = GenerationConfig(max_tokens=10, temperature=0.0)
+
+        # Without pooling
+        gen_no_pool = BatchGenerator(
+            model_path=DEFAULT_MODEL,
+            n_seq_max=1,
+            verbose=False,
+            use_pooling=False
+        )
+        response_no_pool = gen_no_pool.generate_batch(prompts, config)
+
+        # With pooling
+        gen_pool = BatchGenerator(
+            model_path=DEFAULT_MODEL,
+            n_seq_max=1,
+            verbose=False,
+            use_pooling=True
+        )
+        response_pool = gen_pool.generate_batch(prompts, config)
+
+        # Results should be identical
+        assert response_no_pool == response_pool
+
+    def test_batch_generator_multiple_generations_with_pooling(self):
+        """Test that pooling works correctly across multiple generations."""
+        from cyllama.llama.llama_cpp import get_batch_pool_stats, reset_batch_pool
+
+        reset_batch_pool()
+
+        # Test that BatchGenerator with pooling can generate multiple times
+        # Each generation should work correctly even when batches are reused
+        gen = BatchGenerator(
+            model_path=DEFAULT_MODEL,
+            n_seq_max=2,
+            verbose=False,
+            use_pooling=True
+        )
+
+        config = GenerationConfig(max_tokens=5, temperature=0.0)
+
+        # First generation
+        prompts1 = ["Hello", "Hi"]
+        responses1 = gen.generate_batch(prompts1, config)
+        assert len(responses1) == 2
+
+        # After first generation, batch should be in pool
+        stats = get_batch_pool_stats()
+        assert stats["total_pooled_batches"] >= 1
+
+        # Create a new generator to use pooled batches
+        gen2 = BatchGenerator(
+            model_path=DEFAULT_MODEL,
+            n_seq_max=2,
+            verbose=False,
+            use_pooling=True
+        )
+
+        # Second generation with same config should reuse batch
+        prompts2 = ["Hey", "Howdy"]
+        responses2 = gen2.generate_batch(prompts2, config)
+        assert len(responses2) == 2
+
+        reset_batch_pool()

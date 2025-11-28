@@ -28,6 +28,10 @@ from .jsonrpc import (
 
 logger = logging.getLogger(__name__)
 
+# Default timeout values (in seconds)
+DEFAULT_REQUEST_TIMEOUT = 30.0
+DEFAULT_SHUTDOWN_TIMEOUT = 5.0
+
 
 class McpTransportType(Enum):
     """MCP server transport types."""
@@ -51,6 +55,10 @@ class McpServerConfig:
     # HTTP transport options
     url: Optional[str] = None
     headers: Optional[Dict[str, str]] = None
+
+    # Timeout options
+    request_timeout: float = DEFAULT_REQUEST_TIMEOUT
+    shutdown_timeout: float = DEFAULT_SHUTDOWN_TIMEOUT
 
     def validate(self) -> None:
         """Validate the configuration."""
@@ -135,7 +143,7 @@ class McpStdioConnection:
             logger.info("Stopping MCP server '%s'", self._config.name)
             self._process.terminate()
             try:
-                self._process.wait(timeout=5.0)
+                self._process.wait(timeout=self._config.shutdown_timeout)
             except subprocess.TimeoutExpired:
                 self._process.kill()
             self._process = None
@@ -149,7 +157,7 @@ class McpStdioConnection:
         self,
         method: str,
         params: Optional[dict] = None,
-        timeout: float = 30.0
+        timeout: Optional[float] = None
     ) -> Any:
         """
         Send a JSON-RPC request and wait for response.
@@ -157,7 +165,7 @@ class McpStdioConnection:
         Args:
             method: RPC method name
             params: Method parameters
-            timeout: Response timeout in seconds
+            timeout: Response timeout in seconds (defaults to config.request_timeout)
 
         Returns:
             The result from the response
@@ -168,20 +176,32 @@ class McpStdioConnection:
         if not self._process or self._process.poll() is not None:
             raise RuntimeError(f"MCP server '{self._config.name}' is not running")
 
+        if self._process.stdin is None or self._process.stdout is None:
+            raise RuntimeError(f"MCP server '{self._config.name}' stdio not available")
+
+        # Use config timeout if not specified
+        if timeout is None:
+            timeout = self._config.request_timeout
+
         request_id = self._next_id()
         request = JsonRpcRequest(method=method, params=params, id=request_id)
         request_str = serialize_message(request) + "\n"
 
         logger.debug("MCP request to '%s': %s", self._config.name, method)
 
-        with self._read_lock:
-            self._process.stdin.write(request_str)
-            self._process.stdin.flush()
+        try:
+            with self._read_lock:
+                self._process.stdin.write(request_str)
+                self._process.stdin.flush()
 
-            # Read response
-            response_line = self._process.stdout.readline()
-            if not response_line:
-                raise RuntimeError(f"MCP server '{self._config.name}' closed connection")
+                # Read response
+                response_line = self._process.stdout.readline()
+                if not response_line:
+                    raise RuntimeError(f"MCP server '{self._config.name}' closed connection")
+        except (BrokenPipeError, OSError) as e:
+            raise RuntimeError(
+                f"MCP server '{self._config.name}' connection lost: {e}"
+            ) from e
 
         msg = parse_message(response_line.strip())
         if not isinstance(msg, JsonRpcResponse):
@@ -200,11 +220,20 @@ class McpStdioConnection:
         if not self._process or self._process.poll() is not None:
             raise RuntimeError(f"MCP server '{self._config.name}' is not running")
 
+        if self._process.stdin is None:
+            raise RuntimeError(f"MCP server '{self._config.name}' stdin is not available")
+
         request = JsonRpcRequest(method=method, params=params, id=None)
         request_str = serialize_message(request) + "\n"
 
-        self._process.stdin.write(request_str)
-        self._process.stdin.flush()
+        try:
+            with self._read_lock:
+                self._process.stdin.write(request_str)
+                self._process.stdin.flush()
+        except (BrokenPipeError, OSError) as e:
+            raise RuntimeError(
+                f"MCP server '{self._config.name}' connection lost: {e}"
+            ) from e
 
 
 class McpHttpConnection:
