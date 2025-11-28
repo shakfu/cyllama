@@ -120,6 +120,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
     - Enhanced `ValueError` message for too many prompts (includes batch suggestion)
   - 22 new tests for cleanup, validation, and edge cases
 
+- **ReActAgent Robust Parsing** - Improved tool call parsing and error handling
+  - Added `ActionParseError` exception class with structured error information:
+    - `message`: Human-readable error description
+    - `action_str`: Original action that failed
+    - `suggestion`: Helpful hint for fixing the format
+    - `details`: List of parsing attempts made
+  - Multi-strategy argument parsing:
+    - Strategy 1: JSON object format with trailing comma fix
+    - Strategy 2: Key=value pairs with proper quote handling
+    - Strategy 3: Single positional argument
+    - Strategy 4: Extract multiple quoted values for tool parameters
+  - Handles common LLM output variations:
+    - Trailing commas in JSON (`{"key": "value",}`)
+    - Single-quoted JSON strings (`{'key': 'value'}`)
+    - Escaped quotes within values
+    - Multi-line argument values
+  - Improved exception handling in tool execution:
+    - `ActionParseError`: Parse failures with suggestions
+    - `ValueError`: Unknown tools show available tools list
+    - `TypeError`: Invalid arguments with tool info
+    - Generic `Exception`: Unexpected errors with stack trace logging
+  - Comprehensive loop detection documentation in `__init__` docstring:
+    - Exact action matching mechanism
+    - Same tool matching mechanism
+    - Parse failure tracking
+    - Recovery behavior and summary generation
+  - 28 new tests for parsing, error handling, loop detection, argument types, and metrics
+
 ### Changed
 
 - **Centralized Model Path Configuration** - Consolidated hardcoded model paths across the codebase

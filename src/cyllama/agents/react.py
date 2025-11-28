@@ -77,6 +77,49 @@ class AgentResult:
     metrics: Optional[AgentMetrics] = None
 
 
+class ActionParseError(ValueError):
+    """
+    Error raised when parsing a tool action string fails.
+
+    Provides structured error information including:
+    - message: Human-readable error description
+    - action_str: The original action string that failed to parse
+    - suggestion: Helpful suggestion for fixing the format
+    - details: List of detailed error messages from parsing attempts
+
+    Example:
+        try:
+            tool_name, args = agent._parse_action(action_str)
+        except ActionParseError as e:
+            print(f"Parse failed: {e.message}")
+            print(f"Suggestion: {e.suggestion}")
+    """
+
+    def __init__(
+        self,
+        message: str,
+        action_str: str,
+        suggestion: Optional[str] = None,
+        details: Optional[List[str]] = None
+    ):
+        self.message = message
+        self.action_str = action_str
+        self.suggestion = suggestion
+        self.details = details or []
+
+        # Build full error message
+        full_msg = f"{message}: {action_str[:100]}{'...' if len(action_str) > 100 else ''}"
+        if suggestion:
+            full_msg += f". {suggestion}"
+        if details:
+            full_msg += f" (Tried: {'; '.join(details)})"
+
+        super().__init__(full_msg)
+
+    def __str__(self) -> str:
+        return self.args[0]
+
+
 class ReActAgent:
     """
     ReAct agent that uses reasoning and tool calling to solve tasks.
@@ -159,7 +202,45 @@ Begin!"""
             max_consecutive_same_tool: Number of times the same tool can be called
                                        consecutively (with any args) before loop (default: 4)
             max_context_chars: Maximum characters for the prompt context. Older history
-                              is truncated to stay within this limit (default: 16000)
+                              is truncated to stay within this limit (default: 6000)
+
+        Loop Detection:
+            The agent implements two complementary loop detection mechanisms to prevent
+            infinite loops that can occur when the LLM gets stuck:
+
+            1. **Exact Action Matching** (max_consecutive_same_action):
+               Detects when the model outputs the exact same action string multiple times
+               in a row. This catches cases where the model is literally repeating itself,
+               often due to prompt overflow or model confusion.
+
+               Example triggering this:
+                   Action: search(query="weather")
+                   Action: search(query="weather")  # Same exact action -> loop detected
+
+            2. **Same Tool Matching** (max_consecutive_same_tool):
+               Detects when the model calls the same tool repeatedly (even with different
+               arguments). This catches cases where the model is stuck using one tool
+               without making progress, often due to tool output not being helpful.
+
+               Example triggering this:
+                   Action: search(query="weather today")
+                   Action: search(query="current weather")
+                   Action: search(query="weather forecast")
+                   Action: search(query="temperature")  # 4th consecutive search -> loop
+
+            3. **Parse Failure Tracking**:
+               Failed action parses are tracked as a special "__PARSE_FAILED__" tool.
+               If the model repeatedly outputs malformed actions, this is also detected
+               as a loop and triggers early termination.
+
+            When a loop is detected:
+            - If observations have been collected, a summary answer is generated
+            - If no observations exist, an error event is emitted
+            - The agent terminates to avoid wasting resources
+            - metrics.loop_detected is set to True for inspection
+
+            To disable loop detection entirely, set detect_loops=False (not recommended
+            for production use as it can lead to runaway iterations).
         """
         self.llm = llm
         self.registry = ToolRegistry()
@@ -402,14 +483,71 @@ Begin!"""
                     tool_time = (time.perf_counter() - tool_start) * 1000
                     self._metrics.tool_time_ms += tool_time
                     logger.debug("Tool %s executed in %.1fms", tool_name, tool_time)
-                except Exception as e:
+                except ActionParseError as e:
+                    # Parsing error - provide helpful feedback to the model
                     self._metrics.error_count += 1
-                    observation = f"Error: {str(e)}"
-                    logger.error("Tool execution failed: %s", str(e))
+                    observation = f"Error: {e.message}"
+                    if e.suggestion:
+                        observation += f". {e.suggestion}"
+                    logger.warning("Action parse failed: %s", str(e))
                     error_event = AgentEvent(
                         type=EventType.ERROR,
                         content=str(e),
-                        metadata={"action": action_str}
+                        metadata={
+                            "action": action_str,
+                            "error_type": "parse_error",
+                            "suggestion": e.suggestion
+                        }
+                    )
+                    yield error_event
+                except ValueError as e:
+                    # Unknown tool or validation error
+                    self._metrics.error_count += 1
+                    error_msg = str(e)
+                    if "Unknown tool" in error_msg:
+                        available = [t.name for t in self.registry.list_tools()]
+                        observation = f"Error: {error_msg}. Available tools: {', '.join(available)}"
+                    else:
+                        observation = f"Error: {error_msg}"
+                    logger.warning("Tool validation error: %s", error_msg)
+                    error_event = AgentEvent(
+                        type=EventType.ERROR,
+                        content=error_msg,
+                        metadata={
+                            "action": action_str,
+                            "error_type": "validation_error"
+                        }
+                    )
+                    yield error_event
+                except TypeError as e:
+                    # Wrong argument types
+                    self._metrics.error_count += 1
+                    observation = f"Error: Invalid arguments - {str(e)}"
+                    logger.warning("Tool argument error for %s: %s", tool_name, str(e))
+                    error_event = AgentEvent(
+                        type=EventType.ERROR,
+                        content=str(e),
+                        metadata={
+                            "action": action_str,
+                            "error_type": "argument_error",
+                            "tool_name": tool_name,
+                            "tool_args": tool_args
+                        }
+                    )
+                    yield error_event
+                except Exception as e:
+                    # Unexpected error during tool execution
+                    self._metrics.error_count += 1
+                    observation = f"Error: Tool execution failed - {str(e)}"
+                    logger.error("Tool execution failed for %s: %s", tool_name, str(e), exc_info=True)
+                    error_event = AgentEvent(
+                        type=EventType.ERROR,
+                        content=str(e),
+                        metadata={
+                            "action": action_str,
+                            "error_type": "execution_error",
+                            "tool_name": tool_name
+                        }
                     )
                     yield error_event
 
@@ -562,6 +700,15 @@ Begin!"""
             tool_name(arg1="value1", arg2="value2")
             tool_name(arg1='value1', arg2='value2')
             tool_name({"arg1": "value1", "arg2": "value2"})
+            tool_name("positional_value")
+            tool_name()  # no arguments
+
+        The parser handles common LLM output variations:
+            - Nested quotes and escaped characters
+            - Multi-line argument values
+            - Mixed quote styles
+            - Trailing commas in JSON
+            - Whitespace variations
 
         Args:
             action_str: Action string to parse
@@ -570,81 +717,290 @@ Begin!"""
             Tuple of (tool_name, arguments_dict)
 
         Raises:
-            ValueError: If action string is malformed
+            ActionParseError: If action string is malformed (with helpful message)
         """
         import json
 
+        action_str = action_str.strip()
+
+        if not action_str:
+            raise ActionParseError(
+                "Empty action string",
+                action_str,
+                suggestion="Provide an action in format: tool_name(arguments)"
+            )
+
         # Try function call format: tool_name(arg1="val", arg2="val")
         # Use DOTALL to handle multi-line arguments
-        match = re.match(r"(\w+)\((.*)\)", action_str.strip(), re.DOTALL)
+        match = re.match(r"(\w+)\s*\((.*)\)\s*$", action_str, re.DOTALL)
         if not match:
-            raise ValueError(f"Invalid action format: {action_str}")
+            # Try to provide helpful error for common mistakes
+            if "(" not in action_str:
+                raise ActionParseError(
+                    "Missing parentheses in action",
+                    action_str,
+                    suggestion=f"Use format: {action_str}() or {action_str}(arg=\"value\")"
+                )
+            if not action_str.rstrip().endswith(")"):
+                raise ActionParseError(
+                    "Missing closing parenthesis",
+                    action_str,
+                    suggestion="Ensure action ends with )"
+                )
+            raise ActionParseError(
+                "Invalid action format",
+                action_str,
+                suggestion="Use format: tool_name(arg=\"value\") or tool_name({\"arg\": \"value\"})"
+            )
 
         tool_name = match.group(1)
         args_str = match.group(2).strip()
 
+        # Validate tool name
+        if not tool_name.isidentifier():
+            raise ActionParseError(
+                f"Invalid tool name: '{tool_name}'",
+                action_str,
+                suggestion="Tool name must be a valid identifier (letters, numbers, underscores)"
+            )
+
         if not args_str:
             return tool_name, {}
 
-        # Parse arguments
-        args = {}
+        # Parse arguments using multiple strategies
+        args = self._try_parse_arguments(tool_name, args_str, action_str)
+        return tool_name, args
 
-        # Try JSON object format first
-        if args_str.startswith("{"):
-            # Handle triple-quoted strings - these aren't valid JSON
-            # Provide helpful error message guiding the model to use \n escapes
-            if '"""' in args_str or "'''" in args_str:
-                raise ValueError(
-                    f"Triple-quoted strings are not valid JSON. "
-                    f"Use escaped newlines instead: {{\"code\": \"line1\\nline2\"}}"
-                )
+    def _try_parse_arguments(
+        self,
+        tool_name: str,
+        args_str: str,
+        original_action: str
+    ) -> Dict[str, Any]:
+        """
+        Try multiple strategies to parse arguments.
 
-            try:
-                args = json.loads(args_str)
-                # Post-process string values to convert literal \n to actual newlines
-                # This handles cases where the model outputs {"code": "line1\nline2"}
-                # where the \n is meant to be a newline but JSON didn't interpret it
-                args = self._convert_escape_sequences(args)
-                return tool_name, args
-            except json.JSONDecodeError as e:
-                # If JSON parsing fails, provide helpful error
-                raise ValueError(
-                    f"Invalid JSON in tool arguments. "
-                    f"For multi-line strings, use escaped newlines: {{\"code\": \"line1\\nline2\"}}"
-                )
+        Args:
+            tool_name: Name of the tool being called
+            args_str: The argument string inside parentheses
+            original_action: Full original action for error messages
 
-        # Parse key=value pairs with proper string handling
-        # First, check for triple-quoted strings which aren't valid
+        Returns:
+            Parsed arguments dictionary
+
+        Raises:
+            ActionParseError: If no parsing strategy succeeds
+        """
+        import json
+
+        errors = []
+
+        # Early check for triple-quoted strings - these are never valid
+        # and should fail with a helpful message before fallback strategies
         if '"""' in args_str or "'''" in args_str:
-            raise ValueError(
-                f"Triple-quoted strings are not supported. "
-                f"Use escaped newlines instead: code=\"line1\\nline2\""
+            raise ActionParseError(
+                "Triple-quoted strings are not supported",
+                original_action,
+                suggestion='Use escaped newlines: {"code": "line1\\nline2"}'
             )
 
-        # Handle both single and double quotes, including escaped quotes within
-        # Pattern matches: key="value" or key='value'
-        # This simpler pattern works for basic cases
-        pattern = r'(\w+)\s*=\s*["\']([^"\']*)["\']'
-        matches = re.findall(pattern, args_str)
+        # Strategy 1: JSON object format
+        if args_str.startswith("{"):
+            try:
+                return self._parse_json_args(args_str)
+            except ActionParseError as e:
+                errors.append(f"JSON parse: {e.message}")
 
-        if matches:
-            args = {key: value for key, value in matches}
-            # Convert escape sequences in parsed values
-            args = self._convert_escape_sequences(args)
-        else:
-            # Try positional argument (single value)
-            # Remove quotes if present
-            value = args_str.strip().strip('"').strip("'")
+        # Strategy 2: Key=value pairs with quotes
+        try:
+            args = self._parse_kwargs(args_str)
+            if args:
+                return args
+        except Exception as e:
+            errors.append(f"Key=value parse: {str(e)}")
+
+        # Strategy 3: Positional argument (single quoted value)
+        try:
+            args = self._parse_positional_arg(tool_name, args_str)
+            if args:
+                return args
+        except Exception as e:
+            errors.append(f"Positional parse: {str(e)}")
+
+        # Strategy 4: Try to extract any quoted strings as values
+        try:
+            args = self._parse_quoted_values(tool_name, args_str)
+            if args:
+                return args
+        except Exception as e:
+            errors.append(f"Quoted values parse: {str(e)}")
+
+        # All strategies failed
+        raise ActionParseError(
+            "Could not parse tool arguments",
+            original_action,
+            suggestion="Use format: tool({\"arg\": \"value\"}) or tool(arg=\"value\")",
+            details=errors
+        )
+
+    def _parse_json_args(self, args_str: str) -> Dict[str, Any]:
+        """Parse JSON object format arguments."""
+        import json
+
+        # Handle triple-quoted strings - these aren't valid JSON
+        if '"""' in args_str or "'''" in args_str:
+            raise ActionParseError(
+                "Triple-quoted strings are not valid JSON",
+                args_str,
+                suggestion='Use escaped newlines: {"code": "line1\\nline2"}'
+            )
+
+        # Try to fix common JSON issues
+        fixed_str = args_str
+
+        # Remove trailing commas before closing braces/brackets
+        fixed_str = re.sub(r',\s*}', '}', fixed_str)
+        fixed_str = re.sub(r',\s*]', ']', fixed_str)
+
+        # Try parsing
+        try:
+            args = json.loads(fixed_str)
+            return self._convert_escape_sequences(args)
+        except json.JSONDecodeError as e:
+            # Try single-quote to double-quote conversion
+            try:
+                # Only convert quotes that are likely string delimiters
+                converted = self._convert_single_to_double_quotes(fixed_str)
+                args = json.loads(converted)
+                return self._convert_escape_sequences(args)
+            except json.JSONDecodeError:
+                pass
+
+            raise ActionParseError(
+                f"Invalid JSON syntax: {str(e)}",
+                args_str,
+                suggestion='Use valid JSON: {"key": "value"}'
+            )
+
+    def _convert_single_to_double_quotes(self, s: str) -> str:
+        """
+        Convert single-quoted JSON strings to double-quoted.
+
+        This is a best-effort conversion for common cases.
+        """
+        result = []
+        i = 0
+        in_string = False
+        string_char = None
+
+        while i < len(s):
+            char = s[i]
+
+            if not in_string:
+                if char == "'":
+                    result.append('"')
+                    in_string = True
+                    string_char = "'"
+                elif char == '"':
+                    result.append(char)
+                    in_string = True
+                    string_char = '"'
+                else:
+                    result.append(char)
+            else:
+                if char == '\\' and i + 1 < len(s):
+                    # Handle escape sequences
+                    result.append(char)
+                    result.append(s[i + 1])
+                    i += 1
+                elif char == string_char:
+                    result.append('"' if string_char == "'" else char)
+                    in_string = False
+                    string_char = None
+                else:
+                    result.append(char)
+            i += 1
+
+        return ''.join(result)
+
+    def _parse_kwargs(self, args_str: str) -> Dict[str, Any]:
+        """Parse key=value pairs with proper quote handling."""
+        # Check for triple-quoted strings which aren't supported
+        if '"""' in args_str or "'''" in args_str:
+            raise ActionParseError(
+                "Triple-quoted strings are not supported",
+                args_str,
+                suggestion='Use escaped newlines: code="line1\\nline2"'
+            )
+
+        args = {}
+
+        # Pattern for key="value" or key='value'
+        # Handles escaped quotes within the value
+        patterns = [
+            # key="value" with escaped quotes
+            r'(\w+)\s*=\s*"((?:[^"\\]|\\.)*)"\s*(?:,|$)',
+            # key='value' with escaped quotes
+            r"(\w+)\s*=\s*'((?:[^'\\]|\\.)*)'\s*(?:,|$)",
+            # Simple patterns as fallback
+            r'(\w+)\s*=\s*"([^"]*)"\s*(?:,|$)',
+            r"(\w+)\s*=\s*'([^']*)'\s*(?:,|$)",
+        ]
+
+        for pattern in patterns:
+            matches = re.findall(pattern, args_str)
+            if matches:
+                for key, value in matches:
+                    args[key] = value
+                if args:
+                    return self._convert_escape_sequences(args)
+
+        return {}
+
+    def _parse_positional_arg(self, tool_name: str, args_str: str) -> Dict[str, Any]:
+        """Parse a single positional argument."""
+        # Only try if there's a single quoted value (not multiple comma-separated)
+        # Check for comma between quotes which would indicate multiple values
+        if re.search(r'["\'][,\s]+["\']', args_str):
+            return {}  # Let _parse_quoted_values handle multiple values
+
+        # Try to extract a quoted value
+        match = re.match(r'^["\'](.+)["\']$', args_str.strip(), re.DOTALL)
+        if match:
+            value = match.group(1)
             # Get first parameter name from tool
             tool = self.registry.get(tool_name)
             if tool:
                 param_names = list(tool.parameters.get("properties", {}).keys())
                 if param_names:
-                    args = {param_names[0]: value}
-                    # Convert escape sequences
-                    args = self._convert_escape_sequences(args)
+                    return self._convert_escape_sequences({param_names[0]: value})
+            # No tool info, use generic key
+            return self._convert_escape_sequences({"value": value})
+        return {}
 
-        return tool_name, args
+    def _parse_quoted_values(self, tool_name: str, args_str: str) -> Dict[str, Any]:
+        """Extract any quoted strings as argument values."""
+        # Find all quoted strings
+        quoted = re.findall(r'["\']([^"\']+)["\']', args_str)
+        if not quoted:
+            return {}
+
+        # Get parameter names from tool
+        tool = self.registry.get(tool_name)
+        if tool:
+            param_names = list(tool.parameters.get("properties", {}).keys())
+            args = {}
+            for i, value in enumerate(quoted):
+                if i < len(param_names):
+                    args[param_names[i]] = value
+                else:
+                    args[f"arg{i}"] = value
+            return self._convert_escape_sequences(args)
+
+        # No tool info, use positional keys
+        return self._convert_escape_sequences(
+            {f"arg{i}": v for i, v in enumerate(quoted)}
+        )
 
     def _convert_escape_sequences(self, args: Dict[str, Any]) -> Dict[str, Any]:
         """
