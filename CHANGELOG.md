@@ -124,6 +124,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - `memory.py:format_bytes()` - Added `Union[int, float]` parameter and `-> str` return type
   - `memory.py:main()` - Added `-> int` return type
 
+- **Memory Module Improvements** - Enhanced `memory.py` with logging, validation, and documentation
+  - Added module-level logger for error and diagnostic reporting
+  - Added comprehensive docstrings explaining memory estimation formulas
+  - Documented all magic numbers with named constants and references:
+    - `FLASH_ATTN_FACTOR = 0.8` - Flash attention memory reduction from Dao et al., 2022
+    - `NO_KQV_OFFLOAD_FACTOR = 1.2` - Memory increase without KQV offload
+    - `SAFETY_MARGIN = 1.1` - Buffer for fragmentation and alignment
+    - `PROJECTOR_SIZE_BYTES = 100MB` - LLaVA projector size estimate
+    - `QUANTIZATION_FACTORS` dict with GGML type comments and bit calculations
+  - Added input validation to main functions:
+    - `graph_size()` - Validates n_layers, n_embd, n_ctx
+    - `estimate_gpu_layers()` - Validates gpu_memory, ctx_size, batch_size
+    - `estimate_memory_usage()` - Validates ctx_size, batch_size
+    - `parse_gpu_memory()` - Validates string format and raises ValueError on invalid input
+  - Added logging calls for error conditions:
+    - File I/O errors in `get_file_host_endian()`
+    - Metadata loading failures in `dump_metadata_json()`
+    - Context size clamping warnings in `estimate_gpu_layers()`
+    - Invalid parameter warnings throughout
+
 - **Stop Sequence Logic Simplified** - Refactored stop sequence handling in `api.py`
   - Extracted `_find_stop_sequence()` helper method for cleaner code
   - Fixed buffer flush bug that was including stop sequences in output
