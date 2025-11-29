@@ -74,6 +74,12 @@ jobs:
     - name: Build wheel
       run: make wheel
 
+    - name: Repair wheel with auditwheel
+      run: |
+        uv pip install auditwheel patchelf
+        uv run auditwheel repair dist/*.whl --plat manylinux_2_17_x86_64 -w dist/
+        rm dist/*-linux_x86_64.whl
+
     - name: Check distributions
       run: make wheel-check
 
