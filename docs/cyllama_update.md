@@ -1,274 +1,171 @@
-# cyllama Update - November 2025 (v0.1.12)
+# cyllama Update - November 2025 (v0.1.15)
 
 ## What's New in cyllama
 
-I'm excited to share the latest updates to [cyllama](https://github.com/shakfu/cyllama) - the comprehensive Python library for LLM inference built on llama.cpp. This release brings two major new capabilities: a zero-dependency **Agent Framework** and **Stable Diffusion** image generation support.
+This update covers versions 0.1.13 through 0.1.15 of [cyllama](https://github.com/shakfu/cyllama). These releases focus on robustness, security, and developer experience improvements.
 
-A quick reminder: cyllama is a performant, compiled Cython wrapper for llama.cpp that provides both low-level access and a high-level Pythonic API. It statically links the core libraries for simplicity and performance.
+A quick reminder: cyllama is a performant, compiled zer-dependency Cython wrapper for llama.cpp, whisper.cpp, and stable-diffusion.cpp that provides both low-level access and a high-level Pythonic API. It statically links the core libraries for simplicity and performance.
 
 ---
 
-## Major New Features
+## Highlights
 
-### 1. Agent Framework (Zero Dependencies)
+### Security & Stability (v0.1.15)
 
-cyllama now includes a complete agent framework with three agent architectures, all with zero external dependencies:
+Critical input validation added to prevent crashes and security issues:
 
-**ReActAgent** - Reasoning + Acting agent with tool calling:
+- **Buffer Overflow Prevention** - `get_state_seq_data()` and `get_state_seq_data_with_flags()` now dynamically allocate buffers based on actual required size instead of using fixed 512-byte stack buffers
+- **File Path Validation** - LoRA adapter and state file functions now validate paths before passing to C code
+- **NULL Pointer Protection** - `LlamaContext` validates model before initialization, preventing segfaults
+
+### Zero-Dependency Image I/O (v0.1.13)
+
+Native PNG/JPEG/BMP support without PIL:
+
+```python
+from cyllama.stablediffusion import SDImage
+
+# Load any common format
+img = SDImage.load("photo.jpg")  # PNG, JPEG, BMP, TGA, GIF, PSD, HDR, PIC
+
+# Save without external dependencies
+img.save_png("output.png")
+img.save_jpg("output.jpg", quality=90)
+img.save_bmp("output.bmp")
+```
+
+### Enhanced Resource Management (v0.1.14)
+
+Improved context lifecycle and memory management:
 
 ```python
 from cyllama import LLM
-from cyllama.agents import ReActAgent, tool
 
-@tool
-def calculate(expression: str) -> str:
-    """Evaluate a math expression."""
-    return str(eval(expression))
+# Context manager for automatic cleanup
+with LLM("model.gguf") as llm:
+    response = llm("Hello!")
+    # Context is cached and reused when size permits
 
-@tool
-def search(query: str) -> str:
-    """Search for information."""
-    return f"Results for: {query}"
-
+# Or explicit cleanup
 llm = LLM("model.gguf")
-agent = ReActAgent(llm=llm, tools=[calculate, search])
-result = agent.run("What is 25 * 4 + 10?")
-print(result.answer)  # "The result is 110"
+llm.close()  # Explicit resource cleanup
 ```
 
-**ConstrainedAgent** - Grammar-enforced tool calling for 100% reliability:
+### Robust Agent Framework (v0.1.14)
+
+Significant improvements to agent reliability:
+
+**ReActAgent** now handles malformed LLM outputs gracefully:
 
 ```python
-from cyllama.agents import ConstrainedAgent
+from cyllama.agents import ReActAgent, ActionParseError
 
-# Uses GBNF grammars to guarantee valid JSON tool calls
-agent = ConstrainedAgent(llm=llm, tools=[calculate])
-result = agent.run("Calculate 100 / 4")  # Always produces valid tool calls
+# Multi-strategy parsing handles common LLM variations:
+# - Trailing commas in JSON: {"key": "value",}
+# - Single-quoted JSON: {'key': 'value'}
+# - Escaped quotes within values
+# - Key=value pairs and positional arguments
+
+# ActionParseError provides helpful debugging info
+try:
+    result = agent.run("Some task")
+except ActionParseError as e:
+    print(e.message)     # Human-readable error
+    print(e.suggestion)  # How to fix it
+    print(e.details)     # All parsing attempts made
 ```
 
-**ContractAgent** - Contract-based agent with pre/post conditions (C++26-inspired):
+**Enhanced Tool Type System:**
 
 ```python
-from cyllama.agents import ContractAgent, tool, pre, post, ContractPolicy
+from typing import List, Dict, Optional, Literal
+from cyllama.agents import tool
 
 @tool
-@pre(lambda args: args['x'] != 0, "cannot divide by zero")
-@post(lambda r: r is not None, "result must not be None")
-def divide(a: float, x: float) -> float:
-    """Divide a by x."""
-    return a / x
+def process_data(
+    items: List[Dict[str, int]],
+    mode: Literal["fast", "accurate"],
+    limit: Optional[int] = None
+) -> Dict[str, List[str]]:
+    """Process data items.
 
-agent = ContractAgent(
-    llm=llm,
-    tools=[divide],
-    policy=ContractPolicy.ENFORCE,  # AUDIT, ENFORCE, or DISABLED
-    task_precondition=lambda task: len(task) > 10,
-    answer_postcondition=lambda ans: len(ans) > 0,
-)
-result = agent.run("What is 100 divided by 4?")
+    Args:
+        items: List of data dictionaries
+        mode: Processing mode to use
+        limit: Optional result limit
+    """
+    ...
+
+# Full JSON schema generation for complex types:
+# - List[T], Dict[K, V], Optional[T], Union[A, B]
+# - Tuple[A, B], Set[T], Literal["a", "b"]
+# - Nested generics like List[Dict[str, int]]
+# - Docstring parsing: Google, NumPy, Sphinx, Epytext styles
 ```
-
-**Key Features:**
-- Zero external dependencies - uses only Python stdlib
-- Three agent architectures for different use cases
-- `@tool` decorator for easy function registration
-- Automatic JSON schema generation from type hints
-- Grammar-constrained generation for reliable tool calls
-- Contract-based validation with configurable policies
-- Comprehensive audit logging
-
-See [contract_agent.md](contract_agent.md) for detailed ContractAgent documentation.
 
 ---
 
-### 2. Stable Diffusion Integration
+## All Changes by Version
 
-Full integration of [stable-diffusion.cpp](https://github.com/leejet/stable-diffusion.cpp) for image and video generation:
+### v0.1.15 - Security
 
-**Simple Text-to-Image:**
+- **Cython Input Validation**
+  - Fixed buffer overflow in `get_state_seq_data()` / `get_state_seq_data_with_flags()`
+  - File path validation for `lora_adapter_init()`, `load_state_file()`, `save_state_file()`, `load_state_seq_file()`, `save_state_seq_file()`
+  - NULL pointer check in `LlamaContext.__init__`
 
-```python
-from cyllama.stablediffusion import text_to_image
+### v0.1.14 - Major Quality Release
 
-images = text_to_image(
-    model_path="models/sd_xl_turbo_1.0.q8_0.gguf",
-    prompt="a photo of a cute cat sitting on a windowsill",
-    width=512,
-    height=512,
-    sample_steps=4,  # Turbo models need fewer steps
-    cfg_scale=1.0
-)
-images[0].save("output.png")
-```
+**Fixed:**
+- Ensure Python 3.8-3.9 compatibility (type hint syntax)
+- Bare except clauses replaced with specific exceptions
+- Silent Unicode errors now logged with warnings
+- Progress callback crash on `LlamaModelParams`
+- MCP race condition in `send_notification()`
+- LLM destructor safety for partial initialization
 
-**Advanced Generation with SDContext:**
+**Added:**
+- `GenerationConfig` parameter validation (11 tests)
+- Sampler `add_logit_bias()` implementation
+- MCP configurable timeouts (`request_timeout`, `shutdown_timeout`)
+- Thread safety in `color.py` for global settings
+- Session storage error handling improvements
+- LLM context reuse and explicit `close()` method
+- BatchGenerator resource management and validation
+- ReActAgent robust parsing with `ActionParseError` (28 tests)
+- Tool type system with full generic support (23 tests)
+- ContractAgent documentation and tests (28 tests)
+- Comprehensive test suite `test_comprehensive.py` (53 tests)
+- Benchmark script (`scripts/benchmark.py`)
+- Batch memory pooling integration
 
-```python
-from cyllama.stablediffusion import (
-    SDContext, SDContextParams,
-    SampleMethod, Scheduler,
-    set_progress_callback
-)
+**Changed:**
+- Centralized model path configuration via `conftest.py`
+- Memory module improvements with documented magic numbers
+- Stop sequence logic simplified and fixed
 
-# Progress tracking
-def progress_cb(step, steps, time_ms):
-    pct = (step / steps) * 100
-    print(f'Step {step}/{steps} ({pct:.1f}%)')
+### v0.1.13 - Image I/O
 
-set_progress_callback(progress_cb)
+**Added:**
+- Zero-dependency image I/O via bundled stb library
+- `SDImage.save_png()`, `save_jpg()`, `save_bmp()`, `save_ppm()`
+- `SDImage.load()` for PNG, JPEG, BMP, TGA, GIF, PSD, HDR, PIC
+- Channel conversion support on load
 
-# Create context with full control
-params = SDContextParams()
-params.model_path = "models/sd_xl_turbo_1.0.q8_0.gguf"
-params.n_threads = 4
-params.vae_path = "models/vae.safetensors"  # Optional
-
-ctx = SDContext(params)
-images = ctx.generate(
-    prompt="a beautiful mountain landscape at sunset",
-    negative_prompt="blurry, ugly, distorted",
-    width=512,
-    height=512,
-    sample_method=SampleMethod.EULER,
-    scheduler=Scheduler.DISCRETE,
-    seed=42
-)
-```
-
-**Image-to-Image:**
-
-```python
-from cyllama.stablediffusion import image_to_image, SDImage
-
-init_img = SDImage.load("input.png")
-images = image_to_image(
-    model_path="models/sd_xl_turbo_1.0.q8_0.gguf",
-    init_image=init_img,
-    prompt="make it a watercolor painting",
-    strength=0.75
-)
-```
-
-**ESRGAN Upscaling:**
-
-```python
-from cyllama.stablediffusion import Upscaler, SDImage
-
-upscaler = Upscaler("models/esrgan-x4.bin")
-img = SDImage.load("small.png")
-upscaled = upscaler.upscale(img)  # 4x resolution
-upscaled.save("large.png")
-```
-
-**ControlNet with Canny Preprocessing:**
-
-```python
-from cyllama.stablediffusion import SDImage, canny_preprocess
-
-img = SDImage.load("photo.png")
-canny_preprocess(img, high_threshold=0.8, low_threshold=0.1)
-# Use img as control image for ControlNet generation
-```
-
-**CLI Tool:**
-
-```bash
-# Generate image
-python -m cyllama.stablediffusion generate \
-    --model models/sd_xl_turbo_1.0.q8_0.gguf \
-    --prompt "a beautiful sunset over mountains" \
-    --output sunset.png \
-    --steps 4 --cfg 1.0 --progress
-
-# Upscale image
-python -m cyllama.stablediffusion upscale \
-    --model models/esrgan-x4.bin \
-    --input image.png \
-    --output image_4x.png
-
-# Convert model format
-python -m cyllama.stablediffusion convert \
-    --input sd-v1-5.safetensors \
-    --output sd-v1-5-q4_0.gguf \
-    --type q4_0
-
-# Show system info
-python -m cyllama.stablediffusion info
-```
-
-**Supported Models:**
-- SD 1.x/2.x - Standard Stable Diffusion
-- SDXL/SDXL Turbo - High-quality generation (use cfg_scale=1.0, steps=1-4 for Turbo)
-- SD3/SD3.5 - Latest Stable Diffusion 3.x
-- FLUX - FLUX.1 models (dev, schnell)
-- Wan/CogVideoX - Video generation (use `generate_video()`)
-- LoRA - Low-rank adaptation files
-- ControlNet - Conditional generation
-- ESRGAN - Image upscaling
-
-**Key Features:**
-- Full numpy/PIL integration (`SDImage.to_numpy()`, `SDImage.to_pil()`)
-- Progress, log, and preview callbacks
-- All samplers (Euler, Euler_A, DPM2, DPMPP2M, LCM, etc.)
-- All schedulers (Discrete, Karras, Exponential, AYS, etc.)
-- Model conversion with quantization support
-- Video generation for compatible models
-
----
-
-### 3. Agent Client Protocol (ACP) Support
-
-New ACP implementation for editor/IDE integration:
-
-```python
-from cyllama.agents import ACPAgent
-
-# ACP agent for editor integration (Zed, Neovim, etc.)
-agent = ACPAgent(model_path="model.gguf")
-agent.run()  # Starts JSON-RPC server over stdio
-```
-
-**Features:**
-- JSON-RPC 2.0 transport over stdio
-- Session management (new, load, prompt, cancel)
-- Tool permission flow for user approval
-- File operations delegated to editor
-- Terminal operations support
+**Changed:**
+- Build scripts now handle stb headers consistently
+- Added version constants for whisper.cpp and stable-diffusion.cpp
 
 ---
 
 ## Current Status
 
-**Version:** 0.1.12 (November 2025)
+**Version:** 0.1.15 (November 2025)
 **llama.cpp Version:** b7126 (tracking bleeding-edge)
 **stable-diffusion.cpp:** Integrated and tested
 **whisper.cpp:** Integrated and tested
-**Tests:** 600+ passing
+**Tests:** 800+ passing
 **Platform:** macOS (primary), Linux (tested)
-
-**API Coverage - All Major Goals Met:**
-
-| Component | Status |
-|-----------|--------|
-| Core llama.cpp wrapper | Complete |
-| High-level Python API | Complete |
-| Agent Framework | Complete |
-| Stable Diffusion | Complete |
-| Multimodal (LLAVA) | Complete |
-| Whisper.cpp | Complete |
-| TTS | Complete |
-| HTTP Servers | Complete |
-| Framework Integrations | Complete |
-
----
-
-## Why This Update Matters
-
-**Agents without dependencies:** Build tool-using AI agents with just cyllama - no LangChain, no AutoGen, no external frameworks required. Three architectures cover different reliability/flexibility tradeoffs.
-
-**Image generation in Python:** Generate images with the same library you use for LLM inference. Full control over samplers, schedulers, and all generation parameters. Support for the latest models including SDXL Turbo, SD3, and FLUX.
-
-**Production-ready:** 600+ tests, comprehensive documentation, proper error handling. Ready for both quick prototyping and production use.
 
 ---
 
@@ -290,14 +187,14 @@ def get_weather(city: str) -> str:
 agent = ReActAgent(llm=LLM("model.gguf"), tools=[get_weather])
 result = agent.run("What's the weather in Paris?")
 
-# Image generation
+# Image generation (no PIL required)
 from cyllama.stablediffusion import text_to_image
 images = text_to_image(
     model_path="sd_xl_turbo_1.0.q8_0.gguf",
     prompt="a cyberpunk cityscape",
     sample_steps=4
 )
-images[0].save("cityscape.png")
+images[0].save_png("cityscape.png")  # Native PNG support
 
 # Speech transcription
 from cyllama.whisper import WhisperContext
@@ -331,5 +228,3 @@ As always, feedback is appreciated:
 - Bugs? Please report them!
 - Features? Suggestions welcome!
 - Contributions? Pull requests accepted!
-
-The goal remains: stay lean, stay fast, stay current with llama.cpp, and make it easy to use from Python.
