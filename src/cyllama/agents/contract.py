@@ -1,8 +1,88 @@
 """
 Contract-based agent with C++26-inspired contract assertions.
 
-Provides preconditions, postconditions, and runtime assertions for tools and agents.
-Supports configurable violation handling policies: ignore, observe, enforce, quick_enforce.
+This module provides a Python implementation of contract programming inspired by
+C++26's contract assertions proposal (P2900). It enables preconditions, postconditions,
+and runtime assertions for tools and agents with configurable violation handling.
+
+Key Differences from C++26
+--------------------------
+While inspired by C++26, this Python implementation differs in several ways:
+
+1. **Runtime-only checking**: C++26 contracts can be compile-time or runtime. Python
+   contracts are always checked at runtime.
+
+2. **Dynamic predicate evaluation**: Predicates are Python callables, not expressions
+   evaluated at compile time. This allows more flexibility but less static analysis.
+
+3. **No undefined behavior**: C++26's contract violations can result in UB. Python
+   contracts always have well-defined behavior based on the policy.
+
+4. **Agent integration**: This module extends the contract concept to AI agents,
+   adding task preconditions, answer postconditions, and iteration invariants.
+
+Contract Policies
+-----------------
+Four policies control how violations are handled (see ContractPolicy enum):
+
+- **IGNORE**: Skip all checking. Use for production when contracts are verified.
+- **OBSERVE**: Check and log violations, but continue execution. Useful for monitoring.
+- **ENFORCE** (default): Check, call violation handler, then terminate on violation.
+- **QUICK_ENFORCE**: Check and terminate immediately without calling handler.
+
+Basic Usage
+-----------
+Apply contracts to tools using decorators::
+
+    from cyllama.agents import tool, pre, post, ContractAgent
+
+    @tool
+    @pre(lambda args: args['count'] > 0, "count must be positive")
+    @post(lambda r: len(r) > 0, "must return results")
+    def fetch_items(count: int) -> str:
+        '''Fetch items from database.'''
+        return f"Fetched {count} items"
+
+    # Create agent with contract checking
+    agent = ContractAgent(
+        llm=my_llm,
+        tools=[fetch_items],
+        policy=ContractPolicy.ENFORCE  # default
+    )
+
+Runtime Assertions
+------------------
+Use contract_assert() within tool implementations for invariant checking::
+
+    from cyllama.agents import tool, contract_assert
+
+    @tool
+    def process_data(data: str) -> dict:
+        '''Process JSON data.'''
+        import json
+        parsed = json.loads(data)
+        contract_assert(isinstance(parsed, dict), "data must be JSON object")
+        return parsed
+
+Agent-Level Contracts
+---------------------
+ContractAgent supports contracts on the overall task and answer::
+
+    agent = ContractAgent(
+        llm=my_llm,
+        tools=[...],
+        task_precondition=lambda task: len(task) >= 10,  # minimum task length
+        answer_postcondition=lambda answer: "error" not in answer.lower(),
+        iteration_invariant=lambda state: state.errors < 3  # max 2 errors
+    )
+
+See Also
+--------
+- C++26 contract assertions: https://wg21.link/p2900
+- ContractPolicy: Enum defining violation handling policies
+- ContractAgent: Agent class with contract checking
+- pre, post: Decorators for tool contracts
+- contract_assert: Runtime assertion function
 """
 
 from dataclasses import dataclass, field
@@ -30,10 +110,67 @@ class ContractPolicy(Enum):
     """
     Contract evaluation policy, inspired by C++26 contract semantics.
 
-    - IGNORE: Skip checking entirely (for production performance)
-    - OBSERVE: Check and log violations, but continue execution
-    - ENFORCE: Check, call handler on violation, then terminate
-    - QUICK_ENFORCE: Check, terminate immediately on violation (no handler)
+    This enum determines how contract violations are handled at runtime.
+    The default policy for ContractAgent is ENFORCE, which provides a balance
+    between safety (violations are caught) and debuggability (handlers are called).
+
+    Policies
+    --------
+    IGNORE
+        Skip all contract checking entirely. The predicate is never evaluated.
+        Use this in production after contracts have been verified during development.
+        Provides zero runtime overhead.
+
+    OBSERVE
+        Check contracts and call the violation handler if a violation occurs,
+        but continue execution regardless. Useful for monitoring and gradual
+        contract adoption where you want to log violations without breaking
+        existing behavior.
+
+    ENFORCE (default)
+        Check contracts, call the violation handler on violation, then terminate
+        execution by raising ContractTermination. This is the default and
+        recommended policy for development and testing.
+
+    QUICK_ENFORCE
+        Check contracts and terminate immediately on violation WITHOUT calling
+        the violation handler. Useful when handler overhead is unacceptable or
+        when you want the fastest possible failure path.
+
+    Policy Resolution
+    -----------------
+    Policies can be specified at multiple levels with the following precedence:
+
+    1. Individual contract (highest priority)::
+
+           @pre(lambda args: args['n'] > 0, "positive", policy=ContractPolicy.OBSERVE)
+
+    2. ContractAgent default::
+
+           agent = ContractAgent(llm=llm, tools=[...], policy=ContractPolicy.ENFORCE)
+
+    When a contract's policy is None (the default for @pre/@post), the agent's
+    policy is used. If no agent context exists (e.g., calling contract_assert()
+    outside an agent), ENFORCE is used as the fallback.
+
+    Examples
+    --------
+    Setting policy at agent level::
+
+        # All contracts use OBSERVE unless they specify otherwise
+        agent = ContractAgent(
+            llm=llm,
+            tools=[my_tool],
+            policy=ContractPolicy.OBSERVE
+        )
+
+    Overriding policy for a specific contract::
+
+        @tool
+        @pre(lambda args: args['n'] > 0, "positive", policy=ContractPolicy.ENFORCE)
+        def my_func(n: int) -> int:
+            # This precondition uses ENFORCE even if agent uses OBSERVE
+            return n * 2
     """
     IGNORE = "ignore"
     OBSERVE = "observe"
@@ -102,14 +239,63 @@ class ContractTermination(Exception):
 
 @dataclass
 class PreCondition:
-    """A precondition contract."""
+    """
+    A precondition contract that validates tool arguments before execution.
+
+    Preconditions express requirements that must be true before a tool can be
+    safely called. If a precondition fails, it indicates the caller provided
+    invalid input.
+
+    Attributes
+    ----------
+    predicate : Callable[[Dict[str, Any]], bool]
+        Function that receives a dict of argument names to values and returns
+        True if the precondition is satisfied.
+    message : str
+        Human-readable description of what the precondition requires.
+    predicate_str : str
+        String representation of the predicate for error reporting.
+    policy : Optional[ContractPolicy]
+        Policy override for this specific contract. When None (default),
+        the ContractAgent's policy is used.
+
+    Examples
+    --------
+    Using with the @pre decorator::
+
+        @tool
+        @pre(lambda args: args['count'] > 0, "count must be positive")
+        def fetch(count: int) -> str:
+            return f"Fetched {count}"
+
+    Multiple preconditions (all must pass)::
+
+        @tool
+        @pre(lambda args: args['start'] >= 0, "start must be non-negative")
+        @pre(lambda args: args['end'] > args['start'], "end must be after start")
+        def get_range(start: int, end: int) -> list:
+            return list(range(start, end))
+    """
     predicate: Callable[[Dict[str, Any]], bool]
     message: str
     predicate_str: str = ""
     policy: Optional[ContractPolicy] = None  # None means use default
 
     def check(self, args: Dict[str, Any]) -> bool:
-        """Check if precondition holds for given arguments."""
+        """
+        Check if precondition holds for given arguments.
+
+        Parameters
+        ----------
+        args : Dict[str, Any]
+            Dictionary mapping argument names to their values.
+
+        Returns
+        -------
+        bool
+            True if precondition is satisfied, False otherwise.
+            Returns False if the predicate raises an exception.
+        """
         try:
             return bool(self.predicate(args))
         except Exception as e:
@@ -119,7 +305,48 @@ class PreCondition:
 
 @dataclass
 class PostCondition:
-    """A postcondition contract."""
+    """
+    A postcondition contract that validates tool results after execution.
+
+    Postconditions express guarantees about what a tool will return. If a
+    postcondition fails, it indicates the tool implementation has a bug.
+
+    Postcondition predicates can take either one argument (the result) or
+    two arguments (result and original args). The @post decorator automatically
+    detects which form is used based on the predicate's signature.
+
+    Attributes
+    ----------
+    predicate : Callable[..., bool]
+        Function that receives the result (and optionally args) and returns
+        True if the postcondition is satisfied.
+    message : str
+        Human-readable description of what the postcondition guarantees.
+    predicate_str : str
+        String representation of the predicate for error reporting.
+    policy : Optional[ContractPolicy]
+        Policy override for this specific contract. When None (default),
+        the ContractAgent's policy is used.
+    needs_args : bool
+        True if the predicate requires access to the original arguments.
+        Automatically set by the @post decorator based on signature.
+
+    Examples
+    --------
+    Simple result validation::
+
+        @tool
+        @post(lambda r: len(r) > 0, "result must not be empty")
+        def search(query: str) -> str:
+            return f"Results for: {query}"
+
+    Postcondition with access to original arguments::
+
+        @tool
+        @post(lambda r, args: len(r) <= args['max_len'], "result too long")
+        def generate(prompt: str, max_len: int) -> str:
+            return prompt[:max_len]
+    """
     predicate: Callable[..., bool]  # (result) or (result, args)
     message: str
     predicate_str: str = ""
@@ -127,7 +354,22 @@ class PostCondition:
     needs_args: bool = False  # Whether predicate takes (result, args)
 
     def check(self, result: Any, args: Optional[Dict[str, Any]] = None) -> bool:
-        """Check if postcondition holds for given result."""
+        """
+        Check if postcondition holds for given result.
+
+        Parameters
+        ----------
+        result : Any
+            The return value from the tool execution.
+        args : Optional[Dict[str, Any]]
+            Original arguments passed to the tool. Required if needs_args is True.
+
+        Returns
+        -------
+        bool
+            True if postcondition is satisfied, False otherwise.
+            Returns False if the predicate raises an exception.
+        """
         try:
             if self.needs_args and args is not None:
                 return bool(self.predicate(result, args))
@@ -333,25 +575,76 @@ def contract_assert(
     policy: Optional[ContractPolicy] = None
 ) -> None:
     """
-    Runtime contract assertion, similar to C++26's contract_assert.
+    Runtime contract assertion for checking invariants within tool implementations.
 
-    Can be called within tool implementations to verify invariants.
-    Participates in the same violation handling system as @pre and @post.
+    Similar to C++26's contract_assert, this function allows you to verify conditions
+    that should always be true at a particular point in your code. Unlike @pre and @post
+    which are checked automatically by ContractAgent, contract_assert() must be called
+    explicitly in your tool code.
 
-    Args:
-        condition: Boolean condition that must be true
-        message: Description of what was expected
-        policy: Optional policy override (uses context default if None)
+    When called within a tool that's being executed by ContractAgent, the assertion
+    participates in the same violation handling system as @pre and @post contracts.
+    The agent's policy and violation handler are used automatically.
 
-    Example:
+    When called outside of an agent context (e.g., in unit tests or standalone code),
+    the assertion uses ENFORCE as the default policy, raising ContractTermination on
+    failure.
+
+    Parameters
+    ----------
+    condition : bool
+        The condition that must be True. If False, a violation is triggered.
+    message : str
+        Human-readable description of what was expected. Defaults to "Assertion failed".
+    policy : Optional[ContractPolicy]
+        Policy override for this specific assertion. When None (default), uses the
+        current ContractContext's policy if available, otherwise ENFORCE.
+
+    Raises
+    ------
+    ContractTermination
+        If condition is False and the effective policy is ENFORCE or QUICK_ENFORCE.
+
+    Examples
+    --------
+    Basic invariant checking::
+
         @tool
-        def process_data(data: str) -> str:
+        def process_data(data: str) -> dict:
+            import json
             parsed = json.loads(data)
             contract_assert(isinstance(parsed, dict), "data must be JSON object")
-            return str(parsed)
+            return parsed
 
-    Raises:
-        ContractTermination: If policy is ENFORCE or QUICK_ENFORCE and condition is False
+    Multiple assertions in sequence::
+
+        @tool
+        def calculate(values: list) -> float:
+            contract_assert(len(values) > 0, "values must not be empty")
+            result = sum(values) / len(values)
+            contract_assert(result >= 0, "average must be non-negative")
+            return result
+
+    Using with explicit policy::
+
+        @tool
+        def risky_operation(data: str) -> str:
+            # This assertion only logs, doesn't terminate
+            contract_assert(
+                len(data) < 10000,
+                "data unusually large",
+                policy=ContractPolicy.OBSERVE
+            )
+            return process(data)
+
+    Notes
+    -----
+    Unlike Python's built-in assert statement:
+
+    - contract_assert is never removed by optimization (-O flag)
+    - contract_assert participates in the agent's violation handling system
+    - contract_assert can be configured to log-and-continue via OBSERVE policy
+    - contract_assert provides structured error information via ContractViolation
     """
     if condition:
         return
@@ -386,18 +679,90 @@ def contract_assert(
 
 class ContractAgent:
     """
-    Agent with C++26-inspired contract checking.
+    Agent wrapper that adds C++26-inspired contract checking to tool execution.
 
-    Wraps an inner agent (ReActAgent or ConstrainedAgent) and adds contract
-    verification at multiple points:
-    - Task preconditions (before execution)
-    - Tool preconditions (before each tool call)
-    - Tool postconditions (after each tool call)
-    - Answer postconditions (before returning final answer)
-    - Iteration invariants (at each iteration)
+    ContractAgent wraps an inner agent (ReActAgent or ConstrainedAgent) and
+    intercepts tool calls to verify contracts at multiple checkpoints:
 
-    Contracts can be defined via decorators (@pre, @post) on tools, or
-    as agent-level lambdas for task/answer validation.
+    1. **Task precondition** - Validated once before agent execution begins
+    2. **Tool preconditions** - Validated before each tool call
+    3. **Tool postconditions** - Validated after each tool returns
+    4. **Answer postcondition** - Validated once before returning final answer
+    5. **Iteration invariant** - Validated at each reasoning iteration
+
+    Contracts can be defined in two ways:
+
+    - **Decorator-based**: Use @pre and @post on tool functions
+    - **Agent-level**: Pass callables to task_precondition, answer_postcondition, etc.
+
+    Default Policy Behavior
+    -----------------------
+    The default policy is ContractPolicy.ENFORCE. This means:
+
+    - All contracts are checked at runtime
+    - On violation, the violation_handler is called
+    - After the handler, ContractTermination is raised and execution stops
+    - The agent's run() method returns with success=False and error set
+
+    When a tool's @pre/@post contract has policy=None (the default), the agent's
+    policy is used. This allows you to set a global policy while optionally
+    overriding it for specific contracts.
+
+    Examples
+    --------
+    Basic usage with tool contracts::
+
+        from cyllama.agents import tool, pre, post, ContractAgent, ContractPolicy
+
+        @tool
+        @pre(lambda args: args['query'], "query must not be empty")
+        @post(lambda r: r is not None, "must return a result")
+        def search(query: str) -> str:
+            return f"Results for: {query}"
+
+        agent = ContractAgent(
+            llm=my_llm,
+            tools=[search],
+            policy=ContractPolicy.ENFORCE
+        )
+        result = agent.run("Find information about Python")
+
+    Agent-level contracts::
+
+        agent = ContractAgent(
+            llm=my_llm,
+            tools=[search],
+            task_precondition=lambda task: len(task) >= 10,
+            answer_postcondition=lambda ans: len(ans) > 0,
+            iteration_invariant=lambda state: state.iterations < 5
+        )
+
+    Custom violation handler::
+
+        def my_handler(violation):
+            print(f"Contract violated: {violation}")
+            # Log to monitoring system, send alert, etc.
+
+        agent = ContractAgent(
+            llm=my_llm,
+            tools=[search],
+            violation_handler=my_handler
+        )
+
+    Observe-only mode for gradual adoption::
+
+        agent = ContractAgent(
+            llm=my_llm,
+            tools=[search],
+            policy=ContractPolicy.OBSERVE  # Log violations but don't stop
+        )
+
+    See Also
+    --------
+    ContractPolicy : Enum defining violation handling policies
+    pre : Decorator to add preconditions to tools
+    post : Decorator to add postconditions to tools
+    contract_assert : Runtime assertion function for use in tool code
     """
 
     def __init__(
@@ -417,22 +782,56 @@ class ContractAgent:
         **agent_kwargs
     ):
         """
-        Initialize ContractAgent.
+        Initialize ContractAgent with contract checking capabilities.
 
-        Args:
-            llm: Language model instance
-            tools: List of tools (may have @pre/@post contracts)
-            policy: Default contract policy for all contracts
-            violation_handler: Callback for contract violations
-            task_precondition: Validates input task before execution
-            answer_postcondition: Validates final answer before returning
-            iteration_invariant: Checked at each iteration
-            inner_agent: Pre-configured inner agent (overrides agent_type)
-            agent_type: Type of inner agent ("react" or "constrained")
-            system_prompt: Custom system prompt for inner agent
-            max_iterations: Maximum iterations for inner agent
-            verbose: Enable verbose output
-            **agent_kwargs: Additional arguments for inner agent
+        Parameters
+        ----------
+        llm : callable
+            Language model instance that takes a prompt string and returns a response.
+        tools : Optional[List[Tool]]
+            List of tools available to the agent. Tools may have @pre/@post contracts
+            attached via decorators. Contracts are automatically extracted and checked.
+        policy : ContractPolicy
+            Default policy for all contracts. Individual contracts can override this.
+            **Default: ContractPolicy.ENFORCE** - violations call handler then terminate.
+        violation_handler : Optional[ViolationHandler]
+            Callback invoked when a contract is violated (except with IGNORE or
+            QUICK_ENFORCE policies). Receives a ContractViolation with full context.
+            If None, uses a default handler that logs to the 'cyllama.agents.contract'
+            logger at WARNING level.
+        task_precondition : Optional[Callable[[str], bool]]
+            Validates the input task before execution begins. Receives the task string,
+            returns True if valid. Checked once at the start of run()/stream().
+        answer_postcondition : Optional[Callable[[str], bool]]
+            Validates the final answer before returning. Receives the answer string,
+            returns True if valid. Checked once after agent produces an answer.
+        iteration_invariant : Optional[Callable[[IterationState], bool]]
+            Checked at each reasoning iteration. Receives an IterationState with
+            counters for iterations, tool_calls, and errors. Return False to
+            trigger a violation (e.g., to limit total iterations).
+        inner_agent : Optional[Union[ReActAgent, ConstrainedAgent]]
+            Pre-configured inner agent. If provided, agent_type is ignored.
+        agent_type : str
+            Type of inner agent to create: "react" (default) or "constrained".
+        system_prompt : Optional[str]
+            Custom system prompt for the inner agent.
+        max_iterations : int
+            Maximum iterations for the inner agent. Default: 10.
+        verbose : bool
+            Enable verbose output including contract check details. Default: False.
+        **agent_kwargs
+            Additional keyword arguments passed to the inner agent constructor.
+
+        Notes
+        -----
+        The policy parameter sets the **default** policy used when a contract's own
+        policy is None. You can override the policy for specific contracts::
+
+            @pre(lambda args: ..., "msg", policy=ContractPolicy.OBSERVE)
+
+        The violation_handler is called for OBSERVE and ENFORCE policies, but NOT for:
+        - IGNORE: No checking occurs
+        - QUICK_ENFORCE: Terminates immediately without handler
         """
         self.llm = llm
         self.tools = tools or []

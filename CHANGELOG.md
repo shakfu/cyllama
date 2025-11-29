@@ -172,6 +172,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
     - Multi-line description support for all formats
   - 23 new tests for type handling, generics, and docstring parsing
 
+- **ContractAgent Documentation** - Enhanced documentation and test coverage
+  - Comprehensive module docstring explaining Python vs C++26 differences:
+    - Runtime-only checking (vs C++26 compile-time)
+    - Dynamic predicate evaluation via callables
+    - No undefined behavior (always well-defined policy handling)
+    - Agent-specific extensions (task preconditions, answer postconditions)
+  - ContractPolicy enum documentation with policy resolution hierarchy:
+    - Individual contract policy (highest priority)
+    - ContractAgent default policy
+    - ENFORCE as fallback when no context
+  - PreCondition/PostCondition class documentation with examples
+  - contract_assert() documentation comparing to Python's assert statement
+  - ContractAgent class documentation with usage examples
+  - 28 new tests covering:
+    - Policy resolution between contract and agent levels
+    - ContractSpec dataclass
+    - Default handler logging and verbose output
+    - IterationState with all event types
+    - Predicate string extraction
+    - ContractViolation extended fields
+    - ContractContext without handler
+    - Agent with empty/None tools
+    - Postcondition args edge cases
+    - contract_assert outside agent context
+    - Multiple contracts execution order
+    - ContractTermination exception
+
 ### Changed
 
 - **Centralized Model Path Configuration** - Consolidated hardcoded model paths across the codebase
