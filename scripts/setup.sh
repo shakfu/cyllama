@@ -15,6 +15,14 @@ LAST_WORKING_WHISPERCPP="v1.8.2"
 STABLE_BUILD=1
 GET_LAST_WORKING_LLAMACPP="${1:-$STABLE_BUILD}"
 
+# Detect OS and set Metal default accordingly (Metal is macOS-only)
+OS_TYPE=$(uname -s)
+if [ "$OS_TYPE" = "Darwin" ]; then
+	METAL_DEFAULT=1
+else
+	METAL_DEFAULT=0
+fi
+
 if [ $GET_LAST_WORKING_LLAMACPP -eq 1 ]; then
 	echo "get last working release: ${LAST_WORKING_LLAMACPP}"
 	BRANCH="--branch ${LAST_WORKING_LLAMACPP}"
@@ -34,34 +42,34 @@ get_llamacpp() {
 	CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON"
 
 	# Check backend environment variables and add appropriate flags
-	if [ "${GGML_METAL:-1}" = "1" ]; then
+	if [ "${GGML_METAL:-$METAL_DEFAULT}" = "1" ]; then
 		CMAKE_ARGS="$CMAKE_ARGS -DGGML_METAL=ON"
-		echo "✓ Enabling Metal backend"
+		echo "Enabling Metal backend"
 	fi
 
 	if [ "${GGML_CUDA:-0}" = "1" ]; then
 		CMAKE_ARGS="$CMAKE_ARGS -DGGML_CUDA=ON"
-		echo "✓ Enabling CUDA backend"
+		echo "Enabling CUDA backend"
 	fi
 
 	if [ "${GGML_VULKAN:-0}" = "1" ]; then
 		CMAKE_ARGS="$CMAKE_ARGS -DGGML_VULKAN=ON"
-		echo "✓ Enabling Vulkan backend"
+		echo "Enabling Vulkan backend"
 	fi
 
 	if [ "${GGML_SYCL:-0}" = "1" ]; then
 		CMAKE_ARGS="$CMAKE_ARGS -DGGML_SYCL=ON"
-		echo "✓ Enabling SYCL backend"
+		echo "Enabling SYCL backend"
 	fi
 
 	if [ "${GGML_HIP:-0}" = "1" ]; then
 		CMAKE_ARGS="$CMAKE_ARGS -DGGML_HIP=ON"
-		echo "✓ Enabling HIP/ROCm backend"
+		echo "Enabling HIP/ROCm backend"
 	fi
 
 	if [ "${GGML_OPENCL:-0}" = "1" ]; then
 		CMAKE_ARGS="$CMAKE_ARGS -DGGML_OPENCL=ON"
-		echo "✓ Enabling OpenCL backend"
+		echo "Enabling OpenCL backend"
 	fi
 
 	mkdir -p build ${INCLUDE} && \
@@ -83,7 +91,7 @@ get_llamacpp() {
 		cmake --install . --prefix ${PREFIX} && \
 		cp ggml/src/libggml-base.a ${LIB} && \
 		cp ggml/src/libggml-cpu.a ${LIB} && \
-		if [ "${GGML_METAL:-1}" = "1" ]; then
+		if [ "${GGML_METAL:-$METAL_DEFAULT}" = "1" ]; then
 			cp ggml/src/ggml-blas/libggml-blas.a ${LIB} 2>/dev/null || true && \
 			cp ggml/src/ggml-metal/libggml-metal.a ${LIB} 2>/dev/null || true
 		fi && \

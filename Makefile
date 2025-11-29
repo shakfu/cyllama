@@ -3,8 +3,12 @@
 export MACOSX_DEPLOYMENT_TARGET := 14.7
 
 # Backend flags (can be overridden via environment variables)
-# Default: Metal enabled on macOS, all others disabled
-GGML_METAL ?= 1
+# Default: Metal enabled on macOS only, all others disabled
+ifeq ($(shell uname -s),Darwin)
+    GGML_METAL ?= 1
+else
+    GGML_METAL ?= 0
+endif
 GGML_CUDA ?= 0
 GGML_VULKAN ?= 0
 GGML_SYCL ?= 0
