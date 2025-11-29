@@ -15,9 +15,9 @@ LAST_WORKING_WHISPERCPP="v1.8.2"
 STABLE_BUILD=1
 GET_LAST_WORKING_LLAMACPP="${1:-$STABLE_BUILD}"
 
-if [ $GET_LAST_WORKING -eq 1 ]; then
+if [ $GET_LAST_WORKING_LLAMACPP -eq 1 ]; then
 	echo "get last working release: ${LAST_WORKING_LLAMACPP}"
-	BRANCH="--branch ${LLAMACPP_VERSION}"
+	BRANCH="--branch ${LAST_WORKING_LLAMACPP}"
 else
 	echo "get bleeding edge llama.cpp from main"
 	BRANCH= # bleeding edge (llama.cpp main)
