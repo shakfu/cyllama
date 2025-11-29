@@ -1,20 +1,11 @@
 name: build-simple
 
 on: [workflow_dispatch]
-# on:
-#   release:
-#     types: [published]
-#   workflow_dispatch:
-#     inputs:
-#       version:
-#         description: 'Version to release (e.g., 0.1.9)'
-#         required: true
-#         type: string
 
 jobs:
   build-macos:
     name: build-macos
-    runs-on: macos-latest
+    runs-on: macos-14
 
     steps:
     - name: Checkout code
@@ -50,7 +41,7 @@ jobs:
 
   build-linux:
     name: build-linux
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     steps:
     - name: Checkout code
@@ -77,7 +68,7 @@ jobs:
     - name: Repair wheel with auditwheel
       run: |
         uv pip install auditwheel patchelf
-        uv run auditwheel repair dist/*.whl --plat manylinux_2_17_x86_64 -w dist/
+        uv run auditwheel repair dist/*.whl --plat manylinux_2_35_x86_64 -w dist/
         rm dist/*-linux_x86_64.whl
 
     - name: Check distributions
