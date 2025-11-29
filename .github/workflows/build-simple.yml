@@ -12,9 +12,45 @@ on: [workflow_dispatch]
 #         type: string
 
 jobs:
-  build:
+  build-macos:
     name: build-macos
     runs-on: macos-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Get all tags for version detection
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+
+    - name: Install uv
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+    - name: Install dependencies
+      run: make
+
+    - name: Build wheel
+      run: make wheel
+
+    - name: Check distributions
+      run: make wheel-check
+
+    - name: Upload release artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-dist-cyllama-wheel
+        path: dist/
+        retention-days: 10
+
+  build-linux:
+    name: build-linux
+    runs-on: ubuntu-latest
 
     steps:
     - name: Checkout code
