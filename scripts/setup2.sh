@@ -12,18 +12,24 @@ THIRDPARTY=${CWD}/thirdparty
 LAST_WORKING_LLAMACPP="b7126"
 LAST_WORKING_SDCPP="master-377-2034588"
 LAST_WORKING_WHISPERCPP="v1.8.2"
-LLAMACPP_VERSION="${2:-${LAST_WORKING_LLAMACPP}}"
-STABLE_BUILD=0
-GITOPTS="--depth=1 --recursive --shallow-submodules"
+STABLE_BUILD=1
+GET_LAST_WORKING_LLAMACPP="${1:-$STABLE_BUILD}"
 
-if [ $STABLE_BUILD -eq 1 ]; then
+# Detect OS and set Metal default accordingly (Metal is macOS-only)
+OS_TYPE=$(uname -s)
+if [ "$OS_TYPE" = "Darwin" ]; then
+	METAL_DEFAULT=1
+else
+	METAL_DEFAULT=0
+fi
+
+if [ "$GET_LAST_WORKING_LLAMACPP" -eq 1 ]; then
 	echo "get last working release: ${LAST_WORKING_LLAMACPP}"
-	BRANCH="--branch ${LLAMACPP_VERSION}"
+	BRANCH="--branch ${LAST_WORKING_LLAMACPP}"
 else
 	echo "get bleeding edge llama.cpp from main"
 	BRANCH= # bleeding edge (llama.cpp main)
 fi
-
 
 get_llamacpp() {
 	echo "update from llama.cpp main repo"
@@ -32,10 +38,10 @@ get_llamacpp() {
 	LIB=${PREFIX}/lib
 
 	# Build CMake args based on environment variables
-	CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON"
+	CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DLLAMA_CURL=OFF"
 
 	# Check backend environment variables and add appropriate flags
-	if [ "${GGML_METAL:-1}" = "1" ]; then
+	if [ "${GGML_METAL:-$METAL_DEFAULT}" = "1" ]; then
 		CMAKE_ARGS="$CMAKE_ARGS -DGGML_METAL=ON"
 		echo "Enabling Metal backend"
 	fi
@@ -68,7 +74,7 @@ get_llamacpp() {
 	mkdir -p build "${INCLUDE}" && \
 		cd build && \
 		if [ ! -d "llama.cpp" ]; then
-			git clone "${BRANCH}" "${GITOPTS}" https://github.com/ggml-org/llama.cpp.git
+			git clone "${BRANCH}" --depth=1 --recursive --shallow-submodules https://github.com/ggml-org/llama.cpp.git
 		fi && \
 		cd llama.cpp && \
 		cp common/*.h "${INCLUDE}" && \
@@ -84,19 +90,19 @@ get_llamacpp() {
 		cmake --install . --prefix "${PREFIX}" && \
 		cp ggml/src/libggml-base.a "${LIB}" && \
 		cp ggml/src/libggml-cpu.a "${LIB}" && \
-		if [ "${GGML_METAL:-1}" = "1" ]; then
-			cp ggml/src/ggml-blas/libggml-blas.a "${LIB}" 2>/dev/null || true && \
-			cp ggml/src/ggml-metal/libggml-metal.a "${LIB}" 2>/dev/null || true
-		fi && \
+		if [ "${GGML_METAL:-$METAL_DEFAULT}" = "1" ]; then
+			cp ggml/src/ggml-blas/libggml-blas.a "${LIB}" 2>/dev/null || true &&
+				cp ggml/src/ggml-metal/libggml-metal.a "${LIB}" 2>/dev/null || true
+		fi &&  \
 		if [ "${GGML_CUDA:-0}" = "1" ]; then
 			cp ggml/src/ggml-cuda/libggml-cuda.a "${LIB}" 2>/dev/null || true
 		fi && \
 		if [ "${GGML_VULKAN:-0}" = "1" ]; then
 			cp ggml/src/ggml-vulkan/libggml-vulkan.a "${LIB}" 2>/dev/null || true
-		fi && \
+		fi &&  \
 		if [ "${GGML_SYCL:-0}" = "1" ]; then
 			cp ggml/src/ggml-sycl/libggml-sycl.a "${LIB}" 2>/dev/null || true
-		fi && \
+		fi &&  \
 		if [ "${GGML_HIP:-0}" = "1" ]; then
 			cp ggml/src/ggml-hip/libggml-hip.a "${LIB}" 2>/dev/null || true
 		fi && \
@@ -115,7 +121,7 @@ get_llamacpp_shared() {
 	mkdir -p build "${INCLUDE}" && \
 		cd build && \
 		if [ ! -d "llama.cpp" ]; then
-			git clone "${BRANCH}" "${GITOPTS}" https://github.com/ggml-org/llama.cpp.git
+			git clone "${BRANCH}" --depth=1 --recursive --shallow-submodules https://github.com/ggml-org/llama.cpp.git
 		fi && \
 		cd llama.cpp && \
 		cp common/*.h "${INCLUDE}" && \
@@ -136,13 +142,13 @@ get_whispercpp() {
 	echo "update from whisper.cpp main repo"
 	WHISPERCPP_VERSION=${LAST_WORKING_WHISPERCPP}
 	PREFIX=${THIRDPARTY}/whisper.cpp
-	INCLUDE=${PREFIX}/include
-	LIB=${PREFIX}/lib
-	BIN=${PREFIX}/bin
+	INCLUDE="${PREFIX}"/include
+	LIB="${PREFIX}"/lib
+	BIN="${PREFIX}"/bin
 	mkdir -p build "${INCLUDE}" && \
 		cd build && \
 		if [ ! -d "whisper.cpp" ]; then
-			git clone --branch ${WHISPERCPP_VERSION} "${GITOPTS}" https://github.com/ggml-org/whisper.cpp.git
+			git clone --branch "${WHISPERCPP_VERSION}" --depth=1 --recursive --shallow-submodules https://github.com/ggml-org/whisper.cpp.git
 		fi && \
 		cd whisper.cpp && \
 		cp examples/*.h "${INCLUDE}" && \
@@ -159,19 +165,22 @@ get_whispercpp() {
 
 get_stablediffusioncpp() {
 	echo "update from stable-diffusion.cpp main repo"
-	SDCPP_VERSION=${LAST_WORKING_SDCPP}
-	PREFIX=${THIRDPARTY}/stable-diffusion.cpp
-	INCLUDE=${PREFIX}/include
-	LIB=${PREFIX}/lib
-	BIN=${PREFIX}/bin
+	SDCPP_VERSION="${LAST_WORKING_SDCPP}"
+	PREFIX="${THIRDPARTY}"/stable-diffusion.cpp
+	INCLUDE="${PREFIX}"/include
+	LIB="${PREFIX}"/lib
+	BIN="${PREFIX}"/bin
 	mkdir -p build "${INCLUDE}" && \
 		cd build && \
 		if [ ! -d "stable-diffusion.cpp" ]; then
-			git clone --branch ${SDCPP_VERSION} "${GITOPTS}" https://github.com/leejet/stable-diffusion.cpp.git
+			git clone --branch "${SDCPP_VERSION}" --depth=1 --recursive --shallow-submodules https://github.com/leejet/stable-diffusion.cpp.git
 		fi && \
 		cd stable-diffusion.cpp && \
 		cp ./*.h "${INCLUDE}" && \
 		cp ./*.hpp "${INCLUDE}" && \
+		cp thirdparty/stb_image.h "${INCLUDE}" && \
+		cp thirdparty/stb_image_write.h "${INCLUDE}" && \
+		cp thirdparty/stb_image_resize.h "${INCLUDE}" && \
 		mkdir -p build && \
 		cd build && \
 		cmake .. -DBUILD_SHARED_LIBS=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON && \
@@ -181,13 +190,10 @@ get_stablediffusioncpp() {
 		cd "${CWD}" || exit
 }
 
-
-
 remove_current() {
 	echo "remove current"
 	rm -rf build thirdparty
 }
-
 
 main() {
 	remove_current

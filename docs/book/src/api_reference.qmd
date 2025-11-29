@@ -1,4 +1,6 @@
-# Cyllama API Reference
+---
+title: "Cyllama API Reference"
+---
 
 **Version**: 0.1.9
 **Date**: November 2025
@@ -864,28 +866,59 @@ image_embed = process_image(
 
 ## Whisper Integration
 
-Speech-to-text transcription using whisper.cpp.
+Speech-to-text transcription using whisper.cpp. See [Whisper.cpp Integration](whisper.qmd) for complete documentation.
+
+### Quick Start
 
 ```python
-from cyllama.whisper import WhisperContext, WhisperParams
+from cyllama.whisper import WhisperContext, WhisperFullParams
+import numpy as np
 
-# Initialize whisper
-params = WhisperParams()
+# Load model
+ctx = WhisperContext("models/ggml-base.en.bin")
+
+# Audio must be 16kHz mono float32
+samples = load_audio_as_float32("audio.wav")  # Your audio loading function
+
+# Transcribe
+params = WhisperFullParams()
 params.language = "en"
-params.n_threads = 4
+ctx.full(samples, params)
 
-ctx = WhisperContext("models/whisper-base.bin")
-
-# Transcribe audio
-result = ctx.transcribe("audio.wav", params)
-
-# Get segments
-for segment in result.segments:
-    print(f"[{segment.start:.2f}s -> {segment.end:.2f}s] {segment.text}")
-
-# Full text
-print(result.text)
+# Get results
+for i in range(ctx.full_n_segments()):
+    t0 = ctx.full_get_segment_t0(i) / 100.0  # centiseconds to seconds
+    t1 = ctx.full_get_segment_t1(i) / 100.0
+    text = ctx.full_get_segment_text(i)
+    print(f"[{t0:.2f}s - {t1:.2f}s] {text}")
 ```
+
+### Key Classes
+
+| Class | Description |
+|-------|-------------|
+| `WhisperContext` | Main context for model loading and inference |
+| `WhisperContextParams` | Configuration for context creation |
+| `WhisperFullParams` | Configuration for transcription |
+| `WhisperVadParams` | Voice activity detection parameters |
+
+### WhisperContext Methods
+
+| Method | Description |
+|--------|-------------|
+| `full(samples, params)` | Run transcription on float32 audio samples |
+| `full_n_segments()` | Get number of transcribed segments |
+| `full_get_segment_text(i)` | Get text of segment i |
+| `full_get_segment_t0(i)` | Get start time (centiseconds) |
+| `full_get_segment_t1(i)` | Get end time (centiseconds) |
+| `full_lang_id()` | Get detected language ID |
+| `is_multilingual()` | Check if model supports multiple languages |
+
+### Audio Requirements
+
+- **Sample rate**: 16000 Hz
+- **Channels**: Mono
+- **Format**: Float32 normalized to [-1.0, 1.0]
 
 ---
 
@@ -1298,7 +1331,7 @@ python -m cyllama.stablediffusion info
 All cyllama functions raise appropriate Python exceptions:
 
 ```python
-from cyllama import complete, Generator
+from cyllama import complete, LLM
 
 try:
     response = complete("Hello", model_path="nonexistent.gguf")
@@ -1309,7 +1342,7 @@ except RuntimeError as e:
 except Exception as e:
     print(f"Unexpected error: {e}")
 
-# Generator with error handling
+# LLM with error handling
 try:
     gen = LLM("models/llama.gguf")
     response = gen("What is Python?")
@@ -1326,9 +1359,9 @@ All functions include comprehensive type hints for IDE support:
 ```python
 from typing import List, Dict, Optional, Iterator, Callable, Tuple
 from cyllama import (
-    generate,           # str | Iterator[str]
+    complete,          # str | Iterator[str]
     chat,              # str | Iterator[str]
-    Generator,         # class
+    LLM,               # class
     GenerationConfig,  # @dataclass
 )
 ```
@@ -1415,9 +1448,9 @@ for chunk in complete("Write a long essay", model_path="model.gguf",
 
 ## See Also
 
-- [User Guide](user_guide.md) - Comprehensive usage guide
-- [Cookbook](cookbook.md) - Practical recipes and patterns
-- [Changelog](../CHANGELOG.md) - Release history
+- [User Guide](user_guide.qmd) - Comprehensive usage guide
+- [Cookbook](cookbook.qmd) - Practical recipes and patterns
+- [Changelog](https://github.com/shakfu/cyllama/blob/main/CHANGELOG.md) - Release history
 - [llama.cpp Documentation](https://github.com/ggml-org/llama.cpp)
 
 ---

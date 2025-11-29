@@ -1,0 +1,63 @@
+# Summary
+
+This book has covered the complete cyllama library for local AI inference. Here are the key takeaways from each section.
+
+## Llama.cpp Integration
+
+The llama.cpp integration provides multiple layers of API access:
+
+- **High-Level API**: `complete()`, `chat()`, and `LLM` class for quick prototyping
+- **Streaming**: Token-by-token output with callbacks for real-time applications
+- **Batch Processing**: 3-10x throughput improvements for bulk workloads
+- **Server Implementations**: OpenAI-compatible REST APIs via EmbeddedServer or PythonServer
+- **Advanced Features**: Speculative decoding (2-3x speedup), context caching, GGUF manipulation
+
+Key configuration options include `temperature`, `top_p`, `top_k` for sampling control, and `n_gpu_layers`, `n_ctx`, `n_batch` for performance tuning.
+
+## Whisper.cpp Integration
+
+Speech recognition capabilities include:
+
+- **Transcription**: Convert audio to text with segment-level timestamps
+- **Translation**: Automatic translation to English from 100+ languages
+- **Word Timestamps**: Token-level timing via DTW alignment
+- **Voice Activity Detection**: Filter silence and detect speech segments
+
+Audio must be 16kHz mono float32 format. Model selection trades off speed vs. accuracy (tiny to large-v3).
+
+## Stable Diffusion Integration
+
+Image generation supports multiple model architectures:
+
+- **Text-to-Image**: Generate images from text prompts
+- **Image-to-Image**: Transform existing images with text guidance
+- **Video Generation**: Frame sequences with Wan/CogVideoX models
+- **Upscaling**: ESRGAN-based resolution enhancement
+
+Key parameters include `sample_steps`, `cfg_scale`, `sample_method`, and `scheduler`.
+
+## Agent Framework
+
+Three agent architectures for different reliability requirements:
+
+| Agent | Use Case | Key Feature |
+|-------|----------|-------------|
+| ReActAgent | General-purpose | Natural reasoning trace |
+| ConstrainedAgent | Smaller models | Grammar-enforced JSON output |
+| ContractAgent | Critical applications | Runtime pre/post conditions |
+
+Tools are defined with the `@tool` decorator. Contracts use `@pre`, `@post`, and `contract_assert()`.
+
+## Best Practices
+
+1. **Reuse model instances** - Load once, generate many times
+2. **Match GPU layers to VRAM** - Use `estimate_gpu_layers()` for optimal settings
+3. **Stream long outputs** - Better user experience for verbose responses
+4. **Use batch processing** - Significant throughput gains for multiple prompts
+5. **Choose the right agent** - ConstrainedAgent for reliability, ReActAgent for flexibility
+
+## Next Steps
+
+- Explore the [API Reference](src/api_reference.qmd) for detailed function signatures
+- Try the [Cookbook](src/cookbook.qmd) for practical patterns and recipes
+- Check the [GitHub repository](https://github.com/shakfu/cyllama) for examples and updates

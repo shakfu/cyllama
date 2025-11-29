@@ -1,0 +1,57 @@
+# Preface {.unnumbered}
+
+This is the official documentation for **cyllama**, a high-performance Python library for local AI inference.
+
+## About This Book
+
+This book serves as both a user guide and technical reference for cyllama. It covers:
+
+- **Installation and setup** across different platforms and GPU backends
+- **Text generation** with llama.cpp for chat, completion, and embeddings
+- **Speech recognition** with whisper.cpp for transcription and translation
+- **Image generation** with stable-diffusion.cpp for text-to-image workflows
+- **Agent framework** for building tool-using AI agents
+
+## Who This Book Is For
+
+This documentation is intended for:
+
+- **Python developers** who want to run LLMs locally without cloud dependencies
+- **ML engineers** looking for a lightweight alternative to PyTorch-based inference
+- **Application developers** building AI-powered features with predictable latency
+- **Researchers** who need direct access to model internals and sampling parameters
+
+## Prerequisites
+
+To use cyllama effectively, you should have:
+
+- Basic Python programming knowledge
+- Familiarity with command-line tools
+- Understanding of what language models do (not how they work internally)
+
+No machine learning expertise is required for basic usage.
+
+## Conventions
+
+Code examples use Python 3.8+ syntax:
+
+```python
+from cyllama import complete
+
+response = complete("Hello!", model_path="models/llama.gguf")
+```
+
+Shell commands are shown with `bash` syntax:
+
+```bash
+make build
+make test
+```
+
+## Source Code
+
+Cyllama is open source and available at:
+
+<https://github.com/shakfu/cyllama>
+
+Issues, contributions, and feedback are welcome.
