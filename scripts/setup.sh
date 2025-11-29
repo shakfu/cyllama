@@ -39,7 +39,7 @@ get_llamacpp() {
 	LIB=${PREFIX}/lib
 
 	# Build CMake args based on environment variables
-	CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON"
+	CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DLLAMA_CURL=OFF"
 
 	# Check backend environment variables and add appropriate flags
 	if [ "${GGML_METAL:-$METAL_DEFAULT}" = "1" ]; then
