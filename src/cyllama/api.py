@@ -230,18 +230,18 @@ class LLM:
         After calling close(), the LLM instance can still be used - new
         contexts will be created as needed.
         """
-        if self._closed:
+        if getattr(self, '_closed', True):
             return
 
-        if self.verbose:
+        if getattr(self, 'verbose', False):
             print("Closing LLM resources")
 
-        # Release context and sampler
-        if self._ctx is not None:
+        # Release context and sampler (use getattr for safety in __del__)
+        if getattr(self, '_ctx', None) is not None:
             self._ctx = None
             self._ctx_size = 0
 
-        if self._sampler is not None:
+        if getattr(self, '_sampler', None) is not None:
             self._sampler = None
 
         self._closed = True
