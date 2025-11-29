@@ -1,17 +1,21 @@
 #!/usr/bin/env python3
 """
 Minimal test to isolate Mongoose server issue.
+
+Usage:
+    python minimal_mongoose_test.py -m models/Llama-3.2-1B-Instruct-Q8_0.gguf
 """
 
 import sys
 import time
 import logging
+import argparse
 from pathlib import Path
 
 # Add the src directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-def test_minimal_mongoose():
+def test_minimal_mongoose(model_path):
     print("Testing minimal Mongoose functionality...")
 
     try:
@@ -21,7 +25,7 @@ def test_minimal_mongoose():
         print("✓ Import successful")
 
         config = ServerConfig(
-            model_path="models/Llama-3.2-1B-Instruct-Q8_0.gguf",
+            model_path=model_path,
             host="127.0.0.1",
             port=8099,
             n_ctx=256
@@ -55,4 +59,7 @@ def test_minimal_mongoose():
         traceback.print_exc()
 
 if __name__ == "__main__":
-    test_minimal_mongoose()
+    parser = argparse.ArgumentParser(description="Minimal Mongoose test")
+    parser.add_argument("-m", "--model", required=True, help="Path to model file")
+    args = parser.parse_args()
+    test_minimal_mongoose(args.model)

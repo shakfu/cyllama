@@ -715,3 +715,414 @@ class TestToolIntegration:
 
         result = double(5)
         assert result == 10
+
+
+# =============================================================================
+# Test Policy Resolution
+# =============================================================================
+
+class TestPolicyResolution:
+    """Tests for policy resolution between contract and agent levels."""
+
+    def test_contract_policy_overrides_agent_policy(self, mock_llm):
+        """Test that contract-specific policy takes precedence."""
+        @tool
+        @pre(lambda args: args['n'] > 0, "positive", policy=ContractPolicy.IGNORE)
+        def my_func(n: int) -> int:
+            return n * 2
+
+        # Agent uses ENFORCE, but contract uses IGNORE
+        agent = ContractAgent(
+            llm=mock_llm,
+            tools=[my_func],
+            policy=ContractPolicy.ENFORCE
+        )
+
+        # Even with invalid args, should return None (no violation) because contract is IGNORE
+        violation = agent._check_preconditions("my_func", {"n": -1})
+        assert violation is None
+
+    def test_none_policy_uses_agent_default(self, mock_llm):
+        """Test that None policy on contract uses agent's policy."""
+        @tool
+        @pre(lambda args: args['n'] > 0, "positive")  # policy=None by default
+        def my_func(n: int) -> int:
+            return n * 2
+
+        # Agent uses OBSERVE
+        agent = ContractAgent(
+            llm=mock_llm,
+            tools=[my_func],
+            policy=ContractPolicy.OBSERVE
+        )
+
+        violation = agent._check_preconditions("my_func", {"n": -1})
+        assert violation is not None
+        assert violation.policy == ContractPolicy.OBSERVE
+
+    def test_get_effective_policy_with_none(self, mock_llm, simple_tool):
+        """Test _get_effective_policy returns agent policy when contract policy is None."""
+        agent = ContractAgent(
+            llm=mock_llm,
+            tools=[simple_tool],
+            policy=ContractPolicy.OBSERVE
+        )
+        assert agent._get_effective_policy(None) == ContractPolicy.OBSERVE
+
+    def test_get_effective_policy_with_explicit(self, mock_llm, simple_tool):
+        """Test _get_effective_policy returns contract policy when specified."""
+        agent = ContractAgent(
+            llm=mock_llm,
+            tools=[simple_tool],
+            policy=ContractPolicy.OBSERVE
+        )
+        assert agent._get_effective_policy(ContractPolicy.ENFORCE) == ContractPolicy.ENFORCE
+
+
+# =============================================================================
+# Test ContractSpec
+# =============================================================================
+
+class TestContractSpec:
+    """Tests for ContractSpec dataclass."""
+
+    def test_empty_spec(self):
+        """Test creating empty ContractSpec."""
+        spec = ContractSpec()
+        assert spec.preconditions == []
+        assert spec.postconditions == []
+
+    def test_spec_with_conditions(self):
+        """Test ContractSpec with conditions."""
+        pre_cond = PreCondition(lambda args: True, "pre")
+        post_cond = PostCondition(lambda r: True, "post")
+        spec = ContractSpec(
+            preconditions=[pre_cond],
+            postconditions=[post_cond]
+        )
+        assert len(spec.preconditions) == 1
+        assert len(spec.postconditions) == 1
+
+
+# =============================================================================
+# Test Default Handler
+# =============================================================================
+
+class TestDefaultHandler:
+    """Tests for default violation handler behavior."""
+
+    def test_default_handler_logs_warning(self, mock_llm, simple_tool, caplog):
+        """Test that default handler logs a warning."""
+        import logging
+        agent = ContractAgent(llm=mock_llm, tools=[simple_tool])
+        violation = ContractViolation(
+            kind="pre",
+            location="test_tool",
+            predicate="x > 0",
+            message="x must be positive"
+        )
+
+        with caplog.at_level(logging.WARNING):
+            agent._default_handler(violation)
+
+        assert "Contract violation" in caplog.text
+        assert "test_tool" in caplog.text
+
+    def test_default_handler_verbose_output(self, mock_llm, simple_tool, capsys):
+        """Test that default handler prints when verbose=True."""
+        agent = ContractAgent(llm=mock_llm, tools=[simple_tool], verbose=True)
+        violation = ContractViolation(
+            kind="pre",
+            location="test_tool",
+            predicate="x > 0",
+            message="x must be positive",
+            context={"args": {"x": -1}}
+        )
+
+        agent._default_handler(violation)
+        captured = capsys.readouterr()
+
+        assert "CONTRACT VIOLATION" in captured.out
+        assert "test_tool" in captured.out
+        assert "x must be positive" in captured.out
+
+
+# =============================================================================
+# Test IterationState Extended
+# =============================================================================
+
+class TestIterationStateExtended:
+    """Extended tests for IterationState."""
+
+    def test_update_observation(self):
+        """Test state update on OBSERVATION event."""
+        state = IterationState()
+        event = AgentEvent(type=EventType.OBSERVATION, content="result")
+        state.update(event)
+        # OBSERVATION doesn't increment counters but is added to events
+        assert len(state.events) == 1
+        assert state.iterations == 0
+        assert state.tool_calls == 0
+
+    def test_update_answer(self):
+        """Test state update on ANSWER event."""
+        state = IterationState()
+        event = AgentEvent(type=EventType.ANSWER, content="final answer")
+        state.update(event)
+        assert len(state.events) == 1
+
+    def test_multiple_events(self):
+        """Test state with multiple events."""
+        state = IterationState()
+        state.update(AgentEvent(type=EventType.THOUGHT, content="thinking"))
+        state.update(AgentEvent(type=EventType.ACTION, content="action"))
+        state.update(AgentEvent(type=EventType.OBSERVATION, content="result"))
+        state.update(AgentEvent(type=EventType.THOUGHT, content="more thinking"))
+        state.update(AgentEvent(type=EventType.ERROR, content="error"))
+
+        assert state.iterations == 2
+        assert state.tool_calls == 1
+        assert state.errors == 1
+        assert len(state.events) == 5
+
+
+# =============================================================================
+# Test Predicate String Extraction
+# =============================================================================
+
+class TestPredicateStringExtraction:
+    """Tests for _get_predicate_str function."""
+
+    def test_lambda_predicate_string(self):
+        """Test extracting string from lambda predicate."""
+        from cyllama.agents.contract import _get_predicate_str
+
+        pred = lambda args: args['n'] > 0
+        pred_str = _get_predicate_str(pred)
+        # Should contain lambda
+        assert "lambda" in pred_str
+
+    def test_function_predicate_string(self):
+        """Test extracting string from function predicate."""
+        from cyllama.agents.contract import _get_predicate_str
+
+        def check_positive(args):
+            return args['n'] > 0
+
+        pred_str = _get_predicate_str(check_positive)
+        # Should return some string representation
+        assert len(pred_str) > 0
+
+
+# =============================================================================
+# Test ContractViolation Extended
+# =============================================================================
+
+class TestContractViolationExtended:
+    """Extended tests for ContractViolation."""
+
+    def test_violation_with_all_fields(self):
+        """Test ContractViolation with all fields populated."""
+        violation = ContractViolation(
+            kind="pre",
+            location="my_tool",
+            predicate="args['n'] > 0",
+            message="n must be positive",
+            context={"args": {"n": -1}, "extra": "info"},
+            policy=ContractPolicy.OBSERVE
+        )
+        assert violation.kind == "pre"
+        assert violation.location == "my_tool"
+        assert violation.predicate == "args['n'] > 0"
+        assert violation.message == "n must be positive"
+        assert violation.context["args"]["n"] == -1
+        assert violation.policy == ContractPolicy.OBSERVE
+
+    def test_violation_default_policy(self):
+        """Test ContractViolation default policy is ENFORCE."""
+        violation = ContractViolation(
+            kind="pre",
+            location="test",
+            predicate="x",
+            message="m"
+        )
+        assert violation.policy == ContractPolicy.ENFORCE
+
+    def test_violation_default_context(self):
+        """Test ContractViolation default context is empty dict."""
+        violation = ContractViolation(
+            kind="pre",
+            location="test",
+            predicate="x",
+            message="m"
+        )
+        assert violation.context == {}
+
+
+# =============================================================================
+# Test ContractContext Extended
+# =============================================================================
+
+class TestContractContextExtended:
+    """Extended tests for ContractContext."""
+
+    def test_context_without_handler(self):
+        """Test context with no handler set."""
+        ctx = ContractContext(
+            policy=ContractPolicy.OBSERVE,
+            handler=None,
+            location="test"
+        )
+        violation = ContractViolation(
+            kind="assert", location="test", predicate="x", message="m"
+        )
+        # Should not raise - handler is None so nothing to call
+        ctx.handle_violation(violation)
+
+
+# =============================================================================
+# Test Agent with No Tools
+# =============================================================================
+
+class TestAgentNoTools:
+    """Tests for ContractAgent with no tools."""
+
+    def test_agent_with_empty_tools(self, mock_llm):
+        """Test creating agent with empty tools list."""
+        agent = ContractAgent(llm=mock_llm, tools=[])
+        assert len(agent.tools) == 0
+        assert len(agent._tool_contracts) == 0
+
+    def test_agent_with_none_tools(self, mock_llm):
+        """Test creating agent with None tools."""
+        agent = ContractAgent(llm=mock_llm, tools=None)
+        assert agent.tools == []
+
+
+# =============================================================================
+# Test Postcondition with Args Edge Cases
+# =============================================================================
+
+class TestPostconditionArgsEdgeCases:
+    """Tests for postcondition with args edge cases."""
+
+    def test_postcondition_needs_args_missing(self):
+        """Test postcondition with needs_args=True but no args provided."""
+        cond = PostCondition(
+            predicate=lambda r, args: r <= args.get('max', 100),
+            message="result too big",
+            needs_args=True
+        )
+        # When args is None, should still work (predicate handles it)
+        result = cond.check(50, None)
+        # Predicate will fail because args is None
+        assert result is False
+
+    def test_postcondition_needs_args_with_empty_dict(self):
+        """Test postcondition with needs_args=True and empty args."""
+        cond = PostCondition(
+            predicate=lambda r, args: r <= args.get('max', 100),
+            message="result too big",
+            needs_args=True
+        )
+        result = cond.check(50, {})
+        assert result is True  # Uses default 100
+
+
+# =============================================================================
+# Test Contract Assert Outside Context
+# =============================================================================
+
+class TestContractAssertOutsideContext:
+    """Tests for contract_assert called outside agent context."""
+
+    def test_assert_pass_outside_context(self):
+        """Test contract_assert passes outside context."""
+        _set_current_context(None)
+        contract_assert(True, "should pass")  # Should not raise
+
+    def test_assert_fail_outside_context_enforce(self):
+        """Test contract_assert fails with ENFORCE outside context."""
+        _set_current_context(None)
+        with pytest.raises(ContractTermination) as exc_info:
+            contract_assert(False, "must fail")
+        assert "must fail" in str(exc_info.value)
+
+    def test_assert_fail_outside_context_ignore(self):
+        """Test contract_assert with IGNORE policy outside context."""
+        _set_current_context(None)
+        contract_assert(False, "ignored", policy=ContractPolicy.IGNORE)  # Should not raise
+
+
+# =============================================================================
+# Test Multiple Contracts Order
+# =============================================================================
+
+class TestMultipleContractsOrder:
+    """Tests for order of multiple contracts on same function."""
+
+    def test_preconditions_checked_in_order(self, mock_llm):
+        """Test that preconditions are checked in decorator order."""
+        check_order = []
+
+        def check1(args):
+            check_order.append(1)
+            return True
+
+        def check2(args):
+            check_order.append(2)
+            return True
+
+        @tool
+        @pre(check1, "first")
+        @pre(check2, "second")
+        def my_func(n: int) -> int:
+            return n
+
+        agent = ContractAgent(llm=mock_llm, tools=[my_func])
+        agent._check_preconditions("my_func", {"n": 5})
+
+        # Decorators are applied bottom-up, so check2 is added first
+        # But we insert at front, so order should be 1, 2
+        assert check_order == [1, 2]
+
+    def test_first_failing_precondition_reported(self, mock_llm):
+        """Test that first failing precondition is reported."""
+        @tool
+        @pre(lambda args: args['n'] > 0, "first: n positive")
+        @pre(lambda args: args['n'] < 100, "second: n less than 100")
+        def my_func(n: int) -> int:
+            return n
+
+        agent = ContractAgent(llm=mock_llm, tools=[my_func])
+        violation = agent._check_preconditions("my_func", {"n": -1})
+
+        assert "first: n positive" in violation.message
+
+
+# =============================================================================
+# Test ContractTermination Exception
+# =============================================================================
+
+class TestContractTerminationException:
+    """Tests for ContractTermination exception."""
+
+    def test_exception_contains_violation(self):
+        """Test ContractTermination stores the violation."""
+        violation = ContractViolation(
+            kind="pre",
+            location="test",
+            predicate="x",
+            message="test violation"
+        )
+        exc = ContractTermination(violation)
+        assert exc.violation is violation
+        assert "test violation" in str(exc)
+
+    def test_exception_inherits_from_exception(self):
+        """Test ContractTermination is an Exception."""
+        violation = ContractViolation(
+            kind="pre", location="test", predicate="x", message="m"
+        )
+        exc = ContractTermination(violation)
+        assert isinstance(exc, Exception)

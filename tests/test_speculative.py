@@ -15,10 +15,6 @@ from cyllama import (
 )
 
 
-# Test data
-DEFAULT_MODEL = "models/Llama-3.2-1B-Instruct-Q8_0.gguf"
-
-
 class TestSpeculativeParams:
     """Tests for SpeculativeParams class."""
 
@@ -88,12 +84,12 @@ class TestSpeculativeCompatibility:
     """Tests for speculative decoding compatibility checks."""
 
     @pytest.mark.slow
-    def test_are_compatible_same_model(self):
+    def test_are_compatible_same_model(self, model_path):
         """Test compatibility check with same model (should be compatible)."""
         # Load model
         model_params = LlamaModelParams()
         model_params.n_gpu_layers = 0  # CPU only for testing
-        model = LlamaModel(DEFAULT_MODEL, model_params)
+        model = LlamaModel(model_path, model_params)
 
         # Create two contexts from same model
         ctx_params = LlamaContextParams()
@@ -115,12 +111,12 @@ class TestSpeculativeInitialization:
     """Tests for Speculative class initialization."""
 
     @pytest.mark.slow
-    def test_initialization_same_model(self):
+    def test_initialization_same_model(self, model_path):
         """Test initializing speculative decoding with same model contexts."""
         # Load model
         model_params = LlamaModelParams()
         model_params.n_gpu_layers = 0
-        model = LlamaModel(DEFAULT_MODEL, model_params)
+        model = LlamaModel(model_path, model_params)
 
         # Create contexts
         ctx_params = LlamaContextParams()
@@ -145,11 +141,11 @@ class TestSpeculativeInitialization:
         pass
 
     @pytest.mark.slow
-    def test_repr(self):
+    def test_repr(self, model_path):
         """Test string representation of Speculative."""
         model_params = LlamaModelParams()
         model_params.n_gpu_layers = 0
-        model = LlamaModel(DEFAULT_MODEL, model_params)
+        model = LlamaModel(model_path, model_params)
 
         ctx_params = LlamaContextParams()
         ctx_params.n_ctx = 512
@@ -168,11 +164,11 @@ class TestSpeculativeOperations:
     """Tests for speculative decoding operations."""
 
     @pytest.mark.slow
-    def test_add_replacement(self):
+    def test_add_replacement(self, model_path):
         """Test adding token replacement mappings."""
         model_params = LlamaModelParams()
         model_params.n_gpu_layers = 0
-        model = LlamaModel(DEFAULT_MODEL, model_params)
+        model = LlamaModel(model_path, model_params)
 
         ctx_params = LlamaContextParams()
         ctx_params.n_ctx = 512
@@ -186,11 +182,11 @@ class TestSpeculativeOperations:
         spec.add_replacement("world", "earth")
 
     @pytest.mark.slow
-    def test_gen_draft_basic(self):
+    def test_gen_draft_basic(self, model_path):
         """Test basic draft generation."""
         model_params = LlamaModelParams()
         model_params.n_gpu_layers = 0
-        model = LlamaModel(DEFAULT_MODEL, model_params)
+        model = LlamaModel(model_path, model_params)
 
         ctx_params = LlamaContextParams()
         ctx_params.n_ctx = 512
@@ -213,11 +209,11 @@ class TestSpeculativeOperations:
         assert all(isinstance(t, int) for t in draft)
 
     @pytest.mark.slow
-    def test_gen_draft_empty_prompt(self):
+    def test_gen_draft_empty_prompt(self, model_path):
         """Test draft generation with empty prompt."""
         model_params = LlamaModelParams()
         model_params.n_gpu_layers = 0
-        model = LlamaModel(DEFAULT_MODEL, model_params)
+        model = LlamaModel(model_path, model_params)
 
         ctx_params = LlamaContextParams()
         ctx_params.n_ctx = 512
@@ -234,11 +230,11 @@ class TestSpeculativeOperations:
         assert isinstance(draft, list)
 
     @pytest.mark.slow
-    def test_gen_draft_varying_params(self):
+    def test_gen_draft_varying_params(self, model_path):
         """Test draft generation with varying parameters."""
         model_params = LlamaModelParams()
         model_params.n_gpu_layers = 0
-        model = LlamaModel(DEFAULT_MODEL, model_params)
+        model = LlamaModel(model_path, model_params)
 
         ctx_params = LlamaContextParams()
         ctx_params.n_ctx = 512
@@ -274,11 +270,11 @@ class TestSpeculativeEdgeCases:
         assert params.p_min == -0.5
 
     @pytest.mark.slow
-    def test_multiple_speculative_instances(self):
+    def test_multiple_speculative_instances(self, model_path):
         """Test creating multiple Speculative instances."""
         model_params = LlamaModelParams()
         model_params.n_gpu_layers = 0
-        model = LlamaModel(DEFAULT_MODEL, model_params)
+        model = LlamaModel(model_path, model_params)
 
         ctx_params = LlamaContextParams()
         ctx_params.n_ctx = 512
@@ -297,11 +293,11 @@ class TestSpeculativeEdgeCases:
         assert spec1.ctx_tgt is not spec2.ctx_tgt
 
     @pytest.mark.slow
-    def test_cleanup_on_deletion(self):
+    def test_cleanup_on_deletion(self, model_path):
         """Test that resources are cleaned up on deletion."""
         model_params = LlamaModelParams()
         model_params.n_gpu_layers = 0
-        model = LlamaModel(DEFAULT_MODEL, model_params)
+        model = LlamaModel(model_path, model_params)
 
         ctx_params = LlamaContextParams()
         ctx_params.n_ctx = 512

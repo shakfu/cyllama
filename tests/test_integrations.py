@@ -11,24 +11,20 @@ from cyllama.integrations.openai_compat import (
 )
 
 
-# Test data
-DEFAULT_MODEL = "models/Llama-3.2-1B-Instruct-Q8_0.gguf"
-
-
 class TestOpenAICompatibleClient:
     """Tests for OpenAI-compatible client."""
 
     @pytest.mark.slow
-    def test_client_initialization(self):
+    def test_client_initialization(self, model_path):
         """Test client initialization."""
-        client = OpenAICompatibleClient(DEFAULT_MODEL, verbose=False)
+        client = OpenAICompatibleClient(model_path, verbose=False)
         assert client is not None
         assert client.generator is not None
 
     @pytest.mark.slow
-    def test_chat_completion(self):
+    def test_chat_completion(self, model_path):
         """Test chat completion."""
-        client = OpenAICompatibleClient(DEFAULT_MODEL, temperature=0.0)
+        client = OpenAICompatibleClient(model_path, temperature=0.0)
 
         response = client.chat.completions.create(
             messages=[
@@ -47,9 +43,9 @@ class TestOpenAICompatibleClient:
         assert response.usage.completion_tokens >= 0
 
     @pytest.mark.slow
-    def test_chat_completion_streaming(self):
+    def test_chat_completion_streaming(self, model_path):
         """Test streaming chat completion."""
-        client = OpenAICompatibleClient(DEFAULT_MODEL, temperature=0.0)
+        client = OpenAICompatibleClient(model_path, temperature=0.0)
 
         chunks = list(client.chat.completions.create(
             messages=[
@@ -80,9 +76,9 @@ class TestOpenAICompatibleClient:
         assert len(full_content) > 0
 
     @pytest.mark.slow
-    def test_multiple_messages(self):
+    def test_multiple_messages(self, model_path):
         """Test chat with multiple messages."""
-        client = OpenAICompatibleClient(DEFAULT_MODEL, temperature=0.0)
+        client = OpenAICompatibleClient(model_path, temperature=0.0)
 
         response = client.chat.completions.create(
             messages=[
@@ -98,9 +94,9 @@ class TestOpenAICompatibleClient:
         assert len(response.choices[0].message.content) > 0
 
     @pytest.mark.slow
-    def test_custom_parameters(self):
+    def test_custom_parameters(self, model_path):
         """Test custom generation parameters."""
-        client = OpenAICompatibleClient(DEFAULT_MODEL)
+        client = OpenAICompatibleClient(model_path)
 
         response = client.chat.completions.create(
             messages=[{"role": "user", "content": "Test"}],
@@ -112,9 +108,9 @@ class TestOpenAICompatibleClient:
         assert isinstance(response, ChatCompletion)
 
     @pytest.mark.slow
-    def test_stop_sequences(self):
+    def test_stop_sequences(self, model_path):
         """Test stop sequences."""
-        client = OpenAICompatibleClient(DEFAULT_MODEL, temperature=0.0)
+        client = OpenAICompatibleClient(model_path, temperature=0.0)
 
         response = client.chat.completions.create(
             messages=[{"role": "user", "content": "Count: 1, 2, 3"}],
@@ -129,9 +125,9 @@ class TestConvenienceFunctions:
     """Tests for convenience functions."""
 
     @pytest.mark.slow
-    def test_create_openai_client(self):
+    def test_create_openai_client(self, model_path):
         """Test create_openai_client convenience function."""
-        client = create_openai_client(DEFAULT_MODEL, temperature=0.5)
+        client = create_openai_client(model_path, temperature=0.5)
 
         assert client is not None
         assert client.generator is not None
@@ -163,12 +159,12 @@ class TestLangChainIntegration:
         reason="Requires langchain"
     )
     @pytest.mark.slow
-    def test_langchain_basic_generation(self):
+    def test_langchain_basic_generation(self, model_path):
         """Test basic LangChain generation."""
         from cyllama.integrations import CyllamaLLM
 
         llm = CyllamaLLM(
-            model_path=DEFAULT_MODEL,
+            model_path=model_path,
             temperature=0.0,
             max_tokens=30,
             verbose=False
@@ -183,12 +179,12 @@ class TestLangChainIntegration:
         reason="Requires langchain"
     )
     @pytest.mark.slow
-    def test_langchain_with_stop_sequences(self):
+    def test_langchain_with_stop_sequences(self, model_path):
         """Test LangChain generation with stop sequences."""
         from cyllama.integrations import CyllamaLLM
 
         llm = CyllamaLLM(
-            model_path=DEFAULT_MODEL,
+            model_path=model_path,
             temperature=0.0,
             max_tokens=50,
             stop_sequences=["\n\n"],
@@ -204,12 +200,12 @@ class TestLangChainIntegration:
         reason="Requires langchain"
     )
     @pytest.mark.slow
-    def test_langchain_streaming(self):
+    def test_langchain_streaming(self, model_path):
         """Test LangChain streaming generation."""
         from cyllama.integrations import CyllamaLLM
 
         llm = CyllamaLLM(
-            model_path=DEFAULT_MODEL,
+            model_path=model_path,
             temperature=0.0,
             max_tokens=30,
             verbose=False
@@ -226,19 +222,19 @@ class TestLangChainIntegration:
         reason="Requires langchain"
     )
     @pytest.mark.slow
-    def test_langchain_identifying_params(self):
+    def test_langchain_identifying_params(self, model_path):
         """Test that LangChain can identify the LLM."""
         from cyllama.integrations import CyllamaLLM
 
         llm = CyllamaLLM(
-            model_path=DEFAULT_MODEL,
+            model_path=model_path,
             temperature=0.5,
             max_tokens=100,
             verbose=False
         )
 
         params = llm._identifying_params
-        assert params["model_path"] == DEFAULT_MODEL
+        assert params["model_path"] == model_path
         assert params["temperature"] == 0.5
         assert params["max_tokens"] == 100
 
@@ -247,11 +243,11 @@ class TestLangChainIntegration:
         reason="Requires langchain"
     )
     @pytest.mark.slow
-    def test_langchain_llm_type(self):
+    def test_langchain_llm_type(self, model_path):
         """Test LLM type identifier."""
         from cyllama.integrations import CyllamaLLM
 
-        llm = CyllamaLLM(model_path=DEFAULT_MODEL, verbose=False)
+        llm = CyllamaLLM(model_path=model_path, verbose=False)
         assert llm._llm_type == "cyllama"
 
 

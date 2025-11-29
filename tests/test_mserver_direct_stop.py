@@ -8,10 +8,10 @@ from cyllama.llama.server.python import ServerConfig
 from cyllama.llama.server.embedded import EmbeddedServer
 
 
-def test_direct_stop():
+def test_direct_stop(model_path):
     """Test that embedded server can be started and stopped directly without context manager."""
     config = ServerConfig(
-        model_path="models/Llama-3.2-1B-Instruct-Q8_0.gguf",
+        model_path=model_path,
         host="127.0.0.1",
         port=8099,
         n_ctx=256

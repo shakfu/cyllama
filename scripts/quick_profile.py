@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """
 Quick Performance Profile using existing working code patterns.
+
+Usage:
+    python quick_profile.py -m models/Llama-3.2-1B-Instruct-Q8_0.gguf
 """
 
 import cProfile
@@ -8,6 +11,7 @@ import pstats
 import io
 import sys
 import time
+import argparse
 from pathlib import Path
 
 # Add src to path
@@ -16,13 +20,13 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 import cyllama
 
 
-def profile_tokenization():
+def profile_tokenization(model_path):
     """Profile tokenization using vocab."""
     print("=== Tokenization Performance ===")
 
     # Load model
     model_params = cyllama.LlamaModelParams()
-    model = cyllama.LlamaModel("models/Llama-3.2-1B-Instruct-Q8_0.gguf", model_params)
+    model = cyllama.LlamaModel(model_path, model_params)
     vocab = model.get_vocab()
 
     texts = ["Hello world", "This is a test sentence", "AI and machine learning"]
@@ -57,13 +61,13 @@ def profile_tokenization():
     print(s.getvalue())
 
 
-def profile_memory_operations():
+def profile_memory_operations(model_path):
     """Profile memory-intensive operations like getting logits."""
     print("\n=== Memory Operations Performance ===")
 
     # Setup
     model_params = cyllama.LlamaModelParams()
-    model = cyllama.LlamaModel("models/Llama-3.2-1B-Instruct-Q8_0.gguf", model_params)
+    model = cyllama.LlamaModel(model_path, model_params)
     vocab = model.get_vocab()
 
     ctx_params = cyllama.LlamaContextParams()
@@ -109,12 +113,12 @@ def profile_memory_operations():
     print(s.getvalue())
 
 
-def profile_model_properties():
+def profile_model_properties(model_path):
     """Profile accessing model properties and metadata."""
     print("\n=== Model Properties Performance ===")
 
     model_params = cyllama.LlamaModelParams()
-    model = cyllama.LlamaModel("models/Llama-3.2-1B-Instruct-Q8_0.gguf", model_params)
+    model = cyllama.LlamaModel(model_path, model_params)
 
     def properties_loop():
         total = 0
@@ -146,15 +150,15 @@ def profile_model_properties():
     print(s.getvalue())
 
 
-def main():
+def main(model_path):
     """Run all profiling tests."""
     print("cyllama Quick Performance Profile")
     print("=" * 50)
 
     try:
-        profile_tokenization()
-        profile_memory_operations()
-        profile_model_properties()
+        profile_tokenization(model_path)
+        profile_memory_operations(model_path)
+        profile_model_properties(model_path)
 
         print("\n" + "=" * 50)
         print("ANALYSIS GUIDELINES:")
@@ -176,4 +180,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Quick Performance Profile")
+    parser.add_argument("-m", "--model", required=True, help="Path to model file")
+    args = parser.parse_args()
+    main(args.model)

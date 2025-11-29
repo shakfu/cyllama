@@ -512,13 +512,6 @@ class TestConvenienceFunction:
 class TestPythonServerIntegration:
     """Integration tests for Python server functionality."""
 
-    @pytest.fixture
-    def model_path(self):
-        """Fixture providing path to test model."""
-        model_file = Path("models/Llama-3.2-1B-Instruct-Q8_0.gguf")
-        if not model_file.exists():
-            pytest.skip("Test model not available")
-        return str(model_file)
 
     def test_server_lifecycle_integration(self, model_path):
         """Test complete server lifecycle with real model."""

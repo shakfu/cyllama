@@ -172,11 +172,9 @@ def real_world_api_response_schema():
     return grammar
 
 
-def use_grammar_with_model(grammar):
+def use_grammar_with_model(grammar, model_path):
     """Demonstrate using the grammar with actual model generation."""
     print("\n=== Using Grammar with Model ===\n")
-
-    model_path = "models/Llama-3.2-1B-Instruct-Q8_0.gguf"
 
     if not os.path.exists(model_path):
         print(f"Model not found: {model_path}")
@@ -250,7 +248,7 @@ def force_gbnf_example():
     print("\nBoth grammars enforce the same schema structure")
 
 
-def main():
+def main(model_path):
     """Run all examples."""
     print("=" * 60)
     print("JSON Schema to Grammar Examples")
@@ -275,7 +273,7 @@ def main():
     force_gbnf_example()
 
     # 7. Use with model (if available)
-    use_grammar_with_model(grammar)
+    use_grammar_with_model(grammar, model_path)
 
     print("\n" + "=" * 60)
     print("JSON Schema Examples Complete")
@@ -288,4 +286,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    import argparse
+    parser = argparse.ArgumentParser(description="JSON Schema to Grammar Examples")
+    parser.add_argument("-m", "--model", required=True, help="Path to model file")
+    args = parser.parse_args()
+    main(args.model)

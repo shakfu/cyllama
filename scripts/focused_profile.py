@@ -3,6 +3,9 @@
 Focused Performance Profiling for cyllama
 
 Profile the most important operations to find bottlenecks.
+
+Usage:
+    python focused_profile.py -m models/Llama-3.2-1B-Instruct-Q8_0.gguf
 """
 
 import cProfile
@@ -10,6 +13,7 @@ import pstats
 import io
 import sys
 import time
+import argparse
 from pathlib import Path
 
 # Add src to path for imports
@@ -19,13 +23,13 @@ import cyllama
 from cyllama import llama_batch_get_one
 
 
-def profile_tokenization():
+def profile_tokenization(model_path):
     """Profile tokenization operations."""
     print("=== Profiling Tokenization ===")
 
     # Load model and get vocab
     model_params = cyllama.LlamaModelParams()
-    model = cyllama.LlamaModel("models/Llama-3.2-1B-Instruct-Q8_0.gguf", model_params)
+    model = cyllama.LlamaModel(model_path, model_params)
     vocab = model.get_vocab()
 
     test_texts = [
@@ -69,13 +73,13 @@ def profile_tokenization():
     return pr
 
 
-def profile_inference_basic():
+def profile_inference_basic(model_path):
     """Profile basic inference cycle."""
     print("\n=== Profiling Basic Inference ===")
 
     # Setup
     model_params = cyllama.LlamaModelParams()
-    model = cyllama.LlamaModel("models/Llama-3.2-1B-Instruct-Q8_0.gguf", model_params)
+    model = cyllama.LlamaModel(model_path, model_params)
     vocab = model.get_vocab()
 
     ctx_params = cyllama.LlamaContextParams()
@@ -137,13 +141,13 @@ def profile_inference_basic():
     return pr
 
 
-def profile_logits_retrieval():
+def profile_logits_retrieval(model_path):
     """Profile logits retrieval operations."""
     print("\n=== Profiling Logits Retrieval ===")
 
     # Setup minimal context for logits
     model_params = cyllama.LlamaModelParams()
-    model = cyllama.LlamaModel("models/Llama-3.2-1B-Instruct-Q8_0.gguf", model_params)
+    model = cyllama.LlamaModel(model_path, model_params)
     vocab = model.get_vocab()
 
     ctx_params = cyllama.LlamaContextParams()
@@ -189,16 +193,16 @@ def profile_logits_retrieval():
     return pr
 
 
-def main():
+def main(model_path):
     """Main profiling function."""
     print("cyllama Focused Performance Profiling")
     print("=" * 60)
 
     try:
         # Profile each operation separately
-        tokenization_profile = profile_tokenization()
-        inference_profile = profile_inference_basic()
-        logits_profile = profile_logits_retrieval()
+        tokenization_profile = profile_tokenization(model_path)
+        inference_profile = profile_inference_basic(model_path)
+        logits_profile = profile_logits_retrieval(model_path)
 
         print("\n" + "=" * 60)
         print("PERFORMANCE BOTTLENECK ANALYSIS")
@@ -221,4 +225,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Focused Performance Profiling")
+    parser.add_argument("-m", "--model", required=True, help="Path to model file")
+    args = parser.parse_args()
+    main(args.model)

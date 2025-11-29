@@ -2,10 +2,14 @@
 """
 Benchmark to compare performance with and without memory pooling.
 This demonstrates the actual benefits of the pooling optimizations.
+
+Usage:
+    python pooling_comparison_benchmark.py -m models/Llama-3.2-1B-Instruct-Q8_0.gguf
 """
 
 import time
 import sys
+import argparse
 from pathlib import Path
 
 # Add src to path
@@ -13,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 import cyllama
 
-def benchmark_without_pooling():
+def benchmark_without_pooling(model_path):
     """Benchmark using direct allocation (no pooling)"""
     print("=" * 60)
     print("BENCHMARK WITHOUT POOLING (Direct Allocation)")
@@ -21,7 +25,7 @@ def benchmark_without_pooling():
 
     # Load model
     model_params = cyllama.LlamaModelParams()
-    model = cyllama.LlamaModel("models/Llama-3.2-1B-Instruct-Q8_0.gguf", model_params)
+    model = cyllama.LlamaModel(model_path, model_params)
     vocab = model.get_vocab()
 
     # Reset pools to ensure clean state
@@ -81,7 +85,7 @@ def benchmark_without_pooling():
 
     return tokenization_times, batch_times
 
-def benchmark_with_pooling():
+def benchmark_with_pooling(model_path):
     """Benchmark using memory pooling"""
     print("\n" + "=" * 60)
     print("BENCHMARK WITH POOLING (Memory Pool Optimization)")
@@ -89,7 +93,7 @@ def benchmark_with_pooling():
 
     # Load model
     model_params = cyllama.LlamaModelParams()
-    model = cyllama.LlamaModel("models/Llama-3.2-1B-Instruct-Q8_0.gguf", model_params)
+    model = cyllama.LlamaModel(model_path, model_params)
     vocab = model.get_vocab()
 
     # Reset pools to ensure clean state
@@ -257,14 +261,18 @@ def benchmark_memory_pressure():
     print(f"  Final pool state: {batch_stats['total_pooled_batches']} objects pooled")
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Pooling Comparison Benchmark")
+    parser.add_argument("-m", "--model", required=True, help="Path to model file")
+    args = parser.parse_args()
+
     print("Memory Pooling Performance Comparison")
     print("=====================================")
     print("This benchmark compares performance with and without memory pooling")
     print("to demonstrate the actual benefits of the optimization.")
 
     # Run benchmarks
-    no_pool_token_times, no_pool_batch_times = benchmark_without_pooling()
-    pool_token_times, pool_batch_times = benchmark_with_pooling()
+    no_pool_token_times, no_pool_batch_times = benchmark_without_pooling(args.model)
+    pool_token_times, pool_batch_times = benchmark_with_pooling(args.model)
 
     # Compare results
     compare_results(no_pool_token_times, no_pool_batch_times, pool_token_times, pool_batch_times)

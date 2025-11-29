@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
 """
 Demo comparing the embedded Python server vs Mongoose C server.
+
+Usage:
+    python server_comparison_demo.py -m models/Llama-3.2-1B-Instruct-Q8_0.gguf
 """
 
 import subprocess
 import time
 import sys
+import argparse
 from pathlib import Path
 
-def run_server_demo(server_type, port):
+def run_server_demo(model_path, server_type, port):
     """Run a server demo for the specified type."""
     print(f"\n{'='*50}")
     print(f"Testing {server_type.upper()} Server on port {port}")
@@ -16,7 +20,7 @@ def run_server_demo(server_type, port):
 
     cmd = [
         sys.executable, "-m", "cyllama.llama.server",
-        "-m", "models/Llama-3.2-1B-Instruct-Q8_0.gguf",
+        "-m", model_path,
         "--server-type", server_type,
         "--port", str(port),
         "--ctx-size", "256"
@@ -49,7 +53,7 @@ def run_server_demo(server_type, port):
     except Exception as e:
         print(f"✗ Error testing {server_type} server: {e}")
 
-def main():
+def main(model_path):
     print("Server Comparison Demo")
     print("=====================")
     print("This demo tests both server implementations:")
@@ -57,10 +61,10 @@ def main():
     print("2. Mongoose C server (high-performance)")
 
     # Test embedded server
-    run_server_demo("embedded", 8095)
+    run_server_demo(model_path, "embedded", 8095)
 
     # Test mongoose server
-    run_server_demo("mongoose", 8096)
+    run_server_demo(model_path, "mongoose", 8096)
 
     print(f"\n{'='*50}")
     print("Comparison Summary:")
@@ -82,4 +86,7 @@ def main():
     print("python -m cyllama.llama.server -m model.gguf --server-type mongoose --n-parallel 4")
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Server Comparison Demo")
+    parser.add_argument("-m", "--model", required=True, help="Path to model file")
+    args = parser.parse_args()
+    main(args.model)

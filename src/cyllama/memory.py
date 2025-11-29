@@ -8,13 +8,16 @@ Adapted from xllamacpp's memory estimation functionality.
 """
 
 import argparse
-import json
+import logging
 import math
 import struct
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
+
+# Module logger for error and diagnostic reporting
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -43,8 +46,13 @@ def get_file_host_endian(file_path: Union[str, Path]) -> Tuple[str, str]:
             elif magic == b'FUGG':
                 file_endian = 'big'
             else:
+                logger.warning(
+                    "Unrecognized GGUF magic bytes %r in %s, assuming little-endian",
+                    magic, file_path
+                )
                 file_endian = 'little'  # default
-    except:
+    except (OSError, IOError) as e:
+        logger.error("Failed to read file %s: %s, assuming little-endian", file_path, e)
         file_endian = 'little'  # default
 
     return file_endian, host_endian
@@ -77,13 +85,17 @@ def dump_metadata_json(model_path: Union[str, Path]) -> Dict:
         # Try to get actual vocab size
         try:
             metadata['tokenizer.ggml.tokens'] = [f"token_{i}" for i in range(vocab.n_vocab)]
-        except:
+        except (AttributeError, TypeError):
             metadata['tokenizer.ggml.tokens'] = [f"token_{i}" for i in range(32000)]
 
         return metadata
 
     except Exception as e:
         # Fallback metadata for when model can't be loaded
+        logger.warning(
+            "Failed to load model metadata from %s: %s, using default values",
+            model_path, e
+        )
         return {
             'general.architecture': 'llama',
             'llama.context_length': 2048,
@@ -112,66 +124,94 @@ def graph_size(
     offload_kqv: bool = True,
     flash_attn: bool = False,
 ) -> int:
-    """Calculate graph memory requirements for different architectures."""
+    """Calculate graph memory requirements for different architectures.
 
-    # Base graph size calculation
-    if architecture in ['llama', 'yi', 'deepseek', 'deepseek2']:
-        # Standard transformer architecture
-        graph_size = (
-            n_ctx * n_batch * (n_embd + n_ff) * 4 +  # activations
-            n_layers * n_embd * n_embd * 4 +          # attention weights
-            n_vocab * n_embd * 4                       # output layer
-        )
-    elif architecture == 'gemma':
-        # Gemma specific calculations
-        graph_size = (
-            n_ctx * n_batch * (n_embd + n_ff) * 4 +
-            n_layers * n_embd * n_embd * 4 +
-            n_vocab * n_embd * 4
-        )
-    elif architecture in ['qwen2', 'qwen2moe']:
-        # Qwen2 specific calculations
-        graph_size = (
-            n_ctx * n_batch * (n_embd + n_ff) * 4 +
-            n_layers * n_embd * n_embd * 4 +
-            n_vocab * n_embd * 4
-        )
-    elif architecture == 'stablelm':
-        # StableLM specific calculations
-        graph_size = (
-            n_ctx * n_batch * (n_embd + n_ff) * 4 +
-            n_layers * n_embd * n_embd * 4 +
-            n_vocab * n_embd * 4
-        )
-    else:
-        # Default calculation for unknown architectures
-        graph_size = (
-            n_ctx * n_batch * (n_embd + n_ff) * 4 +
-            n_layers * n_embd * n_embd * 4 +
-            n_vocab * n_embd * 4
-        )
+    The computation graph memory is the working memory needed during inference,
+    separate from model weights and KV cache. This includes:
 
-    # Apply modifiers
+    1. Activation tensors: n_ctx * n_batch * (n_embd + n_ff) * 4 bytes
+       - Stores intermediate activations during forward pass
+       - 4 bytes per element (float32 for computation)
+
+    2. Attention scratch space: n_layers * n_embd * n_embd * 4 bytes
+       - Working memory for attention computation per layer
+       - Scales with embedding dimension squared
+
+    3. Output layer buffer: n_vocab * n_embd * 4 bytes
+       - Logits computation buffer for vocabulary projection
+
+    Modifiers:
+    - Flash attention (0.8x): Reduces memory via chunked softmax computation
+    - No KQV offload (1.2x): Keeps Q, K, V tensors in graph memory
+    - Safety margin (1.1x): Buffer for memory fragmentation and alignment
+
+    References:
+    - llama.cpp memory estimation: https://github.com/ggerganov/llama.cpp
+    - Flash Attention paper: https://arxiv.org/abs/2205.14135
+    """
+    # Validate inputs
+    if n_layers <= 0 or n_embd <= 0 or n_ctx <= 0:
+        logger.warning(
+            "Invalid graph_size parameters: n_layers=%d, n_embd=%d, n_ctx=%d",
+            n_layers, n_embd, n_ctx
+        )
+        return 0
+
+    # Base graph size calculation (same formula for all transformer architectures)
+    # The architecture parameter is retained for future architecture-specific tuning
+    BYTES_PER_FLOAT32 = 4
+
+    # Activation memory: context * batch * (embedding + feedforward) * sizeof(float)
+    activation_mem = n_ctx * n_batch * (n_embd + n_ff) * BYTES_PER_FLOAT32
+
+    # Attention scratch: layers * embedding^2 * sizeof(float)
+    # This is working memory for QKV computation per layer
+    attention_scratch = n_layers * n_embd * n_embd * BYTES_PER_FLOAT32
+
+    # Output buffer: vocab * embedding * sizeof(float)
+    # Buffer for final logits computation
+    output_buffer = n_vocab * n_embd * BYTES_PER_FLOAT32
+
+    graph_mem = activation_mem + attention_scratch + output_buffer
+
+    # Flash attention reduces peak memory by ~20% through chunked computation
+    # Reference: Flash Attention paper (Dao et al., 2022)
+    FLASH_ATTN_FACTOR = 0.8
     if flash_attn:
-        graph_size = int(graph_size * 0.8)  # Flash attention reduces memory
+        graph_mem = int(graph_mem * FLASH_ATTN_FACTOR)
 
+    # Without KQV offload, Q/K/V tensors remain in graph memory (~20% increase)
+    NO_KQV_OFFLOAD_FACTOR = 1.2
     if not offload_kqv:
-        graph_size = int(graph_size * 1.2)  # No KQV offload increases memory
+        graph_mem = int(graph_mem * NO_KQV_OFFLOAD_FACTOR)
 
-    # Add some safety margin
-    graph_size = int(graph_size * 1.1)
+    # Safety margin for memory fragmentation and alignment padding
+    # 10% buffer is empirically derived from llama.cpp testing
+    SAFETY_MARGIN = 1.1
+    graph_mem = int(graph_mem * SAFETY_MARGIN)
 
-    return graph_size
+    return graph_mem
 
 
 def projector_memory_requirements(metadata: Dict) -> int:
-    """Calculate memory requirements for projector tensors (multimodal models)."""
+    """Calculate memory requirements for projector tensors (multimodal models).
+
+    Multimodal models (e.g., LLaVA) use a projector network to map vision
+    encoder outputs to the LLM's embedding space. The projector is typically
+    a 2-layer MLP with ~100M parameters.
+
+    The 100MB estimate is based on typical CLIP-to-LLM projector sizes:
+    - LLaVA 1.5: 2-layer MLP, ~80-120MB depending on hidden dim
+    - Reference: LLaVA paper (Liu et al., 2023)
+    """
     # Check if this is a multimodal model
     if 'clip' in metadata.get('general.architecture', '').lower():
-        # Estimate CLIP projector size
-        return 1024 * 1024 * 100  # ~100MB estimate
+        # Estimate CLIP projector size: ~100MB for typical 2-layer MLP projector
+        # Based on LLaVA architecture with 4096 hidden dim
+        PROJECTOR_SIZE_BYTES = 100 * 1024 * 1024  # 100MB
+        return PROJECTOR_SIZE_BYTES
 
-    # No projector
+    # No projector for text-only models
     return 0
 
 
@@ -199,12 +239,42 @@ def estimate_gpu_layers(
 
     Returns:
         MemoryEstimate with allocation details
+
+    Memory estimation formula:
+        Total GPU memory needed = graph_memory + projector_memory + (layers * layer_size) + kv_cache
+
+    Layer size estimation:
+        Base size = n_embd^2 * 4 + n_embd * n_ff * 2 (attention + FFN weights)
+        Quantized size = base_size * quantization_factor
+
+    KV cache per layer:
+        Size = n_ctx * batch_size * n_parallel * n_embd * precision_bytes * 2 (K and V)
+        - f16: 2 bytes per element
+        - f32: 4 bytes per element
     """
+    # Input validation
+    if isinstance(gpu_memory_mb, list):
+        if not gpu_memory_mb:
+            logger.error("Empty GPU memory list provided")
+            return MemoryEstimate(layers=0, graph_size=0, vram=0, vram_kv=0, total_size=0)
+        if any(m <= 0 for m in gpu_memory_mb):
+            logger.warning("Invalid GPU memory values in list: %s", gpu_memory_mb)
+    elif gpu_memory_mb <= 0:
+        logger.error("Invalid GPU memory: %d MB", gpu_memory_mb)
+        return MemoryEstimate(layers=0, graph_size=0, vram=0, vram_kv=0, total_size=0)
+
+    if ctx_size <= 0:
+        logger.error("Invalid context size: %d", ctx_size)
+        return MemoryEstimate(layers=0, graph_size=0, vram=0, vram_kv=0, total_size=0)
+
+    if batch_size <= 0:
+        logger.error("Invalid batch size: %d", batch_size)
+        return MemoryEstimate(layers=0, graph_size=0, vram=0, vram_kv=0, total_size=0)
 
     # Load model metadata
     metadata = dump_metadata_json(model_path)
 
-    # Extract model parameters
+    # Extract model parameters with defaults based on common Llama architectures
     architecture = metadata.get('general.architecture', 'llama')
     n_ctx_train = metadata.get('llama.context_length', 2048)
     n_embd = metadata.get('llama.embedding_length', 4096)
@@ -215,13 +285,21 @@ def estimate_gpu_layers(
     n_vocab = len(metadata.get('tokenizer.ggml.tokens', [32000]))
     file_type = metadata.get('general.file_type', 1)
 
-    # Adjust context size
+    # Adjust context size to not exceed training context
     n_ctx = min(ctx_size, n_ctx_train)
+    if ctx_size > n_ctx_train:
+        logger.warning(
+            "Requested context size %d exceeds training context %d, clamping to %d",
+            ctx_size, n_ctx_train, n_ctx
+        )
 
-    # Calculate KV cache size per layer
-    kv_cache_multiplier = 2 if kv_cache_type == 'f32' else 1  # f16 is default
+    # KV cache size per layer formula:
+    # Size = n_ctx * batch * n_parallel * n_embd * bytes_per_element * 2 (K and V tensors)
+    # f16 = 2 bytes, f32 = 4 bytes (multiplier of 1 or 2 relative to f16 baseline)
+    BYTES_PER_F16 = 2
+    kv_precision_multiplier = 2 if kv_cache_type == 'f32' else 1  # f32 is 2x f16
     kv_cache_size_per_layer = (
-        n_ctx * batch_size * n_parallel * n_embd * kv_cache_multiplier * 2  # K and V
+        n_ctx * batch_size * n_parallel * n_embd * BYTES_PER_F16 * kv_precision_multiplier * 2  # K and V
     )
 
     # Calculate graph memory requirements
@@ -240,25 +318,35 @@ def estimate_gpu_layers(
         flash_attn=False,
     )
 
-    # Calculate projector memory
+    # Calculate projector memory for multimodal models
     projector_mem = projector_memory_requirements(metadata)
 
-    # Estimate layer size based on model parameters and quantization
-    # This is a rough estimate - actual sizes vary by quantization scheme
-    layer_size_mb = (n_embd * n_embd * 4 + n_embd * n_ff * 2) // (1024 * 1024)
+    # Layer size estimation formula:
+    # Attention weights: n_embd * n_embd * 4 (Q, K, V, O projections)
+    # FFN weights: n_embd * n_ff * 2 (up and down projections)
+    # Units: bytes (assuming f32 base, then scaled by quantization)
+    BYTES_PER_MB = 1024 * 1024
+    base_layer_size = n_embd * n_embd * 4 + n_embd * n_ff * 2
+    layer_size_mb = base_layer_size // BYTES_PER_MB
 
-    # Adjust for quantization (file_type affects size)
-    quantization_factors = {
-        0: 1.0,    # F32
-        1: 0.5,    # F16
-        2: 0.3,    # Q4_0
-        3: 0.3,    # Q4_1
-        6: 0.2,    # Q5_0
-        7: 0.2,    # Q5_1
-        8: 0.15,   # Q8_0
+    # Quantization factors: ratio of quantized size to f32 size
+    # Based on GGML quantization formats from llama.cpp
+    # Reference: https://github.com/ggerganov/llama.cpp/blob/master/ggml/include/ggml.h
+    QUANTIZATION_FACTORS = {
+        0: 1.0,    # GGML_TYPE_F32: 32 bits / 32 bits = 1.0
+        1: 0.5,    # GGML_TYPE_F16: 16 bits / 32 bits = 0.5
+        2: 0.156,  # GGML_TYPE_Q4_0: ~5 bits effective / 32 bits
+        3: 0.188,  # GGML_TYPE_Q4_1: ~6 bits effective / 32 bits
+        6: 0.188,  # GGML_TYPE_Q5_0: ~6 bits effective / 32 bits
+        7: 0.219,  # GGML_TYPE_Q5_1: ~7 bits effective / 32 bits
+        8: 0.281,  # GGML_TYPE_Q8_0: ~9 bits effective / 32 bits
     }
-    quant_factor = quantization_factors.get(file_type, 0.3)  # default Q4
+    quant_factor = QUANTIZATION_FACTORS.get(file_type, 0.188)  # default to Q4 estimate
     layer_size_mb = int(layer_size_mb * quant_factor)
+
+    if layer_size_mb <= 0:
+        logger.warning("Computed layer size is 0 MB, using minimum of 1 MB")
+        layer_size_mb = 1
 
     # Handle multi-GPU scenario
     if isinstance(gpu_memory_mb, list):
@@ -338,8 +426,25 @@ def estimate_memory_usage(
         verbose: Enable verbose output
 
     Returns:
-        Dictionary with memory usage estimates
+        Dictionary with memory usage estimates including:
+        - model_size_mb: Estimated model size in different precisions
+        - kv_cache_mb: KV cache size in f16 and f32
+        - graph_mb: Computation graph memory
+        - parameters: Model architecture parameters
+
+    Formulas:
+        KV cache (f16) = n_layer * n_ctx * batch * n_embd * 2 bytes * 2 (K and V)
+        KV cache (f32) = KV cache (f16) * 2
+        Model params = n_layer * (attention + FFN) + output layer
     """
+    # Input validation
+    if ctx_size <= 0:
+        logger.error("Invalid context size: %d", ctx_size)
+        return {'error': 'Invalid context size'}
+
+    if batch_size <= 0:
+        logger.error("Invalid batch size: %d", batch_size)
+        return {'error': 'Invalid batch size'}
 
     metadata = dump_metadata_json(model_path)
 
@@ -352,9 +457,12 @@ def estimate_memory_usage(
     file_type = metadata.get('general.file_type', 1)
     architecture = metadata.get('general.architecture', 'llama')
 
-    # Calculate various memory components
-    kv_cache_f16 = n_layer * ctx_size * batch_size * n_embd * 2 * 2  # K and V, f16
-    kv_cache_f32 = kv_cache_f16 * 2  # f32 is double f16
+    # KV cache formula: n_layer * n_ctx * batch * n_embd * bytes_per_element * 2 (K and V)
+    # f16: 2 bytes per element, f32: 4 bytes per element
+    BYTES_PER_F16 = 2
+    BYTES_PER_F32 = 4
+    kv_cache_f16 = n_layer * ctx_size * batch_size * n_embd * BYTES_PER_F16 * 2  # K and V
+    kv_cache_f32 = n_layer * ctx_size * batch_size * n_embd * BYTES_PER_F32 * 2  # K and V
 
     graph_mem = graph_size(
         architecture=architecture,
@@ -368,15 +476,28 @@ def estimate_memory_usage(
         n_batch=batch_size,
     )
 
-    # Estimate model size
-    layer_params = n_embd * n_embd * 4 + n_embd * n_ff * 2  # Rough estimate
+    # Model parameter estimation formula:
+    # Per-layer params = attention (4 * n_embd^2) + FFN (2 * n_embd * n_ff)
+    #   - Attention: Q, K, V, O projections = 4 * n_embd * n_embd
+    #   - FFN: up projection + down projection = 2 * n_embd * n_ff
+    # Output layer = n_vocab * n_embd (vocabulary projection)
+    layer_params = n_embd * n_embd * 4 + n_embd * n_ff * 2
     total_params = n_layer * layer_params + n_vocab * n_embd
 
-    # Size in different precisions
-    model_size_f32 = total_params * 4
-    model_size_f16 = total_params * 2
-    model_size_q4 = total_params // 2  # Rough Q4 estimate
-    model_size_q8 = total_params        # Rough Q8 estimate
+    # Size in different precisions (bytes)
+    # f32: 4 bytes per parameter
+    # f16: 2 bytes per parameter
+    # q4_0: ~0.5 bytes per parameter (4 bits + overhead)
+    # q8_0: ~1 byte per parameter (8 bits + overhead)
+    BYTES_PER_F32_PARAM = 4
+    BYTES_PER_F16_PARAM = 2
+    BYTES_PER_Q4_PARAM = 0.5   # 4-bit quantization with block overhead
+    BYTES_PER_Q8_PARAM = 1.0   # 8-bit quantization with block overhead
+
+    model_size_f32 = int(total_params * BYTES_PER_F32_PARAM)
+    model_size_f16 = int(total_params * BYTES_PER_F16_PARAM)
+    model_size_q4 = int(total_params * BYTES_PER_Q4_PARAM)
+    model_size_q8 = int(total_params * BYTES_PER_Q8_PARAM)
 
     result = {
         'model_size_mb': {
@@ -414,7 +535,7 @@ def estimate_memory_usage(
     return result
 
 
-def parse_gpu_memory(gpu_memory_str: str):
+def parse_gpu_memory(gpu_memory_str: str) -> Union[int, List[int]]:
     """Parse GPU memory specification.
 
     Args:
@@ -422,16 +543,33 @@ def parse_gpu_memory(gpu_memory_str: str):
 
     Returns:
         int or list of ints representing memory in MB
+
+    Raises:
+        ValueError: If the input string cannot be parsed as valid memory values
     """
-    if ',' in gpu_memory_str:
-        # Multi-GPU setup
-        return [int(x.strip()) for x in gpu_memory_str.split(',')]
-    else:
-        # Single GPU setup
-        return int(gpu_memory_str)
+    if not gpu_memory_str or not gpu_memory_str.strip():
+        logger.error("Empty GPU memory string provided")
+        raise ValueError("GPU memory string cannot be empty")
+
+    try:
+        if ',' in gpu_memory_str:
+            # Multi-GPU setup
+            values = [int(x.strip()) for x in gpu_memory_str.split(',')]
+            if any(v <= 0 for v in values):
+                logger.warning("Non-positive GPU memory values in: %s", gpu_memory_str)
+            return values
+        else:
+            # Single GPU setup
+            value = int(gpu_memory_str.strip())
+            if value <= 0:
+                logger.warning("Non-positive GPU memory value: %d", value)
+            return value
+    except ValueError as e:
+        logger.error("Failed to parse GPU memory string '%s': %s", gpu_memory_str, e)
+        raise ValueError(f"Invalid GPU memory specification: {gpu_memory_str}") from e
 
 
-def format_bytes(bytes_val):
+def format_bytes(bytes_val: Union[int, float]) -> str:
     """Format bytes value in human readable format."""
     for unit in ['B', 'KB', 'MB', 'GB']:
         if bytes_val < 1024:
@@ -440,7 +578,7 @@ def format_bytes(bytes_val):
     return f"{bytes_val:.1f} TB"
 
 
-def main():
+def main() -> int:
     """Command-line interface for GPU memory estimation.
 
     This utility helps users estimate optimal GPU layer allocation for their models

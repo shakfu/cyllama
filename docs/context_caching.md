@@ -1,0 +1,244 @@
+# Context Caching and Resource Management
+
+This document describes how cyllama manages LLM contexts and resources for optimal performance and memory efficiency.
+
+## Overview
+
+The `LLM` class manages the lifecycle of llama.cpp contexts, which hold the KV cache and other state needed for text generation. Starting with v0.1.14, contexts are intelligently cached and reused to avoid unnecessary allocation overhead.
+
+## Context Lifecycle
+
+### Automatic Context Reuse
+
+When you call an `LLM` instance multiple times, the context is reused when possible:
+
+```python
+from cyllama import LLM, GenerationConfig
+
+llm = LLM("models/llama.gguf")
+config = GenerationConfig(max_tokens=100)
+
+# First call creates a context
+response1 = llm("Hello", config=config)
+
+# Second call reuses the same context (KV cache is cleared)
+response2 = llm("Hi there", config=config)
+
+# Context is recreated only if a larger size is needed
+large_config = GenerationConfig(max_tokens=1000)
+response3 = llm("Tell me a story", config=large_config)
+```
+
+### When Contexts Are Recreated
+
+A new context is created when:
+
+1. No context exists yet (first generation)
+2. The required context size exceeds the current context size
+3. After calling `reset_context()` explicitly
+
+### KV Cache Clearing
+
+When a context is reused, the KV cache is automatically cleared via `kv_cache_clear()`. This ensures each generation starts with a clean state while avoiding the overhead of context recreation.
+
+## Resource Management
+
+### Context Manager (Recommended)
+
+The recommended way to use `LLM` is as a context manager:
+
+```python
+from cyllama import LLM, GenerationConfig
+
+with LLM("models/llama.gguf") as llm:
+    config = GenerationConfig(max_tokens=50)
+    response = llm("What is Python?", config=config)
+    print(response)
+# Resources are automatically released here
+```
+
+### Explicit Cleanup
+
+For more control, use the `close()` method:
+
+```python
+llm = LLM("models/llama.gguf")
+try:
+    response = llm("Hello")
+    print(response)
+finally:
+    llm.close()
+```
+
+### Automatic Cleanup
+
+The `LLM` class implements `__del__` for automatic cleanup when the object is garbage collected. However, relying on garbage collection is not recommended for timely resource release.
+
+## API Reference
+
+### LLM Methods
+
+#### `close()`
+
+Release the context and sampler resources.
+
+```python
+llm = LLM("model.gguf")
+llm("Hello")
+llm.close()  # Free GPU memory used by context
+```
+
+- Safe to call multiple times
+- The model remains loaded for potential reuse
+- After `close()`, the instance can still be used (a new context will be created)
+
+#### `reset_context()`
+
+Force recreation of the context on the next generation.
+
+```python
+llm = LLM("model.gguf")
+llm("First conversation")
+
+llm.reset_context()  # Clear all state
+
+llm("New conversation")  # Fresh context created
+```
+
+Use this when you want to ensure a completely fresh start without any cached state.
+
+### LlamaContext Methods
+
+#### `kv_cache_clear(clear_data=True)`
+
+Clear the KV cache without recreating the context.
+
+```python
+from cyllama import LlamaContext, LlamaModel, LlamaContextParams
+
+model = LlamaModel("model.gguf", params)
+ctx = LlamaContext(model, ctx_params)
+
+# ... use context for generation ...
+
+ctx.kv_cache_clear()  # Clear KV cache for reuse
+
+# ... use context for new generation ...
+```
+
+Parameters:
+- `clear_data` (bool): If True (default), also clear the data buffers. If False, only clear metadata.
+
+## Performance Considerations
+
+### Benefits of Context Reuse
+
+1. **Reduced allocation overhead**: Creating a new context involves GPU memory allocation which can be slow
+2. **Consistent memory usage**: Reusing contexts prevents memory fragmentation
+3. **Faster subsequent generations**: Only the KV cache needs to be cleared, not the entire context
+
+### When to Force Recreation
+
+Use `reset_context()` when:
+
+- Starting a completely new conversation with no relation to previous ones
+- Debugging generation issues
+- Switching between very different prompt lengths (though automatic recreation handles this)
+
+### Memory Management Tips
+
+1. **Use context managers** for automatic cleanup
+2. **Call `close()`** when done with long-running applications
+3. **Monitor memory** with tools like `nvidia-smi` for GPU memory
+4. **Set appropriate `n_ctx`** in `GenerationConfig` to avoid oversized contexts
+
+## Example: Long-Running Application
+
+```python
+from cyllama import LLM, GenerationConfig
+
+def serve_requests(model_path: str):
+    """Example of efficient context reuse in a server."""
+    with LLM(model_path) as llm:
+        config = GenerationConfig(max_tokens=200)
+
+        while True:
+            prompt = get_next_request()  # Your request handling
+            if prompt is None:
+                break
+
+            # Context is reused efficiently across requests
+            response = llm(prompt, config=config)
+            send_response(response)
+    # Resources automatically cleaned up
+```
+
+## Example: Multiple Independent Conversations
+
+```python
+from cyllama import LLM, GenerationConfig
+
+llm = LLM("models/llama.gguf")
+config = GenerationConfig(max_tokens=100)
+
+# Conversation 1
+response1 = llm("What is the capital of France?", config=config)
+print(f"Conv 1: {response1}")
+
+# Force fresh context for completely independent conversation
+llm.reset_context()
+
+# Conversation 2 (no KV cache contamination from Conv 1)
+response2 = llm("Explain quantum computing", config=config)
+print(f"Conv 2: {response2}")
+
+llm.close()
+```
+
+## Comparison with Previous Behavior
+
+| Aspect | Before v0.1.14 | v0.1.14+ |
+|--------|---------------|----------|
+| Context per generation | New context created | Reused when size permits |
+| KV cache management | Discarded with context | Cleared via `kv_cache_clear()` |
+| Resource cleanup | Implicit (GC) | Explicit `close()` + context manager |
+| Memory efficiency | Lower | Higher |
+| Generation latency | Higher (allocation) | Lower (reuse) |
+
+## Troubleshooting
+
+### Memory Not Being Released
+
+If GPU memory isn't released after generation:
+
+```python
+# Ensure explicit cleanup
+llm.close()
+
+# Or use context manager
+with LLM("model.gguf") as llm:
+    # ... use llm ...
+# Memory released here
+```
+
+### Unexpected Behavior Between Generations
+
+If generations seem to be affected by previous ones:
+
+```python
+# Force a fresh context
+llm.reset_context()
+response = llm("New prompt")
+```
+
+### Context Size Errors
+
+If you get context size errors:
+
+```python
+# Specify a fixed context size
+config = GenerationConfig(
+    max_tokens=100,
+    n_ctx=4096  # Fixed size, won't auto-calculate
+)
+```

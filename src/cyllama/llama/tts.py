@@ -416,7 +416,7 @@ lovely<|t_0.56|><|code_start|><|634|><|596|><|1766|><|1556|><|1306|><|1285|><|14
         try:
             generated_text = self.vocab.detokenize(codes)
             print(f"Generated text preview: {generated_text[:200]}...")
-        except:
+        except (UnicodeDecodeError, ValueError, AttributeError):
             pass
 
         # Filter to audio codes only (token range 151672-155772) - matches C++ line 1003
@@ -427,7 +427,7 @@ lovely<|t_0.56|><|code_start|><|634|><|596|><|1766|><|1556|><|1306|><|1285|><|14
         try:
             audio_text = self.vocab.detokenize(audio_codes)
             print(f"Audio codes text: {audio_text[:100]}...")
-        except:
+        except (UnicodeDecodeError, ValueError, AttributeError):
             pass
 
         # Adjust token values for vocoder input (matches C++ lines 1011-1013)

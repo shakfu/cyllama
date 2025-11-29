@@ -12,17 +12,18 @@ from cyllama import (
 )
 
 # Skip all tests if model is not available
-DEFAULT_MODEL = "models/Llama-3.2-1B-Instruct-Q8_0.gguf"
+from pathlib import Path
+from conftest import DEFAULT_MODEL
 pytestmark = pytest.mark.skipif(
-    not pytest.importorskip("pathlib").Path(DEFAULT_MODEL).exists(),
-    reason=f"Model not found at {DEFAULT_MODEL}"
+    not Path(DEFAULT_MODEL).exists(),
+    reason="Model not found"
 )
 
 
 class TestBatchGenerate:
     """Test the convenience batch_generate function."""
 
-    def test_basic_batch_generate(self):
+    def test_basic_batch_generate(self, model_path):
         """Test basic batch generation with multiple prompts."""
         prompts = [
             "What is 2+2?",
@@ -36,7 +37,7 @@ class TestBatchGenerate:
 
         responses = batch_generate(
             prompts,
-            model_path=DEFAULT_MODEL,
+            model_path=model_path,
             n_seq_max=2,
             config=config
         )
@@ -46,7 +47,7 @@ class TestBatchGenerate:
             assert isinstance(response, str)
             assert len(response) > 0
 
-    def test_single_prompt(self):
+    def test_single_prompt(self, model_path):
         """Test batch generation with a single prompt."""
         prompts = ["Hello, how are you?"]
 
@@ -54,7 +55,7 @@ class TestBatchGenerate:
 
         responses = batch_generate(
             prompts,
-            model_path=DEFAULT_MODEL,
+            model_path=model_path,
             n_seq_max=1,
             config=config
         )
@@ -63,19 +64,19 @@ class TestBatchGenerate:
         assert isinstance(responses[0], str)
         assert len(responses[0]) > 0
 
-    def test_empty_prompts(self):
+    def test_empty_prompts(self, model_path):
         """Test batch generation with empty prompt list."""
         prompts = []
 
         responses = batch_generate(
             prompts,
-            model_path=DEFAULT_MODEL,
+            model_path=model_path,
             n_seq_max=1
         )
 
         assert len(responses) == 0
 
-    def test_max_sequences_exceeded(self):
+    def test_max_sequences_exceeded(self, model_path):
         """Test that error is raised when too many prompts for n_seq_max."""
         prompts = ["Prompt 1", "Prompt 2", "Prompt 3"]
 
@@ -84,7 +85,7 @@ class TestBatchGenerate:
         with pytest.raises(ValueError, match="Too many prompts"):
             batch_generate(
                 prompts,
-                model_path=DEFAULT_MODEL,
+                model_path=model_path,
                 n_seq_max=2,  # Only 2 sequences allowed
                 config=config
             )
@@ -93,10 +94,10 @@ class TestBatchGenerate:
 class TestBatchGenerator:
     """Test the BatchGenerator class."""
 
-    def test_initialization(self):
+    def test_initialization(self, model_path):
         """Test BatchGenerator initialization."""
         gen = BatchGenerator(
-            model_path=DEFAULT_MODEL,
+            model_path=model_path,
             batch_size=512,
             n_ctx=2048,
             n_seq_max=4,
@@ -108,10 +109,10 @@ class TestBatchGenerator:
         assert gen.vocab is not None
         assert gen.n_seq_max == 4
 
-    def test_generate_batch_basic(self):
+    def test_generate_batch_basic(self, model_path):
         """Test basic batch generation."""
         gen = BatchGenerator(
-            model_path=DEFAULT_MODEL,
+            model_path=model_path,
             n_seq_max=3,
             verbose=False
         )
@@ -126,10 +127,10 @@ class TestBatchGenerator:
             assert isinstance(response, str)
             assert len(response) > 0
 
-    def test_generate_batch_different_lengths(self):
+    def test_generate_batch_different_lengths(self, model_path):
         """Test batch generation with prompts of different lengths."""
         gen = BatchGenerator(
-            model_path=DEFAULT_MODEL,
+            model_path=model_path,
             n_seq_max=2,
             verbose=False
         )
@@ -146,10 +147,10 @@ class TestBatchGenerator:
         for response in responses:
             assert isinstance(response, str)
 
-    def test_generate_batch_detailed(self):
+    def test_generate_batch_detailed(self, model_path):
         """Test detailed batch generation with statistics."""
         gen = BatchGenerator(
-            model_path=DEFAULT_MODEL,
+            model_path=model_path,
             n_seq_max=2,
             verbose=False
         )
@@ -174,7 +175,7 @@ class TestBatchGenerator:
             assert result.tokens_generated > 0
             assert result.time_taken > 0
 
-    def test_temperature_zero_deterministic(self):
+    def test_temperature_zero_deterministic(self, model_path):
         """Test that temperature=0 gives deterministic results."""
         prompt = ["What is 2+2?"]
         config = GenerationConfig(max_tokens=10, temperature=0.0)
@@ -182,14 +183,14 @@ class TestBatchGenerator:
         # Generate twice with fresh generators
         response1 = batch_generate(
             prompt,
-            model_path=DEFAULT_MODEL,
+            model_path=model_path,
             n_seq_max=1,
             config=config
         )[0]
 
         response2 = batch_generate(
             prompt,
-            model_path=DEFAULT_MODEL,
+            model_path=model_path,
             n_seq_max=1,
             config=config
         )[0]
@@ -197,10 +198,10 @@ class TestBatchGenerator:
         # Should be identical
         assert response1 == response2
 
-    def test_parallel_sequences(self):
+    def test_parallel_sequences(self, model_path):
         """Test that parallel sequences work correctly."""
         gen = BatchGenerator(
-            model_path=DEFAULT_MODEL,
+            model_path=model_path,
             n_seq_max=4,
             verbose=False
         )
@@ -221,13 +222,13 @@ class TestBatchGenerator:
 class TestBatchConfiguration:
     """Test various configuration options for batch processing."""
 
-    def test_custom_config_parameters(self):
+    def test_custom_config_parameters(self, model_path):
         """Test batch generation with custom config parameters."""
         prompts = ["Tell me a story"]
 
         responses = batch_generate(
             prompts,
-            model_path=DEFAULT_MODEL,
+            model_path=model_path,
             n_seq_max=1,
             config=GenerationConfig(
                 max_tokens=15,
@@ -241,10 +242,10 @@ class TestBatchConfiguration:
         assert len(responses) == 1
         assert len(responses[0]) > 0
 
-    def test_batch_size_parameter(self):
+    def test_batch_size_parameter(self, model_path):
         """Test that batch_size parameter is respected."""
         gen = BatchGenerator(
-            model_path=DEFAULT_MODEL,
+            model_path=model_path,
             batch_size=256,  # Smaller than default
             n_seq_max=2,
             verbose=False
@@ -257,10 +258,10 @@ class TestBatchConfiguration:
 
         assert len(responses) == 2
 
-    def test_context_size_parameter(self):
+    def test_context_size_parameter(self, model_path):
         """Test that n_ctx parameter is respected."""
         gen = BatchGenerator(
-            model_path=DEFAULT_MODEL,
+            model_path=model_path,
             n_ctx=1024,  # Smaller than default
             n_seq_max=1,
             verbose=False
@@ -272,3 +273,458 @@ class TestBatchConfiguration:
         responses = gen.generate_batch(prompts, config)
 
         assert len(responses) == 1
+
+
+class TestBatchPooling:
+    """Test batch memory pooling functionality."""
+
+    def test_pooling_api_available(self):
+        """Test that batch pooling API is available from llama_cpp module."""
+        from cyllama.llama.llama_cpp import (
+            get_pooled_batch,
+            return_batch_to_pool,
+            get_batch_pool_stats,
+            reset_batch_pool,
+        )
+
+        # Verify functions are callable
+        assert callable(get_pooled_batch)
+        assert callable(return_batch_to_pool)
+        assert callable(get_batch_pool_stats)
+        assert callable(reset_batch_pool)
+
+    def test_batch_pooling_basic(self):
+        """Test basic batch pooling get/return cycle."""
+        from cyllama.llama.llama_cpp import (
+            get_pooled_batch,
+            return_batch_to_pool,
+            get_batch_pool_stats,
+            reset_batch_pool,
+        )
+
+        # Reset pool to known state
+        reset_batch_pool()
+        stats = get_batch_pool_stats()
+        assert stats["total_pools"] == 0
+        assert stats["total_pooled_batches"] == 0
+
+        # Get a batch from pool (creates new one)
+        batch = get_pooled_batch(n_tokens=256, embd=0, n_seq_max=4)
+        assert batch is not None
+
+        # Return batch to pool
+        return_batch_to_pool(batch)
+        stats = get_batch_pool_stats()
+        assert stats["total_pools"] == 1
+        assert stats["total_pooled_batches"] == 1
+
+        # Get batch again (should reuse from pool)
+        batch2 = get_pooled_batch(n_tokens=256, embd=0, n_seq_max=4)
+        stats = get_batch_pool_stats()
+        # Pool now empty since we took the batch
+        assert stats["total_pooled_batches"] == 0
+
+        # Clean up
+        return_batch_to_pool(batch2)
+        reset_batch_pool()
+
+    def test_batch_pooling_multiple_batches(self):
+        """Test pooling with multiple batches of different sizes."""
+        from cyllama.llama.llama_cpp import (
+            get_pooled_batch,
+            return_batch_to_pool,
+            get_batch_pool_stats,
+            reset_batch_pool,
+        )
+
+        reset_batch_pool()
+
+        # Get batches of different sizes
+        batch1 = get_pooled_batch(n_tokens=128, embd=0, n_seq_max=2)
+        batch2 = get_pooled_batch(n_tokens=256, embd=0, n_seq_max=4)
+        batch3 = get_pooled_batch(n_tokens=512, embd=0, n_seq_max=8)
+
+        # Batches are in use, pool is empty
+        stats = get_batch_pool_stats()
+        assert stats["total_pooled_batches"] == 0
+
+        # Return all
+        return_batch_to_pool(batch1)
+        return_batch_to_pool(batch2)
+        return_batch_to_pool(batch3)
+
+        stats = get_batch_pool_stats()
+        assert stats["total_pools"] == 3  # 3 different configurations
+        assert stats["total_pooled_batches"] == 3  # 3 batches available
+
+        # Clean up
+        reset_batch_pool()
+
+    def test_batch_generator_with_pooling(self, model_path):
+        """Test BatchGenerator with use_pooling=True."""
+        gen = BatchGenerator(
+            model_path=model_path,
+            n_seq_max=2,
+            verbose=False,
+            use_pooling=True
+        )
+
+        assert gen.use_pooling is True
+
+        prompts = ["Hello", "Hi"]
+        config = GenerationConfig(max_tokens=5, temperature=0.0)
+
+        responses = gen.generate_batch(prompts, config)
+
+        assert len(responses) == 2
+        for response in responses:
+            assert isinstance(response, str)
+            assert len(response) > 0
+
+    def test_batch_generator_pooling_consistency(self, model_path):
+        """Test that pooling produces same results as non-pooling."""
+        prompts = ["What is 2+2?"]
+        config = GenerationConfig(max_tokens=10, temperature=0.0)
+
+        # Without pooling
+        gen_no_pool = BatchGenerator(
+            model_path=model_path,
+            n_seq_max=1,
+            verbose=False,
+            use_pooling=False
+        )
+        response_no_pool = gen_no_pool.generate_batch(prompts, config)
+
+        # With pooling
+        gen_pool = BatchGenerator(
+            model_path=model_path,
+            n_seq_max=1,
+            verbose=False,
+            use_pooling=True
+        )
+        response_pool = gen_pool.generate_batch(prompts, config)
+
+        # Results should be identical
+        assert response_no_pool == response_pool
+
+    def test_batch_generator_multiple_generations_with_pooling(self, model_path):
+        """Test that pooling works correctly across multiple generations."""
+        from cyllama.llama.llama_cpp import get_batch_pool_stats, reset_batch_pool
+
+        reset_batch_pool()
+
+        # Test that BatchGenerator with pooling can generate multiple times
+        # Each generation should work correctly even when batches are reused
+        gen = BatchGenerator(
+            model_path=model_path,
+            n_seq_max=2,
+            verbose=False,
+            use_pooling=True
+        )
+
+        config = GenerationConfig(max_tokens=5, temperature=0.0)
+
+        # First generation
+        prompts1 = ["Hello", "Hi"]
+        responses1 = gen.generate_batch(prompts1, config)
+        assert len(responses1) == 2
+
+        # After first generation, batch should be in pool
+        stats = get_batch_pool_stats()
+        assert stats["total_pooled_batches"] >= 1
+
+        # Create a new generator to use pooled batches
+        gen2 = BatchGenerator(
+            model_path=model_path,
+            n_seq_max=2,
+            verbose=False,
+            use_pooling=True
+        )
+
+        # Second generation with same config should reuse batch
+        prompts2 = ["Hey", "Howdy"]
+        responses2 = gen2.generate_batch(prompts2, config)
+        assert len(responses2) == 2
+
+        reset_batch_pool()
+
+
+class TestBatchGeneratorCleanup:
+    """Test BatchGenerator resource cleanup mechanisms."""
+
+    def test_close_method(self, model_path):
+        """Test that close() releases resources."""
+        gen = BatchGenerator(
+            model_path=model_path,
+            n_seq_max=2,
+            verbose=False
+        )
+
+        assert gen.model is not None
+        assert gen.ctx is not None
+        assert gen.is_closed is False
+
+        gen.close()
+
+        assert gen.is_closed is True
+        assert gen.model is None
+        assert gen.ctx is None
+
+    def test_close_idempotent(self, model_path):
+        """Test that close() can be called multiple times safely."""
+        gen = BatchGenerator(
+            model_path=model_path,
+            n_seq_max=1,
+            verbose=False
+        )
+
+        gen.close()
+        gen.close()  # Should not raise
+        gen.close()  # Should not raise
+
+        assert gen.is_closed is True
+
+    def test_context_manager(self, model_path):
+        """Test context manager protocol."""
+        with BatchGenerator(model_path=model_path, n_seq_max=1, verbose=False) as gen:
+            assert gen.is_closed is False
+            responses = gen.generate_batch(["Hi"], GenerationConfig(max_tokens=3, temperature=0.0))
+            assert len(responses) == 1
+
+        # After exiting context, generator should be closed
+        assert gen.is_closed is True
+
+    def test_context_manager_with_exception(self, model_path):
+        """Test that context manager cleans up even when exception occurs."""
+        gen = None
+        try:
+            with BatchGenerator(model_path=model_path, n_seq_max=1, verbose=False) as gen:
+                raise ValueError("Test exception")
+        except ValueError:
+            pass
+
+        # Generator should still be closed
+        assert gen is not None
+        assert gen.is_closed is True
+
+    def test_generate_after_close_raises(self, model_path):
+        """Test that generate_batch raises after close()."""
+        gen = BatchGenerator(
+            model_path=model_path,
+            n_seq_max=1,
+            verbose=False
+        )
+
+        gen.close()
+
+        with pytest.raises(RuntimeError, match="has been closed"):
+            gen.generate_batch(["Hello"])
+
+    def test_generate_batch_detailed_after_close_raises(self, model_path):
+        """Test that generate_batch_detailed raises after close()."""
+        gen = BatchGenerator(
+            model_path=model_path,
+            n_seq_max=1,
+            verbose=False
+        )
+
+        gen.close()
+
+        with pytest.raises(RuntimeError, match="has been closed"):
+            gen.generate_batch_detailed([BatchRequest(id=0, prompt="Hello")])
+
+
+class TestBatchGeneratorInputValidation:
+    """Test input validation and error messages."""
+
+    def test_prompts_none_raises_type_error(self, model_path):
+        """Test that None prompts raises TypeError."""
+        gen = BatchGenerator(model_path=model_path, n_seq_max=1, verbose=False)
+
+        with pytest.raises(TypeError, match="prompts cannot be None"):
+            gen.generate_batch(None)
+
+    def test_prompts_not_list_raises_type_error(self, model_path):
+        """Test that non-list prompts raises TypeError."""
+        gen = BatchGenerator(model_path=model_path, n_seq_max=1, verbose=False)
+
+        with pytest.raises(TypeError, match="prompts must be a list"):
+            gen.generate_batch("single string")
+
+        with pytest.raises(TypeError, match="prompts must be a list"):
+            gen.generate_batch({"prompt": "test"})
+
+    def test_prompt_not_string_raises_type_error(self, model_path):
+        """Test that non-string prompt in list raises TypeError."""
+        gen = BatchGenerator(model_path=model_path, n_seq_max=2, verbose=False)
+
+        with pytest.raises(TypeError, match="All prompts must be strings"):
+            gen.generate_batch(["valid", 123])
+
+        with pytest.raises(TypeError, match="prompt at index 0"):
+            gen.generate_batch([None, "valid"])
+
+    def test_requests_none_raises_type_error(self, model_path):
+        """Test that None requests raises TypeError."""
+        gen = BatchGenerator(model_path=model_path, n_seq_max=1, verbose=False)
+
+        with pytest.raises(TypeError, match="requests cannot be None"):
+            gen.generate_batch_detailed(None)
+
+    def test_requests_not_list_raises_type_error(self, model_path):
+        """Test that non-list requests raises TypeError."""
+        gen = BatchGenerator(model_path=model_path, n_seq_max=1, verbose=False)
+
+        with pytest.raises(TypeError, match="requests must be a list"):
+            gen.generate_batch_detailed(BatchRequest(id=0, prompt="test"))
+
+    def test_requests_empty_raises_value_error(self, model_path):
+        """Test that empty requests list raises ValueError."""
+        gen = BatchGenerator(model_path=model_path, n_seq_max=1, verbose=False)
+
+        with pytest.raises(ValueError, match="requests list cannot be empty"):
+            gen.generate_batch_detailed([])
+
+    def test_request_not_batch_request_raises_type_error(self, model_path):
+        """Test that non-BatchRequest in list raises TypeError."""
+        gen = BatchGenerator(model_path=model_path, n_seq_max=2, verbose=False)
+
+        with pytest.raises(TypeError, match="All requests must be BatchRequest"):
+            gen.generate_batch_detailed([
+                BatchRequest(id=0, prompt="valid"),
+                {"id": 1, "prompt": "invalid"}
+            ])
+
+    def test_too_many_prompts_error_message(self, model_path):
+        """Test that too many prompts error message is helpful."""
+        gen = BatchGenerator(model_path=model_path, n_seq_max=2, verbose=False)
+
+        with pytest.raises(ValueError) as exc_info:
+            gen.generate_batch(["A", "B", "C"])
+
+        error_msg = str(exc_info.value)
+        assert "Too many prompts (3)" in error_msg
+        assert "n_seq_max (2)" in error_msg
+        assert "process prompts in batches" in error_msg
+
+
+class TestBatchEdgeCases:
+    """Test edge cases and boundary conditions."""
+
+    def test_very_long_prompt(self, model_path):
+        """Test handling of very long prompt."""
+        gen = BatchGenerator(
+            model_path=model_path,
+            n_seq_max=1,
+            n_ctx=512,  # Smaller context
+            verbose=False
+        )
+
+        # Create a long prompt (but not too long to cause issues)
+        long_prompt = "Hello " * 50  # ~300 tokens
+
+        config = GenerationConfig(max_tokens=5, temperature=0.0)
+        responses = gen.generate_batch([long_prompt], config)
+
+        assert len(responses) == 1
+        assert isinstance(responses[0], str)
+
+    def test_empty_string_prompt(self, model_path):
+        """Test handling of empty string prompt."""
+        gen = BatchGenerator(
+            model_path=model_path,
+            n_seq_max=1,
+            verbose=False
+        )
+
+        config = GenerationConfig(max_tokens=5, temperature=0.0)
+        responses = gen.generate_batch([""], config)
+
+        assert len(responses) == 1
+        # Empty prompt should still produce some output (model generates from nothing)
+
+    def test_whitespace_only_prompt(self, model_path):
+        """Test handling of whitespace-only prompt."""
+        gen = BatchGenerator(
+            model_path=model_path,
+            n_seq_max=1,
+            verbose=False
+        )
+
+        config = GenerationConfig(max_tokens=5, temperature=0.0)
+        responses = gen.generate_batch(["   \n\t  "], config)
+
+        assert len(responses) == 1
+        assert isinstance(responses[0], str)
+
+    def test_unicode_prompt(self, model_path):
+        """Test handling of unicode characters in prompt."""
+        gen = BatchGenerator(
+            model_path=model_path,
+            n_seq_max=1,
+            verbose=False
+        )
+
+        config = GenerationConfig(max_tokens=5, temperature=0.0)
+        responses = gen.generate_batch(["Hello world!"], config)
+
+        assert len(responses) == 1
+        assert isinstance(responses[0], str)
+
+    def test_special_characters_prompt(self, model_path):
+        """Test handling of special characters in prompt."""
+        gen = BatchGenerator(
+            model_path=model_path,
+            n_seq_max=1,
+            verbose=False
+        )
+
+        config = GenerationConfig(max_tokens=5, temperature=0.0)
+        prompts = ["<|test|> [special] {chars} \"quotes\""]
+        responses = gen.generate_batch(prompts, config)
+
+        assert len(responses) == 1
+        assert isinstance(responses[0], str)
+
+    def test_max_tokens_zero(self, model_path):
+        """Test generation with max_tokens=0."""
+        gen = BatchGenerator(
+            model_path=model_path,
+            n_seq_max=1,
+            verbose=False
+        )
+
+        config = GenerationConfig(max_tokens=0, temperature=0.0)
+        responses = gen.generate_batch(["Hello"], config)
+
+        assert len(responses) == 1
+        # With max_tokens=0, no generation should occur
+        assert responses[0] == ""
+
+    def test_n_seq_max_one(self, model_path):
+        """Test with n_seq_max=1 (minimum)."""
+        gen = BatchGenerator(
+            model_path=model_path,
+            n_seq_max=1,
+            verbose=False
+        )
+
+        config = GenerationConfig(max_tokens=5, temperature=0.0)
+        responses = gen.generate_batch(["Test"], config)
+
+        assert len(responses) == 1
+        assert len(responses[0]) > 0
+
+    def test_batch_size_boundary(self, model_path):
+        """Test with small batch_size."""
+        gen = BatchGenerator(
+            model_path=model_path,
+            batch_size=64,  # Very small batch size
+            n_seq_max=2,
+            verbose=False
+        )
+
+        config = GenerationConfig(max_tokens=5, temperature=0.0)
+        responses = gen.generate_batch(["Hi", "Hello"], config)
+
+        assert len(responses) == 2

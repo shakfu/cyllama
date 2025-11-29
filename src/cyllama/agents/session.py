@@ -234,14 +234,23 @@ class FileSessionStore(SessionStore):
     def list_sessions(self) -> List[str]:
         with self._lock:
             sessions = []
-            for filename in os.listdir(self._directory):
+            try:
+                filenames = os.listdir(self._directory)
+            except OSError as e:
+                logger.warning("Failed to list session directory '%s': %s", self._directory, e)
+                return sessions
+
+            for filename in filenames:
                 if filename.endswith(".json"):
+                    filepath = os.path.join(self._directory, filename)
                     try:
-                        with open(os.path.join(self._directory, filename), "r") as f:
+                        with open(filepath, "r") as f:
                             data = json.load(f)
                             sessions.append(data["id"])
-                    except (json.JSONDecodeError, KeyError):
-                        pass
+                    except (json.JSONDecodeError, KeyError) as e:
+                        logger.warning("Failed to parse session file '%s': %s", filepath, e)
+                    except OSError as e:
+                        logger.warning("Failed to read session file '%s': %s", filepath, e)
             return sessions
 
     def exists(self, session_id: str) -> bool:

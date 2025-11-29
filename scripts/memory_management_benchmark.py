@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 """
 Benchmark memory management performance with pooling optimizations.
+
+Usage:
+    python memory_management_benchmark.py -m models/Llama-3.2-1B-Instruct-Q8_0.gguf
 """
 
 import time
 import sys
+import argparse
 from pathlib import Path
 
 # Add src to path
@@ -12,14 +16,14 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 import cyllama
 
-def benchmark_memory_management():
+def benchmark_memory_management(model_path):
     """Benchmark memory management performance"""
     print("Memory Management Performance Benchmark")
     print("=" * 50)
 
     # Load model for realistic benchmarking
     model_params = cyllama.LlamaModelParams()
-    model = cyllama.LlamaModel("models/Llama-3.2-1B-Instruct-Q8_0.gguf", model_params)
+    model = cyllama.LlamaModel(model_path, model_params)
     vocab = model.get_vocab()
 
     print(f"Model: {model.path_model}")
@@ -181,4 +185,7 @@ def benchmark_memory_management():
     print(f"  Usage count: {sum(batch_stats['usage_count'].values())}")
 
 if __name__ == "__main__":
-    benchmark_memory_management()
+    parser = argparse.ArgumentParser(description="Memory Management Benchmark")
+    parser.add_argument("-m", "--model", required=True, help="Path to model file")
+    args = parser.parse_args()
+    benchmark_memory_management(args.model)

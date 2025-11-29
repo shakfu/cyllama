@@ -3,6 +3,9 @@
 Simple Performance Profiling for cyllama operations
 
 Focus on the most time-consuming operations to identify bottlenecks.
+
+Usage:
+    python simple_profile.py -m models/Llama-3.2-1B-Instruct-Q8_0.gguf
 """
 
 import cProfile
@@ -10,6 +13,7 @@ import pstats
 import io
 import sys
 import time
+import argparse
 from pathlib import Path
 
 # Add src to path for imports
@@ -18,13 +22,13 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 import cyllama
 
 
-def profile_tokenization():
+def profile_tokenization(model_path):
     """Profile tokenization operations."""
     print("=== Profiling Tokenization ===")
 
     # Load model
     model_params = cyllama.LlamaModelParams()
-    model = cyllama.LlamaModel("models/Llama-3.2-1B-Instruct-Q8_0.gguf", model_params)
+    model = cyllama.LlamaModel(model_path, model_params)
 
     test_texts = [
         "Hello world",
@@ -62,13 +66,13 @@ def profile_tokenization():
     return pr
 
 
-def profile_inference():
+def profile_inference(model_path):
     """Profile basic inference operations."""
     print("\n=== Profiling Inference ===")
 
     # Setup
     model_params = cyllama.LlamaModelParams()
-    model = cyllama.LlamaModel("models/Llama-3.2-1B-Instruct-Q8_0.gguf", model_params)
+    model = cyllama.LlamaModel(model_path, model_params)
 
     ctx_params = cyllama.LlamaContextParams()
     ctx_params.n_ctx = 512
@@ -125,13 +129,13 @@ def profile_inference():
     return pr
 
 
-def profile_logits():
+def profile_logits(model_path):
     """Profile logits operations."""
     print("\n=== Profiling Logits ===")
 
     # Setup
     model_params = cyllama.LlamaModelParams()
-    model = cyllama.LlamaModel("models/Llama-3.2-1B-Instruct-Q8_0.gguf", model_params)
+    model = cyllama.LlamaModel(model_path, model_params)
 
     ctx_params = cyllama.LlamaContextParams()
     ctx_params.n_ctx = 512
@@ -173,7 +177,7 @@ def profile_logits():
     return pr
 
 
-def main():
+def main(model_path):
     """Main profiling function."""
     print("cyllama Simple Performance Profiling")
     print("=" * 50)
@@ -182,9 +186,9 @@ def main():
         # Profile key operations
         profiles = {}
 
-        profiles['tokenization'] = profile_tokenization()
-        profiles['inference'] = profile_inference()
-        profiles['logits'] = profile_logits()
+        profiles['tokenization'] = profile_tokenization(model_path)
+        profiles['inference'] = profile_inference(model_path)
+        profiles['logits'] = profile_logits(model_path)
 
         print("\n" + "=" * 50)
         print("Profiling Complete!")
@@ -200,4 +204,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Simple Performance Profiling")
+    parser.add_argument("-m", "--model", required=True, help="Path to model file")
+    args = parser.parse_args()
+    main(args.model)

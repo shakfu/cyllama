@@ -13,7 +13,7 @@ from Cython.Build import cythonize
 
 CWD = os.getcwd()
 
-VERSION = '0.1.13'
+VERSION = '0.1.15'
 
 PLATFORM = platform.system()
 IS_WINDOWS = PLATFORM == 'Windows'

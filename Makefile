@@ -93,12 +93,16 @@ bind: build/include
 	@make -f scripts/bind/bind.mk bind
 
 
-.PHONY: test simple test_simple test_main test_retrieve test_model test_llava test_lora \
-		test_platform coverage memray download download_all bump clean reset remake cli \
-		test-cli test-chat test-tts test-llama-tts test-whisper test-server test-mongoose
+.PHONY: test simple test-simple test-main test-retrieve test-model test-llava test-lora \
+		test-platform coverage memray download download-all bump clean reset remake cli \
+		test-cli test-chat test-tts test-llama-tts test-whisper test-server test-mongoose \
+		bench
 
 test: build
-	uv run pytest -s
+	@uv run pytest -s
+
+bench:
+	@uv run python scripts/benchmark.py -m $(MODEL)
 
 simple:
 	@g++ -std=c++14 -o build/simple \
@@ -111,7 +115,7 @@ simple:
 		-p "When did the French Revolution start?"
 
 
-test_simple:
+test-simple:
 	@g++ -std=c++14 -o build/test_simple \
 		-I $(LLAMACPP)/include -L $(LLAMACPP)/lib  \
 		-framework Foundation -framework Accelerate \
@@ -160,7 +164,7 @@ test-mongoose:
 			--server-type mongoose \
 			-m ../models/Llama-3.2-1B-Instruct-Q8_0.gguf
 
-test_main:
+test-main:
 	@g++ -std=c++14 -o build/main \
 		-I $(LLAMACPP)/include -L $(LLAMACPP)/lib  \
 		-framework Foundation -framework Accelerate \
@@ -194,25 +198,25 @@ $(MODEL):
 download: $(MODEL)
 	@echo "minimal model downloaded to models directory"
 
-download_all: $(MODEL) $(MODEL_RAG) $(MODEL_LLAVA)
+download-all: $(MODEL) $(MODEL_RAG) $(MODEL_LLAVA)
 	@echo "all tests models downloaded to models directory"
 
-test_model: $(MODEL)
+test-model: $(MODEL)
 	@$(LLAMACPP)/bin/llama-simple -m $(MODEL) -n 128 "Number of planets in our solar system"
 
-test_llava: $(MODEL_LLAVA)
+test-llava: $(MODEL_LLAVA)
 	@$(LLAMACPP)/bin/llama-llava-cli -m models/llava-llama-3-8b-v1_1-int4.gguf \
 		--mmproj models/llava-llama-3-8b-v1_1-mmproj-f16.gguf \
 		--image tests/media/dice.jpg -c 4096 -e \
 		-p "<|start_header_id|>user<|end_header_id|>\n\n<image>\nDescribe this image<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
 
-test_lora:
+test-lora:
 	@$(LLAMACPP)/bin/llama-cli -c 2048 -n 64 \
 	-p "What are your constraints?" \
 	-m models/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf \
 	--lora models/Llama-3-Instruct-abliteration-LoRA-8B-f16.gguf
 
-test_platform:
+test-platform:
 	@g++ -std=c++14 -o build/test_platform \
 		-I $(LLAMACPP)/include -L $(LLAMACPP)/lib  \
 		-framework Foundation -framework Accelerate \
@@ -221,7 +225,7 @@ test_platform:
 		tests/test_platform.cpp
 	@./build/test_platform
 
-test_platform_linux:
+test-platform-linux:
 	@g++ -static -std=c++14 -fopenmp -o build/test_platform \
 		-I $(LLAMACPP)/include -L $(LLAMACPP)/lib  \
 		tests/test_platform.cpp \

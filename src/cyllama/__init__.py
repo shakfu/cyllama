@@ -41,4 +41,4 @@ except ImportError as e:
     import warnings
     warnings.warn(f"Multimodal support not available: {e}", ImportWarning)
 
-__version__ = "0.1.13"
+__version__ = "0.1.15"

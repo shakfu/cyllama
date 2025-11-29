@@ -8,6 +8,8 @@ import time
 import subprocess
 import requests
 import pytest
+from conftest import DEFAULT_MODEL
+
 
 @pytest.mark.skip(reason="Hanging if run in the test suite")
 def test_mongoose_http():
@@ -16,7 +18,7 @@ def test_mongoose_http():
     cmd = [
         sys.executable, "-m", "cyllama.llama.server",
         "--server-type", "mongoose",
-        "-m", "models/Llama-3.2-1B-Instruct-Q8_0.gguf",
+        "-m", DEFAULT_MODEL,
         "--port", "8099",
         "--ctx-size", "256"
     ]

@@ -94,6 +94,7 @@ Styles:
 
 from typing import Union, Any, Callable, Optional, Tuple, List, Dict
 import sys
+import threading
 
 
 # Identity function (Python 2/3 compatibility layer from original)
@@ -103,19 +104,22 @@ def t_(s):
 
 
 _use_color_no_tty = True
+_color_lock = threading.Lock()
 
 
 def use_color_no_tty(flag):
+    """Set whether to use color even when not connected to a TTY."""
     global _use_color_no_tty
-    _use_color_no_tty = flag
+    with _color_lock:
+        _use_color_no_tty = flag
 
 
 def use_color():
+    """Check if color output should be used."""
     if sys.stdout.isatty():
         return True
-    if _use_color_no_tty:
-        return True
-    return False
+    with _color_lock:
+        return _use_color_no_tty
 
 
 def esc(*codes: Union[int, str]) -> str:

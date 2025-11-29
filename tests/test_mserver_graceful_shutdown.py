@@ -4,15 +4,17 @@ import os
 import time
 import pytest
 from multiprocessing import Process
+from pathlib import Path
 
 from cyllama.llama.server.python import ServerConfig
 from cyllama.llama.server.embedded import EmbeddedServer
+from conftest import DEFAULT_MODEL
 
 
 def run_server():
     """Run the server in a subprocess."""
     config = ServerConfig(
-        model_path='models/Llama-3.2-1B-Instruct-Q8_0.gguf',
+        model_path=DEFAULT_MODEL,
         host='127.0.0.1',
         port=8080,
         n_ctx=2048,

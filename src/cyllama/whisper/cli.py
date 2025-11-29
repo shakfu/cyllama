@@ -14,7 +14,7 @@ import wave
 import struct
 import numpy as np
 from pathlib import Path
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 import threading
 
 # Import the whisper module
@@ -104,7 +104,7 @@ class WhisperParams:
         self.vad_samples_overlap = 0.1
 
 
-def load_wav_file(filepath: str) -> tuple[np.ndarray, int]:
+def load_wav_file(filepath: str) -> Tuple[np.ndarray, int]:
     """Load a WAV file and return samples as float32 array and sample rate."""
     with wave.open(filepath, 'rb') as wav_file:
         frames = wav_file.readframes(-1)

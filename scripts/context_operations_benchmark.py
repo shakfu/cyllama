@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 """
 Benchmark context operations performance with optimizations.
+
+Usage:
+    python context_operations_benchmark.py -m models/Llama-3.2-1B-Instruct-Q8_0.gguf
 """
 
 import time
 import sys
+import argparse
 from pathlib import Path
 
 # Add src to path
@@ -12,14 +16,14 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 import cyllama
 
-def benchmark_context_operations():
+def benchmark_context_operations(model_path):
     """Benchmark context operations performance"""
     print("Context Operations Performance Benchmark")
     print("=" * 50)
 
     # Load model and create context
     model_params = cyllama.LlamaModelParams()
-    model = cyllama.LlamaModel("models/Llama-3.2-1B-Instruct-Q8_0.gguf", model_params)
+    model = cyllama.LlamaModel(model_path, model_params)
     vocab = model.get_vocab()
 
     ctx_params = cyllama.LlamaContextParams()
@@ -156,4 +160,7 @@ def benchmark_context_operations():
     print()
 
 if __name__ == "__main__":
-    benchmark_context_operations()
+    parser = argparse.ArgumentParser(description="Context Operations Benchmark")
+    parser.add_argument("-m", "--model", required=True, help="Path to model file")
+    args = parser.parse_args()
+    benchmark_context_operations(args.model)

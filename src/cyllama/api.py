@@ -20,9 +20,12 @@ Example:
     >>> response = llm("What is Python?")
 """
 
-from typing import Iterator, Optional, Dict, Any, List, Callable
+from typing import Iterator, Optional, Dict, Any, List, Callable, Union, Tuple
 from dataclasses import dataclass, field
+import logging
 import time
+
+logger = logging.getLogger(__name__)
 
 from .llama.llama_cpp import (
     LlamaModel,
@@ -56,6 +59,9 @@ class GenerationConfig:
         stop_sequences: List of strings that stop generation (default: [])
         add_bos: Add beginning-of-sequence token (default: True)
         parse_special: Parse special tokens in prompt (default: True)
+
+    Raises:
+        ValueError: If any parameter is outside its valid range.
     """
     max_tokens: int = 512
     temperature: float = 0.8
@@ -70,6 +76,43 @@ class GenerationConfig:
     stop_sequences: List[str] = field(default_factory=list)
     add_bos: bool = True
     parse_special: bool = True
+
+    def __post_init__(self):
+        """Validate parameters after initialization."""
+        errors = []
+
+        if self.max_tokens < 0:
+            errors.append(f"max_tokens must be >= 0, got {self.max_tokens}")
+
+        if self.temperature < 0.0:
+            errors.append(f"temperature must be >= 0.0, got {self.temperature}")
+
+        if self.top_k < 0:
+            errors.append(f"top_k must be >= 0, got {self.top_k}")
+
+        if not 0.0 <= self.top_p <= 1.0:
+            errors.append(f"top_p must be between 0.0 and 1.0, got {self.top_p}")
+
+        if not 0.0 <= self.min_p <= 1.0:
+            errors.append(f"min_p must be between 0.0 and 1.0, got {self.min_p}")
+
+        if self.repeat_penalty < 0.0:
+            errors.append(f"repeat_penalty must be >= 0.0, got {self.repeat_penalty}")
+
+        if self.n_gpu_layers < 0:
+            errors.append(f"n_gpu_layers must be >= 0, got {self.n_gpu_layers}")
+
+        if self.n_ctx is not None and self.n_ctx < 1:
+            errors.append(f"n_ctx must be >= 1 or None, got {self.n_ctx}")
+
+        if self.n_batch < 1:
+            errors.append(f"n_batch must be >= 1, got {self.n_batch}")
+
+        if self.seed < -1:
+            errors.append(f"seed must be >= -1, got {self.seed}")
+
+        if errors:
+            raise ValueError("Invalid GenerationConfig: " + "; ".join(errors))
 
 
 @dataclass
@@ -88,17 +131,33 @@ class LLM:
     High-level LLM interface with model caching and convenient API.
 
     This class manages model lifecycle and provides simple methods for
-    text generation with streaming support.
+    text generation with streaming support. It supports context reuse
+    for improved performance when the context size doesn't change.
+
+    Resource Management:
+        The LLM class manages GPU memory and contexts. For proper cleanup:
+        - Use as a context manager: `with LLM(...) as llm:`
+        - Call `llm.close()` explicitly when done
+        - Or let Python's garbage collector handle it via `__del__`
 
     Example:
+        >>> # Recommended: Use as context manager
+        >>> with LLM("models/llama.gguf") as llm:
+        >>>     response = llm("What is Python?")
+        >>>     print(response)
+        >>>
+        >>> # Or with explicit cleanup
         >>> llm = LLM("models/llama.gguf")
-        >>> response = llm("What is Python?")
-        >>> print(response)
+        >>> try:
+        >>>     response = llm("What is Python?")
+        >>> finally:
+        >>>     llm.close()
         >>>
         >>> # With custom configuration
         >>> config = GenerationConfig(temperature=0.9, max_tokens=100)
-        >>> for chunk in llm("Tell me a joke", config=config, stream=True):
-        >>>     print(chunk, end="")
+        >>> with LLM("models/llama.gguf", config=config) as llm:
+        >>>     for chunk in llm("Tell me a joke", stream=True):
+        >>>         print(chunk, end="")
     """
 
     def __init__(
@@ -118,6 +177,7 @@ class LLM:
         self.model_path = model_path
         self.config = config or GenerationConfig()
         self.verbose = verbose
+        self._closed = False
 
         # Disable llama.cpp logging unless verbose mode is enabled
         if not verbose:
@@ -140,30 +200,112 @@ class LLM:
             print(f"Model loaded: {self.model.n_params} parameters")
             print(f"Vocabulary size: {self.vocab.n_vocab}")
 
-        # Context will be created on-demand for each generation
+        # Context will be created on-demand and cached when possible
         self._ctx = None
+        self._ctx_size = 0  # Track current context size for reuse decisions
         self._sampler = None
 
+    def __enter__(self):
+        """Context manager entry."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit - ensures cleanup."""
+        self.close()
+        return False
+
+    def __del__(self):
+        """Destructor - cleanup resources if not already done."""
+        if not getattr(self, '_closed', True):
+            self.close()
+
+    def close(self):
+        """
+        Explicitly release resources (context, sampler).
+
+        This method frees the context and sampler to release GPU memory.
+        The model remains loaded for potential reuse. Call this when you're
+        done with generation or want to free memory.
+
+        After calling close(), the LLM instance can still be used - new
+        contexts will be created as needed.
+        """
+        if getattr(self, '_closed', True):
+            return
+
+        if getattr(self, 'verbose', False):
+            print("Closing LLM resources")
+
+        # Release context and sampler (use getattr for safety in __del__)
+        if getattr(self, '_ctx', None) is not None:
+            self._ctx = None
+            self._ctx_size = 0
+
+        if getattr(self, '_sampler', None) is not None:
+            self._sampler = None
+
+        self._closed = True
+
+    def reset_context(self):
+        """
+        Force recreation of context on next generation.
+
+        This clears the KV cache and ensures a fresh context is created.
+        Useful when you want to start a completely new conversation without
+        any prior context.
+        """
+        if self._ctx is not None:
+            if self.verbose:
+                print("Resetting context")
+            self._ctx = None
+            self._ctx_size = 0
+
     def _ensure_context(self, prompt_length: int, config: GenerationConfig):
-        """Create or recreate context if needed."""
+        """
+        Create or recreate context if needed.
+
+        Context is reused when possible to avoid allocation overhead.
+        A new context is created when:
+        - No context exists
+        - The required size exceeds current context size
+        - The instance was closed (will reopen)
+
+        The KV cache is cleared via llama_kv_cache_clear() when reusing
+        a context to ensure clean state for new generations.
+        """
+        # Reopen if closed
+        if self._closed:
+            self._closed = False
+
         # Calculate required context size
         if config.n_ctx is None:
-            n_ctx = prompt_length + config.max_tokens
+            required_ctx = prompt_length + config.max_tokens
         else:
-            n_ctx = config.n_ctx
+            required_ctx = config.n_ctx
 
-        # Always recreate context to clear KV cache
-        # This is simpler than trying to manage cache state
-        if self.verbose and self._ctx is not None:
-            print(f"Recreating context: {n_ctx} tokens")
+        # Check if we can reuse existing context
+        if self._ctx is not None and self._ctx_size >= required_ctx:
+            # Reuse existing context - just clear the KV cache
+            if self.verbose:
+                print(f"Reusing context (size {self._ctx_size}, need {required_ctx})")
+            self._ctx.kv_cache_clear()
+            return
+
+        # Need to create new context (either none exists or too small)
+        if self.verbose:
+            if self._ctx is not None:
+                print(f"Recreating context: {self._ctx_size} -> {required_ctx} tokens")
+            else:
+                print(f"Creating context: {required_ctx} tokens")
 
         ctx_params = LlamaContextParams()
-        ctx_params.n_ctx = n_ctx
+        ctx_params.n_ctx = required_ctx
         ctx_params.n_batch = config.n_batch
         ctx_params.no_perf = not self.verbose
 
         # Note: Seed is set in sampler, not context
         self._ctx = LlamaContext(self.model, ctx_params)
+        self._ctx_size = required_ctx
 
     def _ensure_sampler(self, config: GenerationConfig):
         """Create or recreate sampler if needed."""
@@ -196,7 +338,7 @@ class LLM:
         config: Optional[GenerationConfig] = None,
         stream: bool = False,
         on_token: Optional[Callable[[str], None]] = None
-    ) -> str | Iterator[str]:
+    ) -> Union[str, Iterator[str]]:
         """
         Generate text from a prompt.
 
@@ -266,9 +408,10 @@ class LLM:
         n_pos = n_prompt
         n_generated = 0
 
-        # Buffer for stop sequence checking (accumulates recent output)
+        # Stop sequence handling: buffer recent output to detect sequences spanning tokens
+        # We only need to buffer enough to detect the longest stop sequence
         stop_buffer = ""
-        max_stop_len = max((len(s) for s in config.stop_sequences), default=0) if config.stop_sequences else 0
+        max_stop_len = max(len(s) for s in config.stop_sequences) if config.stop_sequences else 0
 
         for _ in range(config.max_tokens):
             # Sample next token
@@ -282,44 +425,44 @@ class LLM:
             try:
                 piece = self.vocab.token_to_piece(new_token_id, special=True)
             except UnicodeDecodeError:
+                logger.warning("Failed to decode token %d: UnicodeDecodeError", new_token_id)
                 piece = ""
 
-            # Check stop sequences against accumulated buffer
+            # Handle stop sequences
             if config.stop_sequences:
+                # Add piece to buffer and check for stop sequences
                 stop_buffer += piece
-                # Keep buffer size manageable
-                if len(stop_buffer) > max_stop_len * 2:
-                    stop_buffer = stop_buffer[-max_stop_len * 2:]
 
-                # Check if any stop sequence appears in the buffer
-                stop_found = False
-                for stop in config.stop_sequences:
-                    if stop in stop_buffer:
-                        # Trim output to exclude stop sequence
-                        stop_idx = stop_buffer.find(stop)
-                        # Calculate how much of current piece to yield (if any)
-                        piece_start_in_buffer = len(stop_buffer) - len(piece)
-                        if stop_idx > piece_start_in_buffer:
-                            # Part of current piece should be yielded
-                            partial_len = stop_idx - piece_start_in_buffer
-                            if partial_len > 0:
-                                partial_piece = piece[:partial_len]
-                                if on_token:
-                                    on_token(partial_piece)
-                                yield partial_piece
-                        # else: stop sequence was already in buffer before this piece,
-                        # or starts at beginning of piece - don't yield anything
-                        stop_found = True
-                        break
+                # Find earliest stop sequence in buffer
+                stop_pos, stop_len = self._find_stop_sequence(stop_buffer, config.stop_sequences)
 
-                if stop_found:
+                if stop_pos is not None:
+                    # Stop sequence found - yield text before it and stop
+                    text_before_stop = stop_buffer[:stop_pos]
+                    if text_before_stop:
+                        if on_token:
+                            on_token(text_before_stop)
+                        yield text_before_stop
+                    # Clear buffer to prevent flush at end
+                    stop_buffer = ""
                     break
 
-            # Yield or callback (only if no stop sequence was found)
-            if on_token:
-                on_token(piece)
-
-            yield piece
+                # No stop found yet - yield text that can't be part of a stop sequence
+                # Keep (max_stop_len - 1) characters to detect sequences spanning tokens
+                # Example: if max_stop_len=2 and buffer="abc", safe to yield "ab", keep "c"
+                chars_to_keep = max_stop_len - 1
+                safe_len = len(stop_buffer) - chars_to_keep
+                if safe_len > 0:
+                    safe_text = stop_buffer[:safe_len]
+                    stop_buffer = stop_buffer[safe_len:]
+                    if on_token:
+                        on_token(safe_text)
+                    yield safe_text
+            else:
+                # No stop sequences - yield immediately
+                if on_token:
+                    on_token(piece)
+                yield piece
 
             # Prepare next batch
             batch = llama_batch_get_one([new_token_id], n_pos)
@@ -328,16 +471,51 @@ class LLM:
             n_pos += 1
             n_generated += 1
 
+        # Flush remaining buffer (no stop sequence found)
+        if config.stop_sequences and stop_buffer:
+            if on_token:
+                on_token(stop_buffer)
+            yield stop_buffer
+
         if self.verbose:
             print(f"\nGenerated {n_generated} tokens")
             self._sampler.print_perf_data()
             self._ctx.print_perf_data()
 
+    def _find_stop_sequence(
+        self,
+        text: str,
+        stop_sequences: List[str]
+    ) -> Tuple[Optional[int], int]:
+        """
+        Find the earliest stop sequence in text.
+
+        Args:
+            text: Text to search
+            stop_sequences: List of stop sequences to look for
+
+        Returns:
+            Tuple of (position, length) where position is the start index of the
+            earliest stop sequence found, or (None, 0) if none found.
+        """
+        earliest_pos = None
+        earliest_len = 0
+
+        for stop in stop_sequences:
+            pos = text.find(stop)
+            if pos != -1:
+                # Found a stop sequence - keep track of earliest one
+                if earliest_pos is None or pos < earliest_pos:
+                    earliest_pos = pos
+                    earliest_len = len(stop)
+
+        return earliest_pos, earliest_len
+
     def generate_with_stats(
         self,
         prompt: str,
         config: Optional[GenerationConfig] = None
-    ) -> tuple[str, GenerationStats]:
+    ) -> Tuple[str, GenerationStats]:
         """
         Generate text and return detailed statistics.
 
@@ -388,7 +566,7 @@ def complete(
     stream: bool = False,
     verbose: bool = False,
     **kwargs
-) -> str | Iterator[str]:
+) -> Union[str, Iterator[str]]:
     """
     Convenience function for one-off text completion.
 
@@ -437,7 +615,7 @@ def chat(
     stream: bool = False,
     verbose: bool = False,
     **kwargs
-) -> str | Iterator[str]:
+) -> Union[str, Iterator[str]]:
     """
     Convenience function for chat-style generation.
 
@@ -472,7 +650,7 @@ def chat(
     return complete(prompt, model_path, config, stream, verbose=verbose, **kwargs)
 
 
-def simple(model_path: str, prompt: str, ngl: int = 99, n_predict: int = 32, n_ctx: int = None, verbose=False):
+def simple(model_path: str, prompt: str, ngl: int = 99, n_predict: int = 32, n_ctx: Optional[int] = None, verbose: bool = False) -> bool:
     """
     Simple, educational example showing raw llama.cpp usage.
 

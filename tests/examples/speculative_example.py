@@ -15,10 +15,15 @@ For this example to work with actual speedup, you need two models:
 2. Draft model: e.g., Llama-3.2-1B-Instruct-Q8_0.gguf
 
 The models must have compatible tokenizers (usually from the same model family).
+
+Usage:
+    python speculative_example.py -m models/Llama-3.2-1B-Instruct-Q8_0.gguf
+    python speculative_example.py --target models/large.gguf --draft models/small.gguf
 """
 
 import sys
 import os
+import argparse
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
@@ -68,7 +73,7 @@ def load_model_and_context(model_path: str, n_ctx: int = 2048, n_gpu_layers: int
     return model, context
 
 
-def demonstrate_basic_usage():
+def demonstrate_basic_usage(target_model_path, draft_model_path):
     """
     Demonstrate basic speculative decoding setup.
 
@@ -78,11 +83,6 @@ def demonstrate_basic_usage():
     print("=" * 70)
     print("BASIC SPECULATIVE DECODING DEMONSTRATION")
     print("=" * 70)
-
-    # For demonstration, we'll use the same model for both
-    # In production, use different sized models from the same family
-    target_model_path = "models/Llama-3.2-1B-Instruct-Q8_0.gguf"
-    draft_model_path = "models/Llama-3.2-1B-Instruct-Q8_0.gguf"
 
     # Check if models exist
     if not os.path.exists(target_model_path):
@@ -152,15 +152,13 @@ def demonstrate_basic_usage():
     print("=" * 70)
 
 
-def demonstrate_parameter_tuning():
+def demonstrate_parameter_tuning(target_model_path):
     """
     Demonstrate how different parameters affect draft generation.
     """
     print("\n" + "=" * 70)
     print("PARAMETER TUNING DEMONSTRATION")
     print("=" * 70)
-
-    target_model_path = "models/Llama-3.2-1B-Instruct-Q8_0.gguf"
 
     if not os.path.exists(target_model_path):
         print(f"Error: Model not found at {target_model_path}")
@@ -228,12 +226,28 @@ def print_usage_tips():
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Speculative Decoding Example")
+    parser.add_argument("-m", "--model", help="Path to model file (used for both target and draft)")
+    parser.add_argument("--target", help="Path to target model file")
+    parser.add_argument("--draft", help="Path to draft model file")
+    args = parser.parse_args()
+
+    # Determine model paths
+    if args.target and args.draft:
+        target_model_path = args.target
+        draft_model_path = args.draft
+    elif args.model:
+        target_model_path = args.model
+        draft_model_path = args.model
+    else:
+        parser.error("Either -m/--model or both --target and --draft are required")
+
     try:
         # Run basic demonstration
-        demonstrate_basic_usage()
+        demonstrate_basic_usage(target_model_path, draft_model_path)
 
         # Run parameter tuning demonstration
-        demonstrate_parameter_tuning()
+        demonstrate_parameter_tuning(target_model_path)
 
         # Print usage tips
         print_usage_tips()

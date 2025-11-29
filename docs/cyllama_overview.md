@@ -1,6 +1,6 @@
-# Cyllama Overview
+# cyllama overview
 
-Cyllama is a zero-dependency Python library for local LLM inference which uses cython to wrap the following high-performance inference engines:
+[cyllama](https://github.com/shakfu/cyllama) is a zero-dependency Python library for local LLM inference which uses cython to wrap the following high-performance inference engines:
 
 - llama.cpp: text-to-text, text-to-speech and multimodel
 - whisper.cpp: automatic speech recognition
@@ -9,10 +9,12 @@ Cyllama is a zero-dependency Python library for local LLM inference which uses c
 ## Core Features
 
 - **High-level API** - `complete()`, `chat()`, `LLM` class for quick prototyping
+- **Low-level API** - Direct access to llama.cpp, whisper.cpp, and stable-diffusion.cpp internals
 - **Streaming** - Token-by-token output with callbacks
 - **Batch processing** - Process multiple prompts 3-10x faster
 - **GPU acceleration** - Metal (macOS), CUDA, Vulkan backends
 - **Memory tools** - Estimate GPU layers and VRAM usage
+- **OpenAI-compatible servers** - `EmbeddedServer` (C/Mongoose) and `PythonServer` implementations
 
 ## Agent Framework
 
@@ -50,3 +52,5 @@ print(response)
 - Python 3.8+
 - macOS or Linux
 - GGUF model files (download from HuggingFace)
+
+repo: <https://github.com/shakfu/cyllama>

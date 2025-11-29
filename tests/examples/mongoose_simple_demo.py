@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 """
 Simple demonstration of Mongoose server functionality.
+
+Usage:
+    python mongoose_simple_demo.py -m models/Llama-3.2-1B-Instruct-Q8_0.gguf
 """
 
 import sys
 import time
+import argparse
 from pathlib import Path
 
 # Add the src directory to path for imports
@@ -14,14 +18,19 @@ from cyllama.llama.server.embedded import EmbeddedServer
 from cyllama.llama.server.python import ServerConfig
 
 def main():
+    parser = argparse.ArgumentParser(description="Mongoose Server Demonstration")
+    parser.add_argument("-m", "--model", required=True, help="Path to model file")
+    parser.add_argument("--port", type=int, default=8087, help="Port to listen on")
+    args = parser.parse_args()
+
     print("Mongoose Server Demonstration")
     print("============================")
 
     # Configuration
     config = ServerConfig(
-        model_path="models/Llama-3.2-1B-Instruct-Q8_0.gguf",
+        model_path=args.model,
         host="127.0.0.1",
-        port=8087,
+        port=args.port,
         n_ctx=256,
         n_parallel=1
     )

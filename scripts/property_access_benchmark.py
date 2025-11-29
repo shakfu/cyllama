@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 """
 Benchmark property access performance with caching optimization.
+
+Usage:
+    python property_access_benchmark.py -m models/Llama-3.2-1B-Instruct-Q8_0.gguf
 """
 
 import time
 import sys
+import argparse
 from pathlib import Path
 
 # Add src to path
@@ -12,14 +16,14 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 import cyllama
 
-def benchmark_property_access():
+def benchmark_property_access(model_path):
     """Benchmark model property access performance"""
     print("Property Access Performance Benchmark")
     print("=" * 50)
 
     # Load model
     model_params = cyllama.LlamaModelParams()
-    model = cyllama.LlamaModel("models/Llama-3.2-1B-Instruct-Q8_0.gguf", model_params)
+    model = cyllama.LlamaModel(model_path, model_params)
 
     # Test different property access patterns
     test_cases = [
@@ -101,4 +105,7 @@ def benchmark_property_access():
     print()
 
 if __name__ == "__main__":
-    benchmark_property_access()
+    parser = argparse.ArgumentParser(description="Property Access Benchmark")
+    parser.add_argument("-m", "--model", required=True, help="Path to model file")
+    args = parser.parse_args()
+    benchmark_property_access(args.model)

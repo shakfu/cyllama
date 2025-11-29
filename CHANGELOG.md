@@ -17,6 +17,290 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [0.1.x]
 
+## [0.1.15]
+
+### Security
+
+- **Cython Input Validation** - Added critical input validation to prevent crashes and security issues
+  - Fixed buffer overflow in `get_state_seq_data()` and `get_state_seq_data_with_flags()` - now dynamically allocates buffer based on actual required size instead of fixed 512-byte stack buffer
+  - Added file path validation to `lora_adapter_init()` - raises `FileNotFoundError` if LoRA file doesn't exist
+  - Added file path validation to `load_state_file()` and `load_state_seq_file()` - raises `FileNotFoundError` if state file doesn't exist
+  - Added parent directory validation to `save_state_file()` and `save_state_seq_file()` - raises `FileNotFoundError` if parent directory doesn't exist
+  - Added NULL pointer check to `LlamaContext.__init__` - raises `ValueError` if model is None or has been freed, preventing segfaults
+
+## [0.1.14]
+
+### Fixed
+
+- **Python 3.8-3.9 Compatibility** - Fixed type hint syntax incompatibility
+  - Changed `str | Iterator[str]` to `Union[str, Iterator[str]]` in `api.py`
+  - Now compatible with declared `requires-python = ">=3.8"` in pyproject.toml
+
+- **Bare Except Clauses** - Replaced unsafe bare `except:` with specific exceptions
+  - `memory.py:47` - Changed to `except (OSError, IOError):` for file operations
+  - `memory.py:80` - Changed to `except (AttributeError, TypeError):` for vocab access
+  - `tts.py:419, 430` - Changed to `except (UnicodeDecodeError, ValueError, AttributeError):` for debug output
+
+- **Silent Unicode Errors** - Added warning logs for UnicodeDecodeError in token decoding
+  - `api.py` - Now logs warning with token ID when decoding fails
+  - `batching.py` - Now logs warning with token ID and sequence ID when decoding fails
+  - `constrained.py` - Now logs warning with token ID when decoding fails
+  - Errors are logged via Python's `logging` module at WARNING level
+
+- **Progress Callback Crash** - Fixed crash when using `progress_callback` on `LlamaModelParams`
+  - The setter now correctly sets both the C wrapper function and stores Python callback reference
+  - Added `_progress_callback` attribute to prevent garbage collection of Python callback
+  - Progress callback now works correctly to monitor model loading progress
+  - Returning `False` from callback properly aborts model loading
+  - Added 4 new tests for progress callback functionality
+
+- **GenerationConfig Validation** - Added parameter validation to `GenerationConfig`
+  - `max_tokens` must be >= 0 (0 means "generate nothing")
+  - `temperature` must be >= 0.0
+  - `top_k` must be >= 0
+  - `top_p` must be between 0.0 and 1.0
+  - `min_p` must be between 0.0 and 1.0
+  - `repeat_penalty` must be >= 0.0
+  - `n_gpu_layers` must be >= 0
+  - `n_ctx` must be >= 1 or None
+  - `n_batch` must be >= 1
+  - `seed` must be >= -1
+  - Multiple validation errors are reported together in a single exception
+  - Added 11 new validation tests
+
+- **Sampler Docstrings and Implementation** - Fixed XXX/FIXME markers in `LlamaSampler`
+  - Fixed incorrect docstrings for `add_mirostat()` and `add_mirostat_v2()` methods
+    - Removed references to non-existent parameters (`candidates`, `mu`)
+    - Added proper Args documentation matching actual function signatures
+    - Fixed URL format (https:# -> https://)
+  - Implemented `add_logit_bias()` method (was commented out)
+    - Allows biasing specific token probabilities during sampling
+    - Takes list of (token_id, bias) tuples
+
+- **MCP Race Condition** - Fixed thread safety issue in `McpStdioConnection.send_notification()`
+  - Now acquires `_read_lock` before writing to stdin, matching `send_request()` behavior
+  - Prevents message interleaving when notifications and requests are sent concurrently
+
+- **Additional Python 3.9 Compatibility** - Fixed `tuple[...]` syntax in more files
+  - `api.py:384` - Changed `tuple[str, GenerationStats]` to `Tuple[str, GenerationStats]`
+  - `agents/react.py:557` - Changed `tuple[str, Dict[str, Any]]` to `Tuple[str, Dict[str, Any]]`
+  - `whisper/cli.py:107` - Changed `tuple[np.ndarray, int]` to `Tuple[np.ndarray, int]`
+
+- **EnhancedConstrainedAgent Stub** - Made non-functional class explicit
+  - Now raises `NotImplementedError` on instantiation with helpful message
+  - Directs users to use `ConstrainedAgent` instead
+
+- **MCP Error Handling** - Improved robustness of MCP connections
+  - Added stdin/stdout null checks before I/O operations
+  - Added `BrokenPipeError` and `OSError` handling for connection failures
+  - Errors now raise `RuntimeError` with descriptive messages
+
+- **MCP Configurable Timeouts** - Added timeout configuration to `McpServerConfig`
+  - New `request_timeout` field (default: 30.0 seconds)
+  - New `shutdown_timeout` field (default: 5.0 seconds)
+  - Module constants `DEFAULT_REQUEST_TIMEOUT` and `DEFAULT_SHUTDOWN_TIMEOUT`
+
+- **Thread Safety in color.py** - Added lock protection for global color settings
+  - `use_color_no_tty()` and `use_color()` now use threading lock
+  - Prevents race conditions when color settings are modified concurrently
+
+- **Session Storage Error Handling** - Improved `FileSessionStore.list_sessions()`
+  - Added OSError handling for directory listing failures
+  - Added logging for parse errors and file read errors
+  - Continues processing remaining files if one fails
+
+- **LLM Resource Management** - Improved context lifecycle and memory management
+  - Added context reuse: contexts are cached and reused when size permits
+  - Added `kv_cache_clear()` method to `LlamaContext` for clearing KV cache
+  - Added `close()` method to `LLM` for explicit resource cleanup
+  - Added `reset_context()` method to force context recreation
+  - Added context manager support (`with LLM(...) as llm:`)
+  - Added `__del__` destructor for automatic cleanup
+  - Performance improvement: reduces context allocation overhead for repeated generations
+  - 7 new tests for resource management
+
+- **BatchGenerator Resource Management** - Added proper cleanup and validation to batch processing
+  - Added `close()` method for explicit resource cleanup
+  - Added `__del__` destructor for automatic cleanup
+  - Added context manager support (`with BatchGenerator(...) as gen:`)
+  - Added `is_closed` property to check generator state
+  - Added `_check_closed()` internal method to prevent use after close
+  - Improved input validation with detailed error messages:
+    - `TypeError` for None or wrong type prompts/requests
+    - `TypeError` with index and value info for invalid items in lists
+    - Enhanced `ValueError` message for too many prompts (includes batch suggestion)
+  - 22 new tests for cleanup, validation, and edge cases
+
+- **ReActAgent Robust Parsing** - Improved tool call parsing and error handling
+  - Added `ActionParseError` exception class with structured error information:
+    - `message`: Human-readable error description
+    - `action_str`: Original action that failed
+    - `suggestion`: Helpful hint for fixing the format
+    - `details`: List of parsing attempts made
+  - Multi-strategy argument parsing:
+    - Strategy 1: JSON object format with trailing comma fix
+    - Strategy 2: Key=value pairs with proper quote handling
+    - Strategy 3: Single positional argument
+    - Strategy 4: Extract multiple quoted values for tool parameters
+  - Handles common LLM output variations:
+    - Trailing commas in JSON (`{"key": "value",}`)
+    - Single-quoted JSON strings (`{'key': 'value'}`)
+    - Escaped quotes within values
+    - Multi-line argument values
+  - Improved exception handling in tool execution:
+    - `ActionParseError`: Parse failures with suggestions
+    - `ValueError`: Unknown tools show available tools list
+    - `TypeError`: Invalid arguments with tool info
+    - Generic `Exception`: Unexpected errors with stack trace logging
+  - Comprehensive loop detection documentation in `__init__` docstring:
+    - Exact action matching mechanism
+    - Same tool matching mechanism
+    - Parse failure tracking
+    - Recovery behavior and summary generation
+  - 28 new tests for parsing, error handling, loop detection, argument types, and metrics
+
+- **Tool Type System** - Enhanced type hint handling and schema generation
+  - Added `_safe_get_type_hints()` for graceful error handling:
+    - Catches `NameError` for unresolved forward references
+    - Catches `TypeError` for invalid annotations
+    - Falls back to raw `__annotations__` on failure
+    - Logs warnings for debugging
+  - Added `_python_type_to_json_schema()` with full generic type support:
+    - `List[T]` -> `{"type": "array", "items": {...}}`
+    - `Dict[K, V]` -> `{"type": "object", "additionalProperties": {...}}`
+    - `Optional[T]` -> `{"type": "...", "nullable": true}`
+    - `Union[A, B]` -> `{"anyOf": [...]}`
+    - `Tuple[A, B]` -> `{"type": "array", "prefixItems": [...]}`
+    - `Set[T]` -> `{"type": "array", "uniqueItems": true}`
+    - `Literal["a", "b"]` -> `{"type": "string", "enum": [...]}`
+    - `bytes` -> `{"type": "string", "contentEncoding": "base64"}`
+    - Nested generics like `List[Dict[str, int]]` fully supported
+  - Improved docstring parsing for parameter descriptions:
+    - Google-style: `Args: param: description`
+    - NumPy-style: `Parameters\n----------\nparam : type\n    description`
+    - Sphinx/reST-style: `:param name: description`
+    - Epytext-style: `@param name: description`
+    - Multi-line description support for all formats
+  - 23 new tests for type handling, generics, and docstring parsing
+
+- **ContractAgent Documentation** - Enhanced documentation and test coverage
+  - Comprehensive module docstring explaining Python vs C++26 differences:
+    - Runtime-only checking (vs C++26 compile-time)
+    - Dynamic predicate evaluation via callables
+    - No undefined behavior (always well-defined policy handling)
+    - Agent-specific extensions (task preconditions, answer postconditions)
+  - ContractPolicy enum documentation with policy resolution hierarchy:
+    - Individual contract policy (highest priority)
+    - ContractAgent default policy
+    - ENFORCE as fallback when no context
+  - PreCondition/PostCondition class documentation with examples
+  - contract_assert() documentation comparing to Python's assert statement
+  - ContractAgent class documentation with usage examples
+  - 28 new tests covering:
+    - Policy resolution between contract and agent levels
+    - ContractSpec dataclass
+    - Default handler logging and verbose output
+    - IterationState with all event types
+    - Predicate string extraction
+    - ContractViolation extended fields
+    - ContractContext without handler
+    - Agent with empty/None tools
+    - Postcondition args edge cases
+    - contract_assert outside agent context
+    - Multiple contracts execution order
+    - ContractTermination exception
+
+- **Comprehensive Test Suite** - Added `test_comprehensive.py` with 53 new tests covering gaps identified in code review
+  - Error condition tests (13 tests):
+    - Invalid model path (nonexistent, directory, empty, invalid GGUF, truncated)
+    - Context errors (size zero, batch zero, negative max_tokens)
+    - BatchGenerator errors (invalid path, zero n_seq_max)
+    - Memory estimation errors (invalid paths, GPU memory strings, negative sizes)
+  - Unicode handling tests (11 tests):
+    - Basic Unicode, CJK characters, emoji in prompts
+    - Mixed scripts, special Unicode characters
+    - Unicode in batch generation and streaming
+    - Null bytes and surrogate pairs handling
+  - Concurrent execution tests (6 tests):
+    - Multiple LLM instances in parallel threads
+    - Shared LLM sequential access
+    - BatchGenerator separate instances in threads
+    - GenerationConfig thread safety
+    - Context manager cleanup in multithreaded environment
+    - Batch pool concurrent access
+  - Boundary condition tests (23 tests):
+    - max_tokens (1, very large)
+    - Context size (minimum, near limit)
+    - Batch size (1, small)
+    - Temperature (0, very high)
+    - top_k (1), top_p (0, 1)
+    - n_seq_max (minimum, exact match)
+    - Stop sequences (empty, many, long)
+    - Repeat penalty (0, high)
+    - Special prompts (whitespace, newlines, tokens, repeated)
+    - Resource limits (memory stability, generator reuse)
+
+- **LLM Destructor Safety** - Fixed `__del__` and `close()` to handle partial initialization
+  - Use `getattr()` for safe attribute access when instance may be partially initialized
+  - Prevents AttributeError when constructor fails before all attributes are set
+
+### Changed
+
+- **Centralized Model Path Configuration** - Consolidated hardcoded model paths across the codebase
+  - Added `DEFAULT_MODEL` constant in `tests/conftest.py` as single source of truth
+  - Test files now use `model_path` pytest fixture from `conftest.py`
+  - Subprocess tests import `DEFAULT_MODEL` from `conftest.py` where fixtures aren't available
+  - Example files (`tests/examples/`) now use argparse with `-m/--model` argument
+  - Script files (`scripts/`) now use argparse with `-m/--model` argument
+  - Eliminates scattered hardcoded paths, simplifying model path changes
+
+- **Type Hints** - Added missing type hints to remaining functions
+  - `api.py:simple()` - Added `Optional[int]`, `bool`, and `-> bool` return type hints
+  - `memory.py:parse_gpu_memory()` - Added `-> Union[int, List[int]]` return type
+  - `memory.py:format_bytes()` - Added `Union[int, float]` parameter and `-> str` return type
+  - `memory.py:main()` - Added `-> int` return type
+
+- **Memory Module Improvements** - Enhanced `memory.py` with logging, validation, and documentation
+  - Added module-level logger for error and diagnostic reporting
+  - Added comprehensive docstrings explaining memory estimation formulas
+  - Documented all magic numbers with named constants and references:
+    - `FLASH_ATTN_FACTOR = 0.8` - Flash attention memory reduction from Dao et al., 2022
+    - `NO_KQV_OFFLOAD_FACTOR = 1.2` - Memory increase without KQV offload
+    - `SAFETY_MARGIN = 1.1` - Buffer for fragmentation and alignment
+    - `PROJECTOR_SIZE_BYTES = 100MB` - LLaVA projector size estimate
+    - `QUANTIZATION_FACTORS` dict with GGML type comments and bit calculations
+  - Added input validation to main functions:
+    - `graph_size()` - Validates n_layers, n_embd, n_ctx
+    - `estimate_gpu_layers()` - Validates gpu_memory, ctx_size, batch_size
+    - `estimate_memory_usage()` - Validates ctx_size, batch_size
+    - `parse_gpu_memory()` - Validates string format and raises ValueError on invalid input
+  - Added logging calls for error conditions:
+    - File I/O errors in `get_file_host_endian()`
+    - Metadata loading failures in `dump_metadata_json()`
+    - Context size clamping warnings in `estimate_gpu_layers()`
+    - Invalid parameter warnings throughout
+
+- **Stop Sequence Logic Simplified** - Refactored stop sequence handling in `api.py`
+  - Extracted `_find_stop_sequence()` helper method for cleaner code
+  - Fixed buffer flush bug that was including stop sequences in output
+  - Improved buffer management: only keeps `max_stop_len - 1` chars for sequence detection
+  - Added 6 new tests for stop sequence handling (basic, multiple, streaming, edge cases)
+
+### Added
+
+- **Benchmark Script** - New `scripts/benchmark.py` for comprehensive performance measurement
+  - Separates prefill (prompt processing) and decode (token generation) metrics
+  - Reports time-to-first-token (TTFT)
+  - Includes warmup run to exclude cold-start effects
+  - Shows avg, median, min, max statistics
+  - Configurable via `-m` (model), `-n` (runs), `-p` (prompt), `-t` (max tokens), `-c` (context size)
+
+- **Batch Memory Pooling Integration** - Added optional memory pooling to `BatchGenerator`
+  - Added `use_pooling` parameter to `BatchGenerator` (default: `False`)
+  - When `use_pooling=True`, batches are reused instead of allocated/deallocated each generation
+  - Reduces memory allocation overhead in high-throughput scenarios
+  - 6 new tests for batch pooling functionality
+
 ## [0.1.13]
 
 ### Added

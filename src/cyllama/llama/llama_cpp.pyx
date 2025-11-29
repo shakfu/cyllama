@@ -788,15 +788,17 @@ cdef class LlamaModelTensorBuftOverride:
 
 cdef class LlamaModelParams:
     cdef llama.llama_model_params p
+    cdef object _progress_callback  # prevent garbage collection of Python callback
 
     def __init__(self):
         self.p = llama.llama_model_default_params()
-        # self.p.progress_callback = &progress_callback # FIXME: causes crash
+        self._progress_callback = None
 
     @staticmethod
     cdef LlamaModelParams from_instance(llama.llama_model_params params):
         cdef LlamaModelParams wrapper = LlamaModelParams.__new__(LlamaModelParams)
         wrapper.p = params
+        wrapper._progress_callback = None
         return wrapper
 
     @property
@@ -851,18 +853,31 @@ cdef class LlamaModelParams:
 
     @property
     def progress_callback(self) -> Callable[[float], bool]:
-        """Called with a progress value between 0.0 and 1.0. Pass NULL to disable.
+        """Called with a progress value between 0.0 and 1.0. Pass None to disable.
 
         If the provided progress_callback returns true, model loading continues.
         If it returns false, model loading is immediately aborted.
 
-        progress_callback_user_data is context pointer passed to the progress callback
+        Example:
+            def on_progress(progress: float) -> bool:
+                print(f"Loading: {progress * 100:.1f}%")
+                return True  # continue loading
+
+            params = LlamaModelParams()
+            params.progress_callback = on_progress
         """
-        return <object>self.p.progress_callback_user_data
+        return self._progress_callback
 
     @progress_callback.setter
     def progress_callback(self, object py_progress_callback):
-        self.p.progress_callback_user_data = <void*>py_progress_callback
+        if py_progress_callback is None:
+            self._progress_callback = None
+            self.p.progress_callback = NULL
+            self.p.progress_callback_user_data = NULL
+        else:
+            self._progress_callback = py_progress_callback
+            self.p.progress_callback = <llama.llama_progress_callback>&progress_callback
+            self.p.progress_callback_user_data = <void*>py_progress_callback
 
     @property
     def kv_overrides(self) -> list[LlamaModelKvOverride]:
@@ -1695,12 +1710,27 @@ cdef class LlamaModel:
     # lora
 
     def lora_adapter_init(self, str path_lora) -> LlamaAdapterLora:
-        """Load a LoRA adapter from file
+        """Load a LoRA adapter from file.
 
-        The loaded adapter will be associated to the given model, and will be free when the model is deleted
+        The loaded adapter will be associated to the given model, and will be freed when the model is deleted.
+
+        Args:
+            path_lora: Path to the LoRA adapter file.
+
+        Returns:
+            LlamaAdapterLora: The loaded LoRA adapter.
+
+        Raises:
+            FileNotFoundError: If the LoRA adapter file does not exist.
+            ValueError: If loading the LoRA adapter fails.
         """
+        if not os.path.exists(path_lora):
+            raise FileNotFoundError(f"LoRA adapter file not found: {path_lora}")
+
         cdef llama.llama_adapter_lora * ptr = llama.llama_adapter_lora_init(
             self.ptr, path_lora.encode())
+        if ptr is NULL:
+            raise ValueError(f"Failed to load LoRA adapter from: {path_lora}")
         return LlamaAdapterLora.from_ptr(ptr)
  
     # metadata
@@ -1897,13 +1927,16 @@ cdef class LlamaContext:
         self.n_tokens = 0
 
     def __init__(self, model: LlamaModel, params: Optional[LlamaContextParams] = None, verbose: bool = True):
+        if model is None:
+            raise ValueError("model cannot be None")
+        if not isinstance(model, LlamaModel):
+            raise TypeError(f"model must be LlamaModel, got {type(model).__name__}")
+        if model.ptr is NULL:
+            raise ValueError("model has been freed or is invalid (NULL pointer)")
+
         self.model = model
         self.params = params if params else LlamaContextParams()
         self.verbose = verbose
-
-        # self.ptr = None
-
-        assert self.model.ptr is not NULL
 
         self.ptr = llama.llama_init_from_model(self.model.ptr, self.params.p)
 
@@ -1993,7 +2026,21 @@ cdef class LlamaContext:
         return read
 
     def load_state_file(self, path_session: str, max_n_tokens: int = 256) -> list[int]:
-        """Load session file"""
+        """Load session file.
+
+        Args:
+            path_session: Path to the session state file.
+            max_n_tokens: Maximum number of tokens to load.
+
+        Returns:
+            List of tokens from the session file.
+
+        Raises:
+            FileNotFoundError: If the session file does not exist.
+        """
+        if not os.path.exists(path_session):
+            raise FileNotFoundError(f"Session state file not found: {path_session}")
+
         cdef llama.llama_token * tokens_out = NULL
         cdef size_t * n_token_count_out = NULL
         cdef bint loaded = llama.llama_state_load_file(
@@ -2009,7 +2056,22 @@ cdef class LlamaContext:
         return result
 
     def save_state_file(self, path_session: str, tokens: list[int]) -> bool:
-        """Save session file"""
+        """Save session file.
+
+        Args:
+            path_session: Path where the session state file will be saved.
+            tokens: List of tokens to save.
+
+        Returns:
+            True if save was successful.
+
+        Raises:
+            FileNotFoundError: If the parent directory does not exist.
+        """
+        parent_dir = os.path.dirname(path_session)
+        if parent_dir and not os.path.exists(parent_dir):
+            raise FileNotFoundError(f"Parent directory does not exist: {parent_dir}")
+
         cdef std_vector[llama.llama_token] vec_tokens
         for token in tokens:
             vec_tokens.push_back(<llama.llama_token>token)
@@ -2024,14 +2086,32 @@ cdef class LlamaContext:
         return llama.llama_state_seq_get_size(self.ptr, seq_id)
 
     def get_state_seq_data(self, int seq_id) -> list[int]:
-        """Copy the KV cache of a single sequence into the specified buffer"""
-        cdef uint8_t dst[512];
-        cdef size_t copied = llama.llama_state_seq_get_data(
-            self.ptr, dst, 512, seq_id)
+        """Copy the KV cache of a single sequence into a dynamically allocated buffer.
+
+        Returns the sequence data as a list of bytes.
+        """
+        # Get the required size first to avoid buffer overflow
+        cdef size_t required_size = llama.llama_state_seq_get_size(self.ptr, seq_id)
+        cdef uint8_t * dst = NULL
+        cdef size_t copied = 0
         cdef std_vector[uint8_t] result
-        for i in range(copied):
-            result.push_back(dst[i])
-        return result
+
+        if required_size == 0:
+            return []
+
+        # Dynamically allocate buffer of exact size needed
+        dst = <uint8_t *>malloc(required_size)
+        if dst is NULL:
+            raise MemoryError("Failed to allocate buffer for state sequence data")
+
+        try:
+            copied = llama.llama_state_seq_get_data(
+                self.ptr, dst, required_size, seq_id)
+            for i in range(copied):
+                result.push_back(dst[i])
+            return result
+        finally:
+            free(dst)
 
     def set_state_seq_data(self, src: list[int], dest_seq_id: int):
         """Copy the sequence data (originally copied with `llama_state_seq_get_data`) into the specified sequence
@@ -2050,7 +2130,21 @@ cdef class LlamaContext:
             raise ValueError("Failed to load sequence data")
 
     def save_state_seq_file(self, filepath: str, seq_id: int, tokens: list[int]):
-        """Save state sequence data to a file"""
+        """Save state sequence data to a file.
+
+        Args:
+            filepath: Path where the sequence state file will be saved.
+            seq_id: Sequence ID to save.
+            tokens: List of tokens to save.
+
+        Raises:
+            FileNotFoundError: If the parent directory does not exist.
+            ValueError: If saving fails.
+        """
+        parent_dir = os.path.dirname(filepath)
+        if parent_dir and not os.path.exists(parent_dir):
+            raise FileNotFoundError(f"Parent directory does not exist: {parent_dir}")
+
         cdef std_vector[uint8_t] vec
         cdef size_t res = 0
         for i in tokens:
@@ -2065,7 +2159,22 @@ cdef class LlamaContext:
             raise ValueError(f"Failed to save seq data {filepath}")
 
     def load_state_seq_file(self, filepath: str, dest_seq_id: int, max_n_tokens: int = 256):
-        """Load state sequence data from a file"""
+        """Load state sequence data from a file.
+
+        Args:
+            filepath: Path to the sequence state file.
+            dest_seq_id: Destination sequence ID.
+            max_n_tokens: Maximum number of tokens to load.
+
+        Returns:
+            List of tokens from the sequence file.
+
+        Raises:
+            FileNotFoundError: If the sequence state file does not exist.
+        """
+        if not os.path.exists(filepath):
+            raise FileNotFoundError(f"Sequence state file not found: {filepath}")
+
         cdef llama.llama_token * tokens_out = NULL
         cdef size_t * n_token_count_out = NULL
         cdef size_t loaded = llama.llama_state_seq_load_file(
@@ -2086,13 +2195,31 @@ cdef class LlamaContext:
         return llama.llama_state_seq_get_size_ext(self.ptr, seq_id, flags)
 
     def get_state_seq_data_with_flags(self, int seq_id, int flags) -> list[int]:
-        """get state sequence daya from seq_id and flags"""
-        cdef uint8_t dst[512];
-        cdef size_t size = llama.llama_state_seq_get_data_ext(self.ptr, dst, 512, seq_id, flags)
+        """Get state sequence data from seq_id and flags using dynamically allocated buffer.
+
+        Returns the sequence data as a list of bytes.
+        """
+        # Get the required size first to avoid buffer overflow
+        cdef size_t required_size = llama.llama_state_seq_get_size_ext(self.ptr, seq_id, flags)
+        cdef uint8_t * dst = NULL
+        cdef size_t size = 0
         cdef std_vector[uint8_t] result
-        for i in range(size):
-            result.push_back(dst[i])
-        return result
+
+        if required_size == 0:
+            return []
+
+        # Dynamically allocate buffer of exact size needed
+        dst = <uint8_t *>malloc(required_size)
+        if dst is NULL:
+            raise MemoryError("Failed to allocate buffer for state sequence data")
+
+        try:
+            size = llama.llama_state_seq_get_data_ext(self.ptr, dst, required_size, seq_id, flags)
+            for i in range(size):
+                result.push_back(dst[i])
+            return result
+        finally:
+            free(dst)
 
     def set_state_seq_data_with_flags(self, src: list[int], dest_seq_id: int,  flags: int):
         """set state seq data with flags"""
@@ -2183,6 +2310,28 @@ cdef class LlamaContext:
         and is not necessary to call it explicitly in most cases
         """
         llama.llama_synchronize(self.ptr)
+
+    # Memory / KV Cache Management
+    # -------------------------------------------------------------------------
+
+    def kv_cache_clear(self, bint clear_data=True):
+        """Clear the KV cache.
+
+        This removes all cached key-value pairs from the context's memory,
+        allowing the context to be reused for new generations without
+        recreating it.
+
+        Args:
+            clear_data: If True (default), also clear the data buffers.
+                       If False, only clear metadata.
+
+        Note:
+            This is useful for reusing a context across multiple independent
+            generations without the overhead of context recreation.
+        """
+        cdef llama.llama_memory_t mem = llama.llama_get_memory(self.ptr)
+        if mem is not NULL:
+            llama.llama_memory_clear(mem, clear_data)
 
     # def n_outputs(self) -> int:
     #     return llama.llama_n_outputs(self.ptr)
@@ -2420,26 +2569,36 @@ cdef class LlamaSampler:
         llama.llama_sampler_chain_add(
             self.ptr, llama.llama_sampler_init_xtc(p, t, min_keep, seed))
 
-    # XXX: docstring incorrect
     def add_mirostat(self, int n_vocab, uint32_t seed, float tau, float eta, int m):
-        """Mirostat 1.0 algorithm described in the paper https:#arxiv.org/abs/2007.14966. Uses tokens instead of words.
+        """Mirostat 1.0 algorithm described in the paper https://arxiv.org/abs/2007.14966.
 
-        candidates: A vector of `llama_token_data` containing the candidate tokens, their probabilities (p), and log-odds (logit) for the current position in the generated text.
-        tau:     The target cross-entropy (or surprise) value you want to achieve for the generated text. A higher value corresponds to more surprising or less predictable text, while a lower value corresponds to less surprising or more predictable text.
-        eta:     The learning rate used to update `mu` based on the error between the target and observed surprisal of the sampled word. A larger learning rate will cause `mu` to be updated more quickly, while a smaller learning rate will result in slower updates.
-        m:       The number of tokens considered in the estimation of `s_hat`. This is an arbitrary value that is used to calculate `s_hat`, which in turn helps to calculate the value of `k`. In the paper, they use `m = 100`, but you can experiment with different values to see how it affects the performance of the algorithm.
-        mu:      Maximum cross-entropy. This value is initialized to be twice the target cross-entropy (`2 * tau`) and is updated in the algorithm based on the error between the target and observed surprisal.
+        Uses tokens instead of words.
+
+        Args:
+            n_vocab: Size of the vocabulary.
+            seed: Random seed for sampling.
+            tau: The target cross-entropy (or surprise) value. A higher value
+                corresponds to more surprising or less predictable text.
+            eta: The learning rate used to update `mu` based on the error between
+                the target and observed surprisal. Larger values update faster.
+            m: The number of tokens considered in the estimation of `s_hat`.
+                The paper uses m=100, but other values can be experimented with.
         """
         llama.llama_sampler_chain_add(
             self.ptr, llama.llama_sampler_init_mirostat(n_vocab, seed, tau, eta, m))
 
     def add_mirostat_v2(self, uint32_t seed, float tau, float eta):
-        """Mirostat 2.0 algorithm described in the paper https:#arxiv.org/abs/2007.14966. Uses tokens instead of words.
+        """Mirostat 2.0 algorithm described in the paper https://arxiv.org/abs/2007.14966.
 
-        candidates: A vector of `llama_token_data` containing the candidate tokens, their probabilities (p), and log-odds (logit) for the current position in the generated text.
-        tau:  The target cross-entropy (or surprise) value you want to achieve for the generated text. A higher value corresponds to more surprising or less predictable text, while a lower value corresponds to less surprising or more predictable text.
-        eta: The learning rate used to update `mu` based on the error between the target and observed surprisal of the sampled word. A larger learning rate will cause `mu` to be updated more quickly, while a smaller learning rate will result in slower updates.
-        mu: Maximum cross-entropy. This value is initialized to be twice the target cross-entropy (`2 * tau`) and is updated in the algorithm based on the error between the target and observed surprisal.
+        Uses tokens instead of words. This is a simplified version of Mirostat
+        that doesn't require the vocabulary size or m parameter.
+
+        Args:
+            seed: Random seed for sampling.
+            tau: The target cross-entropy (or surprise) value. A higher value
+                corresponds to more surprising or less predictable text.
+            eta: The learning rate used to update `mu` based on the error between
+                the target and observed surprisal. Larger values update faster.
         """
         llama.llama_sampler_chain_add(
             self.ptr, llama.llama_sampler_init_mirostat_v2(seed, tau, eta))
@@ -2464,13 +2623,43 @@ cdef class LlamaSampler:
                 penalty_present,
             ))
 
-    # XXX FIXME:
-    # def add_logit_bias(self, int n_vocab, int n_logit_bias, logit_bias: list[LogitBias]):
-    #     """Add grammer chain link"""
-    #     cdef std_vector[llama.logit_bias] vec
-    #     llama.llama_sampler_chain_add(
-    #         self.ptr, llama.llama_sampler_init_logit_bias(
-    #             n_vocab, n_logit_bias, vec.data()))
+    def add_logit_bias(self, int n_vocab, logit_biases: list):
+        """Add logit bias sampler to modify token probabilities.
+
+        Applies additive biases to specific token logits before sampling.
+        Positive bias increases probability, negative decreases it.
+
+        Args:
+            n_vocab: Size of the vocabulary.
+            logit_biases: List of (token_id, bias) tuples. Each tuple contains
+                a token ID (int) and a bias value (float) to add to that token's logit.
+
+        Example:
+            # Increase probability of token 123, decrease token 456
+            sampler.add_logit_bias(vocab_size, [(123, 5.0), (456, -5.0)])
+        """
+        cdef int n_logit_bias = len(logit_biases)
+        cdef llama.llama_logit_bias* bias_array = NULL
+
+        if n_logit_bias > 0:
+            bias_array = <llama.llama_logit_bias*>malloc(
+                n_logit_bias * sizeof(llama.llama_logit_bias))
+            if bias_array == NULL:
+                raise MemoryError("Failed to allocate logit bias array")
+
+            try:
+                for i, (token, bias) in enumerate(logit_biases):
+                    bias_array[i].token = token
+                    bias_array[i].bias = bias
+
+                llama.llama_sampler_chain_add(
+                    self.ptr, llama.llama_sampler_init_logit_bias(
+                        n_vocab, n_logit_bias, bias_array))
+            finally:
+                free(bias_array)
+        else:
+            llama.llama_sampler_chain_add(
+                self.ptr, llama.llama_sampler_init_logit_bias(n_vocab, 0, NULL))
 
     def add_infill(self, LlamaVocab vocab):
         """This sampler is meant to be used for fill-in-the-middle infilling
