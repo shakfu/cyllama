@@ -148,6 +148,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
     - Recovery behavior and summary generation
   - 28 new tests for parsing, error handling, loop detection, argument types, and metrics
 
+- **Tool Type System** - Enhanced type hint handling and schema generation
+  - Added `_safe_get_type_hints()` for graceful error handling:
+    - Catches `NameError` for unresolved forward references
+    - Catches `TypeError` for invalid annotations
+    - Falls back to raw `__annotations__` on failure
+    - Logs warnings for debugging
+  - Added `_python_type_to_json_schema()` with full generic type support:
+    - `List[T]` -> `{"type": "array", "items": {...}}`
+    - `Dict[K, V]` -> `{"type": "object", "additionalProperties": {...}}`
+    - `Optional[T]` -> `{"type": "...", "nullable": true}`
+    - `Union[A, B]` -> `{"anyOf": [...]}`
+    - `Tuple[A, B]` -> `{"type": "array", "prefixItems": [...]}`
+    - `Set[T]` -> `{"type": "array", "uniqueItems": true}`
+    - `Literal["a", "b"]` -> `{"type": "string", "enum": [...]}`
+    - `bytes` -> `{"type": "string", "contentEncoding": "base64"}`
+    - Nested generics like `List[Dict[str, int]]` fully supported
+  - Improved docstring parsing for parameter descriptions:
+    - Google-style: `Args: param: description`
+    - NumPy-style: `Parameters\n----------\nparam : type\n    description`
+    - Sphinx/reST-style: `:param name: description`
+    - Epytext-style: `@param name: description`
+    - Multi-line description support for all formats
+  - 23 new tests for type handling, generics, and docstring parsing
+
 ### Changed
 
 - **Centralized Model Path Configuration** - Consolidated hardcoded model paths across the codebase

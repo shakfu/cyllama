@@ -355,3 +355,420 @@ def test_registry_contains():
     assert "my_tool" not in registry
     registry.register(my_tool)
     assert "my_tool" in registry
+
+
+# =============================================================================
+# Type Hint Error Handling Tests
+# =============================================================================
+
+class TestTypeHintErrorHandling:
+    """Test graceful handling of type hint errors."""
+
+    def test_forward_reference_fallback(self):
+        """Test that forward references fall back gracefully."""
+        # This would fail with get_type_hints() if ForwardRef isn't defined
+        @tool
+        def func_with_string_annotation(x: "UndefinedType") -> str:
+            """Has forward reference"""
+            return str(x)
+
+        # Should still create a tool with string type fallback
+        assert isinstance(func_with_string_annotation, Tool)
+        schema = func_with_string_annotation.parameters
+        # Should have the parameter, possibly as string type
+        assert "x" in schema["properties"]
+
+    def test_no_type_hints_works(self):
+        """Test that functions without type hints still work."""
+        @tool
+        def no_hints_func(a, b, c):
+            """No type hints at all"""
+            return a + b + c
+
+        assert isinstance(no_hints_func, Tool)
+        schema = no_hints_func.parameters
+        assert len(schema["properties"]) == 3
+        # All should default to string
+        assert all(p["type"] == "string" for p in schema["properties"].values())
+
+    def test_partial_type_hints(self):
+        """Test function with partial type hints."""
+        @tool
+        def partial_hints(a: int, b, c: str):
+            """Some hints missing"""
+            return f"{a}{b}{c}"
+
+        schema = partial_hints.parameters
+        props = schema["properties"]
+
+        assert props["a"]["type"] == "integer"
+        assert props["b"]["type"] == "string"  # default
+        assert props["c"]["type"] == "string"
+
+
+# =============================================================================
+# Generic Type Support Tests
+# =============================================================================
+
+class TestGenericTypeSupport:
+    """Test support for generic types in schemas."""
+
+    def test_list_of_strings(self):
+        """Test List[str] type."""
+        from typing import List
+
+        @tool
+        def func(items: List[str]) -> int:
+            """List of strings"""
+            return len(items)
+
+        schema = func.parameters
+        props = schema["properties"]
+
+        assert props["items"]["type"] == "array"
+        assert props["items"]["items"]["type"] == "string"
+
+    def test_list_of_ints(self):
+        """Test List[int] type."""
+        from typing import List
+
+        @tool
+        def func(numbers: List[int]) -> int:
+            """List of ints"""
+            return sum(numbers)
+
+        schema = func.parameters
+        props = schema["properties"]
+
+        assert props["numbers"]["type"] == "array"
+        assert props["numbers"]["items"]["type"] == "integer"
+
+    def test_dict_str_int(self):
+        """Test Dict[str, int] type."""
+        from typing import Dict
+
+        @tool
+        def func(mapping: Dict[str, int]) -> int:
+            """Dict mapping"""
+            return sum(mapping.values())
+
+        schema = func.parameters
+        props = schema["properties"]
+
+        assert props["mapping"]["type"] == "object"
+        assert props["mapping"]["additionalProperties"]["type"] == "integer"
+
+    def test_optional_type(self):
+        """Test Optional[str] type."""
+        from typing import Optional
+
+        @tool
+        def func(name: Optional[str] = None) -> str:
+            """Optional param"""
+            return name or "default"
+
+        schema = func.parameters
+        props = schema["properties"]
+
+        assert props["name"]["type"] == "string"
+        assert props["name"]["nullable"] is True
+        assert "name" not in schema["required"]
+
+    def test_union_type(self):
+        """Test Union[str, int] type."""
+        from typing import Union
+
+        @tool
+        def func(value: Union[str, int]) -> str:
+            """Union type"""
+            return str(value)
+
+        schema = func.parameters
+        props = schema["properties"]
+
+        # Should have anyOf
+        assert "anyOf" in props["value"]
+        types = [s["type"] for s in props["value"]["anyOf"]]
+        assert "string" in types
+        assert "integer" in types
+
+    def test_nested_generic(self):
+        """Test nested generic like List[Dict[str, int]]."""
+        from typing import List, Dict
+
+        @tool
+        def func(data: List[Dict[str, int]]) -> int:
+            """Nested generic"""
+            return len(data)
+
+        schema = func.parameters
+        props = schema["properties"]
+
+        assert props["data"]["type"] == "array"
+        assert props["data"]["items"]["type"] == "object"
+        assert props["data"]["items"]["additionalProperties"]["type"] == "integer"
+
+    def test_tuple_type(self):
+        """Test Tuple type."""
+        from typing import Tuple
+
+        @tool
+        def func(point: Tuple[int, int]) -> int:
+            """Tuple type"""
+            return point[0] + point[1]
+
+        schema = func.parameters
+        props = schema["properties"]
+
+        assert props["point"]["type"] == "array"
+        assert "prefixItems" in props["point"]
+        assert len(props["point"]["prefixItems"]) == 2
+        assert props["point"]["minItems"] == 2
+        assert props["point"]["maxItems"] == 2
+
+    def test_set_type(self):
+        """Test Set type."""
+        from typing import Set
+
+        @tool
+        def func(unique_items: Set[str]) -> int:
+            """Set type"""
+            return len(unique_items)
+
+        schema = func.parameters
+        props = schema["properties"]
+
+        assert props["unique_items"]["type"] == "array"
+        assert props["unique_items"]["uniqueItems"] is True
+        assert props["unique_items"]["items"]["type"] == "string"
+
+    def test_literal_type(self):
+        """Test Literal type."""
+        from typing import Literal
+
+        @tool
+        def func(mode: Literal["read", "write", "append"]) -> str:
+            """Literal type"""
+            return mode
+
+        schema = func.parameters
+        props = schema["properties"]
+
+        assert props["mode"]["type"] == "string"
+        assert "enum" in props["mode"]
+        assert set(props["mode"]["enum"]) == {"read", "write", "append"}
+
+    def test_bytes_type(self):
+        """Test bytes type."""
+        @tool
+        def func(data: bytes) -> int:
+            """Bytes type"""
+            return len(data)
+
+        schema = func.parameters
+        props = schema["properties"]
+
+        assert props["data"]["type"] == "string"
+        assert props["data"]["contentEncoding"] == "base64"
+
+
+# =============================================================================
+# Docstring Parsing Tests
+# =============================================================================
+
+class TestDocstringParsing:
+    """Test docstring parsing for multiple formats."""
+
+    def test_google_style_simple(self):
+        """Test simple Google-style docstring."""
+        @tool
+        def func(query: str, limit: int) -> list:
+            """
+            Search for items.
+
+            Args:
+                query: The search query string
+                limit: Maximum number of results
+
+            Returns:
+                List of results
+            """
+            return []
+
+        schema = func.parameters
+        props = schema["properties"]
+
+        assert props["query"]["description"] == "The search query string"
+        assert props["limit"]["description"] == "Maximum number of results"
+
+    def test_google_style_with_types(self):
+        """Test Google-style with type annotations in docstring."""
+        @tool
+        def func(name: str, count: int) -> str:
+            """
+            Process items.
+
+            Args:
+                name (str): The name to process
+                count (int): How many times
+
+            Returns:
+                str: Processed result
+            """
+            return name * count
+
+        schema = func.parameters
+        props = schema["properties"]
+
+        assert props["name"]["description"] == "The name to process"
+        assert props["count"]["description"] == "How many times"
+
+    def test_google_style_multiline(self):
+        """Test Google-style with multi-line descriptions."""
+        @tool
+        def func(data: str) -> str:
+            """
+            Process data.
+
+            Args:
+                data: The data to process. This is a longer
+                    description that spans multiple lines
+                    for more detail.
+
+            Returns:
+                Processed data
+            """
+            return data
+
+        schema = func.parameters
+        props = schema["properties"]
+
+        desc = props["data"]["description"]
+        assert "data to process" in desc
+        assert "multiple lines" in desc
+
+    def test_numpy_style(self):
+        """Test NumPy-style docstring."""
+        @tool
+        def func(x: float, y: float) -> float:
+            """
+            Calculate distance.
+
+            Parameters
+            ----------
+            x : float
+                The x coordinate
+            y : float
+                The y coordinate
+
+            Returns
+            -------
+            float
+                The distance
+            """
+            return (x**2 + y**2)**0.5
+
+        schema = func.parameters
+        props = schema["properties"]
+
+        assert props["x"]["description"] == "The x coordinate"
+        assert props["y"]["description"] == "The y coordinate"
+
+    def test_sphinx_style(self):
+        """Test Sphinx/reST-style docstring."""
+        @tool
+        def func(path: str, mode: str) -> str:
+            """
+            Open a file.
+
+            :param path: Path to the file
+            :param mode: Mode to open in
+            :returns: File contents
+            """
+            return ""
+
+        schema = func.parameters
+        props = schema["properties"]
+
+        assert props["path"]["description"] == "Path to the file"
+        assert props["mode"]["description"] == "Mode to open in"
+
+    def test_epytext_style(self):
+        """Test Epytext-style docstring."""
+        @tool
+        def func(url: str, timeout: int) -> str:
+            """
+            Fetch a URL.
+
+            @param url: The URL to fetch
+            @param timeout: Request timeout in seconds
+            @return: Response content
+            """
+            return ""
+
+        schema = func.parameters
+        props = schema["properties"]
+
+        assert props["url"]["description"] == "The URL to fetch"
+        assert props["timeout"]["description"] == "Request timeout in seconds"
+
+    def test_no_docstring(self):
+        """Test tool without docstring."""
+        @tool
+        def func(x: int) -> int:
+            return x * 2
+
+        schema = func.parameters
+        props = schema["properties"]
+
+        # Should not have description
+        assert "description" not in props["x"]
+
+    def test_docstring_no_params_section(self):
+        """Test docstring without parameter section."""
+        @tool
+        def func(x: int) -> int:
+            """Just a simple function that doubles."""
+            return x * 2
+
+        schema = func.parameters
+        props = schema["properties"]
+
+        # Should not have description
+        assert "description" not in props["x"]
+
+
+class TestPromptGeneration:
+    """Test prompt string generation with new type info."""
+
+    def test_prompt_includes_nested_types(self):
+        """Test that prompt includes nested type information."""
+        from typing import List, Dict
+
+        @tool
+        def func(items: List[str], mapping: Dict[str, int]) -> str:
+            """Process items and mapping"""
+            return ""
+
+        prompt = func.to_prompt_string()
+
+        assert "func" in prompt
+        assert "items" in prompt
+        assert "mapping" in prompt
+        assert "array" in prompt
+        assert "object" in prompt
+
+    def test_prompt_includes_optional(self):
+        """Test that prompt shows optional parameters."""
+        from typing import Optional
+
+        @tool
+        def func(required: str, optional: Optional[str] = None) -> str:
+            """Has optional param"""
+            return ""
+
+        prompt = func.to_prompt_string()
+
+        assert "(optional)" in prompt
+        # required param should not have (optional)
+        assert "required" in prompt
