@@ -17,6 +17,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [0.1.x]
 
+## [0.1.15]
+
+### Security
+
+- **Cython Input Validation** - Added critical input validation to prevent crashes and security issues
+  - Fixed buffer overflow in `get_state_seq_data()` and `get_state_seq_data_with_flags()` - now dynamically allocates buffer based on actual required size instead of fixed 512-byte stack buffer
+  - Added file path validation to `lora_adapter_init()` - raises `FileNotFoundError` if LoRA file doesn't exist
+  - Added file path validation to `load_state_file()` and `load_state_seq_file()` - raises `FileNotFoundError` if state file doesn't exist
+  - Added parent directory validation to `save_state_file()` and `save_state_seq_file()` - raises `FileNotFoundError` if parent directory doesn't exist
+  - Added NULL pointer check to `LlamaContext.__init__` - raises `ValueError` if model is None or has been freed, preventing segfaults
+
 ## [0.1.14]
 
 ### Fixed

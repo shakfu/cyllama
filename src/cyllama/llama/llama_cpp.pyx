@@ -1710,12 +1710,27 @@ cdef class LlamaModel:
     # lora
 
     def lora_adapter_init(self, str path_lora) -> LlamaAdapterLora:
-        """Load a LoRA adapter from file
+        """Load a LoRA adapter from file.
 
-        The loaded adapter will be associated to the given model, and will be free when the model is deleted
+        The loaded adapter will be associated to the given model, and will be freed when the model is deleted.
+
+        Args:
+            path_lora: Path to the LoRA adapter file.
+
+        Returns:
+            LlamaAdapterLora: The loaded LoRA adapter.
+
+        Raises:
+            FileNotFoundError: If the LoRA adapter file does not exist.
+            ValueError: If loading the LoRA adapter fails.
         """
+        if not os.path.exists(path_lora):
+            raise FileNotFoundError(f"LoRA adapter file not found: {path_lora}")
+
         cdef llama.llama_adapter_lora * ptr = llama.llama_adapter_lora_init(
             self.ptr, path_lora.encode())
+        if ptr is NULL:
+            raise ValueError(f"Failed to load LoRA adapter from: {path_lora}")
         return LlamaAdapterLora.from_ptr(ptr)
  
     # metadata
@@ -1912,13 +1927,16 @@ cdef class LlamaContext:
         self.n_tokens = 0
 
     def __init__(self, model: LlamaModel, params: Optional[LlamaContextParams] = None, verbose: bool = True):
+        if model is None:
+            raise ValueError("model cannot be None")
+        if not isinstance(model, LlamaModel):
+            raise TypeError(f"model must be LlamaModel, got {type(model).__name__}")
+        if model.ptr is NULL:
+            raise ValueError("model has been freed or is invalid (NULL pointer)")
+
         self.model = model
         self.params = params if params else LlamaContextParams()
         self.verbose = verbose
-
-        # self.ptr = None
-
-        assert self.model.ptr is not NULL
 
         self.ptr = llama.llama_init_from_model(self.model.ptr, self.params.p)
 
@@ -2008,7 +2026,21 @@ cdef class LlamaContext:
         return read
 
     def load_state_file(self, path_session: str, max_n_tokens: int = 256) -> list[int]:
-        """Load session file"""
+        """Load session file.
+
+        Args:
+            path_session: Path to the session state file.
+            max_n_tokens: Maximum number of tokens to load.
+
+        Returns:
+            List of tokens from the session file.
+
+        Raises:
+            FileNotFoundError: If the session file does not exist.
+        """
+        if not os.path.exists(path_session):
+            raise FileNotFoundError(f"Session state file not found: {path_session}")
+
         cdef llama.llama_token * tokens_out = NULL
         cdef size_t * n_token_count_out = NULL
         cdef bint loaded = llama.llama_state_load_file(
@@ -2024,7 +2056,22 @@ cdef class LlamaContext:
         return result
 
     def save_state_file(self, path_session: str, tokens: list[int]) -> bool:
-        """Save session file"""
+        """Save session file.
+
+        Args:
+            path_session: Path where the session state file will be saved.
+            tokens: List of tokens to save.
+
+        Returns:
+            True if save was successful.
+
+        Raises:
+            FileNotFoundError: If the parent directory does not exist.
+        """
+        parent_dir = os.path.dirname(path_session)
+        if parent_dir and not os.path.exists(parent_dir):
+            raise FileNotFoundError(f"Parent directory does not exist: {parent_dir}")
+
         cdef std_vector[llama.llama_token] vec_tokens
         for token in tokens:
             vec_tokens.push_back(<llama.llama_token>token)
@@ -2039,14 +2086,32 @@ cdef class LlamaContext:
         return llama.llama_state_seq_get_size(self.ptr, seq_id)
 
     def get_state_seq_data(self, int seq_id) -> list[int]:
-        """Copy the KV cache of a single sequence into the specified buffer"""
-        cdef uint8_t dst[512];
-        cdef size_t copied = llama.llama_state_seq_get_data(
-            self.ptr, dst, 512, seq_id)
+        """Copy the KV cache of a single sequence into a dynamically allocated buffer.
+
+        Returns the sequence data as a list of bytes.
+        """
+        # Get the required size first to avoid buffer overflow
+        cdef size_t required_size = llama.llama_state_seq_get_size(self.ptr, seq_id)
+        cdef uint8_t * dst = NULL
+        cdef size_t copied = 0
         cdef std_vector[uint8_t] result
-        for i in range(copied):
-            result.push_back(dst[i])
-        return result
+
+        if required_size == 0:
+            return []
+
+        # Dynamically allocate buffer of exact size needed
+        dst = <uint8_t *>malloc(required_size)
+        if dst is NULL:
+            raise MemoryError("Failed to allocate buffer for state sequence data")
+
+        try:
+            copied = llama.llama_state_seq_get_data(
+                self.ptr, dst, required_size, seq_id)
+            for i in range(copied):
+                result.push_back(dst[i])
+            return result
+        finally:
+            free(dst)
 
     def set_state_seq_data(self, src: list[int], dest_seq_id: int):
         """Copy the sequence data (originally copied with `llama_state_seq_get_data`) into the specified sequence
@@ -2065,7 +2130,21 @@ cdef class LlamaContext:
             raise ValueError("Failed to load sequence data")
 
     def save_state_seq_file(self, filepath: str, seq_id: int, tokens: list[int]):
-        """Save state sequence data to a file"""
+        """Save state sequence data to a file.
+
+        Args:
+            filepath: Path where the sequence state file will be saved.
+            seq_id: Sequence ID to save.
+            tokens: List of tokens to save.
+
+        Raises:
+            FileNotFoundError: If the parent directory does not exist.
+            ValueError: If saving fails.
+        """
+        parent_dir = os.path.dirname(filepath)
+        if parent_dir and not os.path.exists(parent_dir):
+            raise FileNotFoundError(f"Parent directory does not exist: {parent_dir}")
+
         cdef std_vector[uint8_t] vec
         cdef size_t res = 0
         for i in tokens:
@@ -2080,7 +2159,22 @@ cdef class LlamaContext:
             raise ValueError(f"Failed to save seq data {filepath}")
 
     def load_state_seq_file(self, filepath: str, dest_seq_id: int, max_n_tokens: int = 256):
-        """Load state sequence data from a file"""
+        """Load state sequence data from a file.
+
+        Args:
+            filepath: Path to the sequence state file.
+            dest_seq_id: Destination sequence ID.
+            max_n_tokens: Maximum number of tokens to load.
+
+        Returns:
+            List of tokens from the sequence file.
+
+        Raises:
+            FileNotFoundError: If the sequence state file does not exist.
+        """
+        if not os.path.exists(filepath):
+            raise FileNotFoundError(f"Sequence state file not found: {filepath}")
+
         cdef llama.llama_token * tokens_out = NULL
         cdef size_t * n_token_count_out = NULL
         cdef size_t loaded = llama.llama_state_seq_load_file(
@@ -2101,13 +2195,31 @@ cdef class LlamaContext:
         return llama.llama_state_seq_get_size_ext(self.ptr, seq_id, flags)
 
     def get_state_seq_data_with_flags(self, int seq_id, int flags) -> list[int]:
-        """get state sequence daya from seq_id and flags"""
-        cdef uint8_t dst[512];
-        cdef size_t size = llama.llama_state_seq_get_data_ext(self.ptr, dst, 512, seq_id, flags)
+        """Get state sequence data from seq_id and flags using dynamically allocated buffer.
+
+        Returns the sequence data as a list of bytes.
+        """
+        # Get the required size first to avoid buffer overflow
+        cdef size_t required_size = llama.llama_state_seq_get_size_ext(self.ptr, seq_id, flags)
+        cdef uint8_t * dst = NULL
+        cdef size_t size = 0
         cdef std_vector[uint8_t] result
-        for i in range(size):
-            result.push_back(dst[i])
-        return result
+
+        if required_size == 0:
+            return []
+
+        # Dynamically allocate buffer of exact size needed
+        dst = <uint8_t *>malloc(required_size)
+        if dst is NULL:
+            raise MemoryError("Failed to allocate buffer for state sequence data")
+
+        try:
+            size = llama.llama_state_seq_get_data_ext(self.ptr, dst, required_size, seq_id, flags)
+            for i in range(size):
+                result.push_back(dst[i])
+            return result
+        finally:
+            free(dst)
 
     def set_state_seq_data_with_flags(self, src: list[int], dest_seq_id: int,  flags: int):
         """set state seq data with flags"""
