@@ -1,0 +1,445 @@
+---
+title: "Practical Examples"
+---
+
+Complete, runnable examples for common use cases. All examples assume you have a model at `models/Llama-3.2-1B-Instruct-Q8_0.gguf` (run `make download` to get it).
+
+## Text Generation
+
+### Simple Question Answering
+
+```python
+#!/usr/bin/env python3
+"""Simple Q&A with cyllama."""
+
+from cyllama import complete
+
+MODEL = "models/Llama-3.2-1B-Instruct-Q8_0.gguf"
+
+def ask(question: str) -> str:
+    return complete(
+        f"Question: {question}\nAnswer:",
+        model_path=MODEL,
+        temperature=0.3,
+        max_tokens=200
+    )
+
+if __name__ == "__main__":
+    print(ask("What is the capital of France?"))
+    # Expected: Paris is the capital of France...
+```
+
+### Streaming Output
+
+```python
+#!/usr/bin/env python3
+"""Streaming text generation."""
+
+from cyllama import LLM, GenerationConfig
+
+MODEL = "models/Llama-3.2-1B-Instruct-Q8_0.gguf"
+
+def stream_response(prompt: str):
+    llm = LLM(MODEL)
+    config = GenerationConfig(temperature=0.7, max_tokens=200)
+
+    print("Response: ", end="", flush=True)
+    for chunk in llm(prompt, config=config, stream=True):
+        print(chunk, end="", flush=True)
+    print()
+
+if __name__ == "__main__":
+    stream_response("Write a haiku about programming:")
+```
+
+### Batch Processing
+
+```python
+#!/usr/bin/env python3
+"""Process multiple prompts efficiently."""
+
+from cyllama import batch_generate, GenerationConfig
+
+MODEL = "models/Llama-3.2-1B-Instruct-Q8_0.gguf"
+
+def batch_qa(questions: list) -> list:
+    prompts = [f"Q: {q}\nA:" for q in questions]
+    config = GenerationConfig(temperature=0.3, max_tokens=50)
+
+    return batch_generate(
+        prompts,
+        model_path=MODEL,
+        config=config,
+        n_seq_max=4  # Process 4 in parallel
+    )
+
+if __name__ == "__main__":
+    questions = [
+        "What is 2+2?",
+        "What color is the sky?",
+        "Who wrote Hamlet?",
+        "What is H2O?"
+    ]
+
+    answers = batch_qa(questions)
+    for q, a in zip(questions, answers):
+        print(f"Q: {q}")
+        print(f"A: {a.strip()}\n")
+```
+
+## Chat Applications
+
+### Simple Chatbot
+
+```python
+#!/usr/bin/env python3
+"""Interactive chatbot."""
+
+from cyllama import LLM, GenerationConfig
+
+MODEL = "models/Llama-3.2-1B-Instruct-Q8_0.gguf"
+
+class Chatbot:
+    def __init__(self, system_prompt: str = "You are a helpful assistant."):
+        self.llm = LLM(MODEL)
+        self.config = GenerationConfig(temperature=0.7, max_tokens=200)
+        self.history = [{"role": "system", "content": system_prompt}]
+
+    def chat(self, message: str) -> str:
+        self.history.append({"role": "user", "content": message})
+
+        # Format as conversation
+        prompt = "\n".join(
+            f"{m['role'].title()}: {m['content']}"
+            for m in self.history
+        ) + "\nAssistant:"
+
+        response = self.llm(prompt, config=self.config)
+        self.history.append({"role": "assistant", "content": response})
+        return response
+
+if __name__ == "__main__":
+    bot = Chatbot("You are a Python expert. Give concise answers.")
+
+    print("Chatbot ready. Type 'quit' to exit.\n")
+    while True:
+        user_input = input("You: ").strip()
+        if user_input.lower() == "quit":
+            break
+        response = bot.chat(user_input)
+        print(f"Bot: {response}\n")
+```
+
+## Agents
+
+### Calculator Agent
+
+```python
+#!/usr/bin/env python3
+"""Agent that can perform calculations."""
+
+from cyllama import LLM
+from cyllama.agents import ReActAgent, tool
+
+MODEL = "models/Llama-3.2-1B-Instruct-Q8_0.gguf"
+
+@tool
+def calculate(expression: str) -> str:
+    """Evaluate a mathematical expression. Example: calculate('2 + 2')"""
+    try:
+        result = eval(expression, {"__builtins__": {}}, {})
+        return str(result)
+    except Exception as e:
+        return f"Error: {e}"
+
+@tool
+def sqrt(n: float) -> str:
+    """Calculate the square root of a number."""
+    import math
+    return str(math.sqrt(n))
+
+if __name__ == "__main__":
+    llm = LLM(MODEL)
+    agent = ReActAgent(llm=llm, tools=[calculate, sqrt], verbose=True)
+
+    result = agent.run("What is the square root of 144 plus 25?")
+    print(f"\nFinal answer: {result.answer}")
+```
+
+### Web Search Agent (Mock)
+
+```python
+#!/usr/bin/env python3
+"""Agent with mock web search capability."""
+
+from cyllama import LLM
+from cyllama.agents import ReActAgent, tool
+
+MODEL = "models/Llama-3.2-1B-Instruct-Q8_0.gguf"
+
+# Mock search results for demonstration
+MOCK_DATA = {
+    "python": "Python is a programming language created by Guido van Rossum in 1991.",
+    "rust": "Rust is a systems programming language focused on safety and performance.",
+    "javascript": "JavaScript is a scripting language primarily used for web development.",
+}
+
+@tool
+def search(query: str) -> str:
+    """Search for information about a topic."""
+    query_lower = query.lower()
+    for key, value in MOCK_DATA.items():
+        if key in query_lower:
+            return value
+    return "No results found."
+
+if __name__ == "__main__":
+    llm = LLM(MODEL)
+    agent = ReActAgent(llm=llm, tools=[search], verbose=True)
+
+    result = agent.run("What is Python and who created it?")
+    print(f"\nFinal answer: {result.answer}")
+```
+
+## Server Examples
+
+### FastAPI Server
+
+```python
+#!/usr/bin/env python3
+"""FastAPI server for text generation."""
+
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from cyllama import LLM, GenerationConfig
+
+MODEL = "models/Llama-3.2-1B-Instruct-Q8_0.gguf"
+
+app = FastAPI(title="Cyllama API")
+llm = LLM(MODEL)
+
+class GenerateRequest(BaseModel):
+    prompt: str
+    max_tokens: int = 200
+    temperature: float = 0.7
+
+class GenerateResponse(BaseModel):
+    text: str
+
+@app.post("/generate", response_model=GenerateResponse)
+async def generate(request: GenerateRequest):
+    try:
+        config = GenerationConfig(
+            max_tokens=request.max_tokens,
+            temperature=request.temperature
+        )
+        result = llm(request.prompt, config=config)
+        return GenerateResponse(text=result)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Run with: uvicorn example_server:app --reload
+```
+
+### Client for API
+
+```python
+#!/usr/bin/env python3
+"""Client for the FastAPI server."""
+
+import requests
+
+def generate(prompt: str, max_tokens: int = 200) -> str:
+    response = requests.post(
+        "http://localhost:8000/generate",
+        json={"prompt": prompt, "max_tokens": max_tokens}
+    )
+    response.raise_for_status()
+    return response.json()["text"]
+
+if __name__ == "__main__":
+    result = generate("What is machine learning?")
+    print(result)
+```
+
+## Whisper Examples
+
+### Transcribe Audio File
+
+```python
+#!/usr/bin/env python3
+"""Transcribe an audio file with timestamps."""
+
+from cyllama.whisper import WhisperContext, WhisperFullParams
+import numpy as np
+
+def load_audio(path: str) -> np.ndarray:
+    """Load audio file as 16kHz mono float32."""
+    from scipy.io import wavfile
+    from scipy import signal
+
+    rate, data = wavfile.read(path)
+
+    # Convert to mono
+    if len(data.shape) > 1:
+        data = data.mean(axis=1)
+
+    # Convert to float32
+    if data.dtype == np.int16:
+        data = data.astype(np.float32) / 32768.0
+
+    # Resample to 16kHz
+    if rate != 16000:
+        num_samples = int(len(data) * 16000 / rate)
+        data = signal.resample(data, num_samples)
+
+    return data.astype(np.float32)
+
+def transcribe(audio_path: str, model_path: str) -> list:
+    ctx = WhisperContext(model_path)
+    samples = load_audio(audio_path)
+
+    params = WhisperFullParams()
+    ctx.full(samples, params)
+
+    segments = []
+    for i in range(ctx.full_n_segments()):
+        segments.append({
+            "start": ctx.full_get_segment_t0(i) / 100.0,
+            "end": ctx.full_get_segment_t1(i) / 100.0,
+            "text": ctx.full_get_segment_text(i).strip()
+        })
+    return segments
+
+if __name__ == "__main__":
+    segments = transcribe("audio.wav", "models/ggml-base.en.bin")
+    for seg in segments:
+        print(f"[{seg['start']:.2f}s - {seg['end']:.2f}s] {seg['text']}")
+```
+
+## Stable Diffusion Examples
+
+### Text-to-Image
+
+```python
+#!/usr/bin/env python3
+"""Generate an image from text prompt."""
+
+from cyllama.stablediffusion import text_to_image
+
+MODEL = "models/sd_xl_turbo_1.0.q8_0.gguf"
+
+if __name__ == "__main__":
+    images = text_to_image(
+        model_path=MODEL,
+        prompt="a photo of a cat wearing a hat",
+        negative_prompt="blurry, ugly",
+        width=512,
+        height=512,
+        sample_steps=4,
+        cfg_scale=1.0,
+        seed=42
+    )
+
+    images[0].save("cat_with_hat.png")
+    print("Saved: cat_with_hat.png")
+```
+
+### Batch Image Generation
+
+```python
+#!/usr/bin/env python3
+"""Generate multiple images with model reuse."""
+
+from cyllama.stablediffusion import SDContext, SDContextParams
+
+MODEL = "models/sd_xl_turbo_1.0.q8_0.gguf"
+
+PROMPTS = [
+    "a sunset over mountains",
+    "a futuristic city at night",
+    "a peaceful forest stream",
+]
+
+if __name__ == "__main__":
+    params = SDContextParams()
+    params.model_path = MODEL
+
+    with SDContext(params) as ctx:
+        for i, prompt in enumerate(PROMPTS):
+            images = ctx.generate(
+                prompt=prompt,
+                sample_steps=4,
+                cfg_scale=1.0
+            )
+            filename = f"image_{i}.png"
+            images[0].save(filename)
+            print(f"Saved: {filename}")
+```
+
+## Utility Examples
+
+### Memory Estimation
+
+```python
+#!/usr/bin/env python3
+"""Estimate memory requirements before loading a model."""
+
+from cyllama import estimate_gpu_layers
+
+MODEL = "models/Llama-3.2-1B-Instruct-Q8_0.gguf"
+
+if __name__ == "__main__":
+    # Estimate for 8GB VRAM
+    estimate = estimate_gpu_layers(
+        model_path=MODEL,
+        available_vram_mb=8000,
+        n_ctx=2048
+    )
+
+    print(f"Model: {MODEL}")
+    print(f"Recommended GPU layers: {estimate.n_gpu_layers}")
+    print(f"Estimated VRAM: {estimate.vram / 1024 / 1024:.0f} MB")
+```
+
+### Model Information
+
+```python
+#!/usr/bin/env python3
+"""Display model metadata."""
+
+from cyllama import LlamaModel, LlamaModelParams
+
+MODEL = "models/Llama-3.2-1B-Instruct-Q8_0.gguf"
+
+if __name__ == "__main__":
+    params = LlamaModelParams()
+    model = LlamaModel(MODEL, params)
+
+    print(f"Model: {MODEL}")
+    print(f"Parameters: {model.n_params / 1e9:.2f}B")
+    print(f"Layers: {model.n_layers}")
+    print(f"Embedding dim: {model.n_embd}")
+    print(f"Vocabulary size: {model.n_vocab}")
+```
+
+## Running the Examples
+
+Save any example to a file and run:
+
+```bash
+python example.py
+```
+
+For server examples:
+
+```bash
+# Install dependencies
+pip install fastapi uvicorn
+
+# Run server
+uvicorn example_server:app --reload
+
+# In another terminal, run client
+python example_client.py
+```

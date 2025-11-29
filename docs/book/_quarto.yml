@@ -1,0 +1,50 @@
+project:
+  type: book
+
+execute:
+  enabled: false
+
+book:
+  title: "Cyllama User Guide"
+  author: "S. Alireza"
+  date: "11/29/2025"
+  version: "0.1.15"
+  chapters:
+    - index.qmd
+    - intro.qmd
+    - src/installation.qmd
+    - src/overview.qmd
+    - summary.qmd
+    - part: "Llama.cpp"
+      chapters:
+      - src/user_guide.qmd
+      - src/cookbook.qmd
+      - src/examples.qmd
+      - src/build_backends.qmd
+      - src/context_caching.qmd
+      - src/server_usage_examples.qmd
+    - part: "Whisper.cpp"
+      chapters:
+      - src/whisper.qmd
+    - part: "Stable-Diffusion.cpp"
+      chapters:
+      - src/stable_diffusion.qmd
+    - part: "Agents"
+      chapters:
+      - src/agents_overview.qmd
+  appendices:
+    - src/api_reference.qmd
+    
+
+bibliography: references.bib
+
+format:
+  html:
+    theme:
+      - cosmo
+      - brand
+  pdf:
+    documentclass: scrreprt
+
+
+

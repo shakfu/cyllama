@@ -1,4 +1,6 @@
-# Cyllama User Guide
+---
+title: "User Guide"
+---
 
 Complete guide to using cyllama for LLM inference.
 
@@ -331,6 +333,33 @@ print(f"KV cache: {memory_info.kv_cache_mb:.0f} MB")
 print(f"Total: {memory_info.total_mb:.0f} MB")
 ```
 
+## How LLM Generation Works
+
+Understanding how generation works helps you optimize performance.
+
+**Autoregressive generation** means generating tokens one at a time, where each new token depends on all previous tokens:
+
+1. Feed prompt to model, get probability distribution for next token
+2. Sample/select next token
+3. Feed that token back into the model
+4. Repeat until done
+
+### Prefill vs Decode
+
+- **Prefill**: Process all prompt tokens in parallel (batch operation, very fast)
+- **Decode**: Generate output tokens one-by-one (autoregressive, slower)
+
+| Phase   | Speed      | Notes                          |
+|---------|------------|--------------------------------|
+| Prefill | ~65k tok/s | Parallel batch processing      |
+| Decode  | ~40 tok/s  | Sequential, autoregressive     |
+
+### Performance Implications
+
+- **Time to First Token (TTFT)**: Dominated by prefill time. Longer prompts = longer TTFT.
+- **Generation Speed**: Limited by decode speed, regardless of hardware.
+- **Optimization Strategies**: KV caching, speculative decoding, and batching help mitigate the bottleneck.
+
 ## Performance Optimization
 
 ### GPU Acceleration
@@ -424,13 +453,12 @@ python -c "import cyllama; print(cyllama.__file__)"
 
 ## Best Practices
 
-1. **Reuse Generators**: Create once, generate many times
-2. **Reuse LLM Instances**: Keep the model loaded for multiple requests
-3. **Monitor Memory**: Use memory estimation tools
-4. **Tune Temperature**: Start at 0.7, adjust based on needs
-5. **Use Stop Sequences**: Prevent over-generation
-6. **Stream Long Outputs**: Better UX for users
-7. **Profile Performance**: Measure before optimizing
+1. **Reuse LLM Instances**: Create once, generate many times - avoid reloading the model
+2. **Monitor Memory**: Use memory estimation tools before loading large models
+3. **Tune Temperature**: Start at 0.7, adjust based on needs (lower for factual, higher for creative)
+4. **Use Stop Sequences**: Prevent over-generation with appropriate stop tokens
+5. **Stream Long Outputs**: Better UX for users waiting for responses
+6. **Profile Performance**: Measure before optimizing
 
 ## Examples
 
@@ -442,11 +470,11 @@ See the `tests/examples/` directory for complete working examples:
 
 ## Next Steps
 
-- Read the [Cookbook](cookbook.md) for common patterns
-- Check [API Reference](api_reference.md) for detailed documentation
-- See [Examples](../tests/examples/) for complete code
+- Read the [Cookbook](cookbook.qmd) for common patterns
+- Check [API Reference](api_reference.qmd) for detailed documentation
+- See [Examples](https://github.com/shakfu/cyllama/tree/main/tests/examples) for complete code
 
 ## Support
 
 - GitHub Issues: <https://github.com/shakfu/cyllama/issues>
-- Documentation: <https://github.com/shakfu/cyllama/docs>
+- Documentation: <https://github.com/shakfu/cyllama>

@@ -1,0 +1,200 @@
+---
+title: "Installation"
+---
+
+This guide covers installing cyllama on different platforms.
+
+## Requirements
+
+- Python 3.8 or later
+- C++ compiler (clang or gcc)
+- CMake 3.14+
+- Git
+
+### Platform-Specific Requirements
+
+**macOS:**
+```bash
+xcode-select --install  # Xcode Command Line Tools
+```
+
+**Ubuntu/Debian:**
+```bash
+sudo apt-get update
+sudo apt-get install -y build-essential cmake git python3-dev
+```
+
+**Fedora/RHEL:**
+```bash
+sudo dnf install -y gcc-c++ cmake git python3-devel
+```
+
+## Quick Install
+
+```bash
+# Clone repository
+git clone https://github.com/shakfu/cyllama.git
+cd cyllama
+
+# Build everything (downloads llama.cpp, whisper.cpp, builds cyllama)
+make
+
+# Download a test model
+make download
+
+# Verify installation
+python -c "from cyllama import complete; print('OK')"
+```
+
+## Build Options
+
+### Default Build
+
+The default build enables GPU acceleration appropriate for your platform:
+
+- **macOS**: Metal (Apple GPU)
+- **Linux**: CPU-only (GPU backends optional)
+
+```bash
+make build
+```
+
+### GPU Backends
+
+Build with specific GPU support:
+
+```bash
+# NVIDIA CUDA
+make build-cuda
+
+# Vulkan (cross-platform)
+make build-vulkan
+
+# CPU only (no GPU)
+make build-cpu
+
+# Multiple backends
+GGML_CUDA=1 GGML_VULKAN=1 make build
+```
+
+See [Building with Different Backends](build_backends.qmd) for detailed GPU setup instructions.
+
+### Optional Components
+
+**Stable Diffusion support:**
+```bash
+WITH_STABLEDIFFUSION=1 make build
+```
+
+**Whisper support** (included by default):
+```bash
+make build  # Whisper is built automatically
+```
+
+## Installing Models
+
+### LLM Models (GGUF format)
+
+Download the default test model:
+```bash
+make download
+# Downloads: models/Llama-3.2-1B-Instruct-Q8_0.gguf
+```
+
+Or download manually from [Hugging Face](https://huggingface.co/models?search=gguf):
+```bash
+# Example: Download a model
+curl -L -o models/llama.gguf \
+  "https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q8_0.gguf"
+```
+
+### Whisper Models
+
+Download from [ggerganov/whisper.cpp](https://huggingface.co/ggerganov/whisper.cpp):
+```bash
+curl -L -o models/ggml-base.en.bin \
+  "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin"
+```
+
+### Stable Diffusion Models
+
+Download SDXL Turbo or other SD models in GGUF or safetensors format.
+
+## Verification
+
+### Test Installation
+
+```bash
+# Run test suite
+make test
+
+# Quick smoke test
+python -c "
+from cyllama import complete
+print(complete('Hello', model_path='models/Llama-3.2-1B-Instruct-Q8_0.gguf', max_tokens=10))
+"
+```
+
+### Check GPU Support
+
+```python
+from cyllama import ggml_backend_load_all
+
+# Load all available backends
+ggml_backend_load_all()
+
+# Check what's available
+from cyllama import LlamaModel, LlamaModelParams
+params = LlamaModelParams()
+params.n_gpu_layers = 99  # Request GPU offload
+# If GPU is available, layers will be offloaded
+```
+
+## Troubleshooting
+
+### "No module named 'cyllama'"
+
+Make sure you're in the project directory or have installed cyllama:
+```bash
+cd cyllama
+pip install -e .
+```
+
+### Build Errors
+
+Clean and rebuild:
+```bash
+make reset  # Full clean
+make build
+```
+
+### Metal Not Working (macOS)
+
+Ensure Xcode Command Line Tools are installed:
+```bash
+xcode-select --install
+```
+
+### CUDA Not Found (Linux)
+
+Add CUDA to your PATH:
+```bash
+export PATH=/usr/local/cuda/bin:$PATH
+export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
+```
+
+## Development Install
+
+For development with editable install:
+```bash
+git clone https://github.com/shakfu/cyllama.git
+cd cyllama
+make
+pip install -e .
+```
+
+## Next Steps
+
+- [User Guide](user_guide.qmd) - Learn the API
+- [Cookbook](cookbook.qmd) - Common patterns and recipes
+- [Building with Different Backends](build_backends.qmd) - GPU setup details

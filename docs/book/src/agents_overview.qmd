@@ -1,4 +1,6 @@
-# Cyllama Agent Framework Overview
+---
+title: "Cyllama Agent Framework Overview"
+---
 
 Cyllama includes a zero-dependency agent framework for building tool-using LLM agents. The framework provides three agent architectures, each designed for different reliability and control requirements.
 
@@ -357,8 +359,6 @@ agent = ContractAgent(
 - Additional overhead for contract checking
 - Requires explicit contract definitions
 
-See [CONTRACT_AGENT.md](../CONTRACT_AGENT.md) and [CONTRACT_AGENT_IMPL.md](../CONTRACT_AGENT_IMPL.md) for detailed documentation.
-
 ## Events and Results
 
 ### Event Types
@@ -541,19 +541,6 @@ def transfer_funds(account_id: str, amount: float) -> str:
     """Transfer funds to account."""
     return banking_api.transfer(account_id, amount)
 ```
-
-## Files
-
-| File | Description |
-|------|-------------|
-| `src/cyllama/agents/__init__.py` | Public exports |
-| `src/cyllama/agents/tools.py` | Tool decorator and registry |
-| `src/cyllama/agents/react.py` | ReActAgent implementation |
-| `src/cyllama/agents/constrained.py` | ConstrainedAgent implementation |
-| `src/cyllama/agents/contract.py` | ContractAgent implementation |
-| `src/cyllama/agents/grammar.py` | GBNF grammar generation |
-| `tests/test_agents_*.py` | Unit tests |
-| `tests/examples/agent_*.py` | Example scripts |
 
 ## References
 

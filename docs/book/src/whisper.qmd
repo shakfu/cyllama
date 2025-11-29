@@ -1,0 +1,472 @@
+---
+title: "Whisper.cpp Integration"
+---
+
+Cyllama wraps [whisper.cpp](https://github.com/ggerganov/whisper.cpp) to provide automatic speech recognition (ASR) capabilities in Python.
+
+## Overview
+
+The whisper module provides Python bindings to whisper.cpp, enabling:
+
+- Speech-to-text transcription
+- Multi-language support (100+ languages)
+- Translation to English
+- Word-level timestamps
+- Voice activity detection (VAD)
+- GPU acceleration (Metal, CUDA)
+
+## Quick Start
+
+### Basic Transcription
+
+```python
+from cyllama.whisper import WhisperContext, WhisperFullParams
+import numpy as np
+
+# Load model
+ctx = WhisperContext("models/ggml-base.en.bin")
+
+# Load audio as float32 samples at 16kHz
+# (Use your preferred audio library: scipy, soundfile, librosa, etc.)
+samples = load_audio_as_float32("audio.wav")  # Shape: (n_samples,)
+
+# Transcribe
+params = WhisperFullParams()
+ctx.full(samples, params)
+
+# Get results
+n_segments = ctx.full_n_segments()
+for i in range(n_segments):
+    text = ctx.full_get_segment_text(i)
+    t0 = ctx.full_get_segment_t0(i)  # Start time in centiseconds
+    t1 = ctx.full_get_segment_t1(i)  # End time in centiseconds
+    print(f"[{t0/100:.2f}s - {t1/100:.2f}s] {text}")
+```
+
+### With Language Detection
+
+```python
+from cyllama.whisper import WhisperContext, WhisperFullParams
+
+ctx = WhisperContext("models/ggml-base.bin")  # Multilingual model
+
+params = WhisperFullParams()
+params.language = None  # Auto-detect language
+
+ctx.full(samples, params)
+
+# Get detected language
+lang_id = ctx.full_lang_id()
+lang_name = ctx.lang_str_full(lang_id)
+print(f"Detected language: {lang_name}")
+```
+
+### Translation to English
+
+```python
+params = WhisperFullParams()
+params.translate = True  # Translate to English
+params.language = "de"   # Source language (German)
+
+ctx.full(samples, params)
+```
+
+## API Reference
+
+### Constants
+
+```python
+from cyllama.whisper import WHISPER
+
+WHISPER.SAMPLE_RATE   # 16000 - Required sample rate
+WHISPER.N_FFT         # FFT size
+WHISPER.HOP_LENGTH    # Hop length for STFT
+WHISPER.CHUNK_SIZE    # Chunk size for processing
+```
+
+### WhisperContext
+
+The main context class for model loading and inference.
+
+```python
+from cyllama.whisper import WhisperContext, WhisperContextParams
+
+# Basic loading
+ctx = WhisperContext("models/ggml-base.bin")
+
+# With parameters
+params = WhisperContextParams()
+params.use_gpu = True
+params.flash_attn = True
+params.gpu_device = 0
+
+ctx = WhisperContext("models/ggml-base.bin", params)
+```
+
+**Methods:**
+
+| Method | Description |
+|--------|-------------|
+| `full(samples, params)` | Run full transcription pipeline |
+| `full_n_segments()` | Get number of transcribed segments |
+| `full_get_segment_text(i)` | Get text of segment i |
+| `full_get_segment_t0(i)` | Get start time of segment i (centiseconds) |
+| `full_get_segment_t1(i)` | Get end time of segment i (centiseconds) |
+| `full_n_tokens(i)` | Get number of tokens in segment i |
+| `full_get_token_text(i, j)` | Get text of token j in segment i |
+| `full_get_token_id(i, j)` | Get ID of token j in segment i |
+| `full_get_token_p(i, j)` | Get probability of token j in segment i |
+| `full_lang_id()` | Get detected language ID |
+
+**Model Information:**
+
+| Method | Description |
+|--------|-------------|
+| `is_multilingual()` | Check if model supports multiple languages |
+| `n_vocab()` | Get vocabulary size |
+| `n_text_ctx()` | Get text context size |
+| `n_audio_ctx()` | Get audio context size |
+| `model_type_readable()` | Get model type as string ("base", "small", etc.) |
+
+**Tokenization:**
+
+| Method | Description |
+|--------|-------------|
+| `tokenize(text)` | Convert text to token IDs |
+| `token_to_str(id)` | Convert token ID to text |
+| `token_count(text)` | Count tokens in text |
+
+### WhisperContextParams
+
+Configuration for context creation.
+
+```python
+from cyllama.whisper import WhisperContextParams
+
+params = WhisperContextParams()
+params.use_gpu = True           # Use GPU acceleration
+params.flash_attn = True        # Use flash attention
+params.gpu_device = 0           # GPU device index
+params.dtw_token_timestamps = False  # Enable DTW for precise timestamps
+```
+
+### WhisperFullParams
+
+Configuration for transcription.
+
+```python
+from cyllama.whisper import WhisperFullParams, WhisperSamplingStrategy
+
+params = WhisperFullParams()
+
+# Sampling strategy
+params.strategy = WhisperSamplingStrategy.GREEDY  # or BEAM_SEARCH
+
+# Threading
+params.n_threads = 4
+
+# Language
+params.language = "en"    # Set language (None for auto-detect)
+params.translate = False  # Translate to English
+
+# Timing
+params.offset_ms = 0      # Start offset in milliseconds
+params.duration_ms = 0    # Duration (0 = full audio)
+
+# Output control
+params.no_timestamps = False
+params.single_segment = False
+params.print_progress = False
+params.print_realtime = False
+params.print_timestamps = True
+
+# Token timestamps
+params.token_timestamps = False
+params.temperature = 0.0
+```
+
+### WhisperVadParams
+
+Voice activity detection parameters.
+
+```python
+from cyllama.whisper import WhisperVadParams
+
+vad = WhisperVadParams()
+vad.threshold = 0.6              # VAD threshold (0-1)
+vad.min_speech_duration_ms = 250 # Minimum speech duration
+vad.min_silence_duration_ms = 100  # Minimum silence duration
+vad.max_speech_duration_s = 30.0 # Maximum speech segment
+vad.speech_pad_ms = 30           # Padding around speech
+vad.samples_overlap = 0.0        # Sample overlap
+```
+
+### Sampling Strategies
+
+```python
+from cyllama.whisper import WhisperSamplingStrategy
+
+WhisperSamplingStrategy.GREEDY      # Fast, deterministic
+WhisperSamplingStrategy.BEAM_SEARCH # Better quality, slower
+```
+
+### Language Functions
+
+```python
+from cyllama.whisper import lang_id, lang_str, lang_str_full, lang_max_id
+
+# Get language ID from code
+id = lang_id("en")  # Returns 0
+
+# Get language code from ID
+code = lang_str(0)  # Returns "en"
+
+# Get full language name
+name = lang_str_full(0)  # Returns "english"
+
+# Get maximum language ID
+max_id = lang_max_id()  # Returns ~100
+```
+
+### Module Functions
+
+```python
+from cyllama.whisper import version, print_system_info
+
+# Get whisper.cpp version
+ver = version()
+
+# Get system info (CPU features, etc.)
+info = print_system_info()
+```
+
+## Audio Preparation
+
+Whisper requires:
+
+- **Sample rate**: 16000 Hz (mono)
+- **Format**: Float32 normalized to [-1.0, 1.0]
+
+### Using scipy
+
+```python
+from scipy.io import wavfile
+import numpy as np
+
+def load_audio(path: str) -> np.ndarray:
+    rate, data = wavfile.read(path)
+
+    # Convert to mono if stereo
+    if len(data.shape) > 1:
+        data = data.mean(axis=1)
+
+    # Convert to float32
+    if data.dtype == np.int16:
+        data = data.astype(np.float32) / 32768.0
+    elif data.dtype == np.int32:
+        data = data.astype(np.float32) / 2147483648.0
+
+    # Resample to 16kHz if needed
+    if rate != 16000:
+        from scipy import signal
+        num_samples = int(len(data) * 16000 / rate)
+        data = signal.resample(data, num_samples)
+
+    return data.astype(np.float32)
+```
+
+### Using soundfile
+
+```python
+import soundfile as sf
+import numpy as np
+
+def load_audio(path: str) -> np.ndarray:
+    data, rate = sf.read(path, dtype='float32')
+
+    # Convert to mono
+    if len(data.shape) > 1:
+        data = data.mean(axis=1)
+
+    # Resample if needed
+    if rate != 16000:
+        import resampy
+        data = resampy.resample(data, rate, 16000)
+
+    return data.astype(np.float32)
+```
+
+## Common Patterns
+
+### Transcription with Timestamps
+
+```python
+def transcribe_with_timestamps(audio_path: str, model_path: str) -> list:
+    ctx = WhisperContext(model_path)
+    samples = load_audio(audio_path)
+
+    params = WhisperFullParams()
+    params.print_timestamps = True
+
+    ctx.full(samples, params)
+
+    results = []
+    for i in range(ctx.full_n_segments()):
+        results.append({
+            "start": ctx.full_get_segment_t0(i) / 100.0,
+            "end": ctx.full_get_segment_t1(i) / 100.0,
+            "text": ctx.full_get_segment_text(i).strip()
+        })
+
+    return results
+```
+
+### Word-Level Timestamps
+
+```python
+def transcribe_with_word_timestamps(audio_path: str, model_path: str) -> list:
+    params = WhisperContextParams()
+    params.dtw_token_timestamps = True
+
+    ctx = WhisperContext(model_path, params)
+    samples = load_audio(audio_path)
+
+    fparams = WhisperFullParams()
+    fparams.token_timestamps = True
+
+    ctx.full(samples, fparams)
+
+    words = []
+    for i in range(ctx.full_n_segments()):
+        for j in range(ctx.full_n_tokens(i)):
+            token_data = ctx.full_get_token_data(i, j)
+            text = ctx.full_get_token_text(i, j)
+            if text.strip():
+                words.append({
+                    "word": text,
+                    "start": token_data.t0 / 100.0,
+                    "end": token_data.t1 / 100.0,
+                    "probability": token_data.p
+                })
+
+    return words
+```
+
+### Batch Processing
+
+```python
+def transcribe_batch(audio_paths: list, model_path: str) -> dict:
+    ctx = WhisperContext(model_path)
+    params = WhisperFullParams()
+
+    results = {}
+    for path in audio_paths:
+        samples = load_audio(path)
+        ctx.full(samples, params)
+
+        text = ""
+        for i in range(ctx.full_n_segments()):
+            text += ctx.full_get_segment_text(i)
+
+        results[path] = text.strip()
+
+    return results
+```
+
+### Streaming Transcription
+
+For real-time or streaming audio, process in chunks:
+
+```python
+def transcribe_stream(audio_stream, model_path: str, chunk_seconds: float = 30.0):
+    ctx = WhisperContext(model_path)
+    params = WhisperFullParams()
+    params.single_segment = True
+
+    chunk_samples = int(16000 * chunk_seconds)
+    buffer = np.array([], dtype=np.float32)
+
+    for chunk in audio_stream:
+        buffer = np.concatenate([buffer, chunk])
+
+        if len(buffer) >= chunk_samples:
+            ctx.full(buffer[:chunk_samples], params)
+
+            for i in range(ctx.full_n_segments()):
+                yield ctx.full_get_segment_text(i)
+
+            # Keep overlap for continuity
+            buffer = buffer[chunk_samples - 1600:]  # 100ms overlap
+```
+
+## Model Selection
+
+| Model | Size | Memory | Speed | Quality |
+|-------|------|--------|-------|---------|
+| tiny | 75 MB | ~400 MB | Fastest | Basic |
+| base | 142 MB | ~500 MB | Fast | Good |
+| small | 466 MB | ~1 GB | Medium | Better |
+| medium | 1.5 GB | ~2.5 GB | Slow | Great |
+| large-v3 | 3 GB | ~5 GB | Slowest | Best |
+| large-v3-turbo | 1.6 GB | ~3 GB | Medium | Great |
+
+**English-only models** (`.en` suffix) are faster and more accurate for English:
+
+- `ggml-tiny.en.bin`
+- `ggml-base.en.bin`
+- `ggml-small.en.bin`
+- `ggml-medium.en.bin`
+
+Download models from [Hugging Face](https://huggingface.co/ggerganov/whisper.cpp).
+
+## Performance Tips
+
+1. **Use GPU**: Enable `use_gpu=True` in context params
+2. **Use Flash Attention**: Enable `flash_attn=True` for faster inference
+3. **Match model to task**: Use `.en` models for English-only content
+4. **Batch by length**: Group similar-length audio for consistent memory usage
+5. **Thread count**: Set `n_threads` to match physical CPU cores
+
+## Troubleshooting
+
+### Model Loading Errors
+
+```python
+# Check model path exists
+import os
+if not os.path.exists(model_path):
+    raise FileNotFoundError(f"Model not found: {model_path}")
+
+# Check model format
+if not model_path.endswith('.bin'):
+    print("Warning: Whisper models should be .bin format (ggml)")
+```
+
+### Audio Issues
+
+```python
+# Verify audio format
+print(f"Sample rate: {rate}")
+print(f"Dtype: {samples.dtype}")
+print(f"Shape: {samples.shape}")
+print(f"Range: [{samples.min():.2f}, {samples.max():.2f}]")
+
+# Should be: 16000, float32, (N,), [-1.0, 1.0]
+```
+
+### Memory Issues
+
+```python
+# Use smaller model
+ctx = WhisperContext("models/ggml-tiny.bin")
+
+# Disable GPU if VRAM limited
+params = WhisperContextParams()
+params.use_gpu = False
+```
+
+## See Also
+
+- [whisper.cpp repository](https://github.com/ggerganov/whisper.cpp)
+- [Whisper model card](https://huggingface.co/openai/whisper-large-v3)
+- [Autoregressive Generation](autoregressive_generation.qmd) - How token generation works
