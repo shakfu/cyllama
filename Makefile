@@ -275,22 +275,22 @@ show-backends:
 	@echo "  GGML_OPENCL:  $(GGML_OPENCL)"
 
 build-cpu: $(LIBLAMMA)
-	@GGML_METAL=0 GGML_CUDA=0 GGML_VULKAN=0 uv pip install --no-build-isolation -e .
+	@GGML_METAL=0 GGML_CUDA=0 GGML_VULKAN=0 uv pip install -e .
 
 build-metal: $(LIBLAMMA)
-	@GGML_METAL=1 GGML_CUDA=0 GGML_VULKAN=0 uv pip install --no-build-isolation -e .
+	@GGML_METAL=1 GGML_CUDA=0 GGML_VULKAN=0 uv pip install -e .
 
 build-cuda: $(LIBLAMMA)
-	@GGML_METAL=0 GGML_CUDA=1 GGML_VULKAN=0 uv pip install --no-build-isolation -e .
+	@GGML_METAL=0 GGML_CUDA=1 GGML_VULKAN=0 uv pip install -e .
 
 build-vulkan: $(LIBLAMMA)
-	@GGML_METAL=0 GGML_CUDA=0 GGML_VULKAN=1 uv pip install --no-build-isolation -e .
+	@GGML_METAL=0 GGML_CUDA=0 GGML_VULKAN=1 uv pip install -e .
 
 build-sycl: $(LIBLAMMA)
-	@GGML_METAL=0 GGML_CUDA=0 GGML_SYCL=1 uv pip install --no-build-isolation -e .
+	@GGML_METAL=0 GGML_CUDA=0 GGML_SYCL=1 uv pip install -e .
 
 build-hip: $(LIBLAMMA)
-	@GGML_METAL=0 GGML_CUDA=0 GGML_HIP=1 uv pip install --no-build-isolation -e .
+	@GGML_METAL=0 GGML_CUDA=0 GGML_HIP=1 uv pip install -e .
 
 # Wheel targets with specific backends
 wheel-cpu: $(LIBLAMMA)

@@ -186,7 +186,7 @@ params.n_gpu_layers = 99  # Request GPU offload
 Make sure you're in the project directory or have installed cyllama:
 ```bash
 cd cyllama
-make  # or: uv pip install --no-build-isolation -e .
+make  # or: uv pip install -e .
 ```
 
 ### Build Errors
@@ -223,7 +223,7 @@ make  # Builds dependencies and installs in editable mode
 
 For manual editable install (after dependencies are built):
 ```bash
-uv pip install --no-build-isolation -e .
+uv pip install -e .
 ```
 
 ## Next Steps

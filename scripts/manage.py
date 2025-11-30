@@ -1477,7 +1477,7 @@ class Application(ShellCmd, metaclass=MetaCommander):
             builder.build()
 
         # Build using scikit-build-core (editable install)
-        _cmd = "uv pip install --no-build-isolation -e ."
+        _cmd = "uv pip install -e ."
         self.cmd(_cmd)
 
     # ------------------------------------------------------------------------
