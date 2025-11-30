@@ -45,6 +45,10 @@ jobs:
       shell: bash
       run: scripts/setup.sh
 
+    - name: Sync dependencies (Windows)
+      if: runner.os == 'Windows'
+      run: uv sync
+
     - name: Build wheel (Unix)
       if: runner.os != 'Windows'
       run: make wheel

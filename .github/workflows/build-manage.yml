@@ -26,8 +26,11 @@ jobs:
     - name: Build dependencies and extension
       run: python scripts/manage.py build --all
 
+    - name: Sync dependencies
+      run: uv sync
+
     - name: Build wheel
-      run: uv build
+      run: uv build --wheel
 
     - name: Check distributions
       run: uv run twine check dist/*.whl
@@ -62,8 +65,11 @@ jobs:
     - name: Build dependencies and extension
       run: python scripts/manage.py build --all
 
+    - name: Sync dependencies
+      run: uv sync
+
     - name: Build wheel
-      run: uv build
+      run: uv build --wheel
 
     - name: Repair wheel with auditwheel
       run: |
@@ -104,8 +110,11 @@ jobs:
     - name: Build dependencies and extension
       run: python scripts/manage.py build --all
 
+    - name: Sync dependencies
+      run: uv sync
+
     - name: Build wheel
-      run: uv build
+      run: uv build --wheel
 
     - name: Repair wheel with delvewheel
       run: |
@@ -113,7 +122,6 @@ jobs:
         Get-ChildItem dist/*.whl | ForEach-Object {
           uv run delvewheel repair $_.FullName -w dist/
         }
-        Remove-Item dist/*-win_amd64.whl -ErrorAction SilentlyContinue
 
     - name: Check distributions
       run: uv run twine check dist/*.whl
