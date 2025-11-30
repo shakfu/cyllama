@@ -17,12 +17,8 @@ from pathlib import Path
 from typing import List, Optional, Dict, Any, Tuple
 import threading
 
-# Import the whisper module
-try:
-    from . import whisper_cpp as wh
-except ImportError:
-    # When running as script, use absolute import
-    import whisper_cpp as wh
+# Import the whisper module (use: python -m cyllama.whisper.cli)
+from . import whisper_cpp as wh
 
 
 class WhisperParams:

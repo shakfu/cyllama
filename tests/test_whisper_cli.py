@@ -247,13 +247,9 @@ class TestCLIIntegration:
 
     def test_cli_help(self):
         """Test CLI help output."""
-        project_root = Path(__file__).parent.parent
-        cli_path = project_root / 'src' / 'cyllama' / 'whisper' / 'cli.py'
-
         result = subprocess.run([
-            sys.executable, str(cli_path), '--help'
-        ], capture_output=True, text=True,
-        env={**os.environ, 'PYTHONPATH': str(project_root / 'src')})
+            sys.executable, '-m', 'cyllama.whisper.cli', '--help'
+        ], capture_output=True, text=True)
 
         assert result.returncode == 0
         assert 'Whisper CLI - Speech-to-text transcription' in result.stdout
@@ -263,27 +259,19 @@ class TestCLIIntegration:
 
     def test_cli_missing_input_file(self):
         """Test CLI with missing input file."""
-        project_root = Path(__file__).parent.parent
-        cli_path = project_root / 'src' / 'cyllama' / 'whisper' / 'cli.py'
-
         result = subprocess.run([
-            sys.executable, str(cli_path)
-        ], capture_output=True, text=True,
-        env={**os.environ, 'PYTHONPATH': str(project_root / 'src')})
+            sys.executable, '-m', 'cyllama.whisper.cli'
+        ], capture_output=True, text=True)
 
         assert result.returncode == 1
         assert 'No input files specified' in result.stderr
 
     def test_cli_nonexistent_model(self):
         """Test CLI with non-existent model file."""
-        project_root = Path(__file__).parent.parent
-        cli_path = project_root / 'src' / 'cyllama' / 'whisper' / 'cli.py'
-
         result = subprocess.run([
-            sys.executable, str(cli_path),
+            sys.executable, '-m', 'cyllama.whisper.cli',
             '-f', 'nonexistent.wav', '-m', 'nonexistent.bin'
-        ], capture_output=True, text=True,
-        env={**os.environ, 'PYTHONPATH': str(project_root / 'src')})
+        ], capture_output=True, text=True)
 
         assert result.returncode == 1
         assert 'Model file not found' in result.stderr
@@ -291,14 +279,12 @@ class TestCLIIntegration:
     def test_cli_nonexistent_audio_file(self, whisper_model_path):
         """Test CLI with non-existent audio file."""
         project_root = Path(__file__).parent.parent
-        cli_path = project_root / 'src' / 'cyllama' / 'whisper' / 'cli.py'
         model_path = project_root / whisper_model_path
 
         result = subprocess.run([
-            sys.executable, str(cli_path),
+            sys.executable, '-m', 'cyllama.whisper.cli',
             '-f', 'nonexistent.wav', '-m', str(model_path), '--no-prints'
-        ], capture_output=True, text=True,
-        env={**os.environ, 'PYTHONPATH': str(project_root / 'src')})
+        ], capture_output=True, text=True)
 
         assert result.returncode == 0  # Should continue processing other files
         assert 'Input file not found' in result.stderr
@@ -315,15 +301,13 @@ class TestCLIIntegration:
             project_root = Path(__file__).parent.parent
             audio_path = project_root / sample_audio_path
             model_path = project_root / whisper_model_path
-            cli_path = project_root / 'src' / 'cyllama' / 'whisper' / 'cli.py'
 
             result = subprocess.run([
-                sys.executable, str(cli_path),
+                sys.executable, '-m', 'cyllama.whisper.cli',
                 '-f', str(audio_path),
                 '-m', str(model_path),
                 '--no-prints'
-            ], capture_output=True, text=True, timeout=120,
-            env={**os.environ, 'PYTHONPATH': str(project_root / 'src')})
+            ], capture_output=True, text=True, timeout=120)
 
             assert result.returncode == 0
             # Check that output contains transcribed text
@@ -346,15 +330,13 @@ class TestCLIIntegration:
             project_root = Path(__file__).parent.parent
             audio_path = project_root / sample_audio_path
             model_path = project_root / whisper_model_path
-            cli_path = project_root / 'src' / 'cyllama' / 'whisper' / 'cli.py'
 
             result = subprocess.run([
-                sys.executable, str(cli_path),
+                sys.executable, '-m', 'cyllama.whisper.cli',
                 '-f', str(audio_path),
                 '-m', str(model_path),
                 '--output-srt', '--no-prints'
-            ], capture_output=True, text=True, timeout=120,
-            env={**os.environ, 'PYTHONPATH': str(project_root / 'src')})
+            ], capture_output=True, text=True, timeout=120)
 
             assert result.returncode == 0
 
@@ -382,15 +364,13 @@ class TestCLIIntegration:
             project_root = Path(__file__).parent.parent
             audio_path = project_root / sample_audio_path
             model_path = project_root / whisper_model_path
-            cli_path = project_root / 'src' / 'cyllama' / 'whisper' / 'cli.py'
 
             result = subprocess.run([
-                sys.executable, str(cli_path),
+                sys.executable, '-m', 'cyllama.whisper.cli',
                 '-f', str(audio_path),
                 '-m', str(model_path),
                 '--output-json', '--no-prints'
-            ], capture_output=True, text=True, timeout=120,
-            env={**os.environ, 'PYTHONPATH': str(project_root / 'src')})
+            ], capture_output=True, text=True, timeout=120)
 
             assert result.returncode == 0
 
@@ -431,15 +411,13 @@ class TestCLIIntegration:
             project_root = Path(__file__).parent.parent
             audio_path = project_root / sample_audio_path
             model_path = project_root / whisper_model_path
-            cli_path = project_root / 'src' / 'cyllama' / 'whisper' / 'cli.py'
 
             result = subprocess.run([
-                sys.executable, str(cli_path),
+                sys.executable, '-m', 'cyllama.whisper.cli',
                 '-f', str(audio_path),
                 '-m', str(model_path),
                 '--output-srt', '--output-vtt', '--output-csv', '--no-prints'
-            ], capture_output=True, text=True, timeout=120,
-            env={**os.environ, 'PYTHONPATH': str(project_root / 'src')})
+            ], capture_output=True, text=True, timeout=120)
 
             assert result.returncode == 0
 

@@ -99,7 +99,11 @@ get_llamacpp() {
 	LIB=${PREFIX}/lib
 
 	# Build CMake args based on environment variables
-	CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DLLAMA_CURL=OFF"
+	# Disable curl/httplib to avoid linking issues on Windows
+	CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON"
+	CMAKE_ARGS="$CMAKE_ARGS -DLLAMA_CURL=OFF -DLLAMA_HTTPLIB=OFF"
+	CMAKE_ARGS="$CMAKE_ARGS -DLLAMA_BUILD_SERVER=OFF -DLLAMA_BUILD_TESTS=OFF"
+	CMAKE_ARGS="$CMAKE_ARGS -DLLAMA_BUILD_EXAMPLES=OFF"
 
 	# Explicitly disable Metal on non-macOS
 	if [ "$IS_MACOS" = "0" ]; then
@@ -143,21 +147,26 @@ get_llamacpp() {
 			git clone ${BRANCH} --depth=1 --recursive --shallow-submodules https://github.com/ggml-org/llama.cpp.git
 		fi && \
 		cd llama.cpp && \
+		cp include/*.h ${INCLUDE} && \
 		cp common/*.h ${INCLUDE} && \
 		cp common/*.hpp ${INCLUDE} && \
 		cp ggml/include/*.h ${INCLUDE} && \
+		cp tools/mtmd/*.h ${INCLUDE} && \
 		mkdir -p ${INCLUDE}/nlohmann && \
 		cp vendor/nlohmann/*.hpp ${INCLUDE}/nlohmann/ && \
 		mkdir -p build && \
 		cd build && \
 		echo "Building with: cmake .. $CMAKE_ARGS" && \
 		cmake .. $CMAKE_ARGS && \
-		cmake --build . --config Release && \
-		cmake --install . --prefix ${PREFIX} && \
-		echo "Copying additional libraries..." && \
+		echo "Building specific targets: llama, common, mtmd..." && \
+		cmake --build . --config Release --target llama common mtmd && \
+		echo "Copying libraries..." && \
+		copy_lib "src" "llama" "${LIB}" && \
+		copy_lib "ggml/src" "ggml" "${LIB}" && \
 		copy_lib "ggml/src" "ggml-base" "${LIB}" && \
 		copy_lib "ggml/src" "ggml-cpu" "${LIB}" && \
-		copy_lib "common" "common" "${LIB}"
+		copy_lib "common" "common" "${LIB}" && \
+		copy_lib "tools/mtmd" "mtmd" "${LIB}"
 
 	# Copy backend-specific libraries
 	if [ "${GGML_METAL:-$METAL_DEFAULT}" = "1" ] && [ "$IS_MACOS" = "1" ]; then
