@@ -36,7 +36,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: release-dist-cyllama-wheel-macos
-        path: dist/
+        path: dist/*
         retention-days: 10
 
   build-linux:
