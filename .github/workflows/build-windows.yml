@@ -24,8 +24,7 @@ jobs:
 
     - name: Build llama.cpp and dependencies
       shell: bash
-      run: |
-        scripts/setup.sh
+      run: scripts/setup.sh
 
     - name: Build wheel
       shell: bash
