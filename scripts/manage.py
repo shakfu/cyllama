@@ -1432,6 +1432,9 @@ class Application(ShellCmd, metaclass=MetaCommander):
     @opt("-l", "--llama-cpp", "build llama-cpp")
     @opt("-s", "--shared",  "build shared libraries")
     @opt("-a", "--all", "build all")
+    @option("--llama-version", default=LLAMACPP_VERSION, help=f"llama.cpp version (default: {LLAMACPP_VERSION})")
+    @option("--whisper-version", default=WHISPERCPP_VERSION, help=f"whisper.cpp version (default: {WHISPERCPP_VERSION})")
+    @option("--sd-version", default=SDCPP_VERSION, help=f"stable-diffusion.cpp version (default: {SDCPP_VERSION})")
     def do_build(self, args: argparse.Namespace) -> None:
         """build packages"""
         # Set backend environment variables based on command-line args
@@ -1456,6 +1459,13 @@ class Application(ShellCmd, metaclass=MetaCommander):
             if args.opencl:
                 os.environ["GGML_OPENCL"] = "1"
 
+        # Map builder classes to their version arguments
+        builder_versions = {
+            LlamaCppBuilder: args.llama_version,
+            WhisperCppBuilder: args.whisper_version,
+            StableDiffusionCppBuilder: args.sd_version,
+        }
+
         _builders = []
 
         if args.all:
@@ -1468,8 +1478,9 @@ class Application(ShellCmd, metaclass=MetaCommander):
             if args.stable_diffusion:
                 _builders.append(StableDiffusionCppBuilder)
 
-        for Builder in _builders:
-            builder = Builder()
+        for BuilderClass in _builders:
+            version = builder_versions.get(BuilderClass)
+            builder = BuilderClass(version=version)
             builder.build()
 
         # _cmd = f'"{PYTHON}" setup.py build_ext --inplace'
