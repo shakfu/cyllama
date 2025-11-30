@@ -1,4 +1,4 @@
-name: build-simple
+name: build-manage
 
 on: [workflow_dispatch]
 
@@ -11,7 +11,7 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
-        fetch-depth: 0  # Get all tags for version detection
+        fetch-depth: 0
 
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -23,14 +23,14 @@ jobs:
         curl -LsSf https://astral.sh/uv/install.sh | sh
         echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
-    - name: Install dependencies
-      run: make
+    - name: Build dependencies and extension
+      run: uv run python scripts/manage.py build --all
 
     - name: Build wheel
-      run: make wheel
+      run: uv build
 
     - name: Check distributions
-      run: make wheel-check
+      run: uv run twine check dist/*.whl
 
     - name: Upload release artifacts
       uses: actions/upload-artifact@v4
@@ -47,7 +47,7 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
-        fetch-depth: 0  # Get all tags for version detection
+        fetch-depth: 0
 
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -59,11 +59,11 @@ jobs:
         curl -LsSf https://astral.sh/uv/install.sh | sh
         echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
-    - name: Install dependencies
-      run: make
+    - name: Build dependencies and extension
+      run: uv run python scripts/manage.py build --all
 
     - name: Build wheel
-      run: make wheel
+      run: uv build
 
     - name: Repair wheel with auditwheel
       run: |
@@ -72,7 +72,7 @@ jobs:
         rm dist/*-linux_x86_64.whl
 
     - name: Check distributions
-      run: make wheel-check
+      run: uv run twine check dist/*.whl
 
     - name: Upload release artifacts
       uses: actions/upload-artifact@v4
@@ -101,15 +101,11 @@ jobs:
         irm https://astral.sh/uv/install.ps1 | iex
         echo "$env:USERPROFILE\.local\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
-    - name: Build llama.cpp and dependencies
-      shell: bash
-      run: scripts/setup.sh
+    - name: Build dependencies and extension
+      run: uv run python scripts/manage.py build --all
 
     - name: Build wheel
-      shell: bash
-      run: |
-        uv run python setup.py build_ext --inplace
-        uv build
+      run: uv build
 
     - name: Repair wheel with delvewheel
       run: |
@@ -120,7 +116,6 @@ jobs:
         Remove-Item dist/*-win_amd64.whl -ErrorAction SilentlyContinue
 
     - name: Check distributions
-      shell: bash
       run: uv run twine check dist/*.whl
 
     - name: Upload release artifacts

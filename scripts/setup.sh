@@ -15,13 +15,49 @@ LAST_WORKING_WHISPERCPP="v1.8.2"
 STABLE_BUILD=1
 GET_LAST_WORKING_LLAMACPP="${1:-$STABLE_BUILD}"
 
-# Detect OS and set Metal default accordingly (Metal is macOS-only)
+# Detect OS
 OS_TYPE=$(uname -s)
-if [ "$OS_TYPE" = "Darwin" ]; then
-	METAL_DEFAULT=1
-else
-	METAL_DEFAULT=0
-fi
+IS_WINDOWS=0
+IS_MACOS=0
+IS_LINUX=0
+
+case "$OS_TYPE" in
+	Darwin)
+		IS_MACOS=1
+		METAL_DEFAULT=1
+		LIB_PREFIX="lib"
+		STATIC_LIB_EXT=".a"
+		CMAKE_BUILD_SUBDIR=""
+		;;
+	MINGW*|MSYS*|CYGWIN*)
+		IS_WINDOWS=1
+		METAL_DEFAULT=0
+		LIB_PREFIX=""
+		STATIC_LIB_EXT=".lib"
+		CMAKE_BUILD_SUBDIR="/Release"
+		;;
+	Linux)
+		IS_LINUX=1
+		METAL_DEFAULT=0
+		LIB_PREFIX="lib"
+		STATIC_LIB_EXT=".a"
+		CMAKE_BUILD_SUBDIR=""
+		;;
+	*)
+		echo "Unknown OS: $OS_TYPE"
+		METAL_DEFAULT=0
+		LIB_PREFIX="lib"
+		STATIC_LIB_EXT=".a"
+		CMAKE_BUILD_SUBDIR=""
+		;;
+esac
+
+echo "Detected OS: $OS_TYPE"
+echo "  IS_WINDOWS: $IS_WINDOWS"
+echo "  IS_MACOS: $IS_MACOS"
+echo "  IS_LINUX: $IS_LINUX"
+echo "  Library prefix: '$LIB_PREFIX'"
+echo "  Static lib extension: '$STATIC_LIB_EXT'"
 
 if [ $GET_LAST_WORKING_LLAMACPP -eq 1 ]; then
 	echo "get last working release: ${LAST_WORKING_LLAMACPP}"
@@ -31,9 +67,33 @@ else
 	BRANCH= # bleeding edge (llama.cpp main)
 fi
 
+# Helper function to copy library with platform-specific naming
+# Usage: copy_lib <source_dir> <lib_name> <dest_dir>
+copy_lib() {
+	SRC_DIR="$1"
+	LIB_NAME="$2"
+	DEST_DIR="$3"
+
+	# Try Release subdirectory first (Windows), then direct path (Unix)
+	if [ -f "${SRC_DIR}/Release/${LIB_NAME}${STATIC_LIB_EXT}" ]; then
+		cp "${SRC_DIR}/Release/${LIB_NAME}${STATIC_LIB_EXT}" "${DEST_DIR}/" && \
+		echo "  Copied ${LIB_NAME}${STATIC_LIB_EXT} from Release/"
+	elif [ -f "${SRC_DIR}/${LIB_PREFIX}${LIB_NAME}${STATIC_LIB_EXT}" ]; then
+		cp "${SRC_DIR}/${LIB_PREFIX}${LIB_NAME}${STATIC_LIB_EXT}" "${DEST_DIR}/" && \
+		echo "  Copied ${LIB_PREFIX}${LIB_NAME}${STATIC_LIB_EXT}"
+	elif [ -f "${SRC_DIR}/${LIB_NAME}${STATIC_LIB_EXT}" ]; then
+		cp "${SRC_DIR}/${LIB_NAME}${STATIC_LIB_EXT}" "${DEST_DIR}/" && \
+		echo "  Copied ${LIB_NAME}${STATIC_LIB_EXT}"
+	else
+		echo "  Warning: ${LIB_NAME} not found in ${SRC_DIR}"
+		return 1
+	fi
+	return 0
+}
 
 get_llamacpp() {
-	echo "update from llama.cpp main repo"
+	echo ""
+	echo "=== Building llama.cpp ==="
 	PREFIX=${THIRDPARTY}/llama.cpp
 	INCLUDE=${PREFIX}/include
 	LIB=${PREFIX}/lib
@@ -41,8 +101,13 @@ get_llamacpp() {
 	# Build CMake args based on environment variables
 	CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DLLAMA_CURL=OFF"
 
+	# Explicitly disable Metal on non-macOS
+	if [ "$IS_MACOS" = "0" ]; then
+		CMAKE_ARGS="$CMAKE_ARGS -DGGML_METAL=OFF"
+	fi
+
 	# Check backend environment variables and add appropriate flags
-	if [ "${GGML_METAL:-$METAL_DEFAULT}" = "1" ]; then
+	if [ "${GGML_METAL:-$METAL_DEFAULT}" = "1" ] && [ "$IS_MACOS" = "1" ]; then
 		CMAKE_ARGS="$CMAKE_ARGS -DGGML_METAL=ON"
 		echo "Enabling Metal backend"
 	fi
@@ -72,7 +137,7 @@ get_llamacpp() {
 		echo "Enabling OpenCL backend"
 	fi
 
-	mkdir -p build ${INCLUDE} && \
+	mkdir -p build ${INCLUDE} ${LIB} && \
 		cd build && \
 		if [ ! -d "llama.cpp" ]; then
 			git clone ${BRANCH} --depth=1 --recursive --shallow-submodules https://github.com/ggml-org/llama.cpp.git
@@ -89,29 +154,39 @@ get_llamacpp() {
 		cmake .. $CMAKE_ARGS && \
 		cmake --build . --config Release && \
 		cmake --install . --prefix ${PREFIX} && \
-		cp ggml/src/libggml-base.a ${LIB} && \
-		cp ggml/src/libggml-cpu.a ${LIB} && \
-		if [ "${GGML_METAL:-$METAL_DEFAULT}" = "1" ]; then
-			cp ggml/src/ggml-blas/libggml-blas.a ${LIB} 2>/dev/null || true && \
-			cp ggml/src/ggml-metal/libggml-metal.a ${LIB} 2>/dev/null || true
-		fi && \
-		if [ "${GGML_CUDA:-0}" = "1" ]; then
-			cp ggml/src/ggml-cuda/libggml-cuda.a ${LIB} 2>/dev/null || true
-		fi && \
-		if [ "${GGML_VULKAN:-0}" = "1" ]; then
-			cp ggml/src/ggml-vulkan/libggml-vulkan.a ${LIB} 2>/dev/null || true
-		fi && \
-		if [ "${GGML_SYCL:-0}" = "1" ]; then
-			cp ggml/src/ggml-sycl/libggml-sycl.a ${LIB} 2>/dev/null || true
-		fi && \
-		if [ "${GGML_HIP:-0}" = "1" ]; then
-			cp ggml/src/ggml-hip/libggml-hip.a ${LIB} 2>/dev/null || true
-		fi && \
-		if [ "${GGML_OPENCL:-0}" = "1" ]; then
-			cp ggml/src/ggml-opencl/libggml-opencl.a ${LIB} 2>/dev/null || true
-		fi && \
-		cp common/libcommon.a ${LIB} && \
-		cd ${CWD} || exit
+		echo "Copying additional libraries..." && \
+		copy_lib "ggml/src" "ggml-base" "${LIB}" && \
+		copy_lib "ggml/src" "ggml-cpu" "${LIB}" && \
+		copy_lib "common" "common" "${LIB}"
+
+	# Copy backend-specific libraries
+	if [ "${GGML_METAL:-$METAL_DEFAULT}" = "1" ] && [ "$IS_MACOS" = "1" ]; then
+		copy_lib "ggml/src/ggml-blas" "ggml-blas" "${LIB}" 2>/dev/null || true
+		copy_lib "ggml/src/ggml-metal" "ggml-metal" "${LIB}" 2>/dev/null || true
+	fi
+
+	if [ "${GGML_CUDA:-0}" = "1" ]; then
+		copy_lib "ggml/src/ggml-cuda" "ggml-cuda" "${LIB}" 2>/dev/null || true
+	fi
+
+	if [ "${GGML_VULKAN:-0}" = "1" ]; then
+		copy_lib "ggml/src/ggml-vulkan" "ggml-vulkan" "${LIB}" 2>/dev/null || true
+	fi
+
+	if [ "${GGML_SYCL:-0}" = "1" ]; then
+		copy_lib "ggml/src/ggml-sycl" "ggml-sycl" "${LIB}" 2>/dev/null || true
+	fi
+
+	if [ "${GGML_HIP:-0}" = "1" ]; then
+		copy_lib "ggml/src/ggml-hip" "ggml-hip" "${LIB}" 2>/dev/null || true
+	fi
+
+	if [ "${GGML_OPENCL:-0}" = "1" ]; then
+		copy_lib "ggml/src/ggml-opencl" "ggml-opencl" "${LIB}" 2>/dev/null || true
+	fi
+
+	cd ${CWD} || exit
+	echo "llama.cpp build complete!"
 }
 
 get_llamacpp_shared() {
@@ -135,50 +210,54 @@ get_llamacpp_shared() {
 		cmake .. -DBUILD_SHARED_LIBS=ON -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_INSTALL_NAME_DIR=${LIB} && \
 		cmake --build . --config Release && \
 		cmake --install . --prefix ${PREFIX} && \
-		cp common/libcommon.a ${LIB} && \
+		copy_lib "common" "common" "${LIB}" && \
 		cd ${CWD} || exit
 }
 
 get_whispercpp() {
-	echo "update from whisper.cpp main repo"
+	echo ""
+	echo "=== Building whisper.cpp ==="
 	WHISPERCPP_VERSION=${LAST_WORKING_WHISPERCPP}
 	PREFIX=${THIRDPARTY}/whisper.cpp
 	INCLUDE=${PREFIX}/include
 	LIB=${PREFIX}/lib
 	BIN=${PREFIX}/bin
-	mkdir -p build ${INCLUDE} && \
+	mkdir -p build ${INCLUDE} ${LIB} ${BIN} && \
 		cd build && \
 		if [ ! -d "whisper.cpp" ]; then
 			git clone --branch ${WHISPERCPP_VERSION} --depth=1 --recursive --shallow-submodules https://github.com/ggml-org/whisper.cpp.git
 		fi && \
 		cd whisper.cpp && \
-		cp examples/*.h ${INCLUDE} && \
-		cp examples/*.hpp ${INCLUDE} && \
+		cp examples/*.h ${INCLUDE} 2>/dev/null || true && \
+		cp examples/*.hpp ${INCLUDE} 2>/dev/null || true && \
 		mkdir -p build && \
 		cd build && \
 		cmake .. -DBUILD_SHARED_LIBS=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON && \
 		cmake --build . --config Release && \
 		cmake --install . --prefix ${PREFIX} && \
-		cp examples/libcommon.a ${LIB} && \
-		cp -rf bin/* ${BIN} && \
+		echo "Copying additional libraries..." && \
+		copy_lib "examples" "common" "${LIB}" && \
+		cp -rf bin${CMAKE_BUILD_SUBDIR}/* ${BIN} 2>/dev/null || true && \
 		cd ${CWD} || exit
+	echo "whisper.cpp build complete!"
 }
 
 get_stablediffusioncpp() {
-	echo "update from stable-diffusion.cpp main repo"
+	echo ""
+	echo "=== Building stable-diffusion.cpp ==="
 	SDCPP_VERSION=${LAST_WORKING_SDCPP}
 	PREFIX=${THIRDPARTY}/stable-diffusion.cpp
 	INCLUDE=${PREFIX}/include
 	LIB=${PREFIX}/lib
 	BIN=${PREFIX}/bin
-	mkdir -p build ${INCLUDE} && \
+	mkdir -p build ${INCLUDE} ${LIB} ${BIN} && \
 		cd build && \
 		if [ ! -d "stable-diffusion.cpp" ]; then
 			git clone --branch ${SDCPP_VERSION} --depth=1 --recursive --shallow-submodules https://github.com/leejet/stable-diffusion.cpp.git
 		fi && \
 		cd stable-diffusion.cpp && \
-		cp *.h ${INCLUDE} && \
-		cp *.hpp ${INCLUDE} && \
+		cp *.h ${INCLUDE} 2>/dev/null || true && \
+		cp *.hpp ${INCLUDE} 2>/dev/null || true && \
 		cp thirdparty/stb_image.h ${INCLUDE} && \
 		cp thirdparty/stb_image_write.h ${INCLUDE} && \
 		cp thirdparty/stb_image_resize.h ${INCLUDE} && \
@@ -187,12 +266,14 @@ get_stablediffusioncpp() {
 		cmake .. -DBUILD_SHARED_LIBS=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON && \
 		cmake --build . --config Release && \
 		cmake --install . --prefix ${PREFIX} && \
-		cp libstable-diffusion.a ${LIB} && \
+		echo "Copying additional libraries..." && \
+		copy_lib "." "stable-diffusion" "${LIB}" && \
 		cd ${CWD} || exit
+	echo "stable-diffusion.cpp build complete!"
 }
 
 remove_current() {
-	echo "remove current"
+	echo "Cleaning previous builds..."
 	rm -rf build thirdparty
 }
 
@@ -203,6 +284,9 @@ main() {
 	get_whispercpp
 	get_stablediffusioncpp
 	# get_llamacpp_shared
+	echo ""
+	echo "=== Setup Complete ==="
+	echo "Libraries installed to: ${THIRDPARTY}"
 }
 
 main
