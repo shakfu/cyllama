@@ -10,7 +10,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-14, ubuntu-22.04]
+        os: [macos-14, ubuntu-22.04, windows-latest]
         python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
 
     steps:
@@ -24,16 +24,37 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
 
-    - name: Install uv
+    - name: Install uv (Unix)
+      if: runner.os != 'Windows'
       run: |
         curl -LsSf https://astral.sh/uv/install.sh | sh
         echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
-    - name: Install dependencies
+    - name: Install uv (Windows)
+      if: runner.os == 'Windows'
+      run: |
+        irm https://astral.sh/uv/install.ps1 | iex
+        echo "$env:USERPROFILE\.local\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+    - name: Install dependencies (Unix)
+      if: runner.os != 'Windows'
       run: make
 
-    - name: Build wheel
+    - name: Install dependencies (Windows)
+      if: runner.os == 'Windows'
+      shell: bash
+      run: scripts/setup.sh
+
+    - name: Build wheel (Unix)
+      if: runner.os != 'Windows'
       run: make wheel
+
+    - name: Build wheel (Windows)
+      if: runner.os == 'Windows'
+      shell: bash
+      run: |
+        uv run python setup.py build_ext --inplace
+        uv build
 
     - name: Repair wheel with auditwheel (Linux)
       if: runner.os == 'Linux'
@@ -42,8 +63,23 @@ jobs:
         uv run auditwheel repair dist/*.whl --plat manylinux_2_35_x86_64 -w dist/
         rm dist/*-linux_x86_64.whl
 
-    - name: Check distributions
+    - name: Repair wheel with delvewheel (Windows)
+      if: runner.os == 'Windows'
+      run: |
+        uv pip install delvewheel
+        Get-ChildItem dist/*.whl | ForEach-Object {
+          uv run delvewheel repair $_.FullName -w dist/
+        }
+        Remove-Item dist/*-win_amd64.whl -ErrorAction SilentlyContinue
+
+    - name: Check distributions (Unix)
+      if: runner.os != 'Windows'
       run: make wheel-check
+
+    - name: Check distributions (Windows)
+      if: runner.os == 'Windows'
+      shell: bash
+      run: uv run twine check dist/*.whl
 
     - name: Upload release artifacts
       uses: actions/upload-artifact@v4

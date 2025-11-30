@@ -1,0 +1,126 @@
+name: build-manage
+
+on: [workflow_dispatch]
+
+jobs:
+  build-macos:
+    name: build-macos
+    runs-on: macos-14
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+
+    - name: Install uv
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+    - name: Build dependencies and extension
+      run: python scripts/manage.py build --all
+
+    - name: Build wheel
+      run: uv build
+
+    - name: Check distributions
+      run: uv run twine check dist/*.whl
+
+    - name: Upload release artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-dist-cyllama-wheel-macos
+        path: dist/*
+        retention-days: 10
+
+  build-linux:
+    name: build-linux
+    runs-on: ubuntu-22.04
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+
+    - name: Install uv
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+    - name: Build dependencies and extension
+      run: python scripts/manage.py build --all
+
+    - name: Build wheel
+      run: uv build
+
+    - name: Repair wheel with auditwheel
+      run: |
+        uv pip install auditwheel patchelf
+        uv run auditwheel repair dist/*.whl --plat manylinux_2_35_x86_64 -w dist/
+        rm dist/*-linux_x86_64.whl
+
+    - name: Check distributions
+      run: uv run twine check dist/*.whl
+
+    - name: Upload release artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-dist-cyllama-wheel-linux
+        path: dist/*
+        retention-days: 10
+
+  build-windows:
+    name: build-windows
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+
+    - name: Install uv
+      run: |
+        irm https://astral.sh/uv/install.ps1 | iex
+        echo "$env:USERPROFILE\.local\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+    - name: Build dependencies and extension
+      run: python scripts/manage.py build --all
+
+    - name: Build wheel
+      run: uv build
+
+    - name: Repair wheel with delvewheel
+      run: |
+        uv pip install delvewheel
+        Get-ChildItem dist/*.whl | ForEach-Object {
+          uv run delvewheel repair $_.FullName -w dist/
+        }
+        Remove-Item dist/*-win_amd64.whl -ErrorAction SilentlyContinue
+
+    - name: Check distributions
+      run: uv run twine check dist/*.whl
+
+    - name: Upload release artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-dist-cyllama-wheel-windows
+        path: dist/*.whl
+        retention-days: 10

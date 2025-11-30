@@ -109,7 +109,7 @@ jobs:
       - name: Build thirdparty (Unix)
         if: matrix.os != 'windows'
         run: |
-          python scripts/manage.py build --llama-cpp --whisper-cpp
+          python scripts/manage.py build --all
         env:
           GGML_METAL: ${{ matrix.os == 'macos' && '1' || '0' }}
 
@@ -117,7 +117,7 @@ jobs:
         if: matrix.os == 'windows'
         shell: pwsh
         run: |
-          python scripts/manage.py build --llama-cpp --whisper-cpp
+          python scripts/manage.py build --all
         env:
           GGML_METAL: '0'
 
