@@ -930,6 +930,10 @@ class LlamaCppBuilder(Builder):
         self.glob_copy(
             self.src_dir / "ggml" / "include", self.include, patterns=["*.h"]
         )
+        # Copy main llama.h header from include/ directory
+        self.glob_copy(
+            self.src_dir / "include", self.include, patterns=["*.h"]
+        )
         # Copy nlohmann JSON headers (required by json-partial.h)
         nlohmann_include = self.include / "nlohmann"
         nlohmann_include.mkdir(exist_ok=True)
