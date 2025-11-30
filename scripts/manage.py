@@ -725,6 +725,58 @@ class AbstractBuilder(ShellCmd):
         """staticlib path"""
         return self.lib / self.staticlib_name
 
+    def get_lib_path(self, build_dir: Path, subdir: str, name: str) -> Path:
+        """Get platform-specific library path from build directory.
+
+        On Windows, CMake puts libraries in Release/ subdirectory and uses
+        name.lib format. On Unix, it's libname.a directly in the directory.
+
+        Args:
+            build_dir: The CMake build directory
+            subdir: Subdirectory within build_dir (e.g., "common", "src")
+            name: Library name without prefix/extension (e.g., "common", "llama")
+
+        Returns:
+            Path to the library file
+        """
+        base = build_dir / subdir
+
+        if PLATFORM == "Windows":
+            # Try Release/ subdirectory first (multi-config generators)
+            release_path = base / "Release" / f"{name}.lib"
+            if release_path.exists():
+                return release_path
+            # Fall back to direct path (single-config generators)
+            direct_path = base / f"{name}.lib"
+            if direct_path.exists():
+                return direct_path
+            # Return expected Release path for error messages
+            return release_path
+        else:
+            # Unix: libname.a directly in directory
+            return base / f"lib{name}.a"
+
+    def copy_lib(self, build_dir: Path, subdir: str, name: str, dest: Path) -> bool:
+        """Copy a library from build directory to destination.
+
+        Args:
+            build_dir: The CMake build directory
+            subdir: Subdirectory within build_dir
+            name: Library name without prefix/extension
+            dest: Destination directory
+
+        Returns:
+            True if copied successfully, False otherwise
+        """
+        lib_path = self.get_lib_path(build_dir, subdir, name)
+        if lib_path.exists():
+            self.copy(lib_path, dest)
+            self.log.info(f"Copied {lib_path.name} to {dest}")
+            return True
+        else:
+            self.log.warning(f"Library not found: {lib_path}")
+            return False
+
     def libs_static_exist(self) -> bool:
         """check if all built stati libs already exist"""
         return all((self.lib / lib).exists() for lib in self.libs_static)
@@ -842,58 +894,30 @@ class LlamaCppBuilder(Builder):
         ggml_hip = getenv("GGML_HIP", default=False)
         ggml_opencl = getenv("GGML_OPENCL", default=False)
 
-        # Copy Metal backend libraries
+        # Copy Metal backend libraries (macOS only)
         if ggml_metal:
-            metal_blas = self.build_dir / "ggml" / "src" / "ggml-blas" / "libggml-blas.a"
-            metal_lib = self.build_dir / "ggml" / "src" / "ggml-metal" / "libggml-metal.a"
-            if metal_blas.exists():
-                self.copy(metal_blas, self.lib)
-            else:
-                self.log.warning(f"Metal BLAS library not found: {metal_blas}")
-            if metal_lib.exists():
-                self.copy(metal_lib, self.lib)
-            else:
-                self.log.warning(f"Metal library not found: {metal_lib}")
+            self.copy_lib(self.build_dir, "ggml/src/ggml-blas", "ggml-blas", self.lib)
+            self.copy_lib(self.build_dir, "ggml/src/ggml-metal", "ggml-metal", self.lib)
 
         # Copy CUDA backend library
         if ggml_cuda:
-            cuda_lib = self.build_dir / "ggml" / "src" / "ggml-cuda" / "libggml-cuda.a"
-            if cuda_lib.exists():
-                self.copy(cuda_lib, self.lib)
-            else:
-                self.log.warning(f"CUDA library not found: {cuda_lib}")
+            self.copy_lib(self.build_dir, "ggml/src/ggml-cuda", "ggml-cuda", self.lib)
 
         # Copy Vulkan backend library
         if ggml_vulkan:
-            vulkan_lib = self.build_dir / "ggml" / "src" / "ggml-vulkan" / "libggml-vulkan.a"
-            if vulkan_lib.exists():
-                self.copy(vulkan_lib, self.lib)
-            else:
-                self.log.warning(f"Vulkan library not found: {vulkan_lib}")
+            self.copy_lib(self.build_dir, "ggml/src/ggml-vulkan", "ggml-vulkan", self.lib)
 
         # Copy SYCL backend library
         if ggml_sycl:
-            sycl_lib = self.build_dir / "ggml" / "src" / "ggml-sycl" / "libggml-sycl.a"
-            if sycl_lib.exists():
-                self.copy(sycl_lib, self.lib)
-            else:
-                self.log.warning(f"SYCL library not found: {sycl_lib}")
+            self.copy_lib(self.build_dir, "ggml/src/ggml-sycl", "ggml-sycl", self.lib)
 
         # Copy HIP backend library
         if ggml_hip:
-            hip_lib = self.build_dir / "ggml" / "src" / "ggml-hip" / "libggml-hip.a"
-            if hip_lib.exists():
-                self.copy(hip_lib, self.lib)
-            else:
-                self.log.warning(f"HIP library not found: {hip_lib}")
+            self.copy_lib(self.build_dir, "ggml/src/ggml-hip", "ggml-hip", self.lib)
 
         # Copy OpenCL backend library
         if ggml_opencl:
-            opencl_lib = self.build_dir / "ggml" / "src" / "ggml-opencl" / "libggml-opencl.a"
-            if opencl_lib.exists():
-                self.copy(opencl_lib, self.lib)
-            else:
-                self.log.warning(f"OpenCL library not found: {opencl_lib}")
+            self.copy_lib(self.build_dir, "ggml/src/ggml-opencl", "ggml-opencl", self.lib)
 
     def build(self, shared: bool = False) -> None:
         """main build function"""
@@ -935,13 +959,13 @@ class LlamaCppBuilder(Builder):
         # Manually copy required libraries instead of cmake install (which tries to install all components)
         self.lib.mkdir(parents=True, exist_ok=True)
 
-        # Copy core libraries from build directory
-        self.copy(self.build_dir / "common" / "libcommon.a", self.lib)
-        self.copy(self.build_dir / "src" / "libllama.a", self.lib)
-        self.copy(self.build_dir / "ggml" / "src" / "libggml.a", self.lib)
-        self.copy(self.build_dir / "ggml" / "src" / "libggml-base.a", self.lib)
-        self.copy(self.build_dir / "ggml" / "src" / "libggml-cpu.a", self.lib)
-        self.copy(self.build_dir / "tools" / "mtmd" / "libmtmd.a", self.lib)
+        # Copy core libraries from build directory (platform-aware)
+        self.copy_lib(self.build_dir, "common", "common", self.lib)
+        self.copy_lib(self.build_dir, "src", "llama", self.lib)
+        self.copy_lib(self.build_dir, "ggml/src", "ggml", self.lib)
+        self.copy_lib(self.build_dir, "ggml/src", "ggml-base", self.lib)
+        self.copy_lib(self.build_dir, "ggml/src", "ggml-cpu", self.lib)
+        self.copy_lib(self.build_dir, "tools/mtmd", "mtmd", self.lib)
 
         # Copy backend-specific libraries
         self.copy_backend_libs()
@@ -979,7 +1003,7 @@ class WhisperCppBuilder(Builder):
         )
         self.cmake_build(build_dir=self.build_dir, release=True)
         self.cmake_install(build_dir=self.build_dir, prefix=self.prefix)
-        self.copy(self.build_dir / "examples" / "libcommon.a", self.lib)
+        self.copy_lib(self.build_dir, "examples", "common", self.lib)
         # self.glob_copy(self.build_dir / "bin", self.bin, patterns=["*"])
 
 
@@ -1017,7 +1041,7 @@ class StableDiffusionCppBuilder(Builder):
         )
         self.cmake_build(build_dir=self.build_dir, release=True)
         self.cmake_install(build_dir=self.build_dir, prefix=self.prefix)
-        self.copy(self.build_dir / "libstable-diffusion.a", self.lib)
+        self.copy_lib(self.build_dir, ".", "stable-diffusion", self.lib)
 
 
 # ----------------------------------------------------------------------------

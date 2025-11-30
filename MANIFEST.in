@@ -19,9 +19,9 @@ include src/cyllama/stablediffusion/*.pxi
 include src/cyllama/stablediffusion/*.cpp
 include src/cyllama/stablediffusion/*.h
 recursive-include thirdparty/llama.cpp/include *.h *.hpp
-recursive-include thirdparty/llama.cpp/lib *.a
+recursive-include thirdparty/llama.cpp/lib *.a *.lib
 recursive-include thirdparty/whisper.cpp/include *.h *.hpp
-recursive-include thirdparty/whisper.cpp/lib *.a
+recursive-include thirdparty/whisper.cpp/lib *.a *.lib
 recursive-include thirdparty/stable-diffusion.cpp/include *.h *.hpp
-recursive-include thirdparty/stable-diffusion.cpp/lib *.a
+recursive-include thirdparty/stable-diffusion.cpp/lib *.a *.lib
 recursive-include include *.h *.hpp
