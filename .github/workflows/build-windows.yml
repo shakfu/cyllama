@@ -1,0 +1,53 @@
+name: build-windows
+
+on: [workflow_dispatch]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+
+    - name: Install uv
+      run: |
+        irm https://astral.sh/uv/install.ps1 | iex
+        echo "$env:USERPROFILE\.local\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+    - name: Build llama.cpp and dependencies
+      shell: bash
+      run: |
+        scripts/setup.sh
+
+    - name: Build wheel
+      shell: bash
+      run: |
+        uv run python setup.py build_ext --inplace
+        uv build
+
+    - name: Repair wheel with delvewheel
+      run: |
+        uv pip install delvewheel
+        Get-ChildItem dist/*.whl | ForEach-Object {
+          uv run delvewheel repair $_.FullName -w dist/
+        }
+        Remove-Item dist/*-win_amd64.whl -ErrorAction SilentlyContinue
+
+    - name: Check distributions
+      shell: bash
+      run: uv run twine check dist/*.whl
+
+    - name: Upload release artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-dist-cyllama-wheel-windows
+        path: dist/*.whl
+        retention-days: 10
