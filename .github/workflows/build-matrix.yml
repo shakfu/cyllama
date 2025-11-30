@@ -68,7 +68,6 @@ jobs:
         Get-ChildItem dist/*.whl | ForEach-Object {
           uv run delvewheel repair $_.FullName -w dist/
         }
-        Remove-Item dist/*-win_amd64.whl -ErrorAction SilentlyContinue
 
     - name: Check distributions (Unix)
       if: runner.os != 'Windows'
