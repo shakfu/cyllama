@@ -127,7 +127,7 @@ PLATFORM = platform.system()
 ARCH = platform.machine()
 PY_VER_MINOR = sys.version_info.minor
 
-STABLE_BUILD = getenv("STABLE_BUILD", False)
+STABLE_BUILD = getenv("STABLE_BUILD", True)
 if STABLE_BUILD:
     LLAMACPP_VERSION = "b7126"
     WHISPERCPP_VERSION = "v1.8.2"
