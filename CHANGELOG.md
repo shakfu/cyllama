@@ -27,9 +27,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - Added `scripts/cmake/` directory with vendored `cython-cmake` modules (`FindCython.cmake`, `UseCython.cmake`)
   - Updated `pyproject.toml` with `[tool.scikit-build]` configuration
   - Updated `Makefile` targets to use `uv pip install -e .` for editable installs and `uv build --wheel` for wheels
-  - Updated GitHub Actions workflows (`build-matrix.yml`, `build-windows.yml`) to use new build system
-  - Updated `scripts/manage.py` to use scikit-build-core commands
+  - Updated `scripts/manage.py` to use scikit-build-core commands with `--deps-only` flag for CI builds
   - Build now uses CMake for cross-platform compatibility and better IDE integration
+
+- **Cross-Platform Build Support** - cyllama now builds on macOS, Linux, and Windows
+  - Full support for macOS (arm64/x86_64) with Metal GPU acceleration
+  - Full support for Linux (x86_64) with CPU and optional GPU backends
+  - Full support for Windows (x86_64) with MSVC compiler
+  - Platform-specific wheel repair tools: `delocate` (macOS), `auditwheel` (Linux), `delvewheel` (Windows)
+  - Thirdparty libraries (llama.cpp, whisper.cpp, stable-diffusion.cpp) included in sdist for isolated builds
+
+- **GitHub Actions Workflows** - Automated wheel building for all platforms
+  - `build-simple.yml` - Single Python version builds for macOS, Linux, and Windows
+  - `build-matrix.yml` - Matrix builds across Python 3.9-3.13 on all three platforms
+  - `build-manage.yml` - Builds using `scripts/manage.py` for dependency management
+  - All workflows produce distributable wheels with proper platform tags
+  - Wheels are uploaded as artifacts for easy distribution
 
 - **Version Management in manage.py** - Added command-line options to specify dependency versions
   - New `--llama-version` option (default: `b7126`)
