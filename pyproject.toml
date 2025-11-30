@@ -11,14 +11,21 @@ dependencies = []
 
 
 [build-system]
-requires = ["setuptools >= 61", "cython"]
-build-backend = "setuptools.build_meta"
+requires = ["scikit-build-core>=0.10", "cython>=3.0", "cython-cmake"]
+build-backend = "scikit_build_core.build"
 
-[tool.setuptools]
-include-package-data = true
-
-[tool.setuptools.exclude-package-data]
-"*" = ["*.pyx", "*.pxd", "*.pxi", "*.cpp", "*.c", "*.h", "*.hpp", "*.a", "*.lib"]
+[tool.scikit-build]
+cmake.version = ">=3.21"
+cmake.build-type = "Release"
+wheel.packages = ["src/cyllama"]
+wheel.exclude = ["*.pyx", "*.pxd", "*.pxi", "*.cpp", "*.c", "*.h", "*.hpp", "*.a", "*.lib"]
+build-dir = "build/{wheel_tag}"
+sdist.exclude = [
+    "build/",
+    "dist/",
+    ".git/",
+    "*.egg-info/",
+]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

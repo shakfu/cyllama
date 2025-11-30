@@ -8,7 +8,7 @@ This guide covers installing cyllama on different platforms.
 
 - Python 3.8 or later
 - C++ compiler (clang or gcc)
-- CMake 3.14+
+- CMake 3.21+
 - Git
 
 ### Platform-Specific Requirements
@@ -91,6 +91,35 @@ WITH_STABLEDIFFUSION=1 make build
 make build  # Whisper is built automatically
 ```
 
+## Build System
+
+Cyllama uses **scikit-build-core** with CMake for building the Cython extensions. The build process:
+
+1. **Dependencies**: `make` downloads and builds llama.cpp, whisper.cpp (and optionally stable-diffusion.cpp)
+2. **Cython compilation**: CMake compiles `.pyx` files to C++ using Cython
+3. **Extension linking**: C++ extensions are linked against the static libraries
+4. **Installation**: Extensions are installed in editable mode
+
+### Build Commands
+
+| Command | Description |
+|---------|-------------|
+| `make` | Full build (dependencies + editable install) |
+| `make wheel` | Build wheel for distribution |
+| `make clean` | Remove build artifacts |
+| `make reset` | Full reset including thirdparty |
+| `make remake` | Clean rebuild with tests |
+
+### Wheel Distribution
+
+To build a distributable wheel:
+```bash
+make wheel
+# Creates wheel in dist/
+```
+
+The wheel includes all compiled extensions and can be installed on systems with matching platform/Python version.
+
 ## Installing Models
 
 ### LLM Models (GGUF format)
@@ -157,7 +186,7 @@ params.n_gpu_layers = 99  # Request GPU offload
 Make sure you're in the project directory or have installed cyllama:
 ```bash
 cd cyllama
-pip install -e .
+make  # or: uv pip install --no-build-isolation -e .
 ```
 
 ### Build Errors
@@ -189,8 +218,12 @@ For development with editable install:
 ```bash
 git clone https://github.com/shakfu/cyllama.git
 cd cyllama
-make
-pip install -e .
+make  # Builds dependencies and installs in editable mode
+```
+
+For manual editable install (after dependencies are built):
+```bash
+uv pip install --no-build-isolation -e .
 ```
 
 ## Next Steps

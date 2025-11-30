@@ -1195,7 +1195,8 @@ class WheelBuilder(ShellCmd):
     def build_wheel(self, static: bool = False, override: bool = True) -> None:
         assert PY_VER_MINOR >= 8, "only supporting python >= 3.8"
 
-        _cmd = f'"{PYTHON}" setup.py bdist_wheel'
+        # Build wheel using scikit-build-core via uv
+        _cmd = "uv build --wheel"
 
         if PLATFORM == "Darwin":
             ver = self.get_min_osx_ver()
@@ -1204,16 +1205,8 @@ class WheelBuilder(ShellCmd):
                     f"ARCHFLAGS='-arch arm64 -arch x86_64' "
                     f"_PYTHON_HOST_PLATFORM='macosx-{ver}-universal2' "
                 )
-            else:
-                prefix = (
-                    f"ARCHFLAGS='-arch {ARCH}' "
-                    f"_PYTHON_HOST_PLATFORM='macosx-{ver}-{ARCH}' "
-                )
+                _cmd = prefix + _cmd
 
-            _cmd = prefix + _cmd
-
-        if static:
-            os.environ["STATIC"] = "1"
         self.cmd(_cmd)
 
     def test_wheels(self) -> None:
@@ -1483,10 +1476,8 @@ class Application(ShellCmd, metaclass=MetaCommander):
             builder = BuilderClass(version=version)
             builder.build()
 
-        # _cmd = f'"{PYTHON}" setup.py build_ext --inplace'
-        _cmd = "uv run python setup.py build_ext --inplace"
-        if not args.shared:
-            os.environ["STATIC"] = "1"
+        # Build using scikit-build-core (editable install)
+        _cmd = "uv pip install --no-build-isolation -e ."
         self.cmd(_cmd)
 
     # ------------------------------------------------------------------------
@@ -1545,7 +1536,7 @@ class Application(ShellCmd, metaclass=MetaCommander):
     def do_clean(self, args: argparse.Namespace) -> None:
         """clean detritus"""
         cwd = self.project.cwd
-        _targets = ["build", "dist", "venv", "MANIFEST.in", ".task"]
+        _targets = ["build", "dist", "venv", ".task"]
         if args.reset:
             _targets += ["python", "bin", "lib", "share", "wheels"]
         _pats = [".*_cache", "*.egg-info", "__pycache__", ".DS_Store"]

@@ -374,12 +374,27 @@ Approximate relative performance (inference speed):
 
 ## Advanced: Custom CMake Flags
 
-For advanced users, you can pass additional CMake flags via the build script:
+Cyllama has a two-stage build process:
+
+1. **Dependency build** (`scripts/setup.sh`): Builds llama.cpp, whisper.cpp, stable-diffusion.cpp
+2. **Extension build** (`CMakeLists.txt`): Builds Cython extensions with scikit-build-core
+
+### Customizing Dependency Build
+
+Edit `scripts/setup.sh` to modify CMAKE_ARGS for llama.cpp:
 
 ```bash
-# Edit scripts/setup.sh and modify CMAKE_ARGS
 # Example: Enable CUDA with custom architecture
 CMAKE_ARGS="$CMAKE_ARGS -DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=86"
+```
+
+### Customizing Extension Build
+
+For the Cython extension build, modify `CMakeLists.txt` or pass CMake args via scikit-build-core:
+
+```bash
+# Pass CMake args during wheel build
+CMAKE_ARGS="-DGGML_METAL=ON" uv build --wheel
 ```
 
 ## References

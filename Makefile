@@ -56,7 +56,7 @@ endif
 
 
 .PHONY: all build cmake clean reset setup setup_inplace \
-		wheel wheel-check bind header diff sync
+		wheel wheel-check diff sync
 
 all: build
 
@@ -66,35 +66,31 @@ $(LIBLAMMA):
 setup: reset
 	@scripts/setup.sh
 
+# Build using scikit-build-core (editable install)
 build: $(LIBLAMMA)
-	@uv run python setup.py build_ext --inplace
-# 	@uv run python setup.py build_ext
+	@uv pip install --no-build-isolation -e .
+
+# Alternative: build wheel and install it
+build-wheel: $(LIBLAMMA)
+	@uv build --wheel
+	@uv pip install dist/*.whl --force-reinstall
 
 diff:
 	@git diff thirdparty/llama.cpp/include > changes.diff
-	
+
 sync: $(LIBLAMMA)
 	uv sync
 
-inplace: $(LIBLAMMA)
-	uv run build_ext --inplace
-
+# Build wheel using scikit-build-core
 wheel: $(LIBLAMMA)
-	@echo "WITH_DYLIB=$(WITH_DYLIB)"
+	uv build --wheel
+
+# Build both sdist and wheel
+dist: $(LIBLAMMA)
 	uv build
-ifeq ($(WITH_DYLIB),1)
-	uv run delocate-wheel -v dist/*.whl 
-endif
 
 wheel-check:
 	@uv run twine check dist/*.whl
-
-build/include:
-	@scripts/header_utils.py --force-overwrite --output_dir build/include include
-
-bind: build/include
-	@rm -rf build/bind
-	@make -f scripts/bind/bind.mk bind
 
 
 .PHONY: test simple test-simple test-main test-retrieve test-model test-llava test-lora \
@@ -248,7 +244,8 @@ bump:
 	@scripts/bump.sh
 
 clean:
-	@rm -rf build/lib.* build/temp.* dist src/*.egg-info .*_cache .coverage src/**/*.so
+	@rm -rf build/lib.* build/temp.* build/cp* dist src/*.egg-info .*_cache .coverage
+	@rm -rf src/cyllama/*.so src/cyllama/**/*.so
 	@rm -f src/cyllama/llama/llama_cpp.cpp
 	@rm -f src/cyllama/llama/server/embedded.cpp
 	@rm -f src/cyllama/whisper/whisper_cpp.cpp
@@ -256,10 +253,9 @@ clean:
 
 reset: clean
 	@rm -rf build
-	@rm -rf thirdparty/llama.cpp/bin thirdparty/llama.cpp/lib
-	@rm -rf thirdparty/llama.cpp/bin thirdparty/llama.cpp/lib
-	@rm -rf thirdparty/whisper.cpp/bin thirdparty/whisper.cpp/lib
-	@rm -rf thirdparty/stable-diffusion.cpp/bin thirdparty/stable-diffusion.cpp/lib
+	@rm -rf thirdparty/llama.cpp/bin thirdparty/llama.cpp/lib thirdparty/llama.cpp/include
+	@rm -rf thirdparty/whisper.cpp/bin thirdparty/whisper.cpp/lib thirdparty/whisper.cpp/include
+	@rm -rf thirdparty/stable-diffusion.cpp/bin thirdparty/stable-diffusion.cpp/lib thirdparty/stable-diffusion.cpp/include
 
 remake: reset build diff test
 
@@ -275,23 +271,33 @@ show-backends:
 	@echo "  GGML_HIP:     $(GGML_HIP)"
 	@echo "  GGML_OPENCL:  $(GGML_OPENCL)"
 
-build-cpu:
-	@GGML_METAL=0 GGML_CUDA=0 GGML_VULKAN=0 $(MAKE) build
+build-cpu: $(LIBLAMMA)
+	@GGML_METAL=0 GGML_CUDA=0 GGML_VULKAN=0 uv pip install --no-build-isolation -e .
 
-build-metal:
-	@GGML_METAL=1 GGML_CUDA=0 GGML_VULKAN=0 $(MAKE) build
+build-metal: $(LIBLAMMA)
+	@GGML_METAL=1 GGML_CUDA=0 GGML_VULKAN=0 uv pip install --no-build-isolation -e .
 
-build-cuda:
-	@GGML_METAL=0 GGML_CUDA=1 GGML_VULKAN=0 $(MAKE) build
+build-cuda: $(LIBLAMMA)
+	@GGML_METAL=0 GGML_CUDA=1 GGML_VULKAN=0 uv pip install --no-build-isolation -e .
 
-build-vulkan:
-	@GGML_METAL=0 GGML_CUDA=0 GGML_VULKAN=1 $(MAKE) build
+build-vulkan: $(LIBLAMMA)
+	@GGML_METAL=0 GGML_CUDA=0 GGML_VULKAN=1 uv pip install --no-build-isolation -e .
 
-build-sycl:
-	@GGML_METAL=0 GGML_CUDA=0 GGML_SYCL=1 $(MAKE) build
+build-sycl: $(LIBLAMMA)
+	@GGML_METAL=0 GGML_CUDA=0 GGML_SYCL=1 uv pip install --no-build-isolation -e .
 
-build-hip:
-	@GGML_METAL=0 GGML_CUDA=0 GGML_HIP=1 $(MAKE) build
+build-hip: $(LIBLAMMA)
+	@GGML_METAL=0 GGML_CUDA=0 GGML_HIP=1 uv pip install --no-build-isolation -e .
 
-build-all:
-	@GGML_METAL=1 GGML_CUDA=1 GGML_VULKAN=1 $(MAKE) build
+# Wheel targets with specific backends
+wheel-cpu: $(LIBLAMMA)
+	@GGML_METAL=0 GGML_CUDA=0 GGML_VULKAN=0 uv build --wheel
+
+wheel-metal: $(LIBLAMMA)
+	@GGML_METAL=1 uv build --wheel
+
+wheel-cuda: $(LIBLAMMA)
+	@GGML_CUDA=1 uv build --wheel
+
+wheel-vulkan: $(LIBLAMMA)
+	@GGML_VULKAN=1 uv build --wheel

@@ -19,6 +19,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [0.1.15]
 
+### Changed
+
+- **Build System Migration to scikit-build-core** - Replaced setuptools with modern CMake-based build
+  - Migrated from `setup.py` + `setuptools` to `scikit-build-core` + `CMakeLists.txt`
+  - Added `CMakeLists.txt` for building Cython extensions via CMake
+  - Added `scripts/cmake/` directory with vendored `cython-cmake` modules (`FindCython.cmake`, `UseCython.cmake`)
+  - Updated `pyproject.toml` with `[tool.scikit-build]` configuration
+  - Updated `Makefile` targets to use `uv pip install -e .` for editable installs and `uv build --wheel` for wheels
+  - Updated GitHub Actions workflows (`build-matrix.yml`, `build-windows.yml`) to use new build system
+  - Updated `scripts/manage.py` to use scikit-build-core commands
+  - Build now uses CMake for cross-platform compatibility and better IDE integration
+
+- **Version Management in manage.py** - Added command-line options to specify dependency versions
+  - New `--llama-version` option (default: `b7126`)
+  - New `--whisper-version` option (default: `v1.8.2`)
+  - New `--sd-version` option (default: `master-377-2034588`)
+  - Changed `STABLE_BUILD` default to `True` for reproducible builds with pinned versions
+
+### Removed
+
+- **setup.py** - Replaced by `CMakeLists.txt` and `pyproject.toml` configuration
+- **MANIFEST.in** - Replaced by `[tool.scikit-build]` wheel configuration in `pyproject.toml`
+
 ### Security
 
 - **Cython Input Validation** - Added critical input validation to prevent crashes and security issues

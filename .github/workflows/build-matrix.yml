@@ -52,9 +52,7 @@ jobs:
     - name: Build wheel (Windows)
       if: runner.os == 'Windows'
       shell: bash
-      run: |
-        uv run python setup.py build_ext --inplace
-        uv build
+      run: uv build --wheel
 
     - name: Repair wheel with auditwheel (Linux)
       if: runner.os == 'Linux'

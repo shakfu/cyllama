@@ -336,10 +336,11 @@ Supports SD 1.x/2.x, SDXL, SD3, FLUX, video generation (Wan/CogVideoX), LoRA, Co
 
 ## Status
 
-**Current Version**: 0.1.12 (November 2025)
+**Current Version**: 0.1.15 (November 2025)
 **llama.cpp Version**: b7126
-**Test Coverage**: 600+ tests passing
-**Platform**: macOS (primary), Linux (tested)
+**Build System**: scikit-build-core + CMake
+**Test Coverage**: 799+ tests passing
+**Platform**: macOS (primary), Linux, Windows (tested)
 
 ### API Coverage
 
@@ -401,9 +402,30 @@ To build `cyllama`:
 
     This will:
 
-    1. Download and build `llama.cpp`, `whisper.cpp` and `stablediffusion.cpp`
+    1. Download and build `llama.cpp`, `whisper.cpp` and `stable-diffusion.cpp`
     2. Install them into the `thirdparty` folder
-    3. Build `cyllama`
+    3. Build `cyllama` using scikit-build-core + CMake
+
+### Build Commands
+
+```sh
+# Full build (default)
+make              # Build dependencies + editable install
+
+# Build wheel for distribution
+make wheel        # Creates wheel in dist/
+
+# Backend-specific builds
+make build-metal  # macOS Metal (default on macOS)
+make build-cuda   # NVIDIA CUDA
+make build-vulkan # Vulkan (cross-platform)
+make build-cpu    # CPU only
+
+# Clean and rebuild
+make clean        # Remove build artifacts
+make reset        # Full reset including thirdparty
+make remake       # Clean rebuild with tests
+```
 
 ### GPU Acceleration
 

@@ -28,9 +28,7 @@ jobs:
 
     - name: Build wheel
       shell: bash
-      run: |
-        uv run python setup.py build_ext --inplace
-        uv build
+      run: uv build --wheel
 
     - name: Repair wheel with delvewheel
       run: |
