@@ -23,8 +23,8 @@ jobs:
         curl -LsSf https://astral.sh/uv/install.sh | sh
         echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
-    - name: Build dependencies and extension
-      run: python scripts/manage.py build --all
+    - name: Build dependencies
+      run: python scripts/manage.py build --all --deps-only
 
     - name: Sync dependencies
       run: uv sync
@@ -62,8 +62,8 @@ jobs:
         curl -LsSf https://astral.sh/uv/install.sh | sh
         echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
-    - name: Build dependencies and extension
-      run: python scripts/manage.py build --all
+    - name: Build dependencies
+      run: python scripts/manage.py build --all --deps-only
 
     - name: Sync dependencies
       run: uv sync
@@ -107,8 +107,8 @@ jobs:
         irm https://astral.sh/uv/install.ps1 | iex
         echo "$env:USERPROFILE\.local\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
-    - name: Build dependencies and extension
-      run: python scripts/manage.py build --all
+    - name: Build dependencies
+      run: python scripts/manage.py build --all --deps-only
 
     - name: Sync dependencies
       run: uv sync

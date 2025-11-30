@@ -1425,6 +1425,7 @@ class Application(ShellCmd, metaclass=MetaCommander):
     @opt("-l", "--llama-cpp", "build llama-cpp")
     @opt("-s", "--shared",  "build shared libraries")
     @opt("-a", "--all", "build all")
+    @opt("--deps-only", "build dependencies only, skip editable install")
     @option("--llama-version", default=LLAMACPP_VERSION, help=f"llama.cpp version (default: {LLAMACPP_VERSION})")
     @option("--whisper-version", default=WHISPERCPP_VERSION, help=f"whisper.cpp version (default: {WHISPERCPP_VERSION})")
     @option("--sd-version", default=SDCPP_VERSION, help=f"stable-diffusion.cpp version (default: {SDCPP_VERSION})")
@@ -1477,8 +1478,9 @@ class Application(ShellCmd, metaclass=MetaCommander):
             builder.build()
 
         # Build using scikit-build-core (editable install)
-        _cmd = "uv pip install -e ."
-        self.cmd(_cmd)
+        if not args.deps_only:
+            _cmd = "uv pip install -e ."
+            self.cmd(_cmd)
 
     # ------------------------------------------------------------------------
     # wheel
