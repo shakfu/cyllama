@@ -9,9 +9,8 @@ authors = [
 requires-python = ">=3.8"
 dependencies = []
 
-
 [build-system]
-requires = ["scikit-build-core>=0.10", "cython>=3.0", "cython-cmake"]
+requires = ["scikit-build-core", "cython", "cython-cmake"]
 build-backend = "scikit_build_core.build"
 
 [tool.scikit-build]
@@ -19,13 +18,24 @@ cmake.version = ">=3.21"
 cmake.build-type = "Release"
 wheel.packages = ["src/cyllama"]
 wheel.exclude = ["*.pyx", "*.pxd", "*.pxi", "*.cpp", "*.c", "*.h", "*.hpp", "*.a", "*.lib"]
+wheel.license-files = ["LICENSE"]
 build-dir = "build/{wheel_tag}"
+sdist.include = [
+    "thirdparty/llama.cpp/include",
+    "thirdparty/llama.cpp/lib",
+    "thirdparty/stable-diffusion.cpp/include",
+    "thirdparty/stable-diffusion.cpp/lib",
+    "thirdparty/whisper.cpp/include",
+    "thirdparty/whisper.cpp/lib",
+]
 sdist.exclude = [
+    "bin/",
     "build/",
     "dist/",
     ".git/",
     "*.egg-info/",
 ]
+
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
@@ -38,7 +48,6 @@ markers = [
 [dependency-groups]
 dev = [
     "cython>=3.1.3",
-    "setuptools>=75.3.2",
     "pytest>=8.3.5",
     "pytest-cov>=5.0.0",
     "pytest-memray>=1.8.0 ; sys_platform != 'win32'",

@@ -68,7 +68,7 @@ setup: reset
 
 # Build using scikit-build-core (editable install)
 build: $(LIBLAMMA)
-	@uv pip install --no-build-isolation -e .
+	@uv pip install -e .
 
 # Alternative: build wheel and install it
 build-wheel: $(LIBLAMMA)
@@ -79,7 +79,10 @@ diff:
 	@git diff thirdparty/llama.cpp/include > changes.diff
 
 sync: $(LIBLAMMA)
-	uv sync
+	@uv sync
+
+sync-install: $(LIBLAMMA)
+	@uv sync --reinstall-package cyllama
 
 # Build wheel using scikit-build-core
 wheel: $(LIBLAMMA)
@@ -98,7 +101,7 @@ wheel-check:
 		test-cli test-chat test-tts test-llama-tts test-whisper test-server test-mongoose \
 		bench
 
-test: build
+test:
 	@uv run pytest -s
 
 bench:
