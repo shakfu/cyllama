@@ -8,7 +8,7 @@ book:
   title: "cyllama user guide"
   author: "S. Alireza"
   date: "12/01/2025"
-  version: "0.1.16"
+  version: "0.1.17"
   chapters:
     - index.qmd
     - intro.qmd
@@ -33,6 +33,14 @@ book:
     - part: "Agents"
       chapters:
       - src/agents_overview.qmd
+    - part: "RAG Support"
+      chapters:
+      - src/rag_overview.qmd
+      - src/rag_embedder.qmd
+      - src/rag_vectorstore.qmd
+      - src/rag_text_processing.qmd
+      - src/rag_pipeline.qmd
+      - src/rag_advanced.qmd
   appendices:
     - src/api_reference.qmd
     - src/troubleshooting.qmd

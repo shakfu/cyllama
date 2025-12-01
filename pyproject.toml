@@ -87,6 +87,9 @@ dev = [
     "langchain>=0.0.27",
     "twine>=6.1.0",
 ]
+pdf = [
+    "docling>=2.31.0",
+]
 
 # -----------------------------------------------------------------------------
 # cibuildwheel configuration for cross-platform wheel building

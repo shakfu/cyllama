@@ -132,10 +132,12 @@ if STABLE_BUILD:
     LLAMACPP_VERSION = "b7126"
     WHISPERCPP_VERSION = "v1.8.2"
     SDCPP_VERSION = "master-377-2034588"
+    SQLITEVECTOR_VERSION = "0.9.52"
 else:
     LLAMACPP_VERSION = ""
     WHISPERCPP_VERSION = ""
     SDCPP_VERSION = ""
+    SQLITEVECTOR_VERSION = ""
 if PLATFORM == "Darwin":
     MACOSX_DEPLOYMENT_TARGET = setenv("MACOSX_DEPLOYMENT_TARGET", "12.6")
 DEBUG = getenv("DEBUG", default=True)
@@ -1048,6 +1050,54 @@ class StableDiffusionCppBuilder(Builder):
         self.copy_lib(self.build_dir, ".", "stable-diffusion", self.lib)
 
 
+class SqliteVectorBuilder(Builder):
+    """build sqlite-vector extension"""
+
+    name: str = "sqlite-vector"
+    version: str = SQLITEVECTOR_VERSION
+    repo_url: str = "https://github.com/sqliteai/sqlite-vector.git"
+    libs_static: list[str] = []  # sqlite-vector produces a dynamic library
+
+    @property
+    def extension_name(self) -> str:
+        """Get platform-specific extension name"""
+        if PLATFORM == "Darwin":
+            return "vector.dylib"
+        elif PLATFORM == "Windows":
+            return "vector.dll"
+        else:
+            return "vector.so"
+
+    @property
+    def package_dest(self) -> Path:
+        """Destination directory in the package for runtime extension"""
+        return self.project.cwd / "src" / "cyllama" / "rag"
+
+    def build(self, shared: bool = True) -> None:
+        """sqlite-vector main build function using make"""
+        if not self.src_dir.exists():
+            self.setup()
+        self.log.info(f"building {self.name}")
+
+        # Ensure destination directory exists
+        self.package_dest.mkdir(parents=True, exist_ok=True)
+
+        # Clean any previous build
+        self.cmd("make clean", cwd=self.src_dir)
+
+        # Build the extension using make
+        self.cmd("make extension", cwd=self.src_dir)
+
+        # Copy the extension to package directory (for runtime use)
+        dist_dir = self.src_dir / "dist"
+        ext_path = dist_dir / self.extension_name
+        if ext_path.exists():
+            self.copy(ext_path, self.package_dest)
+            self.log.info(f"Copied {self.extension_name} to {self.package_dest}")
+        else:
+            self.log.warning(f"Extension not found: {ext_path}")
+
+
 # ----------------------------------------------------------------------------
 # wheel_builder
 
@@ -1423,12 +1473,14 @@ class Application(ShellCmd, metaclass=MetaCommander):
     @opt("-w", "--whisper-cpp", "build whisper-cpp")
     @opt("-d", "--stable-diffusion", "build stable-diffusion")
     @opt("-l", "--llama-cpp", "build llama-cpp")
+    @opt("-v", "--sqlite-vector", "build sqlite-vector")
     @opt("-s", "--shared",  "build shared libraries")
     @opt("-a", "--all", "build all")
     @opt("-D", "--deps-only", "build dependencies only, skip editable install")
     @option("--llama-version", default=LLAMACPP_VERSION, help=f"llama.cpp version (default: {LLAMACPP_VERSION})")
     @option("--whisper-version", default=WHISPERCPP_VERSION, help=f"whisper.cpp version (default: {WHISPERCPP_VERSION})")
     @option("--sd-version", default=SDCPP_VERSION, help=f"stable-diffusion.cpp version (default: {SDCPP_VERSION})")
+    @option("--vector-version", default=SQLITEVECTOR_VERSION, help=f"sqlite-vector version (default: {SQLITEVECTOR_VERSION})")
     def do_build(self, args: argparse.Namespace) -> None:
         """build packages"""
         # Set backend environment variables based on command-line args
@@ -1458,12 +1510,13 @@ class Application(ShellCmd, metaclass=MetaCommander):
             LlamaCppBuilder: args.llama_version,
             WhisperCppBuilder: args.whisper_version,
             StableDiffusionCppBuilder: args.sd_version,
+            SqliteVectorBuilder: args.vector_version,
         }
 
         _builders = []
 
         if args.all:
-            _builders = [LlamaCppBuilder, WhisperCppBuilder, StableDiffusionCppBuilder]
+            _builders = [LlamaCppBuilder, WhisperCppBuilder, StableDiffusionCppBuilder, SqliteVectorBuilder]
         else:
             if args.llama_cpp:
                 _builders.append(LlamaCppBuilder)
@@ -1471,6 +1524,8 @@ class Application(ShellCmd, metaclass=MetaCommander):
                 _builders.append(WhisperCppBuilder)
             if args.stable_diffusion:
                 _builders.append(StableDiffusionCppBuilder)
+            if args.sqlite_vector:
+                _builders.append(SqliteVectorBuilder)
 
         for BuilderClass in _builders:
             version = builder_versions.get(BuilderClass)

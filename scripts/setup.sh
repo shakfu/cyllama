@@ -12,6 +12,7 @@ THIRDPARTY=${CWD}/thirdparty
 LAST_WORKING_LLAMACPP="b7126"
 LAST_WORKING_SDCPP="master-377-2034588"
 LAST_WORKING_WHISPERCPP="v1.8.2"
+LAST_WORKING_SQLITEVECTOR="0.9.52"
 STABLE_BUILD=1
 GET_LAST_WORKING_LLAMACPP="${1:-$STABLE_BUILD}"
 
@@ -281,6 +282,35 @@ get_stablediffusioncpp() {
 	echo "stable-diffusion.cpp build complete!"
 }
 
+get_sqlitevector() {
+	echo ""
+	echo "=== Building sqlite-vector ==="
+	SQLITEVECTOR_VERSION=${LAST_WORKING_SQLITEVECTOR}
+	# Install to src/cyllama/rag/ so it's included in the package
+	DEST=${CWD}/src/cyllama/rag
+	mkdir -p build ${DEST} && \
+		cd build && \
+		if [ ! -d "sqlite-vector" ]; then
+			git clone --branch ${SQLITEVECTOR_VERSION} --depth=1 https://github.com/sqliteai/sqlite-vector.git
+		fi && \
+		cd sqlite-vector && \
+		make clean 2>/dev/null || true && \
+		make extension && \
+		echo "Copying sqlite-vector extension to package..." && \
+		if [ "$IS_MACOS" = "1" ]; then
+			cp dist/vector.dylib ${DEST}/
+			echo "  Copied vector.dylib to ${DEST}/"
+		elif [ "$IS_LINUX" = "1" ]; then
+			cp dist/vector.so ${DEST}/
+			echo "  Copied vector.so to ${DEST}/"
+		elif [ "$IS_WINDOWS" = "1" ]; then
+			cp dist/vector.dll ${DEST}/
+			echo "  Copied vector.dll to ${DEST}/"
+		fi && \
+		cd ${CWD} || exit
+	echo "sqlite-vector build complete!"
+}
+
 remove_current() {
 	echo "Cleaning previous builds..."
 	rm -rf build thirdparty
@@ -292,6 +322,7 @@ main() {
 	get_llamacpp
 	get_whispercpp
 	get_stablediffusioncpp
+	get_sqlitevector
 	# get_llamacpp_shared
 	echo ""
 	echo "=== Setup Complete ==="

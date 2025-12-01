@@ -1,0 +1,151 @@
+# RAG Support {#sec-rag-overview}
+
+Retrieval-Augmented Generation (RAG) enhances LLM responses by retrieving relevant context from a knowledge base before generation. cyllama provides a complete RAG solution using:
+
+- **llama.cpp** for both embedding generation and text generation
+- **sqlite-vector** for high-performance vector similarity search
+- **SQLite FTS5** for hybrid keyword + semantic search
+
+## Architecture
+
+```
+                    +-----------------+
+                    |   RAG Pipeline  |
+                    +--------+--------+
+                             |
+         +-------------------+-------------------+
+         |                   |                   |
++--------v--------+ +--------v--------+ +--------v--------+
+|    Embedder     | |  VectorStore    | |   Generator     |
+| (embedding LLM) | | (retrieval)     | | (generation LLM)|
++-----------------+ +-----------------+ +-----------------+
+```
+
+## Quick Start
+
+The simplest way to use RAG is through the high-level `RAG` class:
+
+```python
+from cyllama.rag import RAG
+
+# Initialize with embedding and generation models
+rag = RAG(
+    embedding_model="models/bge-small-en-v1.5-q8_0.gguf",
+    generation_model="models/Llama-3.2-1B-Instruct-Q8_0.gguf"
+)
+
+# Add documents to the knowledge base
+rag.add_texts([
+    "Python is a high-level programming language known for its simplicity.",
+    "Machine learning uses algorithms to learn patterns from data.",
+    "Neural networks are inspired by biological brain structures."
+])
+
+# Or load from files
+rag.add_documents(["docs/guide.md", "docs/api.txt"])
+
+# Query the knowledge base
+response = rag.query("What is Python?")
+print(response.text)
+print(f"Sources: {len(response.sources)}")
+
+# Stream the response
+for chunk in rag.stream("Explain machine learning"):
+    print(chunk, end="", flush=True)
+
+# Clean up
+rag.close()
+```
+
+## Using Context Managers
+
+For proper resource cleanup, use the context manager:
+
+```python
+from cyllama.rag import RAG
+
+with RAG(
+    embedding_model="models/bge-small.gguf",
+    generation_model="models/llama.gguf"
+) as rag:
+    rag.add_texts(["Your documents here..."])
+    response = rag.query("Your question?")
+    print(response.text)
+# Resources automatically cleaned up
+```
+
+## Components Overview
+
+### Core Components
+
+| Component | Description |
+|-----------|-------------|
+| `RAG` | High-level interface with sensible defaults |
+| `AsyncRAG` | Async wrapper for non-blocking operations |
+| `RAGPipeline` | Lower-level orchestration of retrieval + generation |
+| `RAGConfig` | Configuration for retrieval and generation |
+
+### Storage & Retrieval
+
+| Component | Description |
+|-----------|-------------|
+| `Embedder` | Generate vector embeddings from text |
+| `VectorStore` | SQLite-based vector storage with sqlite-vector |
+| `HybridStore` | Combined FTS5 + vector search |
+
+### Text Processing
+
+| Component | Description |
+|-----------|-------------|
+| `TextSplitter` | Recursive character text splitting |
+| `TokenTextSplitter` | Token-based splitting |
+| `MarkdownSplitter` | Markdown-aware splitting |
+
+### Document Loaders
+
+| Component | Description |
+|-----------|-------------|
+| `TextLoader` | Plain text files |
+| `MarkdownLoader` | Markdown with frontmatter |
+| `JSONLoader` | JSON with configurable extraction |
+| `JSONLLoader` | JSON Lines with lazy loading |
+| `DirectoryLoader` | Batch loading from directories |
+| `PDFLoader` | PDF files (requires `docling`) |
+
+### Advanced Features
+
+| Component | Description |
+|-----------|-------------|
+| `Reranker` | Cross-encoder reranking |
+| `create_rag_tool` | Agent integration |
+| `async_search_knowledge` | Async search helper |
+
+## Embedding Models
+
+cyllama uses llama.cpp embedding models in GGUF format. Recommended models:
+
+| Model | Dimension | Size | Notes |
+|-------|-----------|------|-------|
+| bge-small-en-v1.5 | 384 | ~130MB | Good quality/size balance |
+| bge-base-en-v1.5 | 768 | ~440MB | Higher quality |
+| snowflake-arctic-embed-s | 384 | ~130MB | Fast, accurate |
+| all-MiniLM-L6-v2 | 384 | ~90MB | Lightweight |
+| nomic-embed-text-v1.5 | 768 | ~550MB | Long context (8192) |
+
+### Downloading Models
+
+```bash
+# Using huggingface-cli
+huggingface-cli download BAAI/bge-small-en-v1.5-gguf bge-small-en-v1.5-q8_0.gguf
+
+# Or directly with wget
+wget https://huggingface.co/BAAI/bge-small-en-v1.5-gguf/resolve/main/bge-small-en-v1.5-q8_0.gguf
+```
+
+## Next Steps
+
+- @sec-rag-embedder - Generating embeddings
+- @sec-rag-vectorstore - Vector storage and search
+- @sec-rag-text-processing - Document splitting and loading
+- @sec-rag-pipeline - RAG pipeline configuration
+- @sec-rag-advanced - Async, hybrid search, agent integration

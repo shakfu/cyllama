@@ -1,0 +1,261 @@
+# VectorStore {#sec-rag-vectorstore}
+
+The `VectorStore` class provides SQLite-based vector storage using the sqlite-vector extension for high-performance similarity search.
+
+## Basic Usage
+
+```python
+from cyllama.rag import VectorStore, Embedder
+
+# Create embedder
+embedder = Embedder("models/bge-small.gguf")
+
+# Create vector store (in-memory)
+store = VectorStore(dimension=embedder.dimension)
+
+# Add embeddings
+texts = ["Document 1", "Document 2", "Document 3"]
+embeddings = embedder.embed_batch(texts)
+ids = store.add(embeddings, texts)
+print(f"Added {len(ids)} documents")
+
+# Search
+query_embedding = embedder.embed("search query")
+results = store.search(query_embedding, k=2)
+for result in results:
+    print(f"[{result.score:.3f}] {result.text}")
+
+# Clean up
+store.close()
+embedder.close()
+```
+
+## Constructor Options
+
+```python
+store = VectorStore(
+    dimension=384,           # Embedding dimension (required)
+    db_path=":memory:",      # Database path (":memory:" or file path)
+    table_name="embeddings", # Table name for vectors
+    metric="cosine",         # Distance metric
+    vector_type="float32"    # Vector storage type
+)
+```
+
+### Distance Metrics
+
+| Metric | Description |
+|--------|-------------|
+| `cosine` | Cosine similarity (default, recommended) |
+| `l2` | Euclidean distance |
+| `dot` | Dot product |
+| `l1` | Manhattan distance |
+| `squared_l2` | Squared Euclidean distance |
+
+### Vector Types
+
+| Type | Description |
+|------|-------------|
+| `float32` | Full precision (default) |
+| `float16` | Half precision (smaller storage) |
+| `int8` | 8-bit integer (quantized) |
+| `uint8` | Unsigned 8-bit integer |
+
+## Adding Vectors
+
+### add()
+
+Add multiple embeddings with texts and optional metadata:
+
+```python
+embeddings = [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]]
+texts = ["Doc 1", "Doc 2"]
+metadata = [{"source": "file1.txt"}, {"source": "file2.txt"}]
+
+ids = store.add(embeddings, texts, metadata)
+print(f"IDs: {ids}")  # [1, 2]
+```
+
+### add_one()
+
+Add a single embedding:
+
+```python
+id = store.add_one(
+    embedding=[0.1, 0.2, 0.3],
+    text="Single document",
+    metadata={"key": "value"}
+)
+```
+
+## Searching
+
+### search()
+
+Find similar vectors:
+
+```python
+results = store.search(
+    query_embedding=[0.1, 0.2, 0.3],
+    k=5,                    # Number of results
+    threshold=0.5           # Minimum similarity (optional)
+)
+
+for result in results:
+    print(f"ID: {result.id}")
+    print(f"Text: {result.text}")
+    print(f"Score: {result.score}")
+    print(f"Metadata: {result.metadata}")
+```
+
+## Retrieving Stored Data
+
+### get()
+
+Get stored item by ID:
+
+```python
+item = store.get("1")
+if item:
+    print(f"Text: {item.text}")
+    print(f"Metadata: {item.metadata}")
+```
+
+### get_vector()
+
+Get the embedding vector:
+
+```python
+vector = store.get_vector("1")
+print(f"Vector: {vector[:5]}...")
+```
+
+## Deleting Data
+
+### delete()
+
+Delete by IDs:
+
+```python
+deleted = store.delete(["1", "2", "3"])
+print(f"Deleted {deleted} items")
+```
+
+### clear()
+
+Remove all data:
+
+```python
+count = store.clear()
+print(f"Cleared {count} items")
+```
+
+## Persistence
+
+### File-based Storage
+
+```python
+# Create persistent store
+store = VectorStore(
+    dimension=384,
+    db_path="vectors.db"  # Will create this file
+)
+
+# Add data...
+store.add(embeddings, texts)
+store.close()
+```
+
+### Opening Existing Store
+
+```python
+# Re-open existing database
+store = VectorStore.open("vectors.db")
+results = store.search(query_embedding, k=5)
+store.close()
+```
+
+## Quantization for Large Datasets
+
+For datasets with >10k vectors, quantization provides 4-5x faster search:
+
+```python
+# Add many vectors
+store.add(large_embeddings, large_texts)
+
+# Quantize for faster search
+count = store.quantize(max_memory="30MB")
+print(f"Quantized {count} vectors")
+
+# Preload into memory for additional speedup
+store.preload_quantization()
+
+# Search now uses quantized index
+results = store.search(query, k=10)
+```
+
+## Context Manager
+
+```python
+with VectorStore(dimension=384, db_path="data.db") as store:
+    store.add(embeddings, texts)
+    results = store.search(query)
+# Automatically closed
+```
+
+## Properties
+
+```python
+# Number of stored vectors
+print(f"Count: {len(store)}")
+
+# Or use count property
+print(f"Count: {store.count}")
+```
+
+## Example: Document Search System
+
+```python
+from cyllama.rag import Embedder, VectorStore
+
+# Initialize
+embedder = Embedder("models/bge-small.gguf")
+
+# Knowledge base
+documents = [
+    {"text": "Python is great for data science.", "source": "python.txt"},
+    {"text": "JavaScript powers the modern web.", "source": "js.txt"},
+    {"text": "Rust provides memory safety.", "source": "rust.txt"},
+    {"text": "Go excels at concurrent programming.", "source": "go.txt"},
+]
+
+# Create persistent store
+with VectorStore(dimension=embedder.dimension, db_path="docs.db") as store:
+    # Index documents
+    for doc in documents:
+        embedding = embedder.embed(doc["text"])
+        store.add_one(
+            embedding=embedding,
+            text=doc["text"],
+            metadata={"source": doc["source"]}
+        )
+
+    # Search
+    query = "What language is good for backend?"
+    query_emb = embedder.embed(query)
+
+    results = store.search(query_emb, k=2)
+    print(f"\nQuery: {query}\n")
+    for r in results:
+        print(f"[{r.score:.3f}] {r.text}")
+        print(f"  Source: {r.metadata['source']}\n")
+
+embedder.close()
+```
+
+## Performance Characteristics
+
+- **1M vectors, 768 dimensions**: Few milliseconds query time
+- **Memory footprint**: 30-50MB regardless of dataset size
+- **No preindexing required**: Works immediately with your data
+- **SIMD acceleration**: SSE2, AVX2, NEON support

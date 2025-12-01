@@ -17,6 +17,103 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [0.1.x]
 
+## [0.1.17]
+
+### Added
+
+- **RAG Support Phase 1: Core Embedding API** - Text embedding generation using llama.cpp
+  - `Embedder` class - Generate vector embeddings from text using GGUF models
+  - `embed()` - Embed a single text string
+  - `embed_batch()` - Embed multiple texts efficiently
+  - `embed_documents()` - Embed documents with optional progress tracking
+  - `embed_with_info()` - Get embedding with token count metadata
+  - `embed_iter()` - Generator for memory-efficient batch embedding
+  - Pooling strategies: `mean`, `cls`, `last`, `none`
+  - L2 normalization (optional, enabled by default)
+  - Context manager support for proper resource cleanup
+  - Data classes: `EmbeddingResult`, `SearchResult`, `Document`, `Chunk`
+  - 22 unit tests in `tests/test_rag_embedder.py`
+
+- **sqlite-vector Build Support** - Build system integration for sqlite-vector extension
+  - `scripts/setup.sh` - Added `get_sqlitevector()` function to build sqlite-vector
+  - `scripts/manage.py` - Added `SqliteVectorBuilder` class with `--sqlite-vector` flag
+  - Extension installed to `src/cyllama/rag/` for runtime inclusion in wheel
+
+- **RAG Support Phase 2: VectorStore** - SQLite-based vector storage with sqlite-vector
+  - `VectorStore` class - High-performance vector similarity search
+  - `add()`, `add_one()` - Add embeddings with text and optional metadata
+  - `search()` - Find k most similar embeddings with threshold filtering
+  - `get()`, `get_vector()` - Retrieve stored embeddings by ID
+  - `delete()`, `clear()` - Remove embeddings from store
+  - `quantize()` - Quantize vectors for 4-5x faster search on large datasets
+  - `preload_quantization()` - Preload quantized data into memory
+  - `VectorStore.open()` - Open existing database from disk
+  - Distance metrics: `cosine`, `l2`, `dot`, `l1`, `squared_l2`
+  - Vector types: `float32`, `float16`, `int8`, `uint8`
+  - Context manager support for automatic cleanup
+  - 49 unit tests in `tests/test_rag_store.py`
+
+- **RAG Support Phase 3: Text Processing** - Document splitting and loading utilities
+  - `TextSplitter` class - Recursive character splitting with configurable chunk size/overlap
+  - `TokenTextSplitter` - Token-based splitting using custom tokenizer functions
+  - `MarkdownSplitter` - Markdown-aware splitting respecting headers, code blocks, lists
+  - `TextLoader` - Load plain text files
+  - `MarkdownLoader` - Load Markdown with optional YAML frontmatter parsing
+  - `JSONLoader` - Load JSON with configurable text key and jq-like filtering
+  - `JSONLLoader` - Load JSON Lines with lazy loading support
+  - `DirectoryLoader` - Batch load files from directories with glob patterns
+  - `PDFLoader` - Load PDF files using docling (optional `pdf` dependency group)
+  - `load_document()` - Convenience function for loading single files
+  - `load_directory()` - Convenience function for loading directories
+  - 72 unit tests in `tests/test_rag_splitter.py` and `tests/test_rag_loaders.py`
+
+- **RAG Support Phase 4: RAG Pipeline** - Complete retrieval-augmented generation
+  - `RAGConfig` dataclass - Configuration for retrieval and generation settings
+    - `top_k`, `similarity_threshold` - Retrieval parameters
+    - `max_tokens`, `temperature` - Generation parameters
+    - `prompt_template`, `context_separator`, `include_metadata` - Prompt formatting
+    - Validation for all configuration values
+  - `RAGResponse` dataclass - Response wrapper with sources and statistics
+    - `text`, `sources`, `stats`, `query` attributes
+    - `to_dict()` method for JSON serialization
+  - `RAGPipeline` class - Orchestrates retrieval and generation
+    - `query(question, config=None)` - Full RAG query with response
+    - `stream(question, config=None)` - Stream response tokens
+    - `retrieve(question, config=None)` - Retrieve documents without generation
+    - Customizable prompt templates with `{context}` and `{question}` placeholders
+  - `RAG` class - High-level interface with sensible defaults
+    - `add_texts(texts, metadata=None, split=True)` - Add text to knowledge base
+    - `add_documents(paths, split=True)` - Load and add files
+    - `add_document(document, split=True)` - Add single Document object
+    - `query(question, config=None)` - Query knowledge base
+    - `stream(question, config=None)` - Stream response tokens
+    - `retrieve(question, config=None)` - Retrieve without generation
+    - `search(query, k=5, threshold=None)` - Direct vector search
+    - Context manager support for proper resource cleanup
+  - 25 unit tests in `tests/test_rag_pipeline.py`
+
+- **RAG Support Phase 5: Advanced Features** - Async, agent integration, hybrid search
+  - `AsyncRAG` class - Async wrapper for non-blocking RAG operations
+    - `add_texts()`, `add_documents()` - Async document ingestion
+    - `query()`, `stream()`, `retrieve()` - Async query methods
+    - `search()`, `clear()` - Async utility methods
+    - Async context manager support
+  - `create_rag_tool(rag)` - Create agent tools from RAG instances
+    - Compatible with ReActAgent, ConstrainedAgent, ContractAgent
+    - Configurable name, description, top_k, and score inclusion
+    - Auto-generates proper JSON schema for tool parameters
+  - `Reranker` class - Cross-encoder reranking for improved quality
+    - `score(query, document)` - Score query-document pairs
+    - `rerank(query, results, top_k)` - Rerank search results
+    - Lazy model loading for efficiency
+  - `HybridStore` class - Combined FTS5 + vector search
+    - SQLite FTS5 integration with automatic triggers
+    - Reciprocal Rank Fusion (RRF) for combining results
+    - Configurable alpha for vector vs FTS weighting
+    - `search(query_embedding, query_text, k, alpha)` - Hybrid search
+  - `async_search_knowledge()` - Async helper function
+  - 37 unit tests in `tests/test_rag_advanced.py`
+
 ## [0.1.16]
 
 ### Added

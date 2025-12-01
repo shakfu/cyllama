@@ -1,0 +1,325 @@
+# Advanced RAG Features {#sec-rag-advanced}
+
+cyllama provides advanced RAG features including async support, agent integration, hybrid search, and reranking.
+
+## AsyncRAG
+
+For non-blocking RAG operations in async applications:
+
+```python
+import asyncio
+from cyllama.rag import AsyncRAG
+
+async def main():
+    async with AsyncRAG(
+        embedding_model="models/bge-small.gguf",
+        generation_model="models/llama.gguf"
+    ) as rag:
+        # Async document ingestion
+        await rag.add_texts([
+            "Python is a programming language.",
+            "Machine learning uses neural networks."
+        ])
+
+        # Async query
+        response = await rag.query("What is Python?")
+        print(response.text)
+
+        # Async streaming
+        async for chunk in rag.stream("Explain ML"):
+            print(chunk, end="", flush=True)
+
+        # Async retrieve
+        sources = await rag.retrieve("neural networks")
+        for source in sources:
+            print(f"[{source.score:.2f}] {source.text}")
+
+asyncio.run(main())
+```
+
+### AsyncRAG Methods
+
+| Method | Description |
+|--------|-------------|
+| `add_texts(texts, metadata, split)` | Async add texts |
+| `add_documents(paths, split)` | Async load files |
+| `query(question, config)` | Async query |
+| `stream(question, config)` | Async token stream |
+| `retrieve(question, config)` | Async retrieval |
+| `search(query, k, threshold)` | Async vector search |
+| `clear()` | Async clear all |
+| `close()` | Async cleanup |
+
+### Using with FastAPI
+
+```python
+from fastapi import FastAPI
+from cyllama.rag import AsyncRAG
+
+app = FastAPI()
+rag = None
+
+@app.on_event("startup")
+async def startup():
+    global rag
+    rag = AsyncRAG(
+        embedding_model="models/bge-small.gguf",
+        generation_model="models/llama.gguf"
+    )
+    await rag.add_documents(["knowledge_base/"])
+
+@app.on_event("shutdown")
+async def shutdown():
+    await rag.close()
+
+@app.get("/query")
+async def query(q: str):
+    response = await rag.query(q)
+    return {
+        "answer": response.text,
+        "sources": [s.text for s in response.sources]
+    }
+```
+
+## Agent Integration
+
+Create RAG tools for use with cyllama agents:
+
+```python
+from cyllama import LLM
+from cyllama.rag import RAG, create_rag_tool
+from cyllama.agents import ReActAgent
+
+# Create RAG instance
+rag = RAG(
+    embedding_model="models/bge-small.gguf",
+    generation_model="models/llama.gguf"
+)
+
+# Add knowledge
+rag.add_texts([
+    "The company was founded in 2020.",
+    "Our main product is an AI assistant.",
+    "We have 50 employees worldwide."
+])
+
+# Create tool from RAG
+knowledge_tool = create_rag_tool(
+    rag,
+    name="search_knowledge",
+    description="Search the company knowledge base for information.",
+    top_k=3,
+    include_scores=True
+)
+
+# Use with agent
+llm = LLM("models/llama.gguf")
+agent = ReActAgent(llm=llm, tools=[knowledge_tool])
+
+result = agent.run("When was the company founded and how many employees do we have?")
+print(result)
+```
+
+### Tool Options
+
+```python
+tool = create_rag_tool(
+    rag,
+    name="search_docs",          # Tool name
+    description="Search docs",    # Tool description
+    top_k=5,                      # Results to retrieve
+    include_scores=True           # Show similarity scores
+)
+```
+
+## HybridStore
+
+Combine vector similarity with keyword search using FTS5:
+
+```python
+from cyllama.rag import HybridStore, Embedder
+
+embedder = Embedder("models/bge-small.gguf")
+
+# Create hybrid store
+store = HybridStore(
+    dimension=embedder.dimension,
+    db_path="hybrid.db",
+    alpha=0.5  # Balance between vector (1.0) and FTS (0.0)
+)
+
+# Add documents
+texts = [
+    "Python programming tutorial for beginners",
+    "Advanced Python decorators and metaclasses",
+    "JavaScript async/await patterns",
+    "Database optimization techniques"
+]
+embeddings = embedder.embed_batch(texts)
+store.add(embeddings, texts)
+
+# Hybrid search - combines semantic + keyword
+query_emb = embedder.embed("Python programming")
+results = store.search(
+    query_embedding=query_emb,
+    query_text="Python",  # FTS keyword search
+    k=3,
+    alpha=0.7  # Override: more weight on vectors
+)
+
+for r in results:
+    print(f"[{r.score:.3f}] {r.text}")
+
+store.close()
+embedder.close()
+```
+
+### How Hybrid Search Works
+
+1. **Vector Search**: Finds semantically similar documents
+2. **FTS5 Search**: Finds documents with matching keywords
+3. **Reciprocal Rank Fusion**: Combines rankings from both methods
+
+The `alpha` parameter controls the balance:
+
+- `alpha=1.0`: Pure vector search
+- `alpha=0.5`: Equal weight (default)
+- `alpha=0.0`: Pure keyword search
+
+### When to Use Hybrid Search
+
+- Exact keyword matches are important (product codes, names)
+- Users search with specific technical terms
+- Semantic search misses important lexical matches
+
+## Reranker
+
+Cross-encoder reranking for improved result quality:
+
+```python
+from cyllama.rag import Reranker, VectorStore, Embedder
+
+# Initial retrieval (fast but less precise)
+embedder = Embedder("models/bge-small.gguf")
+store = VectorStore(dimension=embedder.dimension)
+# ... add documents ...
+
+# Get initial results (retrieve more than needed)
+query = "machine learning algorithms"
+query_emb = embedder.embed(query)
+initial_results = store.search(query_emb, k=20)
+
+# Rerank for precision (slower but more accurate)
+reranker = Reranker("models/bge-reranker.gguf")
+reranked = reranker.rerank(query, initial_results, top_k=5)
+
+for r in reranked:
+    print(f"[{r.score:.3f}] {r.text}")
+
+reranker.close()
+```
+
+### How Reranking Works
+
+1. **Initial Retrieval**: Fast bi-encoder similarity search
+2. **Reranking**: Slower cross-encoder scores each query-document pair
+3. **Final Results**: Reordered by cross-encoder scores
+
+Cross-encoders are more accurate because they see query and document together, but they're slower (can't be pre-computed).
+
+### Reranker Methods
+
+```python
+# Score a single pair
+score = reranker.score(query, document_text)
+
+# Rerank a list of results
+reranked = reranker.rerank(
+    query="search query",
+    results=initial_results,
+    top_k=5  # Return top 5 after reranking
+)
+```
+
+## Complete Advanced Example
+
+```python
+from cyllama import LLM
+from cyllama.rag import (
+    AsyncRAG,
+    HybridStore,
+    Embedder,
+    RAGPipeline,
+    RAGConfig,
+    Reranker,
+    create_rag_tool
+)
+from cyllama.agents import ReActAgent
+import asyncio
+
+# 1. Build a knowledge base with hybrid search
+embedder = Embedder("models/bge-small.gguf")
+
+with HybridStore(
+    dimension=embedder.dimension,
+    db_path="knowledge.db"
+) as store:
+    documents = [
+        "Python 3.12 introduced new performance improvements.",
+        "The typing module provides type hints for Python.",
+        "FastAPI is a modern Python web framework.",
+        "PyTorch is used for deep learning research.",
+    ]
+
+    embeddings = embedder.embed_batch(documents)
+    store.add(embeddings, documents)
+
+    # Hybrid search
+    query = "Python performance"
+    query_emb = embedder.embed(query)
+    results = store.search(query_emb, query_text="Python", k=2)
+    print("Hybrid search results:")
+    for r in results:
+        print(f"  [{r.score:.3f}] {r.text}")
+
+# 2. Async RAG with agent tool
+async def agent_demo():
+    async with AsyncRAG(
+        embedding_model="models/bge-small.gguf",
+        generation_model="models/llama.gguf"
+    ) as rag:
+        await rag.add_texts([
+            "Our API rate limit is 100 requests per minute.",
+            "Authentication requires an API key in the header.",
+            "The /users endpoint returns user data."
+        ])
+
+        # Create tool for agent
+        from cyllama.rag import RAG
+        sync_rag = RAG(
+            embedding_model="models/bge-small.gguf",
+            generation_model="models/llama.gguf"
+        )
+        sync_rag.add_texts(["API docs..."])
+
+        tool = create_rag_tool(sync_rag)
+        llm = LLM("models/llama.gguf")
+        agent = ReActAgent(llm=llm, tools=[tool])
+
+        result = agent.run("What is the API rate limit?")
+        print(f"\nAgent result: {result}")
+
+        sync_rag.close()
+        llm.close()
+
+asyncio.run(agent_demo())
+embedder.close()
+```
+
+## Performance Tips
+
+1. **Initial Retrieval**: Retrieve 2-4x more documents than needed, then rerank
+2. **Hybrid Search**: Use when keyword matches matter
+3. **Async**: Use `AsyncRAG` in web applications to avoid blocking
+4. **Quantization**: Call `store.quantize()` for datasets >10k vectors
+5. **Caching**: Reuse embedder and store instances across queries

@@ -1,5 +1,3 @@
-VERSION := "0.1.16"
-
 .PHONY: all update build pdf clean
 
 all: build

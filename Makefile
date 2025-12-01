@@ -1,3 +1,4 @@
+VERSION = "0.1.17"
 # set path so `llama-cli` etc.. be in path
 # export PATH := $(PWD)/thirdparty/llama.cpp/bin:$(PATH)
 export MACOSX_DEPLOYMENT_TARGET := 14.7
@@ -241,7 +242,7 @@ coverage:
 	@uv run pytest --cov=cyllama --cov-report html
 
 docs:
-	@make -f docs/book/Makefile pdf
+	@make -C docs/book pdf VERSION=$(VERSION)
 
 memray:
 	@uv run pytest --memray --native tests
