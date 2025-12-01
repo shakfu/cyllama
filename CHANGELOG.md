@@ -92,6 +92,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - Added mypy type checking job (runs separately, continues on error initially)
   - Added `mypy>=1.13.0` to dev dependencies
 
+- **Test Suite Cleanup** - Removed redundant and obsolete test files
+  - Deleted `scratch.py` (not a test file), `test_api.py` (redundant with `test_simple.py`)
+  - Deleted `test_highlevel.py` and `test_common.py` (entirely skipped, tested deprecated/non-existent APIs)
+  - Consolidated 5 small mserver test files into `test_mserver_embedded.py`
+  - Improved `conftest.py` with LLM fixtures that ensure proper resource cleanup
+  - Added `llm`, `llm_deterministic`, `llm_shared` fixtures for model instance management
+  - Added `fast_config`, `deterministic_config` fixtures for common generation configs
+  - Added custom pytest markers: `@pytest.mark.slow`, `@pytest.mark.requires_model`, `@pytest.mark.gpu`
+  - Test count: 862 passed, 29 skipped (reduced from 863/34 by removing redundant tests)
+
 ## [0.1.15]
 
 ### Changed
