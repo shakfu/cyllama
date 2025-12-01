@@ -102,14 +102,6 @@ jobs:
         path: artifacts
         pattern: wheel-*
 
-    - name: List artifact structure
-      run: |
-        echo "=== Full artifact tree ==="
-        find artifacts -type f -name "*.whl" | sort
-        echo ""
-        echo "=== Artifact directories ==="
-        ls -la artifacts/
-
     - name: Collect wheels into single directory
       run: |
         mkdir -p wheels

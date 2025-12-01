@@ -1,7 +1,7 @@
-name: Build Wheels
+name: build-wheels
 
-# Manually triggered workflow for testing wheel builds
-# Does NOT publish to PyPI - only uploads artifacts for inspection
+# Manually triggered workflow for building wheels with cibuildwheel
+# Supports multiple Python versions and platforms
 
 on:
   workflow_dispatch:
@@ -9,7 +9,7 @@ on:
       python_versions:
         description: 'Python versions to build (comma-separated, e.g., "3.11,3.12")'
         required: false
-        default: '3.11'
+        default: '3.9,3.10,3.11,3.12,3.13'
         type: string
       platforms:
         description: 'Platforms to build'
@@ -39,13 +39,13 @@ jobs:
           PLATFORMS='${{ inputs.platforms }}'
 
           if [ "$PLATFORMS" = "all" ] || [ "$PLATFORMS" = "macos-only" ]; then
-            MACOS='[{"os":"macos","arch":"x86_64","runner":"macos-13","cibw_archs":"x86_64"},{"os":"macos","arch":"arm64","runner":"macos-14","cibw_archs":"arm64"}]'
+            MACOS='[{"os":"macos","arch":"arm64","runner":"macos-14","cibw_archs":"arm64"}]'
           else
             MACOS='[]'
           fi
 
           if [ "$PLATFORMS" = "all" ] || [ "$PLATFORMS" = "linux-only" ]; then
-            LINUX='[{"os":"linux","arch":"x86_64","runner":"ubuntu-latest","cibw_archs":"x86_64"}]'
+            LINUX='[{"os":"linux","arch":"x86_64","runner":"ubuntu-22.04","cibw_archs":"x86_64"}]'
           else
             LINUX='[]'
           fi
@@ -73,53 +73,37 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          submodules: recursive
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      # Install Python build dependencies (needed by manage.py build)
-      - name: Install Python build dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install cython
-
-      # macOS dependencies
-      - name: Install dependencies (macOS)
-        if: matrix.os == 'macos'
-        run: |
-          brew install cmake ninja
-
-      # Linux dependencies
-      - name: Install dependencies (Linux)
-        if: matrix.os == 'linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential cmake ninja-build
-
-      # Windows dependencies
-      - name: Install dependencies (Windows)
-        if: matrix.os == 'windows'
-        run: |
-          choco install cmake ninja -y
-
-      # Build thirdparty libraries
-      - name: Build thirdparty (Unix)
+      - name: Install uv (Unix)
         if: matrix.os != 'windows'
         run: |
-          python scripts/manage.py build --all
-        env:
-          GGML_METAL: ${{ matrix.os == 'macos' && '1' || '0' }}
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
-      - name: Build thirdparty (Windows)
+      - name: Install uv (Windows)
         if: matrix.os == 'windows'
-        shell: pwsh
         run: |
-          python scripts/manage.py build --all
-        env:
-          GGML_METAL: '0'
+          irm https://astral.sh/uv/install.ps1 | iex
+          echo "$env:USERPROFILE\.local\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Install dependencies (Unix)
+        if: matrix.os != 'windows'
+        run: make sync
+
+      - name: Install dependencies (Windows)
+        if: matrix.os == 'windows'
+        shell: bash
+        run: scripts/setup.sh
+
+      - name: Sync dependencies (Windows)
+        if: matrix.os == 'windows'
+        run: uv sync
 
       # Convert Python versions input to cibuildwheel format
       - name: Set Python versions
@@ -139,13 +123,11 @@ jobs:
           echo "cibw_build=$CIBW_BUILD" >> $GITHUB_OUTPUT
           echo "Building for Python versions: $CIBW_BUILD"
 
-      # Install cibuildwheel
       - name: Install cibuildwheel
         run: |
           python -m pip install --upgrade pip
           python -m pip install cibuildwheel==2.21.3
 
-      # Build wheels
       - name: Build wheels
         run: python -m cibuildwheel --output-dir wheelhouse
         env:
@@ -177,24 +159,16 @@ jobs:
           CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: >
             delvewheel repair -w {dest_dir} {wheel}
 
-      # List built wheels
       - name: List built wheels
         shell: bash
         run: |
           echo "=== Built wheels ==="
           ls -lah wheelhouse/
-          echo ""
-          echo "=== Wheel info ==="
-          for wheel in wheelhouse/*.whl; do
-            echo "--- $wheel ---"
-            python -m zipfile -l "$wheel" | head -20
-            echo ""
-          done
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
-          name: wheels-${{ matrix.os }}-${{ matrix.arch }}
+          name: wheel-${{ matrix.os }}-${{ matrix.arch }}
           path: ./wheelhouse/*.whl
           retention-days: 14
 
@@ -206,28 +180,28 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          submodules: recursive
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Install build tools
+      - name: Install uv
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install build
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Install dependencies
+        run: make sync
 
       - name: Build sdist
-        run: python -m build --sdist
+        run: uv build --sdist
 
       - name: List sdist contents
         run: |
           echo "=== Source distribution ==="
           ls -lah dist/
-          echo ""
-          echo "=== Sdist contents ==="
-          tar -tzf dist/*.tar.gz | head -50
 
       - name: Upload sdist
         uses: actions/upload-artifact@v4
@@ -236,55 +210,50 @@ jobs:
           path: dist/*.tar.gz
           retention-days: 14
 
-  # Summary job
-  summary:
-    name: Build summary
+  # Collect all wheels into a single artifact
+  collect:
+    name: Collect wheels
     needs: [build_wheels, build_sdist]
     runs-on: ubuntu-latest
-    if: always()
+
     steps:
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
-          path: all-artifacts
+          path: artifacts
+          pattern: wheel-*
+
+      - name: Download sdist
+        uses: actions/download-artifact@v5
+        with:
+          name: sdist
+          path: artifacts/sdist
+
+      - name: Collect into single directory
+        run: |
+          mkdir -p dist
+          find artifacts -name "*.whl" -exec cp {} dist/ \;
+          find artifacts -name "*.tar.gz" -exec cp {} dist/ \;
+          echo "=== Collected distributions ==="
+          ls -la dist/
 
       - name: Generate summary
         run: |
           echo "# Build Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## Built Artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "## Distributions" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Artifact | Files | Total Size |" >> $GITHUB_STEP_SUMMARY
-          echo "|----------|-------|------------|" >> $GITHUB_STEP_SUMMARY
-
-          for dir in all-artifacts/*/; do
-            if [ -d "$dir" ]; then
-              name=$(basename "$dir")
-              count=$(find "$dir" -type f | wc -l)
-              size=$(du -sh "$dir" | cut -f1)
-              echo "| $name | $count | $size |" >> $GITHUB_STEP_SUMMARY
-            fi
+          echo "| File | Size |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|------|" >> $GITHUB_STEP_SUMMARY
+          for f in dist/*; do
+            filename=$(basename "$f")
+            size=$(ls -lh "$f" | awk '{print $5}')
+            echo "| $filename | $size |" >> $GITHUB_STEP_SUMMARY
           done
 
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## All Files" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          find all-artifacts -type f -name "*.whl" -o -name "*.tar.gz" | sort >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## Wheel Details" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          for wheel in $(find all-artifacts -name "*.whl" | sort); do
-            filename=$(basename "$wheel")
-            size=$(ls -lh "$wheel" | awk '{print $5}')
-            echo "- **$filename** ($size)" >> $GITHUB_STEP_SUMMARY
-          done
-
-      - name: Upload combined artifacts
+      - name: Upload combined distributions
         uses: actions/upload-artifact@v4
         with:
-          name: all-artifacts-combined
-          path: all-artifacts/
+          name: cyllama-dist-all
+          path: dist/*
           retention-days: 14
