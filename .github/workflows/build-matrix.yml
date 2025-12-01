@@ -97,22 +97,18 @@ jobs:
 
     steps:
     - name: Download all wheels
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v5
       with:
         path: artifacts
         pattern: wheel-*
-
-    - name: Collect wheels into single directory
-      run: |
-        mkdir -p wheels
-        find artifacts -name "*.whl" -exec cp {} wheels/ \;
+        merge-multiple: true
 
     - name: List wheels
-      run: ls -la wheels/
+      run: ls -R artifacts/
 
     - name: Upload combined artifact
       uses: actions/upload-artifact@v4
       with:
         name: cyllama-wheels-all
-        path: wheels/*.whl
+        path: artifacts/*
         retention-days: 10
