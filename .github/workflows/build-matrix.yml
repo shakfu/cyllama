@@ -99,9 +99,13 @@ jobs:
     - name: Download all wheels
       uses: actions/download-artifact@v4
       with:
-        path: wheels
+        path: artifacts
         pattern: wheel-*
-        merge-multiple: true
+
+    - name: Collect wheels into single directory
+      run: |
+        mkdir -p wheels
+        find artifacts -name "*.whl" -exec cp {} wheels/ \;
 
     - name: List wheels
       run: ls -la wheels/
