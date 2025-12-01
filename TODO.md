@@ -2,10 +2,10 @@
 
 ## High Priority
 
-- [ ] Enable CI/CD automation (uncomment and fix `.github/workflows/ci.yml` for push/PR triggers)
-- [ ] Add code coverage reporting to CI (`pytest-cov` with minimum threshold)
-- [ ] Async API support (`async def complete_async()`, `AsyncLLM` class, async agent execution)
-- [ ] Add mypy type checking to CI
+- [x] Enable CI/CD automation (uncomment and fix `.github/workflows/ci.yml` for push/PR triggers)
+- [x] Add code coverage reporting to CI (`pytest-cov` with minimum threshold)
+- [x] Add mypy type checking to CI
+- [x] Async API support (`async def complete_async()`, `AsyncLLM` class, async agent execution)
 
 ## Medium Priority
 

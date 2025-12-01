@@ -1,6 +1,6 @@
 from .llama.llama_cpp import *
 
-# High-level API
+# High-level API (sync and async)
 from .api import (
     LLM,
     complete,
@@ -8,6 +8,11 @@ from .api import (
     simple,
     GenerationConfig,
     GenerationStats,
+    # Async API
+    AsyncLLM,
+    complete_async,
+    chat_async,
+    stream_complete_async,
 )
 
 # Batching utilities
@@ -41,4 +46,4 @@ except ImportError as e:
     import warnings
     warnings.warn(f"Multimodal support not available: {e}", ImportWarning)
 
-__version__ = "0.1.15"
+__version__ = "0.1.16"

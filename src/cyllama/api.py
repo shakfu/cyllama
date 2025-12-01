@@ -1,11 +1,11 @@
 """
 High-Level API for cyllama
 
-This module provides the primary user-facing API for cyllama.
-It abstracts away the complexity of batches, sampling, and context management.
+This module provides the primary user-facing API for cyllama, including
+both synchronous and asynchronous interfaces.
 
 Example:
-    >>> from cyllama import complete
+    >>> from cyllama import complete, LLM
     >>>
     >>> # Simple completion
     >>> response = complete("What is 2+2?", model_path="models/llama.gguf")
@@ -18,9 +18,40 @@ Example:
     >>> # Using the LLM class
     >>> llm = LLM("models/llama.gguf")
     >>> response = llm("What is Python?")
+
+Async Example:
+    >>> import asyncio
+    >>> from cyllama import complete_async, AsyncLLM
+    >>>
+    >>> async def main():
+    >>>     # Simple async completion
+    >>>     response = await complete_async("What is 2+2?", model_path="model.gguf")
+    >>>     print(response)
+    >>>
+    >>>     # Using AsyncLLM class
+    >>>     async with AsyncLLM("model.gguf") as llm:
+    >>>         response = await llm("What is Python?")
+    >>>         print(response)
+    >>>
+    >>>         # Async streaming
+    >>>         async for chunk in llm.stream("Tell me a story"):
+    >>>             print(chunk, end="", flush=True)
+    >>>
+    >>> asyncio.run(main())
 """
 
-from typing import Iterator, Optional, Dict, Any, List, Callable, Union, Tuple
+import asyncio
+from typing import (
+    AsyncIterator,
+    Iterator,
+    Optional,
+    Dict,
+    Any,
+    List,
+    Callable,
+    Union,
+    Tuple,
+)
 from dataclasses import dataclass, field
 import logging
 import time
@@ -808,3 +839,381 @@ def simple(model_path: str, prompt: str, ngl: int = 99, n_predict: int = 32, n_c
     ctx.print_perf_data()
 
     return True
+
+
+# =============================================================================
+# Async API
+# =============================================================================
+
+
+class AsyncLLM:
+    """
+    Async wrapper around the LLM class for non-blocking text generation.
+
+    This class provides an async interface to the synchronous LLM operations.
+    Inference runs in a thread pool to avoid blocking the event loop, making
+    it suitable for use in async web frameworks like FastAPI, aiohttp, etc.
+
+    Note: The underlying model is still synchronous - this wrapper just moves
+    the blocking operations off the main event loop. For true parallelism with
+    multiple requests, use multiple AsyncLLM instances or batch processing.
+
+    Resource Management:
+        Use as an async context manager for proper cleanup:
+        - `async with AsyncLLM(...) as llm:`
+
+    Example:
+        >>> async def main():
+        >>>     # Simple usage with direct parameters
+        >>>     async with AsyncLLM("model.gguf", temperature=0.9) as llm:
+        >>>         response = await llm("What is Python?")
+        >>>         print(response)
+        >>>
+        >>>         # Async streaming
+        >>>         async for chunk in llm.stream("Tell me a joke"):
+        >>>             print(chunk, end="", flush=True)
+        >>>
+        >>> asyncio.run(main())
+    """
+
+    def __init__(
+        self,
+        model_path: str,
+        config: Optional[GenerationConfig] = None,
+        verbose: bool = False,
+        **kwargs
+    ):
+        """
+        Initialize async generator with a model.
+
+        Args:
+            model_path: Path to GGUF model file
+            config: Generation configuration (uses defaults if None)
+            verbose: Print detailed information during generation
+            **kwargs: Generation parameters (temperature, max_tokens, etc.)
+                      These override values in config if both are provided.
+
+        Example:
+            >>> # Direct parameters
+            >>> llm = AsyncLLM("model.gguf", temperature=0.9, max_tokens=100)
+            >>>
+            >>> # With config
+            >>> config = GenerationConfig(temperature=0.9)
+            >>> llm = AsyncLLM("model.gguf", config=config)
+        """
+        self._llm = LLM(model_path, config=config, verbose=verbose, **kwargs)
+        self._lock = asyncio.Lock()
+
+    async def __aenter__(self):
+        """Async context manager entry."""
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Async context manager exit - ensures cleanup."""
+        await self.close()
+        return False
+
+    async def close(self):
+        """
+        Explicitly release resources.
+
+        Runs cleanup in a thread to avoid blocking if cleanup is slow.
+        """
+        await asyncio.to_thread(self._llm.close)
+
+    async def reset_context(self):
+        """Force recreation of context on next generation."""
+        await asyncio.to_thread(self._llm.reset_context)
+
+    @property
+    def config(self) -> GenerationConfig:
+        """Get the current generation config."""
+        return self._llm.config
+
+    @property
+    def model_path(self) -> str:
+        """Get the model path."""
+        return self._llm.model_path
+
+    async def __call__(
+        self,
+        prompt: str,
+        config: Optional[GenerationConfig] = None,
+        **kwargs
+    ) -> str:
+        """
+        Generate text from a prompt asynchronously.
+
+        Args:
+            prompt: Input text prompt
+            config: Generation configuration (uses instance config if None)
+            **kwargs: Override config parameters for this call
+
+        Returns:
+            Generated text string
+
+        Example:
+            >>> response = await llm("What is the meaning of life?")
+            >>> response = await llm("Explain quantum physics", max_tokens=200)
+        """
+        # Build config with overrides if kwargs provided
+        if kwargs:
+            effective_config = self._build_config(config, kwargs)
+        else:
+            effective_config = config
+
+        async with self._lock:
+            return await asyncio.to_thread(
+                self._llm._generate,
+                prompt,
+                effective_config
+            )
+
+    async def generate(
+        self,
+        prompt: str,
+        config: Optional[GenerationConfig] = None,
+        **kwargs
+    ) -> str:
+        """
+        Generate text from a prompt asynchronously.
+
+        Alias for __call__ for explicit method name preference.
+
+        Args:
+            prompt: Input text prompt
+            config: Generation configuration
+            **kwargs: Override config parameters
+
+        Returns:
+            Generated text string
+        """
+        return await self(prompt, config, **kwargs)
+
+    async def stream(
+        self,
+        prompt: str,
+        config: Optional[GenerationConfig] = None,
+        **kwargs
+    ) -> AsyncIterator[str]:
+        """
+        Stream generated text chunks asynchronously.
+
+        Yields text chunks as they are generated. Each chunk is yielded
+        as soon as it's available from the underlying model.
+
+        Args:
+            prompt: Input text prompt
+            config: Generation configuration
+            **kwargs: Override config parameters
+
+        Yields:
+            Text chunks as they are generated
+
+        Example:
+            >>> async for chunk in llm.stream("Tell me a story"):
+            >>>     print(chunk, end="", flush=True)
+        """
+        # Build config with overrides if kwargs provided
+        if kwargs:
+            effective_config = self._build_config(config, kwargs)
+        else:
+            effective_config = config
+
+        # Use a queue to bridge sync generator to async iterator
+        queue: asyncio.Queue[Union[str, None, Exception]] = asyncio.Queue()
+
+        async def producer():
+            """Run sync generator in thread and put items in queue."""
+            try:
+                def generate_sync():
+                    for chunk in self._llm._generate_stream(prompt, effective_config):
+                        # Schedule putting item in queue from the thread
+                        asyncio.run_coroutine_threadsafe(
+                            queue.put(chunk),
+                            loop
+                        )
+                    # Signal completion
+                    asyncio.run_coroutine_threadsafe(
+                        queue.put(None),
+                        loop
+                    )
+
+                await asyncio.to_thread(generate_sync)
+            except Exception as e:
+                await queue.put(e)
+
+        loop = asyncio.get_event_loop()
+
+        # Start producer task
+        async with self._lock:
+            producer_task = asyncio.create_task(producer())
+
+            try:
+                while True:
+                    item = await queue.get()
+                    if item is None:
+                        break
+                    if isinstance(item, Exception):
+                        raise item
+                    yield item
+            finally:
+                # Ensure producer completes
+                await producer_task
+
+    async def generate_with_stats(
+        self,
+        prompt: str,
+        config: Optional[GenerationConfig] = None
+    ) -> tuple:
+        """
+        Generate text and return detailed statistics.
+
+        Args:
+            prompt: Input text prompt
+            config: Generation configuration
+
+        Returns:
+            Tuple of (generated_text, GenerationStats)
+        """
+        async with self._lock:
+            return await asyncio.to_thread(
+                self._llm.generate_with_stats,
+                prompt,
+                config
+            )
+
+    def _build_config(
+        self,
+        base_config: Optional[GenerationConfig],
+        overrides: Dict[str, Any]
+    ) -> GenerationConfig:
+        """Build a config with overrides applied."""
+        config = base_config or self._llm.config
+        config_dict = {
+            'max_tokens': config.max_tokens,
+            'temperature': config.temperature,
+            'top_k': config.top_k,
+            'top_p': config.top_p,
+            'min_p': config.min_p,
+            'repeat_penalty': config.repeat_penalty,
+            'n_gpu_layers': config.n_gpu_layers,
+            'n_ctx': config.n_ctx,
+            'n_batch': config.n_batch,
+            'seed': config.seed,
+            'stop_sequences': config.stop_sequences.copy(),
+            'add_bos': config.add_bos,
+            'parse_special': config.parse_special,
+        }
+        config_dict.update(overrides)
+        return GenerationConfig(**config_dict)
+
+
+async def complete_async(
+    prompt: str,
+    model_path: str,
+    config: Optional[GenerationConfig] = None,
+    verbose: bool = False,
+    **kwargs
+) -> str:
+    """
+    Async convenience function for one-off text completion.
+
+    For repeated completions, use the AsyncLLM class for better performance
+    (avoids reloading the model each time).
+
+    Args:
+        prompt: Input text prompt
+        model_path: Path to GGUF model file
+        config: Generation configuration
+        verbose: Enable detailed logging
+        **kwargs: Additional config parameters (temperature, max_tokens, etc.)
+
+    Returns:
+        Generated text string
+
+    Example:
+        >>> response = await complete_async(
+        >>>     "What is Python?",
+        >>>     model_path="model.gguf",
+        >>>     temperature=0.7
+        >>> )
+    """
+    return await asyncio.to_thread(
+        complete,
+        prompt,
+        model_path,
+        config,
+        False,  # stream=False
+        verbose,
+        **kwargs
+    )
+
+
+async def chat_async(
+    messages: List[Dict[str, str]],
+    model_path: str,
+    config: Optional[GenerationConfig] = None,
+    verbose: bool = False,
+    **kwargs
+) -> str:
+    """
+    Async convenience function for chat-style generation.
+
+    Args:
+        messages: List of message dicts with 'role' and 'content' keys
+        model_path: Path to GGUF model file
+        config: Generation configuration
+        verbose: Enable detailed logging
+        **kwargs: Additional config parameters
+
+    Returns:
+        Generated response text
+
+    Example:
+        >>> messages = [
+        >>>     {"role": "system", "content": "You are a helpful assistant."},
+        >>>     {"role": "user", "content": "What is Python?"}
+        >>> ]
+        >>> response = await chat_async(messages, model_path="model.gguf")
+    """
+    return await asyncio.to_thread(
+        chat,
+        messages,
+        model_path,
+        config,
+        False,  # stream=False
+        verbose,
+        **kwargs
+    )
+
+
+async def stream_complete_async(
+    prompt: str,
+    model_path: str,
+    config: Optional[GenerationConfig] = None,
+    verbose: bool = False,
+    **kwargs
+) -> AsyncIterator[str]:
+    """
+    Async streaming completion for one-off use.
+
+    For repeated completions, use AsyncLLM.stream() for better performance.
+
+    Args:
+        prompt: Input text prompt
+        model_path: Path to GGUF model file
+        config: Generation configuration
+        verbose: Enable detailed logging
+        **kwargs: Additional config parameters
+
+    Yields:
+        Text chunks as they are generated
+
+    Example:
+        >>> async for chunk in stream_complete_async("Tell me a story", "model.gguf"):
+        >>>     print(chunk, end="", flush=True)
+    """
+    async with AsyncLLM(model_path, config=config, verbose=verbose, **kwargs) as llm:
+        async for chunk in llm.stream(prompt):
+            yield chunk

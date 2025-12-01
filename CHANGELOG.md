@@ -17,6 +17,50 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [0.1.x]
 
+## [0.1.16]
+
+### Added
+
+- **Async API Support** - Full async/await support for text generation
+  - `AsyncLLM` class - Async wrapper around `LLM` with `async with` context manager support
+  - `complete_async()` - Async convenience function for one-off completions
+  - `chat_async()` - Async chat-style generation
+  - `stream_complete_async()` - Async streaming generator
+  - Uses `asyncio.to_thread()` to avoid blocking the event loop during inference
+  - Lock-based serialization prevents concurrent access issues
+  - All async functions support same kwargs as sync versions
+
+- **Async Agent Support** - Async wrappers for agent execution
+  - `AsyncReActAgent` - Async wrapper for ReActAgent
+  - `AsyncConstrainedAgent` - Async wrapper for ConstrainedAgent
+  - `run_agent_async()` - Helper function to run any agent asynchronously
+  - Async streaming via `async for event in agent.stream(task)`
+  - Suitable for use in FastAPI, aiohttp, and other async frameworks
+
+### Changed
+
+- **LLM Class Direct Parameters** - `LLM` class now accepts generation parameters directly
+  - Can now use `LLM("model.gguf", temperature=0.9, max_tokens=100)` instead of requiring `GenerationConfig`
+  - Supports three patterns: direct kwargs, explicit `config=`, or config with kwargs overrides
+  - Maintains full backward compatibility with existing `config=GenerationConfig(...)` usage
+  - Validation still runs through `GenerationConfig.__post_init__`
+
+- **GitHub Actions Workflow Fixes** - Fixed wheel collection in CI workflows
+  - Fixed `build-matrix.yml` wheel Python version tagging using `--python` and `--python-preference only-system`
+  - Root cause: `.python-version` file caused `uv build` to ignore `setup-python` configured interpreter
+  - Updated `build-wheels.yml` and `publish-wheels.yml` to use consistent patterns with `uv` and `make sync`
+  - Updated `download-artifact` to v5 and removed problematic `merge-multiple: true`
+  - Added proper wheel collection using `find` command to flatten artifact directories
+  - Simplified `ci.yml` with consistent runner versions and build patterns
+
+- **CI/CD Automation Enabled** - Full CI pipeline now runs on push/PR
+  - Enabled push triggers for `main` and `dev` branches
+  - Enabled pull request triggers for `main` and `dev` branches
+  - Added code coverage reporting with `pytest-cov` (XML and terminal output)
+  - Coverage report uploaded as artifact for ubuntu-22.04/py3.12 job
+  - Added mypy type checking job (runs separately, continues on error initially)
+  - Added `mypy>=1.13.0` to dev dependencies
+
 ## [0.1.15]
 
 ### Changed

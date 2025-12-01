@@ -1,12 +1,39 @@
 name: ci
 
-on: [workflow_dispatch]
-  # push:
-  #   branches: [ main, dev ]
-  # pull_request:
-  #   branches: [ main, dev ]
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
 
 jobs:
+  # Type checking with mypy (runs once, fast)
+  typecheck:
+    name: Type Check
+    runs-on: ubuntu-22.04
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Install uv
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+    - name: Install dependencies
+      run: uv sync
+
+    - name: Run mypy
+      run: uv run mypy src/cyllama --ignore-missing-imports --no-error-summary
+      continue-on-error: true  # Don't fail CI initially, just report
+
+  # Test matrix across platforms and Python versions
   test:
     name: Test ${{ matrix.os }}-py${{ matrix.python-version }}
     runs-on: ${{ matrix.os }}
@@ -61,13 +88,31 @@ jobs:
       shell: bash
       run: uv build --wheel --python ${{ matrix.python-version }} --python-preference only-system
 
-    - name: Run tests (Unix)
+    - name: Run tests with coverage (Unix)
       if: runner.os != 'Windows'
-      run: make test
+      run: |
+        uv run pytest tests/ --ignore=tests/examples \
+          --cov=src/cyllama \
+          --cov-report=xml \
+          --cov-report=term-missing \
+          -v
 
-    - name: Run tests (Windows)
+    - name: Run tests with coverage (Windows)
       if: runner.os == 'Windows'
-      run: uv run pytest -v --ignore=tests/examples
+      run: |
+        uv run pytest tests/ --ignore=tests/examples `
+          --cov=src/cyllama `
+          --cov-report=xml `
+          --cov-report=term-missing `
+          -v
+
+    - name: Upload coverage report
+      if: matrix.os == 'ubuntu-22.04' && matrix.python-version == '3.12'
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-report
+        path: coverage.xml
+        retention-days: 7
 
     - name: Upload wheel artifacts
       uses: actions/upload-artifact@v4

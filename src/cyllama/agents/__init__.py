@@ -60,6 +60,13 @@ from .jsonrpc import (
     StdioTransport,
 )
 
+# Async agent wrappers
+from .async_agent import (
+    AsyncReActAgent,
+    AsyncConstrainedAgent,
+    run_agent_async,
+)
+
 __all__ = [
     # Tools
     "Tool",
@@ -126,4 +133,9 @@ __all__ = [
     "JsonRpcResponse",
     "JsonRpcError",
     "StdioTransport",
+
+    # Async agents
+    "AsyncReActAgent",
+    "AsyncConstrainedAgent",
+    "run_agent_async",
 ]
