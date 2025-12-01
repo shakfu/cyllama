@@ -101,14 +101,17 @@ jobs:
       with:
         path: artifacts
         pattern: wheel-*
-        merge-multiple: true
 
-    - name: List wheels
-      run: ls -R artifacts/
+    - name: Collect wheels into single directory
+      run: |
+        mkdir -p wheels
+        find artifacts -name "*.whl" -exec cp {} wheels/ \;
+        echo "Collected $(ls wheels/*.whl | wc -l) wheels:"
+        ls -la wheels/
 
     - name: Upload combined artifact
       uses: actions/upload-artifact@v4
       with:
         name: cyllama-wheels-all
-        path: artifacts/*
+        path: wheels/*.whl
         retention-days: 10
