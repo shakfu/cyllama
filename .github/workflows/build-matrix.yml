@@ -51,12 +51,12 @@ jobs:
 
     - name: Build wheel (Unix)
       if: runner.os != 'Windows'
-      run: make wheel
+      run: uv build --wheel --python ${{ matrix.python-version }} --python-preference only-system
 
     - name: Build wheel (Windows)
       if: runner.os == 'Windows'
       shell: bash
-      run: uv build --wheel
+      run: uv build --wheel --python ${{ matrix.python-version }} --python-preference only-system
 
     - name: Repair wheel with auditwheel (Linux)
       if: runner.os == 'Linux'
@@ -101,6 +101,14 @@ jobs:
       with:
         path: artifacts
         pattern: wheel-*
+
+    - name: List artifact structure
+      run: |
+        echo "=== Full artifact tree ==="
+        find artifacts -type f -name "*.whl" | sort
+        echo ""
+        echo "=== Artifact directories ==="
+        ls -la artifacts/
 
     - name: Collect wheels into single directory
       run: |
