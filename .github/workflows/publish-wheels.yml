@@ -1,4 +1,4 @@
-name: Publish Wheels
+name: publish-wheels
 
 on:
   workflow_dispatch:
@@ -25,12 +25,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # macOS x86_64
-          - os: macos
-            arch: x86_64
-            runner: macos-13
-            cibw_archs: x86_64
-
           # macOS arm64 (Apple Silicon)
           - os: macos
             arch: arm64
@@ -40,14 +34,8 @@ jobs:
           # Linux x86_64
           - os: linux
             arch: x86_64
-            runner: ubuntu-latest
+            runner: ubuntu-22.04
             cibw_archs: x86_64
-
-          # Linux aarch64
-          - os: linux
-            arch: aarch64
-            runner: ubuntu-latest
-            cibw_archs: aarch64
 
           # Windows x86_64
           - os: windows
@@ -59,63 +47,43 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          submodules: recursive
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      # Set up QEMU for cross-compilation on Linux aarch64
-      - name: Set up QEMU
-        if: matrix.os == 'linux' && matrix.arch == 'aarch64'
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: arm64
-
-      # macOS dependencies
-      - name: Install dependencies (macOS)
-        if: matrix.os == 'macos'
-        run: |
-          brew install cmake ninja
-
-      # Linux dependencies
-      - name: Install dependencies (Linux)
-        if: matrix.os == 'linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential cmake ninja-build
-
-      # Windows dependencies
-      - name: Install dependencies (Windows)
-        if: matrix.os == 'windows'
-        run: |
-          choco install cmake ninja -y
-
-      # Build thirdparty libraries (llama.cpp, whisper.cpp)
-      - name: Build thirdparty (Unix)
+      - name: Install uv (Unix)
         if: matrix.os != 'windows'
         run: |
-          python scripts/manage.py build --llama-cpp --whisper-cpp
-        env:
-          # Disable Metal on Linux
-          GGML_METAL: ${{ matrix.os == 'macos' && '1' || '0' }}
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
-      - name: Build thirdparty (Windows)
+      - name: Install uv (Windows)
         if: matrix.os == 'windows'
-        shell: pwsh
         run: |
-          python scripts/manage.py build --llama-cpp --whisper-cpp
-        env:
-          GGML_METAL: '0'
+          irm https://astral.sh/uv/install.ps1 | iex
+          echo "$env:USERPROFILE\.local\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
-      # Install cibuildwheel
+      - name: Install dependencies (Unix)
+        if: matrix.os != 'windows'
+        run: make sync
+
+      - name: Install dependencies (Windows)
+        if: matrix.os == 'windows'
+        shell: bash
+        run: scripts/setup.sh
+
+      - name: Sync dependencies (Windows)
+        if: matrix.os == 'windows'
+        run: uv sync
+
       - name: Install cibuildwheel
         run: |
           python -m pip install --upgrade pip
           python -m pip install cibuildwheel==2.21.3
 
-      # Build wheels
       - name: Build wheels
         run: python -m cibuildwheel --output-dir wheelhouse
         env:
@@ -132,7 +100,6 @@ jobs:
           CIBW_ENVIRONMENT_LINUX: >
             GGML_METAL=0
           CIBW_MANYLINUX_X86_64_IMAGE: manylinux2014
-          CIBW_MANYLINUX_AARCH64_IMAGE: manylinux2014
           CIBW_BEFORE_ALL_LINUX: |
             yum install -y cmake ninja-build
 
@@ -148,10 +115,16 @@ jobs:
           CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: >
             delvewheel repair -w {dest_dir} {wheel}
 
+      - name: List built wheels
+        shell: bash
+        run: |
+          echo "=== Built wheels ==="
+          ls -lah wheelhouse/
+
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
-          name: wheels-${{ matrix.os }}-${{ matrix.arch }}
+          name: wheel-${{ matrix.os }}-${{ matrix.arch }}
           path: ./wheelhouse/*.whl
 
   # Build source distribution
@@ -162,20 +135,28 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          submodules: recursive
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Install build tools
+      - name: Install uv
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install build
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Install dependencies
+        run: make sync
 
       - name: Build sdist
-        run: python -m build --sdist
+        run: uv build --sdist
+
+      - name: List sdist contents
+        run: |
+          echo "=== Source distribution ==="
+          ls -lah dist/
 
       - name: Upload sdist
         uses: actions/upload-artifact@v4
@@ -184,30 +165,41 @@ jobs:
           path: dist/*.tar.gz
 
   # Collect all artifacts
-  collect_artifacts:
-    name: Collect all wheels
+  collect:
+    name: Collect all distributions
     needs: [build_wheels, build_sdist]
     runs-on: ubuntu-latest
     steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
+      - name: Download wheel artifacts
+        uses: actions/download-artifact@v5
         with:
-          path: dist
-          merge-multiple: true
+          path: artifacts
+          pattern: wheel-*
 
-      - name: List artifacts
-        run: ls -la dist/
+      - name: Download sdist
+        uses: actions/download-artifact@v5
+        with:
+          name: sdist
+          path: artifacts/sdist
 
-      - name: Upload combined artifacts
+      - name: Collect into single directory
+        run: |
+          mkdir -p dist
+          find artifacts -name "*.whl" -exec cp {} dist/ \;
+          find artifacts -name "*.tar.gz" -exec cp {} dist/ \;
+          echo "=== Collected distributions ==="
+          ls -la dist/
+
+      - name: Upload combined distributions
         uses: actions/upload-artifact@v4
         with:
-          name: all-wheels
+          name: cyllama-dist-all
           path: dist/*
 
   # Publish to Test PyPI
   publish_test_pypi:
     name: Publish to Test PyPI
-    needs: collect_artifacts
+    needs: collect
     runs-on: ubuntu-latest
     if: ${{ inputs.publish_test_pypi }}
     environment:
@@ -216,11 +208,14 @@ jobs:
     permissions:
       id-token: write
     steps:
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
+      - name: Download distributions
+        uses: actions/download-artifact@v5
         with:
-          name: all-wheels
+          name: cyllama-dist-all
           path: dist
+
+      - name: List distributions
+        run: ls -la dist/
 
       - name: Publish to Test PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
@@ -230,7 +225,7 @@ jobs:
   # Publish to PyPI
   publish_pypi:
     name: Publish to PyPI
-    needs: collect_artifacts
+    needs: collect
     runs-on: ubuntu-latest
     if: ${{ inputs.publish_pypi }}
     environment:
@@ -239,11 +234,14 @@ jobs:
     permissions:
       id-token: write
     steps:
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
+      - name: Download distributions
+        uses: actions/download-artifact@v5
         with:
-          name: all-wheels
+          name: cyllama-dist-all
           path: dist
+
+      - name: List distributions
+        run: ls -la dist/
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
