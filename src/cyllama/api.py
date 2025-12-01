@@ -141,30 +141,28 @@ class LLM:
         - Or let Python's garbage collector handle it via `__del__`
 
     Example:
-        >>> # Recommended: Use as context manager
-        >>> with LLM("models/llama.gguf") as llm:
+        >>> # Simple usage with direct parameters
+        >>> with LLM("models/llama.gguf", temperature=0.9, max_tokens=100) as llm:
         >>>     response = llm("What is Python?")
         >>>     print(response)
         >>>
-        >>> # Or with explicit cleanup
-        >>> llm = LLM("models/llama.gguf")
-        >>> try:
-        >>>     response = llm("What is Python?")
-        >>> finally:
-        >>>     llm.close()
-        >>>
-        >>> # With custom configuration
-        >>> config = GenerationConfig(temperature=0.9, max_tokens=100)
-        >>> with LLM("models/llama.gguf", config=config) as llm:
+        >>> # Streaming output
+        >>> with LLM("models/llama.gguf") as llm:
         >>>     for chunk in llm("Tell me a joke", stream=True):
         >>>         print(chunk, end="")
+        >>>
+        >>> # With explicit GenerationConfig (for reuse or complex configs)
+        >>> config = GenerationConfig(temperature=0.9, max_tokens=100)
+        >>> with LLM("models/llama.gguf", config=config) as llm:
+        >>>     response = llm("Hello!")
     """
 
     def __init__(
         self,
         model_path: str,
         config: Optional[GenerationConfig] = None,
-        verbose: bool = False
+        verbose: bool = False,
+        **kwargs
     ):
         """
         Initialize generator with a model.
@@ -173,11 +171,52 @@ class LLM:
             model_path: Path to GGUF model file
             config: Generation configuration (uses defaults if None)
             verbose: Print detailed information during generation
+            **kwargs: Generation parameters (temperature, max_tokens, etc.)
+                      These override values in config if both are provided.
+
+        Example:
+            >>> # Direct parameters (recommended for simple cases)
+            >>> llm = LLM("model.gguf", temperature=0.9, max_tokens=100)
+            >>>
+            >>> # Explicit config
+            >>> config = GenerationConfig(temperature=0.9)
+            >>> llm = LLM("model.gguf", config=config)
+            >>>
+            >>> # Config with overrides
+            >>> llm = LLM("model.gguf", config=config, temperature=0.5)
         """
         self.model_path = model_path
-        self.config = config or GenerationConfig()
         self.verbose = verbose
         self._closed = False
+
+        # Build config: start with provided config or defaults, then apply kwargs
+        if config is None:
+            if kwargs:
+                self.config = GenerationConfig(**kwargs)
+            else:
+                self.config = GenerationConfig()
+        else:
+            if kwargs:
+                # Create a copy of config with kwargs overrides
+                config_dict = {
+                    'max_tokens': config.max_tokens,
+                    'temperature': config.temperature,
+                    'top_k': config.top_k,
+                    'top_p': config.top_p,
+                    'min_p': config.min_p,
+                    'repeat_penalty': config.repeat_penalty,
+                    'n_gpu_layers': config.n_gpu_layers,
+                    'n_ctx': config.n_ctx,
+                    'n_batch': config.n_batch,
+                    'seed': config.seed,
+                    'stop_sequences': config.stop_sequences.copy(),
+                    'add_bos': config.add_bos,
+                    'parse_special': config.parse_special,
+                }
+                config_dict.update(kwargs)
+                self.config = GenerationConfig(**config_dict)
+            else:
+                self.config = config
 
         # Disable llama.cpp logging unless verbose mode is enabled
         if not verbose:
