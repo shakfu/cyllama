@@ -560,3 +560,52 @@ class TestPythonServerIntegration:
 
         # Server should be stopped after context exit
         assert not server.running
+
+
+# =============================================================================
+# EmbeddedServer Tests (Mongoose-based server)
+# =============================================================================
+
+class TestEmbeddedServerLifecycle:
+    """Tests for EmbeddedServer start/stop lifecycle."""
+
+    def test_embedded_server_direct_stop(self, model_path):
+        """Test that embedded server can be started and stopped directly without context manager."""
+        from cyllama.llama.server.embedded import EmbeddedServer
+
+        config = ServerConfig(
+            model_path=model_path,
+            host="127.0.0.1",
+            port=8098,
+            n_ctx=256
+        )
+
+        server = EmbeddedServer(config)
+
+        # Start server
+        result = server.start()
+        assert result is True, "Server failed to start"
+
+        try:
+            # Wait a bit to ensure server is running
+            time.sleep(1)
+        finally:
+            # Stop server directly
+            server.stop()
+
+    def test_embedded_server_context_manager(self, model_path):
+        """Test that embedded server context manager properly starts and stops the server."""
+        from cyllama.llama.server.embedded import EmbeddedServer
+
+        config = ServerConfig(
+            model_path=model_path,
+            host="127.0.0.1",
+            port=8097,
+            n_ctx=256
+        )
+
+        # Use context manager - should start server on entry and stop on exit
+        with EmbeddedServer(config) as server:
+            # Wait a moment to ensure server is fully operational
+            time.sleep(1)
+        # Context manager exit should have called stop()
