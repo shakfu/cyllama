@@ -17,7 +17,7 @@ Example:
 from typing import Any, List, Optional, Iterator, Dict
 import warnings
 
-from ..api import LLM as CyllamaLLMCore, GenerationConfig
+from ..api import LLM as CyllamaLLMCore, GenerationConfig, Response
 
 
 try:
@@ -135,20 +135,30 @@ class CyllamaLLM(LangChainLLM):
 
         generations = []
         for prompt in prompts:
-            text = self._call(prompt, stop=stop, run_manager=run_manager, **kwargs)
-            generations.append([Generation(text=text)])
+            response = self._call_internal(prompt, stop=stop, run_manager=run_manager, **kwargs)
+            # Include generation info from Response stats if available
+            generation_info = None
+            if response.stats is not None:
+                generation_info = {
+                    "prompt_tokens": response.stats.prompt_tokens,
+                    "completion_tokens": response.stats.generated_tokens,
+                    "total_time_seconds": response.stats.total_time,
+                    "tokens_per_second": response.stats.tokens_per_second,
+                    "finish_reason": response.finish_reason,
+                }
+            generations.append([Generation(text=response.text, generation_info=generation_info)])
 
         return LLMResult(generations=generations)
 
-    def _call(
+    def _call_internal(
         self,
         prompt: str,
         stop: Optional[List[str]] = None,
         run_manager: Optional[CallbackManagerForLLMRun] = None,
         **kwargs: Any,
-    ) -> str:
+    ) -> Response:
         """
-        Generate text from a prompt.
+        Generate text from a prompt and return Response object.
 
         Args:
             prompt: Input text prompt
@@ -157,7 +167,7 @@ class CyllamaLLM(LangChainLLM):
             **kwargs: Additional generation parameters
 
         Returns:
-            Generated text
+            Response object with text and stats
         """
         # Update config with kwargs
         config = GenerationConfig(
@@ -180,6 +190,28 @@ class CyllamaLLM(LangChainLLM):
             return self.generator(prompt, config=config, on_token=on_token)
         else:
             return self.generator(prompt, config=config)
+
+    def _call(
+        self,
+        prompt: str,
+        stop: Optional[List[str]] = None,
+        run_manager: Optional[CallbackManagerForLLMRun] = None,
+        **kwargs: Any,
+    ) -> str:
+        """
+        Generate text from a prompt.
+
+        Args:
+            prompt: Input text prompt
+            stop: List of stop sequences (overrides instance stop_sequences)
+            run_manager: LangChain callback manager
+            **kwargs: Additional generation parameters
+
+        Returns:
+            Generated text as string (LangChain interface requirement)
+        """
+        response = self._call_internal(prompt, stop=stop, run_manager=run_manager, **kwargs)
+        return response.text
 
     def _stream(
         self,

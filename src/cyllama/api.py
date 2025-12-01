@@ -65,6 +65,7 @@ from .llama.llama_cpp import (
     LlamaContextParams,
     LlamaSampler,
     LlamaSamplerChainParams,
+    LlamaChatMessage,
     llama_batch_get_one,
     ggml_backend_load_all,
     disable_logging,
@@ -155,6 +156,126 @@ class GenerationStats:
     tokens_per_second: float
     prompt_time: float = 0.0
     generation_time: float = 0.0
+
+
+@dataclass
+class Response:
+    """
+    Response from text generation.
+
+    This class wraps generated text with optional metadata and provides
+    convenient conversion methods. It implements __str__ for backward
+    compatibility, so it can be used anywhere a string is expected.
+
+    Attributes:
+        text: The generated text content
+        stats: Optional generation statistics (tokens, timing, etc.)
+        finish_reason: Why generation stopped ("stop", "length", "error")
+        model: Model identifier/path used for generation
+
+    Example:
+        >>> response = complete("Hello", model_path="model.gguf")
+        >>> print(response)  # Works like a string
+        >>> print(response.text)  # Explicit text access
+        >>> print(response.to_json())  # JSON output
+        >>> data = response.to_dict()  # Dictionary for serialization
+    """
+    text: str
+    stats: Optional[GenerationStats] = None
+    finish_reason: str = "stop"
+    model: str = ""
+
+    def __str__(self) -> str:
+        """Return the text content. Enables backward-compatible string usage."""
+        return self.text
+
+    def __repr__(self) -> str:
+        """Return a detailed representation."""
+        text_preview = self.text[:50] + "..." if len(self.text) > 50 else self.text
+        return f"Response(text={text_preview!r}, finish_reason={self.finish_reason!r})"
+
+    def __eq__(self, other) -> bool:
+        """Compare with strings or other Response objects."""
+        if isinstance(other, str):
+            return self.text == other
+        if isinstance(other, Response):
+            return self.text == other.text
+        return NotImplemented
+
+    def __hash__(self) -> int:
+        """Hash based on text content."""
+        return hash(self.text)
+
+    def __len__(self) -> int:
+        """Return length of text content."""
+        return len(self.text)
+
+    def __iter__(self):
+        """Iterate over characters in text."""
+        return iter(self.text)
+
+    def __contains__(self, item) -> bool:
+        """Check if substring is in text."""
+        return item in self.text
+
+    def __add__(self, other) -> str:
+        """Concatenate with strings."""
+        if isinstance(other, str):
+            return self.text + other
+        if isinstance(other, Response):
+            return self.text + other.text
+        return NotImplemented
+
+    def __radd__(self, other) -> str:
+        """Support string + Response."""
+        if isinstance(other, str):
+            return other + self.text
+        return NotImplemented
+
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Convert response to dictionary.
+
+        Returns:
+            Dictionary containing all response data.
+
+        Example:
+            >>> response = complete("Hello", model_path="model.gguf")
+            >>> data = response.to_dict()
+            >>> print(data["text"])
+        """
+        result: Dict[str, Any] = {
+            "text": self.text,
+            "finish_reason": self.finish_reason,
+            "model": self.model,
+        }
+        if self.stats is not None:
+            result["stats"] = {
+                "prompt_tokens": self.stats.prompt_tokens,
+                "generated_tokens": self.stats.generated_tokens,
+                "total_time": self.stats.total_time,
+                "tokens_per_second": self.stats.tokens_per_second,
+                "prompt_time": self.stats.prompt_time,
+                "generation_time": self.stats.generation_time,
+            }
+        return result
+
+    def to_json(self, indent: Optional[int] = None) -> str:
+        """
+        Convert response to JSON string.
+
+        Args:
+            indent: JSON indentation level (None for compact)
+
+        Returns:
+            JSON string representation.
+
+        Example:
+            >>> response = complete("Hello", model_path="model.gguf")
+            >>> print(response.to_json(indent=2))
+        """
+        import json
+        return json.dumps(self.to_dict(), indent=indent)
 
 
 class LLM:
@@ -408,7 +529,7 @@ class LLM:
         config: Optional[GenerationConfig] = None,
         stream: bool = False,
         on_token: Optional[Callable[[str], None]] = None
-    ) -> Union[str, Iterator[str]]:
+    ) -> Union[Response, Iterator[str]]:
         """
         Generate text from a prompt.
 
@@ -419,7 +540,8 @@ class LLM:
             on_token: Optional callback called for each generated token
 
         Returns:
-            Generated text (str) or iterator of text chunks if stream=True
+            Response object (if stream=False) or iterator of text chunks (if stream=True).
+            The Response object can be used as a string due to __str__ implementation.
         """
         if stream:
             return self._generate_stream(prompt, config, on_token)
@@ -431,10 +553,43 @@ class LLM:
         prompt: str,
         config: Optional[GenerationConfig] = None,
         on_token: Optional[Callable[[str], None]] = None
-    ) -> str:
-        """Non-streaming generation."""
+    ) -> Response:
+        """Non-streaming generation returning Response object."""
+        config = config or self.config
+        start_time = time.time()
+
+        # Tokenize for stats
+        prompt_tokens = self.vocab.tokenize(
+            prompt,
+            add_special=config.add_bos,
+            parse_special=config.parse_special
+        )
+        n_prompt = len(prompt_tokens)
+
+        # Generate text
         chunks = list(self._generate_stream(prompt, config, on_token))
-        return "".join(chunks)
+        text = "".join(chunks)
+
+        end_time = time.time()
+        total_time = end_time - start_time
+
+        # Calculate stats
+        response_tokens = self.vocab.tokenize(text, add_special=False, parse_special=False)
+        n_generated = len(response_tokens)
+
+        stats = GenerationStats(
+            prompt_tokens=n_prompt,
+            generated_tokens=n_generated,
+            total_time=total_time,
+            tokens_per_second=n_generated / total_time if total_time > 0 else 0.0
+        )
+
+        return Response(
+            text=text,
+            stats=stats,
+            finish_reason="stop",
+            model=self.model_path
+        )
 
     def _generate_stream(
         self,
@@ -585,46 +740,91 @@ class LLM:
         self,
         prompt: str,
         config: Optional[GenerationConfig] = None
-    ) -> Tuple[str, GenerationStats]:
+    ) -> Response:
         """
-        Generate text and return detailed statistics.
+        Generate text and return Response with detailed statistics.
+
+        This method is now equivalent to __call__ since Response always
+        includes stats. Kept for backward compatibility.
 
         Args:
             prompt: Input text prompt
             config: Generation configuration
 
         Returns:
-            Tuple of (generated_text, statistics)
+            Response object with text and statistics
         """
-        config = config or self.config
+        return self._generate(prompt, config)
 
-        # Tokenize for stats
-        prompt_tokens = self.vocab.tokenize(
-            prompt,
-            add_special=config.add_bos,
-            parse_special=config.parse_special
-        )
+    def chat(
+        self,
+        messages: List[Dict[str, str]],
+        config: Optional[GenerationConfig] = None,
+        stream: bool = False,
+        template: Optional[str] = None,
+    ) -> Union[Response, Iterator[str]]:
+        """
+        Generate a response from chat messages using the model's chat template.
 
-        start_time = time.time()
+        Args:
+            messages: List of message dicts with 'role' and 'content' keys
+            config: Generation configuration (uses instance config if None)
+            stream: If True, return iterator of text chunks
+            template: Custom chat template name (e.g., "llama3", "chatml").
+                      If None, uses the model's default template.
 
-        # Generate
-        response = self._generate(prompt, config)
+        Returns:
+            Response object (if stream=False) or iterator of text chunks (if stream=True)
 
-        end_time = time.time()
-        total_time = end_time - start_time
+        Example:
+            >>> messages = [
+            >>>     {"role": "system", "content": "You are helpful."},
+            >>>     {"role": "user", "content": "Hello!"}
+            >>> ]
+            >>> response = llm.chat(messages)
+            >>> print(response)  # Works like a string
+            >>> print(response.stats.tokens_per_second)  # Access stats
+        """
+        prompt = self._apply_template(messages, template)
+        return self(prompt, config=config, stream=stream)
 
-        # Calculate stats (approximate token count)
-        response_tokens = self.vocab.tokenize(response, add_special=False, parse_special=False)
-        n_generated = len(response_tokens)
+    def _apply_template(
+        self,
+        messages: List[Dict[str, str]],
+        template: Optional[str] = None,
+        add_generation_prompt: bool = True,
+    ) -> str:
+        """Apply chat template to messages using the loaded model."""
+        # Get template - use provided or model's default
+        if template:
+            tmpl = self.model.get_default_chat_template_by_name(template)
+            if not tmpl:
+                tmpl = template
+        else:
+            tmpl = self.model.get_default_chat_template()
 
-        stats = GenerationStats(
-            prompt_tokens=len(prompt_tokens),
-            generated_tokens=n_generated,
-            total_time=total_time,
-            tokens_per_second=n_generated / total_time if total_time > 0 else 0.0
-        )
+        if tmpl:
+            chat_messages = [
+                LlamaChatMessage(role=msg.get("role", "user"), content=msg.get("content", ""))
+                for msg in messages
+            ]
+            return self.model.chat_apply_template(tmpl, chat_messages, add_generation_prompt)
+        else:
+            return _format_messages_simple(messages)
 
-        return response, stats
+    def get_chat_template(self, template_name: Optional[str] = None) -> str:
+        """
+        Get the chat template string from the loaded model.
+
+        Args:
+            template_name: Optional specific template name to retrieve
+
+        Returns:
+            Template string, or empty string if not found
+        """
+        if template_name:
+            return self.model.get_default_chat_template_by_name(template_name)
+        return self.model.get_default_chat_template()
 
 
 # Convenience functions
@@ -636,7 +836,7 @@ def complete(
     stream: bool = False,
     verbose: bool = False,
     **kwargs
-) -> Union[str, Iterator[str]]:
+) -> Union[Response, Iterator[str]]:
     """
     Convenience function for one-off text completion.
 
@@ -651,11 +851,15 @@ def complete(
         **kwargs: Additional config parameters (override config values)
 
     Returns:
-        Generated text or iterator if stream=True
+        Response object (if stream=False) or iterator of text chunks (if stream=True).
+        The Response can be used as a string: print(response), str(response), etc.
 
     Example:
         >>> response = complete("Hello", model_path="models/llama.gguf")
-        >>> print(response)
+        >>> print(response)  # Works like a string
+        >>> print(response.text)  # Explicit text access
+        >>> print(response.stats.tokens_per_second)  # Access stats
+        >>> print(response.to_json())  # JSON output
         >>>
         >>> # With custom parameters
         >>> response = complete(
@@ -684,10 +888,14 @@ def chat(
     config: Optional[GenerationConfig] = None,
     stream: bool = False,
     verbose: bool = False,
+    template: Optional[str] = None,
     **kwargs
-) -> Union[str, Iterator[str]]:
+) -> Union[Response, Iterator[str]]:
     """
     Convenience function for chat-style generation.
+
+    Uses the model's built-in chat template if available, otherwise falls back
+    to a simple format. You can also specify a custom template.
 
     Args:
         messages: List of message dicts with 'role' and 'content' keys
@@ -695,10 +903,13 @@ def chat(
         config: Generation configuration
         stream: If True, return iterator of text chunks
         verbose: Enable detailed logging from llama.cpp
+        template: Custom chat template name (e.g., "llama3", "chatml", "mistral").
+                  If None, uses the model's default template.
+                  See llama.cpp wiki for supported templates.
         **kwargs: Additional config parameters
 
     Returns:
-        Generated response text or iterator if stream=True
+        Response object (if stream=False) or iterator of text chunks (if stream=True)
 
     Example:
         >>> messages = [
@@ -706,18 +917,159 @@ def chat(
         >>>     {"role": "user", "content": "What is Python?"}
         >>> ]
         >>> response = chat(messages, model_path="models/llama.gguf")
+        >>> print(response)  # Works like a string
+        >>> print(response.stats)  # Access statistics
+        >>>
+        >>> # With explicit template
+        >>> response = chat(messages, model_path="models/llama.gguf", template="chatml")
     """
-    # Format messages into a prompt (simple implementation)
-    # More sophisticated implementations would use model-specific chat templates
+    prompt = apply_chat_template(messages, model_path, template, verbose=verbose)
+    return complete(prompt, model_path, config, stream, verbose=verbose, **kwargs)
+
+
+def apply_chat_template(
+    messages: List[Dict[str, str]],
+    model_path: str,
+    template: Optional[str] = None,
+    add_generation_prompt: bool = True,
+    verbose: bool = False,
+) -> str:
+    """
+    Apply a chat template to format messages into a prompt string.
+
+    Uses the model's built-in chat template from its GGUF metadata. If no template
+    is found, falls back to a simple User/Assistant format.
+
+    Supported templates (built into llama.cpp):
+        - llama2, llama3
+        - chatml (used by many models including Qwen, Yi, etc.)
+        - mistral, mistral-v1, mistral-v3, mistral-v3-tekken, mistral-v7
+        - phi3, phi4
+        - falcon3
+        - deepseek, deepseek2, deepseek3
+        - command-r
+        - vicuna, vicuna-orca
+        - zephyr
+        - gemma, gemma2
+        - orion
+        - openchat
+        - monarch
+        - exaone3
+        - granite
+        - gigachat
+        - megrez
+
+    See: https://github.com/ggerganov/llama.cpp/wiki/Templates-supported-by-llama_chat_apply_template
+
+    Args:
+        messages: List of message dicts with 'role' and 'content' keys.
+                  Supported roles: 'system', 'user', 'assistant'
+        model_path: Path to GGUF model file
+        template: Optional template name to use instead of model's default.
+                  If None, uses the model's built-in template.
+        add_generation_prompt: If True, adds the assistant prompt prefix
+        verbose: Enable detailed logging
+
+    Returns:
+        Formatted prompt string ready for generation
+
+    Example:
+        >>> messages = [
+        >>>     {"role": "system", "content": "You are helpful."},
+        >>>     {"role": "user", "content": "Hello!"}
+        >>> ]
+        >>> prompt = apply_chat_template(messages, "model.gguf")
+        >>> print(prompt)
+        <|im_start|>system
+        You are helpful.<|im_end|>
+        <|im_start|>user
+        Hello!<|im_end|>
+        <|im_start|>assistant
+    """
+    if not verbose:
+        disable_logging()
+
+    ggml_backend_load_all()
+
+    # Load model to get template
+    model_params = LlamaModelParams()
+    model_params.n_gpu_layers = 0  # Don't load to GPU, just need metadata
+    model = LlamaModel(model_path, model_params)
+
+    # Get template - use provided or model's default
+    if template:
+        tmpl = model.get_default_chat_template_by_name(template)
+        if not tmpl:
+            # Try as-is (some templates are the actual template string)
+            tmpl = template
+    else:
+        tmpl = model.get_default_chat_template()
+
+    if tmpl:
+        # Convert messages to LlamaChatMessage objects
+        chat_messages = [
+            LlamaChatMessage(role=msg.get("role", "user"), content=msg.get("content", ""))
+            for msg in messages
+        ]
+        prompt = model.chat_apply_template(tmpl, chat_messages, add_generation_prompt)
+    else:
+        # Fallback to simple format if no template available
+        logger.debug("No chat template found, using fallback format")
+        prompt = _format_messages_simple(messages)
+
+    # Model cleanup handled by garbage collection
+    del model
+    return prompt
+
+
+def _format_messages_simple(messages: List[Dict[str, str]]) -> str:
+    """Simple fallback format when no chat template is available."""
     prompt_parts = []
     for msg in messages:
         role = msg.get("role", "user")
         content = msg.get("content", "")
-        prompt_parts.append(f"{role.capitalize()}: {content}")
+        if role == "system":
+            prompt_parts.append(f"System: {content}")
+        elif role == "user":
+            prompt_parts.append(f"User: {content}")
+        elif role == "assistant":
+            prompt_parts.append(f"Assistant: {content}")
+        else:
+            prompt_parts.append(f"{role.capitalize()}: {content}")
 
-    prompt = "\n\n".join(prompt_parts) + "\n\nAssistant:"
+    return "\n\n".join(prompt_parts) + "\n\nAssistant:"
 
-    return complete(prompt, model_path, config, stream, verbose=verbose, **kwargs)
+
+def get_chat_template(model_path: str, template_name: Optional[str] = None) -> str:
+    """
+    Get the chat template string from a model.
+
+    Args:
+        model_path: Path to GGUF model file
+        template_name: Optional specific template name to retrieve
+
+    Returns:
+        Template string, or empty string if not found
+
+    Example:
+        >>> template = get_chat_template("models/llama.gguf")
+        >>> print(template)  # Shows the Jinja-style template
+    """
+    disable_logging()
+    ggml_backend_load_all()
+
+    model_params = LlamaModelParams()
+    model_params.n_gpu_layers = 0
+    model = LlamaModel(model_path, model_params)
+
+    if template_name:
+        result = model.get_default_chat_template_by_name(template_name)
+    else:
+        result = model.get_default_chat_template()
+
+    # Model cleanup handled by garbage collection
+    del model
+    return result
 
 
 def simple(model_path: str, prompt: str, ngl: int = 99, n_predict: int = 32, n_ctx: Optional[int] = None, verbose: bool = False) -> bool:
@@ -940,7 +1292,7 @@ class AsyncLLM:
         prompt: str,
         config: Optional[GenerationConfig] = None,
         **kwargs
-    ) -> str:
+    ) -> Response:
         """
         Generate text from a prompt asynchronously.
 
@@ -950,10 +1302,12 @@ class AsyncLLM:
             **kwargs: Override config parameters for this call
 
         Returns:
-            Generated text string
+            Response object with text and statistics
 
         Example:
             >>> response = await llm("What is the meaning of life?")
+            >>> print(response)  # Works like a string
+            >>> print(response.stats.tokens_per_second)  # Access stats
             >>> response = await llm("Explain quantum physics", max_tokens=200)
         """
         # Build config with overrides if kwargs provided
@@ -974,7 +1328,7 @@ class AsyncLLM:
         prompt: str,
         config: Optional[GenerationConfig] = None,
         **kwargs
-    ) -> str:
+    ) -> Response:
         """
         Generate text from a prompt asynchronously.
 
@@ -986,7 +1340,7 @@ class AsyncLLM:
             **kwargs: Override config parameters
 
         Returns:
-            Generated text string
+            Response object with text and statistics
         """
         return await self(prompt, config, **kwargs)
 
@@ -1065,16 +1419,19 @@ class AsyncLLM:
         self,
         prompt: str,
         config: Optional[GenerationConfig] = None
-    ) -> tuple:
+    ) -> Response:
         """
-        Generate text and return detailed statistics.
+        Generate text and return Response with detailed statistics.
+
+        This method is now equivalent to __call__ since Response always
+        includes stats. Kept for backward compatibility.
 
         Args:
             prompt: Input text prompt
             config: Generation configuration
 
         Returns:
-            Tuple of (generated_text, GenerationStats)
+            Response object with text and statistics
         """
         async with self._lock:
             return await asyncio.to_thread(
@@ -1082,6 +1439,54 @@ class AsyncLLM:
                 prompt,
                 config
             )
+
+    async def chat(
+        self,
+        messages: List[Dict[str, str]],
+        config: Optional[GenerationConfig] = None,
+        template: Optional[str] = None,
+    ) -> Response:
+        """
+        Generate a response from chat messages using the model's chat template.
+
+        Args:
+            messages: List of message dicts with 'role' and 'content' keys
+            config: Generation configuration (uses instance config if None)
+            template: Custom chat template name (e.g., "llama3", "chatml").
+                      If None, uses the model's default template.
+
+        Returns:
+            Response object with text and statistics
+
+        Example:
+            >>> messages = [
+            >>>     {"role": "system", "content": "You are helpful."},
+            >>>     {"role": "user", "content": "Hello!"}
+            >>> ]
+            >>> response = await llm.chat(messages)
+            >>> print(response)  # Works like a string
+            >>> print(response.stats)  # Access statistics
+        """
+        async with self._lock:
+            return await asyncio.to_thread(
+                self._llm.chat,
+                messages,
+                config,
+                False,  # stream=False
+                template,
+            )
+
+    def get_chat_template(self, template_name: Optional[str] = None) -> str:
+        """
+        Get the chat template string from the loaded model.
+
+        Args:
+            template_name: Optional specific template name to retrieve
+
+        Returns:
+            Template string, or empty string if not found
+        """
+        return self._llm.get_chat_template(template_name)
 
     def _build_config(
         self,
@@ -1115,7 +1520,7 @@ async def complete_async(
     config: Optional[GenerationConfig] = None,
     verbose: bool = False,
     **kwargs
-) -> str:
+) -> Response:
     """
     Async convenience function for one-off text completion.
 
@@ -1130,7 +1535,7 @@ async def complete_async(
         **kwargs: Additional config parameters (temperature, max_tokens, etc.)
 
     Returns:
-        Generated text string
+        Response object with text and statistics
 
     Example:
         >>> response = await complete_async(
@@ -1138,6 +1543,8 @@ async def complete_async(
         >>>     model_path="model.gguf",
         >>>     temperature=0.7
         >>> )
+        >>> print(response)  # Works like a string
+        >>> print(response.stats)  # Access statistics
     """
     return await asyncio.to_thread(
         complete,
@@ -1156,7 +1563,7 @@ async def chat_async(
     config: Optional[GenerationConfig] = None,
     verbose: bool = False,
     **kwargs
-) -> str:
+) -> Response:
     """
     Async convenience function for chat-style generation.
 
@@ -1168,7 +1575,7 @@ async def chat_async(
         **kwargs: Additional config parameters
 
     Returns:
-        Generated response text
+        Response object with text and statistics
 
     Example:
         >>> messages = [
@@ -1176,6 +1583,7 @@ async def chat_async(
         >>>     {"role": "user", "content": "What is Python?"}
         >>> ]
         >>> response = await chat_async(messages, model_path="model.gguf")
+        >>> print(response)  # Works like a string
     """
     return await asyncio.to_thread(
         chat,

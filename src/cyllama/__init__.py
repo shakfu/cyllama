@@ -8,6 +8,10 @@ from .api import (
     simple,
     GenerationConfig,
     GenerationStats,
+    Response,
+    # Chat template utilities
+    apply_chat_template,
+    get_chat_template,
     # Async API
     AsyncLLM,
     complete_async,

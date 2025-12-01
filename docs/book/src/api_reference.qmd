@@ -2,22 +2,23 @@
 title: "Cyllama API Reference"
 ---
 
-**Version**: 0.1.9
-**Date**: November 2025
+**Version**: 0.1.16
+**Date**: December 2025
 
 Complete API reference for cyllama, a high-performance Python library for LLM inference built on llama.cpp.
 
 ## Table of Contents
 
 1. [High-Level Generation API](#high-level-generation-api)
-2. [Framework Integrations](#framework-integrations)
-3. [Memory Utilities](#memory-utilities)
-4. [Core llama.cpp API](#core-llamacpp-api)
-5. [Advanced Features](#advanced-features)
-6. [Server Implementations](#server-implementations)
-7. [Multimodal Support](#multimodal-support)
-8. [Whisper Integration](#whisper-integration)
-9. [Stable Diffusion Integration](#stable-diffusion-integration)
+2. [Async API](#async-api)
+3. [Framework Integrations](#framework-integrations)
+4. [Memory Utilities](#memory-utilities)
+5. [Core llama.cpp API](#core-llamacpp-api)
+6. [Advanced Features](#advanced-features)
+7. [Server Implementations](#server-implementations)
+8. [Multimodal Support](#multimodal-support)
+9. [Whisper Integration](#whisper-integration)
+10. [Stable Diffusion Integration](#stable-diffusion-integration)
 
 ---
 
@@ -36,7 +37,7 @@ def complete(
     config: Optional[GenerationConfig] = None,
     stream: bool = False,
     **kwargs
-) -> str | Iterator[str]
+) -> Response | Iterator[str]
 ```
 
 **Parameters:**
@@ -49,7 +50,7 @@ def complete(
 
 **Returns:**
 
-- `str`: Generated text (if stream=False)
+- `Response`: Response object with text and stats (if stream=False)
 - `Iterator[str]`: Iterator of text chunks (if stream=True)
 
 **Example:**
@@ -73,7 +74,7 @@ for chunk in complete("Tell me a story", model_path="models/llama.gguf", stream=
 
 ### `chat()`
 
-Chat-style generation with message history.
+Chat-style generation with message history. Automatically applies the model's built-in chat template.
 
 ```python
 def chat(
@@ -81,6 +82,7 @@ def chat(
     model_path: str,
     config: Optional[GenerationConfig] = None,
     stream: bool = False,
+    template: Optional[str] = None,
     **kwargs
 ) -> str | Iterator[str]
 ```
@@ -91,11 +93,13 @@ def chat(
 - `model_path` (str): Path to GGUF model file
 - `config` (GenerationConfig, optional): Generation configuration
 - `stream` (bool): Enable streaming output
+- `template` (str, optional): Chat template name to use. If None, uses model's default.
 - `**kwargs`: Override config parameters
 
 **Returns:**
 
-- `str` or `Iterator[str]`: Generated response
+- `Response`: Response object with text and stats (if stream=False)
+- `Iterator[str]`: Iterator of text chunks (if stream=True)
 
 **Example:**
 
@@ -108,6 +112,184 @@ messages = [
 ]
 
 response = chat(messages, model_path="models/llama.gguf")
+
+# With explicit template
+response = chat(messages, model_path="models/llama.gguf", template="chatml")
+```
+
+---
+
+### `apply_chat_template()`
+
+Apply a chat template to format messages into a prompt string.
+
+```python
+def apply_chat_template(
+    messages: List[Dict[str, str]],
+    model_path: str,
+    template: Optional[str] = None,
+    add_generation_prompt: bool = True,
+    verbose: bool = False,
+) -> str
+```
+
+**Parameters:**
+
+- `messages` (List[Dict]): List of message dicts with 'role' and 'content' keys
+- `model_path` (str): Path to GGUF model file
+- `template` (str, optional): Template name or string. If None, uses model's default.
+- `add_generation_prompt` (bool): Add assistant prompt prefix (default: True)
+- `verbose` (bool): Enable detailed logging
+
+**Returns:**
+
+- `str`: Formatted prompt string
+
+**Supported Templates:**
+
+- llama2, llama3, llama4
+- chatml (Qwen, Yi, etc.)
+- mistral-v1, mistral-v3, mistral-v7
+- phi3, phi4
+- deepseek, deepseek2, deepseek3
+- gemma, falcon3, command-r, vicuna, zephyr, and more
+
+**Example:**
+
+```python
+from cyllama import apply_chat_template
+
+messages = [
+    {"role": "system", "content": "You are helpful."},
+    {"role": "user", "content": "Hello!"}
+]
+
+prompt = apply_chat_template(messages, "models/llama.gguf")
+print(prompt)
+# <|begin_of_text|><|start_header_id|>system<|end_header_id|>
+# You are helpful.<|eot_id|><|start_header_id|>user<|end_header_id|>
+# Hello!<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+```
+
+---
+
+### `get_chat_template()`
+
+Get the chat template string from a model.
+
+```python
+def get_chat_template(
+    model_path: str,
+    template_name: Optional[str] = None
+) -> str
+```
+
+**Parameters:**
+
+- `model_path` (str): Path to GGUF model file
+- `template_name` (str, optional): Specific template name to retrieve
+
+**Returns:**
+
+- `str`: Template string (Jinja-style), or empty string if not found
+
+**Example:**
+
+```python
+from cyllama import get_chat_template
+
+template = get_chat_template("models/llama.gguf")
+print(template)  # Shows the Jinja-style template
+```
+
+---
+
+### `Response` Class
+
+Structured response object returned by generation functions.
+
+```python
+@dataclass
+class Response:
+    text: str                           # Generated text content
+    stats: Optional[GenerationStats]    # Generation statistics
+    finish_reason: str = "stop"         # Why generation stopped
+    model: str = ""                     # Model path used
+```
+
+**Attributes:**
+
+- `text` (str): The generated text content
+- `stats` (GenerationStats, optional): Statistics including timing and token counts
+- `finish_reason` (str): Reason for completion ("stop", "length", etc.)
+- `model` (str): Path to the model used
+
+**String Compatibility:**
+
+`Response` implements the string protocol for backward compatibility:
+
+- `str(response)` returns `response.text`
+- `response == "string"` compares with text
+- `len(response)` returns text length
+- `for char in response:` iterates over text characters
+- `"substring" in response` checks text containment
+- `response + " more"` concatenates text
+
+**Methods:**
+
+#### `to_dict()`
+
+Convert response to dictionary.
+
+```python
+def to_dict(self) -> Dict[str, Any]
+```
+
+#### `to_json()`
+
+Convert response to JSON string.
+
+```python
+def to_json(self, indent: Optional[int] = None) -> str
+```
+
+**Example:**
+
+```python
+from cyllama import complete
+
+response = complete("What is Python?", model_path="model.gguf")
+
+# Use as string (backward compatible)
+print(response)  # Prints text
+if "programming" in response:
+    print("Mentioned programming!")
+
+# Access structured data
+print(f"Finish reason: {response.finish_reason}")
+if response.stats:
+    print(f"Tokens/sec: {response.stats.tokens_per_second:.1f}")
+
+# Serialize
+data = response.to_dict()
+json_str = response.to_json(indent=2)
+```
+
+---
+
+### `GenerationStats` Class
+
+Statistics from a generation run.
+
+```python
+@dataclass
+class GenerationStats:
+    prompt_tokens: int       # Number of tokens in prompt
+    generated_tokens: int    # Number of tokens generated
+    total_time: float        # Total generation time (seconds)
+    tokens_per_second: float # Generation speed
+    prompt_time: float       # Time for prompt processing
+    generation_time: float   # Time for token generation
 ```
 
 ---
@@ -145,7 +327,7 @@ def __call__(
     config: Optional[GenerationConfig] = None,
     stream: bool = False,
     on_token: Optional[Callable[[str], None]] = None
-) -> str | Iterator[str]
+) -> Response | Iterator[str]
 ```
 
 **Parameters:**
@@ -155,21 +337,42 @@ def __call__(
 - `stream` (bool): Enable streaming
 - `on_token` (Callable, optional): Callback for each token
 
-#### `generate_with_stats()`
-
-Generate text and return performance statistics.
-
-```python
-def generate_with_stats(
-    self,
-    prompt: str,
-    config: Optional[GenerationConfig] = None
-) -> Tuple[str, GenerationStats]
-```
-
 **Returns:**
 
-- `Tuple[str, GenerationStats]`: Generated text and statistics
+- `Response`: Response object with text and stats (if stream=False)
+- `Iterator[str]`: Iterator of text chunks (if stream=True)
+
+#### `chat()`
+
+Generate a response from chat messages using the model's chat template.
+
+```python
+def chat(
+    self,
+    messages: List[Dict[str, str]],
+    config: Optional[GenerationConfig] = None,
+    stream: bool = False,
+    template: Optional[str] = None
+) -> str | Iterator[str]
+```
+
+**Parameters:**
+
+- `messages` (List[Dict]): List of message dicts with 'role' and 'content' keys
+- `config` (GenerationConfig, optional): Override instance config
+- `stream` (bool): Enable streaming
+- `template` (str, optional): Chat template name to use
+
+#### `get_chat_template()`
+
+Get the chat template string from the loaded model.
+
+```python
+def get_chat_template(
+    self,
+    template_name: Optional[str] = None
+) -> str
+```
 
 **Example:**
 
@@ -189,6 +392,13 @@ response = gen("Tell me a joke", config=config)
 response, stats = gen.generate_with_stats("Question?")
 print(f"Generated {stats.generated_tokens} tokens in {stats.total_time:.2f}s")
 print(f"Speed: {stats.tokens_per_second:.2f} tokens/sec")
+
+# Chat with template
+messages = [{"role": "user", "content": "Hello!"}]
+response = gen.chat(messages)
+
+# Get template
+template = gen.get_chat_template()
 ```
 
 ---
@@ -246,6 +456,174 @@ class GenerationStats:
     tokens_per_second: float
     prompt_time: float = 0.0
     generation_time: float = 0.0
+```
+
+---
+
+## Async API
+
+The async API provides non-blocking generation for use in async applications (FastAPI, aiohttp, etc.).
+
+### `AsyncLLM` Class
+
+Async wrapper around the LLM class for non-blocking text generation.
+
+```python
+class AsyncLLM:
+    def __init__(
+        self,
+        model_path: str,
+        config: Optional[GenerationConfig] = None,
+        verbose: bool = False,
+        **kwargs
+    )
+```
+
+**Parameters:**
+
+- `model_path` (str): Path to GGUF model file
+- `config` (GenerationConfig, optional): Generation configuration
+- `verbose` (bool): Print detailed information during generation
+- `**kwargs`: Generation parameters (temperature, max_tokens, etc.)
+
+**Methods:**
+
+#### `__call__()` / `generate()`
+
+Generate text asynchronously.
+
+```python
+async def __call__(
+    self,
+    prompt: str,
+    config: Optional[GenerationConfig] = None,
+    **kwargs
+) -> str
+```
+
+#### `stream()`
+
+Stream generated text chunks asynchronously.
+
+```python
+async def stream(
+    self,
+    prompt: str,
+    config: Optional[GenerationConfig] = None,
+    **kwargs
+) -> AsyncIterator[str]
+```
+
+#### `generate_with_stats()`
+
+Generate text and return statistics.
+
+```python
+async def generate_with_stats(
+    self,
+    prompt: str,
+    config: Optional[GenerationConfig] = None
+) -> Tuple[str, GenerationStats]
+```
+
+**Example:**
+
+```python
+import asyncio
+from cyllama import AsyncLLM
+
+async def main():
+    # Context manager ensures cleanup
+    async with AsyncLLM("model.gguf", temperature=0.7) as llm:
+        # Simple generation
+        response = await llm("What is Python?")
+        print(response)
+
+        # Streaming
+        async for chunk in llm.stream("Tell me a story"):
+            print(chunk, end="", flush=True)
+
+        # With stats
+        text, stats = await llm.generate_with_stats("Question?")
+        print(f"Generated {stats.generated_tokens} tokens")
+
+asyncio.run(main())
+```
+
+---
+
+### `complete_async()`
+
+Async convenience function for one-off text completion.
+
+```python
+async def complete_async(
+    prompt: str,
+    model_path: str,
+    config: Optional[GenerationConfig] = None,
+    verbose: bool = False,
+    **kwargs
+) -> str
+```
+
+**Example:**
+
+```python
+response = await complete_async(
+    "What is Python?",
+    model_path="model.gguf",
+    temperature=0.7
+)
+```
+
+---
+
+### `chat_async()`
+
+Async convenience function for chat-style generation.
+
+```python
+async def chat_async(
+    messages: List[Dict[str, str]],
+    model_path: str,
+    config: Optional[GenerationConfig] = None,
+    verbose: bool = False,
+    **kwargs
+) -> str
+```
+
+**Example:**
+
+```python
+messages = [
+    {"role": "system", "content": "You are a helpful assistant."},
+    {"role": "user", "content": "What is Python?"}
+]
+
+response = await chat_async(messages, model_path="model.gguf")
+```
+
+---
+
+### `stream_complete_async()`
+
+Async streaming completion for one-off use.
+
+```python
+async def stream_complete_async(
+    prompt: str,
+    model_path: str,
+    config: Optional[GenerationConfig] = None,
+    verbose: bool = False,
+    **kwargs
+) -> AsyncIterator[str]
+```
+
+**Example:**
+
+```python
+async for chunk in stream_complete_async("Tell me a story", "model.gguf"):
+    print(chunk, end="", flush=True)
 ```
 
 ---

@@ -33,7 +33,7 @@ from dataclasses import dataclass, field
 import time
 import uuid
 
-from ..api import LLM, GenerationConfig
+from ..api import LLM, GenerationConfig, Response
 
 
 @dataclass
@@ -172,11 +172,17 @@ class ChatCompletions:
         # Tokenize for usage stats
         prompt_tokens = self.generator.vocab.tokenize(prompt, add_special=True, parse_special=True)
 
-        # Generate
-        response_text = self.generator(prompt, config=config, stream=False)
+        # Generate - returns Response object
+        response: Response = self.generator(prompt, config=config, stream=False)
 
-        # Count response tokens
-        response_tokens = self.generator.vocab.tokenize(response_text, add_special=False, parse_special=False)
+        # Use stats from Response if available, otherwise count tokens manually
+        if response.stats is not None:
+            prompt_token_count = response.stats.prompt_tokens
+            completion_token_count = response.stats.generated_tokens
+        else:
+            prompt_token_count = len(prompt_tokens)
+            response_tokens = self.generator.vocab.tokenize(response.text, add_special=False, parse_special=False)
+            completion_token_count = len(response_tokens)
 
         # Create response
         completion = ChatCompletion(
@@ -184,14 +190,14 @@ class ChatCompletions:
             choices=[
                 Choice(
                     index=0,
-                    message=Message(role="assistant", content=response_text),
-                    finish_reason="stop"
+                    message=Message(role="assistant", content=response.text),
+                    finish_reason=response.finish_reason
                 )
             ],
             usage=Usage(
-                prompt_tokens=len(prompt_tokens),
-                completion_tokens=len(response_tokens),
-                total_tokens=len(prompt_tokens) + len(response_tokens)
+                prompt_tokens=prompt_token_count,
+                completion_tokens=completion_token_count,
+                total_tokens=prompt_token_count + completion_token_count
             )
         )
 

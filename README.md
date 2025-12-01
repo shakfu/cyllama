@@ -336,10 +336,10 @@ Supports SD 1.x/2.x, SDXL, SD3, FLUX, video generation (Wan/CogVideoX), LoRA, Co
 
 ## Status
 
-**Current Version**: 0.1.15 (November 2025)
+**Current Version**: 0.1.16 (December 2025)
 **llama.cpp Version**: b7126
 **Build System**: scikit-build-core + CMake
-**Test Coverage**: 799+ tests passing
+**Test Coverage**: 863+ tests passing
 **Platform**: macOS (primary), Linux, Windows (tested)
 
 ### API Coverage
@@ -365,6 +365,7 @@ Supports SD 1.x/2.x, SDXL, SD3, FLUX, video generation (Wan/CogVideoX), LoRA, Co
 
 ### Recent Releases
 
+- **v0.1.16** (Dec 2025) - Response class, Async API, Chat templates
 - **v0.1.12** (Nov 2025) - Stable Diffusion integration with stable-diffusion.cpp
 - **v0.1.11** (Nov 2025) - ACP support, build improvements
 - **v0.1.10** (Nov 2025) - Agent Framework, bug fixes
@@ -470,7 +471,7 @@ bin/llama-cli -c 512 -n 32 -m models/Llama-3.2-1B-Instruct-Q8_0.gguf \
  -p "Is mathematics discovered or invented?"
 ```
 
-With 600+ passing tests, the library is ready for both quick prototyping and production use:
+With 863+ passing tests, the library is ready for both quick prototyping and production use:
 
 ```sh
 make test  # Run full test suite
@@ -500,6 +501,9 @@ python3 -i scripts/start.py
 
 - [x] Full llama.cpp API wrapper with Cython
 - [x] High-level API (`LLM`, `complete`, `chat`)
+- [x] Async API support (`AsyncLLM`, `complete_async`, `chat_async`)
+- [x] Response class with stats and serialization
+- [x] Built-in chat template system (llama.cpp templates)
 - [x] Batch processing utilities
 - [x] OpenAI-compatible API client
 - [x] LangChain integration
@@ -517,9 +521,7 @@ python3 -i scripts/start.py
 
 ### Future
 
-- [ ] Async API support (`async def complete_async()`)
 - [ ] Response caching for identical prompts
-- [ ] Built-in prompt template system
 - [ ] RAG utilities
 - [ ] Web UI for testing
 

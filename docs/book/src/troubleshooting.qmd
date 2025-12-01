@@ -1,0 +1,522 @@
+---
+title: "Troubleshooting"
+---
+
+Common issues and solutions when using cyllama.
+
+## Installation Issues
+
+### "No module named 'cyllama'"
+
+**Cause:** Cyllama is not installed or not in the Python path.
+
+**Solution:**
+
+```bash
+# Make sure you're in the project directory
+cd cyllama
+
+# Build and install
+make
+
+# Or manually install in editable mode
+uv pip install -e .
+```
+
+### Build Fails with CMake Errors
+
+**Cause:** Missing dependencies or incompatible CMake version.
+
+**Solution:**
+
+```bash
+# Check CMake version (need 3.21+)
+cmake --version
+
+# Clean and rebuild
+make reset
+make build
+
+# On macOS, ensure Xcode tools are installed
+xcode-select --install
+```
+
+### "fatal error: 'llama.h' file not found"
+
+**Cause:** llama.cpp headers not built or not found.
+
+**Solution:**
+
+```bash
+# Rebuild dependencies
+make reset
+make
+
+# Verify thirdparty structure
+ls thirdparty/llama.cpp/include/
+```
+
+## Model Loading Issues
+
+### "Failed to load model"
+
+**Cause:** Model file doesn't exist, is corrupted, or incompatible format.
+
+**Solutions:**
+
+1. **Verify file exists:**
+   ```bash
+   ls -la models/your-model.gguf
+   ```
+
+2. **Check file integrity:**
+   ```python
+   from cyllama import GGUFContext
+
+   ctx = GGUFContext.from_file("models/your-model.gguf")
+   metadata = ctx.get_all_metadata()
+   print(metadata)  # Should show model info
+   ```
+
+3. **Use correct GGUF format:** Cyllama requires GGUF format (not GGML). Convert older models:
+   ```bash
+   # Use llama.cpp's conversion tool
+   python llama.cpp/convert.py old-model.bin --outfile new-model.gguf
+   ```
+
+### "Out of memory" / VRAM Exhaustion
+
+**Cause:** Model too large for available memory/VRAM.
+
+**Solutions:**
+
+1. **Reduce GPU layers:**
+   ```python
+   from cyllama import LLM, GenerationConfig
+
+   config = GenerationConfig(n_gpu_layers=20)  # Reduce from 99
+   llm = LLM("model.gguf", config=config)
+   ```
+
+2. **Estimate optimal layers:**
+   ```python
+   from cyllama import estimate_gpu_layers
+
+   estimate = estimate_gpu_layers("model.gguf", available_vram_mb=8000)
+   print(f"Recommended: {estimate.n_gpu_layers} GPU layers")
+   ```
+
+3. **Use smaller quantization:** Download a more quantized model (Q4_0 < Q5_K < Q8_0 < F16).
+
+4. **Reduce context size:**
+   ```python
+   config = GenerationConfig(n_ctx=2048)  # Smaller context = less memory
+   ```
+
+### Model Loads but Generation is Slow
+
+**Cause:** Model not using GPU acceleration.
+
+**Solutions:**
+
+1. **Check GPU backend is loaded:**
+   ```python
+   from cyllama import ggml_backend_load_all
+   ggml_backend_load_all()
+   ```
+
+2. **Verify GPU layers are being used:**
+   ```python
+   from cyllama import LLM
+
+   llm = LLM("model.gguf", n_gpu_layers=99, verbose=True)
+   # Verbose output should show GPU offload info
+   ```
+
+3. **On macOS, check Metal:**
+   ```bash
+   # Ensure Metal is available
+   system_profiler SPDisplaysDataType | grep Metal
+   ```
+
+## Generation Issues
+
+### Empty or Truncated Output
+
+**Cause:** max_tokens too low, stop sequences triggered, or EOS token reached.
+
+**Solutions:**
+
+```python
+from cyllama import complete
+
+# Increase max_tokens
+response = complete(
+    "Write a long essay",
+    model_path="model.gguf",
+    max_tokens=2000  # Increase this
+)
+
+# Check stop sequences aren't interfering
+response = complete(
+    "Write code",
+    model_path="model.gguf",
+    stop_sequences=[]  # Clear stop sequences
+)
+```
+
+### Repetitive Output
+
+**Cause:** Repetition penalty too low or temperature issues.
+
+**Solutions:**
+
+```python
+from cyllama import GenerationConfig, LLM
+
+config = GenerationConfig(
+    repeat_penalty=1.2,  # Increase (default 1.1)
+    temperature=0.8,     # Add some randomness
+    top_k=40,
+    top_p=0.95
+)
+
+llm = LLM("model.gguf", config=config)
+```
+
+### Nonsensical Output
+
+**Cause:** Temperature too high, wrong model, or corrupted model file.
+
+**Solutions:**
+
+1. **Lower temperature:**
+   ```python
+   response = complete("...", model_path="model.gguf", temperature=0.3)
+   ```
+
+2. **Use greedy decoding for deterministic output:**
+   ```python
+   response = complete("...", model_path="model.gguf", temperature=0.0)
+   ```
+
+3. **Verify model integrity:**
+   ```python
+   from cyllama import GGUFContext
+   ctx = GGUFContext.from_file("model.gguf")
+   print(ctx.get_val_str("general.architecture"))
+   ```
+
+### Chat Format Issues
+
+**Cause:** Model expects specific chat format that isn't being applied.
+
+**Solution:** Use the `chat()` function which applies proper formatting:
+
+```python
+from cyllama import chat
+
+messages = [
+    {"role": "system", "content": "You are a helpful assistant."},
+    {"role": "user", "content": "Hello"}
+]
+
+# chat() applies the model's expected format
+response = chat(messages, model_path="model.gguf")
+```
+
+## GPU Issues
+
+### Metal Not Working (macOS)
+
+**Symptoms:** Generation runs on CPU despite having Apple Silicon.
+
+**Solutions:**
+
+1. **Verify Metal support:**
+   ```bash
+   system_profiler SPDisplaysDataType | grep -i metal
+   ```
+
+2. **Reinstall Xcode tools:**
+   ```bash
+   xcode-select --install
+   ```
+
+3. **Check build used Metal:**
+   ```bash
+   make show-backends
+   # Should show GGML_METAL=1
+   ```
+
+4. **Rebuild with Metal:**
+   ```bash
+   make reset
+   make build-metal
+   ```
+
+### CUDA Not Found (Linux)
+
+**Symptoms:** Build fails or GPU not used on NVIDIA systems.
+
+**Solutions:**
+
+1. **Set CUDA paths:**
+   ```bash
+   export PATH=/usr/local/cuda/bin:$PATH
+   export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
+   ```
+
+2. **Rebuild with CUDA:**
+   ```bash
+   make reset
+   make build-cuda
+   ```
+
+3. **Verify CUDA installation:**
+   ```bash
+   nvcc --version
+   nvidia-smi
+   ```
+
+### Vulkan Issues
+
+**Symptoms:** Vulkan backend not loading.
+
+**Solutions:**
+
+1. **Install Vulkan SDK:**
+   - Linux: `sudo apt install vulkan-tools libvulkan-dev`
+   - macOS: Install from [LunarG](https://vulkan.lunarg.com/)
+
+2. **Verify Vulkan:**
+   ```bash
+   vulkaninfo | head -20
+   ```
+
+3. **Rebuild:**
+   ```bash
+   make build-vulkan
+   ```
+
+## Agent Issues
+
+### Agent Loops Forever
+
+**Cause:** Agent stuck in reasoning loop.
+
+**Solutions:**
+
+```python
+from cyllama.agents import ReActAgent
+
+agent = ReActAgent(
+    llm=llm,
+    tools=tools,
+    max_iterations=5,              # Hard limit
+    detect_loops=True,             # Enable loop detection
+    max_consecutive_same_action=2, # Stop after 2 identical actions
+    max_consecutive_same_tool=3,   # Stop after 3 calls to same tool
+)
+```
+
+### Agent Can't Parse Tool Calls
+
+**Cause:** Model not following expected format.
+
+**Solutions:**
+
+1. **Use ConstrainedAgent for guaranteed parsing:**
+   ```python
+   from cyllama.agents import ConstrainedAgent
+
+   agent = ConstrainedAgent(llm=llm, tools=tools)
+   # Grammar constraints ensure valid JSON output
+   ```
+
+2. **Use a better model:** Larger models (7B+) are more reliable at tool calling.
+
+3. **Simplify tool definitions:**
+   ```python
+   @tool
+   def simple_tool(query: str) -> str:  # Simple, clear signature
+       """Search for information."""     # Clear docstring
+       return f"Results: {query}"
+   ```
+
+### Tool Execution Errors
+
+**Cause:** Tool function throws exception.
+
+**Solution:** Add error handling in tools:
+
+```python
+@tool
+def safe_calculate(expression: str) -> str:
+    """Safely evaluate a math expression."""
+    try:
+        result = eval(expression)
+        return str(result)
+    except Exception as e:
+        return f"Error: Could not evaluate '{expression}': {e}"
+```
+
+## Async Issues
+
+### "RuntimeError: Event loop is already running"
+
+**Cause:** Trying to use `asyncio.run()` inside an existing event loop (e.g., Jupyter).
+
+**Solution:**
+
+```python
+# In Jupyter notebooks, use:
+import nest_asyncio
+nest_asyncio.apply()
+
+# Or use await directly:
+response = await complete_async("...", model_path="model.gguf")
+```
+
+### Async Tasks Not Running Concurrently
+
+**Cause:** AsyncLLM uses a lock to serialize access (by design, for thread safety).
+
+**Solution:** For true parallelism, use multiple AsyncLLM instances:
+
+```python
+import asyncio
+from cyllama import AsyncLLM
+
+async def parallel_generation():
+    # Create multiple instances for parallel inference
+    async with AsyncLLM("model.gguf") as llm1, \
+               AsyncLLM("model.gguf") as llm2:
+
+        task1 = llm1("Prompt 1")
+        task2 = llm2("Prompt 2")
+
+        results = await asyncio.gather(task1, task2)
+```
+
+## Whisper Issues
+
+### "Invalid audio format"
+
+**Cause:** Audio not in correct format (16kHz, mono, float32).
+
+**Solution:**
+
+```python
+import numpy as np
+
+def prepare_audio(samples, sample_rate):
+    """Convert audio to Whisper-compatible format."""
+    # Resample to 16kHz if needed
+    if sample_rate != 16000:
+        # Use scipy or librosa for resampling
+        from scipy import signal
+        samples = signal.resample(samples, int(len(samples) * 16000 / sample_rate))
+
+    # Convert to mono if stereo
+    if len(samples.shape) > 1:
+        samples = samples.mean(axis=1)
+
+    # Convert to float32 in [-1, 1]
+    samples = samples.astype(np.float32)
+    if samples.max() > 1.0 or samples.min() < -1.0:
+        samples = samples / max(abs(samples.max()), abs(samples.min()))
+
+    return samples
+```
+
+## Stable Diffusion Issues
+
+### "Module not available"
+
+**Cause:** Built without Stable Diffusion support.
+
+**Solution:**
+
+```bash
+# Rebuild with SD support
+WITH_STABLEDIFFUSION=1 make reset
+WITH_STABLEDIFFUSION=1 make build
+```
+
+### Images are Blank or Corrupted
+
+**Cause:** Wrong model type or incompatible settings.
+
+**Solutions:**
+
+1. **For SDXL Turbo models:**
+   ```python
+   images = text_to_image(
+       model_path="sd_xl_turbo.gguf",
+       prompt="...",
+       sample_steps=4,   # Turbo uses fewer steps
+       cfg_scale=1.0     # Turbo uses low CFG
+   )
+   ```
+
+2. **For standard SD models:**
+   ```python
+   images = text_to_image(
+       model_path="sd_v1_5.gguf",
+       prompt="...",
+       sample_steps=20,  # More steps
+       cfg_scale=7.0     # Higher CFG
+   )
+   ```
+
+## Performance Tips
+
+### Slow First Generation
+
+**Cause:** Model loading and context creation on first call.
+
+**Solution:** Use the LLM class to keep the model loaded:
+
+```python
+from cyllama import LLM
+
+llm = LLM("model.gguf")  # Load once
+
+# Subsequent calls are fast
+for prompt in prompts:
+    response = llm(prompt)
+```
+
+### High Memory Usage
+
+**Solutions:**
+
+1. Close resources when done:
+   ```python
+   llm = LLM("model.gguf")
+   # ... use llm ...
+   llm.close()  # Free memory
+   ```
+
+2. Use context managers:
+   ```python
+   with LLM("model.gguf") as llm:
+       response = llm("...")
+   # Automatically freed
+   ```
+
+3. Use batch processing for multiple prompts:
+   ```python
+   from cyllama import batch_generate
+
+   responses = batch_generate(prompts, model_path="model.gguf")
+   ```
+
+## Getting Help
+
+If you're still having issues:
+
+1. **Check the logs:** Run with `verbose=True` for detailed output
+2. **Search existing issues:** [GitHub Issues](https://github.com/shakfu/cyllama/issues)
+3. **Open a new issue:** Include your platform, Python version, error message, and minimal reproduction code

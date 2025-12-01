@@ -353,7 +353,8 @@ Begin!"""
 
             # Generate thought and action
             gen_start = time.perf_counter()
-            response = self.llm(prompt, config=self.generation_config, stream=False)
+            result = self.llm(prompt, config=self.generation_config, stream=False)
+            response = str(result)  # Convert Response to string
             gen_time = (time.perf_counter() - gen_start) * 1000
             self._metrics.generation_time_ms += gen_time
             logger.debug("Generation took %.1fms", gen_time)

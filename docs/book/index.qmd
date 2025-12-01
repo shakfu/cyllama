@@ -33,7 +33,7 @@ No machine learning expertise is required for basic usage.
 
 ## Conventions
 
-Code examples use Python 3.8+ syntax:
+Code examples use Python 3.9+ syntax:
 
 ```python
 from cyllama import complete
@@ -50,7 +50,7 @@ make test
 
 ## Source Code
 
-Cyllama is open source and available at:
+cyllama is open source and available at:
 
 <https://github.com/shakfu/cyllama>
 

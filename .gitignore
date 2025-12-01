@@ -14,6 +14,9 @@ src/cyllama/stablediffusion/stable_diffusion.cpp
 tests/cpp
 changes.diff
 
+# generated _book
+docs/book/_book/
+
 # editor
 .vscode
 

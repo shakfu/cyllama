@@ -21,6 +21,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Added
 
+- **Chat Template Support** - Integrated llama.cpp's built-in chat template system
+  - `apply_chat_template(messages, model_path, template=None)` - Format chat messages using model's template
+  - `get_chat_template(model_path, template_name=None)` - Retrieve template string from model metadata
+  - `LLM.chat(messages, config=None, stream=False, template=None)` - Chat with template formatting
+  - `LLM.get_chat_template(template_name=None)` - Get template from loaded model
+  - `AsyncLLM.chat(messages, config=None, template=None)` - Async chat with templates
+  - `AsyncLLM.get_chat_template(template_name=None)` - Get template from async LLM
+  - `chat()` function now supports `template` parameter for explicit template selection
+  - Supports all llama.cpp built-in templates: llama2, llama3, llama4, chatml, mistral, phi3, phi4, deepseek, gemma, falcon3, command-r, vicuna, zephyr, and many more
+  - Automatic fallback to simple `User:/Assistant:` format when no template available
+  - 8 new tests in `tests/test_chat.py`
+
 - **Async API Support** - Full async/await support for text generation
   - `AsyncLLM` class - Async wrapper around `LLM` with `async with` context manager support
   - `complete_async()` - Async convenience function for one-off completions
@@ -37,7 +49,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - Async streaming via `async for event in agent.stream(task)`
   - Suitable for use in FastAPI, aiohttp, and other async frameworks
 
+- **Response Class** - Structured response object for all generation functions
+  - `Response` dataclass with `text`, `stats`, `finish_reason`, `model` attributes
+  - Backward compatible via `__str__` - existing code using string operations continues to work
+  - Full string protocol support: `__eq__`, `__len__`, `__iter__`, `__contains__`, `__add__`, `__radd__`
+  - `to_dict()` method for dictionary serialization
+  - `to_json(indent=None)` method for JSON serialization
+  - `stats` contains `GenerationStats` with timing and token metrics when available
+  - Returned by: `complete()`, `chat()`, `LLM()`, `LLM.chat()`, `batch_generate()`
+  - Async support: `complete_async()`, `chat_async()`, `AsyncLLM()`, `AsyncLLM.chat()`
+  - 19 new tests in `tests/test_response.py`
+
 ### Changed
+
+- **Framework Integrations Updated for Response** - OpenAI and LangChain integrations now properly use Response objects
+  - `OpenAICompatibleClient` uses `response.stats` for accurate token counts instead of re-tokenizing
+  - `OpenAICompatibleClient` uses `response.finish_reason` for completion finish reason
+  - `CyllamaLLM` (LangChain) now includes generation stats in `generation_info`:
+    - `prompt_tokens`, `completion_tokens`, `total_time_seconds`, `tokens_per_second`, `finish_reason`
+  - Internal `_call_internal()` method added to LangChain integration returning `Response` objects
+  - Both integrations maintain backward compatibility with their respective framework APIs
 
 - **LLM Class Direct Parameters** - `LLM` class now accepts generation parameters directly
   - Can now use `LLM("model.gguf", temperature=0.9, max_tokens=100)` instead of requiring `GenerationConfig`

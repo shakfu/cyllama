@@ -8,6 +8,7 @@ from cyllama import (
     chat,
     LLM,
     GenerationConfig,
+    Response,
 )
 
 
@@ -176,7 +177,7 @@ class TestLLM:
         config = GenerationConfig(max_tokens=20, temperature=0.0)  # Greedy for consistency
         response = gen("What is 2+2?", config=config)
 
-        assert isinstance(response, str)
+        assert isinstance(response, (str, Response))
         assert len(response) > 0
 
     @pytest.mark.slow
@@ -215,13 +216,14 @@ class TestLLM:
         gen = LLM(model_path)
         config = GenerationConfig(max_tokens=20, temperature=0.0)
 
-        response, stats = gen.generate_with_stats("Test prompt", config=config)
+        response = gen.generate_with_stats("Test prompt", config=config)
 
-        assert isinstance(response, str)
-        assert stats.prompt_tokens > 0
-        assert stats.generated_tokens >= 0
-        assert stats.total_time > 0
-        assert stats.tokens_per_second >= 0
+        assert isinstance(response, Response)
+        assert response.stats is not None
+        assert response.stats.prompt_tokens > 0
+        assert response.stats.generated_tokens >= 0
+        assert response.stats.total_time > 0
+        assert response.stats.tokens_per_second >= 0
 
     @pytest.mark.slow
     def test_different_temperatures(self, model_path):
@@ -233,15 +235,15 @@ class TestLLM:
         response1 = gen("Hello", config=config_greedy)
         response2 = gen("Hello", config=config_greedy)
         # Note: May not be identical due to context recreation, but both should be valid
-        assert isinstance(response1, str)
-        assert isinstance(response2, str)
+        assert isinstance(response1, (str, Response))
+        assert isinstance(response2, (str, Response))
         assert len(response1) > 0
         assert len(response2) > 0
 
         # High temperature (more random)
         config_random = GenerationConfig(max_tokens=10, temperature=1.5, seed=42)
         response3 = gen("Hello", config=config_random)
-        assert isinstance(response3, str)
+        assert isinstance(response3, (str, Response))
 
 
 class TestLLMResourceManagement:
@@ -253,7 +255,7 @@ class TestLLMResourceManagement:
         with LLM(model_path) as llm:
             config = GenerationConfig(max_tokens=10, temperature=0.0)
             response = llm("Hello", config=config)
-            assert isinstance(response, str)
+            assert isinstance(response, (str, Response))
             assert len(response) > 0
         # After exiting, resources should be cleaned up
         assert llm._closed is True
@@ -264,7 +266,7 @@ class TestLLMResourceManagement:
         llm = LLM(model_path)
         config = GenerationConfig(max_tokens=10, temperature=0.0)
         response = llm("Hello", config=config)
-        assert isinstance(response, str)
+        assert isinstance(response, (str, Response))
 
         # Close explicitly
         llm.close()
@@ -392,7 +394,7 @@ class TestConvenienceFunctions:
             temperature=0.0
         )
 
-        assert isinstance(response, str)
+        assert isinstance(response, (str, Response))
         assert len(response) > 0
 
     @pytest.mark.slow
@@ -425,7 +427,7 @@ class TestConvenienceFunctions:
             temperature=0.0
         )
 
-        assert isinstance(response, str)
+        assert isinstance(response, (str, Response))
         assert len(response) > 0
 
     @pytest.mark.slow
@@ -457,7 +459,7 @@ class TestEdgeCases:
 
         # Empty prompt should still work (BOS token)
         response = gen("", config=config)
-        assert isinstance(response, str)
+        assert isinstance(response, (str, Response))
 
     @pytest.mark.slow
     def test_max_tokens_zero(self, model_path):
@@ -476,7 +478,7 @@ class TestEdgeCases:
 
         long_prompt = "Hello " * 100
         response = gen(long_prompt, config=config)
-        assert isinstance(response, str)
+        assert isinstance(response, (str, Response))
 
     @pytest.mark.slow
     def test_context_recreation(self, model_path):
@@ -491,8 +493,8 @@ class TestEdgeCases:
         config2 = GenerationConfig(max_tokens=10, n_ctx=1024)
         response2 = gen("Test2", config=config2)
 
-        assert isinstance(response1, str)
-        assert isinstance(response2, str)
+        assert isinstance(response1, (str, Response))
+        assert isinstance(response2, (str, Response))
 
 
 class TestStopSequences:
@@ -510,7 +512,7 @@ class TestStopSequences:
         )
 
         response = gen("Count from 1 to 10:", config=config)
-        assert isinstance(response, str)
+        assert isinstance(response, (str, Response))
         # Should not contain the stop sequence
         assert "\n\n" not in response
 
@@ -525,7 +527,7 @@ class TestStopSequences:
         )
 
         response = gen("Tell me something about Python", config=config)
-        assert isinstance(response, str)
+        assert isinstance(response, (str, Response))
         # Should not contain any stop sequence
         assert "." not in response
         assert "!" not in response
@@ -543,7 +545,7 @@ class TestStopSequences:
 
         response = gen("Say hello", config=config)
         # The stop sequence itself should not be included
-        assert not response.endswith(".")
+        assert not response.text.endswith(".")
 
     @pytest.mark.slow
     def test_empty_stop_sequences(self, model_path):
@@ -556,7 +558,7 @@ class TestStopSequences:
         )
 
         response = gen("Hello", config=config)
-        assert isinstance(response, str)
+        assert isinstance(response, (str, Response))
         assert len(response) > 0
 
     @pytest.mark.slow
@@ -572,7 +574,7 @@ class TestStopSequences:
         chunks = list(gen("Say hello", config=config, stream=True))
         full_response = "".join(chunks)
 
-        assert isinstance(full_response, str)
+        assert isinstance(full_response, str)  # streaming returns str chunks
         # Stop sequence should not be in output
         assert not full_response.endswith(".")
 

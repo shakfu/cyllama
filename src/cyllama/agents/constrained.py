@@ -717,7 +717,8 @@ Use tools when needed, then provide a helpful final answer based on the results.
             )
         else:
             # Fallback for mock LLMs in tests
-            response = self.llm(prompt, config=config, stream=False)
+            result = self.llm(prompt, config=config, stream=False)
+            response = str(result)  # Convert Response to string
 
         # Parse JSON from response
         # Try to extract JSON if wrapped in markdown or other text

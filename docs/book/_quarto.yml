@@ -5,13 +5,14 @@ execute:
   enabled: false
 
 book:
-  title: "Cyllama User Guide"
+  title: "cyllama user guide"
   author: "S. Alireza"
-  date: "11/29/2025"
-  version: "0.1.15"
+  date: "12/01/2025"
+  version: "0.1.16"
   chapters:
     - index.qmd
     - intro.qmd
+    - src/quickstart.qmd
     - src/installation.qmd
     - src/overview.qmd
     - summary.qmd
@@ -34,6 +35,7 @@ book:
       - src/agents_overview.qmd
   appendices:
     - src/api_reference.qmd
+    - src/troubleshooting.qmd
     
 
 bibliography: references.bib

@@ -41,7 +41,7 @@ from .llama.llama_cpp import (
     get_pooled_batch,
     return_batch_to_pool,
 )
-from .api import GenerationConfig
+from .api import GenerationConfig, Response, GenerationStats
 
 
 @dataclass
@@ -208,7 +208,7 @@ class BatchGenerator:
         self,
         prompts: List[str],
         config: Optional[GenerationConfig] = None
-    ) -> List[str]:
+    ) -> List[Response]:
         """
         Generate responses for a batch of prompts.
 
@@ -217,11 +217,15 @@ class BatchGenerator:
             config: Generation configuration (uses defaults if None)
 
         Returns:
-            List of generated responses (same order as inputs)
+            List of Response objects (same order as inputs).
+            Each Response can be used as a string due to __str__.
 
         Example:
             >>> prompts = ["Hello", "Hi", "Hey"]
             >>> responses = batch_gen.generate_batch(prompts)
+            >>> for r in responses:
+            >>>     print(r)  # Works like a string
+            >>>     print(r.stats)  # Access statistics
 
         Raises:
             RuntimeError: If the BatchGenerator has been closed
@@ -258,6 +262,7 @@ class BatchGenerator:
             )
 
         config = config or GenerationConfig()
+        start_time = time.time()
 
         # Tokenize all prompts
         tokenized_prompts = []
@@ -352,12 +357,36 @@ class BatchGenerator:
         if self.use_pooling:
             return_batch_to_pool(batch)
 
+        end_time = time.time()
+        total_time = end_time - start_time
+
+        # Wrap responses in Response objects with stats
+        result_responses = []
+        for i, (text, prompt_tokens) in enumerate(zip(responses, tokenized_prompts)):
+            # Approximate token count for response
+            response_tokens = self.vocab.tokenize(text, add_special=False, parse_special=False)
+            n_generated = len(response_tokens)
+
+            stats = GenerationStats(
+                prompt_tokens=len(prompt_tokens),
+                generated_tokens=n_generated,
+                total_time=total_time / len(prompts),  # Approximate per-prompt time
+                tokens_per_second=n_generated / (total_time / len(prompts)) if total_time > 0 else 0.0
+            )
+
+            result_responses.append(Response(
+                text=text,
+                stats=stats,
+                finish_reason="stop",
+                model=self.model_path
+            ))
+
         if self.verbose:
             print(f"Generated {len(prompts)} responses")
-            for i, response in enumerate(responses):
-                print(f"  Response {i}: {len(response)} characters")
+            for i, response in enumerate(result_responses):
+                print(f"  Response {i}: {len(response.text)} characters")
 
-        return responses
+        return result_responses
 
     def generate_batch_detailed(
         self,
@@ -402,26 +431,18 @@ class BatchGenerator:
                     f"is {type(req).__name__}"
                 )
 
-        start_time = time.time()
-
         prompts = [req.prompt for req in requests]
         responses = self.generate_batch(prompts, config)
 
-        end_time = time.time()
-        total_time = end_time - start_time
-
-        # Create detailed responses
+        # Create detailed responses from Response objects
         results = []
         for req, response in zip(requests, responses):
-            # Approximate token count
-            response_tokens = self.vocab.tokenize(response, add_special=False, parse_special=False)
-
             result = BatchResponse(
                 id=req.id,
                 prompt=req.prompt,
-                response=response,
-                tokens_generated=len(response_tokens),
-                time_taken=total_time / len(requests)  # Approximate per-request time
+                response=response.text,
+                tokens_generated=response.stats.generated_tokens if response.stats else 0,
+                time_taken=response.stats.total_time if response.stats else 0.0
             )
             results.append(result)
 
@@ -435,7 +456,7 @@ def batch_generate(
     n_seq_max: int = 8,
     config: Optional[GenerationConfig] = None,
     **kwargs
-) -> List[str]:
+) -> List[Response]:
     """
     Convenience function for batch generation.
 
@@ -448,11 +469,14 @@ def batch_generate(
         **kwargs: Additional config parameters
 
     Returns:
-        List of generated responses
+        List of Response objects. Each Response can be used as a string.
 
     Example:
         >>> prompts = ["Hello", "Hi", "Hey"]
         >>> responses = batch_generate(prompts, "models/llama.gguf")
+        >>> for r in responses:
+        >>>     print(r)  # Works like a string
+        >>>     print(r.stats)  # Access statistics
     """
     # Merge config with kwargs
     if config is None:

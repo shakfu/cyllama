@@ -9,6 +9,7 @@ from cyllama import (
     BatchRequest,
     BatchResponse,
     GenerationConfig,
+    Response,
 )
 
 # Skip all tests if model is not available
@@ -44,8 +45,10 @@ class TestBatchGenerate:
 
         assert len(responses) == len(prompts)
         for response in responses:
-            assert isinstance(response, str)
-            assert len(response) > 0
+            assert isinstance(response, Response)
+            assert len(response.text) > 0
+            # Backward compatible: can still use as string
+            assert str(response) == response.text
 
     def test_single_prompt(self, model_path):
         """Test batch generation with a single prompt."""
@@ -61,8 +64,8 @@ class TestBatchGenerate:
         )
 
         assert len(responses) == 1
-        assert isinstance(responses[0], str)
-        assert len(responses[0]) > 0
+        assert isinstance(responses[0], Response)
+        assert len(responses[0].text) > 0
 
     def test_empty_prompts(self, model_path):
         """Test batch generation with empty prompt list."""
@@ -124,7 +127,7 @@ class TestBatchGenerator:
 
         assert len(responses) == 3
         for response in responses:
-            assert isinstance(response, str)
+            assert isinstance(response, Response)
             assert len(response) > 0
 
     def test_generate_batch_different_lengths(self, model_path):
@@ -145,7 +148,7 @@ class TestBatchGenerator:
 
         assert len(responses) == 2
         for response in responses:
-            assert isinstance(response, str)
+            assert isinstance(response, Response)
 
     def test_generate_batch_detailed(self, model_path):
         """Test detailed batch generation with statistics."""
@@ -378,7 +381,7 @@ class TestBatchPooling:
 
         assert len(responses) == 2
         for response in responses:
-            assert isinstance(response, str)
+            assert isinstance(response, Response)
             assert len(response) > 0
 
     def test_batch_generator_pooling_consistency(self, model_path):
@@ -627,7 +630,7 @@ class TestBatchEdgeCases:
         responses = gen.generate_batch([long_prompt], config)
 
         assert len(responses) == 1
-        assert isinstance(responses[0], str)
+        assert isinstance(responses[0], Response)
 
     def test_empty_string_prompt(self, model_path):
         """Test handling of empty string prompt."""
@@ -655,7 +658,7 @@ class TestBatchEdgeCases:
         responses = gen.generate_batch(["   \n\t  "], config)
 
         assert len(responses) == 1
-        assert isinstance(responses[0], str)
+        assert isinstance(responses[0], Response)
 
     def test_unicode_prompt(self, model_path):
         """Test handling of unicode characters in prompt."""
@@ -669,7 +672,7 @@ class TestBatchEdgeCases:
         responses = gen.generate_batch(["Hello world!"], config)
 
         assert len(responses) == 1
-        assert isinstance(responses[0], str)
+        assert isinstance(responses[0], Response)
 
     def test_special_characters_prompt(self, model_path):
         """Test handling of special characters in prompt."""
@@ -684,7 +687,7 @@ class TestBatchEdgeCases:
         responses = gen.generate_batch(prompts, config)
 
         assert len(responses) == 1
-        assert isinstance(responses[0], str)
+        assert isinstance(responses[0], Response)
 
     def test_max_tokens_zero(self, model_path):
         """Test generation with max_tokens=0."""

@@ -16,6 +16,7 @@ Cyllama includes a zero-dependency agent framework for building tool-using LLM a
 5. [Events and Results](#events-and-results)
 6. [Configuration](#configuration)
 7. [Best Practices](#best-practices)
+8. [Async Agents](#async-agents)
 
 ## Quick Start
 
@@ -540,6 +541,115 @@ Use contracts for safety-critical tools:
 def transfer_funds(account_id: str, amount: float) -> str:
     """Transfer funds to account."""
     return banking_api.transfer(account_id, amount)
+```
+
+## Async Agents
+
+For non-blocking agent execution in async applications, use the async agent wrappers.
+
+### AsyncReActAgent
+
+Async wrapper for ReActAgent:
+
+```python
+import asyncio
+from cyllama.agents import AsyncReActAgent, tool
+
+@tool
+def search(query: str) -> str:
+    """Search for information."""
+    return f"Results for: {query}"
+
+async def main():
+    async with AsyncReActAgent(
+        "models/Llama-3.2-1B-Instruct-Q8_0.gguf",
+        tools=[search],
+        max_iterations=5
+    ) as agent:
+        # Async run
+        result = await agent.run("Search for Python tutorials")
+        print(result.answer)
+
+        # Async streaming
+        async for event in agent.stream("Find information about AI"):
+            print(f"{event.type.value}: {event.content}")
+
+asyncio.run(main())
+```
+
+### AsyncConstrainedAgent
+
+Async wrapper for ConstrainedAgent:
+
+```python
+from cyllama.agents import AsyncConstrainedAgent, tool
+
+@tool
+def calculate(expression: str) -> str:
+    """Evaluate a math expression."""
+    return str(eval(expression))
+
+async def main():
+    async with AsyncConstrainedAgent(
+        "models/Llama-3.2-1B-Instruct-Q8_0.gguf",
+        tools=[calculate]
+    ) as agent:
+        result = await agent.run("What is 100 / 4?")
+        print(result.answer)
+
+asyncio.run(main())
+```
+
+### run_agent_async()
+
+Helper function to run any synchronous agent asynchronously:
+
+```python
+from cyllama import LLM
+from cyllama.agents import ReActAgent, run_agent_async, tool
+
+@tool
+def greet(name: str) -> str:
+    return f"Hello, {name}!"
+
+# Create sync agent
+llm = LLM("models/Llama-3.2-1B-Instruct-Q8_0.gguf")
+agent = ReActAgent(llm=llm, tools=[greet])
+
+# Run asynchronously
+async def main():
+    result = await run_agent_async(agent, "Greet Alice")
+    print(result.answer)
+
+asyncio.run(main())
+```
+
+### Async Agent Parameters
+
+Both `AsyncReActAgent` and `AsyncConstrainedAgent` accept the same parameters as their synchronous counterparts:
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `model_path` | `str` | required | Path to GGUF model file |
+| `tools` | `List[Tool]` | `None` | Available tools |
+| `config` | `GenerationConfig` | `None` | LLM configuration |
+| `system_prompt` | `str` | default | Custom system prompt |
+| `max_iterations` | `int` | `10` | Maximum iterations |
+| `verbose` | `bool` | `False` | Print output |
+
+### Thread Safety
+
+Async agents use an internal lock to serialize access, ensuring thread-safe operation. For true parallel execution, create multiple agent instances:
+
+```python
+async def parallel_agents():
+    async with AsyncReActAgent("model.gguf", tools=tools) as agent1, \
+               AsyncReActAgent("model.gguf", tools=tools) as agent2:
+
+        task1 = agent1.run("Task 1")
+        task2 = agent2.run("Task 2")
+
+        results = await asyncio.gather(task1, task2)
 ```
 
 ## References

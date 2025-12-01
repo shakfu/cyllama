@@ -1,0 +1,210 @@
+---
+title: "Quickstart"
+---
+
+Get started with cyllama in under 5 minutes.
+
+## Installation
+
+```bash
+# Clone and build
+git clone https://github.com/shakfu/cyllama.git
+cd cyllama
+make
+
+# Download a test model
+make download
+```
+
+## Your First Generation
+
+```python
+from cyllama import complete
+
+response = complete(
+    "What is Python?",
+    model_path="models/Llama-3.2-1B-Instruct-Q8_0.gguf"
+)
+print(response)
+```
+
+## Streaming Output
+
+See tokens as they're generated:
+
+```python
+from cyllama import complete
+
+for chunk in complete(
+    "Tell me a short story",
+    model_path="models/Llama-3.2-1B-Instruct-Q8_0.gguf",
+    stream=True
+):
+    print(chunk, end="", flush=True)
+```
+
+## Chat Conversations
+
+Multi-turn chat with message history:
+
+```python
+from cyllama import chat
+
+messages = [
+    {"role": "system", "content": "You are a helpful assistant."},
+    {"role": "user", "content": "What is machine learning?"}
+]
+
+response = chat(messages, model_path="models/Llama-3.2-1B-Instruct-Q8_0.gguf")
+print(response)
+```
+
+## Reusable LLM Instance
+
+For multiple generations, keep the model loaded:
+
+```python
+from cyllama import LLM
+
+llm = LLM("models/Llama-3.2-1B-Instruct-Q8_0.gguf")
+
+# Model stays loaded between calls
+response1 = llm("What is 2+2?")
+response2 = llm("What is the capital of France?")
+response3 = llm("Explain gravity in one sentence.")
+```
+
+## Async Generation
+
+Non-blocking generation for async applications:
+
+```python
+import asyncio
+from cyllama import AsyncLLM
+
+async def main():
+    async with AsyncLLM("models/Llama-3.2-1B-Instruct-Q8_0.gguf") as llm:
+        response = await llm("What is Python?")
+        print(response)
+
+        # Async streaming
+        async for chunk in llm.stream("Tell me a joke"):
+            print(chunk, end="", flush=True)
+
+asyncio.run(main())
+```
+
+## Using Agents
+
+Build tool-using AI agents:
+
+```python
+from cyllama import LLM
+from cyllama.agents import ReActAgent, tool
+
+@tool
+def calculate(expression: str) -> str:
+    """Evaluate a math expression."""
+    return str(eval(expression))
+
+llm = LLM("models/Llama-3.2-1B-Instruct-Q8_0.gguf")
+agent = ReActAgent(llm=llm, tools=[calculate])
+
+result = agent.run("What is 25 * 4?")
+print(result.answer)  # "100"
+```
+
+## Configuration Options
+
+Customize generation behavior:
+
+```python
+from cyllama import LLM, GenerationConfig
+
+config = GenerationConfig(
+    max_tokens=200,      # Maximum tokens to generate
+    temperature=0.7,     # Randomness (0.0 = deterministic)
+    top_p=0.95,          # Nucleus sampling
+    top_k=40,            # Top-k sampling
+    repeat_penalty=1.1,  # Penalize repetition
+)
+
+llm = LLM("models/Llama-3.2-1B-Instruct-Q8_0.gguf", config=config)
+response = llm("Write a haiku about programming")
+```
+
+Or pass parameters directly:
+
+```python
+from cyllama import LLM
+
+llm = LLM("models/Llama-3.2-1B-Instruct-Q8_0.gguf", temperature=0.9, max_tokens=100)
+response = llm("Be creative!")
+```
+
+## Batch Processing
+
+Process multiple prompts efficiently:
+
+```python
+from cyllama import batch_generate
+
+prompts = [
+    "What is 2+2?",
+    "What is 3+3?",
+    "What is 4+4?"
+]
+
+responses = batch_generate(
+    prompts,
+    model_path="models/Llama-3.2-1B-Instruct-Q8_0.gguf"
+)
+
+for prompt, response in zip(prompts, responses):
+    print(f"Q: {prompt}\nA: {response}\n")
+```
+
+## Image Generation
+
+Generate images with Stable Diffusion:
+
+```python
+from cyllama.stablediffusion import text_to_image
+
+images = text_to_image(
+    model_path="models/sd_xl_turbo_1.0.q8_0.gguf",
+    prompt="a photo of a cute cat",
+    width=512,
+    height=512,
+    sample_steps=4,
+    cfg_scale=1.0
+)
+
+images[0].save("cat.png")
+```
+
+## Speech-to-Text
+
+Transcribe audio with Whisper:
+
+```python
+from cyllama.whisper import WhisperContext, WhisperFullParams
+
+ctx = WhisperContext("models/ggml-base.en.bin")
+params = WhisperFullParams()
+params.language = "en"
+
+# samples must be 16kHz mono float32
+ctx.full(samples, params)
+
+for i in range(ctx.full_n_segments()):
+    text = ctx.full_get_segment_text(i)
+    print(text)
+```
+
+## Next Steps
+
+- [User Guide](user_guide.qmd) - Comprehensive feature documentation
+- [API Reference](api_reference.qmd) - Complete API documentation
+- [Cookbook](cookbook.qmd) - Practical recipes and patterns
+- [Agents Overview](agents_overview.qmd) - Building tool-using agents

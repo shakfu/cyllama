@@ -99,7 +99,7 @@ wheel-check:
 .PHONY: test simple test-simple test-main test-retrieve test-model test-llava test-lora \
 		test-platform coverage memray download download-all bump clean reset remake cli \
 		test-cli test-chat test-tts test-llama-tts test-whisper test-server test-mongoose \
-		bench
+		bench docs
 
 test:
 	@uv run pytest -s
@@ -238,10 +238,13 @@ test-platform-linux:
 
 
 coverage:
-	uv run pytest --cov=cyllama --cov-report html
+	@uv run pytest --cov=cyllama --cov-report html
+
+docs:
+	@make -f docs/book/Makefile pdf
 
 memray:
-	uv run pytest --memray --native tests
+	@uv run pytest --memray --native tests
 
 bump:
 	@scripts/bump.sh

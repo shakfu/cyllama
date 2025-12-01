@@ -17,6 +17,7 @@ from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 from conftest import DEFAULT_MODEL
+from cyllama import Response
 
 # Skip all tests if model is not available
 pytestmark = pytest.mark.skipif(
@@ -208,7 +209,7 @@ class TestUnicodePrompts:
 
         for prompt in prompts:
             response = llm(prompt, config=config)
-            assert isinstance(response, str)
+            assert isinstance(response, (str, Response))
 
         llm.close()
 
@@ -222,7 +223,7 @@ class TestUnicodePrompts:
 
         # Chinese
         response = llm("Translate: Hello", config=config)
-        assert isinstance(response, str)
+        assert isinstance(response, (str, Response))
 
         llm.close()
 
@@ -236,7 +237,7 @@ class TestUnicodePrompts:
 
         # Basic emoji
         response = llm("What does this mean: happy face", config=config)
-        assert isinstance(response, str)
+        assert isinstance(response, (str, Response))
 
         llm.close()
 
@@ -250,7 +251,7 @@ class TestUnicodePrompts:
 
         # Mix of scripts
         response = llm("Hello in different styles", config=config)
-        assert isinstance(response, str)
+        assert isinstance(response, (str, Response))
 
         llm.close()
 
@@ -273,7 +274,7 @@ class TestUnicodePrompts:
 
         for prompt in special_chars:
             response = llm(prompt, config=config)
-            assert isinstance(response, str)
+            assert isinstance(response, (str, Response))
 
         llm.close()
 
@@ -299,7 +300,7 @@ class TestUnicodePrompts:
 
         assert len(responses) == 3
         for response in responses:
-            assert isinstance(response, str)
+            assert isinstance(response, (str, Response))
 
         gen.close()
 
@@ -315,7 +316,7 @@ class TestUnicodePrompts:
         chunks = list(llm("Say hello in French", config=config, stream=True))
 
         full_response = "".join(chunks)
-        assert isinstance(full_response, str)
+        assert isinstance(full_response, str)  # streaming returns str chunks
         # Each chunk should be valid Unicode
         for chunk in chunks:
             assert isinstance(chunk, str)
@@ -333,7 +334,7 @@ class TestUnicodePrompts:
         # Null bytes should be handled gracefully
         try:
             response = llm("Hello\x00World", config=config)
-            assert isinstance(response, str)
+            assert isinstance(response, (str, Response))
         except (ValueError, UnicodeError):
             pass  # Also acceptable to reject
 
@@ -350,7 +351,7 @@ class TestUnicodePrompts:
         # Characters that require surrogate pairs in UTF-16
         # Using safe alternative
         response = llm("Describe: a happy face", config=config)
-        assert isinstance(response, str)
+        assert isinstance(response, (str, Response))
 
         llm.close()
 
@@ -376,7 +377,7 @@ class TestUnicodeBatchGenerator:
 
         assert len(responses) == 2
         for r in responses:
-            assert isinstance(r, str)
+            assert isinstance(r, (str, Response))
 
         gen.close()
 
@@ -406,7 +407,7 @@ class TestThreadSafety:
 
         assert len(results) == 3
         for r in results:
-            assert isinstance(r, str)
+            assert isinstance(r, (str, Response))
 
     @pytest.mark.slow
     def test_shared_llm_sequential(self, model_path):
@@ -424,7 +425,7 @@ class TestThreadSafety:
 
         assert len(results) == 5
         for r in results:
-            assert isinstance(r, str)
+            assert isinstance(r, (str, Response))
 
         llm.close()
 
@@ -450,7 +451,7 @@ class TestThreadSafety:
 
         assert len(results) == 2
         for r in results:
-            assert isinstance(r, str)
+            assert isinstance(r, (str, Response))
 
     def test_generation_config_thread_safe(self):
         """Test that GenerationConfig is thread-safe."""
@@ -539,7 +540,7 @@ class TestMaxTokensBoundary:
 
         response = llm("Hello", config=config)
         # Should generate exactly 1 token (might be multiple chars)
-        assert isinstance(response, str)
+        assert isinstance(response, (str, Response))
         assert len(response) >= 0  # Could be empty if token is special
 
         llm.close()
@@ -554,7 +555,7 @@ class TestMaxTokensBoundary:
         config = GenerationConfig(max_tokens=500, temperature=0.0, n_ctx=1024)
 
         response = llm("Say hello", config=config)
-        assert isinstance(response, str)
+        assert isinstance(response, (str, Response))
 
         llm.close()
 
@@ -572,7 +573,7 @@ class TestContextSizeBoundary:
         config = GenerationConfig(max_tokens=1, n_ctx=64)  # Minimum practical
 
         response = llm("A", config=config)
-        assert isinstance(response, str)
+        assert isinstance(response, (str, Response))
 
         llm.close()
 
@@ -588,7 +589,7 @@ class TestContextSizeBoundary:
         long_prompt = "Hello " * 30  # ~30 tokens, well under 256
 
         response = llm(long_prompt, config=config)
-        assert isinstance(response, str)
+        assert isinstance(response, (str, Response))
 
         llm.close()
 
@@ -605,7 +606,7 @@ class TestBatchSizeBoundary:
         config = GenerationConfig(max_tokens=5, n_batch=1)
 
         response = llm("Test", config=config)
-        assert isinstance(response, str)
+        assert isinstance(response, (str, Response))
 
         llm.close()
 
@@ -625,7 +626,7 @@ class TestBatchSizeBoundary:
         responses = gen.generate_batch(["Hello"], config)
 
         assert len(responses) == 1
-        assert isinstance(responses[0], str)
+        assert isinstance(responses[0], (str, Response))
 
         gen.close()
 
@@ -660,7 +661,7 @@ class TestTemperatureBoundary:
         config = GenerationConfig(max_tokens=10, temperature=5.0)
 
         response = llm("Hello", config=config)
-        assert isinstance(response, str)
+        assert isinstance(response, (str, Response))
 
         llm.close()
 
@@ -677,7 +678,7 @@ class TestTopKTopPBoundary:
         config = GenerationConfig(max_tokens=10, top_k=1, temperature=1.0)
 
         response = llm("Hello", config=config)
-        assert isinstance(response, str)
+        assert isinstance(response, (str, Response))
 
         llm.close()
 
@@ -690,7 +691,7 @@ class TestTopKTopPBoundary:
         config = GenerationConfig(max_tokens=10, top_p=0.0, temperature=1.0)
 
         response = llm("Hello", config=config)
-        assert isinstance(response, str)
+        assert isinstance(response, (str, Response))
 
         llm.close()
 
@@ -703,7 +704,7 @@ class TestTopKTopPBoundary:
         config = GenerationConfig(max_tokens=10, top_p=1.0, temperature=0.5)
 
         response = llm("Hello", config=config)
-        assert isinstance(response, str)
+        assert isinstance(response, (str, Response))
 
         llm.close()
 
@@ -767,7 +768,7 @@ class TestStopSequenceBoundary:
         )
 
         response = llm("Hello", config=config)
-        assert isinstance(response, str)
+        assert isinstance(response, (str, Response))
 
         llm.close()
 
@@ -785,7 +786,7 @@ class TestStopSequenceBoundary:
         )
 
         response = llm("Tell me something", config=config)
-        assert isinstance(response, str)
+        assert isinstance(response, (str, Response))
 
         llm.close()
 
@@ -802,7 +803,7 @@ class TestStopSequenceBoundary:
         )
 
         response = llm("Hello world", config=config)
-        assert isinstance(response, str)
+        assert isinstance(response, (str, Response))
 
         llm.close()
 
@@ -819,7 +820,7 @@ class TestRepeatPenaltyBoundary:
         config = GenerationConfig(max_tokens=10, repeat_penalty=0.0)
 
         response = llm("Hello", config=config)
-        assert isinstance(response, str)
+        assert isinstance(response, (str, Response))
 
         llm.close()
 
@@ -832,7 +833,7 @@ class TestRepeatPenaltyBoundary:
         config = GenerationConfig(max_tokens=10, repeat_penalty=5.0)
 
         response = llm("Hello", config=config)
-        assert isinstance(response, str)
+        assert isinstance(response, (str, Response))
 
         llm.close()
 
@@ -853,7 +854,7 @@ class TestSpecialPrompts:
         config = GenerationConfig(max_tokens=5, temperature=0.0)
 
         response = llm("   \n\t\r   ", config=config)
-        assert isinstance(response, str)
+        assert isinstance(response, (str, Response))
 
         llm.close()
 
@@ -866,7 +867,7 @@ class TestSpecialPrompts:
         config = GenerationConfig(max_tokens=5, temperature=0.0)
 
         response = llm("Line 1\nLine 2\nLine 3\n\n\nLine 6", config=config)
-        assert isinstance(response, str)
+        assert isinstance(response, (str, Response))
 
         llm.close()
 
@@ -880,7 +881,7 @@ class TestSpecialPrompts:
 
         # These look like special tokens but are in the prompt
         response = llm("<|start|> Hello <|end|>", config=config)
-        assert isinstance(response, str)
+        assert isinstance(response, (str, Response))
 
         llm.close()
 
@@ -893,7 +894,7 @@ class TestSpecialPrompts:
         config = GenerationConfig(max_tokens=10, temperature=0.0)
 
         response = llm("test " * 20, config=config)
-        assert isinstance(response, str)
+        assert isinstance(response, (str, Response))
 
         llm.close()
 
@@ -913,14 +914,14 @@ class TestResourceLimits:
         # Run multiple generations
         for i in range(20):
             response = llm(f"Test iteration {i}", config=config)
-            assert isinstance(response, str)
+            assert isinstance(response, (str, Response))
 
         # Force garbage collection
         gc.collect()
 
         # Should still work after many iterations
         final_response = llm("Final test", config=config)
-        assert isinstance(final_response, str)
+        assert isinstance(final_response, (str, Response))
 
         llm.close()
 
@@ -941,7 +942,7 @@ class TestResourceLimits:
             config = GenerationConfig(max_tokens=3, temperature=0.0)
             responses = gen.generate_batch([f"Test {i}"], config)
             assert len(responses) == 1
-            assert isinstance(responses[0], str)
+            assert isinstance(responses[0], (str, Response))
 
             gen.close()
 

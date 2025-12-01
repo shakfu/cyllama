@@ -74,7 +74,7 @@ response = complete(
 
 ### Chat Interface
 
-For multi-turn conversations:
+For multi-turn conversations with automatic chat template formatting:
 
 ```python
 from cyllama import chat
@@ -93,6 +93,57 @@ response = chat(
     max_tokens=300
 )
 ```
+
+The `chat()` function automatically applies the model's built-in chat template (stored in GGUF metadata). This ensures proper formatting for models like Llama 3, Mistral, ChatML-based models, and others.
+
+### Chat Templates
+
+cyllama uses llama.cpp's built-in chat template system. Templates are read from model metadata and applied automatically.
+
+```python
+from cyllama import apply_chat_template, get_chat_template, LLM
+
+# Get the template string from a model
+template = get_chat_template("models/llama.gguf")
+print(template)  # Shows Jinja-style template
+
+# Apply template to format messages
+messages = [
+    {"role": "system", "content": "You are helpful."},
+    {"role": "user", "content": "Hello!"}
+]
+prompt = apply_chat_template(messages, "models/llama.gguf")
+print(prompt)
+# Output (Llama 3 format):
+# <|begin_of_text|><|start_header_id|>system<|end_header_id|>
+#
+# You are helpful.<|eot_id|><|start_header_id|>user<|end_header_id|>
+#
+# Hello!<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+```
+
+You can also use specific builtin templates:
+
+```python
+# Apply a specific template (llama3, chatml, mistral, etc.)
+prompt = apply_chat_template(messages, "models/any.gguf", template="chatml")
+```
+
+With the LLM class:
+
+```python
+with LLM("models/llama.gguf") as llm:
+    # Get the model's chat template
+    template = llm.get_chat_template()
+
+    # Chat directly
+    response = llm.chat([
+        {"role": "user", "content": "What is 2+2?"}
+    ])
+    print(response)
+```
+
+Supported templates include: llama2, llama3, llama4, chatml, mistral-v1/v3/v7, phi3, phi4, deepseek, deepseek2, deepseek3, gemma, falcon3, command-r, vicuna, zephyr, and many more. See the [llama.cpp wiki](https://github.com/ggerganov/llama.cpp/wiki/Templates-supported-by-llama_chat_apply_template) for the full list.
 
 ### LLM Class
 
@@ -115,6 +166,44 @@ for prompt in prompts:
     response = gen(prompt)
     print(f"Q: {prompt}")
     print(f"A: {response}\n")
+```
+
+### Response Objects
+
+All generation functions return `Response` objects that provide structured access to results:
+
+```python
+from cyllama import complete, Response
+
+# Response works like a string for backward compatibility
+response = complete("What is Python?", model_path="models/llama.gguf")
+print(response)  # Just works!
+
+# But also provides structured data
+print(f"Text: {response.text}")
+print(f"Finish reason: {response.finish_reason}")
+
+# Access generation statistics
+if response.stats:
+    print(f"Generated {response.stats.generated_tokens} tokens")
+    print(f"Speed: {response.stats.tokens_per_second:.1f} tokens/sec")
+    print(f"Time: {response.stats.total_time:.2f}s")
+
+# Serialize for logging/storage
+import json
+data = response.to_dict()
+json_str = response.to_json(indent=2)
+```
+
+The `Response` class implements string-like behavior, so existing code continues to work:
+
+```python
+# String operations all work
+if "programming" in response:
+    print("Mentioned programming!")
+
+full_text = response + " Additional text."
+length = len(response)
 ```
 
 ## Streaming Generation

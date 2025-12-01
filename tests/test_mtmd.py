@@ -295,7 +295,7 @@ class TestVisionLanguageChat:
         question = "What's in this image?"
         response = chat.ask_about_image(question, "test.jpg")
 
-        assert isinstance(response, str)
+        assert isinstance(response, (str, cyllama.Response))
         assert len(chat.conversation_history) == 1
         assert chat.conversation_history[0]['question'] == question
 
