@@ -38,7 +38,7 @@ jobs:
 
     - name: Install dependencies (Unix)
       if: runner.os != 'Windows'
-      run: make
+      run: make sync
 
     - name: Install dependencies (Windows)
       if: runner.os == 'Windows'
