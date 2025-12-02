@@ -167,13 +167,13 @@ print(complete('Hello', model_path='models/Llama-3.2-1B-Instruct-Q8_0.gguf', max
 ### Check GPU Support
 
 ```python
-from cyllama import ggml_backend_load_all
+from cyllama.llama.llama_cpp import ggml_backend_load_all
 
 # Load all available backends
 ggml_backend_load_all()
 
 # Check what's available
-from cyllama import LlamaModel, LlamaModelParams
+from cyllama.llama.llama_cpp import LlamaModel, LlamaModelParams
 params = LlamaModelParams()
 params.n_gpu_layers = 99  # Request GPU offload
 # If GPU is available, layers will be offloaded

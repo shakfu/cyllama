@@ -39,6 +39,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - Supports split model architectures (FLUX, SD3, etc.)
   - Either `--model` or `--diffusion-model` required, both accepted
 
+- **Cleaner Public API** - Slimmed down `cyllama` namespace
+  - Low-level bindings no longer exported at top level (use `from cyllama.llama.llama_cpp import ...`)
+  - `apply_chat_template`, `get_chat_template` moved to `cyllama.api`
+  - `agents`, `utils` modules now require explicit import
+  - Reduces namespace pollution and clarifies API boundaries
+
+### Removed
+
+- **Top-level Low-Level Exports** - The following are no longer exported from `cyllama`:
+  - All `Llama*` classes (LlamaModel, LlamaContext, etc.) - use `from cyllama.llama.llama_cpp import ...`
+  - `ggml_*` functions - use `from cyllama.llama.llama_cpp import ...`
+  - `json_schema_to_grammar` - use `from cyllama.llama.llama_cpp import ...`
+  - `GGUFContext`, `NgramCache`, `Speculative*` - use `from cyllama.llama.llama_cpp import ...`
+  - `download_model`, `list_cached_models` - use `from cyllama.llama.llama_cpp import ...`
+  - `apply_chat_template`, `get_chat_template` - use `from cyllama.api import ...`
+  - `stream_complete_async` - use `complete_async` with streaming
+  - `MemoryEstimate` - returned by functions, not constructed directly
+  - `agents`, `utils`, `mtmd` modules - import explicitly when needed
+
 ### Added
 
 - **New SDContextParams Properties**

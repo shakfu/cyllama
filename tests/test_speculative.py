@@ -5,7 +5,7 @@ This module tests the Cython wrappers for llama.cpp's speculative decoding API.
 """
 
 import pytest
-from cyllama import (
+from cyllama.llama.llama_cpp import (
     LlamaModel,
     LlamaContext,
     LlamaContextParams,

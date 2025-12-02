@@ -116,7 +116,7 @@ Use this when you want to ensure a completely fresh start without any cached sta
 Clear the KV cache without recreating the context.
 
 ```python
-from cyllama import LlamaContext, LlamaModel, LlamaContextParams
+from cyllama.llama.llama_cpp import LlamaContext, LlamaModel, LlamaContextParams
 
 model = LlamaModel("model.gguf", params)
 ctx = LlamaContext(model, ctx_params)

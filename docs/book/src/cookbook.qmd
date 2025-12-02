@@ -216,7 +216,8 @@ print(json.dumps(result, indent=2))
 ### Constrained Generation with JSON Schema
 
 ```python
-from cyllama import json_schema_to_grammar, LLM, GenerationConfig
+from cyllama import LLM, GenerationConfig
+from cyllama.llama.llama_cpp import json_schema_to_grammar
 
 # Define JSON schema
 schema = {

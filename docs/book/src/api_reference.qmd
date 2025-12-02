@@ -157,7 +157,7 @@ def apply_chat_template(
 **Example:**
 
 ```python
-from cyllama import apply_chat_template
+from cyllama.api import apply_chat_template
 
 messages = [
     {"role": "system", "content": "You are helpful."},
@@ -196,7 +196,7 @@ def get_chat_template(
 **Example:**
 
 ```python
-from cyllama import get_chat_template
+from cyllama.api import get_chat_template
 
 template = get_chat_template("models/llama.gguf")
 print(template)  # Shows the Jinja-style template
@@ -818,7 +818,7 @@ Low-level Cython wrappers for direct llama.cpp access.
 Represents a loaded GGUF model.
 
 ```python
-from cyllama import LlamaModel, LlamaModelParams
+from cyllama.llama.llama_cpp import LlamaModel, LlamaModelParams
 
 params = LlamaModelParams()
 params.n_gpu_layers = 99
@@ -845,7 +845,7 @@ model.free()               # Free resources
 Inference context for model.
 
 ```python
-from cyllama import LlamaContext, LlamaContextParams
+from cyllama.llama.llama_cpp import LlamaContext, LlamaContextParams
 
 ctx_params = LlamaContextParams()
 ctx_params.n_ctx = 2048
@@ -856,7 +856,7 @@ ctx_params.n_threads_batch = 4
 ctx = LlamaContext(model, ctx_params)
 
 # Decode batch
-from cyllama import llama_batch_get_one
+from cyllama.llama.llama_cpp import llama_batch_get_one
 batch = llama_batch_get_one(tokens)
 ctx.decode(batch)
 
@@ -876,7 +876,7 @@ ctx.print_perf_data()
 Sampling strategies for token generation.
 
 ```python
-from cyllama import LlamaSampler, LlamaSamplerChainParams
+from cyllama.llama.llama_cpp import LlamaSampler, LlamaSamplerChainParams
 
 sampler_params = LlamaSamplerChainParams()
 sampler = LlamaSampler(sampler_params)
@@ -928,7 +928,7 @@ is_control = vocab.is_control(token_id)
 Efficient batch processing.
 
 ```python
-from cyllama import LlamaBatch
+from cyllama.llama.llama_cpp import LlamaBatch
 
 # Create batch
 batch = LlamaBatch(n_tokens=512, embd=0, n_seq_max=1)
@@ -940,7 +940,7 @@ batch.add(token_id, pos, seq_ids=[0], logits=True)
 batch.clear()
 
 # Convenience function
-from cyllama import llama_batch_get_one
+from cyllama.llama.llama_cpp import llama_batch_get_one
 batch = llama_batch_get_one(tokens, pos_offset=0)
 ```
 
@@ -949,7 +949,7 @@ batch = llama_batch_get_one(tokens, pos_offset=0)
 ### Backend Management
 
 ```python
-from cyllama import (
+from cyllama.llama.llama_cpp import (
     ggml_backend_load_all,
     ggml_backend_offload_supported,
     ggml_backend_metal_set_n_cb
@@ -977,7 +977,7 @@ Inspect and modify GGUF model files.
 #### `GGUFContext` Class
 
 ```python
-from cyllama import GGUFContext
+from cyllama.llama.llama_cpp import GGUFContext
 
 # Read existing file
 ctx = GGUFContext.from_file("model.gguf")
@@ -1008,7 +1008,7 @@ ctx.write_to_file("modified.gguf")
 Convert JSON schemas to llama.cpp grammar format for structured output.
 
 ```python
-from cyllama import json_schema_to_grammar
+from cyllama.llama.llama_cpp import json_schema_to_grammar
 
 schema = {
     "type": "object",
@@ -1023,7 +1023,7 @@ schema = {
 grammar = json_schema_to_grammar(schema)
 
 # Use with generation
-from cyllama import LlamaSampler
+from cyllama.llama.llama_cpp import LlamaSampler
 sampler = LlamaSampler()
 sampler.add_grammar(grammar)
 ```
@@ -1035,7 +1035,7 @@ sampler.add_grammar(grammar)
 Download models from HuggingFace with Ollama-style tags.
 
 ```python
-from cyllama import download_model, list_cached_models
+from cyllama.llama.llama_cpp import download_model, list_cached_models
 
 # Download from HuggingFace
 download_model(
@@ -1064,7 +1064,7 @@ download_model(
 Pattern-based token prediction for 2-10x speedup on repetitive text.
 
 ```python
-from cyllama import NgramCache
+from cyllama.llama.llama_cpp import NgramCache
 
 # Create cache
 cache = NgramCache()
@@ -1092,7 +1092,7 @@ cache.clear()
 Use draft model for 2-3x inference speedup.
 
 ```python
-from cyllama import (
+from cyllama.llama.llama_cpp import (
     LlamaModel, LlamaContext, LlamaModelParams, LlamaContextParams,
     Speculative, SpeculativeParams
 )

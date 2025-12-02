@@ -8,7 +8,7 @@ book:
   title: "cyllama user guide"
   author: "S. Alireza"
   date: "12/01/2025"
-  version: "0.1.17"
+  version: "0.1.18"
   chapters:
     - index.qmd
     - intro.qmd

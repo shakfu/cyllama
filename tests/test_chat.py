@@ -2,7 +2,8 @@
 # pytest.skip(allow_module_level=True)
 
 import cyllama.llama.llama_cpp as cy
-from cyllama import apply_chat_template, get_chat_template, LLM, Response
+from cyllama import LLM, Response
+from cyllama.api import apply_chat_template, get_chat_template
 
 
 def test_chat_builtin_templates():
