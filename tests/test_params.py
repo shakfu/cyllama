@@ -243,7 +243,7 @@ def test_common_params():
     # assert params.logits_file          == ""
     # assert params.rpc_servers          == ""
 
-    assert params.verbosity            == 0
+    assert params.verbosity            == 3  # LOG_DEFAULT_LLAMA
     assert params.control_vector_layer_start == -1
     assert params.control_vector_layer_end   == -1
     assert params.ppl_stride           == 0
