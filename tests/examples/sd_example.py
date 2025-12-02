@@ -127,7 +127,7 @@ def main():
 
     # Import stable diffusion module
     try:
-        from cyllama.stablediffusion import (
+        from cyllama.sd import (
             SDContext, SDContextParams,
             SampleMethod, Scheduler,
             set_log_callback

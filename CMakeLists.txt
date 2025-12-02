@@ -264,7 +264,7 @@ set(CYTHON_INCLUDE_DIRS
     "${CMAKE_SOURCE_DIR}/src/cyllama/llama"
     "${CMAKE_SOURCE_DIR}/src/cyllama/llama/server"
     "${CMAKE_SOURCE_DIR}/src/cyllama/whisper"
-    "${CMAKE_SOURCE_DIR}/src/cyllama/stablediffusion"
+    "${CMAKE_SOURCE_DIR}/src/cyllama/sd"
 )
 
 # Build Cython include args
@@ -399,10 +399,10 @@ endif()
 # stable_diffusion extension
 if(WITH_STABLEDIFFUSION)
     add_cython_extension(stable_diffusion
-        "${CMAKE_SOURCE_DIR}/src/cyllama/stablediffusion/stable_diffusion.pyx"
+        "${CMAKE_SOURCE_DIR}/src/cyllama/sd/stable_diffusion.pyx"
         SOURCES
-            "${CMAKE_SOURCE_DIR}/src/cyllama/stablediffusion/stb_impl.cpp"
-        DESTINATION "${SKBUILD_PROJECT_NAME}/stablediffusion"
+            "${CMAKE_SOURCE_DIR}/src/cyllama/sd/stb_impl.cpp"
+        DESTINATION "${SKBUILD_PROJECT_NAME}/sd"
     )
 endif()
 

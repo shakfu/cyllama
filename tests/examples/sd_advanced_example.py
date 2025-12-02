@@ -29,7 +29,7 @@ def example_with_callbacks(model_path: str):
     """Demonstrate progress and log callbacks."""
     print("\n=== Example: Progress and Log Callbacks ===\n")
 
-    from cyllama.stablediffusion import (
+    from cyllama.sd import (
         SDContext, SDContextParams,
         set_log_callback, set_progress_callback
     )
@@ -85,7 +85,7 @@ def example_different_samplers(model_path: str):
     """Demonstrate different sampling methods and schedulers."""
     print("\n=== Example: Different Samplers ===\n")
 
-    from cyllama.stablediffusion import (
+    from cyllama.sd import (
         SDContext, SDContextParams,
         SampleMethod, Scheduler,
         set_log_callback
@@ -137,7 +137,7 @@ def example_lowlevel_api(model_path: str):
     """Demonstrate low-level API with SDImageGenParams."""
     print("\n=== Example: Low-Level API ===\n")
 
-    from cyllama.stablediffusion import (
+    from cyllama.sd import (
         SDContext, SDContextParams, SDImageGenParams, SDSampleParams,
         SampleMethod, Scheduler,
         set_log_callback
@@ -192,7 +192,7 @@ def example_canny_preprocess():
     """Demonstrate Canny edge detection preprocessing."""
     print("\n=== Example: Canny Edge Detection ===\n")
 
-    from cyllama.stablediffusion import SDImage, canny_preprocess
+    from cyllama.sd import SDImage, canny_preprocess
 
     # Create a test image with clear edges
     arr = np.zeros((256, 256, 3), dtype=np.uint8)
@@ -233,7 +233,7 @@ def example_system_info():
     """Display system information."""
     print("\n=== System Information ===\n")
 
-    from cyllama.stablediffusion import (
+    from cyllama.sd import (
         get_num_cores, get_system_info,
         SampleMethod, Scheduler, SDType
     )
@@ -304,7 +304,7 @@ def main():
 
     # Import here to check if module is available
     try:
-        import cyllama.stablediffusion
+        import cyllama.sd
     except ImportError as e:
         print(f"Error: Could not import stable diffusion module: {e}")
         print("Make sure cyllama is built with WITH_STABLEDIFFUSION=1")

@@ -17,6 +17,96 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [0.1.x]
 
+## [0.1.18]
+
+### Changed
+
+- **Stable Diffusion Module Renamed** - `cyllama.stablediffusion` renamed to `cyllama.sd`
+  - All imports should now use `from cyllama.sd import ...`
+  - Old module name deprecated
+
+- **CLI Restructured with Subcommands** - Complete CLI overhaul for `python -m cyllama.sd`
+  - `txt2img` (alias: `generate`) - Text to image generation
+  - `img2img` - Image to image transformation with `--init-img` and `--strength`
+  - `inpaint` - Inpainting with `--mask` (white areas = inpaint region)
+  - `controlnet` - ControlNet guided generation with `--control-net`, `--control-image`, `--canny`
+  - `video` - Video generation (text-to-video, image-to-video, frame interpolation)
+  - `upscale` - ESRGAN upscaling with `--repeats` for multiple passes
+  - `convert` - Model format conversion with quantization
+  - `info` - System information and available options
+
+- **Model Loading Flexibility** - `--model` is now optional when `--diffusion-model` is provided
+  - Supports split model architectures (FLUX, SD3, etc.)
+  - Either `--model` or `--diffusion-model` required, both accepted
+
+### Added
+
+- **New SDContextParams Properties**
+  - `clip_vision_path` - CLIP vision model path
+  - `llm_path` - LLM text encoder path (FLUX2/Qwen)
+  - `llm_vision_path` - LLM vision encoder path
+  - `taesd_path` - TAESD model for fast preview
+  - `control_net_path` - ControlNet model path
+  - `photo_maker_path` - PhotoMaker model path
+  - `high_noise_diffusion_model_path` - High-noise model (Wan2.2 MoE)
+  - `tensor_type_rules` - Mixed precision rules (e.g., `"^vae\\.=f16"`)
+  - `sampler_rng_type` - Separate RNG type for sampler
+  - `lora_apply_mode` - LoRA application mode (auto, immediately, at_runtime)
+  - `keep_clip_on_cpu`, `keep_vae_on_cpu`, `keep_control_net_on_cpu` - Memory optimization flags
+  - `diffusion_conv_direct`, `vae_conv_direct` - Direct convolution options
+  - `tae_preview_only` - Use TAESD only for preview
+  - `flow_shift` - Flow shift parameter (SD3.x/Wan)
+  - `chroma_use_dit_mask`, `chroma_use_t5_mask`, `chroma_t5_mask_pad` - Chroma model options
+
+- **New SDSampleParams Properties**
+  - `slg_scale`, `slg_layer_start`, `slg_layer_end` - Skip Layer Guidance (SLG) parameters
+  - `img_cfg_scale` - Image CFG scale for inpainting
+  - `distilled_guidance` - Distilled guidance for FLUX models
+  - `shifted_timestep` - Shifted timestep for NitroFusion models
+
+- **New SDImageGenParams Properties**
+  - `vae_tiling_enabled`, `vae_tile_size`, `vae_tile_overlap` - VAE tiling for large images
+  - `easycache_enabled`, `easycache_threshold`, `easycache_range` - EasyCache acceleration
+  - `control_strength` - ControlNet strength
+  - `auto_resize_ref_image` - Auto-resize reference images
+  - `set_mask_image()` - Method to set inpainting mask
+
+- **New Enums**
+  - `Prediction.FLUX2_FLOW` - FLUX2 flow matching prediction type
+  - `LoraApplyMode` - LoRA application modes (AUTO, IMMEDIATELY, AT_RUNTIME)
+  - `PreviewMode` - Preview modes (NONE, PROJ, TAE, VAE)
+
+- **Enhanced text_to_image() Function** - New parameters:
+  - `taesd_path`, `control_net_path` - Additional model paths
+  - `eta`, `slg_scale` - Sampler parameters
+  - `vae_tiling` - Enable VAE tiling
+  - `offload_to_cpu`, `keep_clip_on_cpu`, `keep_vae_on_cpu` - Memory optimization
+  - `diffusion_flash_attn` - Flash attention flag
+
+- **Enhanced SDContext.generate() Method** - New parameters:
+  - `mask_image` - Mask for inpainting
+  - `control_image`, `control_strength` - ControlNet parameters
+  - `eta`, `slg_scale` - Sampler parameters
+  - `vae_tiling` - Enable VAE tiling
+
+- **CLI Options** - Comprehensive CLI with 50+ options:
+  - Memory: `--offload-to-cpu`, `--clip-on-cpu`, `--vae-on-cpu`, `--control-net-cpu`
+  - Performance: `--diffusion-fa`, `--diffusion-conv-direct`, `--vae-conv-direct`
+  - Guidance: `--slg-scale`, `--skip-layer-start`, `--skip-layer-end`, `--guidance`, `--img-cfg-scale`
+  - VAE tiling: `--vae-tiling`, `--vae-tile-size`, `--vae-tile-overlap`
+  - Preview: `--preview`, `--preview-path`, `--preview-interval`, `--preview-noisy`
+  - Chroma: `--chroma-disable-dit-mask`, `--chroma-enable-t5-mask`, `--chroma-t5-mask-pad`
+  - Video: `--video-frames`, `--fps`, `--init-img`, `--end-img`
+
+### Fixed
+
+- **stable-diffusion.cpp API Compatibility** - Updated bindings for latest upstream changes:
+  - `get_num_physical_cores()` renamed to `sd_get_num_physical_cores()`
+  - `sd_preview_cb_t` callback signature updated with `void* data` parameter
+  - `sd_set_preview_callback()` updated to 6 parameters
+  - `qwen2vl_path` renamed to `llm_path`
+  - `qwen2vl_vision_path` renamed to `llm_vision_path`
+
 ## [0.1.17]
 
 ### Added

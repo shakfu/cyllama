@@ -6,9 +6,9 @@ import pytest
 import numpy as np
 
 # Skip all tests if stable diffusion module not available
-pytest.importorskip("cyllama.stablediffusion")
+pytest.importorskip("cyllama.sd")
 
-from cyllama.stablediffusion import (
+from cyllama.sd import (
     SDContext, SDContextParams, SDImage, SDImageGenParams, SDSampleParams,
     Upscaler,
     RngType, SampleMethod, Scheduler, Prediction, SDType, LogLevel, PreviewMode, LoraApplyMode,
@@ -649,6 +649,106 @@ class TestSDContextParamsExtended:
         params.offload_params_to_cpu = True
         assert params.offload_params_to_cpu is True
 
+    def test_clip_vision_path(self):
+        params = SDContextParams()
+        params.clip_vision_path = "/path/to/clip_vision.safetensors"
+        assert params.clip_vision_path == "/path/to/clip_vision.safetensors"
+
+    def test_llm_path(self):
+        params = SDContextParams()
+        params.llm_path = "/path/to/qwen.gguf"
+        assert params.llm_path == "/path/to/qwen.gguf"
+
+    def test_llm_vision_path(self):
+        params = SDContextParams()
+        params.llm_vision_path = "/path/to/qwen_vision.gguf"
+        assert params.llm_vision_path == "/path/to/qwen_vision.gguf"
+
+    def test_taesd_path(self):
+        params = SDContextParams()
+        params.taesd_path = "/path/to/taesd.safetensors"
+        assert params.taesd_path == "/path/to/taesd.safetensors"
+
+    def test_control_net_path(self):
+        params = SDContextParams()
+        params.control_net_path = "/path/to/controlnet.gguf"
+        assert params.control_net_path == "/path/to/controlnet.gguf"
+
+    def test_photo_maker_path(self):
+        params = SDContextParams()
+        params.photo_maker_path = "/path/to/photomaker.bin"
+        assert params.photo_maker_path == "/path/to/photomaker.bin"
+
+    def test_tensor_type_rules(self):
+        params = SDContextParams()
+        params.tensor_type_rules = "^vae\\.=f16,model\\.=q8_0"
+        assert params.tensor_type_rules == "^vae\\.=f16,model\\.=q8_0"
+
+    def test_sampler_rng_type(self):
+        params = SDContextParams()
+        params.sampler_rng_type = RngType.CPU
+        assert params.sampler_rng_type == RngType.CPU
+
+    def test_prediction(self):
+        params = SDContextParams()
+        params.prediction = Prediction.V
+        assert params.prediction == Prediction.V
+
+    def test_lora_apply_mode(self):
+        params = SDContextParams()
+        params.lora_apply_mode = LoraApplyMode.IMMEDIATELY
+        assert params.lora_apply_mode == LoraApplyMode.IMMEDIATELY
+
+    def test_keep_clip_on_cpu(self):
+        params = SDContextParams()
+        params.keep_clip_on_cpu = True
+        assert params.keep_clip_on_cpu is True
+
+    def test_keep_vae_on_cpu(self):
+        params = SDContextParams()
+        params.keep_vae_on_cpu = True
+        assert params.keep_vae_on_cpu is True
+
+    def test_keep_control_net_on_cpu(self):
+        params = SDContextParams()
+        params.keep_control_net_on_cpu = True
+        assert params.keep_control_net_on_cpu is True
+
+    def test_diffusion_conv_direct(self):
+        params = SDContextParams()
+        params.diffusion_conv_direct = True
+        assert params.diffusion_conv_direct is True
+
+    def test_vae_conv_direct(self):
+        params = SDContextParams()
+        params.vae_conv_direct = True
+        assert params.vae_conv_direct is True
+
+    def test_tae_preview_only(self):
+        params = SDContextParams()
+        params.tae_preview_only = True
+        assert params.tae_preview_only is True
+
+    def test_flow_shift(self):
+        params = SDContextParams()
+        params.flow_shift = 1.5
+        assert abs(params.flow_shift - 1.5) < 0.001
+
+    def test_chroma_use_dit_mask(self):
+        params = SDContextParams()
+        params.chroma_use_dit_mask = False
+        assert params.chroma_use_dit_mask is False
+
+    def test_chroma_use_t5_mask(self):
+        params = SDContextParams()
+        params.chroma_use_t5_mask = True
+        assert params.chroma_use_t5_mask is True
+
+    def test_chroma_t5_mask_pad(self):
+        params = SDContextParams()
+        params.chroma_t5_mask_pad = 10
+        assert params.chroma_t5_mask_pad == 10
+
 
 class TestSDSampleParamsExtended:
     """Extended SDSampleParams tests."""
@@ -686,6 +786,36 @@ class TestSDSampleParamsExtended:
         for sched in [Scheduler.DISCRETE, Scheduler.KARRAS, Scheduler.EXPONENTIAL]:
             params.scheduler = sched
             assert params.scheduler == sched
+
+    def test_slg_scale(self):
+        params = SDSampleParams()
+        params.slg_scale = 2.5
+        assert abs(params.slg_scale - 2.5) < 0.001
+
+    def test_slg_layer_start(self):
+        params = SDSampleParams()
+        params.slg_layer_start = 0.01
+        assert abs(params.slg_layer_start - 0.01) < 0.001
+
+    def test_slg_layer_end(self):
+        params = SDSampleParams()
+        params.slg_layer_end = 0.2
+        assert abs(params.slg_layer_end - 0.2) < 0.001
+
+    def test_img_cfg_scale(self):
+        params = SDSampleParams()
+        params.img_cfg_scale = 1.5
+        assert abs(params.img_cfg_scale - 1.5) < 0.001
+
+    def test_distilled_guidance(self):
+        params = SDSampleParams()
+        params.distilled_guidance = 3.5
+        assert abs(params.distilled_guidance - 3.5) < 0.001
+
+    def test_shifted_timestep(self):
+        params = SDSampleParams()
+        params.shifted_timestep = 100
+        assert params.shifted_timestep == 100
 
 
 class TestSDImageGenParamsExtended:
@@ -737,6 +867,58 @@ class TestSDImageGenParamsExtended:
         # Verify we can modify sample params through gen params
         sample_params.sample_steps = 30
         assert params.sample_params.sample_steps == 30
+
+    def test_control_strength(self):
+        params = SDImageGenParams()
+        params.control_strength = 0.9
+        assert abs(params.control_strength - 0.9) < 0.001
+
+    def test_vae_tiling_enabled(self):
+        params = SDImageGenParams()
+        params.vae_tiling_enabled = True
+        assert params.vae_tiling_enabled is True
+
+    def test_vae_tile_size(self):
+        params = SDImageGenParams()
+        params.vae_tile_size = (256, 256)
+        assert params.vae_tile_size == (256, 256)
+
+    def test_vae_tile_overlap(self):
+        params = SDImageGenParams()
+        params.vae_tile_overlap = 0.25
+        assert abs(params.vae_tile_overlap - 0.25) < 0.001
+
+    def test_easycache_enabled(self):
+        params = SDImageGenParams()
+        params.easycache_enabled = True
+        assert params.easycache_enabled is True
+
+    def test_easycache_threshold(self):
+        params = SDImageGenParams()
+        params.easycache_threshold = 0.15
+        assert abs(params.easycache_threshold - 0.15) < 0.001
+
+    def test_easycache_range(self):
+        params = SDImageGenParams()
+        params.easycache_range = (0.1, 0.9)
+        start, end = params.easycache_range
+        assert abs(start - 0.1) < 0.001
+        assert abs(end - 0.9) < 0.001
+
+    def test_auto_resize_ref_image(self):
+        params = SDImageGenParams()
+        params.auto_resize_ref_image = True
+        assert params.auto_resize_ref_image is True
+
+    def test_set_mask_image(self):
+        """Test setting mask image for inpainting."""
+        params = SDImageGenParams()
+        arr = np.zeros((64, 64, 3), dtype=np.uint8)
+        arr[20:40, 20:40] = 255  # White area = inpaint region
+        mask = SDImage.from_numpy(arr)
+        params.set_mask_image(mask)
+        # Just verify no error is raised
+        assert True
 
 
 class TestCannyPreprocess:
@@ -813,7 +995,12 @@ class TestEnumsExtended:
     def test_prediction_enum(self):
         """Test Prediction enum values."""
         assert Prediction.DEFAULT.value == 0
-        assert len(list(Prediction)) >= 5
+        assert len(list(Prediction)) >= 7  # Includes FLUX2_FLOW
+        # Verify key prediction types exist
+        assert hasattr(Prediction, 'EPS')
+        assert hasattr(Prediction, 'V')
+        assert hasattr(Prediction, 'FLUX_FLOW')
+        assert hasattr(Prediction, 'FLUX2_FLOW')
 
     def test_log_level_enum(self):
         """Test LogLevel enum values."""

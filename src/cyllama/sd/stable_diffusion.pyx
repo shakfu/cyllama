@@ -1045,6 +1045,265 @@ cdef class SDContextParams:
     def offload_params_to_cpu(self, value: bool):
         self._params.offload_params_to_cpu = value
 
+    # --- Additional model paths ---
+
+    @property
+    def clip_vision_path(self) -> Optional[str]:
+        """Path to CLIP vision model."""
+        if self._params.clip_vision_path:
+            return self._params.clip_vision_path.decode('utf-8')
+        return None
+
+    @clip_vision_path.setter
+    def clip_vision_path(self, value: Optional[str]):
+        if value:
+            self._clip_vision_path_bytes = value.encode('utf-8')
+            self._params.clip_vision_path = self._clip_vision_path_bytes
+        else:
+            self._params.clip_vision_path = NULL
+
+    @property
+    def llm_path(self) -> Optional[str]:
+        """Path to LLM text encoder (e.g., Qwen2VL for FLUX2)."""
+        if self._params.llm_path:
+            return self._params.llm_path.decode('utf-8')
+        return None
+
+    @llm_path.setter
+    def llm_path(self, value: Optional[str]):
+        if value:
+            self._llm_path_bytes = value.encode('utf-8')
+            self._params.llm_path = self._llm_path_bytes
+        else:
+            self._params.llm_path = NULL
+
+    @property
+    def llm_vision_path(self) -> Optional[str]:
+        """Path to LLM vision encoder."""
+        if self._params.llm_vision_path:
+            return self._params.llm_vision_path.decode('utf-8')
+        return None
+
+    @llm_vision_path.setter
+    def llm_vision_path(self, value: Optional[str]):
+        if value:
+            self._llm_vision_path_bytes = value.encode('utf-8')
+            self._params.llm_vision_path = self._llm_vision_path_bytes
+        else:
+            self._params.llm_vision_path = NULL
+
+    @property
+    def high_noise_diffusion_model_path(self) -> Optional[str]:
+        """Path to high-noise diffusion model (for Wan2.2 MoE)."""
+        if self._params.high_noise_diffusion_model_path:
+            return self._params.high_noise_diffusion_model_path.decode('utf-8')
+        return None
+
+    @high_noise_diffusion_model_path.setter
+    def high_noise_diffusion_model_path(self, value: Optional[str]):
+        if value:
+            self._high_noise_diffusion_model_path_bytes = value.encode('utf-8')
+            self._params.high_noise_diffusion_model_path = self._high_noise_diffusion_model_path_bytes
+        else:
+            self._params.high_noise_diffusion_model_path = NULL
+
+    @property
+    def taesd_path(self) -> Optional[str]:
+        """Path to TAESD model for fast preview decoding."""
+        if self._params.taesd_path:
+            return self._params.taesd_path.decode('utf-8')
+        return None
+
+    @taesd_path.setter
+    def taesd_path(self, value: Optional[str]):
+        if value:
+            self._taesd_path_bytes = value.encode('utf-8')
+            self._params.taesd_path = self._taesd_path_bytes
+        else:
+            self._params.taesd_path = NULL
+
+    @property
+    def control_net_path(self) -> Optional[str]:
+        """Path to ControlNet model."""
+        if self._params.control_net_path:
+            return self._params.control_net_path.decode('utf-8')
+        return None
+
+    @control_net_path.setter
+    def control_net_path(self, value: Optional[str]):
+        if value:
+            self._control_net_path_bytes = value.encode('utf-8')
+            self._params.control_net_path = self._control_net_path_bytes
+        else:
+            self._params.control_net_path = NULL
+
+    @property
+    def photo_maker_path(self) -> Optional[str]:
+        """Path to PhotoMaker model."""
+        if self._params.photo_maker_path:
+            return self._params.photo_maker_path.decode('utf-8')
+        return None
+
+    @photo_maker_path.setter
+    def photo_maker_path(self, value: Optional[str]):
+        if value:
+            self._photo_maker_path_bytes = value.encode('utf-8')
+            self._params.photo_maker_path = self._photo_maker_path_bytes
+        else:
+            self._params.photo_maker_path = NULL
+
+    @property
+    def tensor_type_rules(self) -> Optional[str]:
+        """Tensor type rules for mixed precision (e.g., '^vae\\.=f16,model\\.=q8_0')."""
+        if self._params.tensor_type_rules:
+            return self._params.tensor_type_rules.decode('utf-8')
+        return None
+
+    @tensor_type_rules.setter
+    def tensor_type_rules(self, value: Optional[str]):
+        if value:
+            self._tensor_type_rules_bytes = value.encode('utf-8')
+            self._params.tensor_type_rules = self._tensor_type_rules_bytes
+        else:
+            self._params.tensor_type_rules = NULL
+
+    # --- Additional boolean/enum parameters ---
+
+    @property
+    def sampler_rng_type(self) -> RngType:
+        """RNG type for sampler (if different from main RNG)."""
+        return RngType(self._params.sampler_rng_type)
+
+    @sampler_rng_type.setter
+    def sampler_rng_type(self, value: RngType):
+        self._params.sampler_rng_type = <rng_type_t>value
+
+    @property
+    def prediction(self) -> Prediction:
+        """Prediction type override."""
+        return Prediction(self._params.prediction)
+
+    @prediction.setter
+    def prediction(self, value: Prediction):
+        self._params.prediction = <prediction_t>value
+
+    @property
+    def lora_apply_mode(self) -> LoraApplyMode:
+        """LoRA application mode."""
+        return LoraApplyMode(self._params.lora_apply_mode)
+
+    @lora_apply_mode.setter
+    def lora_apply_mode(self, value: LoraApplyMode):
+        self._params.lora_apply_mode = <lora_apply_mode_t>value
+
+    @property
+    def free_params_immediately(self) -> bool:
+        """Free parameters immediately after use."""
+        return self._params.free_params_immediately
+
+    @free_params_immediately.setter
+    def free_params_immediately(self, value: bool):
+        self._params.free_params_immediately = value
+
+    @property
+    def keep_clip_on_cpu(self) -> bool:
+        """Keep CLIP model on CPU (for low VRAM)."""
+        return self._params.keep_clip_on_cpu
+
+    @keep_clip_on_cpu.setter
+    def keep_clip_on_cpu(self, value: bool):
+        self._params.keep_clip_on_cpu = value
+
+    @property
+    def keep_control_net_on_cpu(self) -> bool:
+        """Keep ControlNet on CPU (for low VRAM)."""
+        return self._params.keep_control_net_on_cpu
+
+    @keep_control_net_on_cpu.setter
+    def keep_control_net_on_cpu(self, value: bool):
+        self._params.keep_control_net_on_cpu = value
+
+    @property
+    def keep_vae_on_cpu(self) -> bool:
+        """Keep VAE on CPU (for low VRAM)."""
+        return self._params.keep_vae_on_cpu
+
+    @keep_vae_on_cpu.setter
+    def keep_vae_on_cpu(self, value: bool):
+        self._params.keep_vae_on_cpu = value
+
+    @property
+    def tae_preview_only(self) -> bool:
+        """Use TAESD only for preview, not final decode."""
+        return self._params.tae_preview_only
+
+    @tae_preview_only.setter
+    def tae_preview_only(self, value: bool):
+        self._params.tae_preview_only = value
+
+    @property
+    def diffusion_conv_direct(self) -> bool:
+        """Use direct convolution in diffusion model."""
+        return self._params.diffusion_conv_direct
+
+    @diffusion_conv_direct.setter
+    def diffusion_conv_direct(self, value: bool):
+        self._params.diffusion_conv_direct = value
+
+    @property
+    def vae_conv_direct(self) -> bool:
+        """Use direct convolution in VAE."""
+        return self._params.vae_conv_direct
+
+    @vae_conv_direct.setter
+    def vae_conv_direct(self, value: bool):
+        self._params.vae_conv_direct = value
+
+    @property
+    def force_sdxl_vae_conv_scale(self) -> bool:
+        """Force conv scale on SDXL VAE."""
+        return self._params.force_sdxl_vae_conv_scale
+
+    @force_sdxl_vae_conv_scale.setter
+    def force_sdxl_vae_conv_scale(self, value: bool):
+        self._params.force_sdxl_vae_conv_scale = value
+
+    @property
+    def chroma_use_dit_mask(self) -> bool:
+        """Use DiT mask for Chroma models."""
+        return self._params.chroma_use_dit_mask
+
+    @chroma_use_dit_mask.setter
+    def chroma_use_dit_mask(self, value: bool):
+        self._params.chroma_use_dit_mask = value
+
+    @property
+    def chroma_use_t5_mask(self) -> bool:
+        """Use T5 mask for Chroma models."""
+        return self._params.chroma_use_t5_mask
+
+    @chroma_use_t5_mask.setter
+    def chroma_use_t5_mask(self, value: bool):
+        self._params.chroma_use_t5_mask = value
+
+    @property
+    def chroma_t5_mask_pad(self) -> int:
+        """T5 mask pad size for Chroma."""
+        return self._params.chroma_t5_mask_pad
+
+    @chroma_t5_mask_pad.setter
+    def chroma_t5_mask_pad(self, value: int):
+        self._params.chroma_t5_mask_pad = value
+
+    @property
+    def flow_shift(self) -> float:
+        """Flow shift value for SD3.x/Wan models."""
+        return self._params.flow_shift
+
+    @flow_shift.setter
+    def flow_shift(self, value: float):
+        self._params.flow_shift = value
+
     def __str__(self) -> str:
         """Get string representation of parameters."""
         cdef char* s = sd_ctx_params_to_str(&self._params)
@@ -1134,6 +1393,64 @@ cdef class SDSampleParams:
     @eta.setter
     def eta(self, value: float):
         self._params.eta = value
+
+    @property
+    def shifted_timestep(self) -> int:
+        """Shifted timestep for NitroFusion models."""
+        return self._params.shifted_timestep
+
+    @shifted_timestep.setter
+    def shifted_timestep(self, value: int):
+        self._params.shifted_timestep = value
+
+    # --- Guidance parameters ---
+
+    @property
+    def img_cfg_scale(self) -> float:
+        """Image guidance scale for inpaint/instruct-pix2pix models."""
+        return self._params.guidance.img_cfg
+
+    @img_cfg_scale.setter
+    def img_cfg_scale(self, value: float):
+        self._params.guidance.img_cfg = value
+
+    @property
+    def distilled_guidance(self) -> float:
+        """Distilled guidance scale for models with guidance input (e.g., FLUX)."""
+        return self._params.guidance.distilled_guidance
+
+    @distilled_guidance.setter
+    def distilled_guidance(self, value: float):
+        self._params.guidance.distilled_guidance = value
+
+    # --- Skip Layer Guidance (SLG) parameters ---
+
+    @property
+    def slg_scale(self) -> float:
+        """Skip layer guidance scale (for DiT models, 0 = disabled)."""
+        return self._params.guidance.slg.scale
+
+    @slg_scale.setter
+    def slg_scale(self, value: float):
+        self._params.guidance.slg.scale = value
+
+    @property
+    def slg_layer_start(self) -> float:
+        """SLG enabling point (0.0-1.0)."""
+        return self._params.guidance.slg.layer_start
+
+    @slg_layer_start.setter
+    def slg_layer_start(self, value: float):
+        self._params.guidance.slg.layer_start = value
+
+    @property
+    def slg_layer_end(self) -> float:
+        """SLG disabling point (0.0-1.0)."""
+        return self._params.guidance.slg.layer_end
+
+    @slg_layer_end.setter
+    def slg_layer_end(self, value: float):
+        self._params.guidance.slg.layer_end = value
 
     def __str__(self) -> str:
         """Get string representation."""
@@ -1315,6 +1632,97 @@ cdef class SDImageGenParams:
         self._params.control_image = image._image
         self._params.control_strength = strength
 
+    @property
+    def control_strength(self) -> float:
+        """ControlNet strength (0.0-1.0+)."""
+        return self._params.control_strength
+
+    @control_strength.setter
+    def control_strength(self, value: float):
+        self._params.control_strength = value
+
+    # --- VAE Tiling parameters ---
+
+    @property
+    def vae_tiling_enabled(self) -> bool:
+        """Enable VAE tiling for large images."""
+        return self._params.vae_tiling_params.enabled
+
+    @vae_tiling_enabled.setter
+    def vae_tiling_enabled(self, value: bool):
+        self._params.vae_tiling_params.enabled = value
+
+    @property
+    def vae_tile_size(self) -> tuple:
+        """VAE tile size (x, y)."""
+        return (self._params.vae_tiling_params.tile_size_x,
+                self._params.vae_tiling_params.tile_size_y)
+
+    @vae_tile_size.setter
+    def vae_tile_size(self, value: tuple):
+        self._params.vae_tiling_params.tile_size_x = value[0]
+        self._params.vae_tiling_params.tile_size_y = value[1]
+
+    @property
+    def vae_tile_overlap(self) -> float:
+        """VAE tile overlap ratio (0.0-1.0)."""
+        return self._params.vae_tiling_params.target_overlap
+
+    @vae_tile_overlap.setter
+    def vae_tile_overlap(self, value: float):
+        self._params.vae_tiling_params.target_overlap = value
+
+    # --- EasyCache parameters ---
+
+    @property
+    def easycache_enabled(self) -> bool:
+        """Enable EasyCache for faster generation."""
+        return self._params.easycache.enabled
+
+    @easycache_enabled.setter
+    def easycache_enabled(self, value: bool):
+        self._params.easycache.enabled = value
+
+    @property
+    def easycache_threshold(self) -> float:
+        """EasyCache reuse threshold."""
+        return self._params.easycache.reuse_threshold
+
+    @easycache_threshold.setter
+    def easycache_threshold(self, value: float):
+        self._params.easycache.reuse_threshold = value
+
+    @property
+    def easycache_range(self) -> tuple:
+        """EasyCache start/end percentages."""
+        return (self._params.easycache.start_percent,
+                self._params.easycache.end_percent)
+
+    @easycache_range.setter
+    def easycache_range(self, value: tuple):
+        self._params.easycache.start_percent = value[0]
+        self._params.easycache.end_percent = value[1]
+
+    # --- Reference image params ---
+
+    @property
+    def auto_resize_ref_image(self) -> bool:
+        """Auto resize reference images."""
+        return self._params.auto_resize_ref_image
+
+    @auto_resize_ref_image.setter
+    def auto_resize_ref_image(self, value: bool):
+        self._params.auto_resize_ref_image = value
+
+    @property
+    def increase_ref_index(self) -> bool:
+        """Increase reference index per batch."""
+        return self._params.increase_ref_index
+
+    @increase_ref_index.setter
+    def increase_ref_index(self, value: bool):
+        self._params.increase_ref_index = value
+
     def __str__(self) -> str:
         """Get string representation."""
         cdef char* s = sd_img_gen_params_to_str(&self._params)
@@ -1393,8 +1801,14 @@ cdef class SDContext:
                  sample_method: Optional[SampleMethod] = None,
                  scheduler: Optional[Scheduler] = None,
                  init_image: Optional[SDImage] = None,
+                 mask_image: Optional[SDImage] = None,
+                 control_image: Optional[SDImage] = None,
+                 control_strength: float = 1.0,
                  strength: float = 0.75,
-                 clip_skip: int = -1) -> List[SDImage]:
+                 clip_skip: int = -1,
+                 eta: float = 0.0,
+                 slg_scale: float = 0.0,
+                 vae_tiling: bool = False) -> List[SDImage]:
         """
         Generate images from a text prompt.
 
@@ -1410,8 +1824,14 @@ cdef class SDContext:
             sample_method: Sampling method (None for model default)
             scheduler: Noise scheduler (None for model default)
             init_image: Initial image for img2img (None for txt2img)
+            mask_image: Mask image for inpainting (white = inpaint)
+            control_image: ControlNet control image
+            control_strength: ControlNet strength (0.0-1.0+)
             strength: Img2img strength (0.0-1.0)
             clip_skip: Number of CLIP layers to skip
+            eta: Eta for DDIM-like samplers
+            slg_scale: Skip layer guidance scale (0 = disabled)
+            vae_tiling: Enable VAE tiling for large images
 
         Returns:
             List of generated SDImage objects
@@ -1444,9 +1864,22 @@ cdef class SDContext:
             clip_skip=clip_skip
         )
 
+        # Set advanced parameters
+        gen_params.sample_params.eta = eta
+        gen_params.sample_params.slg_scale = slg_scale
+        gen_params.vae_tiling_enabled = vae_tiling
+
         # Set init image for img2img
         if init_image is not None:
             gen_params.set_init_image(init_image)
+
+        # Set mask for inpainting
+        if mask_image is not None:
+            gen_params.set_mask_image(mask_image)
+
+        # Set control image for ControlNet
+        if control_image is not None:
+            gen_params.set_control_image(control_image, control_strength)
 
         return self.generate_with_params(gen_params)
 
@@ -1877,11 +2310,20 @@ def text_to_image(
     scheduler: Scheduler = Scheduler.DISCRETE,
     n_threads: int = -1,
     vae_path: Optional[str] = None,
+    taesd_path: Optional[str] = None,
     clip_l_path: Optional[str] = None,
     clip_g_path: Optional[str] = None,
     t5xxl_path: Optional[str] = None,
+    control_net_path: Optional[str] = None,
     lora_model_dir: Optional[str] = None,
-    clip_skip: int = -1
+    clip_skip: int = -1,
+    eta: float = 0.0,
+    slg_scale: float = 0.0,
+    vae_tiling: bool = False,
+    offload_to_cpu: bool = False,
+    keep_clip_on_cpu: bool = False,
+    keep_vae_on_cpu: bool = False,
+    diffusion_flash_attn: bool = False
 ) -> List[SDImage]:
     """
     Generate images from text prompt (convenience function).
@@ -1903,11 +2345,20 @@ def text_to_image(
         scheduler: Noise scheduler
         n_threads: Number of threads
         vae_path: Path to VAE (optional)
+        taesd_path: Path to TAESD for fast previews
         clip_l_path: Path to CLIP-L (for SDXL/SD3)
         clip_g_path: Path to CLIP-G (for SDXL/SD3)
         t5xxl_path: Path to T5-XXL (for SD3/FLUX)
+        control_net_path: Path to ControlNet model
         lora_model_dir: LoRA directory
         clip_skip: CLIP skip layers
+        eta: Eta for DDIM-like samplers
+        slg_scale: Skip layer guidance scale (0 = disabled)
+        vae_tiling: Enable VAE tiling for large images
+        offload_to_cpu: Offload model to CPU (low VRAM)
+        keep_clip_on_cpu: Keep CLIP on CPU
+        keep_vae_on_cpu: Keep VAE on CPU
+        diffusion_flash_attn: Use flash attention
 
     Returns:
         List of generated SDImage objects
@@ -1922,6 +2373,16 @@ def text_to_image(
         n_threads=n_threads
     )
 
+    # Set additional context params
+    if taesd_path:
+        params.taesd_path = taesd_path
+    if control_net_path:
+        params.control_net_path = control_net_path
+    params.offload_params_to_cpu = offload_to_cpu
+    params.keep_clip_on_cpu = keep_clip_on_cpu
+    params.keep_vae_on_cpu = keep_vae_on_cpu
+    params.diffusion_flash_attn = diffusion_flash_attn
+
     with SDContext(params) as ctx:
         return ctx.generate(
             prompt=prompt,
@@ -1934,6 +2395,9 @@ def text_to_image(
             cfg_scale=cfg_scale,
             sample_method=sample_method,
             scheduler=scheduler,
+            eta=eta,
+            slg_scale=slg_scale,
+            vae_tiling=vae_tiling,
             clip_skip=clip_skip
         )
 

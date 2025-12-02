@@ -225,7 +225,7 @@ draft = cache.draft(input_tokens, n_draft=16)
 **Image Generation** - Generate images from text using stable-diffusion.cpp:
 
 ```python
-from cyllama.stablediffusion import text_to_image
+from cyllama.sd import text_to_image
 
 # Simple text-to-image
 images = text_to_image(
@@ -242,7 +242,7 @@ images[0].save("output.png")
 **Advanced Generation** - Full control with SDContext:
 
 ```python
-from cyllama.stablediffusion import SDContext, SDContextParams, SampleMethod, Scheduler
+from cyllama.sd import SDContext, SDContextParams, SampleMethod, Scheduler
 
 params = SDContextParams()
 params.model_path = "models/sd_xl_turbo_1.0.q8_0.gguf"
@@ -262,17 +262,24 @@ images = ctx.generate(
 **CLI Tool** - Command-line interface:
 
 ```bash
-# Generate image
-python -m cyllama.stablediffusion generate \
+# Text to image
+python -m cyllama.sd txt2img \
     --model models/sd_xl_turbo_1.0.q8_0.gguf \
     --prompt "a beautiful sunset" \
     --output sunset.png
 
+# Image to image
+python -m cyllama.sd img2img \
+    --model models/sd-v1-5.gguf \
+    --init-img input.png \
+    --prompt "oil painting style" \
+    --strength 0.7
+
 # Show system info
-python -m cyllama.stablediffusion info
+python -m cyllama.sd info
 ```
 
-Supports SD 1.x/2.x, SDXL, SD3, FLUX, video generation (Wan/CogVideoX), LoRA, ControlNet, and ESRGAN upscaling. See [API Reference](docs/api_reference.md#stable-diffusion-integration) for full documentation.
+Supports SD 1.x/2.x, SDXL, SD3, FLUX, FLUX2, video generation (Wan/CogVideoX), LoRA, ControlNet, inpainting, and ESRGAN upscaling. See [Stable Diffusion docs](docs/book/src/stable_diffusion.qmd) for full documentation.
 
 ## What's Inside
 

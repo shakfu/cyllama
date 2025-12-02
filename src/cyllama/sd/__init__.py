@@ -4,7 +4,7 @@ Stable Diffusion module for cyllama.
 Provides Python bindings for stable-diffusion.cpp image generation.
 
 Example:
-    from cyllama.stablediffusion import text_to_image, SDContext, SDContextParams
+    from cyllama.sd import text_to_image, SDContext, SDContextParams
 
     # Simple usage
     images = text_to_image(
@@ -36,15 +36,15 @@ Example:
     )
 
     # Upscaling with ESRGAN
-    from cyllama.stablediffusion import Upscaler
+    from cyllama.sd import Upscaler
     upscaler = Upscaler("esrgan-x4.bin")
     upscaled = upscaler.upscale(image)
 
 CLI Usage:
-    python -m cyllama.stablediffusion generate --model MODEL --prompt "..."
-    python -m cyllama.stablediffusion upscale --model MODEL --input IMAGE
-    python -m cyllama.stablediffusion convert --input MODEL --output MODEL
-    python -m cyllama.stablediffusion info
+    python -m cyllama.sd generate --model MODEL --prompt "..."
+    python -m cyllama.sd upscale --model MODEL --input IMAGE
+    python -m cyllama.sd convert --input MODEL --output MODEL
+    python -m cyllama.sd info
 """
 
 from .stable_diffusion import (
