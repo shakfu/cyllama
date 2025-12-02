@@ -1,4 +1,4 @@
-VERSION = "0.1.17"
+VERSION = "0.1.18"
 # set path so `llama-cli` etc.. be in path
 # export PATH := $(PWD)/thirdparty/llama.cpp/bin:$(PATH)
 export MACOSX_DEPLOYMENT_TARGET := 14.7

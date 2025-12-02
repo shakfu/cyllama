@@ -101,7 +101,8 @@ The `chat()` function automatically applies the model's built-in chat template (
 cyllama uses llama.cpp's built-in chat template system. Templates are read from model metadata and applied automatically.
 
 ```python
-from cyllama import apply_chat_template, get_chat_template, LLM
+from cyllama import LLM
+from cyllama.api import apply_chat_template, get_chat_template
 
 # Get the template string from a model
 template = get_chat_template("models/llama.gguf")

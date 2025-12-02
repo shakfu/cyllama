@@ -71,7 +71,7 @@ ls thirdparty/llama.cpp/include/
 
 2. **Check file integrity:**
    ```python
-   from cyllama import GGUFContext
+   from cyllama.llama.llama_cpp import GGUFContext
 
    ctx = GGUFContext.from_file("models/your-model.gguf")
    metadata = ctx.get_all_metadata()
@@ -121,7 +121,7 @@ ls thirdparty/llama.cpp/include/
 
 1. **Check GPU backend is loaded:**
    ```python
-   from cyllama import ggml_backend_load_all
+   from cyllama.llama.llama_cpp import ggml_backend_load_all
    ggml_backend_load_all()
    ```
 
@@ -202,7 +202,7 @@ llm = LLM("model.gguf", config=config)
 
 3. **Verify model integrity:**
    ```python
-   from cyllama import GGUFContext
+   from cyllama.llama.llama_cpp import GGUFContext
    ctx = GGUFContext.from_file("model.gguf")
    print(ctx.get_val_str("general.architecture"))
    ```

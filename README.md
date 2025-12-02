@@ -1,6 +1,12 @@
-# cyllama - Fast, Pythonic LLM Inference
+# cyllama - Fast, Pythonic AI Inference
 
-cyllama is a comprehensive no-dependencies Python library for LLM inference built on [llama.cpp](https://github.com/ggml-org/llama.cpp), the leading open-source C++ LLM inference engine. It combines the performance of compiled Cython wrappers with a simple, high-level Python API.
+cyllama is a comprehensive no-dependencies Python library for AI inference built on the `.cpp` ecosystem:
+
+- **[llama.cpp](https://github.com/ggml-org/llama.cpp)** - LLM text generation
+- **[whisper.cpp](https://github.com/ggerganov/whisper.cpp)** - Speech-to-text transcription
+- **[stable-diffusion.cpp](https://github.com/leejet/stable-diffusion.cpp)** - Image and video generation
+
+It combines the performance of compiled Cython wrappers with a simple, high-level Python API.
 
 ## Quick Start
 
@@ -63,7 +69,7 @@ responses = batch_generate(prompts, model_path="model.gguf")
 **Speculative Decoding** - 2-3x speedup with draft models:
 
 ```python
-from cyllama import Speculative, SpeculativeParams
+from cyllama.llama.llama_cpp import Speculative, SpeculativeParams
 
 spec = Speculative(ctx_target, ctx_draft)
 params = SpeculativeParams(n_draft=16, p_min=0.75)
@@ -161,14 +167,14 @@ agent = ContractAgent(
 result = agent.run("What is 100 divided by 4?")
 ```
 
-See [contract_agent.md](docs/contract_agent.md) for detailed `ContractAgent` documentation.
+See [Agents Overview](docs/book/src/agents_overview.qmd) for detailed agent documentation.
 
 ### Advanced Features
 
 **GGUF File Manipulation** - Inspect and modify model files:
 
 ```python
-from cyllama import GGUFContext
+from cyllama.llama.llama_cpp import GGUFContext
 
 ctx = GGUFContext.from_file("model.gguf")
 metadata = ctx.get_all_metadata()
@@ -178,7 +184,7 @@ print(f"Model: {metadata['general.name']}")
 **Structured Output** - JSON schema to grammar conversion:
 
 ```python
-from cyllama import json_schema_to_grammar
+from cyllama.llama.llama_cpp import json_schema_to_grammar
 
 schema = {"type": "object", "properties": {"name": {"type": "string"}}}
 grammar = json_schema_to_grammar(schema)
@@ -187,7 +193,7 @@ grammar = json_schema_to_grammar(schema)
 **Huggingface Model Downloads**:
 
 ```python
-from cyllama import download_model, list_cached_models, get_hf_file
+from cyllama.llama.llama_cpp import download_model, list_cached_models, get_hf_file
 
 # Download from HuggingFace (saves to ~/.cache/llama.cpp/)
 download_model("bartowski/Llama-3.2-1B-Instruct-GGUF:latest")
@@ -213,12 +219,38 @@ models = list_cached_models()
 **N-gram Cache** - 2-10x speedup for repetitive text:
 
 ```python
-from cyllama import NgramCache
+from cyllama.llama.llama_cpp import NgramCache
 
 cache = NgramCache()
 cache.update(tokens, ngram_min=2, ngram_max=4)
 draft = cache.draft(input_tokens, n_draft=16)
 ```
+
+### Speech Recognition
+
+**Whisper Transcription** - Transcribe audio files with timestamps:
+
+```python
+from cyllama.whisper import WhisperContext, WhisperFullParams
+import numpy as np
+
+# Load model and audio
+ctx = WhisperContext("models/ggml-base.en.bin")
+samples = load_audio_as_16khz_float32("audio.wav")  # Your audio loading function
+
+# Transcribe
+params = WhisperFullParams()
+ctx.full(samples, params)
+
+# Get results
+for i in range(ctx.full_n_segments()):
+    start = ctx.full_get_segment_t0(i) / 100.0
+    end = ctx.full_get_segment_t1(i) / 100.0
+    text = ctx.full_get_segment_text(i)
+    print(f"[{start:.2f}s - {end:.2f}s] {text}")
+```
+
+See [Whisper docs](docs/book/src/whisper.qmd) for full documentation.
 
 ### Stable Diffusion
 
@@ -279,39 +311,43 @@ python -m cyllama.sd img2img \
 python -m cyllama.sd info
 ```
 
-Supports SD 1.x/2.x, SDXL, SD3, FLUX, FLUX2, video generation (Wan/CogVideoX), LoRA, ControlNet, inpainting, and ESRGAN upscaling. See [Stable Diffusion docs](docs/book/src/stable_diffusion.qmd) for full documentation.
+Supports SD 1.x/2.x, SDXL, SD3, FLUX, FLUX2, z-image-turbo, video generation (Wan/CogVideoX), LoRA, ControlNet, inpainting, and ESRGAN upscaling. See [Stable Diffusion docs](docs/book/src/stable_diffusion.qmd) for full documentation.
 
 ## What's Inside
 
-### Core Capabilities
+### Text Generation (llama.cpp)
 
 - [x] **Full llama.cpp API** - Complete Cython wrapper with strong typing
 - [x] **High-Level API** - Simple, Pythonic interface (`LLM`, `complete`, `chat`)
 - [x] **Streaming Support** - Token-by-token generation with callbacks
 - [x] **Batch Processing** - Efficient parallel inference
-- [x] **GPU Acceleration** - Automatic Metal/CUDA/Vulkan backend support
-- [x] **Memory Management** - Smart allocation and optimization tools
-
-### Framework Support
-
-- [x] **OpenAI API** - Compatible client for easy migration
-- [x] **LangChain** - Full LLM interface implementation
-- [x] **FastAPI/Flask** - Ready-to-use server examples
-- [x] **Gradio** - Interactive UI integration
-
-### Agent Framework
-
-- [x] **ReActAgent** - Reasoning + Acting agent with tool calling
-- [x] **ConstrainedAgent** - Grammar-enforced tool calling for 100% reliability
-- [x] **ContractAgent** - Contract-based agent with pre/post conditions
-
-### Additional Features
-
 - [x] **Multimodal** - LLAVA and vision-language models
-- [x] **Whisper.cpp** - Speech-to-text transcription
-- [x] **Stable Diffusion** - Image generation with stable-diffusion.cpp
-- [x] **TTS** - Text-to-speech generation
-- [x] **Speculative Decoding** - 2-3x inference speedup
+- [x] **Speculative Decoding** - 2-3x inference speedup with draft models
+
+### Speech Recognition (whisper.cpp)
+
+- [x] **Full whisper.cpp API** - Complete Cython wrapper
+- [x] **High-Level API** - Simple `transcribe()` function
+- [x] **Multiple Formats** - WAV, MP3, FLAC, and more
+- [x] **Language Detection** - Automatic or specified language
+- [x] **Timestamps** - Word and segment-level timing
+
+### Image & Video Generation (stable-diffusion.cpp)
+
+- [x] **Full stable-diffusion.cpp API** - Complete Cython wrapper
+- [x] **Text-to-Image** - SD 1.x/2.x, SDXL, SD3, FLUX, FLUX2
+- [x] **Image-to-Image** - Transform existing images
+- [x] **Inpainting** - Mask-based editing
+- [x] **ControlNet** - Guided generation with edge/pose/depth
+- [x] **Video Generation** - Wan, CogVideoX models
+- [x] **Upscaling** - ESRGAN 4x upscaling
+
+### Cross-Cutting Features
+
+- [x] **GPU Acceleration** - Metal, CUDA, Vulkan backends
+- [x] **Memory Optimization** - Smart GPU layer allocation
+- [x] **Agent Framework** - ReActAgent, ConstrainedAgent, ContractAgent
+- [x] **Framework Integration** - OpenAI API, LangChain, FastAPI
 
 ## Why Cyllama?
 
@@ -330,7 +366,7 @@ Supports SD 1.x/2.x, SDXL, SD3, FLUX, FLUX2, video generation (Wan/CogVideoX), L
 
 **Production-Ready**: Battle-tested and comprehensive
 
-- 600+ passing tests with extensive coverage
+- 863+ passing tests with extensive coverage
 - Comprehensive documentation and examples
 - Proper error handling and logging
 - Framework integration for real applications
@@ -343,37 +379,17 @@ Supports SD 1.x/2.x, SDXL, SD3, FLUX, FLUX2, video generation (Wan/CogVideoX), L
 
 ## Status
 
-**Current Version**: 0.1.16 (December 2025)
+**Current Version**: 0.1.18 (December 2025)
 **llama.cpp Version**: b7126
 **Build System**: scikit-build-core + CMake
 **Test Coverage**: 863+ tests passing
-**Platform**: macOS (primary), Linux, Windows (tested)
-
-### API Coverage
-
-| Component | Status | Description |
-|-----------|--------|-------------|
-| Core llama.cpp API | [x] Complete | Full wrapper with Cython classes |
-| High-level generation | [x] Complete | Simple API with streaming |
-| Batch processing | [x] Complete | Parallel inference utilities |
-| GGUF manipulation | [x] Complete | Read/write model files |
-| JSON schema grammar | [x] Complete | Structured output generation |
-| Download helper | [x] Complete | HuggingFace/URL downloads |
-| N-gram cache | [x] Complete | Pattern-based acceleration |
-| Speculative decoding | [x] Complete | Draft model speedup |
-| OpenAI compatibility | [x] Complete | Drop-in API replacement |
-| LangChain integration | [x] Complete | Ecosystem access |
-| Agent Framework | [x] Complete | ReActAgent, ConstrainedAgent, ContractAgent |
-| Multimodal (LLAVA) | [x] Complete | Vision-language models |
-| Whisper.cpp | [x] Complete | Speech-to-text |
-| Stable Diffusion | [x] Complete | Image generation with stable-diffusion.cpp |
-| Memory optimization | [x] Complete | GPU layer estimation |
-| Server implementations | [x] Complete | PythonServer, EmbeddedServer, LlamaServer |
+**Platform**: macOS (tested), Linux (tested), Windows (tested)
 
 ### Recent Releases
 
+- **v0.1.18** (Dec 2025) - Remaining stable-diffusion.cpp wrapped
 - **v0.1.16** (Dec 2025) - Response class, Async API, Chat templates
-- **v0.1.12** (Nov 2025) - Stable Diffusion integration with stable-diffusion.cpp
+- **v0.1.12** (Nov 2025) - Initial wrapper of stable-diffusion.cpp
 - **v0.1.11** (Nov 2025) - ACP support, build improvements
 - **v0.1.10** (Nov 2025) - Agent Framework, bug fixes
 - **v0.1.9** (Nov 2025) - High-level APIs, integrations, batch processing, comprehensive documentation
@@ -451,7 +467,7 @@ export GGML_CUDA=1 GGML_VULKAN=1
 make build
 ```
 
-See [docs/build_backends.md](docs/BUILD_BACKENDS.md) for comprehensive backend build instructions.
+See [Build Backends](docs/book/src/build_backends.qmd) for comprehensive backend build instructions.
 
 ## Testing
 
@@ -496,9 +512,9 @@ python3 -i scripts/start.py
 
 ## Documentation
 
-- **[User Guide](docs/user_guide.md)** - Comprehensive guide covering all features
-- **[API Reference](docs/API_REFERENCE.md)** - Complete API documentation
-- **[Cookbook](docs/cookbook.md)** - Practical recipes and patterns
+- **[User Guide](docs/book/src/user_guide.qmd)** - Comprehensive guide covering all features
+- **[API Reference](docs/book/src/api_reference.qmd)** - Complete API documentation
+- **[Cookbook](docs/book/src/cookbook.qmd)** - Practical recipes and patterns
 - **[Changelog](CHANGELOG.md)** - Complete release history
 - **Examples** - See `tests/examples/` for working code samples
 
@@ -525,16 +541,16 @@ python3 -i scripts/start.py
 - [x] Memory estimation utilities
 - [x] Agent Framework (ReActAgent, ConstrainedAgent, ContractAgent)
 - [x] Stable Diffusion (stable-diffusion.cpp) - image/video generation
+- [x] RAG utilities (text chunking, document processing)
 
 ### Future
 
 - [ ] Response caching for identical prompts
-- [ ] RAG utilities
 - [ ] Web UI for testing
 
 ## Contributing
 
-Contributions are welcome! Please see the [User Guide](docs/user_guide.md) for development guidelines.
+Contributions are welcome! Please see the [User Guide](docs/book/src/user_guide.qmd) for development guidelines.
 
 ## License
 
