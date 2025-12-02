@@ -2,24 +2,52 @@
 
 ## High Priority
 
-- [x] Enable CI/CD automation (uncomment and fix `.github/workflows/ci.yml` for push/PR triggers)
-- [x] Add code coverage reporting to CI (`pytest-cov` with minimum threshold)
-- [x] Add mypy type checking to CI
-- [x] Async API support (`async def complete_async()`, `AsyncLLM` class, async agent execution)
+- [ ] Response caching for identical prompts (decorator-based with TTL)
+- [ ] Structured logging system (JSON output option, agent decision flow logging)
 
 ## Medium Priority
 
-- [x] Built-in prompt template system (integrated llama.cpp's chat templates: `apply_chat_template()`, `get_chat_template()`, `LLM.chat()`)
-- [ ] Response caching for identical prompts (decorator-based with TTL)
-- [x] Populate `docs/book/` with structured documentation (quickstart, API reference, agents guide, troubleshooting)
-- [x] Improve test fixtures in `conftest.py` (LLM instance with cleanup, pre-configured agents)
-- [ ] Structured logging system (JSON output option, agent decision flow logging)
-- [x] Response class: `complete()`, `chat()`, `LLM()`, `batch_generate()` now return `Response` objects with `text`, `stats`, `to_dict()`, `to_json()`. Backward compatible via `__str__`.
-- [x] RAG Support
+- [ ] Performance benchmarking suite (token generation speed, memory profiling, regression detection)
+- [ ] Enhanced error context (custom exception classes with context dict)
+- [ ] Document server implementations (PythonServer, EmbeddedServer, LlamaServer usage)
 
 ## Lower Priority
 
-- [ ] Performance benchmarking suite (token generation speed, memory profiling, regression detection)
-- [ ] Enhanced error context (custom exception classes with context dict)
 - [ ] Web UI for testing
-- [ ] Document server implementations (PythonServer, EmbeddedServer, LlamaServer usage)
+- [ ] Add PDF loader tests with sample PDF files
+- [ ] TokenTextSplitter with llama.cpp tokenizer integration (use model's tokenizer for accurate token counts)
+
+## RAG Scaling (see docs/dev/scaling_rag.md)
+
+### Phase 2: Quick Wins
+
+- [ ] Embedding cache for repeated queries (`@lru_cache` on `Embedder.embed()`)
+- [ ] Auto-quantization after bulk inserts (threshold-based)
+- [ ] Persistent quantization state in database metadata
+
+### Phase 3: Async/Parallel
+
+- [ ] Async embedding generation (`embed_batch_async()`)
+- [ ] Parallel document loading in DirectoryLoader
+- [ ] Batch query processing in RAG pipeline
+
+### Phase 4: Advanced
+
+- [ ] Metadata pre-filtering in vector search (filter by source, date, etc.)
+- [ ] Reranking support (cross-encoder for improved precision)
+- [ ] Sharding for 1M+ vector workloads
+
+## Completed
+
+- [x] Enable CI/CD automation
+- [x] Add code coverage reporting to CI
+- [x] Add mypy type checking to CI
+- [x] Async API support
+- [x] Built-in prompt template system
+- [x] Populate `docs/book/` with structured documentation
+- [x] Improve test fixtures in `conftest.py`
+- [x] Response class for complete(), chat(), LLM(), batch_generate()
+- [x] RAG Support (Embedder, VectorStore, RAG pipeline, HybridStore, document loaders, text splitters)
+- [x] RAG documentation in docs/book/
+- [x] RAG examples in tests/examples/
+- [x] sqlite-vec integration with quantization support (`quantize()`, `preload_quantization()`)
