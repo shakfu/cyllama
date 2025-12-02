@@ -2,10 +2,10 @@ name: ci
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main, dev]
-  pull_request:
-    branches: [main, dev]
+    push:
+      branches: [main, dev]
+    pull_request:
+      branches: [main, dev]
 
 jobs:
   # Type checking with mypy (runs once, fast)

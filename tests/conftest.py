@@ -183,11 +183,30 @@ def pytest_configure(config):
 
 
 def pytest_collection_modifyitems(config, items):
-    """Auto-skip tests marked requires_model if model doesn't exist."""
+    """Auto-skip tests that require the model if it doesn't exist.
+
+    This automatically detects tests using model-related fixtures:
+    - model_path
+    - llm
+    - llm_deterministic
+    - llm_shared
+
+    Tests can also be explicitly marked with @pytest.mark.requires_model.
+    """
     model_file = ROOT / DEFAULT_MODEL
+
+    # Fixtures that require the model to exist
+    model_fixtures = {"model_path", "llm", "llm_deterministic", "llm_shared"}
 
     if not model_file.exists():
         skip_no_model = pytest.mark.skip(reason="Model file not found")
         for item in items:
+            # Skip if explicitly marked
             if "requires_model" in item.keywords:
                 item.add_marker(skip_no_model)
+                continue
+
+            # Skip if test uses any model-related fixture
+            if hasattr(item, "fixturenames"):
+                if model_fixtures & set(item.fixturenames):
+                    item.add_marker(skip_no_model)
