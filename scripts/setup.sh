@@ -13,8 +13,10 @@ LAST_WORKING_LLAMACPP="b7126"
 LAST_WORKING_SDCPP="master-377-2034588"
 LAST_WORKING_WHISPERCPP="v1.8.2"
 LAST_WORKING_SQLITEVECTOR="0.9.52"
-STABLE_BUILD=0
-GET_LAST_WORKING_LLAMACPP="${1:-$STABLE_BUILD}"
+STABLE_BUILD=1
+GET_LAST_WORKING_LLAMACPP_VERSION="${1:-$STABLE_BUILD}"
+GET_LAST_WORKING_WHISPERCPP_VERSION=1
+GET_LAST_WORKING_SDCPP_VERSION=0
 
 # Detect OS
 OS_TYPE=$(uname -s)
@@ -60,13 +62,34 @@ echo "  IS_LINUX: $IS_LINUX"
 echo "  Library prefix: '$LIB_PREFIX'"
 echo "  Static lib extension: '$STATIC_LIB_EXT'"
 
-if [ $GET_LAST_WORKING_LLAMACPP -eq 1 ]; then
-	echo "get last working release: ${LAST_WORKING_LLAMACPP}"
-	BRANCH="--branch ${LAST_WORKING_LLAMACPP}"
+if [ $GET_LAST_WORKING_LLAMACPP_VERSION -eq 1 ]; then
+	echo "get last working llama.cpp release: ${LAST_WORKING_LLAMACPP}"
+	LLAMACPP_BRANCH="--branch ${LAST_WORKING_LLAMACPP}"
+	WHISPERCPP_BRANCH="--branch ${LAST_WORKING_WHISPERCPP}"
+	SDCPP_BRANCH="--branch ${LAST_WORKING_SDCPP}"
 else
 	echo "get bleeding edge llama.cpp from main"
-	BRANCH= # bleeding edge (llama.cpp main)
+	LLAMACPP_BRANCH= 	# bleeding edge (llama.cpp main)
+	WHISPERCPP_BRANCH=  # bleeding edge (whisper.cpp main)
+	SDCPP_BRANCH=		# bleading edge (stable-diffusion.cpp main)
 fi
+
+if [ $GET_LAST_WORKING_WHISPERCPP_VERSION -eq 1 ]; then
+	echo "get last working whisper.cpp release: ${LAST_WORKING_WHISPERCPP}"
+	WHISPERCPP_BRANCH="--branch ${LAST_WORKING_WHISPERCPP}"
+else
+	echo "get bleeding edge whisper.cpp from main"
+	WHISPERCPP_BRANCH=  # bleeding edge (whisper.cpp main)
+fi
+
+if [ $GET_LAST_WORKING_SDCPP_VERSION -eq 1 ]; then
+	echo "get last working stable-diffusion.cpp release: ${LAST_WORKING_SDCPP}"
+	SDCPP_BRANCH="--branch ${LAST_WORKING_SDCPP}"
+else
+	echo "get bleeding edge stable-diffusion.cpp from main"
+	SDCPP_BRANCH=		# bleading edge (stable-diffusion.cpp main)
+fi
+
 
 # Helper function to copy library with platform-specific naming
 # Usage: copy_lib <source_dir> <lib_name> <dest_dir>
@@ -145,7 +168,7 @@ get_llamacpp() {
 	mkdir -p build ${INCLUDE} ${LIB} && \
 		cd build && \
 		if [ ! -d "llama.cpp" ]; then
-			git clone ${BRANCH} --depth=1 --recursive --shallow-submodules https://github.com/ggml-org/llama.cpp.git
+			git clone ${LLAMACPP_BRANCH} --depth=1 --recursive --shallow-submodules https://github.com/ggml-org/llama.cpp.git
 		fi && \
 		cd llama.cpp && \
 		cp include/*.h ${INCLUDE} && \
@@ -207,7 +230,7 @@ get_llamacpp_shared() {
 	mkdir -p build ${INCLUDE} && \
 		cd build && \
 		if [ ! -d "llama.cpp" ]; then
-			git clone ${BRANCH} --depth=1 --recursive --shallow-submodules https://github.com/ggml-org/llama.cpp.git
+			git clone ${LLAMACPP_BRANCH} --depth=1 --recursive --shallow-submodules https://github.com/ggml-org/llama.cpp.git
 		fi && \
 		cd llama.cpp && \
 		cp common/*.h ${INCLUDE} && \
@@ -227,7 +250,6 @@ get_llamacpp_shared() {
 get_whispercpp() {
 	echo ""
 	echo "=== Building whisper.cpp ==="
-	WHISPERCPP_VERSION=${LAST_WORKING_WHISPERCPP}
 	PREFIX=${THIRDPARTY}/whisper.cpp
 	INCLUDE=${PREFIX}/include
 	LIB=${PREFIX}/lib
@@ -235,7 +257,7 @@ get_whispercpp() {
 	mkdir -p build ${INCLUDE} ${LIB} ${BIN} && \
 		cd build && \
 		if [ ! -d "whisper.cpp" ]; then
-			git clone --branch ${WHISPERCPP_VERSION} --depth=1 --recursive --shallow-submodules https://github.com/ggml-org/whisper.cpp.git
+			git clone ${WHISPERCPP_BRANCH} --depth=1 --recursive --shallow-submodules https://github.com/ggml-org/whisper.cpp.git
 		fi && \
 		cd whisper.cpp && \
 		cp examples/*.h ${INCLUDE} 2>/dev/null || true && \
@@ -255,7 +277,6 @@ get_whispercpp() {
 get_stablediffusioncpp() {
 	echo ""
 	echo "=== Building stable-diffusion.cpp ==="
-	SDCPP_VERSION=${LAST_WORKING_SDCPP}
 	PREFIX=${THIRDPARTY}/stable-diffusion.cpp
 	INCLUDE=${PREFIX}/include
 	LIB=${PREFIX}/lib
@@ -263,7 +284,7 @@ get_stablediffusioncpp() {
 	mkdir -p build ${INCLUDE} ${LIB} ${BIN} && \
 		cd build && \
 		if [ ! -d "stable-diffusion.cpp" ]; then
-			git clone --branch ${SDCPP_VERSION} --depth=1 --recursive --shallow-submodules https://github.com/leejet/stable-diffusion.cpp.git
+			git clone ${SDCPP_BRANCH} --depth=1 --recursive --shallow-submodules https://github.com/leejet/stable-diffusion.cpp.git
 		fi && \
 		cd stable-diffusion.cpp && \
 		cp *.h ${INCLUDE} 2>/dev/null || true && \

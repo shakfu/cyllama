@@ -92,6 +92,7 @@ class Prediction(IntEnum):
     EDM_V = EDM_V_PRED
     SD3_FLOW = SD3_FLOW_PRED
     FLUX_FLOW = FLUX_FLOW_PRED
+    FLUX2_FLOW = FLUX2_FLOW_PRED
 
 
 class SDType(IntEnum):
@@ -142,7 +143,7 @@ class LoraApplyMode(IntEnum):
 
 def get_num_cores() -> int:
     """Get the number of physical CPU cores."""
-    return get_num_physical_cores()
+    return sd_get_num_physical_cores()
 
 
 def get_system_info() -> str:
@@ -802,8 +803,8 @@ cdef class SDContextParams:
     cdef bytes _clip_g_path_bytes
     cdef bytes _clip_vision_path_bytes
     cdef bytes _t5xxl_path_bytes
-    cdef bytes _qwen2vl_path_bytes
-    cdef bytes _qwen2vl_vision_path_bytes
+    cdef bytes _llm_path_bytes
+    cdef bytes _llm_vision_path_bytes
     cdef bytes _diffusion_model_path_bytes
     cdef bytes _high_noise_diffusion_model_path_bytes
     cdef bytes _vae_path_bytes
@@ -1636,7 +1637,7 @@ cdef class Upscaler:
         self._model_path_bytes = model_path.encode('utf-8')
 
         if n_threads < 0:
-            n_threads = get_num_physical_cores()
+            n_threads = sd_get_num_physical_cores()
 
         self._ctx = new_upscaler_ctx(
             self._model_path_bytes,
@@ -1803,7 +1804,7 @@ def canny_preprocess(
 
 cdef object _preview_callback = None
 
-cdef void _preview_callback_wrapper(int step, int frame_count, sd_image_t* frames, cpp_bool is_noisy) noexcept with gil:
+cdef void _preview_callback_wrapper(int step, int frame_count, sd_image_t* frames, cpp_bool is_noisy, void* data) noexcept with gil:
     """Internal wrapper for preview callback."""
     global _preview_callback
     cdef int i
@@ -1846,14 +1847,15 @@ def set_preview_callback(
     _preview_callback = callback
 
     if callback is None:
-        sd_set_preview_callback(NULL, PREVIEW_NONE, 1, False, False)
+        sd_set_preview_callback(NULL, PREVIEW_NONE, 1, False, False, NULL)
     else:
         sd_set_preview_callback(
             _preview_callback_wrapper,
             <preview_t>mode,
             interval,
             denoised,
-            noisy
+            noisy,
+            NULL
         )
 
 

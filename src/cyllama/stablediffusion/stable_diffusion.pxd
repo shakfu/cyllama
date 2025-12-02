@@ -54,6 +54,7 @@ cdef extern from "stable-diffusion.h":
         EDM_V_PRED
         SD3_FLOW_PRED
         FLUX_FLOW_PRED
+        FLUX2_FLOW_PRED
         PREDICTION_COUNT
 
     ctypedef enum sd_type_t:
@@ -128,8 +129,8 @@ cdef extern from "stable-diffusion.h":
         const char* clip_g_path
         const char* clip_vision_path
         const char* t5xxl_path
-        const char* qwen2vl_path
-        const char* qwen2vl_vision_path
+        const char* llm_path
+        const char* llm_vision_path
         const char* diffusion_model_path
         const char* high_noise_diffusion_model_path
         const char* vae_path
@@ -254,7 +255,7 @@ cdef extern from "stable-diffusion.h":
 
     ctypedef void (*sd_log_cb_t)(sd_log_level_t level, const char* text, void* data)
     ctypedef void (*sd_progress_cb_t)(int step, int steps, float time, void* data)
-    ctypedef void (*sd_preview_cb_t)(int step, int frame_count, sd_image_t* frames, bint is_noisy)
+    ctypedef void (*sd_preview_cb_t)(int step, int frame_count, sd_image_t* frames, bint is_noisy, void* data)
 
     # =========================================================================
     # Functions - Callbacks
@@ -262,13 +263,13 @@ cdef extern from "stable-diffusion.h":
 
     void sd_set_log_callback(sd_log_cb_t sd_log_cb, void* data)
     void sd_set_progress_callback(sd_progress_cb_t cb, void* data)
-    void sd_set_preview_callback(sd_preview_cb_t cb, preview_t mode, int interval, bint denoised, bint noisy)
+    void sd_set_preview_callback(sd_preview_cb_t cb, preview_t mode, int interval, bint denoised, bint noisy, void* data)
 
     # =========================================================================
     # Functions - System info
     # =========================================================================
 
-    int32_t get_num_physical_cores()
+    int32_t sd_get_num_physical_cores()
     const char* sd_get_system_info()
 
     # =========================================================================

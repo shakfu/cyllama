@@ -194,6 +194,20 @@ cdef extern from "llama.h":
         LLAMA_KV_OVERRIDE_TYPE_BOOL
         LLAMA_KV_OVERRIDE_TYPE_STR
 
+    cdef enum llama_model_meta_key:
+        LLAMA_MODEL_META_KEY_SAMPLING_SEQUENCE
+        LLAMA_MODEL_META_KEY_SAMPLING_TOP_K
+        LLAMA_MODEL_META_KEY_SAMPLING_TOP_P
+        LLAMA_MODEL_META_KEY_SAMPLING_MIN_P
+        LLAMA_MODEL_META_KEY_SAMPLING_XTC_PROBABILITY
+        LLAMA_MODEL_META_KEY_SAMPLING_XTC_THRESHOLD
+        LLAMA_MODEL_META_KEY_SAMPLING_TEMP
+        LLAMA_MODEL_META_KEY_SAMPLING_PENALTY_LAST_N
+        LLAMA_MODEL_META_KEY_SAMPLING_PENALTY_REPEAT
+        LLAMA_MODEL_META_KEY_SAMPLING_MIROSTAT
+        LLAMA_MODEL_META_KEY_SAMPLING_MIROSTAT_TAU
+        LLAMA_MODEL_META_KEY_SAMPLING_MIROSTAT_ETA
+
     ctypedef struct llama_model_kv_override: # FLATTENED nested union enum
         llama_model_kv_override_type tag
         char key[128]
@@ -413,6 +427,9 @@ cdef extern from "llama.h":
 
     # Get the number of metadata key/value pairs
     cdef int32_t llama_model_meta_count(const llama_model * model)
+
+    # Get sampling metadata key name. Returns nullptr if the key is invalid
+    cdef const char * llama_model_meta_key_str(llama_model_meta_key key)
 
     # Get metadata key name by index
     cdef int32_t llama_model_meta_key_by_index(const llama_model * model, int32_t i, char * buf, size_t buf_size)
