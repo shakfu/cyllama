@@ -21,6 +21,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Changed
 
+- **Build System Improvements** ([@xxnuo](https://github.com/xxnuo))
+  - Added parallel build support (`--parallel` flag) for faster compilation
+  - Fixed llama.cpp build targets to include backend-specific libraries (ggml-metal, ggml-cuda, etc.)
+  - Backend libraries are now properly built before being copied
+
 - **Stable Diffusion Module Renamed** - `cyllama.stablediffusion` renamed to `cyllama.sd`
   - All imports should now use `from cyllama.sd import ...`
   - Old module name deprecated
