@@ -162,6 +162,32 @@ get_llamacpp() {
 		echo "Enabling OpenCL backend"
 	fi
 
+	BUILD_TARGETS="llama common mtmd"
+	
+	if [ "${GGML_METAL:-$METAL_DEFAULT}" = "1" ] && [ "$IS_MACOS" = "1" ]; then
+		BUILD_TARGETS="$BUILD_TARGETS ggml-metal"
+	fi
+	
+	if [ "${GGML_CUDA:-0}" = "1" ]; then
+		BUILD_TARGETS="$BUILD_TARGETS ggml-cuda"
+	fi
+	
+	if [ "${GGML_VULKAN:-0}" = "1" ]; then
+		BUILD_TARGETS="$BUILD_TARGETS ggml-vulkan"
+	fi
+	
+	if [ "${GGML_SYCL:-0}" = "1" ]; then
+		BUILD_TARGETS="$BUILD_TARGETS ggml-sycl"
+	fi
+	
+	if [ "${GGML_HIP:-0}" = "1" ]; then
+		BUILD_TARGETS="$BUILD_TARGETS ggml-hip"
+	fi
+	
+	if [ "${GGML_OPENCL:-0}" = "1" ]; then
+		BUILD_TARGETS="$BUILD_TARGETS ggml-opencl"
+	fi
+
 	mkdir -p build ${INCLUDE} ${LIB} && \
 		cd build && \
 		if [ ! -d "llama.cpp" ]; then
@@ -179,8 +205,8 @@ get_llamacpp() {
 		cd build && \
 		echo "Building with: cmake .. $CMAKE_ARGS" && \
 		cmake .. $CMAKE_ARGS && \
-		echo "Building specific targets: llama, common, mtmd..." && \
-		cmake --build . --config Release --target llama common mtmd && \
+		echo "Building specific targets: $BUILD_TARGETS..." && \
+		cmake --build . --config Release --target $BUILD_TARGETS && \
 		echo "Copying libraries..." && \
 		copy_lib "src" "llama" "${LIB}" && \
 		copy_lib "ggml/src" "ggml" "${LIB}" && \
