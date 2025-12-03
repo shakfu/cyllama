@@ -88,6 +88,16 @@ estimate = estimate_gpu_layers(
 print(f"Recommended GPU layers: {estimate.n_gpu_layers}")
 ```
 
+**N-gram Cache** - 2-10x speedup for repetitive text:
+
+```python
+from cyllama.llama.llama_cpp import NgramCache
+
+cache = NgramCache()
+cache.update(tokens, ngram_min=2, ngram_max=4)
+draft = cache.draft(input_tokens, n_draft=16)
+```
+
 ### Framework Integrations
 
 **OpenAI-Compatible API** - Drop-in replacement:
@@ -124,11 +134,12 @@ Cyllama includes a zero-dependency agent framework with three agent architecture
 ```python
 from cyllama import LLM
 from cyllama.agents import ReActAgent, tool
+from simpleeval import simple_eval
 
 @tool
 def calculate(expression: str) -> str:
-    """Evaluate a math expression."""
-    return str(eval(expression))
+    """Evaluate a math expression safely."""
+    return str(simple_eval(expression))
 
 llm = LLM("model.gguf")
 agent = ReActAgent(llm=llm, tools=[calculate])
@@ -168,63 +179,6 @@ result = agent.run("What is 100 divided by 4?")
 ```
 
 See [Agents Overview](docs/book/src/agents_overview.qmd) for detailed agent documentation.
-
-### Advanced Features
-
-**GGUF File Manipulation** - Inspect and modify model files:
-
-```python
-from cyllama.llama.llama_cpp import GGUFContext
-
-ctx = GGUFContext.from_file("model.gguf")
-metadata = ctx.get_all_metadata()
-print(f"Model: {metadata['general.name']}")
-```
-
-**Structured Output** - JSON schema to grammar conversion:
-
-```python
-from cyllama.llama.llama_cpp import json_schema_to_grammar
-
-schema = {"type": "object", "properties": {"name": {"type": "string"}}}
-grammar = json_schema_to_grammar(schema)
-```
-
-**Huggingface Model Downloads**:
-
-```python
-from cyllama.llama.llama_cpp import download_model, list_cached_models, get_hf_file
-
-# Download from HuggingFace (saves to ~/.cache/llama.cpp/)
-download_model("bartowski/Llama-3.2-1B-Instruct-GGUF:latest")
-
-# Or with explicit parameters
-download_model(hf_repo="bartowski/Llama-3.2-1B-Instruct-GGUF:latest")
-
-# Download specific file to custom path
-download_model(
-    hf_repo="bartowski/Llama-3.2-1B-Instruct-GGUF",
-    hf_file="Llama-3.2-1B-Instruct-Q8_0.gguf",
-    model_path="./models/my_model.gguf"
-)
-
-# Get file info without downloading
-info = get_hf_file("bartowski/Llama-3.2-1B-Instruct-GGUF:latest")
-print(info)  # {'repo': '...', 'gguf_file': '...', 'mmproj_file': '...'}
-
-# List cached models
-models = list_cached_models()
-```
-
-**N-gram Cache** - 2-10x speedup for repetitive text:
-
-```python
-from cyllama.llama.llama_cpp import NgramCache
-
-cache = NgramCache()
-cache.update(tokens, ngram_min=2, ngram_max=4)
-draft = cache.draft(input_tokens, n_draft=16)
-```
 
 ### Speech Recognition
 
@@ -312,6 +266,53 @@ python -m cyllama.sd info
 ```
 
 Supports SD 1.x/2.x, SDXL, SD3, FLUX, FLUX2, z-image-turbo, video generation (Wan/CogVideoX), LoRA, ControlNet, inpainting, and ESRGAN upscaling. See [Stable Diffusion docs](docs/book/src/stable_diffusion.qmd) for full documentation.
+
+### Common Utilities
+
+**GGUF File Manipulation** - Inspect and modify model files:
+
+```python
+from cyllama.llama.llama_cpp import GGUFContext
+
+ctx = GGUFContext.from_file("model.gguf")
+metadata = ctx.get_all_metadata()
+print(f"Model: {metadata['general.name']}")
+```
+
+**Structured Output** - JSON schema to grammar conversion:
+
+```python
+from cyllama.llama.llama_cpp import json_schema_to_grammar
+
+schema = {"type": "object", "properties": {"name": {"type": "string"}}}
+grammar = json_schema_to_grammar(schema)
+```
+
+**Huggingface Model Downloads**:
+
+```python
+from cyllama.llama.llama_cpp import download_model, list_cached_models, get_hf_file
+
+# Download from HuggingFace (saves to ~/.cache/llama.cpp/)
+download_model("bartowski/Llama-3.2-1B-Instruct-GGUF:latest")
+
+# Or with explicit parameters
+download_model(hf_repo="bartowski/Llama-3.2-1B-Instruct-GGUF:latest")
+
+# Download specific file to custom path
+download_model(
+    hf_repo="bartowski/Llama-3.2-1B-Instruct-GGUF",
+    hf_file="Llama-3.2-1B-Instruct-Q8_0.gguf",
+    model_path="./models/my_model.gguf"
+)
+
+# Get file info without downloading
+info = get_hf_file("bartowski/Llama-3.2-1B-Instruct-GGUF:latest")
+print(info)  # {'repo': '...', 'gguf_file': '...', 'mmproj_file': '...'}
+
+# List cached models
+models = list_cached_models()
+```
 
 ## What's Inside
 
@@ -554,4 +555,4 @@ Contributions are welcome! Please see the [User Guide](docs/book/src/user_guide.
 
 ## License
 
-This project wraps [llama.cpp](https://github.com/ggml-org/llama.cpp) and follows its licensing terms.
+This project wraps [llama.cpp](https://github.com/ggml-org/llama.cpp), [whisper.cpp](https://github.com/ggml-org/whisper.cpp), and [stable-diffusion.cpp](https://github.com/leejet/stable-diffusion.cpp) which all follow the MIT licensing terms, as does cyllama.
