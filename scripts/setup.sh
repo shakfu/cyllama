@@ -205,7 +205,7 @@ get_llamacpp() {
 		echo "Building with: cmake .. $CMAKE_ARGS" && \
 		cmake .. $CMAKE_ARGS && \
 		echo "Building specific targets: $BUILD_TARGETS..." && \
-		cmake --build . --config Release --target $BUILD_TARGETS && \
+		cmake --build . --config Release --target $BUILD_TARGETS --parallel && \
 		echo "Copying libraries..." && \
 		copy_lib "src" "llama" "${LIB}" && \
 		copy_lib "ggml/src" "ggml" "${LIB}" && \
@@ -263,7 +263,7 @@ get_llamacpp_shared() {
 		mkdir -p build && \
 		cd build && \
 		cmake .. -DBUILD_SHARED_LIBS=ON -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_INSTALL_NAME_DIR=${LIB} && \
-		cmake --build . --config Release && \
+		cmake --build . --config Release --parallel && \
 		cmake --install . --prefix ${PREFIX} && \
 		copy_lib "common" "common" "${LIB}" && \
 		cd ${CWD} || exit
@@ -287,7 +287,7 @@ get_whispercpp() {
 		mkdir -p build && \
 		cd build && \
 		cmake .. -DBUILD_SHARED_LIBS=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON && \
-		cmake --build . --config Release && \
+		cmake --build . --config Release --parallel && \
 		cmake --install . --prefix ${PREFIX} && \
 		echo "Copying additional libraries..." && \
 		copy_lib "examples" "common" "${LIB}" && \
@@ -317,7 +317,7 @@ get_stablediffusioncpp() {
 		mkdir -p build && \
 		cd build && \
 		cmake .. -DBUILD_SHARED_LIBS=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON && \
-		cmake --build . --config Release && \
+		cmake --build . --config Release --parallel && \
 		cmake --install . --prefix ${PREFIX} && \
 		echo "Copying additional libraries..." && \
 		copy_lib "." "stable-diffusion" "${LIB}" && \
