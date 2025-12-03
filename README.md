@@ -267,6 +267,85 @@ python -m cyllama.sd info
 
 Supports SD 1.x/2.x, SDXL, SD3, FLUX, FLUX2, z-image-turbo, video generation (Wan/CogVideoX), LoRA, ControlNet, inpainting, and ESRGAN upscaling. See [Stable Diffusion docs](docs/book/src/stable_diffusion.qmd) for full documentation.
 
+### RAG (Retrieval-Augmented Generation)
+
+**Simple RAG** - Query your documents with LLMs:
+
+```python
+from cyllama.rag import RAG
+
+# Create RAG instance with embedding and generation models
+rag = RAG(
+    embedding_model="models/bge-small-en-v1.5-q8_0.gguf",
+    generation_model="models/llama.gguf"
+)
+
+# Add documents
+rag.add_texts([
+    "Python is a high-level programming language.",
+    "Machine learning is a subset of artificial intelligence.",
+    "Neural networks are inspired by biological neurons."
+])
+
+# Query
+response = rag.query("What is Python?")
+print(response.text)
+```
+
+**Load Documents** - Support for multiple file formats:
+
+```python
+from cyllama.rag import RAG, load_directory
+
+rag = RAG(
+    embedding_model="models/bge-small-en-v1.5-q8_0.gguf",
+    generation_model="models/llama.gguf"
+)
+
+# Load all documents from a directory
+documents = load_directory("docs/", glob="**/*.md")
+rag.add_documents(documents)
+
+response = rag.query("How do I configure the system?")
+```
+
+**Hybrid Search** - Combine vector and keyword search:
+
+```python
+from cyllama.rag import RAG, HybridStore, Embedder
+
+embedder = Embedder("models/bge-small-en-v1.5-q8_0.gguf")
+store = HybridStore("knowledge.db", embedder)
+
+store.add_texts(["Document content..."])
+
+# Hybrid search with configurable weights
+results = store.search("query", k=5, vector_weight=0.7, fts_weight=0.3)
+```
+
+**Agent Integration** - Use RAG as an agent tool:
+
+```python
+from cyllama import LLM
+from cyllama.agents import ReActAgent
+from cyllama.rag import RAG, create_rag_tool
+
+rag = RAG(
+    embedding_model="models/bge-small-en-v1.5-q8_0.gguf",
+    generation_model="models/llama.gguf"
+)
+rag.add_texts(["Your knowledge base..."])
+
+# Create a tool from the RAG instance
+search_tool = create_rag_tool(rag)
+
+llm = LLM("models/llama.gguf")
+agent = ReActAgent(llm=llm, tools=[search_tool])
+result = agent.run("Find information about X in the knowledge base")
+```
+
+Supports text chunking, multiple embedding pooling strategies, async operations, reranking, and SQLite-vector for persistent storage.
+
 ### Common Utilities
 
 **GGUF File Manipulation** - Inspect and modify model files:
