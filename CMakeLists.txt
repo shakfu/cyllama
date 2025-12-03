@@ -230,7 +230,7 @@ endif()
 
 if(GGML_CUDA)
     find_package(CUDAToolkit REQUIRED)
-    list(APPEND SYSTEM_LIBS CUDA::cudart CUDA::cublas)
+    list(APPEND SYSTEM_LIBS CUDA::cudart CUDA::cublas CUDA::cuda_driver)
 endif()
 
 if(GGML_VULKAN)
@@ -301,7 +301,48 @@ function(add_cython_extension target_name pyx_file)
     target_link_directories(${target_name} PRIVATE ${COMMON_LINK_DIRS})
 
     # Link static libraries
-    target_link_libraries(${target_name} PRIVATE ${STATIC_LIBS} ${SYSTEM_LIBS})
+    # On Linux, use whole-archive selectively for ggml libs to ensure all symbols
+    # are included (needed for symbols like ggml_repeat_4d called via function pointers)
+    # Only ggml libs need this - applying to all libs causes duplicate symbol errors
+    if(UNIX AND NOT APPLE)
+        # Separate ggml libs (need whole-archive) from other libs
+        set(_GGML_LIBS ${LIB_GGML} ${LIB_GGML_BASE} ${LIB_GGML_CPU})
+        if(GGML_METAL)
+            list(APPEND _GGML_LIBS ${LIB_GGML_BLAS} ${LIB_GGML_METAL})
+        endif()
+        if(GGML_CUDA)
+            list(APPEND _GGML_LIBS ${LIB_GGML_CUDA})
+        endif()
+        if(GGML_VULKAN)
+            list(APPEND _GGML_LIBS ${LIB_GGML_VULKAN})
+        endif()
+        if(GGML_SYCL)
+            list(APPEND _GGML_LIBS ${LIB_GGML_SYCL})
+        endif()
+        if(GGML_HIP)
+            list(APPEND _GGML_LIBS ${LIB_GGML_HIP})
+        endif()
+        if(GGML_OPENCL)
+            list(APPEND _GGML_LIBS ${LIB_GGML_OPENCL})
+        endif()
+
+        # Other libs that don't need whole-archive
+        set(_OTHER_LIBS ${LIB_COMMON} ${LIB_LLAMA} ${LIB_MTMD})
+        if(WITH_WHISPER)
+            list(APPEND _OTHER_LIBS ${LIB_WHISPER_COMMON} ${LIB_WHISPER})
+        endif()
+        if(WITH_STABLEDIFFUSION)
+            list(APPEND _OTHER_LIBS ${LIB_SD})
+        endif()
+
+        target_link_libraries(${target_name} PRIVATE
+            -Wl,--whole-archive ${_GGML_LIBS} -Wl,--no-whole-archive
+            ${_OTHER_LIBS}
+            ${SYSTEM_LIBS}
+        )
+    else()
+        target_link_libraries(${target_name} PRIVATE ${STATIC_LIBS} ${SYSTEM_LIBS})
+    endif()
 
     # Compile options
     if(ARG_COMPILE_OPTIONS)
@@ -368,7 +409,44 @@ target_include_directories(embedded PRIVATE
     "${CMAKE_SOURCE_DIR}/src/cyllama/llama/server"
 )
 target_link_directories(embedded PRIVATE ${COMMON_LINK_DIRS})
-target_link_libraries(embedded PRIVATE ${STATIC_LIBS} ${SYSTEM_LIBS})
+if(UNIX AND NOT APPLE)
+    # Reuse the same selective whole-archive approach
+    set(_GGML_LIBS ${LIB_GGML} ${LIB_GGML_BASE} ${LIB_GGML_CPU})
+    if(GGML_METAL)
+        list(APPEND _GGML_LIBS ${LIB_GGML_BLAS} ${LIB_GGML_METAL})
+    endif()
+    if(GGML_CUDA)
+        list(APPEND _GGML_LIBS ${LIB_GGML_CUDA})
+    endif()
+    if(GGML_VULKAN)
+        list(APPEND _GGML_LIBS ${LIB_GGML_VULKAN})
+    endif()
+    if(GGML_SYCL)
+        list(APPEND _GGML_LIBS ${LIB_GGML_SYCL})
+    endif()
+    if(GGML_HIP)
+        list(APPEND _GGML_LIBS ${LIB_GGML_HIP})
+    endif()
+    if(GGML_OPENCL)
+        list(APPEND _GGML_LIBS ${LIB_GGML_OPENCL})
+    endif()
+
+    set(_OTHER_LIBS ${LIB_COMMON} ${LIB_LLAMA} ${LIB_MTMD})
+    if(WITH_WHISPER)
+        list(APPEND _OTHER_LIBS ${LIB_WHISPER_COMMON} ${LIB_WHISPER})
+    endif()
+    if(WITH_STABLEDIFFUSION)
+        list(APPEND _OTHER_LIBS ${LIB_SD})
+    endif()
+
+    target_link_libraries(embedded PRIVATE
+        -Wl,--whole-archive ${_GGML_LIBS} -Wl,--no-whole-archive
+        ${_OTHER_LIBS}
+        ${SYSTEM_LIBS}
+    )
+else()
+    target_link_libraries(embedded PRIVATE ${STATIC_LIBS} ${SYSTEM_LIBS})
+endif()
 set_target_properties(embedded PROPERTIES
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON
