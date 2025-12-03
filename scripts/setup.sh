@@ -164,7 +164,7 @@ get_llamacpp() {
 	BUILD_TARGETS="llama common mtmd"
 	
 	if [ "${GGML_METAL:-$METAL_DEFAULT}" = "1" ] && [ "$IS_MACOS" = "1" ]; then
-		BUILD_TARGETS="$BUILD_TARGETS ggml-metal"
+		BUILD_TARGETS="$BUILD_TARGETS ggml-blas ggml-metal"
 	fi
 	
 	if [ "${GGML_CUDA:-0}" = "1" ]; then
