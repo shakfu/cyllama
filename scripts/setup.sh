@@ -80,11 +80,11 @@ else
 fi
 
 if [ $GET_LAST_WORKING_SDCPP_VERSION -eq 1 ]; then
-	echo "get last working stable-diffusion.cpp release: ${LAST_WORKING_SDCPP}"
-	SDCPP_BRANCH="--branch ${LAST_WORKING_SDCPP}"
+	echo "get last working stable-diffusion.cpp commit: ${LAST_WORKING_SDCPP}"
+	SDCPP_BRANCH="${LAST_WORKING_SDCPP}"
 else
 	echo "get bleeding edge stable-diffusion.cpp from main"
-	SDCPP_BRANCH=		# bleading edge (stable-diffusion.cpp main)
+	SDCPP_BRANCH=
 fi
 
 
@@ -281,9 +281,13 @@ get_stablediffusioncpp() {
 	mkdir -p build ${INCLUDE} ${LIB} ${BIN} && \
 		cd build && \
 		if [ ! -d "stable-diffusion.cpp" ]; then
-			git clone ${SDCPP_BRANCH} --depth=1 --recursive --shallow-submodules https://github.com/leejet/stable-diffusion.cpp.git
+			git clone --depth=1 --recursive --shallow-submodules https://github.com/leejet/stable-diffusion.cpp.git
 		fi && \
 		cd stable-diffusion.cpp && \
+		if [ -n "${SDCPP_BRANCH}" ]; then
+			git fetch --depth=1 origin ${SDCPP_BRANCH} && \
+			git checkout ${SDCPP_BRANCH}
+		fi && \
 		cp *.h ${INCLUDE} 2>/dev/null || true && \
 		cp *.hpp ${INCLUDE} 2>/dev/null || true && \
 		cp thirdparty/stb_image.h ${INCLUDE} && \
