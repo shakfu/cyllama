@@ -276,6 +276,46 @@ get_whispercpp() {
 	INCLUDE=${PREFIX}/include
 	LIB=${PREFIX}/lib
 	BIN=${PREFIX}/bin
+
+	# Build CMake args based on environment variables (whisper.cpp uses GGML_* flags)
+	CMAKE_WHISPER_ARGS="-DBUILD_SHARED_LIBS=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON"
+
+	# Explicitly disable Metal on non-macOS
+	if [ "$IS_MACOS" = "0" ]; then
+		CMAKE_WHISPER_ARGS="$CMAKE_WHISPER_ARGS -DGGML_METAL=OFF"
+	fi
+
+	# Check backend environment variables and add appropriate flags
+	if [ "${GGML_METAL:-$METAL_DEFAULT}" = "1" ] && [ "$IS_MACOS" = "1" ]; then
+		CMAKE_WHISPER_ARGS="$CMAKE_WHISPER_ARGS -DGGML_METAL=ON"
+		echo "Enabling Metal backend for whisper.cpp"
+	fi
+
+	if [ "${GGML_CUDA:-0}" = "1" ]; then
+		CMAKE_WHISPER_ARGS="$CMAKE_WHISPER_ARGS -DGGML_CUDA=ON"
+		echo "Enabling CUDA backend for whisper.cpp"
+	fi
+
+	if [ "${GGML_VULKAN:-0}" = "1" ]; then
+		CMAKE_WHISPER_ARGS="$CMAKE_WHISPER_ARGS -DGGML_VULKAN=ON"
+		echo "Enabling Vulkan backend for whisper.cpp"
+	fi
+
+	if [ "${GGML_SYCL:-0}" = "1" ]; then
+		CMAKE_WHISPER_ARGS="$CMAKE_WHISPER_ARGS -DGGML_SYCL=ON"
+		echo "Enabling SYCL backend for whisper.cpp"
+	fi
+
+	if [ "${GGML_HIP:-0}" = "1" ]; then
+		CMAKE_WHISPER_ARGS="$CMAKE_WHISPER_ARGS -DGGML_HIP=ON"
+		echo "Enabling HIP/ROCm backend for whisper.cpp"
+	fi
+
+	if [ "${GGML_OPENCL:-0}" = "1" ]; then
+		CMAKE_WHISPER_ARGS="$CMAKE_WHISPER_ARGS -DGGML_OPENCL=ON"
+		echo "Enabling OpenCL backend for whisper.cpp"
+	fi
+
 	mkdir -p build ${INCLUDE} ${LIB} ${BIN} && \
 		cd build && \
 		if [ ! -d "whisper.cpp" ]; then
@@ -286,7 +326,8 @@ get_whispercpp() {
 		cp examples/*.hpp ${INCLUDE} 2>/dev/null || true && \
 		mkdir -p build && \
 		cd build && \
-		cmake .. -DBUILD_SHARED_LIBS=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON && \
+		echo "Building whisper.cpp with: cmake .. $CMAKE_WHISPER_ARGS" && \
+		cmake .. $CMAKE_WHISPER_ARGS && \
 		cmake --build . --config Release --parallel && \
 		cmake --install . --prefix ${PREFIX} && \
 		echo "Copying additional libraries..." && \
@@ -303,6 +344,44 @@ get_stablediffusioncpp() {
 	INCLUDE=${PREFIX}/include
 	LIB=${PREFIX}/lib
 	BIN=${PREFIX}/bin
+
+	# Build CMake args based on environment variables
+	# stable-diffusion.cpp uses SD_* flags (SD_METAL, SD_CUDA, etc.)
+	CMAKE_SD_ARGS="-DBUILD_SHARED_LIBS=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON"
+
+	# Check backend environment variables and add appropriate flags
+	# Note: SD_METAL is NOT enabled by default because ggml-metal doesn't support
+	# GGML_OP_DIAG_MASK_INF which is used by some SD models. Use SD_METAL=1 to opt-in.
+	if [ "${SD_METAL:-0}" = "1" ] && [ "$IS_MACOS" = "1" ]; then
+		CMAKE_SD_ARGS="$CMAKE_SD_ARGS -DSD_METAL=ON"
+		echo "Enabling Metal backend for stable-diffusion.cpp (experimental)"
+	fi
+
+	if [ "${GGML_CUDA:-0}" = "1" ]; then
+		CMAKE_SD_ARGS="$CMAKE_SD_ARGS -DSD_CUDA=ON"
+		echo "Enabling CUDA backend for stable-diffusion.cpp"
+	fi
+
+	if [ "${GGML_VULKAN:-0}" = "1" ]; then
+		CMAKE_SD_ARGS="$CMAKE_SD_ARGS -DSD_VULKAN=ON"
+		echo "Enabling Vulkan backend for stable-diffusion.cpp"
+	fi
+
+	if [ "${GGML_SYCL:-0}" = "1" ]; then
+		CMAKE_SD_ARGS="$CMAKE_SD_ARGS -DSD_SYCL=ON"
+		echo "Enabling SYCL backend for stable-diffusion.cpp"
+	fi
+
+	if [ "${GGML_HIP:-0}" = "1" ]; then
+		CMAKE_SD_ARGS="$CMAKE_SD_ARGS -DSD_HIPBLAS=ON"
+		echo "Enabling HIP/ROCm backend for stable-diffusion.cpp"
+	fi
+
+	if [ "${GGML_OPENCL:-0}" = "1" ]; then
+		CMAKE_SD_ARGS="$CMAKE_SD_ARGS -DSD_OPENCL=ON"
+		echo "Enabling OpenCL backend for stable-diffusion.cpp"
+	fi
+
 	mkdir -p build ${INCLUDE} ${LIB} ${BIN} && \
 		cd build && \
 		if [ ! -d "stable-diffusion.cpp" ]; then
@@ -316,7 +395,8 @@ get_stablediffusioncpp() {
 		cp thirdparty/stb_image_resize.h ${INCLUDE} && \
 		mkdir -p build && \
 		cd build && \
-		cmake .. -DBUILD_SHARED_LIBS=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON && \
+		echo "Building stable-diffusion.cpp with: cmake .. $CMAKE_SD_ARGS" && \
+		cmake .. $CMAKE_SD_ARGS && \
 		cmake --build . --config Release --parallel && \
 		cmake --install . --prefix ${PREFIX} && \
 		echo "Copying additional libraries..." && \

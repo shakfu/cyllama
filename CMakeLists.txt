@@ -168,8 +168,8 @@ if(WITH_WHISPER)
 endif()
 
 if(WITH_STABLEDIFFUSION)
+    # Define LIB_SD here but don't add to STATIC_LIBS - SD extension has its own linking
     static_lib(LIB_SD "${SDCPP_LIB}" "stable-diffusion")
-    list(APPEND STATIC_LIBS "${LIB_SD}")
 endif()
 
 # Backend-specific libraries
@@ -327,12 +327,10 @@ function(add_cython_extension target_name pyx_file)
         endif()
 
         # Other libs that don't need whole-archive
+        # Note: SD libs are NOT included here - SD extension links its own ggml
         set(_OTHER_LIBS ${LIB_COMMON} ${LIB_LLAMA} ${LIB_MTMD})
         if(WITH_WHISPER)
             list(APPEND _OTHER_LIBS ${LIB_WHISPER_COMMON} ${LIB_WHISPER})
-        endif()
-        if(WITH_STABLEDIFFUSION)
-            list(APPEND _OTHER_LIBS ${LIB_SD})
         endif()
 
         target_link_libraries(${target_name} PRIVATE
@@ -431,12 +429,10 @@ if(UNIX AND NOT APPLE)
         list(APPEND _GGML_LIBS ${LIB_GGML_OPENCL})
     endif()
 
+    # Note: SD libs are NOT included here - SD extension links its own ggml
     set(_OTHER_LIBS ${LIB_COMMON} ${LIB_LLAMA} ${LIB_MTMD})
     if(WITH_WHISPER)
         list(APPEND _OTHER_LIBS ${LIB_WHISPER_COMMON} ${LIB_WHISPER})
-    endif()
-    if(WITH_STABLEDIFFUSION)
-        list(APPEND _OTHER_LIBS ${LIB_SD})
     endif()
 
     target_link_libraries(embedded PRIVATE
@@ -474,14 +470,85 @@ if(WITH_WHISPER)
     )
 endif()
 
-# stable_diffusion extension
+# stable_diffusion extension - uses SD's own ggml libraries, not llama.cpp's
 if(WITH_STABLEDIFFUSION)
-    add_cython_extension(stable_diffusion
-        "${CMAKE_SOURCE_DIR}/src/cyllama/sd/stable_diffusion.pyx"
-        SOURCES
-            "${CMAKE_SOURCE_DIR}/src/cyllama/sd/stb_impl.cpp"
-        DESTINATION "${SKBUILD_PROJECT_NAME}/sd"
+    # Transpile Cython to C++
+    cython_transpile("${CMAKE_SOURCE_DIR}/src/cyllama/sd/stable_diffusion.pyx"
+        LANGUAGE CXX
+        OUTPUT_VARIABLE sd_cpp
+        CYTHON_ARGS ${CYTHON_INCLUDE_ARGS}
     )
+
+    python_add_library(stable_diffusion MODULE WITH_SOABI
+        ${sd_cpp}
+        "${CMAKE_SOURCE_DIR}/src/cyllama/sd/stb_impl.cpp"
+    )
+
+    target_include_directories(stable_diffusion PRIVATE
+        ${COMMON_INCLUDE_DIRS}
+    )
+
+    target_link_directories(stable_diffusion PRIVATE "${SDCPP_LIB}")
+
+    # SD-specific ggml libraries (from stable-diffusion.cpp build)
+    static_lib(LIB_SD_GGML "${SDCPP_LIB}" "ggml")
+    static_lib(LIB_SD_GGML_BASE "${SDCPP_LIB}" "ggml-base")
+    static_lib(LIB_SD_GGML_CPU "${SDCPP_LIB}" "ggml-cpu")
+
+    set(SD_STATIC_LIBS
+        "${LIB_SD}"
+        "${LIB_SD_GGML}"
+        "${LIB_SD_GGML_BASE}"
+        "${LIB_SD_GGML_CPU}"
+    )
+
+    # Backend-specific ggml libraries for SD
+    # Note: SD has its own Metal support that may differ from llama.cpp's GGML_METAL setting
+    # We check if SD's ggml-metal library exists to determine if SD was built with Metal
+    static_lib(_SD_METAL_LIB_PATH "${SDCPP_LIB}" "ggml-metal")
+    if(EXISTS "${_SD_METAL_LIB_PATH}")
+        message(STATUS "SD Metal library found: ${_SD_METAL_LIB_PATH}")
+        static_lib(LIB_SD_GGML_BLAS "${SDCPP_LIB}" "ggml-blas")
+        static_lib(LIB_SD_GGML_METAL "${SDCPP_LIB}" "ggml-metal")
+        list(APPEND SD_STATIC_LIBS "${LIB_SD_GGML_BLAS}" "${LIB_SD_GGML_METAL}")
+    else()
+        message(STATUS "SD Metal library not found, SD will use CPU backend")
+    endif()
+
+    # Check for CUDA support in SD
+    static_lib(_SD_CUDA_LIB_PATH "${SDCPP_LIB}" "ggml-cuda")
+    if(EXISTS "${_SD_CUDA_LIB_PATH}")
+        list(APPEND SD_STATIC_LIBS "${_SD_CUDA_LIB_PATH}")
+    endif()
+
+    # Check for Vulkan support in SD
+    static_lib(_SD_VULKAN_LIB_PATH "${SDCPP_LIB}" "ggml-vulkan")
+    if(EXISTS "${_SD_VULKAN_LIB_PATH}")
+        list(APPEND SD_STATIC_LIBS "${_SD_VULKAN_LIB_PATH}")
+    endif()
+
+    target_link_libraries(stable_diffusion PRIVATE ${SD_STATIC_LIBS} ${SYSTEM_LIBS})
+
+    target_compile_options(stable_diffusion PRIVATE ${CXX_COMPILE_OPTIONS})
+
+    set_target_properties(stable_diffusion PROPERTIES
+        CXX_STANDARD 17
+        CXX_STANDARD_REQUIRED ON
+    )
+
+    if(APPLE)
+        set_target_properties(stable_diffusion PROPERTIES
+            BUILD_RPATH "${SDCPP_LIB}"
+            INSTALL_RPATH "@loader_path"
+        )
+    elseif(UNIX)
+        set_target_properties(stable_diffusion PROPERTIES
+            BUILD_RPATH "${SDCPP_LIB}"
+            INSTALL_RPATH "$ORIGIN"
+        )
+    endif()
+
+    install(TARGETS stable_diffusion DESTINATION "${SKBUILD_PROJECT_NAME}/sd")
 endif()
 
 # -----------------------------------------------------------------------------
