@@ -168,8 +168,8 @@ if(WITH_WHISPER)
 endif()
 
 if(WITH_STABLEDIFFUSION)
+    # Define LIB_SD here but don't add to STATIC_LIBS - SD extension has its own linking
     static_lib(LIB_SD "${SDCPP_LIB}" "stable-diffusion")
-    list(APPEND STATIC_LIBS "${LIB_SD}")
 endif()
 
 # Backend-specific libraries
@@ -230,7 +230,7 @@ endif()
 
 if(GGML_CUDA)
     find_package(CUDAToolkit REQUIRED)
-    list(APPEND SYSTEM_LIBS CUDA::cudart CUDA::cublas)
+    list(APPEND SYSTEM_LIBS CUDA::cudart CUDA::cublas CUDA::cuda_driver)
 endif()
 
 if(GGML_VULKAN)
@@ -301,7 +301,46 @@ function(add_cython_extension target_name pyx_file)
     target_link_directories(${target_name} PRIVATE ${COMMON_LINK_DIRS})
 
     # Link static libraries
-    target_link_libraries(${target_name} PRIVATE ${STATIC_LIBS} ${SYSTEM_LIBS})
+    # On Linux, use whole-archive selectively for ggml libs to ensure all symbols
+    # are included (needed for symbols like ggml_repeat_4d called via function pointers)
+    # Only ggml libs need this - applying to all libs causes duplicate symbol errors
+    if(UNIX AND NOT APPLE)
+        # Separate ggml libs (need whole-archive) from other libs
+        set(_GGML_LIBS ${LIB_GGML} ${LIB_GGML_BASE} ${LIB_GGML_CPU})
+        if(GGML_METAL)
+            list(APPEND _GGML_LIBS ${LIB_GGML_BLAS} ${LIB_GGML_METAL})
+        endif()
+        if(GGML_CUDA)
+            list(APPEND _GGML_LIBS ${LIB_GGML_CUDA})
+        endif()
+        if(GGML_VULKAN)
+            list(APPEND _GGML_LIBS ${LIB_GGML_VULKAN})
+        endif()
+        if(GGML_SYCL)
+            list(APPEND _GGML_LIBS ${LIB_GGML_SYCL})
+        endif()
+        if(GGML_HIP)
+            list(APPEND _GGML_LIBS ${LIB_GGML_HIP})
+        endif()
+        if(GGML_OPENCL)
+            list(APPEND _GGML_LIBS ${LIB_GGML_OPENCL})
+        endif()
+
+        # Other libs that don't need whole-archive
+        # Note: SD libs are NOT included here - SD extension links its own ggml
+        set(_OTHER_LIBS ${LIB_COMMON} ${LIB_LLAMA} ${LIB_MTMD})
+        if(WITH_WHISPER)
+            list(APPEND _OTHER_LIBS ${LIB_WHISPER_COMMON} ${LIB_WHISPER})
+        endif()
+
+        target_link_libraries(${target_name} PRIVATE
+            -Wl,--whole-archive ${_GGML_LIBS} -Wl,--no-whole-archive
+            ${_OTHER_LIBS}
+            ${SYSTEM_LIBS}
+        )
+    else()
+        target_link_libraries(${target_name} PRIVATE ${STATIC_LIBS} ${SYSTEM_LIBS})
+    endif()
 
     # Compile options
     if(ARG_COMPILE_OPTIONS)
@@ -368,7 +407,42 @@ target_include_directories(embedded PRIVATE
     "${CMAKE_SOURCE_DIR}/src/cyllama/llama/server"
 )
 target_link_directories(embedded PRIVATE ${COMMON_LINK_DIRS})
-target_link_libraries(embedded PRIVATE ${STATIC_LIBS} ${SYSTEM_LIBS})
+if(UNIX AND NOT APPLE)
+    # Reuse the same selective whole-archive approach
+    set(_GGML_LIBS ${LIB_GGML} ${LIB_GGML_BASE} ${LIB_GGML_CPU})
+    if(GGML_METAL)
+        list(APPEND _GGML_LIBS ${LIB_GGML_BLAS} ${LIB_GGML_METAL})
+    endif()
+    if(GGML_CUDA)
+        list(APPEND _GGML_LIBS ${LIB_GGML_CUDA})
+    endif()
+    if(GGML_VULKAN)
+        list(APPEND _GGML_LIBS ${LIB_GGML_VULKAN})
+    endif()
+    if(GGML_SYCL)
+        list(APPEND _GGML_LIBS ${LIB_GGML_SYCL})
+    endif()
+    if(GGML_HIP)
+        list(APPEND _GGML_LIBS ${LIB_GGML_HIP})
+    endif()
+    if(GGML_OPENCL)
+        list(APPEND _GGML_LIBS ${LIB_GGML_OPENCL})
+    endif()
+
+    # Note: SD libs are NOT included here - SD extension links its own ggml
+    set(_OTHER_LIBS ${LIB_COMMON} ${LIB_LLAMA} ${LIB_MTMD})
+    if(WITH_WHISPER)
+        list(APPEND _OTHER_LIBS ${LIB_WHISPER_COMMON} ${LIB_WHISPER})
+    endif()
+
+    target_link_libraries(embedded PRIVATE
+        -Wl,--whole-archive ${_GGML_LIBS} -Wl,--no-whole-archive
+        ${_OTHER_LIBS}
+        ${SYSTEM_LIBS}
+    )
+else()
+    target_link_libraries(embedded PRIVATE ${STATIC_LIBS} ${SYSTEM_LIBS})
+endif()
 set_target_properties(embedded PROPERTIES
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON
@@ -396,14 +470,85 @@ if(WITH_WHISPER)
     )
 endif()
 
-# stable_diffusion extension
+# stable_diffusion extension - uses SD's own ggml libraries, not llama.cpp's
 if(WITH_STABLEDIFFUSION)
-    add_cython_extension(stable_diffusion
-        "${CMAKE_SOURCE_DIR}/src/cyllama/sd/stable_diffusion.pyx"
-        SOURCES
-            "${CMAKE_SOURCE_DIR}/src/cyllama/sd/stb_impl.cpp"
-        DESTINATION "${SKBUILD_PROJECT_NAME}/sd"
+    # Transpile Cython to C++
+    cython_transpile("${CMAKE_SOURCE_DIR}/src/cyllama/sd/stable_diffusion.pyx"
+        LANGUAGE CXX
+        OUTPUT_VARIABLE sd_cpp
+        CYTHON_ARGS ${CYTHON_INCLUDE_ARGS}
     )
+
+    python_add_library(stable_diffusion MODULE WITH_SOABI
+        ${sd_cpp}
+        "${CMAKE_SOURCE_DIR}/src/cyllama/sd/stb_impl.cpp"
+    )
+
+    target_include_directories(stable_diffusion PRIVATE
+        ${COMMON_INCLUDE_DIRS}
+    )
+
+    target_link_directories(stable_diffusion PRIVATE "${SDCPP_LIB}")
+
+    # SD-specific ggml libraries (from stable-diffusion.cpp build)
+    static_lib(LIB_SD_GGML "${SDCPP_LIB}" "ggml")
+    static_lib(LIB_SD_GGML_BASE "${SDCPP_LIB}" "ggml-base")
+    static_lib(LIB_SD_GGML_CPU "${SDCPP_LIB}" "ggml-cpu")
+
+    set(SD_STATIC_LIBS
+        "${LIB_SD}"
+        "${LIB_SD_GGML}"
+        "${LIB_SD_GGML_BASE}"
+        "${LIB_SD_GGML_CPU}"
+    )
+
+    # Backend-specific ggml libraries for SD
+    # Note: SD has its own Metal support that may differ from llama.cpp's GGML_METAL setting
+    # We check if SD's ggml-metal library exists to determine if SD was built with Metal
+    static_lib(_SD_METAL_LIB_PATH "${SDCPP_LIB}" "ggml-metal")
+    if(EXISTS "${_SD_METAL_LIB_PATH}")
+        message(STATUS "SD Metal library found: ${_SD_METAL_LIB_PATH}")
+        static_lib(LIB_SD_GGML_BLAS "${SDCPP_LIB}" "ggml-blas")
+        static_lib(LIB_SD_GGML_METAL "${SDCPP_LIB}" "ggml-metal")
+        list(APPEND SD_STATIC_LIBS "${LIB_SD_GGML_BLAS}" "${LIB_SD_GGML_METAL}")
+    else()
+        message(STATUS "SD Metal library not found, SD will use CPU backend")
+    endif()
+
+    # Check for CUDA support in SD
+    static_lib(_SD_CUDA_LIB_PATH "${SDCPP_LIB}" "ggml-cuda")
+    if(EXISTS "${_SD_CUDA_LIB_PATH}")
+        list(APPEND SD_STATIC_LIBS "${_SD_CUDA_LIB_PATH}")
+    endif()
+
+    # Check for Vulkan support in SD
+    static_lib(_SD_VULKAN_LIB_PATH "${SDCPP_LIB}" "ggml-vulkan")
+    if(EXISTS "${_SD_VULKAN_LIB_PATH}")
+        list(APPEND SD_STATIC_LIBS "${_SD_VULKAN_LIB_PATH}")
+    endif()
+
+    target_link_libraries(stable_diffusion PRIVATE ${SD_STATIC_LIBS} ${SYSTEM_LIBS})
+
+    target_compile_options(stable_diffusion PRIVATE ${CXX_COMPILE_OPTIONS})
+
+    set_target_properties(stable_diffusion PROPERTIES
+        CXX_STANDARD 17
+        CXX_STANDARD_REQUIRED ON
+    )
+
+    if(APPLE)
+        set_target_properties(stable_diffusion PROPERTIES
+            BUILD_RPATH "${SDCPP_LIB}"
+            INSTALL_RPATH "@loader_path"
+        )
+    elseif(UNIX)
+        set_target_properties(stable_diffusion PROPERTIES
+            BUILD_RPATH "${SDCPP_LIB}"
+            INSTALL_RPATH "$ORIGIN"
+        )
+    endif()
+
+    install(TARGETS stable_diffusion DESTINATION "${SKBUILD_PROJECT_NAME}/sd")
 endif()
 
 # -----------------------------------------------------------------------------
