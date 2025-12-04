@@ -17,6 +17,46 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [0.1.x]
 
+## [0.1.19]
+
+### Changed
+
+- **Build System Consolidation** - Unified build management in `scripts/manage.py`
+  - Added `info` subcommand - Shows version info (tag/commit) for llama.cpp, whisper.cpp, stable-diffusion.cpp, sqlite-vector
+    - `--snapshot` / `-s` option: Commits and pushes with dependency version info in commit message
+  - Added `download` subcommand - Downloads models from HuggingFace (llama, whisper)
+  - Added `bins` subcommand - Builds llama.cpp CLI binaries (llama-cli, llama-server, etc.)
+  - Added `bench` subcommand - Runs performance benchmarks (prefill/decode speed)
+  - Added `profile` subcommand - Profiles cyllama operations using cProfile with selectable targets:
+    - `--tokenization`, `--inference`, `--logits`, `--batch`, `--properties`, `--all`
+    - Saves `.prof` files for analysis with snakeviz or pstats
+  - Added `bump` subcommand - Semantic version bumping with git tag creation
+    - Default: patch increment (`0.1.18` -> `0.1.19`)
+    - `--minor` / `-m`: minor increment (`0.1.18` -> `0.2.0`)
+    - `--major` / `-M`: major increment (`0.1.18` -> `1.0.0`)
+    - `--dry-run` / `-n`: preview changes without modifying files
+    - Updates `pyproject.toml` and `src/cyllama/__init__.py`, commits, tags, and pushes
+  - Added `--sd-metal` / `-M` build option for experimental stable-diffusion.cpp Metal support
+  - Added backend configuration for whisper.cpp (`GGML_*` env vars) and stable-diffusion.cpp (`SD_*` env vars)
+  - Added mtmd (multimodal) header copying for llama.cpp builds
+  - Converted `scripts/setup2.sh` to thin wrapper delegating to `manage.py`
+
+- **Stable Diffusion Metal Backend** - Fixed Metal support configuration
+  - SD Metal disabled by default due to missing `GGML_OP_DIAG_MASK_INF` in ggml-metal
+  - Use `SD_METAL=1` environment variable to opt-in (experimental)
+  - SD extension now links against its own ggml libraries instead of llama.cpp's
+
+### Deprecated
+
+The following scripts are now superseded by `manage.py` subcommands:
+- `scripts/info.sh` -> `manage.py info`
+- `scripts/snap.sh` -> `manage.py info --snapshot`
+- `scripts/bump.sh` -> `manage.py bump`
+- `scripts/download-ggml-model.sh` -> `manage.py download --whisper`
+- `scripts/build-llama-bins.sh` -> `manage.py bins`
+- `scripts/benchmark.py` -> `manage.py bench`
+- `scripts/*_profile.py`, `scripts/*_benchmark.py` -> `manage.py profile`
+
 ## [0.1.18]
 
 ### Changed
