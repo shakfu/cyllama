@@ -3,6 +3,9 @@ VERSION = "0.1.18"
 # export PATH := $(PWD)/thirdparty/llama.cpp/bin:$(PATH)
 export MACOSX_DEPLOYMENT_TARGET := 14.7
 
+# Find system Python (python3 or python) - manage.py only uses stdlib
+SYSTEM_PYTHON := $(shell command -v python3 2>/dev/null || command -v python 2>/dev/null)
+
 # Backend flags (can be overridden via environment variables)
 # Default: Metal enabled on macOS only, all others disabled
 ifeq ($(shell uname -s),Darwin)
@@ -62,10 +65,10 @@ endif
 all: build
 
 $(LIBLAMMA):
-	@uv run python scripts/manage.py build --all --deps-only
+	@$(SYSTEM_PYTHON) scripts/manage.py build --all --deps-only
 
 setup: reset
-	@uv run python scripts/manage.py build --all --deps-only
+	@$(SYSTEM_PYTHON) scripts/manage.py build --all --deps-only
 
 # Build using scikit-build-core (editable install)
 build: $(LIBLAMMA)
