@@ -1770,22 +1770,67 @@ class Application(ShellCmd, metaclass=MetaCommander):
     # ------------------------------------------------------------------------
     # clean
 
-    @opt("--reset", "-r", "reset project")
+    @opt("--reset", "-r", "reset project (removes build/ and thirdparty libs)")
     @opt("--verbose", "-v", "verbose cleaning ops")
     def do_clean(self, args: argparse.Namespace) -> None:
-        """clean detritus"""
+        """clean build artifacts"""
         cwd = self.project.cwd
-        _targets = ["build", "dist", "venv", ".task"]
-        if args.reset:
-            _targets += ["python", "bin", "lib", "share", "wheels"]
-        _pats = [".*_cache", "*.egg-info", "__pycache__", ".DS_Store"]
-        for t in _targets:
-            self.remove(cwd / t, silent=not args.verbose)
-        for p in _pats:
+        src = cwd / "src" / "cyllama"
+        verbose = args.verbose
+
+        # Directories to remove
+        dir_targets = ["dist", ".coverage"]
+        dir_pats = ["build/lib.*", "build/temp.*", "build/cp*"]
+
+        # Glob patterns
+        glob_pats = [".*_cache", "*.egg-info", "__pycache__", ".DS_Store"]
+
+        # Generated Cython .cpp files
+        cython_cpp_files = [
+            src / "llama" / "llama_cpp.cpp",
+            src / "llama" / "server" / "embedded.cpp",
+            src / "whisper" / "whisper_cpp.cpp",
+            src / "sd" / "stable_diffusion.cpp",
+        ]
+
+        # Clean directories
+        for t in dir_targets:
+            self.remove(cwd / t, silent=not verbose)
+
+        # Clean directory patterns
+        for pat in dir_pats:
+            for m in cwd.glob(pat):
+                self.remove(m, silent=not verbose)
+
+        # Clean glob patterns recursively
+        for p in glob_pats:
             for m in cwd.glob(p):
-                self.remove(m, silent=not args.verbose)
+                self.remove(m, silent=not verbose)
             for m in cwd.glob("**/" + p):
-                self.remove(m, silent=not args.verbose)
+                self.remove(m, silent=not verbose)
+
+        # Clean .so files
+        for so in src.glob("*.so"):
+            self.remove(so, silent=not verbose)
+        for so in src.glob("**/*.so"):
+            self.remove(so, silent=not verbose)
+
+        # Clean generated Cython .cpp files
+        for cpp in cython_cpp_files:
+            if cpp.exists():
+                self.remove(cpp, silent=not verbose)
+
+        # Reset: also remove build/ and thirdparty libs
+        if args.reset:
+            self.remove(cwd / "build", silent=not verbose)
+
+            thirdparty = cwd / "thirdparty"
+            for dep in ["llama.cpp", "whisper.cpp", "stable-diffusion.cpp"]:
+                dep_dir = thirdparty / dep
+                for subdir in ["bin", "lib", "include"]:
+                    self.remove(dep_dir / subdir, silent=not verbose)
+
+        self.log.info("Clean complete")
 
     # ------------------------------------------------------------------------
     # info
