@@ -16,7 +16,7 @@ GGML_SYCL ?= 0
 GGML_HIP ?= 0
 GGML_OPENCL ?= 0
 
-# Export backend flags for setup.sh and setup.py
+# Export backend flags for manage.py and setup.py
 export GGML_METAL GGML_CUDA GGML_VULKAN GGML_SYCL GGML_HIP GGML_OPENCL
 
 # models
@@ -62,10 +62,10 @@ endif
 all: build
 
 $(LIBLAMMA):
-	@scripts/setup.sh
+	@uv run python scripts/manage.py build --all --deps-only
 
 setup: reset
-	@scripts/setup.sh
+	@uv run python scripts/manage.py build --all --deps-only
 
 # Build using scikit-build-core (editable install)
 build: $(LIBLAMMA)
@@ -100,13 +100,19 @@ wheel-check:
 .PHONY: test simple test-simple test-main test-retrieve test-model test-llava test-lora \
 		test-platform coverage memray download download-all bump clean reset remake cli \
 		test-cli test-chat test-tts test-llama-tts test-whisper test-server test-mongoose \
-		bench docs
+		bench docs info profile
 
 test:
 	@uv run pytest -s
 
 bench:
-	@uv run python scripts/benchmark.py -m $(MODEL)
+	@uv run python scripts/manage.py bench -m $(MODEL)
+
+profile:
+	@uv run python scripts/manage.py profile -m $(MODEL)
+
+info:
+	@uv run python scripts/manage.py info
 
 simple:
 	@g++ -std=c++14 -o build/simple \
@@ -142,7 +148,7 @@ test-chat:
 test-cli:
 	@python3 -m src.cyllama.cli -m $(MODEL) \
 		--no-cnv -c 32 \
-		-p "When did the French Revolution start?" 
+		-p "When did the French Revolution start?"
 
 test-tts:
 	@python3 -m src.cyllama.tts \
@@ -248,7 +254,7 @@ memray:
 	@uv run pytest --memray --native tests
 
 bump:
-	@scripts/bump.sh
+	@uv run python scripts/manage.py bump
 
 clean:
 	@rm -rf build/lib.* build/temp.* build/cp* dist src/*.egg-info .*_cache .coverage
