@@ -7,12 +7,13 @@ jobs:
     name: Build wheels for ${{ matrix.os }}
     runs-on: ${{ matrix.runs-on }}
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: linux-intel
             runs-on: ubuntu-latest
-          - os: linux-arm
-            runs-on: ubuntu-24.04-arm
+          # - os: linux-arm
+          #   runs-on: ubuntu-24.04-arm
           - os: windows-intel
             runs-on: windows-latest
           - os: windows-arm
