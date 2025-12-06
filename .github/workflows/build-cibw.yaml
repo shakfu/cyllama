@@ -1,4 +1,4 @@
-name: build-cibuild
+name: build-cibw
 
 on: [workflow_dispatch]
 
