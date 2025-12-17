@@ -21,6 +21,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Changed
 
+- **llama.cpp API Sync** - Updated wrappers for latest llama.cpp header changes
+- LLAMACPP_VERSION to `b7442`, SDCPP_VERSION = `master-423-c3ad6a1`
+  - `sampling.pxd/pxi`: Removed `grammar_first` parameter from `common_sampler_sample()` and `common_sampler_sample_and_accept_n()` functions
+  - `llama.pxd`: Added `no_alloc` field to `llama_model_params`, added `llama_params_fit()`, `llama_max_tensor_buft_overrides()`, `llama_log_get()` functions
+  - `llama_cpp.pyx`: Added `use_extra_bufts`, `no_host`, `no_alloc` properties to `LlamaModelParams` class
+  - `common.pxd`: Updated `llama_example` enum (`LLAMA_EXAMPLE_MAIN` -> `LLAMA_EXAMPLE_COMPLETION`, added `LLAMA_EXAMPLE_CLI`, `LLAMA_EXAMPLE_FINETUNE`, `LLAMA_EXAMPLE_FIT_PARAMS`), added `user_sampling_config` to `common_params_sampling`, added `docker_repo`/`name` to `common_params_model`, added multiple new fields to `common_params` (`fit_params`, `fit_params_target`, `fit_params_min_ctx`, `show_timings`, `models_dir`, `models_preset`, `models_max`, `models_autoload`, `media_path`), updated filesystem utils (`fs_validate_filename` signature, added `fs_is_directory()`, renamed `fs_list_files()` to `fs_list()`)
+  - `ggml.pxd`: Added `GGML_OP_TOP_K` enum value
+  - `chat.pxd`: Added new chat format enum values (`COMMON_CHAT_FORMAT_GLM_4_5`, `COMMON_CHAT_FORMAT_MINIMAX_M2`, `COMMON_CHAT_FORMAT_KIMI_K2`, `COMMON_CHAT_FORMAT_QWEN3_CODER_XML`, `COMMON_CHAT_FORMAT_APRIEL_1_5`, `COMMON_CHAT_FORMAT_XIAOMI_MIMO`, `COMMON_CHAT_FORMAT_PEG_SIMPLE`, `COMMON_CHAT_FORMAT_PEG_NATIVE`, `COMMON_CHAT_FORMAT_PEG_CONSTRUCTED`)
+  - `mtmd.pxd`: Added `warmup` field to `mtmd_context_params`
+  - `log.pxd`: Added `LOG_LEVEL_DEBUG`, `LOG_LEVEL_INFO`, `LOG_LEVEL_WARN`, `LOG_LEVEL_ERROR`, `LOG_LEVEL_OUTPUT` constants, added `common_log_flush()` function
+  - `test_params.py`: Updated tests for new default values (`n_ctx` 4096->0, new `common_params_model` fields)
+
+- **stable-diffusion.cpp API Sync** - Updated wrappers for latest stable-diffusion.cpp header changes
+  - `stable_diffusion.pxd`: Updated `prediction_t` enum (removed `DEFAULT_PRED`, renamed `SD3_FLOW_PRED` to `FLOW_PRED`), added `sd_embedding_t` and `sd_lora_t` structs, updated `sd_ctx_params_t` (removed `lora_model_dir`/`embedding_dir`, added `embeddings`/`embedding_count`), added `custom_sigmas`/`custom_sigmas_count` to `sd_sample_params_t`, added `loras`/`lora_count` to `sd_img_gen_params_t` and `sd_vid_gen_params_t`, added `tile_size` parameter to `new_upscaler_ctx()`, added `sd_commit()` and `sd_version()` functions
+  - `stable_diffusion.pyx`: Updated `Prediction` enum (removed `DEFAULT`, renamed `SD3_FLOW` to `FLOW`), removed `lora_model_dir`/`embedding_dir` from `SDContextParams`, added `tile_size` parameter to `SDUpscaler`, removed `lora_model_dir` from `text_to_image()` function
+
+### Removed
+
+- **SDContextParams**: Removed `lora_model_dir` and `embedding_dir` properties (upstream API change - LoRAs and embeddings now specified per-generation via new struct fields)
+- **Prediction enum**: Removed `DEFAULT` member, renamed `SD3_FLOW` to `FLOW` (upstream enum change)
+- **CommonSampler**: Removed `grammar_first` parameter from `sample()` and `sample_and_accept_n()` methods (upstream API change)
+
+### Changed (Build System)
+
 - **Build System Consolidation** - Unified build management in `scripts/manage.py`
   - Added `info` subcommand - Shows version info (tag/commit) for llama.cpp, whisper.cpp, stable-diffusion.cpp, sqlite-vector
     - `--snapshot` / `-s` option: Commits and pushes with dependency version info in commit message
@@ -1500,7 +1524,7 @@ The following scripts are now superseded by `manage.py` subcommands:
 
 - Added unit tests
 
-- Changed cyllama.pyx and tests to apply more consistent naming of Llama-type classes.
+- Changed `cyllama.pyx` and tests to apply more consistent naming of Llama-type classes.
 
 ## [0.1.0]
 
