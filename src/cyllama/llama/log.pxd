@@ -16,22 +16,16 @@ cimport ggml
 
 cdef extern from "log.h":
 
-    # Constants: TODO: convert to python string enum
+    # Log level constants
+    cdef int LOG_LEVEL_DEBUG   # 4
+    cdef int LOG_LEVEL_INFO    # 3
+    cdef int LOG_LEVEL_WARN    # 2
+    cdef int LOG_LEVEL_ERROR   # 1
+    cdef int LOG_LEVEL_OUTPUT  # 0 - output data from tools
 
-    # cdef int LOG_CLR_TO_EOL
-    # cdef int LOG_COL_DEFAULT
-    # cdef int LOG_COL_BOLD
-    # cdef int LOG_COL_RED
-    # cdef int LOG_COL_GREEN
-    # cdef int LOG_COL_YELLOW
-    # cdef int LOG_COL_BLUE
-    # cdef int LOG_COL_MAGENTA
-    # cdef int LOG_COL_CYAN
-    # cdef int LOG_COL_WHITE
-
-    # Default log levels
-    cdef int LOG_DEFAULT_DEBUG
-    cdef int LOG_DEFAULT_LLAMA
+    # Default log levels (now map to LOG_LEVEL_* constants)
+    cdef int LOG_DEFAULT_DEBUG  # LOG_LEVEL_DEBUG
+    cdef int LOG_DEFAULT_LLAMA  # LOG_LEVEL_INFO
 
     ctypedef enum log_colors:
         LOG_COLORS_AUTO     = -1
@@ -61,4 +55,5 @@ cdef extern from "log.h":
     cdef void common_log_set_colors    (common_log * log, log_colors colors) # not thread-safe
     cdef void common_log_set_prefix    (common_log * log, bint prefix)       # whether to output prefix to each log
     cdef void common_log_set_timestamps(common_log * log, bint timestamps)   # whether to output timestamps in the prefix
+    cdef void common_log_flush         (common_log * log)                    # flush all pending log messages
 

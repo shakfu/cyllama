@@ -925,6 +925,33 @@ cdef class LlamaModelParams:
     def check_tensors(self, value: bool):
         self.p.check_tensors = value
 
+    @property
+    def use_extra_bufts(self) -> bool:
+        """Use extra buffer types (used for weight repacking)"""
+        return self.p.use_extra_bufts
+
+    @use_extra_bufts.setter
+    def use_extra_bufts(self, value: bool):
+        self.p.use_extra_bufts = value
+
+    @property
+    def no_host(self) -> bool:
+        """Bypass host buffer allowing extra buffers to be used"""
+        return self.p.no_host
+
+    @no_host.setter
+    def no_host(self, value: bool):
+        self.p.no_host = value
+
+    @property
+    def no_alloc(self) -> bool:
+        """Only load metadata and simulate memory allocations"""
+        return self.p.no_alloc
+
+    @no_alloc.setter
+    def no_alloc(self, value: bool):
+        self.p.no_alloc = value
+
 
 cdef class LlamaContextParams:
     cdef llama.llama_context_params p

@@ -35,19 +35,16 @@ cdef class CommonSampler:
         wrapper.ptr = smplr
         return wrapper
 
-    def sample(self, LlamaContext ctx, int idx, bint grammar_first) -> int:
-        """if grammar_first is true, the grammar is applied before the samplers (slower)
-
-        useful in cases where all the resulting candidates (not just the sampled one) must fit the grammar
-        """
-        return sampling.common_sampler_sample(self.ptr, ctx.ptr, idx, grammar_first)
+    def sample(self, LlamaContext ctx, int idx) -> int:
+        """Sample from the context at the given index."""
+        return sampling.common_sampler_sample(self.ptr, ctx.ptr, idx)
 
 
-    def sample_and_accept_n(self, LlamaContext ctx, list[int] draft, bint grammar_first) -> list[int]:
-        """generalized version of common_sampler_sample
+    def sample_and_accept_n(self, LlamaContext ctx, list[int] draft) -> list[int]:
+        """Generalized version of common_sampler_sample.
 
-        will cross-reference the sampled tokens with a batch of draft tokens and accept those that match
-        if the sampler disagrees at some point, we stop and return the accepted tokens up to now
+        Will cross-reference the sampled tokens with a batch of draft tokens and accept those that match.
+        If the sampler disagrees at some point, we stop and return the accepted tokens up to now.
 
           common_sampler_sample_n(gsmpl, ctx, { idx }, {});
 
@@ -60,10 +57,10 @@ cdef class CommonSampler:
 
         returns at least 1 token, up to idxs.size()
         """
-        
+
         cdef std_vector[int] idxs = range(len(draft))
         cdef std_vector[llama.llama_token] _draft = draft
-        cdef std_vector[llama.llama_token] tokens = sampling.common_sampler_sample_and_accept_n(self.ptr, ctx.ptr, idxs, _draft, grammar_first)
+        cdef std_vector[llama.llama_token] tokens = sampling.common_sampler_sample_and_accept_n(self.ptr, ctx.ptr, idxs, _draft)
         return tokens
 
     def get_seed(self) -> int:

@@ -64,10 +64,7 @@ cdef extern from "sampling.h":
 	# - check if the token fits the grammar (if any)
 	# - if not: resample by first applying the grammar constraints and then sampling again (slower path)
 	#
-	# if grammar_first is true, the grammar is applied before the samplers (slower)
-	# useful in cases where all the resulting candidates (not just the sampled one) must fit the grammar
-	#
-	cdef llama.llama_token common_sampler_sample(common_sampler * gsmpl, llama.llama_context * ctx, int idx, bint grammar_first)
+	cdef llama.llama_token common_sampler_sample(common_sampler * gsmpl, llama.llama_context * ctx, int idx)
 
 	# generalized version of common_sampler_sample
 	#
@@ -85,10 +82,10 @@ cdef extern from "sampling.h":
 	#
 	# returns at least 1 token, up to idxs.size()
 	#
-	cdef std_vector[llama.llama_token] common_sampler_sample_and_accept_n(common_sampler * gsmpl, llama.llama_context * ctx, const std_vector[int] & idxs, const common.llama_tokens & draft, bint grammar_first)
+	cdef std_vector[llama.llama_token] common_sampler_sample_and_accept_n(common_sampler * gsmpl, llama.llama_context * ctx, const std_vector[int] & idxs, const common.llama_tokens & draft)
 
 	# assume idxs == [ 0, 1, 2, ..., draft.size() ]
-	cdef std_vector[llama.llama_token] common_sampler_sample_and_accept_n(common_sampler * gsmpl, llama.llama_context * ctx, const common.llama_tokens & draft, bint grammar_first)
+	cdef std_vector[llama.llama_token] common_sampler_sample_and_accept_n(common_sampler * gsmpl, llama.llama_context * ctx, const common.llama_tokens & draft)
 
 	cdef uint32_t common_sampler_get_seed(const common_sampler * gsmpl)
 
