@@ -101,10 +101,14 @@ protected:
 
 public:
     TimestepEmbedder(int64_t hidden_size,
-                     int64_t frequency_embedding_size = 256)
+                     int64_t frequency_embedding_size = 256,
+                     int64_t out_channels             = 0)
         : frequency_embedding_size(frequency_embedding_size) {
+        if (out_channels <= 0) {
+            out_channels = hidden_size;
+        }
         blocks["mlp.0"] = std::shared_ptr<GGMLBlock>(new Linear(frequency_embedding_size, hidden_size, true, true));
-        blocks["mlp.2"] = std::shared_ptr<GGMLBlock>(new Linear(hidden_size, hidden_size, true, true));
+        blocks["mlp.2"] = std::shared_ptr<GGMLBlock>(new Linear(hidden_size, out_channels, true, true));
     }
 
     struct ggml_tensor* forward(GGMLRunnerContext* ctx, struct ggml_tensor* t) {
@@ -890,7 +894,7 @@ struct MMDiTRunner : public GGMLRunner {
         return gf;
     }
 
-    void compute(int n_threads,
+    bool compute(int n_threads,
                  struct ggml_tensor* x,
                  struct ggml_tensor* timesteps,
                  struct ggml_tensor* context,
@@ -906,7 +910,7 @@ struct MMDiTRunner : public GGMLRunner {
             return build_graph(x, timesteps, context, y, skip_layers);
         };
 
-        GGMLRunner::compute(get_graph, n_threads, false, output, output_ctx);
+        return GGMLRunner::compute(get_graph, n_threads, false, output, output_ctx);
     }
 
     void test() {

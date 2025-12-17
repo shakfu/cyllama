@@ -86,11 +86,10 @@ class Scheduler(IntEnum):
 
 class Prediction(IntEnum):
     """Prediction types."""
-    DEFAULT = DEFAULT_PRED
     EPS = EPS_PRED
     V = V_PRED
     EDM_V = EDM_V_PRED
-    SD3_FLOW = SD3_FLOW_PRED
+    FLOW = FLOW_PRED
     FLUX_FLOW = FLUX_FLOW_PRED
     FLUX2_FLOW = FLUX2_FLOW_PRED
 
@@ -810,8 +809,6 @@ cdef class SDContextParams:
     cdef bytes _vae_path_bytes
     cdef bytes _taesd_path_bytes
     cdef bytes _control_net_path_bytes
-    cdef bytes _lora_model_dir_bytes
-    cdef bytes _embedding_dir_bytes
     cdef bytes _photo_maker_path_bytes
     cdef bytes _tensor_type_rules_bytes
 
@@ -825,8 +822,6 @@ cdef class SDContextParams:
                  clip_g_path: Optional[str] = None,
                  t5xxl_path: Optional[str] = None,
                  diffusion_model_path: Optional[str] = None,
-                 lora_model_dir: Optional[str] = None,
-                 embedding_dir: Optional[str] = None,
                  n_threads: int = -1,
                  wtype: SDType = SDType.F16,
                  vae_decode_only: bool = True):
@@ -840,8 +835,6 @@ cdef class SDContextParams:
             clip_g_path: Path to CLIP-G model (for SDXL/SD3)
             t5xxl_path: Path to T5-XXL model (for SD3/FLUX)
             diffusion_model_path: Path to diffusion model (for split models)
-            lora_model_dir: Directory containing LoRA files
-            embedding_dir: Directory containing embedding files
             n_threads: Number of threads (-1 for auto)
             wtype: Weight type for computation
             vae_decode_only: Only decode VAE (faster if not doing img2img)
@@ -858,10 +851,6 @@ cdef class SDContextParams:
             self.t5xxl_path = t5xxl_path
         if diffusion_model_path:
             self.diffusion_model_path = diffusion_model_path
-        if lora_model_dir:
-            self.lora_model_dir = lora_model_dir
-        if embedding_dir:
-            self.embedding_dir = embedding_dir
         if n_threads > 0:
             self.n_threads = n_threads
         self.wtype = wtype
@@ -958,36 +947,6 @@ cdef class SDContextParams:
             self._params.diffusion_model_path = self._diffusion_model_path_bytes
         else:
             self._params.diffusion_model_path = NULL
-
-    @property
-    def lora_model_dir(self) -> Optional[str]:
-        """Directory containing LoRA files."""
-        if self._params.lora_model_dir:
-            return self._params.lora_model_dir.decode('utf-8')
-        return None
-
-    @lora_model_dir.setter
-    def lora_model_dir(self, value: Optional[str]):
-        if value:
-            self._lora_model_dir_bytes = value.encode('utf-8')
-            self._params.lora_model_dir = self._lora_model_dir_bytes
-        else:
-            self._params.lora_model_dir = NULL
-
-    @property
-    def embedding_dir(self) -> Optional[str]:
-        """Directory containing embedding files."""
-        if self._params.embedding_dir:
-            return self._params.embedding_dir.decode('utf-8')
-        return None
-
-    @embedding_dir.setter
-    def embedding_dir(self, value: Optional[str]):
-        if value:
-            self._embedding_dir_bytes = value.encode('utf-8')
-            self._params.embedding_dir = self._embedding_dir_bytes
-        else:
-            self._params.embedding_dir = NULL
 
     # --- Numeric/enum parameters ---
 
@@ -2054,7 +2013,8 @@ cdef class Upscaler:
                  model_path: str,
                  n_threads: int = -1,
                  offload_to_cpu: bool = False,
-                 direct: bool = False):
+                 direct: bool = False,
+                 tile_size: int = 0):
         """
         Create an upscaler context.
 
@@ -2063,6 +2023,7 @@ cdef class Upscaler:
             n_threads: Number of threads (-1 for auto)
             offload_to_cpu: Offload parameters to CPU
             direct: Use direct convolution
+            tile_size: Tile size for processing (0 for default)
         """
         if not os.path.exists(model_path):
             raise FileNotFoundError(f"Model not found: {model_path}")
@@ -2076,7 +2037,8 @@ cdef class Upscaler:
             self._model_path_bytes,
             offload_to_cpu,
             direct,
-            n_threads
+            n_threads,
+            tile_size
         )
 
         if self._ctx == NULL:
@@ -2315,7 +2277,6 @@ def text_to_image(
     clip_g_path: Optional[str] = None,
     t5xxl_path: Optional[str] = None,
     control_net_path: Optional[str] = None,
-    lora_model_dir: Optional[str] = None,
     clip_skip: int = -1,
     eta: float = 0.0,
     slg_scale: float = 0.0,
@@ -2350,7 +2311,6 @@ def text_to_image(
         clip_g_path: Path to CLIP-G (for SDXL/SD3)
         t5xxl_path: Path to T5-XXL (for SD3/FLUX)
         control_net_path: Path to ControlNet model
-        lora_model_dir: LoRA directory
         clip_skip: CLIP skip layers
         eta: Eta for DDIM-like samplers
         slg_scale: Skip layer guidance scale (0 = disabled)
@@ -2369,7 +2329,6 @@ def text_to_image(
         clip_l_path=clip_l_path,
         clip_g_path=clip_g_path,
         t5xxl_path=t5xxl_path,
-        lora_model_dir=lora_model_dir,
         n_threads=n_threads
     )
 

@@ -138,14 +138,16 @@ PY_VER_MINOR = sys.version_info.minor
 
 STABLE_BUILD = getenv("STABLE_BUILD", False)
 if STABLE_BUILD:
-    LLAMACPP_VERSION = "b7126"
-    WHISPERCPP_VERSION = "v1.8.2"
-    SDCPP_VERSION = "master-387-e4c50f1"
-    SQLITEVECTOR_VERSION = "0.9.52"
-else:
+    # known to build and work without errors, 100% tests pass
     LLAMACPP_VERSION = "b7442"
     WHISPERCPP_VERSION = "v1.8.2"
-    SDCPP_VERSION = "master-387-e4c50f1"
+    SDCPP_VERSION = "master-423-c3ad6a1"
+    SQLITEVECTOR_VERSION = "0.9.52"
+else:
+    # experimental bleeding-edge builds ` = ""` means get latest
+    LLAMACPP_VERSION = "b7442"
+    WHISPERCPP_VERSION = "v1.8.2"
+    SDCPP_VERSION = "master-423-c3ad6a1"
     SQLITEVECTOR_VERSION = "0.9.52"
 if PLATFORM == "Darwin":
     MACOSX_DEPLOYMENT_TARGET = setenv("MACOSX_DEPLOYMENT_TARGET", "12.6")
