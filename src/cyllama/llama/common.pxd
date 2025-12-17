@@ -57,7 +57,8 @@ cdef extern from "common.h":
     cdef enum llama_example:
         LLAMA_EXAMPLE_COMMON
         LLAMA_EXAMPLE_SPECULATIVE
-        LLAMA_EXAMPLE_MAIN
+        LLAMA_EXAMPLE_COMPLETION
+        LLAMA_EXAMPLE_CLI
         LLAMA_EXAMPLE_EMBEDDING
         LLAMA_EXAMPLE_PERPLEXITY
         LLAMA_EXAMPLE_RETRIEVAL
@@ -72,6 +73,8 @@ cdef extern from "common.h":
         LLAMA_EXAMPLE_PARALLEL
         LLAMA_EXAMPLE_TTS
         LLAMA_EXAMPLE_DIFFUSION
+        LLAMA_EXAMPLE_FINETUNE
+        LLAMA_EXAMPLE_FIT_PARAMS
         LLAMA_EXAMPLE_COUNT
 
     cdef enum common_sampler_type:
@@ -142,6 +145,8 @@ cdef extern from "common.h":
         bint    no_perf                    # disable performance metrics
         bint    timing_per_token
 
+        uint64_t user_sampling_config      # bitfield to track user-specified samplers
+
         std_vector[std_string] dry_sequence_breakers
 
         std_vector[common_sampler_type] samplers
@@ -163,6 +168,8 @@ cdef extern from "common.h":
         std_string url          # model url to download                                      // NOLINT
         std_string hf_repo      # HF repo                                                    // NOLINT
         std_string hf_file      # HF file                                                    // NOLINT
+        std_string docker_repo  # Docker repo                                                // NOLINT
+        std_string name         # in format <user>/<model>[:<tag>] (tag is optional)         // NOLINT
 
     ctypedef struct common_params_speculative:
         std_vector[ggml.ggml_backend_dev_t] devices # devices to use for offloading
@@ -231,7 +238,10 @@ cdef extern from "common.h":
         int32_t n_gpu_layers       # number of layers to store in VRAM (-1 - use default)
         int32_t main_gpu           # the GPU that is used for scratch and small tensors
         float   tensor_split[128]  # how split tensors should be distributed across GPUs
-        
+        bint    fit_params         # whether to fit unset model/context parameters to free device memory
+        size_t  fit_params_target  # margin per device in bytes for fitting parameters to free memory
+        int32_t fit_params_min_ctx # minimum context size to set when trying to reduce memory use
+
         llama.llama_split_mode split_mode # how to split the model across GPUs
 
         cpu_params cpuparams
@@ -309,6 +319,7 @@ cdef extern from "common.h":
         bint cont_batching          # insert new sequences for decoding on-the-fly
         bint flash_attn             # flash attention
         bint no_perf                # disable performance metric
+        bint show_timings           # show timing information on CLI
         bint ctx_shift              # context shift on inifinite text generation
         bint swa_full               # use full-size SWA cache (https://github.com/ggml-org/llama.cpp/pull/13194#issuecomment-2868343055)
         bint kv_unified             # enable unified KV cache
@@ -380,9 +391,16 @@ cdef extern from "common.h":
         bint endpoint_props
         bint endpoint_metrics
 
+        # router server configs
+        std_string models_dir     # directory containing models for the router server
+        std_string models_preset  # directory containing model presets for the router server
+        int models_max            # maximum number of models to load simultaneously
+        bint models_autoload      # automatically load models when requested via the router server
+
         bint log_json
 
         std_string slot_save_path
+        std_string media_path     # path to directory for loading media files
 
         float slot_prompt_similarity
 
@@ -485,8 +503,9 @@ cdef extern from "common.h":
     # -------------------------------------------------------------------------
     # Filesystem utils
 
-    cdef bint fs_validate_filename(const std_string & filename)
+    cdef bint fs_validate_filename(const std_string & filename, bint allow_subdirs)
     cdef bint fs_create_directory_with_parents(const std_string & path)
+    cdef bint fs_is_directory(const std_string & path)
 
     cdef std_string fs_get_cache_directory()
     cdef std_string fs_get_cache_file(const std_string & filename)
@@ -494,9 +513,10 @@ cdef extern from "common.h":
     ctypedef struct common_file_info:
         std_string path
         std_string name
-        size_t size  # in bytes
+        size_t size     # in bytes
+        bint   is_dir
 
-    cdef std_vector[common_file_info] fs_list_files(const std_string & path)
+    cdef std_vector[common_file_info] fs_list(const std_string & path, bint include_directories)
 
     # -------------------------------------------------------------------------
     # Model utils

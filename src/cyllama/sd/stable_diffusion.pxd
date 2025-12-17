@@ -48,11 +48,10 @@ cdef extern from "stable-diffusion.h":
         SCHEDULER_COUNT
 
     ctypedef enum prediction_t:
-        DEFAULT_PRED
         EPS_PRED
         V_PRED
         EDM_V_PRED
-        SD3_FLOW_PRED
+        FLOW_PRED
         FLUX_FLOW_PRED
         FLUX2_FLOW_PRED
         PREDICTION_COUNT
@@ -123,6 +122,15 @@ cdef extern from "stable-diffusion.h":
         float rel_size_x
         float rel_size_y
 
+    ctypedef struct sd_embedding_t:
+        const char* name
+        const char* path
+
+    ctypedef struct sd_lora_t:
+        bint is_high_noise
+        float multiplier
+        const char* path
+
     ctypedef struct sd_ctx_params_t:
         const char* model_path
         const char* clip_l_path
@@ -136,8 +144,8 @@ cdef extern from "stable-diffusion.h":
         const char* vae_path
         const char* taesd_path
         const char* control_net_path
-        const char* lora_model_dir
-        const char* embedding_dir
+        const sd_embedding_t* embeddings
+        uint32_t embedding_count
         const char* photo_maker_path
         const char* tensor_type_rules
         bint vae_decode_only
@@ -188,6 +196,8 @@ cdef extern from "stable-diffusion.h":
         int sample_steps
         float eta
         int shifted_timestep
+        float* custom_sigmas
+        int custom_sigmas_count
 
     ctypedef struct sd_pm_params_t:
         sd_image_t* id_images
@@ -202,6 +212,8 @@ cdef extern from "stable-diffusion.h":
         float end_percent
 
     ctypedef struct sd_img_gen_params_t:
+        const sd_lora_t* loras
+        uint32_t lora_count
         const char* prompt
         const char* negative_prompt
         int clip_skip
@@ -224,6 +236,8 @@ cdef extern from "stable-diffusion.h":
         sd_easycache_params_t easycache
 
     ctypedef struct sd_vid_gen_params_t:
+        const sd_lora_t* loras
+        uint32_t lora_count
         const char* prompt
         const char* negative_prompt
         int clip_skip
@@ -333,7 +347,8 @@ cdef extern from "stable-diffusion.h":
     upscaler_ctx_t* new_upscaler_ctx(const char* esrgan_path,
                                       bint offload_params_to_cpu,
                                       bint direct,
-                                      int n_threads)
+                                      int n_threads,
+                                      int tile_size)
     void free_upscaler_ctx(upscaler_ctx_t* upscaler_ctx)
     sd_image_t upscale(upscaler_ctx_t* upscaler_ctx, sd_image_t input_image, uint32_t upscale_factor)
     int get_upscale_factor(upscaler_ctx_t* upscaler_ctx)
@@ -358,3 +373,10 @@ cdef extern from "stable-diffusion.h":
                           float weak,
                           float strong,
                           bint inverse)
+
+    # =========================================================================
+    # Functions - Version info
+    # =========================================================================
+
+    const char* sd_commit()
+    const char* sd_version()

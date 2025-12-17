@@ -14,7 +14,7 @@ bool ends_with(const std::string& str, const std::string& ending);
 bool starts_with(const std::string& str, const std::string& start);
 bool contains(const std::string& str, const std::string& substr);
 
-std::string format(const char* fmt, ...);
+std::string sd_format(const char* fmt, ...);
 
 void replace_all_chars(std::string& str, char target, char replacement);
 
@@ -22,7 +22,6 @@ int round_up_to(int value, int base);
 
 bool file_exists(const std::string& filename);
 bool is_directory(const std::string& path);
-std::string get_full_path(const std::string& dir, const std::string& filename);
 
 std::u32string utf8_to_utf32(const std::string& utf8_str);
 std::string utf32_to_utf8(const std::u32string& utf32_str);
@@ -58,6 +57,7 @@ sd_progress_cb_t sd_get_progress_callback();
 void* sd_get_progress_callback_data();
 
 sd_preview_cb_t sd_get_preview_callback();
+void* sd_get_preview_callback_data();
 preview_t sd_get_preview_mode();
 int sd_get_preview_interval();
 bool sd_should_preview_denoised();

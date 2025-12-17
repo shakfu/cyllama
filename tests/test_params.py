@@ -176,7 +176,7 @@ def test_common_params_sampling():
 def test_common_params():
     params = cy.CommonParams()
     assert params.n_predict            ==    -1
-    assert params.n_ctx                ==  4096
+    assert params.n_ctx                ==     0  # 0 means use model's trained context size
     assert params.n_batch              ==  2048
     assert params.n_ubatch             ==   512
     assert params.n_keep               ==     0
@@ -223,7 +223,7 @@ def test_common_params():
 
     # common_sampler_params sparams
 
-    assert params.model                == {'path': b'', 'url': b'', 'hf_repo': b'', 'hf_file': b''}
+    assert params.model                == {'path': b'', 'url': b'', 'hf_repo': b'', 'hf_file': b'', 'docker_repo': b'', 'name': b''}
     # assert params.model_draft          == ""
     assert params.model_alias          == ""
     # model_url, hf_token, hf_repo, hf_file, prompt, prompt_file, path_prompt_cache, 
@@ -287,7 +287,7 @@ def test_common_params():
     assert params.cache_type_k         == 1  # GGML_TYPE_F16 = 1
     assert params.cache_type_v         == 1  # GGML_TYPE_F16 = 1
 
-    assert params.mmproj               == {'path': b'', 'url': b'', 'hf_repo': b'', 'hf_file': b''}
+    assert params.mmproj               == {'path': b'', 'url': b'', 'hf_repo': b'', 'hf_file': b'', 'docker_repo': b'', 'name': b''}
     assert params.image                == []
 
     assert params.embedding            == False

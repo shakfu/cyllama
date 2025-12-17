@@ -43,6 +43,9 @@ enum SDVersion {
     VERSION_WAN2_2_I2V,
     VERSION_WAN2_2_TI2V,
     VERSION_QWEN_IMAGE,
+    VERSION_FLUX2,
+    VERSION_Z_IMAGE,
+    VERSION_OVIS_IMAGE,
     VERSION_COUNT,
 };
 
@@ -88,7 +91,15 @@ static inline bool sd_version_is_flux(SDVersion version) {
         version == VERSION_FLUX_FILL ||
         version == VERSION_FLUX_CONTROLS ||
         version == VERSION_FLEX_2 ||
+        version == VERSION_OVIS_IMAGE ||
         version == VERSION_CHROMA_RADIANCE) {
+        return true;
+    }
+    return false;
+}
+
+static inline bool sd_version_is_flux2(SDVersion version) {
+    if (version == VERSION_FLUX2) {
         return true;
     }
     return false;
@@ -108,6 +119,13 @@ static inline bool sd_version_is_qwen_image(SDVersion version) {
     return false;
 }
 
+static inline bool sd_version_is_z_image(SDVersion version) {
+    if (version == VERSION_Z_IMAGE) {
+        return true;
+    }
+    return false;
+}
+
 static inline bool sd_version_is_inpaint(SDVersion version) {
     if (version == VERSION_SD1_INPAINT ||
         version == VERSION_SD2_INPAINT ||
@@ -121,9 +139,11 @@ static inline bool sd_version_is_inpaint(SDVersion version) {
 
 static inline bool sd_version_is_dit(SDVersion version) {
     if (sd_version_is_flux(version) ||
+        sd_version_is_flux2(version) ||
         sd_version_is_sd3(version) ||
         sd_version_is_wan(version) ||
-        sd_version_is_qwen_image(version)) {
+        sd_version_is_qwen_image(version) ||
+        sd_version_is_z_image(version)) {
         return true;
     }
     return false;
@@ -150,7 +170,6 @@ struct TensorStorage {
     std::string name;
     ggml_type type          = GGML_TYPE_F32;
     ggml_type expected_type = GGML_TYPE_COUNT;
-    bool is_bf16            = false;
     bool is_f8_e4m3         = false;
     bool is_f8_e5m2         = false;
     bool is_f64             = false;
@@ -184,7 +203,7 @@ struct TensorStorage {
     }
 
     int64_t nbytes_to_read() const {
-        if (is_bf16 || is_f8_e4m3 || is_f8_e5m2) {
+        if (is_f8_e4m3 || is_f8_e5m2) {
             return nbytes() / 2;
         } else if (is_f64 || is_i64) {
             return nbytes() * 2;
@@ -232,9 +251,7 @@ struct TensorStorage {
     std::string to_string() const {
         std::stringstream ss;
         const char* type_name = ggml_type_name(type);
-        if (is_bf16) {
-            type_name = "bf16";
-        } else if (is_f8_e4m3) {
+        if (is_f8_e4m3) {
             type_name = "f8_e4m3";
         } else if (is_f8_e5m2) {
             type_name = "f8_e5m2";
@@ -313,6 +330,8 @@ public:
 
     static std::string load_merges();
     static std::string load_qwen2_merges();
+    static std::string load_mistral_merges();
+    static std::string load_mistral_vocab_json();
     static std::string load_t5_tokenizer_json();
     static std::string load_umt5_tokenizer_json();
 };

@@ -50,6 +50,7 @@ cdef extern from "mtmd.h":
         llama_flash_attn_type flash_attn_type
         int image_min_tokens  # minimum number of tokens for image input (default: read from metadata)
         int image_max_tokens  # maximum number of tokens for image input (default: read from metadata)
+        bint warmup  # whether to run a warmup encode pass after initialization
 
     # Constants and defaults
     cdef const char * mtmd_default_marker()

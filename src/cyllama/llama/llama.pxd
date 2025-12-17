@@ -241,6 +241,7 @@ cdef extern from "llama.h":
         bint check_tensors    # validate model tensor data
         bint use_extra_bufts  # use extra buffer types (used for weight repacking)
         bint no_host          # bypass host buffer allowing extra buffers to be used
+        bint no_alloc         # only load metadata and simulate memory allocations
 
     ctypedef struct llama_context_params:
         uint32_t n_ctx             # text context, 0 = from model
@@ -367,10 +368,24 @@ cdef extern from "llama.h":
     # Frees all allocated memory
     cdef void llama_free(llama_context * ctx)
 
+    # fits mparams and cparams to free device memory (assumes system memory is unlimited)
+    # returns true if the parameters could be successfully modified to fit device memory
+    # this function is NOT thread safe because it modifies the global llama logger state
+    cdef bint llama_params_fit(
+                               const char * path_model,
+                llama_model_params * mparams,
+              llama_context_params * cparams,
+                             float * tensor_split,          # writable buffer for tensor split, needs at least llama_max_devices elements
+        llama_model_tensor_buft_override * tensor_buft_overrides, # writable buffer for overrides, needs at least llama_max_tensor_buft_overrides elements
+                            size_t   margin,                # margin of memory to leave per device in bytes
+                          uint32_t   n_ctx_min,             # minimum context size to set when trying to reduce memory use
+               ggml.ggml_log_level   log_level)             # minimum log level to print during fitting, lower levels go to debug log
+
     cdef int64_t llama_time_us()
 
     cdef size_t llama_max_devices()
     cdef size_t llama_max_parallel_sequences()
+    cdef size_t llama_max_tensor_buft_overrides()
 
     cdef bint llama_supports_mmap       ()
     cdef bint llama_supports_mlock      ()
@@ -1178,7 +1193,9 @@ cdef extern from "llama.h":
 
     # Set callback for all future logging events.
     # If this is not called, or NULL is supplied, everything is output on stderr.
-    cdef void llama_log_set(ggml.ggml_log_callback log_callback, void * user_data)
+    # The logger state is global so these functions are NOT thread safe.
+    cdef void llama_log_get(ggml.ggml_log_callback * log_callback, void ** user_data)
+    cdef void llama_log_set(ggml.ggml_log_callback   log_callback, void *  user_data)
 
     # -------------------------------------------------------------------------
     # Performance utils

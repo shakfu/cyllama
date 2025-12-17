@@ -356,7 +356,7 @@ struct Denoiser {
     virtual ggml_tensor* noise_scaling(float sigma, ggml_tensor* noise, ggml_tensor* latent) = 0;
     virtual ggml_tensor* inverse_noise_scaling(float sigma, ggml_tensor* latent)             = 0;
 
-    virtual std::vector<float> get_sigmas(uint32_t n, scheduler_t scheduler_type, SDVersion version) {
+    virtual std::vector<float> get_sigmas(uint32_t n, int /*image_seq_len*/, scheduler_t scheduler_type, SDVersion version) {
         auto bound_t_to_sigma = std::bind(&Denoiser::t_to_sigma, this, std::placeholders::_1);
         std::shared_ptr<SigmaScheduler> scheduler;
         switch (scheduler_type) {
@@ -582,10 +582,14 @@ struct FluxFlowDenoiser : public Denoiser {
         set_parameters(shift);
     }
 
-    void set_parameters(float shift = 1.15f) {
+    void set_shift(float shift) {
         this->shift = shift;
-        for (int i = 1; i < TIMESTEPS + 1; i++) {
-            sigmas[i - 1] = t_to_sigma(i / TIMESTEPS * TIMESTEPS);
+    }
+
+    void set_parameters(float shift) {
+        set_shift(shift);
+        for (int i = 0; i < TIMESTEPS; i++) {
+            sigmas[i] = t_to_sigma(i);
         }
     }
 
@@ -627,10 +631,42 @@ struct FluxFlowDenoiser : public Denoiser {
     }
 };
 
+struct Flux2FlowDenoiser : public FluxFlowDenoiser {
+    Flux2FlowDenoiser() = default;
+
+    float compute_empirical_mu(uint32_t n, int image_seq_len) {
+        const float a1 = 8.73809524e-05f;
+        const float b1 = 1.89833333f;
+        const float a2 = 0.00016927f;
+        const float b2 = 0.45666666f;
+
+        if (image_seq_len > 4300) {
+            float mu = a2 * image_seq_len + b2;
+            return mu;
+        }
+
+        float m_200 = a2 * image_seq_len + b2;
+        float m_10  = a1 * image_seq_len + b1;
+
+        float a  = (m_200 - m_10) / 190.0f;
+        float b  = m_200 - 200.0f * a;
+        float mu = a * n + b;
+
+        return mu;
+    }
+
+    std::vector<float> get_sigmas(uint32_t n, int image_seq_len, scheduler_t scheduler_type, SDVersion version) override {
+        float mu = compute_empirical_mu(n, image_seq_len);
+        LOG_DEBUG("Flux2FlowDenoiser: set shift to %.3f", mu);
+        set_shift(mu);
+        return Denoiser::get_sigmas(n, image_seq_len, scheduler_type, version);
+    }
+};
+
 typedef std::function<ggml_tensor*(ggml_tensor*, float, int)> denoise_cb_t;
 
 // k diffusion reverse ODE: dx = (x - D(x;\sigma)) / \sigma dt; \sigma(t) = t
-static void sample_k_diffusion(sample_method_t method,
+static bool sample_k_diffusion(sample_method_t method,
                                denoise_cb_t model,
                                ggml_context* work_ctx,
                                ggml_tensor* x,
@@ -649,6 +685,9 @@ static void sample_k_diffusion(sample_method_t method,
 
                 // denoise
                 ggml_tensor* denoised = model(x, sigma, i + 1);
+                if (denoised == nullptr) {
+                    return false;
+                }
 
                 // d = (x - denoised) / sigma
                 {
@@ -702,6 +741,9 @@ static void sample_k_diffusion(sample_method_t method,
 
                 // denoise
                 ggml_tensor* denoised = model(x, sigma, i + 1);
+                if (denoised == nullptr) {
+                    return false;
+                }
 
                 // d = (x - denoised) / sigma
                 {
@@ -733,6 +775,9 @@ static void sample_k_diffusion(sample_method_t method,
             for (int i = 0; i < steps; i++) {
                 // denoise
                 ggml_tensor* denoised = model(x, sigmas[i], -(i + 1));
+                if (denoised == nullptr) {
+                    return false;
+                }
 
                 // d = (x - denoised) / sigma
                 {
@@ -767,7 +812,10 @@ static void sample_k_diffusion(sample_method_t method,
                     }
 
                     ggml_tensor* denoised = model(x2, sigmas[i + 1], i + 1);
-                    float* vec_denoised   = (float*)denoised->data;
+                    if (denoised == nullptr) {
+                        return false;
+                    }
+                    float* vec_denoised = (float*)denoised->data;
                     for (int j = 0; j < ggml_nelements(x); j++) {
                         float d2 = (vec_x2[j] - vec_denoised[j]) / sigmas[i + 1];
                         vec_d[j] = (vec_d[j] + d2) / 2;
@@ -783,6 +831,9 @@ static void sample_k_diffusion(sample_method_t method,
             for (int i = 0; i < steps; i++) {
                 // denoise
                 ggml_tensor* denoised = model(x, sigmas[i], i + 1);
+                if (denoised == nullptr) {
+                    return false;
+                }
 
                 // d = (x - denoised) / sigma
                 {
@@ -819,7 +870,10 @@ static void sample_k_diffusion(sample_method_t method,
                     }
 
                     ggml_tensor* denoised = model(x2, sigma_mid, i + 1);
-                    float* vec_denoised   = (float*)denoised->data;
+                    if (denoised == nullptr) {
+                        return false;
+                    }
+                    float* vec_denoised = (float*)denoised->data;
                     for (int j = 0; j < ggml_nelements(x); j++) {
                         float d2 = (vec_x2[j] - vec_denoised[j]) / sigma_mid;
                         vec_x[j] = vec_x[j] + d2 * dt_2;
@@ -835,6 +889,9 @@ static void sample_k_diffusion(sample_method_t method,
             for (int i = 0; i < steps; i++) {
                 // denoise
                 ggml_tensor* denoised = model(x, sigmas[i], i + 1);
+                if (denoised == nullptr) {
+                    return false;
+                }
 
                 // get_ancestral_step
                 float sigma_up   = std::min(sigmas[i + 1],
@@ -871,6 +928,9 @@ static void sample_k_diffusion(sample_method_t method,
                     }
 
                     ggml_tensor* denoised = model(x2, sigmas[i + 1], i + 1);
+                    if (denoised == nullptr) {
+                        return false;
+                    }
 
                     // Second half-step
                     for (int j = 0; j < ggml_nelements(x); j++) {
@@ -901,6 +961,9 @@ static void sample_k_diffusion(sample_method_t method,
             for (int i = 0; i < steps; i++) {
                 // denoise
                 ggml_tensor* denoised = model(x, sigmas[i], i + 1);
+                if (denoised == nullptr) {
+                    return false;
+                }
 
                 float t                 = t_fn(sigmas[i]);
                 float t_next            = t_fn(sigmas[i + 1]);
@@ -940,6 +1003,9 @@ static void sample_k_diffusion(sample_method_t method,
             for (int i = 0; i < steps; i++) {
                 // denoise
                 ggml_tensor* denoised = model(x, sigmas[i], i + 1);
+                if (denoised == nullptr) {
+                    return false;
+                }
 
                 float t                 = t_fn(sigmas[i]);
                 float t_next            = t_fn(sigmas[i + 1]);
@@ -990,7 +1056,10 @@ static void sample_k_diffusion(sample_method_t method,
 
                 // Denoising step
                 ggml_tensor* denoised = model(x_cur, sigma, i + 1);
-                float* vec_denoised   = (float*)denoised->data;
+                if (denoised == nullptr) {
+                    return false;
+                }
+                float* vec_denoised = (float*)denoised->data;
                 // d_cur = (x_cur - denoised) / sigma
                 struct ggml_tensor* d_cur = ggml_dup_tensor(work_ctx, x_cur);
                 float* vec_d_cur          = (float*)d_cur->data;
@@ -1133,6 +1202,9 @@ static void sample_k_diffusion(sample_method_t method,
 
                 // denoise
                 ggml_tensor* denoised = model(x, sigma, i + 1);
+                if (denoised == nullptr) {
+                    return false;
+                }
 
                 // x = denoised
                 {
@@ -1525,8 +1597,9 @@ static void sample_k_diffusion(sample_method_t method,
 
         default:
             LOG_ERROR("Attempting to sample with nonexisting sample method %i", method);
-            abort();
+            return false;
     }
+    return true;
 }
 
 #endif  // __DENOISER_HPP__
