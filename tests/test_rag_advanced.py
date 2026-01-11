@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import sys
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -16,6 +17,24 @@ from cyllama.rag.advanced import (
 )
 from cyllama.rag.pipeline import RAGConfig, RAGResponse
 from cyllama.rag.types import SearchResult
+
+
+# Check if sqlite-vector extension is available
+def extension_available() -> bool:
+    """Check if sqlite-vector extension exists."""
+    ext_path = Path(__file__).parent.parent / "src" / "cyllama" / "rag" / "vector"
+    if sys.platform == "darwin":
+        return ext_path.with_suffix(".dylib").exists()
+    elif sys.platform == "win32":
+        return ext_path.with_suffix(".dll").exists()
+    else:
+        return ext_path.with_suffix(".so").exists()
+
+
+_skip_no_extension = pytest.mark.skipif(
+    not extension_available(),
+    reason="sqlite-vector extension not built. Run 'scripts/setup.sh' or 'python scripts/manage.py build --sqlite-vector'"
+)
 
 
 class TestAsyncRAG:
@@ -259,6 +278,7 @@ class TestReranker:
             assert reranker.model_path == "model.gguf"
 
 
+@_skip_no_extension
 class TestHybridStore:
     """Test HybridStore class."""
 
@@ -431,6 +451,7 @@ class TestAsyncSearchKnowledge:
         assert "no relevant" in result.lower()
 
 
+@_skip_no_extension
 class TestHybridStoreRRF:
     """Test Reciprocal Rank Fusion in HybridStore."""
 

@@ -612,11 +612,6 @@ class TestSDContextParamsExtended:
         params.t5xxl_path = "/path/to/t5xxl.safetensors"
         assert params.t5xxl_path == "/path/to/t5xxl.safetensors"
 
-    def test_lora_model_dir(self):
-        params = SDContextParams()
-        params.lora_model_dir = "/path/to/loras"
-        assert params.lora_model_dir == "/path/to/loras"
-
     def test_vae_decode_only(self):
         params = SDContextParams()
         params.vae_decode_only = False
@@ -638,11 +633,6 @@ class TestSDContextParamsExtended:
         params = SDContextParams()
         params.diffusion_model_path = "/path/to/diffusion.safetensors"
         assert params.diffusion_model_path == "/path/to/diffusion.safetensors"
-
-    def test_embedding_dir(self):
-        params = SDContextParams()
-        params.embedding_dir = "/path/to/embeddings"
-        assert params.embedding_dir == "/path/to/embeddings"
 
     def test_offload_params_to_cpu(self):
         params = SDContextParams()
@@ -994,8 +984,8 @@ class TestEnumsExtended:
 
     def test_prediction_enum(self):
         """Test Prediction enum values."""
-        assert Prediction.DEFAULT.value == 0
-        assert len(list(Prediction)) >= 7  # Includes FLUX2_FLOW
+        assert Prediction.EPS.value == 0
+        assert len(list(Prediction)) >= 6  # Includes FLUX2_FLOW
         # Verify key prediction types exist
         assert hasattr(Prediction, 'EPS')
         assert hasattr(Prediction, 'V')

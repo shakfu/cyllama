@@ -189,10 +189,6 @@ def create_context_params(args):
         params.high_noise_diffusion_model_path = args.high_noise_diffusion_model
     if hasattr(args, 'control_net') and args.control_net:
         params.control_net_path = args.control_net
-    if hasattr(args, 'lora_dir') and args.lora_dir:
-        params.lora_model_dir = args.lora_dir
-    if hasattr(args, 'embd_dir') and args.embd_dir:
-        params.embedding_dir = args.embd_dir
     if hasattr(args, 'photo_maker') and args.photo_maker:
         params.photo_maker_path = args.photo_maker
     if hasattr(args, 'tensor_type_rules') and args.tensor_type_rules:
@@ -821,8 +817,6 @@ def add_common_model_args(parser):
     parser.add_argument('--diffusion-model', dest='diffusion_model', help='Path to diffusion model')
     parser.add_argument('--high-noise-diffusion-model', dest='high_noise_diffusion_model',
                         help='Path to high-noise diffusion model')
-    parser.add_argument('--lora-dir', dest='lora_dir', help='LoRA model directory')
-    parser.add_argument('--embd-dir', dest='embd_dir', help='Embeddings directory')
     parser.add_argument('--tensor-type-rules', dest='tensor_type_rules',
                         help='Tensor type rules (e.g., "^vae\\.=f16,model\\.=q8_0")')
 
