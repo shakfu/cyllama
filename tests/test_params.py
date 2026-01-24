@@ -13,10 +13,8 @@ import cyllama.llama.llama_cpp as cy
 
 def test_default_model_params():
     params = cy.LlamaModelParams()
-    # n_gpu_layers defaults to 999 when any GPU backend is enabled
-    # (Metal on macOS, CUDA/HIP/Vulkan on Linux/Windows)
-    # and 0 when CPU-only
-    assert params.n_gpu_layers in (0, 999)
+    # n_gpu_layers defaults to -1 (auto-detect: use all available GPU layers)
+    assert params.n_gpu_layers == -1
     assert params.split_mode == 1  # LLAMA_SPLIT_MODE_LAYER = 1
     assert params.main_gpu == 0
     assert params.vocab_only == False

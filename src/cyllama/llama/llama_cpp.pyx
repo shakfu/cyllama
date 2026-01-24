@@ -908,6 +908,15 @@ cdef class LlamaModelParams:
         self.p.use_mmap = value
 
     @property
+    def use_direct_io(self) -> bool:
+        """Use direct I/O, takes precedence over use_mmap"""
+        return self.p.use_direct_io
+
+    @use_direct_io.setter
+    def use_direct_io(self, value: bool):
+        self.p.use_direct_io = value
+
+    @property
     def use_mlock(self) -> bool:
         """Force system to keep model in RAM"""
         return self.p.use_mlock

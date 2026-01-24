@@ -55,6 +55,8 @@ cdef extern from "common.h":
     # Common params
 
     cdef enum llama_example:
+        LLAMA_EXAMPLE_BATCHED
+        LLAMA_EXAMPLE_DEBUG
         LLAMA_EXAMPLE_COMMON
         LLAMA_EXAMPLE_SPECULATIVE
         LLAMA_EXAMPLE_COMPLETION
@@ -90,6 +92,7 @@ cdef extern from "common.h":
         COMMON_SAMPLER_TYPE_INFILL      = 9
         COMMON_SAMPLER_TYPE_PENALTIES   = 10
         COMMON_SAMPLER_TYPE_TOP_N_SIGMA = 11
+        COMMON_SAMPLER_TYPE_ADAPTIVE_P  = 12
 
     # dimensionality reduction methods, used by cvector-generator
     cdef enum dimre_method:
@@ -137,6 +140,8 @@ cdef extern from "common.h":
         float   dry_base                   # 0.0 = disabled; multiplier * base ^ (length of sequence before token - allowed length)
         int32_t dry_allowed_length         # tokens extending repetitions beyond this receive penalty
         int32_t dry_penalty_last_n         # how many tokens to scan for repetitions (0 = disable penalty, -1 = context size)
+        float   adaptive_target            # select tokens near this probability (valid range 0.0 to 1.0; negative = disabled)
+        float   adaptive_decay             # EMA decay for adaptation; history = 1/(1-decay) tokens (0.0 - 0.99)
         int32_t mirostat                   # 0 = disabled, 1 = mirostat, 2 = mirostat 2.0
         float   top_n_sigma                # -1.0 = disabled
         float   mirostat_tau               # target entropy
@@ -158,6 +163,8 @@ cdef extern from "common.h":
 
         std_vector[llama.llama_logit_bias] logit_bias     # logit biases to apply
         std_vector[llama.llama_logit_bias] logit_bias_eog # pre-calculated logit biases for EOG tokens
+
+        bint backend_sampling
 
         # print the parameters into a string
         std_string print()
@@ -239,8 +246,10 @@ cdef extern from "common.h":
         int32_t main_gpu           # the GPU that is used for scratch and small tensors
         float   tensor_split[128]  # how split tensors should be distributed across GPUs
         bint    fit_params         # whether to fit unset model/context parameters to free device memory
-        size_t  fit_params_target  # margin per device in bytes for fitting parameters to free memory
         int32_t fit_params_min_ctx # minimum context size to set when trying to reduce memory use
+
+        # margin per device in bytes for fitting parameters to free memory:
+        std_vector[size_t] fit_params_target
 
         llama.llama_split_mode split_mode # how to split the model across GPUs
 
@@ -325,7 +334,8 @@ cdef extern from "common.h":
         bint kv_unified             # enable unified KV cache
 
         bint input_prefix_bos       # prefix BOS to user inputs, preceding input_prefix
-        bint use_mmap               # use mmap for faster loads
+        bint use_mmap               # enable mmap to use filesystem cache
+        bint use_direct_io          # read from disk without buffering for faster model loading
         bint use_mlock              # use mlock to keep model in memory
         bint verbose_prompt         # print prompt tokens before generation
         bint display_prompt         # print prompt before generation
@@ -365,6 +375,7 @@ cdef extern from "common.h":
         int32_t timeout_write       # http write timeout in seconds
         int32_t n_threads_http      # number of threads to process HTTP requests (TODO: support threadpool)
         int32_t n_cache_reuse       # min chunk size to reuse from the cache via KV shifting
+        bint    cache_prompt        # whether to enable prompt caching
         int32_t n_ctx_checkpoints   # max number of context checkpoints per slot
         int32_t cache_ram_mib       # -1 = no limit, 0 = disable, 1 = 1 MiB, etc.
 
@@ -377,7 +388,7 @@ cdef extern from "common.h":
         common_reasoning_format reasoning_format
         int reasoning_budget
         bint prefill_assistant
-
+        int sleep_idle_seconds      # if >0, server will sleep after this many seconds of idle time
 
         std_vector[std_string] api_keys
 
@@ -386,7 +397,11 @@ cdef extern from "common.h":
 
         std_map[std_string, std_string] default_template_kwargs
 
+        # webui configs
         bint webui
+        std_string webui_config_json
+
+        # "advanced" endpoints are disabled by default for better security
         bint endpoint_slots
         bint endpoint_props
         bint endpoint_metrics
