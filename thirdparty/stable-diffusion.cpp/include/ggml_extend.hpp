@@ -5,6 +5,7 @@
 #include <inttypes.h>
 #include <stdarg.h>
 #include <algorithm>
+#include <atomic>
 #include <cstring>
 #include <fstream>
 #include <functional>
@@ -97,10 +98,10 @@ static_assert(GGML_MAX_NAME >= 128, "GGML_MAX_NAME must be at least 128");
 __STATIC_INLINE__ struct ggml_tensor* ggml_ext_mul_n_mode(struct ggml_context* ctx, struct ggml_tensor* a, struct ggml_tensor* b, int mode = 0) {
     // reshape A
     // swap 0th and nth axis
-    a       = ggml_cont(ctx, ggml_permute(ctx, a, mode, mode != 1 ? 1 : 0, mode != 2 ? 2 : 0, mode != 3 ? 3 : 0));
-    int ne1 = a->ne[1];
-    int ne2 = a->ne[2];
-    int ne3 = a->ne[3];
+    a           = ggml_cont(ctx, ggml_permute(ctx, a, mode, mode != 1 ? 1 : 0, mode != 2 ? 2 : 0, mode != 3 ? 3 : 0));
+    int64_t ne1 = a->ne[1];
+    int64_t ne2 = a->ne[2];
+    int64_t ne3 = a->ne[3];
     // make 2D
     a = ggml_cont(ctx, ggml_reshape_2d(ctx, a, a->ne[0], (ne3 * ne2 * ne1)));
 
@@ -166,12 +167,12 @@ __STATIC_INLINE__ void ggml_ext_im_set_randn_f32(struct ggml_tensor* tensor, std
     }
 }
 
-__STATIC_INLINE__ void ggml_ext_tensor_set_f32(struct ggml_tensor* tensor, float value, int i0, int i1 = 0, int i2 = 0, int i3 = 0) {
+__STATIC_INLINE__ void ggml_ext_tensor_set_f32(struct ggml_tensor* tensor, float value, int64_t i0, int64_t i1 = 0, int64_t i2 = 0, int64_t i3 = 0) {
     GGML_ASSERT(tensor->nb[0] == sizeof(float));
     *(float*)((char*)(tensor->data) + i3 * tensor->nb[3] + i2 * tensor->nb[2] + i1 * tensor->nb[1] + i0 * tensor->nb[0]) = value;
 }
 
-__STATIC_INLINE__ float ggml_ext_tensor_get_f32(const ggml_tensor* tensor, int i0, int i1 = 0, int i2 = 0, int i3 = 0) {
+__STATIC_INLINE__ float ggml_ext_tensor_get_f32(const ggml_tensor* tensor, int64_t i0, int64_t i1 = 0, int64_t i2 = 0, int64_t i3 = 0) {
     if (tensor->buffer != nullptr) {
         float value;
         ggml_backend_tensor_get(tensor, &value, i3 * tensor->nb[3] + i2 * tensor->nb[2] + i1 * tensor->nb[1] + i0 * tensor->nb[0], sizeof(float));
@@ -181,9 +182,9 @@ __STATIC_INLINE__ float ggml_ext_tensor_get_f32(const ggml_tensor* tensor, int i
     return *(float*)((char*)(tensor->data) + i3 * tensor->nb[3] + i2 * tensor->nb[2] + i1 * tensor->nb[1] + i0 * tensor->nb[0]);
 }
 
-__STATIC_INLINE__ int ggml_ext_tensor_get_i32(const ggml_tensor* tensor, int i0, int i1 = 0, int i2 = 0, int i3 = 0) {
+__STATIC_INLINE__ int ggml_ext_tensor_get_i32(const ggml_tensor* tensor, int64_t i0, int64_t i1 = 0, int64_t i2 = 0, int64_t i3 = 0) {
     if (tensor->buffer != nullptr) {
-        float value;
+        int value;
         ggml_backend_tensor_get(tensor, &value, i3 * tensor->nb[3] + i2 * tensor->nb[2] + i1 * tensor->nb[1] + i0 * tensor->nb[0], sizeof(int));
         return value;
     }
@@ -191,12 +192,12 @@ __STATIC_INLINE__ int ggml_ext_tensor_get_i32(const ggml_tensor* tensor, int i0,
     return *(int*)((char*)(tensor->data) + i3 * tensor->nb[3] + i2 * tensor->nb[2] + i1 * tensor->nb[1] + i0 * tensor->nb[0]);
 }
 
-__STATIC_INLINE__ ggml_fp16_t ggml_ext_tensor_get_f16(const ggml_tensor* tensor, int i0, int i1 = 0, int i2 = 0, int i3 = 0) {
+__STATIC_INLINE__ ggml_fp16_t ggml_ext_tensor_get_f16(const ggml_tensor* tensor, int64_t i0, int64_t i1 = 0, int64_t i2 = 0, int64_t i3 = 0) {
     GGML_ASSERT(tensor->nb[0] == sizeof(ggml_fp16_t));
     return *(ggml_fp16_t*)((char*)(tensor->data) + i3 * tensor->nb[3] + i2 * tensor->nb[2] + i1 * tensor->nb[1] + i0 * tensor->nb[0]);
 }
 
-__STATIC_INLINE__ float sd_image_get_f32(sd_image_t image, int iw, int ih, int ic, bool scale = true) {
+__STATIC_INLINE__ float sd_image_get_f32(sd_image_t image, int64_t iw, int64_t ih, int64_t ic, bool scale = true) {
     float value = *(image.data + ih * image.width * image.channel + iw * image.channel + ic);
     if (scale) {
         value /= 255.f;
@@ -204,7 +205,7 @@ __STATIC_INLINE__ float sd_image_get_f32(sd_image_t image, int iw, int ih, int i
     return value;
 }
 
-__STATIC_INLINE__ float sd_image_get_f32(sd_image_f32_t image, int iw, int ih, int ic, bool scale = true) {
+__STATIC_INLINE__ float sd_image_get_f32(sd_image_f32_t image, int64_t iw, int64_t ih, int64_t ic, bool scale = true) {
     float value = *(image.data + ih * image.width * image.channel + iw * image.channel + ic);
     if (scale) {
         value /= 255.f;
@@ -449,8 +450,8 @@ __STATIC_INLINE__ void ggml_ext_tensor_apply_mask(struct ggml_tensor* image_data
     int64_t width    = output->ne[0];
     int64_t height   = output->ne[1];
     int64_t channels = output->ne[2];
-    float rescale_mx = mask->ne[0] / output->ne[0];
-    float rescale_my = mask->ne[1] / output->ne[1];
+    float rescale_mx = 1.f * mask->ne[0] / output->ne[0];
+    float rescale_my = 1.f * mask->ne[1] / output->ne[1];
     GGML_ASSERT(output->type == GGML_TYPE_F32);
     for (int ix = 0; ix < width; ix++) {
         for (int iy = 0; iy < height; iy++) {
@@ -684,7 +685,7 @@ __STATIC_INLINE__ struct ggml_tensor* ggml_ext_torch_permute(struct ggml_context
 
 __STATIC_INLINE__ struct ggml_tensor* ggml_ext_slice(struct ggml_context* ctx,
                                                      struct ggml_tensor* x,
-                                                     int64_t dim,
+                                                     int dim,
                                                      int64_t start,
                                                      int64_t end) {
     GGML_ASSERT(dim >= 0 && dim < 4);
@@ -784,7 +785,7 @@ __STATIC_INLINE__ void sd_tiling_calc_tiles(int& num_tiles_dim,
                                             int small_dim,
                                             int tile_size,
                                             const float tile_overlap_factor) {
-    int tile_overlap     = (tile_size * tile_overlap_factor);
+    int tile_overlap     = static_cast<int>(tile_size * tile_overlap_factor);
     int non_tile_overlap = tile_size - tile_overlap;
 
     num_tiles_dim     = (small_dim - tile_overlap) / non_tile_overlap;
@@ -993,6 +994,48 @@ __STATIC_INLINE__ struct ggml_tensor* ggml_ext_linear(struct ggml_context* ctx,
     return x;
 }
 
+__STATIC_INLINE__ struct ggml_tensor* ggml_ext_pad_ext(struct ggml_context* ctx,
+                                                       struct ggml_tensor* x,
+                                                       int lp0,
+                                                       int rp0,
+                                                       int lp1,
+                                                       int rp1,
+                                                       int lp2,
+                                                       int rp2,
+                                                       int lp3,
+                                                       int rp3,
+                                                       bool circular_x = false,
+                                                       bool circular_y = false) {
+    if (circular_x && circular_y) {
+        return ggml_pad_ext_circular(ctx, x, lp0, rp0, lp1, rp1, lp2, rp2, lp3, rp3);
+    }
+
+    if (circular_x && (lp0 != 0 || rp0 != 0)) {
+        x   = ggml_pad_ext_circular(ctx, x, lp0, rp0, 0, 0, 0, 0, 0, 0);
+        lp0 = rp0 = 0;
+    }
+    if (circular_y && (lp1 != 0 || rp1 != 0)) {
+        x   = ggml_pad_ext_circular(ctx, x, 0, 0, lp1, rp1, 0, 0, 0, 0);
+        lp1 = rp1 = 0;
+    }
+
+    if (lp0 != 0 || rp0 != 0 || lp1 != 0 || rp1 != 0 || lp2 != 0 || rp2 != 0 || lp3 != 0 || rp3 != 0) {
+        x = ggml_pad_ext(ctx, x, lp0, rp0, lp1, rp1, lp2, rp2, lp3, rp3);
+    }
+    return x;
+}
+
+__STATIC_INLINE__ struct ggml_tensor* ggml_ext_pad(struct ggml_context* ctx,
+                                                   struct ggml_tensor* x,
+                                                   int p0,
+                                                   int p1,
+                                                   int p2          = 0,
+                                                   int p3          = 0,
+                                                   bool circular_x = false,
+                                                   bool circular_y = false) {
+    return ggml_ext_pad_ext(ctx, x, 0, p0, 0, p1, 0, p2, 0, p3, circular_x, circular_y);
+}
+
 // w: [OC，IC, KH, KW]
 // x: [N, IC, IH, IW]
 // b: [OC,]
@@ -1001,20 +1044,29 @@ __STATIC_INLINE__ struct ggml_tensor* ggml_ext_conv_2d(struct ggml_context* ctx,
                                                        struct ggml_tensor* x,
                                                        struct ggml_tensor* w,
                                                        struct ggml_tensor* b,
-                                                       int s0      = 1,
-                                                       int s1      = 1,
-                                                       int p0      = 0,
-                                                       int p1      = 0,
-                                                       int d0      = 1,
-                                                       int d1      = 1,
-                                                       bool direct = false,
-                                                       float scale = 1.f) {
+                                                       int s0          = 1,
+                                                       int s1          = 1,
+                                                       int p0          = 0,
+                                                       int p1          = 0,
+                                                       int d0          = 1,
+                                                       int d1          = 1,
+                                                       bool direct     = false,
+                                                       bool circular_x = false,
+                                                       bool circular_y = false,
+                                                       float scale     = 1.f) {
     if (scale != 1.f) {
         x = ggml_scale(ctx, x, scale);
     }
     if (w->ne[2] != x->ne[2] && ggml_n_dims(w) == 2) {
         w = ggml_reshape_4d(ctx, w, 1, 1, w->ne[0], w->ne[1]);
     }
+
+    if ((p0 != 0 || p1 != 0) && (circular_x || circular_y)) {
+        x  = ggml_ext_pad_ext(ctx, x, p0, p0, p1, p1, 0, 0, 0, 0, circular_x, circular_y);
+        p0 = 0;
+        p1 = 0;
+    }
+
     if (direct) {
         x = ggml_conv_2d_direct(ctx, w, x, s0, s1, p0, p1, d0, d1);
     } else {
@@ -1156,33 +1208,9 @@ __STATIC_INLINE__ ggml_tensor* ggml_ext_cast_f32(ggml_context* ctx, ggml_tensor*
     } else {
         out = ggml_mul_mat(ctx, out, one);
     }
-    out                    = ggml_reshape(ctx, out, a);
+    out = ggml_reshape(ctx, out, a);
 #endif
     return out;
-}
-
-// q: [N * n_head, n_token, d_head]
-// k: [N * n_head, n_k, d_head]
-// v: [N * n_head, d_head, n_k]
-// return: [N * n_head, n_token, d_head]
-__STATIC_INLINE__ struct ggml_tensor* ggml_ext_attention(struct ggml_context* ctx,
-                                                         struct ggml_tensor* q,
-                                                         struct ggml_tensor* k,
-                                                         struct ggml_tensor* v,
-                                                         bool mask = false) {
-#if defined(SD_USE_FLASH_ATTENTION) && !defined(SD_USE_CUDA) && !defined(SD_USE_METAL) && !defined(SD_USE_VULKAN) && !defined(SD_USE_SYCL)
-    struct ggml_tensor* kqv = ggml_flash_attn(ctx, q, k, v, false);  // [N * n_head, n_token, d_head]
-#else
-    float d_head           = (float)q->ne[0];
-    struct ggml_tensor* kq = ggml_mul_mat(ctx, k, q);  // [N * n_head, n_token, n_k]
-    kq                     = ggml_scale_inplace(ctx, kq, 1.0f / sqrt(d_head));
-    if (mask) {
-        kq = ggml_diag_mask_inf_inplace(ctx, kq, 0);
-    }
-    kq                      = ggml_soft_max_inplace(ctx, kq);
-    struct ggml_tensor* kqv = ggml_mul_mat(ctx, v, kq);  // [N * n_head, n_token, d_head]
-#endif
-    return kqv;
 }
 
 // q: [N, L_q, C(n_head*d_head)] or [N*n_head, L_q, d_head]
@@ -1294,7 +1322,7 @@ __STATIC_INLINE__ struct ggml_tensor* ggml_ext_attention_ext(struct ggml_context
         // LOG_DEBUG("attention_ext L_q:%d L_k:%d n_head:%d C:%d d_head:%d N:%d", L_q, L_k, n_head, C, d_head, N);
         bool can_use_flash_attn = true;
         if (can_use_flash_attn && L_k % 256 != 0) {
-            kv_pad = GGML_PAD(L_k, 256) - L_k;
+            kv_pad = GGML_PAD(L_k, 256) - static_cast<int>(L_k);
         }
 
         if (mask != nullptr) {
@@ -1320,7 +1348,8 @@ __STATIC_INLINE__ struct ggml_tensor* ggml_ext_attention_ext(struct ggml_context
         v = ggml_reshape_3d(ctx, v, L_k, d_head, n_kv_head * N);   // [N * n_kv_head, d_head, L_k]
 
         auto kq = ggml_mul_mat(ctx, k, q);  // [N * n_head, L_q, L_k]
-        kq      = ggml_scale_inplace(ctx, kq, scale);
+        ggml_mul_mat_set_prec(kq, GGML_PREC_F32);
+        kq = ggml_scale_inplace(ctx, kq, scale);
         if (mask) {
             kq = ggml_add_inplace(ctx, kq, mask);
         }
@@ -1521,14 +1550,16 @@ struct WeightAdapter {
             float scale         = 1.f;
         } linear;
         struct {
-            int s0      = 1;
-            int s1      = 1;
-            int p0      = 0;
-            int p1      = 0;
-            int d0      = 1;
-            int d1      = 1;
-            bool direct = false;
-            float scale = 1.f;
+            int s0          = 1;
+            int s1          = 1;
+            int p0          = 0;
+            int p1          = 0;
+            int d0          = 1;
+            int d1          = 1;
+            bool direct     = false;
+            bool circular_x = false;
+            bool circular_y = false;
+            float scale     = 1.f;
         } conv2d;
     };
     virtual ggml_tensor* patch_weight(ggml_context* ctx, ggml_tensor* weight, const std::string& weight_name) = 0;
@@ -1546,6 +1577,8 @@ struct GGMLRunnerContext {
     ggml_context* ggml_ctx                        = nullptr;
     bool flash_attn_enabled                       = false;
     bool conv2d_direct_enabled                    = false;
+    bool circular_x_enabled                       = false;
+    bool circular_y_enabled                       = false;
     std::shared_ptr<WeightAdapter> weight_adapter = nullptr;
 };
 
@@ -1582,6 +1615,8 @@ protected:
 
     bool flash_attn_enabled    = false;
     bool conv2d_direct_enabled = false;
+    bool circular_x_enabled    = false;
+    bool circular_y_enabled    = false;
 
     void alloc_params_ctx() {
         struct ggml_init_params params;
@@ -1859,6 +1894,8 @@ public:
         runner_ctx.backend               = runtime_backend;
         runner_ctx.flash_attn_enabled    = flash_attn_enabled;
         runner_ctx.conv2d_direct_enabled = conv2d_direct_enabled;
+        runner_ctx.circular_x_enabled    = circular_x_enabled;
+        runner_ctx.circular_y_enabled    = circular_y_enabled;
         runner_ctx.weight_adapter        = weight_adapter;
         return runner_ctx;
     }
@@ -2001,6 +2038,11 @@ public:
 
     void set_conv2d_direct_enabled(bool enabled) {
         conv2d_direct_enabled = enabled;
+    }
+
+    void set_circular_axes(bool circular_x, bool circular_y) {
+        circular_x_enabled = circular_x;
+        circular_y_enabled = circular_y;
     }
 
     void set_weight_adapter(const std::shared_ptr<WeightAdapter>& adapter) {
@@ -2266,15 +2308,17 @@ public:
         }
         if (ctx->weight_adapter) {
             WeightAdapter::ForwardParams forward_params;
-            forward_params.op_type       = WeightAdapter::ForwardParams::op_type_t::OP_CONV2D;
-            forward_params.conv2d.s0     = stride.second;
-            forward_params.conv2d.s1     = stride.first;
-            forward_params.conv2d.p0     = padding.second;
-            forward_params.conv2d.p1     = padding.first;
-            forward_params.conv2d.d0     = dilation.second;
-            forward_params.conv2d.d1     = dilation.first;
-            forward_params.conv2d.direct = ctx->conv2d_direct_enabled;
-            forward_params.conv2d.scale  = scale;
+            forward_params.op_type           = WeightAdapter::ForwardParams::op_type_t::OP_CONV2D;
+            forward_params.conv2d.s0         = stride.second;
+            forward_params.conv2d.s1         = stride.first;
+            forward_params.conv2d.p0         = padding.second;
+            forward_params.conv2d.p1         = padding.first;
+            forward_params.conv2d.d0         = dilation.second;
+            forward_params.conv2d.d1         = dilation.first;
+            forward_params.conv2d.direct     = ctx->conv2d_direct_enabled;
+            forward_params.conv2d.circular_x = ctx->circular_x_enabled;
+            forward_params.conv2d.circular_y = ctx->circular_y_enabled;
+            forward_params.conv2d.scale      = scale;
             return ctx->weight_adapter->forward_with_lora(ctx->ggml_ctx, x, w, b, prefix, forward_params);
         }
         return ggml_ext_conv_2d(ctx->ggml_ctx,
@@ -2288,54 +2332,9 @@ public:
                                 dilation.second,
                                 dilation.first,
                                 ctx->conv2d_direct_enabled,
+                                ctx->circular_x_enabled,
+                                ctx->circular_y_enabled,
                                 scale);
-    }
-};
-
-class Conv3dnx1x1 : public UnaryBlock {
-protected:
-    int64_t in_channels;
-    int64_t out_channels;
-    int64_t kernel_size;
-    int64_t stride;
-    int64_t padding;
-    int64_t dilation;
-    bool bias;
-
-    void init_params(struct ggml_context* ctx, const String2TensorStorage& tensor_storage_map, const std::string prefix = "") override {
-        enum ggml_type wtype = GGML_TYPE_F16;
-        params["weight"]     = ggml_new_tensor_4d(ctx, wtype, 1, kernel_size, in_channels, out_channels);  // 5d => 4d
-        if (bias) {
-            enum ggml_type wtype = GGML_TYPE_F32;
-            params["bias"]       = ggml_new_tensor_1d(ctx, wtype, out_channels);
-        }
-    }
-
-public:
-    Conv3dnx1x1(int64_t in_channels,
-                int64_t out_channels,
-                int64_t kernel_size,
-                int64_t stride   = 1,
-                int64_t padding  = 0,
-                int64_t dilation = 1,
-                bool bias        = true)
-        : in_channels(in_channels),
-          out_channels(out_channels),
-          kernel_size(kernel_size),
-          stride(stride),
-          padding(padding),
-          dilation(dilation),
-          bias(bias) {}
-
-    // x: [N, IC, ID, IH*IW]
-    // result: [N, OC, OD, OH*OW]
-    struct ggml_tensor* forward(GGMLRunnerContext* ctx, struct ggml_tensor* x) {
-        struct ggml_tensor* w = params["weight"];
-        struct ggml_tensor* b = nullptr;
-        if (bias) {
-            b = params["bias"];
-        }
-        return ggml_ext_conv_3d_nx1x1(ctx->ggml_ctx, x, w, b, stride, padding, dilation);
     }
 };
 
@@ -2454,7 +2453,7 @@ public:
 
 class GroupNorm : public GGMLBlock {
 protected:
-    int64_t num_groups;
+    int num_groups;
     int64_t num_channels;
     float eps;
     bool affine;
@@ -2471,7 +2470,7 @@ protected:
     }
 
 public:
-    GroupNorm(int64_t num_groups,
+    GroupNorm(int num_groups,
               int64_t num_channels,
               float eps   = 1e-05f,
               bool affine = true)

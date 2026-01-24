@@ -28,7 +28,7 @@ public:
         if (vae_downsample) {
             auto conv = std::dynamic_pointer_cast<Conv2d>(blocks["conv"]);
 
-            x = ggml_pad(ctx->ggml_ctx, x, 1, 1, 0, 0);
+            x = ggml_ext_pad(ctx->ggml_ctx, x, 1, 1, 0, 0, ctx->circular_x_enabled, ctx->circular_y_enabled);
             x = conv->forward(ctx, x);
         } else {
             auto conv = std::dynamic_pointer_cast<Conv2d>(blocks["op"]);
@@ -80,7 +80,7 @@ protected:
                                        std::pair<int, int> padding) {
         GGML_ASSERT(dims == 2 || dims == 3);
         if (dims == 3) {
-            return std::shared_ptr<GGMLBlock>(new Conv3dnx1x1(in_channels, out_channels, kernel_size.first, 1, padding.first));
+            return std::shared_ptr<GGMLBlock>(new Conv3d(in_channels, out_channels, {kernel_size.first, 1, 1}, {1, 1, 1}, {padding.first, 0, 0}));
         } else {
             return std::shared_ptr<GGMLBlock>(new Conv2d(in_channels, out_channels, kernel_size, {1, 1}, padding));
         }
@@ -544,9 +544,9 @@ public:
 
 class VideoResBlock : public ResBlock {
 public:
-    VideoResBlock(int channels,
-                  int emb_channels,
-                  int out_channels,
+    VideoResBlock(int64_t channels,
+                  int64_t emb_channels,
+                  int64_t out_channels,
                   std::pair<int, int> kernel_size = {3, 3},
                   int64_t video_kernel_size       = 3,
                   int dims                        = 2)  // always 2

@@ -205,11 +205,32 @@ cdef extern from "stable-diffusion.h":
         const char* id_embed_path
         float style_strength
 
-    ctypedef struct sd_easycache_params_t:
-        bint enabled
+    cdef enum sd_cache_mode_t:
+        SD_CACHE_DISABLED = 0
+        SD_CACHE_EASYCACHE
+        SD_CACHE_UCACHE
+        SD_CACHE_DBCACHE
+        SD_CACHE_TAYLORSEER
+        SD_CACHE_CACHE_DIT
+
+    ctypedef struct sd_cache_params_t:
+        sd_cache_mode_t mode
         float reuse_threshold
         float start_percent
         float end_percent
+        float error_decay_rate
+        bint use_relative_threshold
+        bint reset_error_on_compute
+        int Fn_compute_blocks
+        int Bn_compute_blocks
+        float residual_diff_threshold
+        int max_warmup_steps
+        int max_cached_steps
+        int max_continuous_cached_steps
+        int taylorseer_n_derivatives
+        int taylorseer_skip_interval
+        const char* scm_mask
+        bint scm_policy_dynamic
 
     ctypedef struct sd_img_gen_params_t:
         const sd_lora_t* loras
@@ -233,7 +254,7 @@ cdef extern from "stable-diffusion.h":
         float control_strength
         sd_pm_params_t pm_params
         sd_tiling_params_t vae_tiling_params
-        sd_easycache_params_t easycache
+        sd_cache_params_t cache
 
     ctypedef struct sd_vid_gen_params_t:
         const sd_lora_t* loras
@@ -254,7 +275,8 @@ cdef extern from "stable-diffusion.h":
         int64_t seed
         int video_frames
         float vace_strength
-        sd_easycache_params_t easycache
+        sd_tiling_params_t vae_tiling_params
+        sd_cache_params_t cache
 
     # Opaque context types
     ctypedef struct sd_ctx_t:
@@ -309,7 +331,7 @@ cdef extern from "stable-diffusion.h":
     # Functions - Parameter initialization
     # =========================================================================
 
-    void sd_easycache_params_init(sd_easycache_params_t* easycache_params)
+    void sd_cache_params_init(sd_cache_params_t* cache_params)
     void sd_ctx_params_init(sd_ctx_params_t* sd_ctx_params)
     char* sd_ctx_params_to_str(const sd_ctx_params_t* sd_ctx_params)
     void sd_sample_params_init(sd_sample_params_t* sample_params)
@@ -326,7 +348,7 @@ cdef extern from "stable-diffusion.h":
     void free_sd_ctx(sd_ctx_t* sd_ctx)
 
     sample_method_t sd_get_default_sample_method(const sd_ctx_t* sd_ctx)
-    scheduler_t sd_get_default_scheduler(const sd_ctx_t* sd_ctx)
+    scheduler_t sd_get_default_scheduler(const sd_ctx_t* sd_ctx, sample_method_t sample_method)
 
     # =========================================================================
     # Functions - Image generation
@@ -361,7 +383,8 @@ cdef extern from "stable-diffusion.h":
                  const char* vae_path,
                  const char* output_path,
                  sd_type_t output_type,
-                 const char* tensor_type_rules)
+                 const char* tensor_type_rules,
+                 bint convert_name)
 
     # =========================================================================
     # Functions - Preprocessing
