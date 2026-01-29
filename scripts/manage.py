@@ -61,7 +61,7 @@ Environment variables:
     GGML_SYCL=1       Enable SYCL backend
     GGML_HIP=1        Enable HIP/ROCm backend
     GGML_OPENCL=1     Enable OpenCL backend
-    SD_METAL=1        Enable Metal backend for stable-diffusion.cpp (experimental)
+    SD_METAL=0        Disable Metal backend for stable-diffusion.cpp (default ON on macOS)
 """
 
 import argparse
@@ -136,7 +136,7 @@ PLATFORM = platform.system()
 ARCH = platform.machine()
 PY_VER_MINOR = sys.version_info.minor
 
-STABLE_BUILD = getenv("STABLE_BUILD", True)
+STABLE_BUILD = getenv("STABLE_BUILD", False)
 if STABLE_BUILD:
     # known to build and work without errors, 100% tests pass
     LLAMACPP_VERSION = "b7442"
@@ -145,9 +145,9 @@ if STABLE_BUILD:
     SQLITEVECTOR_VERSION = "0.9.52"
 else:
     # experimental bleeding-edge builds ` = ""` means get latest
-    LLAMACPP_VERSION = "b7442"
-    WHISPERCPP_VERSION = "v1.8.2"
-    SDCPP_VERSION = "master-423-c3ad6a1"
+    LLAMACPP_VERSION = "b7823"
+    WHISPERCPP_VERSION = "v1.8.3"
+    SDCPP_VERSION = "master-487-43e829f"
     SQLITEVECTOR_VERSION = "0.9.52"
 if PLATFORM == "Darwin":
     MACOSX_DEPLOYMENT_TARGET = setenv("MACOSX_DEPLOYMENT_TARGET", "12.6")
@@ -1000,6 +1000,9 @@ class LlamaCppBuilder(Builder):
             build_dir=self.build_dir,
             BUILD_SHARED_LIBS=shared,
             CMAKE_POSITION_INDEPENDENT_CODE=True,
+            CMAKE_CXX_VISIBILITY_PRESET="hidden",
+            CMAKE_C_VISIBILITY_PRESET="hidden",
+            CMAKE_VISIBILITY_INLINES_HIDDEN=True,
             LLAMA_CURL=False,
             LLAMA_HTTPLIB=False,  # Disable httplib to avoid linking issues
             LLAMA_BUILD_SERVER=False,  # Server requires httplib
@@ -1108,6 +1111,9 @@ class WhisperCppBuilder(Builder):
             build_dir=self.build_dir,
             BUILD_SHARED_LIBS=shared,
             CMAKE_POSITION_INDEPENDENT_CODE=True,
+            CMAKE_CXX_VISIBILITY_PRESET="hidden",
+            CMAKE_C_VISIBILITY_PRESET="hidden",
+            CMAKE_VISIBILITY_INLINES_HIDDEN=True,
             **backend_options,
         )
         self.cmake_build(build_dir=self.build_dir, release=True)
@@ -1130,14 +1136,14 @@ class StableDiffusionCppBuilder(Builder):
         """Get CMake options based on backend environment variables.
 
         stable-diffusion.cpp uses SD_* flags (not GGML_*).
-        Note: SD_METAL is NOT enabled by default because ggml-metal doesn't support
-        GGML_OP_DIAG_MASK_INF which is used by some SD models. Use SD_METAL=1 to opt-in.
+        SD_METAL defaults to ON on macOS.
         """
         options = {}
 
-        # Read backend flags from environment
-        # Note: SD uses SD_METAL env var, not GGML_METAL (defaults to OFF)
-        sd_metal = getenv("SD_METAL", default=False)
+        # Read backend flags from environment (default Metal=1 on macOS, others=0)
+        sd_metal = getenv(
+            "SD_METAL", default=(True if PLATFORM == "Darwin" else False)
+        )
         ggml_cuda = getenv("GGML_CUDA", default=False)
         ggml_vulkan = getenv("GGML_VULKAN", default=False)
         ggml_sycl = getenv("GGML_SYCL", default=False)
@@ -1146,9 +1152,7 @@ class StableDiffusionCppBuilder(Builder):
 
         if sd_metal and PLATFORM == "Darwin":
             options["SD_METAL"] = "ON"
-            self.log.info(
-                "Enabling Metal backend for stable-diffusion.cpp (experimental)"
-            )
+            self.log.info("Enabling Metal backend for stable-diffusion.cpp")
 
         if ggml_cuda:
             options["SD_CUDA"] = "ON"
@@ -1197,6 +1201,9 @@ class StableDiffusionCppBuilder(Builder):
             build_dir=self.build_dir,
             BUILD_SHARED_LIBS=shared,
             CMAKE_POSITION_INDEPENDENT_CODE=True,
+            CMAKE_CXX_VISIBILITY_PRESET="hidden",
+            CMAKE_C_VISIBILITY_PRESET="hidden",
+            CMAKE_VISIBILITY_INLINES_HIDDEN=True,
             **backend_options,
         )
         self.cmake_build(build_dir=self.build_dir, release=True)
@@ -1623,7 +1630,7 @@ class Application(ShellCmd, metaclass=MetaCommander):
     @opt("--hip", "-H", "enable HIP/ROCm backend (AMD GPUs)")
     @opt("--opencl", "-o", "enable OpenCL backend")
     @opt("--cpu-only", "-C", "disable all GPU backends (CPU only)")
-    @opt("--sd-metal", "-M", "enable Metal for stable-diffusion.cpp (experimental)")
+    @opt("--sd-metal", "-M", "enable Metal for stable-diffusion.cpp (default on macOS)")
     @opt("-w", "--whisper-cpp", "build whisper-cpp")
     @opt("-d", "--stable-diffusion", "build stable-diffusion")
     @opt("-l", "--llama-cpp", "build llama-cpp")
@@ -1677,12 +1684,6 @@ class Application(ShellCmd, metaclass=MetaCommander):
                 os.environ["GGML_OPENCL"] = "1"
             if args.sd_metal:
                 os.environ["SD_METAL"] = "1"
-
-        # the --sd-metal option is a stop-gap fix, ideally it shouldn't be needed.
-        # I posted the issue to the stable-diffusion.cpp issues list:
-        # https://github.com/leejet/stable-diffusion.cpp/issues/1040
-        # It looks like it is a known issue in llama.cpp and a PR was submitted:
-        # https://github.com/ggml-org/llama.cpp/pull/16669
 
         # Map builder classes to their version arguments
         builder_versions = {

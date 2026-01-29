@@ -237,6 +237,7 @@ cdef extern from "llama.h":
         # Keep the booleans together to avoid misalignment during copy-by-value.
         bint vocab_only       # only load the vocabulary, no weights
         bint use_mmap         # use mmap if possible
+        bint use_direct_io    # use direct io, takes precedence over use_mmap
         bint use_mlock        # force system to keep model in RAM
         bint check_tensors    # validate model tensor data
         bint use_extra_bufts  # use extra buffer types (used for weight repacking)
@@ -368,16 +369,22 @@ cdef extern from "llama.h":
     # Frees all allocated memory
     cdef void llama_free(llama_context * ctx)
 
+    cdef enum llama_params_fit_status:
+        LLAMA_PARAMS_FIT_STATUS_SUCCESS = 0  # found allocations that are projected to fit
+        LLAMA_PARAMS_FIT_STATUS_FAILURE = 1  # could not find allocations that are projected to fit
+        LLAMA_PARAMS_FIT_STATUS_ERROR   = 2  # a hard error occured, e.g. because no model could be found at the specified path
+
     # fits mparams and cparams to free device memory (assumes system memory is unlimited)
-    # returns true if the parameters could be successfully modified to fit device memory
-    # this function is NOT thread safe because it modifies the global llama logger state
-    cdef bint llama_params_fit(
+    #   - returns true if the parameters could be successfully modified to fit device memory
+    #   - this function is NOT thread safe because it modifies the global llama logger state
+    #   - only parameters that have the same value as in llama_default_model_params are modified
+    cdef llama_params_fit_status llama_params_fit(
                                const char * path_model,
                 llama_model_params * mparams,
               llama_context_params * cparams,
                              float * tensor_split,          # writable buffer for tensor split, needs at least llama_max_devices elements
         llama_model_tensor_buft_override * tensor_buft_overrides, # writable buffer for overrides, needs at least llama_max_tensor_buft_overrides elements
-                            size_t   margin,                # margin of memory to leave per device in bytes
+                            size_t * margins,               # margins of memory to leave per device in bytes
                           uint32_t   n_ctx_min,             # minimum context size to set when trying to reduce memory use
                ggml.ggml_log_level   log_level)             # minimum log level to print during fitting, lower levels go to debug log
 
@@ -412,6 +419,7 @@ cdef extern from "llama.h":
     cdef int32_t llama_model_n_ctx_train(const llama_model * model)
     cdef int32_t llama_model_n_embd     (const llama_model * model)
     cdef int32_t llama_model_n_embd_inp (const llama_model * model)
+    cdef int32_t llama_model_n_embd_out (const llama_model * model)
     cdef int32_t llama_model_n_layer    (const llama_model * model)
     cdef int32_t llama_model_n_head     (const llama_model * model)
     cdef int32_t llama_model_n_head_kv  (const llama_model * model)
@@ -1009,11 +1017,16 @@ cdef extern from "llama.h":
         void                   (*free)  (      llama_sampler * smpl)
 
     ctypedef struct llama_sampler:
-        const llama_sampler_i * iface
+        llama_sampler_i * iface
         llama_sampler_context_t ctx
 
+    # [EXPERIMENTAL]
+    # attach a sampler to the context
+    # note: prefer initializing the context with llama_context_params.samplers when possible
+    cdef bint llama_set_sampler(llama_context * ctx, llama_seq_id seq_id, llama_sampler * smpl)
+
     # mirror of llama_sampler_i:
-    cdef llama_sampler *        llama_sampler_init  (const llama_sampler_i * iface, llama_sampler_context_t ctx)
+    cdef llama_sampler *        llama_sampler_init  (      llama_sampler_i * iface, llama_sampler_context_t ctx)
     cdef const char *           llama_sampler_name  (const llama_sampler * smpl)
     cdef void                   llama_sampler_accept(      llama_sampler * smpl, llama_token token)
     cdef void                   llama_sampler_apply (      llama_sampler * smpl, llama_token_data_array * cur_p)
@@ -1029,7 +1042,15 @@ cdef extern from "llama.h":
 
     # important: takes ownership of the sampler object and will free it when llama_sampler_free is called
     cdef void                   llama_sampler_chain_add(       llama_sampler * chain, llama_sampler * smpl)
-    cdef llama_sampler *        llama_sampler_chain_get(const  llama_sampler * chain, int32_t i)
+
+    # return NULL if:
+    #   - the sampler is NULL
+    #   - the sampler is not a llama_sampler_chain
+    #   - the index is out of bounds, unless i == -1
+    #   - if i == -1, returns the chain itself (can be used to check if the sampler is a chain)
+    cdef llama_sampler *        llama_sampler_chain_get(       llama_sampler * chain, int32_t i)
+
+    # the total number of samplers in the chain
     cdef int                    llama_sampler_chain_n  (const  llama_sampler * chain)
 
     # after removing a sampler, the chain will no longer own it, and it will not be freed when the chain is freed
@@ -1126,6 +1147,13 @@ cdef extern from "llama.h":
                              int32_t    dry_penalty_last_n,
                           const char ** seq_breakers,
                               size_t    num_breakers)
+
+    # @details Adaptive-p sampler: select tokens near a configurable target probability over time.
+    # ref: https://github.com/ggml-org/llama.cpp/pull/17927
+    cdef llama_sampler * llama_sampler_init_adaptive_p(
+                               float   target,
+                               float   decay,
+                            uint32_t   seed)
 
     cdef llama_sampler * llama_sampler_init_logit_bias(
                              int32_t   n_vocab,

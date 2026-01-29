@@ -47,12 +47,40 @@ endif()
 if(DEFINED ENV{GGML_CUDA})
     if("$ENV{GGML_CUDA}" STREQUAL "1")
         set(GGML_CUDA ON CACHE BOOL "Enable CUDA backend" FORCE)
+    elseif("$ENV{GGML_CUDA}" STREQUAL "0")
+        set(GGML_CUDA OFF CACHE BOOL "Enable CUDA backend" FORCE)
     endif()
 endif()
 
 if(DEFINED ENV{GGML_VULKAN})
     if("$ENV{GGML_VULKAN}" STREQUAL "1")
         set(GGML_VULKAN ON CACHE BOOL "Enable Vulkan backend" FORCE)
+    elseif("$ENV{GGML_VULKAN}" STREQUAL "0")
+        set(GGML_VULKAN OFF CACHE BOOL "Enable Vulkan backend" FORCE)
+    endif()
+endif()
+
+if(DEFINED ENV{GGML_HIP})
+    if("$ENV{GGML_HIP}" STREQUAL "1")
+        set(GGML_HIP ON CACHE BOOL "Enable HIP/ROCm backend" FORCE)
+    elseif("$ENV{GGML_HIP}" STREQUAL "0")
+        set(GGML_HIP OFF CACHE BOOL "Enable HIP/ROCm backend" FORCE)
+    endif()
+endif()
+
+if(DEFINED ENV{GGML_SYCL})
+    if("$ENV{GGML_SYCL}" STREQUAL "1")
+        set(GGML_SYCL ON CACHE BOOL "Enable SYCL backend" FORCE)
+    elseif("$ENV{GGML_SYCL}" STREQUAL "0")
+        set(GGML_SYCL OFF CACHE BOOL "Enable SYCL backend" FORCE)
+    endif()
+endif()
+
+if(DEFINED ENV{GGML_OPENCL})
+    if("$ENV{GGML_OPENCL}" STREQUAL "1")
+        set(GGML_OPENCL ON CACHE BOOL "Enable OpenCL backend" FORCE)
+    elseif("$ENV{GGML_OPENCL}" STREQUAL "0")
+        set(GGML_OPENCL OFF CACHE BOOL "Enable OpenCL backend" FORCE)
     endif()
 endif()
 
@@ -93,6 +121,9 @@ message(STATUS "WITH_STABLEDIFFUSION: ${WITH_STABLEDIFFUSION}")
 message(STATUS "GGML_METAL: ${GGML_METAL}")
 message(STATUS "GGML_CUDA: ${GGML_CUDA}")
 message(STATUS "GGML_VULKAN: ${GGML_VULKAN}")
+message(STATUS "GGML_HIP: ${GGML_HIP}")
+message(STATUS "GGML_SYCL: ${GGML_SYCL}")
+message(STATUS "GGML_OPENCL: ${GGML_OPENCL}")
 
 # -----------------------------------------------------------------------------
 # Library paths
@@ -238,6 +269,32 @@ if(GGML_VULKAN)
     list(APPEND SYSTEM_LIBS Vulkan::Vulkan)
 endif()
 
+if(GGML_HIP)
+    # HIP/ROCm backend requires hip, hipblas, and rocblas
+    find_package(hip REQUIRED)
+    find_package(hipblas REQUIRED)
+    find_package(rocblas REQUIRED)
+    list(APPEND SYSTEM_LIBS hip::host hip::device roc::rocblas roc::hipblas)
+endif()
+
+if(GGML_SYCL)
+    # SYCL backend - try to find IntelSYCL (from Intel oneAPI)
+    # Note: SYCL builds require a SYCL-capable compiler (icpx from oneAPI)
+    find_package(IntelSYCL QUIET)
+    if(IntelSYCL_FOUND)
+        list(APPEND SYSTEM_LIBS IntelSYCL::SYCL_CXX)
+        message(STATUS "Found IntelSYCL")
+    else()
+        message(STATUS "IntelSYCL not found - SYCL runtime linking may need manual configuration")
+    endif()
+endif()
+
+if(GGML_OPENCL)
+    # OpenCL backend
+    find_package(OpenCL REQUIRED)
+    list(APPEND SYSTEM_LIBS ${OpenCL_LIBRARIES})
+endif()
+
 if(IS_LINUX)
     find_package(OpenMP)
     if(OpenMP_CXX_FOUND)
@@ -252,7 +309,7 @@ endif()
 if(WIN32)
     set(CXX_COMPILE_OPTIONS /std:c++17 /EHsc /MD)
 else()
-    set(CXX_COMPILE_OPTIONS -std=c++17)
+    set(CXX_COMPILE_OPTIONS -std=c++17 -fvisibility=hidden -fvisibility-inlines-hidden)
 endif()
 
 # -----------------------------------------------------------------------------
@@ -525,6 +582,24 @@ if(WITH_STABLEDIFFUSION)
     static_lib(_SD_VULKAN_LIB_PATH "${SDCPP_LIB}" "ggml-vulkan")
     if(EXISTS "${_SD_VULKAN_LIB_PATH}")
         list(APPEND SD_STATIC_LIBS "${_SD_VULKAN_LIB_PATH}")
+    endif()
+
+    # Check for HIP/ROCm support in SD
+    static_lib(_SD_HIP_LIB_PATH "${SDCPP_LIB}" "ggml-hip")
+    if(EXISTS "${_SD_HIP_LIB_PATH}")
+        list(APPEND SD_STATIC_LIBS "${_SD_HIP_LIB_PATH}")
+    endif()
+
+    # Check for SYCL support in SD
+    static_lib(_SD_SYCL_LIB_PATH "${SDCPP_LIB}" "ggml-sycl")
+    if(EXISTS "${_SD_SYCL_LIB_PATH}")
+        list(APPEND SD_STATIC_LIBS "${_SD_SYCL_LIB_PATH}")
+    endif()
+
+    # Check for OpenCL support in SD
+    static_lib(_SD_OPENCL_LIB_PATH "${SDCPP_LIB}" "ggml-opencl")
+    if(EXISTS "${_SD_OPENCL_LIB_PATH}")
+        list(APPEND SD_STATIC_LIBS "${_SD_OPENCL_LIB_PATH}")
     endif()
 
     target_link_libraries(stable_diffusion PRIVATE ${SD_STATIC_LIBS} ${SYSTEM_LIBS})

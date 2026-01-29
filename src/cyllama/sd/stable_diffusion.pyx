@@ -1631,36 +1631,66 @@ cdef class SDImageGenParams:
     def vae_tile_overlap(self, value: float):
         self._params.vae_tiling_params.target_overlap = value
 
-    # --- EasyCache parameters ---
+    # --- Cache parameters ---
 
     @property
+    def cache_mode(self) -> int:
+        """Cache mode (0=disabled, 1=easycache, 2=ucache, 3=dbcache, 4=taylorseer, 5=cache_dit)."""
+        return <int>self._params.cache.mode
+
+    @cache_mode.setter
+    def cache_mode(self, value: int):
+        self._params.cache.mode = <sd_cache_mode_t>value
+
+    @property
+    def cache_threshold(self) -> float:
+        """Cache reuse threshold."""
+        return self._params.cache.reuse_threshold
+
+    @cache_threshold.setter
+    def cache_threshold(self, value: float):
+        self._params.cache.reuse_threshold = value
+
+    @property
+    def cache_range(self) -> tuple:
+        """Cache start/end percentages."""
+        return (self._params.cache.start_percent,
+                self._params.cache.end_percent)
+
+    @cache_range.setter
+    def cache_range(self, value: tuple):
+        self._params.cache.start_percent = value[0]
+        self._params.cache.end_percent = value[1]
+
+    # Backwards compatibility aliases
+    @property
     def easycache_enabled(self) -> bool:
-        """Enable EasyCache for faster generation."""
-        return self._params.easycache.enabled
+        """Enable EasyCache for faster generation (deprecated, use cache_mode)."""
+        return self._params.cache.mode == SD_CACHE_EASYCACHE
 
     @easycache_enabled.setter
     def easycache_enabled(self, value: bool):
-        self._params.easycache.enabled = value
+        self._params.cache.mode = SD_CACHE_EASYCACHE if value else SD_CACHE_DISABLED
 
     @property
     def easycache_threshold(self) -> float:
-        """EasyCache reuse threshold."""
-        return self._params.easycache.reuse_threshold
+        """EasyCache reuse threshold (deprecated, use cache_threshold)."""
+        return self._params.cache.reuse_threshold
 
     @easycache_threshold.setter
     def easycache_threshold(self, value: float):
-        self._params.easycache.reuse_threshold = value
+        self._params.cache.reuse_threshold = value
 
     @property
     def easycache_range(self) -> tuple:
-        """EasyCache start/end percentages."""
-        return (self._params.easycache.start_percent,
-                self._params.easycache.end_percent)
+        """EasyCache start/end percentages (deprecated, use cache_range)."""
+        return (self._params.cache.start_percent,
+                self._params.cache.end_percent)
 
     @easycache_range.setter
     def easycache_range(self, value: tuple):
-        self._params.easycache.start_percent = value[0]
-        self._params.easycache.end_percent = value[1]
+        self._params.cache.start_percent = value[0]
+        self._params.cache.end_percent = value[1]
 
     # --- Reference image params ---
 
@@ -1742,11 +1772,16 @@ cdef class SDContext:
             raise RuntimeError("Context not initialized")
         return SampleMethod(sd_get_default_sample_method(self._ctx))
 
-    def get_default_scheduler(self) -> Scheduler:
-        """Get the default scheduler for the loaded model."""
+    def get_default_scheduler(self, sample_method: Optional[SampleMethod] = None) -> Scheduler:
+        """Get the default scheduler for the loaded model and sample method."""
         if self._ctx == NULL:
             raise RuntimeError("Context not initialized")
-        return Scheduler(sd_get_default_scheduler(self._ctx))
+        cdef sample_method_t sm
+        if sample_method is None:
+            sm = sd_get_default_sample_method(self._ctx)
+        else:
+            sm = <sample_method_t>sample_method.value
+        return Scheduler(sd_get_default_scheduler(self._ctx, sm))
 
     def generate(self,
                  prompt: str,
@@ -2103,7 +2138,8 @@ def convert_model(
     output_path: str,
     output_type: SDType = SDType.F16,
     vae_path: Optional[str] = None,
-    tensor_type_rules: Optional[str] = None
+    tensor_type_rules: Optional[str] = None,
+    convert_name: bool = False
 ) -> bool:
     """
     Convert a model to a different format/quantization.
@@ -2114,6 +2150,7 @@ def convert_model(
         output_type: Output quantization type
         vae_path: Path to VAE model (optional)
         tensor_type_rules: Custom tensor type rules (optional)
+        convert_name: Convert tensor names (optional)
 
     Returns:
         True if conversion successful
@@ -2145,7 +2182,8 @@ def convert_model(
         vae_ptr,
         output_bytes,
         <sd_type_t>output_type,
-        rules_ptr
+        rules_ptr,
+        convert_name
     )
 
     if not success:

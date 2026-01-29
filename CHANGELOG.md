@@ -17,6 +17,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [0.1.x]
 
+## [Unreleased]
+
+### Changed
+
+- **llama.cpp API Sync** - Updated wrappers for latest llama.cpp header changes
+  - `llama.pxd`: Added `use_direct_io` field to `llama_model_params`, added `llama_params_fit_status` enum, updated `llama_params_fit()` return type and `margins` parameter, added `llama_model_n_embd_out()` function, added `llama_sampler_init_adaptive_p()` sampler, updated `llama_sampler_chain_get()` to non-const, added `llama_set_sampler()` function
+  - `llama_cpp.pyx`: Added `use_direct_io` property to `LlamaModelParams` class
+  - `common.pxd`: Added `LLAMA_EXAMPLE_BATCHED`/`LLAMA_EXAMPLE_DEBUG` enum values, added `COMMON_SAMPLER_TYPE_ADAPTIVE_P` sampler type, added `adaptive_target`/`adaptive_decay`/`backend_sampling` to `common_params_sampling`, changed `fit_params_target` from `size_t` to `std_vector[size_t]`, added `use_direct_io`/`cache_prompt`/`sleep_idle_seconds`/`webui_config_json` to `common_params`
+  - `test_chat.py`: Updated builtin templates list (added `exaone-moe`, `solar-open`)
+  - `test_context.py`: Updated `get_state_size()` expected value for empty context
+  - `test_params.py`: Updated `n_gpu_layers` default to `-1` (auto-detect)
+
+- **stable-diffusion.cpp API Sync** - Updated wrappers for latest stable-diffusion.cpp header changes
+  - `stable_diffusion.pxd`: Replaced `sd_easycache_params_t` with new `sd_cache_params_t` struct and `sd_cache_mode_t` enum (supports EASYCACHE, UCACHE, DBCACHE, TAYLORSEER, CACHE_DIT modes), updated `sd_img_gen_params_t` and `sd_vid_gen_params_t` to use new cache system, added `vae_tiling_params` to `sd_vid_gen_params_t`, updated `sd_get_default_scheduler()` signature (added `sample_method` parameter), updated `convert()` signature (added `convert_name` parameter)
+  - `stable_diffusion.pyx`: Added `cache_mode`, `cache_threshold`, `cache_range` properties, kept backward-compatible `easycache_*` properties (now map to new cache system), updated `get_default_scheduler()` to accept optional `sample_method`, updated `convert_model()` to accept optional `convert_name`
+
+### Deprecated
+
+- **SDImgGenParams**: `easycache_enabled`, `easycache_threshold`, `easycache_range` properties deprecated in favor of new `cache_mode`, `cache_threshold`, `cache_range` properties
+
 ## [0.1.19]
 
 ### Changed
