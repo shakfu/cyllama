@@ -1000,6 +1000,9 @@ class LlamaCppBuilder(Builder):
             build_dir=self.build_dir,
             BUILD_SHARED_LIBS=shared,
             CMAKE_POSITION_INDEPENDENT_CODE=True,
+            CMAKE_CXX_VISIBILITY_PRESET="hidden",
+            CMAKE_C_VISIBILITY_PRESET="hidden",
+            CMAKE_VISIBILITY_INLINES_HIDDEN=True,
             LLAMA_CURL=False,
             LLAMA_HTTPLIB=False,  # Disable httplib to avoid linking issues
             LLAMA_BUILD_SERVER=False,  # Server requires httplib
@@ -1108,6 +1111,9 @@ class WhisperCppBuilder(Builder):
             build_dir=self.build_dir,
             BUILD_SHARED_LIBS=shared,
             CMAKE_POSITION_INDEPENDENT_CODE=True,
+            CMAKE_CXX_VISIBILITY_PRESET="hidden",
+            CMAKE_C_VISIBILITY_PRESET="hidden",
+            CMAKE_VISIBILITY_INLINES_HIDDEN=True,
             **backend_options,
         )
         self.cmake_build(build_dir=self.build_dir, release=True)
@@ -1195,6 +1201,9 @@ class StableDiffusionCppBuilder(Builder):
             build_dir=self.build_dir,
             BUILD_SHARED_LIBS=shared,
             CMAKE_POSITION_INDEPENDENT_CODE=True,
+            CMAKE_CXX_VISIBILITY_PRESET="hidden",
+            CMAKE_C_VISIBILITY_PRESET="hidden",
+            CMAKE_VISIBILITY_INLINES_HIDDEN=True,
             **backend_options,
         )
         self.cmake_build(build_dir=self.build_dir, release=True)

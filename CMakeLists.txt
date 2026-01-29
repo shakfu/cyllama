@@ -309,7 +309,7 @@ endif()
 if(WIN32)
     set(CXX_COMPILE_OPTIONS /std:c++17 /EHsc /MD)
 else()
-    set(CXX_COMPILE_OPTIONS -std=c++17)
+    set(CXX_COMPILE_OPTIONS -std=c++17 -fvisibility=hidden -fvisibility-inlines-hidden)
 endif()
 
 # -----------------------------------------------------------------------------
