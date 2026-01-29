@@ -45,7 +45,7 @@ endif
 # =============================================================================
 # Primary targets
 # =============================================================================
-.PHONY: all build setup sync clean reset remake
+.PHONY: all build setup sync dev lean reset remake
 
 all: build
 
@@ -56,10 +56,13 @@ setup: reset
 	@$(SYSTEM_PYTHON) scripts/manage.py build --all --deps-only
 
 sync: $(LIBLAMMA)
-	@uv sync
+	@uv sync --only-dev
 
-build: sync
+dev: sync
 	@uv pip install -e .
+
+build:
+	@uv sync --reinstall-package cyllama
 
 remake: reset build test
 
