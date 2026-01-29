@@ -549,6 +549,40 @@ make build
 
 See [Build Backends](docs/book/src/build_backends.qmd) for comprehensive backend build instructions.
 
+### Multi-GPU Configuration
+
+For systems with multiple GPUs, cyllama provides full control over GPU selection and model splitting:
+
+```python
+from cyllama import LLM, GenerationConfig
+
+# Use a specific GPU (GPU index 1)
+llm = LLM("model.gguf", main_gpu=1)
+
+# Multi-GPU with layer splitting (default mode)
+llm = LLM("model.gguf", split_mode=1, n_gpu_layers=99)
+
+# Multi-GPU with tensor parallelism (row splitting)
+llm = LLM("model.gguf", split_mode=2, n_gpu_layers=99)
+
+# Custom tensor split: 30% GPU 0, 70% GPU 1
+llm = LLM("model.gguf", tensor_split=[0.3, 0.7])
+
+# Full configuration via GenerationConfig
+config = GenerationConfig(
+    main_gpu=0,
+    split_mode=1,          # 0=NONE, 1=LAYER, 2=ROW
+    tensor_split=[1, 2],   # 1/3 GPU0, 2/3 GPU1
+    n_gpu_layers=99
+)
+llm = LLM("model.gguf", config=config)
+```
+
+**Split Modes:**
+- `0` (NONE): Single GPU only, uses `main_gpu`
+- `1` (LAYER): Split layers and KV cache across GPUs (default)
+- `2` (ROW): Tensor parallelism - split layers with row-wise distribution
+
 ## Testing
 
 The `tests` directory in this repo provides extensive examples of using cyllama.

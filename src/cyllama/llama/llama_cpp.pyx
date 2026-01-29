@@ -789,16 +789,24 @@ cdef class LlamaModelTensorBuftOverride:
 cdef class LlamaModelParams:
     cdef llama.llama_model_params p
     cdef object _progress_callback  # prevent garbage collection of Python callback
+    cdef float * _tensor_split      # owned buffer for tensor_split values
 
     def __init__(self):
         self.p = llama.llama_model_default_params()
         self._progress_callback = None
+        self._tensor_split = NULL
+
+    def __dealloc__(self):
+        if self._tensor_split != NULL:
+            free(self._tensor_split)
+            self._tensor_split = NULL
 
     @staticmethod
     cdef LlamaModelParams from_instance(llama.llama_model_params params):
         cdef LlamaModelParams wrapper = LlamaModelParams.__new__(LlamaModelParams)
         wrapper.p = params
         wrapper._progress_callback = None
+        wrapper._tensor_split = NULL
         return wrapper
 
     @property
@@ -842,7 +850,17 @@ cdef class LlamaModelParams:
 
     @property
     def tensor_split(self) -> list[float]:
-        """Proportion of the model (layers or rows) to offload to each GPU, size: llama_max_devices()"""
+        """Proportion of the model (layers or rows) to offload to each GPU, size: llama_max_devices()
+
+        Each value represents the proportion of work to assign to each GPU.
+        Values are normalized automatically by llama.cpp, so [1, 1] and [0.5, 0.5]
+        are equivalent (50% each). Use [1, 2] to assign 1/3 to GPU 0 and 2/3 to GPU 1.
+
+        Example:
+            params = LlamaModelParams()
+            params.split_mode = 1  # LLAMA_SPLIT_MODE_LAYER
+            params.tensor_split = [0.5, 0.5]  # Split equally between 2 GPUs
+        """
         cdef size_t length = llama.llama_max_devices()
         results = []
         if self.p.tensor_split:
@@ -850,6 +868,45 @@ cdef class LlamaModelParams:
                 n = <float>self.p.tensor_split[i]
                 results.append(n)
         return results
+
+    @tensor_split.setter
+    def tensor_split(self, values):
+        """Set tensor split proportions for multi-GPU inference.
+
+        Args:
+            values: List of floats representing proportions for each GPU.
+                    Length should not exceed llama_max_devices().
+                    Pass None or empty list to clear (use default distribution).
+        """
+        cdef size_t max_devices = llama.llama_max_devices()
+        cdef size_t i
+
+        # Handle None or empty list - clear the tensor_split
+        if values is None or len(values) == 0:
+            if self._tensor_split != NULL:
+                free(self._tensor_split)
+                self._tensor_split = NULL
+            self.p.tensor_split = NULL
+            return
+
+        if len(values) > max_devices:
+            raise ValueError(f"tensor_split has {len(values)} elements but max devices is {max_devices}")
+
+        # Allocate buffer if not already allocated
+        if self._tensor_split == NULL:
+            self._tensor_split = <float *>calloc(max_devices, sizeof(float))
+            if self._tensor_split == NULL:
+                raise MemoryError("Failed to allocate tensor_split buffer")
+
+        # Copy values to buffer, zero-fill remaining slots
+        for i in range(max_devices):
+            if i < len(values):
+                self._tensor_split[i] = <float>values[i]
+            else:
+                self._tensor_split[i] = 0.0
+
+        # Point the params to our buffer
+        self.p.tensor_split = self._tensor_split
 
     @property
     def progress_callback(self) -> Callable[[float], bool]:

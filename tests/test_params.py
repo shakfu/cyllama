@@ -22,6 +22,55 @@ def test_default_model_params():
     assert params.use_mlock == False
     assert params.check_tensors == False
     assert params.progress_callback is None
+    assert params.tensor_split == []  # Default is empty (no custom split)
+
+
+def test_model_params_tensor_split():
+    """Test that tensor_split can be set and retrieved."""
+    params = cy.LlamaModelParams()
+
+    # Initially empty
+    assert params.tensor_split == []
+
+    # Set tensor_split
+    params.tensor_split = [0.5, 0.5]
+    result = params.tensor_split
+    assert len(result) == cy.llama_max_devices()
+    assert result[0] == approx(0.5, rel=1e-5)
+    assert result[1] == approx(0.5, rel=1e-5)
+    # Remaining should be zero-filled
+    assert all(v == 0.0 for v in result[2:])
+
+    # Set different values
+    params.tensor_split = [1.0, 2.0, 1.0]
+    result = params.tensor_split
+    assert result[0] == approx(1.0, rel=1e-5)
+    assert result[1] == approx(2.0, rel=1e-5)
+    assert result[2] == approx(1.0, rel=1e-5)
+
+    # Clear with None
+    params.tensor_split = None
+    assert params.tensor_split == []
+
+    # Set again after clearing
+    params.tensor_split = [0.3, 0.7]
+    result = params.tensor_split
+    assert result[0] == approx(0.3, rel=1e-5)
+    assert result[1] == approx(0.7, rel=1e-5)
+
+    # Clear with empty list
+    params.tensor_split = []
+    assert params.tensor_split == []
+
+
+def test_model_params_tensor_split_validation():
+    """Test tensor_split validation."""
+    params = cy.LlamaModelParams()
+
+    # Should raise if too many elements
+    max_devices = cy.llama_max_devices()
+    with pytest.raises(ValueError):
+        params.tensor_split = [0.5] * (max_devices + 1)
 
 
 def test_model_params_progress_callback():

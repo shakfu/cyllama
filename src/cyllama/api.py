@@ -85,6 +85,14 @@ class GenerationConfig:
         min_p: Minimum probability threshold (default: 0.05)
         repeat_penalty: Penalty for repeating tokens (default: 1.1)
         n_gpu_layers: Number of layers to offload to GPU (default: 99)
+        main_gpu: Primary GPU device index for inference (default: 0)
+        split_mode: How to split model across GPUs (default: 1 = LAYER)
+            0 = NONE: Use single GPU only (main_gpu)
+            1 = LAYER: Split layers and KV cache across GPUs
+            2 = ROW: Split with tensor parallelism (if supported)
+        tensor_split: Proportion of work per GPU (default: None = auto)
+            List of floats, one per GPU. Values are normalized by llama.cpp.
+            Example: [1, 2] assigns 1/3 to GPU 0 and 2/3 to GPU 1.
         n_ctx: Context window size, None = auto (default: None)
         n_batch: Batch size for processing (default: 512)
         seed: Random seed for reproducibility, -1 = random (default: -1)
@@ -94,6 +102,19 @@ class GenerationConfig:
 
     Raises:
         ValueError: If any parameter is outside its valid range.
+
+    Example:
+        >>> # Use GPU 1 as primary device
+        >>> config = GenerationConfig(main_gpu=1)
+        >>>
+        >>> # Multi-GPU with layer splitting
+        >>> config = GenerationConfig(split_mode=1, n_gpu_layers=99)
+        >>>
+        >>> # Multi-GPU with tensor parallelism (row splitting)
+        >>> config = GenerationConfig(split_mode=2, n_gpu_layers=99)
+        >>>
+        >>> # Custom tensor split: 30% GPU 0, 70% GPU 1
+        >>> config = GenerationConfig(tensor_split=[0.3, 0.7])
     """
     max_tokens: int = 512
     temperature: float = 0.8
@@ -102,6 +123,9 @@ class GenerationConfig:
     min_p: float = 0.05
     repeat_penalty: float = 1.1
     n_gpu_layers: int = 99
+    main_gpu: int = 0
+    split_mode: int = 1
+    tensor_split: Optional[List[float]] = None
     n_ctx: Optional[int] = None
     n_batch: int = 512
     seed: int = -1
@@ -133,6 +157,18 @@ class GenerationConfig:
 
         if self.n_gpu_layers < 0:
             errors.append(f"n_gpu_layers must be >= 0, got {self.n_gpu_layers}")
+
+        if self.main_gpu < 0:
+            errors.append(f"main_gpu must be >= 0, got {self.main_gpu}")
+
+        if self.split_mode not in (0, 1, 2):
+            errors.append(f"split_mode must be 0, 1, or 2, got {self.split_mode}")
+
+        if self.tensor_split is not None:
+            if not isinstance(self.tensor_split, list):
+                errors.append(f"tensor_split must be a list or None, got {type(self.tensor_split)}")
+            elif any(not isinstance(v, (int, float)) or v < 0 for v in self.tensor_split):
+                errors.append("tensor_split values must be non-negative numbers")
 
         if self.n_ctx is not None and self.n_ctx < 1:
             errors.append(f"n_ctx must be >= 1 or None, got {self.n_ctx}")
@@ -358,6 +394,9 @@ class LLM:
                     'min_p': config.min_p,
                     'repeat_penalty': config.repeat_penalty,
                     'n_gpu_layers': config.n_gpu_layers,
+                    'main_gpu': config.main_gpu,
+                    'split_mode': config.split_mode,
+                    'tensor_split': config.tensor_split.copy() if config.tensor_split else None,
                     'n_ctx': config.n_ctx,
                     'n_batch': config.n_batch,
                     'seed': config.seed,
@@ -380,9 +419,18 @@ class LLM:
         # Initialize model
         model_params = LlamaModelParams()
         model_params.n_gpu_layers = self.config.n_gpu_layers
+        model_params.main_gpu = self.config.main_gpu
+        model_params.split_mode = self.config.split_mode
+        if self.config.tensor_split is not None:
+            model_params.tensor_split = self.config.tensor_split
 
         if self.verbose:
             print(f"Loading model: {model_path}")
+            gpu_info = (f"GPU config: n_gpu_layers={self.config.n_gpu_layers}, "
+                        f"main_gpu={self.config.main_gpu}, split_mode={self.config.split_mode}")
+            if self.config.tensor_split:
+                gpu_info += f", tensor_split={self.config.tensor_split}"
+            print(gpu_info)
 
         self.model = LlamaModel(model_path, model_params)
         self.vocab = self.model.get_vocab()

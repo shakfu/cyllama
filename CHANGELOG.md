@@ -19,6 +19,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+### Added
+
+- **Multi-GPU Support** - Added comprehensive multi-GPU configuration to high-level API
+  - `GenerationConfig`: Added `main_gpu`, `split_mode`, and `tensor_split` parameters
+    - `main_gpu`: Select primary GPU device index (default: 0)
+    - `split_mode`: Control model splitting (0=NONE, 1=LAYER, 2=ROW with tensor parallelism)
+    - `tensor_split`: Custom work distribution across GPUs (e.g., `[0.3, 0.7]` for 30%/70% split)
+  - `LlamaModelParams.tensor_split`: Now writable (was read-only), with proper memory management
+  - `LLM` class: Accepts all GPU parameters via kwargs or `GenerationConfig`
+  - Verbose mode now prints GPU configuration details
+
 ### Changed
 
 - **llama.cpp API Sync** - Updated wrappers for latest llama.cpp header changes
