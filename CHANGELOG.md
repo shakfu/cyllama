@@ -30,6 +30,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - `LLM` class: Accepts all GPU parameters via kwargs or `GenerationConfig`
   - Verbose mode now prints GPU configuration details
 
+### Fixed
+
+- **HIP/ROCm Backend Build** - Fixed multiple issues with HIP backend configuration (Issue #9)
+  - Added missing environment variable handling for `GGML_HIP`, `GGML_SYCL`, `GGML_OPENCL`
+  - Added HIP system library linking (`hip::host`, `roc::rocblas`, `roc::hipblas`)
+  - Fixed HIP compilation flags: removed `hip::device` target which incorrectly added HIP compiler flags (`-x hip --offload-arch`) to Cython extensions
+  - Added SYCL and OpenCL system library linking support
+  - Added backend library checks for stable-diffusion extension (HIP, SYCL, OpenCL)
+
 ### Changed
 
 - **llama.cpp API Sync** - Updated wrappers for latest llama.cpp header changes

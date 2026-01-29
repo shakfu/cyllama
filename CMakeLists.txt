@@ -271,10 +271,14 @@ endif()
 
 if(GGML_HIP)
     # HIP/ROCm backend requires hip, hipblas, and rocblas
+    # Note: Only link hip::host (runtime), NOT hip::device (which adds HIP compiler flags)
+    # The actual HIP kernels are in libggml-hip.a which was compiled with hipcc
     find_package(hip REQUIRED)
     find_package(hipblas REQUIRED)
     find_package(rocblas REQUIRED)
-    list(APPEND SYSTEM_LIBS hip::host hip::device roc::rocblas roc::hipblas)
+    # hip::host provides the HIP runtime without requiring HIP compilation
+    # amdhip64 is the actual runtime library
+    list(APPEND SYSTEM_LIBS hip::host roc::rocblas roc::hipblas)
 endif()
 
 if(GGML_SYCL)
