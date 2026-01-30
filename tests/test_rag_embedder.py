@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from cyllama.rag import Embedder, EmbeddingResult, PoolingType
+from cyllama.rag import CacheInfo, Embedder, EmbeddingResult, PoolingType
 
 
 # Use the standard test model - it can generate embeddings even if not optimized for it
@@ -246,3 +246,127 @@ class TestEmbeddingSimilarity:
         # Should be very close (may have tiny floating point differences)
         for a, b in zip(emb1, emb2):
             assert abs(a - b) < 1e-6
+
+
+class TestEmbedderCache:
+    """Test embedding cache functionality."""
+
+    @pytest.fixture
+    def cached_embedder(self, model_path: str) -> Embedder:
+        """Create an Embedder with caching enabled."""
+        emb = Embedder(
+            model_path,
+            n_ctx=512,
+            n_gpu_layers=0,
+            cache_size=100,
+        )
+        yield emb
+        emb.close()
+
+    def test_cache_disabled_by_default(self, embedder: Embedder):
+        """Test that cache is disabled by default."""
+        assert embedder.cache_enabled is False
+        assert embedder.cache_info() is None
+
+    def test_cache_enabled(self, cached_embedder: Embedder):
+        """Test that cache can be enabled."""
+        assert cached_embedder.cache_enabled is True
+        info = cached_embedder.cache_info()
+        assert info is not None
+        assert info.maxsize == 100
+
+    def test_cache_hit(self, cached_embedder: Embedder):
+        """Test that repeated calls hit the cache."""
+        text = "Hello, world!"
+
+        # First call - cache miss
+        emb1 = cached_embedder.embed(text)
+        info1 = cached_embedder.cache_info()
+        assert info1.misses == 1
+        assert info1.hits == 0
+        assert info1.currsize == 1
+
+        # Second call - cache hit
+        emb2 = cached_embedder.embed(text)
+        info2 = cached_embedder.cache_info()
+        assert info2.misses == 1
+        assert info2.hits == 1
+        assert info2.currsize == 1
+
+        # Results should be identical
+        assert emb1 == emb2
+
+    def test_cache_different_texts(self, cached_embedder: Embedder):
+        """Test that different texts are cached separately."""
+        text1 = "Hello"
+        text2 = "World"
+
+        cached_embedder.embed(text1)
+        cached_embedder.embed(text2)
+
+        info = cached_embedder.cache_info()
+        assert info.misses == 2
+        assert info.currsize == 2
+
+    def test_cache_clear(self, cached_embedder: Embedder):
+        """Test cache clearing."""
+        cached_embedder.embed("Test text")
+        assert cached_embedder.cache_info().currsize == 1
+
+        cached_embedder.cache_clear()
+        info = cached_embedder.cache_info()
+        assert info.currsize == 0
+        assert info.hits == 0
+        assert info.misses == 0
+
+    def test_cache_lru_eviction(self, model_path: str):
+        """Test that LRU eviction works."""
+        emb = Embedder(model_path, n_gpu_layers=0, cache_size=3)
+        try:
+            # Fill cache
+            emb.embed("A")
+            emb.embed("B")
+            emb.embed("C")
+            assert emb.cache_info().currsize == 3
+
+            # Add one more - should evict "A"
+            emb.embed("D")
+            assert emb.cache_info().currsize == 3
+
+            # "B", "C", "D" should be in cache, not "A"
+            # Access "B" to make it recently used
+            emb.embed("B")  # Should be a hit
+            info = emb.cache_info()
+            assert info.hits == 1  # "B" was a cache hit
+
+            # Access "A" - should be a miss (was evicted)
+            emb.embed("A")
+            info = emb.cache_info()
+            assert info.misses == 5  # A, B, C, D (misses) + A again (miss)
+        finally:
+            emb.close()
+
+    def test_cache_clear_does_nothing_when_disabled(self, embedder: Embedder):
+        """Test that cache_clear doesn't raise when cache is disabled."""
+        embedder.cache_clear()  # Should not raise
+
+    def test_cache_info_namedtuple(self, cached_embedder: Embedder):
+        """Test that CacheInfo is a proper NamedTuple."""
+        cached_embedder.embed("Test")
+        info = cached_embedder.cache_info()
+
+        assert isinstance(info, CacheInfo)
+        assert hasattr(info, 'hits')
+        assert hasattr(info, 'misses')
+        assert hasattr(info, 'maxsize')
+        assert hasattr(info, 'currsize')
+
+    def test_cache_repr_includes_cache_size(self, cached_embedder: Embedder):
+        """Test that repr includes cache_size when enabled."""
+        repr_str = repr(cached_embedder)
+        assert "cache_size=100" in repr_str
+
+    def test_cache_repr_excludes_cache_when_disabled(self, embedder: Embedder):
+        """Test that repr doesn't include cache_size when disabled."""
+        repr_str = repr(embedder)
+        assert "cache_size" not in repr_str

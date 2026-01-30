@@ -46,7 +46,7 @@ from .advanced import (
     async_search_knowledge,
     create_rag_tool,
 )
-from .embedder import Embedder, PoolingType
+from .embedder import CacheInfo, Embedder, PoolingType
 from .loaders import (
     BaseLoader,
     DirectoryLoader,
@@ -82,6 +82,7 @@ __all__ = [
     # Embedder
     "Embedder",
     "PoolingType",
+    "CacheInfo",
     # VectorStore
     "VectorStore",
     "VectorStoreError",

@@ -21,6 +21,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Added
 
+- **Embedder LRU Cache** - Added optional embedding cache for repeated queries
+  - `Embedder`: New `cache_size` parameter (default 0 = disabled)
+  - `cache_info()`: Returns `CacheInfo` namedtuple with hits, misses, maxsize, currsize
+  - `cache_clear()`: Clears cache and resets statistics
+  - `cache_enabled`: Property to check if caching is active
+  - LRU eviction when cache reaches capacity
+  - Exported `CacheInfo` from `cyllama.rag`
+
 - **Multi-GPU Support** - Added comprehensive multi-GPU configuration to high-level API
   - `GenerationConfig`: Added `main_gpu`, `split_mode`, and `tensor_split` parameters
     - `main_gpu`: Select primary GPU device index (default: 0)

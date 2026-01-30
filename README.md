@@ -323,6 +323,21 @@ store.add_texts(["Document content..."])
 results = store.search("query", k=5, vector_weight=0.7, fts_weight=0.3)
 ```
 
+**Embedding Cache** - Speed up repeated queries with LRU caching:
+
+```python
+from cyllama.rag import Embedder
+
+# Enable cache with 1000 entries
+embedder = Embedder("models/bge-small-en-v1.5-q8_0.gguf", cache_size=1000)
+
+embedder.embed("hello")  # Cache miss
+embedder.embed("hello")  # Cache hit - instant return
+
+info = embedder.cache_info()
+print(f"Hits: {info.hits}, Misses: {info.misses}")
+```
+
 **Agent Integration** - Use RAG as an agent tool:
 
 ```python
@@ -344,7 +359,7 @@ agent = ReActAgent(llm=llm, tools=[search_tool])
 result = agent.run("Find information about X in the knowledge base")
 ```
 
-Supports text chunking, multiple embedding pooling strategies, async operations, reranking, and SQLite-vector for persistent storage.
+Supports text chunking, multiple embedding pooling strategies, LRU caching for repeated queries, async operations, reranking, and SQLite-vector for persistent storage.
 
 ### Common Utilities
 

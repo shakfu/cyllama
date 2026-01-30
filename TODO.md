@@ -21,7 +21,6 @@
 
 ### Phase 2: Quick Wins
 
-- [ ] Embedding cache for repeated queries (`@lru_cache` on `Embedder.embed()`)
 - [ ] Auto-quantization after bulk inserts (threshold-based)
 - [ ] Persistent quantization state in database metadata
 
@@ -39,6 +38,7 @@
 
 ## Completed
 
+- [x] Embedding cache for repeated queries (LRU cache on `Embedder.embed()` with `cache_size` parameter)
 - [x] Enable CI/CD automation
 - [x] Add code coverage reporting to CI
 - [x] Add mypy type checking to CI

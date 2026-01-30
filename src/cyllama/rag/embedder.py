@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import math
+from collections import OrderedDict
+from dataclasses import dataclass
 from enum import IntEnum
-from typing import Iterator
+from typing import Iterator, NamedTuple
 
 from ..llama.llama_cpp import (
     LlamaBatch,
@@ -15,6 +17,62 @@ from ..llama.llama_cpp import (
     LlamaVocab,
 )
 from .types import EmbeddingResult
+
+
+class CacheInfo(NamedTuple):
+    """Cache statistics for Embedder."""
+
+    hits: int
+    misses: int
+    maxsize: int
+    currsize: int
+
+
+class _LRUCache:
+    """Simple LRU cache implementation for embeddings.
+
+    Uses OrderedDict to maintain insertion order and evict oldest entries.
+    Thread-safe for single-threaded use (typical for embedding workloads).
+    """
+
+    def __init__(self, maxsize: int):
+        self.maxsize = maxsize
+        self._cache: OrderedDict[str, tuple[float, ...]] = OrderedDict()
+        self._hits = 0
+        self._misses = 0
+
+    def get(self, key: str) -> tuple[float, ...] | None:
+        """Get item from cache, moving it to end (most recently used)."""
+        if key in self._cache:
+            self._hits += 1
+            self._cache.move_to_end(key)
+            return self._cache[key]
+        self._misses += 1
+        return None
+
+    def put(self, key: str, value: tuple[float, ...]) -> None:
+        """Add item to cache, evicting oldest if at capacity."""
+        if key in self._cache:
+            self._cache.move_to_end(key)
+        else:
+            if len(self._cache) >= self.maxsize:
+                self._cache.popitem(last=False)
+            self._cache[key] = value
+
+    def clear(self) -> None:
+        """Clear the cache and reset statistics."""
+        self._cache.clear()
+        self._hits = 0
+        self._misses = 0
+
+    def info(self) -> CacheInfo:
+        """Return cache statistics."""
+        return CacheInfo(
+            hits=self._hits,
+            misses=self._misses,
+            maxsize=self.maxsize,
+            currsize=len(self._cache),
+        )
 
 
 class PoolingType(IntEnum):
@@ -54,6 +112,7 @@ class Embedder:
         pooling: str = "mean",
         normalize: bool = True,
         verbose: bool = False,
+        cache_size: int = 0,
     ):
         """Initialize embedder with an embedding model.
 
@@ -65,6 +124,7 @@ class Embedder:
             pooling: Pooling strategy: "mean", "cls", "last", or "none"
             normalize: Whether to L2-normalize output vectors
             verbose: Whether to print model loading info
+            cache_size: Max number of embeddings to cache (0 = disabled)
         """
         self.model_path = model_path
         self.n_ctx = n_ctx
@@ -108,6 +168,11 @@ class Embedder:
         self._n_embd = self._model.n_embd
         self._vocab = self._model.get_vocab()
 
+        # Initialize embedding cache if requested
+        self._cache: _LRUCache | None = None
+        if cache_size > 0:
+            self._cache = _LRUCache(cache_size)
+
     @property
     def dimension(self) -> int:
         """Return embedding dimension (n_embd)."""
@@ -129,8 +194,42 @@ class Embedder:
         """Whether L2 normalization is enabled."""
         return self._normalize
 
+    @property
+    def cache_enabled(self) -> bool:
+        """Whether embedding cache is enabled."""
+        return self._cache is not None
+
+    def cache_info(self) -> CacheInfo | None:
+        """Return cache statistics, or None if caching is disabled.
+
+        Returns:
+            CacheInfo with hits, misses, maxsize, currsize, or None
+
+        Example:
+            >>> embedder = Embedder("model.gguf", cache_size=1000)
+            >>> embedder.embed("hello")
+            >>> embedder.embed("hello")  # Cache hit
+            >>> info = embedder.cache_info()
+            >>> print(f"Hits: {info.hits}, Misses: {info.misses}")
+            Hits: 1, Misses: 1
+        """
+        if self._cache is None:
+            return None
+        return self._cache.info()
+
+    def cache_clear(self) -> None:
+        """Clear the embedding cache and reset statistics.
+
+        Does nothing if caching is disabled.
+        """
+        if self._cache is not None:
+            self._cache.clear()
+
     def embed(self, text: str) -> list[float]:
         """Embed a single text string.
+
+        If caching is enabled (cache_size > 0), repeated calls with the same
+        text will return cached results without recomputation.
 
         Args:
             text: Text to embed
@@ -138,7 +237,19 @@ class Embedder:
         Returns:
             Embedding vector as a list of floats
         """
+        # Check cache first if enabled
+        if self._cache is not None:
+            cached = self._cache.get(text)
+            if cached is not None:
+                return list(cached)
+
+        # Compute embedding
         result = self._embed_single(text)
+
+        # Store in cache if enabled
+        if self._cache is not None:
+            self._cache.put(text, tuple(result.embedding))
+
         return result.embedding
 
     def embed_with_info(self, text: str) -> EmbeddingResult:
@@ -313,8 +424,13 @@ class Embedder:
         self.close()
 
     def __repr__(self) -> str:
-        return (
-            f"Embedder(model_path={self.model_path!r}, "
-            f"dimension={self.dimension}, pooling={self.pooling!r}, "
-            f"normalize={self.normalize})"
-        )
+        parts = [
+            f"Embedder(model_path={self.model_path!r}",
+            f"dimension={self.dimension}",
+            f"pooling={self.pooling!r}",
+            f"normalize={self.normalize}",
+        ]
+        if self._cache is not None:
+            info = self._cache.info()
+            parts.append(f"cache_size={info.maxsize}")
+        return ", ".join(parts) + ")"
