@@ -98,6 +98,26 @@ cache.update(tokens, ngram_min=2, ngram_max=4)
 draft = cache.draft(input_tokens, n_draft=16)
 ```
 
+**Response Caching** - Cache LLM responses for repeated prompts:
+
+```python
+from cyllama import LLM
+
+# Enable caching with 100 entries and 1 hour TTL
+llm = LLM("model.gguf", cache_size=100, cache_ttl=3600, seed=42)
+
+response1 = llm("What is Python?")  # Cache miss - generates response
+response2 = llm("What is Python?")  # Cache hit - returns cached response instantly
+
+# Check cache statistics
+info = llm.cache_info()  # ResponseCacheInfo(hits=1, misses=1, maxsize=100, currsize=1, ttl=3600)
+
+# Clear cache when needed
+llm.cache_clear()
+```
+
+Note: Caching requires a fixed seed (`seed != -1`) since random seeds produce non-deterministic output. Streaming responses are not cached.
+
 ### Framework Integrations
 
 **OpenAI-Compatible API** - Drop-in replacement:

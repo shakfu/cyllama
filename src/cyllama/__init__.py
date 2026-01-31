@@ -7,6 +7,7 @@ from .api import (
     GenerationConfig,
     GenerationStats,
     Response,
+    ResponseCacheInfo,
     # Async API
     AsyncLLM,
     complete_async,

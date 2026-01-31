@@ -41,9 +41,12 @@ Async Example:
 """
 
 import asyncio
+import hashlib
+from collections import OrderedDict
 from typing import (
     AsyncIterator,
     Iterator,
+    NamedTuple,
     Optional,
     Dict,
     Any,
@@ -314,6 +317,97 @@ class Response:
         return json.dumps(self.to_dict(), indent=indent)
 
 
+class ResponseCacheInfo(NamedTuple):
+    """Cache statistics for LLM response caching."""
+    hits: int
+    misses: int
+    maxsize: int
+    currsize: int
+    ttl: Optional[float]  # TTL in seconds, None if no expiration
+
+
+class _ResponseLRUCache:
+    """
+    LRU cache for Response objects with optional TTL support.
+
+    Stores (Response, timestamp) tuples and checks expiration on get().
+    Expired entries are treated as cache misses.
+    """
+
+    def __init__(self, maxsize: int, ttl: Optional[float] = None):
+        """
+        Initialize the cache.
+
+        Args:
+            maxsize: Maximum number of entries
+            ttl: Time-to-live in seconds, None for no expiration
+        """
+        self._maxsize = maxsize
+        self._ttl = ttl
+        self._cache: OrderedDict[str, Tuple[Any, float]] = OrderedDict()
+        self._hits = 0
+        self._misses = 0
+
+    def get(self, key: str) -> Optional[Any]:
+        """
+        Get a value from the cache.
+
+        Returns None if key not found or entry expired.
+        Expired entries are removed from cache.
+        """
+        if key not in self._cache:
+            self._misses += 1
+            return None
+
+        value, timestamp = self._cache[key]
+
+        # Check TTL expiration
+        if self._ttl is not None:
+            if time.time() - timestamp > self._ttl:
+                # Entry expired - remove and return miss
+                del self._cache[key]
+                self._misses += 1
+                return None
+
+        # Move to end (most recently used)
+        self._cache.move_to_end(key)
+        self._hits += 1
+        return value
+
+    def put(self, key: str, value: Any) -> None:
+        """
+        Store a value in the cache.
+
+        If cache is full, evicts the least recently used entry.
+        """
+        if key in self._cache:
+            # Update existing entry
+            self._cache[key] = (value, time.time())
+            self._cache.move_to_end(key)
+        else:
+            # Check capacity
+            if len(self._cache) >= self._maxsize:
+                # Evict oldest (first item)
+                self._cache.popitem(last=False)
+            self._cache[key] = (value, time.time())
+
+    def clear(self) -> None:
+        """Clear all cache entries and reset statistics."""
+        self._cache.clear()
+        self._hits = 0
+        self._misses = 0
+
+    def info(self) -> ResponseCacheInfo:
+        """Return cache statistics."""
+        return ResponseCacheInfo(
+            hits=self._hits,
+            misses=self._misses,
+            maxsize=self._maxsize,
+            currsize=len(self._cache),
+            ttl=self._ttl,
+        )
+
+
 class LLM:
     """
     High-level LLM interface with model caching and convenient API.
@@ -350,6 +444,8 @@ class LLM:
         model_path: str,
         config: Optional[GenerationConfig] = None,
         verbose: bool = False,
+        cache_size: int = 0,
+        cache_ttl: Optional[float] = None,
         **kwargs
     ):
         """
@@ -359,6 +455,8 @@ class LLM:
             model_path: Path to GGUF model file
             config: Generation configuration (uses defaults if None)
             verbose: Print detailed information during generation
+            cache_size: Maximum number of responses to cache (0 = disabled)
+            cache_ttl: Cache time-to-live in seconds (None = no expiration)
             **kwargs: Generation parameters (temperature, max_tokens, etc.)
                       These override values in config if both are provided.
 
@@ -372,10 +470,18 @@ class LLM:
             >>>
             >>> # Config with overrides
             >>> llm = LLM("model.gguf", config=config, temperature=0.5)
+            >>>
+            >>> # With response caching
+            >>> llm = LLM("model.gguf", cache_size=100, cache_ttl=3600)
         """
         self.model_path = model_path
         self.verbose = verbose
         self._closed = False
+
+        # Initialize response cache
+        self._cache: Optional[_ResponseLRUCache] = None
+        if cache_size > 0:
+            self._cache = _ResponseLRUCache(cache_size, cache_ttl)
 
         # Build config: start with provided config or defaults, then apply kwargs
         if config is None:
@@ -499,6 +605,67 @@ class LLM:
             self._ctx = None
             self._ctx_size = 0
 
+    @property
+    def cache_enabled(self) -> bool:
+        """Return True if response caching is enabled."""
+        return self._cache is not None
+
+    def cache_info(self) -> Optional[ResponseCacheInfo]:
+        """
+        Return cache statistics.
+
+        Returns:
+            ResponseCacheInfo with hits, misses, maxsize, currsize, ttl.
+            Returns None if caching is disabled.
+        """
+        if self._cache is None:
+            return None
+        return self._cache.info()
+
+    def cache_clear(self) -> None:
+        """
+        Clear all cached responses and reset cache statistics.
+
+        Does nothing if caching is disabled.
+        """
+        if self._cache is not None:
+            self._cache.clear()
+
+    def _make_cache_key(self, prompt: str, config: GenerationConfig) -> Optional[str]:
+        """
+        Generate a cache key from prompt and config.
+
+        Returns None if caching should be skipped (e.g., random seed).
+
+        The key includes parameters that affect output:
+        - prompt, temperature, top_k, top_p, min_p
+        - repeat_penalty, max_tokens, stop_sequences (sorted)
+        - seed, add_bos, parse_special
+
+        Infrastructure parameters are excluded:
+        - n_gpu_layers, main_gpu, split_mode, tensor_split, n_ctx, n_batch
+        """
+        # Skip caching for random seed
+        if config.seed == -1:
+            return None
+
+        # Build key from output-affecting parameters
+        key_parts = [
+            prompt,
+            str(config.temperature),
+            str(config.top_k),
+            str(config.top_p),
+            str(config.min_p),
+            str(config.repeat_penalty),
+            str(config.max_tokens),
+            str(sorted(config.stop_sequences)),
+            str(config.seed),
+            str(config.add_bos),
+            str(config.parse_special),
+        ]
+        key_str = "\0".join(key_parts)
+        return hashlib.sha256(key_str.encode()).hexdigest()
+
     def _ensure_context(self, prompt_length: int, config: GenerationConfig):
         """
         Create or recreate context if needed.
@@ -604,6 +771,18 @@ class LLM:
     ) -> Response:
         """Non-streaming generation returning Response object."""
         config = config or self.config
+
+        # Check cache first (only if no on_token callback)
+        cache_key = None
+        if self._cache is not None and on_token is None:
+            cache_key = self._make_cache_key(prompt, config)
+            if cache_key is not None:
+                cached = self._cache.get(cache_key)
+                if cached is not None:
+                    if self.verbose:
+                        print("Cache hit")
+                    return cached
+
         start_time = time.time()
 
         # Tokenize for stats
@@ -632,12 +811,18 @@ class LLM:
             tokens_per_second=n_generated / total_time if total_time > 0 else 0.0
         )
 
-        return Response(
+        response = Response(
             text=text,
             stats=stats,
             finish_reason="stop",
             model=self.model_path
         )
+
+        # Store in cache if enabled
+        if cache_key is not None:
+            self._cache.put(cache_key, response)
+
+        return response
 
     def _generate_stream(
         self,
