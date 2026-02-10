@@ -178,7 +178,20 @@ cdef extern from "common.h":
         std_string docker_repo  # Docker repo                                                // NOLINT
         std_string name         # in format <user>/<model>[:<tag>] (tag is optional)         // NOLINT
 
+    cdef enum common_speculative_type:
+        COMMON_SPECULATIVE_TYPE_NONE          # no speculative decoding
+        COMMON_SPECULATIVE_TYPE_DRAFT         # draft model
+        COMMON_SPECULATIVE_TYPE_EAGLE3        # eagle draft model
+        COMMON_SPECULATIVE_TYPE_NGRAM_SIMPLE  # simple self-speculative decoding
+        COMMON_SPECULATIVE_TYPE_NGRAM_MAP_K   # self-speculative decoding with n-gram keys only
+        COMMON_SPECULATIVE_TYPE_NGRAM_MAP_K4V # self-speculative decoding with n-gram keys and 4 m-gram values
+        COMMON_SPECULATIVE_TYPE_NGRAM_MOD
+        COMMON_SPECULATIVE_TYPE_NGRAM_CACHE   # self-speculative decoding with 3-level n-gram cache
+        COMMON_SPECULATIVE_TYPE_COUNT         # number of types, unknown type
+
     ctypedef struct common_params_speculative:
+        common_speculative_type type  # type of speculative decoding
+
         # general-purpose speculative decoding parameters
         int32_t n_max           # maximum number of tokens to draft during speculative decoding
         int32_t n_min           # minimum number of draft tokens to use for speculative decoding

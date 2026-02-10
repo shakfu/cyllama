@@ -438,6 +438,9 @@ cdef extern from "ggml-cpu.h":
         ggml_abort_callback abort_callback
         void *              abort_callback_data
 
+        # use only reference implementations
+        bint use_ref
+
     cdef enum ggml_numa_strategy:
         GGML_NUMA_STRATEGY_DISABLED   = 0
         GGML_NUMA_STRATEGY_DISTRIBUTE = 1
@@ -529,6 +532,8 @@ cdef extern from "ggml-cpu.h":
     cdef void ggml_backend_cpu_set_n_threads     (ggml_backend_t backend_cpu, int n_threads)
     cdef void ggml_backend_cpu_set_threadpool    (ggml_backend_t backend_cpu, ggml_threadpool_t threadpool)
     cdef void ggml_backend_cpu_set_abort_callback(ggml_backend_t backend_cpu, ggml_abort_callback abort_callback, void * abort_callback_data)
+
+    cdef void ggml_backend_cpu_set_use_ref(ggml_backend_t backend_cpu, bint use_ref)
 
     cdef ggml_backend_reg_t ggml_backend_cpu_reg()
 
