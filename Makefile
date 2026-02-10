@@ -61,7 +61,7 @@ sync: $(LIBLAMMA)
 dev: sync
 	@uv pip install -e .
 
-build:
+build: $(LIBLAMMA)
 	@uv sync --reinstall-package cyllama
 
 remake: reset build test
