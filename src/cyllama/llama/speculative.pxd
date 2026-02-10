@@ -2,8 +2,9 @@
 # distutils: language=c++
 
 from libcpp cimport bool
+from libc.stdint cimport uint16_t
 from llama cimport llama_context, llama_token
-from common cimport llama_tokens
+from common cimport llama_tokens, common_params_speculative
 
 cdef extern from "speculative.h" nogil:
 
@@ -11,38 +12,37 @@ cdef extern from "speculative.h" nogil:
     ctypedef struct common_speculative:
         pass
 
-    # Parameters for speculative decoding
-    ctypedef struct common_speculative_params:
-        int n_draft      # max drafted tokens
-        int n_reuse      # number of tokens to reuse from previous draft
-        float p_min      # min probability required to accept a token in the draft
+    # Check if the llama_context is compatible for speculative decoding
+    bool common_speculative_is_compat(llama_context * ctx_tgt) except +
 
-    # Initialize speculative decoding with target and draft contexts
+    # Initialize speculative decoding
     common_speculative * common_speculative_init(
-        llama_context * ctx_tgt,
-        llama_context * ctx_dft
+        common_params_speculative & params,
+        llama_context * ctx_tgt
     ) except +
 
     # Free speculative decoding resources
     void common_speculative_free(common_speculative * spec) except +
 
-    # Check if target and draft contexts are compatible
-    bool common_speculative_are_compatible(
-        const llama_context * ctx_tgt,
-        const llama_context * ctx_dft
+    # Optionally call once at the beginning of a new generation
+    void common_speculative_begin(
+        common_speculative * spec,
+        const llama_tokens & prompt
     ) except +
 
-    # Add token replacement mapping between target and draft models
-    void common_speculative_add_replacement_tgt_dft(
+    # Sample up to n_draft tokens and add them to the batch using the draft model
+    llama_tokens common_speculative_draft(
         common_speculative * spec,
-        const char * source,
-        const char * dest
-    ) except +
-
-    # Generate draft tokens using the draft model
-    llama_tokens common_speculative_gen_draft(
-        common_speculative * spec,
-        common_speculative_params params,
+        const common_params_speculative & params,
         const llama_tokens & prompt,
         llama_token id_last
     ) except +
+
+    # Informs the speculative decoder that n_accepted tokens were accepted
+    void common_speculative_accept(
+        common_speculative * spec,
+        uint16_t n_accepted
+    ) except +
+
+    # Print statistics about the speculative decoding
+    void common_speculative_print_stats(const common_speculative * spec) except +

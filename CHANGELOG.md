@@ -61,6 +61,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Changed
 
+- **Speculative Decoding API Sync** - Updated speculative decoding bindings for latest llama.cpp API
+  - `speculative.pxd`: Rewrote declarations to match upstream: `common_speculative_init()` now takes `(params, ctx_tgt)` instead of two contexts, renamed `common_speculative_are_compatible()` to `common_speculative_is_compat()` (single context), renamed `common_speculative_gen_draft()` to `common_speculative_draft()`, removed `common_speculative_add_replacement_tgt_dft()` and `common_speculative_params` struct (uses `common_params_speculative` from `common.pxd`), added `common_speculative_begin()`, `common_speculative_accept()`, `common_speculative_print_stats()`
+  - `speculative.pxi`: Updated `SpeculativeParams` to wrap `common_params_speculative` with `n_max`, `n_min`, `p_split`, `p_min` properties; updated `Speculative` class: `__init__()` takes `(params, ctx_target)`, renamed `are_compatible()` to `is_compat()`, renamed `gen_draft()` to `draft()`, removed `add_replacement()`, added `begin()`, `accept()`, `print_stats()` methods
+  - `common.pxd`: Renamed `common_params_speculative.model` to `mparams_dft`, moved `lookup_cache_static`/`lookup_cache_dynamic` from `common_params` into `common_params_speculative`
+  - `common.pxi`: Updated `lookup_cache_static`/`lookup_cache_dynamic` properties to access via `speculative` sub-struct, fixed `CommonParamsSpeculative.model` property to access `mparams_dft.path`
+
 - **llama.cpp API Sync** - Updated wrappers for latest llama.cpp header changes
   - `llama.pxd`: Added `use_direct_io` field to `llama_model_params`, added `llama_params_fit_status` enum, updated `llama_params_fit()` return type and `margins` parameter, added `llama_model_n_embd_out()` function, added `llama_sampler_init_adaptive_p()` sampler, updated `llama_sampler_chain_get()` to non-const, added `llama_set_sampler()` function
   - `llama_cpp.pyx`: Added `use_direct_io` property to `LlamaModelParams` class

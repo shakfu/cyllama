@@ -555,12 +555,12 @@ cdef class CommonParamsSpeculative:
 
     @property
     def model(self) -> str:
-        """ draft model for speculative decoding."""
-        return self.p.model
+        """ draft model path for speculative decoding."""
+        return self.p.mparams_dft.path.decode()
 
     @model.setter
     def model(self, value: str):
-        self.p.model = value
+        self.p.mparams_dft.path = value.encode('utf8')
 
 
 cdef class CommonParamsVocoder:
@@ -1014,20 +1014,20 @@ cdef class CommonParams:
     @property
     def lookup_cache_static(self) -> str:
         """path of static ngram cache file for lookup decoding"""
-        return self.p.lookup_cache_static.decode()
+        return self.p.speculative.lookup_cache_static.decode()
 
     @lookup_cache_static.setter
     def lookup_cache_static(self, value: str):
-        self.p.lookup_cache_static = value.encode('utf8')
+        self.p.speculative.lookup_cache_static = value.encode('utf8')
 
     @property
     def lookup_cache_dynamic(self) -> str:
         """path of dynamic ngram cache file for lookup decoding"""
-        return self.p.lookup_cache_dynamic.decode()
+        return self.p.speculative.lookup_cache_dynamic.decode()
 
     @lookup_cache_dynamic.setter
     def lookup_cache_dynamic(self, value: str):
-        self.p.lookup_cache_dynamic = value.encode('utf8')
+        self.p.speculative.lookup_cache_dynamic = value.encode('utf8')
 
     @property
     def logits_file(self) -> str:

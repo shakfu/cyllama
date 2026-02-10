@@ -194,7 +194,10 @@ cdef extern from "common.h":
         cpu_params cpuparams
         cpu_params cpuparams_batch
 
-        common_params_model model       # draft model for speculative decoding
+        std_string lookup_cache_static   # path of static ngram cache file for lookup decoding
+        std_string lookup_cache_dynamic  # path of dynamic ngram cache file for lookup decoding
+
+        common_params_model mparams_dft  # draft model for speculative decoding
 
     ctypedef struct common_params_vocoder:
         common_params_model model
@@ -280,8 +283,6 @@ cdef extern from "common.h":
         std_string path_prompt_cache    # path to file for saving/loading prompt eval state
         std_string input_prefix         # string to prefix user inputs with
         std_string input_suffix         # string to suffix user inputs with
-        std_string lookup_cache_static  # path of static ngram cache file for lookup decoding
-        std_string lookup_cache_dynamic # path of dynamic ngram cache file for lookup decoding
         std_string logits_file          # file for saving *all* logits
 
         std_vector[std_string] in_files     # all input files
