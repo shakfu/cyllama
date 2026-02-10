@@ -58,12 +58,12 @@ cdef extern from "ngram-cache.h":
     # Save an ngram cache to a file
     void common_ngram_cache_save(
         common_ngram_cache & ngram_cache,
-        string & filename
+        const string & filename
     ) except +
 
     # Load an ngram cache from a file
     common_ngram_cache common_ngram_cache_load(
-        string & filename
+        const string & filename
     ) except +
 
     # Merge two ngram caches

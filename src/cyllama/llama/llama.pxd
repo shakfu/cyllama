@@ -237,7 +237,7 @@ cdef extern from "llama.h":
         # Keep the booleans together to avoid misalignment during copy-by-value.
         bint vocab_only       # only load the vocabulary, no weights
         bint use_mmap         # use mmap if possible
-        bint use_direct_io    # use direct io, takes precedence over use_mmap
+        bint use_direct_io    # use direct io, takes precedence over use_mmap when supported
         bint use_mlock        # force system to keep model in RAM
         bint check_tensors    # validate model tensor data
         bint use_extra_bufts  # use extra buffer types (used for weight repacking)

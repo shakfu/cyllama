@@ -1,6 +1,6 @@
 # distutils: language=c++
 
-from libc.stdint cimport int32_t, int8_t, int64_t, uint32_t, uint64_t, uint8_t
+from libc.stdint cimport int32_t, int8_t, int64_t, uint16_t, uint32_t, uint64_t, uint8_t
 from libc.stdio cimport FILE
 from libcpp.string cimport string as std_string
 from libcpp.string cimport string_view as std_string_view
@@ -179,14 +179,25 @@ cdef extern from "common.h":
         std_string name         # in format <user>/<model>[:<tag>] (tag is optional)         // NOLINT
 
     ctypedef struct common_params_speculative:
-        std_vector[ggml.ggml_backend_dev_t] devices # devices to use for offloading
-        int32_t n_ctx           # draft context size
+        # general-purpose speculative decoding parameters
         int32_t n_max           # maximum number of tokens to draft during speculative decoding
         int32_t n_min           # minimum number of draft tokens to use for speculative decoding
-        int32_t n_gpu_layers    # number of layers to store in VRAM for the draft model (-1 - use default)
         float   p_split         # speculative decoding split probability
         float   p_min           # minimum speculative decoding probability (greedy)
-        std_vector[std_pair[std_string, std_string]] replacements
+
+        # ngram-based speculative decoding
+        uint16_t ngram_size_n   # ngram size for lookup
+        uint16_t ngram_size_m   # mgram size for speculative tokens
+        uint16_t ngram_min_hits # minimum hits at ngram/mgram lookup for mgram to be proposed
+
+        std_string lookup_cache_static   # path of static ngram cache file for lookup decoding
+        std_string lookup_cache_dynamic  # path of dynamic ngram cache file for lookup decoding
+
+        # draft-model speculative decoding
+        common_params_model mparams_dft  # draft model for speculative decoding
+
+        int32_t n_ctx           # draft context size
+        int32_t n_gpu_layers    # number of layers to store in VRAM for the draft model (-1 - use default)
 
         ggml.ggml_type cache_type_k # KV cache data type for the K
         ggml.ggml_type cache_type_v # KV cache data type for the V
@@ -194,10 +205,8 @@ cdef extern from "common.h":
         cpu_params cpuparams
         cpu_params cpuparams_batch
 
-        std_string lookup_cache_static   # path of static ngram cache file for lookup decoding
-        std_string lookup_cache_dynamic  # path of dynamic ngram cache file for lookup decoding
-
-        common_params_model mparams_dft  # draft model for speculative decoding
+        std_vector[ggml.ggml_backend_dev_t] devices # devices to use for offloading
+        std_vector[std_pair[std_string, std_string]] replacements
 
     ctypedef struct common_params_vocoder:
         common_params_model model
@@ -336,7 +345,7 @@ cdef extern from "common.h":
 
         bint input_prefix_bos       # prefix BOS to user inputs, preceding input_prefix
         bint use_mmap               # enable mmap to use filesystem cache
-        bint use_direct_io          # read from disk without buffering for faster model loading
+        bint use_direct_io          # read from disk without buffering
         bint use_mlock              # use mlock to keep model in memory
         bint verbose_prompt         # print prompt tokens before generation
         bint display_prompt         # print prompt before generation
@@ -538,13 +547,17 @@ cdef extern from "common.h":
     # Model utils
 
     # note: defines object's lifetime
-    ctypedef struct common_init_result:
-        llama.llama_model_ptr   model
-        llama.llama_context_ptr context
+    cdef cppclass common_init_result:
+        common_init_result(common_params & params)
 
-        std_vector[llama.llama_adapter_lora_ptr] lora
+        llama.llama_model * model()
+        llama.llama_context * context()
 
-    cdef common_init_result common_init_from_params(common_params & params)
+        std_vector[llama.llama_adapter_lora_ptr] & lora()
+
+    ctypedef unique_ptr[common_init_result] common_init_result_ptr
+
+    cdef common_init_result_ptr common_init_from_params(common_params & params)
 
     cdef llama.llama_model_params common_model_params_to_llama(common_params & params)
     cdef llama.llama_context_params common_context_params_to_llama(const common_params & params)
