@@ -69,6 +69,8 @@ class SampleMethod(IntEnum):
     LCM = LCM_SAMPLE_METHOD
     DDIM_TRAILING = DDIM_TRAILING_SAMPLE_METHOD
     TCD = TCD_SAMPLE_METHOD
+    RES_MULTISTEP = RES_MULTISTEP_SAMPLE_METHOD
+    RES_2S = RES_2S_SAMPLE_METHOD
 
 
 class Scheduler(IntEnum):
@@ -81,7 +83,9 @@ class Scheduler(IntEnum):
     SGM_UNIFORM = SGM_UNIFORM_SCHEDULER
     SIMPLE = SIMPLE_SCHEDULER
     SMOOTHSTEP = SMOOTHSTEP_SCHEDULER
+    KL_OPTIMAL = KL_OPTIMAL_SCHEDULER
     LCM = LCM_SCHEDULER
+    BONG_TANGENT = BONG_TANGENT_SCHEDULER
 
 
 class Prediction(IntEnum):
@@ -985,6 +989,15 @@ cdef class SDContextParams:
     @vae_decode_only.setter
     def vae_decode_only(self, value: bool):
         self._params.vae_decode_only = value
+
+    @property
+    def flash_attn(self) -> bool:
+        """Use flash attention."""
+        return self._params.flash_attn
+
+    @flash_attn.setter
+    def flash_attn(self, value: bool):
+        self._params.flash_attn = value
 
     @property
     def diffusion_flash_attn(self) -> bool:

@@ -33,6 +33,8 @@ cdef extern from "stable-diffusion.h":
         LCM_SAMPLE_METHOD
         DDIM_TRAILING_SAMPLE_METHOD
         TCD_SAMPLE_METHOD
+        RES_MULTISTEP_SAMPLE_METHOD
+        RES_2S_SAMPLE_METHOD
         SAMPLE_METHOD_COUNT
 
     ctypedef enum scheduler_t:
@@ -44,7 +46,9 @@ cdef extern from "stable-diffusion.h":
         SGM_UNIFORM_SCHEDULER
         SIMPLE_SCHEDULER
         SMOOTHSTEP_SCHEDULER
+        KL_OPTIMAL_SCHEDULER
         LCM_SCHEDULER
+        BONG_TANGENT_SCHEDULER
         SCHEDULER_COUNT
 
     ctypedef enum prediction_t:
@@ -160,6 +164,7 @@ cdef extern from "stable-diffusion.h":
         bint keep_clip_on_cpu
         bint keep_control_net_on_cpu
         bint keep_vae_on_cpu
+        bint flash_attn
         bint diffusion_flash_attn
         bint tae_preview_only
         bint diffusion_conv_direct
