@@ -68,7 +68,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - `common.pxi`: Updated `lookup_cache_static`/`lookup_cache_dynamic` properties to access via `speculative` sub-struct, fixed `CommonParamsSpeculative.model` property to access `mparams_dft.path`
 
 - **llama.cpp API Sync** - Updated wrappers for latest llama.cpp header changes
-  - `llama.pxd`: Added `use_direct_io` field to `llama_model_params`, added `llama_params_fit_status` enum, updated `llama_params_fit()` return type and `margins` parameter, added `llama_model_n_embd_out()` function, added `llama_sampler_init_adaptive_p()` sampler, updated `llama_sampler_chain_get()` to non-const, added `llama_set_sampler()` function
+  - `llama.pxd`: Added `use_direct_io` field to `llama_model_params`, added `llama_params_fit_status` enum, updated `llama_params_fit()` return type and `margins` parameter, added `llama_model_n_embd_out()` function, added `llama_sampler_init_adaptive_p()` sampler, updated `llama_sampler_chain_get()` to non-const, added `llama_set_sampler()` function, updated `llama_split_path()` and `llama_split_prefix()` parameter and return types from `int` to `int32_t`
   - `llama_cpp.pyx`: Added `use_direct_io` property to `LlamaModelParams` class
   - `common.pxd`: Added `LLAMA_EXAMPLE_BATCHED`/`LLAMA_EXAMPLE_DEBUG` enum values, added `COMMON_SAMPLER_TYPE_ADAPTIVE_P` sampler type, added `adaptive_target`/`adaptive_decay`/`backend_sampling` to `common_params_sampling`, changed `fit_params_target` from `size_t` to `std_vector[size_t]`, added `use_direct_io`/`cache_prompt`/`sleep_idle_seconds`/`webui_config_json` to `common_params`
   - `test_chat.py`: Updated builtin templates list (added `exaone-moe`, `solar-open`)
