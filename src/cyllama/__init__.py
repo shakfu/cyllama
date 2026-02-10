@@ -20,4 +20,4 @@ from .batching import batch_generate, BatchGenerator, BatchRequest, BatchRespons
 # Memory utilities
 from .memory import estimate_gpu_layers, estimate_memory_usage
 
-__version__ = "0.1.19"
+__version__ = "0.1.20"

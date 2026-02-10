@@ -486,7 +486,7 @@ models = list_cached_models()
 - Proper error handling and logging
 - Framework integration for real applications
 
-**Up-to-Date**: Tracks bleeding-edge llama.cpp (currently b7126)
+**Up-to-Date**: Tracks bleeding-edge llama.cpp
 
 - Regular updates with latest features
 - All high-priority APIs wrapped
@@ -494,14 +494,16 @@ models = list_cached_models()
 
 ## Status
 
-**Current Version**: 0.1.18 (December 2025)
-**llama.cpp Version**: b7126
+**Current Version**: 0.1.20 (Feb 2026)
+**llama.cpp Version**: b7976
 **Build System**: scikit-build-core + CMake
 **Test Coverage**: 863+ tests passing
 **Platform**: macOS (tested), Linux (tested), Windows (tested)
 
 ### Recent Releases
 
+- **v0.1.20** (Feb 2026) - Update llama.cpp + stable-diffusion.cpp
+- **v0.1.19** (Dev 2025) - Metal fix for stable-diffusion.cpp
 - **v0.1.18** (Dec 2025) - Remaining stable-diffusion.cpp wrapped
 - **v0.1.16** (Dec 2025) - Response class, Async API, Chat templates
 - **v0.1.12** (Nov 2025) - Initial wrapper of stable-diffusion.cpp
