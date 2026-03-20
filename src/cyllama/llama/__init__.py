@@ -1,4 +1,9 @@
-from .cli import LlamaCLI
+def __getattr__(name):
+    if name == "LlamaCLI":
+        from .cli import LlamaCLI
+        return LlamaCLI
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 from .server import ServerConfig, LlamaServer, LlamaServerClient, start_server
 
 # Import embedded server only when needed to avoid circular imports
