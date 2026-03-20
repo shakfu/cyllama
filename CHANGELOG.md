@@ -23,6 +23,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Added
 
+- **MkDocs Documentation** - Migrated documentation from Quarto to MkDocs with Material theme
+  - Converted 24 `.qmd` files to standard Markdown in `docs/`
+  - Created `mkdocs.yml` with full navigation structure
+  - Added Makefile targets: `docs-serve`, `docs-build`, `docs-deploy`, `docs-clean`
+  - Removed `docs/book/` Quarto directory
+  - Updated all doc links in `README.md` to new paths
+  - Updated outdated content: speculative decoding API, `flow_shift` move to SDSampleParams, version/date references
+
+- **GPU Backend Wheel CI** - Added GitHub Actions workflow for building GPU-accelerated wheels
+  - `build-gpu-wheels.yml`: Manual dispatch with backend selector (cuda-12.4, cuda-12.8, vulkan, all)
+  - CUDA wheels built on Linux x86_64 with CUDA toolkit
+  - Vulkan wheels built on Linux x86_64 and Windows x86_64
+  - Wheels organized into PEP 503-compliant index, deployable to GitHub Pages
+  - Users install GPU variants via `pip install cyllama --extra-index-url https://shakfu.github.io/cyllama/<backend>/`
+
+- **PyPI Publishing** - Added Makefile targets and verified build pipeline for PyPI release
+  - `make check`: Validate wheels with `twine check`
+  - `make publish`: Upload to PyPI (runs check first)
+  - `make publish-test`: Upload to TestPyPI (runs check first)
+  - Added `license` field and updated author email in `pyproject.toml`
+  - Added `pip install cyllama` instructions to `README.md`
+
 - **LLM Response Cache** - Added optional response caching with TTL support for the `LLM` class
   - `LLM`: New `cache_size` parameter (default 0 = disabled) and `cache_ttl` parameter (seconds, None = no expiration)
   - `cache_info()`: Returns `ResponseCacheInfo` namedtuple with hits, misses, maxsize, currsize, ttl

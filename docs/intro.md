@@ -109,4 +109,4 @@ uv run pytest ...    # Run pytest
 uv pip list          # List installed packages
 ```
 
-For detailed installation instructions, see the [Installation Guide](src/installation.qmd).
+For detailed installation instructions, see the [Installation Guide](installation.md).

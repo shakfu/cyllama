@@ -1,6 +1,4 @@
----
-title: "cyllama overview"
----
+# cyllama overview
 
 [cyllama](https://github.com/shakfu/cyllama) is a zero-dependency Python library for local LLM inference which uses cython to wrap the following high-performance inference engines:
 

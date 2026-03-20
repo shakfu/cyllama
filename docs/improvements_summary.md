@@ -1,6 +1,4 @@
----
-title: "Cyllama Improvements Summary"
----
+# Cyllama Improvements Summary
 
 Comprehensive summary of improvements made to cyllama focusing on high-level APIs, integrations, performance, and documentation.
 

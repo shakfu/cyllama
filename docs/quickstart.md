@@ -1,6 +1,4 @@
----
-title: "Quickstart"
----
+# Quickstart
 
 Get started with cyllama in under 5 minutes.
 
@@ -204,7 +202,7 @@ for i in range(ctx.full_n_segments()):
 
 ## Next Steps
 
-- [User Guide](user_guide.qmd) - Comprehensive feature documentation
-- [API Reference](api_reference.qmd) - Complete API documentation
-- [Cookbook](cookbook.qmd) - Practical recipes and patterns
-- [Agents Overview](agents_overview.qmd) - Building tool-using agents
+- [User Guide](user_guide.md) - Comprehensive feature documentation
+- [API Reference](api_reference.md) - Complete API documentation
+- [Cookbook](cookbook.md) - Practical recipes and patterns
+- [Agents Overview](agents_overview.md) - Building tool-using agents

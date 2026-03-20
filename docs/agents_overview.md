@@ -1,6 +1,4 @@
----
-title: "Cyllama Agent Framework Overview"
----
+# Cyllama Agent Framework Overview
 
 Cyllama includes a zero-dependency agent framework for building tool-using LLM agents. The framework provides three agent architectures, each designed for different reliability and control requirements.
 

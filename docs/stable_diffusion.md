@@ -1,6 +1,4 @@
----
-title: "Stable Diffusion Integration"
----
+# Stable Diffusion Integration
 
 Cyllama wraps [stable-diffusion.cpp](https://github.com/leejet/stable-diffusion.cpp) to provide image and video generation capabilities in Python.
 
@@ -159,7 +157,8 @@ if ctx.is_valid:
         width=512,
         height=512,
         sample_steps=20,
-        cfg_scale=7.0
+        cfg_scale=7.0,
+        flow_shift=0.0
     )
 ```
 
@@ -205,11 +204,11 @@ params.rng_type = RngType.CUDA                # RNG type
 params.sampler_rng_type = RngType.CPU         # Sampler RNG type
 params.prediction = Prediction.DEFAULT        # Prediction type
 params.lora_apply_mode = LoraApplyMode.AUTO   # LoRA application mode
-params.flow_shift = 0.0                       # Flow shift (SD3.x/Wan)
 params.chroma_t5_mask_pad = 0                 # Chroma T5 mask pad
 
 # Boolean flags
 params.vae_decode_only = True                 # VAE decode only (faster)
+params.enable_mmap = True                     # Enable memory-mapped loading
 params.offload_params_to_cpu = False          # Offload to CPU (low VRAM)
 params.keep_clip_on_cpu = False               # Keep CLIP on CPU
 params.keep_vae_on_cpu = False                # Keep VAE on CPU
@@ -218,6 +217,9 @@ params.diffusion_flash_attn = False           # Flash attention
 params.diffusion_conv_direct = False          # Direct convolution
 params.vae_conv_direct = False                # VAE direct convolution
 params.tae_preview_only = False               # TAESD for preview only
+params.circular_x = False                     # Circular padding X (tileable)
+params.circular_y = False                     # Circular padding Y (tileable)
+params.qwen_image_zero_cond_t = False         # Zero conditioning for Qwen
 params.chroma_use_dit_mask = True             # DiT mask for Chroma
 params.chroma_use_t5_mask = False             # T5 mask for Chroma
 ```
@@ -320,6 +322,7 @@ params.sample_steps = 20
 params.cfg_scale = 7.0
 params.eta = 0.0                  # Noise multiplier
 params.shifted_timestep = 0       # NitroFusion models
+params.flow_shift = 0.0           # Flow shift (SD3.x/Wan)
 params.img_cfg_scale = 1.5        # Image guidance
 params.distilled_guidance = 3.5   # FLUX guidance
 params.slg_scale = 0.0            # Skip layer guidance
@@ -812,4 +815,4 @@ if not os.path.exists(model_path):
 
 - [stable-diffusion.cpp repository](https://github.com/leejet/stable-diffusion.cpp)
 - [SDXL Turbo](https://huggingface.co/stabilityai/sdxl-turbo) - Fast generation model
-- [API Reference](api_reference.qmd) - Detailed API documentation
+- [API Reference](api_reference.md) - Detailed API documentation

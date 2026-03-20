@@ -58,6 +58,6 @@ Tools are defined with the `@tool` decorator. Contracts use `@pre`, `@post`, and
 
 ## Next Steps
 
-- Explore the [API Reference](src/api_reference.qmd) for detailed function signatures
-- Try the [Cookbook](src/cookbook.qmd) for practical patterns and recipes
+- Explore the [API Reference](api_reference.md) for detailed function signatures
+- Try the [Cookbook](cookbook.md) for practical patterns and recipes
 - Check the [GitHub repository](https://github.com/shakfu/cyllama) for examples and updates

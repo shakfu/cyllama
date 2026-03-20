@@ -1,0 +1,69 @@
+site_name: cyllama User Guide
+site_description: High-performance Python library for local AI inference
+site_author: S. Alireza
+repo_url: https://github.com/shakfu/cyllama
+repo_name: shakfu/cyllama
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.highlight
+    - content.code.copy
+
+markdown_extensions:
+  - tables
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Introduction: intro.md
+  - Quick Start: quickstart.md
+  - Installation: installation.md
+  - Architecture Overview: overview.md
+  - Summary: summary.md
+  - Llama.cpp:
+    - User Guide: user_guide.md
+    - Cookbook: cookbook.md
+    - Examples: examples.md
+    - Build Backends: build_backends.md
+    - Context Caching: context_caching.md
+    - Server Usage: server_usage_examples.md
+  - Whisper.cpp:
+    - Whisper Integration: whisper.md
+  - Stable Diffusion:
+    - Stable Diffusion Integration: stable_diffusion.md
+  - Agents:
+    - Agent Framework: agents_overview.md
+  - RAG:
+    - Overview: rag_overview.md
+    - Embedder: rag_embedder.md
+    - VectorStore: rag_vectorstore.md
+    - Text Processing: rag_text_processing.md
+    - RAG Pipeline: rag_pipeline.md
+    - Advanced Features: rag_advanced.md
+  - Reference:
+    - API Reference: api_reference.md
+    - Troubleshooting: troubleshooting.md

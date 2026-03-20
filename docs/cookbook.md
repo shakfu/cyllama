@@ -1,6 +1,4 @@
----
-title: "Cyllama Cookbook"
----
+# Cyllama Cookbook
 
 Common patterns and recipes for using cyllama effectively.
 
@@ -620,5 +618,5 @@ def clean_response(response: str) -> str:
 
 ## See Also
 
-- [User Guide](user_guide.qmd) - Complete API documentation
-- [API Reference](api_reference.qmd) - Detailed API docs
+- [User Guide](user_guide.md) - Complete API documentation
+- [API Reference](api_reference.md) - Detailed API docs

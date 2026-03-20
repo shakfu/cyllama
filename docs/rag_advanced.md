@@ -1,4 +1,4 @@
-# Advanced RAG Features {#sec-rag-advanced}
+# Advanced RAG Features
 
 cyllama provides advanced RAG features including async support, agent integration, hybrid search, and reranking.
 

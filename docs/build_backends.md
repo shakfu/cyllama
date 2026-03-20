@@ -1,6 +1,4 @@
----
-title: "Building cyllama with Different Backends"
----
+# Building cyllama with Different Backends
 
 cyllama supports multiple GPU acceleration backends through llama.cpp. This guide shows you how to build with different backends using either the Makefile or the Python build manager (`scripts/manage.py`).
 

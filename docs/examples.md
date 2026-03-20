@@ -1,6 +1,4 @@
----
-title: "Practical Examples"
----
+# Practical Examples
 
 Complete, runnable examples for common use cases. All examples assume you have a model at `models/Llama-3.2-1B-Instruct-Q8_0.gguf` (run `make download` to get it).
 

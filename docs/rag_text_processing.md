@@ -1,4 +1,4 @@
-# Text Processing {#sec-rag-text-processing}
+# Text Processing
 
 cyllama provides utilities for splitting documents into chunks and loading various file formats.
 

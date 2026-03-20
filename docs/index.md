@@ -1,4 +1,4 @@
-# Preface {.unnumbered}
+# Preface
 
 This is the official documentation for **cyllama**, a high-performance Python library for local AI inference.
 

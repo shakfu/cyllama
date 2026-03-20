@@ -1,6 +1,4 @@
----
-title: "Installation"
----
+# Installation
 
 This guide covers installing cyllama on different platforms.
 
@@ -77,7 +75,7 @@ make build-cpu
 GGML_CUDA=1 GGML_VULKAN=1 make build
 ```
 
-See [Building with Different Backends](build_backends.qmd) for detailed GPU setup instructions.
+See [Building with Different Backends](build_backends.md) for detailed GPU setup instructions.
 
 ### Optional Components
 
@@ -228,6 +226,6 @@ uv pip install -e .
 
 ## Next Steps
 
-- [User Guide](user_guide.qmd) - Learn the API
-- [Cookbook](cookbook.qmd) - Common patterns and recipes
-- [Building with Different Backends](build_backends.qmd) - GPU setup details
+- [User Guide](user_guide.md) - Learn the API
+- [Cookbook](cookbook.md) - Common patterns and recipes
+- [Building with Different Backends](build_backends.md) - GPU setup details

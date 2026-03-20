@@ -1,6 +1,4 @@
----
-title: "Whisper.cpp Integration"
----
+# Whisper.cpp Integration
 
 Cyllama wraps [whisper.cpp](https://github.com/ggerganov/whisper.cpp) to provide automatic speech recognition (ASR) capabilities in Python.
 
@@ -469,4 +467,3 @@ params.use_gpu = False
 
 - [whisper.cpp repository](https://github.com/ggerganov/whisper.cpp)
 - [Whisper model card](https://huggingface.co/openai/whisper-large-v3)
-- [Autoregressive Generation](autoregressive_generation.qmd) - How token generation works

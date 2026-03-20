@@ -1,9 +1,7 @@
----
-title: "Cyllama API Reference"
----
+# Cyllama API Reference
 
-**Version**: 0.1.16
-**Date**: December 2025
+**Version**: 0.1.20
+**Date**: March 2026
 
 Complete API reference for cyllama, a high-performance Python library for LLM inference built on llama.cpp.
 
@@ -1105,31 +1103,51 @@ ctx_params = LlamaContextParams()
 ctx_params.n_ctx = 2048
 
 ctx_target = LlamaContext(model_target, ctx_params)
-ctx_draft = LlamaContext(model_draft, ctx_params)
+
+# Configure speculative parameters
+params = SpeculativeParams(
+    n_max=16,        # Maximum number of draft tokens
+    n_reuse=8,       # Tokens to reuse
+    p_min=0.75       # Minimum acceptance probability
+)
+
+# Create speculative decoding instance
+spec = Speculative(params, ctx_target)
 
 # Check compatibility
-spec = Speculative(ctx_target, ctx_draft)
-if spec.are_compatible():
+if spec.is_compat():
     print("Models are compatible for speculative decoding")
 
-    # Configure speculative parameters
-    params = SpeculativeParams(
-        n_draft=16,      # Number of draft tokens
-        n_reuse=8,       # Tokens to reuse
-        p_min=0.75       # Minimum acceptance probability
-    )
+    # Begin a speculative decoding round
+    spec.begin()
 
     # Generate draft tokens
     prompt_tokens = [1, 2, 3]
     last_token = prompt_tokens[-1]
-    draft_tokens = spec.gen_draft(params, prompt_tokens, last_token)
+    draft_tokens = spec.draft(prompt_tokens, last_token)
+
+    # Accept verified tokens
+    spec.accept()
+
+    # Print performance statistics
+    spec.print_stats()
 ```
 
 **Parameters:**
 
-- `n_draft`: Number of tokens to draft (default: 16)
+- `n_max`: Maximum number of tokens to draft (default: 16)
 - `n_reuse`: Number of tokens to reuse from previous draft (default: 8)
 - `p_min`: Minimum acceptance probability (default: 0.75)
+
+**Methods:**
+
+| Method | Description |
+|--------|-------------|
+| `is_compat()` | Check if target and draft models are compatible |
+| `begin()` | Begin a speculative decoding round |
+| `draft(...)` | Generate draft tokens from the draft model |
+| `accept()` | Accept verified tokens after evaluation |
+| `print_stats()` | Print speculative decoding performance statistics |
 
 ---
 
@@ -1244,7 +1262,7 @@ image_embed = process_image(
 
 ## Whisper Integration
 
-Speech-to-text transcription using whisper.cpp. See [Whisper.cpp Integration](whisper.qmd) for complete documentation.
+Speech-to-text transcription using whisper.cpp. See [Whisper.cpp Integration](whisper.md) for complete documentation.
 
 ### Quick Start
 
@@ -1826,8 +1844,8 @@ for chunk in complete("Write a long essay", model_path="model.gguf",
 
 ## See Also
 
-- [User Guide](user_guide.qmd) - Comprehensive usage guide
-- [Cookbook](cookbook.qmd) - Practical recipes and patterns
+- [User Guide](user_guide.md) - Comprehensive usage guide
+- [Cookbook](cookbook.md) - Practical recipes and patterns
 - [Changelog](https://github.com/shakfu/cyllama/blob/main/CHANGELOG.md) - Release history
 - [llama.cpp Documentation](https://github.com/ggml-org/llama.cpp)
 

@@ -71,9 +71,9 @@ responses = batch_generate(prompts, model_path="model.gguf")
 ```python
 from cyllama.llama.llama_cpp import Speculative, SpeculativeParams
 
-spec = Speculative(ctx_target, ctx_draft)
-params = SpeculativeParams(n_draft=16, p_min=0.75)
-draft_tokens = spec.gen_draft(params, prompt_tokens, last_token)
+params = SpeculativeParams(n_max=16, p_min=0.75)
+spec = Speculative(params, ctx_target)
+draft_tokens = spec.draft(prompt_tokens, last_token)
 ```
 
 **Memory Optimization** - Smart GPU layer allocation:
@@ -198,7 +198,7 @@ agent = ContractAgent(
 result = agent.run("What is 100 divided by 4?")
 ```
 
-See [Agents Overview](docs/book/src/agents_overview.qmd) for detailed agent documentation.
+See [Agents Overview](docs/agents_overview.md) for detailed agent documentation.
 
 ### Speech Recognition
 
@@ -224,7 +224,7 @@ for i in range(ctx.full_n_segments()):
     print(f"[{start:.2f}s - {end:.2f}s] {text}")
 ```
 
-See [Whisper docs](docs/book/src/whisper.qmd) for full documentation.
+See [Whisper docs](docs/whisper.md) for full documentation.
 
 ### Stable Diffusion
 
@@ -285,7 +285,7 @@ python -m cyllama.sd img2img \
 python -m cyllama.sd info
 ```
 
-Supports SD 1.x/2.x, SDXL, SD3, FLUX, FLUX2, z-image-turbo, video generation (Wan/CogVideoX), LoRA, ControlNet, inpainting, and ESRGAN upscaling. See [Stable Diffusion docs](docs/book/src/stable_diffusion.qmd) for full documentation.
+Supports SD 1.x/2.x, SDXL, SD3, FLUX, FLUX2, z-image-turbo, video generation (Wan/CogVideoX), LoRA, ControlNet, inpainting, and ESRGAN upscaling. See [Stable Diffusion docs](docs/stable_diffusion.md) for full documentation.
 
 ### RAG (Retrieval-Augmented Generation)
 
@@ -481,7 +481,7 @@ models = list_cached_models()
 
 **Production-Ready**: Battle-tested and comprehensive
 
-- 863+ passing tests with extensive coverage
+- 1100+ passing tests with extensive coverage
 - Comprehensive documentation and examples
 - Proper error handling and logging
 - Framework integration for real applications
@@ -494,10 +494,10 @@ models = list_cached_models()
 
 ## Status
 
-**Current Version**: 0.1.20 (Feb 2026)
-**llama.cpp Version**: b7976
+**Current Version**: 0.1.20 (Mar 2026)
+**llama.cpp Version**: b8429
 **Build System**: scikit-build-core + CMake
-**Test Coverage**: 863+ tests passing
+**Test Coverage**: 1100+ tests passing
 **Platform**: macOS (tested), Linux (tested), Windows (tested)
 
 ### Recent Releases
@@ -518,9 +518,17 @@ models = list_cached_models()
 
 See [CHANGELOG.md](CHANGELOG.md) for complete release history.
 
-## Setup
+## Installation
 
-To build `cyllama`:
+### From PyPI
+
+```sh
+pip install cyllama
+```
+
+### From Source
+
+To build `cyllama` from source:
 
 1. A recent version of `python3` (currently testing on python 3.13)
 
@@ -584,7 +592,7 @@ export GGML_CUDA=1 GGML_VULKAN=1
 make build
 ```
 
-See [Build Backends](docs/book/src/build_backends.qmd) for comprehensive backend build instructions.
+See [Build Backends](docs/build_backends.md) for comprehensive backend build instructions.
 
 ### Multi-GPU Configuration
 
@@ -645,7 +653,7 @@ bin/llama-cli -c 512 -n 32 -m models/Llama-3.2-1B-Instruct-Q8_0.gguf \
  -p "Is mathematics discovered or invented?"
 ```
 
-With 863+ passing tests, the library is ready for both quick prototyping and production use:
+With 1100+ passing tests, the library is ready for both quick prototyping and production use:
 
 ```sh
 make test  # Run full test suite
@@ -663,9 +671,13 @@ python3 -i scripts/start.py
 
 ## Documentation
 
-- **[User Guide](docs/book/src/user_guide.qmd)** - Comprehensive guide covering all features
-- **[API Reference](docs/book/src/api_reference.qmd)** - Complete API documentation
-- **[Cookbook](docs/book/src/cookbook.qmd)** - Practical recipes and patterns
+Full documentation is available at [https://shakfu.github.io/cyllama/](https://shakfu.github.io/cyllama/) (built with MkDocs).
+
+To serve docs locally: `make docs-serve`
+
+- **[User Guide](docs/user_guide.md)** - Comprehensive guide covering all features
+- **[API Reference](docs/api_reference.md)** - Complete API documentation
+- **[Cookbook](docs/cookbook.md)** - Practical recipes and patterns
 - **[Changelog](CHANGELOG.md)** - Complete release history
 - **Examples** - See `tests/examples/` for working code samples
 
@@ -696,12 +708,11 @@ python3 -i scripts/start.py
 
 ### Future
 
-- [ ] Response caching for identical prompts
 - [ ] Web UI for testing
 
 ## Contributing
 
-Contributions are welcome! Please see the [User Guide](docs/book/src/user_guide.qmd) for development guidelines.
+Contributions are welcome! Please see the [User Guide](docs/user_guide.md) for development guidelines.
 
 ## License
 

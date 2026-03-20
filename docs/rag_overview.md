@@ -1,4 +1,4 @@
-# RAG Support {#sec-rag-overview}
+# RAG Support
 
 Retrieval-Augmented Generation (RAG) enhances LLM responses by retrieving relevant context from a knowledge base before generation. cyllama provides a complete RAG solution using:
 
@@ -144,8 +144,8 @@ wget https://huggingface.co/BAAI/bge-small-en-v1.5-gguf/resolve/main/bge-small-e
 
 ## Next Steps
 
-- @sec-rag-embedder - Generating embeddings
-- @sec-rag-vectorstore - Vector storage and search
-- @sec-rag-text-processing - Document splitting and loading
-- @sec-rag-pipeline - RAG pipeline configuration
-- @sec-rag-advanced - Async, hybrid search, agent integration
+- [Embedder](rag_embedder.md) - Generating embeddings
+- [VectorStore](rag_vectorstore.md) - Vector storage and search
+- [Text Processing](rag_text_processing.md) - Document splitting and loading
+- [RAG Pipeline](rag_pipeline.md) - RAG pipeline configuration
+- [Advanced RAG Features](rag_advanced.md) - Async, hybrid search, agent integration

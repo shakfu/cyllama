@@ -1,4 +1,4 @@
-# RAG Pipeline {#sec-rag-pipeline}
+# RAG Pipeline
 
 The RAG pipeline orchestrates the complete retrieval-augmented generation process: embedding queries, retrieving relevant documents, formatting prompts, and generating responses.
 

@@ -1,6 +1,4 @@
----
-title: "Cyllama Server Usage Examples"
----
+# Cyllama Server Usage Examples
 
 Cyllama provides multiple server implementations for different use cases:
 

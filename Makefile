@@ -1,5 +1,5 @@
 # cyllama Makefile
-VERSION := 0.1.18
+VERSION := 0.1.20
 
 export MACOSX_DEPLOYMENT_TARGET := 14.7
 
@@ -69,7 +69,7 @@ remake: reset build test
 # =============================================================================
 # Wheel and distribution
 # =============================================================================
-.PHONY: wheel wheel-check dist build-wheel
+.PHONY: wheel wheel-check dist build-wheel publish publish-test check
 
 wheel: $(LIBLAMMA)
 	@uv build --wheel
@@ -81,8 +81,14 @@ build-wheel: $(LIBLAMMA)
 	@uv build --wheel
 	@uv pip install dist/*.whl --force-reinstall
 
-wheel-check:
+check:
 	@uv run twine check dist/*.whl
+
+publish: check
+	@uv run twine upload dist/*.whl
+
+publish-test: check
+	@uv run twine upload --repository testpypi dist/*.whl
 
 # =============================================================================
 # Testing
@@ -286,10 +292,21 @@ endif
 # =============================================================================
 # Documentation
 # =============================================================================
-.PHONY: docs diff
+.PHONY: docs docs-serve docs-build docs-deploy docs-clean diff
 
-docs:
-	@make -C docs/book pdf VERSION=$(VERSION)
+docs: docs-serve
+
+docs-serve:
+	@uv run mkdocs serve
+
+docs-build:
+	@uv run mkdocs build
+
+docs-deploy:
+	@uv run mkdocs gh-deploy --force
+
+docs-clean:
+	@rm -rf site
 
 diff:
 	@git diff thirdparty/llama.cpp/include > changes.diff

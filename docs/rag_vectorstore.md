@@ -1,4 +1,4 @@
-# VectorStore {#sec-rag-vectorstore}
+# VectorStore
 
 The `VectorStore` class provides SQLite-based vector storage using the sqlite-vector extension for high-performance similarity search.
 

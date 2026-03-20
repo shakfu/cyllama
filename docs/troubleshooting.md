@@ -1,6 +1,4 @@
----
-title: "Troubleshooting"
----
+# Troubleshooting
 
 Common issues and solutions when using cyllama.
 

@@ -1,6 +1,4 @@
----
-title: "User Guide"
----
+# User Guide
 
 Complete guide to using cyllama for LLM inference.
 
@@ -379,15 +377,14 @@ model_draft = LlamaModel("models/llama-1b.gguf", LlamaModelParams())
 ctx_draft = LlamaContext(model_draft, LlamaContextParams())
 
 # Setup speculative decoding
-spec = Speculative(ctx_target, ctx_draft)
 params = SpeculativeParams(
-    n_draft=16,    # Number of tokens to draft
+    n_max=16,      # Maximum tokens to draft
     p_min=0.75     # Acceptance probability
 )
+spec = Speculative(params, ctx_target)
 
 # Generate draft tokens
-draft_tokens = spec.gen_draft(
-    params,
+draft_tokens = spec.draft(
     prompt_tokens=[1, 2, 3, 4],
     last_token=5
 )
@@ -560,8 +557,8 @@ See the `tests/examples/` directory for complete working examples:
 
 ## Next Steps
 
-- Read the [Cookbook](cookbook.qmd) for common patterns
-- Check [API Reference](api_reference.qmd) for detailed documentation
+- Read the [Cookbook](cookbook.md) for common patterns
+- Check [API Reference](api_reference.md) for detailed documentation
 - See [Examples](https://github.com/shakfu/cyllama/tree/main/tests/examples) for complete code
 
 ## Support

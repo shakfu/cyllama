@@ -1,4 +1,4 @@
-# Embedder {#sec-rag-embedder}
+# Embedder
 
 The `Embedder` class generates vector embeddings from text using llama.cpp embedding models in GGUF format.
 

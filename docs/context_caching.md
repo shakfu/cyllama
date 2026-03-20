@@ -1,6 +1,4 @@
----
-title: "Context Caching and Resource Management"
----
+# Context Caching and Resource Management
 
 This document describes how cyllama manages LLM contexts and resources for optimal performance and memory efficiency.
 
