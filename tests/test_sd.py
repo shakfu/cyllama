@@ -720,7 +720,7 @@ class TestSDContextParamsExtended:
         assert params.tae_preview_only is True
 
     def test_flow_shift(self):
-        params = SDContextParams()
+        params = SDSampleParams()
         params.flow_shift = 1.5
         assert abs(params.flow_shift - 1.5) < 0.001
 

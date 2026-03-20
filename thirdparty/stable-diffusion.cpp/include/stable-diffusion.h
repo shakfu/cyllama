@@ -201,7 +201,6 @@ typedef struct {
     bool chroma_use_t5_mask;
     int chroma_t5_mask_pad;
     bool qwen_image_zero_cond_t;
-    float flow_shift;
 } sd_ctx_params_t;
 
 typedef struct {
@@ -235,6 +234,7 @@ typedef struct {
     int shifted_timestep;
     float* custom_sigmas;
     int custom_sigmas_count;
+    float flow_shift;
 } sd_sample_params_t;
 
 typedef struct {
@@ -251,6 +251,7 @@ enum sd_cache_mode_t {
     SD_CACHE_DBCACHE,
     SD_CACHE_TAYLORSEER,
     SD_CACHE_CACHE_DIT,
+    SD_CACHE_SPECTRUM,
 };
 
 typedef struct {
@@ -271,6 +272,13 @@ typedef struct {
     int taylorseer_skip_interval;
     const char* scm_mask;
     bool scm_policy_dynamic;
+    float spectrum_w;
+    int spectrum_m;
+    float spectrum_lam;
+    int spectrum_window_size;
+    float spectrum_flex_window;
+    int spectrum_warmup_steps;
+    float spectrum_stop_percent;
 } sd_cache_params_t;
 
 typedef struct {

@@ -161,6 +161,7 @@ cdef extern from "stable-diffusion.h":
         prediction_t prediction
         lora_apply_mode_t lora_apply_mode
         bint offload_params_to_cpu
+        bint enable_mmap
         bint keep_clip_on_cpu
         bint keep_control_net_on_cpu
         bint keep_vae_on_cpu
@@ -169,11 +170,13 @@ cdef extern from "stable-diffusion.h":
         bint tae_preview_only
         bint diffusion_conv_direct
         bint vae_conv_direct
+        bint circular_x
+        bint circular_y
         bint force_sdxl_vae_conv_scale
         bint chroma_use_dit_mask
         bint chroma_use_t5_mask
         int chroma_t5_mask_pad
-        float flow_shift
+        bint qwen_image_zero_cond_t
 
     ctypedef struct sd_image_t:
         uint32_t width
@@ -203,6 +206,7 @@ cdef extern from "stable-diffusion.h":
         int shifted_timestep
         float* custom_sigmas
         int custom_sigmas_count
+        float flow_shift
 
     ctypedef struct sd_pm_params_t:
         sd_image_t* id_images

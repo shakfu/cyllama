@@ -231,9 +231,7 @@ def create_context_params(args):
         }
         params.lora_apply_mode = mode_map.get(args.lora_apply_mode, LoraApplyMode.AUTO)
 
-    # Flow/chroma options
-    if hasattr(args, 'flow_shift') and args.flow_shift is not None:
-        params.flow_shift = args.flow_shift
+    # Chroma options
     if hasattr(args, 'chroma_disable_dit_mask') and args.chroma_disable_dit_mask:
         params.chroma_use_dit_mask = False
     if hasattr(args, 'chroma_enable_t5_mask') and args.chroma_enable_t5_mask:
@@ -335,6 +333,7 @@ def cmd_txt2img(args):
             clip_skip=args.clip_skip,
             eta=args.eta,
             slg_scale=args.slg_scale,
+            flow_shift=getattr(args, 'flow_shift', None) or 0.0,
             vae_tiling=args.vae_tiling,
         )
     except RuntimeError as e:
@@ -412,6 +411,7 @@ def cmd_img2img(args):
             clip_skip=args.clip_skip,
             eta=args.eta,
             slg_scale=args.slg_scale,
+            flow_shift=getattr(args, 'flow_shift', None) or 0.0,
             vae_tiling=args.vae_tiling,
         )
     except RuntimeError as e:
@@ -494,6 +494,7 @@ def cmd_inpaint(args):
             strength=args.strength,
             clip_skip=args.clip_skip,
             eta=args.eta,
+            flow_shift=getattr(args, 'flow_shift', None) or 0.0,
             vae_tiling=args.vae_tiling,
         )
     except RuntimeError as e:
@@ -573,6 +574,7 @@ def cmd_controlnet(args):
             clip_skip=args.clip_skip,
             eta=args.eta,
             slg_scale=args.slg_scale,
+            flow_shift=getattr(args, 'flow_shift', None) or 0.0,
             vae_tiling=args.vae_tiling,
         )
     except RuntimeError as e:

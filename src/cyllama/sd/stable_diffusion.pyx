@@ -1017,6 +1017,15 @@ cdef class SDContextParams:
     def offload_params_to_cpu(self, value: bool):
         self._params.offload_params_to_cpu = value
 
+    @property
+    def enable_mmap(self) -> bool:
+        """Enable memory-mapped file loading."""
+        return self._params.enable_mmap
+
+    @enable_mmap.setter
+    def enable_mmap(self, value: bool):
+        self._params.enable_mmap = value
+
     # --- Additional model paths ---
 
     @property
@@ -1232,6 +1241,24 @@ cdef class SDContextParams:
         self._params.vae_conv_direct = value
 
     @property
+    def circular_x(self) -> bool:
+        """Enable circular padding in X dimension (tileable generation)."""
+        return self._params.circular_x
+
+    @circular_x.setter
+    def circular_x(self, value: bool):
+        self._params.circular_x = value
+
+    @property
+    def circular_y(self) -> bool:
+        """Enable circular padding in Y dimension (tileable generation)."""
+        return self._params.circular_y
+
+    @circular_y.setter
+    def circular_y(self, value: bool):
+        self._params.circular_y = value
+
+    @property
     def force_sdxl_vae_conv_scale(self) -> bool:
         """Force conv scale on SDXL VAE."""
         return self._params.force_sdxl_vae_conv_scale
@@ -1268,13 +1295,13 @@ cdef class SDContextParams:
         self._params.chroma_t5_mask_pad = value
 
     @property
-    def flow_shift(self) -> float:
-        """Flow shift value for SD3.x/Wan models."""
-        return self._params.flow_shift
+    def qwen_image_zero_cond_t(self) -> bool:
+        """Use zero conditioning for Qwen image models."""
+        return self._params.qwen_image_zero_cond_t
 
-    @flow_shift.setter
-    def flow_shift(self, value: float):
-        self._params.flow_shift = value
+    @qwen_image_zero_cond_t.setter
+    def qwen_image_zero_cond_t(self, value: bool):
+        self._params.qwen_image_zero_cond_t = value
 
     def __str__(self) -> str:
         """Get string representation of parameters."""
@@ -1374,6 +1401,15 @@ cdef class SDSampleParams:
     @shifted_timestep.setter
     def shifted_timestep(self, value: int):
         self._params.shifted_timestep = value
+
+    @property
+    def flow_shift(self) -> float:
+        """Flow shift value for SD3.x/Wan models."""
+        return self._params.flow_shift
+
+    @flow_shift.setter
+    def flow_shift(self, value: float):
+        self._params.flow_shift = value
 
     # --- Guidance parameters ---
 
@@ -1815,6 +1851,7 @@ cdef class SDContext:
                  clip_skip: int = -1,
                  eta: float = 0.0,
                  slg_scale: float = 0.0,
+                 flow_shift: float = 0.0,
                  vae_tiling: bool = False) -> List[SDImage]:
         """
         Generate images from a text prompt.
@@ -1838,6 +1875,7 @@ cdef class SDContext:
             clip_skip: Number of CLIP layers to skip
             eta: Eta for DDIM-like samplers
             slg_scale: Skip layer guidance scale (0 = disabled)
+            flow_shift: Flow shift for SD3.x/Wan models
             vae_tiling: Enable VAE tiling for large images
 
         Returns:
@@ -1874,6 +1912,7 @@ cdef class SDContext:
         # Set advanced parameters
         gen_params.sample_params.eta = eta
         gen_params.sample_params.slg_scale = slg_scale
+        gen_params.sample_params.flow_shift = flow_shift
         gen_params.vae_tiling_enabled = vae_tiling
 
         # Set init image for img2img

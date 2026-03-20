@@ -61,6 +61,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - Renamed `mtmd_get_audio_bitrate` to `mtmd_get_audio_sample_rate` in `mtmd.pxd`, `mtmd.pxi`, `multimodal.py`, tests, and examples (upstream rename)
   - Updated `model_alias` from `std::string` to `std::set<std::string>` in `common.pxd` and `common.pxi` (upstream type change)
 
+- **stable-diffusion.cpp Build Compatibility** - Fixed build failure after stable-diffusion.cpp upstream sync
+  - Moved `flow_shift` from `sd_ctx_params_t` to `sd_sample_params_t` in `stable_diffusion.pxd` (upstream struct change)
+  - Moved `flow_shift` property from `SDParams` to `SDSampleParams` in `stable_diffusion.pyx`
+  - Added `flow_shift` parameter to `SDContext.generate()` method
+  - Updated CLI (`__main__.py`) to pass `flow_shift` via `generate()` instead of context params
+  - Added missing `sd_ctx_params_t` fields: `enable_mmap`, `circular_x`, `circular_y`, `qwen_image_zero_cond_t`
+  - Added corresponding properties to `SDParams`: `enable_mmap`, `circular_x`, `circular_y`, `qwen_image_zero_cond_t`
+
 - **HIP/ROCm Backend Build** - Fixed multiple issues with HIP backend configuration (Issue #9)
   - Added missing environment variable handling for `GGML_HIP`, `GGML_SYCL`, `GGML_OPENCL`
   - Added HIP system library linking (`hip::host`, `roc::rocblas`, `roc::hipblas`)
