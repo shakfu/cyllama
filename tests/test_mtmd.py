@@ -190,7 +190,7 @@ class TestMultimodalProcessor:
             ctx = Mock()
             ctx.supports_vision = True
             ctx.supports_audio = False
-            ctx.audio_bitrate = -1
+            ctx.audio_sample_rate = -1
             mock.return_value = ctx
             yield ctx
 
@@ -201,7 +201,7 @@ class TestMultimodalProcessor:
 
             assert processor.supports_vision is True
             assert processor.supports_audio is False
-            assert processor.audio_bitrate == -1
+            assert processor.audio_sample_rate == -1
 
     def test_process_image_unsupported(self, mock_model):
         """Test processing image when vision is not supported."""
@@ -432,7 +432,7 @@ class TestErrorHandling:
             mock_ctx_instance = Mock()
             mock_ctx_instance.supports_vision = True
             mock_ctx_instance.supports_audio = False
-            mock_ctx_instance.audio_bitrate = -1
+            mock_ctx_instance.audio_sample_rate = -1
             mock_mtmd_ctx.return_value = mock_ctx_instance
 
             with patch('os.path.exists', return_value=True):

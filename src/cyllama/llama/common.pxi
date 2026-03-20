@@ -940,13 +940,19 @@ cdef class CommonParams:
         self.p.model = value
 
     @property
-    def model_alias(self) -> str:
-        """model alias"""
-        return self.p.model_alias.decode()
+    def model_alias(self) -> set:
+        """model aliases"""
+        return {a.decode() for a in self.p.model_alias}
 
     @model_alias.setter
-    def model_alias(self, value: str):
-        self.p.model_alias = value.encode('utf8')
+    def model_alias(self, value):
+        cdef std_set[std_string] aliases
+        if isinstance(value, str):
+            aliases.insert(value.encode('utf8'))
+        else:
+            for v in value:
+                aliases.insert(v.encode('utf8'))
+        self.p.model_alias = aliases
 
     @property
     def hf_token(self) -> str:

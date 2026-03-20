@@ -71,13 +71,13 @@ class MultimodalProcessor:
         # Cache capabilities
         self._supports_vision = self.mtmd_ctx.supports_vision
         self._supports_audio = self.mtmd_ctx.supports_audio
-        self._audio_bitrate = self.mtmd_ctx.audio_bitrate
+        self._audio_sample_rate = self.mtmd_ctx.audio_sample_rate
 
         logger.info(f"Initialized multimodal processor:")
         logger.info(f"  Vision support: {self._supports_vision}")
         logger.info(f"  Audio support: {self._supports_audio}")
         if self._supports_audio:
-            logger.info(f"  Audio bitrate: {self._audio_bitrate} Hz")
+            logger.info(f"  Audio bitrate: {self._audio_sample_rate} Hz")
 
     @property
     def supports_vision(self) -> bool:
@@ -90,9 +90,9 @@ class MultimodalProcessor:
         return self._supports_audio
 
     @property
-    def audio_bitrate(self) -> int:
+    def audio_sample_rate(self) -> int:
         """Get supported audio bitrate in Hz."""
-        return self._audio_bitrate
+        return self._audio_sample_rate
 
     def process_image(self, text: str, image: Union[str, bytes, 'Image.Image'],
                      add_special: bool = True, parse_special: bool = True) -> MtmdInputChunks:

@@ -15,7 +15,7 @@ def test_context(model_path):
     assert ctx.n_ubatch == 512
     assert ctx.n_seq_max == 1
     # State size for an empty context (no tokens evaluated yet)
-    assert ctx.get_state_size() == 37
+    assert ctx.get_state_size() == 17
     # context params
     cy.llama_backend_free()
 

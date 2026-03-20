@@ -451,11 +451,11 @@ cdef class MtmdContext:
         return mtmd_support_audio(self._ctx)
 
     @property
-    def audio_bitrate(self) -> int:
-        """Get audio bitrate in Hz (-1 if audio not supported)."""
+    def audio_sample_rate(self) -> int:
+        """Get audio sample rate in Hz (-1 if audio not supported)."""
         if self._ctx is NULL:
             return -1
-        return mtmd_get_audio_bitrate(self._ctx)
+        return mtmd_get_audio_sample_rate(self._ctx)
 
     @property
     def uses_non_causal(self) -> bool:

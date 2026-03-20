@@ -153,7 +153,7 @@ def audio_example(model_path: str, mmproj_path: str, audio_path: str):
             print("Audio not supported by this model")
             return
 
-        print(f"Audio bitrate: {processor.audio_bitrate} Hz")
+        print(f"Audio bitrate: {processor.audio_sample_rate} Hz")
 
         # Create audio processor
         audio_proc = AudioProcessor(mmproj_path, model)

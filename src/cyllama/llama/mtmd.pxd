@@ -67,7 +67,7 @@ cdef extern from "mtmd.h":
     cdef bint mtmd_decode_use_mrope(mtmd_context * ctx)
     cdef bint mtmd_support_vision(mtmd_context * ctx)
     cdef bint mtmd_support_audio(mtmd_context * ctx)
-    cdef int mtmd_get_audio_bitrate(mtmd_context * ctx)
+    cdef int mtmd_get_audio_sample_rate(mtmd_context * ctx)
 
     # Bitmap management
     cdef mtmd_bitmap * mtmd_bitmap_init(uint32_t nx, uint32_t ny, const unsigned char * data)

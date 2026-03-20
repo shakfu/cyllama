@@ -136,7 +136,7 @@ PLATFORM = platform.system()
 ARCH = platform.machine()
 PY_VER_MINOR = sys.version_info.minor
 
-STABLE_BUILD = getenv("STABLE_BUILD", True)
+STABLE_BUILD = getenv("STABLE_BUILD", False)
 if STABLE_BUILD:
     # known to build and work without errors, 100% tests pass
     LLAMACPP_VERSION = "b7976"
@@ -145,7 +145,7 @@ if STABLE_BUILD:
     SQLITEVECTOR_VERSION = "0.9.52"
 else:
     # experimental bleeding-edge builds ` = ""` means get latest
-    LLAMACPP_VERSION = "b7976"
+    LLAMACPP_VERSION = "b8429"
     WHISPERCPP_VERSION = "v1.8.3"
     SDCPP_VERSION = "master-500-3296545"
     SQLITEVECTOR_VERSION = "0.9.52"
@@ -983,6 +983,12 @@ class LlamaCppBuilder(Builder):
         )
         # Copy main llama.h header from include/ directory
         self.glob_copy(self.src_dir / "include", self.include, patterns=["*.h"])
+        # Copy jinja headers (required by chat.h)
+        jinja_include = self.include / "jinja"
+        jinja_include.mkdir(exist_ok=True)
+        self.glob_copy(
+            self.src_dir / "common" / "jinja", jinja_include, patterns=["*.h", "*.hpp"]
+        )
         # Copy nlohmann JSON headers (required by json-partial.h)
         nlohmann_include = self.include / "nlohmann"
         nlohmann_include.mkdir(exist_ok=True)
@@ -1021,6 +1027,7 @@ class LlamaCppBuilder(Builder):
 
         # Copy core libraries from build directory (platform-aware)
         self.copy_lib(self.build_dir, "common", "common", self.lib)
+        self.copy_lib(self.build_dir, "vendor/cpp-httplib", "cpp-httplib", self.lib)
         self.copy_lib(self.build_dir, "src", "llama", self.lib)
         self.copy_lib(self.build_dir, "ggml/src", "ggml", self.lib)
         self.copy_lib(self.build_dir, "ggml/src", "ggml-base", self.lib)

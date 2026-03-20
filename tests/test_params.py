@@ -172,8 +172,8 @@ def test_default_model_quantize_params():
     params = cy.LlamaModelQuantizeParams()
     assert params.nthread                     == 0
     assert params.ftype                       == 9  # LLAMA_FTYPE_MOSTLY_Q5_1 = 9
-    assert params.output_tensor_type          == 40  # GGML_TYPE_COUNT = 40
-    assert params.token_embedding_type        == 40  # GGML_TYPE_COUNT = 40
+    assert params.output_tensor_type          == 41  # GGML_TYPE_COUNT = 41
+    assert params.token_embedding_type        == 41  # GGML_TYPE_COUNT = 41
     assert params.allow_requantize            == False
     assert params.quantize_output_tensor      == True
     assert params.only_copy                   == False
@@ -272,7 +272,7 @@ def test_common_params():
 
     assert params.model                == {'path': b'', 'url': b'', 'hf_repo': b'', 'hf_file': b'', 'docker_repo': b'', 'name': b''}
     # assert params.model_draft          == ""
-    assert params.model_alias          == ""
+    assert params.model_alias          == set()
     # model_url, hf_token, hf_repo, hf_file, prompt, prompt_file, path_prompt_cache, 
     # input_prefix, input_suffix, lookup_cache_static, lookup_cache_dynamic, 
     # logits_file, rpc_servers are not available in CommonParams

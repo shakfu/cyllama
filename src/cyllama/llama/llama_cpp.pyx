@@ -7,6 +7,7 @@ from libc.string cimport strlen
 from libc.stdlib cimport malloc, calloc, realloc, free
 from libcpp.vector cimport vector as std_vector
 from libcpp.string cimport string as std_string
+from libcpp.set cimport set as std_set
 from libcpp cimport bool as cppbool  # required for func pointer sigs
 
 # JSON schema to grammar C helper

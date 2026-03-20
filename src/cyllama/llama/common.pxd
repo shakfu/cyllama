@@ -297,7 +297,7 @@ cdef extern from "common.h":
 
         common_params_model model 
 
-        std_string model_alias          # model alias
+        std_set[std_string] model_alias  # model aliases
         std_string hf_token             # HF token
         std_string prompt               #
         std_string system_prompt

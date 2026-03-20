@@ -177,6 +177,7 @@ endif()
 set(STATIC_LIBS "")
 
 static_lib(LIB_COMMON "${LLAMACPP_LIB}" "common")
+static_lib(LIB_CPP_HTTPLIB "${LLAMACPP_LIB}" "cpp-httplib")
 static_lib(LIB_LLAMA "${LLAMACPP_LIB}" "llama")
 static_lib(LIB_GGML "${LLAMACPP_LIB}" "ggml")
 static_lib(LIB_GGML_BASE "${LLAMACPP_LIB}" "ggml-base")
@@ -185,6 +186,7 @@ static_lib(LIB_MTMD "${LLAMACPP_LIB}" "mtmd")
 
 list(APPEND STATIC_LIBS
     "${LIB_COMMON}"
+    "${LIB_CPP_HTTPLIB}"
     "${LIB_LLAMA}"
     "${LIB_GGML}"
     "${LIB_GGML_BASE}"
@@ -257,6 +259,17 @@ if(GGML_METAL)
         ${METAL_FRAMEWORK}
         ${METALKIT_FRAMEWORK}
     )
+endif()
+
+# cpp-httplib requires OpenSSL when built with CPPHTTPLIB_OPENSSL_SUPPORT
+find_package(OpenSSL QUIET)
+if(OpenSSL_FOUND)
+    list(APPEND SYSTEM_LIBS OpenSSL::SSL OpenSSL::Crypto)
+    if(APPLE)
+        find_library(CORE_FOUNDATION_FRAMEWORK CoreFoundation REQUIRED)
+        find_library(SECURITY_FRAMEWORK Security REQUIRED)
+        list(APPEND SYSTEM_LIBS ${CORE_FOUNDATION_FRAMEWORK} ${SECURITY_FRAMEWORK})
+    endif()
 endif()
 
 if(GGML_CUDA)

@@ -54,6 +54,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Fixed
 
+- **llama.cpp Build Compatibility** - Fixed build failures after llama.cpp upstream sync
+  - Added jinja header copy step in `manage.py` (`chat.h` now depends on `jinja/parser.h`, `jinja/runtime.h`, `jinja/caps.h`)
+  - Added `libcpp-httplib.a` to build artifacts and CMake link list (`libcommon.a` now depends on cpp-httplib)
+  - Added OpenSSL and macOS Security/CoreFoundation framework linking (required by cpp-httplib with SSL support)
+  - Renamed `mtmd_get_audio_bitrate` to `mtmd_get_audio_sample_rate` in `mtmd.pxd`, `mtmd.pxi`, `multimodal.py`, tests, and examples (upstream rename)
+  - Updated `model_alias` from `std::string` to `std::set<std::string>` in `common.pxd` and `common.pxi` (upstream type change)
+
 - **HIP/ROCm Backend Build** - Fixed multiple issues with HIP backend configuration (Issue #9)
   - Added missing environment variable handling for `GGML_HIP`, `GGML_SYCL`, `GGML_OPENCL`
   - Added HIP system library linking (`hip::host`, `roc::rocblas`, `roc::hipblas`)
@@ -71,13 +78,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 - **llama.cpp API Sync** - Updated wrappers for latest llama.cpp header changes
   - `llama.pxd`: Added `use_direct_io` field to `llama_model_params`, added `llama_params_fit_status` enum, updated `llama_params_fit()` return type and `margins` parameter, added `llama_model_n_embd_out()` function, added `llama_sampler_init_adaptive_p()` sampler, updated `llama_sampler_chain_get()` to non-const, added `llama_set_sampler()` function, updated `llama_split_path()` and `llama_split_prefix()` parameter and return types from `int` to `int32_t`, updated `use_direct_io` comment
-  - `llama_cpp.pyx`: Added `use_direct_io` property to `LlamaModelParams` class
-  - `common.pxd`: Added `LLAMA_EXAMPLE_BATCHED`/`LLAMA_EXAMPLE_DEBUG` enum values, added `COMMON_SAMPLER_TYPE_ADAPTIVE_P` sampler type, added `adaptive_target`/`adaptive_decay`/`backend_sampling` to `common_params_sampling`, changed `fit_params_target` from `size_t` to `std_vector[size_t]`, added `use_direct_io`/`cache_prompt`/`sleep_idle_seconds`/`webui_config_json` to `common_params`, added `common_speculative_type` enum, added `type` field and reordered `common_params_speculative` fields to match upstream with new `ngram_size_n`/`ngram_size_m`/`ngram_min_hits` fields, updated `common_init_result` from struct to cppclass with methods and `common_init_result_ptr` typedef, updated `common_init_from_params()` return type to `common_init_result_ptr`
-  - `ggml.pxd`: Added `use_ref` field to `ggml_cplan` struct, added `ggml_backend_cpu_set_use_ref()` function
+  - `llama_cpp.pyx`: Added `use_direct_io` property to `LlamaModelParams` class, added `std_set` cimport for `model_alias` type change
+  - `common.pxd`: Added `LLAMA_EXAMPLE_BATCHED`/`LLAMA_EXAMPLE_DEBUG` enum values, added `COMMON_SAMPLER_TYPE_ADAPTIVE_P` sampler type, added `adaptive_target`/`adaptive_decay`/`backend_sampling` to `common_params_sampling`, changed `fit_params_target` from `size_t` to `std_vector[size_t]`, added `use_direct_io`/`cache_prompt`/`sleep_idle_seconds`/`webui_config_json` to `common_params`, added `common_speculative_type` enum, added `type` field and reordered `common_params_speculative` fields to match upstream with new `ngram_size_n`/`ngram_size_m`/`ngram_min_hits` fields, updated `common_init_result` from struct to cppclass with methods and `common_init_result_ptr` typedef, updated `common_init_from_params()` return type to `common_init_result_ptr`, changed `model_alias` from `std_string` to `std_set[std_string]`
+  - `common.pxi`: Updated `model_alias` property to return `set` of strings, setter accepts `str` or iterable
+  - `mtmd.pxd`: Renamed `mtmd_get_audio_bitrate()` to `mtmd_get_audio_sample_rate()`
+  - `mtmd.pxi`: Renamed `audio_bitrate` property to `audio_sample_rate`
+  - `multimodal.py`: Renamed `audio_bitrate` to `audio_sample_rate` throughout
+  - `ggml.pxd`: Added `use_ref` field to `ggml_cplan` struct, added `ggml_backend_cpu_set_use_ref()` function, `GGML_TYPE_COUNT` updated from 40 to 41
   - `ngram_cache.pxd`: Updated `common_ngram_cache_save()` and `common_ngram_cache_load()` filename parameters from `string &` to `const string &`
   - `test_chat.py`: Updated builtin templates list (added `exaone-moe`, `solar-open`)
-  - `test_context.py`: Updated `get_state_size()` expected value for empty context
-  - `test_params.py`: Updated `n_gpu_layers` default to `-1` (auto-detect)
+  - `test_context.py`: Updated `get_state_size()` expected value for empty context (37 -> 17)
+  - `test_params.py`: Updated `n_gpu_layers` default to `-1` (auto-detect), `model_alias` default to `set()`, `GGML_TYPE_COUNT` to 41
+  - `test_mtmd.py`: Renamed `audio_bitrate` references to `audio_sample_rate`
 
 - **stable-diffusion.cpp API Sync** - Updated wrappers for latest stable-diffusion.cpp header changes
   - `stable_diffusion.pxd`: Replaced `sd_easycache_params_t` with new `sd_cache_params_t` struct and `sd_cache_mode_t` enum (supports EASYCACHE, UCACHE, DBCACHE, TAYLORSEER, CACHE_DIT modes), updated `sd_img_gen_params_t` and `sd_vid_gen_params_t` to use new cache system, added `vae_tiling_params` to `sd_vid_gen_params_t`, updated `sd_get_default_scheduler()` signature (added `sample_method` parameter), updated `convert()` signature (added `convert_name` parameter), added `RES_MULTISTEP_SAMPLE_METHOD`/`RES_2S_SAMPLE_METHOD` to `sample_method_t`, added `KL_OPTIMAL_SCHEDULER`/`BONG_TANGENT_SCHEDULER` to `scheduler_t`, added `flash_attn` field to `sd_ctx_params_t`
