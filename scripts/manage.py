@@ -1010,7 +1010,7 @@ class LlamaCppBuilder(Builder):
             CMAKE_C_VISIBILITY_PRESET="hidden",
             CMAKE_VISIBILITY_INLINES_HIDDEN=True,
             LLAMA_CURL=False,
-            LLAMA_HTTPLIB=False,  # Disable httplib to avoid linking issues
+            LLAMA_OPENSSL=True,  # Enable OpenSSL in cpp-httplib for HTTPS support
             LLAMA_BUILD_SERVER=False,  # Server requires httplib
             LLAMA_BUILD_TESTS=False,  # Tests require httplib
             LLAMA_BUILD_EXAMPLES=False,  # Don't need examples

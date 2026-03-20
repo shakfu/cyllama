@@ -235,24 +235,28 @@ jobs:
 
       - name: Organize wheels by backend
         run: |
+          shopt -s nullglob
           mkdir -p index
 
           # CUDA 12.4
-          if ls artifacts/wheels-cuda-cu124-*/*.whl 2>/dev/null; then
+          wheels=(artifacts/wheels-cuda-cu124-*/*.whl)
+          if [ ${#wheels[@]} -gt 0 ]; then
             mkdir -p index/cu124
-            cp artifacts/wheels-cuda-cu124-*/*.whl index/cu124/
+            cp "${wheels[@]}" index/cu124/
           fi
 
           # CUDA 12.8
-          if ls artifacts/wheels-cuda-cu128-*/*.whl 2>/dev/null; then
+          wheels=(artifacts/wheels-cuda-cu128-*/*.whl)
+          if [ ${#wheels[@]} -gt 0 ]; then
             mkdir -p index/cu128
-            cp artifacts/wheels-cuda-cu128-*/*.whl index/cu128/
+            cp "${wheels[@]}" index/cu128/
           fi
 
           # Vulkan
-          if ls artifacts/wheels-vulkan-*/*.whl 2>/dev/null; then
+          wheels=(artifacts/wheels-vulkan-*/*.whl)
+          if [ ${#wheels[@]} -gt 0 ]; then
             mkdir -p index/vulkan
-            cp artifacts/wheels-vulkan-*/*.whl index/vulkan/
+            cp "${wheels[@]}" index/vulkan/
           fi
 
           echo "=== Wheel index ==="
@@ -260,7 +264,9 @@ jobs:
 
       - name: Generate PEP 503 index pages
         run: |
+          shopt -s nullglob
           for backend_dir in index/*/; do
+            [ -d "$backend_dir" ] || continue
             backend=$(basename "$backend_dir")
             mkdir -p "index/${backend}/cyllama"
 
