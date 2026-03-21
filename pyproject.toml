@@ -107,7 +107,7 @@ before-build = "python scripts/manage.py build --all --deps-only"
 
 # Test the built wheels
 test-groups = ["dev"]
-test-command = "pytest {project}/tests -x -q --ignore={project}/tests/examples -o 'pythonpath='"
+test-command = "pytest {project}/tests -x -q --ignore={project}/tests/examples -o pythonpath="
 
 # Build verbosity
 build-verbosity = 1
@@ -118,7 +118,7 @@ manylinux-x86_64-image = "manylinux2014"
 manylinux-aarch64-image = "manylinux2014"
 
 # Install build dependencies and build thirdparty libs (once for all Python versions)
-before-all = "yum install -y cmake ninja-build git python3 && python3 scripts/manage.py build --all --deps-only"
+before-all = "yum install -y git python3 && pip3 install cmake ninja && python3 scripts/manage.py build --all --deps-only"
 
 # Environment variables for Linux builds
 environment = { GGML_METAL = "0" }
