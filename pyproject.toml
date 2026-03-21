@@ -117,8 +117,8 @@ build-verbosity = 1
 manylinux-x86_64-image = "manylinux2014"
 manylinux-aarch64-image = "manylinux2014"
 
-# Install build dependencies before building
-before-all = "yum install -y cmake ninja-build git"
+# Install build dependencies and build thirdparty libs (once for all Python versions)
+before-all = "yum install -y cmake ninja-build git && python3 scripts/manage.py build --all --deps-only"
 
 # Environment variables for Linux builds
 environment = { GGML_METAL = "0" }
