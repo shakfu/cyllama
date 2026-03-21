@@ -12,8 +12,11 @@ from cyllama.rag import VectorStore, VectorStoreError, SearchResult
 
 # Check if sqlite-vector extension is available
 def extension_available() -> bool:
-    """Check if sqlite-vector extension exists."""
+    """Check if sqlite-vector extension exists and can be loaded."""
+    import sqlite3
     import sys
+    if not hasattr(sqlite3.Connection, 'enable_load_extension'):
+        return False
     ext_path = Path(__file__).parent.parent / "src" / "cyllama" / "rag" / "vector"
     if sys.platform == "darwin":
         return ext_path.with_suffix(".dylib").exists()

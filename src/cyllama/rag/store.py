@@ -109,6 +109,11 @@ class VectorStore:
     def _load_extension(self) -> None:
         """Load the sqlite-vector extension."""
         try:
+            if not hasattr(self.conn, 'enable_load_extension'):
+                raise VectorStoreError(
+                    "Python was built without SQLite extension loading support. "
+                    "Rebuild Python with --enable-loadable-sqlite-extensions."
+                )
             self.conn.enable_load_extension(True)
             # SQLite load_extension expects path without extension
             ext_path = str(self.EXTENSION_PATH)
