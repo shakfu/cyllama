@@ -104,7 +104,7 @@ skip = "*-musllinux_*"
 
 # Test the built wheels
 test-requires = ["pytest"]
-test-command = "pytest {project}/tests -x -q --ignore={project}/tests/examples"
+test-command = "pytest {project}/tests -x -q --ignore={project}/tests/examples -o 'pythonpath='"
 
 # Build verbosity
 build-verbosity = 1

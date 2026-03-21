@@ -83,7 +83,7 @@ jobs:
           GGML_METAL: 0
 
       - name: Install cibuildwheel
-        run: pip install cibuildwheel==2.21.3
+        run: pip install cibuildwheel==3.4.0
 
       - name: Build CUDA wheels
         run: python -m cibuildwheel --output-dir wheelhouse
@@ -186,7 +186,7 @@ jobs:
           uv sync
 
       - name: Install cibuildwheel
-        run: pip install cibuildwheel==2.21.3
+        run: pip install cibuildwheel==3.4.0
 
       - name: Build Vulkan wheels
         run: python -m cibuildwheel --output-dir wheelhouse
