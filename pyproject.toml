@@ -118,7 +118,7 @@ manylinux-x86_64-image = "manylinux2014"
 manylinux-aarch64-image = "manylinux2014"
 
 # Install build dependencies and build thirdparty libs (once for all Python versions)
-before-all = "yum install -y cmake ninja-build git && python3 scripts/manage.py build --all --deps-only"
+before-all = "yum install -y cmake ninja-build git python3 && python3 scripts/manage.py build --all --deps-only"
 
 # Environment variables for Linux builds
 environment = { GGML_METAL = "0" }
