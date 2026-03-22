@@ -1,11 +1,25 @@
 name: build-cibw
 
-on: [workflow_dispatch]
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: 'Platform to build'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - linux-intel
+          - windows-intel
+          - macos-intel
+          - macos-arm
 
 jobs:
   build_wheels:
     name: Build wheels for ${{ matrix.os }}
     runs-on: ${{ matrix.runs-on }}
+    if: inputs.platform == 'all' || inputs.platform == matrix.os
     strategy:
       fail-fast: false
       matrix:
@@ -33,11 +47,6 @@ jobs:
         env:
           CIBW_PLATFORM: ${{ matrix.platform || 'auto' }}
           CIBW_ARCHS: ${{ matrix.archs || 'auto' }}
-        # Can also be configured directly, using `with:`
-        # with:
-        #   package-dir: .
-        #   output-dir: wheelhouse
-        #   config-file: "{package}/pyproject.toml"
 
       - uses: actions/upload-artifact@v4
         with:
