@@ -1121,6 +1121,7 @@ class WhisperCppBuilder(Builder):
             CMAKE_CXX_VISIBILITY_PRESET="hidden",
             CMAKE_C_VISIBILITY_PRESET="hidden",
             CMAKE_VISIBILITY_INLINES_HIDDEN=True,
+            CMAKE_INSTALL_LIBDIR="lib",  # Prevent lib64 on 64-bit Linux
             **backend_options,
         )
         self.cmake_build(build_dir=self.build_dir, release=True)
@@ -1211,6 +1212,7 @@ class StableDiffusionCppBuilder(Builder):
             CMAKE_CXX_VISIBILITY_PRESET="hidden",
             CMAKE_C_VISIBILITY_PRESET="hidden",
             CMAKE_VISIBILITY_INLINES_HIDDEN=True,
+            CMAKE_INSTALL_LIBDIR="lib",  # Prevent lib64 on 64-bit Linux
             **backend_options,
         )
         self.cmake_build(build_dir=self.build_dir, release=True)
