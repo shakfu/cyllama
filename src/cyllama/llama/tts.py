@@ -9,7 +9,6 @@ Based on OuteTTS model for high-quality text-to-speech synthesis.
 import sys
 import argparse
 import math
-import struct
 from typing import List, Optional, Dict, Tuple
 
 from . import llama_cpp as cy
@@ -71,7 +70,7 @@ def embd_to_audio(embd: List[float], n_codes: int, n_embd: int, n_threads: int =
 
     for l in range(n_codes):
         # Apply IRFFT to get time-domain signal
-        frame_spec = ST[l * n_embd:(l + 1) * n_embd]
+        frame_spec = ST[l * n_embd : (l + 1) * n_embd]
         frame_audio = cy.irfft(frame_spec)  # Cython version only takes inp_cplx parameter
 
         # Apply window
@@ -91,7 +90,6 @@ def embd_to_audio(embd: List[float], n_codes: int, n_embd: int, n_threads: int =
             audio[i] /= env[i]
 
     return audio
-
 
 
 def process_text(text: str, tts_version: str = "0.2") -> str:
@@ -127,15 +125,17 @@ def prepare_guide_tokens(vocab, text: str, tts_version: str = "0.2") -> List[int
 class TTSGenerator:
     """Text-to-Speech generator using OuteTTS models"""
 
-    def __init__(self,
-                 ttc_model_path: str,  # text-to-codes model
-                 cts_model_path: str,  # codes-to-speech model
-                 n_ctx: int = 8192,
-                 n_batch: int = 8192,
-                 ngl: int = 99,
-                 n_predict: int = 4096,
-                 speaker_file: Optional[str] = None,
-                 use_guide_tokens: bool = True):
+    def __init__(
+        self,
+        ttc_model_path: str,  # text-to-codes model
+        cts_model_path: str,  # codes-to-speech model
+        n_ctx: int = 8192,
+        n_batch: int = 8192,
+        ngl: int = 99,
+        n_predict: int = 4096,
+        speaker_file: Optional[str] = None,
+        use_guide_tokens: bool = True,
+    ):
         """Initialize TTS with models and parameters"""
 
         # Load dynamic backends
@@ -196,13 +196,14 @@ class TTSGenerator:
     def load_speaker(self, speaker_file: str):
         """Load speaker profile from JSON file"""
         import json
+
         try:
-            with open(speaker_file, 'r') as f:
+            with open(speaker_file, "r") as f:
                 speaker_data = json.load(f)
 
             # Extract version if available
-            if 'version' in speaker_data:
-                self.tts_version = speaker_data['version']
+            if "version" in speaker_data:
+                self.tts_version = speaker_data["version"]
 
             # Build audio text and data from speaker
             self.audio_text = self.audio_text_from_speaker(speaker_data)
@@ -261,9 +262,9 @@ lovely<|t_0.56|><|code_start|><|634|><|596|><|1766|><|1556|><|1306|><|1285|><|14
         audio_text = "<|text_start|>"
         separator = "<|space|>" if self.tts_version == "0.3" else "<|text_sep|>"
 
-        if 'words' in speaker_data:
-            for word in speaker_data['words']:
-                audio_text += word['word'] + separator
+        if "words" in speaker_data:
+            for word in speaker_data["words"]:
+                audio_text += word["word"] + separator
 
         return audio_text
 
@@ -271,14 +272,14 @@ lovely<|t_0.56|><|code_start|><|634|><|596|><|1766|><|1556|><|1306|><|1285|><|14
         """Extract audio data from speaker data"""
         audio_data = "<|audio_start|>\n"
 
-        if 'words' in speaker_data:
+        if "words" in speaker_data:
             code_start = "" if self.tts_version == "0.3" else "<|code_start|>"
             code_end = "<|space|>" if self.tts_version == "0.3" else "<|code_end|>"
 
-            for word in speaker_data['words']:
-                word_text = word['word']
-                duration = word['duration']
-                codes = word['codes']
+            for word in speaker_data["words"]:
+                word_text = word["word"]
+                duration = word["duration"]
+                codes = word["codes"]
 
                 entry = f"{word_text}<|t_{duration:.2f}|>{code_start}"
                 for code in codes:
@@ -371,14 +372,17 @@ lovely<|t_0.56|><|code_start|><|634|><|596|><|1766|><|1556|><|1306|><|1285|><|14
 
             # Guide tokens help prevent hallucinations by forcing the TTS to use the correct word
             # This logic matches the C++ implementation (lines 884-889)
-            if (guide_tokens_copy and next_token_uses_guide_token and
-                not self.vocab.is_control(new_token_id) and
-                not self.vocab.is_eog(new_token_id)):
+            if (
+                guide_tokens_copy
+                and next_token_uses_guide_token
+                and not self.vocab.is_control(new_token_id)
+                and not self.vocab.is_eog(new_token_id)
+            ):
                 guide_token = guide_tokens_copy.pop(0)  # Remove first token
                 new_token_id = guide_token  # Ensure correct word fragment is used
 
             # This is the token id that always precedes a new word (matches C++ line 892)
-            next_token_uses_guide_token = (new_token_id == 198)  # newline token
+            next_token_uses_guide_token = new_token_id == 198  # newline token
 
             # Accept the sampled token (matches C++ line 894)
             self.sampler.accept(new_token_id)
@@ -392,15 +396,14 @@ lovely<|t_0.56|><|code_start|><|634|><|596|><|1766|><|1556|><|1306|><|1285|><|14
             # Check for end of generation (matches C++ lines 901-917)
             if self.vocab.is_eog(new_token_id) or n_decode == self.n_predict:
                 reason = "eos" if self.vocab.is_eog(new_token_id) else "n_predict"
-                print(f"Stopped at {reason} after {n_decode+1} tokens")
+                print(f"Stopped at {reason} after {n_decode + 1} tokens")
                 break
-
 
             n_decode += 1
             n_past += 1
 
             # Create batch for next token
-            batch.set_batch([new_token_id], n_past-1, True)  # Use n_past-1 for position
+            batch.set_batch([new_token_id], n_past - 1, True)  # Use n_past-1 for position
 
             # Decode next token
             ret = self.context_ttc.decode(batch)
@@ -482,6 +485,7 @@ lovely<|t_0.56|><|code_start|><|634|><|596|><|1766|><|1556|><|1306|><|1285|><|14
         except Exception as e:
             print(f"Error in embd_to_audio: {e}")
             import traceback
+
             traceback.print_exc()
             return []
 
@@ -541,7 +545,9 @@ def main():
     parser.add_argument("-ngl", "--n-gpu-layers", type=int, default=99, help="Number of GPU layers")
     parser.add_argument("-n", "--n-predict", type=int, default=4096, help="Number of tokens to predict")
     parser.add_argument("--speaker-file", help="Speaker profile JSON file")
-    parser.add_argument("--use-guide-tokens", action="store_true", default=True, help="Use guide tokens to prevent hallucinations")
+    parser.add_argument(
+        "--use-guide-tokens", action="store_true", default=True, help="Use guide tokens to prevent hallucinations"
+    )
     parser.add_argument("--no-guide-tokens", action="store_true", help="Disable guide tokens")
 
     args = parser.parse_args()
@@ -558,7 +564,7 @@ def main():
             ngl=args.n_gpu_layers,
             n_predict=args.n_predict,
             speaker_file=args.speaker_file,
-            use_guide_tokens=use_guide_tokens
+            use_guide_tokens=use_guide_tokens,
         )
 
         success = tts.generate(args.prompt, args.output)

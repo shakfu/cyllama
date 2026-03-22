@@ -14,10 +14,10 @@ import json
 import time
 import threading
 import logging
-from typing import Dict, List, Optional, Any, Iterator
+from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
 from http.server import HTTPServer, BaseHTTPRequestHandler
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse
 import uuid
 
 # Import our existing cyllama bindings
@@ -52,6 +52,7 @@ class ServerConfig:
 @dataclass
 class ChatMessage:
     """OpenAI-compatible chat message."""
+
     role: str
     content: str
 
@@ -59,6 +60,7 @@ class ChatMessage:
 @dataclass
 class ChatRequest:
     """OpenAI-compatible chat completion request."""
+
     messages: List[ChatMessage]
     model: str = "gpt-3.5-turbo"
     max_tokens: Optional[int] = None
@@ -71,6 +73,7 @@ class ChatRequest:
 @dataclass
 class ChatChoice:
     """OpenAI-compatible chat choice."""
+
     index: int
     message: ChatMessage
     finish_reason: Optional[str] = None
@@ -79,6 +82,7 @@ class ChatChoice:
 @dataclass
 class ChatResponse:
     """OpenAI-compatible chat completion response."""
+
     id: str
     object: str = "chat.completion"
     created: int = field(default_factory=lambda: int(time.time()))
@@ -197,7 +201,6 @@ class ServerSlot:
         return self.response_text
 
 
-
 class PythonServer:
     """
     Python-based Llama.cpp server using existing cyllama bindings.
@@ -225,9 +228,7 @@ class PythonServer:
             self.logger.info(f"Loading model: {self.config.model_path}")
 
             # Load model
-            self.model = LlamaModel(
-                path_model=self.config.model_path
-            )
+            self.model = LlamaModel(path_model=self.config.model_path)
 
             # Create slots
             self.slots = []
@@ -284,9 +285,7 @@ class PythonServer:
 
             # Create response
             choice = ChatChoice(
-                index=0,
-                message=ChatMessage(role="assistant", content=generated_text),
-                finish_reason="stop"
+                index=0, message=ChatMessage(role="assistant", content=generated_text), finish_reason="stop"
             )
 
             response = ChatResponse(
@@ -296,8 +295,8 @@ class PythonServer:
                 usage={
                     "prompt_tokens": prompt_tokens,
                     "completion_tokens": completion_tokens,
-                    "total_tokens": prompt_tokens + completion_tokens
-                }
+                    "total_tokens": prompt_tokens + completion_tokens,
+                },
             )
 
             return response
@@ -390,9 +389,9 @@ class PythonServer:
 
                 try:
                     # Read request body
-                    content_length = int(self.headers.get('Content-Length', 0))
+                    content_length = int(self.headers.get("Content-Length", 0))
                     if content_length > 0:
-                        body = self.rfile.read(content_length).decode('utf-8')
+                        body = self.rfile.read(content_length).decode("utf-8")
                         data = json.loads(body)
                     else:
                         data = {}
@@ -414,19 +413,14 @@ class PythonServer:
                 """Send a JSON response."""
                 response = json.dumps(data)
                 self.send_response(status)
-                self.send_header('Content-Type', 'application/json')
-                self.send_header('Content-Length', str(len(response)))
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(response)))
                 self.end_headers()
-                self.wfile.write(response.encode('utf-8'))
+                self.wfile.write(response.encode("utf-8"))
 
             def _send_error(self, status: int, message: str):
                 """Send an error response."""
-                error_data = {
-                    "error": {
-                        "type": "invalid_request_error",
-                        "message": message
-                    }
-                }
+                error_data = {"error": {"type": "invalid_request_error", "message": message}}
                 self._send_json_response(error_data, status)
 
             def _handle_models(self):
@@ -438,9 +432,9 @@ class PythonServer:
                             "id": server_instance.config.model_alias,
                             "object": "model",
                             "created": int(time.time()),
-                            "owned_by": "cyllama"
+                            "owned_by": "cyllama",
                         }
-                    ]
+                    ],
                 }
                 self._send_json_response(models_data)
 
@@ -449,8 +443,7 @@ class PythonServer:
                 try:
                     # Parse request
                     messages_data = data.get("messages", [])
-                    messages = [ChatMessage(role=msg["role"], content=msg["content"])
-                              for msg in messages_data]
+                    messages = [ChatMessage(role=msg["role"], content=msg["content"]) for msg in messages_data]
 
                     request = ChatRequest(
                         messages=messages,
@@ -459,7 +452,7 @@ class PythonServer:
                         temperature=data.get("temperature", 0.8),
                         top_p=data.get("top_p", 0.9),
                         stream=data.get("stream", False),
-                        stop=data.get("stop")
+                        stop=data.get("stop"),
                     )
 
                     # Process request
@@ -474,15 +467,12 @@ class PythonServer:
                         "choices": [
                             {
                                 "index": choice.index,
-                                "message": {
-                                    "role": choice.message.role,
-                                    "content": choice.message.content
-                                },
-                                "finish_reason": choice.finish_reason
+                                "message": {"role": choice.message.role, "content": choice.message.content},
+                                "finish_reason": choice.finish_reason,
                             }
                             for choice in response.choices
                         ],
-                        "usage": response.usage
+                        "usage": response.usage,
                     }
 
                     self._send_json_response(response_data)

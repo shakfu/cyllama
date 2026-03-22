@@ -14,7 +14,6 @@ Tests cover:
 """
 
 import time
-import pytest
 
 from cyllama import LLM, GenerationConfig, ResponseCacheInfo
 
@@ -60,11 +59,11 @@ class TestCacheEnabled:
         with LLM(model_path, max_tokens=16, cache_size=10) as llm:
             info = llm.cache_info()
             assert isinstance(info, ResponseCacheInfo)
-            assert hasattr(info, 'hits')
-            assert hasattr(info, 'misses')
-            assert hasattr(info, 'maxsize')
-            assert hasattr(info, 'currsize')
-            assert hasattr(info, 'ttl')
+            assert hasattr(info, "hits")
+            assert hasattr(info, "misses")
+            assert hasattr(info, "maxsize")
+            assert hasattr(info, "currsize")
+            assert hasattr(info, "ttl")
 
 
 class TestCacheHitsMisses:
@@ -330,7 +329,8 @@ class TestExportedFromPackage:
     def test_response_cache_info_exported(self):
         """ResponseCacheInfo should be exported from cyllama."""
         from cyllama import ResponseCacheInfo
+
         assert ResponseCacheInfo is not None
         # Verify it's a NamedTuple
-        assert hasattr(ResponseCacheInfo, '_fields')
-        assert 'hits' in ResponseCacheInfo._fields
+        assert hasattr(ResponseCacheInfo, "_fields")
+        assert "hits" in ResponseCacheInfo._fields

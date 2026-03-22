@@ -227,6 +227,7 @@ class TestTokenTextSplitter:
 
     def test_with_tokenizer(self):
         """Test with custom tokenizer function."""
+
         # Simple tokenizer: count spaces + 1
         def simple_tokenizer(text: str) -> int:
             return len(text.split())

@@ -8,8 +8,7 @@ import inspect
 import json
 import logging
 import re
-import sys
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union, get_type_hints
+from typing import Any, Callable, Dict, List, Optional, Union, get_type_hints
 from dataclasses import dataclass, field
 
 # Module logger
@@ -30,6 +29,7 @@ class Tool:
         func: The actual Python function to call
         parameters: JSON schema describing the tool's parameters
     """
+
     name: str
     description: str
     func: Callable
@@ -78,9 +78,8 @@ class Tool:
         param_block = "\n".join(param_strs) if param_strs else "  (no parameters)"
 
         # Build example call
-        import json
         example_json = json.dumps(example_args)
-        example_line = f'Example tool_args: {example_json}'
+        example_line = f"Example tool_args: {example_json}"
 
         return f"{self.name}: {self.description}\nParameters:\n{param_block}\n{example_line}"
 
@@ -90,11 +89,7 @@ class Tool:
 
         Compatible with OpenAI function calling format.
         """
-        return {
-            "name": self.name,
-            "description": self.description,
-            "parameters": self.parameters
-        }
+        return {"name": self.name, "description": self.description, "parameters": self.parameters}
 
 
 def _generate_schema_from_function(func: Callable) -> Dict[str, Any]:
@@ -144,11 +139,7 @@ def _generate_schema_from_function(func: Callable) -> Dict[str, Any]:
         if param.default == inspect.Parameter.empty:
             required.append(param_name)
 
-    return {
-        "type": "object",
-        "properties": properties,
-        "required": required
-    }
+    return {"type": "object", "properties": properties, "required": required}
 
 
 def _safe_get_type_hints(func: Callable) -> Dict[str, Any]:
@@ -172,28 +163,19 @@ def _safe_get_type_hints(func: Callable) -> Dict[str, Any]:
         return get_type_hints(func)
     except NameError as e:
         # Forward reference couldn't be resolved
-        logger.warning(
-            "Could not resolve type hints for %s: %s. Using raw annotations.",
-            func.__name__, e
-        )
+        logger.warning("Could not resolve type hints for %s: %s. Using raw annotations.", func.__name__, e)
     except TypeError as e:
         # Invalid type annotation
-        logger.warning(
-            "Invalid type annotation in %s: %s. Using raw annotations.",
-            func.__name__, e
-        )
+        logger.warning("Invalid type annotation in %s: %s. Using raw annotations.", func.__name__, e)
     except Exception as e:
         # Unexpected error
-        logger.warning(
-            "Unexpected error getting type hints for %s: %s. Using raw annotations.",
-            func.__name__, e
-        )
+        logger.warning("Unexpected error getting type hints for %s: %s. Using raw annotations.", func.__name__, e)
 
     # Fall back to raw annotations
     try:
-        annotations = getattr(func, '__annotations__', {})
+        annotations = getattr(func, "__annotations__", {})
         # Filter out return annotation
-        return {k: v for k, v in annotations.items() if k != 'return'}
+        return {k: v for k, v in annotations.items() if k != "return"}
     except Exception:
         return {}
 
@@ -333,9 +315,7 @@ def _python_type_to_json_schema(py_type: type) -> Dict[str, Any]:
                 schema["items"] = _python_type_to_json_schema(args[0])
             else:
                 # Fixed length tuple -> prefixItems
-                schema["prefixItems"] = [
-                    _python_type_to_json_schema(a) for a in args
-                ]
+                schema["prefixItems"] = [_python_type_to_json_schema(a) for a in args]
                 schema["minItems"] = len(args)
                 schema["maxItems"] = len(args)
         return schema
@@ -350,6 +330,7 @@ def _python_type_to_json_schema(py_type: type) -> Dict[str, Any]:
     # Handle Literal types
     try:
         from typing import Literal, get_args, get_origin
+
         if get_origin(py_type) is Literal:
             values = get_args(py_type)
             if values:
@@ -368,7 +349,8 @@ def _python_type_to_json_schema(py_type: type) -> Dict[str, Any]:
     # Handle Callable (as string describing the function)
     try:
         from typing import Callable as CallableType
-        if origin is CallableType or (hasattr(origin, '__name__') and origin.__name__ == 'Callable'):
+
+        if origin is CallableType or (hasattr(origin, "__name__") and origin.__name__ == "Callable"):
             return {"type": "string", "description": "callable"}
     except (ImportError, AttributeError):
         pass
@@ -480,7 +462,7 @@ def _extract_google_style(docstring: str, param_name: str) -> Optional[str]:
             # Extract description after the colon
             colon_idx = stripped.find(":")
             if colon_idx != -1:
-                desc = stripped[colon_idx + 1:].strip()
+                desc = stripped[colon_idx + 1 :].strip()
                 if desc:
                     description_lines.append(desc)
             continue
@@ -560,7 +542,7 @@ def _extract_numpy_style(docstring: str, param_name: str) -> Optional[str]:
         if found_param:
             if line.startswith("    ") or line.startswith("\t"):
                 description_lines.append(stripped)
-            elif stripped and not " : " in stripped:
+            elif stripped and " : " not in stripped:
                 # Continue if it's a continuation line
                 if not re.match(r"^\w+\s*:", stripped):
                     description_lines.append(stripped)
@@ -602,7 +584,7 @@ def _extract_sphinx_style(docstring: str, param_name: str) -> Optional[str]:
                 # Extract description after the last colon
                 colon_idx = stripped.rfind(":")
                 if colon_idx != -1:
-                    desc = stripped[colon_idx + 1:].strip()
+                    desc = stripped[colon_idx + 1 :].strip()
                     if desc:
                         description_lines.append(desc)
                 break
@@ -635,7 +617,7 @@ def _extract_epytext_style(docstring: str, param_name: str) -> Optional[str]:
         # Check for @param param_name:
         if stripped.startswith(f"@param {param_name}:"):
             found_param = True
-            desc = stripped[len(f"@param {param_name}:"):].strip()
+            desc = stripped[len(f"@param {param_name}:") :].strip()
             if desc:
                 description_lines.append(desc)
             continue
@@ -680,6 +662,7 @@ def tool(func: Optional[Callable] = None, *, name: Optional[str] = None, descrip
         # Now search_web is a Tool instance
         results = search_web(query="python agents")
     """
+
     def decorator(f: Callable) -> Tool:
         tool_name = name or f.__name__
         tool_desc = description or inspect.getdoc(f) or f"Execute {tool_name}"
@@ -688,12 +671,7 @@ def tool(func: Optional[Callable] = None, *, name: Optional[str] = None, descrip
         schema = _generate_schema_from_function(f)
 
         # Create Tool instance
-        tool_instance = Tool(
-            name=tool_name,
-            description=tool_desc,
-            func=f,
-            parameters=schema
-        )
+        tool_instance = Tool(name=tool_name, description=tool_desc, func=f, parameters=schema)
 
         return tool_instance
 
@@ -756,10 +734,7 @@ class ToolRegistry:
         if not self._tools:
             return "No tools available."
 
-        tool_descriptions = [
-            tool.to_prompt_string()
-            for tool in self._tools.values()
-        ]
+        tool_descriptions = [tool.to_prompt_string() for tool in self._tools.values()]
 
         return "\n\n".join(tool_descriptions)
 

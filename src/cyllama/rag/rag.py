@@ -13,7 +13,7 @@ from .store import VectorStore
 from .types import Document
 
 if TYPE_CHECKING:
-    from ..api import LLM
+    pass
 
 
 class RAG:
@@ -123,9 +123,7 @@ class RAG:
         self._check_closed()
 
         if metadata is not None and len(metadata) != len(texts):
-            raise ValueError(
-                f"metadata length ({len(metadata)}) must match texts length ({len(texts)})"
-            )
+            raise ValueError(f"metadata length ({len(metadata)}) must match texts length ({len(texts)})")
 
         all_chunks = []
         all_metadata = []

@@ -15,7 +15,6 @@ Example:
 """
 
 from typing import Any, List, Optional, Iterator, Dict
-import warnings
 
 from ..api import LLM as CyllamaLLMCore, GenerationConfig, Response
 
@@ -24,18 +23,22 @@ try:
     # Try new LangChain API first (langchain-core)
     from langchain_core.language_models.llms import BaseLLM as LangChainLLM
     from langchain_core.callbacks.manager import CallbackManagerForLLMRun
+
     LANGCHAIN_AVAILABLE = True
 except ImportError:
     try:
         # Fall back to old LangChain API
         from langchain.llms.base import LLM as LangChainLLM
         from langchain.callbacks.manager import CallbackManagerForLLMRun
+
         LANGCHAIN_AVAILABLE = True
     except ImportError:
         LANGCHAIN_AVAILABLE = False
+
         # Create dummy base class and types
         class LangChainLLM:
             pass
+
         # Dummy type for type hints
         CallbackManagerForLLMRun = None
 
@@ -76,9 +79,7 @@ class CyllamaLLM(LangChainLLM):
     def __init__(self, **kwargs):
         """Initialize the LLM."""
         if not LANGCHAIN_AVAILABLE:
-            raise ImportError(
-                "LangChain is not installed. Install it with: pip install langchain"
-            )
+            raise ImportError("LangChain is not installed. Install it with: pip install langchain")
         super().__init__(**kwargs)
 
     @property
@@ -101,11 +102,7 @@ class CyllamaLLM(LangChainLLM):
                 n_ctx=self.n_ctx,
                 stop_sequences=self.stop_sequences,
             )
-            self._generator = CyllamaLLMCore(
-                self.model_path,
-                config=config,
-                verbose=self.verbose
-            )
+            self._generator = CyllamaLLMCore(self.model_path, config=config, verbose=self.verbose)
         return self._generator
 
     def _generate(
@@ -184,6 +181,7 @@ class CyllamaLLM(LangChainLLM):
 
         # Generate with callbacks if provided
         if run_manager:
+
             def on_token(token: str):
                 run_manager.on_llm_new_token(token)
 
@@ -271,10 +269,10 @@ class CyllamaLLM(LangChainLLM):
 
 # Provide helpful error message if imported without LangChain
 if not LANGCHAIN_AVAILABLE:
+
     def __getattr__(name):
         if name == "CyllamaLLM":
             raise ImportError(
-                "LangChain integration requires langchain to be installed. "
-                "Install it with: pip install langchain"
+                "LangChain integration requires langchain to be installed. Install it with: pip install langchain"
             )
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

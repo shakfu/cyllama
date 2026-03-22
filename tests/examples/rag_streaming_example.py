@@ -33,13 +33,15 @@ Example:
         """,
     )
     parser.add_argument(
-        "-e", "--embedding-model",
+        "-e",
+        "--embedding-model",
         type=str,
         required=True,
         help="Path to embedding model (GGUF file)",
     )
     parser.add_argument(
-        "-m", "--generation-model",
+        "-m",
+        "--generation-model",
         type=str,
         required=True,
         help="Path to generation model (GGUF file)",
@@ -68,19 +70,15 @@ Example:
         "The Apollo 11 mission successfully landed the first humans on the Moon "
         "on July 20, 1969. Neil Armstrong and Buzz Aldrin walked on the lunar surface "
         "while Michael Collins orbited above in the command module.",
-
         "The International Space Station (ISS) is a modular space station in low Earth "
         "orbit. It is a multinational collaborative project involving NASA, Roscosmos, "
         "JAXA, ESA, and CSA. The first module was launched in 1998.",
-
         "SpaceX's Falcon 9 is a reusable rocket designed by SpaceX. It was first "
         "launched in 2010 and has become the world's most frequently launched rocket. "
         "The first stage can land vertically for reuse.",
-
         "The Hubble Space Telescope was launched in 1990 and remains one of the most "
         "important astronomical instruments ever built. It orbits Earth at about "
         "547 km altitude and has made over 1.5 million observations.",
-
         "Mars rovers include Sojourner (1997), Spirit and Opportunity (2004), "
         "Curiosity (2012), and Perseverance (2021). These robots have explored "
         "the Martian surface and searched for signs of past microbial life.",

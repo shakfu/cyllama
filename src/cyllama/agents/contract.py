@@ -87,11 +87,7 @@ See Also
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import (
-    Any, Callable, Dict, List, Optional, Protocol, Union, Generator,
-    TypeVar, Generic, Tuple
-)
-import functools
+from typing import Any, Callable, Dict, List, Optional, Protocol, Union, Generator
 import inspect
 import logging
 import time
@@ -105,6 +101,7 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 # Contract Policy (Evaluation Semantics)
 # =============================================================================
+
 
 class ContractPolicy(Enum):
     """
@@ -172,6 +169,7 @@ class ContractPolicy(Enum):
             # This precondition uses ENFORCE even if agent uses OBSERVE
             return n * 2
     """
+
     IGNORE = "ignore"
     OBSERVE = "observe"
     ENFORCE = "enforce"
@@ -181,6 +179,7 @@ class ContractPolicy(Enum):
 # =============================================================================
 # Contract Violation
 # =============================================================================
+
 
 @dataclass
 class ContractViolation:
@@ -195,6 +194,7 @@ class ContractViolation:
         context: Additional context (arguments, result, etc.)
         policy: The policy that was in effect when violation occurred
     """
+
     kind: str
     location: str
     predicate: str
@@ -209,6 +209,7 @@ class ContractViolation:
 # =============================================================================
 # Violation Handler Protocol
 # =============================================================================
+
 
 class ViolationHandler(Protocol):
     """Protocol for contract violation handlers."""
@@ -236,6 +237,7 @@ class ContractTermination(Exception):
 # =============================================================================
 # Contract Definitions
 # =============================================================================
+
 
 @dataclass
 class PreCondition:
@@ -276,6 +278,7 @@ class PreCondition:
         def get_range(start: int, end: int) -> list:
             return list(range(start, end))
     """
+
     predicate: Callable[[Dict[str, Any]], bool]
     message: str
     predicate_str: str = ""
@@ -347,6 +350,7 @@ class PostCondition:
         def generate(prompt: str, max_len: int) -> str:
             return prompt[:max_len]
     """
+
     predicate: Callable[..., bool]  # (result) or (result, args)
     message: str
     predicate_str: str = ""
@@ -383,6 +387,7 @@ class PostCondition:
 @dataclass
 class ContractSpec:
     """Collection of contracts for a tool or agent."""
+
     preconditions: List[PreCondition] = field(default_factory=list)
     postconditions: List[PostCondition] = field(default_factory=list)
 
@@ -390,6 +395,7 @@ class ContractSpec:
 # =============================================================================
 # Contract Decorators
 # =============================================================================
+
 
 def _get_predicate_str(predicate: Callable) -> str:
     """Try to get a string representation of a predicate."""
@@ -406,14 +412,14 @@ def _get_predicate_str(predicate: Callable) -> str:
                 depth = 0
                 end = len(rest)
                 for i, c in enumerate(rest):
-                    if c == '(':
+                    if c == "(":
                         depth += 1
-                    elif c == ')':
+                    elif c == ")":
                         if depth == 0:
                             end = i
                             break
                         depth -= 1
-                    elif c == ',' and depth == 0:
+                    elif c == "," and depth == 0:
                         end = i
                         break
                 return rest[:end].strip()
@@ -423,9 +429,7 @@ def _get_predicate_str(predicate: Callable) -> str:
 
 
 def pre(
-    predicate: Callable[[Dict[str, Any]], bool],
-    message: str = "",
-    policy: Optional[ContractPolicy] = None
+    predicate: Callable[[Dict[str, Any]], bool], message: str = "", policy: Optional[ContractPolicy] = None
 ) -> Callable:
     """
     Decorator to add a precondition to a tool.
@@ -444,15 +448,16 @@ def pre(
         def fetch_items(count: int) -> str:
             ...
     """
+
     def decorator(func_or_tool: Union[Callable, Tool]) -> Union[Callable, Tool]:
         # Get or create contract spec
         if isinstance(func_or_tool, Tool):
             target = func_or_tool
-            if not hasattr(target, '_contracts'):
+            if not hasattr(target, "_contracts"):
                 target._contracts = ContractSpec()
         else:
             target = func_or_tool
-            if not hasattr(target, '_contracts'):
+            if not hasattr(target, "_contracts"):
                 target._contracts = ContractSpec()
 
         predicate_str = _get_predicate_str(predicate)
@@ -460,7 +465,7 @@ def pre(
             predicate=predicate,
             message=message or f"Precondition failed: {predicate_str}",
             predicate_str=predicate_str,
-            policy=policy
+            policy=policy,
         )
         target._contracts.preconditions.insert(0, condition)  # Insert at front for correct order
 
@@ -469,11 +474,7 @@ def pre(
     return decorator
 
 
-def post(
-    predicate: Callable[..., bool],
-    message: str = "",
-    policy: Optional[ContractPolicy] = None
-) -> Callable:
+def post(predicate: Callable[..., bool], message: str = "", policy: Optional[ContractPolicy] = None) -> Callable:
     """
     Decorator to add a postcondition to a tool.
 
@@ -496,14 +497,15 @@ def post(
         def generate(prompt: str, max_len: int) -> str:
             ...
     """
+
     def decorator(func_or_tool: Union[Callable, Tool]) -> Union[Callable, Tool]:
         if isinstance(func_or_tool, Tool):
             target = func_or_tool
-            if not hasattr(target, '_contracts'):
+            if not hasattr(target, "_contracts"):
                 target._contracts = ContractSpec()
         else:
             target = func_or_tool
-            if not hasattr(target, '_contracts'):
+            if not hasattr(target, "_contracts"):
                 target._contracts = ContractSpec()
 
         # Check if predicate takes 1 or 2 arguments
@@ -516,7 +518,7 @@ def post(
             message=message or f"Postcondition failed: {predicate_str}",
             predicate_str=predicate_str,
             policy=policy,
-            needs_args=needs_args
+            needs_args=needs_args,
         )
         target._contracts.postconditions.insert(0, condition)
 
@@ -531,15 +533,16 @@ def post(
 
 # Thread-local storage for current contract context
 import threading
+
 _contract_context = threading.local()
 
 
-def _get_current_context() -> Optional['ContractContext']:
+def _get_current_context() -> Optional["ContractContext"]:
     """Get the current contract context if any."""
-    return getattr(_contract_context, 'current', None)
+    return getattr(_contract_context, "current", None)
 
 
-def _set_current_context(ctx: Optional['ContractContext']) -> None:
+def _set_current_context(ctx: Optional["ContractContext"]) -> None:
     """Set the current contract context."""
     _contract_context.current = ctx
 
@@ -547,6 +550,7 @@ def _set_current_context(ctx: Optional['ContractContext']) -> None:
 @dataclass
 class ContractContext:
     """Context for contract evaluation during tool execution."""
+
     policy: ContractPolicy
     handler: Optional[ViolationHandler]
     location: str = "unknown"
@@ -570,9 +574,7 @@ class ContractContext:
 
 
 def contract_assert(
-    condition: bool,
-    message: str = "Assertion failed",
-    policy: Optional[ContractPolicy] = None
+    condition: bool, message: str = "Assertion failed", policy: Optional[ContractPolicy] = None
 ) -> None:
     """
     Runtime contract assertion for checking invariants within tool implementations.
@@ -660,7 +662,7 @@ def contract_assert(
         location=ctx.location if ctx else "unknown",
         predicate=message,
         message=message,
-        policy=effective_policy
+        policy=effective_policy,
     )
 
     if ctx:
@@ -676,6 +678,7 @@ def contract_assert(
 # =============================================================================
 # Contract Agent
 # =============================================================================
+
 
 class ContractAgent:
     """
@@ -773,13 +776,13 @@ class ContractAgent:
         violation_handler: Optional[ViolationHandler] = None,
         task_precondition: Optional[Callable[[str], bool]] = None,
         answer_postcondition: Optional[Callable[[str], bool]] = None,
-        iteration_invariant: Optional[Callable[['IterationState'], bool]] = None,
-        inner_agent: Optional[Union[ReActAgent, 'ConstrainedAgent']] = None,
+        iteration_invariant: Optional[Callable[["IterationState"], bool]] = None,
+        inner_agent: Optional[Union[ReActAgent, "ConstrainedAgent"]] = None,
         agent_type: str = "react",
         system_prompt: Optional[str] = None,
         max_iterations: int = 10,
         verbose: bool = False,
-        **agent_kwargs
+        **agent_kwargs,
     ):
         """
         Initialize ContractAgent with contract checking capabilities.
@@ -845,9 +848,9 @@ class ContractAgent:
         # Extract contracts from tools
         self._tool_contracts: Dict[str, ContractSpec] = {}
         for tool in self.tools:
-            if hasattr(tool, '_contracts'):
+            if hasattr(tool, "_contracts"):
                 self._tool_contracts[tool.name] = tool._contracts
-            elif hasattr(tool.func, '_contracts'):
+            elif hasattr(tool.func, "_contracts"):
                 self._tool_contracts[tool.name] = tool.func._contracts
 
         # Create or use inner agent
@@ -856,13 +859,14 @@ class ContractAgent:
         else:
             if agent_type == "constrained":
                 from .constrained import ConstrainedAgent
+
                 self._inner_agent = ConstrainedAgent(
                     llm=llm,
                     tools=tools,
                     system_prompt=system_prompt,
                     max_iterations=max_iterations,
                     verbose=verbose,
-                    **agent_kwargs
+                    **agent_kwargs,
                 )
             else:
                 self._inner_agent = ReActAgent(
@@ -871,7 +875,7 @@ class ContractAgent:
                     system_prompt=system_prompt,
                     max_iterations=max_iterations,
                     verbose=verbose,
-                    **agent_kwargs
+                    **agent_kwargs,
                 )
 
         # Metrics
@@ -881,10 +885,7 @@ class ContractAgent:
 
     def _default_handler(self, violation: ContractViolation) -> None:
         """Default violation handler - logs the violation."""
-        logger.warning(
-            "Contract violation [%s] at %s: %s",
-            violation.kind, violation.location, violation.message
-        )
+        logger.warning("Contract violation [%s] at %s: %s", violation.kind, violation.location, violation.message)
         if self.verbose:
             print(f"CONTRACT VIOLATION [{violation.kind}] at {violation.location}")
             print(f"  Predicate: {violation.predicate}")
@@ -892,18 +893,11 @@ class ContractAgent:
             if violation.context:
                 print(f"  Context: {violation.context}")
 
-    def _get_effective_policy(
-        self,
-        contract_policy: Optional[ContractPolicy]
-    ) -> ContractPolicy:
+    def _get_effective_policy(self, contract_policy: Optional[ContractPolicy]) -> ContractPolicy:
         """Get effective policy, using contract-specific or default."""
         return contract_policy if contract_policy is not None else self.policy
 
-    def _check_preconditions(
-        self,
-        tool_name: str,
-        args: Dict[str, Any]
-    ) -> Optional[ContractViolation]:
+    def _check_preconditions(self, tool_name: str, args: Dict[str, Any]) -> Optional[ContractViolation]:
         """Check all preconditions for a tool call."""
         contracts = self._tool_contracts.get(tool_name)
         if not contracts:
@@ -924,17 +918,12 @@ class ContractAgent:
                     predicate=pre_cond.predicate_str,
                     message=pre_cond.message,
                     context={"args": args},
-                    policy=effective_policy
+                    policy=effective_policy,
                 )
 
         return None
 
-    def _check_postconditions(
-        self,
-        tool_name: str,
-        result: Any,
-        args: Dict[str, Any]
-    ) -> Optional[ContractViolation]:
+    def _check_postconditions(self, tool_name: str, result: Any, args: Dict[str, Any]) -> Optional[ContractViolation]:
         """Check all postconditions for a tool result."""
         contracts = self._tool_contracts.get(tool_name)
         if not contracts:
@@ -955,7 +944,7 @@ class ContractAgent:
                     predicate=post_cond.predicate_str,
                     message=post_cond.message,
                     context={"result": result, "args": args},
-                    policy=effective_policy
+                    policy=effective_policy,
                 )
 
         return None
@@ -1000,7 +989,7 @@ class ContractAgent:
                 yield AgentEvent(
                     type=EventType.CONTRACT_CHECK,
                     content="Checking task precondition",
-                    metadata={"kind": "pre", "location": "agent"}
+                    metadata={"kind": "pre", "location": "agent"},
                 )
 
                 if not self.task_precondition(task):
@@ -1011,18 +1000,13 @@ class ContractAgent:
                         predicate="task_precondition",
                         message="Task precondition failed",
                         context={"task": task},
-                        policy=self.policy
+                        policy=self.policy,
                     )
                     yield AgentEvent(
-                        type=EventType.CONTRACT_VIOLATION,
-                        content=str(violation),
-                        metadata={"violation": violation}
+                        type=EventType.CONTRACT_VIOLATION, content=str(violation), metadata={"violation": violation}
                     )
                     if not self._handle_violation(violation):
-                        yield AgentEvent(
-                            type=EventType.ERROR,
-                            content=f"Contract terminated: {violation.message}"
-                        )
+                        yield AgentEvent(type=EventType.ERROR, content=f"Contract terminated: {violation.message}")
                         return
 
         # Track iteration state
@@ -1034,10 +1018,11 @@ class ContractAgent:
             iteration_state.update(event)
 
             # Check iteration invariant
-            if (event.type == EventType.THOUGHT and
-                self.iteration_invariant is not None and
-                self.policy != ContractPolicy.IGNORE):
-
+            if (
+                event.type == EventType.THOUGHT
+                and self.iteration_invariant is not None
+                and self.policy != ContractPolicy.IGNORE
+            ):
                 self._contract_checks += 1
                 if not self.iteration_invariant(iteration_state):
                     self._contract_violations += 1
@@ -1047,18 +1032,13 @@ class ContractAgent:
                         predicate="iteration_invariant",
                         message="Iteration invariant failed",
                         context={"state": iteration_state.to_dict()},
-                        policy=self.policy
+                        policy=self.policy,
                     )
                     yield AgentEvent(
-                        type=EventType.CONTRACT_VIOLATION,
-                        content=str(violation),
-                        metadata={"violation": violation}
+                        type=EventType.CONTRACT_VIOLATION, content=str(violation), metadata={"violation": violation}
                     )
                     if not self._handle_violation(violation):
-                        yield AgentEvent(
-                            type=EventType.ERROR,
-                            content=f"Contract terminated: {violation.message}"
-                        )
+                        yield AgentEvent(type=EventType.ERROR, content=f"Contract terminated: {violation.message}")
                         return
 
             # Intercept tool calls to check contracts
@@ -1070,23 +1050,14 @@ class ContractAgent:
                 violation = self._check_preconditions(tool_name, tool_args)
                 if violation:
                     yield AgentEvent(
-                        type=EventType.CONTRACT_VIOLATION,
-                        content=str(violation),
-                        metadata={"violation": violation}
+                        type=EventType.CONTRACT_VIOLATION, content=str(violation), metadata={"violation": violation}
                     )
                     if not self._handle_violation(violation):
-                        yield AgentEvent(
-                            type=EventType.ERROR,
-                            content=f"Contract terminated: {violation.message}"
-                        )
+                        yield AgentEvent(type=EventType.ERROR, content=f"Contract terminated: {violation.message}")
                         return
 
                 # Set up context for contract_assert calls within tool
-                ctx = ContractContext(
-                    policy=self.policy,
-                    handler=self.violation_handler,
-                    location=tool_name
-                )
+                ctx = ContractContext(policy=self.policy, handler=self.violation_handler, location=tool_name)
                 _set_current_context(ctx)
 
             # After observation, check postconditions
@@ -1104,15 +1075,10 @@ class ContractAgent:
                 violation = self._check_postconditions(tool_name, result, tool_args)
                 if violation:
                     yield AgentEvent(
-                        type=EventType.CONTRACT_VIOLATION,
-                        content=str(violation),
-                        metadata={"violation": violation}
+                        type=EventType.CONTRACT_VIOLATION, content=str(violation), metadata={"violation": violation}
                     )
                     if not self._handle_violation(violation):
-                        yield AgentEvent(
-                            type=EventType.ERROR,
-                            content=f"Contract terminated: {violation.message}"
-                        )
+                        yield AgentEvent(type=EventType.ERROR, content=f"Contract terminated: {violation.message}")
                         return
 
             # Track answer for postcondition check
@@ -1122,15 +1088,12 @@ class ContractAgent:
             yield event
 
         # Check answer postcondition
-        if (answer is not None and
-            self.answer_postcondition is not None and
-            self.policy != ContractPolicy.IGNORE):
-
+        if answer is not None and self.answer_postcondition is not None and self.policy != ContractPolicy.IGNORE:
             self._contract_checks += 1
             yield AgentEvent(
                 type=EventType.CONTRACT_CHECK,
                 content="Checking answer postcondition",
-                metadata={"kind": "post", "location": "agent"}
+                metadata={"kind": "post", "location": "agent"},
             )
 
             if not self.answer_postcondition(answer):
@@ -1141,18 +1104,13 @@ class ContractAgent:
                     predicate="answer_postcondition",
                     message="Answer postcondition failed",
                     context={"answer": answer},
-                    policy=self.policy
+                    policy=self.policy,
                 )
                 yield AgentEvent(
-                    type=EventType.CONTRACT_VIOLATION,
-                    content=str(violation),
-                    metadata={"violation": violation}
+                    type=EventType.CONTRACT_VIOLATION, content=str(violation), metadata={"violation": violation}
                 )
                 if not self._handle_violation(violation):
-                    yield AgentEvent(
-                        type=EventType.ERROR,
-                        content=f"Contract terminated: {violation.message}"
-                    )
+                    yield AgentEvent(type=EventType.ERROR, content=f"Contract terminated: {violation.message}")
 
     def run(self, task: str) -> AgentResult:
         """
@@ -1177,15 +1135,12 @@ class ContractAgent:
                     error = event.content
 
         except ContractTermination as e:
-            events.append(AgentEvent(
-                type=EventType.CONTRACT_VIOLATION,
-                content=str(e.violation),
-                metadata={"violation": e.violation}
-            ))
-            events.append(AgentEvent(
-                type=EventType.ERROR,
-                content=f"Contract terminated: {e.violation.message}"
-            ))
+            events.append(
+                AgentEvent(
+                    type=EventType.CONTRACT_VIOLATION, content=str(e.violation), metadata={"violation": e.violation}
+                )
+            )
+            events.append(AgentEvent(type=EventType.ERROR, content=f"Contract terminated: {e.violation.message}"))
             error = str(e.violation)
 
         # Count iterations from events
@@ -1197,7 +1152,7 @@ class ContractAgent:
             iterations=iterations,
             success=answer is not None and error is None,
             error=error,
-            metrics=self._inner_agent._metrics if hasattr(self._inner_agent, '_metrics') else None
+            metrics=self._inner_agent._metrics if hasattr(self._inner_agent, "_metrics") else None,
         )
 
     def list_tools(self) -> List[Tool]:
@@ -1206,19 +1161,18 @@ class ContractAgent:
 
     def get_contract_stats(self) -> Dict[str, int]:
         """Get contract checking statistics."""
-        return {
-            "checks": self._contract_checks,
-            "violations": self._contract_violations
-        }
+        return {"checks": self._contract_checks, "violations": self._contract_violations}
 
 
 # =============================================================================
 # Iteration State
 # =============================================================================
 
+
 @dataclass
 class IterationState:
     """State tracked during agent iteration for invariant checking."""
+
     iterations: int = 0
     tool_calls: int = 0
     errors: int = 0
@@ -1236,8 +1190,4 @@ class IterationState:
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for context."""
-        return {
-            "iterations": self.iterations,
-            "tool_calls": self.tool_calls,
-            "errors": self.errors
-        }
+        return {"iterations": self.iterations, "tool_calls": self.tool_calls, "errors": self.errors}

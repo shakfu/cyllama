@@ -26,12 +26,7 @@ class TestOpenAICompatibleClient:
         """Test chat completion."""
         client = OpenAICompatibleClient(model_path, temperature=0.0)
 
-        response = client.chat.completions.create(
-            messages=[
-                {"role": "user", "content": "What is 2+2?"}
-            ],
-            max_tokens=30
-        )
+        response = client.chat.completions.create(messages=[{"role": "user", "content": "What is 2+2?"}], max_tokens=30)
 
         assert isinstance(response, ChatCompletion)
         assert len(response.choices) == 1
@@ -47,13 +42,11 @@ class TestOpenAICompatibleClient:
         """Test streaming chat completion."""
         client = OpenAICompatibleClient(model_path, temperature=0.0)
 
-        chunks = list(client.chat.completions.create(
-            messages=[
-                {"role": "user", "content": "Count to 3"}
-            ],
-            max_tokens=20,
-            stream=True
-        ))
+        chunks = list(
+            client.chat.completions.create(
+                messages=[{"role": "user", "content": "Count to 3"}], max_tokens=20, stream=True
+            )
+        )
 
         assert len(chunks) > 0
         assert all(isinstance(chunk, ChatCompletionChunk) for chunk in chunks)
@@ -69,10 +62,7 @@ class TestOpenAICompatibleClient:
         assert chunks[-1].choices[0].finish_reason == "stop"
 
         # Reconstruct full response
-        full_content = "".join(
-            chunk.choices[0].delta.content or ""
-            for chunk in chunks
-        )
+        full_content = "".join(chunk.choices[0].delta.content or "" for chunk in chunks)
         assert len(full_content) > 0
 
     @pytest.mark.slow
@@ -85,9 +75,9 @@ class TestOpenAICompatibleClient:
                 {"role": "system", "content": "You are a helpful assistant."},
                 {"role": "user", "content": "Hello"},
                 {"role": "assistant", "content": "Hi there!"},
-                {"role": "user", "content": "What is Python?"}
+                {"role": "user", "content": "What is Python?"},
             ],
-            max_tokens=50
+            max_tokens=50,
         )
 
         assert isinstance(response, ChatCompletion)
@@ -99,10 +89,7 @@ class TestOpenAICompatibleClient:
         client = OpenAICompatibleClient(model_path)
 
         response = client.chat.completions.create(
-            messages=[{"role": "user", "content": "Test"}],
-            temperature=0.5,
-            top_p=0.9,
-            max_tokens=20
+            messages=[{"role": "user", "content": "Test"}], temperature=0.5, top_p=0.9, max_tokens=20
         )
 
         assert isinstance(response, ChatCompletion)
@@ -113,9 +100,7 @@ class TestOpenAICompatibleClient:
         client = OpenAICompatibleClient(model_path, temperature=0.0)
 
         response = client.chat.completions.create(
-            messages=[{"role": "user", "content": "Count: 1, 2, 3"}],
-            max_tokens=50,
-            stop=["3"]
+            messages=[{"role": "user", "content": "Count: 1, 2, 3"}], max_tokens=50, stop=["3"]
         )
 
         assert isinstance(response, ChatCompletion)
@@ -132,10 +117,7 @@ class TestConvenienceFunctions:
         assert client is not None
         assert client.generator is not None
 
-        response = client.chat.completions.create(
-            messages=[{"role": "user", "content": "Test"}],
-            max_tokens=10
-        )
+        response = client.chat.completions.create(messages=[{"role": "user", "content": "Test"}], max_tokens=10)
 
         assert isinstance(response, ChatCompletion)
 
@@ -148,6 +130,7 @@ class TestLangChainIntegration:
         # This test verifies error handling when LangChain is not installed
         try:
             from cyllama.integrations import CyllamaLLM
+
             # If LangChain is installed, this should work
             assert CyllamaLLM is not None
         except ImportError as e:
@@ -155,61 +138,42 @@ class TestLangChainIntegration:
             assert "langchain" in str(e).lower()
 
     @pytest.mark.skipif(
-        not pytest.importorskip("langchain", reason="langchain not installed"),
-        reason="Requires langchain"
+        not pytest.importorskip("langchain", reason="langchain not installed"), reason="Requires langchain"
     )
     @pytest.mark.slow
     def test_langchain_basic_generation(self, model_path):
         """Test basic LangChain generation."""
         from cyllama.integrations import CyllamaLLM
 
-        llm = CyllamaLLM(
-            model_path=model_path,
-            temperature=0.0,
-            max_tokens=30,
-            verbose=False
-        )
+        llm = CyllamaLLM(model_path=model_path, temperature=0.0, max_tokens=30, verbose=False)
 
         result = llm.invoke("What is 2+2? Answer briefly.")
         assert isinstance(result, str)
         assert len(result) > 0
 
     @pytest.mark.skipif(
-        not pytest.importorskip("langchain", reason="langchain not installed"),
-        reason="Requires langchain"
+        not pytest.importorskip("langchain", reason="langchain not installed"), reason="Requires langchain"
     )
     @pytest.mark.slow
     def test_langchain_with_stop_sequences(self, model_path):
         """Test LangChain generation with stop sequences."""
         from cyllama.integrations import CyllamaLLM
 
-        llm = CyllamaLLM(
-            model_path=model_path,
-            temperature=0.0,
-            max_tokens=50,
-            stop_sequences=["\n\n"],
-            verbose=False
-        )
+        llm = CyllamaLLM(model_path=model_path, temperature=0.0, max_tokens=50, stop_sequences=["\n\n"], verbose=False)
 
         result = llm.invoke("Count to 5")
         assert isinstance(result, str)
         assert len(result) > 0
 
     @pytest.mark.skipif(
-        not pytest.importorskip("langchain", reason="langchain not installed"),
-        reason="Requires langchain"
+        not pytest.importorskip("langchain", reason="langchain not installed"), reason="Requires langchain"
     )
     @pytest.mark.slow
     def test_langchain_streaming(self, model_path):
         """Test LangChain streaming generation."""
         from cyllama.integrations import CyllamaLLM
 
-        llm = CyllamaLLM(
-            model_path=model_path,
-            temperature=0.0,
-            max_tokens=30,
-            verbose=False
-        )
+        llm = CyllamaLLM(model_path=model_path, temperature=0.0, max_tokens=30, verbose=False)
 
         chunks = list(llm.stream("Say hello"))
         assert len(chunks) > 0
@@ -218,20 +182,14 @@ class TestLangChainIntegration:
         assert len(full_text) > 0
 
     @pytest.mark.skipif(
-        not pytest.importorskip("langchain", reason="langchain not installed"),
-        reason="Requires langchain"
+        not pytest.importorskip("langchain", reason="langchain not installed"), reason="Requires langchain"
     )
     @pytest.mark.slow
     def test_langchain_identifying_params(self, model_path):
         """Test that LangChain can identify the LLM."""
         from cyllama.integrations import CyllamaLLM
 
-        llm = CyllamaLLM(
-            model_path=model_path,
-            temperature=0.5,
-            max_tokens=100,
-            verbose=False
-        )
+        llm = CyllamaLLM(model_path=model_path, temperature=0.5, max_tokens=100, verbose=False)
 
         params = llm._identifying_params
         assert params["model_path"] == model_path
@@ -239,8 +197,7 @@ class TestLangChainIntegration:
         assert params["max_tokens"] == 100
 
     @pytest.mark.skipif(
-        not pytest.importorskip("langchain", reason="langchain not installed"),
-        reason="Requires langchain"
+        not pytest.importorskip("langchain", reason="langchain not installed"), reason="Requires langchain"
     )
     @pytest.mark.slow
     def test_langchain_llm_type(self, model_path):

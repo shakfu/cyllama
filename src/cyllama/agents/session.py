@@ -14,7 +14,6 @@ import time
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
 from dataclasses import dataclass, field, asdict
-from enum import Enum
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +21,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class Message:
     """A message in a session conversation."""
+
     role: str  # "user" or "assistant"
     content: str
     timestamp: float = field(default_factory=time.time)
@@ -31,6 +31,7 @@ class Message:
 @dataclass
 class ToolCallRecord:
     """Record of a tool call in a session."""
+
     id: str
     name: str
     arguments: Dict[str, Any]
@@ -42,6 +43,7 @@ class ToolCallRecord:
 @dataclass
 class Permission:
     """A cached permission decision."""
+
     tool_name: str
     kind: str  # "allow_always", "reject_always"
     timestamp: float = field(default_factory=time.time)
@@ -54,6 +56,7 @@ class Permission:
 @dataclass
 class Session:
     """An ACP session."""
+
     id: str
     mode_id: Optional[str] = None
     messages: List[Message] = field(default_factory=list)
@@ -294,10 +297,13 @@ class SqliteSessionStore(SessionStore):
         with self._lock:
             conn = self._get_connection()
             try:
-                conn.execute("""
+                conn.execute(
+                    """
                     INSERT OR REPLACE INTO sessions (id, data, created_at, updated_at)
                     VALUES (?, ?, ?, ?)
-                """, (session.id, data, session.created_at, session.updated_at))
+                """,
+                    (session.id, data, session.created_at, session.updated_at),
+                )
                 conn.commit()
             finally:
                 conn.close()
@@ -307,10 +313,7 @@ class SqliteSessionStore(SessionStore):
         with self._lock:
             conn = self._get_connection()
             try:
-                cursor = conn.execute(
-                    "SELECT data FROM sessions WHERE id = ?",
-                    (session_id,)
-                )
+                cursor = conn.execute("SELECT data FROM sessions WHERE id = ?", (session_id,))
                 row = cursor.fetchone()
                 if row is None:
                     return None
@@ -326,10 +329,7 @@ class SqliteSessionStore(SessionStore):
         with self._lock:
             conn = self._get_connection()
             try:
-                cursor = conn.execute(
-                    "DELETE FROM sessions WHERE id = ?",
-                    (session_id,)
-                )
+                cursor = conn.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
                 conn.commit()
                 return cursor.rowcount > 0
             finally:
@@ -339,9 +339,7 @@ class SqliteSessionStore(SessionStore):
         with self._lock:
             conn = self._get_connection()
             try:
-                cursor = conn.execute(
-                    "SELECT id FROM sessions ORDER BY updated_at DESC"
-                )
+                cursor = conn.execute("SELECT id FROM sessions ORDER BY updated_at DESC")
                 return [row[0] for row in cursor.fetchall()]
             finally:
                 conn.close()
@@ -350,19 +348,13 @@ class SqliteSessionStore(SessionStore):
         with self._lock:
             conn = self._get_connection()
             try:
-                cursor = conn.execute(
-                    "SELECT 1 FROM sessions WHERE id = ?",
-                    (session_id,)
-                )
+                cursor = conn.execute("SELECT 1 FROM sessions WHERE id = ?", (session_id,))
                 return cursor.fetchone() is not None
             finally:
                 conn.close()
 
 
-def create_session_store(
-    storage_type: str = "memory",
-    path: Optional[str] = None
-) -> SessionStore:
+def create_session_store(storage_type: str = "memory", path: Optional[str] = None) -> SessionStore:
     """
     Create a session store based on configuration.
 

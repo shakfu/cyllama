@@ -7,13 +7,12 @@ Usage:
 """
 
 import sys
-import time
-import logging
 import argparse
 from pathlib import Path
 
 # Add the src directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent / "src"))
+
 
 def test_minimal_mongoose(model_path):
     print("Testing minimal Mongoose functionality...")
@@ -24,12 +23,7 @@ def test_minimal_mongoose(model_path):
 
         print("✓ Import successful")
 
-        config = ServerConfig(
-            model_path=model_path,
-            host="127.0.0.1",
-            port=8099,
-            n_ctx=256
-        )
+        config = ServerConfig(model_path=model_path, host="127.0.0.1", port=8099, n_ctx=256)
 
         print("✓ Config created")
 
@@ -56,7 +50,9 @@ def test_minimal_mongoose(model_path):
     except Exception as e:
         print(f"✗ Error: {e}")
         import traceback
+
         traceback.print_exc()
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Minimal Mongoose test")

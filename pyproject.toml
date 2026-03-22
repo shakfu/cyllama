@@ -59,6 +59,33 @@ sdist.exclude = [
 ]
 
 
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+ignore = [
+    "E501",  # Allow long lines (handled by formatter)
+    "E712",  # Allow == True/False comparisons (common in Cython property tests)
+    "E731",  # Allow lambda assignments
+    "E741",  # Allow ambiguous variable names (l, O, I)
+    "F841",  # Allow unused local variables (common in tests for side effects)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]  # Re-exports
+"src/cyllama/agents/*" = ["E402", "F811", "F821"]  # Conditional imports, forward refs, factory methods
+"src/cyllama/api.py" = ["E402"]  # Import after path setup
+"src/cyllama/batching.py" = ["E402"]  # Import after path setup
+"src/cyllama/llama/mtmd/*" = ["F401"]  # Conditional numpy import
+"tests/*" = ["E402", "E722", "F401", "F811", "F821"]  # Test-specific relaxations
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+check_untyped_defs = false
+
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]

@@ -7,15 +7,8 @@ eliminating parsing failures even with smaller models.
 
 from cyllama import LLM
 from cyllama.agents import ConstrainedAgent, tool
-from cyllama.agents.grammar import (
-    generate_tool_call_schema,
-    generate_tool_call_grammar,
-    GrammarFormat
-)
-from cyllama.utils.color import (
-    header, section, subsection, subheader, success, error, info,
-    bullet, kv, divider
-)
+from cyllama.agents.grammar import generate_tool_call_schema, generate_tool_call_grammar, GrammarFormat
+from cyllama.utils.color import header, section, subsection, subheader, success, error, info, bullet, kv
 from pathlib import Path
 import json
 
@@ -67,7 +60,7 @@ def get_weather(city: str, units: str = "celsius") -> str:
         data = weather_data[city_lower]
         temp = data["temp"]
         if units == "fahrenheit":
-            temp = (temp * 9/5) + 32
+            temp = (temp * 9 / 5) + 32
         return f"{city}: {temp}°{units[0].upper()}, {data['condition']}"
     else:
         return f"Weather data not available for {city}"
@@ -94,22 +87,14 @@ def demonstrate_schema_generation():
     tools = [calculator, get_weather, string_length]
 
     # Generate JSON schema
-    subheader("1. Generated JSON Schema", color='cyan')
-    schema = generate_tool_call_schema(
-        tools,
-        allow_reasoning=True,
-        format=GrammarFormat.JSON
-    )
+    subheader("1. Generated JSON Schema", color="cyan")
+    schema = generate_tool_call_schema(tools, allow_reasoning=True, format=GrammarFormat.JSON)
     print(json.dumps(schema, indent=2))
 
     # Generate GBNF grammar
     print()
-    subheader("2. Generated GBNF Grammar (first 500 chars)", color='cyan')
-    grammar = generate_tool_call_grammar(
-        tools,
-        allow_reasoning=True,
-        format=GrammarFormat.JSON
-    )
+    subheader("2. Generated GBNF Grammar (first 500 chars)", color="cyan")
+    grammar = generate_tool_call_grammar(tools, allow_reasoning=True, format=GrammarFormat.JSON)
     print(grammar[:500] + "...")
     kv("Total grammar length", f"{len(grammar)} characters")
 
@@ -117,7 +102,7 @@ def demonstrate_schema_generation():
 def demonstrate_constrained_agent():
     """Demonstrate constrained agent with real model."""
     ROOT = Path.cwd()
-    model_path = ROOT / 'models' / 'Llama-3.2-1B-Instruct-Q8_0.gguf'
+    model_path = ROOT / "models" / "Llama-3.2-1B-Instruct-Q8_0.gguf"
 
     if not model_path.exists():
         error(f"Model not found: {model_path}")
@@ -136,7 +121,7 @@ def demonstrate_constrained_agent():
         max_iterations=5,
         verbose=True,  # Show reasoning
         format="json",
-        allow_reasoning=False  # Simpler for demo
+        allow_reasoning=False,  # Simpler for demo
     )
 
     subsection("Agent initialized with tools:")
@@ -151,7 +136,7 @@ def demonstrate_constrained_agent():
     ]
 
     for i, task in enumerate(tasks, 1):
-        subsection(f"Task {i}: {task}", color='yellow')
+        subsection(f"Task {i}: {task}", color="yellow")
 
         try:
             result = agent.run(task)
@@ -161,9 +146,9 @@ def demonstrate_constrained_agent():
                 kv("Tool calls made", str(result.iterations))
 
                 # Show detailed steps
-                subheader("Execution trace", color='cyan')
+                subheader("Execution trace", color="cyan")
                 for j, event in enumerate(result.steps, 1):
-                    content = event.content[:80] + ('...' if len(event.content) > 80 else '')
+                    content = event.content[:80] + ("..." if len(event.content) > 80 else "")
                     bullet(f"{event.type.value}: {content}", indent=1)
             else:
                 error(f"Failed: {result.error}")
@@ -187,7 +172,7 @@ def demonstrate_format_comparison():
 
     for fmt, description in formats:
         print()
-        subheader(f"{description} ({fmt.value})", color='cyan')
+        subheader(f"{description} ({fmt.value})", color="cyan")
         schema = generate_tool_call_schema(tools, allow_reasoning=False, format=fmt)
         print(json.dumps(schema, indent=2))
 
@@ -205,25 +190,25 @@ def demonstrate_caching():
     clear_grammar_cache()
 
     # First generation (not cached)
-    subheader("1. First generation (not cached)", color='cyan')
+    subheader("1. First generation (not cached)", color="cyan")
     start = time.time()
     grammar1 = get_cached_tool_grammar(tools)
     elapsed1 = time.time() - start
-    kv("Time", f"{elapsed1*1000:.2f}ms")
+    kv("Time", f"{elapsed1 * 1000:.2f}ms")
     kv("Grammar length", f"{len(grammar1)} chars")
 
     # Second generation (cached)
     print()
-    subheader("2. Second generation (cached)", color='cyan')
+    subheader("2. Second generation (cached)", color="cyan")
     start = time.time()
     grammar2 = get_cached_tool_grammar(tools)
     elapsed2 = time.time() - start
-    kv("Time", f"{elapsed2*1000:.2f}ms")
+    kv("Time", f"{elapsed2 * 1000:.2f}ms")
     kv("Grammar length", f"{len(grammar2)} chars")
 
     print()
-    kv("Speedup", f"{elapsed1/elapsed2:.1f}x faster", value_color='green')
-    kv("Grammars identical", str(grammar1 == grammar2), value_color='green')
+    kv("Speedup", f"{elapsed1 / elapsed2:.1f}x faster", value_color="green")
+    kv("Grammars identical", str(grammar1 == grammar2), value_color="green")
 
 
 def main():

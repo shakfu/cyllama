@@ -2,7 +2,6 @@
 
 import os
 import tempfile
-import time
 import pytest
 
 from cyllama.agents.session import (
@@ -36,25 +35,14 @@ class TestToolCallRecord:
     """Tests for ToolCallRecord dataclass."""
 
     def test_tool_call_creation(self):
-        tc = ToolCallRecord(
-            id="tc_1",
-            name="search",
-            arguments={"query": "test"},
-            status="pending"
-        )
+        tc = ToolCallRecord(id="tc_1", name="search", arguments={"query": "test"}, status="pending")
         assert tc.id == "tc_1"
         assert tc.name == "search"
         assert tc.status == "pending"
         assert tc.result is None
 
     def test_tool_call_with_result(self):
-        tc = ToolCallRecord(
-            id="tc_2",
-            name="calc",
-            arguments={"x": 1},
-            status="completed",
-            result="42"
-        )
+        tc = ToolCallRecord(id="tc_2", name="calc", arguments={"x": 1}, status="completed", result="42")
         assert tc.result == "42"
 
 

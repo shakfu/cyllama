@@ -13,7 +13,7 @@ Reference: https://arxiv.org/abs/2210.03629
 import logging
 import re
 import time
-from typing import List, Optional, Iterator, Callable, Dict, Any, Tuple
+from typing import List, Optional, Iterator, Dict, Any, Tuple
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 
 class EventType(Enum):
     """Types of events emitted during agent execution."""
+
     THOUGHT = "thought"
     ACTION = "action"
     OBSERVATION = "observation"
@@ -39,6 +40,7 @@ class EventType(Enum):
 @dataclass
 class AgentEvent:
     """Event emitted during agent execution."""
+
     type: EventType
     content: str
     metadata: Dict[str, Any] = field(default_factory=dict)
@@ -47,6 +49,7 @@ class AgentEvent:
 @dataclass
 class AgentMetrics:
     """Performance metrics for agent execution."""
+
     total_time_ms: float = 0.0
     iterations: int = 0
     tool_calls: int = 0
@@ -69,6 +72,7 @@ class AgentMetrics:
 @dataclass
 class AgentResult:
     """Result from agent execution."""
+
     answer: str
     steps: List[AgentEvent]
     iterations: int
@@ -96,11 +100,7 @@ class ActionParseError(ValueError):
     """
 
     def __init__(
-        self,
-        message: str,
-        action_str: str,
-        suggestion: Optional[str] = None,
-        details: Optional[List[str]] = None
+        self, message: str, action_str: str, suggestion: Optional[str] = None, details: Optional[List[str]] = None
     ):
         self.message = message
         self.action_str = action_str
@@ -254,12 +254,12 @@ Begin!"""
             temperature=0.7,
             max_tokens=512,
             stop_sequences=[
-                "\nObservation:",   # Most common - newline then Observation:
+                "\nObservation:",  # Most common - newline then Observation:
                 "\nObservation :",  # With space before colon
                 "\nObservation\n",  # Newline, Observation, newline (no colon)
-                "Observation:",     # At start or mid-text
-                "Observation :",    # With space before colon
-            ]
+                "Observation:",  # At start or mid-text
+                "Observation :",  # With space before colon
+            ],
         )
 
         # Register tools
@@ -306,13 +306,13 @@ Begin!"""
             iterations=len([e for e in events if e.type == EventType.THOUGHT]),
             success=success,
             error=error,
-            metrics=self.metrics
+            metrics=self.metrics,
         )
 
     @property
     def metrics(self) -> Optional[AgentMetrics]:
         """Get metrics from the last run."""
-        return getattr(self, '_metrics', None)
+        return getattr(self, "_metrics", None)
 
     def stream(self, task: str) -> Iterator[AgentEvent]:
         """
@@ -380,8 +380,11 @@ Begin!"""
             answer = self._extract_answer(response)
             if answer:
                 self._metrics.total_time_ms = (time.perf_counter() - start_time) * 1000
-                logger.info("Agent completed successfully in %.1fms with %d iterations",
-                           self._metrics.total_time_ms, self._metrics.iterations)
+                logger.info(
+                    "Agent completed successfully in %.1fms with %d iterations",
+                    self._metrics.total_time_ms,
+                    self._metrics.iterations,
+                )
                 event = AgentEvent(type=EventType.ANSWER, content=answer)
                 yield event
                 return
@@ -414,12 +417,13 @@ Begin!"""
 
                     # Check for exact same action repeated
                     if len(recent_actions) >= self.max_consecutive_same_action:
-                        last_n = recent_actions[-self.max_consecutive_same_action:]
+                        last_n = recent_actions[-self.max_consecutive_same_action :]
                         if all(a == last_n[0] for a in last_n):
                             self._metrics.loop_detected = True
                             self._metrics.total_time_ms = (time.perf_counter() - start_time) * 1000
-                            logger.warning("Loop detected (same action) after %d iterations: %s",
-                                         iteration + 1, action_str)
+                            logger.warning(
+                                "Loop detected (same action) after %d iterations: %s", iteration + 1, action_str
+                            )
 
                             # Generate summary from observations if available
                             if observations:
@@ -436,14 +440,18 @@ Begin!"""
 
                     # Check for same tool called too many times (even with different args)
                     if len(recent_tools) >= self.max_consecutive_same_tool:
-                        last_n_tools = recent_tools[-self.max_consecutive_same_tool:]
+                        last_n_tools = recent_tools[-self.max_consecutive_same_tool :]
                         if all(t == last_n_tools[0] for t in last_n_tools):
                             self._metrics.loop_detected = True
                             self._metrics.total_time_ms = (time.perf_counter() - start_time) * 1000
 
                             tool_or_error = tool_name if tool_name else "parse failures"
-                            logger.warning("Loop detected (same tool) after %d iterations: %s occurred %d times",
-                                         iteration + 1, tool_or_error, self.max_consecutive_same_tool)
+                            logger.warning(
+                                "Loop detected (same tool) after %d iterations: %s occurred %d times",
+                                iteration + 1,
+                                tool_or_error,
+                                self.max_consecutive_same_tool,
+                            )
 
                             # Generate summary from observations if available
                             if observations:
@@ -464,11 +472,7 @@ Begin!"""
                 event = AgentEvent(
                     type=EventType.ACTION,
                     content=action_str,
-                    metadata={
-                        "iteration": iteration + 1,
-                        "tool_name": tool_name,
-                        "tool_args": tool_args
-                    }
+                    metadata={"iteration": iteration + 1, "tool_name": tool_name, "tool_args": tool_args},
                 )
                 yield event
 
@@ -494,11 +498,7 @@ Begin!"""
                     error_event = AgentEvent(
                         type=EventType.ERROR,
                         content=str(e),
-                        metadata={
-                            "action": action_str,
-                            "error_type": "parse_error",
-                            "suggestion": e.suggestion
-                        }
+                        metadata={"action": action_str, "error_type": "parse_error", "suggestion": e.suggestion},
                     )
                     yield error_event
                 except ValueError as e:
@@ -514,10 +514,7 @@ Begin!"""
                     error_event = AgentEvent(
                         type=EventType.ERROR,
                         content=error_msg,
-                        metadata={
-                            "action": action_str,
-                            "error_type": "validation_error"
-                        }
+                        metadata={"action": action_str, "error_type": "validation_error"},
                     )
                     yield error_event
                 except TypeError as e:
@@ -532,8 +529,8 @@ Begin!"""
                             "action": action_str,
                             "error_type": "argument_error",
                             "tool_name": tool_name,
-                            "tool_args": tool_args
-                        }
+                            "tool_args": tool_args,
+                        },
                     )
                     yield error_event
                 except Exception as e:
@@ -544,11 +541,7 @@ Begin!"""
                     error_event = AgentEvent(
                         type=EventType.ERROR,
                         content=str(e),
-                        metadata={
-                            "action": action_str,
-                            "error_type": "execution_error",
-                            "tool_name": tool_name
-                        }
+                        metadata={"action": action_str, "error_type": "execution_error", "tool_name": tool_name},
                     )
                     yield error_event
 
@@ -560,8 +553,8 @@ Begin!"""
                         "action": action_str,
                         "tool_name": tool_name,
                         "tool_args": tool_args,
-                        "raw_result": raw_result  # Actual return value for contract checking
-                    }
+                        "raw_result": raw_result,  # Actual return value for contract checking
+                    },
                 )
                 yield obs_event
 
@@ -594,12 +587,11 @@ Begin!"""
 
         # Max iterations reached
         self._metrics.total_time_ms = (time.perf_counter() - start_time) * 1000
-        logger.warning("Agent reached max iterations (%d) in %.1fms",
-                      self.max_iterations, self._metrics.total_time_ms)
+        logger.warning("Agent reached max iterations (%d) in %.1fms", self.max_iterations, self._metrics.total_time_ms)
         error_event = AgentEvent(
             type=EventType.ERROR,
             content=f"Reached maximum iterations ({self.max_iterations})",
-            metadata={"iterations": self.max_iterations}
+            metadata={"iterations": self.max_iterations},
         )
         yield error_event
 
@@ -616,19 +608,19 @@ Begin!"""
             "\nObservation:",
             "\nObservation :",
             "\nObservation\n",
-            "\nObservation",   # Observation at end after newline
+            "\nObservation",  # Observation at end after newline
             "Observation:",
             "Observation :",
         ]
         for pattern in patterns:
             if pattern in text:
-                text = text[:text.index(pattern)]
+                text = text[: text.index(pattern)]
                 break  # Stop after first match
 
         # Also strip trailing "Observation" at end of text (no newline before)
         text = text.strip()
         if text.endswith("Observation"):
-            text = text[:-len("Observation")].strip()
+            text = text[: -len("Observation")].strip()
 
         return text
 
@@ -640,7 +632,7 @@ Begin!"""
             thought = match.group(1)
             for keyword in ["Action:", "Answer:", "Observation:"]:
                 if keyword in thought:
-                    thought = thought[:thought.index(keyword)]
+                    thought = thought[: thought.index(keyword)]
             return thought.strip()
         return None
 
@@ -668,9 +660,9 @@ Begin!"""
                 "\n\nThought:",
                 "\nThought:",
                 "\n\n```",  # Code block start
-                "\n```",    # Code block with single newline
+                "\n```",  # Code block with single newline
                 "```python",  # Direct code block
-                "```",      # Any code block marker
+                "```",  # Any code block marker
                 "\n\nNote:",
                 "\nNote:",
                 "\n\nLet's",  # "Let's try another example"
@@ -685,11 +677,11 @@ Begin!"""
                 "\n\nHere is",  # "Here is the code..."
                 "\nHere is the code",
                 "\n\nclass ",  # Direct class definition
-                "\ndef ",     # Direct function definition
+                "\ndef ",  # Direct function definition
             ]
             for pattern in stop_patterns:
                 if pattern in answer:
-                    answer = answer[:answer.index(pattern)]
+                    answer = answer[: answer.index(pattern)]
             return answer.strip()
         return None
 
@@ -720,15 +712,12 @@ Begin!"""
         Raises:
             ActionParseError: If action string is malformed (with helpful message)
         """
-        import json
 
         action_str = action_str.strip()
 
         if not action_str:
             raise ActionParseError(
-                "Empty action string",
-                action_str,
-                suggestion="Provide an action in format: tool_name(arguments)"
+                "Empty action string", action_str, suggestion="Provide an action in format: tool_name(arguments)"
             )
 
         # Try function call format: tool_name(arg1="val", arg2="val")
@@ -740,18 +729,16 @@ Begin!"""
                 raise ActionParseError(
                     "Missing parentheses in action",
                     action_str,
-                    suggestion=f"Use format: {action_str}() or {action_str}(arg=\"value\")"
+                    suggestion=f'Use format: {action_str}() or {action_str}(arg="value")',
                 )
             if not action_str.rstrip().endswith(")"):
                 raise ActionParseError(
-                    "Missing closing parenthesis",
-                    action_str,
-                    suggestion="Ensure action ends with )"
+                    "Missing closing parenthesis", action_str, suggestion="Ensure action ends with )"
                 )
             raise ActionParseError(
                 "Invalid action format",
                 action_str,
-                suggestion="Use format: tool_name(arg=\"value\") or tool_name({\"arg\": \"value\"})"
+                suggestion='Use format: tool_name(arg="value") or tool_name({"arg": "value"})',
             )
 
         tool_name = match.group(1)
@@ -762,7 +749,7 @@ Begin!"""
             raise ActionParseError(
                 f"Invalid tool name: '{tool_name}'",
                 action_str,
-                suggestion="Tool name must be a valid identifier (letters, numbers, underscores)"
+                suggestion="Tool name must be a valid identifier (letters, numbers, underscores)",
             )
 
         if not args_str:
@@ -772,12 +759,7 @@ Begin!"""
         args = self._try_parse_arguments(tool_name, args_str, action_str)
         return tool_name, args
 
-    def _try_parse_arguments(
-        self,
-        tool_name: str,
-        args_str: str,
-        original_action: str
-    ) -> Dict[str, Any]:
+    def _try_parse_arguments(self, tool_name: str, args_str: str, original_action: str) -> Dict[str, Any]:
         """
         Try multiple strategies to parse arguments.
 
@@ -792,7 +774,6 @@ Begin!"""
         Raises:
             ActionParseError: If no parsing strategy succeeds
         """
-        import json
 
         errors = []
 
@@ -802,7 +783,7 @@ Begin!"""
             raise ActionParseError(
                 "Triple-quoted strings are not supported",
                 original_action,
-                suggestion='Use escaped newlines: {"code": "line1\\nline2"}'
+                suggestion='Use escaped newlines: {"code": "line1\\nline2"}',
             )
 
         # Strategy 1: JSON object format
@@ -840,8 +821,8 @@ Begin!"""
         raise ActionParseError(
             "Could not parse tool arguments",
             original_action,
-            suggestion="Use format: tool({\"arg\": \"value\"}) or tool(arg=\"value\")",
-            details=errors
+            suggestion='Use format: tool({"arg": "value"}) or tool(arg="value")',
+            details=errors,
         )
 
     def _parse_json_args(self, args_str: str) -> Dict[str, Any]:
@@ -853,15 +834,15 @@ Begin!"""
             raise ActionParseError(
                 "Triple-quoted strings are not valid JSON",
                 args_str,
-                suggestion='Use escaped newlines: {"code": "line1\\nline2"}'
+                suggestion='Use escaped newlines: {"code": "line1\\nline2"}',
             )
 
         # Try to fix common JSON issues
         fixed_str = args_str
 
         # Remove trailing commas before closing braces/brackets
-        fixed_str = re.sub(r',\s*}', '}', fixed_str)
-        fixed_str = re.sub(r',\s*]', ']', fixed_str)
+        fixed_str = re.sub(r",\s*}", "}", fixed_str)
+        fixed_str = re.sub(r",\s*]", "]", fixed_str)
 
         # Try parsing
         try:
@@ -878,9 +859,7 @@ Begin!"""
                 pass
 
             raise ActionParseError(
-                f"Invalid JSON syntax: {str(e)}",
-                args_str,
-                suggestion='Use valid JSON: {"key": "value"}'
+                f"Invalid JSON syntax: {str(e)}", args_str, suggestion='Use valid JSON: {"key": "value"}'
             )
 
     def _convert_single_to_double_quotes(self, s: str) -> str:
@@ -909,7 +888,7 @@ Begin!"""
                 else:
                     result.append(char)
             else:
-                if char == '\\' and i + 1 < len(s):
+                if char == "\\" and i + 1 < len(s):
                     # Handle escape sequences
                     result.append(char)
                     result.append(s[i + 1])
@@ -922,7 +901,7 @@ Begin!"""
                     result.append(char)
             i += 1
 
-        return ''.join(result)
+        return "".join(result)
 
     def _parse_kwargs(self, args_str: str) -> Dict[str, Any]:
         """Parse key=value pairs with proper quote handling."""
@@ -931,7 +910,7 @@ Begin!"""
             raise ActionParseError(
                 "Triple-quoted strings are not supported",
                 args_str,
-                suggestion='Use escaped newlines: code="line1\\nline2"'
+                suggestion='Use escaped newlines: code="line1\\nline2"',
             )
 
         args = {}
@@ -999,9 +978,7 @@ Begin!"""
             return self._convert_escape_sequences(args)
 
         # No tool info, use positional keys
-        return self._convert_escape_sequences(
-            {f"arg{i}": v for i, v in enumerate(quoted)}
-        )
+        return self._convert_escape_sequences({f"arg{i}": v for i, v in enumerate(quoted)})
 
     def _convert_escape_sequences(self, args: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -1021,17 +998,16 @@ Begin!"""
             if isinstance(value, str):
                 # Convert common escape sequences that may be literal
                 # Only convert if the string contains literal backslash-n patterns
-                value = value.replace('\\n', '\n')
-                value = value.replace('\\t', '\t')
-                value = value.replace('\\r', '\r')
+                value = value.replace("\\n", "\n")
+                value = value.replace("\\t", "\t")
+                value = value.replace("\\r", "\r")
                 value = value.replace('\\"', '"')
                 value = value.replace("\\'", "'")
             elif isinstance(value, dict):
                 value = self._convert_escape_sequences(value)
             elif isinstance(value, list):
                 value = [
-                    self._convert_escape_sequences({'_': v})['_']
-                    if isinstance(v, (str, dict, list)) else v
+                    self._convert_escape_sequences({"_": v})["_"] if isinstance(v, (str, dict, list)) else v
                     for v in value
                 ]
             result[key] = value
@@ -1107,7 +1083,7 @@ Begin!"""
         question_idx = prompt.find(question_marker)
         if question_idx == -1:
             # Fallback: just truncate from the end (not ideal)
-            return prompt[:self.max_context_chars]
+            return prompt[: self.max_context_chars]
 
         # Split into header (system prompt + question) and history
         header_end = question_idx + len(question_marker)
@@ -1119,13 +1095,13 @@ Begin!"""
 
         if available_for_history <= 0:
             logger.warning("System prompt and question exceed max_context_chars")
-            return prompt[:self.max_context_chars]
+            return prompt[: self.max_context_chars]
 
         # Keep the most recent history (from the end)
         if len(history) > available_for_history:
             # Add a truncation marker
             truncation_notice = "\n\n[...earlier conversation truncated...]\n\n"
-            truncated_history = truncation_notice + history[-(available_for_history - len(truncation_notice)):]
+            truncated_history = truncation_notice + history[-(available_for_history - len(truncation_notice)) :]
             return header + truncated_history
 
         return prompt

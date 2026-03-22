@@ -23,6 +23,7 @@ try:
         UnsupportedModalityError,
         MultimodalError,
     )
+
     HAS_MULTIMODAL = True
 except ImportError as e:
     print(f"Error: Multimodal support not available: {e}")
@@ -57,7 +58,7 @@ def vision_example(model_path: str, mmproj_path: str, image_path: str):
 
         try:
             chunks = processor.process_image(question, image_path)
-            print(f"Successfully tokenized input:")
+            print("Successfully tokenized input:")
             print(f"  Total chunks: {len(chunks)}")
             print(f"  Total tokens: {chunks.total_tokens}")
             print(f"  Total positions: {chunks.total_positions}")
@@ -222,8 +223,12 @@ def main():
     parser.add_argument("--mmproj", required=True, help="Path to multimodal projector (.mmproj) file")
     parser.add_argument("--image", help="Path to test image file")
     parser.add_argument("--audio", help="Path to test audio file")
-    parser.add_argument("--example", choices=["all", "vision", "analyzer", "chat", "audio", "lowlevel"],
-                       default="all", help="Which example to run")
+    parser.add_argument(
+        "--example",
+        choices=["all", "vision", "analyzer", "chat", "audio", "lowlevel"],
+        default="all",
+        help="Which example to run",
+    )
 
     args = parser.parse_args()
 
@@ -236,7 +241,7 @@ def main():
         print(f"Error: Multimodal projector file not found: {args.mmproj}")
         sys.exit(1)
 
-    print(f"Cyllama multimodal examples")
+    print("Cyllama multimodal examples")
     print(f"Model: {args.model}")
     print(f"Multimodal projector: {args.mmproj}")
 
@@ -265,6 +270,7 @@ def main():
     except Exception as e:
         print(f"Unexpected error: {e}")
         import traceback
+
         traceback.print_exc()
 
 

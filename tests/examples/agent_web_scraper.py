@@ -18,14 +18,12 @@ import argparse
 from pathlib import Path
 from cyllama import LLM, GenerationConfig
 from cyllama.agents import ReActAgent, tool
-from cyllama.utils.color import (
-    header, section, subsection, subheader, success, error, info,
-    bullet, numbered, kv
-)
+from cyllama.utils.color import header, section, subsection, subheader, success, error, info, bullet, numbered, kv
 import re
 
 
 # Define web scraping tools
+
 
 @tool
 def fetch_url(url: str) -> str:
@@ -70,7 +68,7 @@ def fetch_url(url: str) -> str:
                 </article>
             </body>
             </html>
-            """
+            """,
         }
 
         content = mock_content.get(url, f"<html><body>Page not found: {url}</body></html>")
@@ -91,7 +89,7 @@ def extract_emails(text: str) -> list:
     Returns:
         List of email addresses found
     """
-    email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+    email_pattern = r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"
     emails = re.findall(email_pattern, text)
     return list(set(emails))  # Remove duplicates
 
@@ -108,7 +106,7 @@ def extract_phone_numbers(text: str) -> list:
         List of phone numbers found
     """
     # Simple pattern for demo
-    phone_pattern = r'\+?\d{1,3}[-.\s]?\(?\d{1,4}\)?[-.\s]?\d{1,4}[-.\s]?\d{1,9}'
+    phone_pattern = r"\+?\d{1,3}[-.\s]?\(?\d{1,4}\)?[-.\s]?\d{1,4}[-.\s]?\d{1,9}"
     phones = re.findall(phone_pattern, text)
     return list(set(phones))
 
@@ -125,7 +123,7 @@ def extract_between_tags(text: str, tag: str) -> list:
     Returns:
         List of content found between tags
     """
-    pattern = f'<{tag}[^>]*>(.*?)</{tag}>'
+    pattern = f"<{tag}[^>]*>(.*?)</{tag}>"
     matches = re.findall(pattern, text, re.DOTALL | re.IGNORECASE)
     return [m.strip() for m in matches]
 
@@ -151,8 +149,8 @@ def find_model() -> Path:
 
     # Preferred models in order
     candidates = [
-        ROOT / 'models' / 'Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf',
-        ROOT / 'models' / 'Llama-3.2-1B-Instruct-Q8_0.gguf',
+        ROOT / "models" / "Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf",
+        ROOT / "models" / "Llama-3.2-1B-Instruct-Q8_0.gguf",
     ]
 
     for path in candidates:
@@ -170,17 +168,15 @@ def example_basic_scraping(llm: LLM):
         llm=llm,
         tools=[fetch_url, extract_emails, extract_phone_numbers, extract_between_tags],
         max_iterations=10,
-        verbose=True
+        verbose=True,
     )
 
-    subsection("Task: Extract contact information from example.com", color='yellow')
+    subsection("Task: Extract contact information from example.com", color="yellow")
 
-    result = agent.run(
-        "Fetch https://example.com and extract all email addresses and phone numbers"
-    )
+    result = agent.run("Fetch https://example.com and extract all email addresses and phone numbers")
 
-    subsection("RESULT", color='bright_green')
-    kv("Success", str(result.success), value_color='green' if result.success else 'red')
+    subsection("RESULT", color="bright_green")
+    kv("Success", str(result.success), value_color="green" if result.success else "red")
     kv("Answer", result.answer)
     kv("Steps taken", str(result.iterations))
 
@@ -190,19 +186,14 @@ def example_structured_extraction(llm: LLM):
     section("STRUCTURED DATA EXTRACTION EXAMPLE")
 
     agent = ReActAgent(
-        llm=llm,
-        tools=[fetch_url, extract_between_tags, count_occurrences],
-        max_iterations=10,
-        verbose=True
+        llm=llm, tools=[fetch_url, extract_between_tags, count_occurrences], max_iterations=10, verbose=True
     )
 
-    subsection("Task: Extract article titles from news page", color='yellow')
+    subsection("Task: Extract article titles from news page", color="yellow")
 
-    result = agent.run(
-        "Fetch https://news.example.com and extract all article titles (h2 tags)"
-    )
+    result = agent.run("Fetch https://news.example.com and extract all article titles (h2 tags)")
 
-    subsection("RESULT", color='bright_green')
+    subsection("RESULT", color="bright_green")
     kv("Answer", result.answer)
 
 
@@ -210,7 +201,7 @@ def example_without_agent():
     """Show how complex it is without an agent."""
     section("COMPARISON: WITHOUT AGENT")
 
-    subheader("Manual approach (what you'd write without agents)", color='cyan')
+    subheader("Manual approach (what you'd write without agents)", color="cyan")
     print("""
     # Fetch page
     content = fetch_url("https://example.com")
@@ -225,7 +216,7 @@ def example_without_agent():
     result = f"Found emails: {emails}, phones: {phones}"
     """)
 
-    subheader("With agent approach", color='cyan')
+    subheader("With agent approach", color="cyan")
     print("""
     agent = ReActAgent(llm=llm, tools=[fetch_url, extract_emails, extract_phone_numbers])
     result = agent.run("Extract contact info from https://example.com")
@@ -237,7 +228,7 @@ def example_without_agent():
     # 4. Synthesize final answer
     """)
 
-    subheader("Agent benefits", color='green')
+    subheader("Agent benefits", color="green")
     bullet("Automatic tool sequencing")
     bullet("Natural language interface")
     bullet("Error handling and retries")
@@ -254,19 +245,12 @@ Examples:
     python agent_web_scraper.py
     python agent_web_scraper.py /path/to/model.gguf
     python agent_web_scraper.py models/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf
-        """
+        """,
     )
     parser.add_argument(
-        'model_path',
-        nargs='?',
-        type=str,
-        help='Path to GGUF model file (optional, will auto-detect if not provided)'
+        "model_path", nargs="?", type=str, help="Path to GGUF model file (optional, will auto-detect if not provided)"
     )
-    parser.add_argument(
-        '--verbose', '-v',
-        action='store_true',
-        help='Enable verbose model output'
-    )
+    parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose model output")
 
     args = parser.parse_args()
 
@@ -286,12 +270,14 @@ Examples:
     header("WEB SCRAPING AGENT EXAMPLES")
 
     print("\nThis example demonstrates:")
-    numbered([
-        "Fetching web pages",
-        "Extracting specific information",
-        "Pattern matching and parsing",
-        "Multi-step information gathering"
-    ])
+    numbered(
+        [
+            "Fetching web pages",
+            "Extracting specific information",
+            "Pattern matching and parsing",
+            "Multi-step information gathering",
+        ]
+    )
 
     # Show comparison first
     example_without_agent()

@@ -9,8 +9,6 @@ Adapted from xllamacpp's memory estimation functionality.
 
 import argparse
 import logging
-import math
-import struct
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -23,6 +21,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class MemoryEstimate:
     """Memory estimation results for model loading."""
+
     layers: int
     graph_size: int
     vram: int
@@ -35,25 +34,22 @@ def get_file_host_endian(file_path: Union[str, Path]) -> Tuple[str, str]:
     """Determine file and host endianness."""
 
     # Host endianness
-    host_endian = 'little' if sys.byteorder == 'little' else 'big'
+    host_endian = "little" if sys.byteorder == "little" else "big"
 
     # File endianness (check GGUF magic)
     try:
-        with open(file_path, 'rb') as f:
+        with open(file_path, "rb") as f:
             magic = f.read(4)
-            if magic == b'GGUF':
-                file_endian = 'little'
-            elif magic == b'FUGG':
-                file_endian = 'big'
+            if magic == b"GGUF":
+                file_endian = "little"
+            elif magic == b"FUGG":
+                file_endian = "big"
             else:
-                logger.warning(
-                    "Unrecognized GGUF magic bytes %r in %s, assuming little-endian",
-                    magic, file_path
-                )
-                file_endian = 'little'  # default
+                logger.warning("Unrecognized GGUF magic bytes %r in %s, assuming little-endian", magic, file_path)
+                file_endian = "little"  # default
     except (OSError, IOError) as e:
         logger.error("Failed to read file %s: %s, assuming little-endian", file_path, e)
-        file_endian = 'little'  # default
+        file_endian = "little"  # default
 
     return file_endian, host_endian
 
@@ -72,40 +68,37 @@ def dump_metadata_json(model_path: Union[str, Path]) -> Dict:
 
         # Extract key metadata
         metadata = {
-            'general.architecture': 'llama',  # default
-            'llama.context_length': 2048,    # default
-            'llama.embedding_length': 4096,  # default
-            'llama.block_count': 32,         # default
-            'llama.feed_forward_length': 11008,  # default
-            'llama.attention.head_count': 32,    # default
-            'llama.attention.head_count_kv': 32, # default
-            'general.file_type': 1,              # default to Q4_0
+            "general.architecture": "llama",  # default
+            "llama.context_length": 2048,  # default
+            "llama.embedding_length": 4096,  # default
+            "llama.block_count": 32,  # default
+            "llama.feed_forward_length": 11008,  # default
+            "llama.attention.head_count": 32,  # default
+            "llama.attention.head_count_kv": 32,  # default
+            "general.file_type": 1,  # default to Q4_0
         }
 
         # Try to get actual vocab size
         try:
-            metadata['tokenizer.ggml.tokens'] = [f"token_{i}" for i in range(vocab.n_vocab)]
+            metadata["tokenizer.ggml.tokens"] = [f"token_{i}" for i in range(vocab.n_vocab)]
         except (AttributeError, TypeError):
-            metadata['tokenizer.ggml.tokens'] = [f"token_{i}" for i in range(32000)]
+            metadata["tokenizer.ggml.tokens"] = [f"token_{i}" for i in range(32000)]
 
         return metadata
 
     except Exception as e:
         # Fallback metadata for when model can't be loaded
-        logger.warning(
-            "Failed to load model metadata from %s: %s, using default values",
-            model_path, e
-        )
+        logger.warning("Failed to load model metadata from %s: %s, using default values", model_path, e)
         return {
-            'general.architecture': 'llama',
-            'llama.context_length': 2048,
-            'llama.embedding_length': 4096,
-            'llama.block_count': 32,
-            'llama.feed_forward_length': 11008,
-            'llama.attention.head_count': 32,
-            'llama.attention.head_count_kv': 32,
-            'general.file_type': 1,
-            'tokenizer.ggml.tokens': [f"token_{i}" for i in range(32000)],
+            "general.architecture": "llama",
+            "llama.context_length": 2048,
+            "llama.embedding_length": 4096,
+            "llama.block_count": 32,
+            "llama.feed_forward_length": 11008,
+            "llama.attention.head_count": 32,
+            "llama.attention.head_count_kv": 32,
+            "general.file_type": 1,
+            "tokenizer.ggml.tokens": [f"token_{i}" for i in range(32000)],
         }
 
 
@@ -151,10 +144,7 @@ def graph_size(
     """
     # Validate inputs
     if n_layers <= 0 or n_embd <= 0 or n_ctx <= 0:
-        logger.warning(
-            "Invalid graph_size parameters: n_layers=%d, n_embd=%d, n_ctx=%d",
-            n_layers, n_embd, n_ctx
-        )
+        logger.warning("Invalid graph_size parameters: n_layers=%d, n_embd=%d, n_ctx=%d", n_layers, n_embd, n_ctx)
         return 0
 
     # Base graph size calculation (same formula for all transformer architectures)
@@ -205,7 +195,7 @@ def projector_memory_requirements(metadata: Dict) -> int:
     - Reference: LLaVA paper (Liu et al., 2023)
     """
     # Check if this is a multimodal model
-    if 'clip' in metadata.get('general.architecture', '').lower():
+    if "clip" in metadata.get("general.architecture", "").lower():
         # Estimate CLIP projector size: ~100MB for typical 2-layer MLP projector
         # Based on LLaVA architecture with 4096 hidden dim
         PROJECTOR_SIZE_BYTES = 100 * 1024 * 1024  # 100MB
@@ -221,9 +211,9 @@ def estimate_gpu_layers(
     ctx_size: int = 2048,
     batch_size: int = 1,
     n_parallel: int = 1,
-    kv_cache_type: str = 'f16',
+    kv_cache_type: str = "f16",
     use_mmap: bool = True,
-    verbose: bool = False
+    verbose: bool = False,
 ) -> MemoryEstimate:
     """Estimate optimal GPU layer allocation for given memory constraints.
 
@@ -275,29 +265,28 @@ def estimate_gpu_layers(
     metadata = dump_metadata_json(model_path)
 
     # Extract model parameters with defaults based on common Llama architectures
-    architecture = metadata.get('general.architecture', 'llama')
-    n_ctx_train = metadata.get('llama.context_length', 2048)
-    n_embd = metadata.get('llama.embedding_length', 4096)
-    n_layer = metadata.get('llama.block_count', 32)
-    n_ff = metadata.get('llama.feed_forward_length', 11008)
-    n_head = metadata.get('llama.attention.head_count', 32)
-    n_head_kv = metadata.get('llama.attention.head_count_kv', 32)
-    n_vocab = len(metadata.get('tokenizer.ggml.tokens', [32000]))
-    file_type = metadata.get('general.file_type', 1)
+    architecture = metadata.get("general.architecture", "llama")
+    n_ctx_train = metadata.get("llama.context_length", 2048)
+    n_embd = metadata.get("llama.embedding_length", 4096)
+    n_layer = metadata.get("llama.block_count", 32)
+    n_ff = metadata.get("llama.feed_forward_length", 11008)
+    n_head = metadata.get("llama.attention.head_count", 32)
+    n_head_kv = metadata.get("llama.attention.head_count_kv", 32)
+    n_vocab = len(metadata.get("tokenizer.ggml.tokens", [32000]))
+    file_type = metadata.get("general.file_type", 1)
 
     # Adjust context size to not exceed training context
     n_ctx = min(ctx_size, n_ctx_train)
     if ctx_size > n_ctx_train:
         logger.warning(
-            "Requested context size %d exceeds training context %d, clamping to %d",
-            ctx_size, n_ctx_train, n_ctx
+            "Requested context size %d exceeds training context %d, clamping to %d", ctx_size, n_ctx_train, n_ctx
         )
 
     # KV cache size per layer formula:
     # Size = n_ctx * batch * n_parallel * n_embd * bytes_per_element * 2 (K and V tensors)
     # f16 = 2 bytes, f32 = 4 bytes (multiplier of 1 or 2 relative to f16 baseline)
     BYTES_PER_F16 = 2
-    kv_precision_multiplier = 2 if kv_cache_type == 'f32' else 1  # f32 is 2x f16
+    kv_precision_multiplier = 2 if kv_cache_type == "f32" else 1  # f32 is 2x f16
     kv_cache_size_per_layer = (
         n_ctx * batch_size * n_parallel * n_embd * BYTES_PER_F16 * kv_precision_multiplier * 2  # K and V
     )
@@ -313,7 +302,7 @@ def estimate_gpu_layers(
         n_vocab=n_vocab,
         n_ctx=n_ctx,
         n_batch=batch_size,
-        f16_kv=(kv_cache_type == 'f16'),
+        f16_kv=(kv_cache_type == "f16"),
         offload_kqv=True,
         flash_attn=False,
     )
@@ -333,8 +322,8 @@ def estimate_gpu_layers(
     # Based on GGML quantization formats from llama.cpp
     # Reference: https://github.com/ggerganov/llama.cpp/blob/master/ggml/include/ggml.h
     QUANTIZATION_FACTORS = {
-        0: 1.0,    # GGML_TYPE_F32: 32 bits / 32 bits = 1.0
-        1: 0.5,    # GGML_TYPE_F16: 16 bits / 32 bits = 0.5
+        0: 1.0,  # GGML_TYPE_F32: 32 bits / 32 bits = 1.0
+        1: 0.5,  # GGML_TYPE_F16: 16 bits / 32 bits = 0.5
         2: 0.156,  # GGML_TYPE_Q4_0: ~5 bits effective / 32 bits
         3: 0.188,  # GGML_TYPE_Q4_1: ~6 bits effective / 32 bits
         6: 0.188,  # GGML_TYPE_Q5_0: ~6 bits effective / 32 bits
@@ -361,7 +350,9 @@ def estimate_gpu_layers(
         if available_memory <= 0 or layer_size_mb + kv_cache_size_per_layer // (1024 * 1024) <= 0:
             max_layers = 0
         else:
-            max_layers = min(n_layer, max(0, available_memory // (layer_size_mb + kv_cache_size_per_layer // (1024 * 1024))))
+            max_layers = min(
+                n_layer, max(0, available_memory // (layer_size_mb + kv_cache_size_per_layer // (1024 * 1024)))
+            )
 
         # Distribute layers across GPUs
         tensor_split = []
@@ -381,7 +372,9 @@ def estimate_gpu_layers(
         if available_memory <= 0 or layer_size_mb + kv_cache_size_per_layer // (1024 * 1024) <= 0:
             max_layers = 0
         else:
-            max_layers = min(n_layer, max(0, available_memory // (layer_size_mb + kv_cache_size_per_layer // (1024 * 1024))))
+            max_layers = min(
+                n_layer, max(0, available_memory // (layer_size_mb + kv_cache_size_per_layer // (1024 * 1024)))
+            )
         tensor_split = None
         vram_total = gpu_memory_mb if max_layers > 0 else 0
 
@@ -407,15 +400,12 @@ def estimate_gpu_layers(
         vram=vram_total * 1024 * 1024,  # Convert to bytes
         vram_kv=vram_kv,
         total_size=total_size,
-        tensor_split=tensor_split
+        tensor_split=tensor_split,
     )
 
 
 def estimate_memory_usage(
-    model_path: Union[str, Path],
-    ctx_size: int = 2048,
-    batch_size: int = 1,
-    verbose: bool = False
+    model_path: Union[str, Path], ctx_size: int = 2048, batch_size: int = 1, verbose: bool = False
 ) -> Dict:
     """Quick memory usage estimation without GPU constraints.
 
@@ -440,22 +430,22 @@ def estimate_memory_usage(
     # Input validation
     if ctx_size <= 0:
         logger.error("Invalid context size: %d", ctx_size)
-        return {'error': 'Invalid context size'}
+        return {"error": "Invalid context size"}
 
     if batch_size <= 0:
         logger.error("Invalid batch size: %d", batch_size)
-        return {'error': 'Invalid batch size'}
+        return {"error": "Invalid batch size"}
 
     metadata = dump_metadata_json(model_path)
 
-    n_embd = metadata.get('llama.embedding_length', 4096)
-    n_layer = metadata.get('llama.block_count', 32)
-    n_ff = metadata.get('llama.feed_forward_length', 11008)
-    n_head = metadata.get('llama.attention.head_count', 32)
-    n_head_kv = metadata.get('llama.attention.head_count_kv', 32)
-    n_vocab = len(metadata.get('tokenizer.ggml.tokens', [32000]))
-    file_type = metadata.get('general.file_type', 1)
-    architecture = metadata.get('general.architecture', 'llama')
+    n_embd = metadata.get("llama.embedding_length", 4096)
+    n_layer = metadata.get("llama.block_count", 32)
+    n_ff = metadata.get("llama.feed_forward_length", 11008)
+    n_head = metadata.get("llama.attention.head_count", 32)
+    n_head_kv = metadata.get("llama.attention.head_count_kv", 32)
+    n_vocab = len(metadata.get("tokenizer.ggml.tokens", [32000]))
+    file_type = metadata.get("general.file_type", 1)
+    architecture = metadata.get("general.architecture", "llama")
 
     # KV cache formula: n_layer * n_ctx * batch * n_embd * bytes_per_element * 2 (K and V)
     # f16: 2 bytes per element, f32: 4 bytes per element
@@ -491,8 +481,8 @@ def estimate_memory_usage(
     # q8_0: ~1 byte per parameter (8 bits + overhead)
     BYTES_PER_F32_PARAM = 4
     BYTES_PER_F16_PARAM = 2
-    BYTES_PER_Q4_PARAM = 0.5   # 4-bit quantization with block overhead
-    BYTES_PER_Q8_PARAM = 1.0   # 8-bit quantization with block overhead
+    BYTES_PER_Q4_PARAM = 0.5  # 4-bit quantization with block overhead
+    BYTES_PER_Q8_PARAM = 1.0  # 8-bit quantization with block overhead
 
     model_size_f32 = int(total_params * BYTES_PER_F32_PARAM)
     model_size_f16 = int(total_params * BYTES_PER_F16_PARAM)
@@ -500,35 +490,35 @@ def estimate_memory_usage(
     model_size_q8 = int(total_params * BYTES_PER_Q8_PARAM)
 
     result = {
-        'model_size_mb': {
-            'f32': model_size_f32 // (1024 * 1024),
-            'f16': model_size_f16 // (1024 * 1024),
-            'q4_0': model_size_q4 // (1024 * 1024),
-            'q8_0': model_size_q8 // (1024 * 1024),
+        "model_size_mb": {
+            "f32": model_size_f32 // (1024 * 1024),
+            "f16": model_size_f16 // (1024 * 1024),
+            "q4_0": model_size_q4 // (1024 * 1024),
+            "q8_0": model_size_q8 // (1024 * 1024),
         },
-        'kv_cache_mb': {
-            'f16': kv_cache_f16 // (1024 * 1024),
-            'f32': kv_cache_f32 // (1024 * 1024),
+        "kv_cache_mb": {
+            "f16": kv_cache_f16 // (1024 * 1024),
+            "f32": kv_cache_f32 // (1024 * 1024),
         },
-        'graph_mb': graph_mem // (1024 * 1024),
-        'parameters': {
-            'n_embd': n_embd,
-            'n_layer': n_layer,
-            'n_ff': n_ff,
-            'n_vocab': n_vocab,
-            'total_params': total_params,
-        }
+        "graph_mb": graph_mem // (1024 * 1024),
+        "parameters": {
+            "n_embd": n_embd,
+            "n_layer": n_layer,
+            "n_ff": n_ff,
+            "n_vocab": n_vocab,
+            "total_params": total_params,
+        },
     }
 
     if verbose:
         print(f"Model: {model_path}")
         print(f"Architecture: {architecture}")
         print(f"Parameters: {total_params:,}")
-        print(f"Model size estimates:")
-        for precision, size in result['model_size_mb'].items():
+        print("Model size estimates:")
+        for precision, size in result["model_size_mb"].items():
             print(f"  {precision}: {size} MB")
         print(f"KV cache (ctx={ctx_size}, batch={batch_size}):")
-        for precision, size in result['kv_cache_mb'].items():
+        for precision, size in result["kv_cache_mb"].items():
             print(f"  {precision}: {size} MB")
         print(f"Graph memory: {result['graph_mb']} MB")
 
@@ -552,9 +542,9 @@ def parse_gpu_memory(gpu_memory_str: str) -> Union[int, List[int]]:
         raise ValueError("GPU memory string cannot be empty")
 
     try:
-        if ',' in gpu_memory_str:
+        if "," in gpu_memory_str:
             # Multi-GPU setup
-            values = [int(x.strip()) for x in gpu_memory_str.split(',')]
+            values = [int(x.strip()) for x in gpu_memory_str.split(",")]
             if any(v <= 0 for v in values):
                 logger.warning("Non-positive GPU memory values in: %s", gpu_memory_str)
             return values
@@ -571,7 +561,7 @@ def parse_gpu_memory(gpu_memory_str: str) -> Union[int, List[int]]:
 
 def format_bytes(bytes_val: Union[int, float]) -> str:
     """Format bytes value in human readable format."""
-    for unit in ['B', 'KB', 'MB', 'GB']:
+    for unit in ["B", "KB", "MB", "GB"]:
         if bytes_val < 1024:
             return f"{bytes_val:.1f} {unit}"
         bytes_val /= 1024
@@ -603,60 +593,28 @@ Examples:
 
   # Quick memory overview only
   python -m cyllama.memory_cli models/model.gguf --overview-only
-        """
+        """,
     )
 
-    parser.add_argument(
-        'model_path',
-        type=str,
-        help='Path to the GGUF model file'
-    )
+    parser.add_argument("model_path", type=str, help="Path to the GGUF model file")
 
     parser.add_argument(
-        '--gpu-memory',
-        type=str,
-        help='Available GPU memory in MB (single: "8192", multi: "4096,4096")'
+        "--gpu-memory", type=str, help='Available GPU memory in MB (single: "8192", multi: "4096,4096")'
     )
 
-    parser.add_argument(
-        '--ctx-size',
-        type=int,
-        default=2048,
-        help='Context size for inference (default: 2048)'
-    )
+    parser.add_argument("--ctx-size", type=int, default=2048, help="Context size for inference (default: 2048)")
+
+    parser.add_argument("--batch-size", type=int, default=1, help="Batch size for inference (default: 1)")
+
+    parser.add_argument("--n-parallel", type=int, default=1, help="Number of parallel sequences (default: 1)")
 
     parser.add_argument(
-        '--batch-size',
-        type=int,
-        default=1,
-        help='Batch size for inference (default: 1)'
+        "--kv-cache-type", choices=["f16", "f32"], default="f16", help="KV cache precision (default: f16)"
     )
 
-    parser.add_argument(
-        '--n-parallel',
-        type=int,
-        default=1,
-        help='Number of parallel sequences (default: 1)'
-    )
+    parser.add_argument("--overview-only", action="store_true", help="Show only memory overview without GPU allocation")
 
-    parser.add_argument(
-        '--kv-cache-type',
-        choices=['f16', 'f32'],
-        default='f16',
-        help='KV cache precision (default: f16)'
-    )
-
-    parser.add_argument(
-        '--overview-only',
-        action='store_true',
-        help='Show only memory overview without GPU allocation'
-    )
-
-    parser.add_argument(
-        '--verbose',
-        action='store_true',
-        help='Enable verbose output'
-    )
+    parser.add_argument("--verbose", action="store_true", help="Enable verbose output")
 
     args = parser.parse_args()
 
@@ -672,10 +630,7 @@ Examples:
     try:
         # Always show memory overview
         overview = estimate_memory_usage(
-            model_path=model_path,
-            ctx_size=args.ctx_size,
-            batch_size=args.batch_size,
-            verbose=args.verbose
+            model_path=model_path, ctx_size=args.ctx_size, batch_size=args.batch_size, verbose=args.verbose
         )
 
         print("=== Memory Overview ===")
@@ -685,12 +640,12 @@ Examples:
         print()
 
         print("Model size estimates:")
-        for precision, size_mb in overview['model_size_mb'].items():
+        for precision, size_mb in overview["model_size_mb"].items():
             print(f"  {precision.upper()}: {size_mb:,} MB ({format_bytes(size_mb * 1024 * 1024)})")
         print()
 
         print(f"KV cache (ctx={args.ctx_size}, batch={args.batch_size}):")
-        for precision, size_mb in overview['kv_cache_mb'].items():
+        for precision, size_mb in overview["kv_cache_mb"].items():
             print(f"  {precision.upper()}: {size_mb:,} MB ({format_bytes(size_mb * 1024 * 1024)})")
         print()
 
@@ -710,7 +665,7 @@ Examples:
                 batch_size=args.batch_size,
                 n_parallel=args.n_parallel,
                 kv_cache_type=args.kv_cache_type,
-                verbose=args.verbose
+                verbose=args.verbose,
             )
 
             if isinstance(gpu_memory, list):
@@ -726,7 +681,7 @@ Examples:
             print(f"GPU layers: {estimate.layers * 100 / overview['parameters']['n_layer']:.1f}% of model")
             print()
 
-            print(f"Memory allocation:")
+            print("Memory allocation:")
             print(f"  Graph memory: {format_bytes(estimate.graph_size)}")
             print(f"  KV cache: {format_bytes(estimate.vram_kv)}")
             print(f"  Total VRAM: {format_bytes(estimate.vram)}")
@@ -739,9 +694,11 @@ Examples:
                 print()
 
             # Performance estimates
-            cpu_layers = overview['parameters']['n_layer'] - estimate.layers
+            cpu_layers = overview["parameters"]["n_layer"] - estimate.layers
             if cpu_layers > 0:
-                print(f"CPU fallback: {cpu_layers} layers ({cpu_layers * 100 / overview['parameters']['n_layer']:.1f}% of model)")
+                print(
+                    f"CPU fallback: {cpu_layers} layers ({cpu_layers * 100 / overview['parameters']['n_layer']:.1f}% of model)"
+                )
                 print("Note: CPU layers will significantly impact inference speed")
             else:
                 print("All layers fit in GPU memory - optimal performance expected")
@@ -754,11 +711,12 @@ Examples:
         print(f"Error during estimation: {e}", file=sys.stderr)
         if args.verbose:
             import traceback
+
             traceback.print_exc()
         return 1
 
     return 0
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())

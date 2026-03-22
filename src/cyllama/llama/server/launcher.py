@@ -200,11 +200,7 @@ class LlamaServer:
         # Start process
         try:
             self.process = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                universal_newlines=True,
-                bufsize=1
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True, bufsize=1
             )
         except Exception as e:
             raise RuntimeError(f"Failed to start server: {e}")
@@ -306,12 +302,13 @@ class LlamaServer:
                 "host": self.config.host,
                 "port": self.config.port,
                 "model_path": self.config.model_path,
-            }
+            },
         }
 
         if self.is_running():
             try:
                 import requests
+
                 url = f"http://{self.config.host}:{self.config.port}{self.config.api_prefix}/v1/models"
                 response = requests.get(url, timeout=2.0)
                 if response.status_code == 200:
@@ -341,10 +338,7 @@ class LlamaServer:
 
         # Note: This is a simplified implementation
         # In practice, you might want to capture logs to files
-        return {
-            "stdout": ["Logs would be captured here"],
-            "stderr": ["Error logs would be captured here"]
-        }
+        return {"stdout": ["Logs would be captured here"], "stderr": ["Error logs would be captured here"]}
 
     def __enter__(self):
         """Context manager entry."""
@@ -372,12 +366,13 @@ class LlamaServerClient:
             base_url: Base URL of the server
             api_key: API key for authentication (if required)
         """
-        self.base_url = base_url.rstrip('/')
+        self.base_url = base_url.rstrip("/")
         self.api_key = api_key
 
         # Setup session
         try:
             import requests
+
             self.session = requests.Session()
             if api_key:
                 self.session.headers.update({"Authorization": f"Bearer {api_key}"})
@@ -397,10 +392,7 @@ class LlamaServerClient:
             Chat completion response
         """
         url = f"{self.base_url}/v1/chat/completions"
-        data = {
-            "messages": messages,
-            **kwargs
-        }
+        data = {"messages": messages, **kwargs}
 
         response = self.session.post(url, json=data)
         response.raise_for_status()
@@ -418,10 +410,7 @@ class LlamaServerClient:
             Embedding response
         """
         url = f"{self.base_url}/v1/embeddings"
-        data = {
-            "input": input_text,
-            **kwargs
-        }
+        data = {"input": input_text, **kwargs}
 
         response = self.session.post(url, json=data)
         response.raise_for_status()
@@ -474,11 +463,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     config = ServerConfig(
-        model_path=args.model,
-        host=args.host,
-        port=args.port,
-        ctx_size=args.ctx_size,
-        n_gpu_layers=args.gpu_layers
+        model_path=args.model, host=args.host, port=args.port, ctx_size=args.ctx_size, n_gpu_layers=args.gpu_layers
     )
 
     logging.basicConfig(level=logging.INFO)

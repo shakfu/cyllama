@@ -4,10 +4,9 @@ LangChain Agent Integration
 Provides adapters to use cyllama agents with LangChain's agent framework.
 """
 
-from typing import Any, List, Optional, Dict, Sequence
-import warnings
+from typing import Any, List, Dict
 
-from ..agents import ReActAgent, ConstrainedAgent, Tool as CyllaTool, tool as cyllama_tool
+from ..agents import ReActAgent, ConstrainedAgent, Tool as CyllaTool
 from ..api import LLM as CyllamaLLMCore
 
 try:
@@ -17,6 +16,7 @@ try:
     from langchain_core.callbacks.manager import CallbackManagerForLLMRun
     from langchain_core.agents import AgentExecutor, create_react_agent
     from langchain_core.prompts import PromptTemplate
+
     LANGCHAIN_AVAILABLE = True
 except ImportError:
     try:
@@ -25,6 +25,7 @@ except ImportError:
         from langchain.callbacks.manager import CallbackManagerForLLMRun
         from langchain.agents import AgentExecutor, create_react_agent
         from langchain.prompts import PromptTemplate
+
         LANGCHAIN_AVAILABLE = True
     except ImportError:
         LANGCHAIN_AVAILABLE = False
@@ -56,7 +57,7 @@ def cyllama_tool_to_langchain(cyllama_tool: CyllaTool) -> Any:
     required = schema.get("required", [])
 
     # Build args_schema dict for LangChain
-    from pydantic import BaseModel, Field, create_model
+    from pydantic import Field, create_model
 
     # Create field definitions
     field_definitions = {}
@@ -84,20 +85,14 @@ def cyllama_tool_to_langchain(cyllama_tool: CyllaTool) -> Any:
             field_definitions[param_name] = (python_type, Field(None, description=param_desc))
 
     # Create Pydantic model for args_schema
-    ArgsSchema = create_model(
-        f"{cyllama_tool.name}Args",
-        **field_definitions
-    )
+    ArgsSchema = create_model(f"{cyllama_tool.name}Args", **field_definitions)
 
     # Create LangChain tool
     def tool_func(**kwargs):
         return cyllama_tool(**kwargs)
 
     return StructuredTool(
-        name=cyllama_tool.name,
-        description=cyllama_tool.description,
-        func=tool_func,
-        args_schema=ArgsSchema
+        name=cyllama_tool.name, description=cyllama_tool.description, func=tool_func, args_schema=ArgsSchema
     )
 
 
@@ -122,6 +117,7 @@ def langchain_tool_to_cyllama(langchain_tool: Any) -> CyllaTool:
         try:
             # Extract from Pydantic model
             from pydantic import BaseModel
+
             if isinstance(langchain_tool.args_schema, type) and issubclass(langchain_tool.args_schema, BaseModel):
                 schema_dict = langchain_tool.args_schema.model_json_schema()
                 if "properties" in schema_dict:
@@ -136,12 +132,7 @@ def langchain_tool_to_cyllama(langchain_tool: Any) -> CyllaTool:
         return langchain_tool.run(kwargs)
 
     # Create cyllama tool
-    tool_instance = CyllaTool(
-        name=name,
-        description=description,
-        func=wrapper,
-        parameters=schema
-    )
+    tool_instance = CyllaTool(name=name, description=description, func=wrapper, parameters=schema)
 
     return tool_instance
 
@@ -211,11 +202,7 @@ Thought:{agent_scratchpad}"""
     agent = create_react_agent(lc_llm, lc_tools, prompt)
 
     return AgentExecutor(
-        agent=agent,
-        tools=lc_tools,
-        verbose=verbose,
-        max_iterations=max_iterations,
-        handle_parsing_errors=True
+        agent=agent, tools=lc_tools, verbose=verbose, max_iterations=max_iterations, handle_parsing_errors=True
     )
 
 
@@ -230,7 +217,7 @@ class CyllamaAgentLangChainAdapter:
     def __init__(
         self,
         agent: Any,  # ReActAgent or ConstrainedAgent
-        return_intermediate_steps: bool = True
+        return_intermediate_steps: bool = True,
     ):
         """
         Initialize adapter.
@@ -280,11 +267,7 @@ class CyllamaAgentLangChainAdapter:
         return output
 
 
-def create_cyllama_react_agent(
-    model_path: str,
-    tools: List[CyllaTool],
-    **kwargs
-) -> ReActAgent:
+def create_cyllama_react_agent(model_path: str, tools: List[CyllaTool], **kwargs) -> ReActAgent:
     """
     Convenience function to create a cyllama ReAct agent.
 
@@ -300,11 +283,7 @@ def create_cyllama_react_agent(
     return ReActAgent(llm=llm, tools=tools, **kwargs)
 
 
-def create_cyllama_constrained_agent(
-    model_path: str,
-    tools: List[CyllaTool],
-    **kwargs
-) -> ConstrainedAgent:
+def create_cyllama_constrained_agent(model_path: str, tools: List[CyllaTool], **kwargs) -> ConstrainedAgent:
     """
     Convenience function to create a cyllama ConstrainedAgent.
 

@@ -6,7 +6,7 @@ Tests the async/await support for ReActAgent and ConstrainedAgent.
 
 import pytest
 import asyncio
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 
 from cyllama.agents.async_agent import (
     AsyncReActAgent,
@@ -45,8 +45,8 @@ class TestAsyncReActAgent:
 
     def test_init(self):
         """Test AsyncReActAgent initialization."""
-        with patch('cyllama.agents.async_agent.LLM'):
-            with patch.object(ReActAgent, '__init__', return_value=None):
+        with patch("cyllama.agents.async_agent.LLM"):
+            with patch.object(ReActAgent, "__init__", return_value=None):
                 agent = AsyncReActAgent("model.gguf", tools=[calculator])
                 assert agent._agent is not None
                 assert agent._lock is not None
@@ -54,18 +54,13 @@ class TestAsyncReActAgent:
 
     def test_init_with_kwargs(self):
         """Test initialization with kwargs."""
-        with patch('cyllama.agents.async_agent.LLM'):
-            with patch.object(ReActAgent, '__init__', return_value=None) as mock_init:
-                agent = AsyncReActAgent(
-                    "model.gguf",
-                    tools=[calculator],
-                    max_iterations=5,
-                    verbose=True
-                )
+        with patch("cyllama.agents.async_agent.LLM"):
+            with patch.object(ReActAgent, "__init__", return_value=None) as mock_init:
+                agent = AsyncReActAgent("model.gguf", tools=[calculator], max_iterations=5, verbose=True)
                 mock_init.assert_called_once()
                 call_kwargs = mock_init.call_args[1]
-                assert call_kwargs.get('max_iterations') == 5
-                assert call_kwargs.get('verbose') is True
+                assert call_kwargs.get("max_iterations") == 5
+                assert call_kwargs.get("verbose") is True
 
     @pytest.mark.asyncio
     async def test_context_manager(self):
@@ -73,8 +68,8 @@ class TestAsyncReActAgent:
         mock_llm = Mock()
         mock_llm.close = Mock()
 
-        with patch('cyllama.agents.async_agent.LLM', return_value=mock_llm):
-            with patch.object(ReActAgent, '__init__', return_value=None):
+        with patch("cyllama.agents.async_agent.LLM", return_value=mock_llm):
+            with patch.object(ReActAgent, "__init__", return_value=None):
                 async with AsyncReActAgent("model.gguf") as agent:
                     assert agent is not None
 
@@ -83,16 +78,11 @@ class TestAsyncReActAgent:
     @pytest.mark.asyncio
     async def test_run(self):
         """Test async run method."""
-        mock_result = AgentResult(
-            answer="The answer is 42",
-            steps=[],
-            iterations=1,
-            success=True
-        )
+        mock_result = AgentResult(answer="The answer is 42", steps=[], iterations=1, success=True)
 
-        with patch('cyllama.agents.async_agent.LLM'):
-            with patch.object(ReActAgent, '__init__', return_value=None):
-                with patch.object(ReActAgent, 'run', return_value=mock_result):
+        with patch("cyllama.agents.async_agent.LLM"):
+            with patch.object(ReActAgent, "__init__", return_value=None):
+                with patch.object(ReActAgent, "run", return_value=mock_result):
                     agent = AsyncReActAgent("model.gguf")
                     result = await agent.run("What is the answer?")
 
@@ -104,12 +94,12 @@ class TestAsyncReActAgent:
         """Test metrics property access."""
         metrics = AgentMetrics(iterations=3, tool_calls=2)
 
-        with patch('cyllama.agents.async_agent.LLM'):
-            with patch.object(ReActAgent, '__init__', return_value=None):
+        with patch("cyllama.agents.async_agent.LLM"):
+            with patch.object(ReActAgent, "__init__", return_value=None):
                 agent = AsyncReActAgent("model.gguf")
                 agent._agent._metrics = metrics
 
-                with patch.object(ReActAgent, 'metrics', new_callable=lambda: property(lambda s: metrics)):
+                with patch.object(ReActAgent, "metrics", new_callable=lambda: property(lambda s: metrics)):
                     # Access through the wrapper
                     assert agent._agent._metrics.iterations == 3
 
@@ -127,8 +117,8 @@ class TestAsyncReActAgent:
             for event in events:
                 yield event
 
-        with patch('cyllama.agents.async_agent.LLM'):
-            with patch.object(ReActAgent, '__init__', return_value=None):
+        with patch("cyllama.agents.async_agent.LLM"):
+            with patch.object(ReActAgent, "__init__", return_value=None):
                 agent = AsyncReActAgent("model.gguf")
                 agent._agent.stream = mock_stream
 
@@ -146,8 +136,8 @@ class TestAsyncConstrainedAgent:
 
     def test_init(self):
         """Test AsyncConstrainedAgent initialization."""
-        with patch('cyllama.agents.async_agent.LLM'):
-            with patch.object(ConstrainedAgent, '__init__', return_value=None):
+        with patch("cyllama.agents.async_agent.LLM"):
+            with patch.object(ConstrainedAgent, "__init__", return_value=None):
                 agent = AsyncConstrainedAgent("model.gguf", tools=[calculator])
                 assert agent._agent is not None
                 assert agent._lock is not None
@@ -159,8 +149,8 @@ class TestAsyncConstrainedAgent:
         mock_llm = Mock()
         mock_llm.close = Mock()
 
-        with patch('cyllama.agents.async_agent.LLM', return_value=mock_llm):
-            with patch.object(ConstrainedAgent, '__init__', return_value=None):
+        with patch("cyllama.agents.async_agent.LLM", return_value=mock_llm):
+            with patch.object(ConstrainedAgent, "__init__", return_value=None):
                 async with AsyncConstrainedAgent("model.gguf") as agent:
                     assert agent is not None
 
@@ -169,16 +159,11 @@ class TestAsyncConstrainedAgent:
     @pytest.mark.asyncio
     async def test_run(self):
         """Test async run method."""
-        mock_result = AgentResult(
-            answer="4",
-            steps=[],
-            iterations=1,
-            success=True
-        )
+        mock_result = AgentResult(answer="4", steps=[], iterations=1, success=True)
 
-        with patch('cyllama.agents.async_agent.LLM'):
-            with patch.object(ConstrainedAgent, '__init__', return_value=None):
-                with patch.object(ConstrainedAgent, 'run', return_value=mock_result):
+        with patch("cyllama.agents.async_agent.LLM"):
+            with patch.object(ConstrainedAgent, "__init__", return_value=None):
+                with patch.object(ConstrainedAgent, "run", return_value=mock_result):
                     agent = AsyncConstrainedAgent("model.gguf")
                     result = await agent.run("What is 2+2?")
 
@@ -197,8 +182,8 @@ class TestAsyncConstrainedAgent:
             for event in events:
                 yield event
 
-        with patch('cyllama.agents.async_agent.LLM'):
-            with patch.object(ConstrainedAgent, '__init__', return_value=None):
+        with patch("cyllama.agents.async_agent.LLM"):
+            with patch.object(ConstrainedAgent, "__init__", return_value=None):
                 agent = AsyncConstrainedAgent("model.gguf")
                 agent._agent.stream = mock_stream
 
@@ -215,12 +200,7 @@ class TestRunAgentAsync:
     @pytest.mark.asyncio
     async def test_run_react_agent(self):
         """Test running ReActAgent asynchronously."""
-        mock_result = AgentResult(
-            answer="Result",
-            steps=[],
-            iterations=1,
-            success=True
-        )
+        mock_result = AgentResult(answer="Result", steps=[], iterations=1, success=True)
 
         mock_agent = Mock(spec=ReActAgent)
         mock_agent.run.return_value = mock_result
@@ -233,12 +213,7 @@ class TestRunAgentAsync:
     @pytest.mark.asyncio
     async def test_run_constrained_agent(self):
         """Test running ConstrainedAgent asynchronously."""
-        mock_result = AgentResult(
-            answer="Constrained result",
-            steps=[],
-            iterations=1,
-            success=True
-        )
+        mock_result = AgentResult(answer="Constrained result", steps=[], iterations=1, success=True)
 
         mock_agent = Mock(spec=ConstrainedAgent)
         mock_agent.run.return_value = mock_result
@@ -259,18 +234,14 @@ class TestConcurrency:
         def slow_run_sync(task):
             """Sync function that will be called by to_thread."""
             import time
+
             call_order.append(f"start_{task}")
             time.sleep(0.05)  # Use sync sleep
             call_order.append(f"end_{task}")
-            return AgentResult(
-                answer=f"Result for {task}",
-                steps=[],
-                iterations=1,
-                success=True
-            )
+            return AgentResult(answer=f"Result for {task}", steps=[], iterations=1, success=True)
 
-        with patch('cyllama.agents.async_agent.LLM'):
-            with patch.object(ReActAgent, '__init__', return_value=None):
+        with patch("cyllama.agents.async_agent.LLM"):
+            with patch.object(ReActAgent, "__init__", return_value=None):
                 agent = AsyncReActAgent("model.gguf")
                 # Mock the sync agent's run method
                 agent._agent.run = slow_run_sync
@@ -293,11 +264,8 @@ class TestAsyncAgentIntegration:
     def model_path(self):
         """Get test model path."""
         import os
-        path = os.path.join(
-            os.path.dirname(os.path.dirname(__file__)),
-            "models",
-            "Llama-3.2-1B-Instruct-Q8_0.gguf"
-        )
+
+        path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "models", "Llama-3.2-1B-Instruct-Q8_0.gguf")
         if not os.path.exists(path):
             pytest.skip("Test model not available")
         return path
@@ -306,17 +274,13 @@ class TestAsyncAgentIntegration:
     @pytest.mark.slow
     async def test_real_async_react_agent(self, model_path):
         """Test real async ReActAgent execution."""
+
         @tool
         def add(a: int, b: int) -> int:
             """Add two numbers."""
             return a + b
 
-        async with AsyncReActAgent(
-            model_path,
-            tools=[add],
-            max_iterations=3,
-            max_tokens=100
-        ) as agent:
+        async with AsyncReActAgent(model_path, tools=[add], max_iterations=3, max_tokens=100) as agent:
             result = await agent.run("What is 2 plus 3?")
             # Agent should complete (success or not)
             assert result is not None
@@ -325,17 +289,13 @@ class TestAsyncAgentIntegration:
     @pytest.mark.slow
     async def test_real_async_stream(self, model_path):
         """Test real async streaming."""
+
         @tool
         def greet(name: str) -> str:
             """Greet someone."""
             return f"Hello, {name}!"
 
-        async with AsyncReActAgent(
-            model_path,
-            tools=[greet],
-            max_iterations=2,
-            max_tokens=50
-        ) as agent:
+        async with AsyncReActAgent(model_path, tools=[greet], max_iterations=2, max_tokens=50) as agent:
             events = []
             async for event in agent.stream("Greet Alice"):
                 events.append(event)

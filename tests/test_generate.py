@@ -35,11 +35,7 @@ class TestGenerationConfig:
     def test_custom_config(self):
         """Test custom configuration."""
         config = GenerationConfig(
-            max_tokens=100,
-            temperature=0.5,
-            top_k=20,
-            n_gpu_layers=0,
-            stop_sequences=["STOP", "END"]
+            max_tokens=100, temperature=0.5, top_k=20, n_gpu_layers=0, stop_sequences=["STOP", "END"]
         )
         assert config.max_tokens == 100
         assert config.temperature == 0.5
@@ -202,6 +198,7 @@ class TestLLM:
         config = GenerationConfig(max_tokens=10, temperature=0.0)
 
         tokens = []
+
         def on_token(token: str):
             tokens.append(token)
 
@@ -387,12 +384,7 @@ class TestConvenienceFunctions:
     @pytest.mark.slow
     def test_complete_function(self, model_path):
         """Test complete() convenience function."""
-        response = complete(
-            "What is Python?",
-            model_path=model_path,
-            max_tokens=30,
-            temperature=0.0
-        )
+        response = complete("What is Python?", model_path=model_path, max_tokens=30, temperature=0.0)
 
         assert isinstance(response, (str, Response))
         assert len(response) > 0
@@ -400,13 +392,7 @@ class TestConvenienceFunctions:
     @pytest.mark.slow
     def test_complete_streaming(self, model_path):
         """Test complete() with streaming."""
-        chunks = list(complete(
-            "Count to 3:",
-            model_path=model_path,
-            max_tokens=20,
-            temperature=0.0,
-            stream=True
-        ))
+        chunks = list(complete("Count to 3:", model_path=model_path, max_tokens=20, temperature=0.0, stream=True))
 
         assert len(chunks) > 0
         full_response = "".join(chunks)
@@ -417,15 +403,10 @@ class TestConvenienceFunctions:
         """Test chat() convenience function."""
         messages = [
             {"role": "system", "content": "You are a helpful assistant."},
-            {"role": "user", "content": "What is 2+2?"}
+            {"role": "user", "content": "What is 2+2?"},
         ]
 
-        response = chat(
-            messages,
-            model_path=model_path,
-            max_tokens=30,
-            temperature=0.0
-        )
+        response = chat(messages, model_path=model_path, max_tokens=30, temperature=0.0)
 
         assert isinstance(response, (str, Response))
         assert len(response) > 0
@@ -433,17 +414,9 @@ class TestConvenienceFunctions:
     @pytest.mark.slow
     def test_chat_streaming(self, model_path):
         """Test chat() with streaming."""
-        messages = [
-            {"role": "user", "content": "Count to 3"}
-        ]
+        messages = [{"role": "user", "content": "Count to 3"}]
 
-        chunks = list(chat(
-            messages,
-            model_path=model_path,
-            max_tokens=20,
-            temperature=0.0,
-            stream=True
-        ))
+        chunks = list(chat(messages, model_path=model_path, max_tokens=20, temperature=0.0, stream=True))
 
         assert len(chunks) > 0
 
@@ -508,7 +481,7 @@ class TestStopSequences:
         config = GenerationConfig(
             max_tokens=100,
             temperature=0.0,
-            stop_sequences=["\n\n"]  # Stop at double newline
+            stop_sequences=["\n\n"],  # Stop at double newline
         )
 
         response = gen("Count from 1 to 10:", config=config)
@@ -523,7 +496,7 @@ class TestStopSequences:
         config = GenerationConfig(
             max_tokens=100,
             temperature=0.0,
-            stop_sequences=[".", "!", "?"]  # Stop at any sentence ending
+            stop_sequences=[".", "!", "?"],  # Stop at any sentence ending
         )
 
         response = gen("Tell me something about Python", config=config)
@@ -537,11 +510,7 @@ class TestStopSequences:
     def test_stop_sequence_not_in_output(self, model_path):
         """Test that stop sequence is excluded from output."""
         gen = LLM(model_path)
-        config = GenerationConfig(
-            max_tokens=50,
-            temperature=0.0,
-            stop_sequences=["."]
-        )
+        config = GenerationConfig(max_tokens=50, temperature=0.0, stop_sequences=["."])
 
         response = gen("Say hello", config=config)
         # The stop sequence itself should not be included
@@ -554,7 +523,7 @@ class TestStopSequences:
         config = GenerationConfig(
             max_tokens=20,
             temperature=0.0,
-            stop_sequences=[]  # No stop sequences
+            stop_sequences=[],  # No stop sequences
         )
 
         response = gen("Hello", config=config)
@@ -565,11 +534,7 @@ class TestStopSequences:
     def test_stop_sequence_streaming(self, model_path):
         """Test stop sequences work in streaming mode."""
         gen = LLM(model_path)
-        config = GenerationConfig(
-            max_tokens=100,
-            temperature=0.0,
-            stop_sequences=["."]
-        )
+        config = GenerationConfig(max_tokens=100, temperature=0.0, stop_sequences=["."])
 
         chunks = list(gen("Say hello", config=config, stream=True))
         full_response = "".join(chunks)

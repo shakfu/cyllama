@@ -30,13 +30,13 @@ def inspect_model(model_path):
 
     # Display important metadata
     important_keys = [
-        'general.architecture',
-        'general.name',
-        'general.file_type',
-        'llama.context_length',
-        'llama.embedding_length',
-        'llama.block_count',
-        'llama.vocab_size',
+        "general.architecture",
+        "general.name",
+        "general.file_type",
+        "llama.context_length",
+        "llama.embedding_length",
+        "llama.block_count",
+        "llama.vocab_size",
     ]
 
     for key in important_keys:
@@ -89,7 +89,7 @@ def create_custom_gguf(output_path):
 
 def modify_metadata(model_path, output_path):
     """Load a GGUF file, modify metadata, and save."""
-    print(f"\n=== Modifying GGUF Metadata ===\n")
+    print("\n=== Modifying GGUF Metadata ===\n")
 
     # Load existing GGUF
     ctx = GGUFContext.from_file(model_path)
@@ -129,7 +129,7 @@ def search_tensor(model_path, tensor_name):
         tensors = ctx.get_all_tensor_info()
         # Find the tensor in the list
         for tensor in tensors:
-            if tensor['name'] == tensor_name:
+            if tensor["name"] == tensor_name:
                 print(f"  Type: {tensor['type']}")
                 print(f"  Size: {tensor['size']} bytes")
                 print(f"  Offset: {tensor['offset']} bytes")
@@ -169,6 +169,7 @@ def main(model_path):
 
 if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser(description="GGUF API Examples")
     parser.add_argument("-m", "--model", required=True, help="Path to model file")
     args = parser.parse_args()

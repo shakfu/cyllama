@@ -21,7 +21,7 @@ Example:
     >>>     print(f"{prompt} -> {response}")
 """
 
-from typing import List, Optional, Tuple, Dict, Any
+from typing import List, Optional
 from dataclasses import dataclass
 import logging
 import time
@@ -47,6 +47,7 @@ from .api import GenerationConfig, Response, GenerationStats
 @dataclass
 class BatchRequest:
     """Single request in a batch."""
+
     id: int
     prompt: str
     max_tokens: int = 128
@@ -56,6 +57,7 @@ class BatchRequest:
 @dataclass
 class BatchResponse:
     """Response for a single request in a batch."""
+
     id: int
     prompt: str
     response: str
@@ -94,7 +96,7 @@ class BatchGenerator:
         n_gpu_layers: int = 99,
         n_seq_max: int = 8,
         verbose: bool = False,
-        use_pooling: bool = False
+        use_pooling: bool = False,
     ):
         """
         Initialize batch generator.
@@ -161,15 +163,15 @@ class BatchGenerator:
         self._closed = True
 
         # Release context first (depends on model)
-        if hasattr(self, 'ctx') and self.ctx is not None:
+        if hasattr(self, "ctx") and self.ctx is not None:
             self.ctx = None
 
         # Release model
-        if hasattr(self, 'model') and self.model is not None:
+        if hasattr(self, "model") and self.model is not None:
             self.model = None
 
         # Clear vocab reference
-        if hasattr(self, 'vocab'):
+        if hasattr(self, "vocab"):
             self.vocab = None
 
         if self.verbose:
@@ -204,11 +206,7 @@ class BatchGenerator:
                 "Create a new BatchGenerator instance to continue."
             )
 
-    def generate_batch(
-        self,
-        prompts: List[str],
-        config: Optional[GenerationConfig] = None
-    ) -> List[Response]:
+    def generate_batch(self, prompts: List[str], config: Optional[GenerationConfig] = None) -> List[Response]:
         """
         Generate responses for a batch of prompts.
 
@@ -267,11 +265,7 @@ class BatchGenerator:
         # Tokenize all prompts
         tokenized_prompts = []
         for prompt in prompts:
-            tokens = self.vocab.tokenize(
-                prompt,
-                add_special=config.add_bos,
-                parse_special=config.parse_special
-            )
+            tokens = self.vocab.tokenize(prompt, add_special=config.add_bos, parse_special=config.parse_special)
             tokenized_prompts.append(tokens)
 
         if self.verbose:
@@ -306,7 +300,7 @@ class BatchGenerator:
         batch_idx = 0
         for seq_id, tokens in enumerate(tokenized_prompts):
             for i, token in enumerate(tokens):
-                is_last = (i == len(tokens) - 1)
+                is_last = i == len(tokens) - 1
                 batch.add(token, i, [seq_id], is_last)  # Use add() with positional args
                 if is_last:
                     # Remember the batch index where this sequence's logits will be
@@ -371,15 +365,10 @@ class BatchGenerator:
                 prompt_tokens=len(prompt_tokens),
                 generated_tokens=n_generated,
                 total_time=total_time / len(prompts),  # Approximate per-prompt time
-                tokens_per_second=n_generated / (total_time / len(prompts)) if total_time > 0 else 0.0
+                tokens_per_second=n_generated / (total_time / len(prompts)) if total_time > 0 else 0.0,
             )
 
-            result_responses.append(Response(
-                text=text,
-                stats=stats,
-                finish_reason="stop",
-                model=self.model_path
-            ))
+            result_responses.append(Response(text=text, stats=stats, finish_reason="stop", model=self.model_path))
 
         if self.verbose:
             print(f"Generated {len(prompts)} responses")
@@ -389,9 +378,7 @@ class BatchGenerator:
         return result_responses
 
     def generate_batch_detailed(
-        self,
-        requests: List[BatchRequest],
-        config: Optional[GenerationConfig] = None
+        self, requests: List[BatchRequest], config: Optional[GenerationConfig] = None
     ) -> List[BatchResponse]:
         """
         Generate responses with detailed statistics.
@@ -414,21 +401,16 @@ class BatchGenerator:
             raise TypeError("requests cannot be None, expected a list of BatchRequest objects")
 
         if not isinstance(requests, list):
-            raise TypeError(
-                f"requests must be a list of BatchRequest objects, got {type(requests).__name__}"
-            )
+            raise TypeError(f"requests must be a list of BatchRequest objects, got {type(requests).__name__}")
 
         if not requests:
-            raise ValueError(
-                "requests list cannot be empty. Provide at least one BatchRequest."
-            )
+            raise ValueError("requests list cannot be empty. Provide at least one BatchRequest.")
 
         # Validate all requests are BatchRequest objects
         for i, req in enumerate(requests):
             if not isinstance(req, BatchRequest):
                 raise TypeError(
-                    f"All requests must be BatchRequest objects, but request at index {i} "
-                    f"is {type(req).__name__}"
+                    f"All requests must be BatchRequest objects, but request at index {i} is {type(req).__name__}"
                 )
 
         prompts = [req.prompt for req in requests]
@@ -442,7 +424,7 @@ class BatchGenerator:
                 prompt=req.prompt,
                 response=response.text,
                 tokens_generated=response.stats.generated_tokens if response.stats else 0,
-                time_taken=response.stats.total_time if response.stats else 0.0
+                time_taken=response.stats.total_time if response.stats else 0.0,
             )
             results.append(result)
 
@@ -455,7 +437,7 @@ def batch_generate(
     batch_size: int = 512,
     n_seq_max: int = 8,
     config: Optional[GenerationConfig] = None,
-    **kwargs
+    **kwargs,
 ) -> List[Response]:
     """
     Convenience function for batch generation.

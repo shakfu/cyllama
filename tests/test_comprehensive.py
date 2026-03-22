@@ -9,26 +9,21 @@ This module covers test gaps identified in CODE_REVIEW.md:
 """
 
 import pytest
-import os
 import threading
 import concurrent.futures
-import tempfile
 from pathlib import Path
-from unittest.mock import patch, MagicMock
 
 from conftest import DEFAULT_MODEL
 from cyllama import Response
 
 # Skip all tests if model is not available
-pytestmark = pytest.mark.skipif(
-    not Path(DEFAULT_MODEL).exists(),
-    reason="Model not found"
-)
+pytestmark = pytest.mark.skipif(not Path(DEFAULT_MODEL).exists(), reason="Model not found")
 
 
 # =============================================================================
 # Error Condition Tests (HIGH PRIORITY)
 # =============================================================================
+
 
 class TestInvalidModelPath:
     """Tests for invalid model path handling."""
@@ -73,7 +68,7 @@ class TestInvalidModelPath:
         from cyllama import LLM
 
         # Read first 1KB of valid model (will be invalid)
-        with open(model_path, 'rb') as f:
+        with open(model_path, "rb") as f:
             partial_data = f.read(1024)
 
         truncated_file = tmp_path / "truncated.gguf"
@@ -88,7 +83,7 @@ class TestContextErrors:
 
     def test_context_size_zero(self, model_path):
         """Test context size 0 raises validation error."""
-        from cyllama import LLM, GenerationConfig
+        from cyllama import GenerationConfig
 
         with pytest.raises(ValueError, match="n_ctx must be >= 1"):
             GenerationConfig(n_ctx=0)
@@ -116,11 +111,7 @@ class TestBatchGeneratorErrors:
         from cyllama import BatchGenerator
 
         with pytest.raises((FileNotFoundError, RuntimeError, OSError, ValueError)):
-            BatchGenerator(
-                model_path="/nonexistent/model.gguf",
-                n_seq_max=1,
-                verbose=False
-            )
+            BatchGenerator(model_path="/nonexistent/model.gguf", n_seq_max=1, verbose=False)
 
     def test_zero_n_seq_max(self, model_path):
         """Test BatchGenerator with n_seq_max=0."""
@@ -128,11 +119,7 @@ class TestBatchGeneratorErrors:
 
         # n_seq_max=0 should either raise or create generator that can't process
         try:
-            gen = BatchGenerator(
-                model_path=model_path,
-                n_seq_max=0,
-                verbose=False
-            )
+            gen = BatchGenerator(model_path=model_path, n_seq_max=0, verbose=False)
             # If it creates, any prompts should fail
             with pytest.raises((ValueError, RuntimeError)):
                 gen.generate_batch(["test"])
@@ -146,7 +133,7 @@ class TestMemoryEstimationErrors:
 
     def test_invalid_model_path_memory(self):
         """Test memory estimation with invalid model path."""
-        from cyllama.memory import estimate_memory_usage, estimate_gpu_layers
+        from cyllama.memory import estimate_memory_usage
 
         # Should handle gracefully (return defaults or raise)
         try:
@@ -175,11 +162,7 @@ class TestMemoryEstimationErrors:
 
         # Should raise or clamp to valid value
         try:
-            result = estimate_memory_usage(
-                "nonexistent.gguf",
-                ctx_size=-100,
-                batch_size=512
-            )
+            result = estimate_memory_usage("nonexistent.gguf", ctx_size=-100, batch_size=512)
             # If it succeeds, context should have been clamped
         except (ValueError, OSError, FileNotFoundError):
             pass  # Expected
@@ -188,6 +171,7 @@ class TestMemoryEstimationErrors:
 # =============================================================================
 # Unicode Handling Tests (HIGH PRIORITY)
 # =============================================================================
+
 
 class TestUnicodePrompts:
     """Tests for Unicode character handling in prompts."""
@@ -266,7 +250,7 @@ class TestUnicodePrompts:
         # Various special characters
         special_chars = [
             "Test with dash: -",
-            "Test with quotes: \"text\"",
+            'Test with quotes: "text"',
             "Test with smart quotes",
             "Test with ellipsis...",
             "Math symbols: x + y = z",
@@ -283,11 +267,7 @@ class TestUnicodePrompts:
         """Test Unicode in batch generation."""
         from cyllama import BatchGenerator, GenerationConfig
 
-        gen = BatchGenerator(
-            model_path=model_path,
-            n_seq_max=3,
-            verbose=False
-        )
+        gen = BatchGenerator(model_path=model_path, n_seq_max=3, verbose=False)
 
         prompts = [
             "Hello world",
@@ -364,11 +344,7 @@ class TestUnicodeBatchGenerator:
         """Test batch with Unicode prompts."""
         from cyllama import BatchGenerator, GenerationConfig
 
-        gen = BatchGenerator(
-            model_path=model_path,
-            n_seq_max=2,
-            verbose=False
-        )
+        gen = BatchGenerator(model_path=model_path, n_seq_max=2, verbose=False)
 
         prompts = ["Hello", "World"]
         config = GenerationConfig(max_tokens=5, temperature=0.0)
@@ -385,6 +361,7 @@ class TestUnicodeBatchGenerator:
 # =============================================================================
 # Concurrent Execution Tests (MEDIUM PRIORITY)
 # =============================================================================
+
 
 class TestThreadSafety:
     """Tests for thread safety of various components."""
@@ -435,11 +412,7 @@ class TestThreadSafety:
         from cyllama import BatchGenerator, GenerationConfig
 
         def batch_generate(idx):
-            gen = BatchGenerator(
-                model_path=model_path,
-                n_seq_max=1,
-                verbose=False
-            )
+            gen = BatchGenerator(model_path=model_path, n_seq_max=1, verbose=False)
             config = GenerationConfig(max_tokens=3, temperature=0.0)
             responses = gen.generate_batch([f"Test {idx}"], config)
             gen.close()
@@ -458,11 +431,7 @@ class TestThreadSafety:
         from cyllama import GenerationConfig
 
         def create_config(idx):
-            config = GenerationConfig(
-                max_tokens=idx * 10 + 10,
-                temperature=0.5,
-                top_k=40
-            )
+            config = GenerationConfig(max_tokens=idx * 10 + 10, temperature=0.5, top_k=40)
             return config.max_tokens
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
@@ -526,6 +495,7 @@ class TestMemoryPoolThreadSafety:
 # =============================================================================
 # Boundary Condition Tests (MEDIUM PRIORITY)
 # =============================================================================
+
 
 class TestMaxTokensBoundary:
     """Tests for max_tokens boundary conditions."""
@@ -619,7 +589,7 @@ class TestBatchSizeBoundary:
             model_path=model_path,
             batch_size=8,  # Very small
             n_seq_max=1,
-            verbose=False
+            verbose=False,
         )
 
         config = GenerationConfig(max_tokens=5, temperature=0.0)
@@ -717,11 +687,7 @@ class TestSeqMaxBoundary:
         """Test n_seq_max=1 (minimum)."""
         from cyllama import BatchGenerator, GenerationConfig
 
-        gen = BatchGenerator(
-            model_path=model_path,
-            n_seq_max=1,
-            verbose=False
-        )
+        gen = BatchGenerator(model_path=model_path, n_seq_max=1, verbose=False)
 
         config = GenerationConfig(max_tokens=5, temperature=0.0)
         responses = gen.generate_batch(["Hello"], config)
@@ -736,11 +702,7 @@ class TestSeqMaxBoundary:
         from cyllama import BatchGenerator, GenerationConfig
 
         n_seq = 4
-        gen = BatchGenerator(
-            model_path=model_path,
-            n_seq_max=n_seq,
-            verbose=False
-        )
+        gen = BatchGenerator(model_path=model_path, n_seq_max=n_seq, verbose=False)
 
         prompts = [f"Prompt {i}" for i in range(n_seq)]
         config = GenerationConfig(max_tokens=3, temperature=0.0)
@@ -764,7 +726,7 @@ class TestStopSequenceBoundary:
         config = GenerationConfig(
             max_tokens=10,
             temperature=0.0,
-            stop_sequences=[""]  # Empty string
+            stop_sequences=[""],  # Empty string
         )
 
         response = llm("Hello", config=config)
@@ -780,9 +742,7 @@ class TestStopSequenceBoundary:
         llm = LLM(model_path, verbose=False)
         # Many stop sequences
         config = GenerationConfig(
-            max_tokens=50,
-            temperature=0.0,
-            stop_sequences=[".", "!", "?", ",", ";", ":", "\n", "\t"]
+            max_tokens=50, temperature=0.0, stop_sequences=[".", "!", "?", ",", ";", ":", "\n", "\t"]
         )
 
         response = llm("Tell me something", config=config)
@@ -799,7 +759,7 @@ class TestStopSequenceBoundary:
         config = GenerationConfig(
             max_tokens=50,
             temperature=0.0,
-            stop_sequences=["This is a very long stop sequence that is unlikely to appear"]
+            stop_sequences=["This is a very long stop sequence that is unlikely to appear"],
         )
 
         response = llm("Hello world", config=config)
@@ -841,6 +801,7 @@ class TestRepeatPenaltyBoundary:
 # =============================================================================
 # Additional Edge Cases
 # =============================================================================
+
 
 class TestSpecialPrompts:
     """Tests for special prompt content."""
@@ -932,12 +893,7 @@ class TestResourceLimits:
 
         # Use separate generators for each batch to avoid KV cache accumulation
         for i in range(2):
-            gen = BatchGenerator(
-                model_path=model_path,
-                n_seq_max=1,
-                n_ctx=512,
-                verbose=False
-            )
+            gen = BatchGenerator(model_path=model_path, n_seq_max=1, n_ctx=512, verbose=False)
 
             config = GenerationConfig(max_tokens=3, temperature=0.0)
             responses = gen.generate_batch([f"Test {i}"], config)

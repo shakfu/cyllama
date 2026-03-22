@@ -119,6 +119,7 @@ class GenerationConfig:
         >>> # Custom tensor split: 30% GPU 0, 70% GPU 1
         >>> config = GenerationConfig(tensor_split=[0.3, 0.7])
     """
+
     max_tokens: int = 512
     temperature: float = 0.8
     top_k: int = 40
@@ -189,6 +190,7 @@ class GenerationConfig:
 @dataclass
 class GenerationStats:
     """Statistics from a generation run."""
+
     prompt_tokens: int
     generated_tokens: int
     total_time: float
@@ -219,6 +221,7 @@ class Response:
         >>> print(response.to_json())  # JSON output
         >>> data = response.to_dict()  # Dictionary for serialization
     """
+
     text: str
     stats: Optional[GenerationStats] = None
     finish_reason: str = "stop"
@@ -314,11 +317,13 @@ class Response:
             >>> print(response.to_json(indent=2))
         """
         import json
+
         return json.dumps(self.to_dict(), indent=indent)
 
 
 class ResponseCacheInfo(NamedTuple):
     """Cache statistics for LLM response caching."""
+
     hits: int
     misses: int
     maxsize: int
@@ -446,7 +451,7 @@ class LLM:
         verbose: bool = False,
         cache_size: int = 0,
         cache_ttl: Optional[float] = None,
-        **kwargs
+        **kwargs,
     ):
         """
         Initialize generator with a model.
@@ -493,22 +498,22 @@ class LLM:
             if kwargs:
                 # Create a copy of config with kwargs overrides
                 config_dict = {
-                    'max_tokens': config.max_tokens,
-                    'temperature': config.temperature,
-                    'top_k': config.top_k,
-                    'top_p': config.top_p,
-                    'min_p': config.min_p,
-                    'repeat_penalty': config.repeat_penalty,
-                    'n_gpu_layers': config.n_gpu_layers,
-                    'main_gpu': config.main_gpu,
-                    'split_mode': config.split_mode,
-                    'tensor_split': config.tensor_split.copy() if config.tensor_split else None,
-                    'n_ctx': config.n_ctx,
-                    'n_batch': config.n_batch,
-                    'seed': config.seed,
-                    'stop_sequences': config.stop_sequences.copy(),
-                    'add_bos': config.add_bos,
-                    'parse_special': config.parse_special,
+                    "max_tokens": config.max_tokens,
+                    "temperature": config.temperature,
+                    "top_k": config.top_k,
+                    "top_p": config.top_p,
+                    "min_p": config.min_p,
+                    "repeat_penalty": config.repeat_penalty,
+                    "n_gpu_layers": config.n_gpu_layers,
+                    "main_gpu": config.main_gpu,
+                    "split_mode": config.split_mode,
+                    "tensor_split": config.tensor_split.copy() if config.tensor_split else None,
+                    "n_ctx": config.n_ctx,
+                    "n_batch": config.n_batch,
+                    "seed": config.seed,
+                    "stop_sequences": config.stop_sequences.copy(),
+                    "add_bos": config.add_bos,
+                    "parse_special": config.parse_special,
                 }
                 config_dict.update(kwargs)
                 self.config = GenerationConfig(**config_dict)
@@ -532,8 +537,10 @@ class LLM:
 
         if self.verbose:
             print(f"Loading model: {model_path}")
-            gpu_info = (f"GPU config: n_gpu_layers={self.config.n_gpu_layers}, "
-                        f"main_gpu={self.config.main_gpu}, split_mode={self.config.split_mode}")
+            gpu_info = (
+                f"GPU config: n_gpu_layers={self.config.n_gpu_layers}, "
+                f"main_gpu={self.config.main_gpu}, split_mode={self.config.split_mode}"
+            )
             if self.config.tensor_split:
                 gpu_info += f", tensor_split={self.config.tensor_split}"
             print(gpu_info)
@@ -561,7 +568,7 @@ class LLM:
 
     def __del__(self):
         """Destructor - cleanup resources if not already done."""
-        if not getattr(self, '_closed', True):
+        if not getattr(self, "_closed", True):
             self.close()
 
     def close(self):
@@ -575,18 +582,18 @@ class LLM:
         After calling close(), the LLM instance can still be used - new
         contexts will be created as needed.
         """
-        if getattr(self, '_closed', True):
+        if getattr(self, "_closed", True):
             return
 
-        if getattr(self, 'verbose', False):
+        if getattr(self, "verbose", False):
             print("Closing LLM resources")
 
         # Release context and sampler (use getattr for safety in __del__)
-        if getattr(self, '_ctx', None) is not None:
+        if getattr(self, "_ctx", None) is not None:
             self._ctx = None
             self._ctx_size = 0
 
-        if getattr(self, '_sampler', None) is not None:
+        if getattr(self, "_sampler", None) is not None:
             self._sampler = None
 
         self._closed = True
@@ -743,7 +750,7 @@ class LLM:
         prompt: str,
         config: Optional[GenerationConfig] = None,
         stream: bool = False,
-        on_token: Optional[Callable[[str], None]] = None
+        on_token: Optional[Callable[[str], None]] = None,
     ) -> Union[Response, Iterator[str]]:
         """
         Generate text from a prompt.
@@ -764,10 +771,7 @@ class LLM:
             return self._generate(prompt, config, on_token)
 
     def _generate(
-        self,
-        prompt: str,
-        config: Optional[GenerationConfig] = None,
-        on_token: Optional[Callable[[str], None]] = None
+        self, prompt: str, config: Optional[GenerationConfig] = None, on_token: Optional[Callable[[str], None]] = None
     ) -> Response:
         """Non-streaming generation returning Response object."""
         config = config or self.config
@@ -786,11 +790,7 @@ class LLM:
         start_time = time.time()
 
         # Tokenize for stats
-        prompt_tokens = self.vocab.tokenize(
-            prompt,
-            add_special=config.add_bos,
-            parse_special=config.parse_special
-        )
+        prompt_tokens = self.vocab.tokenize(prompt, add_special=config.add_bos, parse_special=config.parse_special)
         n_prompt = len(prompt_tokens)
 
         # Generate text
@@ -808,15 +808,10 @@ class LLM:
             prompt_tokens=n_prompt,
             generated_tokens=n_generated,
             total_time=total_time,
-            tokens_per_second=n_generated / total_time if total_time > 0 else 0.0
+            tokens_per_second=n_generated / total_time if total_time > 0 else 0.0,
         )
 
-        response = Response(
-            text=text,
-            stats=stats,
-            finish_reason="stop",
-            model=self.model_path
-        )
+        response = Response(text=text, stats=stats, finish_reason="stop", model=self.model_path)
 
         # Store in cache if enabled
         if cache_key is not None:
@@ -825,10 +820,7 @@ class LLM:
         return response
 
     def _generate_stream(
-        self,
-        prompt: str,
-        config: Optional[GenerationConfig] = None,
-        on_token: Optional[Callable[[str], None]] = None
+        self, prompt: str, config: Optional[GenerationConfig] = None, on_token: Optional[Callable[[str], None]] = None
     ) -> Iterator[str]:
         """
         Internal streaming generation implementation.
@@ -840,11 +832,7 @@ class LLM:
         config = config or self.config
 
         # Tokenize prompt
-        prompt_tokens = self.vocab.tokenize(
-            prompt,
-            add_special=config.add_bos,
-            parse_special=config.parse_special
-        )
+        prompt_tokens = self.vocab.tokenize(prompt, add_special=config.add_bos, parse_special=config.parse_special)
         n_prompt = len(prompt_tokens)
 
         if self.verbose:
@@ -858,7 +846,7 @@ class LLM:
         # Process prompt in batches to avoid exceeding n_batch limit
         n_batch = config.n_batch
         for i in range(0, n_prompt, n_batch):
-            batch_tokens = prompt_tokens[i:i + n_batch]
+            batch_tokens = prompt_tokens[i : i + n_batch]
             batch = llama_batch_get_one(batch_tokens, i)  # Pass position offset
             self._ctx.decode(batch)
 
@@ -940,11 +928,7 @@ class LLM:
             self._sampler.print_perf_data()
             self._ctx.print_perf_data()
 
-    def _find_stop_sequence(
-        self,
-        text: str,
-        stop_sequences: List[str]
-    ) -> Tuple[Optional[int], int]:
+    def _find_stop_sequence(self, text: str, stop_sequences: List[str]) -> Tuple[Optional[int], int]:
         """
         Find the earliest stop sequence in text.
 
@@ -969,11 +953,7 @@ class LLM:
 
         return earliest_pos, earliest_len
 
-    def generate_with_stats(
-        self,
-        prompt: str,
-        config: Optional[GenerationConfig] = None
-    ) -> Response:
+    def generate_with_stats(self, prompt: str, config: Optional[GenerationConfig] = None) -> Response:
         """
         Generate text and return Response with detailed statistics.
 
@@ -1038,8 +1018,7 @@ class LLM:
 
         if tmpl:
             chat_messages = [
-                LlamaChatMessage(role=msg.get("role", "user"), content=msg.get("content", ""))
-                for msg in messages
+                LlamaChatMessage(role=msg.get("role", "user"), content=msg.get("content", "")) for msg in messages
             ]
             return self.model.chat_apply_template(tmpl, chat_messages, add_generation_prompt)
         else:
@@ -1062,13 +1041,14 @@ class LLM:
 
 # Convenience functions
 
+
 def complete(
     prompt: str,
     model_path: str,
     config: Optional[GenerationConfig] = None,
     stream: bool = False,
     verbose: bool = False,
-    **kwargs
+    **kwargs,
 ) -> Union[Response, Iterator[str]]:
     """
     Convenience function for one-off text completion.
@@ -1122,7 +1102,7 @@ def chat(
     stream: bool = False,
     verbose: bool = False,
     template: Optional[str] = None,
-    **kwargs
+    **kwargs,
 ) -> Union[Response, Iterator[str]]:
     """
     Convenience function for chat-style generation.
@@ -1241,8 +1221,7 @@ def apply_chat_template(
     if tmpl:
         # Convert messages to LlamaChatMessage objects
         chat_messages = [
-            LlamaChatMessage(role=msg.get("role", "user"), content=msg.get("content", ""))
-            for msg in messages
+            LlamaChatMessage(role=msg.get("role", "user"), content=msg.get("content", "")) for msg in messages
         ]
         prompt = model.chat_apply_template(tmpl, chat_messages, add_generation_prompt)
     else:
@@ -1305,7 +1284,9 @@ def get_chat_template(model_path: str, template_name: Optional[str] = None) -> s
     return result
 
 
-def simple(model_path: str, prompt: str, ngl: int = 99, n_predict: int = 32, n_ctx: Optional[int] = None, verbose: bool = False) -> bool:
+def simple(
+    model_path: str, prompt: str, ngl: int = 99, n_predict: int = 32, n_ctx: Optional[int] = None, verbose: bool = False
+) -> bool:
     """
     Simple, educational example showing raw llama.cpp usage.
 
@@ -1373,7 +1354,7 @@ def simple(model_path: str, prompt: str, ngl: int = 99, n_predict: int = 32, n_c
 
     # print the prompt token-by-token
     print()
-    prompt=""
+    prompt = ""
     for i in prompt_tokens:
         try:
             prompt += vocab.token_to_piece(i, lstrip=0, special=False)
@@ -1391,7 +1372,6 @@ def simple(model_path: str, prompt: str, ngl: int = 99, n_predict: int = 32, n_c
     n_pos = n_prompt
     response = ""
     for i in range(n_predict):
-
         ctx.decode(batch)
 
         # sample the next token
@@ -1416,8 +1396,10 @@ def simple(model_path: str, prompt: str, ngl: int = 99, n_predict: int = 32, n_c
 
     t_main_end: int = cy.ggml_time_us()
 
-    print("decoded %d tokens in %.2f s, speed: %.2f t/s" %
-            (n_decode, (t_main_end - t_main_start) / 1000000.0, n_decode / ((t_main_end - t_main_start) / 1000000.0)))
+    print(
+        "decoded %d tokens in %.2f s, speed: %.2f t/s"
+        % (n_decode, (t_main_end - t_main_start) / 1000000.0, n_decode / ((t_main_end - t_main_start) / 1000000.0))
+    )
     print()
 
     smplr.print_perf_data()
@@ -1461,13 +1443,7 @@ class AsyncLLM:
         >>> asyncio.run(main())
     """
 
-    def __init__(
-        self,
-        model_path: str,
-        config: Optional[GenerationConfig] = None,
-        verbose: bool = False,
-        **kwargs
-    ):
+    def __init__(self, model_path: str, config: Optional[GenerationConfig] = None, verbose: bool = False, **kwargs):
         """
         Initialize async generator with a model.
 
@@ -1520,12 +1496,7 @@ class AsyncLLM:
         """Get the model path."""
         return self._llm.model_path
 
-    async def __call__(
-        self,
-        prompt: str,
-        config: Optional[GenerationConfig] = None,
-        **kwargs
-    ) -> Response:
+    async def __call__(self, prompt: str, config: Optional[GenerationConfig] = None, **kwargs) -> Response:
         """
         Generate text from a prompt asynchronously.
 
@@ -1550,18 +1521,9 @@ class AsyncLLM:
             effective_config = config
 
         async with self._lock:
-            return await asyncio.to_thread(
-                self._llm._generate,
-                prompt,
-                effective_config
-            )
+            return await asyncio.to_thread(self._llm._generate, prompt, effective_config)
 
-    async def generate(
-        self,
-        prompt: str,
-        config: Optional[GenerationConfig] = None,
-        **kwargs
-    ) -> Response:
+    async def generate(self, prompt: str, config: Optional[GenerationConfig] = None, **kwargs) -> Response:
         """
         Generate text from a prompt asynchronously.
 
@@ -1577,12 +1539,7 @@ class AsyncLLM:
         """
         return await self(prompt, config, **kwargs)
 
-    async def stream(
-        self,
-        prompt: str,
-        config: Optional[GenerationConfig] = None,
-        **kwargs
-    ) -> AsyncIterator[str]:
+    async def stream(self, prompt: str, config: Optional[GenerationConfig] = None, **kwargs) -> AsyncIterator[str]:
         """
         Stream generated text chunks asynchronously.
 
@@ -1613,18 +1570,13 @@ class AsyncLLM:
         async def producer():
             """Run sync generator in thread and put items in queue."""
             try:
+
                 def generate_sync():
                     for chunk in self._llm._generate_stream(prompt, effective_config):
                         # Schedule putting item in queue from the thread
-                        asyncio.run_coroutine_threadsafe(
-                            queue.put(chunk),
-                            loop
-                        )
+                        asyncio.run_coroutine_threadsafe(queue.put(chunk), loop)
                     # Signal completion
-                    asyncio.run_coroutine_threadsafe(
-                        queue.put(None),
-                        loop
-                    )
+                    asyncio.run_coroutine_threadsafe(queue.put(None), loop)
 
                 await asyncio.to_thread(generate_sync)
             except Exception as e:
@@ -1648,11 +1600,7 @@ class AsyncLLM:
                 # Ensure producer completes
                 await producer_task
 
-    async def generate_with_stats(
-        self,
-        prompt: str,
-        config: Optional[GenerationConfig] = None
-    ) -> Response:
+    async def generate_with_stats(self, prompt: str, config: Optional[GenerationConfig] = None) -> Response:
         """
         Generate text and return Response with detailed statistics.
 
@@ -1667,11 +1615,7 @@ class AsyncLLM:
             Response object with text and statistics
         """
         async with self._lock:
-            return await asyncio.to_thread(
-                self._llm.generate_with_stats,
-                prompt,
-                config
-            )
+            return await asyncio.to_thread(self._llm.generate_with_stats, prompt, config)
 
     async def chat(
         self,
@@ -1721,38 +1665,30 @@ class AsyncLLM:
         """
         return self._llm.get_chat_template(template_name)
 
-    def _build_config(
-        self,
-        base_config: Optional[GenerationConfig],
-        overrides: Dict[str, Any]
-    ) -> GenerationConfig:
+    def _build_config(self, base_config: Optional[GenerationConfig], overrides: Dict[str, Any]) -> GenerationConfig:
         """Build a config with overrides applied."""
         config = base_config or self._llm.config
         config_dict = {
-            'max_tokens': config.max_tokens,
-            'temperature': config.temperature,
-            'top_k': config.top_k,
-            'top_p': config.top_p,
-            'min_p': config.min_p,
-            'repeat_penalty': config.repeat_penalty,
-            'n_gpu_layers': config.n_gpu_layers,
-            'n_ctx': config.n_ctx,
-            'n_batch': config.n_batch,
-            'seed': config.seed,
-            'stop_sequences': config.stop_sequences.copy(),
-            'add_bos': config.add_bos,
-            'parse_special': config.parse_special,
+            "max_tokens": config.max_tokens,
+            "temperature": config.temperature,
+            "top_k": config.top_k,
+            "top_p": config.top_p,
+            "min_p": config.min_p,
+            "repeat_penalty": config.repeat_penalty,
+            "n_gpu_layers": config.n_gpu_layers,
+            "n_ctx": config.n_ctx,
+            "n_batch": config.n_batch,
+            "seed": config.seed,
+            "stop_sequences": config.stop_sequences.copy(),
+            "add_bos": config.add_bos,
+            "parse_special": config.parse_special,
         }
         config_dict.update(overrides)
         return GenerationConfig(**config_dict)
 
 
 async def complete_async(
-    prompt: str,
-    model_path: str,
-    config: Optional[GenerationConfig] = None,
-    verbose: bool = False,
-    **kwargs
+    prompt: str, model_path: str, config: Optional[GenerationConfig] = None, verbose: bool = False, **kwargs
 ) -> Response:
     """
     Async convenience function for one-off text completion.
@@ -1786,7 +1722,7 @@ async def complete_async(
         config,
         False,  # stream=False
         verbose,
-        **kwargs
+        **kwargs,
     )
 
 
@@ -1795,7 +1731,7 @@ async def chat_async(
     model_path: str,
     config: Optional[GenerationConfig] = None,
     verbose: bool = False,
-    **kwargs
+    **kwargs,
 ) -> Response:
     """
     Async convenience function for chat-style generation.
@@ -1825,16 +1761,12 @@ async def chat_async(
         config,
         False,  # stream=False
         verbose,
-        **kwargs
+        **kwargs,
     )
 
 
 async def stream_complete_async(
-    prompt: str,
-    model_path: str,
-    config: Optional[GenerationConfig] = None,
-    verbose: bool = False,
-    **kwargs
+    prompt: str, model_path: str, config: Optional[GenerationConfig] = None, verbose: bool = False, **kwargs
 ) -> AsyncIterator[str]:
     """
     Async streaming completion for one-off use.

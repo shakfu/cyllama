@@ -1,9 +1,7 @@
 """Tests for ACP agent implementation."""
 
-import io
-import json
 import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock
 
 from cyllama.agents.acp import (
     ACPAgent,
@@ -12,7 +10,6 @@ from cyllama.agents.acp import (
     ToolCallStatus,
     SessionUpdate,
     StopReason,
-    ACP_PROTOCOL_VERSION,
 )
 from cyllama.agents.session import Session, MemorySessionStore
 
@@ -34,11 +31,7 @@ class TestContentBlock:
         assert "data" not in d
 
     def test_to_dict_with_data(self):
-        block = ContentBlock(
-            type="image",
-            data="base64data",
-            mime_type="image/png"
-        )
+        block = ContentBlock(type="image", data="base64data", mime_type="image/png")
         d = block.to_dict()
 
         assert d["type"] == "image"
@@ -132,10 +125,12 @@ class TestACPAgentHandlers:
 
     def test_handle_initialize(self, agent):
         """Test initialize handler."""
-        result = agent._handle_initialize({
-            "protocolVersion": "2025-01-01",
-            "clientInfo": {"name": "test", "version": "1.0"},
-        })
+        result = agent._handle_initialize(
+            {
+                "protocolVersion": "2025-01-01",
+                "clientInfo": {"name": "test", "version": "1.0"},
+            }
+        )
 
         assert "protocolVersion" in result
         assert "capabilities" in result
@@ -200,10 +195,12 @@ class TestACPAgentHandlers:
         session = Session(id="mode_test")
         agent._session_store.save(session)
 
-        result = agent._handle_session_set_mode({
-            "sessionId": "mode_test",
-            "modeId": "default",
-        })
+        result = agent._handle_session_set_mode(
+            {
+                "sessionId": "mode_test",
+                "modeId": "default",
+            }
+        )
 
         assert "mode" in result
 
@@ -277,7 +274,7 @@ class TestEventToUpdate:
         event = AgentEvent(
             type=EventType.ACTION,
             content="search(query='test')",
-            metadata={"tool_name": "search", "tool_args": {"query": "test"}}
+            metadata={"tool_name": "search", "tool_args": {"query": "test"}},
         )
         update = agent._event_to_update("sess_1", event, 0)
 
@@ -289,11 +286,7 @@ class TestEventToUpdate:
     def test_observation_event(self, agent):
         from cyllama.agents.react import AgentEvent, EventType
 
-        event = AgentEvent(
-            type=EventType.OBSERVATION,
-            content="Found 5 results",
-            metadata={"tool_name": "search"}
-        )
+        event = AgentEvent(type=EventType.OBSERVATION, content="Found 5 results", metadata={"tool_name": "search"})
         update = agent._event_to_update("sess_1", event, 1)
 
         assert update is not None

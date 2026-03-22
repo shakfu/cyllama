@@ -5,14 +5,11 @@ Provides an ACP-compliant agent that can be spawned by editors (Zed, Neovim, etc
 and communicates using JSON-RPC over stdio.
 """
 
-import json
 import logging
 import sys
-import threading
 import uuid
-import time
-from typing import Any, Callable, Dict, Generator, List, Optional, Union
-from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
+from dataclasses import dataclass
 from enum import Enum
 
 from .tools import Tool
@@ -20,18 +17,12 @@ from .react import ReActAgent, AgentEvent, EventType
 from .jsonrpc import (
     JsonRpcServer,
     StdioTransport,
-    JsonRpcError,
-    ErrorCode,
     AsyncBridge,
 )
 from .mcp import McpClient, McpServerConfig
 from .session import (
     Session,
-    SessionStore,
     create_session_store,
-    Message,
-    ToolCallRecord,
-    Permission,
 )
 
 logger = logging.getLogger(__name__)
@@ -42,6 +33,7 @@ ACP_PROTOCOL_VERSION = "2025-01-01"
 
 class StopReason(Enum):
     """Reasons why an agent stopped processing."""
+
     END_TURN = "end_turn"
     MAX_TOKENS = "max_tokens"
     CANCELLED = "cancelled"
@@ -51,6 +43,7 @@ class StopReason(Enum):
 
 class ToolCallStatus(Enum):
     """Status of a tool call."""
+
     PENDING = "pending"
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
@@ -60,6 +53,7 @@ class ToolCallStatus(Enum):
 @dataclass
 class ContentBlock:
     """ACP content block."""
+
     type: str  # "text", "image", "audio", "resource"
     text: Optional[str] = None
     data: Optional[str] = None  # base64 for binary
@@ -86,6 +80,7 @@ class ContentBlock:
 @dataclass
 class ToolCallUpdate:
     """Update for a tool call in progress."""
+
     id: str
     name: str
     status: ToolCallStatus
@@ -108,6 +103,7 @@ class ToolCallUpdate:
 @dataclass
 class SessionUpdate:
     """ACP session update notification."""
+
     session_id: str
     content: Optional[List[ContentBlock]] = None
     tool_calls: Optional[List[ToolCallUpdate]] = None
@@ -200,6 +196,7 @@ class ACPAgent:
 
         if self.inner_agent_type == "constrained":
             from .constrained import ConstrainedAgent
+
             return ConstrainedAgent(
                 llm=self.llm,
                 tools=all_tools,
@@ -225,55 +222,57 @@ class ACPAgent:
             """Read a file from the editor's workspace."""
             return self._acp_read_file(path)
 
-        tools.append(Tool(
-            name="read_file",
-            description="Read the contents of a file from the workspace",
-            func=read_file,
-            parameters={
-                "type": "object",
-                "properties": {
-                    "path": {"type": "string", "description": "Path to the file to read"}
+        tools.append(
+            Tool(
+                name="read_file",
+                description="Read the contents of a file from the workspace",
+                func=read_file,
+                parameters={
+                    "type": "object",
+                    "properties": {"path": {"type": "string", "description": "Path to the file to read"}},
+                    "required": ["path"],
                 },
-                "required": ["path"]
-            }
-        ))
+            )
+        )
 
         # File write tool
         def write_file(path: str, content: str) -> str:
             """Write content to a file in the editor's workspace."""
             return self._acp_write_file(path, content)
 
-        tools.append(Tool(
-            name="write_file",
-            description="Write content to a file in the workspace",
-            func=write_file,
-            parameters={
-                "type": "object",
-                "properties": {
-                    "path": {"type": "string", "description": "Path to the file to write"},
-                    "content": {"type": "string", "description": "Content to write"}
+        tools.append(
+            Tool(
+                name="write_file",
+                description="Write content to a file in the workspace",
+                func=write_file,
+                parameters={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Path to the file to write"},
+                        "content": {"type": "string", "description": "Content to write"},
+                    },
+                    "required": ["path", "content"],
                 },
-                "required": ["path", "content"]
-            }
-        ))
+            )
+        )
 
         # Terminal/shell tool
         def run_command(command: str) -> str:
             """Execute a shell command via the editor's terminal."""
             return self._acp_run_command(command)
 
-        tools.append(Tool(
-            name="run_command",
-            description="Execute a shell command in the terminal",
-            func=run_command,
-            parameters={
-                "type": "object",
-                "properties": {
-                    "command": {"type": "string", "description": "Command to execute"}
+        tools.append(
+            Tool(
+                name="run_command",
+                description="Execute a shell command in the terminal",
+                func=run_command,
+                parameters={
+                    "type": "object",
+                    "properties": {"command": {"type": "string", "description": "Command to execute"}},
+                    "required": ["command"],
                 },
-                "required": ["command"]
-            }
-        ))
+            )
+        )
 
         return tools
 
@@ -301,9 +300,7 @@ class ACPAgent:
 
         try:
             response = self._server.send_request(
-                "fs/write_text_file",
-                {"path": path, "contents": content},
-                timeout=30.0
+                "fs/write_text_file", {"path": path, "contents": content}, timeout=30.0
             )
             if response.is_error:
                 return f"Error writing file: {response.error.message}"
@@ -320,11 +317,7 @@ class ACPAgent:
 
         try:
             # Create terminal
-            create_resp = self._server.send_request(
-                "terminal/create",
-                {"command": command},
-                timeout=10.0
-            )
+            create_resp = self._server.send_request("terminal/create", {"command": command}, timeout=10.0)
             if create_resp.is_error:
                 return f"Error creating terminal: {create_resp.error.message}"
 
@@ -333,25 +326,13 @@ class ACPAgent:
                 return "Error: No terminal ID returned"
 
             # Wait for exit
-            self._server.send_request(
-                "terminal/wait_for_exit",
-                {"terminalId": terminal_id},
-                timeout=120.0
-            )
+            self._server.send_request("terminal/wait_for_exit", {"terminalId": terminal_id}, timeout=120.0)
 
             # Get output
-            output_resp = self._server.send_request(
-                "terminal/output",
-                {"terminalId": terminal_id},
-                timeout=10.0
-            )
+            output_resp = self._server.send_request("terminal/output", {"terminalId": terminal_id}, timeout=10.0)
 
             # Release terminal
-            self._server.send_request(
-                "terminal/release",
-                {"terminalId": terminal_id},
-                timeout=5.0
-            )
+            self._server.send_request("terminal/release", {"terminalId": terminal_id}, timeout=5.0)
 
             if output_resp.is_error:
                 return f"Error getting output: {output_resp.error.message}"
@@ -395,9 +376,9 @@ class ACPAgent:
                         {"id": "allow_always", "kind": "allow_always", "label": "Always Allow"},
                         {"id": "reject_once", "kind": "reject_once", "label": "Deny"},
                         {"id": "reject_always", "kind": "reject_always", "label": "Always Deny"},
-                    ]
+                    ],
                 },
-                timeout=300.0  # Long timeout for user interaction
+                timeout=300.0,  # Long timeout for user interaction
             )
 
             if response.is_error:
@@ -429,9 +410,7 @@ class ACPAgent:
     def _handle_initialize(self, params: dict) -> dict:
         """Handle initialize request."""
         client_info = params.get("clientInfo", {})
-        logger.info("ACP client connected: %s %s",
-                   client_info.get("name", "unknown"),
-                   client_info.get("version", ""))
+        logger.info("ACP client connected: %s %s", client_info.get("name", "unknown"), client_info.get("version", ""))
 
         # Connect to MCP servers
         if self._mcp_client:
@@ -593,18 +572,10 @@ class ACPAgent:
 
         return StopReason.END_TURN
 
-    def _event_to_update(
-        self,
-        session_id: str,
-        event: AgentEvent,
-        tool_call_index: int
-    ) -> Optional[SessionUpdate]:
+    def _event_to_update(self, session_id: str, event: AgentEvent, tool_call_index: int) -> Optional[SessionUpdate]:
         """Convert an AgentEvent to an ACP SessionUpdate."""
         if event.type == EventType.THOUGHT:
-            return SessionUpdate(
-                session_id=session_id,
-                content=[ContentBlock.text(f"Thinking: {event.content}")]
-            )
+            return SessionUpdate(session_id=session_id, content=[ContentBlock.text(f"Thinking: {event.content}")])
 
         elif event.type == EventType.ACTION:
             tool_name = event.metadata.get("tool_name", "unknown")
@@ -612,12 +583,14 @@ class ACPAgent:
 
             return SessionUpdate(
                 session_id=session_id,
-                tool_calls=[ToolCallUpdate(
-                    id=f"tc_{tool_call_index}",
-                    name=tool_name,
-                    status=ToolCallStatus.IN_PROGRESS,
-                    arguments=tool_args,
-                )]
+                tool_calls=[
+                    ToolCallUpdate(
+                        id=f"tc_{tool_call_index}",
+                        name=tool_name,
+                        status=ToolCallStatus.IN_PROGRESS,
+                        arguments=tool_args,
+                    )
+                ],
             )
 
         elif event.type == EventType.OBSERVATION:
@@ -625,26 +598,26 @@ class ACPAgent:
 
             return SessionUpdate(
                 session_id=session_id,
-                tool_calls=[ToolCallUpdate(
-                    id=f"tc_{tool_call_index - 1}",  # Previous tool call
-                    name=tool_name,
-                    status=ToolCallStatus.COMPLETED,
-                    content=[ContentBlock.text(event.content)]
-                )]
+                tool_calls=[
+                    ToolCallUpdate(
+                        id=f"tc_{tool_call_index - 1}",  # Previous tool call
+                        name=tool_name,
+                        status=ToolCallStatus.COMPLETED,
+                        content=[ContentBlock.text(event.content)],
+                    )
+                ],
             )
 
         elif event.type == EventType.ANSWER:
             return SessionUpdate(
-                session_id=session_id,
-                content=[ContentBlock.text(event.content)],
-                stop_reason=StopReason.END_TURN
+                session_id=session_id, content=[ContentBlock.text(event.content)], stop_reason=StopReason.END_TURN
             )
 
         elif event.type == EventType.ERROR:
             return SessionUpdate(
                 session_id=session_id,
                 content=[ContentBlock.text(f"Error: {event.content}")],
-                stop_reason=StopReason.ERROR
+                stop_reason=StopReason.ERROR,
             )
 
         return None
@@ -720,7 +693,7 @@ def serve_acp(
     mcp_servers: Optional[List[McpServerConfig]] = None,
     session_storage: str = "memory",
     session_path: Optional[str] = None,
-    **kwargs
+    **kwargs,
 ) -> None:
     """
     Convenience function to start an ACP server.
@@ -739,6 +712,6 @@ def serve_acp(
         mcp_servers=mcp_servers,
         session_storage=session_storage,
         session_path=session_path,
-        **kwargs
+        **kwargs,
     )
     agent.serve()

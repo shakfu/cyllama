@@ -9,7 +9,7 @@ This example demonstrates:
 6. Using multiple cache types (context, dynamic, static)
 """
 
-from cyllama.llama.llama_cpp import NgramCache, LlamaModel, LlamaContext
+from cyllama.llama.llama_cpp import NgramCache
 import os
 
 
@@ -93,7 +93,7 @@ def save_load_example():
 
         # Load cache
         loaded_cache = NgramCache.load(cache_file)
-        print(f"\nLoaded cache from file")
+        print("\nLoaded cache from file")
 
         # Test loaded cache works
         inp = [5, 10]
@@ -156,11 +156,7 @@ def multi_cache_drafting_example():
     # Draft using all three caches
     inp = [1, 2]
     draft = context_cache.draft(
-        inp,
-        n_draft=5,
-        context_cache=context_cache,
-        dynamic_cache=dynamic_cache,
-        static_cache=static_cache
+        inp, n_draft=5, context_cache=context_cache, dynamic_cache=dynamic_cache, static_cache=static_cache
     )
 
     print(f"\nInput: {inp}")
@@ -210,7 +206,7 @@ def repetitive_text_example():
 
     print(f"Generated {len(tokens)} tokens with repeated pattern")
     print(f"Base pattern: {pattern}")
-    print(f"Repeated 10 times with variations")
+    print("Repeated 10 times with variations")
 
     # Build cache
     cache = NgramCache()

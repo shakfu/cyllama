@@ -54,7 +54,7 @@ def get_current_weather(location: str, unit: str = "celsius") -> str:
         data = weather[loc_lower]
         temp = data["temp"]
         if unit == "fahrenheit":
-            temp = (temp * 9/5) + 32
+            temp = (temp * 9 / 5) + 32
         return f"{location}: {temp}°{unit[0].upper()}, {data['condition']}"
     else:
         return f"Weather data not available for {location}"
@@ -62,17 +62,16 @@ def get_current_weather(location: str, unit: str = "celsius") -> str:
 
 def example_openai_function_calling():
     """Demonstrate OpenAI-compatible function calling."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("OPENAI FUNCTION CALLING EXAMPLE")
-    print("="*60)
+    print("=" * 60)
 
     from cyllama.integrations.openai_agents import (
         OpenAIFunctionCallingClient,
-        cyllama_tools_to_openai_tools,
     )
 
     ROOT = Path.cwd()
-    model_path = ROOT / 'models' / 'Llama-3.2-1B-Instruct-Q8_0.gguf'
+    model_path = ROOT / "models" / "Llama-3.2-1B-Instruct-Q8_0.gguf"
 
     if not model_path.exists():
         print(f"\nModel not found: {model_path}")
@@ -81,9 +80,7 @@ def example_openai_function_calling():
 
     print("\n1. Creating OpenAI Function Calling Client...")
     client = OpenAIFunctionCallingClient(
-        model_path=str(model_path),
-        tools=[calculator, get_current_weather],
-        verbose=False
+        model_path=str(model_path), tools=[calculator, get_current_weather], verbose=False
     )
 
     print("\n2. Listing available functions:")
@@ -94,6 +91,7 @@ def example_openai_function_calling():
     print("\n3. Functions in OpenAI tools format:")
     tools_format = client.list_tools()
     import json
+
     print(json.dumps(tools_format[0], indent=2))
 
     print("\n4. Example chat completion with function calling:")
@@ -104,9 +102,9 @@ def example_openai_function_calling():
 
 def example_langchain_tool_conversion():
     """Demonstrate LangChain tool conversion."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("LANGCHAIN TOOL CONVERSION EXAMPLE")
-    print("="*60)
+    print("=" * 60)
 
     try:
         from cyllama.integrations.langchain_agents import (
@@ -136,9 +134,9 @@ def example_langchain_tool_conversion():
 
 def example_cyllama_agent_with_langchain():
     """Demonstrate using cyllama agent with LangChain."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("CYLLAMA AGENT WITH LANGCHAIN EXAMPLE")
-    print("="*60)
+    print("=" * 60)
 
     try:
         from cyllama.integrations.langchain_agents import (
@@ -152,7 +150,7 @@ def example_cyllama_agent_with_langchain():
             return
 
         ROOT = Path.cwd()
-        model_path = ROOT / 'models' / 'Llama-3.2-1B-Instruct-Q8_0.gguf'
+        model_path = ROOT / "models" / "Llama-3.2-1B-Instruct-Q8_0.gguf"
 
         if not model_path.exists():
             print(f"\nModel not found: {model_path}")
@@ -161,9 +159,7 @@ def example_cyllama_agent_with_langchain():
 
         print("\n1. Creating cyllama ReAct agent...")
         agent = create_cyllama_react_agent(
-            model_path=str(model_path),
-            tools=[calculator, get_current_weather],
-            verbose=False
+            model_path=str(model_path), tools=[calculator, get_current_weather], verbose=False
         )
 
         print("\n2. Wrapping with LangChain adapter...")
@@ -180,9 +176,9 @@ def example_cyllama_agent_with_langchain():
 
 def example_framework_comparison():
     """Compare different framework approaches."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("FRAMEWORK COMPARISON")
-    print("="*60)
+    print("=" * 60)
 
     print("\n1. Pure cyllama agent:")
     print("   from cyllama import LLM")
@@ -214,9 +210,9 @@ def example_framework_comparison():
 
 def main():
     """Run all framework integration examples."""
-    print("\n" + "="*70)
-    print(" "*15 + "FRAMEWORK INTEGRATION EXAMPLES")
-    print("="*70)
+    print("\n" + "=" * 70)
+    print(" " * 15 + "FRAMEWORK INTEGRATION EXAMPLES")
+    print("=" * 70)
 
     # 1. OpenAI function calling
     example_openai_function_calling()
@@ -230,9 +226,9 @@ def main():
     # 4. Framework comparison
     example_framework_comparison()
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("EXAMPLES COMPLETE")
-    print("="*70)
+    print("=" * 70)
 
     print("\nKey Takeaways:")
     print("  - Cyllama agents work with LangChain, OpenAI-style APIs")

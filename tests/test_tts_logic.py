@@ -4,12 +4,14 @@ Test the TTS text processing and tokenization logic
 """
 
 import sys
-sys.path.insert(0, 'src')
+
+sys.path.insert(0, "src")
+
 
 def test_text_processing():
     """Test the text processing functions"""
     try:
-        from cyllama.llama.tts import process_text, prepare_guide_tokens
+        from cyllama.llama.tts import process_text
 
         # Test text processing
         test_cases = [
@@ -28,8 +30,10 @@ def test_text_processing():
     except Exception as e:
         print(f"Text processing test failed: {e}")
         import traceback
+
         traceback.print_exc()
         assert False, f"Text processing test failed: {e}"
+
 
 def test_cython_optimizations():
     """Test that Cython optimizations are working"""
@@ -44,8 +48,9 @@ def test_cython_optimizations():
         # Test WAV saving with dummy data
         import tempfile
         import os
+
         test_data = [0.1, 0.2, -0.1, -0.2] * 100
-        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp:
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
             tmp_name = tmp.name
         success = save_wav16(tmp_name, test_data, 24000)
         file_size = os.path.getsize(tmp_name)
@@ -57,8 +62,10 @@ def test_cython_optimizations():
     except Exception as e:
         print(f"Cython optimization test failed: {e}")
         import traceback
+
         traceback.print_exc()
         assert False, f"Cython optimization test failed: {e}"
+
 
 if __name__ == "__main__":
     print("=== TTS Logic Tests ===")

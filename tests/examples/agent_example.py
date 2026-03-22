@@ -12,9 +12,7 @@ Usage:
 import argparse
 from cyllama import LLM, GenerationConfig
 from cyllama.agents import ReActAgent, tool
-from cyllama.utils.color import (
-    header, section, subsection, success, error, info, bullet, kv
-)
+from cyllama.utils.color import section, subsection, success, error, info, bullet, kv
 from pathlib import Path
 
 # Define custom tools
@@ -82,8 +80,8 @@ def find_model() -> Path:
 
     # Preferred models in order
     candidates = [
-        ROOT / 'models' / 'Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf',
-        ROOT / 'models' / 'Llama-3.2-1B-Instruct-Q8_0.gguf',
+        ROOT / "models" / "Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf",
+        ROOT / "models" / "Llama-3.2-1B-Instruct-Q8_0.gguf",
     ]
 
     for path in candidates:
@@ -103,19 +101,12 @@ Examples:
     python agent_example.py
     python agent_example.py /path/to/model.gguf
     python agent_example.py models/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf
-        """
+        """,
     )
     parser.add_argument(
-        'model_path',
-        nargs='?',
-        type=str,
-        help='Path to GGUF model file (optional, will auto-detect if not provided)'
+        "model_path", nargs="?", type=str, help="Path to GGUF model file (optional, will auto-detect if not provided)"
     )
-    parser.add_argument(
-        '--verbose', '-v',
-        action='store_true',
-        help='Enable verbose model output'
-    )
+    parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose model output")
 
     args = parser.parse_args()
 
@@ -141,7 +132,7 @@ Examples:
         llm=llm,
         tools=[calculator, get_file_size, string_reverse],
         max_iterations=5,
-        verbose=True  # Show agent reasoning
+        verbose=True,  # Show agent reasoning
     )
 
     section("Agent initialized with tools:")
@@ -156,7 +147,7 @@ Examples:
     ]
 
     for i, task in enumerate(tasks, 1):
-        subsection(f"Task {i}: {task}", color='yellow')
+        subsection(f"Task {i}: {task}", color="yellow")
 
         result = agent.run(task)
 

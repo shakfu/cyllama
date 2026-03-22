@@ -6,35 +6,31 @@ Note: Some tests require actual model files and may be skipped if not available.
 """
 
 import pytest
-import os
 from pathlib import Path
 from unittest.mock import Mock, patch
-import tempfile
-import io
 
-#pytest.skip("Skipping test_mtmd test for now", allow_module_level=True)
+# pytest.skip("Skipping test_mtmd test for now", allow_module_level=True)
 
 
 try:
     import numpy as np
+
     HAS_NUMPY = True
 except ImportError:
     HAS_NUMPY = False
 
 try:
     from PIL import Image
+
     HAS_PIL = True
 except ImportError:
     HAS_PIL = False
 
 import cyllama
 from cyllama.llama.mtmd import (
-    MtmdContext,
     MtmdContextParams,
     MtmdBitmap,
-    MtmdInputChunk,
     MtmdInputChunks,
-    MtmdInputChunkType,
     get_default_media_marker,
     MultimodalProcessor,
     VisionLanguageChat,
@@ -57,11 +53,7 @@ class TestMtmdContextParams:
 
     def test_custom_params(self):
         """Test custom parameter initialization."""
-        params = MtmdContextParams(
-            use_gpu=False,
-            print_timings=True,
-            n_threads=4
-        )
+        params = MtmdContextParams(use_gpu=False, print_timings=True, n_threads=4)
         assert params.use_gpu is False
         assert params.print_timings is True
         assert params.n_threads == 4
@@ -82,7 +74,7 @@ class TestMtmdBitmap:
         """Test creating image bitmap from RGB data."""
         width, height = 4, 4
         # Create simple RGB data (red square)
-        rgb_data = b'\xff\x00\x00' * (width * height)
+        rgb_data = b"\xff\x00\x00" * (width * height)
 
         bitmap = MtmdBitmap.create_image(width, height, rgb_data)
 
@@ -106,7 +98,7 @@ class TestMtmdBitmap:
         """Test creating bitmap from PIL Image."""
         # Create a simple test image
         width, height = 10, 10
-        image = Image.new('RGB', (width, height), color='red')
+        image = Image.new("RGB", (width, height), color="red")
 
         # Convert to RGB data
         rgb_data = image.tobytes()
@@ -117,7 +109,7 @@ class TestMtmdBitmap:
 
     def test_bitmap_id(self):
         """Test bitmap ID functionality."""
-        bitmap = MtmdBitmap.create_image(2, 2, b'\x00' * 12)
+        bitmap = MtmdBitmap.create_image(2, 2, b"\x00" * 12)
 
         # Initially empty ID
         assert bitmap.id == ""
@@ -131,7 +123,7 @@ class TestMtmdBitmap:
         """Test error handling for invalid image data."""
         with pytest.raises(OverflowError):
             # Negative dimensions should raise OverflowError
-            MtmdBitmap.create_image(-1, 5, b'\x00' * 15)
+            MtmdBitmap.create_image(-1, 5, b"\x00" * 15)
 
     def test_empty_audio_samples(self):
         """Test creating bitmap with empty audio samples."""
@@ -186,7 +178,7 @@ class TestMultimodalProcessor:
     @pytest.fixture
     def mock_mtmd_context(self):
         """Create a mock MtmdContext."""
-        with patch('cyllama.llama.mtmd.multimodal.MtmdContext') as mock:
+        with patch("cyllama.llama.mtmd.multimodal.MtmdContext") as mock:
             ctx = Mock()
             ctx.supports_vision = True
             ctx.supports_audio = False
@@ -196,7 +188,7 @@ class TestMultimodalProcessor:
 
     def test_processor_initialization(self, mock_model, mock_mtmd_context):
         """Test processor initialization."""
-        with patch('os.path.exists', return_value=True):
+        with patch("os.path.exists", return_value=True):
             processor = MultimodalProcessor("test.mmproj", mock_model)
 
             assert processor.supports_vision is True
@@ -205,12 +197,12 @@ class TestMultimodalProcessor:
 
     def test_process_image_unsupported(self, mock_model):
         """Test processing image when vision is not supported."""
-        with patch('cyllama.llama.mtmd.multimodal.MtmdContext') as mock_ctx:
+        with patch("cyllama.llama.mtmd.multimodal.MtmdContext") as mock_ctx:
             ctx = Mock()
             ctx.supports_vision = False
             mock_ctx.return_value = ctx
 
-            with patch('os.path.exists', return_value=True):
+            with patch("os.path.exists", return_value=True):
                 processor = MultimodalProcessor("test.mmproj", mock_model)
 
                 with pytest.raises(UnsupportedModalityError):
@@ -218,13 +210,13 @@ class TestMultimodalProcessor:
 
     def test_process_audio_unsupported(self, mock_model):
         """Test processing audio when audio is not supported."""
-        with patch('cyllama.llama.mtmd.multimodal.MtmdContext') as mock_ctx:
+        with patch("cyllama.llama.mtmd.multimodal.MtmdContext") as mock_ctx:
             ctx = Mock()
             ctx.supports_vision = True
             ctx.supports_audio = False
             mock_ctx.return_value = ctx
 
-            with patch('os.path.exists', return_value=True):
+            with patch("os.path.exists", return_value=True):
                 processor = MultimodalProcessor("test.mmproj", mock_model)
 
                 with pytest.raises(UnsupportedModalityError):
@@ -232,13 +224,13 @@ class TestMultimodalProcessor:
 
     def test_text_marker_insertion(self, mock_model, mock_mtmd_context):
         """Test automatic marker insertion in text."""
-        with patch('os.path.exists', return_value=True):
+        with patch("os.path.exists", return_value=True):
             processor = MultimodalProcessor("test.mmproj", mock_model)
 
             # Mock the bitmap creation and tokenization
             mock_bitmap = Mock()
-            with patch.object(processor, '_load_image_bitmap', return_value=mock_bitmap):
-                with patch.object(processor.mtmd_ctx, 'tokenize') as mock_tokenize:
+            with patch.object(processor, "_load_image_bitmap", return_value=mock_bitmap):
+                with patch.object(processor.mtmd_ctx, "tokenize") as mock_tokenize:
                     mock_chunks = Mock()
                     mock_tokenize.return_value = mock_chunks
 
@@ -260,12 +252,12 @@ class TestVisionLanguageChat:
         model = Mock()
         context = Mock()
 
-        with patch('cyllama.llama.mtmd.multimodal.MultimodalProcessor') as mock_proc:
+        with patch("cyllama.llama.mtmd.multimodal.MultimodalProcessor") as mock_proc:
             proc_instance = Mock()
             proc_instance.supports_vision = True
             mock_proc.return_value = proc_instance
 
-            with patch('os.path.exists', return_value=True):
+            with patch("os.path.exists", return_value=True):
                 chat = VisionLanguageChat("test.mmproj", model, context)
                 yield chat, proc_instance
 
@@ -274,12 +266,12 @@ class TestVisionLanguageChat:
         model = Mock()
         context = Mock()
 
-        with patch('cyllama.llama.mtmd.multimodal.MultimodalProcessor') as mock_proc:
+        with patch("cyllama.llama.mtmd.multimodal.MultimodalProcessor") as mock_proc:
             proc_instance = Mock()
             proc_instance.supports_vision = False
             mock_proc.return_value = proc_instance
 
-            with patch('os.path.exists', return_value=True):
+            with patch("os.path.exists", return_value=True):
                 with pytest.raises(UnsupportedModalityError):
                     VisionLanguageChat("test.mmproj", model, context)
 
@@ -297,7 +289,7 @@ class TestVisionLanguageChat:
 
         assert isinstance(response, (str, cyllama.Response))
         assert len(chat.conversation_history) == 1
-        assert chat.conversation_history[0]['question'] == question
+        assert chat.conversation_history[0]["question"] == question
 
     def test_conversation_history_tracking(self, mock_setup):
         """Test conversation history tracking."""
@@ -326,12 +318,12 @@ class TestAudioProcessor:
         """Test initialization when audio is not supported."""
         model = Mock()
 
-        with patch('cyllama.llama.mtmd.multimodal.MultimodalProcessor') as mock_proc:
+        with patch("cyllama.llama.mtmd.multimodal.MultimodalProcessor") as mock_proc:
             proc_instance = Mock()
             proc_instance.supports_audio = False
             mock_proc.return_value = proc_instance
 
-            with patch('os.path.exists', return_value=True):
+            with patch("os.path.exists", return_value=True):
                 with pytest.raises(UnsupportedModalityError):
                     AudioProcessor("test.mmproj", model)
 
@@ -339,12 +331,12 @@ class TestAudioProcessor:
         """Test audio processor when audio is supported."""
         model = Mock()
 
-        with patch('cyllama.llama.mtmd.multimodal.MultimodalProcessor') as mock_proc:
+        with patch("cyllama.llama.mtmd.multimodal.MultimodalProcessor") as mock_proc:
             proc_instance = Mock()
             proc_instance.supports_audio = True
             mock_proc.return_value = proc_instance
 
-            with patch('os.path.exists', return_value=True):
+            with patch("os.path.exists", return_value=True):
                 processor = AudioProcessor("test.mmproj", model)
                 assert processor.processor.supports_audio
 
@@ -356,12 +348,12 @@ class TestImageAnalyzer:
         """Test initialization when vision is not supported."""
         model = Mock()
 
-        with patch('cyllama.llama.mtmd.multimodal.MultimodalProcessor') as mock_proc:
+        with patch("cyllama.llama.mtmd.multimodal.MultimodalProcessor") as mock_proc:
             proc_instance = Mock()
             proc_instance.supports_vision = False
             mock_proc.return_value = proc_instance
 
-            with patch('os.path.exists', return_value=True):
+            with patch("os.path.exists", return_value=True):
                 with pytest.raises(UnsupportedModalityError):
                     ImageAnalyzer("test.mmproj", model)
 
@@ -369,12 +361,12 @@ class TestImageAnalyzer:
         """Test image analyzer when vision is supported."""
         model = Mock()
 
-        with patch('cyllama.llama.mtmd.multimodal.MultimodalProcessor') as mock_proc:
+        with patch("cyllama.llama.mtmd.multimodal.MultimodalProcessor") as mock_proc:
             proc_instance = Mock()
             proc_instance.supports_vision = True
             mock_proc.return_value = proc_instance
 
-            with patch('os.path.exists', return_value=True):
+            with patch("os.path.exists", return_value=True):
                 analyzer = ImageAnalyzer("test.mmproj", model)
                 assert analyzer.processor.supports_vision
 
@@ -382,13 +374,13 @@ class TestImageAnalyzer:
         """Test different detail level prompts."""
         model = Mock()
 
-        with patch('cyllama.llama.mtmd.multimodal.MultimodalProcessor') as mock_proc:
+        with patch("cyllama.llama.mtmd.multimodal.MultimodalProcessor") as mock_proc:
             proc_instance = Mock()
             proc_instance.supports_vision = True
             proc_instance.process_image.return_value = Mock()
             mock_proc.return_value = proc_instance
 
-            with patch('os.path.exists', return_value=True):
+            with patch("os.path.exists", return_value=True):
                 analyzer = ImageAnalyzer("test.mmproj", model)
 
                 # Test different detail levels
@@ -407,7 +399,7 @@ class TestErrorHandling:
         """Test handling of missing files."""
         model = Mock()
 
-        with patch('os.path.exists', return_value=False):
+        with patch("os.path.exists", return_value=False):
             with pytest.raises(FileNotFoundError):
                 MultimodalProcessor("nonexistent.mmproj", model)
 
@@ -428,14 +420,14 @@ class TestErrorHandling:
         model = Mock()
 
         # Mock the MtmdContext constructor to avoid type checking issues
-        with patch('cyllama.llama.mtmd.multimodal.MtmdContext') as mock_mtmd_ctx:
+        with patch("cyllama.llama.mtmd.multimodal.MtmdContext") as mock_mtmd_ctx:
             mock_ctx_instance = Mock()
             mock_ctx_instance.supports_vision = True
             mock_ctx_instance.supports_audio = False
             mock_ctx_instance.audio_sample_rate = -1
             mock_mtmd_ctx.return_value = mock_ctx_instance
 
-            with patch('os.path.exists', return_value=True):
+            with patch("os.path.exists", return_value=True):
                 processor = MultimodalProcessor("test.mmproj", model)
 
                 # Test invalid image type

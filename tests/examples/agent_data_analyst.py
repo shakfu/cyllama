@@ -18,10 +18,7 @@ import argparse
 from pathlib import Path
 from cyllama import LLM, GenerationConfig
 from cyllama.agents import ConstrainedAgent, tool
-from cyllama.utils.color import (
-    header, section, subsection, subheader, success, error, info,
-    bullet, numbered, kv
-)
+from cyllama.utils.color import header, section, subsection, subheader, success, error, info, numbered, kv
 import json
 import statistics
 
@@ -42,11 +39,12 @@ SAMPLE_DATA = {
         {"id": 3, "age": 45, "purchases": 8, "total_spent": 420},
         {"id": 4, "age": 29, "purchases": 15, "total_spent": 890},
         {"id": 5, "age": 52, "purchases": 6, "total_spent": 310},
-    ]
+    ],
 }
 
 
 # Define data analysis tools
+
 
 @tool
 def load_dataset(dataset_name: str) -> str:
@@ -95,7 +93,7 @@ def calculate_statistics(dataset_name: str, column: str) -> dict:
             "median": statistics.median(values),
             "min": min(values),
             "max": max(values),
-            "stddev": round(statistics.stdev(values), 2) if len(values) > 1 else 0
+            "stddev": round(statistics.stdev(values), 2) if len(values) > 1 else 0,
         }
     except Exception as e:
         return {"error": str(e)}
@@ -136,15 +134,15 @@ def filter_data(dataset_name: str, column: str, operator: str, value: str) -> li
 
             # Perform comparison
             match = False
-            if operator == '>':
+            if operator == ">":
                 match = row_value > compare_value
-            elif operator == '<':
+            elif operator == "<":
                 match = row_value < compare_value
-            elif operator == '=':
+            elif operator == "=":
                 match = row_value == compare_value
-            elif operator == '>=':
+            elif operator == ">=":
                 match = row_value >= compare_value
-            elif operator == '<=':
+            elif operator == "<=":
                 match = row_value <= compare_value
 
             if match:
@@ -219,10 +217,7 @@ def calculate_correlation(dataset_name: str, column1: str, column2: str) -> dict
         mean2 = statistics.mean(values2)
 
         numerator = sum((x - mean1) * (y - mean2) for x, y in zip(values1, values2))
-        denominator = (
-            sum((x - mean1) ** 2 for x in values1) *
-            sum((y - mean2) ** 2 for y in values2)
-        ) ** 0.5
+        denominator = (sum((x - mean1) ** 2 for x in values1) * sum((y - mean2) ** 2 for y in values2)) ** 0.5
 
         correlation = numerator / denominator if denominator != 0 else 0
 
@@ -230,7 +225,7 @@ def calculate_correlation(dataset_name: str, column1: str, column2: str) -> dict
             "column1": column1,
             "column2": column2,
             "correlation": round(correlation, 3),
-            "interpretation": "strong" if abs(correlation) > 0.7 else "moderate" if abs(correlation) > 0.4 else "weak"
+            "interpretation": "strong" if abs(correlation) > 0.7 else "moderate" if abs(correlation) > 0.4 else "weak",
         }
 
     except Exception as e:
@@ -243,21 +238,15 @@ def example_basic_analysis(llm: LLM):
 
     # Use ConstrainedAgent for reliable JSON outputs
     agent = ConstrainedAgent(
-        llm=llm,
-        tools=[load_dataset, calculate_statistics],
-        max_iterations=5,
-        verbose=True,
-        format="json"
+        llm=llm, tools=[load_dataset, calculate_statistics], max_iterations=5, verbose=True, format="json"
     )
 
-    subsection("Task: Analyze sales data revenue statistics", color='yellow')
+    subsection("Task: Analyze sales data revenue statistics", color="yellow")
 
-    result = agent.run(
-        "Load the sales_data dataset and calculate statistics for the revenue column"
-    )
+    result = agent.run("Load the sales_data dataset and calculate statistics for the revenue column")
 
-    subsection("RESULT", color='bright_green')
-    kv("Success", str(result.success), value_color='green' if result.success else 'red')
+    subsection("RESULT", color="bright_green")
+    kv("Success", str(result.success), value_color="green" if result.success else "red")
     kv("Answer", result.answer)
 
 
@@ -267,25 +256,17 @@ def example_advanced_analysis(llm: LLM):
 
     agent = ConstrainedAgent(
         llm=llm,
-        tools=[
-            load_dataset,
-            calculate_statistics,
-            filter_data,
-            group_by_and_sum,
-            calculate_correlation
-        ],
+        tools=[load_dataset, calculate_statistics, filter_data, group_by_and_sum, calculate_correlation],
         max_iterations=10,
         verbose=True,
-        format="json"
+        format="json",
     )
 
-    subsection("Task: Find high-value customers", color='yellow')
+    subsection("Task: Find high-value customers", color="yellow")
 
-    result = agent.run(
-        "Analyze customer_data to find customers who spent more than 500 dollars total"
-    )
+    result = agent.run("Analyze customer_data to find customers who spent more than 500 dollars total")
 
-    subsection("RESULT", color='bright_green')
+    subsection("RESULT", color="bright_green")
     kv("Answer", result.answer)
 
 
@@ -298,14 +279,12 @@ def example_correlation_analysis(llm: LLM):
         tools=[load_dataset, calculate_correlation, calculate_statistics],
         max_iterations=8,
         verbose=True,
-        format="json"
+        format="json",
     )
 
-    result = agent.run(
-        "Calculate the correlation between age and total_spent in customer_data"
-    )
+    result = agent.run("Calculate the correlation between age and total_spent in customer_data")
 
-    subsection("RESULT", color='bright_green')
+    subsection("RESULT", color="bright_green")
     kv("Answer", result.answer)
 
 
@@ -313,7 +292,7 @@ def show_manual_approach():
     """Show manual analysis approach for comparison."""
     section("MANUAL APPROACH (WITHOUT AGENT)")
 
-    subheader("Traditional data analysis code", color='cyan')
+    subheader("Traditional data analysis code", color="cyan")
     print("""
     # Load data
     data = load_dataset('sales_data')
@@ -338,7 +317,7 @@ def show_manual_approach():
                     for region, values in by_region.items()}
     """)
 
-    subheader("With agent approach", color='cyan')
+    subheader("With agent approach", color="cyan")
     print("""
     agent = ConstrainedAgent(llm=llm, tools=[...])
 
@@ -359,8 +338,8 @@ def find_model() -> Path:
 
     # Preferred models in order
     candidates = [
-        ROOT / 'models' / 'Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf',
-        ROOT / 'models' / 'Llama-3.2-1B-Instruct-Q8_0.gguf',
+        ROOT / "models" / "Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf",
+        ROOT / "models" / "Llama-3.2-1B-Instruct-Q8_0.gguf",
     ]
 
     for path in candidates:
@@ -380,19 +359,12 @@ Examples:
     python agent_data_analyst.py
     python agent_data_analyst.py /path/to/model.gguf
     python agent_data_analyst.py models/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf
-        """
+        """,
     )
     parser.add_argument(
-        'model_path',
-        nargs='?',
-        type=str,
-        help='Path to GGUF model file (optional, will auto-detect if not provided)'
+        "model_path", nargs="?", type=str, help="Path to GGUF model file (optional, will auto-detect if not provided)"
     )
-    parser.add_argument(
-        '--verbose', '-v',
-        action='store_true',
-        help='Enable verbose model output'
-    )
+    parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose model output")
 
     args = parser.parse_args()
 
@@ -412,13 +384,15 @@ Examples:
     header("DATA ANALYSIS AGENT EXAMPLES")
 
     print("\nThis example demonstrates:")
-    numbered([
-        "Loading and inspecting datasets",
-        "Statistical analysis (mean, median, stddev)",
-        "Filtering and grouping data",
-        "Correlation analysis",
-        "Multi-step analytical workflows"
-    ])
+    numbered(
+        [
+            "Loading and inspecting datasets",
+            "Statistical analysis (mean, median, stddev)",
+            "Filtering and grouping data",
+            "Correlation analysis",
+            "Multi-step analytical workflows",
+        ]
+    )
 
     # Show comparison
     show_manual_approach()

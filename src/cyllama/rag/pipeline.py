@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Iterator
 
 from .types import SearchResult
 
 if TYPE_CHECKING:
-    from ..api import GenerationStats, LLM
+    from ..api import LLM
     from .embedder import Embedder
     from .store import VectorStore
 
@@ -58,9 +58,7 @@ class RAGConfig:
         if self.top_k < 1:
             raise ValueError(f"top_k must be >= 1, got {self.top_k}")
         if self.similarity_threshold is not None and not 0 <= self.similarity_threshold <= 1:
-            raise ValueError(
-                f"similarity_threshold must be between 0 and 1, got {self.similarity_threshold}"
-            )
+            raise ValueError(f"similarity_threshold must be between 0 and 1, got {self.similarity_threshold}")
         if self.max_tokens < 1:
             raise ValueError(f"max_tokens must be >= 1, got {self.max_tokens}")
         if self.temperature < 0:
@@ -103,7 +101,7 @@ class RAGResponse:
             ],
         }
         if self.stats is not None:
-            result["stats"] = {
+            result["stats"] = {  # type: ignore[assignment]
                 "prompt_tokens": self.stats.prompt_tokens,
                 "generated_tokens": self.stats.generated_tokens,
                 "total_time": self.stats.total_time,
@@ -311,7 +309,4 @@ class RAGPipeline:
         )
 
     def __repr__(self) -> str:
-        return (
-            f"RAGPipeline(embedder={self.embedder!r}, "
-            f"store={self.store!r}, config={self.config!r})"
-        )
+        return f"RAGPipeline(embedder={self.embedder!r}, store={self.store!r}, config={self.config!r})"

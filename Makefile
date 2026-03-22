@@ -105,6 +105,22 @@ memray:
 	@uv run pytest --memray --native tests
 
 # =============================================================================
+# Code quality
+# =============================================================================
+.PHONY: lint format typecheck qa
+
+lint:
+	@uv run ruff check --fix src/cyllama tests
+
+format:
+	@uv run ruff format src/cyllama tests
+
+typecheck:
+	@uv run mypy src/cyllama/rag src/cyllama/utils --follow-imports=skip
+
+qa: lint typecheck format
+
+# =============================================================================
 # Development tools (via manage.py)
 # =============================================================================
 .PHONY: info bench profile bump

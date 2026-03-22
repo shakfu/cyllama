@@ -1,10 +1,9 @@
 """Tests for the RAG Advanced Features (Phase 5)."""
 
 import asyncio
-import json
 import sys
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -15,7 +14,7 @@ from cyllama.rag.advanced import (
     async_search_knowledge,
     create_rag_tool,
 )
-from cyllama.rag.pipeline import RAGConfig, RAGResponse
+from cyllama.rag.pipeline import RAGResponse
 from cyllama.rag.types import SearchResult
 
 
@@ -23,7 +22,8 @@ from cyllama.rag.types import SearchResult
 def extension_available() -> bool:
     """Check if sqlite-vector extension exists and can be loaded."""
     import sqlite3
-    if not hasattr(sqlite3.Connection, 'enable_load_extension'):
+
+    if not hasattr(sqlite3.Connection, "enable_load_extension"):
         return False
     ext_path = Path(__file__).parent.parent / "src" / "cyllama" / "rag" / "vector"
     if sys.platform == "darwin":
@@ -36,7 +36,7 @@ def extension_available() -> bool:
 
 _skip_no_extension = pytest.mark.skipif(
     not extension_available(),
-    reason="sqlite-vector extension not built. Run 'scripts/setup.sh' or 'python scripts/manage.py build --sqlite-vector'"
+    reason="sqlite-vector extension not built. Run 'scripts/setup.sh' or 'python scripts/manage.py build --sqlite-vector'",
 )
 
 

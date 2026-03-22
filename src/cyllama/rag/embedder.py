@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import math
 from collections import OrderedDict
-from dataclasses import dataclass
 from enum import IntEnum
 from typing import Iterator, NamedTuple
 
@@ -14,7 +13,6 @@ from ..llama.llama_cpp import (
     LlamaContextParams,
     LlamaModel,
     LlamaModelParams,
-    LlamaVocab,
 )
 from .types import EmbeddingResult
 
@@ -140,10 +138,7 @@ class Embedder:
             "last": PoolingType.LAST,
         }
         if pooling.lower() not in pooling_map:
-            raise ValueError(
-                f"Invalid pooling type: {pooling}. "
-                f"Must be one of: {list(pooling_map.keys())}"
-            )
+            raise ValueError(f"Invalid pooling type: {pooling}. Must be one of: {list(pooling_map.keys())}")
         self._pooling_type = pooling_map[pooling.lower()]
 
         # Load model
@@ -369,9 +364,7 @@ class Embedder:
             token_count=n_tokens,
         )
 
-    def _mean_pool_manual(
-        self, raw_embeddings: list[float], n_tokens: int
-    ) -> list[float]:
+    def _mean_pool_manual(self, raw_embeddings: list[float], n_tokens: int) -> list[float]:
         """Compute mean pooling over token embeddings.
 
         Args:

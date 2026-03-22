@@ -22,7 +22,6 @@ from cyllama.rag import (
     Embedder,
     VectorStore,
     TextSplitter,
-    MarkdownSplitter,
     TextLoader,
     MarkdownLoader,
     DirectoryLoader,
@@ -122,13 +121,15 @@ Example:
         """,
     )
     parser.add_argument(
-        "-e", "--embedding-model",
+        "-e",
+        "--embedding-model",
         type=str,
         required=True,
         help="Path to embedding model (GGUF file)",
     )
     parser.add_argument(
-        "-v", "--verbose",
+        "-v",
+        "--verbose",
         action="store_true",
         help="Enable verbose output",
     )
@@ -219,7 +220,7 @@ Example:
         print()
         bullet("Sample chunks:")
         for i, chunk in enumerate(all_chunks[:3], 1):
-            preview = chunk[:80].replace('\n', ' ').strip()
+            preview = chunk[:80].replace("\n", " ").strip()
             print(f"    [{i}] {preview}...")
 
         # Create vector store and index documents
@@ -262,7 +263,7 @@ Example:
 
                 if results:
                     for r in results:
-                        preview = r.text[:80].replace('\n', ' ').strip()
+                        preview = r.text[:80].replace("\n", " ").strip()
                         print(f"    [{r.score:.3f}] {preview}...")
                 else:
                     print("    No results found above threshold")

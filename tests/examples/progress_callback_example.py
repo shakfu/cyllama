@@ -8,7 +8,6 @@ This example demonstrates:
 """
 
 import io
-import os
 import sys
 import time
 import threading
@@ -17,13 +16,10 @@ from pathlib import Path
 import cyllama.llama.llama_cpp as cy
 
 # Force unbuffered stdout for progress bar
-if hasattr(sys.stdout, 'reconfigure'):
+if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(line_buffering=False)
 elif not isinstance(sys.stdout, io.TextIOWrapper):
-    sys.stdout = io.TextIOWrapper(
-        open(sys.stdout.fileno(), 'wb', 0),
-        write_through=True
-    )
+    sys.stdout = io.TextIOWrapper(open(sys.stdout.fileno(), "wb", 0), write_through=True)
 
 
 def basic_progress_example(model_path: str):
@@ -168,7 +164,7 @@ def cancellable_loading_example(model_path: str):
     cancel_thread = threading.Thread(target=cancel_after_delay, args=(0.5,))
     cancel_thread.start()
 
-    print(f"Loading model (will be cancelled after 0.5s)...")
+    print("Loading model (will be cancelled after 0.5s)...")
     try:
         model = cy.LlamaModel(model_path, params)
         load_complete.set()
@@ -222,7 +218,7 @@ def statistics_callback_example(model_path: str):
     total_time = stats["end_time"] - stats["start_time"]
     num_updates = len(stats["progress_updates"])
 
-    print(f"\nLoading Statistics:")
+    print("\nLoading Statistics:")
     print(f"  Total time: {total_time:.3f}s")
     print(f"  Progress updates: {num_updates}")
     print(f"  Average update interval: {total_time / num_updates * 1000:.1f}ms")

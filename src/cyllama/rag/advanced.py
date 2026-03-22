@@ -12,16 +12,14 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, AsyncIterator, Callable, Iterator
+from typing import TYPE_CHECKING, Any, AsyncIterator
 
 from .pipeline import RAGConfig, RAGResponse
 from .types import SearchResult
 
 if TYPE_CHECKING:
     from ..agents.tools import Tool
-    from .embedder import Embedder
     from .rag import RAG
-    from .store import VectorStore
 
 
 class AsyncRAG:
@@ -115,9 +113,7 @@ class AsyncRAG:
             List of IDs for the added items
         """
         async with self._lock:
-            return await asyncio.to_thread(
-                self._rag.add_texts, texts, metadata, split
-            )
+            return await asyncio.to_thread(self._rag.add_texts, texts, metadata, split)
 
     async def add_documents(
         self,
@@ -136,9 +132,7 @@ class AsyncRAG:
             List of IDs for the added items
         """
         async with self._lock:
-            return await asyncio.to_thread(
-                self._rag.add_documents, paths, split, **loader_kwargs
-            )
+            return await asyncio.to_thread(self._rag.add_documents, paths, split, **loader_kwargs)
 
     async def query(
         self,
@@ -155,9 +149,7 @@ class AsyncRAG:
             RAGResponse with generated text and sources
         """
         async with self._lock:
-            return await asyncio.to_thread(
-                self._rag.query, question, config
-            )
+            return await asyncio.to_thread(self._rag.query, question, config)
 
     async def stream(
         self,
@@ -178,16 +170,11 @@ class AsyncRAG:
         async def producer():
             """Run sync generator in thread and put items in queue."""
             try:
+
                 def generate_sync():
                     for chunk in self._rag.stream(question, config):
-                        asyncio.run_coroutine_threadsafe(
-                            queue.put(chunk),
-                            loop
-                        )
-                    asyncio.run_coroutine_threadsafe(
-                        queue.put(None),
-                        loop
-                    )
+                        asyncio.run_coroutine_threadsafe(queue.put(chunk), loop)
+                    asyncio.run_coroutine_threadsafe(queue.put(None), loop)
 
                 await asyncio.to_thread(generate_sync)
             except Exception as e:
@@ -224,9 +211,7 @@ class AsyncRAG:
             List of relevant SearchResults
         """
         async with self._lock:
-            return await asyncio.to_thread(
-                self._rag.retrieve, question, config
-            )
+            return await asyncio.to_thread(self._rag.retrieve, question, config)
 
     async def search(
         self,
@@ -245,9 +230,7 @@ class AsyncRAG:
             List of SearchResults
         """
         async with self._lock:
-            return await asyncio.to_thread(
-                self._rag.search, query, k, threshold
-            )
+            return await asyncio.to_thread(self._rag.search, query, k, threshold)
 
     @property
     def count(self) -> int:
@@ -652,9 +635,7 @@ class HybridStore:
         alpha = alpha if alpha is not None else self.alpha
 
         # Get vector search results
-        vector_results = self._vector_store.search(
-            query_embedding, k=k * 2, threshold=threshold
-        )
+        vector_results = self._vector_store.search(query_embedding, k=k * 2, threshold=threshold)
 
         # If no query text, return vector results only
         if not query_text:
@@ -664,9 +645,7 @@ class HybridStore:
         fts_results = self._fts_search(query_text, k=k * 2)
 
         # Combine using reciprocal rank fusion
-        return self._reciprocal_rank_fusion(
-            vector_results, fts_results, k=k, alpha=alpha
-        )
+        return self._reciprocal_rank_fusion(vector_results, fts_results, k=k, alpha=alpha)
 
     def _fts_search(self, query: str, k: int = 10) -> list[SearchResult]:
         """Search using FTS5.
@@ -776,7 +755,7 @@ class HybridStore:
             Number of items deleted
         """
         self._check_closed()
-        return self._vector_store.delete(ids)
+        return self._vector_store.delete(ids)  # type: ignore[arg-type]
 
     def clear(self) -> int:
         """Clear all data from the store.

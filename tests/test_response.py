@@ -1,7 +1,6 @@
 """Tests for the Response class."""
 
 import json
-import pytest
 from cyllama import Response, GenerationStats, complete, LLM
 
 
@@ -100,12 +99,7 @@ class TestResponseClass:
 
     def test_response_to_dict_with_stats(self):
         """Test Response.to_dict() with stats."""
-        stats = GenerationStats(
-            prompt_tokens=10,
-            generated_tokens=20,
-            total_time=1.5,
-            tokens_per_second=13.33
-        )
+        stats = GenerationStats(prompt_tokens=10, generated_tokens=20, total_time=1.5, tokens_per_second=13.33)
         response = Response(text="hello", stats=stats, finish_reason="stop", model="test.gguf")
         d = response.to_dict()
         assert d["text"] == "hello"

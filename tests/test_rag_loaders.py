@@ -17,7 +17,6 @@ from cyllama.rag.loaders import (
     load_document,
     load_directory,
 )
-from cyllama.rag.types import Document
 
 
 @pytest.fixture

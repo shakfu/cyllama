@@ -6,12 +6,9 @@ These tests cover the PythonServer class and related components,
 ensuring proper server functionality using existing cyllama bindings.
 """
 
-import json
 import time
 import pytest
-import threading
-from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 
 from cyllama.llama.server.python import (
     ServerConfig,
@@ -20,7 +17,7 @@ from cyllama.llama.server.python import (
     ChatMessage,
     ChatRequest,
     ChatResponse,
-    start_python_server
+    start_python_server,
 )
 
 
@@ -52,7 +49,7 @@ class TestServerConfig:
             n_gpu_layers=32,
             embedding=True,
             n_parallel=4,
-            model_alias="custom-model"
+            model_alias="custom-model",
         )
 
         assert config.model_path == "custom.gguf"
@@ -93,12 +90,7 @@ class TestChatRequest:
         """Test chat request with custom parameters."""
         messages = [ChatMessage(role="user", content="Hello!")]
         request = ChatRequest(
-            messages=messages,
-            model="custom-model",
-            max_tokens=100,
-            temperature=0.5,
-            stream=True,
-            stop=["STOP"]
+            messages=messages, model="custom-model", max_tokens=100, temperature=0.5, stream=True, stop=["STOP"]
         )
 
         assert request.model == "custom-model"
@@ -140,8 +132,7 @@ class TestServerSlot:
         """Test creating a server slot."""
         config = ServerConfig(model_path="test.gguf")
 
-        with patch('cyllama.llama.server.python.LlamaContext'), \
-             patch('cyllama.llama.server.python.LlamaSampler'):
+        with patch("cyllama.llama.server.python.LlamaContext"), patch("cyllama.llama.server.python.LlamaSampler"):
             slot = ServerSlot(0, mock_model, config)
 
             assert slot.id == 0
@@ -153,9 +144,10 @@ class TestServerSlot:
         """Test resetting a server slot."""
         config = ServerConfig(model_path="test.gguf")
 
-        with patch('cyllama.llama.server.python.LlamaContext') as MockContext, \
-             patch('cyllama.llama.server.python.LlamaSampler'):
-
+        with (
+            patch("cyllama.llama.server.python.LlamaContext") as MockContext,
+            patch("cyllama.llama.server.python.LlamaSampler"),
+        ):
             mock_context = Mock()
             MockContext.return_value = mock_context
 
@@ -180,10 +172,11 @@ class TestServerSlot:
         """Test successful prompt processing and generation."""
         config = ServerConfig(model_path="test.gguf")
 
-        with patch('cyllama.llama.server.python.LlamaContext') as MockContext, \
-             patch('cyllama.llama.server.python.LlamaSampler') as MockSampler, \
-             patch('cyllama.llama.server.python.llama_batch_get_one') as mock_batch:
-
+        with (
+            patch("cyllama.llama.server.python.LlamaContext") as MockContext,
+            patch("cyllama.llama.server.python.LlamaSampler") as MockSampler,
+            patch("cyllama.llama.server.python.llama_batch_get_one") as mock_batch,
+        ):
             mock_context = Mock()
             mock_context.decode.return_value = 0  # Success
             mock_context.n_ctx = 512
@@ -215,8 +208,7 @@ class TestServerSlot:
         mock_vocab = mock_model.get_vocab()
         mock_vocab.tokenize.return_value = [1, 2, 3, 4, 5]  # 5 tokens > 3 ctx
 
-        with patch('cyllama.llama.server.python.LlamaContext'), \
-             patch('cyllama.llama.server.python.LlamaSampler'):
+        with patch("cyllama.llama.server.python.LlamaContext"), patch("cyllama.llama.server.python.LlamaSampler"):
             slot = ServerSlot(0, mock_model, config)
 
             result = slot.process_and_generate("Very long prompt")
@@ -227,9 +219,10 @@ class TestServerSlot:
         """Test handling of generation errors."""
         config = ServerConfig(model_path="test.gguf")
 
-        with patch('cyllama.llama.server.python.LlamaContext') as MockContext, \
-             patch('cyllama.llama.server.python.LlamaSampler'):
-
+        with (
+            patch("cyllama.llama.server.python.LlamaContext") as MockContext,
+            patch("cyllama.llama.server.python.LlamaSampler"),
+        ):
             mock_context = Mock()
             mock_context.decode.side_effect = Exception("Decode error")
             MockContext.return_value = mock_context
@@ -272,8 +265,8 @@ class TestPythonServer:
         assert len(server.slots) == 0
         assert not server.running
 
-    @patch('cyllama.llama.server.python.LlamaModel')
-    @patch('cyllama.llama.server.python.ServerSlot')
+    @patch("cyllama.llama.server.python.LlamaModel")
+    @patch("cyllama.llama.server.python.ServerSlot")
     def test_load_model_success(self, MockServerSlot, MockLlamaModel, config, mock_model):
         """Test successful model loading."""
         MockLlamaModel.return_value = mock_model
@@ -287,7 +280,7 @@ class TestPythonServer:
         MockLlamaModel.assert_called_once()
         assert len(server.slots) == config.n_parallel
 
-    @patch('cyllama.llama.server.python.LlamaModel')
+    @patch("cyllama.llama.server.python.LlamaModel")
     def test_load_model_failure(self, MockLlamaModel, config):
         """Test model loading failure."""
         MockLlamaModel.side_effect = Exception("Model load failed")
@@ -338,7 +331,7 @@ class TestPythonServer:
             ChatMessage(role="system", content="You are helpful"),
             ChatMessage(role="user", content="Hello"),
             ChatMessage(role="assistant", content="Hi there"),
-            ChatMessage(role="user", content="How are you?")
+            ChatMessage(role="user", content="How are you?"),
         ]
 
         prompt = server._messages_to_prompt(messages)
@@ -363,7 +356,7 @@ class TestPythonServer:
         mock_vocab = mock_model.get_vocab()
         mock_vocab.tokenize.side_effect = [
             [1, 2, 3],  # prompt tokens
-            [10, 20]    # completion tokens
+            [10, 20],  # completion tokens
         ]
 
         messages = [ChatMessage(role="user", content="Hello")]
@@ -399,9 +392,7 @@ class TestPythonServer:
         """Test server as context manager."""
         server = PythonServer(config)
 
-        with patch.object(server, 'start', return_value=True) as mock_start, \
-             patch.object(server, 'stop') as mock_stop:
-
+        with patch.object(server, "start", return_value=True) as mock_start, patch.object(server, "stop") as mock_stop:
             with server:
                 pass
 
@@ -412,7 +403,7 @@ class TestPythonServer:
         """Test context manager when start fails."""
         server = PythonServer(config)
 
-        with patch.object(server, 'start', return_value=False):
+        with patch.object(server, "start", return_value=False):
             with pytest.raises(RuntimeError, match="Failed to start server"):
                 with server:
                     pass
@@ -478,7 +469,7 @@ class TestHTTPEndpoints:
 class TestConvenienceFunction:
     """Test convenience functions."""
 
-    @patch('cyllama.llama.server.python.PythonServer')
+    @patch("cyllama.llama.server.python.PythonServer")
     def test_start_python_server_success(self, MockPythonServer):
         """Test start_python_server convenience function."""
         mock_server = Mock()
@@ -496,7 +487,7 @@ class TestConvenienceFunction:
         mock_server.start.assert_called_once()
         assert result == mock_server
 
-    @patch('cyllama.llama.server.python.PythonServer')
+    @patch("cyllama.llama.server.python.PythonServer")
     def test_start_python_server_failure(self, MockPythonServer):
         """Test start_python_server when server fails to start."""
         mock_server = Mock()
@@ -512,14 +503,13 @@ class TestConvenienceFunction:
 class TestPythonServerIntegration:
     """Integration tests for Python server functionality."""
 
-
     def test_server_lifecycle_integration(self, model_path):
         """Test complete server lifecycle with real model."""
         config = ServerConfig(
             model_path=model_path,
             port=18091,  # Different port
-            n_ctx=512,   # Small context for faster startup
-            n_gpu_layers=0  # CPU only for reliability
+            n_ctx=512,  # Small context for faster startup
+            n_gpu_layers=0,  # CPU only for reliability
         )
 
         server = PythonServer(config)
@@ -550,7 +540,7 @@ class TestPythonServerIntegration:
             model_path=model_path,
             port=18092,  # Different port
             n_ctx=512,
-            n_gpu_layers=0
+            n_gpu_layers=0,
         )
 
         # This should work without errors
@@ -566,6 +556,7 @@ class TestPythonServerIntegration:
 # EmbeddedServer Tests (Mongoose-based server)
 # =============================================================================
 
+
 class TestEmbeddedServerLifecycle:
     """Tests for EmbeddedServer start/stop lifecycle."""
 
@@ -573,12 +564,7 @@ class TestEmbeddedServerLifecycle:
         """Test that embedded server can be started and stopped directly without context manager."""
         from cyllama.llama.server.embedded import EmbeddedServer
 
-        config = ServerConfig(
-            model_path=model_path,
-            host="127.0.0.1",
-            port=8098,
-            n_ctx=256
-        )
+        config = ServerConfig(model_path=model_path, host="127.0.0.1", port=8098, n_ctx=256)
 
         server = EmbeddedServer(config)
 
@@ -597,12 +583,7 @@ class TestEmbeddedServerLifecycle:
         """Test that embedded server context manager properly starts and stops the server."""
         from cyllama.llama.server.embedded import EmbeddedServer
 
-        config = ServerConfig(
-            model_path=model_path,
-            host="127.0.0.1",
-            port=8097,
-            n_ctx=256
-        )
+        config = ServerConfig(model_path=model_path, host="127.0.0.1", port=8097, n_ctx=256)
 
         # Use context manager - should start server on entry and stop on exit
         with EmbeddedServer(config) as server:

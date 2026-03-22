@@ -243,12 +243,12 @@ class MarkdownLoader(TextLoader):
                     result[key] = False
                 else:
                     try:
-                        result[key] = int(value)
+                        result[key] = int(value)  # type: ignore[assignment]
                     except ValueError:
                         try:
-                            result[key] = float(value)
+                            result[key] = float(value)  # type: ignore[assignment]
                         except ValueError:
-                            result[key] = value
+                            result[key] = value  # type: ignore[assignment]
 
         return result
 
@@ -331,9 +331,7 @@ class JSONLoader(BaseLoader):
 
             # Extract text
             if self.text_key not in item:
-                raise LoaderError(
-                    f"Text key '{self.text_key}' not found in item {i} of {path}"
-                )
+                raise LoaderError(f"Text key '{self.text_key}' not found in item {i} of {path}")
             text_content = str(item[self.text_key])
 
             # Extract metadata
@@ -407,9 +405,7 @@ class JSONLoader(BaseLoader):
                     raise LoaderError(f"Key '{part}' not found in JSON data")
             elif isinstance(result, list):
                 # Try to extract from all items
-                result = [
-                    item.get(part) for item in result if isinstance(item, dict)
-                ]
+                result = [item.get(part) for item in result if isinstance(item, dict)]
             else:
                 raise LoaderError(f"Cannot access '{part}' on {type(result)}")
 
@@ -477,17 +473,13 @@ class JSONLLoader(BaseLoader):
                     try:
                         item = json.loads(line)
                     except json.JSONDecodeError as e:
-                        raise LoaderError(
-                            f"Invalid JSON on line {line_num} of {path}: {e}"
-                        ) from e
+                        raise LoaderError(f"Invalid JSON on line {line_num} of {path}: {e}") from e
 
                     if not isinstance(item, dict):
                         continue
 
                     if self.text_key not in item:
-                        raise LoaderError(
-                            f"Text key '{self.text_key}' not found on line {line_num} of {path}"
-                        )
+                        raise LoaderError(f"Text key '{self.text_key}' not found on line {line_num} of {path}")
 
                     text_content = str(item[self.text_key])
 
@@ -660,12 +652,10 @@ class PDFLoader(BaseLoader):
         if self._docling is None:
             try:
                 import docling
+
                 self._docling = docling
             except ImportError:
-                raise LoaderError(
-                    "docling is required for PDF loading. "
-                    "Install it with: pip install docling"
-                )
+                raise LoaderError("docling is required for PDF loading. Install it with: pip install docling")
         return self._docling
 
     def load(self, path: str | Path) -> list[Document]:
@@ -705,10 +695,7 @@ class PDFLoader(BaseLoader):
             ]
 
         except ImportError:
-            raise LoaderError(
-                "docling is required for PDF loading. "
-                "Install it with: pip install docling"
-            )
+            raise LoaderError("docling is required for PDF loading. Install it with: pip install docling")
         except Exception as e:
             raise LoaderError(f"Failed to parse PDF {path}: {e}") from e
 

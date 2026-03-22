@@ -9,29 +9,21 @@ import json
 import logging
 import time
 from typing import List, Optional, Iterator, Dict, Any, Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from ..api import LLM, GenerationConfig
 
 # Module logger
 logger = logging.getLogger(__name__)
 from ..llama.llama_cpp import (
-    LlamaModel,
-    LlamaContext,
-    LlamaModelParams,
-    LlamaContextParams,
     LlamaSampler,
     LlamaSamplerChainParams,
     llama_batch_get_one,
-    ggml_backend_load_all,
-    disable_logging,
 )
 from .tools import Tool, ToolRegistry
 from .grammar import (
     GrammarFormat,
-    generate_tool_call_grammar,
     generate_answer_or_tool_grammar,
-    get_cached_tool_grammar,
     get_cached_answer_or_tool_grammar,
 )
 from .react import EventType, AgentEvent, AgentResult
@@ -45,12 +37,7 @@ class GrammarConstrainedLLM(LLM):
     ensuring outputs conform to a specified GBNF grammar format.
     """
 
-    def __init__(
-        self,
-        model_path: str,
-        config: Optional[GenerationConfig] = None,
-        verbose: bool = False
-    ):
+    def __init__(self, model_path: str, config: Optional[GenerationConfig] = None, verbose: bool = False):
         """Initialize grammar-constrained LLM."""
         super().__init__(model_path, config, verbose)
 
@@ -60,7 +47,7 @@ class GrammarConstrainedLLM(LLM):
         grammar: str,
         grammar_root: str = "root",
         config: Optional[GenerationConfig] = None,
-        on_token: Optional[Callable[[str], None]] = None
+        on_token: Optional[Callable[[str], None]] = None,
     ) -> str:
         """
         Generate text with grammar constraint.
@@ -78,11 +65,7 @@ class GrammarConstrainedLLM(LLM):
         config = config or self.config
 
         # Tokenize prompt
-        prompt_tokens = self.vocab.tokenize(
-            prompt,
-            add_special=config.add_bos,
-            parse_special=config.parse_special
-        )
+        prompt_tokens = self.vocab.tokenize(prompt, add_special=config.add_bos, parse_special=config.parse_special)
         n_prompt = len(prompt_tokens)
 
         if self.verbose:
@@ -136,12 +119,7 @@ class GrammarConstrainedLLM(LLM):
 
         return "".join(output_tokens)
 
-    def _ensure_sampler_with_grammar(
-        self,
-        config: GenerationConfig,
-        grammar: str,
-        grammar_root: str
-    ):
+    def _ensure_sampler_with_grammar(self, config: GenerationConfig, grammar: str, grammar_root: str):
         """Create sampler with grammar constraint."""
         sampler_params = LlamaSamplerChainParams()
         sampler_params.no_perf = not self.verbose
@@ -156,10 +134,7 @@ class GrammarConstrainedLLM(LLM):
         # Add penalties if configured
         if config.repeat_penalty != 1.0:
             self._sampler.add_penalties(
-                penalty_last_n=64,
-                penalty_repeat=config.repeat_penalty,
-                penalty_freq=0.0,
-                penalty_present=0.0
+                penalty_last_n=64, penalty_repeat=config.repeat_penalty, penalty_freq=0.0, penalty_present=0.0
             )
 
         # Add sampling methods based on config
@@ -183,6 +158,7 @@ class GrammarConstrainedLLM(LLM):
 @dataclass
 class ConstrainedGenerationConfig:
     """Configuration for constrained generation."""
+
     temperature: float = 0.7
     max_tokens: int = 512
     top_k: int = 40
@@ -193,6 +169,7 @@ class ConstrainedGenerationConfig:
 @dataclass
 class AgentMetrics:
     """Performance metrics for agent execution."""
+
     total_time_ms: float = 0.0
     iterations: int = 0
     tool_calls: int = 0
@@ -298,7 +275,7 @@ Use tools when needed, then provide a helpful final answer based on the results.
             self.llm = llm
         else:
             # Check if this is a real LLM with model (not a mock)
-            if hasattr(llm, 'model') and hasattr(llm, 'vocab'):
+            if hasattr(llm, "model") and hasattr(llm, "vocab"):
                 # Create a GrammarConstrainedLLM using the same model
                 self.llm = GrammarConstrainedLLM.__new__(GrammarConstrainedLLM)
                 # Copy all attributes from the original LLM
@@ -374,7 +351,7 @@ Use tools when needed, then provide a helpful final answer based on the results.
             steps=events,
             iterations=len([e for e in events if e.type == EventType.ACTION]),
             success=success,
-            error=error
+            error=error,
         )
 
     def stream(self, task: str) -> Iterator[AgentEvent]:
@@ -433,8 +410,11 @@ Use tools when needed, then provide a helpful final answer based on the results.
                     # Final answer
                     answer = response_json.get("content", "")
                     self._metrics.total_time_ms = (time.perf_counter() - start_time) * 1000
-                    logger.info("Agent completed successfully in %.1fms with %d iterations",
-                               self._metrics.total_time_ms, self._metrics.iterations)
+                    logger.info(
+                        "Agent completed successfully in %.1fms with %d iterations",
+                        self._metrics.total_time_ms,
+                        self._metrics.iterations,
+                    )
                     event = AgentEvent(type=EventType.ANSWER, content=answer)
                     yield event
                     return
@@ -468,12 +448,13 @@ Use tools when needed, then provide a helpful final answer based on the results.
 
                         # Check for exact same action repeated
                         if len(recent_actions) >= self.max_consecutive_same_action:
-                            last_n = recent_actions[-self.max_consecutive_same_action:]
+                            last_n = recent_actions[-self.max_consecutive_same_action :]
                             if all(a == last_n[0] for a in last_n):
                                 self._metrics.loop_detected = True
                                 self._metrics.total_time_ms = (time.perf_counter() - start_time) * 1000
-                                logger.warning("Loop detected (same action) after %d iterations: %s",
-                                             iteration + 1, action_str)
+                                logger.warning(
+                                    "Loop detected (same action) after %d iterations: %s", iteration + 1, action_str
+                                )
 
                                 # Generate summary from observations if available
                                 if observations:
@@ -490,12 +471,16 @@ Use tools when needed, then provide a helpful final answer based on the results.
 
                         # Check for same tool called too many times (even with different args)
                         if len(recent_tools) >= self.max_consecutive_same_tool:
-                            last_n_tools = recent_tools[-self.max_consecutive_same_tool:]
+                            last_n_tools = recent_tools[-self.max_consecutive_same_tool :]
                             if all(t == last_n_tools[0] for t in last_n_tools):
                                 self._metrics.loop_detected = True
                                 self._metrics.total_time_ms = (time.perf_counter() - start_time) * 1000
-                                logger.warning("Loop detected (same tool) after %d iterations: %s called %d times",
-                                             iteration + 1, tool_name, self.max_consecutive_same_tool)
+                                logger.warning(
+                                    "Loop detected (same tool) after %d iterations: %s called %d times",
+                                    iteration + 1,
+                                    tool_name,
+                                    self.max_consecutive_same_tool,
+                                )
 
                                 # Generate summary from observations if available
                                 if observations:
@@ -514,7 +499,7 @@ Use tools when needed, then provide a helpful final answer based on the results.
                     event = AgentEvent(
                         type=EventType.ACTION,
                         content=action_str,
-                        metadata={"tool_name": tool_name, "tool_args": tool_args}
+                        metadata={"tool_name": tool_name, "tool_args": tool_args},
                     )
                     yield event
 
@@ -532,17 +517,13 @@ Use tools when needed, then provide a helpful final answer based on the results.
                         last_action_had_error = True  # Allow retry without loop detection
                         logger.error("Tool %s failed: %s", tool_name, str(e))
                         error_event = AgentEvent(
-                            type=EventType.ERROR,
-                            content=str(e),
-                            metadata={"tool_name": tool_name}
+                            type=EventType.ERROR, content=str(e), metadata={"tool_name": tool_name}
                         )
                         yield error_event
 
                     # Emit observation
                     obs_event = AgentEvent(
-                        type=EventType.OBSERVATION,
-                        content=observation,
-                        metadata={"tool_name": tool_name}
+                        type=EventType.OBSERVATION, content=observation, metadata={"tool_name": tool_name}
                     )
                     yield obs_event
 
@@ -576,12 +557,11 @@ Use tools when needed, then provide a helpful final answer based on the results.
 
         # Max iterations reached
         self._metrics.total_time_ms = (time.perf_counter() - start_time) * 1000
-        logger.warning("Agent reached max iterations (%d) in %.1fms",
-                      self.max_iterations, self._metrics.total_time_ms)
+        logger.warning("Agent reached max iterations (%d) in %.1fms", self.max_iterations, self._metrics.total_time_ms)
         error_event = AgentEvent(
             type=EventType.ERROR,
             content=f"Reached maximum iterations ({self.max_iterations})",
-            metadata={"iterations": self.max_iterations}
+            metadata={"iterations": self.max_iterations},
         )
         yield error_event
 
@@ -609,7 +589,7 @@ Use tools when needed, then provide a helpful final answer based on the results.
         question_idx = prompt.find(question_marker)
         if question_idx == -1:
             # Fallback: just truncate from the end (not ideal)
-            return prompt[:self.max_context_chars]
+            return prompt[: self.max_context_chars]
 
         # Split into header (system prompt + question) and history
         header_end = question_idx + len(question_marker)
@@ -621,13 +601,13 @@ Use tools when needed, then provide a helpful final answer based on the results.
 
         if available_for_history <= 0:
             logger.warning("System prompt and question exceed max_context_chars")
-            return prompt[:self.max_context_chars]
+            return prompt[: self.max_context_chars]
 
         # Keep the most recent history (from the end)
         if len(history) > available_for_history:
             # Add a truncation marker
             truncation_notice = "\n\n[...earlier conversation truncated...]\n\n"
-            truncated_history = truncation_notice + history[-(available_for_history - len(truncation_notice)):]
+            truncated_history = truncation_notice + history[-(available_for_history - len(truncation_notice)) :]
             return header + truncated_history
 
         return prompt
@@ -663,7 +643,7 @@ Use tools when needed, then provide a helpful final answer based on the results.
     @property
     def metrics(self) -> Optional[AgentMetrics]:
         """Get metrics from the last run."""
-        return getattr(self, '_metrics', None)
+        return getattr(self, "_metrics", None)
 
     def _generate_constrained(self, prompt: str) -> Dict[str, Any]:
         """
@@ -680,20 +660,14 @@ Use tools when needed, then provide a helpful final answer based on the results.
         tools_list = self.registry.list_tools()
 
         if self.use_cache:
-            grammar = get_cached_answer_or_tool_grammar(
-                tools_list,
-                allow_reasoning=self.allow_reasoning
-            )
+            grammar = get_cached_answer_or_tool_grammar(tools_list, allow_reasoning=self.allow_reasoning)
         else:
-            grammar = generate_answer_or_tool_grammar(
-                tools_list,
-                allow_reasoning=self.allow_reasoning
-            )
+            grammar = generate_answer_or_tool_grammar(tools_list, allow_reasoning=self.allow_reasoning)
 
         # Create generation config
         # IMPORTANT: Preserve n_batch and n_ctx from LLM's config to handle large grammars
         # Get batch and ctx from LLM config if available (for testing, LLM might not have config)
-        llm_config = getattr(self.llm, 'config', None)
+        llm_config = getattr(self.llm, "config", None)
         n_batch = llm_config.n_batch if llm_config and llm_config.n_batch else 512
         n_ctx = llm_config.n_ctx if llm_config else None
 
@@ -704,17 +678,12 @@ Use tools when needed, then provide a helpful final answer based on the results.
             top_p=self.generation_config.top_p,
             min_p=self.generation_config.min_p,
             n_batch=n_batch,  # Preserve batch size from LLM or use default
-            n_ctx=n_ctx,      # Preserve context size from LLM (None is OK)
+            n_ctx=n_ctx,  # Preserve context size from LLM (None is OK)
         )
 
         # Use grammar-constrained generation if available
         if isinstance(self.llm, GrammarConstrainedLLM):
-            response = self.llm.generate_with_grammar(
-                prompt,
-                grammar=grammar,
-                grammar_root="root",
-                config=config
-            )
+            response = self.llm.generate_with_grammar(prompt, grammar=grammar, grammar_root="root", config=config)
         else:
             # Fallback for mock LLMs in tests
             result = self.llm(prompt, config=config, stream=False)

@@ -29,17 +29,14 @@ def example_with_callbacks(model_path: str):
     """Demonstrate progress and log callbacks."""
     print("\n=== Example: Progress and Log Callbacks ===\n")
 
-    from cyllama.sd import (
-        SDContext, SDContextParams,
-        set_log_callback, set_progress_callback
-    )
+    from cyllama.sd import SDContext, SDContextParams, set_log_callback, set_progress_callback
 
     # Set up log callback
     def log_callback(level, text):
-        level_names = {0: 'DEBUG', 1: 'INFO', 2: 'WARN', 3: 'ERROR'}
+        level_names = {0: "DEBUG", 1: "INFO", 2: "WARN", 3: "ERROR"}
         # Only show INFO and above
         if level >= 1:
-            print(f'[{level_names.get(level, level)}] {text}', end='')
+            print(f"[{level_names.get(level, level)}] {text}", end="")
 
     set_log_callback(log_callback)
 
@@ -48,8 +45,8 @@ def example_with_callbacks(model_path: str):
         pct = (step / steps) * 100 if steps > 0 else 0
         bar_len = 30
         filled = int(bar_len * step / steps) if steps > 0 else 0
-        bar = '=' * filled + '-' * (bar_len - filled)
-        print(f'\rProgress: [{bar}] {pct:5.1f}% ({step}/{steps}) {time_ms:.2f}s', end='', flush=True)
+        bar = "=" * filled + "-" * (bar_len - filled)
+        print(f"\rProgress: [{bar}] {pct:5.1f}% ({step}/{steps}) {time_ms:.2f}s", end="", flush=True)
 
     set_progress_callback(progress_callback)
 
@@ -63,12 +60,7 @@ def example_with_callbacks(model_path: str):
 
     print("Generating with progress tracking...")
     images = ctx.generate(
-        prompt="a beautiful mountain landscape at sunset",
-        width=512,
-        height=512,
-        sample_steps=4,
-        cfg_scale=1.0,
-        seed=42
+        prompt="a beautiful mountain landscape at sunset", width=512, height=512, sample_steps=4, cfg_scale=1.0, seed=42
     )
 
     print()  # Newline after progress bar
@@ -85,11 +77,7 @@ def example_different_samplers(model_path: str):
     """Demonstrate different sampling methods and schedulers."""
     print("\n=== Example: Different Samplers ===\n")
 
-    from cyllama.sd import (
-        SDContext, SDContextParams,
-        SampleMethod, Scheduler,
-        set_log_callback
-    )
+    from cyllama.sd import SDContext, SDContextParams, SampleMethod, Scheduler, set_log_callback
 
     # Suppress logs
     set_log_callback(lambda level, text: None)
@@ -110,7 +98,7 @@ def example_different_samplers(model_path: str):
     prompt = "a cute robot"
 
     for method, scheduler, name in combinations:
-        print(f"Testing: {name}...", end=' ', flush=True)
+        print(f"Testing: {name}...", end=" ", flush=True)
         start = time.time()
 
         images = ctx.generate(
@@ -121,7 +109,7 @@ def example_different_samplers(model_path: str):
             cfg_scale=1.0,
             sample_method=method,
             scheduler=scheduler,
-            seed=42
+            seed=42,
         )
 
         elapsed = time.time() - start
@@ -137,11 +125,7 @@ def example_lowlevel_api(model_path: str):
     """Demonstrate low-level API with SDImageGenParams."""
     print("\n=== Example: Low-Level API ===\n")
 
-    from cyllama.sd import (
-        SDContext, SDContextParams, SDImageGenParams, SDSampleParams,
-        SampleMethod, Scheduler,
-        set_log_callback
-    )
+    from cyllama.sd import SDContext, SDContextParams, SDImageGenParams, SampleMethod, Scheduler, set_log_callback
 
     set_log_callback(lambda level, text: None)
 
@@ -204,20 +188,14 @@ def example_canny_preprocess():
     y, x = np.ogrid[:256, :256]
     center = (128, 128)
     radius = 40
-    mask = (x - center[0])**2 + (y - center[1])**2 <= radius**2
+    mask = (x - center[0]) ** 2 + (y - center[1]) ** 2 <= radius**2
     arr[mask] = 128
 
     img = SDImage.from_numpy(arr)
     print(f"Original image: {img.width}x{img.height}")
 
     # Apply Canny edge detection
-    result = canny_preprocess(
-        img,
-        high_threshold=0.8,
-        low_threshold=0.1,
-        weak=0.5,
-        strong=1.0
-    )
+    result = canny_preprocess(img, high_threshold=0.8, low_threshold=0.1, weak=0.5, strong=1.0)
 
     print(f"Canny preprocessing: {'success' if result else 'failed'}")
 
@@ -233,10 +211,7 @@ def example_system_info():
     """Display system information."""
     print("\n=== System Information ===\n")
 
-    from cyllama.sd import (
-        get_num_cores, get_system_info,
-        SampleMethod, Scheduler, SDType
-    )
+    from cyllama.sd import get_num_cores, get_system_info, SampleMethod, Scheduler, SDType
 
     print(f"CPU cores: {get_num_cores()}")
     print()
@@ -267,35 +242,32 @@ def save_image(img, path: str):
     except ImportError:
         # Fall back to PPM
         arr = img.to_numpy()
-        ppm_path = path.rsplit('.', 1)[0] + '.ppm'
-        with open(ppm_path, 'wb') as f:
-            f.write(f'P6\n{img.width} {img.height}\n255\n'.encode())
+        ppm_path = path.rsplit(".", 1)[0] + ".ppm"
+        with open(ppm_path, "wb") as f:
+            f.write(f"P6\n{img.width} {img.height}\n255\n".encode())
             f.write(arr.tobytes())
         print(f"Saved (PPM): {ppm_path}")
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Advanced Stable Diffusion examples',
+        description="Advanced Stable Diffusion examples",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=__doc__
+        epilog=__doc__,
     )
+    parser.add_argument("--model", "-m", default="models/sd_xl_turbo_1.0.q8_0.gguf", help="Path to model file")
     parser.add_argument(
-        '--model', '-m',
-        default='models/sd_xl_turbo_1.0.q8_0.gguf',
-        help='Path to model file'
-    )
-    parser.add_argument(
-        '--example', '-e',
-        choices=['callbacks', 'samplers', 'lowlevel', 'canny', 'info', 'all'],
-        default='all',
-        help='Which example to run'
+        "--example",
+        "-e",
+        choices=["callbacks", "samplers", "lowlevel", "canny", "info", "all"],
+        default="all",
+        help="Which example to run",
     )
 
     args = parser.parse_args()
 
     # Check model exists for examples that need it
-    need_model = args.example in ['callbacks', 'samplers', 'lowlevel', 'all']
+    need_model = args.example in ["callbacks", "samplers", "lowlevel", "all"]
     if need_model and not os.path.exists(args.model):
         print(f"Error: Model not found: {args.model}")
         print("Please download a stable diffusion model first.")
@@ -311,21 +283,21 @@ def main():
         sys.exit(1)
 
     # Run selected examples
-    if args.example in ['info', 'all']:
+    if args.example in ["info", "all"]:
         example_system_info()
 
-    if args.example in ['canny', 'all']:
+    if args.example in ["canny", "all"]:
         example_canny_preprocess()
 
-    if args.example in ['callbacks', 'all']:
+    if args.example in ["callbacks", "all"]:
         img = example_with_callbacks(args.model)
         if img:
             save_image(img, "output_callbacks.png")
 
-    if args.example in ['samplers', 'all']:
+    if args.example in ["samplers", "all"]:
         example_different_samplers(args.model)
 
-    if args.example in ['lowlevel', 'all']:
+    if args.example in ["lowlevel", "all"]:
         img = example_lowlevel_api(args.model)
         if img:
             save_image(img, "output_lowlevel.png")
@@ -333,5 +305,5 @@ def main():
     print("\nAll examples completed!")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

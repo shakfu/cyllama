@@ -6,19 +6,20 @@ like vision-language processing and audio analysis.
 """
 
 import os
-import io
-from typing import List, Optional, Union, Dict, Any, Tuple
+from typing import List, Union
 from pathlib import Path
 import logging
 
 try:
     from PIL import Image
+
     HAS_PIL = True
 except ImportError:
     HAS_PIL = False
 
 try:
     import numpy as np
+
     HAS_NUMPY = True
 except ImportError:
     HAS_NUMPY = False
@@ -36,11 +37,13 @@ logger = logging.getLogger(__name__)
 
 class MultimodalError(Exception):
     """Base exception for multimodal processing errors."""
+
     pass
 
 
 class UnsupportedModalityError(MultimodalError):
     """Raised when a requested modality is not supported by the model."""
+
     pass
 
 
@@ -73,7 +76,7 @@ class MultimodalProcessor:
         self._supports_audio = self.mtmd_ctx.supports_audio
         self._audio_sample_rate = self.mtmd_ctx.audio_sample_rate
 
-        logger.info(f"Initialized multimodal processor:")
+        logger.info("Initialized multimodal processor:")
         logger.info(f"  Vision support: {self._supports_vision}")
         logger.info(f"  Audio support: {self._supports_audio}")
         if self._supports_audio:
@@ -94,8 +97,9 @@ class MultimodalProcessor:
         """Get supported audio bitrate in Hz."""
         return self._audio_sample_rate
 
-    def process_image(self, text: str, image: Union[str, bytes, 'Image.Image'],
-                     add_special: bool = True, parse_special: bool = True) -> MtmdInputChunks:
+    def process_image(
+        self, text: str, image: Union[str, bytes, "Image.Image"], add_special: bool = True, parse_special: bool = True
+    ) -> MtmdInputChunks:
         """Process text with an image.
 
         Args:
@@ -126,8 +130,9 @@ class MultimodalProcessor:
         except Exception as e:
             raise MultimodalError(f"Failed to process image: {e}")
 
-    def process_audio(self, text: str, audio: Union[str, bytes, List[float]],
-                     add_special: bool = True, parse_special: bool = True) -> MtmdInputChunks:
+    def process_audio(
+        self, text: str, audio: Union[str, bytes, List[float]], add_special: bool = True, parse_special: bool = True
+    ) -> MtmdInputChunks:
         """Process text with audio.
 
         Args:
@@ -158,8 +163,9 @@ class MultimodalProcessor:
         except Exception as e:
             raise MultimodalError(f"Failed to process audio: {e}")
 
-    def process_multimodal(self, text: str, media_files: List[Union[str, bytes]],
-                          add_special: bool = True, parse_special: bool = True) -> MtmdInputChunks:
+    def process_multimodal(
+        self, text: str, media_files: List[Union[str, bytes]], add_special: bool = True, parse_special: bool = True
+    ) -> MtmdInputChunks:
         """Process text with multiple media files.
 
         Args:
@@ -182,11 +188,11 @@ class MultimodalProcessor:
                 if isinstance(media, str):
                     # File path - determine type by extension or content
                     ext = Path(media).suffix.lower()
-                    if ext in ['.jpg', '.jpeg', '.png', '.bmp', '.gif']:
+                    if ext in [".jpg", ".jpeg", ".png", ".bmp", ".gif"]:
                         if not self.supports_vision:
                             raise UnsupportedModalityError("Vision not supported")
                         bitmap = self._load_image_bitmap(media)
-                    elif ext in ['.wav', '.mp3', '.flac']:
+                    elif ext in [".wav", ".mp3", ".flac"]:
                         if not self.supports_audio:
                             raise UnsupportedModalityError("Audio not supported")
                         bitmap = self._load_audio_bitmap(media)
@@ -206,7 +212,7 @@ class MultimodalProcessor:
         except Exception as e:
             raise MultimodalError(f"Failed to tokenize multimodal input: {e}")
 
-    def _load_image_bitmap(self, image: Union[str, bytes, 'Image.Image']) -> MtmdBitmap:
+    def _load_image_bitmap(self, image: Union[str, bytes, "Image.Image"]) -> MtmdBitmap:
         """Load image as MtmdBitmap."""
         if isinstance(image, str):
             # File path
@@ -216,8 +222,8 @@ class MultimodalProcessor:
             return MtmdBitmap.from_buffer(self.mtmd_ctx, image)
         elif HAS_PIL and isinstance(image, Image.Image):
             # PIL Image
-            if image.mode != 'RGB':
-                image = image.convert('RGB')
+            if image.mode != "RGB":
+                image = image.convert("RGB")
 
             width, height = image.size
             rgb_data = image.tobytes()
@@ -259,8 +265,7 @@ class VisionLanguageChat:
         if not self.processor.supports_vision:
             raise UnsupportedModalityError("Vision not supported by this model")
 
-    def ask_about_image(self, question: str, image: Union[str, bytes, 'Image.Image'],
-                       max_tokens: int = 512) -> str:
+    def ask_about_image(self, question: str, image: Union[str, bytes, "Image.Image"], max_tokens: int = 512) -> str:
         """Ask a question about an image.
 
         Args:
@@ -275,21 +280,14 @@ class VisionLanguageChat:
         chunks = self.processor.process_image(question, image)
 
         # Evaluate chunks
-        n_past = self.processor.mtmd_ctx.eval_chunks(
-            self.llama_context, chunks, n_past=0
-        )
+        n_past = self.processor.mtmd_ctx.eval_chunks(self.llama_context, chunks, n_past=0)
 
         # Generate response (simplified - would need proper generation loop)
         # This is a placeholder that would need to be implemented with proper sampling
         response = "Image analysis response would be generated here"
 
         # Store in conversation history
-        self.conversation_history.append({
-            'question': question,
-            'image': image,
-            'response': response,
-            'n_past': n_past
-        })
+        self.conversation_history.append({"question": question, "image": image, "response": response, "n_past": n_past})
 
         return response
 
@@ -307,10 +305,7 @@ class VisionLanguageChat:
         # using the existing context and history
         response = "Conversation continuation would be implemented here"
 
-        self.conversation_history.append({
-            'message': message,
-            'response': response
-        })
+        self.conversation_history.append({"message": message, "response": response})
 
         return response
 
@@ -383,8 +378,7 @@ class ImageAnalyzer:
         if not self.processor.supports_vision:
             raise UnsupportedModalityError("Vision not supported by this model")
 
-    def describe_image(self, image: Union[str, bytes, 'Image.Image'],
-                      detail_level: str = "medium") -> str:
+    def describe_image(self, image: Union[str, bytes, "Image.Image"], detail_level: str = "medium") -> str:
         """Generate a description of an image.
 
         Args:
@@ -406,7 +400,7 @@ class ImageAnalyzer:
         # This would need proper implementation with generation
         return "Image description would be implemented here"
 
-    def detect_objects(self, image: Union[str, bytes, 'Image.Image']) -> List[str]:
+    def detect_objects(self, image: Union[str, bytes, "Image.Image"]) -> List[str]:
         """Detect objects in an image.
 
         Args:
@@ -421,7 +415,7 @@ class ImageAnalyzer:
         # This would need proper implementation with generation and parsing
         return ["Object detection would be implemented here"]
 
-    def answer_question(self, question: str, image: Union[str, bytes, 'Image.Image']) -> str:
+    def answer_question(self, question: str, image: Union[str, bytes, "Image.Image"]) -> str:
         """Answer a specific question about an image.
 
         Args:

@@ -19,7 +19,7 @@ import tempfile
 from pathlib import Path
 
 from cyllama.rag import Embedder, HybridStore
-from cyllama.utils.color import header, section, info, success, bullet, kv, warning, error
+from cyllama.utils.color import header, section, info, success, bullet, kv, error
 
 
 def main():
@@ -33,7 +33,8 @@ Example:
         """,
     )
     parser.add_argument(
-        "-e", "--embedding-model",
+        "-e",
+        "--embedding-model",
         type=str,
         required=True,
         help="Path to embedding model (GGUF file)",
@@ -55,25 +56,18 @@ Example:
     documents = [
         "Python PEP-8 defines the style guide for Python code. It recommends "
         "using 4 spaces for indentation and limiting lines to 79 characters.",
-
         "The HTTP/2 protocol improves web performance through multiplexing, "
         "header compression, and server push capabilities.",
-
         "PostgreSQL JSONB type provides efficient storage and querying of "
         "JSON data with indexing support using GIN indexes.",
-
         "Docker containers use cgroups and namespaces for isolation. "
         "Images are built from Dockerfiles with layered filesystems.",
-
         "REST API design follows principles like statelessness, uniform "
         "interface, and resource-based URLs for web services.",
-
         "GraphQL queries allow clients to request exactly the data they need. "
         "It uses a strongly typed schema and introspection.",
-
         "Redis supports data structures like strings, hashes, lists, sets, "
         "and sorted sets with optional persistence and clustering.",
-
         "Kubernetes pods are the smallest deployable units containing one or "
         "more containers that share storage and network resources.",
     ]
@@ -122,7 +116,7 @@ Example:
             query_emb = embedder.embed(query)
             results = store.search(query_emb, query_text=query, k=3, alpha=1.0)
             for r in results:
-                preview = r.text[:70].replace('\n', ' ')
+                preview = r.text[:70].replace("\n", " ")
                 print(f"    [{r.score:.3f}] {preview}...")
 
             # 2. Pure keyword search (alpha=0.0)
@@ -131,7 +125,7 @@ Example:
             info("  Uses FTS5 full-text search only")
             results = store.search(query_emb, query_text=query, k=3, alpha=0.0)
             for r in results:
-                preview = r.text[:70].replace('\n', ' ')
+                preview = r.text[:70].replace("\n", " ")
                 print(f"    [{r.score:.3f}] {preview}...")
 
             # 3. Hybrid search (alpha=0.5)
@@ -140,7 +134,7 @@ Example:
             info("  Combines both methods with Reciprocal Rank Fusion")
             results = store.search(query_emb, query_text=query, k=3, alpha=0.5)
             for r in results:
-                preview = r.text[:70].replace('\n', ' ')
+                preview = r.text[:70].replace("\n", " ")
                 print(f"    [{r.score:.3f}] {preview}...")
 
             # Demonstrate when hybrid search helps
@@ -155,7 +149,7 @@ Example:
             print("  Vector only (might miss exact term):")
             results = store.search(query_emb, query_text=query, k=2, alpha=1.0)
             for r in results:
-                preview = r.text[:60].replace('\n', ' ')
+                preview = r.text[:60].replace("\n", " ")
                 is_pep8 = "PEP-8" in r.text
                 marker = "[*]" if is_pep8 else "[ ]"
                 print(f"    {marker} [{r.score:.3f}] {preview}...")
@@ -163,7 +157,7 @@ Example:
             print("  Hybrid (boosted by keyword match):")
             results = store.search(query_emb, query_text=query, k=2, alpha=0.5)
             for r in results:
-                preview = r.text[:60].replace('\n', ' ')
+                preview = r.text[:60].replace("\n", " ")
                 is_pep8 = "PEP-8" in r.text
                 marker = "[*]" if is_pep8 else "[ ]"
                 print(f"    {marker} [{r.score:.3f}] {preview}...")
@@ -178,7 +172,7 @@ Example:
             results = store.search(query_emb, query_text=query, k=2, alpha=0.0)
             if results:
                 for r in results:
-                    preview = r.text[:60].replace('\n', ' ')
+                    preview = r.text[:60].replace("\n", " ")
                     print(f"    [{r.score:.3f}] {preview}...")
             else:
                 print("    No keyword matches found")
@@ -186,7 +180,7 @@ Example:
             print("  Hybrid (finds semantically relevant docs):")
             results = store.search(query_emb, query_text=query, k=2, alpha=0.5)
             for r in results:
-                preview = r.text[:60].replace('\n', ' ')
+                preview = r.text[:60].replace("\n", " ")
                 print(f"    [{r.score:.3f}] {preview}...")
 
             # Case 3: Mixed query
@@ -199,7 +193,7 @@ Example:
             for alpha in [0.0, 0.3, 0.5, 0.7, 1.0]:
                 results = store.search(query_emb, query_text=query, k=1, alpha=alpha)
                 if results:
-                    preview = results[0].text[:50].replace('\n', ' ')
+                    preview = results[0].text[:50].replace("\n", " ")
                     contains_jsonb = "JSONB" in results[0].text
                     marker = "[*]" if contains_jsonb else "[ ]"
                     print(f"    alpha={alpha}: {marker} {preview}...")

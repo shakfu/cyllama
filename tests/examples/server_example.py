@@ -79,16 +79,10 @@ def main():
 
                 # Test chat completion
                 print("Testing /v1/chat/completions endpoint...")
-                messages = [
-                    {"role": "user", "content": "Hello! Please respond with just 'Hello there!'"}
-                ]
+                messages = [{"role": "user", "content": "Hello! Please respond with just 'Hello there!'"}]
 
                 try:
-                    response = client.chat_completion(
-                        messages=messages,
-                        max_tokens=10,
-                        temperature=0.7
-                    )
+                    response = client.chat_completion(messages=messages, max_tokens=10, temperature=0.7)
 
                     if "choices" in response and len(response["choices"]) > 0:
                         content = response["choices"][0]["message"]["content"]

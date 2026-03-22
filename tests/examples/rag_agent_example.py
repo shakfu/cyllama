@@ -65,19 +65,22 @@ Example:
         """,
     )
     parser.add_argument(
-        "-e", "--embedding-model",
+        "-e",
+        "--embedding-model",
         type=str,
         required=True,
         help="Path to embedding model (GGUF file)",
     )
     parser.add_argument(
-        "-m", "--generation-model",
+        "-m",
+        "--generation-model",
         type=str,
         required=True,
         help="Path to generation model (GGUF file)",
     )
     parser.add_argument(
-        "-v", "--verbose",
+        "-v",
+        "--verbose",
         action="store_true",
         help="Enable verbose agent output",
     )
@@ -104,27 +107,19 @@ Example:
     company_docs = [
         "Acme Corp was founded in 2015 by Jane Smith and John Doe. "
         "The company is headquartered in San Francisco, California.",
-
         "Acme Corp's main product is CloudSync, a cloud storage solution "
         "launched in 2017. It currently has over 5 million users worldwide.",
-
         "The company went public in 2021 with an IPO price of $45 per share. "
         "Current revenue is approximately $250 million annually.",
-
         "Acme Corp employs 850 people across 12 offices globally. "
         "The engineering team consists of 300 software engineers.",
-
         "The company's mission is to make cloud storage accessible and secure "
         "for everyone. Core values include innovation, security, and simplicity.",
-
         "CloudSync offers three tiers: Free (5GB), Pro ($9.99/month, 100GB), "
         "and Enterprise (custom pricing, unlimited storage).",
-
         "Recent acquisitions include DataVault (2022) for $50 million and "
         "SecureFiles (2023) for $75 million to enhance security features.",
-
-        "The company's tech stack includes Python, Go, and Kubernetes. "
-        "All data is encrypted using AES-256 encryption.",
+        "The company's tech stack includes Python, Go, and Kubernetes. All data is encrypted using AES-256 encryption.",
     ]
 
     section("Setting up RAG system...")
@@ -146,7 +141,7 @@ Example:
         rag,
         name="search_company_knowledge",
         description="Search the company knowledge base for information about "
-                    "Acme Corp, its products, employees, financials, and history.",
+        "Acme Corp, its products, employees, financials, and history.",
         top_k=3,
         include_scores=True,
     )

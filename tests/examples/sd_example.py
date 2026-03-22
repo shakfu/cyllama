@@ -33,8 +33,8 @@ import numpy as np
 def save_ppm(arr: np.ndarray, path: str) -> None:
     """Save numpy array as PPM image (no PIL required)."""
     height, width, channels = arr.shape
-    with open(path, 'wb') as f:
-        f.write(f'P6\n{width} {height}\n255\n'.encode())
+    with open(path, "wb") as f:
+        f.write(f"P6\n{width} {height}\n255\n".encode())
         f.write(arr.tobytes())
     print(f"Saved: {path} ({os.path.getsize(path)} bytes)")
 
@@ -48,71 +48,45 @@ def save_image(img, path: str) -> None:
     except ImportError:
         # Fall back to PPM format
         arr = img.to_numpy()
-        ppm_path = path.rsplit('.', 1)[0] + '.ppm'
+        ppm_path = path.rsplit(".", 1)[0] + ".ppm"
         save_ppm(arr, ppm_path)
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Generate images using Stable Diffusion',
+        description="Generate images using Stable Diffusion",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=__doc__
+        epilog=__doc__,
     )
     parser.add_argument(
-        '--model', '-m',
-        default='models/sd_xl_turbo_1.0.q8_0.gguf',
-        help='Path to model file (default: models/sd_xl_turbo_1.0.q8_0.gguf)'
+        "--model",
+        "-m",
+        default="models/sd_xl_turbo_1.0.q8_0.gguf",
+        help="Path to model file (default: models/sd_xl_turbo_1.0.q8_0.gguf)",
     )
     parser.add_argument(
-        '--prompt', '-p',
-        default='a photo of a cute cat sitting on a windowsill, sunlight, highly detailed',
-        help='Text prompt for image generation'
+        "--prompt",
+        "-p",
+        default="a photo of a cute cat sitting on a windowsill, sunlight, highly detailed",
+        help="Text prompt for image generation",
+    )
+    parser.add_argument("--negative", "-n", default="blurry, low quality, distorted, ugly", help="Negative prompt")
+    parser.add_argument("--output", "-o", default="output.png", help="Output image path (default: output.png)")
+    parser.add_argument("--width", "-W", type=int, default=512, help="Image width (default: 512)")
+    parser.add_argument("--height", "-H", type=int, default=512, help="Image height (default: 512)")
+    parser.add_argument(
+        "--steps",
+        "-s",
+        type=int,
+        default=4,
+        help="Number of sampling steps (default: 4 for turbo models, use 20+ for others)",
     )
     parser.add_argument(
-        '--negative', '-n',
-        default='blurry, low quality, distorted, ugly',
-        help='Negative prompt'
+        "--cfg", "-c", type=float, default=1.0, help="CFG scale (default: 1.0 for turbo, use 7.0 for others)"
     )
-    parser.add_argument(
-        '--output', '-o',
-        default='output.png',
-        help='Output image path (default: output.png)'
-    )
-    parser.add_argument(
-        '--width', '-W',
-        type=int, default=512,
-        help='Image width (default: 512)'
-    )
-    parser.add_argument(
-        '--height', '-H',
-        type=int, default=512,
-        help='Image height (default: 512)'
-    )
-    parser.add_argument(
-        '--steps', '-s',
-        type=int, default=4,
-        help='Number of sampling steps (default: 4 for turbo models, use 20+ for others)'
-    )
-    parser.add_argument(
-        '--cfg', '-c',
-        type=float, default=1.0,
-        help='CFG scale (default: 1.0 for turbo, use 7.0 for others)'
-    )
-    parser.add_argument(
-        '--seed',
-        type=int, default=-1,
-        help='Random seed (-1 for random)'
-    )
-    parser.add_argument(
-        '--threads', '-t',
-        type=int, default=4,
-        help='Number of threads (default: 4)'
-    )
-    parser.add_argument(
-        '--verbose', '-v',
-        action='store_true',
-        help='Enable verbose logging'
-    )
+    parser.add_argument("--seed", type=int, default=-1, help="Random seed (-1 for random)")
+    parser.add_argument("--threads", "-t", type=int, default=4, help="Number of threads (default: 4)")
+    parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose logging")
 
     args = parser.parse_args()
 
@@ -127,11 +101,7 @@ def main():
 
     # Import stable diffusion module
     try:
-        from cyllama.sd import (
-            SDContext, SDContextParams,
-            SampleMethod, Scheduler,
-            set_log_callback
-        )
+        from cyllama.sd import SDContext, SDContextParams, SampleMethod, Scheduler, set_log_callback
     except ImportError as e:
         print(f"Error: Could not import stable diffusion module: {e}")
         print("Make sure cyllama is built with WITH_STABLEDIFFUSION=1")
@@ -139,16 +109,19 @@ def main():
 
     # Set up logging
     if args.verbose:
+
         def log_callback(level, text):
-            level_names = {0: 'DEBUG', 1: 'INFO', 2: 'WARN', 3: 'ERROR'}
-            print(f'[{level_names.get(level, level)}] {text}', end='')
+            level_names = {0: "DEBUG", 1: "INFO", 2: "WARN", 3: "ERROR"}
+            print(f"[{level_names.get(level, level)}] {text}", end="")
+
         set_log_callback(log_callback)
     else:
         # Only show warnings and errors
         def log_callback(level, text):
             if level >= 2:
-                level_names = {2: 'WARN', 3: 'ERROR'}
-                print(f'[{level_names.get(level, level)}] {text}', end='')
+                level_names = {2: "WARN", 3: "ERROR"}
+                print(f"[{level_names.get(level, level)}] {text}", end="")
+
         set_log_callback(log_callback)
 
     print(f"Model: {args.model}")
@@ -189,7 +162,7 @@ def main():
             sample_steps=args.steps,
             cfg_scale=args.cfg,
             sample_method=SampleMethod.EULER,
-            scheduler=Scheduler.DISCRETE
+            scheduler=Scheduler.DISCRETE,
         )
     except RuntimeError as e:
         print(f"Error generating image: {e}")
@@ -215,5 +188,5 @@ def main():
     print(f"Total time: {load_time + gen_time:.2f}s")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

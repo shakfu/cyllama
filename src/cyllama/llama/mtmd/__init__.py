@@ -42,7 +42,6 @@ __all__ = [
     "VisionLanguageChat",
     "AudioProcessor",
     "ImageAnalyzer",
-
     # Low-level Cython wrappers
     "MtmdContext",
     "MtmdContextParams",
@@ -50,10 +49,8 @@ __all__ = [
     "MtmdInputChunk",
     "MtmdInputChunks",
     "MtmdInputChunkType",
-
     # Utilities
     "get_default_media_marker",
-
     # Exceptions
     "MultimodalError",
     "UnsupportedModalityError",

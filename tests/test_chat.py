@@ -8,57 +8,57 @@ from cyllama.api import apply_chat_template, get_chat_template
 
 def test_chat_builtin_templates():
     assert cy.chat_builtin_templates() == [
-    'bailing',
-    'bailing-think',
-    'bailing2',
-    'chatglm3',
-    'chatglm4',
-    'chatml',
-    'command-r',
-    'deepseek',
-    'deepseek2',
-    'deepseek3',
-    'exaone-moe',
-    'exaone3',
-    'exaone4',
-    'falcon3',
-    'gemma',
-    'gigachat',
-    'glmedge',
-    'gpt-oss',
-    'granite',
-    'grok-2',
-    'hunyuan-dense',
-    'hunyuan-moe',
-    'kimi-k2',
-    'llama2',
-    'llama2-sys',
-    'llama2-sys-bos',
-    'llama2-sys-strip',
-    'llama3',
-    'llama4',
-    'megrez',
-    'minicpm',
-    'mistral-v1',
-    'mistral-v3',
-    'mistral-v3-tekken',
-    'mistral-v7',
-    'mistral-v7-tekken',
-    'monarch',
-    'openchat',
-    'orion',
-    'pangu-embedded',
-    'phi3',
-    'phi4',
-    'rwkv-world',
-    'seed_oss',
-    'smolvlm',
-    'solar-open',
-    'vicuna',
-    'vicuna-orca',
-    'yandex',
-    'zephyr',
-]
+        "bailing",
+        "bailing-think",
+        "bailing2",
+        "chatglm3",
+        "chatglm4",
+        "chatml",
+        "command-r",
+        "deepseek",
+        "deepseek2",
+        "deepseek3",
+        "exaone-moe",
+        "exaone3",
+        "exaone4",
+        "falcon3",
+        "gemma",
+        "gigachat",
+        "glmedge",
+        "gpt-oss",
+        "granite",
+        "grok-2",
+        "hunyuan-dense",
+        "hunyuan-moe",
+        "kimi-k2",
+        "llama2",
+        "llama2-sys",
+        "llama2-sys-bos",
+        "llama2-sys-strip",
+        "llama3",
+        "llama4",
+        "megrez",
+        "minicpm",
+        "mistral-v1",
+        "mistral-v3",
+        "mistral-v3-tekken",
+        "mistral-v7",
+        "mistral-v7-tekken",
+        "monarch",
+        "openchat",
+        "orion",
+        "pangu-embedded",
+        "phi3",
+        "phi4",
+        "rwkv-world",
+        "seed_oss",
+        "smolvlm",
+        "solar-open",
+        "vicuna",
+        "vicuna-orca",
+        "yandex",
+        "zephyr",
+    ]
 
 
 def test_get_chat_template(model_path):
@@ -91,9 +91,7 @@ def test_get_chat_template_by_name(model_path):
 
 def test_apply_chat_template_basic(model_path):
     """Test basic chat template application."""
-    messages = [
-        {"role": "user", "content": "Hello!"}
-    ]
+    messages = [{"role": "user", "content": "Hello!"}]
     prompt = apply_chat_template(messages, model_path)
     assert isinstance(prompt, str)
     assert len(prompt) > 0
@@ -105,7 +103,7 @@ def test_apply_chat_template_with_system(model_path):
     """Test chat template with system message."""
     messages = [
         {"role": "system", "content": "You are a helpful assistant."},
-        {"role": "user", "content": "What is Python?"}
+        {"role": "user", "content": "What is Python?"},
     ]
     prompt = apply_chat_template(messages, model_path)
     assert isinstance(prompt, str)
@@ -116,9 +114,7 @@ def test_apply_chat_template_with_system(model_path):
 
 def test_apply_chat_template_with_explicit_template(model_path):
     """Test applying a specific template by name."""
-    messages = [
-        {"role": "user", "content": "Hello!"}
-    ]
+    messages = [{"role": "user", "content": "Hello!"}]
     prompt = apply_chat_template(messages, model_path, template="llama3")
     assert isinstance(prompt, str)
     assert len(prompt) > 0
@@ -130,7 +126,7 @@ def test_apply_chat_template_multi_turn(model_path):
         {"role": "system", "content": "You are helpful."},
         {"role": "user", "content": "Hi"},
         {"role": "assistant", "content": "Hello! How can I help?"},
-        {"role": "user", "content": "What is 2+2?"}
+        {"role": "user", "content": "What is 2+2?"},
     ]
     prompt = apply_chat_template(messages, model_path)
     assert isinstance(prompt, str)
@@ -151,11 +147,8 @@ def test_llm_get_chat_template(model_path):
 
 def test_llm_chat_method(model_path):
     """Test LLM.chat method for chat-style generation."""
-    messages = [
-        {"role": "user", "content": "Say 'test' and nothing else."}
-    ]
+    messages = [{"role": "user", "content": "Say 'test' and nothing else."}]
     with LLM(model_path, max_tokens=10) as llm:
         response = llm.chat(messages)
         assert isinstance(response, Response)
         assert len(response) > 0
-

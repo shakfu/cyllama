@@ -38,3 +38,26 @@ jobs:
         with:
           name: cibw-wheels-${{ matrix.os }}-${{ strategy.job-index }}
           path: ./wheelhouse/*.whl
+
+  collect_wheels:
+    name: Collect all wheels
+    needs: build_wheels
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all wheel artifacts
+        uses: actions/download-artifact@v5
+        with:
+          path: artifacts
+          pattern: cibw-wheels-*
+
+      - name: Collect into single directory
+        run: |
+          mkdir -p dist
+          find artifacts -name "*.whl" -exec cp {} dist/ \;
+          echo "=== Collected wheels ==="
+          ls -lh dist/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cyllama-wheels-all
+          path: dist/*.whl

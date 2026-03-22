@@ -7,7 +7,6 @@ Usage:
 """
 
 import sys
-import time
 import argparse
 from pathlib import Path
 
@@ -16,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from cyllama.llama.server.embedded import EmbeddedServer
 from cyllama.llama.server.python import ServerConfig
+
 
 def main():
     parser = argparse.ArgumentParser(description="Mongoose Server Demonstration")
@@ -27,13 +27,7 @@ def main():
     print("============================")
 
     # Configuration
-    config = ServerConfig(
-        model_path=args.model,
-        host="127.0.0.1",
-        port=args.port,
-        n_ctx=256,
-        n_parallel=1
-    )
+    config = ServerConfig(model_path=args.model, host="127.0.0.1", port=args.port, n_ctx=256, n_parallel=1)
 
     # Create server
     print("Creating Mongoose server...")
@@ -50,7 +44,7 @@ def main():
         if slot:
             print(f"✓ Available slot found: ID {slot.id}")
 
-        print("\n" + "="*50)
+        print("\n" + "=" * 50)
         print("Mongoose Integration Status:")
         print("✓ Mongoose C library: Integrated")
         print("✓ Cython bindings: Compiled")
@@ -64,13 +58,14 @@ def main():
         print("  ✓ High-performance C networking")
         print("  ✓ Handles concurrent connections")
         print("  ✓ Production-ready alternative")
-        print("="*50)
+        print("=" * 50)
 
     else:
         print("✗ Model loading failed")
         return 1
 
     return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

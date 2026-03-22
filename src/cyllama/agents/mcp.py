@@ -5,13 +5,12 @@ Provides connectivity to MCP servers via stdio and HTTP transports,
 enabling cyllama agents to access external tools and resources.
 """
 
-import json
 import logging
 import subprocess
 import threading
 import os
 from typing import Any, Callable, Dict, List, Optional, Union
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 import urllib.request
 import urllib.error
@@ -20,8 +19,6 @@ from .tools import Tool
 from .jsonrpc import (
     JsonRpcRequest,
     JsonRpcResponse,
-    JsonRpcError,
-    ErrorCode,
     parse_message,
     serialize_message,
 )
@@ -35,6 +32,7 @@ DEFAULT_SHUTDOWN_TIMEOUT = 5.0
 
 class McpTransportType(Enum):
     """MCP server transport types."""
+
     STDIO = "stdio"
     HTTP = "http"
     SSE = "sse"  # Server-Sent Events (not implemented initially)
@@ -43,6 +41,7 @@ class McpTransportType(Enum):
 @dataclass
 class McpServerConfig:
     """Configuration for an MCP server connection."""
+
     name: str
     transport: McpTransportType = McpTransportType.STDIO
 
@@ -73,6 +72,7 @@ class McpServerConfig:
 @dataclass
 class McpTool:
     """Tool definition from an MCP server."""
+
     name: str
     description: str
     input_schema: Dict[str, Any]
@@ -85,19 +85,21 @@ class McpTool:
         def make_tool_func(name, func):
             def tool_wrapper(**kwargs):
                 return func(name, kwargs)
+
             return tool_wrapper
 
         return Tool(
             name=full_name,
             description=f"[{self.server_name}] {self.description}",
             func=make_tool_func(full_name, call_func),
-            parameters=self.input_schema
+            parameters=self.input_schema,
         )
 
 
 @dataclass
 class McpResource:
     """Resource definition from an MCP server."""
+
     uri: str
     name: str
     description: Optional[str] = None
@@ -153,12 +155,7 @@ class McpStdioConnection:
             self._request_id += 1
             return self._request_id
 
-    def send_request(
-        self,
-        method: str,
-        params: Optional[dict] = None,
-        timeout: Optional[float] = None
-    ) -> Any:
+    def send_request(self, method: str, params: Optional[dict] = None, timeout: Optional[float] = None) -> Any:
         """
         Send a JSON-RPC request and wait for response.
 
@@ -199,19 +196,14 @@ class McpStdioConnection:
                 if not response_line:
                     raise RuntimeError(f"MCP server '{self._config.name}' closed connection")
         except (BrokenPipeError, OSError) as e:
-            raise RuntimeError(
-                f"MCP server '{self._config.name}' connection lost: {e}"
-            ) from e
+            raise RuntimeError(f"MCP server '{self._config.name}' connection lost: {e}") from e
 
         msg = parse_message(response_line.strip())
         if not isinstance(msg, JsonRpcResponse):
             raise RuntimeError(f"Expected response, got: {type(msg)}")
 
         if msg.error:
-            raise RuntimeError(
-                f"MCP error from '{self._config.name}': "
-                f"{msg.error.message} (code: {msg.error.code})"
-            )
+            raise RuntimeError(f"MCP error from '{self._config.name}': {msg.error.message} (code: {msg.error.code})")
 
         return msg.result
 
@@ -231,9 +223,7 @@ class McpStdioConnection:
                 self._process.stdin.write(request_str)
                 self._process.stdin.flush()
         except (BrokenPipeError, OSError) as e:
-            raise RuntimeError(
-                f"MCP server '{self._config.name}' connection lost: {e}"
-            ) from e
+            raise RuntimeError(f"MCP server '{self._config.name}' connection lost: {e}") from e
 
 
 class McpHttpConnection:
@@ -249,8 +239,7 @@ class McpHttpConnection:
     def connect(self) -> None:
         """Verify HTTP endpoint is reachable."""
         # Just verify the URL is valid
-        logger.info("Connecting to MCP HTTP server '%s' at %s",
-                   self._config.name, self._config.url)
+        logger.info("Connecting to MCP HTTP server '%s' at %s", self._config.name, self._config.url)
 
     def disconnect(self) -> None:
         """No-op for HTTP connections."""
@@ -261,12 +250,7 @@ class McpHttpConnection:
             self._request_id += 1
             return self._request_id
 
-    def send_request(
-        self,
-        method: str,
-        params: Optional[dict] = None,
-        timeout: float = 30.0
-    ) -> Any:
+    def send_request(self, method: str, params: Optional[dict] = None, timeout: float = 30.0) -> Any:
         """Send a JSON-RPC request over HTTP."""
         request_id = self._next_id()
         request = JsonRpcRequest(method=method, params=params, id=request_id)
@@ -278,12 +262,7 @@ class McpHttpConnection:
         if self._config.headers:
             headers.update(self._config.headers)
 
-        req = urllib.request.Request(
-            self._config.url,
-            data=request_str.encode("utf-8"),
-            headers=headers,
-            method="POST"
-        )
+        req = urllib.request.Request(self._config.url, data=request_str.encode("utf-8"), headers=headers, method="POST")
 
         try:
             with urllib.request.urlopen(req, timeout=timeout) as response:
@@ -296,10 +275,7 @@ class McpHttpConnection:
             raise RuntimeError(f"Expected response, got: {type(msg)}")
 
         if msg.error:
-            raise RuntimeError(
-                f"MCP error from '{self._config.name}': "
-                f"{msg.error.message} (code: {msg.error.code})"
-            )
+            raise RuntimeError(f"MCP error from '{self._config.name}': {msg.error.message} (code: {msg.error.code})")
 
         return msg.result
 
@@ -312,12 +288,7 @@ class McpHttpConnection:
         if self._config.headers:
             headers.update(self._config.headers)
 
-        req = urllib.request.Request(
-            self._config.url,
-            data=request_str.encode("utf-8"),
-            headers=headers,
-            method="POST"
-        )
+        req = urllib.request.Request(self._config.url, data=request_str.encode("utf-8"), headers=headers, method="POST")
 
         try:
             with urllib.request.urlopen(req, timeout=10.0) as response:
@@ -385,16 +356,16 @@ class McpClient:
 
     def _initialize_connection(self, name: str, conn: McpConnection) -> None:
         """Perform MCP initialization handshake."""
-        result = conn.send_request("initialize", {
-            "protocolVersion": "2024-11-05",
-            "capabilities": {
-                "roots": {"listChanged": False},
+        result = conn.send_request(
+            "initialize",
+            {
+                "protocolVersion": "2024-11-05",
+                "capabilities": {
+                    "roots": {"listChanged": False},
+                },
+                "clientInfo": {"name": "cyllama", "version": "0.1.10"},
             },
-            "clientInfo": {
-                "name": "cyllama",
-                "version": "0.1.10"
-            }
-        })
+        )
         logger.info("MCP server '%s' initialized: %s", name, result.get("serverInfo", {}))
 
         # Send initialized notification
@@ -411,7 +382,7 @@ class McpClient:
                     name=tool_def["name"],
                     description=tool_def.get("description", ""),
                     input_schema=tool_def.get("inputSchema", {"type": "object", "properties": {}}),
-                    server_name=name
+                    server_name=name,
                 )
                 full_name = f"{name}/{tool.name}"
                 self._tools[full_name] = tool
@@ -434,7 +405,7 @@ class McpClient:
                     name=res_def.get("name", res_def["uri"]),
                     description=res_def.get("description"),
                     mime_type=res_def.get("mimeType"),
-                    server_name=name
+                    server_name=name,
                 )
                 self._resources[resource.uri] = resource
                 logger.debug("Discovered MCP resource: %s", resource.uri)
@@ -482,10 +453,7 @@ class McpClient:
 
         conn = self._connections[server_name]
 
-        result = conn.send_request("tools/call", {
-            "name": tool_name,
-            "arguments": arguments
-        })
+        result = conn.send_request("tools/call", {"name": tool_name, "arguments": arguments})
 
         # MCP returns content array
         content = result.get("content", [])
@@ -542,10 +510,7 @@ class McpClient:
         Returns:
             List of Tool instances that call MCP servers
         """
-        return [
-            tool.to_cyllama_tool(self.call_tool)
-            for tool in self._tools.values()
-        ]
+        return [tool.to_cyllama_tool(self.call_tool) for tool in self._tools.values()]
 
     def get_resources(self) -> List[McpResource]:
         """Get all discovered MCP resources."""

@@ -28,7 +28,7 @@ Example:
     >>>     print(chunk.choices[0].delta.content, end="")
 """
 
-from typing import List, Dict, Any, Iterator, Optional, Union
+from typing import List, Dict, Iterator, Optional, Union
 from dataclasses import dataclass, field
 import time
 import uuid
@@ -39,6 +39,7 @@ from ..api import LLM, GenerationConfig, Response
 @dataclass
 class Message:
     """Chat message."""
+
     role: str
     content: str
     name: Optional[str] = None
@@ -47,6 +48,7 @@ class Message:
 @dataclass
 class Choice:
     """Completion choice."""
+
     index: int
     message: Message
     finish_reason: Optional[str] = None
@@ -55,6 +57,7 @@ class Choice:
 @dataclass
 class Usage:
     """Token usage statistics."""
+
     prompt_tokens: int
     completion_tokens: int
     total_tokens: int
@@ -63,6 +66,7 @@ class Usage:
 @dataclass
 class ChatCompletion:
     """Chat completion response."""
+
     id: str
     object: str = "chat.completion"
     created: int = field(default_factory=lambda: int(time.time()))
@@ -74,6 +78,7 @@ class ChatCompletion:
 @dataclass
 class DeltaMessage:
     """Streaming message delta."""
+
     role: Optional[str] = None
     content: Optional[str] = None
 
@@ -81,6 +86,7 @@ class DeltaMessage:
 @dataclass
 class StreamChoice:
     """Streaming completion choice."""
+
     index: int
     delta: DeltaMessage
     finish_reason: Optional[str] = None
@@ -89,6 +95,7 @@ class StreamChoice:
 @dataclass
 class ChatCompletionChunk:
     """Streaming chat completion chunk."""
+
     id: str
     object: str = "chat.completion.chunk"
     created: int = field(default_factory=lambda: int(time.time()))
@@ -110,7 +117,7 @@ class ChatCompletions:
         top_p: float = 0.95,
         stream: bool = False,
         stop: Optional[List[str]] = None,
-        **kwargs
+        **kwargs,
     ) -> Union[ChatCompletion, Iterator[ChatCompletionChunk]]:
         """
         Create a chat completion.
@@ -136,7 +143,7 @@ class ChatCompletions:
             max_tokens=max_tokens,
             top_p=top_p,
             stop_sequences=stop or [],
-            **{k: v for k, v in kwargs.items() if hasattr(GenerationConfig, k)}
+            **{k: v for k, v in kwargs.items() if hasattr(GenerationConfig, k)},
         )
 
         if stream:
@@ -163,10 +170,7 @@ class ChatCompletions:
         return "\n\n".join(prompt_parts)
 
     def _create_completion(
-        self,
-        messages: List[Dict[str, str]],
-        prompt: str,
-        config: GenerationConfig
+        self, messages: List[Dict[str, str]], prompt: str, config: GenerationConfig
     ) -> ChatCompletion:
         """Create a non-streaming completion."""
         # Tokenize for usage stats
@@ -191,62 +195,38 @@ class ChatCompletions:
                 Choice(
                     index=0,
                     message=Message(role="assistant", content=response.text),
-                    finish_reason=response.finish_reason
+                    finish_reason=response.finish_reason,
                 )
             ],
             usage=Usage(
                 prompt_tokens=prompt_token_count,
                 completion_tokens=completion_token_count,
-                total_tokens=prompt_token_count + completion_token_count
-            )
+                total_tokens=prompt_token_count + completion_token_count,
+            ),
         )
 
         return completion
 
     def _create_stream(
-        self,
-        messages: List[Dict[str, str]],
-        prompt: str,
-        config: GenerationConfig
+        self, messages: List[Dict[str, str]], prompt: str, config: GenerationConfig
     ) -> Iterator[ChatCompletionChunk]:
         """Create a streaming completion."""
         completion_id = f"chatcmpl-{uuid.uuid4().hex[:8]}"
 
         # First chunk with role
         yield ChatCompletionChunk(
-            id=completion_id,
-            choices=[
-                StreamChoice(
-                    index=0,
-                    delta=DeltaMessage(role="assistant"),
-                    finish_reason=None
-                )
-            ]
+            id=completion_id, choices=[StreamChoice(index=0, delta=DeltaMessage(role="assistant"), finish_reason=None)]
         )
 
         # Content chunks
         for chunk in self.generator(prompt, config=config, stream=True):
             yield ChatCompletionChunk(
-                id=completion_id,
-                choices=[
-                    StreamChoice(
-                        index=0,
-                        delta=DeltaMessage(content=chunk),
-                        finish_reason=None
-                    )
-                ]
+                id=completion_id, choices=[StreamChoice(index=0, delta=DeltaMessage(content=chunk), finish_reason=None)]
             )
 
         # Final chunk
         yield ChatCompletionChunk(
-            id=completion_id,
-            choices=[
-                StreamChoice(
-                    index=0,
-                    delta=DeltaMessage(),
-                    finish_reason="stop"
-                )
-            ]
+            id=completion_id, choices=[StreamChoice(index=0, delta=DeltaMessage(), finish_reason="stop")]
         )
 
 
@@ -273,13 +253,7 @@ class OpenAICompatibleClient:
         >>> print(response.choices[0].message.content)
     """
 
-    def __init__(
-        self,
-        model_path: str,
-        temperature: float = 0.7,
-        n_gpu_layers: int = 99,
-        verbose: bool = False
-    ):
+    def __init__(self, model_path: str, temperature: float = 0.7, n_gpu_layers: int = 99, verbose: bool = False):
         """
         Initialize the OpenAI-compatible client.
 
@@ -289,10 +263,7 @@ class OpenAICompatibleClient:
             n_gpu_layers: Number of layers to offload to GPU
             verbose: Print detailed information
         """
-        config = GenerationConfig(
-            temperature=temperature,
-            n_gpu_layers=n_gpu_layers
-        )
+        config = GenerationConfig(temperature=temperature, n_gpu_layers=n_gpu_layers)
 
         self._generator = LLM(model_path, config=config, verbose=verbose)
         self.chat = Chat(self._generator)
@@ -305,10 +276,8 @@ class OpenAICompatibleClient:
 
 # Convenience function
 
-def create_openai_client(
-    model_path: str,
-    **kwargs
-) -> OpenAICompatibleClient:
+
+def create_openai_client(model_path: str, **kwargs) -> OpenAICompatibleClient:
     """
     Create an OpenAI-compatible client.
 

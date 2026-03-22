@@ -116,9 +116,9 @@ def demonstrate_basic_usage(target_model_path, draft_model_path):
     print("\n5. Configuring Parameters")
     print("-" * 70)
     params = SpeculativeParams(
-        n_draft=16,   # Generate up to 16 draft tokens
+        n_draft=16,  # Generate up to 16 draft tokens
         n_reuse=256,  # Reuse up to 256 tokens from previous draft
-        p_min=0.75    # Minimum probability to accept draft token
+        p_min=0.75,  # Minimum probability to accept draft token
     )
     print(f"Parameters: {params}")
     print(f"  - n_draft: Maximum {params.n_draft} tokens to draft per iteration")
@@ -263,5 +263,6 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\nError: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)

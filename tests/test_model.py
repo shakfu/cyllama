@@ -33,6 +33,7 @@ def test_model_load_with_progress_callback(model_path):
 
 def test_model_load_cancel(model_path):
     """Test that returning False from progress callback aborts model loading."""
+
     def abort_at_50_percent(progress: float) -> bool:
         return progress < 0.50  # abort after 50%
 
@@ -47,11 +48,11 @@ def test_model_load_cancel(model_path):
 
     cy.llama_backend_free()
 
+
 def test_autorelease(model_path):
     # need to wrap in a thread here.
-    cy.llama_backend_init()    
+    cy.llama_backend_init()
     model = cy.LlamaModel(model_path)
-
 
     # assert model.vocab_type == cy.LLAMA_VOCAB_TYPE_BPE
     # model params
@@ -63,7 +64,7 @@ def test_autorelease(model_path):
     assert model.n_head == 32
     assert model.n_head_kv == 8
     assert model.rope_freq_scale_train == 1.0
-    assert model.desc == 'llama 1B Q8_0'
+    assert model.desc == "llama 1B Q8_0"
     assert model.size == 1313251456
     assert model.n_params == 1235814432
     assert model.has_decoder()

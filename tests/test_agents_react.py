@@ -3,10 +3,9 @@ Tests for ReAct agent implementation.
 """
 
 import pytest
-from unittest.mock import Mock, MagicMock
 from cyllama.agents.react import ReActAgent, EventType, AgentEvent, AgentResult
 from cyllama.agents.tools import tool
-from cyllama.api import LLM, GenerationConfig
+from cyllama.api import GenerationConfig
 
 
 class MockLLM:
@@ -52,12 +51,7 @@ def test_react_agent_custom_config():
     llm = MockLLM()
     config = GenerationConfig(temperature=0.5, max_tokens=256)
 
-    agent = ReActAgent(
-        llm=llm,
-        tools=[],
-        max_iterations=5,
-        generation_config=config
-    )
+    agent = ReActAgent(llm=llm, tools=[], max_iterations=5, generation_config=config)
 
     assert agent.max_iterations == 5
     assert agent.generation_config.temperature == 0.5
@@ -137,6 +131,7 @@ def test_parse_action_no_args():
 def test_parse_action_invalid_format():
     """Test parsing invalid action format raises error."""
     from cyllama.agents.react import ActionParseError
+
     llm = MockLLM()
     agent = ReActAgent(llm=llm, tools=[])
 
@@ -188,7 +183,7 @@ def test_agent_stream_simple():
     """Test agent streaming with simple task."""
     responses = [
         "Thought: I need to add two numbers\nAction: add(a='5', b='3')",
-        "Thought: I now have the answer\nAnswer: The result is 8"
+        "Thought: I now have the answer\nAnswer: The result is 8",
     ]
     llm = MockLLM(responses)
 
@@ -213,7 +208,7 @@ def test_agent_run_success():
     """Test successful agent run."""
     responses = [
         "Thought: I need to search\nAction: search(query='test')",
-        "Thought: I found the answer\nAnswer: The search was successful"
+        "Thought: I found the answer\nAnswer: The search was successful",
     ]
     llm = MockLLM(responses)
 
@@ -235,9 +230,7 @@ def test_agent_run_success():
 def test_agent_run_max_iterations():
     """Test agent hitting max iterations (with loop detection disabled)."""
     # Return responses that never include Answer
-    responses = [
-        "Thought: Still working\nAction: search(query='test')"
-    ] * 15  # More than max_iterations
+    responses = ["Thought: Still working\nAction: search(query='test')"] * 15  # More than max_iterations
 
     llm = MockLLM(responses)
 
@@ -258,9 +251,7 @@ def test_agent_run_max_iterations():
 def test_agent_loop_detection():
     """Test agent loop detection generates summary from observations."""
     # Return same response repeatedly to trigger loop detection
-    responses = [
-        "Thought: Still working\nAction: search(query='test')"
-    ] * 15
+    responses = ["Thought: Still working\nAction: search(query='test')"] * 15
 
     llm = MockLLM(responses)
 
@@ -340,11 +331,7 @@ def test_agent_default_system_prompt():
 
 def test_agent_event_structure():
     """Test AgentEvent structure."""
-    event = AgentEvent(
-        type=EventType.THOUGHT,
-        content="I need to think",
-        metadata={"iteration": 1}
-    )
+    event = AgentEvent(type=EventType.THOUGHT, content="I need to think", metadata={"iteration": 1})
 
     assert event.type == EventType.THOUGHT
     assert event.content == "I need to think"
@@ -355,15 +342,10 @@ def test_agent_result_structure():
     """Test AgentResult structure."""
     events = [
         AgentEvent(type=EventType.THOUGHT, content="Thinking"),
-        AgentEvent(type=EventType.ANSWER, content="Final answer")
+        AgentEvent(type=EventType.ANSWER, content="Final answer"),
     ]
 
-    result = AgentResult(
-        answer="Final answer",
-        steps=events,
-        iterations=1,
-        success=True
-    )
+    result = AgentResult(answer="Final answer", steps=events, iterations=1, success=True)
 
     assert result.answer == "Final answer"
     assert len(result.steps) == 2
@@ -418,10 +400,7 @@ def test_agent_verbose_mode():
 
 def test_agent_handles_malformed_tool_call():
     """Test agent handles malformed tool call gracefully."""
-    responses = [
-        "Thought: Let me try\nAction: broken_format_here",
-        "Answer: I give up"
-    ]
+    responses = ["Thought: Let me try\nAction: broken_format_here", "Answer: I give up"]
     llm = MockLLM(responses)
 
     @tool
@@ -441,7 +420,7 @@ def test_agent_tool_execution_error_continues():
     """Test agent continues after tool execution error."""
     responses = [
         "Thought: Try the tool\nAction: failing_tool()",
-        "Thought: That failed, but I know the answer\nAnswer: I figured it out anyway"
+        "Thought: That failed, but I know the answer\nAnswer: I figured it out anyway",
     ]
     llm = MockLLM(responses)
 
@@ -465,7 +444,7 @@ def test_multiple_actions_before_answer():
         "Thought: First step\nAction: tool1()",
         "Thought: Second step\nAction: tool2()",
         "Thought: Third step\nAction: tool3()",
-        "Thought: Done\nAnswer: All steps complete"
+        "Thought: Done\nAnswer: All steps complete",
     ]
     llm = MockLLM(responses)
 
@@ -521,6 +500,7 @@ def test_extract_action_triple_prefix():
 # ActionParseError Tests
 # =============================================================================
 
+
 class TestActionParseError:
     """Test ActionParseError exception class."""
 
@@ -528,11 +508,7 @@ class TestActionParseError:
         """Test basic ActionParseError creation."""
         from cyllama.agents.react import ActionParseError
 
-        error = ActionParseError(
-            message="Test error",
-            action_str="broken_action",
-            suggestion="Try this instead"
-        )
+        error = ActionParseError(message="Test error", action_str="broken_action", suggestion="Try this instead")
 
         assert error.message == "Test error"
         assert error.action_str == "broken_action"
@@ -548,7 +524,7 @@ class TestActionParseError:
             message="Parse failed",
             action_str="bad()",
             suggestion="Fix it",
-            details=["JSON parse failed", "Kwargs parse failed"]
+            details=["JSON parse failed", "Kwargs parse failed"],
         )
 
         assert len(error.details) == 2
@@ -559,10 +535,7 @@ class TestActionParseError:
         from cyllama.agents.react import ActionParseError
 
         long_action = "x" * 200
-        error = ActionParseError(
-            message="Error",
-            action_str=long_action
-        )
+        error = ActionParseError(message="Error", action_str=long_action)
 
         # Should truncate to 100 chars + "..."
         assert len(str(error)) < 200
@@ -571,6 +544,7 @@ class TestActionParseError:
 # =============================================================================
 # Robust Parsing Tests
 # =============================================================================
+
 
 class TestRobustParsing:
     """Test robust tool call parsing."""
@@ -601,6 +575,7 @@ class TestRobustParsing:
     def test_parse_action_empty_string_raises(self):
         """Test that empty action string raises ActionParseError."""
         from cyllama.agents.react import ActionParseError
+
         llm = MockLLM()
         agent = ReActAgent(llm=llm, tools=[])
 
@@ -612,6 +587,7 @@ class TestRobustParsing:
     def test_parse_action_missing_parens_raises(self):
         """Test that missing parentheses raises ActionParseError."""
         from cyllama.agents.react import ActionParseError
+
         llm = MockLLM()
         agent = ReActAgent(llm=llm, tools=[])
 
@@ -624,6 +600,7 @@ class TestRobustParsing:
     def test_parse_action_missing_close_paren_raises(self):
         """Test that missing closing parenthesis raises ActionParseError."""
         from cyllama.agents.react import ActionParseError
+
         llm = MockLLM()
         agent = ReActAgent(llm=llm, tools=[])
 
@@ -648,7 +625,7 @@ class TestRobustParsing:
         llm = MockLLM()
         agent = ReActAgent(llm=llm, tools=[])
 
-        action_str = '''execute({"code": "line1\\nline2\\nline3"})'''
+        action_str = """execute({"code": "line1\\nline2\\nline3"})"""
         tool_name, args = agent._parse_action(action_str)
 
         assert tool_name == "execute"
@@ -657,6 +634,7 @@ class TestRobustParsing:
     def test_parse_action_triple_quotes_error_message(self):
         """Test that triple quotes provide helpful error."""
         from cyllama.agents.react import ActionParseError
+
         llm = MockLLM()
         agent = ReActAgent(llm=llm, tools=[])
 
@@ -692,15 +670,13 @@ class TestRobustParsing:
 # Tool Execution Error Handling Tests
 # =============================================================================
 
+
 class TestToolExecutionErrors:
     """Test tool execution error handling."""
 
     def test_unknown_tool_shows_available_tools(self):
         """Test that unknown tool error shows available tools."""
-        responses = [
-            "Thought: Try unknown\nAction: nonexistent_tool()",
-            "Thought: OK\nAnswer: Done"
-        ]
+        responses = ["Thought: Try unknown\nAction: nonexistent_tool()", "Thought: OK\nAnswer: Done"]
         llm = MockLLM(responses)
 
         @tool
@@ -721,10 +697,7 @@ class TestToolExecutionErrors:
 
     def test_tool_type_error_handling(self):
         """Test handling of TypeError during tool execution."""
-        responses = [
-            'Thought: Call tool\nAction: typed_tool(value="not_an_int")',
-            "Thought: OK\nAnswer: Done"
-        ]
+        responses = ['Thought: Call tool\nAction: typed_tool(value="not_an_int")', "Thought: OK\nAnswer: Done"]
         llm = MockLLM(responses)
 
         @tool
@@ -740,10 +713,7 @@ class TestToolExecutionErrors:
 
     def test_tool_runtime_error_handling(self):
         """Test handling of RuntimeError during tool execution."""
-        responses = [
-            "Thought: Try it\nAction: failing_tool()",
-            "Thought: OK\nAnswer: Recovered"
-        ]
+        responses = ["Thought: Try it\nAction: failing_tool()", "Thought: OK\nAnswer: Recovered"]
         llm = MockLLM(responses)
 
         @tool
@@ -761,10 +731,7 @@ class TestToolExecutionErrors:
 
     def test_error_event_metadata(self):
         """Test that error events contain useful metadata."""
-        responses = [
-            "Thought: Try\nAction: bad_format_here",
-            "Thought: OK\nAnswer: Done"
-        ]
+        responses = ["Thought: Try\nAction: bad_format_here", "Thought: OK\nAnswer: Done"]
         llm = MockLLM(responses)
 
         agent = ReActAgent(llm=llm, tools=[])
@@ -782,6 +749,7 @@ class TestToolExecutionErrors:
 # Loop Detection Tests
 # =============================================================================
 
+
 class TestLoopDetection:
     """Test loop detection mechanisms."""
 
@@ -797,12 +765,7 @@ class TestLoopDetection:
         def search(query: str) -> str:
             return "result"
 
-        agent = ReActAgent(
-            llm=llm,
-            tools=[search],
-            max_consecutive_same_action=2,
-            max_iterations=10
-        )
+        agent = ReActAgent(llm=llm, tools=[search], max_consecutive_same_action=2, max_iterations=10)
 
         result = agent.run("test")
 
@@ -822,12 +785,7 @@ class TestLoopDetection:
         def search(query: str) -> str:
             return f"result for {query}"
 
-        agent = ReActAgent(
-            llm=llm,
-            tools=[search],
-            max_consecutive_same_tool=4,
-            max_iterations=10
-        )
+        agent = ReActAgent(llm=llm, tools=[search], max_consecutive_same_tool=4, max_iterations=10)
 
         result = agent.run("test")
 
@@ -846,12 +804,7 @@ class TestLoopDetection:
         ]
         llm = MockLLM(responses)
 
-        agent = ReActAgent(
-            llm=llm,
-            tools=[],
-            max_consecutive_same_tool=4,
-            max_iterations=10
-        )
+        agent = ReActAgent(llm=llm, tools=[], max_consecutive_same_tool=4, max_iterations=10)
 
         result = agent.run("test")
 
@@ -870,12 +823,7 @@ class TestLoopDetection:
         def search(query: str) -> str:
             return "result"
 
-        agent = ReActAgent(
-            llm=llm,
-            tools=[search],
-            detect_loops=False,
-            max_iterations=5
-        )
+        agent = ReActAgent(llm=llm, tools=[search], detect_loops=False, max_iterations=5)
 
         result = agent.run("test")
 
@@ -895,11 +843,7 @@ class TestLoopDetection:
         def get_info(topic: str) -> str:
             return f"Information about {topic}: sunny and warm"
 
-        agent = ReActAgent(
-            llm=llm,
-            tools=[get_info],
-            max_consecutive_same_action=2
-        )
+        agent = ReActAgent(llm=llm, tools=[get_info], max_consecutive_same_action=2)
 
         result = agent.run("test")
 
@@ -911,15 +855,13 @@ class TestLoopDetection:
 # Tool Execution with Various Argument Types
 # =============================================================================
 
+
 class TestToolArgumentTypes:
     """Test tool execution with various argument types."""
 
     def test_tool_with_int_arg(self):
         """Test tool with integer argument."""
-        responses = [
-            'Thought: Add\nAction: add({"a": 5, "b": 3})',
-            "Thought: Done\nAnswer: 8"
-        ]
+        responses = ['Thought: Add\nAction: add({"a": 5, "b": 3})', "Thought: Done\nAnswer: 8"]
         llm = MockLLM(responses)
 
         @tool
@@ -935,10 +877,7 @@ class TestToolArgumentTypes:
 
     def test_tool_with_bool_arg(self):
         """Test tool with boolean argument."""
-        responses = [
-            'Thought: Check\nAction: check({"flag": true})',
-            "Thought: Done\nAnswer: Checked"
-        ]
+        responses = ['Thought: Check\nAction: check({"flag": true})', "Thought: Done\nAnswer: Checked"]
         llm = MockLLM(responses)
 
         @tool
@@ -954,10 +893,7 @@ class TestToolArgumentTypes:
 
     def test_tool_with_list_arg(self):
         """Test tool with list argument."""
-        responses = [
-            'Thought: Sum\nAction: sum_list({"numbers": [1, 2, 3, 4]})',
-            "Thought: Done\nAnswer: 10"
-        ]
+        responses = ['Thought: Sum\nAction: sum_list({"numbers": [1, 2, 3, 4]})', "Thought: Done\nAnswer: 10"]
         llm = MockLLM(responses)
 
         @tool
@@ -975,7 +911,7 @@ class TestToolArgumentTypes:
         """Test tool with nested dictionary argument."""
         responses = [
             'Thought: Process\nAction: process({"data": {"name": "test", "value": 42}})',
-            "Thought: Done\nAnswer: Processed"
+            "Thought: Done\nAnswer: Processed",
         ]
         llm = MockLLM(responses)
 
@@ -1001,7 +937,7 @@ class TestToolExecutionMetrics:
             "Thought: First\nAction: tool1()",
             "Thought: Second\nAction: tool2()",
             "Thought: Third\nAction: tool3()",
-            "Thought: Done\nAnswer: Complete"
+            "Thought: Done\nAnswer: Complete",
         ]
         llm = MockLLM(responses)
 
@@ -1028,7 +964,7 @@ class TestToolExecutionMetrics:
         responses = [
             "Thought: Try bad\nAction: bad_format",
             "Thought: Try unknown\nAction: unknown_tool()",
-            "Thought: Done\nAnswer: OK"
+            "Thought: Done\nAnswer: OK",
         ]
         llm = MockLLM(responses)
 
@@ -1041,10 +977,7 @@ class TestToolExecutionMetrics:
         """Test that tool execution time is tracked."""
         import time as time_module
 
-        responses = [
-            "Thought: Slow\nAction: slow_tool()",
-            "Thought: Done\nAnswer: Complete"
-        ]
+        responses = ["Thought: Slow\nAction: slow_tool()", "Thought: Done\nAnswer: Complete"]
         llm = MockLLM(responses)
 
         @tool

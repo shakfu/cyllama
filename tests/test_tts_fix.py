@@ -3,7 +3,6 @@
 Test the fixed TTS implementation
 """
 
-import sys
 import os
 import pytest
 
@@ -27,7 +26,7 @@ def test_tts_generation():
         n_batch=8192,  # Much larger batch size to handle the long prompt
         ngl=99,
         n_predict=1000,  # Limited tokens for testing
-        use_guide_tokens=True
+        use_guide_tokens=True,
     )
 
     # Test with simple text

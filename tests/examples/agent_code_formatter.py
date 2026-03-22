@@ -18,10 +18,7 @@ import argparse
 from pathlib import Path
 from cyllama import LLM, GenerationConfig
 from cyllama.agents import ReActAgent, tool
-from cyllama.utils.color import (
-    header, section, subheader, success, error, info,
-    bullet, numbered, kv
-)
+from cyllama.utils.color import header, section, success, error, info, numbered, kv
 import json
 import re
 
@@ -29,31 +26,33 @@ import re
 # ANSI color codes for terminal output
 class Colors:
     """ANSI escape codes for colored terminal output."""
-    RESET = '\033[0m'
-    BOLD = '\033[1m'
+
+    RESET = "\033[0m"
+    BOLD = "\033[1m"
 
     # Foreground colors
-    BLACK = '\033[30m'
-    RED = '\033[31m'
-    GREEN = '\033[32m'
-    YELLOW = '\033[33m'
-    BLUE = '\033[34m'
-    MAGENTA = '\033[35m'
-    CYAN = '\033[36m'
-    WHITE = '\033[37m'
+    BLACK = "\033[30m"
+    RED = "\033[31m"
+    GREEN = "\033[32m"
+    YELLOW = "\033[33m"
+    BLUE = "\033[34m"
+    MAGENTA = "\033[35m"
+    CYAN = "\033[36m"
+    WHITE = "\033[37m"
 
     # Bright colors
-    BRIGHT_BLACK = '\033[90m'
-    BRIGHT_RED = '\033[91m'
-    BRIGHT_GREEN = '\033[92m'
-    BRIGHT_YELLOW = '\033[93m'
-    BRIGHT_BLUE = '\033[94m'
-    BRIGHT_MAGENTA = '\033[95m'
-    BRIGHT_CYAN = '\033[96m'
-    BRIGHT_WHITE = '\033[97m'
+    BRIGHT_BLACK = "\033[90m"
+    BRIGHT_RED = "\033[91m"
+    BRIGHT_GREEN = "\033[92m"
+    BRIGHT_YELLOW = "\033[93m"
+    BRIGHT_BLUE = "\033[94m"
+    BRIGHT_MAGENTA = "\033[95m"
+    BRIGHT_CYAN = "\033[96m"
+    BRIGHT_WHITE = "\033[97m"
 
 
 # Define syntax highlighting tools
+
 
 @tool
 def highlight_python(code: str) -> str:
@@ -67,52 +66,95 @@ def highlight_python(code: str) -> str:
         Code with ANSI color codes
     """
     # Keywords
-    keywords = ['def', 'class', 'if', 'else', 'elif', 'for', 'while', 'return',
-                'import', 'from', 'as', 'try', 'except', 'finally', 'with',
-                'lambda', 'yield', 'raise', 'assert', 'pass', 'break', 'continue',
-                'and', 'or', 'not', 'in', 'is', 'None', 'True', 'False']
+    keywords = [
+        "def",
+        "class",
+        "if",
+        "else",
+        "elif",
+        "for",
+        "while",
+        "return",
+        "import",
+        "from",
+        "as",
+        "try",
+        "except",
+        "finally",
+        "with",
+        "lambda",
+        "yield",
+        "raise",
+        "assert",
+        "pass",
+        "break",
+        "continue",
+        "and",
+        "or",
+        "not",
+        "in",
+        "is",
+        "None",
+        "True",
+        "False",
+    ]
 
     # Built-in functions
-    builtins = ['print', 'len', 'range', 'str', 'int', 'float', 'list', 'dict',
-                'set', 'tuple', 'open', 'enumerate', 'zip', 'map', 'filter']
+    builtins = [
+        "print",
+        "len",
+        "range",
+        "str",
+        "int",
+        "float",
+        "list",
+        "dict",
+        "set",
+        "tuple",
+        "open",
+        "enumerate",
+        "zip",
+        "map",
+        "filter",
+    ]
 
-    lines = code.split('\n')
+    lines = code.split("\n")
     highlighted = []
 
     for line in lines:
         # Highlight comments
-        if '#' in line:
-            comment_pos = line.find('#')
+        if "#" in line:
+            comment_pos = line.find("#")
             before = line[:comment_pos]
             comment = line[comment_pos:]
             line = before + Colors.BRIGHT_BLACK + comment + Colors.RESET
 
         # Highlight strings
         # Simple approach - handle single and double quotes
-        line = re.sub(r'(".*?")', Colors.YELLOW + r'\1' + Colors.RESET, line)
-        line = re.sub(r"('.*?')", Colors.YELLOW + r'\1' + Colors.RESET, line)
+        line = re.sub(r'(".*?")', Colors.YELLOW + r"\1" + Colors.RESET, line)
+        line = re.sub(r"('.*?')", Colors.YELLOW + r"\1" + Colors.RESET, line)
 
         # Highlight keywords
         for keyword in keywords:
-            pattern = r'\b' + keyword + r'\b'
+            pattern = r"\b" + keyword + r"\b"
             line = re.sub(pattern, Colors.MAGENTA + keyword + Colors.RESET, line)
 
         # Highlight built-ins
         for builtin in builtins:
-            pattern = r'\b' + builtin + r'\('
-            line = re.sub(pattern, Colors.CYAN + builtin + Colors.RESET + '(', line)
+            pattern = r"\b" + builtin + r"\("
+            line = re.sub(pattern, Colors.CYAN + builtin + Colors.RESET + "(", line)
 
         # Highlight function definitions
-        line = re.sub(r'\bdef\b\s+(\w+)',
-                     Colors.MAGENTA + 'def' + Colors.RESET + ' ' + Colors.BLUE + r'\1' + Colors.RESET,
-                     line)
+        line = re.sub(
+            r"\bdef\b\s+(\w+)", Colors.MAGENTA + "def" + Colors.RESET + " " + Colors.BLUE + r"\1" + Colors.RESET, line
+        )
 
         # Highlight numbers
-        line = re.sub(r'\b(\d+\.?\d*)\b', Colors.GREEN + r'\1' + Colors.RESET, line)
+        line = re.sub(r"\b(\d+\.?\d*)\b", Colors.GREEN + r"\1" + Colors.RESET, line)
 
         highlighted.append(line)
 
-    return '\n'.join(highlighted)
+    return "\n".join(highlighted)
 
 
 @tool
@@ -131,7 +173,7 @@ def highlight_json(data: str) -> str:
         parsed = json.loads(data)
         formatted = json.dumps(parsed, indent=2)
 
-        lines = formatted.split('\n')
+        lines = formatted.split("\n")
         highlighted = []
 
         for line in lines:
@@ -139,33 +181,29 @@ def highlight_json(data: str) -> str:
             result = line
 
             # Highlight booleans and null first
-            result = re.sub(r'\b(true|false|null)\b',
-                           lambda m: Colors.MAGENTA + m.group(1) + Colors.RESET,
-                           result)
+            result = re.sub(r"\b(true|false|null)\b", lambda m: Colors.MAGENTA + m.group(1) + Colors.RESET, result)
 
             # Highlight numbers (avoid already colored text by checking for ANSI codes nearby)
-            result = re.sub(r':\s*(\d+\.?\d*)(?=\s*[,}\]])',
-                           lambda m: ': ' + Colors.GREEN + m.group(1) + Colors.RESET,
-                           result)
+            result = re.sub(
+                r":\s*(\d+\.?\d*)(?=\s*[,}\]])", lambda m: ": " + Colors.GREEN + m.group(1) + Colors.RESET, result
+            )
 
             # Highlight string values before keys
-            result = re.sub(r':\s*("(?:[^"\\]|\\.)*")',
-                           lambda m: ': ' + Colors.YELLOW + m.group(1) + Colors.RESET,
-                           result)
+            result = re.sub(
+                r':\s*("(?:[^"\\]|\\.)*")', lambda m: ": " + Colors.YELLOW + m.group(1) + Colors.RESET, result
+            )
 
             # Highlight keys (strings followed by colon)
-            result = re.sub(r'("(?:[^"\\]|\\.)*")\s*:',
-                           lambda m: Colors.CYAN + m.group(1) + Colors.RESET + ':',
-                           result)
+            result = re.sub(r'("(?:[^"\\]|\\.)*")\s*:', lambda m: Colors.CYAN + m.group(1) + Colors.RESET + ":", result)
 
             # Highlight brackets (but not the [ in ANSI codes like \033[)
-            result = re.sub(r'([{}])', Colors.BRIGHT_BLACK + r'\1' + Colors.RESET, result)
+            result = re.sub(r"([{}])", Colors.BRIGHT_BLACK + r"\1" + Colors.RESET, result)
             # For brackets, only highlight if not preceded by escape sequence
-            result = re.sub(r'(?<!\033)([\[\]])', Colors.BRIGHT_BLACK + r'\1' + Colors.RESET, result)
+            result = re.sub(r"(?<!\033)([\[\]])", Colors.BRIGHT_BLACK + r"\1" + Colors.RESET, result)
 
             highlighted.append(result)
 
-        return '\n'.join(highlighted)
+        return "\n".join(highlighted)
 
     except json.JSONDecodeError as e:
         return f"Error parsing JSON: {e}"
@@ -198,34 +236,32 @@ def create_html_highlighted(code: str, language: str) -> str:
     Returns:
         HTML with inline styles for highlighting
     """
-    if language.lower() == 'python':
+    if language.lower() == "python":
         # Simple HTML highlighting for Python
         html = '<pre style="background: #2e3440; color: #d8dee9; padding: 1em; border-radius: 5px;">\n'
 
-        lines = code.split('\n')
+        lines = code.split("\n")
         for line in lines:
             # Escape HTML
-            line = line.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            line = line.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
             # Keywords
-            line = re.sub(r'\b(def|class|if|else|return|import|for|while)\b',
-                         r'<span style="color: #81a1c1;">\1</span>', line)
+            line = re.sub(
+                r"\b(def|class|if|else|return|import|for|while)\b", r'<span style="color: #81a1c1;">\1</span>', line
+            )
 
             # Strings
-            line = re.sub(r'(".*?"|\'.*?\')',
-                         r'<span style="color: #a3be8c;">\1</span>', line)
+            line = re.sub(r'(".*?"|\'.*?\')', r'<span style="color: #a3be8c;">\1</span>', line)
 
             # Comments
-            line = re.sub(r'(#.*$)',
-                         r'<span style="color: #616e88;">\1</span>', line)
+            line = re.sub(r"(#.*$)", r'<span style="color: #616e88;">\1</span>', line)
 
             # Numbers
-            line = re.sub(r'\b(\d+\.?\d*)\b',
-                         r'<span style="color: #b48ead;">\1</span>', line)
+            line = re.sub(r"\b(\d+\.?\d*)\b", r'<span style="color: #b48ead;">\1</span>', line)
 
-            html += line + '\n'
+            html += line + "\n"
 
-        html += '</pre>'
+        html += "</pre>"
         return html
 
     else:
@@ -244,8 +280,8 @@ def strip_colors(text: str) -> str:
         Plain text without colors
     """
     # Remove ANSI escape sequences
-    ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
-    return ansi_escape.sub('', text)
+    ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
+    return ansi_escape.sub("", text)
 
 
 @tool
@@ -260,14 +296,14 @@ def add_line_numbers(code: str, start: int = 1) -> str:
     Returns:
         Code with line numbers
     """
-    lines = code.split('\n')
+    lines = code.split("\n")
     width = len(str(start + len(lines)))
 
     numbered = []
     for i, line in enumerate(lines, start):
         numbered.append(f"{i:>{width}} | {line}")
 
-    return '\n'.join(numbered)
+    return "\n".join(numbered)
 
 
 @tool
@@ -282,8 +318,8 @@ def create_diff(old_code: str, new_code: str) -> str:
     Returns:
         Colored diff output
     """
-    old_lines = old_code.split('\n')
-    new_lines = new_code.split('\n')
+    old_lines = old_code.split("\n")
+    new_lines = new_code.split("\n")
 
     diff = []
     diff.append(Colors.BRIGHT_BLACK + "--- old" + Colors.RESET)
@@ -304,7 +340,7 @@ def create_diff(old_code: str, new_code: str) -> str:
             if new_line:
                 diff.append(Colors.GREEN + f"+ {new_line}" + Colors.RESET)
 
-    return '\n'.join(diff)
+    return "\n".join(diff)
 
 
 def find_model() -> Path:
@@ -313,8 +349,8 @@ def find_model() -> Path:
 
     # Preferred models in order
     candidates = [
-        ROOT / 'models' / 'Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf',
-        ROOT / 'models' / 'Llama-3.2-1B-Instruct-Q8_0.gguf',
+        ROOT / "models" / "Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf",
+        ROOT / "models" / "Llama-3.2-1B-Instruct-Q8_0.gguf",
     ]
 
     for path in candidates:
@@ -366,10 +402,10 @@ def example_code_with_line_numbers():
     """Demonstrate adding line numbers."""
     section("CODE WITH LINE NUMBERS")
 
-    code = '''def greet(name):
+    code = """def greet(name):
     return f"Hello, {name}!"
 
-print(greet("World"))'''
+print(greet("World"))"""
 
     # First highlight, then add line numbers
     highlighted = highlight_python(code)
@@ -383,9 +419,9 @@ def example_diff_display():
     """Demonstrate diff highlighting."""
     section("CODE DIFF WITH HIGHLIGHTING")
 
-    old_code = '''def calculate(x, y):
+    old_code = """def calculate(x, y):
     result = x + y
-    return result'''
+    return result"""
 
     new_code = '''def calculate(x, y):
     """Add two numbers."""
@@ -402,8 +438,8 @@ def example_markdown_export():
     """Demonstrate markdown code block creation."""
     section("MARKDOWN CODE BLOCK EXPORT")
 
-    code = '''def hello():
-    print("Hello, World!")'''
+    code = """def hello():
+    print("Hello, World!")"""
 
     markdown = format_code_block(code, "python")
 
@@ -415,12 +451,12 @@ def example_html_export():
     """Demonstrate HTML highlighting."""
     section("HTML SYNTAX HIGHLIGHTING")
 
-    code = '''def add(a, b):
+    code = """def add(a, b):
     # Add two numbers
     return a + b
 
 result = add(5, 3)
-print(result)'''
+print(result)"""
 
     html = create_html_highlighted(code, "python")
 
@@ -436,24 +472,16 @@ def example_with_agent(llm: LLM):
 
     agent = ReActAgent(
         llm=llm,
-        tools=[
-            highlight_python,
-            highlight_json,
-            add_line_numbers,
-            format_code_block,
-            create_diff
-        ],
+        tools=[highlight_python, highlight_json, add_line_numbers, format_code_block, create_diff],
         max_iterations=5,
-        verbose=True
+        verbose=True,
     )
 
-    section("Task: Highlight Python code and add line numbers", color='yellow')
+    section("Task: Highlight Python code and add line numbers", color="yellow")
 
-    result = agent.run(
-        "Highlight this Python code and add line numbers: def test(): return 42"
-    )
+    result = agent.run("Highlight this Python code and add line numbers: def test(): return 42")
 
-    section("RESULT", color='bright_green')
+    section("RESULT", color="bright_green")
     kv("Answer", result.answer)
 
 
@@ -493,19 +521,12 @@ Examples:
     python agent_code_formatter.py
     python agent_code_formatter.py /path/to/model.gguf
     python agent_code_formatter.py models/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf
-        """
+        """,
     )
     parser.add_argument(
-        'model_path',
-        nargs='?',
-        type=str,
-        help='Path to GGUF model file (optional, will auto-detect if not provided)'
+        "model_path", nargs="?", type=str, help="Path to GGUF model file (optional, will auto-detect if not provided)"
     )
-    parser.add_argument(
-        '--verbose', '-v',
-        action='store_true',
-        help='Enable verbose model output'
-    )
+    parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose model output")
 
     args = parser.parse_args()
 
@@ -525,14 +546,16 @@ Examples:
     header("CODE FORMATTING & HIGHLIGHTING EXAMPLES")
 
     print("\nThis example demonstrates:")
-    numbered([
-        "Python syntax highlighting with ANSI colors",
-        "JSON pretty-printing and highlighting",
-        "Adding line numbers to code",
-        "Creating colored diffs",
-        "Exporting to markdown and HTML",
-        "Using agents to format code"
-    ])
+    numbered(
+        [
+            "Python syntax highlighting with ANSI colors",
+            "JSON pretty-printing and highlighting",
+            "Adding line numbers to code",
+            "Creating colored diffs",
+            "Exporting to markdown and HTML",
+            "Using agents to format code",
+        ]
+    )
 
     # Show color reference
     show_color_reference()

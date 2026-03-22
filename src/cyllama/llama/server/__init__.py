@@ -5,23 +5,16 @@ from .python import (
     ChatMessage,
     ChatRequest,
     ChatResponse,
-    start_python_server
+    start_python_server,
 )
 
 # Import from the launcher (external binary wrapper)
-from .launcher import (
-    ServerConfig as LauncherServerConfig,
-    LlamaServer,
-    LlamaServerClient,
-    start_server
-)
+from .launcher import ServerConfig as LauncherServerConfig, LlamaServer, LlamaServerClient, start_server
 
 # Import from the embedded server (high-performance C server using Mongoose)
 try:
-    from .embedded import (
-        EmbeddedServer,
-        start_embedded_server
-    )
+    from .embedded import EmbeddedServer, start_embedded_server
+
     _EMBEDDED_AVAILABLE = True
 except ImportError:
     _EMBEDDED_AVAILABLE = False

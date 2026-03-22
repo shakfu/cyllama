@@ -2,32 +2,24 @@
 
 import pytest
 import os
-from unittest.mock import patch, MagicMock
-from cyllama.llama.llama_cpp import (
-    get_hf_file,
-    download_model,
-    list_cached_models,
-    resolve_docker_model
-)
+from cyllama.llama.llama_cpp import get_hf_file, download_model, list_cached_models, resolve_docker_model
 
 pytest.skip(allow_module_level=True)
+
 
 def test_get_hf_file_basic():
     """Test getting HF file info (offline mode to avoid actual download)."""
     # This test will fail if no cache exists, but demonstrates the API
     try:
-        info = get_hf_file(
-            "bartowski/Llama-3.2-1B-Instruct-GGUF:Q8_0",
-            offline=True
-        )
+        info = get_hf_file("bartowski/Llama-3.2-1B-Instruct-GGUF:Q8_0", offline=True)
 
         # Check structure
         assert isinstance(info, dict)
-        assert 'repo' in info
-        assert 'gguf_file' in info
-        assert 'mmproj_file' in info
+        assert "repo" in info
+        assert "gguf_file" in info
+        assert "mmproj_file" in info
 
-        print(f"\nHF file info:")
+        print("\nHF file info:")
         print(f"  Repo: {info['repo']}")
         print(f"  GGUF file: {info['gguf_file']}")
         print(f"  MMProj file: {info['mmproj_file']}")
@@ -51,7 +43,7 @@ def test_get_hf_file_with_tag():
         try:
             info = get_hf_file(repo, offline=True)
             print(f"\n{repo} -> {info.get('gguf_file', 'N/A')}")
-        except RuntimeError as e:
+        except RuntimeError:
             # Expected to fail offline if no cache
             print(f"\n{repo} -> offline failed (expected)")
 
@@ -59,10 +51,7 @@ def test_get_hf_file_with_tag():
 def test_download_model_hf_repo():
     """Test download_model with HF repo (dry run / offline)."""
     # Test with offline mode (won't actually download)
-    success = download_model(
-        hf_repo="bartowski/Llama-3.2-1B-Instruct-GGUF:Q8_0",
-        offline=True
-    )
+    success = download_model(hf_repo="bartowski/Llama-3.2-1B-Instruct-GGUF:Q8_0", offline=True)
 
     # Should return False in offline mode if not cached
     assert isinstance(success, bool)
@@ -72,11 +61,7 @@ def test_download_model_hf_repo():
 def test_download_model_with_path():
     """Test download_model with explicit path."""
     # Test that we can specify a path
-    success = download_model(
-        model_path="/tmp/test_model.gguf",
-        hf_repo="test/repo",
-        offline=True
-    )
+    success = download_model(model_path="/tmp/test_model.gguf", hf_repo="test/repo", offline=True)
 
     assert isinstance(success, bool)
     print(f"\nDownload with path (offline) success: {success}")
@@ -84,10 +69,7 @@ def test_download_model_with_path():
 
 def test_download_model_url():
     """Test download_model with direct URL (offline)."""
-    success = download_model(
-        url="https://example.com/model.gguf",
-        offline=True
-    )
+    success = download_model(url="https://example.com/model.gguf", offline=True)
 
     assert isinstance(success, bool)
     print(f"\nDownload from URL (offline) success: {success}")
@@ -106,7 +88,7 @@ def test_download_model_parameters():
 
     for params in test_cases:
         # Add offline to avoid actual downloads
-        params['offline'] = True
+        params["offline"] = True
         success = download_model(**params)
         assert isinstance(success, bool)
         print(f"\nTested params: {params} -> {success}")
@@ -125,11 +107,11 @@ def test_list_cached_models():
     if models:
         model = models[0]
         assert isinstance(model, dict)
-        assert 'manifest_path' in model
-        assert 'user' in model
-        assert 'model' in model
-        assert 'tag' in model
-        assert 'size' in model
+        assert "manifest_path" in model
+        assert "user" in model
+        assert "model" in model
+        assert "tag" in model
+        assert "size" in model
 
         print("\nFirst cached model:")
         print(f"  User: {model['user']}")
@@ -147,18 +129,18 @@ def test_list_cached_models_structure():
 
     for model in models:
         # Verify all required keys exist
-        assert 'manifest_path' in model
-        assert 'user' in model
-        assert 'model' in model
-        assert 'tag' in model
-        assert 'size' in model
+        assert "manifest_path" in model
+        assert "user" in model
+        assert "model" in model
+        assert "tag" in model
+        assert "size" in model
 
         # Verify types
-        assert isinstance(model['manifest_path'], str)
-        assert isinstance(model['user'], str)
-        assert isinstance(model['model'], str)
-        assert isinstance(model['tag'], str)
-        assert isinstance(model['size'], int)
+        assert isinstance(model["manifest_path"], str)
+        assert isinstance(model["user"], str)
+        assert isinstance(model["model"], str)
+        assert isinstance(model["tag"], str)
+        assert isinstance(model["size"], int)
 
         print(f"\n  {model['user']}/{model['model']}:{model['tag']}")
 
@@ -181,11 +163,7 @@ def test_resolve_docker_model():
 
 def test_download_with_bearer_token():
     """Test that bearer_token parameter is accepted."""
-    success = download_model(
-        hf_repo="user/repo:tag",
-        bearer_token="hf_test_token",
-        offline=True
-    )
+    success = download_model(hf_repo="user/repo:tag", bearer_token="hf_test_token", offline=True)
 
     assert isinstance(success, bool)
     print(f"\nDownload with bearer token (offline): {success}")
@@ -211,15 +189,12 @@ def test_download_model_real():
         pytest tests/test_download.py::test_download_model_real -v
     """
     import tempfile
-    import os
 
     with tempfile.TemporaryDirectory() as tmpdir:
         model_path = os.path.join(tmpdir, "model.gguf")
 
         success = download_model(
-            model_path=model_path,
-            hf_repo="bartowski/TinyLlama-1.1B-Chat-v1.0-GGUF:Q4_K_M",
-            offline=False
+            model_path=model_path, hf_repo="bartowski/TinyLlama-1.1B-Chat-v1.0-GGUF:Q4_K_M", offline=False
         )
 
         assert success

@@ -18,10 +18,7 @@ import argparse
 from pathlib import Path
 from cyllama import LLM, GenerationConfig
 from cyllama.agents import ReActAgent, ConstrainedAgent, tool
-from cyllama.utils.color import (
-    header, section, subsection, subheader, success, error, info,
-    bullet, numbered, kv, divider
-)
+from cyllama.utils.color import header, section, subsection, subheader, success, error, info, bullet, numbered, kv
 from datetime import datetime
 
 
@@ -30,18 +27,18 @@ KNOWLEDGE_BASE = {
     "machine_learning": {
         "supervised": "Learning from labeled data",
         "unsupervised": "Finding patterns in unlabeled data",
-        "reinforcement": "Learning through trial and error with rewards"
+        "reinforcement": "Learning through trial and error with rewards",
     },
     "neural_networks": {
         "CNN": "Convolutional Neural Networks - good for images",
         "RNN": "Recurrent Neural Networks - good for sequences",
-        "Transformer": "Attention-based architecture - state of the art"
+        "Transformer": "Attention-based architecture - state of the art",
     },
     "python": {
         "history": "Created by Guido van Rossum in 1991",
         "philosophy": "Readability counts - The Zen of Python",
-        "use_cases": "Web dev, data science, automation, AI/ML"
-    }
+        "use_cases": "Web dev, data science, automation, AI/ML",
+    },
 }
 
 # Research notes storage
@@ -49,6 +46,7 @@ research_notes = []
 
 
 # Define research tools
+
 
 @tool
 def search_topic(query: str) -> str:
@@ -73,9 +71,9 @@ def search_topic(query: str) -> str:
 
         # Match if any query word matches category or category word
         category_match = (
-            query_lower in category_normalized or
-            category_normalized in query_lower or
-            bool(query_words & category_words)  # Word intersection
+            query_lower in category_normalized
+            or category_normalized in query_lower
+            or bool(query_words & category_words)  # Word intersection
         )
 
         if category_match:
@@ -90,9 +88,9 @@ def search_topic(query: str) -> str:
 
             # Match if query word appears in key or value
             item_match = (
-                any(word in key_lower or word in value_lower for word in query_words) or
-                query_lower in key_lower or
-                query_lower in value_lower
+                any(word in key_lower or word in value_lower for word in query_words)
+                or query_lower in key_lower
+                or query_lower in value_lower
             )
 
             if item_match and f"Category: {category}" not in results:
@@ -226,7 +224,7 @@ def generate_bibliography(topics: str) -> str:
     Returns:
         Mock bibliography
     """
-    topic_list = [t.strip() for t in topics.split(',')]
+    topic_list = [t.strip() for t in topics.split(",")]
 
     bib = "Bibliography:\n\n"
     for i, topic in enumerate(topic_list, 1):
@@ -241,8 +239,8 @@ def find_model() -> Path:
 
     # Preferred models in order
     candidates = [
-        ROOT / 'models' / 'Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf',
-        ROOT / 'models' / 'Llama-3.2-1B-Instruct-Q8_0.gguf',
+        ROOT / "models" / "Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf",
+        ROOT / "models" / "Llama-3.2-1B-Instruct-Q8_0.gguf",
     ]
 
     for path in candidates:
@@ -256,24 +254,17 @@ def example_basic_research(llm: LLM):
     """Demonstrate basic research workflow."""
     section("BASIC RESEARCH EXAMPLE")
 
-    agent = ReActAgent(
-        llm=llm,
-        tools=[search_topic, take_note],
-        max_iterations=8,
-        verbose=True
-    )
+    agent = ReActAgent(llm=llm, tools=[search_topic, take_note], max_iterations=8, verbose=True)
 
-    subsection("Task: Research machine learning and take notes", color='yellow')
+    subsection("Task: Research machine learning and take notes", color="yellow")
 
     global research_notes
     research_notes = []  # Reset notes
 
-    result = agent.run(
-        "Search for information about machine learning and take notes on the main types"
-    )
+    result = agent.run("Search for information about machine learning and take notes on the main types")
 
-    subsection("RESULT", color='bright_green')
-    kv("Success", str(result.success), value_color='green' if result.success else 'red')
+    subsection("RESULT", color="bright_green")
+    kv("Success", str(result.success), value_color="green" if result.success else "red")
     kv("Answer", result.answer)
 
 
@@ -284,29 +275,22 @@ def example_multi_step_research(llm: LLM):
     # Use ConstrainedAgent for reliability
     agent = ConstrainedAgent(
         llm=llm,
-        tools=[
-            search_topic,
-            search_specific,
-            take_note,
-            list_notes,
-            compare_topics
-        ],
+        tools=[search_topic, search_specific, take_note, list_notes, compare_topics],
         max_iterations=15,
         verbose=True,
-        format="json"
+        format="json",
     )
 
-    subsection("Task: Compare supervised vs unsupervised learning", color='yellow')
+    subsection("Task: Compare supervised vs unsupervised learning", color="yellow")
 
     global research_notes
     research_notes = []  # Reset notes
 
     result = agent.run(
-        "Research and compare supervised learning vs unsupervised learning. "
-        "Take notes on key differences."
+        "Research and compare supervised learning vs unsupervised learning. Take notes on key differences."
     )
 
-    subsection("RESULT", color='bright_green')
+    subsection("RESULT", color="bright_green")
     kv("Answer", result.answer)
 
 
@@ -316,18 +300,12 @@ def example_research_report(llm: LLM):
 
     agent = ReActAgent(
         llm=llm,
-        tools=[
-            search_topic,
-            take_note,
-            list_notes,
-            summarize_notes,
-            generate_bibliography
-        ],
+        tools=[search_topic, take_note, list_notes, summarize_notes, generate_bibliography],
         max_iterations=12,
-        verbose=True
+        verbose=True,
     )
 
-    subsection("Task: Create a report on neural networks", color='yellow')
+    subsection("Task: Create a report on neural networks", color="yellow")
 
     global research_notes
     research_notes = []  # Reset notes
@@ -337,7 +315,7 @@ def example_research_report(llm: LLM):
         "and then summarize your findings"
     )
 
-    subsection("RESULT", color='bright_green')
+    subsection("RESULT", color="bright_green")
     kv("Answer", result.answer)
 
 
@@ -345,25 +323,25 @@ def show_research_workflow():
     """Show typical research workflow."""
     section("TYPICAL RESEARCH WORKFLOW")
 
-    subheader("1. EXPLORATION PHASE", color='cyan')
+    subheader("1. EXPLORATION PHASE", color="cyan")
     bullet("Broad search for general information")
     bullet("Take initial notes on interesting findings")
     bullet("Identify key subtopics")
 
     print()
-    subheader("2. DEEP DIVE PHASE", color='cyan')
+    subheader("2. DEEP DIVE PHASE", color="cyan")
     bullet("Search specific subtopics")
     bullet("Compare different approaches")
     bullet("Take detailed notes")
 
     print()
-    subheader("3. SYNTHESIS PHASE", color='cyan')
+    subheader("3. SYNTHESIS PHASE", color="cyan")
     bullet("Review all notes")
     bullet("Generate summary")
     bullet("Create bibliography")
 
     print()
-    subheader("4. REPORTING PHASE", color='cyan')
+    subheader("4. REPORTING PHASE", color="cyan")
     bullet("Organize findings")
     bullet("Generate final report")
     bullet("Include citations")
@@ -379,19 +357,12 @@ Examples:
     python agent_researcher.py
     python agent_researcher.py /path/to/model.gguf
     python agent_researcher.py models/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf
-        """
+        """,
     )
     parser.add_argument(
-        'model_path',
-        nargs='?',
-        type=str,
-        help='Path to GGUF model file (optional, will auto-detect if not provided)'
+        "model_path", nargs="?", type=str, help="Path to GGUF model file (optional, will auto-detect if not provided)"
     )
-    parser.add_argument(
-        '--verbose', '-v',
-        action='store_true',
-        help='Enable verbose model output'
-    )
+    parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose model output")
 
     args = parser.parse_args()
 
@@ -411,14 +382,16 @@ Examples:
     header("RESEARCH ASSISTANT AGENT EXAMPLES")
 
     print("\nThis example demonstrates:")
-    numbered([
-        "Information search and retrieval",
-        "Note-taking during research",
-        "Multi-step research workflows",
-        "Comparing topics and concepts",
-        "Synthesizing findings",
-        "Generating research reports"
-    ])
+    numbered(
+        [
+            "Information search and retrieval",
+            "Note-taking during research",
+            "Multi-step research workflows",
+            "Comparing topics and concepts",
+            "Synthesizing findings",
+            "Generating research reports",
+        ]
+    )
 
     # Show workflow
     show_research_workflow()

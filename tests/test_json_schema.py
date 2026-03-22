@@ -8,11 +8,8 @@ def test_json_schema_basic_object():
     """Test converting a basic object schema to grammar."""
     schema = {
         "type": "object",
-        "properties": {
-            "name": {"type": "string"},
-            "age": {"type": "integer"}
-        },
-        "required": ["name", "age"]
+        "properties": {"name": {"type": "string"}, "age": {"type": "integer"}},
+        "required": ["name", "age"],
     }
 
     grammar = json_schema_to_grammar(schema)
@@ -41,15 +38,9 @@ def test_json_schema_nested_object():
     schema = {
         "type": "object",
         "properties": {
-            "user": {
-                "type": "object",
-                "properties": {
-                    "name": {"type": "string"},
-                    "email": {"type": "string"}
-                }
-            },
-            "timestamp": {"type": "integer"}
-        }
+            "user": {"type": "object", "properties": {"name": {"type": "string"}, "email": {"type": "string"}}},
+            "timestamp": {"type": "integer"},
+        },
     }
 
     grammar = json_schema_to_grammar(schema)
@@ -60,15 +51,7 @@ def test_json_schema_nested_object():
 
 def test_json_schema_array():
     """Test schema with array type."""
-    schema = {
-        "type": "object",
-        "properties": {
-            "items": {
-                "type": "array",
-                "items": {"type": "string"}
-            }
-        }
-    }
+    schema = {"type": "object", "properties": {"items": {"type": "array", "items": {"type": "string"}}}}
 
     grammar = json_schema_to_grammar(schema)
 
@@ -85,11 +68,8 @@ def test_json_schema_multiple_types():
             "age": {"type": "integer"},
             "score": {"type": "number"},
             "active": {"type": "boolean"},
-            "tags": {
-                "type": "array",
-                "items": {"type": "string"}
-            }
-        }
+            "tags": {"type": "array", "items": {"type": "string"}},
+        },
     }
 
     grammar = json_schema_to_grammar(schema)
@@ -101,12 +81,7 @@ def test_json_schema_multiple_types():
 
 def test_json_schema_force_gbnf():
     """Test force_gbnf parameter."""
-    schema = {
-        "type": "object",
-        "properties": {
-            "message": {"type": "string"}
-        }
-    }
+    schema = {"type": "object", "properties": {"message": {"type": "string"}}}
 
     # Test with force_gbnf=False (default)
     grammar1 = json_schema_to_grammar(schema, force_gbnf=False)
@@ -138,14 +113,10 @@ def test_json_schema_invalid_type():
 
 def test_json_schema_dict_and_string_equivalence():
     """Test that dict and string schemas produce same grammar."""
-    schema_dict = {
-        "type": "object",
-        "properties": {
-            "value": {"type": "integer"}
-        }
-    }
+    schema_dict = {"type": "object", "properties": {"value": {"type": "integer"}}}
 
     import json
+
     schema_str = json.dumps(schema_dict)
 
     grammar1 = json_schema_to_grammar(schema_dict)
@@ -157,15 +128,7 @@ def test_json_schema_dict_and_string_equivalence():
 
 def test_json_schema_enum():
     """Test schema with enum constraint."""
-    schema = {
-        "type": "object",
-        "properties": {
-            "status": {
-                "type": "string",
-                "enum": ["active", "inactive", "pending"]
-            }
-        }
-    }
+    schema = {"type": "object", "properties": {"status": {"type": "string", "enum": ["active", "inactive", "pending"]}}}
 
     grammar = json_schema_to_grammar(schema)
 
@@ -183,16 +146,12 @@ def test_json_schema_real_world_example():
                 "properties": {
                     "reasoning": {"type": "string"},
                     "answer": {"type": "string"},
-                    "confidence": {
-                        "type": "number",
-                        "minimum": 0.0,
-                        "maximum": 1.0
-                    }
+                    "confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0},
                 },
-                "required": ["reasoning", "answer", "confidence"]
+                "required": ["reasoning", "answer", "confidence"],
             }
         },
-        "required": ["response"]
+        "required": ["response"],
     }
 
     grammar = json_schema_to_grammar(schema)

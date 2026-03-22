@@ -5,25 +5,23 @@ Provides utilities to convert tool schemas into GBNF grammars that enforce
 valid tool call syntax, ensuring 100% reliable parsing.
 """
 
-import json
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from enum import Enum
 
 from ..llama.llama_cpp import json_schema_to_grammar
-from .tools import Tool, ToolRegistry
+from .tools import Tool
 
 
 class GrammarFormat(Enum):
     """Supported output formats for constrained generation."""
+
     JSON = "json"
     JSON_ARRAY = "json_array"
     FUNCTION_CALL = "function_call"
 
 
 def generate_tool_call_schema(
-    tools: List[Tool],
-    allow_reasoning: bool = True,
-    format: GrammarFormat = GrammarFormat.JSON
+    tools: List[Tool], allow_reasoning: bool = True, format: GrammarFormat = GrammarFormat.JSON
 ) -> Dict[str, Any]:
     """
     Generate JSON schema for tool calling.
@@ -63,23 +61,16 @@ def _generate_json_tool_schema(tools: List[Tool], allow_reasoning: bool) -> Dict
     schema = {
         "type": "object",
         "properties": {
-            "tool_name": {
-                "type": "string",
-                "enum": tool_names,
-                "description": "Name of the tool to call"
-            },
-            "tool_args": {
-                "type": "object",
-                "description": "Arguments to pass to the tool"
-            }
+            "tool_name": {"type": "string", "enum": tool_names, "description": "Name of the tool to call"},
+            "tool_args": {"type": "object", "description": "Arguments to pass to the tool"},
         },
-        "required": ["tool_name", "tool_args"]
+        "required": ["tool_name", "tool_args"],
     }
 
     if allow_reasoning:
         schema["properties"]["reasoning"] = {
             "type": "string",
-            "description": "Brief reasoning about why this tool is needed"
+            "description": "Brief reasoning about why this tool is needed",
         }
 
     return schema
@@ -108,27 +99,19 @@ def _generate_json_array_tool_schema(tools: List[Tool], allow_reasoning: bool) -
                 "items": {
                     "type": "object",
                     "properties": {
-                        "tool_name": {
-                            "type": "string",
-                            "enum": tool_names
-                        },
-                        "tool_args": {
-                            "type": "object"
-                        }
+                        "tool_name": {"type": "string", "enum": tool_names},
+                        "tool_args": {"type": "object"},
                     },
-                    "required": ["tool_name", "tool_args"]
+                    "required": ["tool_name", "tool_args"],
                 },
-                "minItems": 1
+                "minItems": 1,
             }
         },
-        "required": ["tool_calls"]
+        "required": ["tool_calls"],
     }
 
     if allow_reasoning:
-        schema["properties"]["reasoning"] = {
-            "type": "string",
-            "description": "Brief reasoning about the tool calls"
-        }
+        schema["properties"]["reasoning"] = {"type": "string", "description": "Brief reasoning about the tool calls"}
 
     return schema
 
@@ -149,32 +132,20 @@ def _generate_function_call_schema(tools: List[Tool], allow_reasoning: bool) -> 
     schema = {
         "type": "object",
         "properties": {
-            "name": {
-                "type": "string",
-                "enum": tool_names,
-                "description": "Function name"
-            },
-            "arguments": {
-                "type": "string",
-                "description": "JSON string of arguments"
-            }
+            "name": {"type": "string", "enum": tool_names, "description": "Function name"},
+            "arguments": {"type": "string", "description": "JSON string of arguments"},
         },
-        "required": ["name", "arguments"]
+        "required": ["name", "arguments"],
     }
 
     if allow_reasoning:
-        schema["properties"]["reasoning"] = {
-            "type": "string",
-            "description": "Reasoning for function call"
-        }
+        schema["properties"]["reasoning"] = {"type": "string", "description": "Reasoning for function call"}
 
     return schema
 
 
 def generate_tool_call_grammar(
-    tools: List[Tool],
-    allow_reasoning: bool = True,
-    format: GrammarFormat = GrammarFormat.JSON
+    tools: List[Tool], allow_reasoning: bool = True, format: GrammarFormat = GrammarFormat.JSON
 ) -> str:
     """
     Generate GBNF grammar for tool calling.
@@ -213,39 +184,25 @@ def generate_answer_or_tool_schema(tools: List[Tool], allow_reasoning: bool = Tr
     # Using oneOf to allow either answer or tool_call
     schema = {
         "type": "object",
-        "properties": {
-            "type": {
-                "type": "string",
-                "enum": ["answer", "tool_call"],
-                "description": "Type of response"
-            }
-        },
+        "properties": {"type": {"type": "string", "enum": ["answer", "tool_call"], "description": "Type of response"}},
         "required": ["type"],
         "oneOf": [
             {
                 "properties": {
                     "type": {"const": "answer"},
-                    "content": {
-                        "type": "string",
-                        "description": "The final answer to the question"
-                    }
+                    "content": {"type": "string", "description": "The final answer to the question"},
                 },
-                "required": ["type", "content"]
+                "required": ["type", "content"],
             },
             {
                 "properties": {
                     "type": {"const": "tool_call"},
-                    "tool_name": {
-                        "type": "string",
-                        "enum": tool_names
-                    },
-                    "tool_args": {
-                        "type": "object"
-                    }
+                    "tool_name": {"type": "string", "enum": tool_names},
+                    "tool_args": {"type": "object"},
                 },
-                "required": ["type", "tool_name", "tool_args"]
-            }
-        ]
+                "required": ["type", "tool_name", "tool_args"],
+            },
+        ],
     }
 
     return schema
@@ -283,14 +240,8 @@ def generate_specific_tool_schema(tool: Tool) -> Dict[str, Any]:
     """
     schema = {
         "type": "object",
-        "properties": {
-            "tool_name": {
-                "type": "string",
-                "const": tool.name
-            },
-            "tool_args": tool.parameters
-        },
-        "required": ["tool_name", "tool_args"]
+        "properties": {"tool_name": {"type": "string", "const": tool.name}, "tool_args": tool.parameters},
+        "required": ["tool_name", "tool_args"],
     }
 
     return schema
@@ -320,11 +271,7 @@ class GrammarCache:
     def __init__(self):
         self._cache: Dict[str, str] = {}
 
-    def get_or_create(
-        self,
-        key: str,
-        generator: callable
-    ) -> str:
+    def get_or_create(self, key: str, generator: callable) -> str:
         """
         Get grammar from cache or generate it.
 
@@ -353,9 +300,7 @@ _grammar_cache = GrammarCache()
 
 
 def get_cached_tool_grammar(
-    tools: List[Tool],
-    allow_reasoning: bool = True,
-    format: GrammarFormat = GrammarFormat.JSON
+    tools: List[Tool], allow_reasoning: bool = True, format: GrammarFormat = GrammarFormat.JSON
 ) -> str:
     """
     Get tool call grammar from cache or generate it.
@@ -372,16 +317,10 @@ def get_cached_tool_grammar(
     tool_names = sorted([t.name for t in tools])
     key = f"tools:{','.join(tool_names)}:reasoning={allow_reasoning}:format={format.value}"
 
-    return _grammar_cache.get_or_create(
-        key,
-        lambda: generate_tool_call_grammar(tools, allow_reasoning, format)
-    )
+    return _grammar_cache.get_or_create(key, lambda: generate_tool_call_grammar(tools, allow_reasoning, format))
 
 
-def get_cached_answer_or_tool_grammar(
-    tools: List[Tool],
-    allow_reasoning: bool = True
-) -> str:
+def get_cached_answer_or_tool_grammar(tools: List[Tool], allow_reasoning: bool = True) -> str:
     """
     Get answer-or-tool grammar from cache or generate it.
 
@@ -396,10 +335,7 @@ def get_cached_answer_or_tool_grammar(
     tool_names = sorted([t.name for t in tools])
     key = f"answer_or_tool:{','.join(tool_names)}:reasoning={allow_reasoning}"
 
-    return _grammar_cache.get_or_create(
-        key,
-        lambda: generate_answer_or_tool_grammar(tools, allow_reasoning)
-    )
+    return _grammar_cache.get_or_create(key, lambda: generate_answer_or_tool_grammar(tools, allow_reasoning))
 
 
 def clear_grammar_cache():

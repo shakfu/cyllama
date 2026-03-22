@@ -17,9 +17,7 @@ Usage:
 import argparse
 import json
 import logging
-import os
 import sys
-from typing import List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +54,7 @@ def parse_mcp_http(spec: str) -> dict:
 
     # Reconstruct URL (it contains colons)
     name = parts[0]
-    url = spec[len(name) + 1:]
+    url = spec[len(name) + 1 :]
 
     return {
         "name": name,
@@ -90,12 +88,14 @@ def cmd_acp(args: argparse.Namespace) -> int:
     for spec in args.mcp_stdio or []:
         try:
             config = parse_mcp_stdio(spec)
-            mcp_servers.append(McpServerConfig(
-                name=config["name"],
-                transport=McpTransportType.STDIO,
-                command=config["command"],
-                args=config["args"],
-            ))
+            mcp_servers.append(
+                McpServerConfig(
+                    name=config["name"],
+                    transport=McpTransportType.STDIO,
+                    command=config["command"],
+                    args=config["args"],
+                )
+            )
         except ValueError as e:
             logger.error("Invalid MCP stdio spec: %s", e)
             return 1
@@ -103,11 +103,13 @@ def cmd_acp(args: argparse.Namespace) -> int:
     for spec in args.mcp_http or []:
         try:
             config = parse_mcp_http(spec)
-            mcp_servers.append(McpServerConfig(
-                name=config["name"],
-                transport=McpTransportType.HTTP,
-                url=config["url"],
-            ))
+            mcp_servers.append(
+                McpServerConfig(
+                    name=config["name"],
+                    transport=McpTransportType.HTTP,
+                    url=config["url"],
+                )
+            )
         except ValueError as e:
             logger.error("Invalid MCP HTTP spec: %s", e)
             return 1
@@ -290,7 +292,8 @@ def main():
         description="Start an ACP-compliant agent server that communicates via JSON-RPC over stdio.",
     )
     acp_parser.add_argument(
-        "-m", "--model",
+        "-m",
+        "--model",
         required=True,
         help="Path to the model file (GGUF format)",
     )
@@ -327,7 +330,8 @@ def main():
         help="Maximum agent iterations (default: 10)",
     )
     acp_parser.add_argument(
-        "-v", "--verbose",
+        "-v",
+        "--verbose",
         action="store_true",
         help="Enable verbose output",
     )
@@ -340,16 +344,19 @@ def main():
         description="Run a ReAct agent with a single query.",
     )
     run_parser.add_argument(
-        "-m", "--model",
+        "-m",
+        "--model",
         required=True,
         help="Path to the model file (GGUF format)",
     )
     run_parser.add_argument(
-        "-p", "--prompt",
+        "-p",
+        "--prompt",
         help="Prompt to run",
     )
     run_parser.add_argument(
-        "-f", "--prompt-file",
+        "-f",
+        "--prompt-file",
         help="File containing the prompt",
     )
     run_parser.add_argument(
@@ -368,7 +375,8 @@ def main():
         help="Enable shell command tool",
     )
     run_parser.add_argument(
-        "-v", "--verbose",
+        "-v",
+        "--verbose",
         action="store_true",
         help="Enable verbose output",
     )
@@ -396,7 +404,8 @@ def main():
         help="Call a tool (format: tool_name:json_args)",
     )
     mcp_parser.add_argument(
-        "-v", "--verbose",
+        "-v",
+        "--verbose",
         action="store_true",
         help="Enable verbose output",
     )

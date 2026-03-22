@@ -12,9 +12,9 @@ import argparse
 from pathlib import Path
 
 # Add src to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from cyllama.llama.server import ServerConfig, start_server
+from cyllama.llama.server import start_server
 
 
 def main():
@@ -39,7 +39,7 @@ def main():
             model_path=str(model_path),
             port=args.port,
             ctx_size=1024,
-            n_gpu_layers=-1  # Auto-detect
+            n_gpu_layers=-1,  # Auto-detect
         )
 
         print("✓ Server started! Press Ctrl+C to stop...")
@@ -48,6 +48,7 @@ def main():
         try:
             while True:
                 import time
+
                 time.sleep(1)
         except KeyboardInterrupt:
             print("\nStopping server...")

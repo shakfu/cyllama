@@ -3,8 +3,6 @@ Tests for constrained agent implementation.
 """
 
 import pytest
-import json
-from unittest.mock import Mock, MagicMock
 from cyllama.agents.constrained import ConstrainedAgent, ConstrainedGenerationConfig
 from cyllama.agents.react import EventType
 from cyllama.agents.tools import tool
@@ -49,12 +47,7 @@ def test_constrained_agent_custom_config():
     config = ConstrainedGenerationConfig(temperature=0.5, max_tokens=256)
 
     agent = ConstrainedAgent(
-        llm=llm,
-        tools=[],
-        max_iterations=5,
-        generation_config=config,
-        format="json",
-        allow_reasoning=True
+        llm=llm, tools=[], max_iterations=5, generation_config=config, format="json", allow_reasoning=True
     )
 
     assert agent.max_iterations == 5
@@ -65,9 +58,7 @@ def test_constrained_agent_custom_config():
 
 def test_constrained_agent_answer_response():
     """Test agent handling answer response."""
-    responses = [
-        '{"type": "answer", "content": "The capital is Paris"}'
-    ]
+    responses = ['{"type": "answer", "content": "The capital is Paris"}']
     llm = MockLLM(responses)
 
     agent = ConstrainedAgent(llm=llm, tools=[])
@@ -83,7 +74,7 @@ def test_constrained_agent_tool_call():
     """Test agent making a tool call."""
     responses = [
         '{"type": "tool_call", "tool_name": "search", "tool_args": {"query": "test"}}',
-        '{"type": "answer", "content": "Found results"}'
+        '{"type": "answer", "content": "Found results"}',
     ]
     llm = MockLLM(responses)
 
@@ -104,7 +95,7 @@ def test_constrained_agent_with_reasoning():
     """Test agent with reasoning field."""
     responses = [
         '{"type": "tool_call", "reasoning": "Need to search", "tool_name": "search", "tool_args": {"query": "info"}}',
-        '{"type": "answer", "content": "Done"}'
+        '{"type": "answer", "content": "Done"}',
     ]
     llm = MockLLM(responses)
 
@@ -128,7 +119,7 @@ def test_constrained_agent_multiple_tool_calls():
     responses = [
         '{"type": "tool_call", "tool_name": "tool1", "tool_args": {}}',
         '{"type": "tool_call", "tool_name": "tool2", "tool_args": {}}',
-        '{"type": "answer", "content": "Complete"}'
+        '{"type": "answer", "content": "Complete"}',
     ]
     llm = MockLLM(responses)
 
@@ -152,9 +143,7 @@ def test_constrained_agent_multiple_tool_calls():
 def test_constrained_agent_max_iterations():
     """Test agent hitting max iterations (with loop detection disabled)."""
     # Always return tool call, never answer
-    responses = [
-        '{"type": "tool_call", "tool_name": "my_tool", "tool_args": {}}'
-    ] * 15
+    responses = ['{"type": "tool_call", "tool_name": "my_tool", "tool_args": {}}'] * 15
 
     llm = MockLLM(responses)
 
@@ -175,9 +164,7 @@ def test_constrained_agent_max_iterations():
 def test_constrained_agent_loop_detection():
     """Test agent loop detection generates summary from observations."""
     # Always return same tool call to trigger loop detection
-    responses = [
-        '{"type": "tool_call", "tool_name": "my_tool", "tool_args": {}}'
-    ] * 15
+    responses = ['{"type": "tool_call", "tool_name": "my_tool", "tool_args": {}}'] * 15
 
     llm = MockLLM(responses)
 
@@ -200,9 +187,7 @@ def test_constrained_agent_loop_detection():
 def test_constrained_agent_loop_detection_no_observations():
     """Test agent loop detection with no observations returns error."""
     # Return tool calls but with no observations collected
-    responses = [
-        '{"type": "tool_call", "tool_name": "my_tool", "tool_args": {}}'
-    ] * 15
+    responses = ['{"type": "tool_call", "tool_name": "my_tool", "tool_args": {}}'] * 15
 
     llm = MockLLM(responses)
 
@@ -223,9 +208,7 @@ def test_constrained_agent_loop_detection_no_observations():
 
 def test_constrained_agent_unknown_tool():
     """Test agent calling unknown tool."""
-    responses = [
-        '{"type": "tool_call", "tool_name": "nonexistent", "tool_args": {}}'
-    ]
+    responses = ['{"type": "tool_call", "tool_name": "nonexistent", "tool_args": {}}']
     llm = MockLLM(responses)
 
     agent = ConstrainedAgent(llm=llm, tools=[])
@@ -241,7 +224,7 @@ def test_constrained_agent_tool_execution_error():
     """Test handling tool execution errors."""
     responses = [
         '{"type": "tool_call", "tool_name": "failing_tool", "tool_args": {}}',
-        '{"type": "answer", "content": "Handled error"}'
+        '{"type": "answer", "content": "Handled error"}',
     ]
     llm = MockLLM(responses)
 
@@ -260,9 +243,7 @@ def test_constrained_agent_tool_execution_error():
 
 def test_constrained_agent_invalid_json():
     """Test handling invalid JSON response."""
-    responses = [
-        'This is not valid JSON'
-    ]
+    responses = ["This is not valid JSON"]
     llm = MockLLM(responses)
 
     agent = ConstrainedAgent(llm=llm, tools=[])
@@ -276,9 +257,7 @@ def test_constrained_agent_invalid_json():
 
 def test_constrained_agent_unknown_response_type():
     """Test handling unknown response type."""
-    responses = [
-        '{"type": "unknown_type", "data": "something"}'
-    ]
+    responses = ['{"type": "unknown_type", "data": "something"}']
     llm = MockLLM(responses)
 
     agent = ConstrainedAgent(llm=llm, tools=[])
@@ -339,6 +318,7 @@ def test_constrained_agent_format_json():
     agent = ConstrainedAgent(llm=llm, tools=[], format="json")
 
     from cyllama.agents.grammar import GrammarFormat
+
     assert agent.format == GrammarFormat.JSON
 
 
@@ -348,6 +328,7 @@ def test_constrained_agent_format_function_call():
     agent = ConstrainedAgent(llm=llm, tools=[], format="function_call")
 
     from cyllama.agents.grammar import GrammarFormat
+
     assert agent.format == GrammarFormat.FUNCTION_CALL
 
 
@@ -379,7 +360,7 @@ def test_constrained_agent_stream_events():
     """Test streaming agent events."""
     responses = [
         '{"type": "tool_call", "tool_name": "my_tool", "tool_args": {}}',
-        '{"type": "answer", "content": "Final answer"}'
+        '{"type": "answer", "content": "Final answer"}',
     ]
     llm = MockLLM(responses)
 
@@ -415,7 +396,7 @@ def test_constrained_agent_tool_args_passed_correctly():
     """Test that tool arguments are passed correctly."""
     responses = [
         '{"type": "tool_call", "tool_name": "multiply", "tool_args": {"a": 6, "b": 7}}',
-        '{"type": "answer", "content": "Result is 42"}'
+        '{"type": "answer", "content": "Result is 42"}',
     ]
     llm = MockLLM(responses)
 
@@ -423,8 +404,8 @@ def test_constrained_agent_tool_args_passed_correctly():
 
     @tool
     def multiply(a: int, b: int) -> int:
-        call_args['a'] = a
-        call_args['b'] = b
+        call_args["a"] = a
+        call_args["b"] = b
         return a * b
 
     agent = ConstrainedAgent(llm=llm, tools=[multiply])
@@ -432,8 +413,8 @@ def test_constrained_agent_tool_args_passed_correctly():
     result = agent.run("Multiply 6 and 7")
 
     assert result.success is True
-    assert call_args['a'] == 6
-    assert call_args['b'] == 7
+    assert call_args["a"] == 6
+    assert call_args["b"] == 7
 
 
 def test_constrained_generation_config_defaults():
@@ -449,9 +430,7 @@ def test_constrained_generation_config_defaults():
 
 def test_constrained_agent_json_markdown_stripping():
     """Test that agent strips markdown code blocks from JSON."""
-    responses = [
-        '```json\n{"type": "answer", "content": "Done"}\n```'
-    ]
+    responses = ['```json\n{"type": "answer", "content": "Done"}\n```']
     llm = MockLLM(responses)
 
     agent = ConstrainedAgent(llm=llm, tools=[])
@@ -466,7 +445,7 @@ def test_constrained_agent_conversation_history():
     """Test that conversation history is maintained."""
     responses = [
         '{"type": "tool_call", "tool_name": "tool1", "tool_args": {}}',
-        '{"type": "answer", "content": "Done"}'
+        '{"type": "answer", "content": "Done"}',
     ]
     llm = MockLLM(responses)
 

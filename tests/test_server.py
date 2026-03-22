@@ -6,19 +6,12 @@ These tests cover the LlamaServer class, ServerConfig, and LlamaServerClient,
 ensuring proper server lifecycle management and API functionality.
 """
 
-import time
 import pytest
 import subprocess
-import threading
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 
-from cyllama.llama.server.launcher import (
-    ServerConfig,
-    LlamaServer,
-    LlamaServerClient,
-    start_server
-)
+from cyllama.llama.server.launcher import ServerConfig, LlamaServer, LlamaServerClient, start_server
 
 
 class TestServerConfig:
@@ -47,7 +40,7 @@ class TestServerConfig:
             ctx_size=8192,
             n_gpu_layers=32,
             embedding=True,
-            webui=False
+            webui=False,
         )
 
         assert config.model_path == "custom.gguf"
@@ -68,7 +61,7 @@ class TestServerConfig:
             n_gpu_layers=10,
             embedding=True,
             webui=False,
-            extra_args=["--verbose"]
+            extra_args=["--verbose"],
         )
 
         args = config.to_args()
@@ -90,10 +83,7 @@ class TestServerConfig:
 
     def test_tensor_split_args(self):
         """Test tensor split configuration."""
-        config = ServerConfig(
-            model_path="test.gguf",
-            tensor_split=[3.0, 1.0]
-        )
+        config = ServerConfig(model_path="test.gguf", tensor_split=[3.0, 1.0])
 
         args = config.to_args()
 
@@ -104,10 +94,7 @@ class TestServerConfig:
     def test_security_args(self):
         """Test security-related configuration."""
         config = ServerConfig(
-            model_path="test.gguf",
-            api_key="secret",
-            ssl_cert_file="cert.pem",
-            ssl_key_file="key.pem"
+            model_path="test.gguf", api_key="secret", ssl_cert_file="cert.pem", ssl_key_file="key.pem"
         )
 
         args = config.to_args()
@@ -128,10 +115,10 @@ class TestLlamaServer:
         config = ServerConfig(model_path="test.gguf")
 
         # Mock the binary detection
-        with patch.object(LlamaServer, '_find_server_binary') as mock_find:
+        with patch.object(LlamaServer, "_find_server_binary") as mock_find:
             mock_find.return_value = Path("/fake/llama-server")
 
-            with patch.object(Path, 'exists', return_value=True):
+            with patch.object(Path, "exists", return_value=True):
                 server = LlamaServer(config)
                 assert server.server_binary == Path("/fake/llama-server")
 
@@ -139,7 +126,7 @@ class TestLlamaServer:
         """Test server initialization with custom binary path."""
         config = ServerConfig(model_path="test.gguf")
 
-        with patch.object(Path, 'exists', return_value=True):
+        with patch.object(Path, "exists", return_value=True):
             server = LlamaServer(config, server_binary="/custom/llama-server")
             assert server.server_binary == Path("/custom/llama-server")
 
@@ -147,7 +134,7 @@ class TestLlamaServer:
         """Test server initialization when binary is not found."""
         config = ServerConfig(model_path="test.gguf")
 
-        with patch.object(Path, 'exists', return_value=False):
+        with patch.object(Path, "exists", return_value=False):
             with pytest.raises(FileNotFoundError, match="Server binary not found"):
                 LlamaServer(config, server_binary="/nonexistent/llama-server")
 
@@ -155,15 +142,15 @@ class TestLlamaServer:
         """Test server binary discovery logic."""
         config = ServerConfig(model_path="test.gguf")
 
-        with patch.object(LlamaServer, '_find_server_binary') as mock_find:
+        with patch.object(LlamaServer, "_find_server_binary") as mock_find:
             mock_find.return_value = Path("/found/llama-server")
 
-            with patch.object(Path, 'exists', return_value=True):
+            with patch.object(Path, "exists", return_value=True):
                 server = LlamaServer(config)
                 assert mock_find.called
 
-    @patch('subprocess.Popen')
-    @patch.object(Path, 'exists', return_value=True)
+    @patch("subprocess.Popen")
+    @patch.object(Path, "exists", return_value=True)
     def test_start_server_success(self, mock_exists, mock_popen):
         """Test successful server start."""
         config = ServerConfig(model_path="test.gguf")
@@ -171,18 +158,18 @@ class TestLlamaServer:
         mock_process.pid = 12345
         mock_popen.return_value = mock_process
 
-        with patch.object(LlamaServer, '_find_server_binary') as mock_find:
+        with patch.object(LlamaServer, "_find_server_binary") as mock_find:
             mock_find.return_value = Path("/fake/llama-server")
             server = LlamaServer(config)
 
-            with patch.object(server, 'wait_for_ready', return_value=True):
+            with patch.object(server, "wait_for_ready", return_value=True):
                 server.start()
 
                 assert server.process == mock_process
                 mock_popen.assert_called_once()
 
-    @patch('subprocess.Popen')
-    @patch.object(Path, 'exists')
+    @patch("subprocess.Popen")
+    @patch.object(Path, "exists")
     def test_start_server_model_not_found(self, mock_exists, mock_popen):
         """Test server start when model file doesn't exist."""
         config = ServerConfig(model_path="nonexistent.gguf")
@@ -190,7 +177,7 @@ class TestLlamaServer:
         # First call (binary check) returns True, second call (model check) returns False
         mock_exists.side_effect = [True, False]
 
-        with patch.object(LlamaServer, '_find_server_binary') as mock_find:
+        with patch.object(LlamaServer, "_find_server_binary") as mock_find:
             mock_find.return_value = Path("/fake/llama-server")
 
             server = LlamaServer(config)
@@ -198,18 +185,18 @@ class TestLlamaServer:
             with pytest.raises(FileNotFoundError, match="Model not found"):
                 server.start()
 
-    @patch('subprocess.Popen')
-    @patch.object(Path, 'exists', return_value=True)
+    @patch("subprocess.Popen")
+    @patch.object(Path, "exists", return_value=True)
     def test_start_server_already_running(self, mock_exists, mock_popen):
         """Test starting server when already running."""
         config = ServerConfig(model_path="test.gguf")
 
-        with patch.object(LlamaServer, '_find_server_binary') as mock_find:
+        with patch.object(LlamaServer, "_find_server_binary") as mock_find:
             mock_find.return_value = Path("/fake/llama-server")
             server = LlamaServer(config)
             server.process = Mock()  # Simulate running process
 
-            with patch.object(server, 'is_running', return_value=True):
+            with patch.object(server, "is_running", return_value=True):
                 with pytest.raises(RuntimeError, match="already running"):
                     server.start()
 
@@ -217,9 +204,9 @@ class TestLlamaServer:
         """Test graceful server stop."""
         config = ServerConfig(model_path="test.gguf")
 
-        with patch.object(LlamaServer, '_find_server_binary') as mock_find:
+        with patch.object(LlamaServer, "_find_server_binary") as mock_find:
             mock_find.return_value = Path("/fake/llama-server")
-            with patch.object(Path, 'exists', return_value=True):
+            with patch.object(Path, "exists", return_value=True):
                 server = LlamaServer(config)
 
                 mock_process = Mock()
@@ -236,9 +223,9 @@ class TestLlamaServer:
         """Test forced server stop when graceful fails."""
         config = ServerConfig(model_path="test.gguf")
 
-        with patch.object(LlamaServer, '_find_server_binary') as mock_find:
+        with patch.object(LlamaServer, "_find_server_binary") as mock_find:
             mock_find.return_value = Path("/fake/llama-server")
-            with patch.object(Path, 'exists', return_value=True):
+            with patch.object(Path, "exists", return_value=True):
                 server = LlamaServer(config)
 
                 mock_process = Mock()
@@ -256,9 +243,9 @@ class TestLlamaServer:
         """Test is_running when server is running."""
         config = ServerConfig(model_path="test.gguf")
 
-        with patch.object(LlamaServer, '_find_server_binary') as mock_find:
+        with patch.object(LlamaServer, "_find_server_binary") as mock_find:
             mock_find.return_value = Path("/fake/llama-server")
-            with patch.object(Path, 'exists', return_value=True):
+            with patch.object(Path, "exists", return_value=True):
                 server = LlamaServer(config)
 
                 mock_process = Mock()
@@ -271,9 +258,9 @@ class TestLlamaServer:
         """Test is_running when server is not running."""
         config = ServerConfig(model_path="test.gguf")
 
-        with patch.object(LlamaServer, '_find_server_binary') as mock_find:
+        with patch.object(LlamaServer, "_find_server_binary") as mock_find:
             mock_find.return_value = Path("/fake/llama-server")
-            with patch.object(Path, 'exists', return_value=True):
+            with patch.object(Path, "exists", return_value=True):
                 server = LlamaServer(config)
 
                 # No process
@@ -290,20 +277,21 @@ class TestLlamaServer:
         """Test waiting for server to be ready - success case."""
         config = ServerConfig(model_path="test.gguf")
 
-        with patch.object(LlamaServer, '_find_server_binary') as mock_find:
+        with patch.object(LlamaServer, "_find_server_binary") as mock_find:
             mock_find.return_value = Path("/fake/llama-server")
-            with patch.object(Path, 'exists', return_value=True):
+            with patch.object(Path, "exists", return_value=True):
                 server = LlamaServer(config)
 
                 try:
                     import requests
+
                     # Mock successful health check
-                    with patch('requests.get') as mock_get:
+                    with patch("requests.get") as mock_get:
                         mock_response = Mock()
                         mock_response.status_code = 200
                         mock_get.return_value = mock_response
 
-                        with patch.object(server, 'is_running', return_value=True):
+                        with patch.object(server, "is_running", return_value=True):
                             result = server.wait_for_ready(timeout=1.0)
                             assert result is True
                 except ImportError:
@@ -313,18 +301,19 @@ class TestLlamaServer:
         """Test waiting for server to be ready - timeout case."""
         config = ServerConfig(model_path="test.gguf")
 
-        with patch.object(LlamaServer, '_find_server_binary') as mock_find:
+        with patch.object(LlamaServer, "_find_server_binary") as mock_find:
             mock_find.return_value = Path("/fake/llama-server")
-            with patch.object(Path, 'exists', return_value=True):
+            with patch.object(Path, "exists", return_value=True):
                 server = LlamaServer(config)
 
                 try:
                     import requests
+
                     # Mock failed health check
-                    with patch('requests.get') as mock_get:
+                    with patch("requests.get") as mock_get:
                         mock_get.side_effect = requests.RequestException("Connection failed")
 
-                        with patch.object(server, 'is_running', return_value=True):
+                        with patch.object(server, "is_running", return_value=True):
                             result = server.wait_for_ready(timeout=0.1)
                             assert result is False
                 except ImportError:
@@ -334,13 +323,13 @@ class TestLlamaServer:
         """Test server as context manager."""
         config = ServerConfig(model_path="test.gguf")
 
-        with patch.object(LlamaServer, '_find_server_binary') as mock_find:
+        with patch.object(LlamaServer, "_find_server_binary") as mock_find:
             mock_find.return_value = Path("/fake/llama-server")
-            with patch.object(Path, 'exists', return_value=True):
+            with patch.object(Path, "exists", return_value=True):
                 server = LlamaServer(config)
 
-                with patch.object(server, 'start') as mock_start:
-                    with patch.object(server, 'stop') as mock_stop:
+                with patch.object(server, "start") as mock_start:
+                    with patch.object(server, "stop") as mock_stop:
                         with server:
                             pass
 
@@ -359,7 +348,7 @@ class TestLlamaServerClient:
         except ImportError:
             pytest.skip("requests library required for client tests")
 
-    @patch('requests.Session')
+    @patch("requests.Session")
     def test_client_init_no_auth(self, mock_session_class):
         """Test client initialization without authentication."""
         mock_session = Mock()
@@ -371,7 +360,7 @@ class TestLlamaServerClient:
         assert client.api_key is None
         mock_session.headers.update.assert_called()
 
-    @patch('requests.Session')
+    @patch("requests.Session")
     def test_client_init_with_auth(self, mock_session_class):
         """Test client initialization with authentication."""
         mock_session = Mock()
@@ -383,7 +372,7 @@ class TestLlamaServerClient:
         # Should be called twice - once for auth, once for content-type
         assert mock_session.headers.update.call_count == 2
 
-    @patch('requests.Session')
+    @patch("requests.Session")
     def test_chat_completion(self, mock_session_class):
         """Test chat completion request."""
         mock_session = Mock()
@@ -403,7 +392,7 @@ class TestLlamaServerClient:
         assert call_args[1]["json"]["messages"] == messages
         assert call_args[1]["json"]["temperature"] == 0.7
 
-    @patch('requests.Session')
+    @patch("requests.Session")
     def test_embedding(self, mock_session_class):
         """Test embedding request."""
         mock_session = Mock()
@@ -421,7 +410,7 @@ class TestLlamaServerClient:
         assert call_args[0][0].endswith("/v1/embeddings")
         assert call_args[1]["json"]["input"] == "Hello world"
 
-    @patch('requests.Session')
+    @patch("requests.Session")
     def test_models(self, mock_session_class):
         """Test models request."""
         mock_session = Mock()
@@ -438,7 +427,7 @@ class TestLlamaServerClient:
         call_args = mock_session.get.call_args
         assert call_args[0][0].endswith("/v1/models")
 
-    @patch('requests.Session')
+    @patch("requests.Session")
     def test_health(self, mock_session_class):
         """Test health check request."""
         mock_session = Mock()
@@ -459,7 +448,7 @@ class TestLlamaServerClient:
 class TestConvenienceFunctions:
     """Test convenience functions."""
 
-    @patch('cyllama.llama.server.launcher.LlamaServer')
+    @patch("cyllama.llama.server.launcher.LlamaServer")
     def test_start_server_function(self, mock_server_class):
         """Test start_server convenience function."""
         mock_server = Mock()
@@ -482,7 +471,6 @@ class TestConvenienceFunctions:
 class TestServerIntegration:
     """Integration tests for server functionality."""
 
-
     @pytest.fixture(autouse=True)
     def check_requests(self):
         """Fixture to skip tests if requests is not available."""
@@ -497,7 +485,7 @@ class TestServerIntegration:
             model_path=model_path,
             port=18080,  # Use different port to avoid conflicts
             ctx_size=512,  # Small context for faster startup
-            n_gpu_layers=0  # CPU only for reliability
+            n_gpu_layers=0,  # CPU only for reliability
         )
 
         try:
@@ -518,7 +506,7 @@ class TestServerIntegration:
             assert status["pid"] is not None
 
             # Test client connection
-            client = LlamaServerClient(f"http://127.0.0.1:18080")
+            client = LlamaServerClient("http://127.0.0.1:18080")
 
             # Simple health check
             health = client.health()
@@ -539,7 +527,7 @@ class TestServerIntegration:
             model_path=model_path,
             port=18081,  # Different port
             ctx_size=512,
-            n_gpu_layers=0
+            n_gpu_layers=0,
         )
 
         try:
@@ -553,7 +541,7 @@ class TestServerIntegration:
             assert server.is_running()
 
             # Quick API test
-            client = LlamaServerClient(f"http://127.0.0.1:18081")
+            client = LlamaServerClient("http://127.0.0.1:18081")
             health = client.health()
             assert "status" in health
 

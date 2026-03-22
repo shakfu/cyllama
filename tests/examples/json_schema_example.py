@@ -19,12 +19,8 @@ def basic_schema_example():
     # Define a simple schema for a person
     schema = {
         "type": "object",
-        "properties": {
-            "name": {"type": "string"},
-            "age": {"type": "integer"},
-            "email": {"type": "string"}
-        },
-        "required": ["name", "age"]
+        "properties": {"name": {"type": "string"}, "age": {"type": "integer"}, "email": {"type": "string"}},
+        "required": ["name", "age"],
     }
 
     # Convert to grammar
@@ -55,16 +51,16 @@ def nested_schema_example():
                         "properties": {
                             "street": {"type": "string"},
                             "city": {"type": "string"},
-                            "zipcode": {"type": "string"}
+                            "zipcode": {"type": "string"},
                         },
-                        "required": ["city"]
-                    }
+                        "required": ["city"],
+                    },
                 },
-                "required": ["name"]
+                "required": ["name"],
             },
-            "timestamp": {"type": "string"}
+            "timestamp": {"type": "string"},
         },
-        "required": ["user"]
+        "required": ["user"],
     }
 
     grammar = json_schema_to_grammar(schema)
@@ -87,17 +83,13 @@ def array_schema_example():
                 "type": "array",
                 "items": {
                     "type": "object",
-                    "properties": {
-                        "id": {"type": "integer"},
-                        "name": {"type": "string"},
-                        "price": {"type": "number"}
-                    },
-                    "required": ["id", "name"]
-                }
+                    "properties": {"id": {"type": "integer"}, "name": {"type": "string"}, "price": {"type": "number"}},
+                    "required": ["id", "name"],
+                },
             },
-            "total": {"type": "number"}
+            "total": {"type": "number"},
         },
-        "required": ["items"]
+        "required": ["items"],
     }
 
     grammar = json_schema_to_grammar(schema)
@@ -116,17 +108,11 @@ def enum_schema_example():
     schema = {
         "type": "object",
         "properties": {
-            "status": {
-                "type": "string",
-                "enum": ["active", "inactive", "pending"]
-            },
-            "priority": {
-                "type": "string",
-                "enum": ["low", "medium", "high", "critical"]
-            },
-            "assigned_to": {"type": "string"}
+            "status": {"type": "string", "enum": ["active", "inactive", "pending"]},
+            "priority": {"type": "string", "enum": ["low", "medium", "high", "critical"]},
+            "assigned_to": {"type": "string"},
         },
-        "required": ["status", "priority"]
+        "required": ["status", "priority"],
     }
 
     grammar = json_schema_to_grammar(schema)
@@ -148,19 +134,13 @@ def real_world_api_response_schema():
             "reasoning": {"type": "string"},
             "answer": {"type": "string"},
             "confidence": {"type": "number"},
-            "sources": {
-                "type": "array",
-                "items": {"type": "string"}
-            },
+            "sources": {"type": "array", "items": {"type": "string"}},
             "metadata": {
                 "type": "object",
-                "properties": {
-                    "model": {"type": "string"},
-                    "timestamp": {"type": "string"}
-                }
-            }
+                "properties": {"model": {"type": "string"}, "timestamp": {"type": "string"}},
+            },
         },
-        "required": ["reasoning", "answer"]
+        "required": ["reasoning", "answer"],
     }
 
     grammar = json_schema_to_grammar(schema)
@@ -192,9 +172,9 @@ def use_grammar_with_model(grammar, model_path):
         "type": "object",
         "properties": {
             "answer": {"type": "string"},
-            "confidence": {"type": "string", "enum": ["low", "medium", "high"]}
+            "confidence": {"type": "string", "enum": ["low", "medium", "high"]},
         },
-        "required": ["answer", "confidence"]
+        "required": ["answer", "confidence"],
     }
 
     grammar = json_schema_to_grammar(schema)
@@ -230,11 +210,8 @@ def force_gbnf_example():
 
     schema = {
         "type": "object",
-        "properties": {
-            "name": {"type": "string"},
-            "age": {"type": "integer"}
-        },
-        "required": ["name"]
+        "properties": {"name": {"type": "string"}, "age": {"type": "integer"}},
+        "required": ["name"],
     }
 
     # Standard conversion
@@ -287,6 +264,7 @@ def main(model_path):
 
 if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser(description="JSON Schema to Grammar Examples")
     parser.add_argument("-m", "--model", required=True, help="Path to model file")
     args = parser.parse_args()

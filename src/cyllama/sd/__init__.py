@@ -55,7 +55,6 @@ from .stable_diffusion import (
     SDImageGenParams,
     SDSampleParams,
     Upscaler,
-
     # Enums
     RngType,
     SampleMethod,
@@ -65,22 +64,18 @@ from .stable_diffusion import (
     LogLevel,
     PreviewMode,
     LoraApplyMode,
-
     # Convenience functions
     text_to_image,
     image_to_image,
-
     # Model utilities
     convert_model,
     canny_preprocess,
-
     # Utility functions
     get_num_cores,
     get_system_info,
     type_name,
     sample_method_name,
     scheduler_name,
-
     # Callback setters
     set_log_callback,
     set_progress_callback,
@@ -95,7 +90,6 @@ __all__ = [
     "SDImageGenParams",
     "SDSampleParams",
     "Upscaler",
-
     # Enums
     "RngType",
     "SampleMethod",
@@ -105,22 +99,18 @@ __all__ = [
     "LogLevel",
     "PreviewMode",
     "LoraApplyMode",
-
     # Convenience functions
     "text_to_image",
     "image_to_image",
-
     # Model utilities
     "convert_model",
     "canny_preprocess",
-
     # Utility functions
     "get_num_cores",
     "get_system_info",
     "type_name",
     "sample_method_name",
     "scheduler_name",
-
     # Callback setters
     "set_log_callback",
     "set_progress_callback",

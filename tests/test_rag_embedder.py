@@ -175,6 +175,7 @@ class TestEmbedderIter:
         result = embedder.embed_iter(texts)
         # Should be a generator, not a list
         import types
+
         assert isinstance(result, types.GeneratorType)
 
 
@@ -356,10 +357,10 @@ class TestEmbedderCache:
         info = cached_embedder.cache_info()
 
         assert isinstance(info, CacheInfo)
-        assert hasattr(info, 'hits')
-        assert hasattr(info, 'misses')
-        assert hasattr(info, 'maxsize')
-        assert hasattr(info, 'currsize')
+        assert hasattr(info, "hits")
+        assert hasattr(info, "misses")
+        assert hasattr(info, "maxsize")
+        assert hasattr(info, "currsize")
 
     def test_cache_repr_includes_cache_size(self, cached_embedder: Embedder):
         """Test that repr includes cache_size when enabled."""

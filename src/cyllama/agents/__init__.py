@@ -72,21 +72,17 @@ __all__ = [
     "Tool",
     "tool",
     "ToolRegistry",
-
     # Agents
     "ReActAgent",
     "ConstrainedAgent",
     "ContractAgent",
-
     # Events and Results
     "EventType",
     "AgentEvent",
     "AgentResult",
     "AgentMetrics",
-
     # Configuration
     "ConstrainedGenerationConfig",
-
     # Grammar utilities
     "GrammarFormat",
     "generate_tool_call_grammar",
@@ -95,7 +91,6 @@ __all__ = [
     "get_cached_tool_grammar",
     "get_cached_answer_or_tool_grammar",
     "clear_grammar_cache",
-
     # Contract types
     "ContractPolicy",
     "ContractViolation",
@@ -108,17 +103,14 @@ __all__ = [
     "pre",
     "post",
     "contract_assert",
-
     # ACP (Agent Client Protocol)
     "ACPAgent",
     "serve_acp",
-
     # MCP (Model Context Protocol)
     "McpClient",
     "McpServerConfig",
     "McpTransportType",
     "McpTool",
-
     # Session storage
     "Session",
     "SessionStore",
@@ -126,14 +118,12 @@ __all__ = [
     "FileSessionStore",
     "SqliteSessionStore",
     "create_session_store",
-
     # JSON-RPC transport
     "JsonRpcServer",
     "JsonRpcRequest",
     "JsonRpcResponse",
     "JsonRpcError",
     "StdioTransport",
-
     # Async agents
     "AsyncReActAgent",
     "AsyncConstrainedAgent",

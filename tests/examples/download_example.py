@@ -8,12 +8,7 @@ This example demonstrates:
 5. Direct URL downloads
 """
 
-from cyllama.llama.llama_cpp import (
-    download_model,
-    get_hf_file,
-    list_cached_models,
-    resolve_docker_model
-)
+from cyllama.llama.llama_cpp import download_model, get_hf_file, list_cached_models
 import os
 
 
@@ -82,15 +77,12 @@ def download_from_huggingface_example(offline=True):
 
     try:
         # Download (or check cache in offline mode)
-        success = download_model(
-            hf_repo=hf_repo,
-            offline=offline
-        )
+        success = download_model(hf_repo=hf_repo, offline=offline)
 
         if success:
-            print(f"\nSuccess! Model is available")
+            print("\nSuccess! Model is available")
         else:
-            print(f"\nModel not available in cache (offline mode)")
+            print("\nModel not available in cache (offline mode)")
             print("To download: download_model(hf_repo='{hf_repo}', offline=False)")
 
     except RuntimeError as e:

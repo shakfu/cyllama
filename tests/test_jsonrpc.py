@@ -2,7 +2,6 @@
 
 import io
 import json
-import threading
 import time
 import pytest
 
@@ -73,11 +72,7 @@ class TestJsonRpcMessages:
         assert not resp.is_error
 
     def test_response_from_dict_with_error(self):
-        d = {
-            "jsonrpc": "2.0",
-            "id": 5,
-            "error": {"code": -32601, "message": "Method not found"}
-        }
+        d = {"jsonrpc": "2.0", "id": 5, "error": {"code": -32601, "message": "Method not found"}}
         resp = JsonRpcResponse.from_dict(d)
 
         assert resp.id == 5
@@ -158,10 +153,7 @@ class TestStdioTransport:
         assert parsed["method"] == "hello"
 
     def test_read_messages_generator(self):
-        input_data = (
-            '{"jsonrpc": "2.0", "method": "a", "id": 1}\n'
-            '{"jsonrpc": "2.0", "method": "b", "id": 2}\n'
-        )
+        input_data = '{"jsonrpc": "2.0", "method": "a", "id": 1}\n{"jsonrpc": "2.0", "method": "b", "id": 2}\n'
         input_stream = io.StringIO(input_data)
         output_stream = io.StringIO()
 

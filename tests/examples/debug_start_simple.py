@@ -7,7 +7,6 @@ Usage:
 """
 
 import sys
-import time
 import threading
 import argparse
 from pathlib import Path
@@ -17,18 +16,14 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from cyllama.llama.server.python import ServerConfig
 
+
 def test_start_with_timeout(model_path):
     print("Testing server.start() with timeout...")
 
     try:
         from cyllama.llama.server.embedded import EmbeddedServer
 
-        config = ServerConfig(
-            model_path=model_path,
-            host="127.0.0.1",
-            port=8099,
-            n_ctx=256
-        )
+        config = ServerConfig(model_path=model_path, host="127.0.0.1", port=8099, n_ctx=256)
 
         server = EmbeddedServer(config)
         print("✓ Server created")
@@ -83,8 +78,10 @@ def test_start_with_timeout(model_path):
     except Exception as e:
         print(f"✗ Error: {e}")
         import traceback
+
         traceback.print_exc()
         return False
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Debug server start/stop")

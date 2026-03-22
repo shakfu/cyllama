@@ -21,7 +21,7 @@ def test_gguf_read_model(model_path):
     assert "GGUFContext" in repr_str
     assert "version" in repr_str
 
-    print(f"\nGGUF Info:")
+    print("\nGGUF Info:")
     print(f"  Version: {ctx.version}")
     print(f"  Tensors: {ctx.n_tensors}")
     print(f"  KV pairs: {ctx.n_kv}")

@@ -12,7 +12,7 @@ import json
 import tempfile
 import subprocess
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 import pytest
 
 # Import the CLI module
@@ -123,7 +123,7 @@ class TestWhisperParams:
         assert params.vad_threshold == 0.5
         assert params.vad_min_speech_duration_ms == 250
         assert params.vad_min_silence_duration_ms == 100
-        assert params.vad_max_speech_duration_s == float('inf')
+        assert params.vad_max_speech_duration_s == float("inf")
         assert params.vad_speech_pad_ms == 30
         assert params.vad_samples_overlap == 0.1
 
@@ -138,7 +138,7 @@ class TestAudioProcessing:
         assert samples is not None
         assert len(samples) > 0
         assert sample_rate > 0
-        assert samples.dtype.name == 'float32'
+        assert samples.dtype.name == "float32"
 
         # Check that samples are normalized to [-1, 1]
         assert samples.min() >= -1.0
@@ -159,7 +159,7 @@ class TestAudioProcessing:
         # Check that the length is approximately correct
         expected_length = int(len(samples) * target_sr / orig_sr)
         assert abs(len(resampled) - expected_length) <= 1
-        assert resampled.dtype.name == 'float32'
+        assert resampled.dtype.name == "float32"
 
     def test_resample_audio_same_rate(self):
         """Test resampling with same sample rate."""
@@ -188,19 +188,19 @@ class TestOutputFormatting:
         assert cli.format_timestamp(100, always_include_hours=True) == "00:00:01,000"
 
         # Test with different decimal marker
-        assert cli.format_timestamp(100, decimal_marker='.') == "00:01.000"
+        assert cli.format_timestamp(100, decimal_marker=".") == "00:01.000"
 
     def test_escape_string_json(self):
         """Test JSON string escaping."""
-        assert cli.escape_string_json('hello') == 'hello'
+        assert cli.escape_string_json("hello") == "hello"
         assert cli.escape_string_json('hello "world"') == 'hello \\"world\\"'
-        assert cli.escape_string_json('hello\\world') == 'hello\\\\world'
-        assert cli.escape_string_json('hello\nworld') == 'hello\\nworld'
-        assert cli.escape_string_json('hello\tworld') == 'hello\\tworld'
+        assert cli.escape_string_json("hello\\world") == "hello\\\\world"
+        assert cli.escape_string_json("hello\nworld") == "hello\\nworld"
+        assert cli.escape_string_json("hello\tworld") == "hello\\tworld"
 
     def test_escape_string_csv(self):
         """Test CSV string escaping."""
-        assert cli.escape_string_csv('hello') == 'hello'
+        assert cli.escape_string_csv("hello") == "hello"
         assert cli.escape_string_csv('hello "world"') == 'hello ""world""'
 
 
@@ -209,15 +209,15 @@ class TestArgumentParsing:
 
     def test_parse_basic_arguments(self):
         """Test parsing basic arguments."""
-        with patch('sys.argv', ['cli.py', '-f', 'test.wav', '-m', 'test.bin']):
+        with patch("sys.argv", ["cli.py", "-f", "test.wav", "-m", "test.bin"]):
             params = cli.parse_arguments()
 
-            assert params.fname_inp == ['test.wav']
-            assert params.model == 'test.bin'
+            assert params.fname_inp == ["test.wav"]
+            assert params.model == "test.bin"
 
     def test_parse_output_format_arguments(self):
         """Test parsing output format arguments."""
-        with patch('sys.argv', ['cli.py', '-f', 'test.wav', '--output-srt', '--output-json']):
+        with patch("sys.argv", ["cli.py", "-f", "test.wav", "--output-srt", "--output-json"]):
             params = cli.parse_arguments()
 
             assert params.output_srt is True
@@ -226,16 +226,16 @@ class TestArgumentParsing:
 
     def test_parse_processing_arguments(self):
         """Test parsing processing arguments."""
-        with patch('sys.argv', ['cli.py', '-f', 'test.wav', '-t', '4', '--translate', '--language', 'es']):
+        with patch("sys.argv", ["cli.py", "-f", "test.wav", "-t", "4", "--translate", "--language", "es"]):
             params = cli.parse_arguments()
 
             assert params.n_threads == 4
             assert params.translate is True
-            assert params.language == 'es'
+            assert params.language == "es"
 
     def test_parse_threshold_arguments(self):
         """Test parsing threshold arguments."""
-        with patch('sys.argv', ['cli.py', '-f', 'test.wav', '--temperature', '0.8', '--word-thold', '0.02']):
+        with patch("sys.argv", ["cli.py", "-f", "test.wav", "--temperature", "0.8", "--word-thold", "0.02"]):
             params = cli.parse_arguments()
 
             assert params.temperature == 0.8
@@ -247,47 +247,54 @@ class TestCLIIntegration:
 
     def test_cli_help(self):
         """Test CLI help output."""
-        result = subprocess.run([
-            sys.executable, '-m', 'cyllama.whisper.cli', '--help'
-        ], capture_output=True, text=True)
+        result = subprocess.run([sys.executable, "-m", "cyllama.whisper.cli", "--help"], capture_output=True, text=True)
 
         assert result.returncode == 0
-        assert 'Whisper CLI - Speech-to-text transcription' in result.stdout
-        assert '--file' in result.stdout
-        assert '--model' in result.stdout
-        assert '--output-srt' in result.stdout
+        assert "Whisper CLI - Speech-to-text transcription" in result.stdout
+        assert "--file" in result.stdout
+        assert "--model" in result.stdout
+        assert "--output-srt" in result.stdout
 
     def test_cli_missing_input_file(self):
         """Test CLI with missing input file."""
-        result = subprocess.run([
-            sys.executable, '-m', 'cyllama.whisper.cli'
-        ], capture_output=True, text=True)
+        result = subprocess.run([sys.executable, "-m", "cyllama.whisper.cli"], capture_output=True, text=True)
 
         assert result.returncode == 1
-        assert 'No input files specified' in result.stderr
+        assert "No input files specified" in result.stderr
 
     def test_cli_nonexistent_model(self):
         """Test CLI with non-existent model file."""
-        result = subprocess.run([
-            sys.executable, '-m', 'cyllama.whisper.cli',
-            '-f', 'nonexistent.wav', '-m', 'nonexistent.bin'
-        ], capture_output=True, text=True)
+        result = subprocess.run(
+            [sys.executable, "-m", "cyllama.whisper.cli", "-f", "nonexistent.wav", "-m", "nonexistent.bin"],
+            capture_output=True,
+            text=True,
+        )
 
         assert result.returncode == 1
-        assert 'Model file not found' in result.stderr
+        assert "Model file not found" in result.stderr
 
     def test_cli_nonexistent_audio_file(self, whisper_model_path):
         """Test CLI with non-existent audio file."""
         project_root = Path(__file__).parent.parent
         model_path = project_root / whisper_model_path
 
-        result = subprocess.run([
-            sys.executable, '-m', 'cyllama.whisper.cli',
-            '-f', 'nonexistent.wav', '-m', str(model_path), '--no-prints'
-        ], capture_output=True, text=True)
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "cyllama.whisper.cli",
+                "-f",
+                "nonexistent.wav",
+                "-m",
+                str(model_path),
+                "--no-prints",
+            ],
+            capture_output=True,
+            text=True,
+        )
 
         assert result.returncode == 0  # Should continue processing other files
-        assert 'Input file not found' in result.stderr
+        assert "Input file not found" in result.stderr
 
     @pytest.mark.slow
     def test_cli_basic_transcription(self, sample_audio_path, whisper_model_path, temp_dir):
@@ -302,19 +309,28 @@ class TestCLIIntegration:
             audio_path = project_root / sample_audio_path
             model_path = project_root / whisper_model_path
 
-            result = subprocess.run([
-                sys.executable, '-m', 'cyllama.whisper.cli',
-                '-f', str(audio_path),
-                '-m', str(model_path),
-                '--no-prints'
-            ], capture_output=True, text=True, timeout=120)
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "cyllama.whisper.cli",
+                    "-f",
+                    str(audio_path),
+                    "-m",
+                    str(model_path),
+                    "--no-prints",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
 
             assert result.returncode == 0
             # Check that output contains transcribed text
             assert len(result.stdout.strip()) > 0
             # JFK audio should contain this text
             output_lower = result.stdout.lower()
-            assert any(word in output_lower for word in ['americans', 'country', 'ask'])
+            assert any(word in output_lower for word in ["americans", "country", "ask"])
 
         finally:
             os.chdir(old_cwd)
@@ -331,23 +347,33 @@ class TestCLIIntegration:
             audio_path = project_root / sample_audio_path
             model_path = project_root / whisper_model_path
 
-            result = subprocess.run([
-                sys.executable, '-m', 'cyllama.whisper.cli',
-                '-f', str(audio_path),
-                '-m', str(model_path),
-                '--output-srt', '--no-prints'
-            ], capture_output=True, text=True, timeout=120)
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "cyllama.whisper.cli",
+                    "-f",
+                    str(audio_path),
+                    "-m",
+                    str(model_path),
+                    "--output-srt",
+                    "--no-prints",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
 
             assert result.returncode == 0
 
             # Check that SRT file was created
-            srt_file = Path(temp_dir) / 'jfk.srt'
+            srt_file = Path(temp_dir) / "jfk.srt"
             assert srt_file.exists()
 
             # Check SRT format
             content = srt_file.read_text()
-            assert '1\n' in content  # Subtitle number
-            assert '-->' in content  # Timestamp separator
+            assert "1\n" in content  # Subtitle number
+            assert "-->" in content  # Timestamp separator
             assert len(content.strip()) > 0
 
         finally:
@@ -365,37 +391,47 @@ class TestCLIIntegration:
             audio_path = project_root / sample_audio_path
             model_path = project_root / whisper_model_path
 
-            result = subprocess.run([
-                sys.executable, '-m', 'cyllama.whisper.cli',
-                '-f', str(audio_path),
-                '-m', str(model_path),
-                '--output-json', '--no-prints'
-            ], capture_output=True, text=True, timeout=120)
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "cyllama.whisper.cli",
+                    "-f",
+                    str(audio_path),
+                    "-m",
+                    str(model_path),
+                    "--output-json",
+                    "--no-prints",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
 
             assert result.returncode == 0
 
             # Check that JSON file was created
-            json_file = Path(temp_dir) / 'jfk.json'
+            json_file = Path(temp_dir) / "jfk.json"
             assert json_file.exists()
 
             # Check JSON format
             content = json_file.read_text()
             data = json.loads(content)
 
-            assert 'text' in data
-            assert 'segments' in data
-            assert isinstance(data['segments'], list)
-            assert len(data['segments']) > 0
+            assert "text" in data
+            assert "segments" in data
+            assert isinstance(data["segments"], list)
+            assert len(data["segments"]) > 0
 
             # Check first segment structure
-            segment = data['segments'][0]
-            assert 'id' in segment
-            assert 'start' in segment
-            assert 'end' in segment
-            assert 'text' in segment
-            assert isinstance(segment['start'], (int, float))
-            assert isinstance(segment['end'], (int, float))
-            assert len(segment['text'].strip()) > 0
+            segment = data["segments"][0]
+            assert "id" in segment
+            assert "start" in segment
+            assert "end" in segment
+            assert "text" in segment
+            assert isinstance(segment["start"], (int, float))
+            assert isinstance(segment["end"], (int, float))
+            assert len(segment["text"].strip()) > 0
 
         finally:
             os.chdir(old_cwd)
@@ -412,29 +448,41 @@ class TestCLIIntegration:
             audio_path = project_root / sample_audio_path
             model_path = project_root / whisper_model_path
 
-            result = subprocess.run([
-                sys.executable, '-m', 'cyllama.whisper.cli',
-                '-f', str(audio_path),
-                '-m', str(model_path),
-                '--output-srt', '--output-vtt', '--output-csv', '--no-prints'
-            ], capture_output=True, text=True, timeout=120)
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "cyllama.whisper.cli",
+                    "-f",
+                    str(audio_path),
+                    "-m",
+                    str(model_path),
+                    "--output-srt",
+                    "--output-vtt",
+                    "--output-csv",
+                    "--no-prints",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
 
             assert result.returncode == 0
 
             # Check that all files were created
-            files = ['jfk.srt', 'jfk.vtt', 'jfk.csv']
+            files = ["jfk.srt", "jfk.vtt", "jfk.csv"]
             for filename in files:
                 filepath = Path(temp_dir) / filename
                 assert filepath.exists(), f"{filename} was not created"
                 assert filepath.stat().st_size > 0, f"{filename} is empty"
 
             # Verify VTT format
-            vtt_content = (Path(temp_dir) / 'jfk.vtt').read_text()
-            assert vtt_content.startswith('WEBVTT')
+            vtt_content = (Path(temp_dir) / "jfk.vtt").read_text()
+            assert vtt_content.startswith("WEBVTT")
 
             # Verify CSV format
-            csv_content = (Path(temp_dir) / 'jfk.csv').read_text()
-            assert 'start,end,text' in csv_content
+            csv_content = (Path(temp_dir) / "jfk.csv").read_text()
+            assert "start,end,text" in csv_content
 
         finally:
             os.chdir(old_cwd)
@@ -497,5 +545,5 @@ class TestRegressionCases:
         assert isinstance(escaped_csv, str)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     pytest.main([__file__])

@@ -9,13 +9,32 @@ import numpy as np
 pytest.importorskip("cyllama.sd")
 
 from cyllama.sd import (
-    SDContext, SDContextParams, SDImage, SDImageGenParams, SDSampleParams,
+    SDContext,
+    SDContextParams,
+    SDImage,
+    SDImageGenParams,
+    SDSampleParams,
     Upscaler,
-    RngType, SampleMethod, Scheduler, Prediction, SDType, LogLevel, PreviewMode, LoraApplyMode,
-    text_to_image, image_to_image,
-    convert_model, canny_preprocess,
-    get_num_cores, get_system_info, type_name, sample_method_name, scheduler_name,
-    set_log_callback, set_progress_callback, set_preview_callback
+    RngType,
+    SampleMethod,
+    Scheduler,
+    Prediction,
+    SDType,
+    LogLevel,
+    PreviewMode,
+    LoraApplyMode,
+    text_to_image,
+    image_to_image,
+    convert_model,
+    canny_preprocess,
+    get_num_cores,
+    get_system_info,
+    type_name,
+    sample_method_name,
+    scheduler_name,
+    set_log_callback,
+    set_progress_callback,
+    set_preview_callback,
 )
 
 
@@ -112,7 +131,7 @@ class TestSDImage:
         arr[10:20, 10:20] = [255, 0, 0]  # Red square
         img = SDImage.from_numpy(arr)
 
-        with tempfile.NamedTemporaryFile(suffix='.ppm', delete=False) as f:
+        with tempfile.NamedTemporaryFile(suffix=".ppm", delete=False) as f:
             ppm_path = f.name
 
         try:
@@ -121,9 +140,9 @@ class TestSDImage:
             assert os.path.getsize(ppm_path) > 0
 
             # Verify PPM header
-            with open(ppm_path, 'rb') as f:
+            with open(ppm_path, "rb") as f:
                 header = f.read(20)
-                assert header.startswith(b'P6\n')
+                assert header.startswith(b"P6\n")
         finally:
             os.unlink(ppm_path)
 
@@ -133,7 +152,7 @@ class TestSDImage:
         arr[10:20, 10:20] = [0, 255, 0]  # Green square
         img = SDImage.from_numpy(arr)
 
-        with tempfile.NamedTemporaryFile(suffix='.bmp', delete=False) as f:
+        with tempfile.NamedTemporaryFile(suffix=".bmp", delete=False) as f:
             bmp_path = f.name
 
         try:
@@ -142,9 +161,9 @@ class TestSDImage:
             assert os.path.getsize(bmp_path) > 0
 
             # Verify BMP header
-            with open(bmp_path, 'rb') as f:
+            with open(bmp_path, "rb") as f:
                 header = f.read(2)
-                assert header == b'BM'
+                assert header == b"BM"
         finally:
             os.unlink(bmp_path)
 
@@ -153,7 +172,7 @@ class TestSDImage:
         arr = np.random.randint(0, 256, (32, 48, 3), dtype=np.uint8)
         img = SDImage.from_numpy(arr)
 
-        with tempfile.NamedTemporaryFile(suffix='.ppm', delete=False) as f:
+        with tempfile.NamedTemporaryFile(suffix=".ppm", delete=False) as f:
             ppm_path = f.name
 
         try:
@@ -171,7 +190,7 @@ class TestSDImage:
         arr = np.random.randint(0, 256, (32, 48, 3), dtype=np.uint8)
         img = SDImage.from_numpy(arr)
 
-        with tempfile.NamedTemporaryFile(suffix='.bmp', delete=False) as f:
+        with tempfile.NamedTemporaryFile(suffix=".bmp", delete=False) as f:
             bmp_path = f.name
 
         try:
@@ -190,9 +209,9 @@ class TestSDImage:
         arr[:] = [128, 64, 32]
         img = SDImage.from_numpy(arr)
 
-        with tempfile.NamedTemporaryFile(suffix='.ppm', delete=False) as f:
+        with tempfile.NamedTemporaryFile(suffix=".ppm", delete=False) as f:
             ppm_path = f.name
-        with tempfile.NamedTemporaryFile(suffix='.bmp', delete=False) as f:
+        with tempfile.NamedTemporaryFile(suffix=".bmp", delete=False) as f:
             bmp_path = f.name
 
         try:
@@ -204,10 +223,10 @@ class TestSDImage:
             assert os.path.exists(bmp_path)
 
             # Verify formats
-            with open(ppm_path, 'rb') as f:
-                assert f.read(2) == b'P6'
-            with open(bmp_path, 'rb') as f:
-                assert f.read(2) == b'BM'
+            with open(ppm_path, "rb") as f:
+                assert f.read(2) == b"P6"
+            with open(bmp_path, "rb") as f:
+                assert f.read(2) == b"BM"
         finally:
             os.unlink(ppm_path)
             os.unlink(bmp_path)
@@ -218,7 +237,7 @@ class TestSDImage:
         arr[10:20, 10:20] = 200
         img = SDImage.from_numpy(arr)
 
-        with tempfile.NamedTemporaryFile(suffix='.ppm', delete=False) as f:
+        with tempfile.NamedTemporaryFile(suffix=".ppm", delete=False) as f:
             ppm_path = f.name
 
         try:
@@ -242,7 +261,7 @@ class TestSDImage:
         arr[10:20, 10:20] = [255, 0, 0]  # Red square
         img = SDImage.from_numpy(arr)
 
-        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as f:
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
             png_path = f.name
 
         try:
@@ -251,9 +270,9 @@ class TestSDImage:
             assert os.path.getsize(png_path) > 0
 
             # Verify PNG header (magic bytes)
-            with open(png_path, 'rb') as f:
+            with open(png_path, "rb") as f:
                 header = f.read(8)
-                assert header[:4] == b'\x89PNG'
+                assert header[:4] == b"\x89PNG"
         finally:
             os.unlink(png_path)
 
@@ -263,7 +282,7 @@ class TestSDImage:
         arr[10:20, 10:20] = [0, 255, 0]  # Green square
         img = SDImage.from_numpy(arr)
 
-        with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as f:
+        with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as f:
             jpg_path = f.name
 
         try:
@@ -272,9 +291,9 @@ class TestSDImage:
             assert os.path.getsize(jpg_path) > 0
 
             # Verify JPEG header (magic bytes)
-            with open(jpg_path, 'rb') as f:
+            with open(jpg_path, "rb") as f:
                 header = f.read(2)
-                assert header == b'\xff\xd8'  # JPEG SOI marker
+                assert header == b"\xff\xd8"  # JPEG SOI marker
         finally:
             os.unlink(jpg_path)
 
@@ -283,7 +302,7 @@ class TestSDImage:
         arr = np.random.randint(0, 256, (32, 48, 3), dtype=np.uint8)
         img = SDImage.from_numpy(arr)
 
-        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as f:
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
             png_path = f.name
 
         try:
@@ -303,7 +322,7 @@ class TestSDImage:
         arr = np.full((32, 48, 3), [128, 128, 128], dtype=np.uint8)
         img = SDImage.from_numpy(arr)
 
-        with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as f:
+        with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as f:
             jpg_path = f.name
 
         try:
@@ -323,7 +342,7 @@ class TestSDImage:
         arr = np.random.randint(0, 256, (32, 32, 3), dtype=np.uint8)
         img = SDImage.from_numpy(arr)
 
-        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as f:
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
             png_path = f.name
 
         try:
@@ -415,14 +434,7 @@ class TestSDImageGenParams:
         assert params.seed == 42
 
     def test_constructor_kwargs(self):
-        params = SDImageGenParams(
-            prompt="test prompt",
-            width=256,
-            height=256,
-            seed=123,
-            sample_steps=10,
-            cfg_scale=5.0
-        )
+        params = SDImageGenParams(prompt="test prompt", width=256, height=256, seed=123, sample_steps=10, cfg_scale=5.0)
         assert params.prompt == "test prompt"
         assert params.width == 256
         assert params.height == 256
@@ -453,10 +465,7 @@ class TestCallbacks:
 
 
 # Integration tests that require a real model
-@pytest.mark.skipif(
-    not os.path.exists(MODEL_PATH),
-    reason=f"Model not found at {MODEL_PATH}"
-)
+@pytest.mark.skipif(not os.path.exists(MODEL_PATH), reason=f"Model not found at {MODEL_PATH}")
 class TestSDContextIntegration:
     """Integration tests requiring a real model."""
 
@@ -937,13 +946,7 @@ class TestCannyPreprocess:
 
         img = SDImage.from_numpy(arr)
 
-        result = canny_preprocess(
-            img,
-            high_threshold=0.9,
-            low_threshold=0.2,
-            weak=0.3,
-            strong=1.0
-        )
+        result = canny_preprocess(img, high_threshold=0.9, low_threshold=0.2, weak=0.3, strong=1.0)
         assert result is True
 
     def test_canny_inverse(self):
@@ -963,11 +966,7 @@ class TestPreviewCallback:
         previews = []
 
         def callback(step, frames, is_noisy):
-            previews.append({
-                'step': step,
-                'frame_count': len(frames),
-                'is_noisy': is_noisy
-            })
+            previews.append({"step": step, "frame_count": len(frames), "is_noisy": is_noisy})
 
         set_preview_callback(callback)
         # Callback is set, verify no errors
@@ -987,10 +986,10 @@ class TestEnumsExtended:
         assert Prediction.EPS.value == 0
         assert len(list(Prediction)) >= 6  # Includes FLUX2_FLOW
         # Verify key prediction types exist
-        assert hasattr(Prediction, 'EPS')
-        assert hasattr(Prediction, 'V')
-        assert hasattr(Prediction, 'FLUX_FLOW')
-        assert hasattr(Prediction, 'FLUX2_FLOW')
+        assert hasattr(Prediction, "EPS")
+        assert hasattr(Prediction, "V")
+        assert hasattr(Prediction, "FLUX_FLOW")
+        assert hasattr(Prediction, "FLUX2_FLOW")
 
     def test_log_level_enum(self):
         """Test LogLevel enum values."""
@@ -1012,10 +1011,18 @@ class TestEnumsExtended:
     def test_all_sample_methods(self):
         """Test all sample method names."""
         methods = [
-            SampleMethod.EULER, SampleMethod.EULER_A, SampleMethod.HEUN,
-            SampleMethod.DPM2, SampleMethod.DPMPP2S_A, SampleMethod.DPMPP2M,
-            SampleMethod.DPMPP2Mv2, SampleMethod.IPNDM, SampleMethod.IPNDM_V,
-            SampleMethod.LCM, SampleMethod.DDIM_TRAILING, SampleMethod.TCD
+            SampleMethod.EULER,
+            SampleMethod.EULER_A,
+            SampleMethod.HEUN,
+            SampleMethod.DPM2,
+            SampleMethod.DPMPP2S_A,
+            SampleMethod.DPMPP2M,
+            SampleMethod.DPMPP2Mv2,
+            SampleMethod.IPNDM,
+            SampleMethod.IPNDM_V,
+            SampleMethod.LCM,
+            SampleMethod.DDIM_TRAILING,
+            SampleMethod.TCD,
         ]
         for m in methods:
             name = sample_method_name(m)
@@ -1025,9 +1032,15 @@ class TestEnumsExtended:
     def test_all_schedulers(self):
         """Test all scheduler names."""
         schedulers = [
-            Scheduler.DISCRETE, Scheduler.KARRAS, Scheduler.EXPONENTIAL,
-            Scheduler.AYS, Scheduler.GITS, Scheduler.SGM_UNIFORM,
-            Scheduler.SIMPLE, Scheduler.SMOOTHSTEP, Scheduler.LCM
+            Scheduler.DISCRETE,
+            Scheduler.KARRAS,
+            Scheduler.EXPONENTIAL,
+            Scheduler.AYS,
+            Scheduler.GITS,
+            Scheduler.SGM_UNIFORM,
+            Scheduler.SIMPLE,
+            Scheduler.SMOOTHSTEP,
+            Scheduler.LCM,
         ]
         for s in schedulers:
             name = scheduler_name(s)
@@ -1037,10 +1050,21 @@ class TestEnumsExtended:
     def test_all_sd_types(self):
         """Test all SDType names."""
         types = [
-            SDType.F32, SDType.F16, SDType.Q4_0, SDType.Q4_1,
-            SDType.Q5_0, SDType.Q5_1, SDType.Q8_0, SDType.Q8_1,
-            SDType.Q2_K, SDType.Q3_K, SDType.Q4_K, SDType.Q5_K,
-            SDType.Q6_K, SDType.Q8_K, SDType.BF16
+            SDType.F32,
+            SDType.F16,
+            SDType.Q4_0,
+            SDType.Q4_1,
+            SDType.Q5_0,
+            SDType.Q5_1,
+            SDType.Q8_0,
+            SDType.Q8_1,
+            SDType.Q2_K,
+            SDType.Q3_K,
+            SDType.Q4_K,
+            SDType.Q5_K,
+            SDType.Q6_K,
+            SDType.Q8_K,
+            SDType.BF16,
         ]
         for t in types:
             name = type_name(t)
@@ -1072,9 +1096,7 @@ class TestConvertModel:
         """Test that convert_model raises error for invalid input."""
         with pytest.raises(Exception):
             convert_model(
-                input_path="/nonexistent/model.safetensors",
-                output_path="/tmp/output.gguf",
-                output_type=SDType.F16
+                input_path="/nonexistent/model.safetensors", output_path="/tmp/output.gguf", output_type=SDType.F16
             )
 
 
@@ -1092,10 +1114,7 @@ class TestConvenienceFunctions:
     def test_text_to_image_invalid_model(self):
         """Test that text_to_image raises error for invalid model."""
         with pytest.raises(RuntimeError):
-            text_to_image(
-                model_path="/nonexistent/model.safetensors",
-                prompt="test"
-            )
+            text_to_image(model_path="/nonexistent/model.safetensors", prompt="test")
 
     def test_image_to_image_invalid_model(self):
         """Test that image_to_image raises error for invalid model."""
@@ -1103,18 +1122,11 @@ class TestConvenienceFunctions:
         init_img = SDImage.from_numpy(arr)
 
         with pytest.raises(RuntimeError):
-            image_to_image(
-                model_path="/nonexistent/model.safetensors",
-                init_image=init_img,
-                prompt="test"
-            )
+            image_to_image(model_path="/nonexistent/model.safetensors", init_image=init_img, prompt="test")
 
 
 # Integration tests for convenience functions
-@pytest.mark.skipif(
-    not os.path.exists(MODEL_PATH),
-    reason=f"Model not found at {MODEL_PATH}"
-)
+@pytest.mark.skipif(not os.path.exists(MODEL_PATH), reason=f"Model not found at {MODEL_PATH}")
 class TestConvenienceFunctionsIntegration:
     """Integration tests for convenience functions."""
 
@@ -1128,7 +1140,7 @@ class TestConvenienceFunctionsIntegration:
             seed=42,
             sample_steps=1,
             cfg_scale=1.0,
-            n_threads=4
+            n_threads=4,
         )
 
         assert len(images) == 1
@@ -1150,7 +1162,7 @@ class TestConvenienceFunctionsIntegration:
             seed=42,
             sample_steps=1,
             cfg_scale=1.0,
-            n_threads=4
+            n_threads=4,
         )
 
         assert len(images) == 1

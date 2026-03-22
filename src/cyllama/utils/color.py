@@ -92,7 +92,7 @@ Styles:
    :raises ValueError: If the input string's length not equal to 3 or 6.
 """
 
-from typing import Union, Any, Callable, Optional, Tuple, List, Dict
+from typing import Union, Callable, Optional, Tuple, List, Dict
 import sys
 import threading
 
@@ -126,12 +126,13 @@ def esc(*codes: Union[int, str]) -> str:
     """Produces an ANSI escape code from a list of integers
     :rtype: text_type
     """
-    return '\x1b[{}m'.format(';'.join(str(c) for c in codes))
+    return "\x1b[{}m".format(";".join(str(c) for c in codes))
 
 
 ###############################################################################
 # 8 bit Color
 ###############################################################################
+
 
 def make_color(start, end: str) -> Callable[[str], str]:
     def color_func(s: str) -> str:
@@ -181,7 +182,7 @@ cyan_bg = make_color(esc(46), BG_END)
 white_bg = make_color(esc(47), BG_END)
 
 HL_END = esc(22, 27, 39)
-#HL_END = esc(22, 27, 0)
+# HL_END = esc(22, 27, 0)
 
 black_hl = make_color(esc(1, 30, 7), HL_END)
 red_hl = make_color(esc(1, 31, 7), HL_END)
@@ -208,7 +209,7 @@ blink = make_color(esc(5), esc(25))
 import re  # NOQA
 
 # Default color levels for the color cube
-CUBELEVELS: List[int] = [0x00, 0x5f, 0x87, 0xaf, 0xd7, 0xff]
+CUBELEVELS: List[int] = [0x00, 0x5F, 0x87, 0xAF, 0xD7, 0xFF]
 
 # Generate a list of midpoints of the above list
 SNAPS: List[int] = [(x + y) // 2 for x, y in list(zip(CUBELEVELS, [0] + CUBELEVELS))[1:]]
@@ -217,28 +218,28 @@ SNAPS: List[int] = [(x + y) // 2 for x, y in list(zip(CUBELEVELS, [0] + CUBELEVE
 _GRAYSCALE = [
     (0x08, 232),  # 0x08 means 080808 in HEX color
     (0x12, 233),
-    (0x1c, 234),
+    (0x1C, 234),
     (0x26, 235),
     (0x30, 236),
-    (0x3a, 237),
+    (0x3A, 237),
     (0x44, 238),
-    (0x4e, 239),
+    (0x4E, 239),
     (0x58, 240),
     (0x62, 241),
-    (0x6c, 242),
+    (0x6C, 242),
     (0x76, 243),
     (0x80, 244),
-    (0x8a, 245),
+    (0x8A, 245),
     (0x94, 246),
-    (0x9e, 247),
-    (0xa8, 248),
-    (0xb2, 249),
-    (0xbc, 250),
-    (0xc6, 251),
-    (0xd0, 252),
-    (0xda, 253),
-    (0xe4, 254),
-    (0xee, 255),
+    (0x9E, 247),
+    (0xA8, 248),
+    (0xB2, 249),
+    (0xBC, 250),
+    (0xC6, 251),
+    (0xD0, 252),
+    (0xDA, 253),
+    (0xE4, 254),
+    (0xEE, 255),
 ]
 GRAYSCALE: Dict[int, int] = dict(_GRAYSCALE)
 
@@ -272,17 +273,16 @@ def memorize(func) -> Callable:
             func._cache[args] = func(*args, **kwargs)
         return func._cache[args]
 
-    for i in ('__module__', '__name__', '__doc__'):
+    for i in ("__module__", "__name__", "__doc__"):
         setattr(wrapper, i, getattr(func, i))
-    wrapper.__dict__.update(getattr(func, '__dict__', {}))  # type: ignore
+    wrapper.__dict__.update(getattr(func, "__dict__", {}))  # type: ignore
     wrapper._origin = func  # type: ignore
     return wrapper
 
 
 @memorize
 def rgb_to_xterm(r: int, g: int, b: int) -> int:
-    """ Converts RGB values to the nearest equivalent xterm-256 color.
-    """
+    """Converts RGB values to the nearest equivalent xterm-256 color."""
     if r == g == b:
         # use gray scale
         gs = get_closest(r, GRAYSCALE_POINTS)
@@ -297,10 +297,10 @@ def rgb_to_xterm(r: int, g: int, b: int) -> int:
 def hex_to_rgb(hx: str) -> Tuple[int, int, int]:
     hxlen = len(hx)
     if hxlen != 3 and hxlen != 6:
-        raise ValueError('hx color must be of length 3 or 6')
+        raise ValueError("hx color must be of length 3 or 6")
     if hxlen == 3:
-        hx = t_('').join(i * 2 for i in hx)
-    parts = [int(h, 16) for h in re.split(t_(r'(..)(..)(..)'), hx)[1:4]]
+        hx = t_("").join(i * 2 for i in hx)
+    parts = [int(h, 16) for h in re.split(t_(r"(..)(..)(..)"), hx)[1:4]]
     return tuple(parts)  # type: ignore
 
 
@@ -322,80 +322,76 @@ def make_256(start: str, end: str) -> Callable[[Union[tuple, str], str, Optional
         else:
             xcolor = rgb_to_xterm(*rgb)
 
-        tpl = start + t_('{s}') + end
-        f = tpl.format(
-            x=xcolor,
-            s=t)
+        tpl = start + t_("{s}") + end
+        f = tpl.format(x=xcolor, s=t)
 
         return f
 
     return rgb_func
 
 
-fg256 = make_256(esc(38, 5, t_('{x}')), esc(39))
-bg256 = make_256(esc(48, 5, t_('{x}')), esc(49))
-hl256 = make_256(esc(1, 38, 5, t_('{x}'), 7), esc(27, 39, 22))
+fg256 = make_256(esc(38, 5, t_("{x}")), esc(39))
+bg256 = make_256(esc(48, 5, t_("{x}")), esc(49))
+hl256 = make_256(esc(1, 38, 5, t_("{x}"), 7), esc(27, 39, 22))
 
 _grayscale_xterm_codes = [i for _, i in _GRAYSCALE]
 grayscale = {(i - _grayscale_xterm_codes[0]): make_color(esc(38, 5, i), esc(39)) for i in _grayscale_xterm_codes}
 grayscale_bg = {(i - _grayscale_xterm_codes[0]): make_color(esc(48, 5, i), esc(49)) for i in _grayscale_xterm_codes}
-grayscale_hl = {(i - _grayscale_xterm_codes[0]): make_color(esc(1, 38, 5, i, 7), esc(27, 39, 22)) for i in _grayscale_xterm_codes}
+grayscale_hl = {
+    (i - _grayscale_xterm_codes[0]): make_color(esc(1, 38, 5, i, 7), esc(27, 39, 22)) for i in _grayscale_xterm_codes
+}
 
 # ----------------------------------------------------------
 # colored test
 
 COLORS = {
     # Standard foreground colors
-    'black': black,
-    'red': red,
-    'green': green,
-    'yellow': yellow,
-    'blue': blue,
-    'magenta': magenta,
-    'cyan': cyan,
-    'white': white,
-
+    "black": black,
+    "red": red,
+    "green": green,
+    "yellow": yellow,
+    "blue": blue,
+    "magenta": magenta,
+    "cyan": cyan,
+    "white": white,
     # Bright/light foreground colors
-    'grey': grey,
-    'gray': gray,
-    'bright_red': bright_red,
-    'bright_green': bright_green,
-    'bright_yellow': bright_yellow,
-    'bright_blue': bright_blue,
-    'bright_magenta': bright_magenta,
-    'bright_cyan': bright_cyan,
-    'bright_white': bright_white,
-
+    "grey": grey,
+    "gray": gray,
+    "bright_red": bright_red,
+    "bright_green": bright_green,
+    "bright_yellow": bright_yellow,
+    "bright_blue": bright_blue,
+    "bright_magenta": bright_magenta,
+    "bright_cyan": bright_cyan,
+    "bright_white": bright_white,
     # Background colors
-    'black_bg': black_bg,
-    'red_bg': red_bg,
-    'green_bg': green_bg,
-    'yellow_bg': yellow_bg,
-    'blue_bg': blue_bg,
-    'magenta_bg': magenta_bg,
-    'cyan_bg': cyan_bg,
-    'white_bg': white_bg,
-
+    "black_bg": black_bg,
+    "red_bg": red_bg,
+    "green_bg": green_bg,
+    "yellow_bg": yellow_bg,
+    "blue_bg": blue_bg,
+    "magenta_bg": magenta_bg,
+    "cyan_bg": cyan_bg,
+    "white_bg": white_bg,
     # Highlight colors (bold + reverse)
-    'black_hl': black_hl,
-    'red_hl': red_hl,
-    'green_hl': green_hl,
-    'yellow_hl': yellow_hl,
-    'blue_hl': blue_hl,
-    'magenta_hl': magenta_hl,
-    'cyan_hl': cyan_hl,
-    'white_hl': white_hl,
-
+    "black_hl": black_hl,
+    "red_hl": red_hl,
+    "green_hl": green_hl,
+    "yellow_hl": yellow_hl,
+    "blue_hl": blue_hl,
+    "magenta_hl": magenta_hl,
+    "cyan_hl": cyan_hl,
+    "white_hl": white_hl,
     # Styles
-    'bold': bold,
-    'italic': italic,
-    'underline': underline,
-    'strike': strike,
-    'blink': blink,
+    "bold": bold,
+    "italic": italic,
+    "underline": underline,
+    "strike": strike,
+    "blink": blink,
 }
 
 
-def cprint(txt: str, color: Optional[str] = None, end: str = '\n') -> None:
+def cprint(txt: str, color: Optional[str] = None, end: str = "\n") -> None:
     """Print text with optional color.
 
     Args:
@@ -408,7 +404,7 @@ def cprint(txt: str, color: Optional[str] = None, end: str = '\n') -> None:
     print(txt, end=end)
 
 
-def section(txt: str, color: str = 'bright_cyan', width: int = 70, char: str = '=') -> None:
+def section(txt: str, color: str = "bright_cyan", width: int = 70, char: str = "=") -> None:
     """Print a section header with decorative lines.
 
     Args:
@@ -421,7 +417,8 @@ def section(txt: str, color: str = 'bright_cyan', width: int = 70, char: str = '
     cprint(txt, color)
     print(char * width)
 
-def subsection(txt: str, color: str = 'bright_cyan', width: int = 70, char: str = '-') -> None:
+
+def subsection(txt: str, color: str = "bright_cyan", width: int = 70, char: str = "-") -> None:
     """Print a subsection header with decorative below.
 
     Args:
@@ -434,7 +431,8 @@ def subsection(txt: str, color: str = 'bright_cyan', width: int = 70, char: str 
     cprint(txt, color)
     print(char * width)
 
-def header(txt: str, color: str = 'bold', width: int = 70, char: str = '=') -> None:
+
+def header(txt: str, color: str = "bold", width: int = 70, char: str = "=") -> None:
     """Print a centered header with decorative lines above and below.
 
     Args:
@@ -445,12 +443,12 @@ def header(txt: str, color: str = 'bold', width: int = 70, char: str = '=') -> N
     """
     print(char * width)
     padding = (width - len(txt)) // 2
-    centered = ' ' * padding + txt
+    centered = " " * padding + txt
     cprint(centered, color)
     print(char * width)
 
 
-def subheader(txt: str, color: str = 'bright_white', char: str = '-') -> None:
+def subheader(txt: str, color: str = "bright_white", char: str = "-") -> None:
     """Print a subheader with a decorative line below.
 
     Args:
@@ -462,57 +460,57 @@ def subheader(txt: str, color: str = 'bright_white', char: str = '-') -> None:
     print(char * len(txt))
 
 
-def success(txt: str, prefix: str = '[OK]') -> None:
+def success(txt: str, prefix: str = "[OK]") -> None:
     """Print a success message in green.
 
     Args:
         txt: Success message
         prefix: Prefix symbol/text
     """
-    cprint(f"{prefix} {txt}", 'green')
+    cprint(f"{prefix} {txt}", "green")
 
 
-def error(txt: str, prefix: str = '[ERROR]') -> None:
+def error(txt: str, prefix: str = "[ERROR]") -> None:
     """Print an error message in red.
 
     Args:
         txt: Error message
         prefix: Prefix symbol/text
     """
-    cprint(f"{prefix} {txt}", 'red')
+    cprint(f"{prefix} {txt}", "red")
 
 
-def warning(txt: str, prefix: str = '[WARN]') -> None:
+def warning(txt: str, prefix: str = "[WARN]") -> None:
     """Print a warning message in yellow.
 
     Args:
         txt: Warning message
         prefix: Prefix symbol/text
     """
-    cprint(f"{prefix} {txt}", 'yellow')
+    cprint(f"{prefix} {txt}", "yellow")
 
 
-def info(txt: str, prefix: str = '[INFO]') -> None:
+def info(txt: str, prefix: str = "[INFO]") -> None:
     """Print an info message in cyan.
 
     Args:
         txt: Info message
         prefix: Prefix symbol/text
     """
-    cprint(f"{prefix} {txt}", 'cyan')
+    cprint(f"{prefix} {txt}", "cyan")
 
 
-def debug(txt: str, prefix: str = '[DEBUG]') -> None:
+def debug(txt: str, prefix: str = "[DEBUG]") -> None:
     """Print a debug message in grey.
 
     Args:
         txt: Debug message
         prefix: Prefix symbol/text
     """
-    cprint(f"{prefix} {txt}", 'grey')
+    cprint(f"{prefix} {txt}", "grey")
 
 
-def bullet(txt: str, color: Optional[str] = None, indent: int = 0, marker: str = '-') -> None:
+def bullet(txt: str, color: Optional[str] = None, indent: int = 0, marker: str = "-") -> None:
     """Print a bullet point item.
 
     Args:
@@ -521,7 +519,7 @@ def bullet(txt: str, color: Optional[str] = None, indent: int = 0, marker: str =
         indent: Number of spaces to indent
         marker: Bullet marker character
     """
-    prefix = ' ' * indent + marker + ' '
+    prefix = " " * indent + marker + " "
     cprint(f"{prefix}{txt}", color)
 
 
@@ -537,8 +535,9 @@ def numbered(items: list, color: Optional[str] = None, start: int = 1) -> None:
         cprint(f"{i}. {item}", color)
 
 
-def kv(key: str, value: str, key_color: str = 'bright_white',
-       value_color: Optional[str] = None, separator: str = ': ') -> None:
+def kv(
+    key: str, value: str, key_color: str = "bright_white", value_color: Optional[str] = None, separator: str = ": "
+) -> None:
     """Print a key-value pair with optional colors.
 
     Args:
@@ -553,9 +552,9 @@ def kv(key: str, value: str, key_color: str = 'bright_white',
     print(f"{key_str}{separator}{value_str}")
 
 
-def progress(current: int, total: int, width: int = 40,
-             fill_char: str = '#', empty_char: str = '-',
-             color: str = 'green') -> None:
+def progress(
+    current: int, total: int, width: int = 40, fill_char: str = "#", empty_char: str = "-", color: str = "green"
+) -> None:
     """Print a progress bar.
 
     Args:
@@ -566,8 +565,9 @@ def progress(current: int, total: int, width: int = 40,
         empty_char: Character for empty portion
         color: Color for the filled portion
     """
+    pct: float
     if total <= 0:
-        pct = 0
+        pct = 0.0
     else:
         pct = min(current / total, 1.0)
 
@@ -577,10 +577,10 @@ def progress(current: int, total: int, width: int = 40,
     bar_filled = COLORS[color](fill_char * filled) if color in COLORS else fill_char * filled
     bar_empty = empty_char * empty
 
-    print(f"[{bar_filled}{bar_empty}] {current}/{total} ({pct*100:.1f}%)")
+    print(f"[{bar_filled}{bar_empty}] {current}/{total} ({pct * 100:.1f}%)")
 
 
-def divider(char: str = '-', width: int = 70, color: Optional[str] = None) -> None:
+def divider(char: str = "-", width: int = 70, color: Optional[str] = None) -> None:
     """Print a horizontal divider line.
 
     Args:
@@ -592,8 +592,9 @@ def divider(char: str = '-', width: int = 70, color: Optional[str] = None) -> No
     cprint(line, color)
 
 
-def box(txt: str, color: Optional[str] = None, padding: int = 1,
-        border_char: str = '*', width: Optional[int] = None) -> None:
+def box(
+    txt: str, color: Optional[str] = None, padding: int = 1, border_char: str = "*", width: Optional[int] = None
+) -> None:
     """Print text inside a box.
 
     Args:
@@ -603,7 +604,7 @@ def box(txt: str, color: Optional[str] = None, padding: int = 1,
         border_char: Character for the box border
         width: Box width (auto-calculated if None)
     """
-    lines = txt.split('\n')
+    lines = txt.split("\n")
     max_len = max(len(line) for line in lines)
     box_width = width or (max_len + padding * 2 + 2)
 
@@ -621,8 +622,7 @@ def box(txt: str, color: Optional[str] = None, padding: int = 1,
     print(border_char * box_width)
 
 
-def table_row(columns: list, widths: list, colors: Optional[list] = None,
-              separator: str = ' | ') -> None:
+def table_row(columns: list, widths: list, colors: Optional[list] = None, separator: str = " | ") -> None:
     """Print a table row with fixed column widths.
 
     Args:
@@ -638,4 +638,3 @@ def table_row(columns: list, widths: list, colors: Optional[list] = None,
             text = COLORS[colors[i]](text)
         parts.append(text)
     print(separator.join(parts))
-

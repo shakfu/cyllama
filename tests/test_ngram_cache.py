@@ -8,8 +8,7 @@ from cyllama.llama.llama_cpp import NgramCache
 
 # Skip on Windows: C++ ngram cache has a divide-by-zero bug on Windows
 pytestmark = pytest.mark.skipif(
-    sys.platform == "win32",
-    reason="ngram cache C++ code crashes with divide-by-zero on Windows"
+    sys.platform == "win32", reason="ngram cache C++ code crashes with divide-by-zero on Windows"
 )
 
 
@@ -147,7 +146,7 @@ def test_ngram_cache_merge():
     draft1 = cache1.draft([1, 2], n_draft=3)
     draft2 = cache1.draft([10, 11], n_draft=3)
 
-    print(f"\nAfter merge:")
+    print("\nAfter merge:")
     print(f"  Pattern [1,2] drafts: {draft1}")
     print(f"  Pattern [10,11] drafts: {draft2}")
 
@@ -200,7 +199,7 @@ def test_ngram_cache_large_sequence():
     inp = [1, 2, 3]
     draft = cache.draft(inp, n_draft=10)
 
-    print(f"\nLarge sequence test:")
+    print("\nLarge sequence test:")
     print(f"  Total tokens: {len(tokens)}")
     print(f"  Input: {inp}")
     print(f"  Draft: {draft}")
@@ -221,11 +220,7 @@ def test_ngram_cache_with_context_caches():
     # Draft using all three caches
     inp = [1, 2]
     draft = context_cache.draft(
-        inp,
-        n_draft=5,
-        context_cache=context_cache,
-        dynamic_cache=dynamic_cache,
-        static_cache=static_cache
+        inp, n_draft=5, context_cache=context_cache, dynamic_cache=dynamic_cache, static_cache=static_cache
     )
 
     print(f"\nMulti-cache draft for {inp}: {draft}")

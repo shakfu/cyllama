@@ -4,7 +4,7 @@ OpenAI-Compatible Function Calling Integration
 Provides OpenAI-style function calling using cyllama agents.
 """
 
-from typing import List, Dict, Any, Optional, Union
+from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, field
 import json
 import time
@@ -17,6 +17,7 @@ from ..api import LLM as CyllamaLLMCore
 @dataclass
 class FunctionCall:
     """Function call information."""
+
     name: str
     arguments: str  # JSON string
 
@@ -24,6 +25,7 @@ class FunctionCall:
 @dataclass
 class ToolCall:
     """Tool call in OpenAI format."""
+
     id: str
     type: str = "function"
     function: Optional[FunctionCall] = None
@@ -32,6 +34,7 @@ class ToolCall:
 @dataclass
 class AssistantMessage:
     """Assistant message with optional tool calls."""
+
     role: str = "assistant"
     content: Optional[str] = None
     tool_calls: Optional[List[ToolCall]] = None
@@ -40,6 +43,7 @@ class AssistantMessage:
 @dataclass
 class FunctionMessage:
     """Function/tool response message."""
+
     content: str
     tool_call_id: str
     role: str = "tool"
@@ -48,6 +52,7 @@ class FunctionMessage:
 @dataclass
 class ChatCompletionMessage:
     """Message in chat completion response."""
+
     role: str
     content: Optional[str] = None
     tool_calls: Optional[List[ToolCall]] = None
@@ -56,6 +61,7 @@ class ChatCompletionMessage:
 @dataclass
 class ChatCompletionChoice:
     """Choice in chat completion response."""
+
     index: int
     message: ChatCompletionMessage
     finish_reason: str
@@ -64,6 +70,7 @@ class ChatCompletionChoice:
 @dataclass
 class ChatCompletionResponse:
     """OpenAI-style chat completion response."""
+
     id: str
     object: str = "chat.completion"
     created: int = field(default_factory=lambda: int(time.time()))
@@ -81,11 +88,7 @@ def cyllama_tool_to_openai_function(tool: CyllaTool) -> Dict[str, Any]:
     Returns:
         OpenAI function definition dict
     """
-    return {
-        "name": tool.name,
-        "description": tool.description,
-        "parameters": tool.parameters
-    }
+    return {"name": tool.name, "description": tool.description, "parameters": tool.parameters}
 
 
 def cyllama_tools_to_openai_tools(tools: List[CyllaTool]) -> List[Dict[str, Any]]:
@@ -98,13 +101,7 @@ def cyllama_tools_to_openai_tools(tools: List[CyllaTool]) -> List[Dict[str, Any]
     Returns:
         List of OpenAI tool definitions
     """
-    return [
-        {
-            "type": "function",
-            "function": cyllama_tool_to_openai_function(tool)
-        }
-        for tool in tools
-    ]
+    return [{"type": "function", "function": cyllama_tool_to_openai_function(tool)} for tool in tools]
 
 
 class OpenAIFunctionCallingClient:
@@ -115,12 +112,7 @@ class OpenAIFunctionCallingClient:
     cyllama's ConstrainedAgent for reliable tool execution.
     """
 
-    def __init__(
-        self,
-        model_path: str,
-        tools: Optional[List[CyllaTool]] = None,
-        verbose: bool = False
-    ):
+    def __init__(self, model_path: str, tools: Optional[List[CyllaTool]] = None, verbose: bool = False):
         """
         Initialize function calling client.
 
@@ -153,19 +145,14 @@ class OpenAIFunctionCallingClient:
             ConstrainedAgent instance
         """
         tools = tools or self.tools
-        return ConstrainedAgent(
-            llm=self.llm,
-            tools=tools,
-            format="function_call",
-            verbose=self.verbose
-        )
+        return ConstrainedAgent(llm=self.llm, tools=tools, format="function_call", verbose=self.verbose)
 
     def chat_completion_with_functions(
         self,
         messages: List[Dict[str, str]],
         tools: Optional[List[CyllaTool]] = None,
         tool_choice: str = "auto",
-        max_iterations: int = 5
+        max_iterations: int = 5,
     ) -> ChatCompletionResponse:
         """
         Create chat completion with function calling.
@@ -202,10 +189,7 @@ class OpenAIFunctionCallingClient:
 
         if result.success:
             # Check if there were tool calls
-            tool_calls_made = [
-                event for event in result.steps
-                if event.type.value == "action"
-            ]
+            tool_calls_made = [event for event in result.steps if event.type.value == "action"]
 
             if tool_calls_made and tool_choice != "none":
                 # Return tool calls
@@ -218,53 +202,26 @@ class OpenAIFunctionCallingClient:
                     tool_call = ToolCall(
                         id=f"call_{uuid.uuid4().hex[:8]}",
                         type="function",
-                        function=FunctionCall(
-                            name=tool_name,
-                            arguments=json.dumps(tool_args)
-                        )
+                        function=FunctionCall(name=tool_name, arguments=json.dumps(tool_args)),
                     )
                     tool_calls.append(tool_call)
 
-                message = ChatCompletionMessage(
-                    role="assistant",
-                    content=None,
-                    tool_calls=tool_calls
-                )
+                message = ChatCompletionMessage(role="assistant", content=None, tool_calls=tool_calls)
 
                 finish_reason = "tool_calls"
             else:
                 # Return final answer
-                message = ChatCompletionMessage(
-                    role="assistant",
-                    content=result.answer
-                )
+                message = ChatCompletionMessage(role="assistant", content=result.answer)
                 finish_reason = "stop"
 
-            choice = ChatCompletionChoice(
-                index=0,
-                message=message,
-                finish_reason=finish_reason
-            )
+            choice = ChatCompletionChoice(index=0, message=message, finish_reason=finish_reason)
 
-            return ChatCompletionResponse(
-                id=response_id,
-                choices=[choice]
-            )
+            return ChatCompletionResponse(id=response_id, choices=[choice])
         else:
             # Error case
-            message = ChatCompletionMessage(
-                role="assistant",
-                content=f"Error: {result.error}"
-            )
-            choice = ChatCompletionChoice(
-                index=0,
-                message=message,
-                finish_reason="error"
-            )
-            return ChatCompletionResponse(
-                id=response_id,
-                choices=[choice]
-            )
+            message = ChatCompletionMessage(role="assistant", content=f"Error: {result.error}")
+            choice = ChatCompletionChoice(index=0, message=message, finish_reason="error")
+            return ChatCompletionResponse(id=response_id, choices=[choice])
 
     def list_functions(self) -> List[Dict[str, Any]]:
         """
@@ -286,9 +243,7 @@ class OpenAIFunctionCallingClient:
 
 
 def create_openai_function_calling_client(
-    model_path: str,
-    tools: List[CyllaTool],
-    **kwargs
+    model_path: str, tools: List[CyllaTool], **kwargs
 ) -> OpenAIFunctionCallingClient:
     """
     Convenience function to create OpenAI function calling client.
@@ -301,8 +256,4 @@ def create_openai_function_calling_client(
     Returns:
         OpenAIFunctionCallingClient instance
     """
-    return OpenAIFunctionCallingClient(
-        model_path=model_path,
-        tools=tools,
-        **kwargs
-    )
+    return OpenAIFunctionCallingClient(model_path=model_path, tools=tools, **kwargs)

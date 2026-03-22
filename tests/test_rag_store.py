@@ -1,7 +1,5 @@
 """Tests for the RAG VectorStore class."""
 
-import json
-import struct
 import tempfile
 from pathlib import Path
 
@@ -15,7 +13,8 @@ def extension_available() -> bool:
     """Check if sqlite-vector extension exists and can be loaded."""
     import sqlite3
     import sys
-    if not hasattr(sqlite3.Connection, 'enable_load_extension'):
+
+    if not hasattr(sqlite3.Connection, "enable_load_extension"):
         return False
     ext_path = Path(__file__).parent.parent / "src" / "cyllama" / "rag" / "vector"
     if sys.platform == "darwin":
@@ -29,7 +28,7 @@ def extension_available() -> bool:
 # Skip all tests if extension not available
 pytestmark = pytest.mark.skipif(
     not extension_available(),
-    reason="sqlite-vector extension not built. Run 'scripts/setup.sh' or 'python scripts/manage.py build --sqlite-vector'"
+    reason="sqlite-vector extension not built. Run 'scripts/setup.sh' or 'python scripts/manage.py build --sqlite-vector'",
 )
 
 
@@ -444,10 +443,13 @@ class TestVectorStoreMetrics:
         """Test cosine similarity metric."""
         with VectorStore(dimension=4, metric="cosine") as store:
             # Normalized vectors
-            store.add([
-                [1.0, 0.0, 0.0, 0.0],
-                [0.707, 0.707, 0.0, 0.0],  # 45 degrees from first
-            ], ["first", "second"])
+            store.add(
+                [
+                    [1.0, 0.0, 0.0, 0.0],
+                    [0.707, 0.707, 0.0, 0.0],  # 45 degrees from first
+                ],
+                ["first", "second"],
+            )
             results = store.search([1.0, 0.0, 0.0, 0.0], k=2)
             # First should be exact match (score ~1.0)
             assert results[0].score > results[1].score
@@ -455,21 +457,27 @@ class TestVectorStoreMetrics:
     def test_l2_metric(self):
         """Test L2 distance metric."""
         with VectorStore(dimension=4, metric="l2") as store:
-            store.add([
-                [0.0, 0.0, 0.0, 0.0],
-                [1.0, 0.0, 0.0, 0.0],
-                [2.0, 0.0, 0.0, 0.0],
-            ], ["origin", "close", "far"])
+            store.add(
+                [
+                    [0.0, 0.0, 0.0, 0.0],
+                    [1.0, 0.0, 0.0, 0.0],
+                    [2.0, 0.0, 0.0, 0.0],
+                ],
+                ["origin", "close", "far"],
+            )
             results = store.search([0.0, 0.0, 0.0, 0.0], k=3)
             assert results[0].text == "origin"
 
     def test_dot_metric(self):
         """Test dot product metric."""
         with VectorStore(dimension=4, metric="dot") as store:
-            store.add([
-                [1.0, 1.0, 1.0, 1.0],
-                [0.5, 0.5, 0.5, 0.5],
-            ], ["high", "low"])
+            store.add(
+                [
+                    [1.0, 1.0, 1.0, 1.0],
+                    [0.5, 0.5, 0.5, 0.5],
+                ],
+                ["high", "low"],
+            )
             results = store.search([1.0, 1.0, 1.0, 1.0], k=2)
             # Higher dot product = more similar
             assert results[0].text == "high"

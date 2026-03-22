@@ -7,11 +7,9 @@ parameter configuration, and basic transcription operations.
 Tests replicate what `make test-whisper` does but via the Python wrapper.
 """
 
-import os
 import numpy as np
 import wave
 import struct
-import tempfile
 from pathlib import Path
 import pytest
 
@@ -39,17 +37,17 @@ def sample_audio_path():
 
 def load_wav_file(filepath):
     """Load a WAV file and return samples as float32 array."""
-    with wave.open(filepath, 'rb') as wav_file:
+    with wave.open(filepath, "rb") as wav_file:
         frames = wav_file.readframes(-1)
         sound_info = wav_file.getparams()
 
         # Convert to float32
         if sound_info.sampwidth == 1:
-            fmt = f'{len(frames)}B'
+            fmt = f"{len(frames)}B"
             samples = struct.unpack(fmt, frames)
             samples = [(s - 128) / 128.0 for s in samples]
         elif sound_info.sampwidth == 2:
-            fmt = f'{len(frames) // 2}h'
+            fmt = f"{len(frames) // 2}h"
             samples = struct.unpack(fmt, frames)
             samples = [s / 32768.0 for s in samples]
         else:
@@ -68,15 +66,15 @@ def test_whisper_constants():
 
 def test_whisper_sampling_strategy():
     """Test whisper sampling strategy constants."""
-    assert hasattr(wh.WhisperSamplingStrategy, 'GREEDY')
-    assert hasattr(wh.WhisperSamplingStrategy, 'BEAM_SEARCH')
+    assert hasattr(wh.WhisperSamplingStrategy, "GREEDY")
+    assert hasattr(wh.WhisperSamplingStrategy, "BEAM_SEARCH")
 
 
 def test_whisper_aheads_preset():
     """Test whisper attention heads presets."""
-    assert hasattr(wh.WhisperAheadsPreset, 'NONE')
-    assert hasattr(wh.WhisperAheadsPreset, 'BASE_EN')
-    assert hasattr(wh.WhisperAheadsPreset, 'BASE')
+    assert hasattr(wh.WhisperAheadsPreset, "NONE")
+    assert hasattr(wh.WhisperAheadsPreset, "BASE_EN")
+    assert hasattr(wh.WhisperAheadsPreset, "BASE")
 
 
 def test_whisper_version():
@@ -91,7 +89,7 @@ def test_whisper_system_info():
     info = wh.print_system_info()
     assert isinstance(info, str)
     assert len(info) > 0
-    assert 'WHISPER' in info
+    assert "WHISPER" in info
 
 
 def test_whisper_context_params():
@@ -415,16 +413,16 @@ def test_whisper_token_data():
     token_data = wh.WhisperTokenData()
 
     # Test that properties are accessible (they return default values)
-    assert hasattr(token_data, 'id')
-    assert hasattr(token_data, 'tid')
-    assert hasattr(token_data, 'p')
-    assert hasattr(token_data, 'plog')
-    assert hasattr(token_data, 'pt')
-    assert hasattr(token_data, 'ptsum')
-    assert hasattr(token_data, 't0')
-    assert hasattr(token_data, 't1')
-    assert hasattr(token_data, 't_dtw')
-    assert hasattr(token_data, 'vlen')
+    assert hasattr(token_data, "id")
+    assert hasattr(token_data, "tid")
+    assert hasattr(token_data, "p")
+    assert hasattr(token_data, "plog")
+    assert hasattr(token_data, "pt")
+    assert hasattr(token_data, "ptsum")
+    assert hasattr(token_data, "t0")
+    assert hasattr(token_data, "t1")
+    assert hasattr(token_data, "t_dtw")
+    assert hasattr(token_data, "vlen")
 
 
 def test_whisper_state(whisper_model_path):

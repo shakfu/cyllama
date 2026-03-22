@@ -1,8 +1,7 @@
 """Tests for MCP client implementation."""
 
-import json
 import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock
 
 from cyllama.agents.mcp import (
     McpServerConfig,
@@ -166,13 +165,15 @@ class TestMcpClient:
             client.call_tool("unknown/tool", {})
 
     def test_get_capabilities(self):
-        client = McpClient([
-            McpServerConfig(
-                name="test1",
-                transport=McpTransportType.STDIO,
-                command="echo",
-            ),
-        ])
+        client = McpClient(
+            [
+                McpServerConfig(
+                    name="test1",
+                    transport=McpTransportType.STDIO,
+                    command="echo",
+                ),
+            ]
+        )
 
         caps = client.get_capabilities()
         assert "servers" in caps

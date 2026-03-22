@@ -75,16 +75,11 @@ class VectorStore:
 
         metric_lower = metric.lower()
         if metric_lower not in self.VALID_METRICS:
-            raise ValueError(
-                f"Invalid metric: {metric}. Must be one of: {self.VALID_METRICS}"
-            )
+            raise ValueError(f"Invalid metric: {metric}. Must be one of: {self.VALID_METRICS}")
 
         vector_type_lower = vector_type.lower()
         if vector_type_lower not in self.VALID_VECTOR_TYPES:
-            raise ValueError(
-                f"Invalid vector_type: {vector_type}. "
-                f"Must be one of: {self.VALID_VECTOR_TYPES}"
-            )
+            raise ValueError(f"Invalid vector_type: {vector_type}. Must be one of: {self.VALID_VECTOR_TYPES}")
 
         self.dimension = dimension
         self.db_path = db_path
@@ -109,7 +104,7 @@ class VectorStore:
     def _load_extension(self) -> None:
         """Load the sqlite-vector extension."""
         try:
-            if not hasattr(self.conn, 'enable_load_extension'):
+            if not hasattr(self.conn, "enable_load_extension"):
                 raise VectorStoreError(
                     "Python was built without SQLite extension loading support. "
                     "Rebuild Python with --enable-loadable-sqlite-extensions."
@@ -189,9 +184,7 @@ class VectorStore:
             Binary representation of the vector
         """
         if len(vector) != self.dimension:
-            raise ValueError(
-                f"Vector dimension mismatch: expected {self.dimension}, got {len(vector)}"
-            )
+            raise ValueError(f"Vector dimension mismatch: expected {self.dimension}, got {len(vector)}")
         return struct.pack(f"{len(vector)}f", *vector)
 
     def _decode_vector(self, blob: bytes) -> list[float]:
@@ -227,20 +220,14 @@ class VectorStore:
         self._check_closed()
 
         if len(embeddings) != len(texts):
-            raise ValueError(
-                f"embeddings and texts must have same length: "
-                f"{len(embeddings)} vs {len(texts)}"
-            )
+            raise ValueError(f"embeddings and texts must have same length: {len(embeddings)} vs {len(texts)}")
 
         if metadata is None:
             metadata = [{}] * len(embeddings)
         elif len(metadata) != len(embeddings):
-            raise ValueError(
-                f"metadata must have same length as embeddings: "
-                f"{len(metadata)} vs {len(embeddings)}"
-            )
+            raise ValueError(f"metadata must have same length as embeddings: {len(metadata)} vs {len(embeddings)}")
 
-        ids = []
+        ids: list[int] = []
         cursor = self.conn.cursor()
         for emb, text, meta in zip(embeddings, texts, metadata):
             blob = self._encode_vector(emb)
@@ -248,7 +235,7 @@ class VectorStore:
                 f"INSERT INTO {self.table_name} (text, embedding, metadata) VALUES (?, ?, ?)",
                 (text, blob, json.dumps(meta) if meta else None),
             )
-            ids.append(cursor.lastrowid)
+            ids.append(cursor.lastrowid or 0)
         self.conn.commit()
 
         # Invalidate quantization on new data

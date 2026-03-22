@@ -3,7 +3,7 @@ Tests for ContractAgent with C++26-inspired contract assertions.
 """
 
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 from cyllama.agents import (
     ContractAgent,
     ContractPolicy,
@@ -20,10 +20,8 @@ from cyllama.agents import (
     contract_assert,
     EventType,
     AgentEvent,
-    ReActAgent,
 )
 from cyllama.agents.contract import (
-    _get_current_context,
     _set_current_context,
     ContractContext,
 )
@@ -33,55 +31,64 @@ from cyllama.agents.contract import (
 # Test Fixtures
 # =============================================================================
 
+
 @pytest.fixture
 def mock_llm():
     """Create a mock LLM for testing."""
     llm = MagicMock()
-    llm.return_value = "Thought: I should use a tool\nAction: test_tool({\"arg\": \"value\"})\n"
+    llm.return_value = 'Thought: I should use a tool\nAction: test_tool({"arg": "value"})\n'
     return llm
 
 
 @pytest.fixture
 def simple_tool():
     """Create a simple tool without contracts."""
+
     @tool
     def test_tool(arg: str) -> str:
         """A test tool."""
         return f"Result: {arg}"
+
     return test_tool
 
 
 @pytest.fixture
 def tool_with_pre():
     """Create a tool with precondition."""
+
     @tool
-    @pre(lambda args: args['count'] > 0, "count must be positive")
+    @pre(lambda args: args["count"] > 0, "count must be positive")
     def fetch_items(count: int) -> str:
         """Fetch items."""
         return f"Fetched {count} items"
+
     return fetch_items
 
 
 @pytest.fixture
 def tool_with_post():
     """Create a tool with postcondition."""
+
     @tool
     @post(lambda r: len(r) > 0, "result must not be empty")
     def search(query: str) -> str:
         """Search for something."""
         return f"Results for: {query}"
+
     return search
 
 
 @pytest.fixture
 def tool_with_both():
     """Create a tool with both pre and post conditions."""
+
     @tool
-    @pre(lambda args: args['x'] != 0, "x must not be zero")
+    @pre(lambda args: args["x"] != 0, "x must not be zero")
     @post(lambda r: r is not None, "result must not be None")
     def divide(a: float, x: float) -> float:
         """Divide a by x."""
         return a / x
+
     return divide
 
 
@@ -89,11 +96,12 @@ def tool_with_both():
 # Test Contract Decorators
 # =============================================================================
 
+
 def _get_contracts(tool_or_func):
     """Helper to get contracts from a Tool or function."""
-    if hasattr(tool_or_func, '_contracts'):
+    if hasattr(tool_or_func, "_contracts"):
         return tool_or_func._contracts
-    if hasattr(tool_or_func, 'func') and hasattr(tool_or_func.func, '_contracts'):
+    if hasattr(tool_or_func, "func") and hasattr(tool_or_func.func, "_contracts"):
         return tool_or_func.func._contracts
     return None
 
@@ -103,8 +111,9 @@ class TestContractDecorators:
 
     def test_pre_decorator_attaches_contract(self):
         """Test that @pre decorator attaches contract to function."""
+
         @tool
-        @pre(lambda args: args['n'] > 0, "n must be positive")
+        @pre(lambda args: args["n"] > 0, "n must be positive")
         def my_func(n: int) -> int:
             return n * 2
 
@@ -115,6 +124,7 @@ class TestContractDecorators:
 
     def test_post_decorator_attaches_contract(self):
         """Test that @post decorator attaches contract to function."""
+
         @tool
         @post(lambda r: r > 0, "result must be positive")
         def my_func(n: int) -> int:
@@ -127,9 +137,10 @@ class TestContractDecorators:
 
     def test_multiple_pre_conditions(self):
         """Test multiple preconditions on same function."""
+
         @tool
-        @pre(lambda args: args['n'] > 0, "n must be positive")
-        @pre(lambda args: args['n'] < 100, "n must be less than 100")
+        @pre(lambda args: args["n"] > 0, "n must be positive")
+        @pre(lambda args: args["n"] < 100, "n must be less than 100")
         def my_func(n: int) -> int:
             return n * 2
 
@@ -138,6 +149,7 @@ class TestContractDecorators:
 
     def test_multiple_post_conditions(self):
         """Test multiple postconditions on same function."""
+
         @tool
         @post(lambda r: r > 0, "result must be positive")
         @post(lambda r: r < 1000, "result must be less than 1000")
@@ -149,8 +161,9 @@ class TestContractDecorators:
 
     def test_pre_and_post_combined(self):
         """Test both pre and post conditions on same function."""
+
         @tool
-        @pre(lambda args: args['n'] > 0, "n must be positive")
+        @pre(lambda args: args["n"] > 0, "n must be positive")
         @post(lambda r: r > 0, "result must be positive")
         def my_func(n: int) -> int:
             return n * 2
@@ -161,8 +174,9 @@ class TestContractDecorators:
 
     def test_post_with_args_access(self):
         """Test postcondition that accesses original arguments."""
+
         @tool
-        @post(lambda r, args: r <= args['max_len'], "result too long")
+        @post(lambda r, args: r <= args["max_len"], "result too long")
         def generate(text: str, max_len: int) -> str:
             return text[:max_len]
 
@@ -171,8 +185,9 @@ class TestContractDecorators:
 
     def test_pre_with_custom_policy(self):
         """Test precondition with custom policy."""
+
         @tool
-        @pre(lambda args: args['n'] > 0, "n must be positive", policy=ContractPolicy.OBSERVE)
+        @pre(lambda args: args["n"] > 0, "n must be positive", policy=ContractPolicy.OBSERVE)
         def my_func(n: int) -> int:
             return n * 2
 
@@ -184,63 +199,46 @@ class TestContractDecorators:
 # Test PreCondition and PostCondition Classes
 # =============================================================================
 
+
 class TestConditionClasses:
     """Tests for PreCondition and PostCondition classes."""
 
     def test_precondition_check_passes(self):
         """Test PreCondition.check returns True when condition passes."""
-        cond = PreCondition(
-            predicate=lambda args: args['n'] > 0,
-            message="n must be positive"
-        )
-        assert cond.check({'n': 5}) is True
+        cond = PreCondition(predicate=lambda args: args["n"] > 0, message="n must be positive")
+        assert cond.check({"n": 5}) is True
 
     def test_precondition_check_fails(self):
         """Test PreCondition.check returns False when condition fails."""
-        cond = PreCondition(
-            predicate=lambda args: args['n'] > 0,
-            message="n must be positive"
-        )
-        assert cond.check({'n': -1}) is False
+        cond = PreCondition(predicate=lambda args: args["n"] > 0, message="n must be positive")
+        assert cond.check({"n": -1}) is False
 
     def test_precondition_check_exception_returns_false(self):
         """Test PreCondition.check returns False on exception."""
-        cond = PreCondition(
-            predicate=lambda args: args['missing_key'] > 0,
-            message="test"
-        )
-        assert cond.check({'n': 5}) is False
+        cond = PreCondition(predicate=lambda args: args["missing_key"] > 0, message="test")
+        assert cond.check({"n": 5}) is False
 
     def test_postcondition_check_passes(self):
         """Test PostCondition.check returns True when condition passes."""
-        cond = PostCondition(
-            predicate=lambda r: r > 0,
-            message="result must be positive"
-        )
+        cond = PostCondition(predicate=lambda r: r > 0, message="result must be positive")
         assert cond.check(10) is True
 
     def test_postcondition_check_fails(self):
         """Test PostCondition.check returns False when condition fails."""
-        cond = PostCondition(
-            predicate=lambda r: r > 0,
-            message="result must be positive"
-        )
+        cond = PostCondition(predicate=lambda r: r > 0, message="result must be positive")
         assert cond.check(-5) is False
 
     def test_postcondition_with_args(self):
         """Test PostCondition.check with args access."""
-        cond = PostCondition(
-            predicate=lambda r, args: r <= args['max'],
-            message="result exceeds max",
-            needs_args=True
-        )
-        assert cond.check(5, {'max': 10}) is True
-        assert cond.check(15, {'max': 10}) is False
+        cond = PostCondition(predicate=lambda r, args: r <= args["max"], message="result exceeds max", needs_args=True)
+        assert cond.check(5, {"max": 10}) is True
+        assert cond.check(15, {"max": 10}) is False
 
 
 # =============================================================================
 # Test ContractViolation
 # =============================================================================
+
 
 class TestContractViolation:
     """Tests for ContractViolation dataclass."""
@@ -253,7 +251,7 @@ class TestContractViolation:
             predicate="args['n'] > 0",
             message="n must be positive",
             context={"args": {"n": -1}},
-            policy=ContractPolicy.ENFORCE
+            policy=ContractPolicy.ENFORCE,
         )
         assert violation.kind == "pre"
         assert violation.location == "my_tool"
@@ -261,12 +259,7 @@ class TestContractViolation:
 
     def test_violation_str(self):
         """Test ContractViolation string representation."""
-        violation = ContractViolation(
-            kind="post",
-            location="search",
-            predicate="len(r) > 0",
-            message="result empty"
-        )
+        violation = ContractViolation(kind="post", location="search", predicate="len(r) > 0", message="result empty")
         assert "post" in str(violation)
         assert "search" in str(violation)
 
@@ -274,6 +267,7 @@ class TestContractViolation:
 # =============================================================================
 # Test contract_assert
 # =============================================================================
+
 
 class TestContractAssert:
     """Tests for contract_assert function."""
@@ -294,11 +288,7 @@ class TestContractAssert:
 
     def test_contract_assert_with_context(self):
         """Test contract_assert uses context when available."""
-        ctx = ContractContext(
-            policy=ContractPolicy.OBSERVE,
-            handler=MagicMock(),
-            location="test_tool"
-        )
+        ctx = ContractContext(policy=ContractPolicy.OBSERVE, handler=MagicMock(), location="test_tool")
         _set_current_context(ctx)
         try:
             contract_assert(False, "test failure")
@@ -311,7 +301,7 @@ class TestContractAssert:
         ctx = ContractContext(
             policy=ContractPolicy.QUICK_ENFORCE,
             handler=MagicMock(),  # Should NOT be called
-            location="test_tool"
+            location="test_tool",
         )
         _set_current_context(ctx)
         try:
@@ -327,48 +317,31 @@ class TestContractAssert:
 # Test ContractContext
 # =============================================================================
 
+
 class TestContractContext:
     """Tests for ContractContext."""
 
     def test_context_handle_violation_ignore(self):
         """Test context ignores violations with IGNORE policy."""
         handler = MagicMock()
-        ctx = ContractContext(
-            policy=ContractPolicy.IGNORE,
-            handler=handler,
-            location="test"
-        )
-        violation = ContractViolation(
-            kind="assert", location="test", predicate="x", message="m"
-        )
+        ctx = ContractContext(policy=ContractPolicy.IGNORE, handler=handler, location="test")
+        violation = ContractViolation(kind="assert", location="test", predicate="x", message="m")
         ctx.handle_violation(violation)
         handler.assert_not_called()
 
     def test_context_handle_violation_observe(self):
         """Test context calls handler and continues with OBSERVE policy."""
         handler = MagicMock()
-        ctx = ContractContext(
-            policy=ContractPolicy.OBSERVE,
-            handler=handler,
-            location="test"
-        )
-        violation = ContractViolation(
-            kind="assert", location="test", predicate="x", message="m"
-        )
+        ctx = ContractContext(policy=ContractPolicy.OBSERVE, handler=handler, location="test")
+        violation = ContractViolation(kind="assert", location="test", predicate="x", message="m")
         ctx.handle_violation(violation)  # Should not raise
         handler.assert_called_once()
 
     def test_context_handle_violation_enforce(self):
         """Test context calls handler and raises with ENFORCE policy."""
         handler = MagicMock()
-        ctx = ContractContext(
-            policy=ContractPolicy.ENFORCE,
-            handler=handler,
-            location="test"
-        )
-        violation = ContractViolation(
-            kind="assert", location="test", predicate="x", message="m"
-        )
+        ctx = ContractContext(policy=ContractPolicy.ENFORCE, handler=handler, location="test")
+        violation = ContractViolation(kind="assert", location="test", predicate="x", message="m")
         with pytest.raises(ContractTermination):
             ctx.handle_violation(violation)
         handler.assert_called_once()
@@ -376,14 +349,8 @@ class TestContractContext:
     def test_context_handle_violation_quick_enforce(self):
         """Test context raises immediately with QUICK_ENFORCE policy."""
         handler = MagicMock()
-        ctx = ContractContext(
-            policy=ContractPolicy.QUICK_ENFORCE,
-            handler=handler,
-            location="test"
-        )
-        violation = ContractViolation(
-            kind="assert", location="test", predicate="x", message="m"
-        )
+        ctx = ContractContext(policy=ContractPolicy.QUICK_ENFORCE, handler=handler, location="test")
+        violation = ContractViolation(kind="assert", location="test", predicate="x", message="m")
         with pytest.raises(ContractTermination):
             ctx.handle_violation(violation)
         handler.assert_not_called()
@@ -392,6 +359,7 @@ class TestContractContext:
 # =============================================================================
 # Test IterationState
 # =============================================================================
+
 
 class TestIterationState:
     """Tests for IterationState."""
@@ -437,61 +405,40 @@ class TestIterationState:
 # Test ContractAgent Initialization
 # =============================================================================
 
+
 class TestContractAgentInit:
     """Tests for ContractAgent initialization."""
 
     def test_init_with_defaults(self, mock_llm, simple_tool):
         """Test ContractAgent initialization with defaults."""
-        agent = ContractAgent(
-            llm=mock_llm,
-            tools=[simple_tool]
-        )
+        agent = ContractAgent(llm=mock_llm, tools=[simple_tool])
         assert agent.policy == ContractPolicy.ENFORCE
         assert len(agent.tools) == 1
 
     def test_init_with_custom_policy(self, mock_llm, simple_tool):
         """Test ContractAgent with custom policy."""
-        agent = ContractAgent(
-            llm=mock_llm,
-            tools=[simple_tool],
-            policy=ContractPolicy.OBSERVE
-        )
+        agent = ContractAgent(llm=mock_llm, tools=[simple_tool], policy=ContractPolicy.OBSERVE)
         assert agent.policy == ContractPolicy.OBSERVE
 
     def test_init_with_violation_handler(self, mock_llm, simple_tool):
         """Test ContractAgent with custom violation handler."""
         handler = MagicMock()
-        agent = ContractAgent(
-            llm=mock_llm,
-            tools=[simple_tool],
-            violation_handler=handler
-        )
+        agent = ContractAgent(llm=mock_llm, tools=[simple_tool], violation_handler=handler)
         assert agent.violation_handler == handler
 
     def test_init_with_task_precondition(self, mock_llm, simple_tool):
         """Test ContractAgent with task precondition."""
-        agent = ContractAgent(
-            llm=mock_llm,
-            tools=[simple_tool],
-            task_precondition=lambda t: len(t) > 5
-        )
+        agent = ContractAgent(llm=mock_llm, tools=[simple_tool], task_precondition=lambda t: len(t) > 5)
         assert agent.task_precondition is not None
 
     def test_init_with_answer_postcondition(self, mock_llm, simple_tool):
         """Test ContractAgent with answer postcondition."""
-        agent = ContractAgent(
-            llm=mock_llm,
-            tools=[simple_tool],
-            answer_postcondition=lambda a: len(a) > 0
-        )
+        agent = ContractAgent(llm=mock_llm, tools=[simple_tool], answer_postcondition=lambda a: len(a) > 0)
         assert agent.answer_postcondition is not None
 
     def test_init_extracts_tool_contracts(self, mock_llm, tool_with_pre):
         """Test that ContractAgent extracts contracts from tools."""
-        agent = ContractAgent(
-            llm=mock_llm,
-            tools=[tool_with_pre]
-        )
+        agent = ContractAgent(llm=mock_llm, tools=[tool_with_pre])
         assert "fetch_items" in agent._tool_contracts
         assert len(agent._tool_contracts["fetch_items"].preconditions) == 1
 
@@ -499,6 +446,7 @@ class TestContractAgentInit:
 # =============================================================================
 # Test ContractAgent Contract Checking
 # =============================================================================
+
 
 class TestContractAgentChecking:
     """Tests for ContractAgent contract checking methods."""
@@ -532,11 +480,7 @@ class TestContractAgentChecking:
 
     def test_check_with_ignore_policy(self, mock_llm, tool_with_pre):
         """Test that IGNORE policy skips checking."""
-        agent = ContractAgent(
-            llm=mock_llm,
-            tools=[tool_with_pre],
-            policy=ContractPolicy.IGNORE
-        )
+        agent = ContractAgent(llm=mock_llm, tools=[tool_with_pre], policy=ContractPolicy.IGNORE)
         # Should pass even with invalid args because checking is skipped
         violation = agent._check_preconditions("fetch_items", {"count": -1})
         assert violation is None
@@ -546,6 +490,7 @@ class TestContractAgentChecking:
 # Test ContractAgent Violation Handling
 # =============================================================================
 
+
 class TestContractAgentViolationHandling:
     """Tests for ContractAgent violation handling."""
 
@@ -553,8 +498,7 @@ class TestContractAgentViolationHandling:
         """Test violation handling with IGNORE policy."""
         agent = ContractAgent(llm=mock_llm, tools=[simple_tool])
         violation = ContractViolation(
-            kind="pre", location="test", predicate="x", message="m",
-            policy=ContractPolicy.IGNORE
+            kind="pre", location="test", predicate="x", message="m", policy=ContractPolicy.IGNORE
         )
         result = agent._handle_violation(violation)
         assert result is True  # Continue execution
@@ -562,14 +506,9 @@ class TestContractAgentViolationHandling:
     def test_handle_violation_observe(self, mock_llm, simple_tool):
         """Test violation handling with OBSERVE policy."""
         handler = MagicMock()
-        agent = ContractAgent(
-            llm=mock_llm,
-            tools=[simple_tool],
-            violation_handler=handler
-        )
+        agent = ContractAgent(llm=mock_llm, tools=[simple_tool], violation_handler=handler)
         violation = ContractViolation(
-            kind="pre", location="test", predicate="x", message="m",
-            policy=ContractPolicy.OBSERVE
+            kind="pre", location="test", predicate="x", message="m", policy=ContractPolicy.OBSERVE
         )
         result = agent._handle_violation(violation)
         assert result is True  # Continue execution
@@ -578,14 +517,9 @@ class TestContractAgentViolationHandling:
     def test_handle_violation_enforce(self, mock_llm, simple_tool):
         """Test violation handling with ENFORCE policy."""
         handler = MagicMock()
-        agent = ContractAgent(
-            llm=mock_llm,
-            tools=[simple_tool],
-            violation_handler=handler
-        )
+        agent = ContractAgent(llm=mock_llm, tools=[simple_tool], violation_handler=handler)
         violation = ContractViolation(
-            kind="pre", location="test", predicate="x", message="m",
-            policy=ContractPolicy.ENFORCE
+            kind="pre", location="test", predicate="x", message="m", policy=ContractPolicy.ENFORCE
         )
         result = agent._handle_violation(violation)
         assert result is False  # Stop execution
@@ -594,14 +528,9 @@ class TestContractAgentViolationHandling:
     def test_handle_violation_quick_enforce(self, mock_llm, simple_tool):
         """Test violation handling with QUICK_ENFORCE policy."""
         handler = MagicMock()
-        agent = ContractAgent(
-            llm=mock_llm,
-            tools=[simple_tool],
-            violation_handler=handler
-        )
+        agent = ContractAgent(llm=mock_llm, tools=[simple_tool], violation_handler=handler)
         violation = ContractViolation(
-            kind="pre", location="test", predicate="x", message="m",
-            policy=ContractPolicy.QUICK_ENFORCE
+            kind="pre", location="test", predicate="x", message="m", policy=ContractPolicy.QUICK_ENFORCE
         )
         result = agent._handle_violation(violation)
         assert result is False  # Stop execution
@@ -611,6 +540,7 @@ class TestContractAgentViolationHandling:
 # =============================================================================
 # Test ContractAgent list_tools and get_contract_stats
 # =============================================================================
+
 
 class TestContractAgentUtilities:
     """Tests for ContractAgent utility methods."""
@@ -633,6 +563,7 @@ class TestContractAgentUtilities:
 # Test ContractPolicy Enum
 # =============================================================================
 
+
 class TestContractPolicy:
     """Tests for ContractPolicy enum."""
 
@@ -647,6 +578,7 @@ class TestContractPolicy:
 # =============================================================================
 # Test Edge Cases
 # =============================================================================
+
 
 class TestEdgeCases:
     """Tests for edge cases and error handling."""
@@ -665,8 +597,9 @@ class TestEdgeCases:
 
     def test_predicate_exception_treated_as_failure(self):
         """Test that exceptions in predicates are treated as failures."""
+
         @tool
-        @pre(lambda args: args['missing'] > 0, "should fail")
+        @pre(lambda args: args["missing"] > 0, "should fail")
         def my_func(n: int) -> int:
             return n
 
@@ -676,8 +609,9 @@ class TestEdgeCases:
 
     def test_postcondition_with_args_needs_args_flag(self):
         """Test that postcondition with 2 params sets needs_args."""
+
         @tool
-        @post(lambda r, args: r <= args['max'], "too big")
+        @post(lambda r, args: r <= args["max"], "too big")
         def my_func(n: int, max: int) -> int:
             return n
 
@@ -689,13 +623,15 @@ class TestEdgeCases:
 # Test Integration with Tool Decorator
 # =============================================================================
 
+
 class TestToolIntegration:
     """Tests for integration with @tool decorator."""
 
     def test_contracts_preserved_through_tool_decorator(self):
         """Test that contracts are preserved when @tool is applied after."""
+
         @tool
-        @pre(lambda args: args['n'] > 0, "positive")
+        @pre(lambda args: args["n"] > 0, "positive")
         @post(lambda r: r > 0, "positive result")
         def my_func(n: int) -> int:
             return n * 2
@@ -703,12 +639,13 @@ class TestToolIntegration:
         # Tool should still be callable
         assert isinstance(my_func, Tool)
         # Contracts should be attached
-        assert hasattr(my_func, '_contracts') or hasattr(my_func.func, '_contracts')
+        assert hasattr(my_func, "_contracts") or hasattr(my_func.func, "_contracts")
 
     def test_tool_execution_still_works(self):
         """Test that tool still executes correctly with contracts."""
+
         @tool
-        @pre(lambda args: args['n'] > 0, "positive")
+        @pre(lambda args: args["n"] > 0, "positive")
         def double(n: int) -> int:
             """Double a number."""
             return n * 2
@@ -721,22 +658,20 @@ class TestToolIntegration:
 # Test Policy Resolution
 # =============================================================================
 
+
 class TestPolicyResolution:
     """Tests for policy resolution between contract and agent levels."""
 
     def test_contract_policy_overrides_agent_policy(self, mock_llm):
         """Test that contract-specific policy takes precedence."""
+
         @tool
-        @pre(lambda args: args['n'] > 0, "positive", policy=ContractPolicy.IGNORE)
+        @pre(lambda args: args["n"] > 0, "positive", policy=ContractPolicy.IGNORE)
         def my_func(n: int) -> int:
             return n * 2
 
         # Agent uses ENFORCE, but contract uses IGNORE
-        agent = ContractAgent(
-            llm=mock_llm,
-            tools=[my_func],
-            policy=ContractPolicy.ENFORCE
-        )
+        agent = ContractAgent(llm=mock_llm, tools=[my_func], policy=ContractPolicy.ENFORCE)
 
         # Even with invalid args, should return None (no violation) because contract is IGNORE
         violation = agent._check_preconditions("my_func", {"n": -1})
@@ -744,17 +679,14 @@ class TestPolicyResolution:
 
     def test_none_policy_uses_agent_default(self, mock_llm):
         """Test that None policy on contract uses agent's policy."""
+
         @tool
-        @pre(lambda args: args['n'] > 0, "positive")  # policy=None by default
+        @pre(lambda args: args["n"] > 0, "positive")  # policy=None by default
         def my_func(n: int) -> int:
             return n * 2
 
         # Agent uses OBSERVE
-        agent = ContractAgent(
-            llm=mock_llm,
-            tools=[my_func],
-            policy=ContractPolicy.OBSERVE
-        )
+        agent = ContractAgent(llm=mock_llm, tools=[my_func], policy=ContractPolicy.OBSERVE)
 
         violation = agent._check_preconditions("my_func", {"n": -1})
         assert violation is not None
@@ -762,26 +694,19 @@ class TestPolicyResolution:
 
     def test_get_effective_policy_with_none(self, mock_llm, simple_tool):
         """Test _get_effective_policy returns agent policy when contract policy is None."""
-        agent = ContractAgent(
-            llm=mock_llm,
-            tools=[simple_tool],
-            policy=ContractPolicy.OBSERVE
-        )
+        agent = ContractAgent(llm=mock_llm, tools=[simple_tool], policy=ContractPolicy.OBSERVE)
         assert agent._get_effective_policy(None) == ContractPolicy.OBSERVE
 
     def test_get_effective_policy_with_explicit(self, mock_llm, simple_tool):
         """Test _get_effective_policy returns contract policy when specified."""
-        agent = ContractAgent(
-            llm=mock_llm,
-            tools=[simple_tool],
-            policy=ContractPolicy.OBSERVE
-        )
+        agent = ContractAgent(llm=mock_llm, tools=[simple_tool], policy=ContractPolicy.OBSERVE)
         assert agent._get_effective_policy(ContractPolicy.ENFORCE) == ContractPolicy.ENFORCE
 
 
 # =============================================================================
 # Test ContractSpec
 # =============================================================================
+
 
 class TestContractSpec:
     """Tests for ContractSpec dataclass."""
@@ -796,10 +721,7 @@ class TestContractSpec:
         """Test ContractSpec with conditions."""
         pre_cond = PreCondition(lambda args: True, "pre")
         post_cond = PostCondition(lambda r: True, "post")
-        spec = ContractSpec(
-            preconditions=[pre_cond],
-            postconditions=[post_cond]
-        )
+        spec = ContractSpec(preconditions=[pre_cond], postconditions=[post_cond])
         assert len(spec.preconditions) == 1
         assert len(spec.postconditions) == 1
 
@@ -808,19 +730,16 @@ class TestContractSpec:
 # Test Default Handler
 # =============================================================================
 
+
 class TestDefaultHandler:
     """Tests for default violation handler behavior."""
 
     def test_default_handler_logs_warning(self, mock_llm, simple_tool, caplog):
         """Test that default handler logs a warning."""
         import logging
+
         agent = ContractAgent(llm=mock_llm, tools=[simple_tool])
-        violation = ContractViolation(
-            kind="pre",
-            location="test_tool",
-            predicate="x > 0",
-            message="x must be positive"
-        )
+        violation = ContractViolation(kind="pre", location="test_tool", predicate="x > 0", message="x must be positive")
 
         with caplog.at_level(logging.WARNING):
             agent._default_handler(violation)
@@ -836,7 +755,7 @@ class TestDefaultHandler:
             location="test_tool",
             predicate="x > 0",
             message="x must be positive",
-            context={"args": {"x": -1}}
+            context={"args": {"x": -1}},
         )
 
         agent._default_handler(violation)
@@ -850,6 +769,7 @@ class TestDefaultHandler:
 # =============================================================================
 # Test IterationState Extended
 # =============================================================================
+
 
 class TestIterationStateExtended:
     """Extended tests for IterationState."""
@@ -890,6 +810,7 @@ class TestIterationStateExtended:
 # Test Predicate String Extraction
 # =============================================================================
 
+
 class TestPredicateStringExtraction:
     """Tests for _get_predicate_str function."""
 
@@ -897,7 +818,7 @@ class TestPredicateStringExtraction:
         """Test extracting string from lambda predicate."""
         from cyllama.agents.contract import _get_predicate_str
 
-        pred = lambda args: args['n'] > 0
+        pred = lambda args: args["n"] > 0
         pred_str = _get_predicate_str(pred)
         # Should contain lambda
         assert "lambda" in pred_str
@@ -907,7 +828,7 @@ class TestPredicateStringExtraction:
         from cyllama.agents.contract import _get_predicate_str
 
         def check_positive(args):
-            return args['n'] > 0
+            return args["n"] > 0
 
         pred_str = _get_predicate_str(check_positive)
         # Should return some string representation
@@ -917,6 +838,7 @@ class TestPredicateStringExtraction:
 # =============================================================================
 # Test ContractViolation Extended
 # =============================================================================
+
 
 class TestContractViolationExtended:
     """Extended tests for ContractViolation."""
@@ -929,7 +851,7 @@ class TestContractViolationExtended:
             predicate="args['n'] > 0",
             message="n must be positive",
             context={"args": {"n": -1}, "extra": "info"},
-            policy=ContractPolicy.OBSERVE
+            policy=ContractPolicy.OBSERVE,
         )
         assert violation.kind == "pre"
         assert violation.location == "my_tool"
@@ -940,22 +862,12 @@ class TestContractViolationExtended:
 
     def test_violation_default_policy(self):
         """Test ContractViolation default policy is ENFORCE."""
-        violation = ContractViolation(
-            kind="pre",
-            location="test",
-            predicate="x",
-            message="m"
-        )
+        violation = ContractViolation(kind="pre", location="test", predicate="x", message="m")
         assert violation.policy == ContractPolicy.ENFORCE
 
     def test_violation_default_context(self):
         """Test ContractViolation default context is empty dict."""
-        violation = ContractViolation(
-            kind="pre",
-            location="test",
-            predicate="x",
-            message="m"
-        )
+        violation = ContractViolation(kind="pre", location="test", predicate="x", message="m")
         assert violation.context == {}
 
 
@@ -963,19 +875,14 @@ class TestContractViolationExtended:
 # Test ContractContext Extended
 # =============================================================================
 
+
 class TestContractContextExtended:
     """Extended tests for ContractContext."""
 
     def test_context_without_handler(self):
         """Test context with no handler set."""
-        ctx = ContractContext(
-            policy=ContractPolicy.OBSERVE,
-            handler=None,
-            location="test"
-        )
-        violation = ContractViolation(
-            kind="assert", location="test", predicate="x", message="m"
-        )
+        ctx = ContractContext(policy=ContractPolicy.OBSERVE, handler=None, location="test")
+        violation = ContractViolation(kind="assert", location="test", predicate="x", message="m")
         # Should not raise - handler is None so nothing to call
         ctx.handle_violation(violation)
 
@@ -983,6 +890,7 @@ class TestContractContextExtended:
 # =============================================================================
 # Test Agent with No Tools
 # =============================================================================
+
 
 class TestAgentNoTools:
     """Tests for ContractAgent with no tools."""
@@ -1003,15 +911,14 @@ class TestAgentNoTools:
 # Test Postcondition with Args Edge Cases
 # =============================================================================
 
+
 class TestPostconditionArgsEdgeCases:
     """Tests for postcondition with args edge cases."""
 
     def test_postcondition_needs_args_missing(self):
         """Test postcondition with needs_args=True but no args provided."""
         cond = PostCondition(
-            predicate=lambda r, args: r <= args.get('max', 100),
-            message="result too big",
-            needs_args=True
+            predicate=lambda r, args: r <= args.get("max", 100), message="result too big", needs_args=True
         )
         # When args is None, should still work (predicate handles it)
         result = cond.check(50, None)
@@ -1021,9 +928,7 @@ class TestPostconditionArgsEdgeCases:
     def test_postcondition_needs_args_with_empty_dict(self):
         """Test postcondition with needs_args=True and empty args."""
         cond = PostCondition(
-            predicate=lambda r, args: r <= args.get('max', 100),
-            message="result too big",
-            needs_args=True
+            predicate=lambda r, args: r <= args.get("max", 100), message="result too big", needs_args=True
         )
         result = cond.check(50, {})
         assert result is True  # Uses default 100
@@ -1032,6 +937,7 @@ class TestPostconditionArgsEdgeCases:
 # =============================================================================
 # Test Contract Assert Outside Context
 # =============================================================================
+
 
 class TestContractAssertOutsideContext:
     """Tests for contract_assert called outside agent context."""
@@ -1057,6 +963,7 @@ class TestContractAssertOutsideContext:
 # =============================================================================
 # Test Multiple Contracts Order
 # =============================================================================
+
 
 class TestMultipleContractsOrder:
     """Tests for order of multiple contracts on same function."""
@@ -1088,9 +995,10 @@ class TestMultipleContractsOrder:
 
     def test_first_failing_precondition_reported(self, mock_llm):
         """Test that first failing precondition is reported."""
+
         @tool
-        @pre(lambda args: args['n'] > 0, "first: n positive")
-        @pre(lambda args: args['n'] < 100, "second: n less than 100")
+        @pre(lambda args: args["n"] > 0, "first: n positive")
+        @pre(lambda args: args["n"] < 100, "second: n less than 100")
         def my_func(n: int) -> int:
             return n
 
@@ -1104,25 +1012,19 @@ class TestMultipleContractsOrder:
 # Test ContractTermination Exception
 # =============================================================================
 
+
 class TestContractTerminationException:
     """Tests for ContractTermination exception."""
 
     def test_exception_contains_violation(self):
         """Test ContractTermination stores the violation."""
-        violation = ContractViolation(
-            kind="pre",
-            location="test",
-            predicate="x",
-            message="test violation"
-        )
+        violation = ContractViolation(kind="pre", location="test", predicate="x", message="test violation")
         exc = ContractTermination(violation)
         assert exc.violation is violation
         assert "test violation" in str(exc)
 
     def test_exception_inherits_from_exception(self):
         """Test ContractTermination is an Exception."""
-        violation = ContractViolation(
-            kind="pre", location="test", predicate="x", message="m"
-        )
+        violation = ContractViolation(kind="pre", location="test", predicate="x", message="m")
         exc = ContractTermination(violation)
         assert isinstance(exc, Exception)

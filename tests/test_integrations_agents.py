@@ -2,12 +2,12 @@
 Tests for agent framework integrations.
 """
 
-import pytest
-from cyllama.agents import tool, Tool
+from cyllama.agents import tool
 
 # Check if LangChain is available
 try:
     import langchain_core
+
     LANGCHAIN_INSTALLED = True
 except ImportError:
     LANGCHAIN_INSTALLED = False
@@ -59,10 +59,7 @@ def test_openai_function_calling_client_init():
     def my_tool():
         return "result"
 
-    client = OpenAIFunctionCallingClient(
-        model_path="dummy_path.gguf",
-        tools=[my_tool]
-    )
+    client = OpenAIFunctionCallingClient(model_path="dummy_path.gguf", tools=[my_tool])
 
     assert client.model_path == "dummy_path.gguf"
     assert len(client.tools) == 1
@@ -77,10 +74,7 @@ def test_openai_function_calling_client_list_functions():
         """Search tool"""
         return "results"
 
-    client = OpenAIFunctionCallingClient(
-        model_path="dummy.gguf",
-        tools=[search]
-    )
+    client = OpenAIFunctionCallingClient(model_path="dummy.gguf", tools=[search])
 
     functions = client.list_functions()
 
@@ -101,10 +95,7 @@ def test_openai_function_calling_client_list_tools():
     def tool2():
         return "2"
 
-    client = OpenAIFunctionCallingClient(
-        model_path="dummy.gguf",
-        tools=[tool1, tool2]
-    )
+    client = OpenAIFunctionCallingClient(model_path="dummy.gguf", tools=[tool1, tool2])
 
     tools = client.list_tools()
 
@@ -120,10 +111,7 @@ def test_create_openai_function_calling_client():
     def my_tool():
         return "result"
 
-    client = create_openai_function_calling_client(
-        model_path="dummy.gguf",
-        tools=[my_tool]
-    )
+    client = create_openai_function_calling_client(model_path="dummy.gguf", tools=[my_tool])
 
     assert client.model_path == "dummy.gguf"
     assert len(client.tools) == 1
@@ -133,6 +121,7 @@ def test_create_openai_function_calling_client():
 def test_langchain_available():
     """Test if LangChain is available."""
     from cyllama.integrations.langchain_agents import LANGCHAIN_AVAILABLE
+
     # This test just checks the import works
     assert isinstance(LANGCHAIN_AVAILABLE, bool)
 
@@ -181,6 +170,7 @@ def test_integration_exports():
             cyllama_tool_to_openai_function,
             OpenAIFunctionCallingClient,
         )
+
         # If we get here, exports work
         assert callable(cyllama_tool_to_openai_function)
         assert OpenAIFunctionCallingClient is not None
@@ -195,8 +185,6 @@ def test_openai_agent_dataclasses():
         FunctionCall,
         ToolCall,
         AssistantMessage,
-        ChatCompletionMessage,
-        ChatCompletionChoice,
         ChatCompletionResponse,
     )
 
@@ -206,11 +194,7 @@ def test_openai_agent_dataclasses():
     assert func_call.arguments == '{"query": "test"}'
 
     # Test ToolCall
-    tool_call = ToolCall(
-        id="call_123",
-        type="function",
-        function=func_call
-    )
+    tool_call = ToolCall(id="call_123", type="function", function=func_call)
     assert tool_call.id == "call_123"
     assert tool_call.function.name == "search"
 

@@ -14,7 +14,7 @@ import wave
 import struct
 import numpy as np
 from pathlib import Path
-from typing import List, Optional, Dict, Any, Tuple
+from typing import List, Tuple
 import threading
 
 # Import the whisper module (use: python -m cyllama.whisper.cli)
@@ -95,24 +95,24 @@ class WhisperParams:
         self.vad_threshold = 0.5
         self.vad_min_speech_duration_ms = 250
         self.vad_min_silence_duration_ms = 100
-        self.vad_max_speech_duration_s = float('inf')
+        self.vad_max_speech_duration_s = float("inf")
         self.vad_speech_pad_ms = 30
         self.vad_samples_overlap = 0.1
 
 
 def load_wav_file(filepath: str) -> Tuple[np.ndarray, int]:
     """Load a WAV file and return samples as float32 array and sample rate."""
-    with wave.open(filepath, 'rb') as wav_file:
+    with wave.open(filepath, "rb") as wav_file:
         frames = wav_file.readframes(-1)
         sound_info = wav_file.getparams()
 
         # Convert to float32 normalized to [-1, 1]
         if sound_info.sampwidth == 1:
-            fmt = f'{len(frames)}B'
+            fmt = f"{len(frames)}B"
             samples = struct.unpack(fmt, frames)
             samples = [(s - 128) / 128.0 for s in samples]
         elif sound_info.sampwidth == 2:
-            fmt = f'{len(frames) // 2}h'
+            fmt = f"{len(frames) // 2}h"
             samples = struct.unpack(fmt, frames)
             samples = [s / 32768.0 for s in samples]
         elif sound_info.sampwidth == 3:
@@ -120,10 +120,10 @@ def load_wav_file(filepath: str) -> Tuple[np.ndarray, int]:
             samples = []
             for i in range(0, len(frames), 3):
                 if i + 2 < len(frames):
-                    sample = int.from_bytes(frames[i:i+3], byteorder='little', signed=True)
+                    sample = int.from_bytes(frames[i : i + 3], byteorder="little", signed=True)
                     samples.append(sample / 8388608.0)  # 2^23
         elif sound_info.sampwidth == 4:
-            fmt = f'{len(frames) // 4}i'
+            fmt = f"{len(frames) // 4}i"
             samples = struct.unpack(fmt, frames)
             samples = [s / 2147483648.0 for s in samples]  # 2^31
         else:
@@ -152,7 +152,7 @@ def resample_audio(samples: np.ndarray, orig_sr: int, target_sr: int = 16000) ->
 
 def escape_string_json(text: str) -> str:
     """Escape string for JSON output."""
-    return text.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n').replace('\r', '\\r').replace('\t', '\\t')
+    return text.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")
 
 
 def escape_string_csv(text: str) -> str:
@@ -160,7 +160,7 @@ def escape_string_csv(text: str) -> str:
     return text.replace('"', '""')
 
 
-def format_timestamp(t: int, always_include_hours: bool = False, decimal_marker: str = ',') -> str:
+def format_timestamp(t: int, always_include_hours: bool = False, decimal_marker: str = ",") -> str:
     """Format timestamp in HH:MM:SS,mmm format."""
     msec = t * 10
     hr = msec // (1000 * 60 * 60)
@@ -202,7 +202,10 @@ def output_vtt(ctx: wh.WhisperContext, params: WhisperParams, output_file) -> No
         t0 = ctx.full_get_segment_t0(i)
         t1 = ctx.full_get_segment_t1(i)
 
-        print(f"{format_timestamp(t0, decimal_marker='.')} --> {format_timestamp(t1, decimal_marker='.')}", file=output_file)
+        print(
+            f"{format_timestamp(t0, decimal_marker='.')} --> {format_timestamp(t1, decimal_marker='.')}",
+            file=output_file,
+        )
         print(text, file=output_file)
         print("", file=output_file)
 
@@ -238,15 +241,12 @@ def output_csv(ctx: wh.WhisperContext, params: WhisperParams, output_file) -> No
         t0_ms = t0 * 10
         t1_ms = t1 * 10
 
-        print(f"{t0_ms},{t1_ms},\"{text_escaped}\"", file=output_file)
+        print(f'{t0_ms},{t1_ms},"{text_escaped}"', file=output_file)
 
 
 def output_json(ctx: wh.WhisperContext, params: WhisperParams, output_file, full: bool = False) -> None:
     """Output transcription in JSON format."""
-    result = {
-        "text": "",
-        "segments": []
-    }
+    result = {"text": "", "segments": []}
 
     n_segments = ctx.full_n_segments()
 
@@ -278,7 +278,9 @@ def output_json(ctx: wh.WhisperContext, params: WhisperParams, output_file, full
             "temperature": params.temperature,
             "avg_logprob": 0.0,  # Not implemented in basic version
             "compression_ratio": 0.0,  # Not implemented in basic version
-            "no_speech_prob": ctx.full_get_segment_no_speech_prob(i) if hasattr(ctx, 'full_get_segment_no_speech_prob') else 0.0
+            "no_speech_prob": ctx.full_get_segment_no_speech_prob(i)
+            if hasattr(ctx, "full_get_segment_no_speech_prob")
+            else 0.0,
         }
 
         if full:
@@ -290,11 +292,7 @@ def output_json(ctx: wh.WhisperContext, params: WhisperParams, output_file, full
                 token_id = ctx.full_get_token_id(i, j)
                 token_p = ctx.full_get_token_p(i, j)
 
-                tokens.append({
-                    "text": token_text,
-                    "id": token_id,
-                    "probability": token_p
-                })
+                tokens.append({"text": token_text, "id": token_id, "probability": token_p})
 
             segment["tokens"] = tokens
 
@@ -396,56 +394,65 @@ def process_file(input_file: str, params: WhisperParams) -> None:
 
     if params.output_txt:
         output_path = f"{base_name}.txt"
-        with open(output_path, 'w', encoding='utf-8') as f:
+        with open(output_path, "w", encoding="utf-8") as f:
             output_txt(ctx, params, f)
         if not params.no_prints:
             print(f"Text output saved to: {output_path}")
 
     if params.output_vtt:
         output_path = f"{base_name}.vtt"
-        with open(output_path, 'w', encoding='utf-8') as f:
+        with open(output_path, "w", encoding="utf-8") as f:
             output_vtt(ctx, params, f)
         if not params.no_prints:
             print(f"VTT output saved to: {output_path}")
 
     if params.output_srt:
         output_path = f"{base_name}.srt"
-        with open(output_path, 'w', encoding='utf-8') as f:
+        with open(output_path, "w", encoding="utf-8") as f:
             output_srt(ctx, params, f)
         if not params.no_prints:
             print(f"SRT output saved to: {output_path}")
 
     if params.output_csv:
         output_path = f"{base_name}.csv"
-        with open(output_path, 'w', encoding='utf-8') as f:
+        with open(output_path, "w", encoding="utf-8") as f:
             output_csv(ctx, params, f)
         if not params.no_prints:
             print(f"CSV output saved to: {output_path}")
 
     if params.output_jsn:
         output_path = f"{base_name}.json"
-        with open(output_path, 'w', encoding='utf-8') as f:
+        with open(output_path, "w", encoding="utf-8") as f:
             output_json(ctx, params, f, full=False)
         if not params.no_prints:
             print(f"JSON output saved to: {output_path}")
 
     if params.output_jsn_full:
         output_path = f"{base_name}_full.json"
-        with open(output_path, 'w', encoding='utf-8') as f:
+        with open(output_path, "w", encoding="utf-8") as f:
             output_json(ctx, params, f, full=True)
         if not params.no_prints:
             print(f"Full JSON output saved to: {output_path}")
 
     if params.output_lrc:
         output_path = f"{base_name}.lrc"
-        with open(output_path, 'w', encoding='utf-8') as f:
+        with open(output_path, "w", encoding="utf-8") as f:
             output_lrc(ctx, params, f)
         if not params.no_prints:
             print(f"LRC output saved to: {output_path}")
 
     # Default output to console if no specific output format requested
-    if not any([params.output_txt, params.output_vtt, params.output_srt,
-                params.output_csv, params.output_jsn, params.output_jsn_full, params.output_lrc]):
+    if not any(
+        [
+            params.output_txt,
+            params.output_vtt,
+            params.output_srt,
+            params.output_csv,
+            params.output_jsn,
+            params.output_jsn_full,
+            params.output_lrc,
+        ]
+    ):
         output_txt(ctx, params, sys.stdout)
 
 
@@ -459,92 +466,108 @@ Examples:
   python -m cyllama.whisper.cli -f audio.wav
   python -m cyllama.whisper.cli -f audio.wav --output-srt --output-vtt
   python -m cyllama.whisper.cli -m models/ggml-medium.en.bin -f audio.wav --translate
-        """
+        """,
     )
 
     params = WhisperParams()
 
     # Input/output files
-    parser.add_argument('-f', '--file', dest='fname_inp', action='append',
-                        help='Input audio file path')
-    parser.add_argument('-o', '--output', dest='fname_out', action='append',
-                        help='Output file path')
+    parser.add_argument("-f", "--file", dest="fname_inp", action="append", help="Input audio file path")
+    parser.add_argument("-o", "--output", dest="fname_out", action="append", help="Output file path")
 
     # Model parameters
-    parser.add_argument('-m', '--model', default=params.model,
-                        help='Model path (default: %(default)s)')
+    parser.add_argument("-m", "--model", default=params.model, help="Model path (default: %(default)s)")
 
     # Processing parameters
-    parser.add_argument('-t', '--threads', type=int, default=params.n_threads,
-                        help='Number of threads (default: %(default)s)')
-    parser.add_argument('-p', '--processors', type=int, default=params.n_processors,
-                        help='Number of processors (default: %(default)s)')
-    parser.add_argument('-ot', '--offset-t', type=int, default=params.offset_t_ms,
-                        help='Time offset in milliseconds (default: %(default)s)')
-    parser.add_argument('-on', '--offset-n', type=int, default=params.offset_n,
-                        help='Segment offset (default: %(default)s)')
-    parser.add_argument('-d', '--duration', type=int, default=params.duration_ms,
-                        help='Duration in milliseconds (default: %(default)s)')
-    parser.add_argument('-mc', '--max-context', type=int, default=params.max_context,
-                        help='Maximum context (default: %(default)s)')
-    parser.add_argument('-ml', '--max-len', type=int, default=params.max_len,
-                        help='Maximum length (default: %(default)s)')
+    parser.add_argument(
+        "-t", "--threads", type=int, default=params.n_threads, help="Number of threads (default: %(default)s)"
+    )
+    parser.add_argument(
+        "-p", "--processors", type=int, default=params.n_processors, help="Number of processors (default: %(default)s)"
+    )
+    parser.add_argument(
+        "-ot",
+        "--offset-t",
+        type=int,
+        default=params.offset_t_ms,
+        help="Time offset in milliseconds (default: %(default)s)",
+    )
+    parser.add_argument(
+        "-on", "--offset-n", type=int, default=params.offset_n, help="Segment offset (default: %(default)s)"
+    )
+    parser.add_argument(
+        "-d", "--duration", type=int, default=params.duration_ms, help="Duration in milliseconds (default: %(default)s)"
+    )
+    parser.add_argument(
+        "-mc", "--max-context", type=int, default=params.max_context, help="Maximum context (default: %(default)s)"
+    )
+    parser.add_argument(
+        "-ml", "--max-len", type=int, default=params.max_len, help="Maximum length (default: %(default)s)"
+    )
 
     # Decoding parameters
-    parser.add_argument('-bo', '--best-of', type=int, default=params.best_of,
-                        help='Best of N samples (default: %(default)s)')
-    parser.add_argument('-bs', '--beam-size', type=int, default=params.beam_size,
-                        help='Beam search size (default: %(default)s)')
-    parser.add_argument('-wt', '--word-thold', type=float, default=params.word_thold,
-                        help='Word probability threshold (default: %(default)s)')
-    parser.add_argument('-et', '--entropy-thold', type=float, default=params.entropy_thold,
-                        help='Entropy threshold (default: %(default)s)')
-    parser.add_argument('-lpt', '--logprob-thold', type=float, default=params.logprob_thold,
-                        help='Log probability threshold (default: %(default)s)')
-    parser.add_argument('-tp', '--temperature', type=float, default=params.temperature,
-                        help='Temperature (default: %(default)s)')
-    parser.add_argument('-tpi', '--temperature-inc', type=float, default=params.temperature_inc,
-                        help='Temperature increment (default: %(default)s)')
+    parser.add_argument(
+        "-bo", "--best-of", type=int, default=params.best_of, help="Best of N samples (default: %(default)s)"
+    )
+    parser.add_argument(
+        "-bs", "--beam-size", type=int, default=params.beam_size, help="Beam search size (default: %(default)s)"
+    )
+    parser.add_argument(
+        "-wt",
+        "--word-thold",
+        type=float,
+        default=params.word_thold,
+        help="Word probability threshold (default: %(default)s)",
+    )
+    parser.add_argument(
+        "-et",
+        "--entropy-thold",
+        type=float,
+        default=params.entropy_thold,
+        help="Entropy threshold (default: %(default)s)",
+    )
+    parser.add_argument(
+        "-lpt",
+        "--logprob-thold",
+        type=float,
+        default=params.logprob_thold,
+        help="Log probability threshold (default: %(default)s)",
+    )
+    parser.add_argument(
+        "-tp", "--temperature", type=float, default=params.temperature, help="Temperature (default: %(default)s)"
+    )
+    parser.add_argument(
+        "-tpi",
+        "--temperature-inc",
+        type=float,
+        default=params.temperature_inc,
+        help="Temperature increment (default: %(default)s)",
+    )
 
     # Language and translation
-    parser.add_argument('-l', '--language', default=params.language,
-                        help='Language code (default: %(default)s)')
-    parser.add_argument('-tr', '--translate', action='store_true',
-                        help='Translate to English')
-    parser.add_argument('-dl', '--detect-language', action='store_true',
-                        help='Detect language')
+    parser.add_argument("-l", "--language", default=params.language, help="Language code (default: %(default)s)")
+    parser.add_argument("-tr", "--translate", action="store_true", help="Translate to English")
+    parser.add_argument("-dl", "--detect-language", action="store_true", help="Detect language")
 
     # Output formats
-    parser.add_argument('-otxt', '--output-txt', action='store_true',
-                        help='Output plain text')
-    parser.add_argument('-ovtt', '--output-vtt', action='store_true',
-                        help='Output WebVTT')
-    parser.add_argument('-osrt', '--output-srt', action='store_true',
-                        help='Output SRT')
-    parser.add_argument('-owts', '--output-wts', action='store_true',
-                        help='Output word timestamps')
-    parser.add_argument('-ocsv', '--output-csv', action='store_true',
-                        help='Output CSV')
-    parser.add_argument('-oj', '--output-json', dest='output_jsn', action='store_true',
-                        help='Output JSON')
-    parser.add_argument('-ojf', '--output-json-full', dest='output_jsn_full', action='store_true',
-                        help='Output full JSON')
-    parser.add_argument('-olrc', '--output-lrc', action='store_true',
-                        help='Output LRC')
+    parser.add_argument("-otxt", "--output-txt", action="store_true", help="Output plain text")
+    parser.add_argument("-ovtt", "--output-vtt", action="store_true", help="Output WebVTT")
+    parser.add_argument("-osrt", "--output-srt", action="store_true", help="Output SRT")
+    parser.add_argument("-owts", "--output-wts", action="store_true", help="Output word timestamps")
+    parser.add_argument("-ocsv", "--output-csv", action="store_true", help="Output CSV")
+    parser.add_argument("-oj", "--output-json", dest="output_jsn", action="store_true", help="Output JSON")
+    parser.add_argument(
+        "-ojf", "--output-json-full", dest="output_jsn_full", action="store_true", help="Output full JSON"
+    )
+    parser.add_argument("-olrc", "--output-lrc", action="store_true", help="Output LRC")
 
     # Display options
-    parser.add_argument('-np', '--no-prints', action='store_true',
-                        help='No prints')
-    parser.add_argument('-ps', '--print-special', action='store_true',
-                        help='Print special tokens')
-    parser.add_argument('-pc', '--print-colors', action='store_true',
-                        help='Print with colors')
-    parser.add_argument('-pp', '--print-progress', action='store_true',
-                        help='Print progress')
-    parser.add_argument('-nt', '--no-timestamps', action='store_true',
-                        help='Do not print timestamps')
-    parser.add_argument('-ng', '--no-gpu', action='store_true',
-                        help='Disable GPU')
+    parser.add_argument("-np", "--no-prints", action="store_true", help="No prints")
+    parser.add_argument("-ps", "--print-special", action="store_true", help="Print special tokens")
+    parser.add_argument("-pc", "--print-colors", action="store_true", help="Print with colors")
+    parser.add_argument("-pp", "--print-progress", action="store_true", help="Print progress")
+    parser.add_argument("-nt", "--no-timestamps", action="store_true", help="Do not print timestamps")
+    parser.add_argument("-ng", "--no-gpu", action="store_true", help="Disable GPU")
 
     args = parser.parse_args()
 
@@ -623,5 +646,5 @@ def main():
             print(f"Error processing {input_file}: {e}", file=sys.stderr)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

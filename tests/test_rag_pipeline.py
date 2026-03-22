@@ -1,7 +1,6 @@
 """Tests for the RAG Pipeline classes."""
 
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -290,9 +289,7 @@ class TestRAGPipeline:
         sources = [
             SearchResult(id="1", text="Context here", score=0.9, metadata={}),
         ]
-        config = RAGConfig(
-            prompt_template="CONTEXT: {context}\nQUESTION: {question}\nANSWER:"
-        )
+        config = RAGConfig(prompt_template="CONTEXT: {context}\nQUESTION: {question}\nANSWER:")
         prompt = pipeline._format_prompt("What?", sources, config)
 
         assert "CONTEXT: Context here" in prompt

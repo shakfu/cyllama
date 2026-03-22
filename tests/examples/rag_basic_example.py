@@ -31,19 +31,22 @@ Example:
         """,
     )
     parser.add_argument(
-        "-e", "--embedding-model",
+        "-e",
+        "--embedding-model",
         type=str,
         required=True,
         help="Path to embedding model (GGUF file)",
     )
     parser.add_argument(
-        "-m", "--generation-model",
+        "-m",
+        "--generation-model",
         type=str,
         required=True,
         help="Path to generation model (GGUF file)",
     )
     parser.add_argument(
-        "-v", "--verbose",
+        "-v",
+        "--verbose",
         action="store_true",
         help="Enable verbose output",
     )
@@ -68,29 +71,24 @@ Example:
 
     # Configure RAG
     config = RAGConfig(
-        top_k=3,                    # Retrieve top 3 documents
-        similarity_threshold=0.3,   # Minimum similarity score
-        max_tokens=256,             # Maximum response length
-        temperature=0.7,            # Generation temperature
+        top_k=3,  # Retrieve top 3 documents
+        similarity_threshold=0.3,  # Minimum similarity score
+        max_tokens=256,  # Maximum response length
+        temperature=0.7,  # Generation temperature
     )
 
     # Knowledge base - sample documents about programming languages
     documents = [
         "Python was created by Guido van Rossum and first released in 1991. "
         "It emphasizes code readability and uses significant indentation.",
-
         "JavaScript was created by Brendan Eich in 1995 at Netscape. "
         "It is the primary language for web browsers and enables interactive web pages.",
-
         "Rust was first released in 2010 and developed by Mozilla. "
         "It focuses on memory safety without garbage collection.",
-
         "Go (Golang) was designed at Google and released in 2009. "
         "It was created by Robert Griesemer, Rob Pike, and Ken Thompson.",
-
         "TypeScript is a superset of JavaScript developed by Microsoft. "
         "It adds optional static typing and class-based programming.",
-
         "C++ was designed by Bjarne Stroustrup starting in 1979. "
         "It provides object-oriented features to the C language.",
     ]

@@ -21,6 +21,7 @@ from cyllama.agents.tools import tool
 
 def test_generate_json_tool_schema():
     """Test JSON format tool schema generation."""
+
     @tool
     def search(query: str, max_results: int = 5) -> str:
         """Search for information"""
@@ -31,11 +32,7 @@ def test_generate_json_tool_schema():
         """Calculate a math expression"""
         return 0.0
 
-    schema = generate_tool_call_schema(
-        [search, calculate],
-        allow_reasoning=True,
-        format=GrammarFormat.JSON
-    )
+    schema = generate_tool_call_schema([search, calculate], allow_reasoning=True, format=GrammarFormat.JSON)
 
     # Check structure
     assert schema["type"] == "object"
@@ -56,21 +53,19 @@ def test_generate_json_tool_schema():
 
 def test_generate_json_tool_schema_no_reasoning():
     """Test schema without reasoning field."""
+
     @tool
     def my_tool():
         return "result"
 
-    schema = generate_tool_call_schema(
-        [my_tool],
-        allow_reasoning=False,
-        format=GrammarFormat.JSON
-    )
+    schema = generate_tool_call_schema([my_tool], allow_reasoning=False, format=GrammarFormat.JSON)
 
     assert "reasoning" not in schema["properties"]
 
 
 def test_generate_json_array_tool_schema():
     """Test JSON array format for multiple tool calls."""
+
     @tool
     def tool1():
         return "1"
@@ -79,11 +74,7 @@ def test_generate_json_array_tool_schema():
     def tool2():
         return "2"
 
-    schema = generate_tool_call_schema(
-        [tool1, tool2],
-        allow_reasoning=True,
-        format=GrammarFormat.JSON_ARRAY
-    )
+    schema = generate_tool_call_schema([tool1, tool2], allow_reasoning=True, format=GrammarFormat.JSON_ARRAY)
 
     assert "tool_calls" in schema["properties"]
     assert schema["properties"]["tool_calls"]["type"] == "array"
@@ -92,15 +83,12 @@ def test_generate_json_array_tool_schema():
 
 def test_generate_function_call_schema():
     """Test OpenAI-style function call schema."""
+
     @tool
     def my_function(arg: str) -> str:
         return arg
 
-    schema = generate_tool_call_schema(
-        [my_function],
-        allow_reasoning=False,
-        format=GrammarFormat.FUNCTION_CALL
-    )
+    schema = generate_tool_call_schema([my_function], allow_reasoning=False, format=GrammarFormat.FUNCTION_CALL)
 
     assert "name" in schema["properties"]
     assert "arguments" in schema["properties"]
@@ -109,15 +97,12 @@ def test_generate_function_call_schema():
 
 def test_generate_tool_call_grammar():
     """Test grammar generation from tools."""
+
     @tool
     def search(query: str) -> str:
         return "results"
 
-    grammar = generate_tool_call_grammar(
-        [search],
-        allow_reasoning=True,
-        format=GrammarFormat.JSON
-    )
+    grammar = generate_tool_call_grammar([search], allow_reasoning=True, format=GrammarFormat.JSON)
 
     # Should return non-empty grammar string
     assert isinstance(grammar, str)
@@ -126,6 +111,7 @@ def test_generate_tool_call_grammar():
 
 def test_generate_answer_or_tool_schema():
     """Test schema for answer OR tool call."""
+
     @tool
     def my_tool(x: str) -> str:
         return x
@@ -140,6 +126,7 @@ def test_generate_answer_or_tool_schema():
 
 def test_generate_answer_or_tool_grammar():
     """Test grammar for answer or tool call."""
+
     @tool
     def calculator(expr: str) -> float:
         return 0.0
@@ -152,6 +139,7 @@ def test_generate_answer_or_tool_grammar():
 
 def test_generate_specific_tool_schema():
     """Test schema for specific tool with argument validation."""
+
     @tool
     def multiply(a: int, b: int) -> int:
         """
@@ -177,6 +165,7 @@ def test_generate_specific_tool_schema():
 
 def test_generate_specific_tool_grammar():
     """Test grammar for specific tool."""
+
     @tool
     def my_tool(param: str) -> str:
         return param
@@ -227,6 +216,7 @@ def test_grammar_cache_clear():
 
 def test_get_cached_tool_grammar():
     """Test cached tool grammar generation."""
+
     @tool
     def search(query: str) -> str:
         return "results"
@@ -235,27 +225,20 @@ def test_get_cached_tool_grammar():
     clear_grammar_cache()
 
     # First call generates and caches
-    grammar1 = get_cached_tool_grammar(
-        [search],
-        allow_reasoning=True,
-        format=GrammarFormat.JSON
-    )
+    grammar1 = get_cached_tool_grammar([search], allow_reasoning=True, format=GrammarFormat.JSON)
 
     assert isinstance(grammar1, str)
     assert len(grammar1) > 0
 
     # Second call should return same grammar (cached)
-    grammar2 = get_cached_tool_grammar(
-        [search],
-        allow_reasoning=True,
-        format=GrammarFormat.JSON
-    )
+    grammar2 = get_cached_tool_grammar([search], allow_reasoning=True, format=GrammarFormat.JSON)
 
     assert grammar1 == grammar2
 
 
 def test_cached_grammar_different_settings():
     """Test that different settings create different cache entries."""
+
     @tool
     def my_tool():
         return "result"
@@ -272,6 +255,7 @@ def test_cached_grammar_different_settings():
 
 def test_cached_grammar_different_tools():
     """Test that different tool sets create different grammars."""
+
     @tool
     def tool1():
         return "1"
@@ -291,6 +275,7 @@ def test_cached_grammar_different_tools():
 
 def test_invalid_format_raises_error():
     """Test that invalid format raises ValueError."""
+
     @tool
     def my_tool():
         return "result"
@@ -302,11 +287,7 @@ def test_invalid_format_raises_error():
 
 def test_grammar_with_empty_tools():
     """Test grammar generation with no tools."""
-    schema = generate_tool_call_schema(
-        [],
-        allow_reasoning=True,
-        format=GrammarFormat.JSON
-    )
+    schema = generate_tool_call_schema([], allow_reasoning=True, format=GrammarFormat.JSON)
 
     # Should still have valid structure
     assert "tool_name" in schema["properties"]
@@ -315,6 +296,7 @@ def test_grammar_with_empty_tools():
 
 def test_multiple_tools_schema():
     """Test schema with multiple diverse tools."""
+
     @tool
     def search(query: str, limit: int = 10) -> list:
         """Search with limit"""
@@ -330,11 +312,7 @@ def test_multiple_tools_schema():
         """Read file contents"""
         return ""
 
-    schema = generate_tool_call_schema(
-        [search, calculate, read_file],
-        allow_reasoning=True,
-        format=GrammarFormat.JSON
-    )
+    schema = generate_tool_call_schema([search, calculate, read_file], allow_reasoning=True, format=GrammarFormat.JSON)
 
     tool_names = schema["properties"]["tool_name"]["enum"]
     assert len(tool_names) == 3
@@ -350,6 +328,7 @@ def test_grammar_format_enum():
 
 def test_schema_is_valid_json():
     """Test that generated schemas are valid JSON-serializable."""
+
     @tool
     def my_tool(x: str, y: int = 5) -> str:
         return x

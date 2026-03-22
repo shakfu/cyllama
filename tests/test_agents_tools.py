@@ -8,6 +8,7 @@ from cyllama.agents.tools import Tool, tool, ToolRegistry, _python_type_to_json_
 
 def test_tool_decorator_basic():
     """Test basic tool decoration."""
+
     @tool
     def simple_func(x: str) -> str:
         """A simple function"""
@@ -21,6 +22,7 @@ def test_tool_decorator_basic():
 
 def test_tool_decorator_with_custom_name():
     """Test tool decorator with custom name."""
+
     @tool(name="custom_name", description="Custom description")
     def my_func():
         """Original doc"""
@@ -32,6 +34,7 @@ def test_tool_decorator_with_custom_name():
 
 def test_tool_execution():
     """Test that tool can be called."""
+
     @tool
     def add(a: int, b: int) -> int:
         """Add two numbers"""
@@ -43,6 +46,7 @@ def test_tool_execution():
 
 def test_tool_schema_generation():
     """Test automatic schema generation from function signature."""
+
     @tool
     def search(query: str, max_results: int = 5) -> list:
         """Search for something"""
@@ -72,6 +76,7 @@ def test_tool_schema_generation():
 
 def test_tool_with_google_docstring():
     """Test parameter description extraction from docstring."""
+
     @tool
     def function_with_docs(param1: str, param2: int) -> str:
         """
@@ -95,6 +100,7 @@ def test_tool_with_google_docstring():
 
 def test_tool_to_prompt_string():
     """Test prompt string generation."""
+
     @tool
     def my_tool(arg1: str, arg2: int = 10) -> str:
         """Does something useful"""
@@ -113,6 +119,7 @@ def test_tool_to_prompt_string():
 
 def test_tool_to_json_schema():
     """Test JSON schema export."""
+
     @tool
     def search(query: str) -> list:
         """Search the web"""
@@ -298,6 +305,7 @@ def test_tool_complex_types():
 
 def test_tool_no_parameters():
     """Test tool with no parameters."""
+
     @tool
     def no_params() -> str:
         """A tool with no parameters"""
@@ -313,6 +321,7 @@ def test_tool_no_parameters():
 
 def test_tool_without_type_hints():
     """Test tool without type hints defaults to string."""
+
     @tool
     def no_hints(x, y):
         """No type hints"""
@@ -328,6 +337,7 @@ def test_tool_without_type_hints():
 
 def test_tool_with_return_value():
     """Test tool execution returns correct value."""
+
     @tool
     def multiply(a: int, b: int) -> int:
         """Multiply two numbers"""
@@ -361,11 +371,13 @@ def test_registry_contains():
 # Type Hint Error Handling Tests
 # =============================================================================
 
+
 class TestTypeHintErrorHandling:
     """Test graceful handling of type hint errors."""
 
     def test_forward_reference_fallback(self):
         """Test that forward references fall back gracefully."""
+
         # This would fail with get_type_hints() if ForwardRef isn't defined
         @tool
         def func_with_string_annotation(x: "UndefinedType") -> str:
@@ -380,6 +392,7 @@ class TestTypeHintErrorHandling:
 
     def test_no_type_hints_works(self):
         """Test that functions without type hints still work."""
+
         @tool
         def no_hints_func(a, b, c):
             """No type hints at all"""
@@ -393,6 +406,7 @@ class TestTypeHintErrorHandling:
 
     def test_partial_type_hints(self):
         """Test function with partial type hints."""
+
         @tool
         def partial_hints(a: int, b, c: str):
             """Some hints missing"""
@@ -409,6 +423,7 @@ class TestTypeHintErrorHandling:
 # =============================================================================
 # Generic Type Support Tests
 # =============================================================================
+
 
 class TestGenericTypeSupport:
     """Test support for generic types in schemas."""
@@ -560,6 +575,7 @@ class TestGenericTypeSupport:
 
     def test_bytes_type(self):
         """Test bytes type."""
+
         @tool
         def func(data: bytes) -> int:
             """Bytes type"""
@@ -576,11 +592,13 @@ class TestGenericTypeSupport:
 # Docstring Parsing Tests
 # =============================================================================
 
+
 class TestDocstringParsing:
     """Test docstring parsing for multiple formats."""
 
     def test_google_style_simple(self):
         """Test simple Google-style docstring."""
+
         @tool
         def func(query: str, limit: int) -> list:
             """
@@ -603,6 +621,7 @@ class TestDocstringParsing:
 
     def test_google_style_with_types(self):
         """Test Google-style with type annotations in docstring."""
+
         @tool
         def func(name: str, count: int) -> str:
             """
@@ -625,6 +644,7 @@ class TestDocstringParsing:
 
     def test_google_style_multiline(self):
         """Test Google-style with multi-line descriptions."""
+
         @tool
         def func(data: str) -> str:
             """
@@ -649,6 +669,7 @@ class TestDocstringParsing:
 
     def test_numpy_style(self):
         """Test NumPy-style docstring."""
+
         @tool
         def func(x: float, y: float) -> float:
             """
@@ -666,7 +687,7 @@ class TestDocstringParsing:
             float
                 The distance
             """
-            return (x**2 + y**2)**0.5
+            return (x**2 + y**2) ** 0.5
 
         schema = func.parameters
         props = schema["properties"]
@@ -676,6 +697,7 @@ class TestDocstringParsing:
 
     def test_sphinx_style(self):
         """Test Sphinx/reST-style docstring."""
+
         @tool
         def func(path: str, mode: str) -> str:
             """
@@ -695,6 +717,7 @@ class TestDocstringParsing:
 
     def test_epytext_style(self):
         """Test Epytext-style docstring."""
+
         @tool
         def func(url: str, timeout: int) -> str:
             """
@@ -714,6 +737,7 @@ class TestDocstringParsing:
 
     def test_no_docstring(self):
         """Test tool without docstring."""
+
         @tool
         def func(x: int) -> int:
             return x * 2
@@ -726,6 +750,7 @@ class TestDocstringParsing:
 
     def test_docstring_no_params_section(self):
         """Test docstring without parameter section."""
+
         @tool
         def func(x: int) -> int:
             """Just a simple function that doubles."""

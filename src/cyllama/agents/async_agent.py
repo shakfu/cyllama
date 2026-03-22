@@ -75,7 +75,7 @@ class AsyncReActAgent:
         detect_loops: bool = True,
         max_consecutive_same_action: int = 3,
         max_consecutive_same_tool: int = 5,
-        **kwargs
+        **kwargs,
     ):
         """
         Initialize async ReAct agent.
@@ -165,16 +165,11 @@ class AsyncReActAgent:
         async def producer():
             """Run sync generator in thread and put items in queue."""
             try:
+
                 def generate_sync():
                     for event in self._agent.stream(task):
-                        asyncio.run_coroutine_threadsafe(
-                            queue.put(event),
-                            loop
-                        )
-                    asyncio.run_coroutine_threadsafe(
-                        queue.put(None),
-                        loop
-                    )
+                        asyncio.run_coroutine_threadsafe(queue.put(event), loop)
+                    asyncio.run_coroutine_threadsafe(queue.put(None), loop)
 
                 await asyncio.to_thread(generate_sync)
             except Exception as e:
@@ -222,7 +217,7 @@ class AsyncConstrainedAgent:
         system_prompt: Optional[str] = None,
         max_iterations: int = 10,
         verbose: bool = False,
-        **kwargs
+        **kwargs,
     ):
         """
         Initialize async constrained agent.
@@ -295,16 +290,11 @@ class AsyncConstrainedAgent:
 
         async def producer():
             try:
+
                 def generate_sync():
                     for event in self._agent.stream(task):
-                        asyncio.run_coroutine_threadsafe(
-                            queue.put(event),
-                            loop
-                        )
-                    asyncio.run_coroutine_threadsafe(
-                        queue.put(None),
-                        loop
-                    )
+                        asyncio.run_coroutine_threadsafe(queue.put(event), loop)
+                    asyncio.run_coroutine_threadsafe(queue.put(None), loop)
 
                 await asyncio.to_thread(generate_sync)
             except Exception as e:
@@ -327,10 +317,7 @@ class AsyncConstrainedAgent:
                 await producer_task
 
 
-async def run_agent_async(
-    agent: Union[ReActAgent, ConstrainedAgent],
-    task: str
-) -> AgentResult:
+async def run_agent_async(agent: Union[ReActAgent, ConstrainedAgent], task: str) -> AgentResult:
     """
     Run any synchronous agent asynchronously.
 

@@ -18,16 +18,14 @@ import argparse
 from pathlib import Path
 from cyllama import LLM, GenerationConfig
 from cyllama.agents import ReActAgent, tool
-from cyllama.utils.color import (
-    header, section, subsection, subheader, success, error, info,
-    bullet, numbered, kv, divider
-)
+from cyllama.utils.color import header, section, subsection, subheader, success, error, info, bullet, numbered, kv
 import subprocess
 import tempfile
 import os
 
 
 # Define code assistant tools
+
 
 @tool
 def read_file(filepath: str) -> str:
@@ -43,7 +41,7 @@ def read_file(filepath: str) -> str:
     try:
         # For demo, we'll use mock files
         mock_files = {
-            "calculator.py": '''def add(a, b):
+            "calculator.py": """def add(a, b):
     return a + b
 
 def subtract(a, b):
@@ -56,8 +54,8 @@ def divide(a, b):
     if b == 0:
         raise ValueError("Cannot divide by zero")
     return a / b
-''',
-            "test_calculator.py": '''from calculator import add, subtract, multiply, divide
+""",
+            "test_calculator.py": """from calculator import add, subtract, multiply, divide
 
 def test_add():
     assert add(2, 3) == 5
@@ -76,7 +74,7 @@ def test_divide():
         assert False, "Should raise ValueError"
     except ValueError:
         pass
-'''
+""",
         }
 
         if filepath in mock_files:
@@ -102,7 +100,7 @@ def write_file(filepath: str, content: str) -> str:
     """
     try:
         # For demo, we just confirm the write
-        lines = content.count('\n') + 1
+        lines = content.count("\n") + 1
         chars = len(content)
         return f"Successfully wrote {lines} lines ({chars} characters) to {filepath}"
     except Exception as e:
@@ -122,18 +120,13 @@ def run_python_code(code: str) -> str:
     """
     try:
         # Create a temporary file
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
             f.write(code)
             temp_file = f.name
 
         try:
             # Run the code
-            result = subprocess.run(
-                ['python3', temp_file],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
+            result = subprocess.run(["python3", temp_file], capture_output=True, text=True, timeout=5)
 
             output = result.stdout if result.stdout else result.stderr
             return output if output else "Code executed successfully (no output)"
@@ -176,7 +169,7 @@ test_broken.py::test_failing FAILED
 FAILED test_broken.py::test_failing - AssertionError: expected 5, got 4
 
 ==== 1 failed in 0.03s ====
-"""
+""",
     }
 
     return mock_results.get(test_file, f"No tests found in {test_file}")
@@ -196,7 +189,7 @@ def lint_code(code: str) -> str:
     issues = []
 
     # Simple lint checks
-    lines = code.split('\n')
+    lines = code.split("\n")
 
     for i, line in enumerate(lines):
         line_num = i + 1  # Human-readable line number
@@ -206,11 +199,11 @@ def lint_code(code: str) -> str:
             issues.append(f"Line {line_num}: Line too long ({len(line)} > 100 characters)")
 
         # Check for missing docstrings in functions
-        if line.strip().startswith('def ') and ':' in line:
+        if line.strip().startswith("def ") and ":" in line:
             # Check if next line starts a docstring
             next_idx = i + 1
             if next_idx >= len(lines) or not lines[next_idx].strip().startswith(('"""', "'''")):
-                func_name = line.split('def ')[1].split('(')[0]
+                func_name = line.split("def ")[1].split("(")[0]
                 issues.append(f"Line {line_num}: Function '{func_name}' missing docstring")
 
     if not issues:
@@ -237,7 +230,7 @@ def generate_function(name: str, description: str, parameters: str) -> str:
     {description}
 
     Args:
-        {parameters.replace(',', '\\n        ')}
+        {parameters.replace(",", chr(10) + "        ")}
 
     Returns:
         TODO: Add return type description
@@ -253,8 +246,8 @@ def find_model() -> Path:
 
     # Preferred models in order
     candidates = [
-        ROOT / 'models' / 'Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf',
-        ROOT / 'models' / 'Llama-3.2-1B-Instruct-Q8_0.gguf',
+        ROOT / "models" / "Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf",
+        ROOT / "models" / "Llama-3.2-1B-Instruct-Q8_0.gguf",
     ]
 
     for path in candidates:
@@ -268,20 +261,13 @@ def example_code_reading(llm: LLM):
     """Demonstrate reading and analyzing code."""
     section("CODE READING AND ANALYSIS EXAMPLE")
 
-    agent = ReActAgent(
-        llm=llm,
-        tools=[read_file, lint_code],
-        max_iterations=5,
-        verbose=True
-    )
+    agent = ReActAgent(llm=llm, tools=[read_file, lint_code], max_iterations=5, verbose=True)
 
-    subsection("Task: Read and analyze calculator.py", color='yellow')
+    subsection("Task: Read and analyze calculator.py", color="yellow")
 
-    result = agent.run(
-        "Read calculator.py and check it for code style issues using the linter"
-    )
+    result = agent.run("Read calculator.py and check it for code style issues using the linter")
 
-    subsection("RESULT", color='bright_green')
+    subsection("RESULT", color="bright_green")
     kv("Answer", result.answer)
 
 
@@ -289,21 +275,16 @@ def example_code_generation(llm: LLM):
     """Demonstrate generating new code."""
     section("CODE GENERATION EXAMPLE")
 
-    agent = ReActAgent(
-        llm=llm,
-        tools=[generate_function, write_file],
-        max_iterations=5,
-        verbose=True
-    )
+    agent = ReActAgent(llm=llm, tools=[generate_function, write_file], max_iterations=5, verbose=True)
 
-    subsection("Task: Generate a power function", color='yellow')
+    subsection("Task: Generate a power function", color="yellow")
 
     result = agent.run(
         "Generate a Python function called 'power' that raises a number to an exponent, "
         "with parameters base: float and exponent: int"
     )
 
-    subsection("RESULT", color='bright_green')
+    subsection("RESULT", color="bright_green")
     kv("Answer", result.answer)
 
 
@@ -311,20 +292,13 @@ def example_test_running(llm: LLM):
     """Demonstrate running tests."""
     section("TEST EXECUTION EXAMPLE")
 
-    agent = ReActAgent(
-        llm=llm,
-        tools=[run_tests, read_file],
-        max_iterations=5,
-        verbose=True
-    )
+    agent = ReActAgent(llm=llm, tools=[run_tests, read_file], max_iterations=5, verbose=True)
 
-    subsection("Task: Run tests for calculator", color='yellow')
+    subsection("Task: Run tests for calculator", color="yellow")
 
-    result = agent.run(
-        "Run the tests in test_calculator.py and tell me if they all pass"
-    )
+    result = agent.run("Run the tests in test_calculator.py and tell me if they all pass")
 
-    subsection("RESULT", color='bright_green')
+    subsection("RESULT", color="bright_green")
     kv("Answer", result.answer)
 
 
@@ -332,21 +306,16 @@ def example_code_execution(llm: LLM):
     """Demonstrate executing code."""
     section("CODE EXECUTION EXAMPLE")
 
-    agent = ReActAgent(
-        llm=llm,
-        tools=[run_python_code],
-        max_iterations=5,
-        verbose=True
-    )
+    agent = ReActAgent(llm=llm, tools=[run_python_code], max_iterations=5, verbose=True)
 
-    subsection("Task: Execute a simple Python script", color='yellow')
+    subsection("Task: Execute a simple Python script", color="yellow")
 
     result = agent.run(
         "Write and execute Python code that prints the first 10 Fibonacci numbers. "
         "Use the run_python_code tool with the 'code' parameter containing the Python code."
     )
 
-    subsection("RESULT", color='bright_green')
+    subsection("RESULT", color="bright_green")
     kv("Answer", result.answer)
 
 
@@ -354,27 +323,27 @@ def show_use_cases():
     """Show practical use cases."""
     section("PRACTICAL USE CASES")
 
-    subheader("1. CODE REVIEW ASSISTANT", color='cyan')
+    subheader("1. CODE REVIEW ASSISTANT", color="cyan")
     bullet("Agent reads code, runs linter, suggests improvements")
 
     print()
-    subheader("2. TEST GENERATOR", color='cyan')
+    subheader("2. TEST GENERATOR", color="cyan")
     bullet("Agent reads function, generates comprehensive test cases")
 
     print()
-    subheader("3. BUG FIXER", color='cyan')
+    subheader("3. BUG FIXER", color="cyan")
     bullet("Agent reads code, runs tests, identifies failures, suggests fixes")
 
     print()
-    subheader("4. DOCUMENTATION WRITER", color='cyan')
+    subheader("4. DOCUMENTATION WRITER", color="cyan")
     bullet("Agent reads code, generates docstrings and README")
 
     print()
-    subheader("5. REFACTORING ASSISTANT", color='cyan')
+    subheader("5. REFACTORING ASSISTANT", color="cyan")
     bullet("Agent analyzes code structure, suggests refactorings")
 
     print()
-    subheader("6. CODE EXPLAINER", color='cyan')
+    subheader("6. CODE EXPLAINER", color="cyan")
     bullet("Agent reads complex code, explains what it does")
 
 
@@ -388,19 +357,12 @@ Examples:
     python agent_code_assistant.py
     python agent_code_assistant.py /path/to/model.gguf
     python agent_code_assistant.py models/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf
-        """
+        """,
     )
     parser.add_argument(
-        'model_path',
-        nargs='?',
-        type=str,
-        help='Path to GGUF model file (optional, will auto-detect if not provided)'
+        "model_path", nargs="?", type=str, help="Path to GGUF model file (optional, will auto-detect if not provided)"
     )
-    parser.add_argument(
-        '--verbose', '-v',
-        action='store_true',
-        help='Enable verbose model output'
-    )
+    parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose model output")
 
     args = parser.parse_args()
 
@@ -420,13 +382,15 @@ Examples:
     header("CODE ASSISTANT AGENT EXAMPLES")
 
     print("\nThis example demonstrates:")
-    numbered([
-        "Reading and analyzing code files",
-        "Generating new code from descriptions",
-        "Running tests and interpreting results",
-        "Executing code and checking output",
-        "Code quality checking (linting)"
-    ])
+    numbered(
+        [
+            "Reading and analyzing code files",
+            "Generating new code from descriptions",
+            "Running tests and interpreting results",
+            "Executing code and checking output",
+            "Code quality checking (linting)",
+        ]
+    )
 
     # Show use cases
     show_use_cases()

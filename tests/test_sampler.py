@@ -1,7 +1,6 @@
 import cyllama.llama.llama_cpp as cy
 
 
-
 def test_sampler_instance():
     sparams = cy.LlamaSamplerChainParams()
     sparams.no_perf = False

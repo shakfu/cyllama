@@ -28,14 +28,14 @@ class TextSplitter:
     # Default separators in order of preference
     DEFAULT_SEPARATORS = [
         "\n\n",  # Paragraph breaks
-        "\n",    # Line breaks
-        ". ",    # Sentence endings
-        "! ",    # Exclamation
-        "? ",    # Question
-        "; ",    # Semicolon
-        ", ",    # Comma
-        " ",     # Word breaks
-        "",      # Character level (last resort)
+        "\n",  # Line breaks
+        ". ",  # Sentence endings
+        "! ",  # Exclamation
+        "? ",  # Question
+        "; ",  # Semicolon
+        ", ",  # Comma
+        " ",  # Word breaks
+        "",  # Character level (last resort)
     ]
 
     def __init__(
@@ -70,10 +70,7 @@ class TextSplitter:
         if chunk_overlap < 0:
             raise ValueError(f"chunk_overlap must be non-negative, got {chunk_overlap}")
         if chunk_overlap >= chunk_size:
-            raise ValueError(
-                f"chunk_overlap ({chunk_overlap}) must be less than "
-                f"chunk_size ({chunk_size})"
-            )
+            raise ValueError(f"chunk_overlap ({chunk_overlap}) must be less than chunk_size ({chunk_size})")
 
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
@@ -143,7 +140,7 @@ class TextSplitter:
                 break
             if sep in text:
                 separator = sep
-                new_separators = separators[i + 1:]
+                new_separators = separators[i + 1 :]
                 break
 
         # Split the text
@@ -220,8 +217,8 @@ class TextSplitter:
         Returns:
             List of merged chunks
         """
-        chunks = []
-        current_chunk = []
+        chunks: list[str] = []
+        current_chunk: list[str] = []
         current_length = 0
 
         for split in splits:
@@ -237,9 +234,7 @@ class TextSplitter:
                         chunks.append(chunk_text)
 
                     # Start new chunk with overlap
-                    current_chunk, current_length = self._get_overlap_start(
-                        current_chunk, separator
-                    )
+                    current_chunk, current_length = self._get_overlap_start(current_chunk, separator)
 
             current_chunk.append(split)
             current_length += separator_length + split_length
@@ -252,9 +247,7 @@ class TextSplitter:
 
         return chunks
 
-    def _get_overlap_start(
-        self, chunks: list[str], separator: str
-    ) -> tuple[list[str], int]:
+    def _get_overlap_start(self, chunks: list[str], separator: str) -> tuple[list[str], int]:
         """Get the overlap portion from the end of chunks.
 
         Args:
@@ -267,7 +260,7 @@ class TextSplitter:
         if self.chunk_overlap == 0:
             return [], 0
 
-        overlap_chunks = []
+        overlap_chunks: list[str] = []
         overlap_length = 0
 
         # Work backwards to get overlap
@@ -329,10 +322,7 @@ class TextSplitter:
         return text
 
     def __repr__(self) -> str:
-        return (
-            f"TextSplitter(chunk_size={self.chunk_size}, "
-            f"chunk_overlap={self.chunk_overlap})"
-        )
+        return f"TextSplitter(chunk_size={self.chunk_size}, chunk_overlap={self.chunk_overlap})"
 
 
 class TokenTextSplitter(TextSplitter):
@@ -383,10 +373,7 @@ class TokenTextSplitter(TextSplitter):
         self._tokenizer = tokenizer
 
     def __repr__(self) -> str:
-        return (
-            f"TokenTextSplitter(chunk_size={self.chunk_size}, "
-            f"chunk_overlap={self.chunk_overlap})"
-        )
+        return f"TokenTextSplitter(chunk_size={self.chunk_size}, chunk_overlap={self.chunk_overlap})"
 
 
 class MarkdownSplitter(TextSplitter):
@@ -453,7 +440,4 @@ class MarkdownSplitter(TextSplitter):
         )
 
     def __repr__(self) -> str:
-        return (
-            f"MarkdownSplitter(chunk_size={self.chunk_size}, "
-            f"chunk_overlap={self.chunk_overlap})"
-        )
+        return f"MarkdownSplitter(chunk_size={self.chunk_size}, chunk_overlap={self.chunk_overlap})"

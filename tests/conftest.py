@@ -8,7 +8,6 @@ This module provides:
 - Custom pytest markers
 """
 
-import sys
 from pathlib import Path
 
 import pytest
@@ -126,6 +125,7 @@ def llm_shared(model_path: str):
 def fast_config():
     """GenerationConfig optimized for fast testing (low max_tokens)."""
     from cyllama import GenerationConfig
+
     return GenerationConfig(max_tokens=32, temperature=0.7, n_gpu_layers=99)
 
 
@@ -133,6 +133,7 @@ def fast_config():
 def deterministic_config():
     """GenerationConfig for deterministic output (temperature=0)."""
     from cyllama import GenerationConfig
+
     return GenerationConfig(max_tokens=64, temperature=0.0)
 
 
@@ -168,18 +169,10 @@ def multi_turn_messages():
 
 def pytest_configure(config):
     """Register custom markers."""
-    config.addinivalue_line(
-        "markers", "slow: marks tests as slow (deselect with '-m \"not slow\"')"
-    )
-    config.addinivalue_line(
-        "markers", "integration: marks tests as integration tests"
-    )
-    config.addinivalue_line(
-        "markers", "requires_model: marks tests that require the test model"
-    )
-    config.addinivalue_line(
-        "markers", "gpu: marks tests that require GPU acceleration"
-    )
+    config.addinivalue_line("markers", "slow: marks tests as slow (deselect with '-m \"not slow\"')")
+    config.addinivalue_line("markers", "integration: marks tests as integration tests")
+    config.addinivalue_line("markers", "requires_model: marks tests that require the test model")
+    config.addinivalue_line("markers", "gpu: marks tests that require GPU acceleration")
 
 
 def pytest_collection_modifyitems(config, items):

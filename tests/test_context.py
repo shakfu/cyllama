@@ -4,9 +4,10 @@ import cyllama.llama.llama_cpp as cy
 
 PLATFORM = platform.system()
 
+
 def test_context(model_path):
     # need to wrap in a thread here.
-    cy.llama_backend_init()    
+    cy.llama_backend_init()
     model = cy.LlamaModel(model_path)
     ctx = cy.LlamaContext(model)
     assert ctx.model is model
@@ -19,11 +20,13 @@ def test_context(model_path):
     # context params
     cy.llama_backend_free()
 
+
 def test_context_params():
     params = cy.LlamaContextParams()
     assert params.n_threads == 4
     assert params.n_batch == 2048
     assert params.n_ctx == 512
+
 
 def test_context_params_set():
     params = cy.LlamaContextParams()

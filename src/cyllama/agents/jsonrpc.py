@@ -10,7 +10,7 @@ import threading
 import queue
 import logging
 from typing import Any, Callable, Dict, Generator, Optional, Union
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import IntEnum
 
 logger = logging.getLogger(__name__)
@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 class ErrorCode(IntEnum):
     """JSON-RPC 2.0 error codes."""
+
     # Standard JSON-RPC errors
     PARSE_ERROR = -32700
     INVALID_REQUEST = -32600
@@ -35,6 +36,7 @@ class ErrorCode(IntEnum):
 @dataclass
 class JsonRpcError:
     """JSON-RPC error object."""
+
     code: int
     message: str
     data: Optional[Any] = None
@@ -47,16 +49,13 @@ class JsonRpcError:
 
     @classmethod
     def from_dict(cls, d: dict) -> "JsonRpcError":
-        return cls(
-            code=d["code"],
-            message=d["message"],
-            data=d.get("data")
-        )
+        return cls(code=d["code"], message=d["message"], data=d.get("data"))
 
 
 @dataclass
 class JsonRpcRequest:
     """JSON-RPC request message."""
+
     method: str
     params: Optional[Dict[str, Any]] = None
     id: Optional[Union[str, int]] = None  # None for notifications
@@ -71,11 +70,7 @@ class JsonRpcRequest:
 
     @classmethod
     def from_dict(cls, d: dict) -> "JsonRpcRequest":
-        return cls(
-            method=d["method"],
-            params=d.get("params"),
-            id=d.get("id")
-        )
+        return cls(method=d["method"], params=d.get("params"), id=d.get("id"))
 
     @property
     def is_notification(self) -> bool:
@@ -85,6 +80,7 @@ class JsonRpcRequest:
 @dataclass
 class JsonRpcResponse:
     """JSON-RPC response message."""
+
     id: Union[str, int, None]
     result: Optional[Any] = None
     error: Optional[JsonRpcError] = None
@@ -102,11 +98,7 @@ class JsonRpcResponse:
         error = None
         if "error" in d:
             error = JsonRpcError.from_dict(d["error"])
-        return cls(
-            id=d.get("id"),
-            result=d.get("result"),
-            error=error
-        )
+        return cls(id=d.get("id"), result=d.get("result"), error=error)
 
     @property
     def is_error(self) -> bool:
@@ -221,10 +213,7 @@ class JsonRpcServer:
         self._transport.write_message(msg)
 
     def send_request(
-        self,
-        method: str,
-        params: Optional[dict] = None,
-        timeout: Optional[float] = None
+        self, method: str, params: Optional[dict] = None, timeout: Optional[float] = None
     ) -> JsonRpcResponse:
         """
         Send a request and wait for response.
@@ -281,10 +270,7 @@ class JsonRpcServer:
                 return None
             return JsonRpcResponse(
                 id=request.id,
-                error=JsonRpcError(
-                    code=ErrorCode.METHOD_NOT_FOUND,
-                    message=f"Method not found: {request.method}"
-                )
+                error=JsonRpcError(code=ErrorCode.METHOD_NOT_FOUND, message=f"Method not found: {request.method}"),
             )
 
         try:
@@ -300,13 +286,7 @@ class JsonRpcServer:
             logger.exception("Error handling %s", request.method)
             if request.is_notification:
                 return None
-            return JsonRpcResponse(
-                id=request.id,
-                error=JsonRpcError(
-                    code=ErrorCode.INTERNAL_ERROR,
-                    message=str(e)
-                )
-            )
+            return JsonRpcResponse(id=request.id, error=JsonRpcError(code=ErrorCode.INTERNAL_ERROR, message=str(e)))
 
     def serve(self) -> None:
         """
