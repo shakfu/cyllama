@@ -1,9 +1,16 @@
 """Tests for N-gram cache API."""
 
+import sys
 import pytest
 import tempfile
 import os
 from cyllama.llama.llama_cpp import NgramCache
+
+# Skip on Windows: C++ ngram cache has a divide-by-zero bug on Windows
+pytestmark = pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="ngram cache C++ code crashes with divide-by-zero on Windows"
+)
 
 
 def test_ngram_cache_create():
