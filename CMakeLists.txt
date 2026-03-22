@@ -402,13 +402,13 @@ function(add_cython_extension target_name pyx_file)
 
         # Other libs that don't need whole-archive
         # Note: SD libs are NOT included here - SD extension links its own ggml
-        set(_OTHER_LIBS ${LIB_COMMON} ${LIB_LLAMA} ${LIB_MTMD})
+        set(_OTHER_LIBS ${LIB_COMMON} ${LIB_CPP_HTTPLIB} ${LIB_LLAMA} ${LIB_MTMD})
         if(WITH_WHISPER)
             list(APPEND _OTHER_LIBS ${LIB_WHISPER_COMMON} ${LIB_WHISPER})
         endif()
 
         target_link_libraries(${target_name} PRIVATE
-            -Wl,--whole-archive ${_GGML_LIBS} -Wl,--no-whole-archive
+            -Wl,--whole-archive ${_GGML_LIBS} ${LIB_CPP_HTTPLIB} -Wl,--no-whole-archive
             ${_OTHER_LIBS}
             ${SYSTEM_LIBS}
         )
