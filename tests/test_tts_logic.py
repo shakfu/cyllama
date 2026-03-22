@@ -46,10 +46,11 @@ def test_cython_optimizations():
         import os
         test_data = [0.1, 0.2, -0.1, -0.2] * 100
         with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp:
-            success = save_wav16(tmp.name, test_data, 24000)
-            file_size = os.path.getsize(tmp.name)
-            print(f"WAV save test: {'SUCCESS' if success else 'FAILED'} ({file_size} bytes)")
-            os.unlink(tmp.name)
+            tmp_name = tmp.name
+        success = save_wav16(tmp_name, test_data, 24000)
+        file_size = os.path.getsize(tmp_name)
+        print(f"WAV save test: {'SUCCESS' if success else 'FAILED'} ({file_size} bytes)")
+        os.unlink(tmp_name)
 
         assert True
 

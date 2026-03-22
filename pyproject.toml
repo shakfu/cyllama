@@ -119,7 +119,7 @@ manylinux-aarch64-image = "manylinux2014"
 
 # Install build dependencies and build thirdparty libs (once for all Python versions)
 # Use /opt/python/cp310 since system python3 is 3.6 on manylinux2014 (too old for manage.py)
-before-all = "yum install -y git && /opt/python/cp310-cp310/bin/pip install cmake ninja && /opt/python/cp310-cp310/bin/python scripts/manage.py build --all --deps-only"
+before-all = "yum install -y git && /opt/python/cp310-cp310/bin/pip install cmake ninja && PATH=/opt/python/cp310-cp310/bin:$PATH /opt/python/cp310-cp310/bin/python scripts/manage.py build --all --deps-only"
 
 # Environment variables for Linux builds
 environment = { GGML_METAL = "0" }
