@@ -65,7 +65,7 @@ jobs:
             GGML_CUDA=1
             GGML_METAL=0
             CUDA_PATH=/usr/local/cuda
-            CMAKE_CUDA_ARCHITECTURES=70-real;75-real;80-real;86-real;89-real;90
+            CMAKE_CUDA_ARCHITECTURES="70-real;75-real;80-real;86-real;89-real;90"
             PATH=/usr/local/cuda/bin:$PATH
             LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
             CFLAGS=-s
@@ -128,7 +128,7 @@ jobs:
             GGML_CUDA=1
             GGML_METAL=0
             CUDA_PATH=/usr/local/cuda
-            CMAKE_CUDA_ARCHITECTURES=70-real;75-real;80-real;86-real;89-real;90
+            CMAKE_CUDA_ARCHITECTURES="70-real;75-real;80-real;86-real;89-real;90"
             PATH=/usr/local/cuda/bin:$PATH
             LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
             CFLAGS=-s
