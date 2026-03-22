@@ -399,6 +399,7 @@ cdef extern from "ggml-backend.h":
     cdef size_t             ggml_backend_reg_count()
     cdef ggml_backend_reg_t ggml_backend_reg_get(size_t index)
     cdef ggml_backend_reg_t ggml_backend_reg_by_name(const char * name)
+    cdef const char *       ggml_backend_reg_name(ggml_backend_reg_t reg)
 
     # Device enumeration
     cdef size_t             ggml_backend_dev_count()

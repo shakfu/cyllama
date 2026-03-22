@@ -17,9 +17,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+### Fixed
+
+- **CUDA Wheel Size** - Reduced CUDA wheels from ~512 MB to ~50-80 MB
+  - Fixed auditwheel exclude patterns to use versioned SONAMEs (`libcublas.so.12`, `libcublasLt.so.12`) preventing 526 MB of cuBLAS from being bundled
+  - Limited CUDA architectures to `75;80;86;89;90` (Turing through Hopper) instead of compiling for all architectures
+  - Fixed Vulkan job name showing unresolved `${{ matrix.os }}` when skipped
+
 ## [0.1.21]
 
 ### Added
+
+- **CLI Info Command** - Added `python -m cyllama info` to show build and backend information
+  - Displays cyllama version, Python version, and platform
+  - llama.cpp: ggml version/commit, registered backends (MTL, CUDA, CPU, etc.), device enumeration with type and description, GPU offload/MMAP/MLOCK/RPC support
+  - whisper.cpp: version, detected backends, CPU features
+  - stable-diffusion.cpp: inferred backends, CPU features
+  - Added `ggml_backend_reg_count()`, `ggml_backend_reg_names()`, `ggml_backend_dev_count()`, `ggml_backend_dev_info()` Python wrappers in `llama_cpp.pyx`
+  - Added `ggml_backend_reg_name()` declaration to `ggml.pxd`
+  - Also supports `python -m cyllama version`
 
 - **Code Quality Tooling** - Added Makefile targets and configuration for linting, formatting, and type checking
   - `make lint`: ruff check with auto-fix

@@ -1,0 +1,151 @@
+"""cyllama CLI: python -m cyllama [command]"""
+
+import platform
+import sys
+
+
+def _parse_system_info(info_str: str) -> dict[str, str]:
+    """Parse 'KEY = VALUE | KEY2 = VALUE2 |' format into a dict."""
+    result = {}
+    for part in info_str.split("|"):
+        part = part.strip()
+        if "=" in part:
+            key, val = part.split("=", 1)
+            result[key.strip()] = val.strip()
+    return result
+
+
+def _cpu_features_from_info(info: dict[str, str]) -> list[str]:
+    """Extract enabled CPU features from system info dict."""
+    cpu_keys = [
+        "NEON",
+        "AVX",
+        "AVX2",
+        "AVX512",
+        "FMA",
+        "ARM_FMA",
+        "F16C",
+        "FP16_VA",
+        "DOTPROD",
+        "SSE3",
+        "WASM_SIMD",
+        "VSX",
+    ]
+    features = []
+    for key in cpu_keys:
+        for info_key, val in info.items():
+            if info_key.strip().endswith(key) and val == "1":
+                features.append(key)
+                break
+    return features
+
+
+def cmd_info():
+    """Print build and backend information."""
+    from . import __version__
+
+    print(f"cyllama {__version__}")
+    print(f"Python {platform.python_version()} ({platform.platform()})")
+    print()
+
+    # llama.cpp
+    print("llama.cpp:")
+    try:
+        from .llama import llama_cpp as cy
+
+        cy.llama_backend_init()
+        print(f"  ggml version:  {cy.ggml_version()}")
+        print(f"  ggml commit:   {cy.ggml_commit()}")
+        print(f"  registries:    {', '.join(cy.ggml_backend_reg_names())}")
+        devices = cy.ggml_backend_dev_info()
+        if devices:
+            print("  devices:")
+            for dev in devices:
+                print(f"    {dev['name']:20s} [{dev['type']:5s}]  {dev['description']}")
+        print(f"  GPU offload:   {cy.llama_supports_gpu_offload()}")
+        print(f"  MMAP support:  {cy.llama_supports_mmap()}")
+        print(f"  MLOCK support: {cy.llama_supports_mlock()}")
+        print(f"  RPC support:   {cy.llama_supports_rpc()}")
+    except Exception as e:
+        print(f"  not available ({e})")
+
+    print()
+
+    # whisper.cpp
+    print("whisper.cpp:")
+    try:
+        from .whisper import whisper_cpp
+
+        info_str = whisper_cpp.print_system_info()
+        print(f"  version:       {whisper_cpp.version()}")
+        info = _parse_system_info(info_str)
+        features = _cpu_features_from_info(info)
+        # Extract backends from system info
+        backend_keys = {"MTL": "Metal", "CUDA": "CUDA", "VULKAN": "Vulkan", "COREML": "CoreML", "OPENVINO": "OpenVINO"}
+        backends = []
+        for key, name in backend_keys.items():
+            for info_key, val in info.items():
+                if key in info_key and val == "1":
+                    backends.append(name)
+                    break
+        print(f"  backends:      {', '.join(backends) if backends else 'CPU'}")
+        if features:
+            print(f"  CPU features:  {', '.join(features)}")
+    except Exception as e:
+        print(f"  not available ({e})")
+
+    print()
+
+    # stable-diffusion.cpp
+    print("stable-diffusion.cpp:")
+    try:
+        from .sd import get_system_info
+
+        info_str = get_system_info()
+        info = _parse_system_info(info_str)
+        features = _cpu_features_from_info(info)
+        # SD doesn't report backends via system_info, so infer from llama.cpp's
+        # ggml registry (SD uses the same ggml build on macOS/CUDA)
+        try:
+            from .llama import llama_cpp as cy
+
+            regs = cy.ggml_backend_reg_names()
+            sd_backends = [r for r in regs if r not in ("CPU", "BLAS")]
+            print(f"  backends:      {', '.join(sd_backends) if sd_backends else 'CPU'}")
+        except Exception:
+            print("  backends:      unknown")
+        if features:
+            print(f"  CPU features:  {', '.join(features)}")
+    except Exception as e:
+        print(f"  not available ({e})")
+
+
+def cmd_version():
+    """Print version."""
+    from . import __version__
+
+    print(__version__)
+
+
+def main():
+    if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help"):
+        print("Usage: python -m cyllama <command>")
+        print()
+        print("Commands:")
+        print("  info      Show build and backend information")
+        print("  version   Show version")
+        return 0
+
+    cmd = sys.argv[1]
+    if cmd == "info":
+        cmd_info()
+    elif cmd == "version":
+        cmd_version()
+    else:
+        print(f"Unknown command: {cmd}")
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

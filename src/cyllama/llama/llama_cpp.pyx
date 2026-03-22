@@ -2919,6 +2919,47 @@ def ggml_commit() -> str:
 def ggml_backend_load_all():
     ggml.ggml_backend_load_all()
 
+def ggml_backend_reg_count() -> int:
+    """Return the number of registered backend registries."""
+    return ggml.ggml_backend_reg_count()
+
+def ggml_backend_reg_names() -> list:
+    """Return the names of all registered backend registries."""
+    cdef size_t n = ggml.ggml_backend_reg_count()
+    names = []
+    for i in range(n):
+        reg = ggml.ggml_backend_reg_get(i)
+        names.append(ggml.ggml_backend_reg_name(reg).decode())
+    return names
+
+def ggml_backend_dev_count() -> int:
+    """Return the number of available backend devices."""
+    return ggml.ggml_backend_dev_count()
+
+def ggml_backend_dev_info() -> list:
+    """Return info for all available backend devices.
+
+    Returns a list of dicts with keys: name, description, type.
+    Type is one of: 'CPU', 'GPU', 'iGPU', 'ACCEL'.
+    """
+    cdef size_t n = ggml.ggml_backend_dev_count()
+    type_names = {
+        ggml.GGML_BACKEND_DEVICE_TYPE_CPU: "CPU",
+        ggml.GGML_BACKEND_DEVICE_TYPE_GPU: "GPU",
+        ggml.GGML_BACKEND_DEVICE_TYPE_IGPU: "iGPU",
+        ggml.GGML_BACKEND_DEVICE_TYPE_ACCEL: "ACCEL",
+    }
+    devices = []
+    for i in range(n):
+        dev = ggml.ggml_backend_dev_get(i)
+        dev_type = ggml.ggml_get_backend_dev_type(dev)
+        devices.append({
+            "name": ggml.ggml_backend_dev_name(dev).decode(),
+            "description": ggml.ggml_backend_dev_description(dev).decode(),
+            "type": type_names.get(dev_type, "unknown"),
+        })
+    return devices
+
 def ggml_time_us() -> int:
     return ggml.ggml_time_us()
 
