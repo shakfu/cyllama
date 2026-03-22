@@ -68,6 +68,7 @@ jobs:
             LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
             auditwheel repair -w {dest_dir} {wheel}
+            --exclude libcuda.so.1
             --exclude libcudart.so
             --exclude libcublas.so
             --exclude libcublasLt.so
@@ -125,6 +126,7 @@ jobs:
             LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
             auditwheel repair -w {dest_dir} {wheel}
+            --exclude libcuda.so.1
             --exclude libcudart.so
             --exclude libcublas.so
             --exclude libcublasLt.so
