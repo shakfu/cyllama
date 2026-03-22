@@ -121,6 +121,9 @@ manylinux-aarch64-image = "manylinux2014"
 # Use /opt/python/cp310 since system python3 is 3.6 on manylinux2014 (too old for manage.py)
 before-all = "yum install -y git && /opt/python/cp310-cp310/bin/pip install cmake ninja && PATH=/opt/python/cp310-cp310/bin:$PATH /opt/python/cp310-cp310/bin/python scripts/manage.py build --all --deps-only"
 
+# Disable global before-build on Linux (deps already built by before-all)
+before-build = ""
+
 # Environment variables for Linux builds
 environment = { GGML_METAL = "0" }
 
