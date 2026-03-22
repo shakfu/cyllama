@@ -17,6 +17,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+## [0.1.21]
+
 ### Added
 
 - **Code Quality Tooling** - Added Makefile targets and configuration for linting, formatting, and type checking

@@ -574,6 +574,17 @@ make build-cpu    # CPU only
 make clean        # Remove build artifacts
 make reset        # Full reset including thirdparty
 make remake       # Clean rebuild with tests
+
+# Code quality
+make lint         # Lint with ruff (auto-fix)
+make format       # Format with ruff
+make typecheck    # Type check with mypy
+make qa           # Run all: lint, typecheck, format
+
+# Publishing
+make check        # Validate wheels with twine
+make publish      # Upload to PyPI
+make publish-test # Upload to TestPyPI
 ```
 
 ### GPU Acceleration
