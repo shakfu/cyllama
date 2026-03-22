@@ -38,19 +38,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Free disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
-          df -h
-
-      - name: Install CUDA toolkit
-        uses: Jimver/cuda-toolkit@v0.2.19
-        with:
-          cuda: 12.4.0
-          method: network
-          sub-packages: '["nvcc", "cudart-dev"]'
-          non-cuda-sub-packages: '["libcublas-dev"]'
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -64,8 +51,15 @@ jobs:
         env:
           CIBW_ARCHS_LINUX: x86_64
           CIBW_MANYLINUX_X86_64_IMAGE: manylinux2014
-          CIBW_BEFORE_ALL_LINUX: |
-            yum install -y git && /opt/python/cp310-cp310/bin/pip install cmake ninja && PATH=/opt/python/cp310-cp310/bin:$PATH /opt/python/cp310-cp310/bin/python scripts/manage.py build --all --deps-only
+          CIBW_BEFORE_ALL_LINUX: >
+            yum install -y git yum-utils &&
+            yum-config-manager --add-repo https://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/cuda-rhel7.repo &&
+            yum install -y cuda-nvcc-12-4 cuda-cudart-devel-12-4 libcublas-devel-12-4 &&
+            ln -s /usr/local/cuda-12.4 /usr/local/cuda &&
+            /opt/python/cp310-cp310/bin/pip install cmake ninja &&
+            PATH=/usr/local/cuda/bin:/opt/python/cp310-cp310/bin:$PATH
+            GGML_CUDA=1 GGML_METAL=0
+            /opt/python/cp310-cp310/bin/python scripts/manage.py build --all --deps-only
           CIBW_ENVIRONMENT_LINUX: >
             GGML_CUDA=1
             GGML_METAL=0
@@ -101,19 +95,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Free disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
-          df -h
-
-      - name: Install CUDA toolkit
-        uses: Jimver/cuda-toolkit@v0.2.19
-        with:
-          cuda: 12.8.0
-          method: network
-          sub-packages: '["nvcc", "cudart-dev"]'
-          non-cuda-sub-packages: '["libcublas-dev"]'
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -127,8 +108,15 @@ jobs:
         env:
           CIBW_ARCHS_LINUX: x86_64
           CIBW_MANYLINUX_X86_64_IMAGE: manylinux2014
-          CIBW_BEFORE_ALL_LINUX: |
-            yum install -y git && /opt/python/cp310-cp310/bin/pip install cmake ninja && PATH=/opt/python/cp310-cp310/bin:$PATH /opt/python/cp310-cp310/bin/python scripts/manage.py build --all --deps-only
+          CIBW_BEFORE_ALL_LINUX: >
+            yum install -y git yum-utils &&
+            yum-config-manager --add-repo https://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/cuda-rhel7.repo &&
+            yum install -y cuda-nvcc-12-8 cuda-cudart-devel-12-8 libcublas-devel-12-8 &&
+            ln -s /usr/local/cuda-12.8 /usr/local/cuda &&
+            /opt/python/cp310-cp310/bin/pip install cmake ninja &&
+            PATH=/usr/local/cuda/bin:/opt/python/cp310-cp310/bin:$PATH
+            GGML_CUDA=1 GGML_METAL=0
+            /opt/python/cp310-cp310/bin/python scripts/manage.py build --all --deps-only
           CIBW_ENVIRONMENT_LINUX: >
             GGML_CUDA=1
             GGML_METAL=0
