@@ -17,11 +17,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+### Added
+
+- **GPU Backend Wheel Variants** - Separate PyPI packages for each GPU backend
+  - `pip install cyllama` -- CPU (Linux/Windows) / Metal (macOS)
+  - `pip install cyllama-cuda12` -- NVIDIA GPU (CUDA 12.8, architectures: Volta through Hopper + PTX)
+  - `pip install cyllama-rocm` -- AMD GPU (ROCm 6.3)
+  - `pip install cyllama-sycl` -- Intel GPU (oneAPI SYCL)
+  - `pip install cyllama-vulkan` -- Cross-platform GPU (Vulkan, Linux + Windows)
+  - Package names set via `CIBW_BEFORE_BUILD` sed patching of `pyproject.toml`
+  - All variants install the same `cyllama` Python package (same import, different backends)
+
 ### Fixed
 
 - **CUDA Wheel Size** - Reduced CUDA wheels from ~512 MB to ~50-80 MB
   - Fixed auditwheel exclude patterns to use versioned SONAMEs (`libcublas.so.12`, `libcublasLt.so.12`) preventing 526 MB of cuBLAS from being bundled
-  - Limited CUDA architectures to `75;80;86;89;90` (Turing through Hopper) instead of compiling for all architectures
+  - Limited CUDA architectures to `70-real;75-real;80-real;86-real;89-real;90` (Volta through Hopper with PTX fallback for future GPUs)
+  - Added `CFLAGS=-s CXXFLAGS=-s` to strip debug symbols during linking
+  - Dropped CUDA 12.4 job in favor of CUDA 12.8 only (backward compatible)
   - Fixed Vulkan job name showing unresolved `${{ matrix.os }}` when skipped
 
 ## [0.1.21]

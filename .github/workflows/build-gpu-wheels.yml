@@ -8,8 +8,9 @@ on:
         required: true
         type: choice
         options:
-          - cuda-12.4
-          - cuda-12.8
+          - cuda
+          - rocm
+          - sycl
           - vulkan
           - all
       publish_index:
@@ -25,74 +26,11 @@ env:
 
 jobs:
   # ---------------------------------------------------------------------------
-  # CUDA 12.4 wheels (Linux only)
+  # CUDA wheels (Linux only, CUDA 12.8)
   # ---------------------------------------------------------------------------
-  build_cuda_124:
-    name: CUDA 12.4 - Linux x86_64
-    if: inputs.backend == 'all' || inputs.backend == 'cuda-12.4'
-    runs-on: ubuntu-22.04
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install cibuildwheel
-        run: pip install cibuildwheel==3.4.0
-
-      - name: Build CUDA wheels
-        run: python -m cibuildwheel --output-dir wheelhouse
-        env:
-          CIBW_ARCHS_LINUX: x86_64
-          CIBW_MANYLINUX_X86_64_IMAGE: manylinux2014
-          CIBW_BEFORE_ALL_LINUX: >
-            yum install -y git yum-utils &&
-            yum-config-manager --add-repo https://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/cuda-rhel7.repo &&
-            yum install -y cuda-nvcc-12-4 cuda-cudart-devel-12-4 cuda-driver-devel-12-4 libcublas-devel-12-4 &&
-            ln -s /usr/local/cuda-12.4 /usr/local/cuda &&
-            /opt/python/cp310-cp310/bin/pip install cmake ninja &&
-            PATH=/usr/local/cuda/bin:/opt/python/cp310-cp310/bin:$PATH
-            CMAKE_CUDA_ARCHITECTURES="70-real;75-real;80-real;86-real;89-real;90"
-            GGML_CUDA=1 GGML_METAL=0
-            /opt/python/cp310-cp310/bin/python scripts/manage.py build --all --deps-only
-          CIBW_ENVIRONMENT_LINUX: >
-            GGML_CUDA=1
-            GGML_METAL=0
-            CUDA_PATH=/usr/local/cuda
-            CMAKE_CUDA_ARCHITECTURES="70-real;75-real;80-real;86-real;89-real;90"
-            PATH=/usr/local/cuda/bin:$PATH
-            LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
-            CFLAGS=-s
-            CXXFLAGS=-s
-          CIBW_TEST_COMMAND: ""
-          CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
-            auditwheel repair -w {dest_dir} {wheel}
-            --exclude libcuda.so.1
-            --exclude libcudart.so.12
-            --exclude libcublas.so.12
-            --exclude libcublasLt.so.12
-
-      - name: List built wheels
-        run: ls -lah wheelhouse/
-
-      - name: Upload wheels
-        uses: actions/upload-artifact@v4
-        with:
-          name: wheels-cuda-cu124-linux-x86_64
-          path: ./wheelhouse/*.whl
-
-  # ---------------------------------------------------------------------------
-  # CUDA 12.8 wheels (Linux only)
-  # ---------------------------------------------------------------------------
-  build_cuda_128:
+  build_cuda:
     name: CUDA 12.8 - Linux x86_64
-    if: inputs.backend == 'all' || inputs.backend == 'cuda-12.8'
+    if: inputs.backend == 'all' || inputs.backend == 'cuda'
     runs-on: ubuntu-22.04
 
     steps:
@@ -124,6 +62,8 @@ jobs:
             CMAKE_CUDA_ARCHITECTURES="70-real;75-real;80-real;86-real;89-real;90"
             GGML_CUDA=1 GGML_METAL=0
             /opt/python/cp310-cp310/bin/python scripts/manage.py build --all --deps-only
+          CIBW_BEFORE_BUILD_LINUX: >
+            sed -i 's/^name = "cyllama"/name = "cyllama-cuda12"/' {project}/pyproject.toml
           CIBW_ENVIRONMENT_LINUX: >
             GGML_CUDA=1
             GGML_METAL=0
@@ -147,7 +87,136 @@ jobs:
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
-          name: wheels-cuda-cu128-linux-x86_64
+          name: wheels-cuda-linux-x86_64
+          path: ./wheelhouse/*.whl
+
+  # ---------------------------------------------------------------------------
+  # ROCm wheels (Linux only, ROCm 6.3)
+  # ---------------------------------------------------------------------------
+  build_rocm:
+    name: ROCm 6.3 - Linux x86_64
+    if: inputs.backend == 'all' || inputs.backend == 'rocm'
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
+          df -h
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install cibuildwheel
+        run: pip install cibuildwheel==3.4.0
+
+      - name: Build ROCm wheels
+        run: python -m cibuildwheel --output-dir wheelhouse
+        env:
+          CIBW_ARCHS_LINUX: x86_64
+          CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
+          CIBW_BEFORE_ALL_LINUX: >
+            dnf install -y git &&
+            dnf install -y https://repo.radeon.com/amdgpu-install/6.3.3/rhel/9.5/amdgpu-install-6.3.60303-1.el9.noarch.rpm &&
+            dnf install -y rocm-hip-runtime-devel hipblas-devel rocblas-devel &&
+            /opt/python/cp310-cp310/bin/pip install cmake ninja &&
+            PATH=/opt/rocm/bin:/opt/python/cp310-cp310/bin:$PATH
+            GGML_HIP=1 GGML_METAL=0
+            /opt/python/cp310-cp310/bin/python scripts/manage.py build --all --deps-only
+          CIBW_BEFORE_BUILD_LINUX: >
+            sed -i 's/^name = "cyllama"/name = "cyllama-rocm"/' {project}/pyproject.toml
+          CIBW_ENVIRONMENT_LINUX: >
+            GGML_HIP=1
+            GGML_METAL=0
+            HIP_PATH=/opt/rocm
+            PATH=/opt/rocm/bin:$PATH
+            LD_LIBRARY_PATH=/opt/rocm/lib:$LD_LIBRARY_PATH
+            CFLAGS=-s
+            CXXFLAGS=-s
+          CIBW_TEST_COMMAND: ""
+          CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
+            auditwheel repair -w {dest_dir} {wheel}
+            --exclude libamdhip64.so.6
+            --exclude libhipblas.so.2
+            --exclude librocblas.so.4
+            --exclude libhsa-runtime64.so.1
+
+      - name: List built wheels
+        run: ls -lah wheelhouse/
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-rocm-linux-x86_64
+          path: ./wheelhouse/*.whl
+
+  # ---------------------------------------------------------------------------
+  # SYCL wheels (Linux only, Intel oneAPI)
+  # ---------------------------------------------------------------------------
+  build_sycl:
+    name: SYCL - Linux x86_64
+    if: inputs.backend == 'all' || inputs.backend == 'sycl'
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install cibuildwheel
+        run: pip install cibuildwheel==3.4.0
+
+      - name: Build SYCL wheels
+        run: python -m cibuildwheel --output-dir wheelhouse
+        env:
+          CIBW_ARCHS_LINUX: x86_64
+          CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
+          CIBW_BEFORE_ALL_LINUX: >
+            dnf install -y git &&
+            dnf install -y https://registrationcenter-download.intel.com/akdlm/IRC_NAS/1b9e6e1a-e458-4126-8612-0e3f5f2fe4c8/intel-oneapi-base-toolkit-2025.1.1.18_offline.x86_64.rpm &&
+            /opt/python/cp310-cp310/bin/pip install cmake ninja &&
+            source /opt/intel/oneapi/setvars.sh &&
+            PATH=/opt/python/cp310-cp310/bin:$PATH
+            GGML_SYCL=1 GGML_METAL=0
+            /opt/python/cp310-cp310/bin/python scripts/manage.py build --all --deps-only
+          CIBW_BEFORE_BUILD_LINUX: >
+            sed -i 's/^name = "cyllama"/name = "cyllama-sycl"/' {project}/pyproject.toml
+          CIBW_ENVIRONMENT_LINUX: >
+            GGML_SYCL=1
+            GGML_METAL=0
+            PATH=/opt/intel/oneapi/compiler/latest/bin:$PATH
+            LD_LIBRARY_PATH=/opt/intel/oneapi/compiler/latest/lib:/opt/intel/oneapi/mkl/latest/lib:$LD_LIBRARY_PATH
+            CFLAGS=-s
+            CXXFLAGS=-s
+          CIBW_TEST_COMMAND: ""
+          CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
+            auditwheel repair -w {dest_dir} {wheel}
+            --exclude libsycl.so.8
+            --exclude libOpenCL.so.1
+            --exclude libsvml.so
+            --exclude libimf.so
+            --exclude libintlc.so.5
+
+      - name: List built wheels
+        run: ls -lah wheelhouse/
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-sycl-linux-x86_64
           path: ./wheelhouse/*.whl
 
   # ---------------------------------------------------------------------------
@@ -232,6 +301,10 @@ jobs:
           CIBW_MANYLINUX_X86_64_IMAGE: manylinux2014
           CIBW_BEFORE_ALL_LINUX: |
             yum install -y cmake ninja-build
+          CIBW_BEFORE_BUILD_LINUX: >
+            sed -i 's/^name = "cyllama"/name = "cyllama-vulkan"/' {project}/pyproject.toml
+          CIBW_BEFORE_BUILD_WINDOWS: >
+            powershell -Command "(Get-Content {project}/pyproject.toml) -replace 'name = \"cyllama\"', 'name = \"cyllama-vulkan\"' | Set-Content {project}/pyproject.toml"
           CIBW_ENVIRONMENT_LINUX: >
             GGML_VULKAN=1
             GGML_METAL=0
@@ -259,7 +332,7 @@ jobs:
   # ---------------------------------------------------------------------------
   collect:
     name: Collect GPU wheels
-    needs: [build_cuda_124, build_cuda_128, build_vulkan]
+    needs: [build_cuda, build_rocm, build_sycl, build_vulkan]
     if: always() && !cancelled()
     runs-on: ubuntu-latest
 
@@ -275,18 +348,25 @@ jobs:
           shopt -s nullglob
           mkdir -p index
 
-          # CUDA 12.4
-          wheels=(artifacts/wheels-cuda-cu124-*/*.whl)
+          # CUDA
+          wheels=(artifacts/wheels-cuda-*/*.whl)
           if [ ${#wheels[@]} -gt 0 ]; then
-            mkdir -p index/cu124
-            cp "${wheels[@]}" index/cu124/
+            mkdir -p index/cuda
+            cp "${wheels[@]}" index/cuda/
           fi
 
-          # CUDA 12.8
-          wheels=(artifacts/wheels-cuda-cu128-*/*.whl)
+          # ROCm
+          wheels=(artifacts/wheels-rocm-*/*.whl)
           if [ ${#wheels[@]} -gt 0 ]; then
-            mkdir -p index/cu128
-            cp "${wheels[@]}" index/cu128/
+            mkdir -p index/rocm
+            cp "${wheels[@]}" index/rocm/
+          fi
+
+          # SYCL
+          wheels=(artifacts/wheels-sycl-*/*.whl)
+          if [ ${#wheels[@]} -gt 0 ]; then
+            mkdir -p index/sycl
+            cp "${wheels[@]}" index/sycl/
           fi
 
           # Vulkan
