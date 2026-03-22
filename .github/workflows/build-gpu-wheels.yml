@@ -54,7 +54,7 @@ jobs:
           CIBW_BEFORE_ALL_LINUX: >
             yum install -y git yum-utils &&
             yum-config-manager --add-repo https://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/cuda-rhel7.repo &&
-            yum install -y cuda-nvcc-12-4 cuda-cudart-devel-12-4 libcublas-devel-12-4 &&
+            yum install -y cuda-nvcc-12-4 cuda-cudart-devel-12-4 cuda-driver-devel-12-4 libcublas-devel-12-4 &&
             ln -s /usr/local/cuda-12.4 /usr/local/cuda &&
             /opt/python/cp310-cp310/bin/pip install cmake ninja &&
             PATH=/usr/local/cuda/bin:/opt/python/cp310-cp310/bin:$PATH
@@ -111,7 +111,7 @@ jobs:
           CIBW_BEFORE_ALL_LINUX: >
             yum install -y git yum-utils &&
             yum-config-manager --add-repo https://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/cuda-rhel7.repo &&
-            yum install -y cuda-nvcc-12-8 cuda-cudart-devel-12-8 libcublas-devel-12-8 &&
+            yum install -y cuda-nvcc-12-8 cuda-cudart-devel-12-8 cuda-driver-devel-12-8 libcublas-devel-12-8 &&
             ln -s /usr/local/cuda-12.8 /usr/local/cuda &&
             /opt/python/cp310-cp310/bin/pip install cmake ninja &&
             PATH=/usr/local/cuda/bin:/opt/python/cp310-cp310/bin:$PATH
