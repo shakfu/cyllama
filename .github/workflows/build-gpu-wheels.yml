@@ -48,7 +48,8 @@ jobs:
         with:
           cuda: 12.4.0
           method: network
-          sub-packages: '["nvcc", "cudart-dev", "libcublas-dev"]'
+          sub-packages: '["nvcc", "cudart-dev"]'
+          non-cuda-sub-packages: '["libcublas-dev"]'
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -110,7 +111,8 @@ jobs:
         with:
           cuda: 12.8.0
           method: network
-          sub-packages: '["nvcc", "cudart-dev", "libcublas-dev"]'
+          sub-packages: '["nvcc", "cudart-dev"]'
+          non-cuda-sub-packages: '["libcublas-dev"]'
 
       - name: Set up Python
         uses: actions/setup-python@v5
