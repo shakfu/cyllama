@@ -526,6 +526,40 @@ See [CHANGELOG.md](CHANGELOG.md) for complete release history.
 pip install cyllama
 ```
 
+#### GPU-Accelerated Variants
+
+Pre-built wheels with GPU backend support are being incrementally made available as separate packages based on the developed of automated build workfolws. So far the following gpu variants are available:
+
+- [x] `cyllama-cuda12`
+- [ ] `cyllama-rocm`
+- [ ] `cyllama-sycl`
+- [ ] `cyllama-vulkan`
+
+In the next coming releases it is our aim to make it possible to do the following:
+
+```sh
+pip install cyllama            # CPU (Linux/Windows) / Metal (macOS, default)
+pip install cyllama-cuda12     # NVIDIA GPU (CUDA 12.4)
+pip install cyllama-rocm       # AMD GPU (ROCm 6.3)
+pip install cyllama-sycl       # Intel GPU (oneAPI SYCL)
+pip install cyllama-vulkan     # Cross-platform GPU (Vulkan)
+```
+
+All variants install the same `cyllama` Python package -- only the compiled backend differs. Install one at a time (they replace each other). GPU variants require the corresponding driver/runtime installed on your system.
+
+You can verify which backend is active after installation:
+
+```sh
+python -m cyllama info
+```
+
+#### Build from source with a specific backend
+
+```sh
+GGML_CUDA=1 pip install cyllama --no-binary cyllama
+GGML_VULKAN=1 pip install cyllama --no-binary cyllama
+```
+
 ### From Source
 
 To build `cyllama` from source:
