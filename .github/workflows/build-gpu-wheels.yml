@@ -131,7 +131,7 @@ jobs:
             /opt/python/cp310-cp310/bin/pip install cmake ninja &&
             PATH=/opt/rocm/bin:/opt/python/cp310-cp310/bin:$PATH
             LIBRARY_PATH=/usr/lib/gcc/x86_64-redhat-linux/8:$LIBRARY_PATH
-            CMAKE_HIP_ARCHITECTURES="gfx906;gfx908;gfx90a;gfx942;gfx1030;gfx1100"
+            CMAKE_HIP_ARCHITECTURES="gfx90a;gfx942;gfx1100"
             HIP_PATH=/opt/rocm
             GGML_HIP=1 GGML_METAL=0
             /opt/python/cp310-cp310/bin/python scripts/manage.py build --all --deps-only
@@ -141,7 +141,7 @@ jobs:
             GGML_HIP=1
             GGML_METAL=0
             HIP_PATH=/opt/rocm
-            CMAKE_HIP_ARCHITECTURES="gfx906;gfx908;gfx90a;gfx942;gfx1030;gfx1100"
+            CMAKE_HIP_ARCHITECTURES="gfx90a;gfx942;gfx1100"
             PATH=/opt/rocm/bin:$PATH
             LD_LIBRARY_PATH=/opt/rocm/lib:$LD_LIBRARY_PATH
             LIBRARY_PATH=/usr/lib/gcc/x86_64-redhat-linux/8:$LIBRARY_PATH

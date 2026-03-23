@@ -542,6 +542,7 @@ class ShellCmd:
         _cmd = f"cmake --build {build_dir}"
         if release:
             _cmd += " --config Release"
+        _cmd += f" --parallel {os.cpu_count() or 4}"
         self.cmd(_cmd)
 
     def cmake_build_targets(
@@ -553,6 +554,7 @@ class ShellCmd:
             _cmd += " --config Release"
         for target in targets:
             _cmd += f" --target {target}"
+        _cmd += f" --parallel {os.cpu_count() or 4}"
         self.cmd(_cmd)
 
     def cmake_install(
