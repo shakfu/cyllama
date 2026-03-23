@@ -525,8 +525,15 @@ class ShellCmd:
                     return "ON" if v else "OFF"
                 return v
 
+            def cmake_flag(k, v):
+                val = cmake_value(v)
+                # Quote values containing semicolons (e.g. architecture lists)
+                if isinstance(val, str) and ";" in val:
+                    return f'-D{k}="{val}"'
+                return f"-D{k}={val}"
+
             _cmds.append(
-                " ".join(f"-D{k}={cmake_value(v)}" for k, v in options.items())
+                " ".join(cmake_flag(k, v) for k, v in options.items())
             )
         self.cmd(" ".join(_cmds))
 
