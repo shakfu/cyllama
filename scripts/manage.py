@@ -909,7 +909,12 @@ class LlamaCppBuilder(Builder):
 
         if ggml_cuda:
             options["GGML_CUDA"] = "ON"
-            self.log.info("✓ Enabling CUDA backend")
+            cuda_archs = os.environ.get("CMAKE_CUDA_ARCHITECTURES")
+            if cuda_archs:
+                options["CMAKE_CUDA_ARCHITECTURES"] = cuda_archs
+                self.log.info(f"✓ Enabling CUDA backend (architectures: {cuda_archs})")
+            else:
+                self.log.info("✓ Enabling CUDA backend")
 
         if ggml_vulkan:
             options["GGML_VULKAN"] = "ON"
@@ -921,7 +926,12 @@ class LlamaCppBuilder(Builder):
 
         if ggml_hip:
             options["GGML_HIP"] = "ON"
-            self.log.info("✓ Enabling HIP/ROCm backend")
+            hip_archs = os.environ.get("CMAKE_HIP_ARCHITECTURES")
+            if hip_archs:
+                options["CMAKE_HIP_ARCHITECTURES"] = hip_archs
+                self.log.info(f"✓ Enabling HIP/ROCm backend (architectures: {hip_archs})")
+            else:
+                self.log.info("✓ Enabling HIP/ROCm backend")
 
         if ggml_opencl:
             options["GGML_OPENCL"] = "ON"
@@ -1091,6 +1101,9 @@ class WhisperCppBuilder(Builder):
 
         if ggml_hip:
             options["GGML_HIP"] = "ON"
+            hip_archs = os.environ.get("CMAKE_HIP_ARCHITECTURES")
+            if hip_archs:
+                options["CMAKE_HIP_ARCHITECTURES"] = hip_archs
             self.log.info("Enabling HIP/ROCm backend for whisper.cpp")
 
         if ggml_opencl:
@@ -1176,6 +1189,9 @@ class StableDiffusionCppBuilder(Builder):
 
         if ggml_hip:
             options["SD_HIPBLAS"] = "ON"
+            hip_archs = os.environ.get("CMAKE_HIP_ARCHITECTURES")
+            if hip_archs:
+                options["CMAKE_HIP_ARCHITECTURES"] = hip_archs
             self.log.info("Enabling HIP/ROCm backend for stable-diffusion.cpp")
 
         if ggml_opencl:
