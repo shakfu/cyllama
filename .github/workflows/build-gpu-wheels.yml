@@ -128,6 +128,7 @@ jobs:
             dnf install -y rocm-hip-runtime-devel hipblas-devel rocblas-devel &&
             /opt/python/cp310-cp310/bin/pip install cmake ninja &&
             PATH=/opt/rocm/bin:/opt/python/cp310-cp310/bin:$PATH
+            CMAKE_HIP_ARCHITECTURES="gfx906;gfx908;gfx90a;gfx942;gfx1030;gfx1100"
             GGML_HIP=1 GGML_METAL=0
             /opt/python/cp310-cp310/bin/python scripts/manage.py build --all --deps-only
           CIBW_BEFORE_BUILD_LINUX: >
@@ -136,6 +137,7 @@ jobs:
             GGML_HIP=1
             GGML_METAL=0
             HIP_PATH=/opt/rocm
+            CMAKE_HIP_ARCHITECTURES="gfx906;gfx908;gfx90a;gfx942;gfx1030;gfx1100"
             PATH=/opt/rocm/bin:$PATH
             LD_LIBRARY_PATH=/opt/rocm/lib:$LD_LIBRARY_PATH
             CFLAGS=-s
