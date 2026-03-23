@@ -126,9 +126,11 @@ jobs:
             dnf install -y git &&
             dnf install -y https://repo.radeon.com/amdgpu-install/6.3.3/rhel/8.10/amdgpu-install-6.3.60303-1.el8.noarch.rpm &&
             dnf install -y rocm-hip-runtime-devel hipblas-devel rocblas-devel &&
+            ls -d /opt/rocm-* | head -1 | xargs -I{} ln -sf {} /opt/rocm &&
             /opt/python/cp310-cp310/bin/pip install cmake ninja &&
             PATH=/opt/rocm/bin:/opt/python/cp310-cp310/bin:$PATH
             CMAKE_HIP_ARCHITECTURES="gfx906;gfx908;gfx90a;gfx942;gfx1030;gfx1100"
+            HIP_PATH=/opt/rocm
             GGML_HIP=1 GGML_METAL=0
             /opt/python/cp310-cp310/bin/python scripts/manage.py build --all --deps-only
           CIBW_BEFORE_BUILD_LINUX: >
