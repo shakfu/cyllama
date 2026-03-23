@@ -124,7 +124,7 @@ jobs:
           CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
           CIBW_BEFORE_ALL_LINUX: >
             dnf install -y git &&
-            dnf install -y https://repo.radeon.com/amdgpu-install/6.3.3/rhel/9.5/amdgpu-install-6.3.60303-1.el9.noarch.rpm &&
+            dnf install -y https://repo.radeon.com/amdgpu-install/6.3.3/rhel/8.10/amdgpu-install-6.3.60303-1.el8.noarch.rpm &&
             dnf install -y rocm-hip-runtime-devel hipblas-devel rocblas-devel &&
             /opt/python/cp310-cp310/bin/pip install cmake ninja &&
             PATH=/opt/rocm/bin:/opt/python/cp310-cp310/bin:$PATH
