@@ -530,7 +530,7 @@ pip install cyllama
 
 Pre-built wheels with GPU backend support are being incrementally made available as separate packages based on the developed of automated build workfolws. So far the following gpu variants are available:
 
-- [x] `cyllama-cuda12`
+- [x] `cyllama-cuda12` (see below)
 - [ ] `cyllama-rocm`
 - [ ] `cyllama-sycl`
 - [ ] `cyllama-vulkan`
@@ -546,6 +546,13 @@ pip install cyllama-vulkan     # Cross-platform GPU (Vulkan)
 ```
 
 All variants install the same `cyllama` Python package -- only the compiled backend differs. Install one at a time (they replace each other). GPU variants require the corresponding driver/runtime installed on your system.
+
+For the time being, CUDA wheels are currently available from [GitHub Releases](https://github.com/shakfu/cyllama/releases):
+
+```sh
+# Install CUDA wheel directly (replace cp310 with your Python version: cp311, cp312, cp313, cp314)
+pip install https://github.com/shakfu/cyllama/releases/download/0.1.21/cyllama_cuda12-0.1.21-cp310-cp310-manylinux2014_x86_64.manylinux_2_17_x86_64.whl
+```
 
 You can verify which backend is active after installation:
 
