@@ -1749,10 +1749,42 @@ class Application(ShellCmd, metaclass=MetaCommander):
             builder = BuilderClass(version=version)
             builder.build()
 
+        # Write build info
+        self._write_build_info(builder_versions)
+
         # Build using scikit-build-core (editable install)
         if not args.deps_only:
             _cmd = "uv pip install -e ."
             self.cmd(_cmd)
+
+    def _write_build_info(self, builder_versions: dict) -> None:
+        """Write build info to src/cyllama/_build_info.py."""
+        import re
+
+        build_dir = Path("build")
+        info = {}
+
+        for BuilderClass, version in builder_versions.items():
+            name = BuilderClass.name.replace(".", "_").replace("-", "_")
+            info[f"{name}_version"] = version
+
+            # Read ggml version from CMakeLists.txt
+            ggml_cmake = build_dir / BuilderClass.name / "ggml" / "CMakeLists.txt"
+            if ggml_cmake.exists():
+                content = ggml_cmake.read_text()
+                major = re.search(r"set\(GGML_VERSION_MAJOR\s+(\d+)\)", content)
+                minor = re.search(r"set\(GGML_VERSION_MINOR\s+(\d+)\)", content)
+                patch = re.search(r"set\(GGML_VERSION_PATCH\s+(\d+)\)", content)
+                if major and minor and patch:
+                    info[f"{name}_ggml_version"] = f"{major.group(1)}.{minor.group(1)}.{patch.group(1)}"
+
+        out_path = Path("src/cyllama/_build_info.py")
+        with open(out_path, "w") as f:
+            f.write('"""Auto-generated build info from manage.py."""\n\n')
+            for k, v in sorted(info.items()):
+                f.write(f'{k} = "{v}"\n')
+
+        self.log.info(f"Wrote build info to {out_path}")
 
     # ------------------------------------------------------------------------
     # wheel

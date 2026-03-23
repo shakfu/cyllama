@@ -40,12 +40,23 @@ def _cpu_features_from_info(info: dict[str, str]) -> list[str]:
     return features
 
 
+def _get_build_info() -> dict:
+    """Load build info if available."""
+    try:
+        from . import _build_info
+
+        return {k: v for k, v in vars(_build_info).items() if not k.startswith("_")}
+    except ImportError:
+        return {}
+
+
 def cmd_info():
     """Print build and backend information."""
     from . import __version__
 
     print(f"cyllama {__version__}")
     print(f"Python {platform.python_version()} ({platform.platform()})")
+    build_info = _get_build_info()
     print()
 
     # llama.cpp
@@ -54,6 +65,8 @@ def cmd_info():
         from .llama import llama_cpp as cy
 
         cy.llama_backend_init()
+        llama_ver = build_info.get("llama_cpp_version", "unknown")
+        print(f"  version:       {llama_ver}")
         print(f"  ggml version:  {cy.ggml_version()}")
         print(f"  ggml commit:   {cy.ggml_commit()}")
         print(f"  registries:    {', '.join(cy.ggml_backend_reg_names())}")
@@ -77,7 +90,9 @@ def cmd_info():
         from .whisper import whisper_cpp
 
         info_str = whisper_cpp.print_system_info()
-        print(f"  version:       {whisper_cpp.version()}")
+        whisper_ver = build_info.get("whisper_cpp_version", "unknown")
+        print(f"  version:       {whisper_ver}")
+        print(f"  ggml version:  {build_info.get('whisper_cpp_ggml_version', whisper_cpp.version())}")
         info = _parse_system_info(info_str)
         features = _cpu_features_from_info(info)
         # Extract backends from system info
@@ -101,6 +116,9 @@ def cmd_info():
     try:
         from .sd import get_system_info
 
+        sd_ver = build_info.get("stable_diffusion_cpp_version", "unknown")
+        print(f"  version:       {sd_ver}")
+        print(f"  ggml version:  {build_info.get('stable_diffusion_cpp_ggml_version', 'unknown')}")
         info_str = get_system_info()
         info = _parse_system_info(info_str)
         features = _cpu_features_from_info(info)
