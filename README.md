@@ -494,7 +494,7 @@ models = list_cached_models()
 
 ## Status
 
-**Current Version**: 0.1.20 (Mar 2026)
+**Current Version**: 0.1.21 (Mar 2026)
 **llama.cpp Version**: b8429
 **Build System**: scikit-build-core + CMake
 **Test Coverage**: 1100+ tests passing
@@ -502,6 +502,7 @@ models = list_cached_models()
 
 ### Recent Releases
 
+- **v0.1.21** (Mar 2026) - GPU wheel builds: CUDA + ROCm, sqlite-vector bundled
 - **v0.1.20** (Feb 2026) - Update llama.cpp + stable-diffusion.cpp
 - **v0.1.19** (Dev 2025) - Metal fix for stable-diffusion.cpp
 - **v0.1.18** (Dec 2025) - Remaining stable-diffusion.cpp wrapped
@@ -528,26 +529,14 @@ pip install cyllama
 
 #### GPU-Accelerated Variants
 
-Pre-built wheels with GPU backend support are being incrementally made available as separate packages based on the developed of automated build workfolws. So far the following gpu variants are available:
+Pre-built wheels with GPU backend support are available as separate packages from [GitHub Releases](https://github.com/shakfu/cyllama/releases) (too large for PyPI):
 
-- [x] `cyllama-cuda12` (see below)
-- [ ] `cyllama-rocm`
-- [ ] `cyllama-sycl`
-- [ ] `cyllama-vulkan`
-
-In the next coming releases it is our aim to make it possible to do the following:
-
-```sh
-pip install cyllama            # CPU (Linux/Windows) / Metal (macOS, default)
-pip install cyllama-cuda12     # NVIDIA GPU (CUDA 12.4)
-pip install cyllama-rocm       # AMD GPU (ROCm 6.3)
-pip install cyllama-sycl       # Intel GPU (oneAPI SYCL)
-pip install cyllama-vulkan     # Cross-platform GPU (Vulkan)
-```
+- [x] `cyllama-cuda12` -- NVIDIA GPU (CUDA 12.4)
+- [x] `cyllama-rocm` -- AMD GPU (ROCm 6.3, requires glibc >= 2.35)
+- [ ] `cyllama-sycl` -- Intel GPU (oneAPI SYCL)
+- [ ] `cyllama-vulkan` -- Cross-platform GPU (Vulkan)
 
 All variants install the same `cyllama` Python package -- only the compiled backend differs. Install one at a time (they replace each other). GPU variants require the corresponding driver/runtime installed on your system.
-
-For the time being, CUDA wheels are currently available from [GitHub Releases](https://github.com/shakfu/cyllama/releases):
 
 ```sh
 # Install gpu-variants directly (replace cp310 with your Python version: cp311, cp312, cp313, cp314)

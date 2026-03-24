@@ -21,7 +21,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 - **GPU Backend Wheel Variants** - Separate PyPI packages for each GPU backend
   - `pip install cyllama` -- CPU (Linux/Windows) / Metal (macOS)
-  - `pip install cyllama-cuda12` -- NVIDIA GPU (CUDA 12.8, architectures: Volta through Hopper + PTX)
+  - `pip install cyllama-cuda12` -- NVIDIA GPU (CUDA 12.4, architectures: Volta through Hopper + PTX)
   - `pip install cyllama-rocm` -- AMD GPU (ROCm 6.3)
   - `pip install cyllama-sycl` -- Intel GPU (oneAPI SYCL)
   - `pip install cyllama-vulkan` -- Cross-platform GPU (Vulkan, Linux + Windows)
@@ -30,12 +30,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Fixed
 
-- **CUDA Wheel Size** - Reduced CUDA wheels from ~512 MB to ~50-80 MB
-  - Fixed auditwheel exclude patterns to use versioned SONAMEs (`libcublas.so.12`, `libcublasLt.so.12`) preventing 526 MB of cuBLAS from being bundled
-  - Limited CUDA architectures to `70-real;75-real;80-real;86-real;89-real;90` (Volta through Hopper with PTX fallback for future GPUs)
-  - Added `CFLAGS=-s CXXFLAGS=-s` to strip debug symbols during linking
-  - Dropped CUDA 12.4 job in favor of CUDA 12.8 only (backward compatible)
-  - Fixed Vulkan job name showing unresolved `${{ matrix.os }}` when skipped
+- **ROCm 6.3 Wheel Build** - Fixed multiple issues preventing ROCm wheels from building
+  - Patched sqlite-vector to define `_GNU_SOURCE` for `strcasestr` on manylinux/AlmaLinux 8
+  - Fixed auditwheel repair by targeting `manylinux_2_35` (matching ROCm 6.3 system requirements) and excluding transitive ROCm runtime libraries (`librocsolver`, `libhipblaslt`, `libamd_comgr`, `librocprofiler-register`)
+
+- **CUDA Wheel Size** - Restored CUDA wheels to ~148 MB (was ~682 MB)
+  - Removed `CMAKE_CUDA_ARCHITECTURES` passthrough from deps build; llama.cpp defaults use virtual/PTX for older architectures, producing much smaller static libraries
+  - Added free disk space step to prevent `strip` failing with "No space left on device"
+  - Added `install.strip = true` in pyproject.toml (scikit-build-core default changed in recent versions)
+
+- **sqlite-vector Missing from Wheels** - The `vector.so`/`vector.dylib` extension was silently excluded from all wheel builds because `.gitignore` lists `*.so`/`*.dylib` and scikit-build-core uses git to discover package files. Added CMake `install(FILES ...)` directive to explicitly include it
 
 ## [0.1.21]
 
