@@ -154,6 +154,10 @@ jobs:
             --exclude libhipblas.so.2
             --exclude librocblas.so.4
             --exclude libhsa-runtime64.so.1
+            --exclude librocsolver.so.0
+            --exclude libhipblaslt.so.0
+            --exclude libamd_comgr.so.2
+            --exclude librocprofiler-register.so.0
 
       - name: List built wheels
         run: ls -lah wheelhouse/
