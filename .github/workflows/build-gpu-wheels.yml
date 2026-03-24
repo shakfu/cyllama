@@ -150,6 +150,7 @@ jobs:
           CIBW_TEST_COMMAND: ""
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
             auditwheel repair -w {dest_dir} {wheel}
+            --plat manylinux_2_35_x86_64
             --exclude libamdhip64.so.6
             --exclude libhipblas.so.2
             --exclude librocblas.so.4
