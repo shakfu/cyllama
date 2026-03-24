@@ -644,6 +644,23 @@ if(WITH_STABLEDIFFUSION)
 endif()
 
 # -----------------------------------------------------------------------------
+# Install sqlite-vector extension (built by manage.py, not a CMake target)
+# -----------------------------------------------------------------------------
+
+if(APPLE)
+    set(_vector_ext "vector.dylib")
+elseif(WIN32)
+    set(_vector_ext "vector.dll")
+else()
+    set(_vector_ext "vector.so")
+endif()
+
+set(_vector_path "${CMAKE_SOURCE_DIR}/src/cyllama/rag/${_vector_ext}")
+if(EXISTS "${_vector_path}")
+    install(FILES "${_vector_path}" DESTINATION "${SKBUILD_PROJECT_NAME}/rag")
+endif()
+
+# -----------------------------------------------------------------------------
 # Install Python files
 # -----------------------------------------------------------------------------
 

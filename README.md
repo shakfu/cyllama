@@ -550,8 +550,13 @@ All variants install the same `cyllama` Python package -- only the compiled back
 For the time being, CUDA wheels are currently available from [GitHub Releases](https://github.com/shakfu/cyllama/releases):
 
 ```sh
-# Install CUDA wheel directly (replace cp310 with your Python version: cp311, cp312, cp313, cp314)
+# Install gpu-variants directly (replace cp310 with your Python version: cp311, cp312, cp313, cp314)
+
+# cuda
 pip install https://github.com/shakfu/cyllama/releases/download/0.1.21/cyllama_cuda12-0.1.21-cp310-cp310-manylinux2014_x86_64.manylinux_2_17_x86_64.whl
+
+# rocm
+pip install https://github.com/shakfu/cyllama/releases/download/0.1.21/cyllama_rocm-0.1.21-cp310-cp310-manylinux_2_31_x86_64.manylinux_2_35_x86_64.whl
 ```
 
 You can verify which backend is active after installation:
