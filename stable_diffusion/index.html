@@ -1,0 +1,3615 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="High-performance Python library for local AI inference">
+      
+      
+        <meta name="author" content="S. Alireza">
+      
+      
+      
+        <link rel="prev" href="../whisper/">
+      
+      
+        <link rel="next" href="../agents_overview/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Stable Diffusion Integration - cyllama User Guide</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#stable-diffusion-integration" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="cyllama User Guide" class="md-header__button md-logo" aria-label="cyllama User Guide" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            cyllama User Guide
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Stable Diffusion Integration
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/shakfu/cyllama" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    shakfu/cyllama
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="cyllama User Guide" class="md-nav__button md-logo" aria-label="cyllama User Guide" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    cyllama User Guide
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/shakfu/cyllama" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    shakfu/cyllama
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../intro/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Introduction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quick Start
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../summary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Summary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Llama.cpp
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Llama.cpp
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user_guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cookbook/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cookbook
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../build_backends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build Backends
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../context_caching/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context Caching
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../server_usage_examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Server Usage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Whisper.cpp
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Whisper.cpp
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../whisper/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Whisper Integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stable Diffusion
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Stable Diffusion
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stable Diffusion Integration
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stable Diffusion Integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#quick-start" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quick Start
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Quick Start">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#text-to-image" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Text-to-Image
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#with-model-reuse" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        With Model Reuse
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#api-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        API Reference
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="API Reference">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#convenience-functions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Convenience Functions
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Convenience Functions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#text_to_image" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        text_to_image()
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#image_to_image" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        image_to_image()
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sdcontext" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SDContext
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sdcontextparams" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SDContextParams
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sdimage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SDImage
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sdimagegenparams" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SDImageGenParams
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sdsampleparams" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SDSampleParams
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#upscaler" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Upscaler
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#enums" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Enums
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Enums">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#samplemethod" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SampleMethod
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#scheduler" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scheduler
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#prediction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prediction
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sdtype" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SDType
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#loraapplymode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        LoraApplyMode
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#previewmode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PreviewMode
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#callbacks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Callbacks
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#model-conversion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Model Conversion
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#controlnet-preprocessing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ControlNet Preprocessing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cli-tool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CLI Tool
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="CLI Tool">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#txt2img-text-to-image" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        txt2img - Text to Image
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#img2img-image-to-image" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        img2img - Image to Image
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#inpaint-inpainting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        inpaint - Inpainting
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#controlnet-controlnet-guided-generation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        controlnet - ControlNet Guided Generation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#video-video-generation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        video - Video Generation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#upscale-image-upscaling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        upscale - Image Upscaling
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#convert-model-conversion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        convert - Model Conversion
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#info-system-information" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        info - System Information
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cli-options-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CLI Options Reference
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#supported-models" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Supported Models
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#utility-functions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Utility Functions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#performance-tips" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Performance Tips
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#troubleshooting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Troubleshooting
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Troubleshooting">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#model-loading-errors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Model Loading Errors
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#out-of-memory" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Out of Memory
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#slow-generation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Slow Generation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fluxsd3-models-not-working" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        FLUX/SD3 Models Not Working
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        See Also
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agents
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Agents
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../agents_overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agent Framework
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_11" >
+        
+          
+          <label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RAG
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_11">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    RAG
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../rag_overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../rag_embedder/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Embedder
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../rag_vectorstore/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VectorStore
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../rag_text_processing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Text Processing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../rag_pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RAG Pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../rag_advanced/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Advanced Features
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_12" >
+        
+          
+          <label class="md-nav__link" for="__nav_12" id="__nav_12_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_12">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api_reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#quick-start" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quick Start
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Quick Start">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#text-to-image" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Text-to-Image
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#with-model-reuse" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        With Model Reuse
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#api-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        API Reference
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="API Reference">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#convenience-functions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Convenience Functions
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Convenience Functions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#text_to_image" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        text_to_image()
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#image_to_image" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        image_to_image()
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sdcontext" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SDContext
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sdcontextparams" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SDContextParams
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sdimage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SDImage
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sdimagegenparams" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SDImageGenParams
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sdsampleparams" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SDSampleParams
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#upscaler" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Upscaler
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#enums" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Enums
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Enums">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#samplemethod" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SampleMethod
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#scheduler" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scheduler
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#prediction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prediction
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sdtype" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SDType
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#loraapplymode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        LoraApplyMode
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#previewmode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PreviewMode
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#callbacks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Callbacks
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#model-conversion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Model Conversion
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#controlnet-preprocessing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ControlNet Preprocessing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cli-tool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CLI Tool
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="CLI Tool">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#txt2img-text-to-image" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        txt2img - Text to Image
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#img2img-image-to-image" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        img2img - Image to Image
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#inpaint-inpainting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        inpaint - Inpainting
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#controlnet-controlnet-guided-generation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        controlnet - ControlNet Guided Generation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#video-video-generation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        video - Video Generation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#upscale-image-upscaling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        upscale - Image Upscaling
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#convert-model-conversion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        convert - Model Conversion
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#info-system-information" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        info - System Information
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cli-options-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CLI Options Reference
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#supported-models" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Supported Models
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#utility-functions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Utility Functions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#performance-tips" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Performance Tips
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#troubleshooting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Troubleshooting
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Troubleshooting">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#model-loading-errors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Model Loading Errors
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#out-of-memory" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Out of Memory
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#slow-generation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Slow Generation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fluxsd3-models-not-working" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        FLUX/SD3 Models Not Working
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        See Also
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="stable-diffusion-integration">Stable Diffusion Integration<a class="headerlink" href="#stable-diffusion-integration" title="Permanent link">&para;</a></h1>
+<p>Cyllama wraps <a href="https://github.com/leejet/stable-diffusion.cpp">stable-diffusion.cpp</a> to provide image and video generation capabilities in Python.</p>
+<p><strong>Note</strong>: Build with <code>WITH_STABLEDIFFUSION=1</code> to enable this module.</p>
+<h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
+<p>The stable diffusion module provides Python bindings to stable-diffusion.cpp, enabling:</p>
+<ul>
+<li>Text-to-image generation</li>
+<li>Image-to-image transformation</li>
+<li>Inpainting with masks</li>
+<li>ControlNet guided generation</li>
+<li>Video generation (with compatible models like Wan, CogVideoX)</li>
+<li>ESRGAN image upscaling</li>
+<li>Model format conversion</li>
+</ul>
+<h2 id="quick-start">Quick Start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h2>
+<h3 id="text-to-image">Text-to-Image<a class="headerlink" href="#text-to-image" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.sd</span><span class="w"> </span><span class="kn">import</span> <span class="n">text_to_image</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">images</span> <span class="o">=</span> <span class="n">text_to_image</span><span class="p">(</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">model_path</span><span class="o">=</span><span class="s2">&quot;models/sd_xl_turbo_1.0.q8_0.gguf&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">prompt</span><span class="o">=</span><span class="s2">&quot;a photo of a cute cat&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">width</span><span class="o">=</span><span class="mi">512</span><span class="p">,</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">height</span><span class="o">=</span><span class="mi">512</span><span class="p">,</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">sample_steps</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">cfg_scale</span><span class="o">=</span><span class="mf">1.0</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="p">)</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="n">images</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;output.png&quot;</span><span class="p">)</span>
+</code></pre></div>
+<h3 id="with-model-reuse">With Model Reuse<a class="headerlink" href="#with-model-reuse" title="Permanent link">&para;</a></h3>
+<p>For generating multiple images, reuse the context:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.sd</span><span class="w"> </span><span class="kn">import</span> <span class="n">SDContext</span><span class="p">,</span> <span class="n">SDContextParams</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">params</span> <span class="o">=</span> <span class="n">SDContextParams</span><span class="p">()</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="n">params</span><span class="o">.</span><span class="n">model_path</span> <span class="o">=</span> <span class="s2">&quot;models/sd_xl_turbo_1.0.q8_0.gguf&quot;</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="k">with</span> <span class="n">SDContext</span><span class="p">(</span><span class="n">params</span><span class="p">)</span> <span class="k">as</span> <span class="n">ctx</span><span class="p">:</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>    <span class="k">for</span> <span class="n">prompt</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;a cat&quot;</span><span class="p">,</span> <span class="s2">&quot;a dog&quot;</span><span class="p">,</span> <span class="s2">&quot;a bird&quot;</span><span class="p">]:</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>        <span class="n">images</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>            <span class="n">prompt</span><span class="o">=</span><span class="n">prompt</span><span class="p">,</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>            <span class="n">sample_steps</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>            <span class="n">cfg_scale</span><span class="o">=</span><span class="mf">1.0</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>        <span class="p">)</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>        <span class="n">images</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prompt</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39; &#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;_&#39;</span><span class="p">)</span><span class="si">}</span><span class="s2">.png&quot;</span><span class="p">)</span>
+</code></pre></div>
+<h2 id="api-reference">API Reference<a class="headerlink" href="#api-reference" title="Permanent link">&para;</a></h2>
+<h3 id="convenience-functions">Convenience Functions<a class="headerlink" href="#convenience-functions" title="Permanent link">&para;</a></h3>
+<h4 id="text_to_image">text_to_image()<a class="headerlink" href="#text_to_image" title="Permanent link">&para;</a></h4>
+<p>Generate images from a text prompt.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">text_to_image</span><span class="p">(</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="n">model_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="n">prompt</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="n">negative_prompt</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="n">width</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">512</span><span class="p">,</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>    <span class="n">height</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">512</span><span class="p">,</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>    <span class="n">seed</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>    <span class="n">batch_count</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>    <span class="n">sample_steps</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">20</span><span class="p">,</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>    <span class="n">cfg_scale</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">7.0</span><span class="p">,</span>
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>    <span class="n">sample_method</span><span class="p">:</span> <span class="n">SampleMethod</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>    <span class="n">scheduler</span><span class="p">:</span> <span class="n">Scheduler</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>    <span class="n">n_threads</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span>
+<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>    <span class="n">vae_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a>    <span class="n">taesd_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a>    <span class="n">clip_l_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a>    <span class="n">clip_g_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a>    <span class="n">t5xxl_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a>    <span class="n">control_net_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a>    <span class="n">lora_model_dir</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-2-21" name="__codelineno-2-21" href="#__codelineno-2-21"></a>    <span class="n">clip_skip</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span>
+<a id="__codelineno-2-22" name="__codelineno-2-22" href="#__codelineno-2-22"></a>    <span class="n">eta</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
+<a id="__codelineno-2-23" name="__codelineno-2-23" href="#__codelineno-2-23"></a>    <span class="n">slg_scale</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
+<a id="__codelineno-2-24" name="__codelineno-2-24" href="#__codelineno-2-24"></a>    <span class="n">vae_tiling</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<a id="__codelineno-2-25" name="__codelineno-2-25" href="#__codelineno-2-25"></a>    <span class="n">offload_to_cpu</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<a id="__codelineno-2-26" name="__codelineno-2-26" href="#__codelineno-2-26"></a>    <span class="n">keep_clip_on_cpu</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<a id="__codelineno-2-27" name="__codelineno-2-27" href="#__codelineno-2-27"></a>    <span class="n">keep_vae_on_cpu</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<a id="__codelineno-2-28" name="__codelineno-2-28" href="#__codelineno-2-28"></a>    <span class="n">diffusion_flash_attn</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<a id="__codelineno-2-29" name="__codelineno-2-29" href="#__codelineno-2-29"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">SDImage</span><span class="p">]</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>model_path</code></td>
+<td>str</td>
+<td>required</td>
+<td>Path to model file</td>
+</tr>
+<tr>
+<td><code>prompt</code></td>
+<td>str</td>
+<td>required</td>
+<td>Text prompt</td>
+</tr>
+<tr>
+<td><code>negative_prompt</code></td>
+<td>str</td>
+<td>""</td>
+<td>What to avoid</td>
+</tr>
+<tr>
+<td><code>width</code></td>
+<td>int</td>
+<td>512</td>
+<td>Output width</td>
+</tr>
+<tr>
+<td><code>height</code></td>
+<td>int</td>
+<td>512</td>
+<td>Output height</td>
+</tr>
+<tr>
+<td><code>seed</code></td>
+<td>int</td>
+<td>-1</td>
+<td>Random seed (-1 = random)</td>
+</tr>
+<tr>
+<td><code>batch_count</code></td>
+<td>int</td>
+<td>1</td>
+<td>Number of images</td>
+</tr>
+<tr>
+<td><code>sample_steps</code></td>
+<td>int</td>
+<td>20</td>
+<td>Sampling steps</td>
+</tr>
+<tr>
+<td><code>cfg_scale</code></td>
+<td>float</td>
+<td>7.0</td>
+<td>CFG guidance scale</td>
+</tr>
+<tr>
+<td><code>sample_method</code></td>
+<td>SampleMethod</td>
+<td>None</td>
+<td>Sampling method</td>
+</tr>
+<tr>
+<td><code>scheduler</code></td>
+<td>Scheduler</td>
+<td>None</td>
+<td>Noise scheduler</td>
+</tr>
+<tr>
+<td><code>clip_skip</code></td>
+<td>int</td>
+<td>-1</td>
+<td>CLIP layers to skip</td>
+</tr>
+<tr>
+<td><code>n_threads</code></td>
+<td>int</td>
+<td>-1</td>
+<td>Thread count (-1 = auto)</td>
+</tr>
+<tr>
+<td><code>eta</code></td>
+<td>float</td>
+<td>0.0</td>
+<td>Eta for DDIM/TCD samplers</td>
+</tr>
+<tr>
+<td><code>slg_scale</code></td>
+<td>float</td>
+<td>0.0</td>
+<td>Skip layer guidance scale</td>
+</tr>
+<tr>
+<td><code>vae_tiling</code></td>
+<td>bool</td>
+<td>False</td>
+<td>Enable VAE tiling for large images</td>
+</tr>
+<tr>
+<td><code>offload_to_cpu</code></td>
+<td>bool</td>
+<td>False</td>
+<td>Offload weights to CPU (low VRAM)</td>
+</tr>
+<tr>
+<td><code>diffusion_flash_attn</code></td>
+<td>bool</td>
+<td>False</td>
+<td>Use flash attention</td>
+</tr>
+</tbody>
+</table>
+<h4 id="image_to_image">image_to_image()<a class="headerlink" href="#image_to_image" title="Permanent link">&para;</a></h4>
+<p>Transform an existing image with text guidance.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">image_to_image</span><span class="p">(</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="n">model_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="n">init_image</span><span class="p">:</span> <span class="n">SDImage</span><span class="p">,</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="n">prompt</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="n">negative_prompt</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    <span class="n">strength</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.75</span><span class="p">,</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    <span class="n">seed</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>    <span class="n">sample_steps</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">20</span><span class="p">,</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>    <span class="n">cfg_scale</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">7.0</span><span class="p">,</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>    <span class="o">...</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">SDImage</span><span class="p">]</span>
+</code></pre></div>
+<p>The <code>strength</code> parameter (0.0-1.0) controls how much to transform the input image.</p>
+<h3 id="sdcontext">SDContext<a class="headerlink" href="#sdcontext" title="Permanent link">&para;</a></h3>
+<p>Main context class for model loading and generation.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.sd</span><span class="w"> </span><span class="kn">import</span> <span class="n">SDContext</span><span class="p">,</span> <span class="n">SDContextParams</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="n">params</span> <span class="o">=</span> <span class="n">SDContextParams</span><span class="p">()</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="n">params</span><span class="o">.</span><span class="n">model_path</span> <span class="o">=</span> <span class="s2">&quot;models/sd-v1-5.gguf&quot;</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="n">params</span><span class="o">.</span><span class="n">n_threads</span> <span class="o">=</span> <span class="mi">4</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="n">ctx</span> <span class="o">=</span> <span class="n">SDContext</span><span class="p">(</span><span class="n">params</span><span class="p">)</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="c1"># Check if loaded successfully</span>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="k">if</span> <span class="n">ctx</span><span class="o">.</span><span class="n">is_valid</span><span class="p">:</span>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>    <span class="n">images</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>        <span class="n">prompt</span><span class="o">=</span><span class="s2">&quot;a beautiful landscape&quot;</span><span class="p">,</span>
+<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>        <span class="n">negative_prompt</span><span class="o">=</span><span class="s2">&quot;blurry, ugly&quot;</span><span class="p">,</span>
+<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a>        <span class="n">width</span><span class="o">=</span><span class="mi">512</span><span class="p">,</span>
+<a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a>        <span class="n">height</span><span class="o">=</span><span class="mi">512</span><span class="p">,</span>
+<a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a>        <span class="n">sample_steps</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span>
+<a id="__codelineno-4-17" name="__codelineno-4-17" href="#__codelineno-4-17"></a>        <span class="n">cfg_scale</span><span class="o">=</span><span class="mf">7.0</span><span class="p">,</span>
+<a id="__codelineno-4-18" name="__codelineno-4-18" href="#__codelineno-4-18"></a>        <span class="n">flow_shift</span><span class="o">=</span><span class="mf">0.0</span>
+<a id="__codelineno-4-19" name="__codelineno-4-19" href="#__codelineno-4-19"></a>    <span class="p">)</span>
+</code></pre></div>
+<p><strong>Methods:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>generate(...)</code></td>
+<td>Generate images from text prompt</td>
+</tr>
+<tr>
+<td><code>generate_video(...)</code></td>
+<td>Generate video frames (requires video model)</td>
+</tr>
+<tr>
+<td><code>get_default_sample_method()</code></td>
+<td>Get model's default sampler</td>
+</tr>
+<tr>
+<td><code>get_default_scheduler()</code></td>
+<td>Get model's default scheduler</td>
+</tr>
+<tr>
+<td><code>is_valid</code></td>
+<td>Check if context is valid</td>
+</tr>
+</tbody>
+</table>
+<h3 id="sdcontextparams">SDContextParams<a class="headerlink" href="#sdcontextparams" title="Permanent link">&para;</a></h3>
+<p>Configuration for model loading.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">params</span> <span class="o">=</span> <span class="n">SDContextParams</span><span class="p">()</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="c1"># Model paths</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="n">params</span><span class="o">.</span><span class="n">model_path</span> <span class="o">=</span> <span class="s2">&quot;model.gguf&quot;</span>              <span class="c1"># Main model</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="n">params</span><span class="o">.</span><span class="n">diffusion_model_path</span> <span class="o">=</span> <span class="s2">&quot;unet.gguf&quot;</span>     <span class="c1"># Diffusion model (for split models)</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="n">params</span><span class="o">.</span><span class="n">vae_path</span> <span class="o">=</span> <span class="s2">&quot;vae.safetensors&quot;</span>           <span class="c1"># VAE model</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="n">params</span><span class="o">.</span><span class="n">clip_l_path</span> <span class="o">=</span> <span class="s2">&quot;clip_l.safetensors&quot;</span>     <span class="c1"># CLIP-L (SDXL/SD3)</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="n">params</span><span class="o">.</span><span class="n">clip_g_path</span> <span class="o">=</span> <span class="s2">&quot;clip_g.safetensors&quot;</span>     <span class="c1"># CLIP-G (SDXL/SD3)</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="n">params</span><span class="o">.</span><span class="n">clip_vision_path</span> <span class="o">=</span> <span class="s2">&quot;clip_vision.safetensors&quot;</span>  <span class="c1"># CLIP vision</span>
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="n">params</span><span class="o">.</span><span class="n">t5xxl_path</span> <span class="o">=</span> <span class="s2">&quot;t5xxl.safetensors&quot;</span>       <span class="c1"># T5-XXL (SD3/FLUX)</span>
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="n">params</span><span class="o">.</span><span class="n">llm_path</span> <span class="o">=</span> <span class="s2">&quot;qwen.gguf&quot;</span>                 <span class="c1"># LLM encoder (FLUX2)</span>
+<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="n">params</span><span class="o">.</span><span class="n">llm_vision_path</span> <span class="o">=</span> <span class="s2">&quot;qwen_vision.gguf&quot;</span>   <span class="c1"># LLM vision encoder</span>
+<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a><span class="n">params</span><span class="o">.</span><span class="n">taesd_path</span> <span class="o">=</span> <span class="s2">&quot;taesd.safetensors&quot;</span>       <span class="c1"># TAESD for fast preview</span>
+<a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a><span class="n">params</span><span class="o">.</span><span class="n">control_net_path</span> <span class="o">=</span> <span class="s2">&quot;controlnet.gguf&quot;</span>   <span class="c1"># ControlNet model</span>
+<a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a><span class="n">params</span><span class="o">.</span><span class="n">photo_maker_path</span> <span class="o">=</span> <span class="s2">&quot;photomaker.bin&quot;</span>    <span class="c1"># PhotoMaker model</span>
+<a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a><span class="n">params</span><span class="o">.</span><span class="n">high_noise_diffusion_model_path</span> <span class="o">=</span> <span class="s2">&quot;...&quot;</span>  <span class="c1"># High-noise model (Wan2.2 MoE)</span>
+<a id="__codelineno-5-17" name="__codelineno-5-17" href="#__codelineno-5-17"></a><span class="n">params</span><span class="o">.</span><span class="n">lora_model_dir</span> <span class="o">=</span> <span class="s2">&quot;loras/&quot;</span>              <span class="c1"># LoRA directory</span>
+<a id="__codelineno-5-18" name="__codelineno-5-18" href="#__codelineno-5-18"></a><span class="n">params</span><span class="o">.</span><span class="n">embedding_dir</span> <span class="o">=</span> <span class="s2">&quot;embeddings/&quot;</span>          <span class="c1"># Embeddings directory</span>
+<a id="__codelineno-5-19" name="__codelineno-5-19" href="#__codelineno-5-19"></a><span class="n">params</span><span class="o">.</span><span class="n">tensor_type_rules</span> <span class="o">=</span> <span class="s2">&quot;^vae</span><span class="se">\\</span><span class="s2">.=f16&quot;</span>      <span class="c1"># Mixed precision rules</span>
+<a id="__codelineno-5-20" name="__codelineno-5-20" href="#__codelineno-5-20"></a>
+<a id="__codelineno-5-21" name="__codelineno-5-21" href="#__codelineno-5-21"></a><span class="c1"># Numeric/enum parameters</span>
+<a id="__codelineno-5-22" name="__codelineno-5-22" href="#__codelineno-5-22"></a><span class="n">params</span><span class="o">.</span><span class="n">n_threads</span> <span class="o">=</span> <span class="mi">4</span>                          <span class="c1"># Thread count</span>
+<a id="__codelineno-5-23" name="__codelineno-5-23" href="#__codelineno-5-23"></a><span class="n">params</span><span class="o">.</span><span class="n">wtype</span> <span class="o">=</span> <span class="n">SDType</span><span class="o">.</span><span class="n">F16</span>                     <span class="c1"># Weight type</span>
+<a id="__codelineno-5-24" name="__codelineno-5-24" href="#__codelineno-5-24"></a><span class="n">params</span><span class="o">.</span><span class="n">rng_type</span> <span class="o">=</span> <span class="n">RngType</span><span class="o">.</span><span class="n">CUDA</span>                <span class="c1"># RNG type</span>
+<a id="__codelineno-5-25" name="__codelineno-5-25" href="#__codelineno-5-25"></a><span class="n">params</span><span class="o">.</span><span class="n">sampler_rng_type</span> <span class="o">=</span> <span class="n">RngType</span><span class="o">.</span><span class="n">CPU</span>         <span class="c1"># Sampler RNG type</span>
+<a id="__codelineno-5-26" name="__codelineno-5-26" href="#__codelineno-5-26"></a><span class="n">params</span><span class="o">.</span><span class="n">prediction</span> <span class="o">=</span> <span class="n">Prediction</span><span class="o">.</span><span class="n">DEFAULT</span>        <span class="c1"># Prediction type</span>
+<a id="__codelineno-5-27" name="__codelineno-5-27" href="#__codelineno-5-27"></a><span class="n">params</span><span class="o">.</span><span class="n">lora_apply_mode</span> <span class="o">=</span> <span class="n">LoraApplyMode</span><span class="o">.</span><span class="n">AUTO</span>   <span class="c1"># LoRA application mode</span>
+<a id="__codelineno-5-28" name="__codelineno-5-28" href="#__codelineno-5-28"></a><span class="n">params</span><span class="o">.</span><span class="n">chroma_t5_mask_pad</span> <span class="o">=</span> <span class="mi">0</span>                 <span class="c1"># Chroma T5 mask pad</span>
+<a id="__codelineno-5-29" name="__codelineno-5-29" href="#__codelineno-5-29"></a>
+<a id="__codelineno-5-30" name="__codelineno-5-30" href="#__codelineno-5-30"></a><span class="c1"># Boolean flags</span>
+<a id="__codelineno-5-31" name="__codelineno-5-31" href="#__codelineno-5-31"></a><span class="n">params</span><span class="o">.</span><span class="n">vae_decode_only</span> <span class="o">=</span> <span class="kc">True</span>                 <span class="c1"># VAE decode only (faster)</span>
+<a id="__codelineno-5-32" name="__codelineno-5-32" href="#__codelineno-5-32"></a><span class="n">params</span><span class="o">.</span><span class="n">enable_mmap</span> <span class="o">=</span> <span class="kc">True</span>                     <span class="c1"># Enable memory-mapped loading</span>
+<a id="__codelineno-5-33" name="__codelineno-5-33" href="#__codelineno-5-33"></a><span class="n">params</span><span class="o">.</span><span class="n">offload_params_to_cpu</span> <span class="o">=</span> <span class="kc">False</span>          <span class="c1"># Offload to CPU (low VRAM)</span>
+<a id="__codelineno-5-34" name="__codelineno-5-34" href="#__codelineno-5-34"></a><span class="n">params</span><span class="o">.</span><span class="n">keep_clip_on_cpu</span> <span class="o">=</span> <span class="kc">False</span>               <span class="c1"># Keep CLIP on CPU</span>
+<a id="__codelineno-5-35" name="__codelineno-5-35" href="#__codelineno-5-35"></a><span class="n">params</span><span class="o">.</span><span class="n">keep_vae_on_cpu</span> <span class="o">=</span> <span class="kc">False</span>                <span class="c1"># Keep VAE on CPU</span>
+<a id="__codelineno-5-36" name="__codelineno-5-36" href="#__codelineno-5-36"></a><span class="n">params</span><span class="o">.</span><span class="n">keep_control_net_on_cpu</span> <span class="o">=</span> <span class="kc">False</span>        <span class="c1"># Keep ControlNet on CPU</span>
+<a id="__codelineno-5-37" name="__codelineno-5-37" href="#__codelineno-5-37"></a><span class="n">params</span><span class="o">.</span><span class="n">diffusion_flash_attn</span> <span class="o">=</span> <span class="kc">False</span>           <span class="c1"># Flash attention</span>
+<a id="__codelineno-5-38" name="__codelineno-5-38" href="#__codelineno-5-38"></a><span class="n">params</span><span class="o">.</span><span class="n">diffusion_conv_direct</span> <span class="o">=</span> <span class="kc">False</span>          <span class="c1"># Direct convolution</span>
+<a id="__codelineno-5-39" name="__codelineno-5-39" href="#__codelineno-5-39"></a><span class="n">params</span><span class="o">.</span><span class="n">vae_conv_direct</span> <span class="o">=</span> <span class="kc">False</span>                <span class="c1"># VAE direct convolution</span>
+<a id="__codelineno-5-40" name="__codelineno-5-40" href="#__codelineno-5-40"></a><span class="n">params</span><span class="o">.</span><span class="n">tae_preview_only</span> <span class="o">=</span> <span class="kc">False</span>               <span class="c1"># TAESD for preview only</span>
+<a id="__codelineno-5-41" name="__codelineno-5-41" href="#__codelineno-5-41"></a><span class="n">params</span><span class="o">.</span><span class="n">circular_x</span> <span class="o">=</span> <span class="kc">False</span>                     <span class="c1"># Circular padding X (tileable)</span>
+<a id="__codelineno-5-42" name="__codelineno-5-42" href="#__codelineno-5-42"></a><span class="n">params</span><span class="o">.</span><span class="n">circular_y</span> <span class="o">=</span> <span class="kc">False</span>                     <span class="c1"># Circular padding Y (tileable)</span>
+<a id="__codelineno-5-43" name="__codelineno-5-43" href="#__codelineno-5-43"></a><span class="n">params</span><span class="o">.</span><span class="n">qwen_image_zero_cond_t</span> <span class="o">=</span> <span class="kc">False</span>         <span class="c1"># Zero conditioning for Qwen</span>
+<a id="__codelineno-5-44" name="__codelineno-5-44" href="#__codelineno-5-44"></a><span class="n">params</span><span class="o">.</span><span class="n">chroma_use_dit_mask</span> <span class="o">=</span> <span class="kc">True</span>             <span class="c1"># DiT mask for Chroma</span>
+<a id="__codelineno-5-45" name="__codelineno-5-45" href="#__codelineno-5-45"></a><span class="n">params</span><span class="o">.</span><span class="n">chroma_use_t5_mask</span> <span class="o">=</span> <span class="kc">False</span>             <span class="c1"># T5 mask for Chroma</span>
+</code></pre></div>
+<h3 id="sdimage">SDImage<a class="headerlink" href="#sdimage" title="Permanent link">&para;</a></h3>
+<p>Image wrapper with numpy and PIL integration, plus file I/O.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.sd</span><span class="w"> </span><span class="kn">import</span> <span class="n">SDImage</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="c1"># Load from file (PNG, JPEG, BMP, TGA, GIF, PSD, HDR, PIC supported)</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="n">img</span> <span class="o">=</span> <span class="n">SDImage</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">&quot;input.png&quot;</span><span class="p">)</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="n">img</span> <span class="o">=</span> <span class="n">SDImage</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">&quot;input.jpg&quot;</span><span class="p">,</span> <span class="n">channels</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>  <span class="c1"># Force RGB</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="c1"># Properties</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="nb">print</span><span class="p">(</span><span class="n">img</span><span class="o">.</span><span class="n">width</span><span class="p">,</span> <span class="n">img</span><span class="o">.</span><span class="n">height</span><span class="p">,</span> <span class="n">img</span><span class="o">.</span><span class="n">channels</span><span class="p">)</span>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="nb">print</span><span class="p">(</span><span class="n">img</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>   <span class="c1"># (H, W, C)</span>
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="nb">print</span><span class="p">(</span><span class="n">img</span><span class="o">.</span><span class="n">is_valid</span><span class="p">)</span>
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>
+<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a><span class="c1"># Save to file (PNG, JPEG, BMP supported)</span>
+<a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a><span class="n">img</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;output.png&quot;</span><span class="p">)</span>
+<a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a><span class="n">img</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;output.jpg&quot;</span><span class="p">,</span> <span class="n">quality</span><span class="o">=</span><span class="mi">90</span><span class="p">)</span>
+<a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a><span class="n">img</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;output.bmp&quot;</span><span class="p">)</span>
+<a id="__codelineno-6-16" name="__codelineno-6-16" href="#__codelineno-6-16"></a>
+<a id="__codelineno-6-17" name="__codelineno-6-17" href="#__codelineno-6-17"></a><span class="c1"># Convert to numpy (requires numpy)</span>
+<a id="__codelineno-6-18" name="__codelineno-6-18" href="#__codelineno-6-18"></a><span class="n">arr</span> <span class="o">=</span> <span class="n">img</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()</span>  <span class="c1"># Returns (H, W, C) uint8 array</span>
+<a id="__codelineno-6-19" name="__codelineno-6-19" href="#__codelineno-6-19"></a>
+<a id="__codelineno-6-20" name="__codelineno-6-20" href="#__codelineno-6-20"></a><span class="c1"># Create from numpy</span>
+<a id="__codelineno-6-21" name="__codelineno-6-21" href="#__codelineno-6-21"></a><span class="n">img</span> <span class="o">=</span> <span class="n">SDImage</span><span class="o">.</span><span class="n">from_numpy</span><span class="p">(</span><span class="n">arr</span><span class="p">)</span>
+<a id="__codelineno-6-22" name="__codelineno-6-22" href="#__codelineno-6-22"></a>
+<a id="__codelineno-6-23" name="__codelineno-6-23" href="#__codelineno-6-23"></a><span class="c1"># Convert to PIL (requires Pillow)</span>
+<a id="__codelineno-6-24" name="__codelineno-6-24" href="#__codelineno-6-24"></a><span class="n">pil_img</span> <span class="o">=</span> <span class="n">img</span><span class="o">.</span><span class="n">to_pil</span><span class="p">()</span>
+</code></pre></div>
+<h3 id="sdimagegenparams">SDImageGenParams<a class="headerlink" href="#sdimagegenparams" title="Permanent link">&para;</a></h3>
+<p>Detailed generation parameters for advanced control.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.sd</span><span class="w"> </span><span class="kn">import</span> <span class="n">SDImageGenParams</span><span class="p">,</span> <span class="n">SDImage</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="n">params</span> <span class="o">=</span> <span class="n">SDImageGenParams</span><span class="p">()</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="n">params</span><span class="o">.</span><span class="n">prompt</span> <span class="o">=</span> <span class="s2">&quot;a cute cat&quot;</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="n">params</span><span class="o">.</span><span class="n">negative_prompt</span> <span class="o">=</span> <span class="s2">&quot;ugly, blurry&quot;</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="n">params</span><span class="o">.</span><span class="n">width</span> <span class="o">=</span> <span class="mi">512</span>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="n">params</span><span class="o">.</span><span class="n">height</span> <span class="o">=</span> <span class="mi">512</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="n">params</span><span class="o">.</span><span class="n">seed</span> <span class="o">=</span> <span class="mi">42</span>
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="n">params</span><span class="o">.</span><span class="n">batch_count</span> <span class="o">=</span> <span class="mi">1</span>
+<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="n">params</span><span class="o">.</span><span class="n">strength</span> <span class="o">=</span> <span class="mf">0.75</span>           <span class="c1"># For img2img</span>
+<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a><span class="n">params</span><span class="o">.</span><span class="n">clip_skip</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
+<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a><span class="n">params</span><span class="o">.</span><span class="n">control_strength</span> <span class="o">=</span> <span class="mf">0.9</span>    <span class="c1"># ControlNet strength</span>
+<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a>
+<a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a><span class="c1"># VAE tiling for large images</span>
+<a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a><span class="n">params</span><span class="o">.</span><span class="n">vae_tiling_enabled</span> <span class="o">=</span> <span class="kc">True</span>
+<a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a><span class="n">params</span><span class="o">.</span><span class="n">vae_tile_size</span> <span class="o">=</span> <span class="p">(</span><span class="mi">512</span><span class="p">,</span> <span class="mi">512</span><span class="p">)</span>
+<a id="__codelineno-7-17" name="__codelineno-7-17" href="#__codelineno-7-17"></a><span class="n">params</span><span class="o">.</span><span class="n">vae_tile_overlap</span> <span class="o">=</span> <span class="mf">0.5</span>
+<a id="__codelineno-7-18" name="__codelineno-7-18" href="#__codelineno-7-18"></a>
+<a id="__codelineno-7-19" name="__codelineno-7-19" href="#__codelineno-7-19"></a><span class="c1"># EasyCache acceleration</span>
+<a id="__codelineno-7-20" name="__codelineno-7-20" href="#__codelineno-7-20"></a><span class="n">params</span><span class="o">.</span><span class="n">easycache_enabled</span> <span class="o">=</span> <span class="kc">True</span>
+<a id="__codelineno-7-21" name="__codelineno-7-21" href="#__codelineno-7-21"></a><span class="n">params</span><span class="o">.</span><span class="n">easycache_threshold</span> <span class="o">=</span> <span class="mf">0.1</span>
+<a id="__codelineno-7-22" name="__codelineno-7-22" href="#__codelineno-7-22"></a><span class="n">params</span><span class="o">.</span><span class="n">easycache_range</span> <span class="o">=</span> <span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)</span>
+<a id="__codelineno-7-23" name="__codelineno-7-23" href="#__codelineno-7-23"></a>
+<a id="__codelineno-7-24" name="__codelineno-7-24" href="#__codelineno-7-24"></a><span class="c1"># Set init image for img2img</span>
+<a id="__codelineno-7-25" name="__codelineno-7-25" href="#__codelineno-7-25"></a><span class="n">init_img</span> <span class="o">=</span> <span class="n">SDImage</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">&quot;input.png&quot;</span><span class="p">)</span>
+<a id="__codelineno-7-26" name="__codelineno-7-26" href="#__codelineno-7-26"></a><span class="n">params</span><span class="o">.</span><span class="n">set_init_image</span><span class="p">(</span><span class="n">init_img</span><span class="p">)</span>
+<a id="__codelineno-7-27" name="__codelineno-7-27" href="#__codelineno-7-27"></a>
+<a id="__codelineno-7-28" name="__codelineno-7-28" href="#__codelineno-7-28"></a><span class="c1"># Set mask for inpainting</span>
+<a id="__codelineno-7-29" name="__codelineno-7-29" href="#__codelineno-7-29"></a><span class="n">mask_img</span> <span class="o">=</span> <span class="n">SDImage</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">&quot;mask.png&quot;</span><span class="p">)</span>
+<a id="__codelineno-7-30" name="__codelineno-7-30" href="#__codelineno-7-30"></a><span class="n">params</span><span class="o">.</span><span class="n">set_mask_image</span><span class="p">(</span><span class="n">mask_img</span><span class="p">)</span>
+<a id="__codelineno-7-31" name="__codelineno-7-31" href="#__codelineno-7-31"></a>
+<a id="__codelineno-7-32" name="__codelineno-7-32" href="#__codelineno-7-32"></a><span class="c1"># Set control image for ControlNet</span>
+<a id="__codelineno-7-33" name="__codelineno-7-33" href="#__codelineno-7-33"></a><span class="n">params</span><span class="o">.</span><span class="n">set_control_image</span><span class="p">(</span><span class="n">control_img</span><span class="p">,</span> <span class="n">strength</span><span class="o">=</span><span class="mf">0.8</span><span class="p">)</span>
+<a id="__codelineno-7-34" name="__codelineno-7-34" href="#__codelineno-7-34"></a>
+<a id="__codelineno-7-35" name="__codelineno-7-35" href="#__codelineno-7-35"></a><span class="c1"># Access sample parameters</span>
+<a id="__codelineno-7-36" name="__codelineno-7-36" href="#__codelineno-7-36"></a><span class="n">sample</span> <span class="o">=</span> <span class="n">params</span><span class="o">.</span><span class="n">sample_params</span>
+<a id="__codelineno-7-37" name="__codelineno-7-37" href="#__codelineno-7-37"></a><span class="n">sample</span><span class="o">.</span><span class="n">sample_steps</span> <span class="o">=</span> <span class="mi">20</span>
+<a id="__codelineno-7-38" name="__codelineno-7-38" href="#__codelineno-7-38"></a><span class="n">sample</span><span class="o">.</span><span class="n">cfg_scale</span> <span class="o">=</span> <span class="mf">7.0</span>
+<a id="__codelineno-7-39" name="__codelineno-7-39" href="#__codelineno-7-39"></a><span class="n">sample</span><span class="o">.</span><span class="n">sample_method</span> <span class="o">=</span> <span class="n">SampleMethod</span><span class="o">.</span><span class="n">EULER</span>
+<a id="__codelineno-7-40" name="__codelineno-7-40" href="#__codelineno-7-40"></a><span class="n">sample</span><span class="o">.</span><span class="n">scheduler</span> <span class="o">=</span> <span class="n">Scheduler</span><span class="o">.</span><span class="n">KARRAS</span>
+<a id="__codelineno-7-41" name="__codelineno-7-41" href="#__codelineno-7-41"></a><span class="n">sample</span><span class="o">.</span><span class="n">eta</span> <span class="o">=</span> <span class="mf">0.0</span>
+<a id="__codelineno-7-42" name="__codelineno-7-42" href="#__codelineno-7-42"></a><span class="n">sample</span><span class="o">.</span><span class="n">slg_scale</span> <span class="o">=</span> <span class="mf">2.5</span>           <span class="c1"># Skip layer guidance</span>
+<a id="__codelineno-7-43" name="__codelineno-7-43" href="#__codelineno-7-43"></a><span class="n">sample</span><span class="o">.</span><span class="n">slg_layer_start</span> <span class="o">=</span> <span class="mf">0.01</span>
+<a id="__codelineno-7-44" name="__codelineno-7-44" href="#__codelineno-7-44"></a><span class="n">sample</span><span class="o">.</span><span class="n">slg_layer_end</span> <span class="o">=</span> <span class="mf">0.2</span>
+<a id="__codelineno-7-45" name="__codelineno-7-45" href="#__codelineno-7-45"></a><span class="n">sample</span><span class="o">.</span><span class="n">img_cfg_scale</span> <span class="o">=</span> <span class="mf">1.5</span>       <span class="c1"># Image CFG (inpaint)</span>
+<a id="__codelineno-7-46" name="__codelineno-7-46" href="#__codelineno-7-46"></a><span class="n">sample</span><span class="o">.</span><span class="n">distilled_guidance</span> <span class="o">=</span> <span class="mf">3.5</span>  <span class="c1"># For FLUX</span>
+</code></pre></div>
+<h3 id="sdsampleparams">SDSampleParams<a class="headerlink" href="#sdsampleparams" title="Permanent link">&para;</a></h3>
+<p>Sampling configuration.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.sd</span><span class="w"> </span><span class="kn">import</span> <span class="n">SDSampleParams</span><span class="p">,</span> <span class="n">SampleMethod</span><span class="p">,</span> <span class="n">Scheduler</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="n">params</span> <span class="o">=</span> <span class="n">SDSampleParams</span><span class="p">()</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="n">params</span><span class="o">.</span><span class="n">sample_method</span> <span class="o">=</span> <span class="n">SampleMethod</span><span class="o">.</span><span class="n">EULER_A</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="n">params</span><span class="o">.</span><span class="n">scheduler</span> <span class="o">=</span> <span class="n">Scheduler</span><span class="o">.</span><span class="n">KARRAS</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="n">params</span><span class="o">.</span><span class="n">sample_steps</span> <span class="o">=</span> <span class="mi">20</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="n">params</span><span class="o">.</span><span class="n">cfg_scale</span> <span class="o">=</span> <span class="mf">7.0</span>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="n">params</span><span class="o">.</span><span class="n">eta</span> <span class="o">=</span> <span class="mf">0.0</span>                  <span class="c1"># Noise multiplier</span>
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="n">params</span><span class="o">.</span><span class="n">shifted_timestep</span> <span class="o">=</span> <span class="mi">0</span>       <span class="c1"># NitroFusion models</span>
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="n">params</span><span class="o">.</span><span class="n">flow_shift</span> <span class="o">=</span> <span class="mf">0.0</span>           <span class="c1"># Flow shift (SD3.x/Wan)</span>
+<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a><span class="n">params</span><span class="o">.</span><span class="n">img_cfg_scale</span> <span class="o">=</span> <span class="mf">1.5</span>        <span class="c1"># Image guidance</span>
+<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a><span class="n">params</span><span class="o">.</span><span class="n">distilled_guidance</span> <span class="o">=</span> <span class="mf">3.5</span>   <span class="c1"># FLUX guidance</span>
+<a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a><span class="n">params</span><span class="o">.</span><span class="n">slg_scale</span> <span class="o">=</span> <span class="mf">0.0</span>            <span class="c1"># Skip layer guidance</span>
+<a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a><span class="n">params</span><span class="o">.</span><span class="n">slg_layer_start</span> <span class="o">=</span> <span class="mf">0.01</span>
+<a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a><span class="n">params</span><span class="o">.</span><span class="n">slg_layer_end</span> <span class="o">=</span> <span class="mf">0.2</span>
+</code></pre></div>
+<h3 id="upscaler">Upscaler<a class="headerlink" href="#upscaler" title="Permanent link">&para;</a></h3>
+<p>ESRGAN-based image upscaling.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.sd</span><span class="w"> </span><span class="kn">import</span> <span class="n">Upscaler</span><span class="p">,</span> <span class="n">SDImage</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="c1"># Load upscaler model</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="n">upscaler</span> <span class="o">=</span> <span class="n">Upscaler</span><span class="p">(</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>    <span class="s2">&quot;models/esrgan-x4.bin&quot;</span><span class="p">,</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>    <span class="n">n_threads</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>    <span class="n">offload_to_cpu</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>    <span class="n">direct</span><span class="o">=</span><span class="kc">False</span>
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="p">)</span>
+<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a>
+<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="c1"># Check upscale factor</span>
+<a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Factor: </span><span class="si">{</span><span class="n">upscaler</span><span class="o">.</span><span class="n">upscale_factor</span><span class="si">}</span><span class="s2">x&quot;</span><span class="p">)</span>
+<a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a>
+<a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a><span class="c1"># Upscale an image</span>
+<a id="__codelineno-9-15" name="__codelineno-9-15" href="#__codelineno-9-15"></a><span class="n">img</span> <span class="o">=</span> <span class="n">SDImage</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">&quot;input.png&quot;</span><span class="p">)</span>
+<a id="__codelineno-9-16" name="__codelineno-9-16" href="#__codelineno-9-16"></a><span class="n">upscaled</span> <span class="o">=</span> <span class="n">upscaler</span><span class="o">.</span><span class="n">upscale</span><span class="p">(</span><span class="n">img</span><span class="p">)</span>
+<a id="__codelineno-9-17" name="__codelineno-9-17" href="#__codelineno-9-17"></a><span class="n">upscaled</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;upscaled.png&quot;</span><span class="p">)</span>
+<a id="__codelineno-9-18" name="__codelineno-9-18" href="#__codelineno-9-18"></a>
+<a id="__codelineno-9-19" name="__codelineno-9-19" href="#__codelineno-9-19"></a><span class="c1"># Multiple upscale passes</span>
+<a id="__codelineno-9-20" name="__codelineno-9-20" href="#__codelineno-9-20"></a><span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">2</span><span class="p">):</span>
+<a id="__codelineno-9-21" name="__codelineno-9-21" href="#__codelineno-9-21"></a>    <span class="n">img</span> <span class="o">=</span> <span class="n">upscaler</span><span class="o">.</span><span class="n">upscale</span><span class="p">(</span><span class="n">img</span><span class="p">)</span>  <span class="c1"># 16x total</span>
+</code></pre></div>
+<h2 id="enums">Enums<a class="headerlink" href="#enums" title="Permanent link">&para;</a></h2>
+<h3 id="samplemethod">SampleMethod<a class="headerlink" href="#samplemethod" title="Permanent link">&para;</a></h3>
+<p>Sampling methods for diffusion:</p>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>EULER</code></td>
+<td>Euler method</td>
+</tr>
+<tr>
+<td><code>EULER_A</code></td>
+<td>Euler ancestral</td>
+</tr>
+<tr>
+<td><code>HEUN</code></td>
+<td>Heun's method</td>
+</tr>
+<tr>
+<td><code>DPM2</code></td>
+<td>DPM-2</td>
+</tr>
+<tr>
+<td><code>DPMPP2S_A</code></td>
+<td>DPM++ 2S ancestral</td>
+</tr>
+<tr>
+<td><code>DPMPP2M</code></td>
+<td>DPM++ 2M</td>
+</tr>
+<tr>
+<td><code>DPMPP2Mv2</code></td>
+<td>DPM++ 2M v2</td>
+</tr>
+<tr>
+<td><code>IPNDM</code></td>
+<td>IPNDM</td>
+</tr>
+<tr>
+<td><code>IPNDM_V</code></td>
+<td>IPNDM-V</td>
+</tr>
+<tr>
+<td><code>LCM</code></td>
+<td>Latent Consistency Model</td>
+</tr>
+<tr>
+<td><code>DDIM_TRAILING</code></td>
+<td>DDIM trailing</td>
+</tr>
+<tr>
+<td><code>TCD</code></td>
+<td>TCD</td>
+</tr>
+</tbody>
+</table>
+<h3 id="scheduler">Scheduler<a class="headerlink" href="#scheduler" title="Permanent link">&para;</a></h3>
+<p>Noise schedulers:</p>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>DISCRETE</code></td>
+<td>Discrete scheduler</td>
+</tr>
+<tr>
+<td><code>KARRAS</code></td>
+<td>Karras scheduler</td>
+</tr>
+<tr>
+<td><code>EXPONENTIAL</code></td>
+<td>Exponential scheduler</td>
+</tr>
+<tr>
+<td><code>AYS</code></td>
+<td>AYS scheduler</td>
+</tr>
+<tr>
+<td><code>GITS</code></td>
+<td>GITS scheduler</td>
+</tr>
+<tr>
+<td><code>SGM_UNIFORM</code></td>
+<td>SGM uniform</td>
+</tr>
+<tr>
+<td><code>SIMPLE</code></td>
+<td>Simple scheduler</td>
+</tr>
+<tr>
+<td><code>SMOOTHSTEP</code></td>
+<td>Smoothstep scheduler</td>
+</tr>
+<tr>
+<td><code>LCM</code></td>
+<td>LCM scheduler</td>
+</tr>
+</tbody>
+</table>
+<h3 id="prediction">Prediction<a class="headerlink" href="#prediction" title="Permanent link">&para;</a></h3>
+<p>Prediction types:</p>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>DEFAULT</code></td>
+<td>Auto-detect from model</td>
+</tr>
+<tr>
+<td><code>EPS</code></td>
+<td>Epsilon prediction</td>
+</tr>
+<tr>
+<td><code>V</code></td>
+<td>V-prediction</td>
+</tr>
+<tr>
+<td><code>EDM_V</code></td>
+<td>EDM V-prediction</td>
+</tr>
+<tr>
+<td><code>SD3_FLOW</code></td>
+<td>SD3 flow matching</td>
+</tr>
+<tr>
+<td><code>FLUX_FLOW</code></td>
+<td>FLUX flow matching</td>
+</tr>
+<tr>
+<td><code>FLUX2_FLOW</code></td>
+<td>FLUX2 flow matching</td>
+</tr>
+</tbody>
+</table>
+<h3 id="sdtype">SDType<a class="headerlink" href="#sdtype" title="Permanent link">&para;</a></h3>
+<p>Data types for quantization:</p>
+<ul>
+<li>Float: <code>F32</code>, <code>F16</code>, <code>BF16</code></li>
+<li>4-bit: <code>Q4_0</code>, <code>Q4_1</code>, <code>Q4_K</code></li>
+<li>5-bit: <code>Q5_0</code>, <code>Q5_1</code>, <code>Q5_K</code></li>
+<li>8-bit: <code>Q8_0</code>, <code>Q8_1</code>, <code>Q8_K</code></li>
+<li>K-quants: <code>Q2_K</code>, <code>Q3_K</code>, <code>Q6_K</code></li>
+</ul>
+<h3 id="loraapplymode">LoraApplyMode<a class="headerlink" href="#loraapplymode" title="Permanent link">&para;</a></h3>
+<p>LoRA application modes:</p>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTO</code></td>
+<td>Auto-detect best mode</td>
+</tr>
+<tr>
+<td><code>IMMEDIATELY</code></td>
+<td>Apply at load time</td>
+</tr>
+<tr>
+<td><code>AT_RUNTIME</code></td>
+<td>Apply during generation</td>
+</tr>
+</tbody>
+</table>
+<h3 id="previewmode">PreviewMode<a class="headerlink" href="#previewmode" title="Permanent link">&para;</a></h3>
+<p>Preview modes during generation:</p>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>NONE</code></td>
+<td>No preview</td>
+</tr>
+<tr>
+<td><code>PROJ</code></td>
+<td>Projection preview</td>
+</tr>
+<tr>
+<td><code>TAE</code></td>
+<td>TAESD preview</td>
+</tr>
+<tr>
+<td><code>VAE</code></td>
+<td>Full VAE preview</td>
+</tr>
+</tbody>
+</table>
+<h2 id="callbacks">Callbacks<a class="headerlink" href="#callbacks" title="Permanent link">&para;</a></h2>
+<p>Set callbacks for logging, progress, and preview during generation.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.sd</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>    <span class="n">set_log_callback</span><span class="p">,</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>    <span class="n">set_progress_callback</span><span class="p">,</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>    <span class="n">set_preview_callback</span><span class="p">,</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>    <span class="n">LogLevel</span><span class="p">,</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>    <span class="n">PreviewMode</span>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="p">)</span>
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>
+<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="c1"># Log callback</span>
+<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="k">def</span><span class="w"> </span><span class="nf">log_cb</span><span class="p">(</span><span class="n">level</span><span class="p">:</span> <span class="n">LogLevel</span><span class="p">,</span> <span class="n">text</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+<a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a>    <span class="n">level_names</span> <span class="o">=</span> <span class="p">{</span><span class="mi">0</span><span class="p">:</span> <span class="s1">&#39;DEBUG&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">:</span> <span class="s1">&#39;INFO&#39;</span><span class="p">,</span> <span class="mi">2</span><span class="p">:</span> <span class="s1">&#39;WARN&#39;</span><span class="p">,</span> <span class="mi">3</span><span class="p">:</span> <span class="s1">&#39;ERROR&#39;</span><span class="p">}</span>
+<a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;[</span><span class="si">{</span><span class="n">level_names</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">level</span><span class="p">,</span><span class="w"> </span><span class="n">level</span><span class="p">)</span><span class="si">}</span><span class="s1">] </span><span class="si">{</span><span class="n">text</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">)</span>
+<a id="__codelineno-10-13" name="__codelineno-10-13" href="#__codelineno-10-13"></a>
+<a id="__codelineno-10-14" name="__codelineno-10-14" href="#__codelineno-10-14"></a><span class="n">set_log_callback</span><span class="p">(</span><span class="n">log_cb</span><span class="p">)</span>
+<a id="__codelineno-10-15" name="__codelineno-10-15" href="#__codelineno-10-15"></a>
+<a id="__codelineno-10-16" name="__codelineno-10-16" href="#__codelineno-10-16"></a><span class="c1"># Progress callback</span>
+<a id="__codelineno-10-17" name="__codelineno-10-17" href="#__codelineno-10-17"></a><span class="k">def</span><span class="w"> </span><span class="nf">progress_cb</span><span class="p">(</span><span class="n">step</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">steps</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">time_ms</span><span class="p">:</span> <span class="nb">float</span><span class="p">):</span>
+<a id="__codelineno-10-18" name="__codelineno-10-18" href="#__codelineno-10-18"></a>    <span class="n">pct</span> <span class="o">=</span> <span class="p">(</span><span class="n">step</span> <span class="o">/</span> <span class="n">steps</span><span class="p">)</span> <span class="o">*</span> <span class="mi">100</span> <span class="k">if</span> <span class="n">steps</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="k">else</span> <span class="mi">0</span>
+<a id="__codelineno-10-19" name="__codelineno-10-19" href="#__codelineno-10-19"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Step </span><span class="si">{</span><span class="n">step</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="n">steps</span><span class="si">}</span><span class="s1"> (</span><span class="si">{</span><span class="n">pct</span><span class="si">:</span><span class="s1">.1f</span><span class="si">}</span><span class="s1">%) - </span><span class="si">{</span><span class="n">time_ms</span><span class="si">:</span><span class="s1">.2f</span><span class="si">}</span><span class="s1">s&#39;</span><span class="p">)</span>
+<a id="__codelineno-10-20" name="__codelineno-10-20" href="#__codelineno-10-20"></a>
+<a id="__codelineno-10-21" name="__codelineno-10-21" href="#__codelineno-10-21"></a><span class="n">set_progress_callback</span><span class="p">(</span><span class="n">progress_cb</span><span class="p">)</span>
+<a id="__codelineno-10-22" name="__codelineno-10-22" href="#__codelineno-10-22"></a>
+<a id="__codelineno-10-23" name="__codelineno-10-23" href="#__codelineno-10-23"></a><span class="c1"># Preview callback</span>
+<a id="__codelineno-10-24" name="__codelineno-10-24" href="#__codelineno-10-24"></a><span class="k">def</span><span class="w"> </span><span class="nf">preview_cb</span><span class="p">(</span><span class="n">step</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">frames</span><span class="p">:</span> <span class="nb">list</span><span class="p">,</span> <span class="n">is_noisy</span><span class="p">:</span> <span class="nb">bool</span><span class="p">):</span>
+<a id="__codelineno-10-25" name="__codelineno-10-25" href="#__codelineno-10-25"></a>    <span class="k">if</span> <span class="n">frames</span><span class="p">:</span>
+<a id="__codelineno-10-26" name="__codelineno-10-26" href="#__codelineno-10-26"></a>        <span class="n">frames</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;preview_</span><span class="si">{</span><span class="n">step</span><span class="si">}</span><span class="s2">.png&quot;</span><span class="p">)</span>
+<a id="__codelineno-10-27" name="__codelineno-10-27" href="#__codelineno-10-27"></a>
+<a id="__codelineno-10-28" name="__codelineno-10-28" href="#__codelineno-10-28"></a><span class="n">set_preview_callback</span><span class="p">(</span>
+<a id="__codelineno-10-29" name="__codelineno-10-29" href="#__codelineno-10-29"></a>    <span class="n">preview_cb</span><span class="p">,</span>
+<a id="__codelineno-10-30" name="__codelineno-10-30" href="#__codelineno-10-30"></a>    <span class="n">mode</span><span class="o">=</span><span class="n">PreviewMode</span><span class="o">.</span><span class="n">TAE</span><span class="p">,</span>
+<a id="__codelineno-10-31" name="__codelineno-10-31" href="#__codelineno-10-31"></a>    <span class="n">interval</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>
+<a id="__codelineno-10-32" name="__codelineno-10-32" href="#__codelineno-10-32"></a>    <span class="n">denoised</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<a id="__codelineno-10-33" name="__codelineno-10-33" href="#__codelineno-10-33"></a>    <span class="n">noisy</span><span class="o">=</span><span class="kc">False</span>
+<a id="__codelineno-10-34" name="__codelineno-10-34" href="#__codelineno-10-34"></a><span class="p">)</span>
+<a id="__codelineno-10-35" name="__codelineno-10-35" href="#__codelineno-10-35"></a>
+<a id="__codelineno-10-36" name="__codelineno-10-36" href="#__codelineno-10-36"></a><span class="c1"># Clear callbacks</span>
+<a id="__codelineno-10-37" name="__codelineno-10-37" href="#__codelineno-10-37"></a><span class="n">set_log_callback</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+<a id="__codelineno-10-38" name="__codelineno-10-38" href="#__codelineno-10-38"></a><span class="n">set_progress_callback</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+<a id="__codelineno-10-39" name="__codelineno-10-39" href="#__codelineno-10-39"></a><span class="n">set_preview_callback</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+</code></pre></div>
+<h2 id="model-conversion">Model Conversion<a class="headerlink" href="#model-conversion" title="Permanent link">&para;</a></h2>
+<p>Convert models between formats with optional quantization.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.sd</span><span class="w"> </span><span class="kn">import</span> <span class="n">convert_model</span><span class="p">,</span> <span class="n">SDType</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="n">convert_model</span><span class="p">(</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>    <span class="n">input_path</span><span class="o">=</span><span class="s2">&quot;sd-v1-5.safetensors&quot;</span><span class="p">,</span>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>    <span class="n">output_path</span><span class="o">=</span><span class="s2">&quot;sd-v1-5-q4_0.gguf&quot;</span><span class="p">,</span>
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>    <span class="n">output_type</span><span class="o">=</span><span class="n">SDType</span><span class="o">.</span><span class="n">Q4_0</span><span class="p">,</span>
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>    <span class="n">vae_path</span><span class="o">=</span><span class="s2">&quot;vae-ft-mse.safetensors&quot;</span><span class="p">,</span>  <span class="c1"># Optional</span>
+<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a>    <span class="n">tensor_type_rules</span><span class="o">=</span><span class="s2">&quot;^vae</span><span class="se">\\</span><span class="s2">.=f16&quot;</span>      <span class="c1"># Optional mixed precision</span>
+<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a><span class="p">)</span>
+</code></pre></div>
+<h2 id="controlnet-preprocessing">ControlNet Preprocessing<a class="headerlink" href="#controlnet-preprocessing" title="Permanent link">&para;</a></h2>
+<p>Apply Canny edge detection for ControlNet conditioning.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.sd</span><span class="w"> </span><span class="kn">import</span> <span class="n">SDImage</span><span class="p">,</span> <span class="n">canny_preprocess</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="n">img</span> <span class="o">=</span> <span class="n">SDImage</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">&quot;photo.png&quot;</span><span class="p">)</span>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="c1"># Apply Canny preprocessing (modifies image in place)</span>
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="n">success</span> <span class="o">=</span> <span class="n">canny_preprocess</span><span class="p">(</span>
+<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a>    <span class="n">img</span><span class="p">,</span>
+<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a>    <span class="n">high_threshold</span><span class="o">=</span><span class="mf">0.8</span><span class="p">,</span>
+<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a>    <span class="n">low_threshold</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
+<a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a>    <span class="n">weak</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>
+<a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a>    <span class="n">strong</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
+<a id="__codelineno-12-12" name="__codelineno-12-12" href="#__codelineno-12-12"></a>    <span class="n">inverse</span><span class="o">=</span><span class="kc">False</span>
+<a id="__codelineno-12-13" name="__codelineno-12-13" href="#__codelineno-12-13"></a><span class="p">)</span>
+<a id="__codelineno-12-14" name="__codelineno-12-14" href="#__codelineno-12-14"></a>
+<a id="__codelineno-12-15" name="__codelineno-12-15" href="#__codelineno-12-15"></a><span class="n">img</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;edges.png&quot;</span><span class="p">)</span>
+</code></pre></div>
+<h2 id="cli-tool">CLI Tool<a class="headerlink" href="#cli-tool" title="Permanent link">&para;</a></h2>
+<p>Command-line interface with subcommands for all operations.</p>
+<h3 id="txt2img-text-to-image">txt2img - Text to Image<a class="headerlink" href="#txt2img-text-to-image" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>python<span class="w"> </span>-m<span class="w"> </span>cyllama.sd<span class="w"> </span>txt2img<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="w">    </span>--model<span class="w"> </span>models/sd_xl_turbo_1.0.q8_0.gguf<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="w">    </span>--prompt<span class="w"> </span><span class="s2">&quot;a beautiful sunset&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="w">    </span>--output<span class="w"> </span>sunset.png<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="w">    </span>--steps<span class="w"> </span><span class="m">4</span><span class="w"> </span>--cfg-scale<span class="w"> </span><span class="m">1</span>.0
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>
+<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a><span class="c1"># Using diffusion model directly (FLUX, etc.)</span>
+<a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a>python<span class="w"> </span>-m<span class="w"> </span>cyllama.sd<span class="w"> </span>txt2img<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a><span class="w">    </span>--diffusion-model<span class="w"> </span>models/flux-dev.gguf<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a><span class="w">    </span>--vae<span class="w"> </span>models/ae.safetensors<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-13-11" name="__codelineno-13-11" href="#__codelineno-13-11"></a><span class="w">    </span>--clip-l<span class="w"> </span>models/clip_l.safetensors<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-13-12" name="__codelineno-13-12" href="#__codelineno-13-12"></a><span class="w">    </span>--t5xxl<span class="w"> </span>models/t5xxl.gguf<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-13-13" name="__codelineno-13-13" href="#__codelineno-13-13"></a><span class="w">    </span>--prompt<span class="w"> </span><span class="s2">&quot;a photo of a cat&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-13-14" name="__codelineno-13-14" href="#__codelineno-13-14"></a><span class="w">    </span>-W<span class="w"> </span><span class="m">1024</span><span class="w"> </span>-H<span class="w"> </span><span class="m">1024</span>
+<a id="__codelineno-13-15" name="__codelineno-13-15" href="#__codelineno-13-15"></a>
+<a id="__codelineno-13-16" name="__codelineno-13-16" href="#__codelineno-13-16"></a><span class="c1"># With memory optimization</span>
+<a id="__codelineno-13-17" name="__codelineno-13-17" href="#__codelineno-13-17"></a>python<span class="w"> </span>-m<span class="w"> </span>cyllama.sd<span class="w"> </span>txt2img<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-13-18" name="__codelineno-13-18" href="#__codelineno-13-18"></a><span class="w">    </span>--diffusion-model<span class="w"> </span>models/flux.gguf<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-13-19" name="__codelineno-13-19" href="#__codelineno-13-19"></a><span class="w">    </span>--vae<span class="w"> </span>models/ae.safetensors<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-13-20" name="__codelineno-13-20" href="#__codelineno-13-20"></a><span class="w">    </span>--llm<span class="w"> </span>models/qwen.gguf<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-13-21" name="__codelineno-13-21" href="#__codelineno-13-21"></a><span class="w">    </span>--offload-to-cpu<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-13-22" name="__codelineno-13-22" href="#__codelineno-13-22"></a><span class="w">    </span>--diffusion-fa<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-13-23" name="__codelineno-13-23" href="#__codelineno-13-23"></a><span class="w">    </span>--prompt<span class="w"> </span><span class="s2">&quot;a lovely cat&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-13-24" name="__codelineno-13-24" href="#__codelineno-13-24"></a><span class="w">    </span>-W<span class="w"> </span><span class="m">512</span><span class="w"> </span>-H<span class="w"> </span><span class="m">1024</span>
+</code></pre></div>
+<h3 id="img2img-image-to-image">img2img - Image to Image<a class="headerlink" href="#img2img-image-to-image" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>python<span class="w"> </span>-m<span class="w"> </span>cyllama.sd<span class="w"> </span>img2img<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="w">    </span>--model<span class="w"> </span>models/sd-v1-5.gguf<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="w">    </span>--init-img<span class="w"> </span>input.png<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="w">    </span>--prompt<span class="w"> </span><span class="s2">&quot;oil painting style&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="w">    </span>--strength<span class="w"> </span><span class="m">0</span>.7<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a><span class="w">    </span>--output<span class="w"> </span>styled.png
+</code></pre></div>
+<h3 id="inpaint-inpainting">inpaint - Inpainting<a class="headerlink" href="#inpaint-inpainting" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>python<span class="w"> </span>-m<span class="w"> </span>cyllama.sd<span class="w"> </span>inpaint<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="w">    </span>--model<span class="w"> </span>models/sd-inpaint.gguf<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="w">    </span>--init-img<span class="w"> </span>photo.png<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="w">    </span>--mask<span class="w"> </span>mask.png<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="w">    </span>--prompt<span class="w"> </span><span class="s2">&quot;a red hat&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a><span class="w">    </span>--output<span class="w"> </span>inpainted.png
+</code></pre></div>
+<h3 id="controlnet-controlnet-guided-generation">controlnet - ControlNet Guided Generation<a class="headerlink" href="#controlnet-controlnet-guided-generation" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>python<span class="w"> </span>-m<span class="w"> </span>cyllama.sd<span class="w"> </span>controlnet<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="w">    </span>--model<span class="w"> </span>models/sd-v1-5.gguf<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="w">    </span>--control-net<span class="w"> </span>models/control_canny.gguf<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="w">    </span>--control-image<span class="w"> </span>edges.png<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a><span class="w">    </span>--prompt<span class="w"> </span><span class="s2">&quot;a beautiful landscape&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a><span class="w">    </span>--control-strength<span class="w"> </span><span class="m">0</span>.9
+<a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a>
+<a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a><span class="c1"># With automatic Canny preprocessing</span>
+<a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a>python<span class="w"> </span>-m<span class="w"> </span>cyllama.sd<span class="w"> </span>controlnet<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-16-10" name="__codelineno-16-10" href="#__codelineno-16-10"></a><span class="w">    </span>--model<span class="w"> </span>models/sd-v1-5.gguf<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-16-11" name="__codelineno-16-11" href="#__codelineno-16-11"></a><span class="w">    </span>--control-net<span class="w"> </span>models/control_canny.gguf<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-16-12" name="__codelineno-16-12" href="#__codelineno-16-12"></a><span class="w">    </span>--control-image<span class="w"> </span>photo.png<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-16-13" name="__codelineno-16-13" href="#__codelineno-16-13"></a><span class="w">    </span>--canny<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-16-14" name="__codelineno-16-14" href="#__codelineno-16-14"></a><span class="w">    </span>--prompt<span class="w"> </span><span class="s2">&quot;anime style&quot;</span>
+</code></pre></div>
+<h3 id="video-video-generation">video - Video Generation<a class="headerlink" href="#video-video-generation" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="c1"># Text to video</span>
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>python<span class="w"> </span>-m<span class="w"> </span>cyllama.sd<span class="w"> </span>video<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="w">    </span>--model<span class="w"> </span>models/wan2.1.gguf<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="w">    </span>--prompt<span class="w"> </span><span class="s2">&quot;a cat walking&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a><span class="w">    </span>--video-frames<span class="w"> </span><span class="m">16</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a><span class="w">    </span>--fps<span class="w"> </span><span class="m">24</span>
+<a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a>
+<a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a><span class="c1"># Image to video</span>
+<a id="__codelineno-17-9" name="__codelineno-17-9" href="#__codelineno-17-9"></a>python<span class="w"> </span>-m<span class="w"> </span>cyllama.sd<span class="w"> </span>video<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-17-10" name="__codelineno-17-10" href="#__codelineno-17-10"></a><span class="w">    </span>--model<span class="w"> </span>models/wan2.1.gguf<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-17-11" name="__codelineno-17-11" href="#__codelineno-17-11"></a><span class="w">    </span>--init-img<span class="w"> </span>first_frame.png<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-17-12" name="__codelineno-17-12" href="#__codelineno-17-12"></a><span class="w">    </span>--prompt<span class="w"> </span><span class="s2">&quot;camera slowly zooms in&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-17-13" name="__codelineno-17-13" href="#__codelineno-17-13"></a><span class="w">    </span>--video-frames<span class="w"> </span><span class="m">24</span>
+<a id="__codelineno-17-14" name="__codelineno-17-14" href="#__codelineno-17-14"></a>
+<a id="__codelineno-17-15" name="__codelineno-17-15" href="#__codelineno-17-15"></a><span class="c1"># Frame interpolation</span>
+<a id="__codelineno-17-16" name="__codelineno-17-16" href="#__codelineno-17-16"></a>python<span class="w"> </span>-m<span class="w"> </span>cyllama.sd<span class="w"> </span>video<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-17-17" name="__codelineno-17-17" href="#__codelineno-17-17"></a><span class="w">    </span>--model<span class="w"> </span>models/wan2.1.gguf<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-17-18" name="__codelineno-17-18" href="#__codelineno-17-18"></a><span class="w">    </span>--init-img<span class="w"> </span>start.png<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-17-19" name="__codelineno-17-19" href="#__codelineno-17-19"></a><span class="w">    </span>--end-img<span class="w"> </span>end.png<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-17-20" name="__codelineno-17-20" href="#__codelineno-17-20"></a><span class="w">    </span>--video-frames<span class="w"> </span><span class="m">16</span>
+</code></pre></div>
+<h3 id="upscale-image-upscaling">upscale - Image Upscaling<a class="headerlink" href="#upscale-image-upscaling" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>python<span class="w"> </span>-m<span class="w"> </span>cyllama.sd<span class="w"> </span>upscale<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="w">    </span>--model<span class="w"> </span>models/esrgan-x4.bin<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a><span class="w">    </span>--input<span class="w"> </span>image.png<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a><span class="w">    </span>--output<span class="w"> </span>image_4x.png
+<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a>
+<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a><span class="c1"># Multiple passes</span>
+<a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a>python<span class="w"> </span>-m<span class="w"> </span>cyllama.sd<span class="w"> </span>upscale<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a><span class="w">    </span>--model<span class="w"> </span>models/esrgan-x4.bin<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a><span class="w">    </span>--input<span class="w"> </span>image.png<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-18-10" name="__codelineno-18-10" href="#__codelineno-18-10"></a><span class="w">    </span>--output<span class="w"> </span>image_16x.png<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-18-11" name="__codelineno-18-11" href="#__codelineno-18-11"></a><span class="w">    </span>--repeats<span class="w"> </span><span class="m">2</span>
+</code></pre></div>
+<h3 id="convert-model-conversion">convert - Model Conversion<a class="headerlink" href="#convert-model-conversion" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>python<span class="w"> </span>-m<span class="w"> </span>cyllama.sd<span class="w"> </span>convert<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="w">    </span>--input<span class="w"> </span>sd-v1-5.safetensors<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a><span class="w">    </span>--output<span class="w"> </span>sd-v1-5-q4_0.gguf<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a><span class="w">    </span>--type<span class="w"> </span>q4_0
+<a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a>
+<a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a><span class="c1"># With VAE baking</span>
+<a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a>python<span class="w"> </span>-m<span class="w"> </span>cyllama.sd<span class="w"> </span>convert<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-19-8" name="__codelineno-19-8" href="#__codelineno-19-8"></a><span class="w">    </span>--input<span class="w"> </span>sdxl-base.safetensors<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-19-9" name="__codelineno-19-9" href="#__codelineno-19-9"></a><span class="w">    </span>--output<span class="w"> </span>sdxl-q8_0.gguf<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-19-10" name="__codelineno-19-10" href="#__codelineno-19-10"></a><span class="w">    </span>--type<span class="w"> </span>q8_0<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-19-11" name="__codelineno-19-11" href="#__codelineno-19-11"></a><span class="w">    </span>--vae<span class="w"> </span>sdxl-vae.safetensors
+</code></pre></div>
+<h3 id="info-system-information">info - System Information<a class="headerlink" href="#info-system-information" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>python<span class="w"> </span>-m<span class="w"> </span>cyllama.sd<span class="w"> </span>info
+</code></pre></div>
+<h3 id="cli-options-reference">CLI Options Reference<a class="headerlink" href="#cli-options-reference" title="Permanent link">&para;</a></h3>
+<p><strong>Model Options</strong> (most subcommands):</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--model</code>, <code>-m</code></td>
+<td>Main model file</td>
+</tr>
+<tr>
+<td><code>--diffusion-model</code></td>
+<td>Diffusion model (for split architectures)</td>
+</tr>
+<tr>
+<td><code>--vae</code></td>
+<td>VAE model</td>
+</tr>
+<tr>
+<td><code>--taesd</code></td>
+<td>TAESD model (fast preview)</td>
+</tr>
+<tr>
+<td><code>--clip-l</code></td>
+<td>CLIP-L model (SDXL/SD3)</td>
+</tr>
+<tr>
+<td><code>--clip-g</code></td>
+<td>CLIP-G model (SDXL/SD3)</td>
+</tr>
+<tr>
+<td><code>--clip-vision</code></td>
+<td>CLIP vision model</td>
+</tr>
+<tr>
+<td><code>--t5xxl</code></td>
+<td>T5-XXL model (SD3/FLUX)</td>
+</tr>
+<tr>
+<td><code>--llm</code></td>
+<td>LLM text encoder (FLUX2)</td>
+</tr>
+<tr>
+<td><code>--llm-vision</code></td>
+<td>LLM vision encoder</td>
+</tr>
+<tr>
+<td><code>--control-net</code></td>
+<td>ControlNet model</td>
+</tr>
+<tr>
+<td><code>--lora-dir</code></td>
+<td>LoRA models directory</td>
+</tr>
+<tr>
+<td><code>--embd-dir</code></td>
+<td>Embeddings directory</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Generation Options</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--prompt</code>, <code>-p</code></td>
+<td>Text prompt</td>
+</tr>
+<tr>
+<td><code>--negative</code>, <code>-n</code></td>
+<td>Negative prompt</td>
+</tr>
+<tr>
+<td><code>--output</code>, <code>-o</code></td>
+<td>Output file path</td>
+</tr>
+<tr>
+<td><code>--width</code>, <code>-W</code></td>
+<td>Image width</td>
+</tr>
+<tr>
+<td><code>--height</code>, <code>-H</code></td>
+<td>Image height</td>
+</tr>
+<tr>
+<td><code>--steps</code></td>
+<td>Sampling steps</td>
+</tr>
+<tr>
+<td><code>--cfg-scale</code></td>
+<td>CFG guidance scale</td>
+</tr>
+<tr>
+<td><code>--seed</code>, <code>-s</code></td>
+<td>Random seed (-1 = random)</td>
+</tr>
+<tr>
+<td><code>--batch</code>, <code>-b</code></td>
+<td>Batch count</td>
+</tr>
+<tr>
+<td><code>--clip-skip</code></td>
+<td>CLIP layers to skip</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Sampler Options</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--sampler</code></td>
+<td>Sampling method</td>
+</tr>
+<tr>
+<td><code>--scheduler</code></td>
+<td>Noise scheduler</td>
+</tr>
+<tr>
+<td><code>--eta</code></td>
+<td>Eta for DDIM/TCD</td>
+</tr>
+<tr>
+<td><code>--rng</code></td>
+<td>RNG type (std_default, cuda, cpu)</td>
+</tr>
+<tr>
+<td><code>--prediction</code></td>
+<td>Prediction type override</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Guidance Options</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--slg-scale</code></td>
+<td>Skip layer guidance scale</td>
+</tr>
+<tr>
+<td><code>--skip-layer-start</code></td>
+<td>SLG start point</td>
+</tr>
+<tr>
+<td><code>--skip-layer-end</code></td>
+<td>SLG end point</td>
+</tr>
+<tr>
+<td><code>--guidance</code></td>
+<td>Distilled guidance (FLUX)</td>
+</tr>
+<tr>
+<td><code>--img-cfg-scale</code></td>
+<td>Image CFG scale</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Memory Options</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--threads</code>, <code>-t</code></td>
+<td>Thread count</td>
+</tr>
+<tr>
+<td><code>--offload-to-cpu</code></td>
+<td>Offload weights to CPU</td>
+</tr>
+<tr>
+<td><code>--clip-on-cpu</code></td>
+<td>Keep CLIP on CPU</td>
+</tr>
+<tr>
+<td><code>--vae-on-cpu</code></td>
+<td>Keep VAE on CPU</td>
+</tr>
+<tr>
+<td><code>--control-net-cpu</code></td>
+<td>Keep ControlNet on CPU</td>
+</tr>
+<tr>
+<td><code>--diffusion-fa</code></td>
+<td>Flash attention</td>
+</tr>
+<tr>
+<td><code>--vae-tiling</code></td>
+<td>Enable VAE tiling</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Other Options</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--verbose</code>, <code>-v</code></td>
+<td>Verbose output</td>
+</tr>
+<tr>
+<td><code>--progress</code></td>
+<td>Show progress</td>
+</tr>
+<tr>
+<td><code>--preview</code></td>
+<td>Preview mode (none, proj, tae, vae)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="supported-models">Supported Models<a class="headerlink" href="#supported-models" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Model Family</th>
+<th>Examples</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SD 1.x/2.x</td>
+<td>sd-v1-5, sd-v2-1</td>
+<td>Standard models</td>
+</tr>
+<tr>
+<td>SDXL</td>
+<td>sdxl-base, sdxl-turbo</td>
+<td>Use cfg_scale=1.0, steps=1-4 for turbo</td>
+</tr>
+<tr>
+<td>SD3/SD3.5</td>
+<td>sd3-medium, sd3.5-large</td>
+<td>May need T5-XXL encoder</td>
+</tr>
+<tr>
+<td>FLUX</td>
+<td>flux.1-dev, flux.1-schnell</td>
+<td>Needs clip_l + t5xxl or llm</td>
+</tr>
+<tr>
+<td>FLUX2</td>
+<td>flux2-*</td>
+<td>Uses LLM encoder (Qwen)</td>
+</tr>
+<tr>
+<td>Wan/CogVideoX</td>
+<td>wan-2.1, cogvideox</td>
+<td>Video generation</td>
+</tr>
+<tr>
+<td>LoRA</td>
+<td>*.safetensors</td>
+<td>Place in lora_model_dir</td>
+</tr>
+<tr>
+<td>ControlNet</td>
+<td>control_*</td>
+<td>Use with control images</td>
+</tr>
+<tr>
+<td>ESRGAN</td>
+<td>esrgan-x4</td>
+<td>Upscaling only</td>
+</tr>
+</tbody>
+</table>
+<h2 id="utility-functions">Utility Functions<a class="headerlink" href="#utility-functions" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.sd</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>    <span class="n">get_num_cores</span><span class="p">,</span>
+<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a>    <span class="n">get_system_info</span><span class="p">,</span>
+<a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a>    <span class="n">type_name</span><span class="p">,</span>
+<a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a>    <span class="n">sample_method_name</span><span class="p">,</span>
+<a id="__codelineno-21-6" name="__codelineno-21-6" href="#__codelineno-21-6"></a>    <span class="n">scheduler_name</span>
+<a id="__codelineno-21-7" name="__codelineno-21-7" href="#__codelineno-21-7"></a><span class="p">)</span>
+<a id="__codelineno-21-8" name="__codelineno-21-8" href="#__codelineno-21-8"></a>
+<a id="__codelineno-21-9" name="__codelineno-21-9" href="#__codelineno-21-9"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;CPU cores: </span><span class="si">{</span><span class="n">get_num_cores</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<a id="__codelineno-21-10" name="__codelineno-21-10" href="#__codelineno-21-10"></a><span class="nb">print</span><span class="p">(</span><span class="n">get_system_info</span><span class="p">())</span>
+<a id="__codelineno-21-11" name="__codelineno-21-11" href="#__codelineno-21-11"></a><span class="nb">print</span><span class="p">(</span><span class="n">type_name</span><span class="p">(</span><span class="n">SDType</span><span class="o">.</span><span class="n">Q4_0</span><span class="p">))</span>           <span class="c1"># &quot;q4_0&quot;</span>
+<a id="__codelineno-21-12" name="__codelineno-21-12" href="#__codelineno-21-12"></a><span class="nb">print</span><span class="p">(</span><span class="n">sample_method_name</span><span class="p">(</span><span class="n">SampleMethod</span><span class="o">.</span><span class="n">EULER</span><span class="p">))</span>  <span class="c1"># &quot;euler&quot;</span>
+<a id="__codelineno-21-13" name="__codelineno-21-13" href="#__codelineno-21-13"></a><span class="nb">print</span><span class="p">(</span><span class="n">scheduler_name</span><span class="p">(</span><span class="n">Scheduler</span><span class="o">.</span><span class="n">KARRAS</span><span class="p">))</span>  <span class="c1"># &quot;karras&quot;</span>
+</code></pre></div>
+<h2 id="performance-tips">Performance Tips<a class="headerlink" href="#performance-tips" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>Use turbo models</strong> for fast generation (1-4 steps, cfg_scale=1.0)</li>
+<li><strong>Quantize models</strong> to Q4_0 or Q8_0 for memory efficiency</li>
+<li><strong>Reuse SDContext</strong> when generating multiple images</li>
+<li><strong>Set n_threads</strong> to match physical CPU cores</li>
+<li><strong>Use <code>--offload-to-cpu</code></strong> for low VRAM GPUs</li>
+<li><strong>Enable <code>--diffusion-fa</code></strong> (flash attention) for faster inference</li>
+<li><strong>Use <code>--vae-tiling</code></strong> for generating large images</li>
+<li><strong>Use progress callback</strong> to track long generations</li>
+</ol>
+<h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h2>
+<h3 id="model-loading-errors">Model Loading Errors<a class="headerlink" href="#model-loading-errors" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a><span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">model_path</span><span class="p">):</span>
+<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a>    <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Model not found: </span><span class="si">{</span><span class="n">model_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</code></pre></div>
+<h3 id="out-of-memory">Out of Memory<a class="headerlink" href="#out-of-memory" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Use smaller model (SD 1.5 vs SDXL)</li>
+<li>Use quantized model (Q4_0 vs F16)</li>
+<li>Reduce image dimensions</li>
+<li>Reduce batch_count</li>
+<li>Enable <code>--offload-to-cpu</code></li>
+<li>Enable <code>--vae-tiling</code> for large images</li>
+</ul>
+<h3 id="slow-generation">Slow Generation<a class="headerlink" href="#slow-generation" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Use turbo/LCM models with fewer steps</li>
+<li>Enable flash attention (<code>--diffusion-fa</code>)</li>
+<li>Increase n_threads</li>
+<li>Use direct convolution (<code>--diffusion-conv-direct</code>)</li>
+</ul>
+<h3 id="fluxsd3-models-not-working">FLUX/SD3 Models Not Working<a class="headerlink" href="#fluxsd3-models-not-working" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Ensure you have the required encoders (clip_l, t5xxl)</li>
+<li>For FLUX2, use <code>--llm</code> instead of <code>--t5xxl</code></li>
+<li>Check prediction type matches model</li>
+</ul>
+<h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="https://github.com/leejet/stable-diffusion.cpp">stable-diffusion.cpp repository</a></li>
+<li><a href="https://huggingface.co/stabilityai/sdxl-turbo">SDXL Turbo</a> - Fast generation model</li>
+<li><a href="../api_reference/">API Reference</a> - Detailed API documentation</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.expand", "navigation.top", "search.highlight", "content.code.copy"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>
