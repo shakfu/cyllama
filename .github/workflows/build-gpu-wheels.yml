@@ -263,10 +263,10 @@ jobs:
         run: python -m cibuildwheel --output-dir wheelhouse
         env:
           CIBW_ARCHS_LINUX: x86_64
-          CIBW_MANYLINUX_X86_64_IMAGE: manylinux2014
+          CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
           CIBW_BEFORE_ALL_LINUX: >
-            yum install -y git &&
-            yum install -y vulkan-headers vulkan-loader-devel &&
+            dnf install -y git &&
+            dnf install -y vulkan-headers vulkan-loader-devel &&
             /opt/python/cp310-cp310/bin/pip install cmake ninja &&
             PATH=/opt/python/cp310-cp310/bin:$PATH
             GGML_VULKAN=1 GGML_METAL=0
