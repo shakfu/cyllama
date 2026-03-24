@@ -32,6 +32,7 @@ print(result.answer)
 ### ReActAgent
 
 Implements the ReAct (Reasoning + Acting) pattern where the agent alternates between:
+
 1. **Thought**: Reasoning about what to do next
 2. **Action**: Invoking a tool
 3. **Observation**: Seeing the result
@@ -90,6 +91,7 @@ for event in agent.stream("Your task here"):
 ```
 
 **Key Differences**:
+
 - **ReActAgent**: Parses freeform text, flexible but may fail with small models
 - **ConstrainedAgent**: Grammar-enforced JSON, 100% reliable, works with smaller models
 
@@ -332,6 +334,7 @@ grammar = generate_tool_call_grammar(
 ### Supported Formats
 
 1. **JSON** (default): Simple tool call format
+
    ```json
    {
      "reasoning": "optional reasoning text",
@@ -341,6 +344,7 @@ grammar = generate_tool_call_grammar(
    ```
 
 2. **FUNCTION_CALL**: OpenAI-compatible format
+
    ```json
    {
      "reasoning": "optional",
@@ -350,6 +354,7 @@ grammar = generate_tool_call_grammar(
    ```
 
 3. **JSON_ARRAY**: Multiple tool calls
+
    ```json
    {
      "reasoning": "optional",
@@ -413,6 +418,7 @@ make test
 ```
 
 **Test Coverage**:
+
 - 82 tests for agent functionality (29 tools, 31 ReAct, 22 grammar, 33 constrained)
 - All 353 tests pass (278 existing + 75 new agent tests)
 

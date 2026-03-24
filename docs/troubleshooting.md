@@ -63,11 +63,13 @@ ls thirdparty/llama.cpp/include/
 **Solutions:**
 
 1. **Verify file exists:**
+
    ```bash
    ls -la models/your-model.gguf
    ```
 
 2. **Check file integrity:**
+
    ```python
    from cyllama.llama.llama_cpp import GGUFContext
 
@@ -77,6 +79,7 @@ ls thirdparty/llama.cpp/include/
    ```
 
 3. **Use correct GGUF format:** Cyllama requires GGUF format (not GGML). Convert older models:
+
    ```bash
    # Use llama.cpp's conversion tool
    python llama.cpp/convert.py old-model.bin --outfile new-model.gguf
@@ -89,6 +92,7 @@ ls thirdparty/llama.cpp/include/
 **Solutions:**
 
 1. **Reduce GPU layers:**
+
    ```python
    from cyllama import LLM, GenerationConfig
 
@@ -97,6 +101,7 @@ ls thirdparty/llama.cpp/include/
    ```
 
 2. **Estimate optimal layers:**
+
    ```python
    from cyllama import estimate_gpu_layers
 
@@ -107,6 +112,7 @@ ls thirdparty/llama.cpp/include/
 3. **Use smaller quantization:** Download a more quantized model (Q4_0 < Q5_K < Q8_0 < F16).
 
 4. **Reduce context size:**
+
    ```python
    config = GenerationConfig(n_ctx=2048)  # Smaller context = less memory
    ```
@@ -118,12 +124,14 @@ ls thirdparty/llama.cpp/include/
 **Solutions:**
 
 1. **Check GPU backend is loaded:**
+
    ```python
    from cyllama.llama.llama_cpp import ggml_backend_load_all
    ggml_backend_load_all()
    ```
 
 2. **Verify GPU layers are being used:**
+
    ```python
    from cyllama import LLM
 
@@ -132,6 +140,7 @@ ls thirdparty/llama.cpp/include/
    ```
 
 3. **On macOS, check Metal:**
+
    ```bash
    # Ensure Metal is available
    system_profiler SPDisplaysDataType | grep Metal
@@ -189,16 +198,19 @@ llm = LLM("model.gguf", config=config)
 **Solutions:**
 
 1. **Lower temperature:**
+
    ```python
    response = complete("...", model_path="model.gguf", temperature=0.3)
    ```
 
 2. **Use greedy decoding for deterministic output:**
+
    ```python
    response = complete("...", model_path="model.gguf", temperature=0.0)
    ```
 
 3. **Verify model integrity:**
+
    ```python
    from cyllama.llama.llama_cpp import GGUFContext
    ctx = GGUFContext.from_file("model.gguf")
@@ -232,22 +244,26 @@ response = chat(messages, model_path="model.gguf")
 **Solutions:**
 
 1. **Verify Metal support:**
+
    ```bash
    system_profiler SPDisplaysDataType | grep -i metal
    ```
 
 2. **Reinstall Xcode tools:**
+
    ```bash
    xcode-select --install
    ```
 
 3. **Check build used Metal:**
+
    ```bash
    make show-backends
    # Should show GGML_METAL=1
    ```
 
 4. **Rebuild with Metal:**
+
    ```bash
    make reset
    make build-metal
@@ -260,18 +276,21 @@ response = chat(messages, model_path="model.gguf")
 **Solutions:**
 
 1. **Set CUDA paths:**
+
    ```bash
    export PATH=/usr/local/cuda/bin:$PATH
    export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
    ```
 
 2. **Rebuild with CUDA:**
+
    ```bash
    make reset
    make build-cuda
    ```
 
 3. **Verify CUDA installation:**
+
    ```bash
    nvcc --version
    nvidia-smi
@@ -288,11 +307,13 @@ response = chat(messages, model_path="model.gguf")
    - macOS: Install from [LunarG](https://vulkan.lunarg.com/)
 
 2. **Verify Vulkan:**
+
    ```bash
    vulkaninfo | head -20
    ```
 
 3. **Rebuild:**
+
    ```bash
    make build-vulkan
    ```
@@ -325,6 +346,7 @@ agent = ReActAgent(
 **Solutions:**
 
 1. **Use ConstrainedAgent for guaranteed parsing:**
+
    ```python
    from cyllama.agents import ConstrainedAgent
 
@@ -335,6 +357,7 @@ agent = ReActAgent(
 2. **Use a better model:** Larger models (7B+) are more reliable at tool calling.
 
 3. **Simplify tool definitions:**
+
    ```python
    @tool
    def simple_tool(query: str) -> str:  # Simple, clear signature
@@ -449,6 +472,7 @@ WITH_STABLEDIFFUSION=1 make build
 **Solutions:**
 
 1. **For SDXL Turbo models:**
+
    ```python
    images = text_to_image(
        model_path="sd_xl_turbo.gguf",
@@ -459,6 +483,7 @@ WITH_STABLEDIFFUSION=1 make build
    ```
 
 2. **For standard SD models:**
+
    ```python
    images = text_to_image(
        model_path="sd_v1_5.gguf",
@@ -491,6 +516,7 @@ for prompt in prompts:
 **Solutions:**
 
 1. Close resources when done:
+
    ```python
    llm = LLM("model.gguf")
    # ... use llm ...
@@ -498,6 +524,7 @@ for prompt in prompts:
    ```
 
 2. Use context managers:
+
    ```python
    with LLM("model.gguf") as llm:
        response = llm("...")
@@ -505,6 +532,7 @@ for prompt in prompts:
    ```
 
 3. Use batch processing for multiple prompts:
+
    ```python
    from cyllama import batch_generate
 

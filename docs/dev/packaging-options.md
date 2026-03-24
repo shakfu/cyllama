@@ -38,7 +38,8 @@ set(CMAKE_VISIBILITY_INLINES_HIDDEN ON)
 ```
 
 Or via compiler flags:
-```
+
+```text
 -fvisibility=hidden -fvisibility-inlines-hidden
 ```
 
@@ -53,12 +54,14 @@ endif()
 ```
 
 **Benefits:**
+
 - Allows different ggml versions per library (no symbol conflicts)
 - Smaller binaries (linker can discard unused hidden symbols)
 - Avoids symbol conflicts at runtime
 - Removes need for `--whole-archive` (only public API symbols are exported)
 
 **Challenges:**
+
 - Requires patching upstream projects or maintaining forks
 - Need to ensure all necessary symbols are marked as visible in upstream
 

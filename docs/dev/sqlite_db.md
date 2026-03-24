@@ -21,13 +21,14 @@ This document outlines the design for an optional SQLite-based storage system fo
 
 Default location follows XDG Base Directory Specification:
 
-```
+```text
 ~/.local/share/cyllama/cyllama.db      # Linux
 ~/Library/Application Support/cyllama/cyllama.db  # macOS
 %LOCALAPPDATA%\cyllama\cyllama.db      # Windows
 ```
 
 Can be overridden via:
+
 - Environment variable: `CYLLAMA_DB_PATH`
 - Constructor argument: `CyllamaDB(path="/custom/path.db")`
 - Disable entirely: `CyllamaDB(enabled=False)` or `CYLLAMA_DB_ENABLED=0`
@@ -51,6 +52,7 @@ CREATE INDEX idx_config_key ON config(key);
 ```
 
 **Example entries:**
+
 | key | value | value_type |
 |-----|-------|------------|
 | `default_model` | `"models/llama.gguf"` | str |
@@ -89,6 +91,7 @@ CREATE INDEX idx_cache_expires ON cache(expires_at);
 ```
 
 **Cache Key Generation:**
+
 ```python
 def generate_cache_key(prompt: str, model_path: str, config: GenerationConfig) -> str:
     """Generate deterministic cache key from inputs."""
@@ -587,7 +590,7 @@ MIGRATIONS = [
 
 ## File Structure
 
-```
+```text
 src/cyllama/
     db/
         __init__.py         # Exports CyllamaDB, configure_db, get_db
@@ -601,27 +604,32 @@ src/cyllama/
 ## Implementation Phases
 
 ### Phase 1: Core Infrastructure
+
 - [ ] `CyllamaDB` class with connection management
 - [ ] Schema creation and migrations
 - [ ] Basic configuration get/set
 
 ### Phase 2: Response Caching
+
 - [ ] Cache key generation
 - [ ] `get_cached_response()` / `cache_response()`
 - [ ] TTL and size-based cleanup
 - [ ] Integration with `complete()` and `LLM()`
 
 ### Phase 3: Statistics
+
 - [ ] `record_generation()`
 - [ ] `get_stats_summary()` with aggregations
 - [ ] `get_generation_history()`
 
 ### Phase 4: Logging
+
 - [ ] Database logging handler
 - [ ] Log query API
 - [ ] Integration with Python logging
 
 ### Phase 5: Polish
+
 - [ ] CLI commands for DB management
 - [ ] Export/import functionality
 - [ ] Performance optimization

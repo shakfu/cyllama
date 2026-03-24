@@ -1642,22 +1642,27 @@ set_preview_callback(None)
 ### Enums
 
 **`SampleMethod`**: Sampling methods
+
 - `EULER`, `EULER_A`, `HEUN`, `DPM2`, `DPMPP2S_A`, `DPMPP2M`, `DPMPP2Mv2`
 - `IPNDM`, `IPNDM_V`, `LCM`, `DDIM_TRAILING`, `TCD`
 
 **`Scheduler`**: Schedulers
+
 - `DISCRETE`, `KARRAS`, `EXPONENTIAL`, `AYS`, `GITS`
 - `SGM_UNIFORM`, `SIMPLE`, `SMOOTHSTEP`, `LCM`
 
 **`SDType`**: Data types for quantization
+
 - `F32`, `F16`, `BF16`
 - `Q4_0`, `Q4_1`, `Q5_0`, `Q5_1`, `Q8_0`, `Q8_1`
 - `Q2_K`, `Q3_K`, `Q4_K`, `Q5_K`, `Q6_K`, `Q8_K`
 
 **`RngType`**: Random number generators
+
 - `STD_DEFAULT`, `CUDA`, `CPU`
 
 **`LogLevel`**: Log levels
+
 - `DEBUG`, `INFO`, `WARN`, `ERROR`
 
 ### Utility Functions

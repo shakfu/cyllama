@@ -4,7 +4,11 @@ This is the official documentation for **cyllama**, a high-performance Python li
 
 ## About
 
-cyllama provides high-performance Cython bindings to three C++ inference engines, covering text generation, speech recognition, and image generation -- all from Python with zero runtime dependencies.
+cyllama provides high-performance Cython bindings to three C++ inference engines -- all from Python with zero runtime dependencies:
+
+- **[llama.cpp](https://github.com/ggml-org/llama.cpp)** -- LLM text generation, chat, embeddings, and text-to-speech
+- **[whisper.cpp](https://github.com/ggerganov/whisper.cpp)** -- Automatic speech recognition and translation
+- **[stable-diffusion.cpp](https://github.com/leejet/stable-diffusion.cpp)** -- Image and video generation from text prompts
 
 This documentation covers:
 

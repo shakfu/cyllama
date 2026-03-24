@@ -5,11 +5,13 @@ Cyllama provides multiple server implementations for different use cases:
 ## Server Types
 
 ### 1. Embedded Python Server (Default)
+
 - Built-in Python HTTP server
 - Good for development and testing
 - Subject to Python GIL limitations
 
 ### 2. Mongoose C Server (High-Performance)
+
 - Native C networking via Mongoose web server
 - Production-ready performance
 - Handles thousands of concurrent connections
@@ -18,11 +20,13 @@ Cyllama provides multiple server implementations for different use cases:
 ## Basic Usage
 
 ### Start Default Embedded Server
+
 ```bash
 python -m cyllama.llama.server -m models/Llama-3.2-1B-Instruct-Q8_0.gguf
 ```
 
 ### Start High-Performance Mongoose Server
+
 ```bash
 python -m cyllama.llama.server -m models/Llama-3.2-1B-Instruct-Q8_0.gguf --server-type mongoose
 ```
@@ -30,6 +34,7 @@ python -m cyllama.llama.server -m models/Llama-3.2-1B-Instruct-Q8_0.gguf --serve
 ## Advanced Configuration
 
 ### Custom Host and Port
+
 ```bash
 python -m cyllama.llama.server \
     -m models/Llama-3.2-1B-Instruct-Q8_0.gguf \
@@ -39,6 +44,7 @@ python -m cyllama.llama.server \
 ```
 
 ### Multiple Parallel Processing Slots
+
 ```bash
 python -m cyllama.llama.server \
     -m models/Llama-3.2-1B-Instruct-Q8_0.gguf \
@@ -48,6 +54,7 @@ python -m cyllama.llama.server \
 ```
 
 ### GPU Configuration
+
 ```bash
 python -m cyllama.llama.server \
     -m models/Llama-3.2-1B-Instruct-Q8_0.gguf \
@@ -61,16 +68,19 @@ python -m cyllama.llama.server \
 Both server implementations provide the same OpenAI-compatible API:
 
 ### Health Check
+
 ```bash
 curl http://localhost:8080/health
 ```
 
 ### List Models
+
 ```bash
 curl http://localhost:8080/v1/models
 ```
 
 ### Chat Completion
+
 ```bash
 curl -X POST http://localhost:8080/v1/chat/completions \
   -H "Content-Type: application/json" \
@@ -95,13 +105,15 @@ curl -X POST http://localhost:8080/v1/chat/completions \
 
 ## When to Use Each
 
-### Use Embedded Server When:
+### Use Embedded Server When
+
 - Developing or testing
 - Single-user applications
 - Simplicity is preferred
 - No performance requirements
 
-### Use Mongoose Server When:
+### Use Mongoose Server When
+
 - Production deployments
 - Multiple concurrent users
 - High-throughput requirements

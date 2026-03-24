@@ -8,7 +8,7 @@ Retrieval-Augmented Generation (RAG) enhances LLM responses by retrieving releva
 
 ## Architecture
 
-```
+```text
                     +-----------------+
                     |   RAG Pipeline  |
                     +--------+--------+

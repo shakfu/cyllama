@@ -12,17 +12,20 @@ This guide covers installing cyllama on different platforms.
 ### Platform-Specific Requirements
 
 **macOS:**
+
 ```bash
 xcode-select --install  # Xcode Command Line Tools
 ```
 
 **Ubuntu/Debian:**
+
 ```bash
 sudo apt-get update
 sudo apt-get install -y build-essential cmake git python3-dev
 ```
 
 **Fedora/RHEL:**
+
 ```bash
 sudo dnf install -y gcc-c++ cmake git python3-devel
 ```
@@ -100,11 +103,13 @@ See [Building with Different Backends](build_backends.md) for detailed GPU setup
 ### Optional Components
 
 **Stable Diffusion support:**
+
 ```bash
 WITH_STABLEDIFFUSION=1 make build
 ```
 
 **Whisper support** (included by default):
+
 ```bash
 make build  # Whisper is built automatically
 ```
@@ -131,6 +136,7 @@ Cyllama uses **scikit-build-core** with CMake for building the Cython extensions
 ### Wheel Distribution
 
 To build a distributable wheel:
+
 ```bash
 make wheel
 # Creates wheel in dist/
@@ -143,12 +149,14 @@ The wheel includes all compiled extensions and can be installed on systems with 
 ### LLM Models (GGUF format)
 
 Download the default test model:
+
 ```bash
 make download
 # Downloads: models/Llama-3.2-1B-Instruct-Q8_0.gguf
 ```
 
 Or download manually from [Hugging Face](https://huggingface.co/models?search=gguf):
+
 ```bash
 # Example: Download a model
 curl -L -o models/llama.gguf \
@@ -158,6 +166,7 @@ curl -L -o models/llama.gguf \
 ### Whisper Models
 
 Download from [ggerganov/whisper.cpp](https://huggingface.co/ggerganov/whisper.cpp):
+
 ```bash
 curl -L -o models/ggml-base.en.bin \
   "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin"
@@ -202,6 +211,7 @@ params.n_gpu_layers = 99  # Request GPU offload
 ### "No module named 'cyllama'"
 
 Make sure you're in the project directory or have installed cyllama:
+
 ```bash
 cd cyllama
 make  # or: uv pip install -e .
@@ -210,6 +220,7 @@ make  # or: uv pip install -e .
 ### Build Errors
 
 Clean and rebuild:
+
 ```bash
 make reset  # Full clean
 make build
@@ -218,6 +229,7 @@ make build
 ### Metal Not Working (macOS)
 
 Ensure Xcode Command Line Tools are installed:
+
 ```bash
 xcode-select --install
 ```
@@ -225,6 +237,7 @@ xcode-select --install
 ### CUDA Not Found (Linux)
 
 Add CUDA to your PATH:
+
 ```bash
 export PATH=/usr/local/cuda/bin:$PATH
 export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
@@ -233,6 +246,7 @@ export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
 ## Development Install
 
 For development with editable install:
+
 ```bash
 git clone https://github.com/shakfu/cyllama.git
 cd cyllama
@@ -240,6 +254,7 @@ make  # Builds dependencies and installs in editable mode
 ```
 
 For manual editable install (after dependencies are built):
+
 ```bash
 uv pip install -e .
 ```

@@ -4,7 +4,7 @@
 
 - llama.cpp: text-to-text, text-to-speech and multimodel
 - whisper.cpp: automatic speech recognition
-- stable-diffusion.cpp: text-to-image and text-to-video 
+- stable-diffusion.cpp: text-to-image and text-to-video
 
 ## Core Features
 

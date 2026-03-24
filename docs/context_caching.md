@@ -127,6 +127,7 @@ ctx.kv_cache_clear()  # Clear KV cache for reuse
 ```
 
 Parameters:
+
 - `clear_data` (bool): If True (default), also clear the data buffers. If False, only clear metadata.
 
 ## Performance Considerations

@@ -670,6 +670,7 @@ llm = LLM("model.gguf", config=config)
 ```
 
 **Split Modes:**
+
 - `0` (NONE): Single GPU only, uses `main_gpu`
 - `1` (LAYER): Split layers and KV cache across GPUs (default)
 - `2` (ROW): Tensor parallelism - split layers with row-wise distribution

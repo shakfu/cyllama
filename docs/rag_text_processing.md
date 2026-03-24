@@ -37,12 +37,12 @@ The splitter uses a hierarchy of separators:
 
 1. `\n\n` - Paragraph breaks
 2. `\n` - Line breaks
-3. `. ` - Sentences
-4. `! ` - Exclamations
-5. `? ` - Questions
-6. `; ` - Semicolons
-7. `, ` - Commas
-8. ` ` - Words
+3. `.` - Sentences
+4. `!` - Exclamations
+5. `?` - Questions
+6. `;` - Semicolons
+7. `,` - Commas
+8. `` - Words
 9. `` - Characters
 
 ### TokenTextSplitter
@@ -95,8 +95,10 @@ code_block = "preserved"
 """
 
 chunks = splitter.split(markdown_text)
-# Headers, code blocks, and lists are preserved where possible
-```
+
+## Headers, code blocks, and lists are preserved where possible
+
+```text
 
 The MarkdownSplitter:
 
@@ -137,7 +139,7 @@ print(documents[0].metadata)
 # {'title': 'My Doc', 'author': 'John', ...}
 ```
 
-### JSONLoader
+#### JSONLoader
 
 Load JSON files with configurable text extraction:
 
@@ -156,7 +158,7 @@ loader = JSONLoader(
 docs = loader.load("nested.json")
 ```
 
-### JSONLLoader
+#### JSONLLoader
 
 Load JSON Lines files with lazy loading:
 
@@ -173,7 +175,7 @@ for doc in loader.load_lazy("large.jsonl"):
     process(doc)
 ```
 
-### PDFLoader
+#### PDFLoader
 
 Load PDF files (requires `docling` package):
 
@@ -190,7 +192,7 @@ for doc in documents:
     print(f"Source: {doc.metadata['source']}")
 ```
 
-### DirectoryLoader
+#### DirectoryLoader
 
 Batch load files from directories:
 
@@ -203,9 +205,9 @@ documents = loader.load("docs/")
 print(f"Loaded {len(documents)} documents")
 ```
 
-## Convenience Functions
+### Convenience Functions
 
-### load_document()
+#### load_document()
 
 Auto-detect format and load:
 
@@ -218,7 +220,7 @@ docs = load_document("data.json", text_key="content")
 docs = load_document("report.pdf")  # Requires docling
 ```
 
-### load_directory()
+#### load_directory()
 
 Load all matching files:
 
@@ -228,7 +230,7 @@ from cyllama.rag import load_directory
 docs = load_directory("docs/", glob="**/*.txt")
 ```
 
-## Complete Example
+### Complete Example
 
 ```python
 from cyllama.rag import (
@@ -262,9 +264,9 @@ with VectorStore(dimension=embedder.dimension, db_path="kb.db") as store:
 embedder.close()
 ```
 
-## Data Types
+### Data Types
 
-### Document
+#### Document
 
 ```python
 from cyllama.rag import Document
@@ -275,7 +277,7 @@ doc = Document(
 )
 ```
 
-### Chunk
+#### Chunk
 
 ```python
 from cyllama.rag import Chunk
@@ -288,7 +290,7 @@ chunk = Chunk(
 )
 ```
 
-## Best Practices
+### Best Practices
 
 1. **Chunk Size**: 256-1024 characters works well for most use cases
 2. **Overlap**: 10-20% of chunk size helps maintain context

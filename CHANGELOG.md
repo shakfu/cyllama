@@ -247,6 +247,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 ### Deprecated
 
 The following scripts are now superseded by `manage.py` subcommands:
+
 - `scripts/info.sh` -> `manage.py info`
 - `scripts/snap.sh` -> `manage.py info --snapshot`
 - `scripts/bump.sh` -> `manage.py bump`

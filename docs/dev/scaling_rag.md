@@ -26,7 +26,7 @@ cyllama uses the [sqlite-vec](https://github.com/asg017/sqlite-vec) extension fo
 
 ### Data Flow
 
-```
+```text
 Documents -> TextSplitter -> Chunks -> Embedder -> Vectors -> VectorStore
                                                                     |
                                                         [sqlite-vec extension]
@@ -42,6 +42,7 @@ Query -> Embedder -> Query Vector ---> vector_full_scan() or vector_quantize_sca
 ### 1. Vector Search
 
 **Current Implementation** (`store.py`):
+
 ```python
 def search(self, query_embedding, k=5, threshold=None):
     query_blob = self._encode_vector(query_embedding)
@@ -65,6 +66,7 @@ def search(self, query_embedding, k=5, threshold=None):
 | Quantized | `vector_quantize_scan()` | O(log n) | Large datasets, approximate |
 
 **Quantization API**:
+
 ```python
 # After bulk inserts, quantize for faster search
 store.quantize(max_memory="30MB")  # Build quantized index
@@ -81,6 +83,7 @@ store.preload_quantization()        # Load into memory for 4-5x speedup
 | 1,000,000 | ~5-10 sec | ~30-100 ms | Quantization essential |
 
 **sqlite-vec Quantization Details**:
+
 - Uses scalar quantization (float32 -> int8)
 - Maintains >0.95 recall for typical workloads
 - Memory-mapped for efficient I/O
@@ -89,17 +92,20 @@ store.preload_quantization()        # Load into memory for 4-5x speedup
 ### 2. Embedding Generation
 
 **Current Implementation** (`embedder.py`):
+
 ```python
 def embed_batch(self, texts: list[str], ...) -> list[list[float]]:
     return [self.embed(text, ...) for text in texts]
 ```
 
 **Issues**:
+
 - Sequential processing (no true batching at llama.cpp level)
 - No async support for I/O-bound scenarios
 - GPU utilization may be suboptimal for small texts
 
 **Realistic Throughput** (GTE-small on M1 Mac):
+
 - ~50-100 embeddings/second for short texts
 - 10,000 documents with 5 chunks each = 50,000 embeddings
 - Indexing time: ~8-15 minutes
@@ -107,6 +113,7 @@ def embed_batch(self, texts: list[str], ...) -> list[list[float]]:
 ### 3. HybridStore FTS5
 
 **Current Implementation** (`advanced.py`):
+
 ```python
 def _fts_search(self, query: str, k: int = 10) -> list[SearchResult]:
     cursor = self._vector_store.conn.execute(f"""
@@ -122,11 +129,13 @@ def _fts_search(self, query: str, k: int = 10) -> list[SearchResult]:
 ### 4. RAG Pipeline
 
 **Current Implementation** (`pipeline.py`):
+
 - Single query at a time
 - No result caching
 - Synchronous LLM calls
 
 **Issues**:
+
 - No query batching
 - Repeated identical queries hit full search path
 - No streaming for intermediate results
@@ -134,10 +143,12 @@ def _fts_search(self, query: str, k: int = 10) -> list[SearchResult]:
 ### 5. Document Loading
 
 **Current Implementation**: Generally good
+
 - `JSONLLoader.load_lazy()` provides streaming
 - `DirectoryLoader` processes files sequentially
 
 **Issues**:
+
 - No parallel file loading
 - Large files loaded entirely into memory before chunking
 
@@ -162,6 +173,7 @@ results = store.search(query_embedding, k=10)
 ```
 
 **Guidelines**:
+
 - < 5,000 vectors: Full scan is fine
 - 5,000 - 50,000 vectors: Quantize with 30-50MB memory
 - 50,000+ vectors: Quantize with 100MB+ memory
@@ -379,28 +391,33 @@ class VectorStore:
 ## Recommended Scaling Path
 
 ### For 100s of Documents (Current)
+
 - Current implementation is sufficient
 - No quantization needed
 - Full scan search is fast enough
 
 ### For 1,000s of Documents
+
 - Enable quantization after bulk insert
 - Add embedding cache for repeated queries
 - Expected: <20ms search
 
 ### For 10,000s of Documents
+
 - Quantization required
 - Preload quantized data for best performance
 - Consider auto-quantization threshold
 - Expected: <30ms search
 
 ### For 100,000+ Documents
+
 - Quantization with larger memory budget (100MB+)
 - Add metadata pre-filtering to reduce candidate set
 - Implement async embedding for ingestion
 - Expected: <50ms search with filtering
 
 ### For 1,000,000+ Documents
+
 - Consider sharding across multiple database files
 - Use metadata filtering aggressively
 - Periodic re-quantization for optimal performance
@@ -433,6 +450,7 @@ store = VectorStore(
 ```
 
 **Recommendations**:
+
 - `cosine`: Best for normalized embeddings (most embedding models)
 - `l2`: When absolute distances matter
 - `dot`: For maximum inner product search
@@ -451,6 +469,7 @@ store = VectorStore(
 ```
 
 **Trade-offs**:
+
 - `float32`: Full precision, largest storage
 - `float16`: 2x smaller, minimal quality loss
 - `int8`: 4x smaller, ~1-2% recall reduction
@@ -517,6 +536,7 @@ with VectorStore(dimension=384, db_path="test.db") as store:
 The cyllama RAG implementation leverages `sqlite-vec` for efficient vector operations, providing a solid foundation for scaling:
 
 **Already Available**:
+
 - Quantized approximate search via `vector_quantize_scan()`
 - Configurable memory budgets
 - Multiple distance metrics
@@ -525,6 +545,7 @@ The cyllama RAG implementation leverages `sqlite-vec` for efficient vector opera
 **Key Insight**: The most important optimization is **enabling quantization** for datasets >5,000 vectors. This is already implemented and provides 4-5x speedup with >95% recall.
 
 **Recommended Approach**:
+
 1. **Use quantization** - It's built-in and highly effective
 2. **Add caching** for repeated queries
 3. **Implement async processing** for large ingestion jobs
