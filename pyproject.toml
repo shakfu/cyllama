@@ -38,6 +38,7 @@ build-backend = "scikit_build_core.build"
 [tool.scikit-build]
 cmake.version = ">=3.21"
 cmake.build-type = "Release"
+install.strip = true
 wheel.packages = ["src/cyllama"]
 wheel.exclude = ["*.pyx", "*.pxd", "*.pxi", "*.cpp", "*.c", "*.h", "*.hpp", "*.a", "*.lib"]
 wheel.license-files = ["LICENSE"]

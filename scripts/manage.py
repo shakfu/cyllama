@@ -918,12 +918,7 @@ class LlamaCppBuilder(Builder):
 
         if ggml_cuda:
             options["GGML_CUDA"] = "ON"
-            cuda_archs = os.environ.get("CMAKE_CUDA_ARCHITECTURES")
-            if cuda_archs:
-                options["CMAKE_CUDA_ARCHITECTURES"] = cuda_archs
-                self.log.info(f"✓ Enabling CUDA backend (architectures: {cuda_archs})")
-            else:
-                self.log.info("✓ Enabling CUDA backend")
+            self.log.info("✓ Enabling CUDA backend (using llama.cpp default architectures)")
 
         if ggml_vulkan:
             options["GGML_VULKAN"] = "ON"
