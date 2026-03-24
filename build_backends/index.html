@@ -27,7 +27,7 @@
     
     
       
-        <title>Build Backends - cyllama User Guide</title>
+        <title>Build Backends - cyllama</title>
       
     
     
@@ -94,7 +94,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href=".." title="cyllama User Guide" class="md-header__button md-logo" aria-label="cyllama User Guide" data-md-component="logo">
+    <a href=".." title="cyllama" class="md-header__button md-logo" aria-label="cyllama" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -108,7 +108,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            cyllama User Guide
+            cyllama
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -230,13 +230,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href=".." title="cyllama User Guide" class="md-nav__button md-logo" aria-label="cyllama User Guide" data-md-component="logo">
+    <a href=".." title="cyllama" class="md-nav__button md-logo" aria-label="cyllama" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
 
     </a>
-    cyllama User Guide
+    cyllama
   </label>
   
     <div class="md-nav__source">
@@ -2182,17 +2182,18 @@
 <h3 id="hiprocm-amd-gpus">HIP/ROCm (AMD GPUs)<a class="headerlink" href="#hiprocm-amd-gpus" title="Permanent link">&para;</a></h3>
 <p><strong>Requirements:</strong></p>
 <ul>
-<li>AMD GPU with ROCm support</li>
-<li>ROCm 5.0+ installed</li>
+<li>AMD GPU with ROCm support (gfx90a, gfx942, gfx1100, or newer)</li>
+<li>ROCm 6.3+ installed</li>
 </ul>
 <p><strong>Install ROCm:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="c1"># Ubuntu 22.04</span>
-<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>wget<span class="w"> </span>https://repo.radeon.com/amdgpu-install/latest/ubuntu/jammy/amdgpu-install_6.2.60200-1_all.deb
-<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>sudo<span class="w"> </span>apt-get<span class="w"> </span>install<span class="w"> </span>-y<span class="w"> </span>./amdgpu-install_6.2.60200-1_all.deb
-<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>sudo<span class="w"> </span>amdgpu-install<span class="w"> </span>--usecase<span class="o">=</span>rocm
-<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>
-<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a><span class="c1"># Verify installation</span>
-<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a>rocm-smi
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="c1"># Ubuntu 22.04+</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>sudo<span class="w"> </span>apt-get<span class="w"> </span>update
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>wget<span class="w"> </span>https://repo.radeon.com/amdgpu-install/6.3.3/ubuntu/jammy/amdgpu-install_6.3.60303-1_all.deb
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>sudo<span class="w"> </span>apt-get<span class="w"> </span>install<span class="w"> </span>-y<span class="w"> </span>./amdgpu-install_6.3.60303-1_all.deb
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>sudo<span class="w"> </span>amdgpu-install<span class="w"> </span>--usecase<span class="o">=</span>rocm
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>
+<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a><span class="c1"># Verify installation</span>
+<a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a>rocm-smi
 </code></pre></div>
 <p><strong>Build:</strong></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">GGML_HIP</span><span class="o">=</span><span class="m">1</span>
@@ -2383,16 +2384,16 @@
 <h2 id="advanced-custom-cmake-flags">Advanced: Custom CMake Flags<a class="headerlink" href="#advanced-custom-cmake-flags" title="Permanent link">&para;</a></h2>
 <p>Cyllama has a two-stage build process:</p>
 <ol>
-<li><strong>Dependency build</strong> (<code>scripts/setup.sh</code>): Builds llama.cpp, whisper.cpp, stable-diffusion.cpp</li>
-<li><strong>Extension build</strong> (<code>CMakeLists.txt</code>): Builds Cython extensions with scikit-build-core</li>
+<li><strong>Dependency build</strong> (<code>scripts/manage.py</code>): Builds llama.cpp, whisper.cpp, stable-diffusion.cpp as static libraries</li>
+<li><strong>Extension build</strong> (<code>CMakeLists.txt</code>): Builds Cython extensions with scikit-build-core, linking against the static libraries</li>
 </ol>
 <h3 id="customizing-dependency-build">Customizing Dependency Build<a class="headerlink" href="#customizing-dependency-build" title="Permanent link">&para;</a></h3>
-<p>Edit <code>scripts/setup.sh</code> to modify CMAKE_ARGS for llama.cpp:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="c1"># Example: Enable CUDA with custom architecture</span>
-<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a><span class="nv">CMAKE_ARGS</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$CMAKE_ARGS</span><span class="s2"> -DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=86&quot;</span>
+<p>Use <code>scripts/manage.py</code> with environment variables or flags:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="c1"># Example: Build llama.cpp with CUDA for specific architectures</span>
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a><span class="nv">CMAKE_CUDA_ARCHITECTURES</span><span class="o">=</span><span class="s2">&quot;86-real;89-real&quot;</span><span class="w"> </span>python3<span class="w"> </span>scripts/manage.py<span class="w"> </span>build<span class="w"> </span>--llama-cpp<span class="w"> </span>--cuda
 </code></pre></div>
 <h3 id="customizing-extension-build">Customizing Extension Build<a class="headerlink" href="#customizing-extension-build" title="Permanent link">&para;</a></h3>
-<p>For the Cython extension build, modify <code>CMakeLists.txt</code> or pass CMake args via scikit-build-core:</p>
+<p>For the Cython extension build, pass CMake args via scikit-build-core:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="c1"># Pass CMake args during wheel build</span>
 <a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a><span class="nv">CMAKE_ARGS</span><span class="o">=</span><span class="s2">&quot;-DGGML_METAL=ON&quot;</span><span class="w"> </span>uv<span class="w"> </span>build<span class="w"> </span>--wheel
 </code></pre></div>

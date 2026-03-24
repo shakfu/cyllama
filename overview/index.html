@@ -27,7 +27,7 @@
     
     
       
-        <title>Architecture Overview - cyllama User Guide</title>
+        <title>Architecture Overview - cyllama</title>
       
     
     
@@ -94,7 +94,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href=".." title="cyllama User Guide" class="md-header__button md-logo" aria-label="cyllama User Guide" data-md-component="logo">
+    <a href=".." title="cyllama" class="md-header__button md-logo" aria-label="cyllama" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -108,7 +108,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            cyllama User Guide
+            cyllama
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -230,13 +230,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href=".." title="cyllama User Guide" class="md-nav__button md-logo" aria-label="cyllama User Guide" data-md-component="logo">
+    <a href=".." title="cyllama" class="md-nav__button md-logo" aria-label="cyllama" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
 
     </a>
-    cyllama User Guide
+    cyllama
   </label>
   
     <div class="md-nav__source">
@@ -1495,7 +1495,7 @@
 <li><strong>Low-level API</strong> - Direct access to llama.cpp, whisper.cpp, and stable-diffusion.cpp internals</li>
 <li><strong>Streaming</strong> - Token-by-token output with callbacks</li>
 <li><strong>Batch processing</strong> - Process multiple prompts 3-10x faster</li>
-<li><strong>GPU acceleration</strong> - Metal (macOS), CUDA, Vulkan backends</li>
+<li><strong>GPU acceleration</strong> - Metal (macOS), CUDA (NVIDIA), ROCm (AMD), Vulkan (cross-platform) backends</li>
 <li><strong>Memory tools</strong> - Estimate GPU layers and VRAM usage</li>
 <li><strong>OpenAI-compatible servers</strong> - <code>EmbeddedServer</code> (C/Mongoose) and <code>PythonServer</code> implementations</li>
 </ul>
@@ -1529,8 +1529,8 @@
 </code></pre></div>
 <h2 id="requirements">Requirements<a class="headerlink" href="#requirements" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Python 3.8+</li>
-<li>macOS or Linux</li>
+<li>Python 3.10+</li>
+<li>macOS, Linux, or Windows</li>
 <li>GGUF model files (download from HuggingFace)</li>
 </ul>
 <p>repo: <a href="https://github.com/shakfu/cyllama">https://github.com/shakfu/cyllama</a></p>

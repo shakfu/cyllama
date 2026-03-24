@@ -25,7 +25,7 @@
     
     
       
-        <title>cyllama User Guide</title>
+        <title>cyllama</title>
       
     
     
@@ -76,7 +76,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#preface" class="md-skip">
+        <a href="#cyllama" class="md-skip">
           Skip to content
         </a>
       
@@ -92,7 +92,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="." title="cyllama User Guide" class="md-header__button md-logo" aria-label="cyllama User Guide" data-md-component="logo">
+    <a href="." title="cyllama" class="md-header__button md-logo" aria-label="cyllama" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -106,7 +106,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            cyllama User Guide
+            cyllama
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -228,13 +228,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="." title="cyllama User Guide" class="md-nav__button md-logo" aria-label="cyllama User Guide" data-md-component="logo">
+    <a href="." title="cyllama" class="md-nav__button md-logo" aria-label="cyllama" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
 
     </a>
-    cyllama User Guide
+    cyllama
   </label>
   
     <div class="md-nav__source">
@@ -318,10 +318,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#about-this-book" class="md-nav__link">
+  <a href="#about" class="md-nav__link">
     <span class="md-ellipsis">
       
-        About This Book
+        About
       
     </span>
   </a>
@@ -329,10 +329,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#who-this-book-is-for" class="md-nav__link">
+  <a href="#who-this-is-for" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Who This Book Is For
+        Who This Is For
       
     </span>
   </a>
@@ -1384,10 +1384,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#about-this-book" class="md-nav__link">
+  <a href="#about" class="md-nav__link">
     <span class="md-ellipsis">
       
-        About This Book
+        About
       
     </span>
   </a>
@@ -1395,10 +1395,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#who-this-book-is-for" class="md-nav__link">
+  <a href="#who-this-is-for" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Who This Book Is For
+        Who This Is For
       
     </span>
   </a>
@@ -1458,19 +1458,20 @@
   
 
 
-<h1 id="preface">Preface<a class="headerlink" href="#preface" title="Permanent link">&para;</a></h1>
+<h1 id="cyllama">cyllama<a class="headerlink" href="#cyllama" title="Permanent link">&para;</a></h1>
 <p>This is the official documentation for <strong>cyllama</strong>, a high-performance Python library for local AI inference.</p>
-<h2 id="about-this-book">About This Book<a class="headerlink" href="#about-this-book" title="Permanent link">&para;</a></h2>
-<p>This book serves as both a user guide and technical reference for cyllama. It covers:</p>
+<h2 id="about">About<a class="headerlink" href="#about" title="Permanent link">&para;</a></h2>
+<p>cyllama provides high-performance Cython bindings to three C++ inference engines, covering text generation, speech recognition, and image generation -- all from Python with zero runtime dependencies.</p>
+<p>This documentation covers:</p>
 <ul>
 <li><strong>Installation and setup</strong> across different platforms and GPU backends</li>
 <li><strong>Text generation</strong> with llama.cpp for chat, completion, and embeddings</li>
 <li><strong>Speech recognition</strong> with whisper.cpp for transcription and translation</li>
 <li><strong>Image generation</strong> with stable-diffusion.cpp for text-to-image workflows</li>
 <li><strong>Agent framework</strong> for building tool-using AI agents</li>
+<li><strong>RAG</strong> for retrieval-augmented generation with local models</li>
 </ul>
-<h2 id="who-this-book-is-for">Who This Book Is For<a class="headerlink" href="#who-this-book-is-for" title="Permanent link">&para;</a></h2>
-<p>This documentation is intended for:</p>
+<h2 id="who-this-is-for">Who This Is For<a class="headerlink" href="#who-this-is-for" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong>Python developers</strong> who want to run LLMs locally without cloud dependencies</li>
 <li><strong>ML engineers</strong> looking for a lightweight alternative to PyTorch-based inference</li>
@@ -1478,15 +1479,14 @@
 <li><strong>Researchers</strong> who need direct access to model internals and sampling parameters</li>
 </ul>
 <h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
-<p>To use cyllama effectively, you should have:</p>
 <ul>
-<li>Basic Python programming knowledge</li>
+<li>Python 3.10 or later</li>
 <li>Familiarity with command-line tools</li>
 <li>Understanding of what language models do (not how they work internally)</li>
 </ul>
 <p>No machine learning expertise is required for basic usage.</p>
 <h2 id="conventions">Conventions<a class="headerlink" href="#conventions" title="Permanent link">&para;</a></h2>
-<p>Code examples use Python 3.9+ syntax:</p>
+<p>Code examples use Python 3.10+ syntax:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama</span><span class="w"> </span><span class="kn">import</span> <span class="n">complete</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">response</span> <span class="o">=</span> <span class="n">complete</span><span class="p">(</span><span class="s2">&quot;Hello!&quot;</span><span class="p">,</span> <span class="n">model_path</span><span class="o">=</span><span class="s2">&quot;models/llama.gguf&quot;</span><span class="p">)</span>
