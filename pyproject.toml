@@ -114,6 +114,7 @@ dev = [
     "requests>=2.32.4",
     "langchain>=0.0.27",
     "twine>=6.1.0",
+    "mkdocs>=1.6.1",
 ]
 pdf = [
     "docling>=2.31.0",
