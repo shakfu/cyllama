@@ -1281,6 +1281,14 @@ class SqliteVectorBuilder(Builder):
         self.cmd("make clean", cwd=self.src_dir)
 
         # Build the extension using make
+        # Patch source to define _GNU_SOURCE for strcasestr on older glibc
+        # (e.g. manylinux/AlmaLinux 8 where strcasestr needs _GNU_SOURCE)
+        sqlite_vector_c = self.src_dir / "src" / "sqlite-vector.c"
+        if sqlite_vector_c.exists():
+            content = sqlite_vector_c.read_text()
+            if "_GNU_SOURCE" not in content:
+                content = "#ifndef _GNU_SOURCE\n#define _GNU_SOURCE\n#endif\n" + content
+                sqlite_vector_c.write_text(content)
         self.cmd("make extension", cwd=self.src_dir)
 
         # Copy the extension to package directory (for runtime use)
