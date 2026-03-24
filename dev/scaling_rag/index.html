@@ -1815,7 +1815,7 @@
 </code></pre></div>
 <h2 id="scalability-analysis">Scalability Analysis<a class="headerlink" href="#scalability-analysis" title="Permanent link">&para;</a></h2>
 <h3 id="1-vector-search">1. Vector Search<a class="headerlink" href="#1-vector-search" title="Permanent link">&para;</a></h3>
-<p><strong>Current Implementation</strong> (<code>store.py</code>):
+<p><strong>Current Implementation</strong> (<code>store.py</code>):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">search</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query_embedding</span><span class="p">,</span> <span class="n">k</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">threshold</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    <span class="n">query_blob</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_encode_vector</span><span class="p">(</span><span class="n">query_embedding</span><span class="p">)</span>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
@@ -1828,7 +1828,7 @@
 <a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="s2">        JOIN </span><span class="si">{</span><span class="n">scan_fn</span><span class="si">}</span><span class="s2">(&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">table_name</span><span class="si">}</span><span class="s2">&#39;, &#39;embedding&#39;, ?, ?) AS v</span>
 <a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="s2">            ON e.id = v.rowid</span>
 <a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="s2">    &quot;&quot;&quot;</span><span class="p">,</span> <span class="p">(</span><span class="n">query_blob</span><span class="p">,</span> <span class="n">k</span><span class="p">))</span>
-</code></pre></div></p>
+</code></pre></div>
 <p><strong>Two Search Modes</strong>:</p>
 <table>
 <thead>
@@ -1854,11 +1854,11 @@
 </tr>
 </tbody>
 </table>
-<p><strong>Quantization API</strong>:
+<p><strong>Quantization API</strong>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># After bulk inserts, quantize for faster search</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">store</span><span class="o">.</span><span class="n">quantize</span><span class="p">(</span><span class="n">max_memory</span><span class="o">=</span><span class="s2">&quot;30MB&quot;</span><span class="p">)</span>  <span class="c1"># Build quantized index</span>
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">store</span><span class="o">.</span><span class="n">preload_quantization</span><span class="p">()</span>        <span class="c1"># Load into memory for 4-5x speedup</span>
-</code></pre></div></p>
+</code></pre></div>
 <p><strong>Benchmark Estimates</strong> (384-dim embeddings):</p>
 <table>
 <thead>
@@ -1896,50 +1896,64 @@
 </tr>
 </tbody>
 </table>
-<p><strong>sqlite-vec Quantization Details</strong>:
-- Uses scalar quantization (float32 -&gt; int8)
-- Maintains &gt;0.95 recall for typical workloads
-- Memory-mapped for efficient I/O
-- Configurable memory budget</p>
+<p><strong>sqlite-vec Quantization Details</strong>:</p>
+<ul>
+<li>Uses scalar quantization (float32 -&gt; int8)</li>
+<li>Maintains &gt;0.95 recall for typical workloads</li>
+<li>Memory-mapped for efficient I/O</li>
+<li>Configurable memory budget</li>
+</ul>
 <h3 id="2-embedding-generation">2. Embedding Generation<a class="headerlink" href="#2-embedding-generation" title="Permanent link">&para;</a></h3>
-<p><strong>Current Implementation</strong> (<code>embedder.py</code>):
+<p><strong>Current Implementation</strong> (<code>embedder.py</code>):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">embed_batch</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">texts</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="o">...</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]]:</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="k">return</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">embed</span><span class="p">(</span><span class="n">text</span><span class="p">,</span> <span class="o">...</span><span class="p">)</span> <span class="k">for</span> <span class="n">text</span> <span class="ow">in</span> <span class="n">texts</span><span class="p">]</span>
-</code></pre></div></p>
-<p><strong>Issues</strong>:
-- Sequential processing (no true batching at llama.cpp level)
-- No async support for I/O-bound scenarios
-- GPU utilization may be suboptimal for small texts</p>
-<p><strong>Realistic Throughput</strong> (GTE-small on M1 Mac):
-- ~50-100 embeddings/second for short texts
-- 10,000 documents with 5 chunks each = 50,000 embeddings
-- Indexing time: ~8-15 minutes</p>
+</code></pre></div>
+<p><strong>Issues</strong>:</p>
+<ul>
+<li>Sequential processing (no true batching at llama.cpp level)</li>
+<li>No async support for I/O-bound scenarios</li>
+<li>GPU utilization may be suboptimal for small texts</li>
+</ul>
+<p><strong>Realistic Throughput</strong> (GTE-small on M1 Mac):</p>
+<ul>
+<li>~50-100 embeddings/second for short texts</li>
+<li>10,000 documents with 5 chunks each = 50,000 embeddings</li>
+<li>Indexing time: ~8-15 minutes</li>
+</ul>
 <h3 id="3-hybridstore-fts5">3. HybridStore FTS5<a class="headerlink" href="#3-hybridstore-fts5" title="Permanent link">&para;</a></h3>
-<p><strong>Current Implementation</strong> (<code>advanced.py</code>):
+<p><strong>Current Implementation</strong> (<code>advanced.py</code>):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">_fts_search</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">k</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">SearchResult</span><span class="p">]:</span>
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>    <span class="n">cursor</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_vector_store</span><span class="o">.</span><span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;&quot;&quot;</span>
 <a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="s2">        SELECT ... FROM </span><span class="si">{</span><span class="n">fts_table</span><span class="si">}</span>
 <a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="s2">        WHERE </span><span class="si">{</span><span class="n">fts_table</span><span class="si">}</span><span class="s2"> MATCH ? ORDER BY bm25(...) LIMIT ?</span>
 <a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="s2">    &quot;&quot;&quot;</span><span class="p">,</span> <span class="p">(</span><span class="n">escaped_query</span><span class="p">,</span> <span class="n">k</span><span class="p">))</span>
-</code></pre></div></p>
+</code></pre></div>
 <p><strong>Scalability</strong>: Excellent - FTS5 uses inverted indices with O(log n) lookup</p>
 <p><strong>Hybrid Search</strong>: Combines vector similarity with keyword matching using Reciprocal Rank Fusion (RRF). Both components scale well when quantization is enabled.</p>
 <h3 id="4-rag-pipeline">4. RAG Pipeline<a class="headerlink" href="#4-rag-pipeline" title="Permanent link">&para;</a></h3>
-<p><strong>Current Implementation</strong> (<code>pipeline.py</code>):
-- Single query at a time
-- No result caching
-- Synchronous LLM calls</p>
-<p><strong>Issues</strong>:
-- No query batching
-- Repeated identical queries hit full search path
-- No streaming for intermediate results</p>
+<p><strong>Current Implementation</strong> (<code>pipeline.py</code>):</p>
+<ul>
+<li>Single query at a time</li>
+<li>No result caching</li>
+<li>Synchronous LLM calls</li>
+</ul>
+<p><strong>Issues</strong>:</p>
+<ul>
+<li>No query batching</li>
+<li>Repeated identical queries hit full search path</li>
+<li>No streaming for intermediate results</li>
+</ul>
 <h3 id="5-document-loading">5. Document Loading<a class="headerlink" href="#5-document-loading" title="Permanent link">&para;</a></h3>
-<p><strong>Current Implementation</strong>: Generally good
-- <code>JSONLLoader.load_lazy()</code> provides streaming
-- <code>DirectoryLoader</code> processes files sequentially</p>
-<p><strong>Issues</strong>:
-- No parallel file loading
-- Large files loaded entirely into memory before chunking</p>
+<p><strong>Current Implementation</strong>: Generally good</p>
+<ul>
+<li><code>JSONLLoader.load_lazy()</code> provides streaming</li>
+<li><code>DirectoryLoader</code> processes files sequentially</li>
+</ul>
+<p><strong>Issues</strong>:</p>
+<ul>
+<li>No parallel file loading</li>
+<li>Large files loaded entirely into memory before chunking</li>
+</ul>
 <h2 id="scaling-recommendations">Scaling Recommendations<a class="headerlink" href="#scaling-recommendations" title="Permanent link">&para;</a></h2>
 <h3 id="phase-1-leverage-existing-quantization-no-code-changes">Phase 1: Leverage Existing Quantization (No Code Changes)<a class="headerlink" href="#phase-1-leverage-existing-quantization-no-code-changes" title="Permanent link">&para;</a></h3>
 <p>The most important optimization is already implemented - <strong>use quantization</strong>:</p>
@@ -1955,10 +1969,12 @@
 <a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="c1"># Searches now use vector_quantize_scan automatically</span>
 <a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="n">results</span> <span class="o">=</span> <span class="n">store</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">query_embedding</span><span class="p">,</span> <span class="n">k</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
 </code></pre></div>
-<p><strong>Guidelines</strong>:
-- &lt; 5,000 vectors: Full scan is fine
-- 5,000 - 50,000 vectors: Quantize with 30-50MB memory
-- 50,000+ vectors: Quantize with 100MB+ memory</p>
+<p><strong>Guidelines</strong>:</p>
+<ul>
+<li>&lt; 5,000 vectors: Full scan is fine</li>
+<li>5,000 - 50,000 vectors: Quantize with 30-50MB memory</li>
+<li>50,000+ vectors: Quantize with 100MB+ memory</li>
+</ul>
 <h3 id="phase-2-quick-wins-minor-code-changes">Phase 2: Quick Wins (Minor Code Changes)<a class="headerlink" href="#phase-2-quick-wins-minor-code-changes" title="Permanent link">&para;</a></h3>
 <h4 id="21-embedding-cache">2.1 Embedding Cache<a class="headerlink" href="#21-embedding-cache" title="Permanent link">&para;</a></h4>
 <p>Cache computed embeddings for repeated queries:</p>
@@ -2260,10 +2276,12 @@
 <a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>    <span class="c1"># metric=&quot;dot&quot;,   # Dot product (unnormalized)</span>
 <a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a><span class="p">)</span>
 </code></pre></div>
-<p><strong>Recommendations</strong>:
-- <code>cosine</code>: Best for normalized embeddings (most embedding models)
-- <code>l2</code>: When absolute distances matter
-- <code>dot</code>: For maximum inner product search</p>
+<p><strong>Recommendations</strong>:</p>
+<ul>
+<li><code>cosine</code>: Best for normalized embeddings (most embedding models)</li>
+<li><code>l2</code>: When absolute distances matter</li>
+<li><code>dot</code>: For maximum inner product search</li>
+</ul>
 <h3 id="vector-types">Vector Types<a class="headerlink" href="#vector-types" title="Permanent link">&para;</a></h3>
 <p>sqlite-vec supports quantized storage types:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="n">store</span> <span class="o">=</span> <span class="n">VectorStore</span><span class="p">(</span>
@@ -2273,10 +2291,12 @@
 <a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>    <span class="c1"># vector_type=&quot;int8&quot;,     # 4x storage savings, slight quality loss</span>
 <a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a><span class="p">)</span>
 </code></pre></div>
-<p><strong>Trade-offs</strong>:
-- <code>float32</code>: Full precision, largest storage
-- <code>float16</code>: 2x smaller, minimal quality loss
-- <code>int8</code>: 4x smaller, ~1-2% recall reduction</p>
+<p><strong>Trade-offs</strong>:</p>
+<ul>
+<li><code>float32</code>: Full precision, largest storage</li>
+<li><code>float16</code>: 2x smaller, minimal quality loss</li>
+<li><code>int8</code>: 4x smaller, ~1-2% recall reduction</li>
+</ul>
 <h2 id="benchmarking">Benchmarking<a class="headerlink" href="#benchmarking" title="Permanent link">&para;</a></h2>
 <p>Establish baselines before optimizing:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
@@ -2332,17 +2352,21 @@
 </code></pre></div>
 <h2 id="conclusion">Conclusion<a class="headerlink" href="#conclusion" title="Permanent link">&para;</a></h2>
 <p>The cyllama RAG implementation leverages <code>sqlite-vec</code> for efficient vector operations, providing a solid foundation for scaling:</p>
-<p><strong>Already Available</strong>:
-- Quantized approximate search via <code>vector_quantize_scan()</code>
-- Configurable memory budgets
-- Multiple distance metrics
-- Storage-efficient vector types</p>
+<p><strong>Already Available</strong>:</p>
+<ul>
+<li>Quantized approximate search via <code>vector_quantize_scan()</code></li>
+<li>Configurable memory budgets</li>
+<li>Multiple distance metrics</li>
+<li>Storage-efficient vector types</li>
+</ul>
 <p><strong>Key Insight</strong>: The most important optimization is <strong>enabling quantization</strong> for datasets &gt;5,000 vectors. This is already implemented and provides 4-5x speedup with &gt;95% recall.</p>
-<p><strong>Recommended Approach</strong>:
-1. <strong>Use quantization</strong> - It's built-in and highly effective
-2. <strong>Add caching</strong> for repeated queries
-3. <strong>Implement async processing</strong> for large ingestion jobs
-4. <strong>Consider sharding</strong> only for 1M+ vector workloads</p>
+<p><strong>Recommended Approach</strong>:</p>
+<ol>
+<li><strong>Use quantization</strong> - It's built-in and highly effective</li>
+<li><strong>Add caching</strong> for repeated queries</li>
+<li><strong>Implement async processing</strong> for large ingestion jobs</li>
+<li><strong>Consider sharding</strong> only for 1M+ vector workloads</li>
+</ol>
 <p>The architecture is well-suited for production workloads up to hundreds of thousands of documents when quantization is properly utilized.</p>
 
 

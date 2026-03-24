@@ -4817,20 +4817,30 @@
 <a id="__codelineno-66-31" name="__codelineno-66-31" href="#__codelineno-66-31"></a><span class="n">set_preview_callback</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
 </code></pre></div>
 <h3 id="enums">Enums<a class="headerlink" href="#enums" title="Permanent link">&para;</a></h3>
-<p><strong><code>SampleMethod</code></strong>: Sampling methods
-- <code>EULER</code>, <code>EULER_A</code>, <code>HEUN</code>, <code>DPM2</code>, <code>DPMPP2S_A</code>, <code>DPMPP2M</code>, <code>DPMPP2Mv2</code>
-- <code>IPNDM</code>, <code>IPNDM_V</code>, <code>LCM</code>, <code>DDIM_TRAILING</code>, <code>TCD</code></p>
-<p><strong><code>Scheduler</code></strong>: Schedulers
-- <code>DISCRETE</code>, <code>KARRAS</code>, <code>EXPONENTIAL</code>, <code>AYS</code>, <code>GITS</code>
-- <code>SGM_UNIFORM</code>, <code>SIMPLE</code>, <code>SMOOTHSTEP</code>, <code>LCM</code></p>
-<p><strong><code>SDType</code></strong>: Data types for quantization
-- <code>F32</code>, <code>F16</code>, <code>BF16</code>
-- <code>Q4_0</code>, <code>Q4_1</code>, <code>Q5_0</code>, <code>Q5_1</code>, <code>Q8_0</code>, <code>Q8_1</code>
-- <code>Q2_K</code>, <code>Q3_K</code>, <code>Q4_K</code>, <code>Q5_K</code>, <code>Q6_K</code>, <code>Q8_K</code></p>
-<p><strong><code>RngType</code></strong>: Random number generators
-- <code>STD_DEFAULT</code>, <code>CUDA</code>, <code>CPU</code></p>
-<p><strong><code>LogLevel</code></strong>: Log levels
-- <code>DEBUG</code>, <code>INFO</code>, <code>WARN</code>, <code>ERROR</code></p>
+<p><strong><code>SampleMethod</code></strong>: Sampling methods</p>
+<ul>
+<li><code>EULER</code>, <code>EULER_A</code>, <code>HEUN</code>, <code>DPM2</code>, <code>DPMPP2S_A</code>, <code>DPMPP2M</code>, <code>DPMPP2Mv2</code></li>
+<li><code>IPNDM</code>, <code>IPNDM_V</code>, <code>LCM</code>, <code>DDIM_TRAILING</code>, <code>TCD</code></li>
+</ul>
+<p><strong><code>Scheduler</code></strong>: Schedulers</p>
+<ul>
+<li><code>DISCRETE</code>, <code>KARRAS</code>, <code>EXPONENTIAL</code>, <code>AYS</code>, <code>GITS</code></li>
+<li><code>SGM_UNIFORM</code>, <code>SIMPLE</code>, <code>SMOOTHSTEP</code>, <code>LCM</code></li>
+</ul>
+<p><strong><code>SDType</code></strong>: Data types for quantization</p>
+<ul>
+<li><code>F32</code>, <code>F16</code>, <code>BF16</code></li>
+<li><code>Q4_0</code>, <code>Q4_1</code>, <code>Q5_0</code>, <code>Q5_1</code>, <code>Q8_0</code>, <code>Q8_1</code></li>
+<li><code>Q2_K</code>, <code>Q3_K</code>, <code>Q4_K</code>, <code>Q5_K</code>, <code>Q6_K</code>, <code>Q8_K</code></li>
+</ul>
+<p><strong><code>RngType</code></strong>: Random number generators</p>
+<ul>
+<li><code>STD_DEFAULT</code>, <code>CUDA</code>, <code>CPU</code></li>
+</ul>
+<p><strong><code>LogLevel</code></strong>: Log levels</p>
+<ul>
+<li><code>DEBUG</code>, <code>INFO</code>, <code>WARN</code>, <code>ERROR</code></li>
+</ul>
 <h3 id="utility-functions">Utility Functions<a class="headerlink" href="#utility-functions" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-67-1" name="__codelineno-67-1" href="#__codelineno-67-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.stablediffusion</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
 <a id="__codelineno-67-2" name="__codelineno-67-2" href="#__codelineno-67-2"></a>    <span class="n">get_num_cores</span><span class="p">,</span>

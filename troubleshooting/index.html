@@ -2225,81 +2225,77 @@
 <p><strong>Cause:</strong> Model file doesn't exist, is corrupted, or incompatible format.</p>
 <p><strong>Solutions:</strong></p>
 <ol>
-<li>
-<p><strong>Verify file exists:</strong>
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>ls<span class="w"> </span>-la<span class="w"> </span>models/your-model.gguf
-</code></pre></div></p>
-</li>
-<li>
-<p><strong>Check file integrity:</strong>
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.llama.llama_cpp</span><span class="w"> </span><span class="kn">import</span> <span class="n">GGUFContext</span>
+<li><strong>Verify file exists:</strong></li>
+</ol>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>ls<span class="w"> </span>-la<span class="w"> </span>models/your-model.gguf
+</code></pre></div>
+<ol>
+<li><strong>Check file integrity:</strong></li>
+</ol>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.llama.llama_cpp</span><span class="w"> </span><span class="kn">import</span> <span class="n">GGUFContext</span>
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
 <a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="n">ctx</span> <span class="o">=</span> <span class="n">GGUFContext</span><span class="o">.</span><span class="n">from_file</span><span class="p">(</span><span class="s2">&quot;models/your-model.gguf&quot;</span><span class="p">)</span>
 <a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="n">metadata</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">get_all_metadata</span><span class="p">()</span>
 <a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="nb">print</span><span class="p">(</span><span class="n">metadata</span><span class="p">)</span>  <span class="c1"># Should show model info</span>
-</code></pre></div></p>
-</li>
-<li>
-<p><strong>Use correct GGUF format:</strong> Cyllama requires GGUF format (not GGML). Convert older models:
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># Use llama.cpp&#39;s conversion tool</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>python<span class="w"> </span>llama.cpp/convert.py<span class="w"> </span>old-model.bin<span class="w"> </span>--outfile<span class="w"> </span>new-model.gguf
-</code></pre></div></p>
-</li>
+</code></pre></div>
+<ol>
+<li><strong>Use correct GGUF format:</strong> Cyllama requires GGUF format (not GGML). Convert older models:</li>
 </ol>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># Use llama.cpp&#39;s conversion tool</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>python<span class="w"> </span>llama.cpp/convert.py<span class="w"> </span>old-model.bin<span class="w"> </span>--outfile<span class="w"> </span>new-model.gguf
+</code></pre></div>
 <h3 id="out-of-memory-vram-exhaustion">"Out of memory" / VRAM Exhaustion<a class="headerlink" href="#out-of-memory-vram-exhaustion" title="Permanent link">&para;</a></h3>
 <p><strong>Cause:</strong> Model too large for available memory/VRAM.</p>
 <p><strong>Solutions:</strong></p>
 <ol>
-<li>
-<p><strong>Reduce GPU layers:</strong>
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama</span><span class="w"> </span><span class="kn">import</span> <span class="n">LLM</span><span class="p">,</span> <span class="n">GenerationConfig</span>
+<li><strong>Reduce GPU layers:</strong></li>
+</ol>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama</span><span class="w"> </span><span class="kn">import</span> <span class="n">LLM</span><span class="p">,</span> <span class="n">GenerationConfig</span>
 <a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
 <a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="n">config</span> <span class="o">=</span> <span class="n">GenerationConfig</span><span class="p">(</span><span class="n">n_gpu_layers</span><span class="o">=</span><span class="mi">20</span><span class="p">)</span>  <span class="c1"># Reduce from 99</span>
 <a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="n">llm</span> <span class="o">=</span> <span class="n">LLM</span><span class="p">(</span><span class="s2">&quot;model.gguf&quot;</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">)</span>
-</code></pre></div></p>
-</li>
-<li>
-<p><strong>Estimate optimal layers:</strong>
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama</span><span class="w"> </span><span class="kn">import</span> <span class="n">estimate_gpu_layers</span>
+</code></pre></div>
+<ol>
+<li><strong>Estimate optimal layers:</strong></li>
+</ol>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama</span><span class="w"> </span><span class="kn">import</span> <span class="n">estimate_gpu_layers</span>
 <a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>
 <a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="n">estimate</span> <span class="o">=</span> <span class="n">estimate_gpu_layers</span><span class="p">(</span><span class="s2">&quot;model.gguf&quot;</span><span class="p">,</span> <span class="n">available_vram_mb</span><span class="o">=</span><span class="mi">8000</span><span class="p">)</span>
 <a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Recommended: </span><span class="si">{</span><span class="n">estimate</span><span class="o">.</span><span class="n">n_gpu_layers</span><span class="si">}</span><span class="s2"> GPU layers&quot;</span><span class="p">)</span>
-</code></pre></div></p>
-</li>
+</code></pre></div>
+<ol>
 <li>
 <p><strong>Use smaller quantization:</strong> Download a more quantized model (Q4_0 &lt; Q5_K &lt; Q8_0 &lt; F16).</p>
 </li>
 <li>
-<p><strong>Reduce context size:</strong>
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="n">config</span> <span class="o">=</span> <span class="n">GenerationConfig</span><span class="p">(</span><span class="n">n_ctx</span><span class="o">=</span><span class="mi">2048</span><span class="p">)</span>  <span class="c1"># Smaller context = less memory</span>
-</code></pre></div></p>
+<p><strong>Reduce context size:</strong></p>
 </li>
 </ol>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="n">config</span> <span class="o">=</span> <span class="n">GenerationConfig</span><span class="p">(</span><span class="n">n_ctx</span><span class="o">=</span><span class="mi">2048</span><span class="p">)</span>  <span class="c1"># Smaller context = less memory</span>
+</code></pre></div>
 <h3 id="model-loads-but-generation-is-slow">Model Loads but Generation is Slow<a class="headerlink" href="#model-loads-but-generation-is-slow" title="Permanent link">&para;</a></h3>
 <p><strong>Cause:</strong> Model not using GPU acceleration.</p>
 <p><strong>Solutions:</strong></p>
 <ol>
-<li>
-<p><strong>Check GPU backend is loaded:</strong>
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.llama.llama_cpp</span><span class="w"> </span><span class="kn">import</span> <span class="n">ggml_backend_load_all</span>
+<li><strong>Check GPU backend is loaded:</strong></li>
+</ol>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.llama.llama_cpp</span><span class="w"> </span><span class="kn">import</span> <span class="n">ggml_backend_load_all</span>
 <a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="n">ggml_backend_load_all</span><span class="p">()</span>
-</code></pre></div></p>
-</li>
-<li>
-<p><strong>Verify GPU layers are being used:</strong>
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama</span><span class="w"> </span><span class="kn">import</span> <span class="n">LLM</span>
+</code></pre></div>
+<ol>
+<li><strong>Verify GPU layers are being used:</strong></li>
+</ol>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama</span><span class="w"> </span><span class="kn">import</span> <span class="n">LLM</span>
 <a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>
 <a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="n">llm</span> <span class="o">=</span> <span class="n">LLM</span><span class="p">(</span><span class="s2">&quot;model.gguf&quot;</span><span class="p">,</span> <span class="n">n_gpu_layers</span><span class="o">=</span><span class="mi">99</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 <a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="c1"># Verbose output should show GPU offload info</span>
-</code></pre></div></p>
-</li>
-<li>
-<p><strong>On macOS, check Metal:</strong>
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="c1"># Ensure Metal is available</span>
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>system_profiler<span class="w"> </span>SPDisplaysDataType<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>Metal
-</code></pre></div></p>
-</li>
+</code></pre></div>
+<ol>
+<li><strong>On macOS, check Metal:</strong></li>
 </ol>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="c1"># Ensure Metal is available</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>system_profiler<span class="w"> </span>SPDisplaysDataType<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>Metal
+</code></pre></div>
 <h2 id="generation-issues">Generation Issues<a class="headerlink" href="#generation-issues" title="Permanent link">&para;</a></h2>
 <h3 id="empty-or-truncated-output">Empty or Truncated Output<a class="headerlink" href="#empty-or-truncated-output" title="Permanent link">&para;</a></h3>
 <p><strong>Cause:</strong> max_tokens too low, stop sequences triggered, or EOS token reached.</p>
@@ -2338,24 +2334,22 @@
 <p><strong>Cause:</strong> Temperature too high, wrong model, or corrupted model file.</p>
 <p><strong>Solutions:</strong></p>
 <ol>
-<li>
-<p><strong>Lower temperature:</strong>
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="n">response</span> <span class="o">=</span> <span class="n">complete</span><span class="p">(</span><span class="s2">&quot;...&quot;</span><span class="p">,</span> <span class="n">model_path</span><span class="o">=</span><span class="s2">&quot;model.gguf&quot;</span><span class="p">,</span> <span class="n">temperature</span><span class="o">=</span><span class="mf">0.3</span><span class="p">)</span>
-</code></pre></div></p>
-</li>
-<li>
-<p><strong>Use greedy decoding for deterministic output:</strong>
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="n">response</span> <span class="o">=</span> <span class="n">complete</span><span class="p">(</span><span class="s2">&quot;...&quot;</span><span class="p">,</span> <span class="n">model_path</span><span class="o">=</span><span class="s2">&quot;model.gguf&quot;</span><span class="p">,</span> <span class="n">temperature</span><span class="o">=</span><span class="mf">0.0</span><span class="p">)</span>
-</code></pre></div></p>
-</li>
-<li>
-<p><strong>Verify model integrity:</strong>
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.llama.llama_cpp</span><span class="w"> </span><span class="kn">import</span> <span class="n">GGUFContext</span>
+<li><strong>Lower temperature:</strong></li>
+</ol>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="n">response</span> <span class="o">=</span> <span class="n">complete</span><span class="p">(</span><span class="s2">&quot;...&quot;</span><span class="p">,</span> <span class="n">model_path</span><span class="o">=</span><span class="s2">&quot;model.gguf&quot;</span><span class="p">,</span> <span class="n">temperature</span><span class="o">=</span><span class="mf">0.3</span><span class="p">)</span>
+</code></pre></div>
+<ol>
+<li><strong>Use greedy decoding for deterministic output:</strong></li>
+</ol>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="n">response</span> <span class="o">=</span> <span class="n">complete</span><span class="p">(</span><span class="s2">&quot;...&quot;</span><span class="p">,</span> <span class="n">model_path</span><span class="o">=</span><span class="s2">&quot;model.gguf&quot;</span><span class="p">,</span> <span class="n">temperature</span><span class="o">=</span><span class="mf">0.0</span><span class="p">)</span>
+</code></pre></div>
+<ol>
+<li><strong>Verify model integrity:</strong></li>
+</ol>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.llama.llama_cpp</span><span class="w"> </span><span class="kn">import</span> <span class="n">GGUFContext</span>
 <a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="n">ctx</span> <span class="o">=</span> <span class="n">GGUFContext</span><span class="o">.</span><span class="n">from_file</span><span class="p">(</span><span class="s2">&quot;model.gguf&quot;</span><span class="p">)</span>
 <a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="nb">print</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">get_val_str</span><span class="p">(</span><span class="s2">&quot;general.architecture&quot;</span><span class="p">))</span>
-</code></pre></div></p>
-</li>
-</ol>
+</code></pre></div>
 <h3 id="chat-format-issues">Chat Format Issues<a class="headerlink" href="#chat-format-issues" title="Permanent link">&para;</a></h3>
 <p><strong>Cause:</strong> Model expects specific chat format that isn't being applied.</p>
 <p><strong>Solution:</strong> Use the <code>chat()</code> function which applies proper formatting:</p>
@@ -2374,52 +2368,48 @@
 <p><strong>Symptoms:</strong> Generation runs on CPU despite having Apple Silicon.</p>
 <p><strong>Solutions:</strong></p>
 <ol>
-<li>
-<p><strong>Verify Metal support:</strong>
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>system_profiler<span class="w"> </span>SPDisplaysDataType<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-i<span class="w"> </span>metal
-</code></pre></div></p>
-</li>
-<li>
-<p><strong>Reinstall Xcode tools:</strong>
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>xcode-select<span class="w"> </span>--install
-</code></pre></div></p>
-</li>
-<li>
-<p><strong>Check build used Metal:</strong>
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>make<span class="w"> </span>show-backends
-<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a><span class="c1"># Should show GGML_METAL=1</span>
-</code></pre></div></p>
-</li>
-<li>
-<p><strong>Rebuild with Metal:</strong>
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>make<span class="w"> </span>reset
-<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>make<span class="w"> </span>build-metal
-</code></pre></div></p>
-</li>
+<li><strong>Verify Metal support:</strong></li>
 </ol>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>system_profiler<span class="w"> </span>SPDisplaysDataType<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-i<span class="w"> </span>metal
+</code></pre></div>
+<ol>
+<li><strong>Reinstall Xcode tools:</strong></li>
+</ol>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>xcode-select<span class="w"> </span>--install
+</code></pre></div>
+<ol>
+<li><strong>Check build used Metal:</strong></li>
+</ol>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>make<span class="w"> </span>show-backends
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a><span class="c1"># Should show GGML_METAL=1</span>
+</code></pre></div>
+<ol>
+<li><strong>Rebuild with Metal:</strong></li>
+</ol>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>make<span class="w"> </span>reset
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>make<span class="w"> </span>build-metal
+</code></pre></div>
 <h3 id="cuda-not-found-linux">CUDA Not Found (Linux)<a class="headerlink" href="#cuda-not-found-linux" title="Permanent link">&para;</a></h3>
 <p><strong>Symptoms:</strong> Build fails or GPU not used on NVIDIA systems.</p>
 <p><strong>Solutions:</strong></p>
 <ol>
-<li>
-<p><strong>Set CUDA paths:</strong>
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">PATH</span><span class="o">=</span>/usr/local/cuda/bin:<span class="nv">$PATH</span>
-<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">LD_LIBRARY_PATH</span><span class="o">=</span>/usr/local/cuda/lib64:<span class="nv">$LD_LIBRARY_PATH</span>
-</code></pre></div></p>
-</li>
-<li>
-<p><strong>Rebuild with CUDA:</strong>
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>make<span class="w"> </span>reset
-<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>make<span class="w"> </span>build-cuda
-</code></pre></div></p>
-</li>
-<li>
-<p><strong>Verify CUDA installation:</strong>
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>nvcc<span class="w"> </span>--version
-<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>nvidia-smi
-</code></pre></div></p>
-</li>
+<li><strong>Set CUDA paths:</strong></li>
 </ol>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">PATH</span><span class="o">=</span>/usr/local/cuda/bin:<span class="nv">$PATH</span>
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">LD_LIBRARY_PATH</span><span class="o">=</span>/usr/local/cuda/lib64:<span class="nv">$LD_LIBRARY_PATH</span>
+</code></pre></div>
+<ol>
+<li><strong>Rebuild with CUDA:</strong></li>
+</ol>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>make<span class="w"> </span>reset
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>make<span class="w"> </span>build-cuda
+</code></pre></div>
+<ol>
+<li><strong>Verify CUDA installation:</strong></li>
+</ol>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>nvcc<span class="w"> </span>--version
+<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>nvidia-smi
+</code></pre></div>
 <h3 id="vulkan-issues">Vulkan Issues<a class="headerlink" href="#vulkan-issues" title="Permanent link">&para;</a></h3>
 <p><strong>Symptoms:</strong> Vulkan backend not loading.</p>
 <p><strong>Solutions:</strong></p>
@@ -2430,16 +2420,16 @@
 <p>macOS: Install from <a href="https://vulkan.lunarg.com/">LunarG</a></p>
 </li>
 <li>
-<p><strong>Verify Vulkan:</strong>
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>vulkaninfo<span class="w"> </span><span class="p">|</span><span class="w"> </span>head<span class="w"> </span>-20
-</code></pre></div></p>
-</li>
-<li>
-<p><strong>Rebuild:</strong>
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>make<span class="w"> </span>build-vulkan
-</code></pre></div></p>
+<p><strong>Verify Vulkan:</strong></p>
 </li>
 </ol>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>vulkaninfo<span class="w"> </span><span class="p">|</span><span class="w"> </span>head<span class="w"> </span>-20
+</code></pre></div>
+<ol>
+<li><strong>Rebuild:</strong></li>
+</ol>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>make<span class="w"> </span>build-vulkan
+</code></pre></div>
 <h2 id="agent-issues">Agent Issues<a class="headerlink" href="#agent-issues" title="Permanent link">&para;</a></h2>
 <h3 id="agent-loops-forever">Agent Loops Forever<a class="headerlink" href="#agent-loops-forever" title="Permanent link">&para;</a></h3>
 <p><strong>Cause:</strong> Agent stuck in reasoning loop.</p>
@@ -2459,26 +2449,26 @@
 <p><strong>Cause:</strong> Model not following expected format.</p>
 <p><strong>Solutions:</strong></p>
 <ol>
-<li>
-<p><strong>Use ConstrainedAgent for guaranteed parsing:</strong>
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">ConstrainedAgent</span>
+<li><strong>Use ConstrainedAgent for guaranteed parsing:</strong></li>
+</ol>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">ConstrainedAgent</span>
 <a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a>
 <a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">ConstrainedAgent</span><span class="p">(</span><span class="n">llm</span><span class="o">=</span><span class="n">llm</span><span class="p">,</span> <span class="n">tools</span><span class="o">=</span><span class="n">tools</span><span class="p">)</span>
 <a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a><span class="c1"># Grammar constraints ensure valid JSON output</span>
-</code></pre></div></p>
-</li>
+</code></pre></div>
+<ol>
 <li>
 <p><strong>Use a better model:</strong> Larger models (7B+) are more reliable at tool calling.</p>
 </li>
 <li>
-<p><strong>Simplify tool definitions:</strong>
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a><span class="nd">@tool</span>
+<p><strong>Simplify tool definitions:</strong></p>
+</li>
+</ol>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a><span class="nd">@tool</span>
 <a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">simple_tool</span><span class="p">(</span><span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>  <span class="c1"># Simple, clear signature</span>
 <a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Search for information.&quot;&quot;&quot;</span>     <span class="c1"># Clear docstring</span>
 <a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a>    <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;Results: </span><span class="si">{</span><span class="n">query</span><span class="si">}</span><span class="s2">&quot;</span>
-</code></pre></div></p>
-</li>
-</ol>
+</code></pre></div>
 <h3 id="tool-execution-errors">Tool Execution Errors<a class="headerlink" href="#tool-execution-errors" title="Permanent link">&para;</a></h3>
 <p><strong>Cause:</strong> Tool function throws exception.</p>
 <p><strong>Solution:</strong> Add error handling in tools:</p>
@@ -2555,27 +2545,25 @@
 <p><strong>Cause:</strong> Wrong model type or incompatible settings.</p>
 <p><strong>Solutions:</strong></p>
 <ol>
-<li>
-<p><strong>For SDXL Turbo models:</strong>
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a><span class="n">images</span> <span class="o">=</span> <span class="n">text_to_image</span><span class="p">(</span>
+<li><strong>For SDXL Turbo models:</strong></li>
+</ol>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a><span class="n">images</span> <span class="o">=</span> <span class="n">text_to_image</span><span class="p">(</span>
 <a id="__codelineno-35-2" name="__codelineno-35-2" href="#__codelineno-35-2"></a>    <span class="n">model_path</span><span class="o">=</span><span class="s2">&quot;sd_xl_turbo.gguf&quot;</span><span class="p">,</span>
 <a id="__codelineno-35-3" name="__codelineno-35-3" href="#__codelineno-35-3"></a>    <span class="n">prompt</span><span class="o">=</span><span class="s2">&quot;...&quot;</span><span class="p">,</span>
 <a id="__codelineno-35-4" name="__codelineno-35-4" href="#__codelineno-35-4"></a>    <span class="n">sample_steps</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>   <span class="c1"># Turbo uses fewer steps</span>
 <a id="__codelineno-35-5" name="__codelineno-35-5" href="#__codelineno-35-5"></a>    <span class="n">cfg_scale</span><span class="o">=</span><span class="mf">1.0</span>     <span class="c1"># Turbo uses low CFG</span>
 <a id="__codelineno-35-6" name="__codelineno-35-6" href="#__codelineno-35-6"></a><span class="p">)</span>
-</code></pre></div></p>
-</li>
-<li>
-<p><strong>For standard SD models:</strong>
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a><span class="n">images</span> <span class="o">=</span> <span class="n">text_to_image</span><span class="p">(</span>
+</code></pre></div>
+<ol>
+<li><strong>For standard SD models:</strong></li>
+</ol>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a><span class="n">images</span> <span class="o">=</span> <span class="n">text_to_image</span><span class="p">(</span>
 <a id="__codelineno-36-2" name="__codelineno-36-2" href="#__codelineno-36-2"></a>    <span class="n">model_path</span><span class="o">=</span><span class="s2">&quot;sd_v1_5.gguf&quot;</span><span class="p">,</span>
 <a id="__codelineno-36-3" name="__codelineno-36-3" href="#__codelineno-36-3"></a>    <span class="n">prompt</span><span class="o">=</span><span class="s2">&quot;...&quot;</span><span class="p">,</span>
 <a id="__codelineno-36-4" name="__codelineno-36-4" href="#__codelineno-36-4"></a>    <span class="n">sample_steps</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span>  <span class="c1"># More steps</span>
 <a id="__codelineno-36-5" name="__codelineno-36-5" href="#__codelineno-36-5"></a>    <span class="n">cfg_scale</span><span class="o">=</span><span class="mf">7.0</span>     <span class="c1"># Higher CFG</span>
 <a id="__codelineno-36-6" name="__codelineno-36-6" href="#__codelineno-36-6"></a><span class="p">)</span>
-</code></pre></div></p>
-</li>
-</ol>
+</code></pre></div>
 <h2 id="performance-tips">Performance Tips<a class="headerlink" href="#performance-tips" title="Permanent link">&para;</a></h2>
 <h3 id="slow-first-generation">Slow First Generation<a class="headerlink" href="#slow-first-generation" title="Permanent link">&para;</a></h3>
 <p><strong>Cause:</strong> Model loading and context creation on first call.</p>
@@ -2591,28 +2579,26 @@
 <h3 id="high-memory-usage">High Memory Usage<a class="headerlink" href="#high-memory-usage" title="Permanent link">&para;</a></h3>
 <p><strong>Solutions:</strong></p>
 <ol>
-<li>
-<p>Close resources when done:
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a><span class="n">llm</span> <span class="o">=</span> <span class="n">LLM</span><span class="p">(</span><span class="s2">&quot;model.gguf&quot;</span><span class="p">)</span>
+<li>Close resources when done:</li>
+</ol>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a><span class="n">llm</span> <span class="o">=</span> <span class="n">LLM</span><span class="p">(</span><span class="s2">&quot;model.gguf&quot;</span><span class="p">)</span>
 <a id="__codelineno-38-2" name="__codelineno-38-2" href="#__codelineno-38-2"></a><span class="c1"># ... use llm ...</span>
 <a id="__codelineno-38-3" name="__codelineno-38-3" href="#__codelineno-38-3"></a><span class="n">llm</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>  <span class="c1"># Free memory</span>
-</code></pre></div></p>
-</li>
-<li>
-<p>Use context managers:
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a><span class="k">with</span> <span class="n">LLM</span><span class="p">(</span><span class="s2">&quot;model.gguf&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">llm</span><span class="p">:</span>
+</code></pre></div>
+<ol>
+<li>Use context managers:</li>
+</ol>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a><span class="k">with</span> <span class="n">LLM</span><span class="p">(</span><span class="s2">&quot;model.gguf&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">llm</span><span class="p">:</span>
 <a id="__codelineno-39-2" name="__codelineno-39-2" href="#__codelineno-39-2"></a>    <span class="n">response</span> <span class="o">=</span> <span class="n">llm</span><span class="p">(</span><span class="s2">&quot;...&quot;</span><span class="p">)</span>
 <a id="__codelineno-39-3" name="__codelineno-39-3" href="#__codelineno-39-3"></a><span class="c1"># Automatically freed</span>
-</code></pre></div></p>
-</li>
-<li>
-<p>Use batch processing for multiple prompts:
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-40-1" name="__codelineno-40-1" href="#__codelineno-40-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama</span><span class="w"> </span><span class="kn">import</span> <span class="n">batch_generate</span>
+</code></pre></div>
+<ol>
+<li>Use batch processing for multiple prompts:</li>
+</ol>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-40-1" name="__codelineno-40-1" href="#__codelineno-40-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama</span><span class="w"> </span><span class="kn">import</span> <span class="n">batch_generate</span>
 <a id="__codelineno-40-2" name="__codelineno-40-2" href="#__codelineno-40-2"></a>
 <a id="__codelineno-40-3" name="__codelineno-40-3" href="#__codelineno-40-3"></a><span class="n">responses</span> <span class="o">=</span> <span class="n">batch_generate</span><span class="p">(</span><span class="n">prompts</span><span class="p">,</span> <span class="n">model_path</span><span class="o">=</span><span class="s2">&quot;model.gguf&quot;</span><span class="p">)</span>
-</code></pre></div></p>
-</li>
-</ol>
+</code></pre></div>
 <h2 id="getting-help">Getting Help<a class="headerlink" href="#getting-help" title="Permanent link">&para;</a></h2>
 <p>If you're still having issues:</p>
 <ol>

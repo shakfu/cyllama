@@ -1476,23 +1476,27 @@
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nb">set</span><span class="p">(</span><span class="s">CMAKE_C_VISIBILITY_PRESET</span><span class="w"> </span><span class="s">hidden</span><span class="p">)</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="nb">set</span><span class="p">(</span><span class="s">CMAKE_VISIBILITY_INLINES_HIDDEN</span><span class="w"> </span><span class="s">ON</span><span class="p">)</span>
 </code></pre></div>
-<p>Or via compiler flags:
+<p>Or via compiler flags:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>-fvisibility=hidden -fvisibility-inlines-hidden
-</code></pre></div></p>
+</code></pre></div>
 <p>The public API symbols need explicit <code>__attribute__((visibility("default")))</code> marking.</p>
 <p><strong>2. When building cyllama extensions:</strong></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nb">if</span><span class="p">(</span><span class="s">NOT</span><span class="w"> </span><span class="s">WIN32</span><span class="p">)</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">    </span><span class="nb">set</span><span class="p">(</span><span class="s">CXX_COMPILE_OPTIONS</span><span class="w"> </span><span class="s">-std=c++17</span><span class="w"> </span><span class="s">-fvisibility=hidden</span><span class="p">)</span>
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="nb">endif</span><span class="p">()</span>
 </code></pre></div>
-<p><strong>Benefits:</strong>
-- Allows different ggml versions per library (no symbol conflicts)
-- Smaller binaries (linker can discard unused hidden symbols)
-- Avoids symbol conflicts at runtime
-- Removes need for <code>--whole-archive</code> (only public API symbols are exported)</p>
-<p><strong>Challenges:</strong>
-- Requires patching upstream projects or maintaining forks
-- Need to ensure all necessary symbols are marked as visible in upstream</p>
+<p><strong>Benefits:</strong></p>
+<ul>
+<li>Allows different ggml versions per library (no symbol conflicts)</li>
+<li>Smaller binaries (linker can discard unused hidden symbols)</li>
+<li>Avoids symbol conflicts at runtime</li>
+<li>Removes need for <code>--whole-archive</code> (only public API symbols are exported)</li>
+</ul>
+<p><strong>Challenges:</strong></p>
+<ul>
+<li>Requires patching upstream projects or maintaining forks</li>
+<li>Need to ensure all necessary symbols are marked as visible in upstream</li>
+</ul>
 <h3 id="option-2-shared-libs-with-ggml-statically-linked-symbol-visibility-hidden">Option 2: Shared libs with ggml statically linked (symbol visibility hidden)<a class="headerlink" href="#option-2-shared-libs-with-ggml-statically-linked-symbol-visibility-hidden" title="Permanent link">&para;</a></h3>
 <p>Each of llama.cpp, whisper.cpp, and stable-diffusion.cpp becomes a shared library (<code>.so</code>/<code>.dylib</code>) with ggml statically linked inside, but with internal symbols hidden. This:</p>
 <ul>

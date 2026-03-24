@@ -1749,10 +1749,12 @@
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>~/Library/Application Support/cyllama/cyllama.db  # macOS
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>%LOCALAPPDATA%\cyllama\cyllama.db      # Windows
 </code></pre></div>
-<p>Can be overridden via:
-- Environment variable: <code>CYLLAMA_DB_PATH</code>
-- Constructor argument: <code>CyllamaDB(path="/custom/path.db")</code>
-- Disable entirely: <code>CyllamaDB(enabled=False)</code> or <code>CYLLAMA_DB_ENABLED=0</code></p>
+<p>Can be overridden via:</p>
+<ul>
+<li>Environment variable: <code>CYLLAMA_DB_PATH</code></li>
+<li>Constructor argument: <code>CyllamaDB(path="/custom/path.db")</code></li>
+<li>Disable entirely: <code>CyllamaDB(enabled=False)</code> or <code>CYLLAMA_DB_ENABLED=0</code></li>
+</ul>
 <h2 id="schema-design">Schema Design<a class="headerlink" href="#schema-design" title="Permanent link">&para;</a></h2>
 <h3 id="1-configuration-table">1. Configuration Table<a class="headerlink" href="#1-configuration-table" title="Permanent link">&para;</a></h3>
 <p>Stores key-value configuration with JSON support for complex values.</p>
@@ -1766,13 +1768,38 @@
 <a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>
 <a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_config_key</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">config</span><span class="p">(</span><span class="k">key</span><span class="p">);</span>
 </code></pre></div>
-<p><strong>Example entries:</strong>
-| key | value | value_type |
-|-----|-------|------------|
-| <code>default_model</code> | <code>"models/llama.gguf"</code> | str |
-| <code>default_temperature</code> | <code>0.7</code> | float |
-| <code>default_max_tokens</code> | <code>512</code> | int |
-| <code>n_gpu_layers</code> | <code>99</code> | int |</p>
+<p><strong>Example entries:</strong></p>
+<table>
+<thead>
+<tr>
+<th>key</th>
+<th>value</th>
+<th>value_type</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>default_model</code></td>
+<td><code>"models/llama.gguf"</code></td>
+<td>str</td>
+</tr>
+<tr>
+<td><code>default_temperature</code></td>
+<td><code>0.7</code></td>
+<td>float</td>
+</tr>
+<tr>
+<td><code>default_max_tokens</code></td>
+<td><code>512</code></td>
+<td>int</td>
+</tr>
+<tr>
+<td><code>n_gpu_layers</code></td>
+<td><code>99</code></td>
+<td>int</td>
+</tr>
+</tbody>
+</table>
 <h3 id="2-response-cache-table">2. Response Cache Table<a class="headerlink" href="#2-response-cache-table" title="Permanent link">&para;</a></h3>
 <p>Caches responses with content-based hashing and TTL support.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="k">IF</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">EXISTS</span><span class="w"> </span><span class="k">cache</span><span class="w"> </span><span class="p">(</span>
@@ -1799,7 +1826,7 @@
 <a id="__codelineno-2-22" name="__codelineno-2-22" href="#__codelineno-2-22"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_cache_model</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="k">cache</span><span class="p">(</span><span class="n">model_path</span><span class="p">);</span>
 <a id="__codelineno-2-23" name="__codelineno-2-23" href="#__codelineno-2-23"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_cache_expires</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="k">cache</span><span class="p">(</span><span class="n">expires_at</span><span class="p">);</span>
 </code></pre></div>
-<p><strong>Cache Key Generation:</strong>
+<p><strong>Cache Key Generation:</strong></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">generate_cache_key</span><span class="p">(</span><span class="n">prompt</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">model_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">config</span><span class="p">:</span> <span class="n">GenerationConfig</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Generate deterministic cache key from inputs.&quot;&quot;&quot;</span>
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="c1"># Normalize config to dict, excluding non-deterministic fields</span>
@@ -1821,7 +1848,7 @@
 <a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a>    <span class="p">},</span> <span class="n">sort_keys</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 <a id="__codelineno-3-20" name="__codelineno-3-20" href="#__codelineno-3-20"></a>
 <a id="__codelineno-3-21" name="__codelineno-3-21" href="#__codelineno-3-21"></a>    <span class="k">return</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">sha256</span><span class="p">(</span><span class="n">key_data</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">()</span>
-</code></pre></div></p>
+</code></pre></div>
 <h3 id="3-statistics-table">3. Statistics Table<a class="headerlink" href="#3-statistics-table" title="Permanent link">&para;</a></h3>
 <p>Tracks per-generation statistics for analytics.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="k">IF</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">EXISTS</span><span class="w"> </span><span class="n">stats</span><span class="w"> </span><span class="p">(</span>

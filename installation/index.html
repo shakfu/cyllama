@@ -2016,16 +2016,16 @@
 <li>Git</li>
 </ul>
 <h3 id="platform-specific-requirements">Platform-Specific Requirements<a class="headerlink" href="#platform-specific-requirements" title="Permanent link">&para;</a></h3>
-<p><strong>macOS:</strong>
+<p><strong>macOS:</strong></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>xcode-select<span class="w"> </span>--install<span class="w">  </span><span class="c1"># Xcode Command Line Tools</span>
-</code></pre></div></p>
-<p><strong>Ubuntu/Debian:</strong>
+</code></pre></div>
+<p><strong>Ubuntu/Debian:</strong></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>sudo<span class="w"> </span>apt-get<span class="w"> </span>update
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>sudo<span class="w"> </span>apt-get<span class="w"> </span>install<span class="w"> </span>-y<span class="w"> </span>build-essential<span class="w"> </span>cmake<span class="w"> </span>git<span class="w"> </span>python3-dev
-</code></pre></div></p>
-<p><strong>Fedora/RHEL:</strong>
+</code></pre></div>
+<p><strong>Fedora/RHEL:</strong></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>sudo<span class="w"> </span>dnf<span class="w"> </span>install<span class="w"> </span>-y<span class="w"> </span>gcc-c++<span class="w"> </span>cmake<span class="w"> </span>git<span class="w"> </span>python3-devel
-</code></pre></div></p>
+</code></pre></div>
 <h2 id="install-from-pypi">Install from PyPI<a class="headerlink" href="#install-from-pypi" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>pip<span class="w"> </span>install<span class="w"> </span>cyllama
 </code></pre></div>
@@ -2077,12 +2077,12 @@
 </code></pre></div>
 <p>See <a href="../build_backends/">Building with Different Backends</a> for detailed GPU setup instructions.</p>
 <h3 id="optional-components">Optional Components<a class="headerlink" href="#optional-components" title="Permanent link">&para;</a></h3>
-<p><strong>Stable Diffusion support:</strong>
+<p><strong>Stable Diffusion support:</strong></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nv">WITH_STABLEDIFFUSION</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>make<span class="w"> </span>build
-</code></pre></div></p>
-<p><strong>Whisper support</strong> (included by default):
+</code></pre></div>
+<p><strong>Whisper support</strong> (included by default):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>make<span class="w"> </span>build<span class="w">  </span><span class="c1"># Whisper is built automatically</span>
-</code></pre></div></p>
+</code></pre></div>
 <h2 id="build-system">Build System<a class="headerlink" href="#build-system" title="Permanent link">&para;</a></h2>
 <p>Cyllama uses <strong>scikit-build-core</strong> with CMake for building the Cython extensions. The build process:</p>
 <ol>
@@ -2123,27 +2123,27 @@
 </tbody>
 </table>
 <h3 id="wheel-distribution">Wheel Distribution<a class="headerlink" href="#wheel-distribution" title="Permanent link">&para;</a></h3>
-<p>To build a distributable wheel:
+<p>To build a distributable wheel:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>make<span class="w"> </span>wheel
 <a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="c1"># Creates wheel in dist/</span>
-</code></pre></div></p>
+</code></pre></div>
 <p>The wheel includes all compiled extensions and can be installed on systems with matching platform/Python version.</p>
 <h2 id="installing-models">Installing Models<a class="headerlink" href="#installing-models" title="Permanent link">&para;</a></h2>
 <h3 id="llm-models-gguf-format">LLM Models (GGUF format)<a class="headerlink" href="#llm-models-gguf-format" title="Permanent link">&para;</a></h3>
-<p>Download the default test model:
+<p>Download the default test model:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>make<span class="w"> </span>download
 <a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="c1"># Downloads: models/Llama-3.2-1B-Instruct-Q8_0.gguf</span>
-</code></pre></div></p>
-<p>Or download manually from <a href="https://huggingface.co/models?search=gguf">Hugging Face</a>:
+</code></pre></div>
+<p>Or download manually from <a href="https://huggingface.co/models?search=gguf">Hugging Face</a>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="c1"># Example: Download a model</span>
 <a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>curl<span class="w"> </span>-L<span class="w"> </span>-o<span class="w"> </span>models/llama.gguf<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="w">  </span><span class="s2">&quot;https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q8_0.gguf&quot;</span>
-</code></pre></div></p>
+</code></pre></div>
 <h3 id="whisper-models">Whisper Models<a class="headerlink" href="#whisper-models" title="Permanent link">&para;</a></h3>
-<p>Download from <a href="https://huggingface.co/ggerganov/whisper.cpp">ggerganov/whisper.cpp</a>:
+<p>Download from <a href="https://huggingface.co/ggerganov/whisper.cpp">ggerganov/whisper.cpp</a>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>curl<span class="w"> </span>-L<span class="w"> </span>-o<span class="w"> </span>models/ggml-base.en.bin<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="w">  </span><span class="s2">&quot;https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin&quot;</span>
-</code></pre></div></p>
+</code></pre></div>
 <h3 id="stable-diffusion-models">Stable Diffusion Models<a class="headerlink" href="#stable-diffusion-models" title="Permanent link">&para;</a></h3>
 <p>Download SDXL Turbo or other SD models in GGUF or safetensors format.</p>
 <h2 id="verification">Verification<a class="headerlink" href="#verification" title="Permanent link">&para;</a></h2>
@@ -2171,33 +2171,33 @@
 </code></pre></div>
 <h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h2>
 <h3 id="no-module-named-cyllama">"No module named 'cyllama'"<a class="headerlink" href="#no-module-named-cyllama" title="Permanent link">&para;</a></h3>
-<p>Make sure you're in the project directory or have installed cyllama:
+<p>Make sure you're in the project directory or have installed cyllama:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="nb">cd</span><span class="w"> </span>cyllama
 <a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>make<span class="w">  </span><span class="c1"># or: uv pip install -e .</span>
-</code></pre></div></p>
+</code></pre></div>
 <h3 id="build-errors">Build Errors<a class="headerlink" href="#build-errors" title="Permanent link">&para;</a></h3>
-<p>Clean and rebuild:
+<p>Clean and rebuild:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>make<span class="w"> </span>reset<span class="w">  </span><span class="c1"># Full clean</span>
 <a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>make<span class="w"> </span>build
-</code></pre></div></p>
+</code></pre></div>
 <h3 id="metal-not-working-macos">Metal Not Working (macOS)<a class="headerlink" href="#metal-not-working-macos" title="Permanent link">&para;</a></h3>
-<p>Ensure Xcode Command Line Tools are installed:
+<p>Ensure Xcode Command Line Tools are installed:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>xcode-select<span class="w"> </span>--install
-</code></pre></div></p>
+</code></pre></div>
 <h3 id="cuda-not-found-linux">CUDA Not Found (Linux)<a class="headerlink" href="#cuda-not-found-linux" title="Permanent link">&para;</a></h3>
-<p>Add CUDA to your PATH:
+<p>Add CUDA to your PATH:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">PATH</span><span class="o">=</span>/usr/local/cuda/bin:<span class="nv">$PATH</span>
 <a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">LD_LIBRARY_PATH</span><span class="o">=</span>/usr/local/cuda/lib64:<span class="nv">$LD_LIBRARY_PATH</span>
-</code></pre></div></p>
+</code></pre></div>
 <h2 id="development-install">Development Install<a class="headerlink" href="#development-install" title="Permanent link">&para;</a></h2>
-<p>For development with editable install:
+<p>For development with editable install:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/shakfu/cyllama.git
 <a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a><span class="nb">cd</span><span class="w"> </span>cyllama
 <a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>make<span class="w">  </span><span class="c1"># Builds dependencies and installs in editable mode</span>
-</code></pre></div></p>
-<p>For manual editable install (after dependencies are built):
+</code></pre></div>
+<p>For manual editable install (after dependencies are built):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
-</code></pre></div></p>
+</code></pre></div>
 <h2 id="next-steps">Next Steps<a class="headerlink" href="#next-steps" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../user_guide/">User Guide</a> - Learn the API</li>
