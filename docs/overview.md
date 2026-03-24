@@ -12,7 +12,7 @@
 - **Low-level API** - Direct access to llama.cpp, whisper.cpp, and stable-diffusion.cpp internals
 - **Streaming** - Token-by-token output with callbacks
 - **Batch processing** - Process multiple prompts 3-10x faster
-- **GPU acceleration** - Metal (macOS), CUDA, Vulkan backends
+- **GPU acceleration** - Metal (macOS), CUDA (NVIDIA), ROCm (AMD), Vulkan (cross-platform) backends
 - **Memory tools** - Estimate GPU layers and VRAM usage
 - **OpenAI-compatible servers** - `EmbeddedServer` (C/Mongoose) and `PythonServer` implementations
 
@@ -49,8 +49,8 @@ print(response)
 
 ## Requirements
 
-- Python 3.8+
-- macOS or Linux
+- Python 3.10+
+- macOS, Linux, or Windows
 - GGUF model files (download from HuggingFace)
 
 repo: <https://github.com/shakfu/cyllama>

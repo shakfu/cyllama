@@ -1,6 +1,6 @@
 # Summary
 
-This book has covered the complete cyllama library for local AI inference. Here are the key takeaways from each section.
+Key takeaways from each section of the cyllama documentation.
 
 ## Llama.cpp Integration
 

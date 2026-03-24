@@ -167,7 +167,7 @@ for prompt, response in zip(prompts, responses):
 Generate images with Stable Diffusion:
 
 ```python
-from cyllama.stablediffusion import text_to_image
+from cyllama.sd import text_to_image
 
 images = text_to_image(
     model_path="models/sd_xl_turbo_1.0.q8_0.gguf",

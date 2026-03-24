@@ -219,15 +219,16 @@ make build
 
 **Requirements:**
 
-- AMD GPU with ROCm support
-- ROCm 5.0+ installed
+- AMD GPU with ROCm support (gfx90a, gfx942, gfx1100, or newer)
+- ROCm 6.3+ installed
 
 **Install ROCm:**
 
 ```bash
-# Ubuntu 22.04
-wget https://repo.radeon.com/amdgpu-install/latest/ubuntu/jammy/amdgpu-install_6.2.60200-1_all.deb
-sudo apt-get install -y ./amdgpu-install_6.2.60200-1_all.deb
+# Ubuntu 22.04+
+sudo apt-get update
+wget https://repo.radeon.com/amdgpu-install/6.3.3/ubuntu/jammy/amdgpu-install_6.3.60303-1_all.deb
+sudo apt-get install -y ./amdgpu-install_6.3.60303-1_all.deb
 sudo amdgpu-install --usecase=rocm
 
 # Verify installation
@@ -374,21 +375,21 @@ Approximate relative performance (inference speed):
 
 Cyllama has a two-stage build process:
 
-1. **Dependency build** (`scripts/setup.sh`): Builds llama.cpp, whisper.cpp, stable-diffusion.cpp
-2. **Extension build** (`CMakeLists.txt`): Builds Cython extensions with scikit-build-core
+1. **Dependency build** (`scripts/manage.py`): Builds llama.cpp, whisper.cpp, stable-diffusion.cpp as static libraries
+2. **Extension build** (`CMakeLists.txt`): Builds Cython extensions with scikit-build-core, linking against the static libraries
 
 ### Customizing Dependency Build
 
-Edit `scripts/setup.sh` to modify CMAKE_ARGS for llama.cpp:
+Use `scripts/manage.py` with environment variables or flags:
 
 ```bash
-# Example: Enable CUDA with custom architecture
-CMAKE_ARGS="$CMAKE_ARGS -DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=86"
+# Example: Build llama.cpp with CUDA for specific architectures
+CMAKE_CUDA_ARCHITECTURES="86-real;89-real" python3 scripts/manage.py build --llama-cpp --cuda
 ```
 
 ### Customizing Extension Build
 
-For the Cython extension build, modify `CMakeLists.txt` or pass CMake args via scikit-build-core:
+For the Cython extension build, pass CMake args via scikit-build-core:
 
 ```bash
 # Pass CMake args during wheel build

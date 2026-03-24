@@ -38,7 +38,7 @@ response = complete(
 print(response)
 ```
 
-## What This Book Covers
+## What's Covered
 
 This documentation is organized into several parts:
 

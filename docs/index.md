@@ -1,20 +1,21 @@
-# Preface
+# cyllama
 
 This is the official documentation for **cyllama**, a high-performance Python library for local AI inference.
 
-## About This Book
+## About
 
-This book serves as both a user guide and technical reference for cyllama. It covers:
+cyllama provides high-performance Cython bindings to three C++ inference engines, covering text generation, speech recognition, and image generation -- all from Python with zero runtime dependencies.
+
+This documentation covers:
 
 - **Installation and setup** across different platforms and GPU backends
 - **Text generation** with llama.cpp for chat, completion, and embeddings
 - **Speech recognition** with whisper.cpp for transcription and translation
 - **Image generation** with stable-diffusion.cpp for text-to-image workflows
 - **Agent framework** for building tool-using AI agents
+- **RAG** for retrieval-augmented generation with local models
 
-## Who This Book Is For
-
-This documentation is intended for:
+## Who This Is For
 
 - **Python developers** who want to run LLMs locally without cloud dependencies
 - **ML engineers** looking for a lightweight alternative to PyTorch-based inference
@@ -23,9 +24,7 @@ This documentation is intended for:
 
 ## Prerequisites
 
-To use cyllama effectively, you should have:
-
-- Basic Python programming knowledge
+- Python 3.10 or later
 - Familiarity with command-line tools
 - Understanding of what language models do (not how they work internally)
 
@@ -33,7 +32,7 @@ No machine learning expertise is required for basic usage.
 
 ## Conventions
 
-Code examples use Python 3.9+ syntax:
+Code examples use Python 3.10+ syntax:
 
 ```python
 from cyllama import complete

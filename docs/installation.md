@@ -4,7 +4,7 @@ This guide covers installing cyllama on different platforms.
 
 ## Requirements
 
-- Python 3.8 or later
+- Python 3.10 or later
 - C++ compiler (clang or gcc)
 - CMake 3.21+
 - Git
@@ -27,7 +27,27 @@ sudo apt-get install -y build-essential cmake git python3-dev
 sudo dnf install -y gcc-c++ cmake git python3-devel
 ```
 
-## Quick Install
+## Install from PyPI
+
+```bash
+pip install cyllama
+```
+
+### Pre-built GPU Wheels
+
+Pre-built GPU wheels are available from [GitHub Releases](https://github.com/shakfu/cyllama/releases) (too large for PyPI):
+
+```bash
+# NVIDIA GPU (CUDA 12.4) -- replace cp310 with your Python version
+pip install https://github.com/shakfu/cyllama/releases/download/0.1.21/cyllama_cuda12-0.1.21-cp310-cp310-manylinux2014_x86_64.manylinux_2_17_x86_64.whl
+
+# AMD GPU (ROCm 6.3, requires glibc >= 2.35)
+pip install https://github.com/shakfu/cyllama/releases/download/0.1.21/cyllama_rocm-0.1.21-cp310-cp310-manylinux_2_31_x86_64.manylinux_2_35_x86_64.whl
+```
+
+All GPU variants install the same `cyllama` Python package -- only the compiled backend differs.
+
+## Build from Source
 
 ```bash
 # Clone repository
