@@ -269,8 +269,8 @@ jobs:
             git clone --depth 1 https://github.com/google/shaderc.git /tmp/shaderc &&
             cd /tmp/shaderc && python3 utils/git-sync-deps &&
             cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DSHADERC_SKIP_TESTS=ON -DSHADERC_SKIP_EXAMPLES=ON -DSHADERC_SKIP_COPYRIGHT_CHECK=ON &&
-            cmake --build build --target glslc --parallel 4 &&
-            cp build/glslc/glslc /usr/local/bin/glslc &&
+            cmake --build build --target glslc_exe --parallel 4 &&
+            cp build/glslc/glslc_exe /usr/local/bin/glslc &&
             cd /project && rm -rf /tmp/shaderc &&
             /opt/python/cp310-cp310/bin/pip install cmake ninja &&
             PATH=/opt/python/cp310-cp310/bin:$PATH
