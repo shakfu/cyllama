@@ -1,12 +1,26 @@
 # cyllama - Fast, Pythonic AI Inference
 
-cyllama is a comprehensive no-dependencies Python library for AI inference built on the `.cpp` ecosystem:
+cyllama is a comprehensive no-dependencies Python library for local AI inference built on the state-of-the-art `.cpp` ecosystem:
 
-- **[llama.cpp](https://github.com/ggml-org/llama.cpp)** - LLM text generation
-- **[whisper.cpp](https://github.com/ggerganov/whisper.cpp)** - Speech-to-text transcription
+- **[llama.cpp](https://github.com/ggml-org/llama.cpp)** - Text generation, chat, embeddings, and text-to-speech
+- **[whisper.cpp](https://github.com/ggerganov/whisper.cpp)** - Speech-to-text transcription and translation
 - **[stable-diffusion.cpp](https://github.com/leejet/stable-diffusion.cpp)** - Image and video generation
 
-It combines the performance of compiled Cython wrappers with a simple, high-level Python API.
+It combines the performance of compiled Cython wrappers with a simple, high-level Python API for cross-modal AI inference.
+
+## Features
+
+- High-level API -- `complete()`, `chat()`, `LLM` class for quick prototyping / text generation.
+- Streaming -- token-by-token output with callbacks
+- Batch processing -- process multiple prompts 3-10x faster
+- GPU acceleration -- Metal (macOS), CUDA (NVIDIA), ROCm (AMD), Vulkan (cross-platform)
+- Speculative decoding -- 2-3x speedup with draft models
+- Agent framework -- ReActAgent, ConstrainedAgent, ContractAgent with tool calling
+- RAG -- retrieval-augmented generation with local embeddings and SQLite-vector
+- Speech recognition -- whisper.cpp transcription and translation
+- Image/Video generation -- stable-diffusion.cpp handles image, image-edit and video models.
+- OpenAI-compatible servers -- EmbeddedServer (C/Mongoose) and PythonServer
+- Framework integrations -- OpenAI API client, LangChain LLM interface
 
 ## Installation
 
