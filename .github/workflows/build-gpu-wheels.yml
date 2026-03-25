@@ -236,6 +236,7 @@ jobs:
           CIBW_TEST_COMMAND: ""
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
             auditwheel repair -w {dest_dir} {wheel}
+            --plat manylinux_2_35_x86_64
             --exclude libsycl.so.8
             --exclude libOpenCL.so.1
             --exclude libsvml.so
