@@ -227,6 +227,8 @@ jobs:
           CIBW_ENVIRONMENT_LINUX: >
             GGML_SYCL=1
             GGML_METAL=0
+            CC=icx
+            CXX=icpx
             PATH=/opt/intel/oneapi/compiler/latest/bin:$PATH
             LD_LIBRARY_PATH=/opt/intel/oneapi/compiler/latest/lib:/opt/intel/oneapi/mkl/latest/lib:$LD_LIBRARY_PATH
             CFLAGS=-s
