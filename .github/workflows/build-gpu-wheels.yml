@@ -218,8 +218,8 @@ jobs:
             dnf install -y intel-oneapi-dpcpp-cpp-2025.3 intel-oneapi-mkl-devel-2025.3 &&
             /opt/python/cp310-cp310/bin/pip install cmake ninja &&
             source /opt/intel/oneapi/setvars.sh &&
+            export CC=icx CXX=icpx &&
             PATH=/opt/python/cp310-cp310/bin:$PATH
-            CC=icx CXX=icpx
             GGML_SYCL=1 GGML_METAL=0
             /opt/python/cp310-cp310/bin/python scripts/manage.py build --all --deps-only
           CIBW_BEFORE_BUILD_LINUX: >
