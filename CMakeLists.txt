@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21...3.30)
-project(${SKBUILD_PROJECT_NAME} LANGUAGES C CXX)
+project(cyllama LANGUAGES C CXX)
 
 # -----------------------------------------------------------------------------
 # Options
@@ -463,7 +463,7 @@ function(add_cython_extension target_name pyx_file)
     if(ARG_DESTINATION)
         install(TARGETS ${target_name} DESTINATION ${ARG_DESTINATION})
     else()
-        install(TARGETS ${target_name} DESTINATION ${SKBUILD_PROJECT_NAME})
+        install(TARGETS ${target_name} DESTINATION cyllama)
     endif()
 endfunction()
 
@@ -477,7 +477,7 @@ add_cython_extension(llama_cpp
     SOURCES
         "${CMAKE_SOURCE_DIR}/src/cyllama/llama/helpers/tts.cpp"
         "${CMAKE_SOURCE_DIR}/src/cyllama/llama/helpers/json_schema.cpp"
-    DESTINATION "${SKBUILD_PROJECT_NAME}/llama"
+    DESTINATION "cyllama/llama"
 )
 
 # embedded server extension
@@ -551,13 +551,13 @@ elseif(UNIX)
     )
 endif()
 
-install(TARGETS embedded DESTINATION "${SKBUILD_PROJECT_NAME}/llama/server")
+install(TARGETS embedded DESTINATION "cyllama/llama/server")
 
 # whisper_cpp extension
 if(WITH_WHISPER)
     add_cython_extension(whisper_cpp
         "${CMAKE_SOURCE_DIR}/src/cyllama/whisper/whisper_cpp.pyx"
-        DESTINATION "${SKBUILD_PROJECT_NAME}/whisper"
+        DESTINATION "cyllama/whisper"
     )
 endif()
 
@@ -657,7 +657,7 @@ if(WITH_STABLEDIFFUSION)
         )
     endif()
 
-    install(TARGETS stable_diffusion DESTINATION "${SKBUILD_PROJECT_NAME}/sd")
+    install(TARGETS stable_diffusion DESTINATION "cyllama/sd")
 endif()
 
 # -----------------------------------------------------------------------------
@@ -674,7 +674,7 @@ endif()
 
 set(_vector_path "${CMAKE_SOURCE_DIR}/src/cyllama/rag/${_vector_ext}")
 if(EXISTS "${_vector_path}")
-    install(FILES "${_vector_path}" DESTINATION "${SKBUILD_PROJECT_NAME}/rag")
+    install(FILES "${_vector_path}" DESTINATION "cyllama/rag")
 endif()
 
 # -----------------------------------------------------------------------------
