@@ -295,32 +295,18 @@ if(GGML_HIP)
 endif()
 
 if(GGML_SYCL)
-    # SYCL backend - link the SYCL runtime library directly rather than using
-    # IntelSYCL::SYCL_CXX imported target, which adds -fsycl to compile flags
-    # globally. The -fsycl flag forces C files to be compiled as C++, causing
-    # duplicate symbol errors with mongoose wrapper functions.
-    find_package(IntelSYCL QUIET)
-    if(IntelSYCL_FOUND)
-        get_target_property(_sycl_lib IntelSYCL::SYCL_CXX IMPORTED_LOCATION)
-        if(_sycl_lib)
-            list(APPEND SYSTEM_LIBS "${_sycl_lib}")
-        else()
-            # Fallback: find libsycl.so directly
-            find_library(_sycl_lib NAMES sycl PATHS "$ENV{CMPLR_ROOT}/lib" "/opt/intel/oneapi/compiler/latest/lib")
-            if(_sycl_lib)
-                list(APPEND SYSTEM_LIBS "${_sycl_lib}")
-            endif()
-        endif()
-        message(STATUS "Found IntelSYCL (linking runtime only, no global -fsycl)")
-    else()
-        find_library(_sycl_lib NAMES sycl PATHS "$ENV{CMPLR_ROOT}/lib" "/opt/intel/oneapi/compiler/latest/lib")
-        if(_sycl_lib)
-            list(APPEND SYSTEM_LIBS "${_sycl_lib}")
-            message(STATUS "Found libsycl.so directly: ${_sycl_lib}")
-        else()
-            message(STATUS "IntelSYCL not found - SYCL runtime linking may need manual configuration")
-        endif()
+    # SYCL backend - add -fsycl to link flags only (not compile flags).
+    # Using IntelSYCL::SYCL_CXX adds -fsycl globally which forces C files
+    # to be compiled as C++, causing duplicate symbol errors with mongoose.
+    # Instead, we add -fsycl only at link time to preserve SYCL device code
+    # from libggml-sycl.a, and link libsycl.so for the runtime.
+    find_library(_sycl_lib NAMES sycl
+        PATHS "$ENV{CMPLR_ROOT}/lib" "/opt/intel/oneapi/compiler/latest/lib")
+    if(_sycl_lib)
+        list(APPEND SYSTEM_LIBS "${_sycl_lib}")
     endif()
+    add_link_options(-fsycl)
+    message(STATUS "SYCL backend: linking with -fsycl and ${_sycl_lib}")
 endif()
 
 if(GGML_OPENCL)
