@@ -19,11 +19,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Added
 
-- **GPU Backend Wheel Variants** - Pre-built wheels for GPU backends available from GitHub Releases
+- **GPU Backend Wheel Variants** - Pre-built wheels for all four GPU backends available from GitHub Releases
   - `cyllama-cuda12` -- NVIDIA GPU (CUDA 12.4, architectures: Volta through Hopper + PTX)
   - `cyllama-rocm` -- AMD GPU (ROCm 6.3, manylinux_2_35)
   - `cyllama-vulkan` -- Cross-platform GPU (Vulkan, manylinux_2_35)
-  - `cyllama-sycl` -- Intel GPU (oneAPI SYCL, in progress)
+  - `cyllama-sycl` -- Intel GPU (oneAPI SYCL 2025.3, manylinux_2_35)
   - All variants install the same `cyllama` Python package (same import, different backends)
 
 - **Workflow improvements** - `build-gpu-wheels` workflow now uses checkboxes for backend selection (multiple backends can be built in parallel)
@@ -42,10 +42,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - Built `glslc` shader compiler from source (Google shaderc) to avoid glibc 2.29 dependency
   - Added `--plat manylinux_2_35_x86_64` for auditwheel repair (gcc-toolset-14 symbol compatibility)
 
-- **SYCL Wheel Build** - Fixed Intel oneAPI installation and compiler selection
+- **SYCL Wheel Build** - Fixed Intel oneAPI installation, compiler selection, and SYCL kernel linking
   - Switched from direct RPM download (403 errors) to Intel YUM repository
   - Pinned to `intel-oneapi-dpcpp-cpp-2025.3` to resolve dependency conflicts
-  - Set `CC=icx CXX=icpx` for SYCL compiler support (`-fsycl` flag)
+  - Set `CC=icx CXX=icpx` for SYCL compiler support
+  - Added `-fsycl` as link-only flag (not compile flag) to preserve SYCL device code from `libggml-sycl.a` without forcing C files to compile as C++
 
 - **CUDA Wheel Size** - Restored CUDA wheels to ~148 MB (was ~682 MB)
   - Removed `CMAKE_CUDA_ARCHITECTURES` passthrough from deps build; llama.cpp defaults use virtual/PTX for older architectures, producing much smaller static libraries
@@ -53,6 +54,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - Added `install.strip = true` in pyproject.toml (scikit-build-core default changed in recent versions)
 
 - **sqlite-vector Missing from Wheels** - Added CMake `install(FILES ...)` directive to explicitly include `vector.so`/`vector.dylib` (was excluded by `.gitignore` filtering in scikit-build-core)
+
+- **GPU Wheel Import Error** - Fixed `.so` files installing to wrong directory (e.g. `cyllama_cuda12/llama/` instead of `cyllama/llama/`) by hardcoding install destination to `cyllama` instead of using `SKBUILD_PROJECT_NAME` which changed with the package rename
 
 ## [0.1.21]
 
