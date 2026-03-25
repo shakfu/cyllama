@@ -295,14 +295,31 @@ if(GGML_HIP)
 endif()
 
 if(GGML_SYCL)
-    # SYCL backend - try to find IntelSYCL (from Intel oneAPI)
-    # Note: SYCL builds require a SYCL-capable compiler (icpx from oneAPI)
+    # SYCL backend - link the SYCL runtime library directly rather than using
+    # IntelSYCL::SYCL_CXX imported target, which adds -fsycl to compile flags
+    # globally. The -fsycl flag forces C files to be compiled as C++, causing
+    # duplicate symbol errors with mongoose wrapper functions.
     find_package(IntelSYCL QUIET)
     if(IntelSYCL_FOUND)
-        list(APPEND SYSTEM_LIBS IntelSYCL::SYCL_CXX)
-        message(STATUS "Found IntelSYCL")
+        get_target_property(_sycl_lib IntelSYCL::SYCL_CXX IMPORTED_LOCATION)
+        if(_sycl_lib)
+            list(APPEND SYSTEM_LIBS "${_sycl_lib}")
+        else()
+            # Fallback: find libsycl.so directly
+            find_library(_sycl_lib NAMES sycl PATHS "$ENV{CMPLR_ROOT}/lib" "/opt/intel/oneapi/compiler/latest/lib")
+            if(_sycl_lib)
+                list(APPEND SYSTEM_LIBS "${_sycl_lib}")
+            endif()
+        endif()
+        message(STATUS "Found IntelSYCL (linking runtime only, no global -fsycl)")
     else()
-        message(STATUS "IntelSYCL not found - SYCL runtime linking may need manual configuration")
+        find_library(_sycl_lib NAMES sycl PATHS "$ENV{CMPLR_ROOT}/lib" "/opt/intel/oneapi/compiler/latest/lib")
+        if(_sycl_lib)
+            list(APPEND SYSTEM_LIBS "${_sycl_lib}")
+            message(STATUS "Found libsycl.so directly: ${_sycl_lib}")
+        else()
+            message(STATUS "IntelSYCL not found - SYCL runtime linking may need manual configuration")
+        endif()
     endif()
 endif()
 
