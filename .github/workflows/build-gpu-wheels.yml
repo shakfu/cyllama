@@ -203,7 +203,9 @@ jobs:
           CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
           CIBW_BEFORE_ALL_LINUX: >
             dnf install -y git &&
-            dnf install -y https://registrationcenter-download.intel.com/akdlm/IRC_NAS/1b9e6e1a-e458-4126-8612-0e3f5f2fe4c8/intel-oneapi-base-toolkit-2025.1.1.18_offline.x86_64.rpm &&
+            rpm --import https://yum.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB &&
+            dnf config-manager --add-repo https://yum.repos.intel.com/oneapi &&
+            dnf install -y intel-oneapi-dpcpp-cpp intel-oneapi-mkl-devel &&
             /opt/python/cp310-cp310/bin/pip install cmake ninja &&
             source /opt/intel/oneapi/setvars.sh &&
             PATH=/opt/python/cp310-cp310/bin:$PATH
