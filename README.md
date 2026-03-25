@@ -8,6 +8,51 @@ cyllama is a comprehensive no-dependencies Python library for AI inference built
 
 It combines the performance of compiled Cython wrappers with a simple, high-level Python API.
 
+## Installation
+
+### From PyPI
+
+```sh
+pip install cyllama
+```
+
+### GPU-Accelerated Variants
+
+Pre-built wheels with GPU backend support are available as separate packages from [GitHub Releases](https://github.com/shakfu/cyllama/releases) (too large for PyPI):
+
+- [x] `cyllama-cuda12` -- NVIDIA GPU (CUDA 12.4)
+- [x] `cyllama-rocm` -- AMD GPU (ROCm 6.3, requires glibc >= 2.35)
+- [ ] `cyllama-sycl` -- Intel GPU (oneAPI SYCL)
+- [x] `cyllama-vulkan` -- Cross-platform GPU (Vulkan)
+
+All variants install the same `cyllama` Python package -- only the compiled backend differs. Install one at a time (they replace each other). GPU variants require the corresponding driver/runtime installed on your system.
+
+```sh
+# Install gpu-variants directly (replace cp310 with your Python version: cp311, cp312, cp313, cp314)
+
+# cuda
+pip install https://github.com/shakfu/cyllama/releases/download/0.1.21/cyllama_cuda12-0.1.21-cp310-cp310-manylinux2014_x86_64.manylinux_2_17_x86_64.whl
+
+# rocm
+pip install https://github.com/shakfu/cyllama/releases/download/0.1.21/cyllama_rocm-0.1.21-cp310-cp310-manylinux_2_31_x86_64.manylinux_2_35_x86_64.whl
+
+# vulkan
+pip install https://github.com/shakfu/cyllama/releases/download/0.1.21/cyllama_vulkan-0.1.21-cp310-cp310-manylinux_2_31_x86_64.manylinux_2_35_x86_64.whl
+```
+
+You can verify which backend is active after installation:
+
+```sh
+python -m cyllama info
+```
+
+### Build from source with a specific backend
+
+```sh
+GGML_CUDA=1 pip install cyllama --no-binary cyllama
+GGML_VULKAN=1 pip install cyllama --no-binary cyllama
+```
+
 ## Quick Start
 
 ```python
@@ -519,52 +564,7 @@ models = list_cached_models()
 
 See [CHANGELOG.md](CHANGELOG.md) for complete release history.
 
-## Installation
-
-### From PyPI
-
-```sh
-pip install cyllama
-```
-
-#### GPU-Accelerated Variants
-
-Pre-built wheels with GPU backend support are available as separate packages from [GitHub Releases](https://github.com/shakfu/cyllama/releases) (too large for PyPI):
-
-- [x] `cyllama-cuda12` -- NVIDIA GPU (CUDA 12.4)
-- [x] `cyllama-rocm` -- AMD GPU (ROCm 6.3, requires glibc >= 2.35)
-- [ ] `cyllama-sycl` -- Intel GPU (oneAPI SYCL)
-- [x] `cyllama-vulkan` -- Cross-platform GPU (Vulkan)
-
-All variants install the same `cyllama` Python package -- only the compiled backend differs. Install one at a time (they replace each other). GPU variants require the corresponding driver/runtime installed on your system.
-
-```sh
-# Install gpu-variants directly (replace cp310 with your Python version: cp311, cp312, cp313, cp314)
-
-# cuda
-pip install https://github.com/shakfu/cyllama/releases/download/0.1.21/cyllama_cuda12-0.1.21-cp310-cp310-manylinux2014_x86_64.manylinux_2_17_x86_64.whl
-
-# rocm
-pip install https://github.com/shakfu/cyllama/releases/download/0.1.21/cyllama_rocm-0.1.21-cp310-cp310-manylinux_2_31_x86_64.manylinux_2_35_x86_64.whl
-
-# vulkan
-pip install https://github.com/shakfu/cyllama/releases/download/0.1.21/cyllama_vulkan-0.1.21-cp310-cp310-manylinux_2_31_x86_64.manylinux_2_35_x86_64.whl
-```
-
-You can verify which backend is active after installation:
-
-```sh
-python -m cyllama info
-```
-
-#### Build from source with a specific backend
-
-```sh
-GGML_CUDA=1 pip install cyllama --no-binary cyllama
-GGML_VULKAN=1 pip install cyllama --no-binary cyllama
-```
-
-### From Source
+## Building from Source
 
 To build `cyllama` from source:
 
