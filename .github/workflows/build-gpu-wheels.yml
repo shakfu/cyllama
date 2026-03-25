@@ -215,7 +215,7 @@ jobs:
             dnf install -y git &&
             rpm --import https://yum.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB &&
             dnf config-manager --add-repo https://yum.repos.intel.com/oneapi &&
-            dnf install -y intel-oneapi-dpcpp-cpp intel-oneapi-mkl-devel &&
+            dnf install -y --allowerasing intel-oneapi-dpcpp-cpp intel-oneapi-mkl-devel &&
             /opt/python/cp310-cp310/bin/pip install cmake ninja &&
             source /opt/intel/oneapi/setvars.sh &&
             PATH=/opt/python/cp310-cp310/bin:$PATH
