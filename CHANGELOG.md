@@ -19,27 +19,40 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Added
 
-- **GPU Backend Wheel Variants** - Separate PyPI packages for each GPU backend
-  - `pip install cyllama` -- CPU (Linux/Windows) / Metal (macOS)
-  - `pip install cyllama-cuda12` -- NVIDIA GPU (CUDA 12.4, architectures: Volta through Hopper + PTX)
-  - `pip install cyllama-rocm` -- AMD GPU (ROCm 6.3)
-  - `pip install cyllama-sycl` -- Intel GPU (oneAPI SYCL)
-  - `pip install cyllama-vulkan` -- Cross-platform GPU (Vulkan, Linux + Windows)
-  - Package names set via `CIBW_BEFORE_BUILD` sed patching of `pyproject.toml`
+- **GPU Backend Wheel Variants** - Pre-built wheels for GPU backends available from GitHub Releases
+  - `cyllama-cuda12` -- NVIDIA GPU (CUDA 12.4, architectures: Volta through Hopper + PTX)
+  - `cyllama-rocm` -- AMD GPU (ROCm 6.3, manylinux_2_35)
+  - `cyllama-vulkan` -- Cross-platform GPU (Vulkan, manylinux_2_35)
+  - `cyllama-sycl` -- Intel GPU (oneAPI SYCL, in progress)
   - All variants install the same `cyllama` Python package (same import, different backends)
+
+- **Workflow improvements** - `build-gpu-wheels` workflow now uses checkboxes for backend selection (multiple backends can be built in parallel)
+
+### Changed
+
+- **Documentation** - Moved Installation section above Quick Start in README; added feature summary list; updated docs to remove "book" language; fixed Python version requirements (3.10+); updated ROCm/Vulkan backend docs
 
 ### Fixed
 
 - **ROCm 6.3 Wheel Build** - Fixed multiple issues preventing ROCm wheels from building
   - Patched sqlite-vector to define `_GNU_SOURCE` for `strcasestr` on manylinux/AlmaLinux 8
-  - Fixed auditwheel repair by targeting `manylinux_2_35` (matching ROCm 6.3 system requirements) and excluding transitive ROCm runtime libraries (`librocsolver`, `libhipblaslt`, `libamd_comgr`, `librocprofiler-register`)
+  - Fixed auditwheel repair by targeting `manylinux_2_35` (matching ROCm 6.3 system requirements) and excluding transitive ROCm runtime libraries
+
+- **Vulkan Wheel Build** - Restructured Vulkan job to build deps inside manylinux_2_28 container
+  - Built `glslc` shader compiler from source (Google shaderc) to avoid glibc 2.29 dependency
+  - Added `--plat manylinux_2_35_x86_64` for auditwheel repair (gcc-toolset-14 symbol compatibility)
+
+- **SYCL Wheel Build** - Fixed Intel oneAPI installation and compiler selection
+  - Switched from direct RPM download (403 errors) to Intel YUM repository
+  - Pinned to `intel-oneapi-dpcpp-cpp-2025.3` to resolve dependency conflicts
+  - Set `CC=icx CXX=icpx` for SYCL compiler support (`-fsycl` flag)
 
 - **CUDA Wheel Size** - Restored CUDA wheels to ~148 MB (was ~682 MB)
   - Removed `CMAKE_CUDA_ARCHITECTURES` passthrough from deps build; llama.cpp defaults use virtual/PTX for older architectures, producing much smaller static libraries
   - Added free disk space step to prevent `strip` failing with "No space left on device"
   - Added `install.strip = true` in pyproject.toml (scikit-build-core default changed in recent versions)
 
-- **sqlite-vector Missing from Wheels** - The `vector.so`/`vector.dylib` extension was silently excluded from all wheel builds because `.gitignore` lists `*.so`/`*.dylib` and scikit-build-core uses git to discover package files. Added CMake `install(FILES ...)` directive to explicitly include it
+- **sqlite-vector Missing from Wheels** - Added CMake `install(FILES ...)` directive to explicitly include `vector.so`/`vector.dylib` (was excluded by `.gitignore` filtering in scikit-build-core)
 
 ## [0.1.21]
 
