@@ -534,7 +534,7 @@ Pre-built wheels with GPU backend support are available as separate packages fro
 - [x] `cyllama-cuda12` -- NVIDIA GPU (CUDA 12.4)
 - [x] `cyllama-rocm` -- AMD GPU (ROCm 6.3, requires glibc >= 2.35)
 - [ ] `cyllama-sycl` -- Intel GPU (oneAPI SYCL)
-- [ ] `cyllama-vulkan` -- Cross-platform GPU (Vulkan)
+- [x] `cyllama-vulkan` -- Cross-platform GPU (Vulkan)
 
 All variants install the same `cyllama` Python package -- only the compiled backend differs. Install one at a time (they replace each other). GPU variants require the corresponding driver/runtime installed on your system.
 
@@ -546,6 +546,9 @@ pip install https://github.com/shakfu/cyllama/releases/download/0.1.21/cyllama_c
 
 # rocm
 pip install https://github.com/shakfu/cyllama/releases/download/0.1.21/cyllama_rocm-0.1.21-cp310-cp310-manylinux_2_31_x86_64.manylinux_2_35_x86_64.whl
+
+# vulkan
+pip install https://github.com/shakfu/cyllama/releases/download/0.1.21/cyllama_vulkan-0.1.21-cp310-cp310-manylinux_2_31_x86_64.manylinux_2_35_x86_64.whl
 ```
 
 You can verify which backend is active after installation:
