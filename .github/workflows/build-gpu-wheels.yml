@@ -3,16 +3,26 @@ name: build-gpu-wheels
 on:
   workflow_dispatch:
     inputs:
-      backend:
-        description: 'GPU backend to build'
-        required: true
-        type: choice
-        options:
-          - cuda
-          - rocm
-          - sycl
-          - vulkan
-          - all
+      cuda:
+        description: 'Build CUDA wheels'
+        required: false
+        default: false
+        type: boolean
+      rocm:
+        description: 'Build ROCm wheels'
+        required: false
+        default: false
+        type: boolean
+      sycl:
+        description: 'Build SYCL wheels'
+        required: false
+        default: false
+        type: boolean
+      vulkan:
+        description: 'Build Vulkan wheels'
+        required: false
+        default: false
+        type: boolean
       publish_index:
         description: 'Publish to GitHub Pages wheel index'
         required: false
@@ -30,7 +40,7 @@ jobs:
   # ---------------------------------------------------------------------------
   build_cuda:
     name: CUDA 12.4 - Linux x86_64
-    if: inputs.backend == 'all' || inputs.backend == 'cuda'
+    if: inputs.cuda
     runs-on: ubuntu-22.04
 
     steps:
@@ -100,7 +110,7 @@ jobs:
   # ---------------------------------------------------------------------------
   build_rocm:
     name: ROCm 6.3 - Linux x86_64
-    if: inputs.backend == 'all' || inputs.backend == 'rocm'
+    if: inputs.rocm
     runs-on: ubuntu-22.04
 
     steps:
@@ -179,7 +189,7 @@ jobs:
   # ---------------------------------------------------------------------------
   build_sycl:
     name: SYCL - Linux x86_64
-    if: inputs.backend == 'all' || inputs.backend == 'sycl'
+    if: inputs.sycl
     runs-on: ubuntu-22.04
 
     steps:
@@ -243,7 +253,7 @@ jobs:
   # ---------------------------------------------------------------------------
   build_vulkan:
     name: Vulkan - Linux x86_64
-    if: inputs.backend == 'all' || inputs.backend == 'vulkan'
+    if: inputs.vulkan
     runs-on: ubuntu-22.04
 
     steps:
