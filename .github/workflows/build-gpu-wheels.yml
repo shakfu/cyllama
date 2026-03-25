@@ -265,11 +265,14 @@ jobs:
           CIBW_ARCHS_LINUX: x86_64
           CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
           CIBW_BEFORE_ALL_LINUX: >
-            dnf install -y git &&
-            curl -fsSL https://packages.lunarg.com/lunarg-signing-key-pub.asc -o /etc/pki/rpm-gpg/RPM-GPG-KEY-lunarg &&
-            rpm --import /etc/pki/rpm-gpg/RPM-GPG-KEY-lunarg &&
-            curl -fsSL https://packages.lunarg.com/vulkan/1.3.283/lunarg-vulkan-1.3.283-centos-8.repo -o /etc/yum.repos.d/lunarg-vulkan.repo &&
-            dnf install -y vulkan-sdk &&
+            dnf install -y git vulkan-headers vulkan-loader-devel &&
+            VK_VER=1.3.290.0 &&
+            mkdir -p /tmp/vksdk && cd /tmp/vksdk &&
+            curl -fsSLO "https://sdk.lunarg.com/sdk/download/${VK_VER}/linux/vulkansdk-linux-x86_64-${VK_VER}.tar.xz" &&
+            tar -xf "vulkansdk-linux-x86_64-${VK_VER}.tar.xz" "${VK_VER}/x86_64/bin/glslc" &&
+            cp "${VK_VER}/x86_64/bin/glslc" /usr/local/bin/glslc &&
+            chmod +x /usr/local/bin/glslc &&
+            cd / && rm -rf /tmp/vksdk &&
             /opt/python/cp310-cp310/bin/pip install cmake ninja &&
             PATH=/opt/python/cp310-cp310/bin:$PATH
             GGML_VULKAN=1 GGML_METAL=0
