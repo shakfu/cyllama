@@ -19,6 +19,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Added
 
+- **Dynamic Linking Support** - New `WITH_DYLIB=1` build mode links against pre-built llama.cpp shared libraries from GitHub releases instead of building from source
+  - Set `LLAMACPP_DYLIB_DIR=/path/to/release` to point at a pre-built release tarball
+  - Shared libraries (`libllama.dylib`, `libggml*.dylib`, `libmtmd.dylib`) are copied alongside the extension for runtime resolution
+  - Extension size drops from ~15 MB (static) to ~1.6 MB (dynamic) -- inference engine code is external
+  - Static linking (`WITH_DYLIB=OFF`) remains the default and is unchanged
+
+- **LlamaContext memory management methods** - Added `memory_seq_rm`, `memory_seq_cp`, `memory_seq_keep`, `memory_seq_add`, `memory_seq_pos_min`, `memory_seq_pos_max` for direct KV cache sequence manipulation
+
+### Changed
+
+- **Eliminated all `common.h`/`libcommon` dependencies** - The Cython extension now uses only public C APIs (`llama.h`, `ggml.h`, `gguf.h`, `mtmd.h`). No internal llama.cpp C++ APIs are linked.
+  - **Sampling** -- `CommonSampler` rewritten to build sampler chains via public `llama_sampler_chain_init()` + `llama_sampler_init_*()` with grammar rejection sampling
+  - **Speculative decoding** -- `Speculative` class rewritten using `LlamaContext`, `LlamaSampler`, and memory management public APIs
+  - **N-gram cache** -- `NgramCache` rewritten as pure Python (`dict`-based, binary-compatible save/load format)
+  - **Download functions** -- `get_hf_file`, `download_model`, `list_cached_models`, `resolve_docker_model` rewritten using `urllib.request` (stdlib, no external deps)
+  - **Batch helpers** -- `common_batch_add`/`common_batch_clear` inlined as direct array assignment
+  - **Parameter conversion** -- `common_context_params_to_llama` inlined as field-by-field assignment
+
+### Removed
+
+- **`common.h` wrapper layer** -- Deleted `common.pxd`, `common.pxi`, `sampling.pxi` (~2600 lines). These wrapped the internal `common_params` mega-struct which duplicated the public API configuration path (`LlamaContextParams`, `LlamaSampler`, etc.) and was unused by the Python API or agents
+- **Internal C++ declaration files** -- Deleted `chat.pxd`, `log.pxd`, `sampling.pxd`, `download.pxd`, `ngram_cache.pxd`, `speculative.pxd`
+- **`CommonParams`, `CommonParamsSampling`** and related wrapper classes -- Use `LlamaContextParams`, `LlamaSampler` instead
+- **`CommonSampler`** -- Use `LlamaSampler` with `add_*` methods for the public API path
+
+### Fixed
+
+- **`common.pxd` struct field mismatch** -- `flash_attn` (bool) corrected to `flash_attn_type` (enum) matching upstream `common_params`
+- **`llama.pxd` missing field** -- Added `embeddings` bool to `llama_context_params` (was causing struct layout mismatch)
+
+---
+
 - **GPU Backend Wheel Variants** - Pre-built wheels for all four GPU backends available from GitHub Releases
   - `cyllama-cuda12` -- NVIDIA GPU (CUDA 12.4, architectures: Volta through Hopper + PTX)
   - `cyllama-rocm` -- AMD GPU (ROCm 6.3, manylinux_2_35)

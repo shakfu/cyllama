@@ -16,7 +16,6 @@ cdef extern from "helpers/json_schema.h":
 
 cimport ggml
 cimport llama
-cimport common
 cimport gguf
 
 
@@ -55,8 +54,6 @@ from typing import Optional, Sequence, Callable
 # includes
 # -----------------------------------------------------------------------------
 
-include "common.pxi"
-include "sampling.pxi"
 include "tts_helpers.pxi"
 include "mtmd.pxi"
 include "speculative.pxi"
@@ -1024,39 +1021,6 @@ cdef class LlamaContextParams:
     def __init__(self):
         self.p = llama.llama_context_default_params()
 
-    @staticmethod
-    cdef LlamaContextParams from_common_params(CommonParams params):
-        cdef LlamaContextParams wrapper = LlamaContextParams.__new__(LlamaContextParams)
-        wrapper.p = llama.llama_context_default_params()
-        wrapper.p.n_ctx             = params.p.n_ctx
-        wrapper.p.n_seq_max         = params.p.n_parallel
-        wrapper.p.n_batch           = params.p.n_batch
-        wrapper.p.n_ubatch          = params.p.n_ubatch
-        wrapper.p.n_threads         = params.p.cpuparams.n_threads
-        wrapper.p.n_threads_batch   = params.p.cpuparams.n_threads if params.p.cpuparams_batch.n_threads == -1 else params.p.cpuparams_batch.n_threads
-        wrapper.p.rope_scaling_type = params.p.rope_scaling_type
-        wrapper.p.pooling_type      = params.p.pooling_type
-        wrapper.p.attention_type    = params.p.attention_type
-        wrapper.p.flash_attn_type   = params.p.flash_attn_type
-        wrapper.p.rope_freq_base    = params.p.rope_freq_base
-        wrapper.p.rope_freq_scale   = params.p.rope_freq_scale
-        wrapper.p.yarn_ext_factor   = params.p.yarn_ext_factor
-        wrapper.p.yarn_attn_factor  = params.p.yarn_attn_factor
-        wrapper.p.yarn_beta_fast    = params.p.yarn_beta_fast
-        wrapper.p.yarn_beta_slow    = params.p.yarn_beta_slow
-        wrapper.p.yarn_orig_ctx     = params.p.yarn_orig_ctx
-        wrapper.p.cb_eval           = params.p.cb_eval
-        wrapper.p.cb_eval_user_data = params.p.cb_eval_user_data
-        wrapper.p.embeddings        = params.p.embedding
-        wrapper.p.offload_kqv       = not params.p.no_kv_offload
-        wrapper.p.no_perf           = params.p.no_perf
-        wrapper.p.op_offload        = not params.p.no_op_offload
-        wrapper.p.swa_full          = params.p.swa_full
-        wrapper.p.kv_unified        = params.p.kv_unified
-        wrapper.p.type_k            = params.p.cache_type_k
-        wrapper.p.type_v            = params.p.cache_type_v
-        return wrapper
-
     @property
     def n_ctx(self) -> int:
         """text context, 0 = from model."""
@@ -1822,9 +1786,7 @@ cdef class LlamaModel:
 
     # sampling
 
-    # def sampler_init(self, CommonParamsSampling params) -> CommonSampler:
-    #     """initialize common_sampler"""
-    #     return CommonSampler(self, params)
+
 
     # lora
 
