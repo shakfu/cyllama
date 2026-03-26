@@ -27,6 +27,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 - **LlamaContext memory management methods** - Added `memory_seq_rm`, `memory_seq_cp`, `memory_seq_keep`, `memory_seq_add`, `memory_seq_pos_min`, `memory_seq_pos_max` for direct KV cache sequence manipulation
 
+- **Dynamic whisper.cpp linking** - In `WITH_DYLIB` mode, `whisper_cpp` now reuses llama.cpp's ggml shared libraries instead of statically linking its own copy
+  - `libwhisper.a` and `libcommon.a` (whisper-specific code) are still linked statically
+  - ggml symbols resolve at runtime from the already-bundled `libggml*.dylib` in `cyllama/llama/` via `@loader_path/../llama`
+  - Eliminates duplicate ggml code in the wheel
+
 ### Changed
 
 - **Eliminated all `common.h`/`libcommon` dependencies** - The Cython extension now uses only public C APIs (`llama.h`, `ggml.h`, `gguf.h`, `mtmd.h`). No internal llama.cpp C++ APIs are linked.
@@ -39,6 +44,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Removed
 
+- **OpenSSL linking** -- Removed `find_package(OpenSSL)` from CMake. The embedded server (`cpp-httplib`) does not expose SSL configuration, and the absolute homebrew paths (`/opt/homebrew/opt/openssl@3/`) broke wheel portability on other machines
 - **`common.h` wrapper layer** -- Deleted `common.pxd`, `common.pxi`, `sampling.pxi` (~2600 lines). These wrapped the internal `common_params` mega-struct which duplicated the public API configuration path (`LlamaContextParams`, `LlamaSampler`, etc.) and was unused by the Python API or agents
 - **Internal C++ declaration files** -- Deleted `chat.pxd`, `log.pxd`, `sampling.pxd`, `download.pxd`, `ngram_cache.pxd`, `speculative.pxd`
 - **`CommonParams`, `CommonParamsSampling`** and related wrapper classes -- Use `LlamaContextParams`, `LlamaSampler` instead

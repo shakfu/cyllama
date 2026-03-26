@@ -315,11 +315,14 @@ else()
     endif()
 endif()
 
-# Whisper and SD are always static (no pre-built releases available)
+# Whisper: static libs are always needed, but ggml comes from dylibs when available
 if(WITH_WHISPER)
     static_lib(LIB_WHISPER_COMMON "${WHISPERCPP_LIB}" "common")
     static_lib(LIB_WHISPER "${WHISPERCPP_LIB}" "whisper")
-    list(APPEND STATIC_LIBS "${LIB_WHISPER_COMMON}" "${LIB_WHISPER}")
+    if(NOT WITH_DYLIB)
+        # Static build: add whisper libs globally (linked into every extension)
+        list(APPEND STATIC_LIBS "${LIB_WHISPER_COMMON}" "${LIB_WHISPER}")
+    endif()
 endif()
 
 if(WITH_STABLEDIFFUSION)
@@ -645,10 +648,52 @@ install(TARGETS embedded DESTINATION "cyllama/llama/server")
 
 # whisper_cpp extension
 if(WITH_WHISPER)
-    add_cython_extension(whisper_cpp
-        "${CMAKE_SOURCE_DIR}/src/cyllama/whisper/whisper_cpp.pyx"
-        DESTINATION "cyllama/whisper"
-    )
+    if(WITH_DYLIB)
+        # Dynamic: link whisper-specific code statically, reuse llama.cpp's ggml dylibs
+        cython_transpile("${CMAKE_SOURCE_DIR}/src/cyllama/whisper/whisper_cpp.pyx"
+            LANGUAGE CXX
+            OUTPUT_VARIABLE whisper_cpp_src
+            CYTHON_ARGS ${CYTHON_INCLUDE_ARGS}
+        )
+
+        python_add_library(whisper_cpp MODULE WITH_SOABI ${whisper_cpp_src})
+
+        target_include_directories(whisper_cpp PRIVATE ${COMMON_INCLUDE_DIRS})
+        target_link_directories(whisper_cpp PRIVATE ${COMMON_LINK_DIRS})
+
+        target_link_libraries(whisper_cpp PRIVATE
+            ${LIB_WHISPER}
+            ${LIB_WHISPER_COMMON}
+            ${DYLIBS}
+            ${SYSTEM_LIBS}
+        )
+
+        target_compile_options(whisper_cpp PRIVATE ${CXX_COMPILE_OPTIONS})
+        set_target_properties(whisper_cpp PROPERTIES
+            CXX_STANDARD 17
+            CXX_STANDARD_REQUIRED ON
+        )
+
+        # Dylibs live in cyllama/llama/, whisper installs to cyllama/whisper/
+        if(APPLE)
+            set_target_properties(whisper_cpp PROPERTIES
+                BUILD_RPATH "${LLAMACPP_DYLIB_DIR};${WHISPERCPP_LIB}"
+                INSTALL_RPATH "@loader_path/../llama"
+            )
+        elseif(UNIX)
+            set_target_properties(whisper_cpp PROPERTIES
+                BUILD_RPATH "${LLAMACPP_DYLIB_DIR};${WHISPERCPP_LIB}"
+                INSTALL_RPATH "$ORIGIN/../llama"
+            )
+        endif()
+
+        install(TARGETS whisper_cpp DESTINATION "cyllama/whisper")
+    else()
+        add_cython_extension(whisper_cpp
+            "${CMAKE_SOURCE_DIR}/src/cyllama/whisper/whisper_cpp.pyx"
+            DESTINATION "cyllama/whisper"
+        )
+    endif()
 endif()
 
 # stable_diffusion extension - uses SD's own ggml libraries, not llama.cpp's
