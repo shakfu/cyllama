@@ -9,6 +9,10 @@ option(WITH_WHISPER "Build whisper.cpp wrapper" ON)
 option(WITH_STABLEDIFFUSION "Build stable-diffusion.cpp wrapper" ON)
 option(WITH_DYLIB "Use dynamic libraries instead of static" OFF)
 
+# When WITH_DYLIB=ON, point this to a directory containing pre-built dylibs
+# (e.g., from a llama.cpp release tarball). Defaults to thirdparty/llama.cpp/lib.
+set(LLAMACPP_DYLIB_DIR "" CACHE PATH "Path to pre-built llama.cpp shared libraries")
+
 # Backend options - set defaults based on platform
 if(APPLE)
     set(_default_metal ON)
@@ -82,6 +86,16 @@ if(DEFINED ENV{GGML_OPENCL})
     elseif("$ENV{GGML_OPENCL}" STREQUAL "0")
         set(GGML_OPENCL OFF CACHE BOOL "Enable OpenCL backend" FORCE)
     endif()
+endif()
+
+if(DEFINED ENV{WITH_DYLIB})
+    if("$ENV{WITH_DYLIB}" STREQUAL "1")
+        set(WITH_DYLIB ON CACHE BOOL "Use dynamic libraries instead of static" FORCE)
+    endif()
+endif()
+
+if(DEFINED ENV{LLAMACPP_DYLIB_DIR})
+    set(LLAMACPP_DYLIB_DIR "$ENV{LLAMACPP_DYLIB_DIR}" CACHE PATH "Path to pre-built llama.cpp shared libraries" FORCE)
 endif()
 
 # -----------------------------------------------------------------------------
@@ -173,27 +187,131 @@ if(WITH_STABLEDIFFUSION)
     list(APPEND COMMON_LINK_DIRS "${SDCPP_LIB}")
 endif()
 
-# Collect static libraries to link
+# =============================================================================
+# Library collection (static or dynamic)
+# =============================================================================
+
 set(STATIC_LIBS "")
+set(DYLIBS "")       # shared libraries to link (WITH_DYLIB mode)
+set(DYLIB_FILES "")  # shared library files to copy alongside extensions
 
-static_lib(LIB_COMMON "${LLAMACPP_LIB}" "common")
-static_lib(LIB_CPP_HTTPLIB "${LLAMACPP_LIB}" "cpp-httplib")
-static_lib(LIB_LLAMA "${LLAMACPP_LIB}" "llama")
-static_lib(LIB_GGML "${LLAMACPP_LIB}" "ggml")
-static_lib(LIB_GGML_BASE "${LLAMACPP_LIB}" "ggml-base")
-static_lib(LIB_GGML_CPU "${LLAMACPP_LIB}" "ggml-cpu")
-static_lib(LIB_MTMD "${LLAMACPP_LIB}" "mtmd")
+if(WITH_DYLIB)
+    # -------------------------------------------------------------------------
+    # Dynamic linking: link against pre-built shared libraries
+    # -------------------------------------------------------------------------
+    if(NOT LLAMACPP_DYLIB_DIR)
+        set(LLAMACPP_DYLIB_DIR "${LLAMACPP_LIB}")
+    endif()
+    message(STATUS "WITH_DYLIB: ON (dylib dir: ${LLAMACPP_DYLIB_DIR})")
 
-list(APPEND STATIC_LIBS
-    "${LIB_COMMON}"
-    "${LIB_CPP_HTTPLIB}"
-    "${LIB_LLAMA}"
-    "${LIB_GGML}"
-    "${LIB_GGML_BASE}"
-    "${LIB_GGML_CPU}"
-    "${LIB_MTMD}"
-)
+    # Find shared libraries in the dylib directory
+    # On macOS: .dylib, on Linux: .so
+    if(APPLE)
+        set(_dylib_ext "dylib")
+    else()
+        set(_dylib_ext "so")
+    endif()
 
+    # Core llama.cpp shared libraries (available in release tarballs)
+    set(_DYLIB_NAMES llama ggml ggml-base ggml-cpu mtmd)
+
+    # Backend-specific shared libraries
+    if(GGML_METAL)
+        list(APPEND _DYLIB_NAMES ggml-blas ggml-metal)
+    endif()
+    if(GGML_CUDA)
+        list(APPEND _DYLIB_NAMES ggml-cuda)
+    endif()
+    if(GGML_VULKAN)
+        list(APPEND _DYLIB_NAMES ggml-vulkan)
+    endif()
+
+    foreach(_name ${_DYLIB_NAMES})
+        # Find the actual library file (follow symlinks)
+        find_library(_found_${_name}
+            NAMES ${_name}
+            PATHS "${LLAMACPP_DYLIB_DIR}"
+            NO_DEFAULT_PATH
+        )
+        if(_found_${_name})
+            list(APPEND DYLIBS "${_found_${_name}}")
+            # Collect all related files (versioned libs + symlinks) for copying
+            file(GLOB _related "${LLAMACPP_DYLIB_DIR}/lib${_name}*.${_dylib_ext}*")
+            list(APPEND DYLIB_FILES ${_related})
+            message(STATUS "  Found shared lib: ${_found_${_name}}")
+        else()
+            message(WARNING "  Shared lib not found: lib${_name}.${_dylib_ext} in ${LLAMACPP_DYLIB_DIR}")
+        endif()
+    endforeach()
+
+    # cpp-httplib: not in release tarballs, needed for embedded server
+    static_lib(LIB_CPP_HTTPLIB "${LLAMACPP_LIB}" "cpp-httplib")
+    if(EXISTS "${LIB_CPP_HTTPLIB}")
+        list(APPEND STATIC_LIBS "${LIB_CPP_HTTPLIB}")
+        message(STATUS "  Static lib (embedded server): ${LIB_CPP_HTTPLIB}")
+    endif()
+
+    # Add dylib directory to link search path
+    list(APPEND COMMON_LINK_DIRS "${LLAMACPP_DYLIB_DIR}")
+
+else()
+    # -------------------------------------------------------------------------
+    # Static linking: original behavior
+    # -------------------------------------------------------------------------
+    message(STATUS "WITH_DYLIB: OFF (static linking)")
+
+    static_lib(LIB_COMMON "${LLAMACPP_LIB}" "common")
+    static_lib(LIB_CPP_HTTPLIB "${LLAMACPP_LIB}" "cpp-httplib")
+    static_lib(LIB_LLAMA "${LLAMACPP_LIB}" "llama")
+    static_lib(LIB_GGML "${LLAMACPP_LIB}" "ggml")
+    static_lib(LIB_GGML_BASE "${LLAMACPP_LIB}" "ggml-base")
+    static_lib(LIB_GGML_CPU "${LLAMACPP_LIB}" "ggml-cpu")
+    static_lib(LIB_MTMD "${LLAMACPP_LIB}" "mtmd")
+
+    list(APPEND STATIC_LIBS
+        "${LIB_COMMON}"
+        "${LIB_CPP_HTTPLIB}"
+        "${LIB_LLAMA}"
+        "${LIB_GGML}"
+        "${LIB_GGML_BASE}"
+        "${LIB_GGML_CPU}"
+        "${LIB_MTMD}"
+    )
+
+    # Backend-specific static libraries
+    if(GGML_METAL)
+        static_lib(LIB_GGML_BLAS "${LLAMACPP_LIB}" "ggml-blas")
+        static_lib(LIB_GGML_METAL "${LLAMACPP_LIB}" "ggml-metal")
+        list(APPEND STATIC_LIBS "${LIB_GGML_BLAS}" "${LIB_GGML_METAL}")
+    endif()
+
+    if(GGML_CUDA)
+        static_lib(LIB_GGML_CUDA "${LLAMACPP_LIB}" "ggml-cuda")
+        list(APPEND STATIC_LIBS "${LIB_GGML_CUDA}")
+    endif()
+
+    if(GGML_VULKAN)
+        static_lib(LIB_GGML_VULKAN "${LLAMACPP_LIB}" "ggml-vulkan")
+        list(APPEND STATIC_LIBS "${LIB_GGML_VULKAN}")
+    endif()
+
+    if(GGML_SYCL)
+        static_lib(LIB_GGML_SYCL "${LLAMACPP_LIB}" "ggml-sycl")
+        list(APPEND STATIC_LIBS "${LIB_GGML_SYCL}")
+    endif()
+
+    if(GGML_HIP)
+        static_lib(LIB_GGML_HIP "${LLAMACPP_LIB}" "ggml-hip")
+        list(APPEND STATIC_LIBS "${LIB_GGML_HIP}")
+    endif()
+
+    if(GGML_OPENCL)
+        static_lib(LIB_GGML_OPENCL "${LLAMACPP_LIB}" "ggml-opencl")
+        list(APPEND STATIC_LIBS "${LIB_GGML_OPENCL}")
+    endif()
+endif()
+
+# Whisper and SD are always static (no pre-built releases available)
 if(WITH_WHISPER)
     static_lib(LIB_WHISPER_COMMON "${WHISPERCPP_LIB}" "common")
     static_lib(LIB_WHISPER "${WHISPERCPP_LIB}" "whisper")
@@ -201,40 +319,7 @@ if(WITH_WHISPER)
 endif()
 
 if(WITH_STABLEDIFFUSION)
-    # Define LIB_SD here but don't add to STATIC_LIBS - SD extension has its own linking
     static_lib(LIB_SD "${SDCPP_LIB}" "stable-diffusion")
-endif()
-
-# Backend-specific libraries
-if(GGML_METAL)
-    static_lib(LIB_GGML_BLAS "${LLAMACPP_LIB}" "ggml-blas")
-    static_lib(LIB_GGML_METAL "${LLAMACPP_LIB}" "ggml-metal")
-    list(APPEND STATIC_LIBS "${LIB_GGML_BLAS}" "${LIB_GGML_METAL}")
-endif()
-
-if(GGML_CUDA)
-    static_lib(LIB_GGML_CUDA "${LLAMACPP_LIB}" "ggml-cuda")
-    list(APPEND STATIC_LIBS "${LIB_GGML_CUDA}")
-endif()
-
-if(GGML_VULKAN)
-    static_lib(LIB_GGML_VULKAN "${LLAMACPP_LIB}" "ggml-vulkan")
-    list(APPEND STATIC_LIBS "${LIB_GGML_VULKAN}")
-endif()
-
-if(GGML_SYCL)
-    static_lib(LIB_GGML_SYCL "${LLAMACPP_LIB}" "ggml-sycl")
-    list(APPEND STATIC_LIBS "${LIB_GGML_SYCL}")
-endif()
-
-if(GGML_HIP)
-    static_lib(LIB_GGML_HIP "${LLAMACPP_LIB}" "ggml-hip")
-    list(APPEND STATIC_LIBS "${LIB_GGML_HIP}")
-endif()
-
-if(GGML_OPENCL)
-    static_lib(LIB_GGML_OPENCL "${LLAMACPP_LIB}" "ggml-opencl")
-    list(APPEND STATIC_LIBS "${LIB_GGML_OPENCL}")
 endif()
 
 # System libraries
@@ -377,12 +462,16 @@ function(add_cython_extension target_name pyx_file)
     # Link directories
     target_link_directories(${target_name} PRIVATE ${COMMON_LINK_DIRS})
 
-    # Link static libraries
-    # On Linux, use whole-archive selectively for ggml libs to ensure all symbols
-    # are included (needed for symbols like ggml_repeat_4d called via function pointers)
-    # Only ggml libs need this - applying to all libs causes duplicate symbol errors
-    if(UNIX AND NOT APPLE)
-        # Separate ggml libs (need whole-archive) from other libs
+    # Link libraries
+    if(WITH_DYLIB)
+        # Dynamic linking: shared libs + any remaining static libs
+        target_link_libraries(${target_name} PRIVATE
+            ${DYLIBS}
+            ${STATIC_LIBS}
+            ${SYSTEM_LIBS}
+        )
+    elseif(UNIX AND NOT APPLE)
+        # Static linking on Linux: use whole-archive for ggml libs
         set(_GGML_LIBS ${LIB_GGML} ${LIB_GGML_BASE} ${LIB_GGML_CPU})
         if(GGML_METAL)
             list(APPEND _GGML_LIBS ${LIB_GGML_BLAS} ${LIB_GGML_METAL})
@@ -403,8 +492,6 @@ function(add_cython_extension target_name pyx_file)
             list(APPEND _GGML_LIBS ${LIB_GGML_OPENCL})
         endif()
 
-        # Other libs that don't need whole-archive
-        # Note: SD libs are NOT included here - SD extension links its own ggml
         set(_OTHER_LIBS ${LIB_COMMON} ${LIB_CPP_HTTPLIB} ${LIB_LLAMA} ${LIB_MTMD})
         if(WITH_WHISPER)
             list(APPEND _OTHER_LIBS ${LIB_WHISPER_COMMON} ${LIB_WHISPER})
@@ -416,6 +503,7 @@ function(add_cython_extension target_name pyx_file)
             ${SYSTEM_LIBS}
         )
     else()
+        # Static linking on macOS/Windows
         target_link_libraries(${target_name} PRIVATE ${STATIC_LIBS} ${SYSTEM_LIBS})
     endif()
 
@@ -432,15 +520,20 @@ function(add_cython_extension target_name pyx_file)
         CXX_STANDARD_REQUIRED ON
     )
 
-    # macOS-specific settings
+    # RPATH settings
+    set(_build_rpath "${LLAMACPP_LIB};${WHISPERCPP_LIB};${SDCPP_LIB}")
+    if(WITH_DYLIB AND LLAMACPP_DYLIB_DIR)
+        set(_build_rpath "${LLAMACPP_DYLIB_DIR};${_build_rpath}")
+    endif()
+
     if(APPLE)
         set_target_properties(${target_name} PROPERTIES
-            BUILD_RPATH "${LLAMACPP_LIB};${WHISPERCPP_LIB};${SDCPP_LIB}"
+            BUILD_RPATH "${_build_rpath}"
             INSTALL_RPATH "@loader_path"
         )
     elseif(UNIX)
         set_target_properties(${target_name} PROPERTIES
-            BUILD_RPATH "${LLAMACPP_LIB};${WHISPERCPP_LIB};${SDCPP_LIB}"
+            BUILD_RPATH "${_build_rpath}"
             INSTALL_RPATH "$ORIGIN"
         )
     endif()
@@ -458,11 +551,30 @@ endfunction()
 # -----------------------------------------------------------------------------
 
 # llama_cpp extension
+set(_LLAMA_CPP_SOURCES
+    "${CMAKE_SOURCE_DIR}/src/cyllama/llama/helpers/tts.cpp"
+    "${CMAKE_SOURCE_DIR}/src/cyllama/llama/helpers/json_schema.cpp"
+)
+if(WITH_DYLIB)
+    # Provide stub definitions for common.h build_info symbols
+    # (normally in libcommon.a, but not needed for dynamic linking)
+    list(APPEND _LLAMA_CPP_SOURCES
+        "${CMAKE_SOURCE_DIR}/src/cyllama/llama/helpers/build_info_stub.cpp"
+    )
+    # json-schema-to-grammar and json-partial are from libcommon but self-contained
+    # (only depend on nlohmann/json). Compile them directly instead of linking libcommon.
+    set(_LLAMA_SRC "${CMAKE_SOURCE_DIR}/build/llama.cpp/common")
+    if(EXISTS "${_LLAMA_SRC}/json-schema-to-grammar.cpp")
+        list(APPEND _LLAMA_CPP_SOURCES
+            "${_LLAMA_SRC}/json-schema-to-grammar.cpp"
+            "${_LLAMA_SRC}/json-partial.cpp"
+        )
+    endif()
+endif()
+
 add_cython_extension(llama_cpp
     "${CMAKE_SOURCE_DIR}/src/cyllama/llama/llama_cpp.pyx"
-    SOURCES
-        "${CMAKE_SOURCE_DIR}/src/cyllama/llama/helpers/tts.cpp"
-        "${CMAKE_SOURCE_DIR}/src/cyllama/llama/helpers/json_schema.cpp"
+    SOURCES ${_LLAMA_CPP_SOURCES}
     DESTINATION "cyllama/llama"
 )
 
@@ -661,6 +773,19 @@ endif()
 set(_vector_path "${CMAKE_SOURCE_DIR}/src/cyllama/rag/${_vector_ext}")
 if(EXISTS "${_vector_path}")
     install(FILES "${_vector_path}" DESTINATION "cyllama/rag")
+endif()
+
+# -----------------------------------------------------------------------------
+# Install shared libraries (WITH_DYLIB mode)
+# -----------------------------------------------------------------------------
+
+if(WITH_DYLIB AND DYLIB_FILES)
+    # Copy dylibs alongside the llama extension so @loader_path / $ORIGIN works
+    install(FILES ${DYLIB_FILES} DESTINATION "cyllama/llama")
+    message(STATUS "Will install ${CMAKE_INSTALL_PREFIX}/cyllama/llama/ dylibs:")
+    foreach(_f ${DYLIB_FILES})
+        message(STATUS "  ${_f}")
+    endforeach()
 endif()
 
 # -----------------------------------------------------------------------------

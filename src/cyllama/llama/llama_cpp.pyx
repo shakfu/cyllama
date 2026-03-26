@@ -17,13 +17,7 @@ cdef extern from "helpers/json_schema.h":
 cimport ggml
 cimport llama
 cimport common
-cimport sampling
-cimport chat
-cimport log
 cimport gguf
-cimport download
-cimport ngram_cache
-cimport speculative
 
 
 import os
@@ -658,14 +652,18 @@ cdef class LlamaBatch:
             seq_ids: List of sequence IDs this token belongs to
             logits: Whether to compute logits for this token
         """
-        cdef std_vector[llama.llama_seq_id] _seq_ids
-        for i in seq_ids:
-            _seq_ids.push_back(i)
-        common.common_batch_add(self.p, id, pos, _seq_ids, logits)
+        cdef int n = self.p.n_tokens
+        self.p.token[n] = id
+        self.p.pos[n] = pos
+        self.p.n_seq_id[n] = <int32_t>len(seq_ids)
+        for i in range(len(seq_ids)):
+            self.p.seq_id[n][i] = <llama.llama_seq_id>seq_ids[i]
+        self.p.logits[n] = logits
+        self.p.n_tokens += 1
 
     def clear(self):
         """Clear the batch, resetting n_tokens to 0."""
-        common.common_batch_clear(self.p)
+        self.p.n_tokens = 0
 
     def set_batch(self, batch: Sequence[int], n_past: int, logits_all: bool):
         cdef int n_tokens = len(batch)
@@ -1029,7 +1027,34 @@ cdef class LlamaContextParams:
     @staticmethod
     cdef LlamaContextParams from_common_params(CommonParams params):
         cdef LlamaContextParams wrapper = LlamaContextParams.__new__(LlamaContextParams)
-        wrapper.p = common.common_context_params_to_llama(params.p)
+        wrapper.p = llama.llama_context_default_params()
+        wrapper.p.n_ctx             = params.p.n_ctx
+        wrapper.p.n_seq_max         = params.p.n_parallel
+        wrapper.p.n_batch           = params.p.n_batch
+        wrapper.p.n_ubatch          = params.p.n_ubatch
+        wrapper.p.n_threads         = params.p.cpuparams.n_threads
+        wrapper.p.n_threads_batch   = params.p.cpuparams.n_threads if params.p.cpuparams_batch.n_threads == -1 else params.p.cpuparams_batch.n_threads
+        wrapper.p.rope_scaling_type = params.p.rope_scaling_type
+        wrapper.p.pooling_type      = params.p.pooling_type
+        wrapper.p.attention_type    = params.p.attention_type
+        wrapper.p.flash_attn_type   = params.p.flash_attn_type
+        wrapper.p.rope_freq_base    = params.p.rope_freq_base
+        wrapper.p.rope_freq_scale   = params.p.rope_freq_scale
+        wrapper.p.yarn_ext_factor   = params.p.yarn_ext_factor
+        wrapper.p.yarn_attn_factor  = params.p.yarn_attn_factor
+        wrapper.p.yarn_beta_fast    = params.p.yarn_beta_fast
+        wrapper.p.yarn_beta_slow    = params.p.yarn_beta_slow
+        wrapper.p.yarn_orig_ctx     = params.p.yarn_orig_ctx
+        wrapper.p.cb_eval           = params.p.cb_eval
+        wrapper.p.cb_eval_user_data = params.p.cb_eval_user_data
+        wrapper.p.embeddings        = params.p.embedding
+        wrapper.p.offload_kqv       = not params.p.no_kv_offload
+        wrapper.p.no_perf           = params.p.no_perf
+        wrapper.p.op_offload        = not params.p.no_op_offload
+        wrapper.p.swa_full          = params.p.swa_full
+        wrapper.p.kv_unified        = params.p.kv_unified
+        wrapper.p.type_k            = params.p.cache_type_k
+        wrapper.p.type_v            = params.p.cache_type_v
         return wrapper
 
     @property
@@ -2427,6 +2452,48 @@ cdef class LlamaContext:
         if mem is not NULL:
             llama.llama_memory_clear(mem, clear_data)
 
+    def memory_seq_rm(self, int seq_id, int p0, int p1) -> bool:
+        """Remove tokens from sequence in [p0, p1). Returns False if partial removal unsupported.
+
+        seq_id < 0: match any sequence. p0 < 0: from start. p1 < 0: to end.
+        """
+        cdef llama.llama_memory_t mem = llama.llama_get_memory(self.ptr)
+        if mem is NULL:
+            return False
+        return llama.llama_memory_seq_rm(mem, <llama.llama_seq_id>seq_id, <llama.llama_pos>p0, <llama.llama_pos>p1)
+
+    def memory_seq_cp(self, int seq_id_src, int seq_id_dst, int p0, int p1):
+        """Copy tokens from one sequence to another in [p0, p1)."""
+        cdef llama.llama_memory_t mem = llama.llama_get_memory(self.ptr)
+        if mem is not NULL:
+            llama.llama_memory_seq_cp(mem, <llama.llama_seq_id>seq_id_src, <llama.llama_seq_id>seq_id_dst, <llama.llama_pos>p0, <llama.llama_pos>p1)
+
+    def memory_seq_keep(self, int seq_id):
+        """Remove all tokens except those belonging to the specified sequence."""
+        cdef llama.llama_memory_t mem = llama.llama_get_memory(self.ptr)
+        if mem is not NULL:
+            llama.llama_memory_seq_keep(mem, <llama.llama_seq_id>seq_id)
+
+    def memory_seq_add(self, int seq_id, int p0, int p1, int delta):
+        """Add relative position delta to tokens in [p0, p1) of the given sequence."""
+        cdef llama.llama_memory_t mem = llama.llama_get_memory(self.ptr)
+        if mem is not NULL:
+            llama.llama_memory_seq_add(mem, <llama.llama_seq_id>seq_id, <llama.llama_pos>p0, <llama.llama_pos>p1, <llama.llama_pos>delta)
+
+    def memory_seq_pos_min(self, int seq_id) -> int:
+        """Returns smallest position in memory for the sequence, or -1 if empty."""
+        cdef llama.llama_memory_t mem = llama.llama_get_memory(self.ptr)
+        if mem is NULL:
+            return -1
+        return llama.llama_memory_seq_pos_min(mem, <llama.llama_seq_id>seq_id)
+
+    def memory_seq_pos_max(self, int seq_id) -> int:
+        """Returns largest position in memory for the sequence, or -1 if empty."""
+        cdef llama.llama_memory_t mem = llama.llama_get_memory(self.ptr)
+        if mem is NULL:
+            return -1
+        return llama.llama_memory_seq_pos_max(mem, <llama.llama_seq_id>seq_id)
+
     # def n_outputs(self) -> int:
     #     return llama.llama_n_outputs(self.ptr)
 
@@ -3468,19 +3535,58 @@ def json_schema_to_grammar(schema, force_gbnf=False):
 
 
 # =============================================================================
-# Download API
+# Download API (pure Python implementation)
 # =============================================================================
 
+def _get_cache_dir():
+    """Get the llama.cpp cache directory."""
+    import os
+    cache_dir = os.path.expanduser("~/.cache/llama.cpp")
+    os.makedirs(cache_dir, exist_ok=True)
+    return cache_dir
+
+
+def _split_repo_tag(hf_repo_with_tag):
+    """Split 'user/repo:tag' into ('user/repo', 'tag'). Defaults tag to 'latest'."""
+    if ':' in hf_repo_with_tag:
+        idx = hf_repo_with_tag.rfind(':')
+        return hf_repo_with_tag[:idx], hf_repo_with_tag[idx+1:]
+    return hf_repo_with_tag, 'latest'
+
+
+def _get_model_endpoint():
+    """Get the model endpoint URL (supports LLAMA_CACHE_MODEL_ENDPOINT env var)."""
+    import os
+    return os.environ.get('LLAMA_CACHE_MODEL_ENDPOINT', 'https://huggingface.co')
+
+
+def _url_request(url, headers=None, method='GET', timeout=30):
+    """Make an HTTP request using urllib. Returns (status_code, response_headers, body_bytes)."""
+    from urllib.request import Request, urlopen
+    from urllib.error import HTTPError, URLError
+
+    req = Request(url, method=method)
+    if headers:
+        for k, v in headers.items():
+            req.add_header(k, v)
+
+    try:
+        resp = urlopen(req, timeout=timeout)
+        return resp.status, dict(resp.headers), resp.read()
+    except HTTPError as e:
+        return e.code, dict(e.headers), e.read() if hasattr(e, 'read') else b''
+    except (URLError, OSError):
+        return -1, {}, b''
+
+
 def get_hf_file(hf_repo_with_tag, bearer_token="", offline=False):
-    """
-    Get HF file information from HuggingFace repo with optional tag.
+    """Get HF file information from HuggingFace repo with optional tag.
 
     Supports Ollama-style tags:
     - bartowski/Llama-3.2-3B-Instruct-GGUF:q4
     - bartowski/Llama-3.2-3B-Instruct-GGUF:Q4_K_M
-    - bartowski/Llama-3.2-3B-Instruct-GGUF:q5_k_s
 
-    Tag is optional, defaults to "latest" (checks Q4_K_M, then Q4, then first GGUF).
+    Tag is optional, defaults to "latest".
 
     Args:
         hf_repo_with_tag: HuggingFace repo with optional :tag suffix
@@ -3491,152 +3597,260 @@ def get_hf_file(hf_repo_with_tag, bearer_token="", offline=False):
         dict with keys: repo, gguf_file, mmproj_file
 
     Raises:
-        RuntimeError: If download/manifest fetch fails
-
-    Example:
-        info = get_hf_file("bartowski/Llama-3.2-3B-Instruct-GGUF:q4")
-        print(info['gguf_file'])
+        RuntimeError: If manifest fetch fails
     """
-    cdef bytes repo_bytes = hf_repo_with_tag.encode('utf-8')
-    cdef bytes token_bytes = bearer_token.encode('utf-8')
+    import json
+    import os
 
-    cdef download.common_hf_file_res res = download.common_get_hf_file(
-        repo_bytes,
-        token_bytes,
-        offline
-    )
+    repo, tag = _split_repo_tag(hf_repo_with_tag)
+    endpoint = _get_model_endpoint()
+    cache_dir = _get_cache_dir()
+
+    safe_name = repo.replace('/', '=')
+    manifest_path = os.path.join(cache_dir, f"manifest={safe_name}={tag}.json")
+
+    manifest = None
+
+    if not offline:
+        url = f"{endpoint}/v2/{repo}/manifests/{tag}"
+        headers = {
+            'Accept': 'application/json',
+            'User-Agent': 'llama-cpp',
+        }
+        if bearer_token:
+            headers['Authorization'] = f'Bearer {bearer_token}'
+
+        try:
+            status, _, body = _url_request(url, headers=headers)
+            if 200 <= status < 400:
+                manifest = json.loads(body)
+                with open(manifest_path, 'w') as f:
+                    json.dump(manifest, f)
+        except Exception:
+            pass
+
+    if manifest is None and os.path.exists(manifest_path):
+        with open(manifest_path, 'r') as f:
+            manifest = json.load(f)
+
+    if manifest is None:
+        raise RuntimeError(
+            f"Failed to get manifest for {repo}:{tag}"
+            + (" (offline mode)" if offline else ""))
+
+    gguf_file = ''
+    mmproj_file = ''
+
+    if 'ggufFile' in manifest and manifest['ggufFile']:
+        gguf_file = manifest['ggufFile'].get('rfilename', '')
+    if 'mmprojFile' in manifest and manifest['mmprojFile']:
+        mmproj_file = manifest['mmprojFile'].get('rfilename', '')
 
     return {
-        'repo': res.repo.decode('utf-8'),
-        'gguf_file': res.ggufFile.decode('utf-8'),
-        'mmproj_file': res.mmprojFile.decode('utf-8')
+        'repo': repo,
+        'gguf_file': gguf_file,
+        'mmproj_file': mmproj_file,
     }
+
+
+def _download_file(url, dest_path, headers=None, max_retries=3):
+    """Download a file with ETag caching, resume support, and retry logic.
+
+    Args:
+        url: URL to download from
+        dest_path: Local destination path
+        headers: HTTP headers dict (optional)
+        max_retries: Maximum retry attempts
+
+    Returns:
+        True if download succeeded or file was already cached
+    """
+    import os
+    import time
+    from urllib.request import Request, urlopen
+    from urllib.error import HTTPError, URLError
+
+    if headers is None:
+        headers = {}
+
+    etag_path = dest_path + '.etag'
+    tmp_path = dest_path + '.downloadInProgress'
+
+    # HEAD request for ETag and Accept-Ranges
+    head_status, head_headers, _ = _url_request(url, headers=headers, method='HEAD')
+    if head_status < 200 or head_status >= 400:
+        return False
+
+    remote_etag = head_headers.get('ETag', '').strip('"')
+    accepts_ranges = head_headers.get('Accept-Ranges', '').lower() == 'bytes'
+
+    # Check if cached file is still valid via ETag
+    if os.path.exists(dest_path) and os.path.exists(etag_path):
+        with open(etag_path, 'r') as f:
+            cached_etag = f.read().strip()
+        if cached_etag == remote_etag and remote_etag:
+            return True
+
+    # Download with retry
+    for attempt in range(max_retries):
+        try:
+            resume_from = 0
+            if os.path.exists(tmp_path):
+                resume_from = os.path.getsize(tmp_path)
+
+            req = Request(url)
+            for k, v in headers.items():
+                req.add_header(k, v)
+            if resume_from > 0 and accepts_ranges:
+                req.add_header('Range', f'bytes={resume_from}-')
+
+            resp = urlopen(req, timeout=300)
+            status = resp.status
+
+            if status not in (200, 206):
+                if attempt < max_retries - 1:
+                    time.sleep(2 ** attempt)
+                    continue
+                return False
+
+            mode = 'ab' if status == 206 else 'wb'
+            with open(tmp_path, mode) as f:
+                while True:
+                    chunk = resp.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    f.write(chunk)
+
+            os.replace(tmp_path, dest_path)
+
+            if remote_etag:
+                with open(etag_path, 'w') as f:
+                    f.write(remote_etag)
+
+            return True
+
+        except (HTTPError, URLError, OSError):
+            if attempt < max_retries - 1:
+                time.sleep(2 ** attempt)
+            else:
+                return False
+
+    return False
 
 
 def download_model(model_path=None, url=None, hf_repo=None, hf_file=None,
                    docker_repo=None, bearer_token="", offline=False):
-    """
-    Download a model from various sources.
+    """Download a model from various sources.
 
     Args:
         model_path: Local path to save model, OR HuggingFace repo shorthand
-                   (e.g., "user/repo:tag" is auto-detected as hf_repo)
         url: Direct URL to download from (optional)
-        hf_repo: HuggingFace repo name (optional, can include :tag like ":latest")
-        hf_file: Specific file in HF repo (optional, auto-resolved if not provided)
+        hf_repo: HuggingFace repo name (optional, can include :tag)
+        hf_file: Specific file in HF repo (optional, auto-resolved)
         docker_repo: Docker registry repo (optional)
         bearer_token: HuggingFace API token (optional)
         offline: If True, only use local cache
 
     Returns:
         True if download succeeded, False otherwise
-
-    Examples:
-        # Shorthand: auto-detects HuggingFace repo format
-        download_model("bartowski/Llama-3.2-1B-Instruct-GGUF:latest")
-
-        # Explicit HuggingFace repo
-        download_model(hf_repo="bartowski/Llama-3.2-1B-Instruct-GGUF:latest")
-
-        # Download specific file
-        download_model(
-            hf_repo="bartowski/Llama-3.2-1B-Instruct-GGUF",
-            hf_file="Llama-3.2-1B-Instruct-Q4_K_M.gguf"
-        )
-
-        # Download from URL
-        download_model(url="https://example.com/model.gguf")
-
-        # Download from Docker registry
-        download_model(docker_repo="registry.example.com/model:tag")
     """
     import os
 
     # Auto-detect HuggingFace repo format in model_path
-    # Pattern: "user/repo" or "user/repo:tag" (not a local path, not a URL)
     if model_path and hf_repo is None and url is None:
         path_str = str(model_path)
-        # Check if it looks like a HF repo: "user/repo" or "user/repo:tag"
-        # Must have exactly one /, not be a URL, not be an absolute path,
-        # and not contain backslashes (Windows paths)
         is_hf = ('/' in path_str and
             path_str.count('/') == 1 and
             not path_str.startswith(('http://', 'https://', 'file://', '/')) and
             '\\' not in path_str and
             not os.path.exists(path_str))
         if is_hf:
-            # Looks like "user/repo" or "user/repo:tag"
             hf_repo = model_path
             model_path = None
 
-    # Handle HuggingFace repo - resolve to URL
+    # Handle Docker repo
+    if docker_repo:
+        try:
+            resolved = resolve_docker_model(docker_repo)
+            return bool(resolved)
+        except RuntimeError:
+            return False
+
+    # Handle HuggingFace repo
     if hf_repo:
-        # Get file info from HF API
         hf_info = get_hf_file(hf_repo, bearer_token, offline)
-        repo = hf_info['repo']  # repo with tag removed
+        repo = hf_info['repo']
         gguf_file = hf_file or hf_info['gguf_file']
 
         if not gguf_file:
             raise ValueError(f"Could not determine GGUF file for repo: {hf_repo}")
 
-        # Construct HuggingFace download URL
-        url = f"https://huggingface.co/{repo}/resolve/main/{gguf_file}"
+        endpoint = _get_model_endpoint()
+        url = f"{endpoint}/{repo}/resolve/main/{gguf_file}"
 
-        # Set default local path if not specified
         if not model_path:
-            # Use cache directory structure
-            cache_dir = os.path.expanduser("~/.cache/llama.cpp")
-            os.makedirs(cache_dir, exist_ok=True)
+            cache_dir = _get_cache_dir()
             model_path = os.path.join(cache_dir, gguf_file)
 
-    cdef download.common_params_model model
+    if not url:
+        return False
 
-    # Set model parameters
-    if model_path:
-        model.path = model_path.encode('utf-8')
-    if url:
-        model.url = url.encode('utf-8')
-    if docker_repo:
-        model.docker_repo = docker_repo.encode('utf-8')
+    if offline:
+        # In offline mode, only check if file exists
+        return model_path is not None and os.path.exists(model_path)
 
-    cdef bytes token_bytes = bearer_token.encode('utf-8')
+    if not model_path:
+        return False
 
-    cdef bint success = download.common_download_model(model, token_bytes, offline)
+    headers = {}
+    if bearer_token:
+        headers['Authorization'] = f'Bearer {bearer_token}'
 
-    return success
+    os.makedirs(os.path.dirname(os.path.abspath(model_path)), exist_ok=True)
+    return _download_file(url, model_path, headers=headers)
 
 
 def list_cached_models():
-    """
-    List all models in the local cache.
+    """List all models in the local cache.
 
     Returns:
         List of dicts with keys: manifest_path, user, model, tag, size
-
-    Example:
-        models = list_cached_models()
-        for m in models:
-            print(f"{m['user']}/{m['model']}:{m['tag']} - {m['size']} bytes")
     """
-    cdef std_vector[download.common_cached_model_info] cached = download.common_list_cached_models()
+    import os
+    import glob as glob_mod
 
+    cache_dir = _get_cache_dir()
     result = []
-    cdef size_t i
-    for i in range(cached.size()):
+
+    for manifest_path in glob_mod.glob(os.path.join(cache_dir, 'manifest=*.json')):
+        basename = os.path.basename(manifest_path)
+        # Parse: manifest={user}={model}={tag}.json
+        name = basename[len('manifest='):-len('.json')]
+        parts = name.split('=')
+        if len(parts) >= 3:
+            user = parts[0]
+            model = parts[1]
+            tag = parts[2]
+        elif len(parts) == 2:
+            user = parts[0]
+            model = parts[1]
+            tag = 'latest'
+        else:
+            continue
+
         result.append({
-            'manifest_path': cached[i].manifest_path.decode('utf-8'),
-            'user': cached[i].user.decode('utf-8'),
-            'model': cached[i].model.decode('utf-8'),
-            'tag': cached[i].tag.decode('utf-8'),
-            'size': cached[i].size
+            'manifest_path': manifest_path,
+            'user': user,
+            'model': model,
+            'tag': tag,
+            'size': 0,  # size not tracked in manifest files
         })
 
     return result
 
 
 def resolve_docker_model(docker_repo):
-    """
-    Resolve and download model from Docker registry.
+    """Resolve and download model from Docker registry.
 
     Args:
         docker_repo: Docker registry repository (e.g., "registry.example.com/model:tag")
@@ -3646,104 +3860,155 @@ def resolve_docker_model(docker_repo):
 
     Raises:
         RuntimeError: If Docker resolution/download fails
-
-    Example:
-        path = resolve_docker_model("myregistry.io/llama:latest")
-        model = LlamaModel(path)
     """
-    cdef bytes repo_bytes = docker_repo.encode('utf-8')
-    cdef std_string path = download.common_docker_resolve_model(repo_bytes)
-    return path.decode('utf-8')
+    import json
+    import os
+    import re
+
+    # Parse repo:tag
+    if ':' in docker_repo:
+        idx = docker_repo.rfind(':')
+        repo = docker_repo[:idx]
+        tag = docker_repo[idx+1:]
+    else:
+        repo = docker_repo
+        tag = 'latest'
+
+    # Add default prefix if needed
+    if '/' not in repo:
+        repo = f'ai/{repo}'
+
+    # Authenticate with Docker Hub
+    auth_url = f"https://auth.docker.io/token?service=registry.docker.io&scope=repository:{repo}:pull"
+    status, _, body = _url_request(auth_url)
+    if status < 200 or status >= 400:
+        raise RuntimeError(f"Docker auth failed for {repo}: HTTP {status}")
+    try:
+        docker_token = json.loads(body)['token']
+    except (json.JSONDecodeError, KeyError) as e:
+        raise RuntimeError(f"Docker auth failed for {repo}: {e}")
+
+    headers = {
+        'Authorization': f'Bearer {docker_token}',
+        'Accept': 'application/vnd.docker.distribution.manifest.v2+json,application/vnd.oci.image.manifest.v1+json',
+    }
+
+    # Fetch manifest
+    manifest_url = f"https://registry-1.docker.io/v2/{repo}/manifests/{tag}"
+    status, _, body = _url_request(manifest_url, headers=headers)
+    if status < 200 or status >= 400:
+        raise RuntimeError(f"Docker manifest fetch failed for {repo}:{tag}: HTTP {status}")
+    try:
+        manifest = json.loads(body)
+    except json.JSONDecodeError as e:
+        raise RuntimeError(f"Docker manifest parse failed for {repo}:{tag}: {e}")
+
+    # Find GGUF layer
+    digest = None
+    for layer in manifest.get('layers', []):
+        media_type = layer.get('mediaType', '')
+        if 'gguf' in media_type or 'gguf' in layer.get('annotations', {}).get('org.opencontainers.image.title', ''):
+            digest = layer.get('digest', '')
+            break
+
+    if not digest:
+        raise RuntimeError(f"No GGUF layer found in Docker manifest for {repo}:{tag}")
+
+    if not re.match(r'^sha256:[0-9a-fA-F]{64}$', digest):
+        raise RuntimeError(f"Invalid digest format: {digest}")
+
+    # Download blob
+    cache_dir = _get_cache_dir()
+    safe_name = repo.replace('/', '_')
+    dest_path = os.path.join(cache_dir, f"{safe_name}_{tag}.gguf")
+
+    if os.path.exists(dest_path):
+        return dest_path
+
+    blob_url = f"https://registry-1.docker.io/v2/{repo}/blobs/{digest}"
+    dl_headers = {'Authorization': f'Bearer {docker_token}'}
+
+    if not _download_file(blob_url, dest_path, headers=dl_headers):
+        raise RuntimeError(f"Failed to download Docker blob for {repo}:{tag}")
+
+    return dest_path
 
 
 # =============================================================================
-# N-gram Cache API
+# N-gram Cache API (pure Python implementation)
 # =============================================================================
 
-cdef class NgramCache:
-    """
-    N-gram cache for accelerating text generation with repeated patterns.
+_NGRAM_MIN = 1
+_NGRAM_MAX = 4
+_NGRAM_STATIC = 2
+_TOKEN_NULL = -1  # LLAMA_TOKEN_NULL
+
+
+def _make_ngram(tokens, size):
+    """Create a padded n-gram tuple of length _NGRAM_MAX."""
+    result = list(tokens[:size])
+    while len(result) < _NGRAM_MAX:
+        result.append(_TOKEN_NULL)
+    return tuple(result)
+
+
+class NgramCache:
+    """N-gram cache for accelerating text generation with repeated patterns.
 
     N-gram caching stores patterns of previously generated tokens and uses them
     to predict likely continuations, speeding up generation when text contains
     repetitive patterns.
 
     Example:
-        # Create and update cache
         cache = NgramCache()
-        tokens = [1, 2, 3, 4, 5, 2, 3, 4]  # Repeated pattern [2,3,4]
+        tokens = [1, 2, 3, 4, 5, 2, 3, 4]
         cache.update(tokens, ngram_min=2, ngram_max=4)
 
-        # Use for drafting
         inp = [1, 2]
         draft = cache.draft(inp, n_draft=5, ngram_min=2, ngram_max=4)
 
-        # Save/load
         cache.save("cache.bin")
         cache2 = NgramCache.load("cache.bin")
-
-        # Merge caches
         cache.merge(cache2)
     """
-    cdef ngram_cache.common_ngram_cache * ptr
-    cdef bint owner
 
-    def __cinit__(self):
-        self.ptr = new ngram_cache.common_ngram_cache()
-        self.owner = True
-
-    def __dealloc__(self):
-        if self.owner and self.ptr != NULL:
-            del self.ptr
+    def __init__(self):
+        # dict[tuple[int,...], dict[int, int]] : ngram -> {next_token: count}
+        self._data = {}
 
     def update(self, tokens, ngram_min=2, ngram_max=4, nnew=None, print_progress=False):
-        """
-        Update the n-gram cache with new tokens.
+        """Update the n-gram cache with new tokens.
 
         Args:
             tokens: List of token IDs to add to the cache
             ngram_min: Minimum n-gram size (default: 2)
-            ngram_max: Maximum n-gram size (default: 4, max: LLAMA_NGRAM_MAX)
+            ngram_max: Maximum n-gram size (default: 4, max: 4)
             nnew: Number of new tokens appended (default: len(tokens))
             print_progress: Print progress to stderr (default: False)
-
-        Note:
-            For correct results, tokens should ONLY be appended to.
-            Changes in the middle require rebuilding the cache.
-
-        Example:
-            cache = NgramCache()
-            cache.update([1, 2, 3, 4, 5])
-            cache.update([1, 2, 3, 4, 5, 6, 7], nnew=2)  # Only 6, 7 are new
         """
-        cdef std_vector[llama.llama_token] token_vec
-        cdef int i
-
-        # Convert Python list to C++ vector
-        for token in tokens:
-            token_vec.push_back(token)
-
-        # Default nnew to all tokens if not specified
         if nnew is None:
             nnew = len(tokens)
 
-        # Clamp to valid range
-        ngram_min = max(ngram_cache.LLAMA_NGRAM_MIN, min(ngram_min, ngram_cache.LLAMA_NGRAM_MAX))
-        ngram_max = max(ngram_cache.LLAMA_NGRAM_MIN, min(ngram_max, ngram_cache.LLAMA_NGRAM_MAX))
+        ngram_min = max(_NGRAM_MIN, min(ngram_min, _NGRAM_MAX))
+        ngram_max = max(_NGRAM_MIN, min(ngram_max, _NGRAM_MAX))
 
-        ngram_cache.common_ngram_cache_update(
-            self.ptr[0],
-            ngram_min,
-            ngram_max,
-            token_vec,
-            nnew,
-            print_progress
-        )
+        n = len(tokens)
+        data = self._data
+
+        for ngram_size in range(ngram_min, ngram_max + 1):
+            i_start = max(n - nnew, ngram_size)
+            for i in range(i_start, n):
+                ngram = _make_ngram(tokens[i - ngram_size:i], ngram_size)
+                next_token = tokens[i]
+                part = data.get(ngram)
+                if part is None:
+                    data[ngram] = {next_token: 1}
+                else:
+                    part[next_token] = part.get(next_token, 0) + 1
 
     def draft(self, inp, n_draft=16, ngram_min=2, ngram_max=4,
               context_cache=None, dynamic_cache=None, static_cache=None):
-        """
-        Draft tokens using n-gram prediction.
+        """Draft tokens using n-gram prediction.
 
         Args:
             inp: Input tokens generated so far
@@ -3756,120 +4021,196 @@ cdef class NgramCache:
 
         Returns:
             List of drafted token IDs
-
-        Example:
-            cache = NgramCache()
-            cache.update([1, 2, 3, 4, 5, 2, 3])
-
-            inp = [1, 2]
-            draft = cache.draft(inp, n_draft=5)
-            # Likely to predict [3, 4, ...] based on pattern
         """
-        cdef std_vector[llama.llama_token] inp_vec
-        cdef std_vector[llama.llama_token] draft_vec
-        cdef NgramCache ctx_cache = context_cache if context_cache is not None else self
-        cdef NgramCache dyn_cache = dynamic_cache if dynamic_cache is not None else NgramCache()
-        cdef NgramCache sta_cache = static_cache if static_cache is not None else NgramCache()
-        cdef int i
+        ngram_min = max(_NGRAM_MIN, min(ngram_min, _NGRAM_MAX))
+        ngram_max = max(_NGRAM_MIN, min(ngram_max, _NGRAM_MAX))
 
-        # Convert input to C++ vector
-        for token in inp:
-            inp_vec.push_back(token)
+        ctx_data = (context_cache if context_cache is not None else self)._data
+        dyn_data = (dynamic_cache if dynamic_cache is not None else NgramCache())._data
+        sta_data = (static_cache if static_cache is not None else NgramCache())._data
 
-        # Initialize draft_vec with seed token (required by C++ function)
-        # The draft function expects draft_vec to have exactly 1 element initially
+        # Seed: last input token
         if len(inp) > 0:
-            draft_vec.push_back(inp[-1])  # Use last token as seed
+            draft_tokens = [inp[-1]]
         else:
-            draft_vec.push_back(0)  # Use 0 as seed if no input
+            draft_tokens = [0]
 
-        # Clamp to valid range
-        ngram_min = max(ngram_cache.LLAMA_NGRAM_MIN, min(ngram_min, ngram_cache.LLAMA_NGRAM_MAX))
-        ngram_max = max(ngram_cache.LLAMA_NGRAM_MIN, min(ngram_max, ngram_cache.LLAMA_NGRAM_MAX))
+        # Threshold tables (indexed by ngram_size - 1)
+        min_sample_lax    = [2, 2, 1, 1]
+        min_percent_lax   = [66, 50, 50, 50]
+        min_sample_strict  = [4, 3, 2, 2]
+        min_percent_strict = [75, 66, 66, 66]
 
-        ngram_cache.common_ngram_cache_draft(
-            inp_vec,
-            draft_vec,
-            n_draft,
-            ngram_min,
-            ngram_max,
-            ctx_cache.ptr[0],
-            dyn_cache.ptr[0],
-            sta_cache.ptr[0]
-        )
+        combined = list(inp) + []
 
-        # Convert C++ vector to Python list
-        # Skip the first element (seed token) and return only the drafted tokens
-        result = []
-        for i in range(1, draft_vec.size()):  # Start from 1 to skip seed
-            result.append(draft_vec[i])
+        while len(draft_tokens) - 1 < n_draft:
+            # Reconstruct the full sequence for lookup
+            combined_seq = list(inp) + draft_tokens[1:]
+            drafted = False
 
-        return result
+            # 1. Try context cache (lax thresholds)
+            for ngram_size in range(ngram_max, ngram_min - 1, -1):
+                idx = ngram_size - 1
+                if len(combined_seq) < ngram_size:
+                    continue
+                ngram = _make_ngram(combined_seq[-ngram_size:], ngram_size)
+                part = ctx_data.get(ngram)
+                if part is None:
+                    continue
+
+                # Find best token (optionally weighted by static cache)
+                best_token = _TOKEN_NULL
+                best_score = -1
+                sum_count = 0
+                for tok, cnt in part.items():
+                    sum_count += cnt
+                    sta_part = sta_data.get(_make_ngram(combined_seq[-_NGRAM_STATIC:], _NGRAM_STATIC)) if len(combined_seq) >= _NGRAM_STATIC else None
+                    sta_cnt = sta_part.get(tok, 0) if sta_part else 0
+                    score = cnt * max(1, sta_cnt)
+                    if score > best_score:
+                        best_score = score
+                        best_token = tok
+
+                if best_token == _TOKEN_NULL:
+                    continue
+
+                max_count = part.get(best_token, 0)
+                if sum_count >= min_sample_lax[idx] and 100 * max_count >= min_percent_lax[idx] * sum_count:
+                    draft_tokens.append(best_token)
+                    drafted = True
+                    break
+
+            if drafted:
+                continue
+
+            # 2. Try dynamic cache (strict thresholds)
+            for ngram_size in range(ngram_max, ngram_min - 1, -1):
+                idx = ngram_size - 1
+                if len(combined_seq) < ngram_size:
+                    continue
+                ngram = _make_ngram(combined_seq[-ngram_size:], ngram_size)
+                part = dyn_data.get(ngram)
+                if part is None:
+                    continue
+
+                best_token = _TOKEN_NULL
+                best_score = -1
+                sum_count = 0
+                for tok, cnt in part.items():
+                    sum_count += cnt
+                    sta_part = sta_data.get(_make_ngram(combined_seq[-_NGRAM_STATIC:], _NGRAM_STATIC)) if len(combined_seq) >= _NGRAM_STATIC else None
+                    sta_cnt = sta_part.get(tok, 0) if sta_part else 0
+                    score = cnt * max(1, sta_cnt)
+                    if score > best_score:
+                        best_score = score
+                        best_token = tok
+
+                if best_token == _TOKEN_NULL:
+                    continue
+
+                max_count = part.get(best_token, 0)
+                if sum_count >= min_sample_strict[idx] and 100 * max_count >= min_percent_strict[idx] * sum_count:
+                    draft_tokens.append(best_token)
+                    drafted = True
+                    break
+
+            if drafted:
+                continue
+
+            # 3. Try static cache only (2-gram)
+            if len(combined_seq) >= _NGRAM_STATIC:
+                ngram = _make_ngram(combined_seq[-_NGRAM_STATIC:], _NGRAM_STATIC)
+                part = sta_data.get(ngram)
+                if part:
+                    best_token = _TOKEN_NULL
+                    best_count = -1
+                    sum_count = 0
+                    for tok, cnt in part.items():
+                        sum_count += cnt
+                        if cnt > best_count:
+                            best_count = cnt
+                            best_token = tok
+                    if (best_token != _TOKEN_NULL and
+                            sum_count >= min_sample_lax[1] and
+                            100 * best_count >= 50 * sum_count):
+                        draft_tokens.append(best_token)
+                        continue
+
+            # No source could draft
+            break
+
+        return draft_tokens[1:]  # skip seed token
 
     def save(self, filename):
-        """
-        Save the n-gram cache to a file.
+        """Save the n-gram cache to a binary file (compatible with C++ format).
 
         Args:
             filename: Path where to save the cache
-
-        Example:
-            cache = NgramCache()
-            cache.update([1, 2, 3, 4, 5])
-            cache.save("my_cache.bin")
         """
-        cdef std_string fname = filename.encode('utf-8')
-        ngram_cache.common_ngram_cache_save(self.ptr[0], fname)
+        import struct
+        with open(filename, 'wb') as f:
+            for ngram, part in self._data.items():
+                # Write 4 tokens (int32 each)
+                for t in ngram:
+                    f.write(struct.pack('<i', t))
+                # Write number of token->count pairs
+                f.write(struct.pack('<i', len(part)))
+                for token, count in part.items():
+                    f.write(struct.pack('<i', token))
+                    f.write(struct.pack('<i', count))
 
     @staticmethod
     def load(filename):
-        """
-        Load an n-gram cache from a file.
+        """Load an n-gram cache from a binary file.
 
         Args:
             filename: Path from which to load the cache
 
         Returns:
             NgramCache instance with loaded data
-
-        Example:
-            cache = NgramCache.load("my_cache.bin")
-            draft = cache.draft([1, 2], n_draft=5)
         """
-        cdef NgramCache cache = NgramCache.__new__(NgramCache)
-        cdef std_string fname = filename.encode('utf-8')
-
-        cache.ptr = new ngram_cache.common_ngram_cache(
-            ngram_cache.common_ngram_cache_load(fname)
-        )
-        cache.owner = True
-
+        import struct
+        cache = NgramCache()
+        ngram_bytes = _NGRAM_MAX * 4  # 4 int32s
+        with open(filename, 'rb') as f:
+            while True:
+                data = f.read(ngram_bytes)
+                if len(data) < ngram_bytes:
+                    break
+                tokens = struct.unpack('<' + 'i' * _NGRAM_MAX, data)
+                ngram = tuple(tokens)
+                ntokens_data = f.read(4)
+                if len(ntokens_data) < 4:
+                    break
+                ntokens = struct.unpack('<i', ntokens_data)[0]
+                part = {}
+                for _ in range(ntokens):
+                    entry = f.read(8)
+                    if len(entry) < 8:
+                        break
+                    tok, cnt = struct.unpack('<ii', entry)
+                    part[tok] = cnt
+                cache._data[ngram] = part
         return cache
 
     def merge(self, other):
-        """
-        Merge another n-gram cache into this one.
+        """Merge another n-gram cache into this one.
 
         Args:
             other: Another NgramCache to merge into this cache
-
-        Example:
-            cache1 = NgramCache()
-            cache1.update([1, 2, 3])
-
-            cache2 = NgramCache()
-            cache2.update([4, 5, 6])
-
-            cache1.merge(cache2)  # cache1 now contains both patterns
         """
         if not isinstance(other, NgramCache):
             raise TypeError("Can only merge with another NgramCache")
 
-        cdef NgramCache other_cache = other
-        ngram_cache.common_ngram_cache_merge(self.ptr[0], other_cache.ptr[0])
+        for ngram, part_add in other._data.items():
+            part_target = self._data.get(ngram)
+            if part_target is None:
+                self._data[ngram] = dict(part_add)
+            else:
+                for token, count in part_add.items():
+                    part_target[token] = part_target.get(token, 0) + count
 
     def __repr__(self):
         return f"<NgramCache at {hex(id(self))}>"
-
 
 
