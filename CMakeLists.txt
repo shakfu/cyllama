@@ -260,7 +260,6 @@ else()
     # -------------------------------------------------------------------------
     message(STATUS "WITH_DYLIB: OFF (static linking)")
 
-    static_lib(LIB_COMMON "${LLAMACPP_LIB}" "common")
     static_lib(LIB_CPP_HTTPLIB "${LLAMACPP_LIB}" "cpp-httplib")
     static_lib(LIB_LLAMA "${LLAMACPP_LIB}" "llama")
     static_lib(LIB_GGML "${LLAMACPP_LIB}" "ggml")
@@ -269,7 +268,6 @@ else()
     static_lib(LIB_MTMD "${LLAMACPP_LIB}" "mtmd")
 
     list(APPEND STATIC_LIBS
-        "${LIB_COMMON}"
         "${LIB_CPP_HTTPLIB}"
         "${LIB_LLAMA}"
         "${LIB_GGML}"
@@ -492,7 +490,7 @@ function(add_cython_extension target_name pyx_file)
             list(APPEND _GGML_LIBS ${LIB_GGML_OPENCL})
         endif()
 
-        set(_OTHER_LIBS ${LIB_COMMON} ${LIB_CPP_HTTPLIB} ${LIB_LLAMA} ${LIB_MTMD})
+        set(_OTHER_LIBS ${LIB_CPP_HTTPLIB} ${LIB_LLAMA} ${LIB_MTMD})
         if(WITH_WHISPER)
             list(APPEND _OTHER_LIBS ${LIB_WHISPER_COMMON} ${LIB_WHISPER})
         endif()
@@ -551,25 +549,21 @@ endfunction()
 # -----------------------------------------------------------------------------
 
 # llama_cpp extension
+# json-schema-to-grammar and json-partial provide JSON schema -> GBNF grammar conversion.
+# These are compiled from llama.cpp source (self-contained, only depend on nlohmann/json).
+# build_info_stub provides stub definitions for common.h build_info/logging symbols that
+# json-schema-to-grammar.cpp pulls in transitively via common.h includes.
+set(_LLAMA_SRC "${CMAKE_SOURCE_DIR}/build/llama.cpp/common")
 set(_LLAMA_CPP_SOURCES
     "${CMAKE_SOURCE_DIR}/src/cyllama/llama/helpers/tts.cpp"
     "${CMAKE_SOURCE_DIR}/src/cyllama/llama/helpers/json_schema.cpp"
+    "${CMAKE_SOURCE_DIR}/src/cyllama/llama/helpers/build_info_stub.cpp"
 )
-if(WITH_DYLIB)
-    # Provide stub definitions for common.h build_info symbols
-    # (normally in libcommon.a, but not needed for dynamic linking)
+if(EXISTS "${_LLAMA_SRC}/json-schema-to-grammar.cpp")
     list(APPEND _LLAMA_CPP_SOURCES
-        "${CMAKE_SOURCE_DIR}/src/cyllama/llama/helpers/build_info_stub.cpp"
+        "${_LLAMA_SRC}/json-schema-to-grammar.cpp"
+        "${_LLAMA_SRC}/json-partial.cpp"
     )
-    # json-schema-to-grammar and json-partial are from libcommon but self-contained
-    # (only depend on nlohmann/json). Compile them directly instead of linking libcommon.
-    set(_LLAMA_SRC "${CMAKE_SOURCE_DIR}/build/llama.cpp/common")
-    if(EXISTS "${_LLAMA_SRC}/json-schema-to-grammar.cpp")
-        list(APPEND _LLAMA_CPP_SOURCES
-            "${_LLAMA_SRC}/json-schema-to-grammar.cpp"
-            "${_LLAMA_SRC}/json-partial.cpp"
-        )
-    endif()
 endif()
 
 add_cython_extension(llama_cpp
@@ -619,7 +613,7 @@ if(UNIX AND NOT APPLE)
     endif()
 
     # Note: SD libs are NOT included here - SD extension links its own ggml
-    set(_OTHER_LIBS ${LIB_COMMON} ${LIB_LLAMA} ${LIB_MTMD})
+    set(_OTHER_LIBS ${LIB_LLAMA} ${LIB_MTMD})
     if(WITH_WHISPER)
         list(APPEND _OTHER_LIBS ${LIB_WHISPER_COMMON} ${LIB_WHISPER})
     endif()
