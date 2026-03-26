@@ -70,6 +70,7 @@ import os
 import platform
 import re
 import shutil
+import tempfile
 import stat
 import subprocess
 import sys
@@ -1051,7 +1052,127 @@ class LlamaCppBuilder(Builder):
         # Copy backend-specific libraries
         self.copy_backend_libs()
 
-        # self.move(self.prefix / "bin", self.project.bin)
+    # -----------------------------------------------------------------
+    # Dynamic linking: download pre-built release
+    # -----------------------------------------------------------------
+
+    @property
+    def dynamic_lib(self) -> Path:
+        """Directory for pre-built shared libraries."""
+        return self.prefix / "dynamic"
+
+    def _release_asset_name(self) -> str:
+        """Get the expected release asset filename for the current platform."""
+        version = self.version
+        system = PLATFORM.lower()
+        arch = ARCH.lower()
+
+        if system == "darwin":
+            os_tag = "macos"
+            arch_tag = "arm64" if arch in ("arm64", "aarch64") else "x64"
+            return f"llama-{version}-bin-{os_tag}-{arch_tag}.tar.gz"
+        elif system == "linux":
+            arch_tag = "x64" if arch in ("x86_64", "amd64") else arch
+            # Check for GPU backends
+            if getenv("GGML_CUDA", default=False):
+                return f"llama-{version}-bin-ubuntu-x64.tar.gz"  # CUDA builds not in filename
+            elif getenv("GGML_VULKAN", default=False):
+                return f"llama-{version}-bin-ubuntu-vulkan-{arch_tag}.tar.gz"
+            elif getenv("GGML_HIP", default=False):
+                return f"llama-{version}-bin-ubuntu-rocm-7.2-{arch_tag}.tar.gz"
+            else:
+                return f"llama-{version}-bin-ubuntu-{arch_tag}.tar.gz"
+        elif system == "windows":
+            arch_tag = "arm64" if arch in ("arm64", "aarch64") else "x64"
+            if getenv("GGML_CUDA", default=False):
+                return f"llama-{version}-bin-win-cuda-12.4-{arch_tag}.zip"
+            else:
+                return f"llama-{version}-bin-win-cpu-{arch_tag}.zip"
+        else:
+            raise RuntimeError(f"Unsupported platform: {system}/{arch}")
+
+    def _release_url(self) -> str:
+        """Get the download URL for the pre-built release."""
+        asset = self._release_asset_name()
+        return f"https://github.com/ggml-org/llama.cpp/releases/download/{self.version}/{asset}"
+
+    def download_release(self) -> None:
+        """Download pre-built release and extract shared libraries.
+
+        Downloads the release tarball for the current platform, extracts
+        shared libraries (.dylib/.so/.dll) to thirdparty/llama.cpp/dynamic/.
+        Headers are still obtained from the source checkout (call build() or
+        setup() first to populate thirdparty/llama.cpp/include/).
+        """
+        # Ensure headers exist (source checkout + header copy)
+        if not self.include.exists() or not any(self.include.iterdir()):
+            self.log.info("Headers not found, running source setup for headers...")
+            if not self.src_dir.exists():
+                self.setup()
+            # Copy headers only (same as build() header section)
+            self.prefix.mkdir(exist_ok=True)
+            self.include.mkdir(exist_ok=True)
+            self.glob_copy(self.src_dir / "common", self.include, patterns=["*.h", "*.hpp"])
+            self.glob_copy(self.src_dir / "ggml" / "include", self.include, patterns=["*.h"])
+            self.glob_copy(self.src_dir / "include", self.include, patterns=["*.h"])
+            jinja_include = self.include / "jinja"
+            jinja_include.mkdir(exist_ok=True)
+            self.glob_copy(self.src_dir / "common" / "jinja", jinja_include, patterns=["*.h", "*.hpp"])
+            nlohmann_include = self.include / "nlohmann"
+            nlohmann_include.mkdir(exist_ok=True)
+            self.glob_copy(self.src_dir / "vendor" / "nlohmann", nlohmann_include, patterns=["*.hpp"])
+            self.glob_copy(self.src_dir / "tools" / "mtmd", self.include, patterns=["*.h"])
+
+        url = self._release_url()
+        self.log.info(f"Downloading pre-built release: {url}")
+
+        # Download to a temp location
+        tmp_dir = Path(tempfile.mkdtemp())
+        try:
+            archive_path = self.download(url, tofolder=tmp_dir, max_size=1024 * 1024 * 500)
+
+            # Extract
+            extract_dir = tmp_dir / "extracted"
+            extract_dir.mkdir()
+            self.extract(archive_path, tofolder=extract_dir)
+
+            # Find the extracted directory (tarball extracts to a subdirectory)
+            extracted_dirs = [d for d in extract_dir.iterdir() if d.is_dir()]
+            if extracted_dirs:
+                release_dir = extracted_dirs[0]
+            else:
+                release_dir = extract_dir
+
+            # Copy shared libraries to dynamic/ directory
+            # Dereference symlinks so all files are concrete (wheels can't store symlinks)
+            self.dynamic_lib.mkdir(parents=True, exist_ok=True)
+
+            if PLATFORM == "Darwin":
+                lib_exts = (".dylib",)
+            elif PLATFORM == "Windows":
+                lib_exts = (".dll",)
+            else:
+                lib_exts = (".so",)
+
+            copied = 0
+            for item in release_dir.iterdir():
+                if not any(ext in item.name for ext in lib_exts):
+                    continue
+                dest = self.dynamic_lib / item.name
+                if dest.exists() or dest.is_symlink():
+                    dest.unlink()
+                # follow_symlinks=True (default) dereferences symlinks into real files
+                shutil.copy2(str(item), str(dest))
+                copied += 1
+                suffix = ""
+                if item.is_symlink():
+                    suffix = f" (from symlink -> {os.readlink(str(item))})"
+                self.log.info(f"  {item.name}{suffix}")
+
+            self.log.info(f"Installed {copied} files to {self.dynamic_lib}")
+
+        finally:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
 class WhisperCppBuilder(Builder):
@@ -1675,6 +1796,7 @@ class Application(ShellCmd, metaclass=MetaCommander):
     @opt("-s", "--shared", "build shared libraries")
     @opt("-a", "--all", "build all")
     @opt("-D", "--deps-only", "build dependencies only, skip editable install")
+    @opt("--dynamic", "-Y", "download pre-built llama.cpp release (dynamic linking)")
     @option(
         "--llama-version",
         default=LLAMACPP_VERSION,
@@ -1752,14 +1874,19 @@ class Application(ShellCmd, metaclass=MetaCommander):
         for BuilderClass in _builders:
             version = builder_versions.get(BuilderClass)
             builder = BuilderClass(version=version)
-            builder.build()
+            if args.dynamic and BuilderClass == LlamaCppBuilder:
+                builder.download_release()
+            else:
+                builder.build()
 
         # Write build info
         self._write_build_info(builder_versions)
 
         # Build using scikit-build-core (editable install)
         if not args.deps_only:
-            _cmd = "uv pip install -e ."
+            if args.dynamic:
+                os.environ["WITH_DYLIB"] = "1"
+            _cmd = "uv sync --reinstall-package cyllama"
             self.cmd(_cmd)
 
     def _write_build_info(self, builder_versions: dict) -> None:

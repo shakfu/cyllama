@@ -46,6 +46,7 @@ build-dir = "build/{wheel_tag}"
 sdist.include = [
     "thirdparty/llama.cpp/include",
     "thirdparty/llama.cpp/lib",
+    "thirdparty/llama.cpp/dynamic",
     "thirdparty/stable-diffusion.cpp/include",
     "thirdparty/stable-diffusion.cpp/lib",
     "thirdparty/whisper.cpp/include",

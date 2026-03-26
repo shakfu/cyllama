@@ -5,6 +5,11 @@
 - [ ] Response caching for identical prompts (decorator-based with TTL)
 - [ ] Structured logging system (JSON output option, agent decision flow logging)
 
+## Wheel / Packaging
+
+- [ ] Investigate using versioned dylibs (e.g. `libllama.4.dylib`) instead of `.0.dylib` in dynamic wheels
+- [ ] Fix absolute homebrew OpenSSL paths in wheel (`/opt/homebrew/opt/openssl@3/lib/libssl.3.dylib`) -- either bundle with `@rpath` or skip OpenSSL for redistributable wheels
+
 ## Medium Priority
 
 - [ ] Performance benchmarking suite (token generation speed, memory profiling, regression detection)

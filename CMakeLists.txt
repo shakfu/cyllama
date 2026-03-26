@@ -200,7 +200,7 @@ if(WITH_DYLIB)
     # Dynamic linking: link against pre-built shared libraries
     # -------------------------------------------------------------------------
     if(NOT LLAMACPP_DYLIB_DIR)
-        set(LLAMACPP_DYLIB_DIR "${LLAMACPP_LIB}")
+        set(LLAMACPP_DYLIB_DIR "${LLAMACPP_DIR}/dynamic")
     endif()
     message(STATUS "WITH_DYLIB: ON (dylib dir: ${LLAMACPP_DYLIB_DIR})")
 
@@ -213,7 +213,7 @@ if(WITH_DYLIB)
     endif()
 
     # Core llama.cpp shared libraries (available in release tarballs)
-    set(_DYLIB_NAMES llama ggml ggml-base ggml-cpu mtmd)
+    set(_DYLIB_NAMES llama ggml ggml-base ggml-cpu ggml-rpc mtmd)
 
     # Backend-specific shared libraries
     if(GGML_METAL)
@@ -235,9 +235,15 @@ if(WITH_DYLIB)
         )
         if(_found_${_name})
             list(APPEND DYLIBS "${_found_${_name}}")
-            # Collect all related files (versioned libs + symlinks) for copying
-            file(GLOB _related "${LLAMACPP_DYLIB_DIR}/lib${_name}*.${_dylib_ext}*")
-            list(APPEND DYLIB_FILES ${_related})
+            # Install only the soname file (e.g. libllama.0.dylib) -- that's what @rpath references
+            # Skip the full-version file (libllama.0.0.8522.dylib) and the bare name (libllama.dylib)
+            file(GLOB _soname "${LLAMACPP_DYLIB_DIR}/lib${_name}.[0-9].${_dylib_ext}")
+            if(_soname)
+                list(APPEND DYLIB_FILES ${_soname})
+            else()
+                # Fallback: use whatever find_library found
+                list(APPEND DYLIB_FILES "${_found_${_name}}")
+            endif()
             message(STATUS "  Found shared lib: ${_found_${_name}}")
         else()
             message(WARNING "  Shared lib not found: lib${_name}.${_dylib_ext} in ${LLAMACPP_DYLIB_DIR}")
@@ -344,16 +350,8 @@ if(GGML_METAL)
     )
 endif()
 
-# cpp-httplib requires OpenSSL when built with CPPHTTPLIB_OPENSSL_SUPPORT
-find_package(OpenSSL QUIET)
-if(OpenSSL_FOUND)
-    list(APPEND SYSTEM_LIBS OpenSSL::SSL OpenSSL::Crypto)
-    if(APPLE)
-        find_library(CORE_FOUNDATION_FRAMEWORK CoreFoundation REQUIRED)
-        find_library(SECURITY_FRAMEWORK Security REQUIRED)
-        list(APPEND SYSTEM_LIBS ${CORE_FOUNDATION_FRAMEWORK} ${SECURITY_FRAMEWORK})
-    endif()
-endif()
+# OpenSSL linking removed: EmbeddedServer doesn't expose SSL config,
+# and absolute homebrew paths break wheel portability.
 
 if(GGML_CUDA)
     find_package(CUDAToolkit REQUIRED)
@@ -774,11 +772,12 @@ endif()
 # -----------------------------------------------------------------------------
 
 if(WITH_DYLIB AND DYLIB_FILES)
-    # Copy dylibs alongside the llama extension so @loader_path / $ORIGIN works
+    # Install dylibs alongside the extension so @loader_path / $ORIGIN resolves
+    # All files are concrete (symlinks dereferenced by manage.py during download)
     install(FILES ${DYLIB_FILES} DESTINATION "cyllama/llama")
-    message(STATUS "Will install ${CMAKE_INSTALL_PREFIX}/cyllama/llama/ dylibs:")
     foreach(_f ${DYLIB_FILES})
-        message(STATUS "  ${_f}")
+        get_filename_component(_n "${_f}" NAME)
+        message(STATUS "  dylib: ${_n}")
     endforeach()
 endif()
 

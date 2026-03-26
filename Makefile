@@ -37,7 +37,7 @@ MODEL_LLAVA := models/llava-llama-3-8b-v1_1-int4.gguf
 # Library detection
 WITH_DYLIB ?= 0
 ifeq ($(WITH_DYLIB),1)
-    LIBLAMMA := $(LLAMACPP)/lib/libllama.dylib
+    LIBLAMMA := $(LLAMACPP)/dynamic/libllama.dylib
 else
     LIBLAMMA := $(LLAMACPP)/lib/libllama.a
 endif
@@ -64,6 +64,9 @@ dev: sync
 build: $(LIBLAMMA)
 	@uv sync --reinstall-package cyllama
 
+build-dynamic:
+	@$(SYSTEM_PYTHON) scripts/manage.py build --all --dynamic
+
 remake: reset build test
 
 # =============================================================================
@@ -73,6 +76,12 @@ remake: reset build test
 
 wheel: $(LIBLAMMA)
 	@uv build --wheel
+
+wheel-dynamic: $(LLAMACPP)/dynamic/libllama.dylib
+	@WITH_DYLIB=1 uv build --wheel
+
+$(LLAMACPP)/dynamic/libllama.dylib:
+	@$(SYSTEM_PYTHON) scripts/manage.py build --llama-cpp --dynamic --deps-only
 
 dist: $(LIBLAMMA)
 	@uv build
