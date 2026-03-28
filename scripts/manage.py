@@ -55,13 +55,12 @@ Backend support (via build command flags or environment variables):
     --cpu-only, -C    Disable all GPU backends
 
 Environment variables:
-    GGML_METAL=1      Enable Metal backend (llama.cpp, whisper.cpp)
+    GGML_METAL=1      Enable Metal backend (default ON on macOS, all components)
     GGML_CUDA=1       Enable CUDA backend
     GGML_VULKAN=1     Enable Vulkan backend
     GGML_SYCL=1       Enable SYCL backend
     GGML_HIP=1        Enable HIP/ROCm backend
     GGML_OPENCL=1     Enable OpenCL backend
-    SD_METAL=0        Disable Metal backend for stable-diffusion.cpp (default ON on macOS)
 """
 
 import argparse
@@ -1281,14 +1280,15 @@ class StableDiffusionCppBuilder(Builder):
     def get_backend_cmake_options(self) -> dict:
         """Get CMake options based on backend environment variables.
 
-        stable-diffusion.cpp uses SD_* flags (not GGML_*).
-        SD_METAL defaults to ON on macOS.
+        stable-diffusion.cpp uses SD_* CMake flags internally, but we read
+        the same GGML_* env vars as llama.cpp and whisper.cpp to ensure all
+        components use a consistent backend.
         """
         options = {}
 
-        # Read backend flags from environment (default Metal=1 on macOS, others=0)
-        sd_metal = getenv(
-            "SD_METAL", default=(True if PLATFORM == "Darwin" else False)
+        # Read backend flags from environment (same GGML_* vars as other components)
+        ggml_metal = getenv(
+            "GGML_METAL", default=(True if PLATFORM == "Darwin" else False)
         )
         ggml_cuda = getenv("GGML_CUDA", default=False)
         ggml_vulkan = getenv("GGML_VULKAN", default=False)
@@ -1296,7 +1296,7 @@ class StableDiffusionCppBuilder(Builder):
         ggml_hip = getenv("GGML_HIP", default=False)
         ggml_opencl = getenv("GGML_OPENCL", default=False)
 
-        if sd_metal and PLATFORM == "Darwin":
+        if ggml_metal and PLATFORM == "Darwin":
             options["SD_METAL"] = "ON"
             self.log.info("Enabling Metal backend for stable-diffusion.cpp")
 
@@ -1788,7 +1788,6 @@ class Application(ShellCmd, metaclass=MetaCommander):
     @opt("--hip", "-H", "enable HIP/ROCm backend (AMD GPUs)")
     @opt("--opencl", "-o", "enable OpenCL backend")
     @opt("--cpu-only", "-C", "disable all GPU backends (CPU only)")
-    @opt("--sd-metal", "-M", "enable Metal for stable-diffusion.cpp (default on macOS)")
     @opt("-w", "--whisper-cpp", "build whisper-cpp")
     @opt("-d", "--stable-diffusion", "build stable-diffusion")
     @opt("-l", "--llama-cpp", "build llama-cpp")
@@ -1797,6 +1796,7 @@ class Application(ShellCmd, metaclass=MetaCommander):
     @opt("-a", "--all", "build all")
     @opt("-D", "--deps-only", "build dependencies only, skip editable install")
     @opt("--dynamic", "-Y", "download pre-built llama.cpp release (dynamic linking)")
+    @opt("--sd-vendored-ggml", None, "link stable-diffusion against its own vendored ggml")
     @option(
         "--llama-version",
         default=LLAMACPP_VERSION,
@@ -1827,7 +1827,6 @@ class Application(ShellCmd, metaclass=MetaCommander):
             os.environ["GGML_SYCL"] = "0"
             os.environ["GGML_HIP"] = "0"
             os.environ["GGML_OPENCL"] = "0"
-            os.environ["SD_METAL"] = "0"
         else:
             if args.metal:
                 os.environ["GGML_METAL"] = "1"
@@ -1841,8 +1840,9 @@ class Application(ShellCmd, metaclass=MetaCommander):
                 os.environ["GGML_HIP"] = "1"
             if args.opencl:
                 os.environ["GGML_OPENCL"] = "1"
-            if args.sd_metal:
-                os.environ["SD_METAL"] = "1"
+
+        if args.sd_vendored_ggml:
+            os.environ["SD_USE_VENDORED_GGML"] = "1"
 
         # Map builder classes to their version arguments
         builder_versions = {
@@ -1896,19 +1896,35 @@ class Application(ShellCmd, metaclass=MetaCommander):
         build_dir = Path("build")
         info = {}
 
+        def _read_ggml_version(cmake_path: Path) -> str | None:
+            if not cmake_path.exists():
+                return None
+            content = cmake_path.read_text()
+            major = re.search(r"set\(GGML_VERSION_MAJOR\s+(\d+)\)", content)
+            minor = re.search(r"set\(GGML_VERSION_MINOR\s+(\d+)\)", content)
+            patch = re.search(r"set\(GGML_VERSION_PATCH\s+(\d+)\)", content)
+            if major and minor and patch:
+                return f"{major.group(1)}.{minor.group(1)}.{patch.group(1)}"
+            return None
+
+        # By default, all backends link against llama.cpp's ggml (both static
+        # and dynamic builds). When SD_USE_VENDORED_GGML=1, stable-diffusion.cpp
+        # uses its own vendored ggml instead, so we report that version.
+        llama_ggml_version = _read_ggml_version(
+            build_dir / "llama.cpp" / "ggml" / "CMakeLists.txt"
+        )
+        sd_uses_vendored_ggml = os.environ.get("SD_USE_VENDORED_GGML") == "1"
+
         for BuilderClass, version in builder_versions.items():
             name = BuilderClass.name.replace(".", "_").replace("-", "_")
             info[f"{name}_version"] = version
 
-            # Read ggml version from CMakeLists.txt
-            ggml_cmake = build_dir / BuilderClass.name / "ggml" / "CMakeLists.txt"
-            if ggml_cmake.exists():
-                content = ggml_cmake.read_text()
-                major = re.search(r"set\(GGML_VERSION_MAJOR\s+(\d+)\)", content)
-                minor = re.search(r"set\(GGML_VERSION_MINOR\s+(\d+)\)", content)
-                patch = re.search(r"set\(GGML_VERSION_PATCH\s+(\d+)\)", content)
-                if major and minor and patch:
-                    info[f"{name}_ggml_version"] = f"{major.group(1)}.{minor.group(1)}.{patch.group(1)}"
+            ggml_ver = _read_ggml_version(
+                build_dir / BuilderClass.name / "ggml" / "CMakeLists.txt"
+            )
+            if ggml_ver is not None:
+                use_vendored = sd_uses_vendored_ggml and BuilderClass == StableDiffusionCppBuilder
+                info[f"{name}_ggml_version"] = ggml_ver if use_vendored else (llama_ggml_version or ggml_ver)
 
         out_path = Path("src/cyllama/_build_info.py")
         with open(out_path, "w") as f:

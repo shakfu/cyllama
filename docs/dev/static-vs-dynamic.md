@@ -461,13 +461,14 @@ WITH_DYLIB=1 LLAMACPP_DYLIB_DIR=/path/to/llama-b8522 make build
 **CMake options**:
 - `WITH_DYLIB=ON` -- link against shared `.dylib`/`.so` files instead of static `.a` archives
 - `LLAMACPP_DYLIB_DIR=/path/to/release` -- directory containing pre-built shared libraries
+- `SD_USE_VENDORED_GGML=ON` -- link stable-diffusion against its own vendored ggml instead of llama.cpp's
 
 **How it works**:
 - Core llama.cpp libraries (`libllama`, `libggml*`, `libmtmd`) linked as shared libraries
 - `libcpp-httplib.a` still built from source (not in releases, needed for embedded server)
 - `libcommon.a` is no longer linked -- JSON schema-to-grammar conversion is now pure Python, and all other `common.h` dependencies have been eliminated
 - Shared libraries copied alongside extension modules (`cyllama/llama/`) so `@loader_path`/`$ORIGIN` RPATH resolves correctly
-- Whisper and Stable Diffusion remain statically linked (no pre-built releases available)
+- Whisper and Stable Diffusion remain statically linked (no pre-built releases available). Both use llama.cpp's ggml by default; set `SD_USE_VENDORED_GGML=1` to link stable-diffusion against its own vendored ggml instead
 
 **Validated results** (macOS arm64, b8522 release):
 - Extension size: 1.6 MB (vs ~15 MB with static linking)

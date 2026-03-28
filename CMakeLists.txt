@@ -8,6 +8,7 @@ project(cyllama LANGUAGES C CXX)
 option(WITH_WHISPER "Build whisper.cpp wrapper" ON)
 option(WITH_STABLEDIFFUSION "Build stable-diffusion.cpp wrapper" ON)
 option(WITH_DYLIB "Use dynamic libraries instead of static" OFF)
+option(SD_USE_VENDORED_GGML "Link stable-diffusion against its own vendored ggml" OFF)
 
 # When WITH_DYLIB=ON, point this to a directory containing pre-built dylibs
 # (e.g., from a llama.cpp release tarball). Defaults to thirdparty/llama.cpp/lib.
@@ -91,6 +92,12 @@ endif()
 if(DEFINED ENV{WITH_DYLIB})
     if("$ENV{WITH_DYLIB}" STREQUAL "1")
         set(WITH_DYLIB ON CACHE BOOL "Use dynamic libraries instead of static" FORCE)
+    endif()
+endif()
+
+if(DEFINED ENV{SD_USE_VENDORED_GGML})
+    if("$ENV{SD_USE_VENDORED_GGML}" STREQUAL "1")
+        set(SD_USE_VENDORED_GGML ON CACHE BOOL "Link stable-diffusion against its own vendored ggml" FORCE)
     endif()
 endif()
 
@@ -747,7 +754,7 @@ if(WITH_STABLEDIFFUSION)
         CXX_STANDARD_REQUIRED ON
     )
 
-    if(WITH_DYLIB)
+    if(WITH_DYLIB AND NOT SD_USE_VENDORED_GGML)
         # Dynamic: link libstable-diffusion.a statically, reuse llama.cpp's ggml dylibs
         target_link_directories(stable_diffusion PRIVATE "${SDCPP_LIB}" ${COMMON_LINK_DIRS})
         target_link_libraries(stable_diffusion PRIVATE
@@ -769,27 +776,45 @@ if(WITH_STABLEDIFFUSION)
             )
         endif()
     else()
-        # Static: link libstable-diffusion.a with llama.cpp's ggml (unified ggml 0.9.8)
+        # Static (or dynamic + SD_USE_VENDORED_GGML): choose ggml source
         target_link_directories(stable_diffusion PRIVATE "${SDCPP_LIB}" ${COMMON_LINK_DIRS})
 
-        set(SD_GGML_LIBS ${LIB_GGML} ${LIB_GGML_BASE} ${LIB_GGML_CPU})
+        if(SD_USE_VENDORED_GGML)
+            # Use stable-diffusion.cpp's own vendored ggml libs
+            set(SD_GGML_LIB_DIR "${SDCPP_LIB}")
+        else()
+            # Default: use llama.cpp's ggml (unified across all backends)
+            set(SD_GGML_LIB_DIR "${LLAMACPP_LIB}")
+        endif()
+
+        static_lib(SD_LIB_GGML "${SD_GGML_LIB_DIR}" "ggml")
+        static_lib(SD_LIB_GGML_BASE "${SD_GGML_LIB_DIR}" "ggml-base")
+        static_lib(SD_LIB_GGML_CPU "${SD_GGML_LIB_DIR}" "ggml-cpu")
+        set(SD_GGML_LIBS ${SD_LIB_GGML} ${SD_LIB_GGML_BASE} ${SD_LIB_GGML_CPU})
         if(GGML_METAL)
-            list(APPEND SD_GGML_LIBS ${LIB_GGML_BLAS} ${LIB_GGML_METAL})
+            static_lib(SD_LIB_GGML_BLAS "${SD_GGML_LIB_DIR}" "ggml-blas")
+            static_lib(SD_LIB_GGML_METAL "${SD_GGML_LIB_DIR}" "ggml-metal")
+            list(APPEND SD_GGML_LIBS ${SD_LIB_GGML_BLAS} ${SD_LIB_GGML_METAL})
         endif()
         if(GGML_CUDA)
-            list(APPEND SD_GGML_LIBS ${LIB_GGML_CUDA})
+            static_lib(SD_LIB_GGML_CUDA "${SD_GGML_LIB_DIR}" "ggml-cuda")
+            list(APPEND SD_GGML_LIBS ${SD_LIB_GGML_CUDA})
         endif()
         if(GGML_VULKAN)
-            list(APPEND SD_GGML_LIBS ${LIB_GGML_VULKAN})
+            static_lib(SD_LIB_GGML_VULKAN "${SD_GGML_LIB_DIR}" "ggml-vulkan")
+            list(APPEND SD_GGML_LIBS ${SD_LIB_GGML_VULKAN})
         endif()
         if(GGML_HIP)
-            list(APPEND SD_GGML_LIBS ${LIB_GGML_HIP})
+            static_lib(SD_LIB_GGML_HIP "${SD_GGML_LIB_DIR}" "ggml-hip")
+            list(APPEND SD_GGML_LIBS ${SD_LIB_GGML_HIP})
         endif()
         if(GGML_SYCL)
-            list(APPEND SD_GGML_LIBS ${LIB_GGML_SYCL})
+            static_lib(SD_LIB_GGML_SYCL "${SD_GGML_LIB_DIR}" "ggml-sycl")
+            list(APPEND SD_GGML_LIBS ${SD_LIB_GGML_SYCL})
         endif()
         if(GGML_OPENCL)
-            list(APPEND SD_GGML_LIBS ${LIB_GGML_OPENCL})
+            static_lib(SD_LIB_GGML_OPENCL "${SD_GGML_LIB_DIR}" "ggml-opencl")
+            list(APPEND SD_GGML_LIBS ${SD_LIB_GGML_OPENCL})
         endif()
 
         if(UNIX AND NOT APPLE)
@@ -806,12 +831,12 @@ if(WITH_STABLEDIFFUSION)
 
         if(APPLE)
             set_target_properties(stable_diffusion PROPERTIES
-                BUILD_RPATH "${LLAMACPP_LIB};${SDCPP_LIB}"
+                BUILD_RPATH "${SD_GGML_LIB_DIR};${SDCPP_LIB}"
                 INSTALL_RPATH "@loader_path"
             )
         elseif(UNIX)
             set_target_properties(stable_diffusion PROPERTIES
-                BUILD_RPATH "${LLAMACPP_LIB};${SDCPP_LIB}"
+                BUILD_RPATH "${SD_GGML_LIB_DIR};${SDCPP_LIB}"
                 INSTALL_RPATH "$ORIGIN"
             )
         endif()

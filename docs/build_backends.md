@@ -103,6 +103,8 @@ python3 scripts/manage.py build --llama-cpp --cuda  # Enables both Metal and CUD
 
 ### Available Backend Flags
 
+These flags apply uniformly to all components (llama.cpp, whisper.cpp, stable-diffusion.cpp):
+
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `GGML_METAL` | `1` | Apple Metal (macOS GPU) |
@@ -111,6 +113,7 @@ python3 scripts/manage.py build --llama-cpp --cuda  # Enables both Metal and CUD
 | `GGML_SYCL` | `0` | Intel SYCL (oneAPI) |
 | `GGML_HIP` | `0` | AMD ROCm/HIP |
 | `GGML_OPENCL` | `0` | OpenCL (Adreno, mobile GPUs) |
+| `SD_USE_VENDORED_GGML` | `0` | Link stable-diffusion against its own vendored ggml instead of llama.cpp's |
 
 ## Backend Requirements
 

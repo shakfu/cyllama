@@ -23,7 +23,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 - **Vendored sqlite-vector source** - sqlite-vector is now vendored in `thirdparty/sqlite-vector/` and built from source via CMake as part of the normal build, replacing the separate `manage.py` build step and pre-built binary copy. This ensures `vector.so` is always included in wheels (including `uv build` sdist→wheel pipeline) without needing `.gitignore` hacks or binary files in the source tree
 
-- **Unified ggml 0.9.8 across all extensions** - Both static and dynamic builds now use llama.cpp's ggml 0.9.8 consistently for llama.cpp, whisper.cpp, and stable-diffusion.cpp (previously SD vendored ggml 0.9.5). In dynamic builds, all extensions share a single set of `libggml*.so`. In static builds, each extension links llama.cpp's ggml static libs (symbols are hidden, so no runtime conflicts).
+- **Unified ggml 0.9.8 across all extensions** - Both static and dynamic builds now use llama.cpp's ggml 0.9.8 consistently for llama.cpp, whisper.cpp, and stable-diffusion.cpp (previously SD vendored ggml 0.9.5). In dynamic builds, all extensions share a single set of `libggml*.so`. In static builds, each extension links llama.cpp's ggml static libs (symbols are hidden, so no runtime conflicts). Set `SD_USE_VENDORED_GGML=1` (env var or CMake option) to link stable-diffusion against its own vendored ggml instead; available via `manage.py build --sd-vendored-ggml`
+
+- **Unified GPU backend flags** - All components (llama.cpp, whisper.cpp, stable-diffusion.cpp) now use the same `GGML_*` environment variables for backend selection. Removed the separate `--sd-metal` / `SD_METAL` flag; `GGML_METAL` (and `--metal`) now applies to all components consistently
 
 ### Added
 
@@ -60,6 +62,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Fixed
 
+- **`_build_info.py` reported wrong ggml version for stable-diffusion** -- `stable_diffusion_cpp_ggml_version` was read from SD's vendored source (0.9.5) instead of the actually-linked llama.cpp ggml (0.9.8). `_write_build_info` now uses llama.cpp's ggml version as canonical for all backends, unless `SD_USE_VENDORED_GGML=1` is set
 - **`common.pxd` struct field mismatch** -- `flash_attn` (bool) corrected to `flash_attn_type` (enum) matching upstream `common_params`
 - **`llama.pxd` missing field** -- Added `embeddings` bool to `llama_context_params` (was causing struct layout mismatch)
 
