@@ -557,9 +557,6 @@ The changelog says "120+ tests verified" for dynamic mode, but the test matrix f
 **5. `SD_USE_VENDORED_GGML` adds configuration complexity**
 A new build option with interactions across static/dynamic modes, multiple backends, and two different ggml versions. The common case (unified ggml) is simple, but the vendored path is an edge case that may not get exercised regularly and could rot.
 
-**6. `build_info_stub.cpp` added but may be dead code**
-The diff shows a new `helpers/build_info_stub.cpp` (+87 lines). Worth verifying this is actually needed -- if it's a leftover from an intermediate commit, it's unnecessary bloat.
-
 ### Recommendation
 
 The public API refactor and correctness fixes alone justify merging. The core risk is the breaking API change (`CommonParams` removal) -- if there are downstream consumers, they need a migration path. If this is primarily internal/personal use, the tradeoff is clearly positive.

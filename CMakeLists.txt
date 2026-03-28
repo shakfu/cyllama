@@ -599,7 +599,7 @@ endfunction()
 # llama_cpp extension
 # JSON schema -> GBNF grammar conversion is now handled by pure Python
 # (src/cyllama/json_schema_to_grammar.py), eliminating the need for
-# json-schema-to-grammar.cpp, json-partial.cpp, json_schema.cpp, and build_info_stub.cpp.
+# json-schema-to-grammar.cpp, json-partial.cpp, and json_schema.cpp.
 set(_LLAMA_CPP_SOURCES
     "${CMAKE_SOURCE_DIR}/src/cyllama/llama/helpers/tts.cpp"
 )
