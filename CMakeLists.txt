@@ -726,9 +726,8 @@ if(WITH_WHISPER)
     endif()
 endif()
 
-# stable_diffusion extension - uses SD's own ggml libraries, not llama.cpp's
+# stable_diffusion extension
 if(WITH_STABLEDIFFUSION)
-    # Transpile Cython to C++
     cython_transpile("${CMAKE_SOURCE_DIR}/src/cyllama/sd/stable_diffusion.pyx"
         LANGUAGE CXX
         OUTPUT_VARIABLE sd_cpp
@@ -740,86 +739,99 @@ if(WITH_STABLEDIFFUSION)
         "${CMAKE_SOURCE_DIR}/src/cyllama/sd/stb_impl.cpp"
     )
 
-    target_include_directories(stable_diffusion PRIVATE
-        ${COMMON_INCLUDE_DIRS}
-    )
-
-    target_link_directories(stable_diffusion PRIVATE "${SDCPP_LIB}")
-
-    # SD-specific ggml libraries (from stable-diffusion.cpp build)
-    static_lib(LIB_SD_GGML "${SDCPP_LIB}" "ggml")
-    static_lib(LIB_SD_GGML_BASE "${SDCPP_LIB}" "ggml-base")
-    static_lib(LIB_SD_GGML_CPU "${SDCPP_LIB}" "ggml-cpu")
-
-    set(SD_STATIC_LIBS
-        "${LIB_SD}"
-        "${LIB_SD_GGML}"
-        "${LIB_SD_GGML_BASE}"
-        "${LIB_SD_GGML_CPU}"
-    )
-
-    # Backend-specific ggml libraries for SD
-    # Note: SD has its own Metal support that may differ from llama.cpp's GGML_METAL setting
-    # We check if SD's ggml-metal library exists to determine if SD was built with Metal
-    static_lib(_SD_METAL_LIB_PATH "${SDCPP_LIB}" "ggml-metal")
-    if(EXISTS "${_SD_METAL_LIB_PATH}")
-        message(STATUS "SD Metal library found: ${_SD_METAL_LIB_PATH}")
-        static_lib(LIB_SD_GGML_BLAS "${SDCPP_LIB}" "ggml-blas")
-        static_lib(LIB_SD_GGML_METAL "${SDCPP_LIB}" "ggml-metal")
-        list(APPEND SD_STATIC_LIBS "${LIB_SD_GGML_BLAS}" "${LIB_SD_GGML_METAL}")
-    else()
-        message(STATUS "SD Metal library not found, SD will use CPU backend")
-    endif()
-
-    # Check for CUDA support in SD
-    static_lib(_SD_CUDA_LIB_PATH "${SDCPP_LIB}" "ggml-cuda")
-    if(EXISTS "${_SD_CUDA_LIB_PATH}")
-        list(APPEND SD_STATIC_LIBS "${_SD_CUDA_LIB_PATH}")
-    endif()
-
-    # Check for Vulkan support in SD
-    static_lib(_SD_VULKAN_LIB_PATH "${SDCPP_LIB}" "ggml-vulkan")
-    if(EXISTS "${_SD_VULKAN_LIB_PATH}")
-        list(APPEND SD_STATIC_LIBS "${_SD_VULKAN_LIB_PATH}")
-    endif()
-
-    # Check for HIP/ROCm support in SD
-    static_lib(_SD_HIP_LIB_PATH "${SDCPP_LIB}" "ggml-hip")
-    if(EXISTS "${_SD_HIP_LIB_PATH}")
-        list(APPEND SD_STATIC_LIBS "${_SD_HIP_LIB_PATH}")
-    endif()
-
-    # Check for SYCL support in SD
-    static_lib(_SD_SYCL_LIB_PATH "${SDCPP_LIB}" "ggml-sycl")
-    if(EXISTS "${_SD_SYCL_LIB_PATH}")
-        list(APPEND SD_STATIC_LIBS "${_SD_SYCL_LIB_PATH}")
-    endif()
-
-    # Check for OpenCL support in SD
-    static_lib(_SD_OPENCL_LIB_PATH "${SDCPP_LIB}" "ggml-opencl")
-    if(EXISTS "${_SD_OPENCL_LIB_PATH}")
-        list(APPEND SD_STATIC_LIBS "${_SD_OPENCL_LIB_PATH}")
-    endif()
-
-    target_link_libraries(stable_diffusion PRIVATE ${SD_STATIC_LIBS} ${SYSTEM_LIBS})
+    target_include_directories(stable_diffusion PRIVATE ${COMMON_INCLUDE_DIRS})
 
     target_compile_options(stable_diffusion PRIVATE ${CXX_COMPILE_OPTIONS})
-
     set_target_properties(stable_diffusion PROPERTIES
         CXX_STANDARD 17
         CXX_STANDARD_REQUIRED ON
     )
 
-    if(APPLE)
-        set_target_properties(stable_diffusion PROPERTIES
-            BUILD_RPATH "${SDCPP_LIB}"
-            INSTALL_RPATH "@loader_path"
+    if(WITH_DYLIB)
+        # Dynamic: link libstable-diffusion.a statically, reuse llama.cpp's ggml dylibs
+        target_link_directories(stable_diffusion PRIVATE "${SDCPP_LIB}" ${COMMON_LINK_DIRS})
+        target_link_libraries(stable_diffusion PRIVATE
+            "${LIB_SD}"
+            ${DYLIBS}
+            ${SYSTEM_LIBS}
         )
-    elseif(UNIX)
-        set_target_properties(stable_diffusion PROPERTIES
-            BUILD_RPATH "${SDCPP_LIB}"
-            INSTALL_RPATH "$ORIGIN"
+
+        # Dylibs live in cyllama/llama/, SD installs to cyllama/sd/
+        if(APPLE)
+            set_target_properties(stable_diffusion PROPERTIES
+                BUILD_RPATH "${LLAMACPP_DYLIB_DIR};${SDCPP_LIB}"
+                INSTALL_RPATH "@loader_path/../llama"
+            )
+        elseif(UNIX)
+            set_target_properties(stable_diffusion PROPERTIES
+                BUILD_RPATH "${LLAMACPP_DYLIB_DIR};${SDCPP_LIB}"
+                INSTALL_RPATH "$ORIGIN/../llama"
+            )
+        endif()
+    else()
+        # Static: use SD's own ggml libraries
+        target_link_directories(stable_diffusion PRIVATE "${SDCPP_LIB}")
+
+        static_lib(LIB_SD_GGML "${SDCPP_LIB}" "ggml")
+        static_lib(LIB_SD_GGML_BASE "${SDCPP_LIB}" "ggml-base")
+        static_lib(LIB_SD_GGML_CPU "${SDCPP_LIB}" "ggml-cpu")
+
+        set(SD_STATIC_LIBS
+            "${LIB_SD}"
+            "${LIB_SD_GGML}"
+            "${LIB_SD_GGML_BASE}"
+            "${LIB_SD_GGML_CPU}"
         )
+
+        # Backend-specific ggml libraries for SD
+        static_lib(_SD_METAL_LIB_PATH "${SDCPP_LIB}" "ggml-metal")
+        if(EXISTS "${_SD_METAL_LIB_PATH}")
+            message(STATUS "SD Metal library found: ${_SD_METAL_LIB_PATH}")
+            static_lib(LIB_SD_GGML_BLAS "${SDCPP_LIB}" "ggml-blas")
+            static_lib(LIB_SD_GGML_METAL "${SDCPP_LIB}" "ggml-metal")
+            list(APPEND SD_STATIC_LIBS "${LIB_SD_GGML_BLAS}" "${LIB_SD_GGML_METAL}")
+        else()
+            message(STATUS "SD Metal library not found, SD will use CPU backend")
+        endif()
+
+        static_lib(_SD_CUDA_LIB_PATH "${SDCPP_LIB}" "ggml-cuda")
+        if(EXISTS "${_SD_CUDA_LIB_PATH}")
+            list(APPEND SD_STATIC_LIBS "${_SD_CUDA_LIB_PATH}")
+        endif()
+
+        static_lib(_SD_VULKAN_LIB_PATH "${SDCPP_LIB}" "ggml-vulkan")
+        if(EXISTS "${_SD_VULKAN_LIB_PATH}")
+            list(APPEND SD_STATIC_LIBS "${_SD_VULKAN_LIB_PATH}")
+        endif()
+
+        static_lib(_SD_HIP_LIB_PATH "${SDCPP_LIB}" "ggml-hip")
+        if(EXISTS "${_SD_HIP_LIB_PATH}")
+            list(APPEND SD_STATIC_LIBS "${_SD_HIP_LIB_PATH}")
+        endif()
+
+        static_lib(_SD_SYCL_LIB_PATH "${SDCPP_LIB}" "ggml-sycl")
+        if(EXISTS "${_SD_SYCL_LIB_PATH}")
+            list(APPEND SD_STATIC_LIBS "${_SD_SYCL_LIB_PATH}")
+        endif()
+
+        static_lib(_SD_OPENCL_LIB_PATH "${SDCPP_LIB}" "ggml-opencl")
+        if(EXISTS "${_SD_OPENCL_LIB_PATH}")
+            list(APPEND SD_STATIC_LIBS "${_SD_OPENCL_LIB_PATH}")
+        endif()
+
+        target_link_libraries(stable_diffusion PRIVATE ${SD_STATIC_LIBS} ${SYSTEM_LIBS})
+
+        if(APPLE)
+            set_target_properties(stable_diffusion PROPERTIES
+                BUILD_RPATH "${SDCPP_LIB}"
+                INSTALL_RPATH "@loader_path"
+            )
+        elseif(UNIX)
+            set_target_properties(stable_diffusion PROPERTIES
+                BUILD_RPATH "${SDCPP_LIB}"
+                INSTALL_RPATH "$ORIGIN"
+            )
+        endif()
     endif()
 
     install(TARGETS stable_diffusion DESTINATION "cyllama/sd")

@@ -23,6 +23,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 - **`make dist` builds sdist and wheel separately** - Changed from `uv build` (which builds the wheel from the sdist in an isolated directory) to `uv build --sdist && uv build --wheel` (which builds the wheel directly from the source tree). This ensures pre-built binaries like `vector.so` (sqlite-vector) are included in wheels via the CMake `install()` rule
 
+- **Unified ggml for stable-diffusion.cpp in dynamic builds** - In `WITH_DYLIB` mode, the SD extension now links `libstable-diffusion.a` statically and resolves ggml symbols from llama.cpp's shared libraries (ggml 0.9.8) instead of bundling its own vendored copy (ggml 0.9.5). Eliminates duplicate ggml code in dynamic wheels. Static builds are unchanged.
+
 ### Added
 
 - **Dynamic Linking Support** - New `WITH_DYLIB=1` build mode links against pre-built llama.cpp shared libraries from GitHub releases instead of building from source
