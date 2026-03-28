@@ -10,10 +10,6 @@ from libcpp.string cimport string as std_string
 from libcpp.set cimport set as std_set
 from libcpp cimport bool as cppbool  # required for func pointer sigs
 
-# JSON schema to grammar C helper
-cdef extern from "helpers/json_schema.h":
-    char* json_schema_to_grammar_wrapper(const char* json_schema_str, bint force_gbnf)
-
 cimport ggml
 cimport llama
 cimport gguf
@@ -2946,7 +2942,13 @@ def ggml_commit() -> str:
     return ggml.ggml_commit().decode()
 
 def ggml_backend_load_all():
-    ggml.ggml_backend_load_all()
+    import os
+    # ggml's default search paths (executable dir, cwd) won't find backend
+    # libs bundled alongside this extension. Always search our package dir.
+    # In static builds this harmlessly finds nothing; in dynamic builds it
+    # discovers the libggml-cpu-*.so / .dylib variants.
+    _dir = os.path.dirname(os.path.abspath(__file__))
+    ggml.ggml_backend_load_all_from_path(_dir.encode())
 
 def ggml_backend_reg_count() -> int:
     """Return the number of registered backend registries."""
@@ -3422,78 +3424,8 @@ cdef class GGUFContext:
 # JSON Schema to Grammar API
 #------------------------------------------------------------------------------
 
-def json_schema_to_grammar(schema, force_gbnf=False):
-    """
-    Convert a JSON schema to GBNF grammar for constrained generation.
-
-    This allows you to generate JSON output that conforms to a specific schema.
-
-    Args:
-        schema: JSON schema as dict or JSON string
-        force_gbnf: Force GBNF format (default: False)
-
-    Returns:
-        str: GBNF grammar string that can be used with llama.cpp
-
-    Raises:
-        ValueError: If schema is invalid or cannot be converted
-
-    Example:
-        ```python
-        # Define a schema for structured output
-        schema = {
-            "type": "object",
-            "properties": {
-                "name": {"type": "string"},
-                "age": {"type": "integer"},
-                "email": {"type": "string"}
-            },
-            "required": ["name", "age"]
-        }
-
-        # Convert to grammar
-        grammar = json_schema_to_grammar(schema)
-
-        # Use with model
-        result = model.generate(
-            prompt="Extract person info: John is 30 years old, email: john@example.com",
-            grammar=grammar
-        )
-        # result will be valid JSON matching the schema
-        ```
-    """
-    import json
-
-    # Convert schema to JSON string if it's a dict
-    if isinstance(schema, dict):
-        schema_str = json.dumps(schema)
-    elif isinstance(schema, str):
-        # Validate it's valid JSON
-        try:
-            json.loads(schema)
-            schema_str = schema
-        except json.JSONDecodeError as e:
-            raise ValueError(f"Invalid JSON schema string: {e}")
-    else:
-        raise TypeError(f"Schema must be dict or str, got {type(schema)}")
-
-    # Convert to bytes for C function
-    cdef bytes schema_bytes = schema_str.encode('utf-8')
-    cdef const char* schema_c = schema_bytes
-
-    # Call C wrapper
-    cdef char* grammar_c = json_schema_to_grammar_wrapper(schema_c, force_gbnf)
-
-    if grammar_c == NULL:
-        raise ValueError("Failed to convert JSON schema to grammar. Check that the schema is valid.")
-
-    try:
-        # Convert C string to Python string
-        grammar_str = grammar_c.decode('utf-8')
-        return grammar_str
-    finally:
-        # Free the C string
-        free(grammar_c)
+# Re-export from pure Python implementation (no C++ dependency)
+from cyllama.json_schema_to_grammar import json_schema_to_grammar
 
 
 # =============================================================================

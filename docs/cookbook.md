@@ -213,6 +213,8 @@ print(json.dumps(result, indent=2))
 
 ### Constrained Generation with JSON Schema
 
+Uses the pure Python JSON schema-to-grammar converter (vendored from llama.cpp, no C++ dependency).
+
 ```python
 from cyllama import LLM, GenerationConfig
 from cyllama.llama.llama_cpp import json_schema_to_grammar

@@ -68,6 +68,8 @@ The pre-built release exports `libllama`, `libggml*`, and `libmtmd`, but **not**
 - Rewrite bindings to only use the 233 public `_llama_*` C symbols
 - Still build `libcommon` from source (partially defeats the purpose)
 
+> **Resolved**: All `libcommon` dependencies have been eliminated. Sampling, download, n-gram cache, speculative decoding, and batch helpers were rewritten to use public C APIs or pure Python. JSON schema-to-grammar conversion was replaced with a vendored pure Python implementation. `libcommon.a` is no longer linked in either static or dynamic builds.
+
 ### 3. C++ Name Mangling Fragility
 Pre-built dylibs export C++ mangled symbols (`__Z*` names) that are compiler-specific and break across compiler versions, standard library versions, or optimization levels. The 233 `_llama_*` C symbols are stable; the C++ symbols are not. The `common.pxd` and `sampling.pxd` bindings depend on C++ APIs.
 
@@ -105,9 +107,13 @@ The Cython wrappers bind **both** the public C API (`llama.h` -- 233 stable symb
 
 This buys less than it initially appears, because the common/sampling layer is where most of the Cython binding complexity lives.
 
+> **Resolved**: The hybrid approach is no longer needed. All `libcommon` dependencies have been eliminated -- the extension uses only public C APIs and pure Python. Dynamic linking (`make build-dynamic`) now works without any source compilation of llama.cpp. Only `libcpp-httplib.a` is still built from source for the embedded server.
+
 ---
 
 ## C-API-Only Refactor: Detailed Scoping
+
+> **Status: Complete.** All internal C++ API dependencies have been eliminated. The extension now uses only public C APIs (`llama.h`, `ggml.h`, `gguf.h`, `mtmd.h`) and pure Python. Dynamic linking is fully operational via `make build-dynamic`. The analysis below is retained for historical reference.
 
 A refactor to eliminate internal C++ API dependencies would make dynamic linking viable. This section maps exactly which internal symbols are used, what public API replacements exist, and what must be reimplemented in Python.
 
@@ -342,8 +348,10 @@ REMAINING PUBLIC C API DEPENDENCIES (all dynamically linkable):
 
 CUSTOM C++ (compiled into extension, no external dependency):
   tts.cpp        -- TTS helpers
-  json_schema.cpp -- JSON schema helpers
   mongoose.c     -- HTTP server
+
+PURE PYTHON (no C++ compilation needed):
+  json_schema_to_grammar.py -- JSON schema to GBNF grammar conversion
 ```
 
 This state enables dynamic linking for the core use case (inference, sampling, tokenization, multimodal) with speculative decoding as an opt-in feature requiring from-source build.
@@ -456,7 +464,8 @@ WITH_DYLIB=1 LLAMACPP_DYLIB_DIR=/path/to/llama-b8522 make build
 
 **How it works**:
 - Core llama.cpp libraries (`libllama`, `libggml*`, `libmtmd`) linked as shared libraries
-- `libcommon.a` and `libcpp-httplib.a` still built from source (not in releases, needed for speculative decoding and embedded server)
+- `libcpp-httplib.a` still built from source (not in releases, needed for embedded server)
+- `libcommon.a` is no longer linked -- JSON schema-to-grammar conversion is now pure Python, and all other `common.h` dependencies have been eliminated
 - Shared libraries copied alongside extension modules (`cyllama/llama/`) so `@loader_path`/`$ORIGIN` RPATH resolves correctly
 - Whisper and Stable Diffusion remain statically linked (no pre-built releases available)
 

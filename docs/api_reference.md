@@ -1003,7 +1003,7 @@ ctx.write_to_file("modified.gguf")
 
 ### JSON Schema to Grammar
 
-Convert JSON schemas to llama.cpp grammar format for structured output.
+Convert JSON schemas to llama.cpp grammar format for structured output. This is implemented in pure Python (vendored from llama.cpp) with no C++ dependency.
 
 ```python
 from cyllama.llama.llama_cpp import json_schema_to_grammar

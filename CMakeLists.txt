@@ -213,7 +213,29 @@ if(WITH_DYLIB)
     endif()
 
     # Core llama.cpp shared libraries (available in release tarballs)
-    set(_DYLIB_NAMES llama ggml ggml-base ggml-cpu ggml-rpc mtmd)
+    set(_DYLIB_NAMES llama ggml ggml-base ggml-rpc mtmd)
+
+    # ggml-cpu: on Linux, release tarballs ship arch-specific variants only
+    # (e.g. libggml-cpu-haswell.so) with no base libggml-cpu.so
+    if(APPLE)
+        list(APPEND _DYLIB_NAMES ggml-cpu)
+    else()
+        file(GLOB _cpu_variants "${LLAMACPP_DYLIB_DIR}/libggml-cpu-*.${_dylib_ext}")
+        if(_cpu_variants)
+            # Install all CPU variants for runtime dispatch
+            list(APPEND DYLIB_FILES ${_cpu_variants})
+            # Link against the first variant to resolve symbols (e.g. ggml_threadpool_free)
+            list(GET _cpu_variants 0 _cpu_link_lib)
+            list(APPEND DYLIBS "${_cpu_link_lib}")
+            foreach(_v ${_cpu_variants})
+                get_filename_component(_vn ${_v} NAME)
+                message(STATUS "  Found CPU variant: ${_vn}")
+            endforeach()
+        else()
+            # Fallback: try the base name (self-built may have it)
+            list(APPEND _DYLIB_NAMES ggml-cpu)
+        endif()
+    endif()
 
     # Backend-specific shared libraries
     if(GGML_METAL)
@@ -235,9 +257,14 @@ if(WITH_DYLIB)
         )
         if(_found_${_name})
             list(APPEND DYLIBS "${_found_${_name}}")
-            # Install only the soname file (e.g. libllama.0.dylib) -- that's what @rpath references
-            # Skip the full-version file (libllama.0.0.8522.dylib) and the bare name (libllama.dylib)
-            file(GLOB _soname "${LLAMACPP_DYLIB_DIR}/lib${_name}.[0-9].${_dylib_ext}")
+            # Install the soname file -- that's what @rpath / $ORIGIN references at runtime
+            # macOS soname format: libllama.0.dylib
+            # Linux soname format: libllama.so.0
+            if(APPLE)
+                file(GLOB _soname "${LLAMACPP_DYLIB_DIR}/lib${_name}.[0-9].${_dylib_ext}")
+            else()
+                file(GLOB _soname "${LLAMACPP_DYLIB_DIR}/lib${_name}.${_dylib_ext}.[0-9]")
+            endif()
             if(_soname)
                 list(APPEND DYLIB_FILES ${_soname})
             else()
@@ -266,7 +293,6 @@ else()
     # -------------------------------------------------------------------------
     message(STATUS "WITH_DYLIB: OFF (static linking)")
 
-    static_lib(LIB_CPP_HTTPLIB "${LLAMACPP_LIB}" "cpp-httplib")
     static_lib(LIB_LLAMA "${LLAMACPP_LIB}" "llama")
     static_lib(LIB_GGML "${LLAMACPP_LIB}" "ggml")
     static_lib(LIB_GGML_BASE "${LLAMACPP_LIB}" "ggml-base")
@@ -274,13 +300,19 @@ else()
     static_lib(LIB_MTMD "${LLAMACPP_LIB}" "mtmd")
 
     list(APPEND STATIC_LIBS
-        "${LIB_CPP_HTTPLIB}"
         "${LIB_LLAMA}"
         "${LIB_GGML}"
         "${LIB_GGML_BASE}"
         "${LIB_GGML_CPU}"
         "${LIB_MTMD}"
     )
+
+    # cpp-httplib: optional, only needed for embedded server
+    static_lib(LIB_CPP_HTTPLIB "${LLAMACPP_LIB}" "cpp-httplib")
+    if(EXISTS "${LIB_CPP_HTTPLIB}")
+        list(APPEND STATIC_LIBS "${LIB_CPP_HTTPLIB}")
+        message(STATUS "  Static lib (embedded server): ${LIB_CPP_HTTPLIB}")
+    endif()
 
     # Backend-specific static libraries
     if(GGML_METAL)
@@ -491,13 +523,21 @@ function(add_cython_extension target_name pyx_file)
             list(APPEND _GGML_LIBS ${LIB_GGML_OPENCL})
         endif()
 
-        set(_OTHER_LIBS ${LIB_CPP_HTTPLIB} ${LIB_LLAMA} ${LIB_MTMD})
+        set(_OTHER_LIBS ${LIB_LLAMA} ${LIB_MTMD})
+        if(EXISTS "${LIB_CPP_HTTPLIB}")
+            list(APPEND _OTHER_LIBS ${LIB_CPP_HTTPLIB})
+        endif()
         if(WITH_WHISPER)
             list(APPEND _OTHER_LIBS ${LIB_WHISPER_COMMON} ${LIB_WHISPER})
         endif()
 
+        set(_WHOLE_ARCHIVE_LIBS ${_GGML_LIBS})
+        if(EXISTS "${LIB_CPP_HTTPLIB}")
+            list(APPEND _WHOLE_ARCHIVE_LIBS ${LIB_CPP_HTTPLIB})
+        endif()
+
         target_link_libraries(${target_name} PRIVATE
-            -Wl,--whole-archive ${_GGML_LIBS} ${LIB_CPP_HTTPLIB} -Wl,--no-whole-archive
+            -Wl,--whole-archive ${_WHOLE_ARCHIVE_LIBS} -Wl,--no-whole-archive
             ${_OTHER_LIBS}
             ${SYSTEM_LIBS}
         )
@@ -550,22 +590,12 @@ endfunction()
 # -----------------------------------------------------------------------------
 
 # llama_cpp extension
-# json-schema-to-grammar and json-partial provide JSON schema -> GBNF grammar conversion.
-# These are compiled from llama.cpp source (self-contained, only depend on nlohmann/json).
-# build_info_stub provides stub definitions for common.h build_info/logging symbols that
-# json-schema-to-grammar.cpp pulls in transitively via common.h includes.
-set(_LLAMA_SRC "${CMAKE_SOURCE_DIR}/build/llama.cpp/common")
+# JSON schema -> GBNF grammar conversion is now handled by pure Python
+# (src/cyllama/json_schema_to_grammar.py), eliminating the need for
+# json-schema-to-grammar.cpp, json-partial.cpp, json_schema.cpp, and build_info_stub.cpp.
 set(_LLAMA_CPP_SOURCES
     "${CMAKE_SOURCE_DIR}/src/cyllama/llama/helpers/tts.cpp"
-    "${CMAKE_SOURCE_DIR}/src/cyllama/llama/helpers/json_schema.cpp"
-    "${CMAKE_SOURCE_DIR}/src/cyllama/llama/helpers/build_info_stub.cpp"
 )
-if(EXISTS "${_LLAMA_SRC}/json-schema-to-grammar.cpp")
-    list(APPEND _LLAMA_CPP_SOURCES
-        "${_LLAMA_SRC}/json-schema-to-grammar.cpp"
-        "${_LLAMA_SRC}/json-partial.cpp"
-    )
-endif()
 
 add_cython_extension(llama_cpp
     "${CMAKE_SOURCE_DIR}/src/cyllama/llama/llama_cpp.pyx"

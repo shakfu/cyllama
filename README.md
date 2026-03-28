@@ -455,7 +455,7 @@ metadata = ctx.get_all_metadata()
 print(f"Model: {metadata['general.name']}")
 ```
 
-**Structured Output** - JSON schema to grammar conversion:
+**Structured Output** - JSON schema to grammar conversion (pure Python, no C++ dependency):
 
 ```python
 from cyllama.llama.llama_cpp import json_schema_to_grammar
@@ -613,11 +613,15 @@ To build `cyllama` from source:
 ### Build Commands
 
 ```sh
-# Full build (default)
+# Full build (default: static linking, builds llama.cpp from source)
 make              # Build dependencies + editable install
+
+# Dynamic linking (downloads pre-built llama.cpp release)
+make build-dynamic  # No source compilation needed for llama.cpp
 
 # Build wheel for distribution
 make wheel        # Creates wheel in dist/
+make dist         # Creates sdist + wheel in dist/
 
 # Backend-specific builds
 make build-metal  # macOS Metal (default on macOS)
