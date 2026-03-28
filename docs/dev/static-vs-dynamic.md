@@ -474,3 +474,56 @@ WITH_DYLIB=1 LLAMACPP_DYLIB_DIR=/path/to/llama-b8522 make build
 - Extension size: 1.6 MB (vs ~15 MB with static linking)
 - All tests passing (120+ tests verified including generation, batching, chat, context)
 - Pre-built dylibs installed alongside extension: `libllama.dylib` (2.3MB), `libggml*.dylib`, `libmtmd.dylib`
+
+---
+
+## Dev Branch Merge Analysis (2026-03-28)
+
+Analysis of the `dev` branch changes since v0.1.21 (`main`), covering 11 commits, 63 files, +27,633 / -4,246 lines.
+
+### Pros of merging
+
+**1. Eliminates internal C++ API fragility (the biggest win)**
+The branch removes all `common.h`/`libcommon` dependencies (~4200 lines deleted across `.pxd`/`.pxi` files). The extension now uses only public C APIs (`llama.h`, `ggml.h`, `gguf.h`, `mtmd.h`). This decouples cyllama from llama.cpp internals that break between releases, making future upstream version bumps significantly safer.
+
+**2. Enables dynamic linking**
+`WITH_DYLIB=1` is a new build mode that links against pre-built llama.cpp releases instead of compiling from source. Extension size drops from ~15 MB to ~1.6 MB, build time goes from minutes to seconds. This unblocks faster iteration and simpler CI.
+
+**3. Build system consistency**
+- Unified ggml across all three backends (was 0.9.5 for SD, 0.9.8 for the rest)
+- Unified GPU backend flags (`GGML_*` applies to all components, no more separate `SD_METAL`)
+- sqlite-vector vendored and built from CMake (no more `.gitignore` hacks for pre-built binaries)
+
+**4. Correctness fixes**
+- `flash_attn` / `flash_attn_type` struct mismatch (potential silent memory corruption)
+- Missing `embeddings` field in `llama_context_params` (struct layout mismatch)
+- `_build_info.py` reporting wrong ggml version for SD
+
+**5. Cleaner test suite**
+Removed ~220 lines of tests for `CommonParams`/`CommonParamsSampling` that tested deleted wrapper classes. The remaining tests cover the actual public API.
+
+### Cons of merging
+
+**1. Large, multi-concern changeset**
+11 commits touching 63 files with +27,633 / -4,246 lines. Hard to review atomically or bisect if something regresses. The changes span: API refactor, build system overhaul, new build mode, vendored dependency, bug fixes. Ideally these would be separate PRs, but they're intertwined (e.g., public API refactor enables dynamic linking).
+
+**2. Removed public Python API surface**
+`CommonParams`, `CommonParamsSampling`, `CommonSampler` are gone. Any downstream code using these classes will break. The replacements (`LlamaContextParams`, `LlamaSampler`) exist but the migration isn't documented beyond the changelog. This is a breaking change that warrants a minor version bump.
+
+**3. Vendored sqlite-vector adds ~24K lines of C to the repo**
+The `thirdparty/sqlite-vector/` directory includes `sqlite3.h` (13,773 lines) and several SIMD distance implementations. This bloats the repo and creates a maintenance burden for keeping it in sync with upstream. The alternative (the pre-built binary approach) had its own problems, but the tradeoff is worth being explicit about.
+
+**4. Dynamic linking is new and lightly validated**
+The changelog says "120+ tests verified" for dynamic mode, but the test matrix for dynamic linking across platforms (Linux, macOS) and backends (CUDA, Vulkan) is likely thin. A regression in dynamic mode could be hard to catch without CI coverage.
+
+**5. `SD_USE_VENDORED_GGML` adds configuration complexity**
+A new build option with interactions across static/dynamic modes, multiple backends, and two different ggml versions. The common case (unified ggml) is simple, but the vendored path is an edge case that may not get exercised regularly and could rot.
+
+**6. `build_info_stub.cpp` added but may be dead code**
+The diff shows a new `helpers/build_info_stub.cpp` (+87 lines). Worth verifying this is actually needed -- if it's a leftover from an intermediate commit, it's unnecessary bloat.
+
+### Recommendation
+
+The public API refactor and correctness fixes alone justify merging. The core risk is the breaking API change (`CommonParams` removal) -- if there are downstream consumers, they need a migration path. If this is primarily internal/personal use, the tradeoff is clearly positive.
+
+One option to reduce risk: merge now, tag as `0.2.0` (semver minor bump for breaking changes), and add CI for the dynamic linking path before advertising it as stable.
