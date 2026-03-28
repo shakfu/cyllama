@@ -8,7 +8,7 @@ valid tool call syntax, ensuring 100% reliable parsing.
 from typing import List, Dict, Any
 from enum import Enum
 
-from ..llama.llama_cpp import json_schema_to_grammar
+from ..utils.json_schema_to_grammar import json_schema_to_grammar
 from .tools import Tool
 
 

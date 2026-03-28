@@ -19,7 +19,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Changed
 
-- **Pure Python JSON schema-to-grammar** - Replaced the C++ `json-schema-to-grammar.cpp`/`json-partial.cpp` compilation with a vendored pure Python implementation (`src/cyllama/json_schema_to_grammar.py`). This eliminates the need for a llama.cpp source checkout during `build-dynamic`, removes `build_info_stub.cpp` and `json_schema.cpp` C++ helpers, and simplifies the CMake build for both static and dynamic linking modes
+- **Pure Python JSON schema-to-grammar** - Replaced the C++ `json-schema-to-grammar.cpp`/`json-partial.cpp` compilation with a vendored pure Python implementation (`src/cyllama/utils/json_schema_to_grammar.py`). This eliminates the need for a llama.cpp source checkout during `build-dynamic`, removes `build_info_stub.cpp` and `json_schema.cpp` C++ helpers, and simplifies the CMake build for both static and dynamic linking modes. Agents import directly from `cyllama.utils` instead of going through the llama layer
 
 - **`make dist` builds sdist and wheel separately** - Changed from `uv build` (which builds the wheel from the sdist in an isolated directory) to `uv build --sdist && uv build --wheel` (which builds the wheel directly from the source tree). This ensures pre-built binaries like `vector.so` (sqlite-vector) are included in wheels via the CMake `install()` rule
 

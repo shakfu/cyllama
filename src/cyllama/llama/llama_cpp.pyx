@@ -3425,7 +3425,7 @@ cdef class GGUFContext:
 #------------------------------------------------------------------------------
 
 # Re-export from pure Python implementation (no C++ dependency)
-from cyllama.json_schema_to_grammar import json_schema_to_grammar
+from cyllama.utils.json_schema_to_grammar import json_schema_to_grammar
 
 
 # =============================================================================
