@@ -84,8 +84,7 @@ $(LLAMACPP)/dynamic/libllama.dylib:
 	@$(SYSTEM_PYTHON) scripts/manage.py build --llama-cpp --dynamic --deps-only
 
 dist: $(LIBLAMMA)
-	@uv build --sdist
-	@uv build --wheel
+	@uv build
 
 build-wheel: $(LIBLAMMA)
 	@uv build --wheel

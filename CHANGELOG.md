@@ -21,9 +21,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 - **Pure Python JSON schema-to-grammar** - Replaced the C++ `json-schema-to-grammar.cpp`/`json-partial.cpp` compilation with a vendored pure Python implementation (`src/cyllama/utils/json_schema_to_grammar.py`). This eliminates the need for a llama.cpp source checkout during `build-dynamic`, removes `build_info_stub.cpp` and `json_schema.cpp` C++ helpers, and simplifies the CMake build for both static and dynamic linking modes. Agents import directly from `cyllama.utils` instead of going through the llama layer
 
-- **`make dist` builds sdist and wheel separately** - Changed from `uv build` (which builds the wheel from the sdist in an isolated directory) to `uv build --sdist && uv build --wheel` (which builds the wheel directly from the source tree). This ensures pre-built binaries like `vector.so` (sqlite-vector) are included in wheels via the CMake `install()` rule
+- **Vendored sqlite-vector source** - sqlite-vector is now vendored in `thirdparty/sqlite-vector/` and built from source via CMake as part of the normal build, replacing the separate `manage.py` build step and pre-built binary copy. This ensures `vector.so` is always included in wheels (including `uv build` sdist→wheel pipeline) without needing `.gitignore` hacks or binary files in the source tree
 
-- **Unified ggml for stable-diffusion.cpp in dynamic builds** - In `WITH_DYLIB` mode, the SD extension now links `libstable-diffusion.a` statically and resolves ggml symbols from llama.cpp's shared libraries (ggml 0.9.8) instead of bundling its own vendored copy (ggml 0.9.5). Eliminates duplicate ggml code in dynamic wheels. Static builds are unchanged.
+- **Unified ggml 0.9.8 across all extensions** - Both static and dynamic builds now use llama.cpp's ggml 0.9.8 consistently for llama.cpp, whisper.cpp, and stable-diffusion.cpp (previously SD vendored ggml 0.9.5). In dynamic builds, all extensions share a single set of `libggml*.so`. In static builds, each extension links llama.cpp's ggml static libs (symbols are hidden, so no runtime conflicts).
 
 ### Added
 

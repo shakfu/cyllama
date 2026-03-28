@@ -51,6 +51,7 @@ sdist.include = [
     "thirdparty/stable-diffusion.cpp/lib",
     "thirdparty/whisper.cpp/include",
     "thirdparty/whisper.cpp/lib",
+    "thirdparty/sqlite-vector",
 ]
 sdist.exclude = [
     "bin/",

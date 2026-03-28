@@ -769,66 +769,49 @@ if(WITH_STABLEDIFFUSION)
             )
         endif()
     else()
-        # Static: use SD's own ggml libraries
-        target_link_directories(stable_diffusion PRIVATE "${SDCPP_LIB}")
+        # Static: link libstable-diffusion.a with llama.cpp's ggml (unified ggml 0.9.8)
+        target_link_directories(stable_diffusion PRIVATE "${SDCPP_LIB}" ${COMMON_LINK_DIRS})
 
-        static_lib(LIB_SD_GGML "${SDCPP_LIB}" "ggml")
-        static_lib(LIB_SD_GGML_BASE "${SDCPP_LIB}" "ggml-base")
-        static_lib(LIB_SD_GGML_CPU "${SDCPP_LIB}" "ggml-cpu")
+        set(SD_GGML_LIBS ${LIB_GGML} ${LIB_GGML_BASE} ${LIB_GGML_CPU})
+        if(GGML_METAL)
+            list(APPEND SD_GGML_LIBS ${LIB_GGML_BLAS} ${LIB_GGML_METAL})
+        endif()
+        if(GGML_CUDA)
+            list(APPEND SD_GGML_LIBS ${LIB_GGML_CUDA})
+        endif()
+        if(GGML_VULKAN)
+            list(APPEND SD_GGML_LIBS ${LIB_GGML_VULKAN})
+        endif()
+        if(GGML_HIP)
+            list(APPEND SD_GGML_LIBS ${LIB_GGML_HIP})
+        endif()
+        if(GGML_SYCL)
+            list(APPEND SD_GGML_LIBS ${LIB_GGML_SYCL})
+        endif()
+        if(GGML_OPENCL)
+            list(APPEND SD_GGML_LIBS ${LIB_GGML_OPENCL})
+        endif()
 
-        set(SD_STATIC_LIBS
-            "${LIB_SD}"
-            "${LIB_SD_GGML}"
-            "${LIB_SD_GGML_BASE}"
-            "${LIB_SD_GGML_CPU}"
-        )
-
-        # Backend-specific ggml libraries for SD
-        static_lib(_SD_METAL_LIB_PATH "${SDCPP_LIB}" "ggml-metal")
-        if(EXISTS "${_SD_METAL_LIB_PATH}")
-            message(STATUS "SD Metal library found: ${_SD_METAL_LIB_PATH}")
-            static_lib(LIB_SD_GGML_BLAS "${SDCPP_LIB}" "ggml-blas")
-            static_lib(LIB_SD_GGML_METAL "${SDCPP_LIB}" "ggml-metal")
-            list(APPEND SD_STATIC_LIBS "${LIB_SD_GGML_BLAS}" "${LIB_SD_GGML_METAL}")
+        if(UNIX AND NOT APPLE)
+            target_link_libraries(stable_diffusion PRIVATE
+                -Wl,--whole-archive ${SD_GGML_LIBS} -Wl,--no-whole-archive
+                "${LIB_SD}"
+                ${SYSTEM_LIBS}
+            )
         else()
-            message(STATUS "SD Metal library not found, SD will use CPU backend")
+            target_link_libraries(stable_diffusion PRIVATE
+                "${LIB_SD}" ${SD_GGML_LIBS} ${SYSTEM_LIBS}
+            )
         endif()
-
-        static_lib(_SD_CUDA_LIB_PATH "${SDCPP_LIB}" "ggml-cuda")
-        if(EXISTS "${_SD_CUDA_LIB_PATH}")
-            list(APPEND SD_STATIC_LIBS "${_SD_CUDA_LIB_PATH}")
-        endif()
-
-        static_lib(_SD_VULKAN_LIB_PATH "${SDCPP_LIB}" "ggml-vulkan")
-        if(EXISTS "${_SD_VULKAN_LIB_PATH}")
-            list(APPEND SD_STATIC_LIBS "${_SD_VULKAN_LIB_PATH}")
-        endif()
-
-        static_lib(_SD_HIP_LIB_PATH "${SDCPP_LIB}" "ggml-hip")
-        if(EXISTS "${_SD_HIP_LIB_PATH}")
-            list(APPEND SD_STATIC_LIBS "${_SD_HIP_LIB_PATH}")
-        endif()
-
-        static_lib(_SD_SYCL_LIB_PATH "${SDCPP_LIB}" "ggml-sycl")
-        if(EXISTS "${_SD_SYCL_LIB_PATH}")
-            list(APPEND SD_STATIC_LIBS "${_SD_SYCL_LIB_PATH}")
-        endif()
-
-        static_lib(_SD_OPENCL_LIB_PATH "${SDCPP_LIB}" "ggml-opencl")
-        if(EXISTS "${_SD_OPENCL_LIB_PATH}")
-            list(APPEND SD_STATIC_LIBS "${_SD_OPENCL_LIB_PATH}")
-        endif()
-
-        target_link_libraries(stable_diffusion PRIVATE ${SD_STATIC_LIBS} ${SYSTEM_LIBS})
 
         if(APPLE)
             set_target_properties(stable_diffusion PROPERTIES
-                BUILD_RPATH "${SDCPP_LIB}"
+                BUILD_RPATH "${LLAMACPP_LIB};${SDCPP_LIB}"
                 INSTALL_RPATH "@loader_path"
             )
         elseif(UNIX)
             set_target_properties(stable_diffusion PROPERTIES
-                BUILD_RPATH "${SDCPP_LIB}"
+                BUILD_RPATH "${LLAMACPP_LIB};${SDCPP_LIB}"
                 INSTALL_RPATH "$ORIGIN"
             )
         endif()
@@ -838,21 +821,42 @@ if(WITH_STABLEDIFFUSION)
 endif()
 
 # -----------------------------------------------------------------------------
-# Install sqlite-vector extension (built by manage.py, not a CMake target)
+# sqlite-vector extension (vendored source, built as shared library)
 # -----------------------------------------------------------------------------
 
+set(_VECTOR_SRC_DIR "${CMAKE_SOURCE_DIR}/thirdparty/sqlite-vector")
+set(_VECTOR_SOURCES
+    "${_VECTOR_SRC_DIR}/sqlite-vector.c"
+    "${_VECTOR_SRC_DIR}/distance-cpu.c"
+    "${_VECTOR_SRC_DIR}/distance-avx2.c"
+    "${_VECTOR_SRC_DIR}/distance-avx512.c"
+    "${_VECTOR_SRC_DIR}/distance-sse2.c"
+    "${_VECTOR_SRC_DIR}/distance-neon.c"
+    "${_VECTOR_SRC_DIR}/distance-rvv.c"
+)
+
+add_library(vector SHARED ${_VECTOR_SOURCES})
+target_include_directories(vector PRIVATE "${_VECTOR_SRC_DIR}")
+target_compile_options(vector PRIVATE -O3 -fPIC -Wall -Wextra -Wno-unused-parameter)
+
+# No lib prefix — output is vector.so / vector.dylib / vector.dll
+set_target_properties(vector PROPERTIES
+    PREFIX ""
+    C_STANDARD 11
+)
+
 if(APPLE)
-    set(_vector_ext "vector.dylib")
+    set_target_properties(vector PROPERTIES
+        SUFFIX ".dylib"
+        LINK_FLAGS "-dynamiclib -undefined dynamic_lookup"
+    )
 elseif(WIN32)
-    set(_vector_ext "vector.dll")
+    set_target_properties(vector PROPERTIES SUFFIX ".dll")
 else()
-    set(_vector_ext "vector.so")
+    set_target_properties(vector PROPERTIES SUFFIX ".so")
 endif()
 
-set(_vector_path "${CMAKE_SOURCE_DIR}/src/cyllama/rag/${_vector_ext}")
-if(EXISTS "${_vector_path}")
-    install(FILES "${_vector_path}" DESTINATION "cyllama/rag")
-endif()
+install(TARGETS vector DESTINATION "cyllama/rag")
 
 # -----------------------------------------------------------------------------
 # Install shared libraries (WITH_DYLIB mode)
