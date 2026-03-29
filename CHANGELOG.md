@@ -17,6 +17,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+### Fixed
+
+- **GPU dynamic wheel builds** - Fixed `--dynamic` mode silently downloading CPU-only pre-built binaries for CUDA, ROCm, and SYCL on Linux, where no matching pre-built GPU release assets exist. The build now falls back to compiling llama.cpp from source with `BUILD_SHARED_LIBS=ON` and collects the resulting shared libraries (including backend-specific libs like `libggml-cuda.so`) into the dynamic lib directory
+
+- **argparse crash with `--sd-vendored-ggml`** - Fixed `TypeError: 'NoneType' object is not subscriptable` when `opt()` was called with `None` as the short option name, which caused `manage.py` to crash on Python 3.10+ in CI
+
+- **GPU wheel duplication** - Shared libraries are no longer installed twice in Linux GPU wheels. CMake `install()` of dynamic libs is now macOS-only (`@loader_path`); on Linux, `auditwheel` handles vendoring into `<pkg>.libs/` via `LD_LIBRARY_PATH`. This roughly halves CUDA wheel size (81MB -> 45MB compressed)
+
+- **auditwheel glibc compatibility for CUDA wheels** - Added `--plat manylinux_2_35_x86_64` to the CUDA `auditwheel repair` command to accommodate newer glibc symbols from source-built shared libraries, matching the other GPU variants
+
 ### Changed
 
 - **Pure Python JSON schema-to-grammar** - Replaced the C++ `json-schema-to-grammar.cpp`/`json-partial.cpp` compilation with a vendored pure Python implementation (`src/cyllama/utils/json_schema_to_grammar.py`). This eliminates the need for a llama.cpp source checkout during `build-dynamic`, removes `build_info_stub.cpp` and `json_schema.cpp` C++ helpers, and simplifies the CMake build for both static and dynamic linking modes. Agents import directly from `cyllama.utils` instead of going through the llama layer
@@ -28,6 +38,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 - **Unified GPU backend flags** - All components (llama.cpp, whisper.cpp, stable-diffusion.cpp) now use the same `GGML_*` environment variables for backend selection. Removed the separate `--sd-metal` / `SD_METAL` flag; `GGML_METAL` (and `--metal`) now applies to all components consistently
 
 ### Added
+
+- **GPU wheel CI workflow** (`build-gpu-wheels.yml`) - Builds CUDA, ROCm, SYCL, and Vulkan wheels via `cibuildwheel` with both static and dynamic linking modes. Dynamic wheel sizes: CUDA 45MB, ROCm 51MB, Vulkan 28MB, SYCL 84MB. Static wheel sizes: CUDA 148MB, ROCm 170MB, Vulkan 79MB, SYCL 48MB.
 
 - **Dynamic Linking Support** - New `WITH_DYLIB=1` build mode links against pre-built llama.cpp shared libraries from GitHub releases instead of building from source
   - Set `LLAMACPP_DYLIB_DIR=/path/to/release` to point at a pre-built release tarball

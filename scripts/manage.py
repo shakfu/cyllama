@@ -1051,6 +1051,80 @@ class LlamaCppBuilder(Builder):
         # Copy backend-specific libraries
         self.copy_backend_libs()
 
+    def build_shared(self) -> None:
+        """Build from source with BUILD_SHARED_LIBS=ON and copy to dynamic/.
+
+        Unlike build() which copies individual .a files via copy_lib(),
+        this collects .so/.dylib files directly from the cmake build tree
+        since BUILD_SHARED_LIBS=ON produces shared libs, not static ones.
+        """
+        # Run the cmake configure + build steps (headers + cmake config + cmake build)
+        # but skip the copy_lib steps which look for .a files.
+        if not self.src_dir.exists():
+            self.setup()
+        self.log.info(f"building {self.name} (shared)")
+        self.prefix.mkdir(exist_ok=True)
+        self.include.mkdir(exist_ok=True)
+        self.glob_copy(self.src_dir / "common", self.include, patterns=["*.h", "*.hpp"])
+        self.glob_copy(self.src_dir / "ggml" / "include", self.include, patterns=["*.h"])
+        self.glob_copy(self.src_dir / "include", self.include, patterns=["*.h"])
+        jinja_include = self.include / "jinja"
+        jinja_include.mkdir(exist_ok=True)
+        self.glob_copy(self.src_dir / "common" / "jinja", jinja_include, patterns=["*.h", "*.hpp"])
+        nlohmann_include = self.include / "nlohmann"
+        nlohmann_include.mkdir(exist_ok=True)
+        self.glob_copy(self.src_dir / "vendor" / "nlohmann", nlohmann_include, patterns=["*.hpp"])
+        self.glob_copy(self.src_dir / "tools" / "mtmd", self.include, patterns=["*.h"])
+
+        backend_options = self.get_backend_cmake_options()
+        self.cmake_config(
+            src_dir=self.src_dir,
+            build_dir=self.build_dir,
+            BUILD_SHARED_LIBS=True,
+            CMAKE_POSITION_INDEPENDENT_CODE=True,
+            LLAMA_CURL=False,
+            LLAMA_OPENSSL=True,
+            LLAMA_BUILD_SERVER=False,
+            LLAMA_BUILD_TESTS=False,
+            LLAMA_BUILD_EXAMPLES=False,
+            **backend_options,
+        )
+        self.cmake_build_targets(
+            build_dir=self.build_dir, targets=["llama", "common", "mtmd"], release=True
+        )
+
+        # Collect all shared libs from the build tree into dynamic/
+        self.dynamic_lib.mkdir(parents=True, exist_ok=True)
+        if PLATFORM == "Darwin":
+            patterns = ["**/*.dylib"]
+        elif PLATFORM == "Windows":
+            patterns = ["**/*.dll"]
+        else:
+            patterns = ["**/*.so", "**/*.so.*"]
+
+        copied = 0
+        seen = set()
+        for pattern in patterns:
+            for item in self.build_dir.glob(pattern):
+                if item.name in seen:
+                    continue
+                seen.add(item.name)
+                dest = self.dynamic_lib / item.name
+                if dest.exists() or dest.is_symlink():
+                    dest.unlink()
+                # Dereference symlinks so wheels get real files
+                if item.is_symlink():
+                    real = item.resolve()
+                    if real.exists():
+                        shutil.copy2(str(real), str(dest))
+                    else:
+                        continue
+                else:
+                    shutil.copy2(str(item), str(dest))
+                copied += 1
+                self.log.info(f"  {item.name} -> dynamic/")
+        self.log.info(f"Installed {copied} shared libs to {self.dynamic_lib}")
+
     # -----------------------------------------------------------------
     # Dynamic linking: download pre-built release
     # -----------------------------------------------------------------
@@ -1060,7 +1134,7 @@ class LlamaCppBuilder(Builder):
         """Directory for pre-built shared libraries."""
         return self.prefix / "dynamic"
 
-    def _release_asset_name(self) -> str:
+    def _release_asset_name(self) -> str | None:
         """Get the expected release asset filename for the current platform."""
         version = self.version
         system = PLATFORM.lower()
@@ -1074,11 +1148,13 @@ class LlamaCppBuilder(Builder):
             arch_tag = "x64" if arch in ("x86_64", "amd64") else arch
             # Check for GPU backends
             if getenv("GGML_CUDA", default=False):
-                return f"llama-{version}-bin-ubuntu-x64.tar.gz"  # CUDA builds not in filename
+                return None  # No pre-built CUDA release for Linux
+            elif getenv("GGML_SYCL", default=False):
+                return None  # No pre-built SYCL release for Linux
             elif getenv("GGML_VULKAN", default=False):
                 return f"llama-{version}-bin-ubuntu-vulkan-{arch_tag}.tar.gz"
             elif getenv("GGML_HIP", default=False):
-                return f"llama-{version}-bin-ubuntu-rocm-7.2-{arch_tag}.tar.gz"
+                return None  # Build from source to match installed ROCm version
             else:
                 return f"llama-{version}-bin-ubuntu-{arch_tag}.tar.gz"
         elif system == "windows":
@@ -1796,7 +1872,7 @@ class Application(ShellCmd, metaclass=MetaCommander):
     @opt("-a", "--all", "build all")
     @opt("-D", "--deps-only", "build dependencies only, skip editable install")
     @opt("--dynamic", "-Y", "download pre-built llama.cpp release (dynamic linking)")
-    @opt("--sd-vendored-ggml", None, "link stable-diffusion against its own vendored ggml")
+    @option("--sd-vendored-ggml", help="link stable-diffusion against its own vendored ggml", action="store_true")
     @option(
         "--llama-version",
         default=LLAMACPP_VERSION,
@@ -1875,7 +1951,16 @@ class Application(ShellCmd, metaclass=MetaCommander):
             version = builder_versions.get(BuilderClass)
             builder = BuilderClass(version=version)
             if args.dynamic and BuilderClass == LlamaCppBuilder:
-                builder.download_release()
+                asset = builder._release_asset_name()
+                if asset is None:
+                    self.log.warning(
+                        "No pre-built dynamic release available for this "
+                        "platform/backend combo, building from source with "
+                        "BUILD_SHARED_LIBS=ON"
+                    )
+                    builder.build_shared()
+                else:
+                    builder.download_release()
             else:
                 builder.build()
 

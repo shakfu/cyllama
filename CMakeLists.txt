@@ -254,6 +254,15 @@ if(WITH_DYLIB)
     if(GGML_VULKAN)
         list(APPEND _DYLIB_NAMES ggml-vulkan)
     endif()
+    if(GGML_SYCL)
+        list(APPEND _DYLIB_NAMES ggml-sycl)
+    endif()
+    if(GGML_HIP)
+        list(APPEND _DYLIB_NAMES ggml-hip)
+    endif()
+    if(GGML_OPENCL)
+        list(APPEND _DYLIB_NAMES ggml-opencl)
+    endif()
 
     foreach(_name ${_DYLIB_NAMES})
         # Find the actual library file (follow symlinks)
@@ -888,9 +897,12 @@ install(TARGETS vector DESTINATION "cyllama/rag")
 # -----------------------------------------------------------------------------
 
 if(WITH_DYLIB AND DYLIB_FILES)
-    # Install dylibs alongside the extension so @loader_path / $ORIGIN resolves
-    # All files are concrete (symlinks dereferenced by manage.py during download)
-    install(FILES ${DYLIB_FILES} DESTINATION "cyllama/llama")
+    # On macOS: install dylibs alongside the extension so @loader_path resolves.
+    # On Linux: auditwheel vendors and patches libs into <pkg>.libs/, so skip
+    # this install to avoid duplication in the wheel.
+    if(APPLE)
+        install(FILES ${DYLIB_FILES} DESTINATION "cyllama/llama")
+    endif()
     foreach(_f ${DYLIB_FILES})
         get_filename_component(_n "${_f}" NAME)
         message(STATUS "  dylib: ${_n}")
