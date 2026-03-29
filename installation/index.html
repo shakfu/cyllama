@@ -441,10 +441,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#pre-built-gpu-wheels" class="md-nav__link">
+  <a href="#gpu-accelerated-variants" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Pre-built GPU Wheels
+        GPU-Accelerated Variants
       
     </span>
   </a>
@@ -1699,10 +1699,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#pre-built-gpu-wheels" class="md-nav__link">
+  <a href="#gpu-accelerated-variants" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Pre-built GPU Wheels
+        GPU-Accelerated Variants
       
     </span>
   </a>
@@ -2029,28 +2029,30 @@
 <h2 id="install-from-pypi">Install from PyPI<a class="headerlink" href="#install-from-pypi" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>pip<span class="w"> </span>install<span class="w"> </span>cyllama
 </code></pre></div>
-<h3 id="pre-built-gpu-wheels">Pre-built GPU Wheels<a class="headerlink" href="#pre-built-gpu-wheels" title="Permanent link">&para;</a></h3>
-<p>Pre-built GPU wheels are available from <a href="https://github.com/shakfu/cyllama/releases">GitHub Releases</a> (too large for PyPI):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># NVIDIA GPU (CUDA 12.4) -- replace cp310 with your Python version</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>pip<span class="w"> </span>install<span class="w"> </span>https://github.com/shakfu/cyllama/releases/download/0.1.21/cyllama_cuda12-0.1.21-cp310-cp310-manylinux2014_x86_64.manylinux_2_17_x86_64.whl
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="c1"># AMD GPU (ROCm 6.3, requires glibc &gt;= 2.35)</span>
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>pip<span class="w"> </span>install<span class="w"> </span>https://github.com/shakfu/cyllama/releases/download/0.1.21/cyllama_rocm-0.1.21-cp310-cp310-manylinux_2_31_x86_64.manylinux_2_35_x86_64.whl
+<h3 id="gpu-accelerated-variants">GPU-Accelerated Variants<a class="headerlink" href="#gpu-accelerated-variants" title="Permanent link">&para;</a></h3>
+<p>GPU variants are available on PyPI as separate packages (dynamically linked, Linux x86_64 only):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>pip<span class="w"> </span>install<span class="w"> </span>cyllama-cuda12<span class="w">   </span><span class="c1"># NVIDIA GPU (CUDA 12.4)</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>pip<span class="w"> </span>install<span class="w"> </span>cyllama-rocm<span class="w">     </span><span class="c1"># AMD GPU (ROCm 6.3, requires glibc &gt;= 2.35)</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>pip<span class="w"> </span>install<span class="w"> </span>cyllama-sycl<span class="w">     </span><span class="c1"># Intel GPU (oneAPI SYCL 2025.3)</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>pip<span class="w"> </span>install<span class="w"> </span>cyllama-vulkan<span class="w">   </span><span class="c1"># Cross-platform GPU (Vulkan)</span>
 </code></pre></div>
-<p>All GPU variants install the same <code>cyllama</code> Python package -- only the compiled backend differs.</p>
+<p>All GPU variants install the same <code>cyllama</code> Python package -- only the compiled backend differs. Install one at a time (they replace each other). GPU variants require the corresponding driver/runtime installed on your system.</p>
+<p>You can verify which backend is active after installation:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>python<span class="w"> </span>-m<span class="w"> </span>cyllama<span class="w"> </span>info
+</code></pre></div>
 <h2 id="build-from-source">Build from Source<a class="headerlink" href="#build-from-source" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># Clone repository</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/shakfu/cyllama.git
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="nb">cd</span><span class="w"> </span>cyllama
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="c1"># Build everything (downloads llama.cpp, whisper.cpp, builds cyllama)</span>
-<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>make
-<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>
-<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="c1"># Download a test model</span>
-<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>make<span class="w"> </span>download
-<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>
-<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="c1"># Verify installation</span>
-<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;from cyllama import complete; print(&#39;OK&#39;)&quot;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># Clone repository</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/shakfu/cyllama.git
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="nb">cd</span><span class="w"> </span>cyllama
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="c1"># Build everything (downloads llama.cpp, whisper.cpp, builds cyllama)</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>make
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="c1"># Download a test model</span>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>make<span class="w"> </span>download
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="c1"># Verify installation</span>
+<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;from cyllama import complete; print(&#39;OK&#39;)&quot;</span>
 </code></pre></div>
 <h2 id="build-options">Build Options<a class="headerlink" href="#build-options" title="Permanent link">&para;</a></h2>
 <h3 id="default-build">Default Build<a class="headerlink" href="#default-build" title="Permanent link">&para;</a></h3>
@@ -2059,29 +2061,32 @@
 <li><strong>macOS</strong>: Metal (Apple GPU)</li>
 <li><strong>Linux</strong>: CPU-only (GPU backends optional)</li>
 </ul>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>make<span class="w"> </span>build
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>make<span class="w"> </span>build
 </code></pre></div>
 <h3 id="gpu-backends">GPU Backends<a class="headerlink" href="#gpu-backends" title="Permanent link">&para;</a></h3>
 <p>Build with specific GPU support:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># NVIDIA CUDA</span>
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>make<span class="w"> </span>build-cuda
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="c1"># Vulkan (cross-platform)</span>
-<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>make<span class="w"> </span>build-vulkan
-<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>
-<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="c1"># CPU only (no GPU)</span>
-<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>make<span class="w"> </span>build-cpu
-<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>
-<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="c1"># Multiple backends</span>
-<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a><span class="nv">GGML_CUDA</span><span class="o">=</span><span class="m">1</span><span class="w"> </span><span class="nv">GGML_VULKAN</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>make<span class="w"> </span>build
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># NVIDIA CUDA</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>make<span class="w"> </span>build-cuda
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="c1"># Vulkan (cross-platform)</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>make<span class="w"> </span>build-vulkan
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="c1"># CPU only (no GPU)</span>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>make<span class="w"> </span>build-cpu
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="c1"># Multiple backends</span>
+<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a><span class="nv">GGML_CUDA</span><span class="o">=</span><span class="m">1</span><span class="w"> </span><span class="nv">GGML_VULKAN</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>make<span class="w"> </span>build
 </code></pre></div>
 <p>See <a href="../build_backends/">Building with Different Backends</a> for detailed GPU setup instructions.</p>
 <h3 id="optional-components">Optional Components<a class="headerlink" href="#optional-components" title="Permanent link">&para;</a></h3>
 <p><strong>Stable Diffusion support:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nv">WITH_STABLEDIFFUSION</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>make<span class="w"> </span>build
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nv">WITH_STABLEDIFFUSION</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>make<span class="w"> </span>build
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="c1"># Use stable-diffusion.cpp&#39;s own vendored ggml (instead of llama.cpp&#39;s)</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="nv">SD_USE_VENDORED_GGML</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>make<span class="w"> </span>build
 </code></pre></div>
 <p><strong>Whisper support</strong> (included by default):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>make<span class="w"> </span>build<span class="w">  </span><span class="c1"># Whisper is built automatically</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>make<span class="w"> </span>build<span class="w">  </span><span class="c1"># Whisper is built automatically</span>
 </code></pre></div>
 <h2 id="build-system">Build System<a class="headerlink" href="#build-system" title="Permanent link">&para;</a></h2>
 <p>Cyllama uses <strong>scikit-build-core</strong> with CMake for building the Cython extensions. The build process:</p>
@@ -2124,79 +2129,79 @@
 </table>
 <h3 id="wheel-distribution">Wheel Distribution<a class="headerlink" href="#wheel-distribution" title="Permanent link">&para;</a></h3>
 <p>To build a distributable wheel:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>make<span class="w"> </span>wheel
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="c1"># Creates wheel in dist/</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>make<span class="w"> </span>wheel
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="c1"># Creates wheel in dist/</span>
 </code></pre></div>
 <p>The wheel includes all compiled extensions and can be installed on systems with matching platform/Python version.</p>
 <h2 id="installing-models">Installing Models<a class="headerlink" href="#installing-models" title="Permanent link">&para;</a></h2>
 <h3 id="llm-models-gguf-format">LLM Models (GGUF format)<a class="headerlink" href="#llm-models-gguf-format" title="Permanent link">&para;</a></h3>
 <p>Download the default test model:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>make<span class="w"> </span>download
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="c1"># Downloads: models/Llama-3.2-1B-Instruct-Q8_0.gguf</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>make<span class="w"> </span>download
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="c1"># Downloads: models/Llama-3.2-1B-Instruct-Q8_0.gguf</span>
 </code></pre></div>
 <p>Or download manually from <a href="https://huggingface.co/models?search=gguf">Hugging Face</a>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="c1"># Example: Download a model</span>
-<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>curl<span class="w"> </span>-L<span class="w"> </span>-o<span class="w"> </span>models/llama.gguf<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="w">  </span><span class="s2">&quot;https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q8_0.gguf&quot;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="c1"># Example: Download a model</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>curl<span class="w"> </span>-L<span class="w"> </span>-o<span class="w"> </span>models/llama.gguf<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="w">  </span><span class="s2">&quot;https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q8_0.gguf&quot;</span>
 </code></pre></div>
 <h3 id="whisper-models">Whisper Models<a class="headerlink" href="#whisper-models" title="Permanent link">&para;</a></h3>
 <p>Download from <a href="https://huggingface.co/ggerganov/whisper.cpp">ggerganov/whisper.cpp</a>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>curl<span class="w"> </span>-L<span class="w"> </span>-o<span class="w"> </span>models/ggml-base.en.bin<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="w">  </span><span class="s2">&quot;https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin&quot;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>curl<span class="w"> </span>-L<span class="w"> </span>-o<span class="w"> </span>models/ggml-base.en.bin<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="w">  </span><span class="s2">&quot;https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin&quot;</span>
 </code></pre></div>
 <h3 id="stable-diffusion-models">Stable Diffusion Models<a class="headerlink" href="#stable-diffusion-models" title="Permanent link">&para;</a></h3>
 <p>Download SDXL Turbo or other SD models in GGUF or safetensors format.</p>
 <h2 id="verification">Verification<a class="headerlink" href="#verification" title="Permanent link">&para;</a></h2>
 <h3 id="test-installation">Test Installation<a class="headerlink" href="#test-installation" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="c1"># Run test suite</span>
-<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>make<span class="w"> </span><span class="nb">test</span>
-<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>
-<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="c1"># Quick smoke test</span>
-<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;</span>
-<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a><span class="s2">from cyllama import complete</span>
-<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a><span class="s2">print(complete(&#39;Hello&#39;, model_path=&#39;models/Llama-3.2-1B-Instruct-Q8_0.gguf&#39;, max_tokens=10))</span>
-<a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a><span class="s2">&quot;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="c1"># Run test suite</span>
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>make<span class="w"> </span><span class="nb">test</span>
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="c1"># Quick smoke test</span>
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;</span>
+<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a><span class="s2">from cyllama import complete</span>
+<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a><span class="s2">print(complete(&#39;Hello&#39;, model_path=&#39;models/Llama-3.2-1B-Instruct-Q8_0.gguf&#39;, max_tokens=10))</span>
+<a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a><span class="s2">&quot;</span>
 </code></pre></div>
 <h3 id="check-gpu-support">Check GPU Support<a class="headerlink" href="#check-gpu-support" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.llama.llama_cpp</span><span class="w"> </span><span class="kn">import</span> <span class="n">ggml_backend_load_all</span>
-<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>
-<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="c1"># Load all available backends</span>
-<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="n">ggml_backend_load_all</span><span class="p">()</span>
-<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>
-<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a><span class="c1"># Check what&#39;s available</span>
-<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.llama.llama_cpp</span><span class="w"> </span><span class="kn">import</span> <span class="n">LlamaModel</span><span class="p">,</span> <span class="n">LlamaModelParams</span>
-<a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a><span class="n">params</span> <span class="o">=</span> <span class="n">LlamaModelParams</span><span class="p">()</span>
-<a id="__codelineno-15-9" name="__codelineno-15-9" href="#__codelineno-15-9"></a><span class="n">params</span><span class="o">.</span><span class="n">n_gpu_layers</span> <span class="o">=</span> <span class="mi">99</span>  <span class="c1"># Request GPU offload</span>
-<a id="__codelineno-15-10" name="__codelineno-15-10" href="#__codelineno-15-10"></a><span class="c1"># If GPU is available, layers will be offloaded</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.llama.llama_cpp</span><span class="w"> </span><span class="kn">import</span> <span class="n">ggml_backend_load_all</span>
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="c1"># Load all available backends</span>
+<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="n">ggml_backend_load_all</span><span class="p">()</span>
+<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>
+<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a><span class="c1"># Check what&#39;s available</span>
+<a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.llama.llama_cpp</span><span class="w"> </span><span class="kn">import</span> <span class="n">LlamaModel</span><span class="p">,</span> <span class="n">LlamaModelParams</span>
+<a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a><span class="n">params</span> <span class="o">=</span> <span class="n">LlamaModelParams</span><span class="p">()</span>
+<a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a><span class="n">params</span><span class="o">.</span><span class="n">n_gpu_layers</span> <span class="o">=</span> <span class="mi">99</span>  <span class="c1"># Request GPU offload</span>
+<a id="__codelineno-16-10" name="__codelineno-16-10" href="#__codelineno-16-10"></a><span class="c1"># If GPU is available, layers will be offloaded</span>
 </code></pre></div>
 <h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h2>
 <h3 id="no-module-named-cyllama">"No module named 'cyllama'"<a class="headerlink" href="#no-module-named-cyllama" title="Permanent link">&para;</a></h3>
 <p>Make sure you're in the project directory or have installed cyllama:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="nb">cd</span><span class="w"> </span>cyllama
-<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>make<span class="w">  </span><span class="c1"># or: uv pip install -e .</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="nb">cd</span><span class="w"> </span>cyllama
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>make<span class="w">  </span><span class="c1"># or: uv pip install -e .</span>
 </code></pre></div>
 <h3 id="build-errors">Build Errors<a class="headerlink" href="#build-errors" title="Permanent link">&para;</a></h3>
 <p>Clean and rebuild:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>make<span class="w"> </span>reset<span class="w">  </span><span class="c1"># Full clean</span>
-<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>make<span class="w"> </span>build
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>make<span class="w"> </span>reset<span class="w">  </span><span class="c1"># Full clean</span>
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>make<span class="w"> </span>build
 </code></pre></div>
 <h3 id="metal-not-working-macos">Metal Not Working (macOS)<a class="headerlink" href="#metal-not-working-macos" title="Permanent link">&para;</a></h3>
 <p>Ensure Xcode Command Line Tools are installed:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>xcode-select<span class="w"> </span>--install
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>xcode-select<span class="w"> </span>--install
 </code></pre></div>
 <h3 id="cuda-not-found-linux">CUDA Not Found (Linux)<a class="headerlink" href="#cuda-not-found-linux" title="Permanent link">&para;</a></h3>
 <p>Add CUDA to your PATH:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">PATH</span><span class="o">=</span>/usr/local/cuda/bin:<span class="nv">$PATH</span>
-<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">LD_LIBRARY_PATH</span><span class="o">=</span>/usr/local/cuda/lib64:<span class="nv">$LD_LIBRARY_PATH</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">PATH</span><span class="o">=</span>/usr/local/cuda/bin:<span class="nv">$PATH</span>
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">LD_LIBRARY_PATH</span><span class="o">=</span>/usr/local/cuda/lib64:<span class="nv">$LD_LIBRARY_PATH</span>
 </code></pre></div>
 <h2 id="development-install">Development Install<a class="headerlink" href="#development-install" title="Permanent link">&para;</a></h2>
 <p>For development with editable install:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/shakfu/cyllama.git
-<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a><span class="nb">cd</span><span class="w"> </span>cyllama
-<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>make<span class="w">  </span><span class="c1"># Builds dependencies and installs in editable mode</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/shakfu/cyllama.git
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a><span class="nb">cd</span><span class="w"> </span>cyllama
+<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a>make<span class="w">  </span><span class="c1"># Builds dependencies and installs in editable mode</span>
 </code></pre></div>
 <p>For manual editable install (after dependencies are built):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
 </code></pre></div>
 <h2 id="next-steps">Next Steps<a class="headerlink" href="#next-steps" title="Permanent link">&para;</a></h2>
 <ul>

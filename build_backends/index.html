@@ -2061,6 +2061,7 @@
 <a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>python3<span class="w"> </span>scripts/manage.py<span class="w"> </span>build<span class="w"> </span>--llama-cpp<span class="w"> </span>--cuda<span class="w">  </span><span class="c1"># Enables both Metal and CUDA</span>
 </code></pre></div>
 <h3 id="available-backend-flags">Available Backend Flags<a class="headerlink" href="#available-backend-flags" title="Permanent link">&para;</a></h3>
+<p>These flags apply uniformly to all components (llama.cpp, whisper.cpp, stable-diffusion.cpp):</p>
 <table>
 <thead>
 <tr>
@@ -2099,6 +2100,11 @@
 <td><code>GGML_OPENCL</code></td>
 <td><code>0</code></td>
 <td>OpenCL (Adreno, mobile GPUs)</td>
+</tr>
+<tr>
+<td><code>SD_USE_VENDORED_GGML</code></td>
+<td><code>0</code></td>
+<td>Link stable-diffusion against its own vendored ggml instead of llama.cpp's</td>
 </tr>
 </tbody>
 </table>

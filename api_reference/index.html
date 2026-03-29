@@ -4211,7 +4211,7 @@
 </code></pre></div>
 <hr />
 <h3 id="json-schema-to-grammar">JSON Schema to Grammar<a class="headerlink" href="#json-schema-to-grammar" title="Permanent link">&para;</a></h3>
-<p>Convert JSON schemas to llama.cpp grammar format for structured output.</p>
+<p>Convert JSON schemas to llama.cpp grammar format for structured output. This is implemented in pure Python (vendored from llama.cpp) with no C++ dependency.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-46-1" name="__codelineno-46-1" href="#__codelineno-46-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.llama.llama_cpp</span><span class="w"> </span><span class="kn">import</span> <span class="n">json_schema_to_grammar</span>
 <a id="__codelineno-46-2" name="__codelineno-46-2" href="#__codelineno-46-2"></a>
 <a id="__codelineno-46-3" name="__codelineno-46-3" href="#__codelineno-46-3"></a><span class="n">schema</span> <span class="o">=</span> <span class="p">{</span>

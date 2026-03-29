@@ -1,0 +1,2810 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="High-performance Python library for local AI inference">
+      
+      
+        <meta name="author" content="S. Alireza">
+      
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Static Linking vs Dynamic Linking Analysis - cyllama</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#static-linking-vs-dynamic-linking-analysis" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="cyllama" class="md-header__button md-logo" aria-label="cyllama" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            cyllama
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Static Linking vs Dynamic Linking Analysis
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/shakfu/cyllama" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    shakfu/cyllama
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="cyllama" class="md-nav__button md-logo" aria-label="cyllama" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    cyllama
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/shakfu/cyllama" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    shakfu/cyllama
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../intro/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Introduction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quick Start
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../summary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Summary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Llama.cpp
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Llama.cpp
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user_guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cookbook/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cookbook
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../build_backends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build Backends
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../context_caching/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context Caching
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../server_usage_examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Server Usage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Whisper.cpp
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Whisper.cpp
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../whisper/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Whisper Integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stable Diffusion
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Stable Diffusion
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../stable_diffusion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stable Diffusion Integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agents
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Agents
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents_overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agent Framework
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_11" >
+        
+          
+          <label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RAG
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_11">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    RAG
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../rag_overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../rag_embedder/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Embedder
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../rag_vectorstore/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VectorStore
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../rag_text_processing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Text Processing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../rag_pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RAG Pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../rag_advanced/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Advanced Features
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_12" >
+        
+          
+          <label class="md-nav__link" for="__nav_12" id="__nav_12_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_12">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api_reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#current-strategy-static-linking-cython-wrappers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Current Strategy: Static Linking + Cython Wrappers
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Current Strategy: Static Linking + Cython Wrappers">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#build-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Build Flow
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#alternative-strategy-dynamic-linking-against-pre-built-releases" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Alternative Strategy: Dynamic Linking Against Pre-built Releases
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Alternative Strategy: Dynamic Linking Against Pre-built Releases">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-the-pre-built-releases-contain" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the Pre-built Releases Contain
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exported-symbols" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exported Symbols
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pros-of-dynamic-linking" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pros of Dynamic Linking
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Pros of Dynamic Linking">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-dramatically-faster-builds" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Dramatically Faster Builds
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-decoupled-upgrade-cycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Decoupled Upgrade Cycle
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-smaller-wheel-sizes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Smaller Wheel Sizes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-shared-memory-footprint" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Shared Memory Footprint
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-simpler-ci-matrix" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Simpler CI Matrix
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6-eliminates-builder-complexity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Eliminates Builder Complexity
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cons-of-dynamic-linking" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cons of Dynamic Linking
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Cons of Dynamic Linking">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-no-headers-shipped-in-releases" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. No Headers Shipped in Releases
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-libcommon-not-in-release" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. libcommon Not in Release
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-c-name-mangling-fragility" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. C++ Name Mangling Fragility
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-runtime-dependency-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Runtime Dependency Management
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-abi-compatibility-risk" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. ABI Compatibility Risk
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6-backend-coverage-gaps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Backend Coverage Gaps
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#7-whisper-and-stable-diffusion-dont-apply" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Whisper and Stable Diffusion Don't Apply
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#8-whole-archive-replaced-by-dlopen-complexity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. --whole-archive Replaced by dlopen Complexity
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-core-tension" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Core Tension
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#possible-hybrid-approach" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Possible Hybrid Approach
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#c-api-only-refactor-detailed-scoping" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        C-API-Only Refactor: Detailed Scoping
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="C-API-Only Refactor: Detailed Scoping">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#current-internal-c-api-usage-heat-map" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Current Internal C++ API Usage Heat Map
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dead-code-immediate-cleanup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dead Code: Immediate Cleanup
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#module-by-module-replacement-analysis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Module-by-Module Replacement Analysis
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Module-by-Module Replacement Analysis">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-sampling-samplingh-replaceable-via-public-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Sampling (sampling.h) -- REPLACEABLE via public API
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-batch-management-commonh-trivially-replaceable" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Batch Management (common.h) -- TRIVIALLY REPLACEABLE
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-parameter-conversion-commonh-eliminable" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Parameter Conversion (common.h) -- ELIMINABLE
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-speculative-decoding-speculativeh-requires-reimplementation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Speculative Decoding (speculative.h) -- REQUIRES REIMPLEMENTATION
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-n-gram-cache-ngram_cacheh-reimplementable-in-python" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. N-gram Cache (ngram_cache.h) -- REIMPLEMENTABLE IN PYTHON
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6-model-downloading-downloadh-reimplementable-in-python" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Model Downloading (download.h) -- REIMPLEMENTABLE IN PYTHON
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#7-multimodal-mtmd-mtmdh-not-replaceable" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Multimodal / MTMD (mtmd.h) -- NOT REPLACEABLE
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#8-tts-helpers-tts_helperspxi-custom-c-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. TTS Helpers (tts_helpers.pxi) -- CUSTOM C++ CODE
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#summary-what-the-refactor-looks-like" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Summary: What the Refactor Looks Like
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Summary: What the Refactor Looks Like">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#phase-1-dead-code-removal-immediate-05-day" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 1: Dead Code Removal (Immediate, ~0.5 day)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-2-trivial-replacements-easy-1-day" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 2: Trivial Replacements (Easy, ~1 day)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-3-sampling-refactor-medium-3-days" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 3: Sampling Refactor (Medium, ~3 days)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-4-downloadcache-in-python-medium-2-days" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 4: Download/Cache in Python (Medium, ~2 days)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-5-n-gram-cache-in-python-medium-low-1-day" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 5: N-gram Cache in Python (Medium-low, ~1 day)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-6-speculative-decoding-hard-5-days" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 6: Speculative Decoding (Hard, ~5 days)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#post-refactor-state" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Post-Refactor State
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#estimated-total-effort" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Estimated Total Effort
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#key-insight-the-8020-split" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Insight: The 80/20 Split
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#conclusion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Conclusion
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Conclusion">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#decision-matrix" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Decision Matrix
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#completed-refactoring-phases-1-5-field-fix" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Completed Refactoring (Phases 1-5 + field fix)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Completed Refactoring (Phases 1-5 + field fix)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#phase-1-dead-code-removal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 1: Dead Code Removal
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-2-inlined-batch-helpers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 2: Inlined Batch Helpers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-3-sampling-refactor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 3: Sampling Refactor
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-4-download-functions-in-python" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 4: Download Functions in Python
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-5-n-gram-cache-in-python" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 5: N-gram Cache in Python
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#field-mismatch-fix-param-conversion-inline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Field Mismatch Fix + Param Conversion Inline
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#remaining-internal-c-dependencies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Remaining Internal C++ Dependencies
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dynamic-linking-prototype-validated" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dynamic Linking Prototype (Validated)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dev-branch-merge-analysis-2026-03-28" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dev Branch Merge Analysis (2026-03-28)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Dev Branch Merge Analysis (2026-03-28)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pros-of-merging" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pros of merging
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cons-of-merging" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cons of merging
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#recommendation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Recommendation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="static-linking-vs-dynamic-linking-analysis">Static Linking vs Dynamic Linking Analysis<a class="headerlink" href="#static-linking-vs-dynamic-linking-analysis" title="Permanent link">&para;</a></h1>
+<h2 id="current-strategy-static-linking-cython-wrappers">Current Strategy: Static Linking + Cython Wrappers<a class="headerlink" href="#current-strategy-static-linking-cython-wrappers" title="Permanent link">&para;</a></h2>
+<p>llama.cpp is built from source via <code>manage.py</code>, producing <code>.a</code> archives that are linked into <code>.so</code> Python extension modules at build time. Cython <code>.pxd</code> files declare the C/C++ API, and everything gets baked into <code>llama_cpp.cpython-*.so</code>.</p>
+<h3 id="build-flow">Build Flow<a class="headerlink" href="#build-flow" title="Permanent link">&para;</a></h3>
+<ol>
+<li><code>manage.py</code> clones llama.cpp at a pinned commit (currently <code>b8522</code>)</li>
+<li>CMake builds static libraries (<code>libllama.a</code>, <code>libggml*.a</code>, <code>libcommon.a</code>, etc.)</li>
+<li>Libraries and ~56 headers are copied to <code>thirdparty/llama.cpp/{lib,include}/</code></li>
+<li>scikit-build-core runs the root <code>CMakeLists.txt</code>, which:</li>
+<li>Transpiles <code>.pyx</code> to <code>.cxx</code> via Cython</li>
+<li>Compiles <code>.cxx</code> to <code>.o</code></li>
+<li>Links <code>.o</code> + all <code>.a</code> archives into final <code>.so</code> extension modules</li>
+</ol>
+<h2 id="alternative-strategy-dynamic-linking-against-pre-built-releases">Alternative Strategy: Dynamic Linking Against Pre-built Releases<a class="headerlink" href="#alternative-strategy-dynamic-linking-against-pre-built-releases" title="Permanent link">&para;</a></h2>
+<p>Link Cython extensions against pre-built <code>.dylib</code>/<code>.so</code> files from llama.cpp GitHub releases (e.g., <code>llama-b8522</code> tarball from <a href="https://github.com/ggml-org/llama.cpp/releases">https://github.com/ggml-org/llama.cpp/releases</a>).</p>
+<h3 id="what-the-pre-built-releases-contain">What the Pre-built Releases Contain<a class="headerlink" href="#what-the-pre-built-releases-contain" title="Permanent link">&para;</a></h3>
+<p>The release tarball (e.g., <code>llama-b8522-bin-macos-arm64.tar.gz</code>) ships:</p>
+<ul>
+<li><strong>Dynamic libraries</strong>: <code>libllama.dylib</code>, <code>libggml.dylib</code>, <code>libggml-base.dylib</code>, <code>libggml-cpu.dylib</code>, <code>libggml-metal.dylib</code>, <code>libggml-blas.dylib</code>, <code>libggml-rpc.dylib</code>, <code>libmtmd.dylib</code></li>
+<li><strong>CLI tools</strong>: <code>llama-cli</code>, <code>llama-server</code>, <code>llama-quantize</code>, etc.</li>
+<li><strong>No headers</strong> (<code>include/</code> directory is absent)</li>
+<li><strong>No <code>libcommon</code></strong> or <code>libcpp-httplib</code></li>
+</ul>
+<h3 id="exported-symbols">Exported Symbols<a class="headerlink" href="#exported-symbols" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>233 stable C API symbols</strong> (<code>_llama_*</code>) -- these are the public API from <code>llama.h</code></li>
+<li><strong>C++ mangled symbols</strong> (<code>__Z*</code>) -- internal, compiler-specific, not ABI-stable</li>
+</ul>
+<hr />
+<h2 id="pros-of-dynamic-linking">Pros of Dynamic Linking<a class="headerlink" href="#pros-of-dynamic-linking" title="Permanent link">&para;</a></h2>
+<h3 id="1-dramatically-faster-builds">1. Dramatically Faster Builds<a class="headerlink" href="#1-dramatically-faster-builds" title="Permanent link">&para;</a></h3>
+<p>The llama.cpp compile is the build bottleneck (minutes). Skipping it reduces the build to just Cython transpile + link (seconds).</p>
+<h3 id="2-decoupled-upgrade-cycle">2. Decoupled Upgrade Cycle<a class="headerlink" href="#2-decoupled-upgrade-cycle" title="Permanent link">&para;</a></h3>
+<p>Users can drop in a new llama.cpp release without rebuilding cyllama. Version bumps become a file swap rather than a full <code>make remake</code>.</p>
+<h3 id="3-smaller-wheel-sizes">3. Smaller Wheel Sizes<a class="headerlink" href="#3-smaller-wheel-sizes" title="Permanent link">&para;</a></h3>
+<p>The <code>.so</code> extensions shrink significantly since llama.cpp code is external. You ship a thin binding layer, not the full inference engine.</p>
+<h3 id="4-shared-memory-footprint">4. Shared Memory Footprint<a class="headerlink" href="#4-shared-memory-footprint" title="Permanent link">&para;</a></h3>
+<p>If other processes load the same <code>libllama.dylib</code>, the OS shares pages. With static linking each Python extension embeds its own copy.</p>
+<h3 id="5-simpler-ci-matrix">5. Simpler CI Matrix<a class="headerlink" href="#5-simpler-ci-matrix" title="Permanent link">&para;</a></h3>
+<p>Test against pre-built release artifacts rather than building llama.cpp per-platform in CI. The release maintainers (ggml-org) already handle the platform matrix.</p>
+<h3 id="6-eliminates-builder-complexity">6. Eliminates Builder Complexity<a class="headerlink" href="#6-eliminates-builder-complexity" title="Permanent link">&para;</a></h3>
+<p>~1000 lines of <code>manage.py</code> builder code for downloading, patching, building, and copying llama.cpp artifacts becomes unnecessary.</p>
+<hr />
+<h2 id="cons-of-dynamic-linking">Cons of Dynamic Linking<a class="headerlink" href="#cons-of-dynamic-linking" title="Permanent link">&para;</a></h2>
+<h3 id="1-no-headers-shipped-in-releases">1. No Headers Shipped in Releases<a class="headerlink" href="#1-no-headers-shipped-in-releases" title="Permanent link">&para;</a></h3>
+<p>The pre-built tarballs have no <code>include/</code> directory. The current build depends on ~56 headers. Options:</p>
+<ul>
+<li>Still clone the repo to get headers (partially defeats the purpose)</li>
+<li>Vendor the headers separately and pin them to the release version</li>
+<li>Use only the public C API headers fetched from the GitHub tag</li>
+</ul>
+<h3 id="2-libcommon-not-in-release">2. <code>libcommon</code> Not in Release<a class="headerlink" href="#2-libcommon-not-in-release" title="Permanent link">&para;</a></h3>
+<p>The pre-built release exports <code>libllama</code>, <code>libggml*</code>, and <code>libmtmd</code>, but <strong>not</strong> <code>libcommon</code> or <code>libcpp-httplib</code>. The Cython wrappers (<code>common.pxd</code>) bind directly to <code>common.h</code> symbols (arg parsing, chat templates, sampling params). These are C++ internal symbols, not part of the stable C API. Options:</p>
+<ul>
+<li>Rewrite bindings to only use the 233 public <code>_llama_*</code> C symbols</li>
+<li>Still build <code>libcommon</code> from source (partially defeats the purpose)</li>
+</ul>
+<blockquote>
+<p><strong>Resolved</strong>: All <code>libcommon</code> dependencies have been eliminated. Sampling, download, n-gram cache, speculative decoding, and batch helpers were rewritten to use public C APIs or pure Python. JSON schema-to-grammar conversion was replaced with a vendored pure Python implementation. <code>libcommon.a</code> is no longer linked in either static or dynamic builds.</p>
+</blockquote>
+<h3 id="3-c-name-mangling-fragility">3. C++ Name Mangling Fragility<a class="headerlink" href="#3-c-name-mangling-fragility" title="Permanent link">&para;</a></h3>
+<p>Pre-built dylibs export C++ mangled symbols (<code>__Z*</code> names) that are compiler-specific and break across compiler versions, standard library versions, or optimization levels. The 233 <code>_llama_*</code> C symbols are stable; the C++ symbols are not. The <code>common.pxd</code> and <code>sampling.pxd</code> bindings depend on C++ APIs.</p>
+<h3 id="4-runtime-dependency-management">4. Runtime Dependency Management<a class="headerlink" href="#4-runtime-dependency-management" title="Permanent link">&para;</a></h3>
+<p>Dylibs are needed at runtime, not just build time:</p>
+<ul>
+<li><code>@rpath</code> resolution requires correct <code>install_name_tool</code> fixup or environment variables</li>
+<li><code>pip install cyllama</code> would need to either bundle the dylibs (back to large wheels) or require the user to install llama.cpp separately</li>
+<li>Platform-specific dylib discovery (<code>DYLD_LIBRARY_PATH</code> on macOS, <code>LD_LIBRARY_PATH</code> on Linux, <code>PATH</code> on Windows)</li>
+</ul>
+<h3 id="5-abi-compatibility-risk">5. ABI Compatibility Risk<a class="headerlink" href="#5-abi-compatibility-risk" title="Permanent link">&para;</a></h3>
+<p>llama.cpp has no ABI stability guarantee. Even the C API can change between releases (functions added/removed/signatures changed). With static linking you pin to an exact commit. With dynamic linking, a user swapping in a newer dylib could silently break things or segfault.</p>
+<h3 id="6-backend-coverage-gaps">6. Backend Coverage Gaps<a class="headerlink" href="#6-backend-coverage-gaps" title="Permanent link">&para;</a></h3>
+<p>GitHub releases build one variant per platform (Metal for macOS-arm64, CUDA for specific Linux builds, etc.). The current system builds with exactly the backends the user wants. A pre-built release might not match -- e.g., no Vulkan macOS build, no SYCL build, no specific CUDA arch.</p>
+<h3 id="7-whisper-and-stable-diffusion-dont-apply">7. Whisper and Stable Diffusion Don't Apply<a class="headerlink" href="#7-whisper-and-stable-diffusion-dont-apply" title="Permanent link">&para;</a></h3>
+<p>Neither whisper.cpp nor stable-diffusion.cpp ship pre-built releases in the same way. The from-source build pipeline (<code>manage.py</code>) is still required for those, so it cannot be fully eliminated.</p>
+<h3 id="8-whole-archive-replaced-by-dlopen-complexity">8. <code>--whole-archive</code> Replaced by <code>dlopen</code> Complexity<a class="headerlink" href="#8-whole-archive-replaced-by-dlopen-complexity" title="Permanent link">&para;</a></h3>
+<p>The Linux <code>--whole-archive</code> workaround disappears, but you inherit the GGML backend plugin loading model, which uses <code>dlopen</code> internally -- a different kind of complexity.</p>
+<hr />
+<h2 id="the-core-tension">The Core Tension<a class="headerlink" href="#the-core-tension" title="Permanent link">&para;</a></h2>
+<p>The Cython wrappers bind <strong>both</strong> the public C API (<code>llama.h</code> -- 233 stable symbols) <strong>and</strong> internal C++ APIs (<code>common.h</code>, <code>sampling.h</code>, <code>chat.h</code> -- mangled, unstable). The pre-built releases only export the former reliably.</p>
+<hr />
+<h2 id="possible-hybrid-approach">Possible Hybrid Approach<a class="headerlink" href="#possible-hybrid-approach" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Dynamic link against <code>libllama.dylib</code> + <code>libggml*.dylib</code></strong> for the core inference C API</li>
+<li><strong>Still build <code>libcommon.a</code> from source</strong> (small, fast to compile) for C++ utility bindings</li>
+<li><strong>Vendor just the public headers</strong> from the release tag</li>
+</ul>
+<p>This buys less than it initially appears, because the common/sampling layer is where most of the Cython binding complexity lives.</p>
+<blockquote>
+<p><strong>Resolved</strong>: The hybrid approach is no longer needed. All <code>libcommon</code> dependencies have been eliminated -- the extension uses only public C APIs and pure Python. Dynamic linking (<code>make build-dynamic</code>) now works without any source compilation of llama.cpp. Only <code>libcpp-httplib.a</code> is still built from source for the embedded server.</p>
+</blockquote>
+<hr />
+<h2 id="c-api-only-refactor-detailed-scoping">C-API-Only Refactor: Detailed Scoping<a class="headerlink" href="#c-api-only-refactor-detailed-scoping" title="Permanent link">&para;</a></h2>
+<blockquote>
+<p><strong>Status: Complete.</strong> All internal C++ API dependencies have been eliminated. The extension now uses only public C APIs (<code>llama.h</code>, <code>ggml.h</code>, <code>gguf.h</code>, <code>mtmd.h</code>) and pure Python. Dynamic linking is fully operational via <code>make build-dynamic</code>. The analysis below is retained for historical reference.</p>
+</blockquote>
+<p>A refactor to eliminate internal C++ API dependencies would make dynamic linking viable. This section maps exactly which internal symbols are used, what public API replacements exist, and what must be reimplemented in Python.</p>
+<h3 id="current-internal-c-api-usage-heat-map">Current Internal C++ API Usage Heat Map<a class="headerlink" href="#current-internal-c-api-usage-heat-map" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>HEADER          | SYMBOLS | ACTIVE | USAGE PATTERN
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>----------------+---------+--------+---------------------------
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>sampling.h      |   18    |   14   | 100% - core sampling chain
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>speculative.h   |    7    |    7   | 100% - draft model verify
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>ngram_cache.h   |    5    |    5   | 100% - self-speculative
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>download.h      |    4    |    4   | 100% - model downloading
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>mtmd.h          |   42    |   25   | 60%  - multimodal support
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>common.h        |  50+    |    3   | 6%   - batch utils + param conv
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>chat.h          |   25    |    0   | 0%   - declared but unused
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>log.h           |   10    |    0   | 0%   - declared but unused
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>gguf.h          |   40    |    0   | 0%   - declared but unused
+</code></pre></div>
+<h3 id="dead-code-immediate-cleanup">Dead Code: Immediate Cleanup<a class="headerlink" href="#dead-code-immediate-cleanup" title="Permanent link">&para;</a></h3>
+<p>Three <code>.pxd</code> files declare symbols that are <strong>never called</strong> in any <code>.pyx</code>/<code>.pxi</code>:</p>
+<ul>
+<li><strong>chat.pxd</strong> (202 lines): 12 structs, 13 functions -- zero usage</li>
+<li><strong>log.pxd</strong> (60 lines): 10+ functions -- zero usage</li>
+</ul>
+<p><strong>Note</strong>: <code>gguf.pxd</code> was initially thought to be dead code but is actively used by the <code>GgufContext</code> class. It wraps the public <code>gguf.h</code> API (part of libggml), not an internal C++ API, so it does not block dynamic linking.</p>
+<p>These can be removed immediately with no behavioral change, reducing the declared surface by ~260 lines.</p>
+<h3 id="module-by-module-replacement-analysis">Module-by-Module Replacement Analysis<a class="headerlink" href="#module-by-module-replacement-analysis" title="Permanent link">&para;</a></h3>
+<h4 id="1-sampling-samplingh-replaceable-via-public-api">1. Sampling (sampling.h) -- REPLACEABLE via public API<a class="headerlink" href="#1-sampling-samplingh-replaceable-via-public-api" title="Permanent link">&para;</a></h4>
+<p><strong>Currently used</strong> (14 functions via <code>sampling.pxi</code>, wrapping <code>CommonSampler</code> class):</p>
+<table>
+<thead>
+<tr>
+<th>Internal C++ Function</th>
+<th>Where Called</th>
+<th>Public C API Replacement</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>common_sampler_init()</code></td>
+<td>sampling.pxi:13</td>
+<td>Build chain with <code>llama_sampler_chain_init()</code> + individual <code>llama_sampler_init_*()</code></td>
+</tr>
+<tr>
+<td><code>common_sampler_free()</code></td>
+<td>sampling.pxi:20</td>
+<td><code>llama_sampler_free()</code></td>
+</tr>
+<tr>
+<td><code>common_sampler_accept()</code></td>
+<td>sampling.pxi:25</td>
+<td><code>llama_sampler_accept()</code></td>
+</tr>
+<tr>
+<td><code>common_sampler_reset()</code></td>
+<td>sampling.pxi:29</td>
+<td><code>llama_sampler_reset()</code></td>
+</tr>
+<tr>
+<td><code>common_sampler_clone()</code></td>
+<td>sampling.pxi:33</td>
+<td><code>llama_sampler_clone()</code></td>
+</tr>
+<tr>
+<td><code>common_sampler_sample()</code></td>
+<td>sampling.pxi:40</td>
+<td><code>llama_sampler_sample()</code></td>
+</tr>
+<tr>
+<td><code>common_sampler_sample_and_accept_n()</code></td>
+<td>sampling.pxi:63</td>
+<td>Loop: <code>llama_sampler_sample()</code> + <code>llama_sampler_accept()</code></td>
+</tr>
+<tr>
+<td><code>common_sampler_get_seed()</code></td>
+<td>sampling.pxi:68</td>
+<td>Track seed in Python when constructing chain</td>
+</tr>
+<tr>
+<td><code>common_sampler_last()</code></td>
+<td>sampling.pxi:80</td>
+<td>Track last token in Python</td>
+</tr>
+<tr>
+<td><code>common_sampler_print()</code></td>
+<td>sampling.pxi:84</td>
+<td>Reimplement in Python (debug utility)</td>
+</tr>
+<tr>
+<td><code>common_sampler_prev_str()</code></td>
+<td>sampling.pxi:88</td>
+<td>Reimplement in Python (debug utility)</td>
+</tr>
+<tr>
+<td><code>common_sampler_type_to_chr()</code></td>
+<td>sampling.pxi:94</td>
+<td>Reimplement in Python (string mapping)</td>
+</tr>
+<tr>
+<td><code>common_sampler_type_to_str()</code></td>
+<td>sampling.pxi:98</td>
+<td>Reimplement in Python (string mapping)</td>
+</tr>
+<tr>
+<td><code>common_sampler_types_from_names()</code></td>
+<td>sampling.pxi:100+</td>
+<td>Reimplement in Python (name lookup)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>What <code>common_sampler_init()</code> actually does</strong> (the key function): It reads <code>common_params_sampling</code> and constructs a <code>llama_sampler</code> chain by calling the public sampler init functions in order. This is the main value-add -- it's a ~100-line convenience wrapper.</p>
+<p><strong>Replacement strategy</strong>: Rewrite <code>CommonSampler.__init__()</code> in Python/Cython to directly call:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>llama_sampler_chain_init()
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>llama_sampler_chain_add(chain, llama_sampler_init_top_k(k))
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>llama_sampler_chain_add(chain, llama_sampler_init_top_p(p, min_keep))
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>llama_sampler_chain_add(chain, llama_sampler_init_min_p(p, min_keep))
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>llama_sampler_chain_add(chain, llama_sampler_init_temp(temp))
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>llama_sampler_chain_add(chain, llama_sampler_init_penalties(...))
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>llama_sampler_chain_add(chain, llama_sampler_init_grammar(vocab, grammar_str, root))
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a># ... etc for each enabled sampler
+</code></pre></div>
+<p>The public API now has <strong>15+ sampler init functions</strong> covering all sampler types:</p>
+<ul>
+<li><code>llama_sampler_init_top_k</code>, <code>_top_p</code>, <code>_min_p</code>, <code>_temp</code>, <code>_temp_ext</code></li>
+<li><code>llama_sampler_init_xtc</code>, <code>_typical</code>, <code>_top_n_sigma</code></li>
+<li><code>llama_sampler_init_mirostat</code>, <code>_mirostat_v2</code></li>
+<li><code>llama_sampler_init_grammar</code>, <code>_grammar_lazy_patterns</code></li>
+<li><code>llama_sampler_init_penalties</code> (repetition/frequency/presence)</li>
+<li><code>llama_sampler_init_dry</code> (DRY sampler -- actually NEW, not in common_sampler)</li>
+<li><code>llama_sampler_init_adaptive_p</code>, <code>_logit_bias</code>, <code>_infill</code></li>
+</ul>
+<p><strong>Effort</strong>: Medium. The chain construction logic is ~100 lines of C++ that becomes ~100 lines of Python. The debug/print utilities are trivial. <code>common_params_sampling</code> struct (30+ fields) needs a Python dataclass replacement.</p>
+<p><strong>Risk</strong>: Low. This is straightforward mapping.</p>
+<h4 id="2-batch-management-commonh-trivially-replaceable">2. Batch Management (common.h) -- TRIVIALLY REPLACEABLE<a class="headerlink" href="#2-batch-management-commonh-trivially-replaceable" title="Permanent link">&para;</a></h4>
+<p><strong>Currently used</strong> (2 functions):</p>
+<table>
+<thead>
+<tr>
+<th>Internal C++ Function</th>
+<th>Where Called</th>
+<th>Replacement</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>common_batch_clear()</code></td>
+<td>llama_cpp.pyx:668</td>
+<td>Zero out <code>llama_batch.n_tokens</code> (1 line)</td>
+</tr>
+<tr>
+<td><code>common_batch_add()</code></td>
+<td>llama_cpp.pyx:664</td>
+<td>Set batch fields at index, increment n_tokens (~5 lines)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Replacement strategy</strong>: Inline into <code>LlamaBatch</code> class methods. These are trivial array manipulation wrappers.</p>
+<p><strong>Effort</strong>: Trivial. ~10 lines of Cython.</p>
+<h4 id="3-parameter-conversion-commonh-eliminable">3. Parameter Conversion (common.h) -- ELIMINABLE<a class="headerlink" href="#3-parameter-conversion-commonh-eliminable" title="Permanent link">&para;</a></h4>
+<p><strong>Currently used</strong> (1 function):</p>
+<table>
+<thead>
+<tr>
+<th>Internal C++ Function</th>
+<th>Where Called</th>
+<th>Replacement</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>common_context_params_to_llama()</code></td>
+<td>llama_cpp.pyx:1032</td>
+<td>Set <code>llama_context_params</code> fields directly in Python</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Replacement strategy</strong>: The Python code already sets most params individually. The converter just maps <code>common_params</code> fields to <code>llama_context_params</code> fields. Do this directly in <code>LlamaContextParams.__init__()</code>.</p>
+<p><strong>Effort</strong>: Trivial. Field-by-field assignment already partially exists.</p>
+<h4 id="4-speculative-decoding-speculativeh-requires-reimplementation">4. Speculative Decoding (speculative.h) -- REQUIRES REIMPLEMENTATION<a class="headerlink" href="#4-speculative-decoding-speculativeh-requires-reimplementation" title="Permanent link">&para;</a></h4>
+<p><strong>Currently used</strong> (7 functions, 100% active):</p>
+<table>
+<thead>
+<tr>
+<th>Internal C++ Function</th>
+<th>Where Called</th>
+<th>Public API Equivalent</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>common_speculative_init()</code></td>
+<td>speculative.pxi:111</td>
+<td>None -- manages draft model state</td>
+</tr>
+<tr>
+<td><code>common_speculative_free()</code></td>
+<td>speculative.pxi:118</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>common_speculative_is_compat()</code></td>
+<td>speculative.pxi:131</td>
+<td>None -- checks vocab compatibility</td>
+</tr>
+<tr>
+<td><code>common_speculative_begin()</code></td>
+<td>speculative.pxi:143</td>
+<td>None -- prepares KV cache state</td>
+</tr>
+<tr>
+<td><code>common_speculative_draft()</code></td>
+<td>speculative.pxi:168</td>
+<td>None -- runs draft model inference</td>
+</tr>
+<tr>
+<td><code>common_speculative_accept()</code></td>
+<td>speculative.pxi:188</td>
+<td>None -- verify/accept tokens</td>
+</tr>
+<tr>
+<td><code>common_speculative_print_stats()</code></td>
+<td>speculative.pxi:192</td>
+<td>None</td>
+</tr>
+</tbody>
+</table>
+<p><strong>No public API equivalent exists.</strong> Speculative decoding orchestrates two models (draft + target) with coordinated KV cache management. This is ~500 lines of C++ with nontrivial algorithmic content (tree-based verification, KV cache rollback).</p>
+<p><strong>Replacement strategy options</strong>:</p>
+<ol>
+<li><strong>Reimplement in Python</strong>: Use public <code>llama_decode()</code>, <code>llama_memory_seq_rm/cp()</code>, and sampler APIs to orchestrate the draft-verify loop. Feasible but significant effort.</li>
+<li><strong>Keep as optional C++ dependency</strong>: Build only <code>libcommon-speculative.a</code> from source for users who need this feature.</li>
+<li><strong>Drop feature</strong>: If speculative decoding is not a core use case.</li>
+</ol>
+<p><strong>Effort</strong>: High. ~500 lines of algorithmic C++ to reimplement, with subtle correctness requirements around KV cache state management.</p>
+<p><strong>Risk</strong>: Medium-high. KV cache coordination bugs would cause silent correctness issues.</p>
+<h4 id="5-n-gram-cache-ngram_cacheh-reimplementable-in-python">5. N-gram Cache (ngram_cache.h) -- REIMPLEMENTABLE IN PYTHON<a class="headerlink" href="#5-n-gram-cache-ngram_cacheh-reimplementable-in-python" title="Permanent link">&para;</a></h4>
+<p><strong>Currently used</strong> (5 functions):</p>
+<table>
+<thead>
+<tr>
+<th>Internal C++ Function</th>
+<th>Where Called</th>
+<th>Replacement</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>common_ngram_cache_update()</code></td>
+<td>llama_cpp.pyx:3734</td>
+<td>Python dict-based n-gram tracking</td>
+</tr>
+<tr>
+<td><code>common_ngram_cache_draft()</code></td>
+<td>llama_cpp.pyx:3790</td>
+<td>Python lookup + draft generation</td>
+</tr>
+<tr>
+<td><code>common_ngram_cache_save()</code></td>
+<td>llama_cpp.pyx:3822</td>
+<td>Python pickle/json serialization</td>
+</tr>
+<tr>
+<td><code>common_ngram_cache_load()</code></td>
+<td>llama_cpp.pyx:3843</td>
+<td>Python pickle/json deserialization</td>
+</tr>
+<tr>
+<td><code>common_ngram_cache_merge()</code></td>
+<td>llama_cpp.pyx:3869</td>
+<td>Python dict merge</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Replacement strategy</strong>: The C++ implementation uses <code>std::unordered_map</code> with custom hash. A Python <code>dict</code> with tuple keys achieves the same thing. The cache is a mapping from n-gram (token tuple) to candidate next tokens.</p>
+<p><strong>Effort</strong>: Medium-low. ~200 lines of Python. Performance may be slightly worse for very large caches but acceptable for typical use.</p>
+<h4 id="6-model-downloading-downloadh-reimplementable-in-python">6. Model Downloading (download.h) -- REIMPLEMENTABLE IN PYTHON<a class="headerlink" href="#6-model-downloading-downloadh-reimplementable-in-python" title="Permanent link">&para;</a></h4>
+<p><strong>Currently used</strong> (4 functions):</p>
+<table>
+<thead>
+<tr>
+<th>Internal C++ Function</th>
+<th>Where Called</th>
+<th>Replacement</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>common_get_hf_file()</code></td>
+<td>llama_cpp.pyx:3503</td>
+<td>Python <code>requests</code>/<code>httpx</code> + HuggingFace Hub API</td>
+</tr>
+<tr>
+<td><code>common_download_model()</code></td>
+<td>llama_cpp.pyx:3604</td>
+<td>Python HTTP download with progress</td>
+</tr>
+<tr>
+<td><code>common_list_cached_models()</code></td>
+<td>llama_cpp.pyx:3621</td>
+<td>Python filesystem scan of cache dir</td>
+</tr>
+<tr>
+<td><code>common_docker_resolve_model()</code></td>
+<td>llama_cpp.pyx:3655</td>
+<td>Python Docker registry API calls</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Replacement strategy</strong>: These are HTTP/filesystem operations. Python is arguably <em>better</em> for this than C++ (easier error handling, richer HTTP libraries, async support). The <code>huggingface_hub</code> Python package already provides most of this functionality.</p>
+<p><strong>Effort</strong>: Medium. ~300 lines of Python, but well-trodden ground with existing libraries.</p>
+<p><strong>Risk</strong>: Low. Network I/O is not performance-sensitive.</p>
+<h4 id="7-multimodal-mtmd-mtmdh-not-replaceable">7. Multimodal / MTMD (mtmd.h) -- NOT REPLACEABLE<a class="headerlink" href="#7-multimodal-mtmd-mtmdh-not-replaceable" title="Permanent link">&para;</a></h4>
+<p><strong>Currently used</strong> (25 functions): Image/audio tokenization, bitmap handling, chunk processing, encoding.</p>
+<p><strong>No public llama.h equivalent.</strong> <code>mtmd.h</code> is itself a public C API (not C++ mangled), and <code>libmtmd.dylib</code> IS included in pre-built releases. The functions use <code>extern "C"</code> linkage.</p>
+<p><strong>This module does NOT block dynamic linking.</strong> It can link against <code>libmtmd.dylib</code> directly. Headers would still need to be vendored.</p>
+<p><strong>Effort</strong>: None for dynamic linking. Just need the header file.</p>
+<h4 id="8-tts-helpers-tts_helperspxi-custom-c-code">8. TTS Helpers (tts_helpers.pxi) -- CUSTOM C++ CODE<a class="headerlink" href="#8-tts-helpers-tts_helperspxi-custom-c-code" title="Permanent link">&para;</a></h4>
+<p>The TTS helper functions (<code>save_wav16</code>, <code>fill_hann_window</code>, <code>irfft</code>, <code>fold</code>, <code>process_text</code>, etc.) are <strong>not from llama.cpp</strong> -- they're custom C++ in <code>src/cyllama/llama/helpers/tts.cpp</code>.</p>
+<p><strong>These do not block dynamic linking.</strong> They're compiled directly into the extension module.</p>
+<h3 id="summary-what-the-refactor-looks-like">Summary: What the Refactor Looks Like<a class="headerlink" href="#summary-what-the-refactor-looks-like" title="Permanent link">&para;</a></h3>
+<h4 id="phase-1-dead-code-removal-immediate-05-day">Phase 1: Dead Code Removal (Immediate, ~0.5 day)<a class="headerlink" href="#phase-1-dead-code-removal-immediate-05-day" title="Permanent link">&para;</a></h4>
+<ul>
+<li>Delete <code>chat.pxd</code> (or keep only struct declarations if needed for future)</li>
+<li>Delete <code>log.pxd</code></li>
+<li>Delete <code>gguf.pxd</code></li>
+<li>Remove corresponding unused declarations from <code>common.pxd</code></li>
+<li><strong>Result</strong>: ~400 fewer lines of C++ declarations to maintain</li>
+</ul>
+<h4 id="phase-2-trivial-replacements-easy-1-day">Phase 2: Trivial Replacements (Easy, ~1 day)<a class="headerlink" href="#phase-2-trivial-replacements-easy-1-day" title="Permanent link">&para;</a></h4>
+<ul>
+<li>Inline <code>common_batch_clear()</code> / <code>common_batch_add()</code> into <code>LlamaBatch</code> (~10 lines of Cython)</li>
+<li>Replace <code>common_context_params_to_llama()</code> with direct field assignment</li>
+<li><strong>Result</strong>: <code>common.h</code> dependency drops to zero active functions</li>
+</ul>
+<h4 id="phase-3-sampling-refactor-medium-3-days">Phase 3: Sampling Refactor (Medium, ~3 days)<a class="headerlink" href="#phase-3-sampling-refactor-medium-3-days" title="Permanent link">&para;</a></h4>
+<ul>
+<li>Create Python <code>SamplingParams</code> dataclass replacing <code>common_params_sampling</code> struct</li>
+<li>Rewrite <code>CommonSampler.__init__()</code> to build <code>llama_sampler</code> chains via public API</li>
+<li>Replace <code>common_sampler_sample/accept/reset/clone</code> with direct <code>llama_sampler_*</code> calls</li>
+<li>Reimplement debug utilities (<code>print</code>, <code>prev_str</code>, <code>type_to_str</code>) in Python</li>
+<li><strong>Result</strong>: <code>sampling.h</code> dependency eliminated entirely</li>
+</ul>
+<h4 id="phase-4-downloadcache-in-python-medium-2-days">Phase 4: Download/Cache in Python (Medium, ~2 days)<a class="headerlink" href="#phase-4-downloadcache-in-python-medium-2-days" title="Permanent link">&para;</a></h4>
+<ul>
+<li>Reimplement HuggingFace file resolution using <code>huggingface_hub</code> or raw HTTP</li>
+<li>Reimplement model download with progress reporting</li>
+<li>Reimplement cache listing as directory scan</li>
+<li>Reimplement Docker registry resolution</li>
+<li><strong>Result</strong>: <code>download.h</code> dependency eliminated</li>
+</ul>
+<h4 id="phase-5-n-gram-cache-in-python-medium-low-1-day">Phase 5: N-gram Cache in Python (Medium-low, ~1 day)<a class="headerlink" href="#phase-5-n-gram-cache-in-python-medium-low-1-day" title="Permanent link">&para;</a></h4>
+<ul>
+<li>Reimplement n-gram cache as Python <code>dict[tuple[int, ...], list[int]]</code></li>
+<li>Reimplement save/load as JSON or pickle</li>
+<li><strong>Result</strong>: <code>ngram_cache.h</code> dependency eliminated</li>
+</ul>
+<h4 id="phase-6-speculative-decoding-hard-5-days">Phase 6: Speculative Decoding (Hard, ~5 days)<a class="headerlink" href="#phase-6-speculative-decoding-hard-5-days" title="Permanent link">&para;</a></h4>
+<ul>
+<li>Reimplement draft-verify loop using public <code>llama_decode()</code> + <code>llama_memory_seq_*()</code> APIs</li>
+<li>Careful testing required for KV cache state management correctness</li>
+<li><strong>Result</strong>: <code>speculative.h</code> dependency eliminated</li>
+</ul>
+<p><strong>OR</strong>: Keep speculative decoding as an optional feature requiring from-source build.</p>
+<h3 id="post-refactor-state">Post-Refactor State<a class="headerlink" href="#post-refactor-state" title="Permanent link">&para;</a></h3>
+<p>After Phases 1-5 (skipping Phase 6):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>REMAINING INTERNAL C++ DEPENDENCIES:
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>  speculative.h  -- 7 functions (optional feature, can keep static build)
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>REMAINING PUBLIC C API DEPENDENCIES (all dynamically linkable):
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>  llama.h        -- 233 symbols via libllama.dylib
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>  ggml.h         -- via libggml*.dylib
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>  mtmd.h         -- 25 functions via libmtmd.dylib (already in releases)
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>CUSTOM C++ (compiled into extension, no external dependency):
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>  tts.cpp        -- TTS helpers
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>  mongoose.c     -- HTTP server
+<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>
+<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>PURE PYTHON (no C++ compilation needed):
+<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>  json_schema_to_grammar.py -- JSON schema to GBNF grammar conversion
+</code></pre></div>
+<p>This state enables dynamic linking for the core use case (inference, sampling, tokenization, multimodal) with speculative decoding as an opt-in feature requiring from-source build.</p>
+<h3 id="estimated-total-effort">Estimated Total Effort<a class="headerlink" href="#estimated-total-effort" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Phase</th>
+<th>Effort</th>
+<th>Risk</th>
+<th>Dependencies Eliminated</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1. Dead code removal</td>
+<td>0.5 day</td>
+<td>None</td>
+<td>chat.h, log.h, gguf.h</td>
+</tr>
+<tr>
+<td>2. Trivial replacements</td>
+<td>1 day</td>
+<td>None</td>
+<td>common.h (batch, params)</td>
+</tr>
+<tr>
+<td>3. Sampling refactor</td>
+<td>3 days</td>
+<td>Low</td>
+<td>sampling.h</td>
+</tr>
+<tr>
+<td>4. Download in Python</td>
+<td>2 days</td>
+<td>Low</td>
+<td>download.h</td>
+</tr>
+<tr>
+<td>5. N-gram cache</td>
+<td>1 day</td>
+<td>Low</td>
+<td>ngram_cache.h</td>
+</tr>
+<tr>
+<td>6. Speculative decoding</td>
+<td>5 days</td>
+<td>Medium-high</td>
+<td>speculative.h</td>
+</tr>
+<tr>
+<td><strong>Total (Phases 1-5)</strong></td>
+<td><strong>~7.5 days</strong></td>
+<td><strong>Low</strong></td>
+<td><strong>All except speculative</strong></td>
+</tr>
+<tr>
+<td><strong>Total (all phases)</strong></td>
+<td><strong>~12.5 days</strong></td>
+<td><strong>Medium</strong></td>
+<td><strong>All internal C++ APIs</strong></td>
+</tr>
+</tbody>
+</table>
+<h3 id="key-insight-the-8020-split">Key Insight: The 80/20 Split<a class="headerlink" href="#key-insight-the-8020-split" title="Permanent link">&para;</a></h3>
+<p>Phases 1-3 (~4.5 days) eliminate the three highest-churn dependencies (common.h, sampling.h, dead declarations) and cover the core inference path. This alone makes dynamic linking viable for the primary use case. Phases 4-6 are incremental wins with diminishing returns.</p>
+<hr />
+<h2 id="conclusion">Conclusion<a class="headerlink" href="#conclusion" title="Permanent link">&para;</a></h2>
+<p>Dynamic linking is attractive for build speed and decoupling, but the current codebase depends too heavily on internal C++ symbols (<code>common</code>, <code>sampling</code>, <code>chat</code>) that are not exported stably in pre-built releases. The practical path to dynamic linking requires first narrowing the Cython binding surface to the public C API, which is a significant but tractable refactor (~7.5 days for the critical path, excluding speculative decoding). For a project that also wraps whisper.cpp and stable-diffusion.cpp (which lack pre-built releases), the from-source pipeline cannot be fully eliminated regardless.</p>
+<p>The most impactful finding is that <strong>llama.cpp's public sampler API has expanded dramatically</strong> and now covers all sampler types. The <code>common_sampler_*</code> wrapper -- previously the primary blocker -- is now a thin convenience layer over public API functions. This makes the refactor significantly more feasible than it would have been even a few releases ago.</p>
+<h3 id="decision-matrix">Decision Matrix<a class="headerlink" href="#decision-matrix" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Factor</th>
+<th>Static (Current)</th>
+<th>Dynamic (Alternative)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Build speed</td>
+<td>Slow (minutes)</td>
+<td>Fast (seconds)</td>
+</tr>
+<tr>
+<td>Upgrade friction</td>
+<td>Full rebuild</td>
+<td>File swap (if ABI-compatible)</td>
+</tr>
+<tr>
+<td>Wheel size</td>
+<td>Large</td>
+<td>Small (if dylibs external)</td>
+</tr>
+<tr>
+<td>ABI safety</td>
+<td>Pinned at build</td>
+<td>Risk of mismatch</td>
+</tr>
+<tr>
+<td>Backend flexibility</td>
+<td>Full control</td>
+<td>Limited to release variants</td>
+</tr>
+<tr>
+<td>C++ internal access</td>
+<td>Full</td>
+<td>Fragile / unavailable</td>
+</tr>
+<tr>
+<td>Whisper/SD support</td>
+<td>Same pipeline</td>
+<td>Still needs from-source</td>
+</tr>
+<tr>
+<td>Distribution simplicity</td>
+<td>Self-contained</td>
+<td>External dependency</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="completed-refactoring-phases-1-5-field-fix">Completed Refactoring (Phases 1-5 + field fix)<a class="headerlink" href="#completed-refactoring-phases-1-5-field-fix" title="Permanent link">&para;</a></h2>
+<p>All phases implemented and verified (full test suite passing).</p>
+<h3 id="phase-1-dead-code-removal">Phase 1: Dead Code Removal<a class="headerlink" href="#phase-1-dead-code-removal" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Deleted <code>chat.pxd</code> (202 lines) and <code>log.pxd</code> (60 lines) -- cimported but never referenced</li>
+<li>Removed <code>cimport chat</code> and <code>cimport log</code> from <code>llama_cpp.pyx</code></li>
+<li><strong>Kept</strong> <code>gguf.pxd</code> (actively used by <code>GgufContext</code> class; wraps public <code>gguf.h</code> API)</li>
+</ul>
+<h3 id="phase-2-inlined-batch-helpers">Phase 2: Inlined Batch Helpers<a class="headerlink" href="#phase-2-inlined-batch-helpers" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Replaced <code>common.common_batch_add()</code> with direct array assignment in <code>LlamaBatch.add()</code></li>
+<li>Replaced <code>common.common_batch_clear()</code> with <code>self.p.n_tokens = 0</code> in <code>LlamaBatch.clear()</code></li>
+</ul>
+<h3 id="phase-3-sampling-refactor">Phase 3: Sampling Refactor<a class="headerlink" href="#phase-3-sampling-refactor" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Deleted <code>sampling.pxd</code> (117 lines) and removed <code>cimport sampling</code> from <code>llama_cpp.pyx</code></li>
+<li>Rewrote <code>CommonSampler</code> in <code>sampling.pxi</code> to use only public <code>llama_sampler_*</code> API:</li>
+<li>Chain construction via <code>llama_sampler_chain_init()</code> + <code>llama_sampler_init_*()</code> for each sampler type</li>
+<li>Grammar as separate sampler with rejection sampling (fast path: sample then check; slow path: constrain then resample)</li>
+<li>Token history tracked in Python <code>collections.deque</code> (replacing C++ <code>ring_buffer</code>)</li>
+<li>Reimplemented all sampler helper functions in Python:</li>
+<li><code>type_to_chr()</code>, <code>type_to_str()</code> via Python dicts</li>
+<li><code>types_from_names()</code>, <code>types_from_chars()</code> via Python lookups</li>
+<li><code>CommonSampler.print()</code> via <code>llama_sampler_chain_n/get/name</code></li>
+<li><code>CommonSampler.prev_str()</code> via <code>llama_token_to_piece</code> public API</li>
+</ul>
+<h3 id="phase-4-download-functions-in-python">Phase 4: Download Functions in Python<a class="headerlink" href="#phase-4-download-functions-in-python" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Deleted <code>download.pxd</code> (55 lines) and removed <code>cimport download</code> from <code>llama_cpp.pyx</code></li>
+<li>Rewrote all 4 download functions using Python <code>urllib.request</code> (stdlib, no external deps):</li>
+<li><code>get_hf_file()</code>: HF manifest API + JSON caching</li>
+<li><code>download_model()</code>: HTTP download with ETag caching, resume, retry</li>
+<li><code>list_cached_models()</code>: Filesystem scan of <code>manifest=*.json</code> files</li>
+<li><code>resolve_docker_model()</code>: Docker Hub auth + manifest + blob download</li>
+</ul>
+<h3 id="phase-5-n-gram-cache-in-python">Phase 5: N-gram Cache in Python<a class="headerlink" href="#phase-5-n-gram-cache-in-python" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Deleted <code>ngram_cache.pxd</code> (74 lines) and removed <code>cimport ngram_cache</code> from <code>llama_cpp.pyx</code></li>
+<li>Rewrote <code>NgramCache</code> as a pure Python class:</li>
+<li>Cache stored as <code>dict[tuple, dict[int, int]]</code> (ngram -&gt; {next_token: count})</li>
+<li>Three-tier draft algorithm (context/dynamic/static) with confidence thresholds</li>
+<li>Binary save/load format compatible with C++ implementation via <code>struct</code> module</li>
+</ul>
+<h3 id="field-mismatch-fix-param-conversion-inline">Field Mismatch Fix + Param Conversion Inline<a class="headerlink" href="#field-mismatch-fix-param-conversion-inline" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Fixed <code>common.pxd</code>: <code>flash_attn</code> (bint) -&gt; <code>flash_attn_type</code> (llama_flash_attn_type enum)</li>
+<li>Fixed <code>llama.pxd</code>: Added missing <code>embeddings</code> bool field to <code>llama_context_params</code></li>
+<li>Inlined <code>common_context_params_to_llama()</code> as direct field assignment in <code>LlamaContextParams.from_common_params()</code></li>
+<li><strong>Zero <code>common.h</code> function calls remain</strong> -- only struct/enum type declarations</li>
+</ul>
+<h3 id="remaining-internal-c-dependencies">Remaining Internal C++ Dependencies<a class="headerlink" href="#remaining-internal-c-dependencies" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Module</th>
+<th>Status</th>
+<th>Reason</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>common.h</code> (structs/enums)</td>
+<td>Kept</td>
+<td>Type declarations only (compile-time, no link dependency)</td>
+</tr>
+<tr>
+<td><code>speculative.h</code></td>
+<td>Kept</td>
+<td>No public API equivalent, required for speculative decoding</td>
+</tr>
+</tbody>
+</table>
+<h3 id="dynamic-linking-prototype-validated">Dynamic Linking Prototype (Validated)<a class="headerlink" href="#dynamic-linking-prototype-validated" title="Permanent link">&para;</a></h3>
+<p>Dynamic linking against pre-built llama.cpp releases has been implemented and validated:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Build with dynamic linking against a pre-built release</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="nv">WITH_DYLIB</span><span class="o">=</span><span class="m">1</span><span class="w"> </span><span class="nv">LLAMACPP_DYLIB_DIR</span><span class="o">=</span>/path/to/llama-b8522<span class="w"> </span>make<span class="w"> </span>build
+</code></pre></div>
+<p><strong>CMake options</strong>:</p>
+<ul>
+<li><code>WITH_DYLIB=ON</code> -- link against shared <code>.dylib</code>/<code>.so</code> files instead of static <code>.a</code> archives</li>
+<li><code>LLAMACPP_DYLIB_DIR=/path/to/release</code> -- directory containing pre-built shared libraries</li>
+<li><code>SD_USE_VENDORED_GGML=ON</code> -- link stable-diffusion against its own vendored ggml instead of llama.cpp's</li>
+</ul>
+<p><strong>How it works</strong>:</p>
+<ul>
+<li>Core llama.cpp libraries (<code>libllama</code>, <code>libggml*</code>, <code>libmtmd</code>) linked as shared libraries</li>
+<li><code>libcpp-httplib.a</code> still built from source (not in releases, needed for embedded server)</li>
+<li><code>libcommon.a</code> is no longer linked -- JSON schema-to-grammar conversion is now pure Python, and all other <code>common.h</code> dependencies have been eliminated</li>
+<li>Shared libraries copied alongside extension modules (<code>cyllama/llama/</code>) so <code>@loader_path</code>/<code>$ORIGIN</code> RPATH resolves correctly</li>
+<li>Whisper and Stable Diffusion remain statically linked (no pre-built releases available). Both use llama.cpp's ggml by default; set <code>SD_USE_VENDORED_GGML=1</code> to link stable-diffusion against its own vendored ggml instead</li>
+</ul>
+<p><strong>Validated results</strong> (macOS arm64, b8522 release):</p>
+<ul>
+<li>Extension size: 1.6 MB (vs ~15 MB with static linking)</li>
+<li>All tests passing (120+ tests verified including generation, batching, chat, context)</li>
+<li>Pre-built dylibs installed alongside extension: <code>libllama.dylib</code> (2.3MB), <code>libggml*.dylib</code>, <code>libmtmd.dylib</code></li>
+</ul>
+<hr />
+<h2 id="dev-branch-merge-analysis-2026-03-28">Dev Branch Merge Analysis (2026-03-28)<a class="headerlink" href="#dev-branch-merge-analysis-2026-03-28" title="Permanent link">&para;</a></h2>
+<p>Analysis of the <code>dev</code> branch changes since v0.1.21 (<code>main</code>), covering 11 commits, 63 files, +27,633 / -4,246 lines.</p>
+<h3 id="pros-of-merging">Pros of merging<a class="headerlink" href="#pros-of-merging" title="Permanent link">&para;</a></h3>
+<p><strong>1. Eliminates internal C++ API fragility (the biggest win)</strong>
+The branch removes all <code>common.h</code>/<code>libcommon</code> dependencies (~4200 lines deleted across <code>.pxd</code>/<code>.pxi</code> files). The extension now uses only public C APIs (<code>llama.h</code>, <code>ggml.h</code>, <code>gguf.h</code>, <code>mtmd.h</code>). This decouples cyllama from llama.cpp internals that break between releases, making future upstream version bumps significantly safer.</p>
+<p><strong>2. Enables dynamic linking</strong>
+<code>WITH_DYLIB=1</code> is a new build mode that links against pre-built llama.cpp releases instead of compiling from source. Extension size drops from ~15 MB to ~1.6 MB, build time goes from minutes to seconds. This unblocks faster iteration and simpler CI.</p>
+<p><strong>3. Build system consistency</strong></p>
+<ul>
+<li>Unified ggml across all three backends (was 0.9.5 for SD, 0.9.8 for the rest)</li>
+<li>Unified GPU backend flags (<code>GGML_*</code> applies to all components, no more separate <code>SD_METAL</code>)</li>
+<li>sqlite-vector vendored and built from CMake (no more <code>.gitignore</code> hacks for pre-built binaries)</li>
+</ul>
+<p><strong>4. Correctness fixes</strong></p>
+<ul>
+<li><code>flash_attn</code> / <code>flash_attn_type</code> struct mismatch (potential silent memory corruption)</li>
+<li>Missing <code>embeddings</code> field in <code>llama_context_params</code> (struct layout mismatch)</li>
+<li><code>_build_info.py</code> reporting wrong ggml version for SD</li>
+</ul>
+<p><strong>5. Cleaner test suite</strong>
+Removed ~220 lines of tests for <code>CommonParams</code>/<code>CommonParamsSampling</code> that tested deleted wrapper classes. The remaining tests cover the actual public API.</p>
+<h3 id="cons-of-merging">Cons of merging<a class="headerlink" href="#cons-of-merging" title="Permanent link">&para;</a></h3>
+<p><strong>1. Large, multi-concern changeset</strong>
+11 commits touching 63 files with +27,633 / -4,246 lines. Hard to review atomically or bisect if something regresses. The changes span: API refactor, build system overhaul, new build mode, vendored dependency, bug fixes. Ideally these would be separate PRs, but they're intertwined (e.g., public API refactor enables dynamic linking).</p>
+<p><strong>2. Removed public Python API surface</strong>
+<code>CommonParams</code>, <code>CommonParamsSampling</code>, <code>CommonSampler</code> are gone. Any downstream code using these classes will break. The replacements (<code>LlamaContextParams</code>, <code>LlamaSampler</code>) exist but the migration isn't documented beyond the changelog. This is a breaking change that warrants a minor version bump.</p>
+<p><strong>3. Vendored sqlite-vector adds ~24K lines of C to the repo</strong>
+The <code>thirdparty/sqlite-vector/</code> directory includes <code>sqlite3.h</code> (13,773 lines) and several SIMD distance implementations. This bloats the repo and creates a maintenance burden for keeping it in sync with upstream. The alternative (the pre-built binary approach) had its own problems, but the tradeoff is worth being explicit about.</p>
+<p><strong>4. Dynamic linking is new and lightly validated</strong>
+The changelog says "120+ tests verified" for dynamic mode, but the test matrix for dynamic linking across platforms (Linux, macOS) and backends (CUDA, Vulkan) is likely thin. A regression in dynamic mode could be hard to catch without CI coverage.</p>
+<p><strong>5. <code>SD_USE_VENDORED_GGML</code> adds configuration complexity</strong>
+A new build option with interactions across static/dynamic modes, multiple backends, and two different ggml versions. The common case (unified ggml) is simple, but the vendored path is an edge case that may not get exercised regularly and could rot.</p>
+<h3 id="recommendation">Recommendation<a class="headerlink" href="#recommendation" title="Permanent link">&para;</a></h3>
+<p>The public API refactor and correctness fixes alone justify merging. The core risk is the breaking API change (<code>CommonParams</code> removal) -- if there are downstream consumers, they need a migration path. If this is primarily internal/personal use, the tradeoff is clearly positive.</p>
+<p>One option to reduce risk: merge now, tag as <code>0.2.0</code> (semver minor bump for breaking changes), and add CI for the dynamic linking path before advertising it as stable.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.expand", "navigation.top", "search.highlight", "content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

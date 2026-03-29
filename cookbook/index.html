@@ -2260,6 +2260,7 @@
 <a id="__codelineno-6-28" name="__codelineno-6-28" href="#__codelineno-6-28"></a><span class="nb">print</span><span class="p">(</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">indent</span><span class="o">=</span><span class="mi">2</span><span class="p">))</span>
 </code></pre></div>
 <h3 id="constrained-generation-with-json-schema">Constrained Generation with JSON Schema<a class="headerlink" href="#constrained-generation-with-json-schema" title="Permanent link">&para;</a></h3>
+<p>Uses the pure Python JSON schema-to-grammar converter (vendored from llama.cpp, no C++ dependency).</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama</span><span class="w"> </span><span class="kn">import</span> <span class="n">LLM</span><span class="p">,</span> <span class="n">GenerationConfig</span>
 <a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.llama.llama_cpp</span><span class="w"> </span><span class="kn">import</span> <span class="n">json_schema_to_grammar</span>
 <a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>
