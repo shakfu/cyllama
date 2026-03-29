@@ -30,6 +30,8 @@ It combines the performance of compiled Cython wrappers with a simple, high-leve
 pip install cyllama
 ```
 
+This installs the cpu-backend for linux and windows. For MacOS, the Metal backend is installed, by default, to take advantage of Apple Silicon.
+
 ### GPU-Accelerated Variants
 
 GPU variants are available on PyPI as separate packages (dynamically linked, Linux x86_64 only):
