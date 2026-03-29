@@ -871,7 +871,11 @@ set(_VECTOR_SOURCES
 
 add_library(vector SHARED ${_VECTOR_SOURCES})
 target_include_directories(vector PRIVATE "${_VECTOR_SRC_DIR}")
-target_compile_options(vector PRIVATE -O3 -fPIC -Wall -Wextra -Wno-unused-parameter)
+if(MSVC)
+    target_compile_options(vector PRIVATE /O2 /W3)
+else()
+    target_compile_options(vector PRIVATE -O3 -fPIC -Wall -Wextra -Wno-unused-parameter)
+endif()
 
 # No lib prefix — output is vector.so / vector.dylib / vector.dll
 set_target_properties(vector PROPERTIES
