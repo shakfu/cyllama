@@ -1,0 +1,960 @@
+//
+//  distance-avx512.c
+//  sqlitevector
+//
+//  Converted to AVX-512
+//
+
+#include "distance-avx512.h"
+#include "distance-cpu.h"
+
+// Check for AVX512 Foundation (F) and Byte/Word (BW) which are standard on Skylake-X/IceLake+
+#if defined(__AVX512F__) && defined(__AVX512BW__) 
+#include <immintrin.h>
+#include <stdint.h>
+#include <math.h>
+
+extern distance_function_t dispatch_distance_table[VECTOR_DISTANCE_MAX][VECTOR_TYPE_MAX];
+extern const char *distance_backend_name;
+
+// Abs for f32 (AVX512F has native abs)
+#define _mm512_abs_ps(x) _mm512_abs_ps(x)
+
+// Horizontal sum for __m512 (f32) -> float
+static inline float hsum512_ps(__m512 v) {
+    return _mm512_reduce_add_ps(v);
+}
+
+// Horizontal sum for __m512d (f64) -> double
+static inline double hsum512d(__m512d v) {
+    return _mm512_reduce_add_pd(v);
+}
+
+// Helper: Horizontal sum for __m256i (used in int accumulators if we reduce to 256 first)
+// But for AVX512 we usually reduce the full ZMM.
+static inline uint32_t hsum512_epi32(__m512i v) {
+    return _mm512_reduce_add_epi32(v);
+}
+
+// per-block Inf mismatch test on 16 lanes (returns true if L1/L2 should be +Inf)
+static inline bool block_has_l2_inf_mismatch_16(const uint16_t* a, const uint16_t* b) {
+    /* mismatch if (a_inf ^ b_inf) OR (both Inf and signs differ) */
+    /* This loop is scalar, but checked per block of 16 to match vector stride */
+    for (int k = 0; k < 16; ++k) {
+        uint16_t ak = a[k], bk = b[k];
+        bool ai = f16_is_inf(ak), bi = f16_is_inf(bk);
+        if ((ai ^ bi) || (ai && bi && (f16_sign(ak) != f16_sign(bk)))) return true;
+    }
+    return false;
+}
+
+/* 16�bf16 -> 16�f32: widen to u32, shift <<16, reinterpret as f32 */
+static inline __m512 bf16x16_to_f32x16_loadu(const uint16_t* p) {
+    // Load 16x u16 (256 bits)
+    __m256i v16 = _mm256_loadu_si256((const __m256i*)p);
+    // Widen to 16x u32 (512 bits)
+    __m512i v32 = _mm512_cvtepu16_epi32(v16);
+    // Shift left 16
+    v32 = _mm512_slli_epi32(v32, 16);
+    // Bitcast to f32
+    return _mm512_castsi512_ps(v32);
+}
+
+/* Any lane has infinite difference? (a_inf ^ b_inf) || (both inf and signs differ) */
+static inline bool block_has_l2_inf_mismatch_bf16_16(const uint16_t* a, const uint16_t* b) {
+    for (int k = 0; k < 16; ++k) {
+        uint16_t ak = a[k], bk = b[k];
+        bool ai = bfloat16_is_inf(ak), bi = bfloat16_is_inf(bk);
+        if ((ai ^ bi) || (ai && bi && (bfloat16_sign(ak) != bfloat16_sign(bk)))) return true;
+    }
+    return false;
+}
+
+
+// MARK: - FLOAT32 -
+
+static inline float float32_distance_l2_impl_avx512(const void* v1, const void* v2, int n, bool use_sqrt) {
+    const float* a = (const float*)v1;
+    const float* b = (const float*)v2;
+
+    __m512 acc = _mm512_setzero_ps();
+    int i = 0;
+
+    // Stride 16 for AVX-512
+    for (; i <= n - 16; i += 16) {
+        __m512 va = _mm512_loadu_ps(a + i);
+        __m512 vb = _mm512_loadu_ps(b + i);
+        __m512 diff = _mm512_sub_ps(va, vb);
+        acc = _mm512_fmadd_ps(diff, diff, acc);
+    }
+
+    float total = hsum512_ps(acc);
+
+    for (; i < n; ++i) {
+        float d = a[i] - b[i];
+        total += d * d;
+    }
+
+    return use_sqrt ? sqrtf(total) : total;
+}
+
+float float32_distance_l2_avx512(const void* v1, const void* v2, int n) {
+    return float32_distance_l2_impl_avx512(v1, v2, n, true);
+}
+
+float float32_distance_l2_squared_avx512(const void* v1, const void* v2, int n) {
+    return float32_distance_l2_impl_avx512(v1, v2, n, false);
+}
+
+float float32_distance_l1_avx512(const void* v1, const void* v2, int n) {
+    const float* a = (const float*)v1;
+    const float* b = (const float*)v2;
+
+    __m512 acc = _mm512_setzero_ps();
+    int i = 0;
+
+    for (; i <= n - 16; i += 16) {
+        __m512 va = _mm512_loadu_ps(a + i);
+        __m512 vb = _mm512_loadu_ps(b + i);
+        __m512 diff = _mm512_sub_ps(va, vb);
+        acc = _mm512_add_ps(acc, _mm512_abs_ps(diff));
+    }
+
+    float total = hsum512_ps(acc);
+
+    for (; i < n; ++i) {
+        total += fabsf(a[i] - b[i]);
+    }
+
+    return total;
+}
+
+float float32_distance_dot_avx512(const void* v1, const void* v2, int n) {
+    const float* a = (const float*)v1;
+    const float* b = (const float*)v2;
+
+    __m512 acc = _mm512_setzero_ps();
+    int i = 0;
+
+    for (; i <= n - 16; i += 16) {
+        __m512 va = _mm512_loadu_ps(a + i);
+        __m512 vb = _mm512_loadu_ps(b + i);
+        acc = _mm512_fmadd_ps(va, vb, acc);
+    }
+
+    float total = hsum512_ps(acc);
+
+    for (; i < n; ++i) {
+        total += a[i] * b[i];
+    }
+
+    return -total;
+}
+
+float float32_distance_cosine_avx512(const void* a, const void* b, int n) {
+    float dot = -float32_distance_dot_avx512(a, b, n);
+    float norm_a = sqrtf(-float32_distance_dot_avx512(a, a, n));
+    float norm_b = sqrtf(-float32_distance_dot_avx512(b, b, n));
+
+    if (norm_a == 0.0f || norm_b == 0.0f) return 1.0f;
+
+    float cosine_similarity = dot / (norm_a * norm_b);
+    if (cosine_similarity > 1.0f) cosine_similarity = 1.0f;
+    if (cosine_similarity < -1.0f) cosine_similarity = -1.0f;
+    return 1.0f - cosine_similarity;
+}
+
+// MARK: - FLOAT16 -
+
+static inline float float16_distance_l2_impl_avx512(const void* v1, const void* v2, int n, bool use_sqrt) {
+    const uint16_t* a = (const uint16_t*)v1;
+    const uint16_t* b = (const uint16_t*)v2;
+
+    // Accumulate in double (2x __m512d)
+    __m512d acc0 = _mm512_setzero_pd();
+    __m512d acc1 = _mm512_setzero_pd();
+    int i = 0;
+
+    for (; i <= n - 16; i += 16) {
+        /* Inf mismatch => distance is +Inf */
+        if (block_has_l2_inf_mismatch_16(a + i, b + i)) return INFINITY;
+
+        // Load 16x f16 (256 bits)
+        __m256i va_h = _mm256_loadu_si256((const __m256i*)(a + i));
+        __m256i vb_h = _mm256_loadu_si256((const __m256i*)(b + i));
+
+        // Convert to f32
+        __m512 va = _mm512_cvtph_ps(va_h);
+        __m512 vb = _mm512_cvtph_ps(vb_h);
+
+        // Check for NaN to zero them out (matching original logic)
+        // Original logic: if (isnan(ak) || isnan(bk)) diff = 0
+        // In AVX512, cvtph_ps preserves NaN.
+        __m512 d = _mm512_sub_ps(va, vb);
+
+        // Mask: keep where NOT NaN. If input was NaN, sub result is NaN.
+        // We want to treat (NaN - x) or (x - NaN) as 0.0 contribution.
+        // Or strictly: if a[k] or b[k] is NaN.
+        // _mm512_cmp_ps_mask(x, x, _CMP_ORD_Q) is true if not NaN.
+        __mmask16 mask_a = _mm512_cmp_ps_mask(va, va, _CMP_ORD_Q);
+        __mmask16 mask_b = _mm512_cmp_ps_mask(vb, vb, _CMP_ORD_Q);
+        __mmask16 mask_valid = mask_a & mask_b;
+
+        // If not valid, set d to 0.0
+        d = _mm512_mask_set1_ps(d, ~mask_valid, 0.0f);
+
+        // Widen to f64 and accumulate
+        __m256 d_lo = _mm512_castps512_ps256(d);
+        __m256 d_hi = _mm512_extractf32x8_ps(d, 1);
+
+        __m512d dlo_d = _mm512_cvtps_pd(d_lo);
+        __m512d dhi_d = _mm512_cvtps_pd(d_hi);
+
+        acc0 = _mm512_fmadd_pd(dlo_d, dlo_d, acc0);
+        acc1 = _mm512_fmadd_pd(dhi_d, dhi_d, acc1);
+    }
+
+    double sum = hsum512d(acc0) + hsum512d(acc1);
+
+    /* scalar tail with same NaN/Inf policy */
+    for (; i < n; ++i) {
+        uint16_t ai = a[i], bi = b[i];
+        if ((f16_is_inf(ai) || f16_is_inf(bi)) && !(f16_is_inf(ai) && f16_is_inf(bi) && f16_sign(ai) == f16_sign(bi))) return INFINITY;
+        if (f16_is_nan(ai) || f16_is_nan(bi)) continue;
+        double d = (double)float16_to_float32(ai) - (double)float16_to_float32(bi);
+        sum = fma(d, d, sum);
+    }
+
+    return use_sqrt ? (float)sqrt(sum) : (float)sum;
+}
+
+float float16_distance_l2_avx512(const void* v1, const void* v2, int n) {
+    return float16_distance_l2_impl_avx512(v1, v2, n, true);
+}
+
+float float16_distance_l2_squared_avx512(const void* v1, const void* v2, int n) {
+    return float16_distance_l2_impl_avx512(v1, v2, n, false);
+}
+
+float float16_distance_l1_avx512(const void* v1, const void* v2, int n) {
+    const uint16_t* a = (const uint16_t*)v1;
+    const uint16_t* b = (const uint16_t*)v2;
+
+    __m512d acc0 = _mm512_setzero_pd();
+    __m512d acc1 = _mm512_setzero_pd();
+    int i = 0;
+
+    for (; i <= n - 16; i += 16) {
+        if (block_has_l2_inf_mismatch_16(a + i, b + i)) return INFINITY;
+
+        __m256i va_h = _mm256_loadu_si256((const __m256i*)(a + i));
+        __m256i vb_h = _mm256_loadu_si256((const __m256i*)(b + i));
+
+        __m512 va = _mm512_cvtph_ps(va_h);
+        __m512 vb = _mm512_cvtph_ps(vb_h);
+
+        __m512 d = _mm512_abs_ps(_mm512_sub_ps(va, vb));
+
+        // Zero out NaNs
+        __mmask16 mask_a = _mm512_cmp_ps_mask(va, va, _CMP_ORD_Q);
+        __mmask16 mask_b = _mm512_cmp_ps_mask(vb, vb, _CMP_ORD_Q);
+        d = _mm512_mask_set1_ps(d, ~(mask_a & mask_b), 0.0f);
+
+        // Convert to double to accumulate
+        __m256 d_lo = _mm512_castps512_ps256(d);
+        __m256 d_hi = _mm512_extractf32x8_ps(d, 1);
+
+        acc0 = _mm512_add_pd(acc0, _mm512_cvtps_pd(d_lo));
+        acc1 = _mm512_add_pd(acc1, _mm512_cvtps_pd(d_hi));
+    }
+
+    double sum = hsum512d(acc0) + hsum512d(acc1);
+
+    for (; i < n; ++i) {
+        uint16_t ai = a[i], bi = b[i];
+        if ((f16_is_inf(ai) || f16_is_inf(bi)) && !(f16_is_inf(ai) && f16_is_inf(bi) && f16_sign(ai) == f16_sign(bi))) return INFINITY;
+        if (f16_is_nan(ai) || f16_is_nan(bi)) continue;
+        sum += fabs((double)float16_to_float32(ai) - (double)float16_to_float32(bi));
+    }
+
+    return (float)sum;
+}
+
+float float16_distance_dot_avx512(const void* v1, const void* v2, int n) {
+    const uint16_t* a = (const uint16_t*)v1;
+    const uint16_t* b = (const uint16_t*)v2;
+
+    __m512d acc0 = _mm512_setzero_pd();
+    __m512d acc1 = _mm512_setzero_pd();
+    int i = 0;
+
+    for (; i <= n - 16; i += 16) {
+        // Scalar check for Inf/NaN edge cases in the block
+        for (int k = 0; k < 16; ++k) {
+            uint16_t ak = a[i + k], bk = b[i + k];
+            if (f16_is_nan(ak) || f16_is_nan(bk)) continue;
+            bool ai = f16_is_inf(ak), bi = f16_is_inf(bk);
+            if (ai || bi) {
+                if ((ai && f16_is_zero(bk)) || (bi && f16_is_zero(ak))) {
+                    // Inf * 0 -> NaN (ignore)
+                }
+                else {
+                    int s = (f16_sign(ak) ^ f16_sign(bk)) ? -1 : +1;
+                    return s < 0 ? INFINITY : -INFINITY;
+                }
+            }
+        }
+
+        __m256i va_h = _mm256_loadu_si256((const __m256i*)(a + i));
+        __m256i vb_h = _mm256_loadu_si256((const __m256i*)(b + i));
+
+        __m512 va = _mm512_cvtph_ps(va_h);
+        __m512 vb = _mm512_cvtph_ps(vb_h);
+
+        // Zero out NaNs
+        __mmask16 mask_a = _mm512_cmp_ps_mask(va, va, _CMP_ORD_Q);
+        __mmask16 mask_b = _mm512_cmp_ps_mask(vb, vb, _CMP_ORD_Q);
+
+        va = _mm512_mask_set1_ps(va, ~mask_a, 0.0f);
+        vb = _mm512_mask_set1_ps(vb, ~mask_b, 0.0f);
+
+        // This multiply might generate Infs, but we checked scalar first. 
+        // We still need to handle the case where standard float math generates Inf from finite * finite?
+        // The original code checks isinf(p).
+        __m512 p = _mm512_mul_ps(va, vb);
+
+        // Convert to double
+        __m256 p_lo = _mm512_castps512_ps256(p);
+        __m256 p_hi = _mm512_extractf32x8_ps(p, 1);
+
+        acc0 = _mm512_add_pd(acc0, _mm512_cvtps_pd(p_lo));
+        acc1 = _mm512_add_pd(acc1, _mm512_cvtps_pd(p_hi));
+    }
+
+    double dot = hsum512d(acc0) + hsum512d(acc1);
+
+    for (; i < n; ++i) {
+        uint16_t ai = a[i], bi = b[i];
+        if (f16_is_nan(ai) || f16_is_nan(bi)) continue;
+        bool aiinf = f16_is_inf(ai), biinf = f16_is_inf(bi);
+        if (aiinf || biinf) {
+            if ((aiinf && f16_is_zero(bi)) || (biinf && f16_is_zero(ai))) {
+            }
+            else {
+                int s = (f16_sign(ai) ^ f16_sign(bi)) ? -1 : +1;
+                return s < 0 ? INFINITY : -INFINITY;
+            }
+        }
+        else {
+            float x = float16_to_float32(ai);
+            float y = float16_to_float32(bi);
+            double p = (double)x * (double)y;
+            if (isinf(p)) return (p > 0) ? -INFINITY : INFINITY;
+            if (!isnan(p)) dot += p;
+        }
+    }
+
+    return (float)(-dot);
+}
+
+float float16_distance_cosine_avx512(const void* va, const void* vb, int n) {
+    const uint16_t* a = (const uint16_t*)va;
+    const uint16_t* b = (const uint16_t*)vb;
+
+    for (int i = 0; i < n; ++i) {
+        if (f16_is_inf(a[i]) || f16_is_inf(b[i])) return 1.0f;
+    }
+
+    float dot = -float16_distance_dot_avx512(a, b, n);
+    float norm_a = sqrtf(-float16_distance_dot_avx512(a, a, n));
+    float norm_b = sqrtf(-float16_distance_dot_avx512(b, b, n));
+
+    if (!(norm_a > 0.0f) || !(norm_b > 0.0f) || !isfinite(norm_a) || !isfinite(norm_b) || !isfinite(dot))
+        return 1.0f;
+
+    float cosine = dot / (norm_a * norm_b);
+    if (cosine > 1.0f)  cosine = 1.0f;
+    if (cosine < -1.0f) cosine = -1.0f;
+    return 1.0f - cosine;
+}
+
+
+// MARK: - BFLOAT16 -
+
+static inline float bfloat16_distance_l2_impl_avx512(const void* v1, const void* v2, int n, bool use_sqrt) {
+    const uint16_t* a = (const uint16_t*)v1;
+    const uint16_t* b = (const uint16_t*)v2;
+
+    __m512d acc0 = _mm512_setzero_pd();
+    __m512d acc1 = _mm512_setzero_pd();
+    int i = 0;
+
+    for (; i <= n - 16; i += 16) {
+        if (block_has_l2_inf_mismatch_bf16_16(a + i, b + i)) return INFINITY;
+
+        __m512 af = bf16x16_to_f32x16_loadu(a + i);
+        __m512 bf = bf16x16_to_f32x16_loadu(b + i);
+
+        // Extract halves to convert to double (precision)
+        __m256 af_lo = _mm512_castps512_ps256(af);
+        __m256 af_hi = _mm512_extractf32x8_ps(af, 1);
+        __m256 bf_lo = _mm512_castps512_ps256(bf);
+        __m256 bf_hi = _mm512_extractf32x8_ps(bf, 1);
+
+        __m512d a0 = _mm512_cvtps_pd(af_lo);
+        __m512d a1 = _mm512_cvtps_pd(af_hi);
+        __m512d b0 = _mm512_cvtps_pd(bf_lo);
+        __m512d b1 = _mm512_cvtps_pd(bf_hi);
+
+        __m512d d0 = _mm512_sub_pd(a0, b0);
+        __m512d d1 = _mm512_sub_pd(a1, b1);
+
+        /* zero-out NaNs */
+        __mmask8 m0 = _mm512_cmp_pd_mask(d0, d0, _CMP_ORD_Q);
+        __mmask8 m1 = _mm512_cmp_pd_mask(d1, d1, _CMP_ORD_Q);
+        d0 = _mm512_mask_set1_pd(d0, ~m0, 0.0);
+        d1 = _mm512_mask_set1_pd(d1, ~m1, 0.0);
+
+        acc0 = _mm512_fmadd_pd(d0, d0, acc0);
+        acc1 = _mm512_fmadd_pd(d1, d1, acc1);
+    }
+
+    double sum = hsum512d(acc0) + hsum512d(acc1);
+
+    for (; i < n; ++i) {
+        uint16_t ai = a[i], bi = b[i];
+        if ((bfloat16_is_inf(ai) || bfloat16_is_inf(bi)) && !(bfloat16_is_inf(ai) && bfloat16_is_inf(bi) && bfloat16_sign(ai) == bfloat16_sign(bi))) return INFINITY;
+        if (bfloat16_is_nan(ai) || bfloat16_is_nan(bi)) continue;
+        double d = (double)bfloat16_to_float32(ai) - (double)bfloat16_to_float32(bi);
+        sum = fma(d, d, sum);
+    }
+
+    return use_sqrt ? (float)sqrt(sum) : (float)sum;
+}
+
+float bfloat16_distance_l2_avx512(const void* v1, const void* v2, int n) {
+    return bfloat16_distance_l2_impl_avx512(v1, v2, n, true);
+}
+
+float bfloat16_distance_l2_squared_avx512(const void* v1, const void* v2, int n) {
+    return bfloat16_distance_l2_impl_avx512(v1, v2, n, false);
+}
+
+float bfloat16_distance_l1_avx512(const void* v1, const void* v2, int n) {
+    const uint16_t* a = (const uint16_t*)v1;
+    const uint16_t* b = (const uint16_t*)v2;
+
+    __m512d acc0 = _mm512_setzero_pd();
+    __m512d acc1 = _mm512_setzero_pd();
+    int i = 0;
+
+    for (; i <= n - 16; i += 16) {
+        if (block_has_l2_inf_mismatch_bf16_16(a + i, b + i)) return INFINITY;
+
+        __m512 af = bf16x16_to_f32x16_loadu(a + i);
+        __m512 bf = bf16x16_to_f32x16_loadu(b + i);
+
+        __m256 af_lo = _mm512_castps512_ps256(af);
+        __m256 af_hi = _mm512_extractf32x8_ps(af, 1);
+        __m256 bf_lo = _mm512_castps512_ps256(bf);
+        __m256 bf_hi = _mm512_extractf32x8_ps(bf, 1);
+
+        __m512d d0 = _mm512_sub_pd(_mm512_cvtps_pd(af_lo), _mm512_cvtps_pd(bf_lo));
+        __m512d d1 = _mm512_sub_pd(_mm512_cvtps_pd(af_hi), _mm512_cvtps_pd(bf_hi));
+
+        d0 = _mm512_abs_pd(d0);
+        d1 = _mm512_abs_pd(d1);
+
+        // NaN -> 0
+        __mmask8 m0 = _mm512_cmp_pd_mask(d0, d0, _CMP_ORD_Q);
+        __mmask8 m1 = _mm512_cmp_pd_mask(d1, d1, _CMP_ORD_Q);
+        d0 = _mm512_mask_set1_pd(d0, ~m0, 0.0);
+        d1 = _mm512_mask_set1_pd(d1, ~m1, 0.0);
+
+        acc0 = _mm512_add_pd(acc0, d0);
+        acc1 = _mm512_add_pd(acc1, d1);
+    }
+
+    double sum = hsum512d(acc0) + hsum512d(acc1);
+
+    for (; i < n; ++i) {
+        uint16_t ai = a[i], bi = b[i];
+        if ((bfloat16_is_inf(ai) || bfloat16_is_inf(bi)) && !(bfloat16_is_inf(ai) && bfloat16_is_inf(bi) && bfloat16_sign(ai) == bfloat16_sign(bi))) return INFINITY;
+        if (bfloat16_is_nan(ai) || bfloat16_is_nan(bi)) continue;
+        sum += fabs((double)bfloat16_to_float32(ai) - (double)bfloat16_to_float32(bi));
+    }
+
+    return (float)sum;
+}
+
+float bfloat16_distance_dot_avx512(const void* v1, const void* v2, int n) {
+    const uint16_t* a = (const uint16_t*)v1;
+    const uint16_t* b = (const uint16_t*)v2;
+
+    __m512d acc0 = _mm512_setzero_pd();
+    __m512d acc1 = _mm512_setzero_pd();
+    int i = 0;
+
+    for (; i <= n - 16; i += 16) {
+        for (int k = 0; k < 16; ++k) {
+            uint16_t ak = a[i + k], bk = b[i + k];
+            bool ai = bfloat16_is_inf(ak), bi = bfloat16_is_inf(bk);
+            if (ai || bi) {
+                if ((ai && bfloat16_is_zero(bk)) || (bi && bfloat16_is_zero(ak))) {
+                    continue;
+                }
+                else {
+                    int s = (bfloat16_sign(ak) ^ bfloat16_sign(bk)) ? -1 : +1;
+                    return s < 0 ? INFINITY : -INFINITY;
+                }
+            }
+        }
+
+        __m512 af = bf16x16_to_f32x16_loadu(a + i);
+        __m512 bf = bf16x16_to_f32x16_loadu(b + i);
+
+        // NaN -> 0
+        __mmask16 ma = _mm512_cmp_ps_mask(af, af, _CMP_ORD_Q);
+        __mmask16 mb = _mm512_cmp_ps_mask(bf, bf, _CMP_ORD_Q);
+        af = _mm512_mask_set1_ps(af, ~ma, 0.0f);
+        bf = _mm512_mask_set1_ps(bf, ~mb, 0.0f);
+
+        __m512 prod = _mm512_mul_ps(af, bf);
+
+        __m256 lo = _mm512_castps512_ps256(prod);
+        __m256 hi = _mm512_extractf32x8_ps(prod, 1);
+        __m512d d0 = _mm512_cvtps_pd(lo);
+        __m512d d1 = _mm512_cvtps_pd(hi);
+
+        acc0 = _mm512_add_pd(acc0, d0);
+        acc1 = _mm512_add_pd(acc1, d1);
+    }
+
+    double dot = hsum512d(acc0) + hsum512d(acc1);
+
+    for (; i < n; ++i) {
+        uint16_t ai = a[i], bi = b[i];
+        if (bfloat16_is_nan(ai) || bfloat16_is_nan(bi)) continue;
+        bool aiinf = bfloat16_is_inf(ai), biinf = bfloat16_is_inf(bi);
+        if (aiinf || biinf) {
+            if ((aiinf && bfloat16_is_zero(bi)) || (biinf && bfloat16_is_zero(ai))) {
+            }
+            else {
+                int sgn = (bfloat16_sign(ai) ^ bfloat16_sign(bi)) ? -1 : +1;
+                return sgn < 0 ? INFINITY : -INFINITY;
+            }
+        }
+        else {
+            double p = (double)bfloat16_to_float32(ai) * (double)bfloat16_to_float32(bi);
+            dot += p;
+        }
+    }
+
+    return (float)(-dot);
+}
+
+float bfloat16_distance_cosine_avx512(const void* v1, const void* v2, int n) {
+    float dot = -bfloat16_distance_dot_avx512(v1, v2, n);
+    float norm_a = sqrtf(-bfloat16_distance_dot_avx512(v1, v1, n));
+    float norm_b = sqrtf(-bfloat16_distance_dot_avx512(v2, v2, n));
+
+    if (!(norm_a > 0.0f) || !(norm_b > 0.0f) || !isfinite(norm_a) || !isfinite(norm_b) || !isfinite(dot))
+        return 1.0f;
+
+    float cs = dot / (norm_a * norm_b);
+    if (cs > 1.0f) cs = 1.0f;
+    if (cs < -1.0f) cs = -1.0f;
+    return 1.0f - cs;
+}
+
+
+// MARK: - UINT8 -
+
+static inline float uint8_distance_l2_impl_avx512(const void* v1, const void* v2, int n, bool use_sqrt) {
+    const uint8_t* a = (const uint8_t*)v1;
+    const uint8_t* b = (const uint8_t*)v2;
+
+    __m512i acc = _mm512_setzero_si512();
+    int i = 0;
+
+    // Process 64 elements at a time (64 bytes = 512 bits)
+    for (; i <= n - 64; i += 64) {
+        __m512i va = _mm512_loadu_si512((const void*)(a + i));
+        __m512i vb = _mm512_loadu_si512((const void*)(b + i));
+
+        // Split 64x u8 into 2x 32x u16 (Low 32 bytes and High 32 bytes of 512 register)
+
+        // 1. Lower 32 bytes -> 32x u16
+        __m256i va_half_lo = _mm512_castsi512_si256(va);
+        __m256i vb_half_lo = _mm512_castsi512_si256(vb);
+        __m512i va_16_lo = _mm512_cvtepu8_epi16(va_half_lo);
+        __m512i vb_16_lo = _mm512_cvtepu8_epi16(vb_half_lo);
+
+        // 2. Upper 32 bytes -> 32x u16
+        __m256i va_half_hi = _mm512_extracti64x4_epi64(va, 1);
+        __m256i vb_half_hi = _mm512_extracti64x4_epi64(vb, 1);
+        __m512i va_16_hi = _mm512_cvtepu8_epi16(va_half_hi);
+        __m512i vb_16_hi = _mm512_cvtepu8_epi16(vb_half_hi);
+
+        // Compute diffs (16-bit)
+        __m512i d_lo = _mm512_sub_epi16(va_16_lo, vb_16_lo);
+        __m512i d_hi = _mm512_sub_epi16(va_16_hi, vb_16_hi);
+
+        // Square diffs (16-bit result)
+        __m512i s_lo = _mm512_mullo_epi16(d_lo, d_lo);
+        __m512i s_hi = _mm512_mullo_epi16(d_hi, d_hi);
+
+        // Widen to 32-bit and accumulate.
+        // Each 512-bit register of 16-bit ints splits into TWO 512-bit registers of 32-bit ints.
+        // s_lo splits into s_lo_0, s_lo_1
+
+        __m256i s_lo_half = _mm512_castsi512_si256(s_lo);
+        acc = _mm512_add_epi32(acc, _mm512_cvtepu16_epi32(s_lo_half));
+        acc = _mm512_add_epi32(acc, _mm512_cvtepu16_epi32(_mm512_extracti64x4_epi64(s_lo, 1)));
+
+        __m256i s_hi_half = _mm512_castsi512_si256(s_hi);
+        acc = _mm512_add_epi32(acc, _mm512_cvtepu16_epi32(s_hi_half));
+        acc = _mm512_add_epi32(acc, _mm512_cvtepu16_epi32(_mm512_extracti64x4_epi64(s_hi, 1)));
+    }
+
+    uint32_t total = hsum512_epi32(acc);
+
+    // Tail loop
+    for (; i < n; ++i) {
+        int d = (int)a[i] - (int)b[i];
+        total += d * d;
+    }
+
+    return use_sqrt ? sqrtf((float)total) : (float)total;
+}
+
+float uint8_distance_l2_avx512(const void* v1, const void* v2, int n) {
+    return uint8_distance_l2_impl_avx512(v1, v2, n, true);
+}
+
+float uint8_distance_l2_squared_avx512(const void* v1, const void* v2, int n) {
+    return uint8_distance_l2_impl_avx512(v1, v2, n, false);
+}
+
+float uint8_distance_dot_avx512(const void* v1, const void* v2, int n) {
+    const uint8_t* a = (const uint8_t*)v1;
+    const uint8_t* b = (const uint8_t*)v2;
+
+    __m512i acc = _mm512_setzero_si512();
+    int i = 0;
+
+    for (; i <= n - 64; i += 64) {
+        __m512i va = _mm512_loadu_si512((const void*)(a + i));
+        __m512i vb = _mm512_loadu_si512((const void*)(b + i));
+
+        __m512i va_16_lo = _mm512_cvtepu8_epi16(_mm512_castsi512_si256(va));
+        __m512i vb_16_lo = _mm512_cvtepu8_epi16(_mm512_castsi512_si256(vb));
+        __m512i va_16_hi = _mm512_cvtepu8_epi16(_mm512_extracti64x4_epi64(va, 1));
+        __m512i vb_16_hi = _mm512_cvtepu8_epi16(_mm512_extracti64x4_epi64(vb, 1));
+
+        __m512i p_lo = _mm512_mullo_epi16(va_16_lo, vb_16_lo);
+        __m512i p_hi = _mm512_mullo_epi16(va_16_hi, vb_16_hi);
+
+        acc = _mm512_add_epi32(acc, _mm512_cvtepu16_epi32(_mm512_castsi512_si256(p_lo)));
+        acc = _mm512_add_epi32(acc, _mm512_cvtepu16_epi32(_mm512_extracti64x4_epi64(p_lo, 1)));
+        acc = _mm512_add_epi32(acc, _mm512_cvtepu16_epi32(_mm512_castsi512_si256(p_hi)));
+        acc = _mm512_add_epi32(acc, _mm512_cvtepu16_epi32(_mm512_extracti64x4_epi64(p_hi, 1)));
+    }
+
+    uint32_t total = hsum512_epi32(acc);
+
+    for (; i < n; ++i) {
+        total += a[i] * b[i];
+    }
+
+    return -(float)total;
+}
+
+float uint8_distance_l1_avx512(const void* v1, const void* v2, int n) {
+    const uint8_t* a = (const uint8_t*)v1;
+    const uint8_t* b = (const uint8_t*)v2;
+
+    __m512i acc = _mm512_setzero_si512();
+    int i = 0;
+
+    for (; i <= n - 64; i += 64) {
+        __m512i va = _mm512_loadu_si512((const void*)(a + i));
+        __m512i vb = _mm512_loadu_si512((const void*)(b + i));
+
+        __m512i va_16_lo = _mm512_cvtepu8_epi16(_mm512_castsi512_si256(va));
+        __m512i vb_16_lo = _mm512_cvtepu8_epi16(_mm512_castsi512_si256(vb));
+        __m512i va_16_hi = _mm512_cvtepu8_epi16(_mm512_extracti64x4_epi64(va, 1));
+        __m512i vb_16_hi = _mm512_cvtepu8_epi16(_mm512_extracti64x4_epi64(vb, 1));
+
+        // abs(a-b) in 16-bit
+        // Note: AVX512BW has _mm512_abs_epi16
+        __m512i d_lo = _mm512_abs_epi16(_mm512_sub_epi16(va_16_lo, vb_16_lo));
+        __m512i d_hi = _mm512_abs_epi16(_mm512_sub_epi16(va_16_hi, vb_16_hi));
+
+        acc = _mm512_add_epi32(acc, _mm512_cvtepu16_epi32(_mm512_castsi512_si256(d_lo)));
+        acc = _mm512_add_epi32(acc, _mm512_cvtepu16_epi32(_mm512_extracti64x4_epi64(d_lo, 1)));
+        acc = _mm512_add_epi32(acc, _mm512_cvtepu16_epi32(_mm512_castsi512_si256(d_hi)));
+        acc = _mm512_add_epi32(acc, _mm512_cvtepu16_epi32(_mm512_extracti64x4_epi64(d_hi, 1)));
+    }
+
+    uint32_t total = hsum512_epi32(acc);
+
+    for (; i < n; ++i) {
+        total += abs((int)a[i] - (int)b[i]);
+    }
+
+    return (float)total;
+}
+
+float uint8_distance_cosine_avx512(const void* a, const void* b, int n) {
+    float dot = -uint8_distance_dot_avx512(a, b, n);
+    float norm_a = sqrtf(-uint8_distance_dot_avx512(a, a, n));
+    float norm_b = sqrtf(-uint8_distance_dot_avx512(b, b, n));
+
+    if (norm_a == 0.0f || norm_b == 0.0f) return 1.0f;
+
+    float cosine_similarity = dot / (norm_a * norm_b);
+    if (cosine_similarity > 1.0f) cosine_similarity = 1.0f;
+    if (cosine_similarity < -1.0f) cosine_similarity = -1.0f;
+    return 1.0f - cosine_similarity;
+}
+
+
+// MARK: - INT8 -
+
+static inline float int8_distance_l2_impl_avx512(const void* v1, const void* v2, int n, bool use_sqrt) {
+    const int8_t* a = (const int8_t*)v1;
+    const int8_t* b = (const int8_t*)v2;
+
+    __m512i acc = _mm512_setzero_si512();
+    int i = 0;
+
+    for (; i <= n - 64; i += 64) {
+        __m512i va = _mm512_loadu_si512((const void*)(a + i));
+        __m512i vb = _mm512_loadu_si512((const void*)(b + i));
+
+        // Sign extend int8 to int16. 
+        // _mm512_cvtepi8_epi16 behaves exactly like cvtepu8 but for signed.
+        __m512i va_16_lo = _mm512_cvtepi8_epi16(_mm512_castsi512_si256(va));
+        __m512i vb_16_lo = _mm512_cvtepi8_epi16(_mm512_castsi512_si256(vb));
+        __m512i va_16_hi = _mm512_cvtepi8_epi16(_mm512_extracti64x4_epi64(va, 1));
+        __m512i vb_16_hi = _mm512_cvtepi8_epi16(_mm512_extracti64x4_epi64(vb, 1));
+
+        __m512i d_lo = _mm512_sub_epi16(va_16_lo, vb_16_lo);
+        __m512i d_hi = _mm512_sub_epi16(va_16_hi, vb_16_hi);
+
+        __m512i s_lo = _mm512_mullo_epi16(d_lo, d_lo);
+        __m512i s_hi = _mm512_mullo_epi16(d_hi, d_hi);
+
+        // Sign extend 16 to 32 and add (results of square are positive, but keeping types consistent)
+        acc = _mm512_add_epi32(acc, _mm512_cvtepi16_epi32(_mm512_castsi512_si256(s_lo)));
+        acc = _mm512_add_epi32(acc, _mm512_cvtepi16_epi32(_mm512_extracti64x4_epi64(s_lo, 1)));
+        acc = _mm512_add_epi32(acc, _mm512_cvtepi16_epi32(_mm512_castsi512_si256(s_hi)));
+        acc = _mm512_add_epi32(acc, _mm512_cvtepi16_epi32(_mm512_extracti64x4_epi64(s_hi, 1)));
+    }
+
+    uint32_t total = hsum512_epi32(acc);
+
+    for (; i < n; ++i) {
+        int d = (int)a[i] - (int)b[i];
+        total += d * d;
+    }
+
+    return use_sqrt ? sqrtf((float)total) : (float)total;
+}
+
+float int8_distance_l2_avx512(const void* v1, const void* v2, int n) {
+    return int8_distance_l2_impl_avx512(v1, v2, n, true);
+}
+
+float int8_distance_l2_squared_avx512(const void* v1, const void* v2, int n) {
+    return int8_distance_l2_impl_avx512(v1, v2, n, false);
+}
+
+float int8_distance_dot_avx512(const void* v1, const void* v2, int n) {
+    const int8_t* a = (const int8_t*)v1;
+    const int8_t* b = (const int8_t*)v2;
+
+    __m512i acc = _mm512_setzero_si512();
+    int i = 0;
+
+    for (; i <= n - 64; i += 64) {
+        __m512i va = _mm512_loadu_si512((const void*)(a + i));
+        __m512i vb = _mm512_loadu_si512((const void*)(b + i));
+
+        __m512i va_16_lo = _mm512_cvtepi8_epi16(_mm512_castsi512_si256(va));
+        __m512i vb_16_lo = _mm512_cvtepi8_epi16(_mm512_castsi512_si256(vb));
+        __m512i va_16_hi = _mm512_cvtepi8_epi16(_mm512_extracti64x4_epi64(va, 1));
+        __m512i vb_16_hi = _mm512_cvtepi8_epi16(_mm512_extracti64x4_epi64(vb, 1));
+
+        __m512i p_lo = _mm512_mullo_epi16(va_16_lo, vb_16_lo);
+        __m512i p_hi = _mm512_mullo_epi16(va_16_hi, vb_16_hi);
+
+        acc = _mm512_add_epi32(acc, _mm512_cvtepi16_epi32(_mm512_castsi512_si256(p_lo)));
+        acc = _mm512_add_epi32(acc, _mm512_cvtepi16_epi32(_mm512_extracti64x4_epi64(p_lo, 1)));
+        acc = _mm512_add_epi32(acc, _mm512_cvtepi16_epi32(_mm512_castsi512_si256(p_hi)));
+        acc = _mm512_add_epi32(acc, _mm512_cvtepi16_epi32(_mm512_extracti64x4_epi64(p_hi, 1)));
+    }
+
+    int32_t total = (int32_t)hsum512_epi32(acc);
+
+    for (; i < n; ++i) {
+        total += (int)a[i] * (int)b[i];
+    }
+
+    return -(float)total;
+}
+
+float int8_distance_l1_avx512(const void* v1, const void* v2, int n) {
+    const int8_t* a = (const int8_t*)v1;
+    const int8_t* b = (const int8_t*)v2;
+
+    __m512i acc = _mm512_setzero_si512();
+    int i = 0;
+
+    for (; i <= n - 64; i += 64) {
+        __m512i va = _mm512_loadu_si512((const void*)(a + i));
+        __m512i vb = _mm512_loadu_si512((const void*)(b + i));
+
+        __m512i va_16_lo = _mm512_cvtepi8_epi16(_mm512_castsi512_si256(va));
+        __m512i vb_16_lo = _mm512_cvtepi8_epi16(_mm512_castsi512_si256(vb));
+        __m512i va_16_hi = _mm512_cvtepi8_epi16(_mm512_extracti64x4_epi64(va, 1));
+        __m512i vb_16_hi = _mm512_cvtepi8_epi16(_mm512_extracti64x4_epi64(vb, 1));
+
+        __m512i d_lo = _mm512_abs_epi16(_mm512_sub_epi16(va_16_lo, vb_16_lo));
+        __m512i d_hi = _mm512_abs_epi16(_mm512_sub_epi16(va_16_hi, vb_16_hi));
+
+        acc = _mm512_add_epi32(acc, _mm512_cvtepu16_epi32(_mm512_castsi512_si256(d_lo)));
+        acc = _mm512_add_epi32(acc, _mm512_cvtepu16_epi32(_mm512_extracti64x4_epi64(d_lo, 1)));
+        acc = _mm512_add_epi32(acc, _mm512_cvtepu16_epi32(_mm512_castsi512_si256(d_hi)));
+        acc = _mm512_add_epi32(acc, _mm512_cvtepu16_epi32(_mm512_extracti64x4_epi64(d_hi, 1)));
+    }
+
+    int32_t total = (int32_t)hsum512_epi32(acc);
+
+    for (; i < n; ++i) {
+        total += abs((int)a[i] - (int)b[i]);
+    }
+
+    return (float)total;
+}
+
+float int8_distance_cosine_avx512(const void* a, const void* b, int n) {
+    float dot = -int8_distance_dot_avx512(a, b, n);
+    float norm_a = sqrtf(-int8_distance_dot_avx512(a, a, n));
+    float norm_b = sqrtf(-int8_distance_dot_avx512(b, b, n));
+
+    if (norm_a == 0.0f || norm_b == 0.0f) return 1.0f;
+
+    float cosine_similarity = dot / (norm_a * norm_b);
+    if (cosine_similarity > 1.0f) cosine_similarity = 1.0f;
+    if (cosine_similarity < -1.0f) cosine_similarity = -1.0f;
+    return 1.0f - cosine_similarity;
+}
+
+// MARK: - BIT -
+
+// AVX-512 popcount using lookup table (works on all AVX-512 CPUs)
+static inline __m512i popcount_avx512(__m512i v) {
+    // Lookup table for popcount of 4-bit values
+    const __m512i popcount_lut = _mm512_set_epi8(
+        4, 3, 3, 2, 3, 2, 2, 1, 3, 2, 2, 1, 2, 1, 1, 0,
+        4, 3, 3, 2, 3, 2, 2, 1, 3, 2, 2, 1, 2, 1, 1, 0,
+        4, 3, 3, 2, 3, 2, 2, 1, 3, 2, 2, 1, 2, 1, 1, 0,
+        4, 3, 3, 2, 3, 2, 2, 1, 3, 2, 2, 1, 2, 1, 1, 0
+    );
+    const __m512i low_mask = _mm512_set1_epi8(0x0f);
+
+    __m512i lo = _mm512_and_si512(v, low_mask);
+    __m512i hi = _mm512_and_si512(_mm512_srli_epi16(v, 4), low_mask);
+    __m512i cnt_lo = _mm512_shuffle_epi8(popcount_lut, lo);
+    __m512i cnt_hi = _mm512_shuffle_epi8(popcount_lut, hi);
+    return _mm512_add_epi8(cnt_lo, cnt_hi);
+}
+
+// Hamming distance for 1-bit packed binary vectors
+// n = number of bytes (callers pass (dimension + 7) / 8)
+static float bit1_distance_hamming_avx512(const void *v1, const void *v2, int n) {
+    const uint8_t *a = (const uint8_t *)v1;
+    const uint8_t *b = (const uint8_t *)v2;
+
+    __m512i acc = _mm512_setzero_si512();
+    int i = 0;
+
+    // Process 64 bytes at a time
+    for (; i + 64 <= n; i += 64) {
+        __m512i va = _mm512_loadu_si512((const __m512i *)(a + i));
+        __m512i vb = _mm512_loadu_si512((const __m512i *)(b + i));
+        __m512i xored = _mm512_xor_si512(va, vb);
+
+#if defined(__AVX512VPOPCNTDQ__)
+        // Native popcount (Ice Lake+)
+        __m512i popcnt = _mm512_popcnt_epi64(xored);
+        acc = _mm512_add_epi64(acc, popcnt);
+#else
+        // Lookup table popcount (Skylake-X compatible)
+        __m512i popcnt = popcount_avx512(xored);
+        // Sum bytes to 64-bit using SAD against zero
+        acc = _mm512_add_epi64(acc, _mm512_sad_epu8(popcnt, _mm512_setzero_si512()));
+#endif
+    }
+
+    // Horizontal sum
+    uint64_t distance = _mm512_reduce_add_epi64(acc);
+
+    // Handle remaining bytes with scalar code
+    for (; i < n; i++) {
+#if defined(__GNUC__) || defined(__clang__)
+        distance += __builtin_popcount(a[i] ^ b[i]);
+#else
+        uint8_t x = a[i] ^ b[i];
+        x = x - ((x >> 1) & 0x55);
+        x = (x & 0x33) + ((x >> 2) & 0x33);
+        distance += (x + (x >> 4)) & 0x0f;
+#endif
+    }
+
+    return (float)distance;
+}
+
+#endif
+
+// MARK: -
+
+void init_distance_functions_avx512(void) {
+#if defined(__AVX512F__) && defined(__AVX512BW__)
+    dispatch_distance_table[VECTOR_DISTANCE_L2][VECTOR_TYPE_F32] = float32_distance_l2_avx512;
+    dispatch_distance_table[VECTOR_DISTANCE_L2][VECTOR_TYPE_F16] = float16_distance_l2_avx512;
+    dispatch_distance_table[VECTOR_DISTANCE_L2][VECTOR_TYPE_BF16] = bfloat16_distance_l2_avx512;
+    dispatch_distance_table[VECTOR_DISTANCE_L2][VECTOR_TYPE_U8] = uint8_distance_l2_avx512;
+    dispatch_distance_table[VECTOR_DISTANCE_L2][VECTOR_TYPE_I8] = int8_distance_l2_avx512;
+
+    dispatch_distance_table[VECTOR_DISTANCE_SQUARED_L2][VECTOR_TYPE_F32] = float32_distance_l2_squared_avx512;
+    dispatch_distance_table[VECTOR_DISTANCE_SQUARED_L2][VECTOR_TYPE_F16] = float16_distance_l2_squared_avx512;
+    dispatch_distance_table[VECTOR_DISTANCE_SQUARED_L2][VECTOR_TYPE_BF16] = bfloat16_distance_l2_squared_avx512;
+    dispatch_distance_table[VECTOR_DISTANCE_SQUARED_L2][VECTOR_TYPE_U8] = uint8_distance_l2_squared_avx512;
+    dispatch_distance_table[VECTOR_DISTANCE_SQUARED_L2][VECTOR_TYPE_I8] = int8_distance_l2_squared_avx512;
+
+    dispatch_distance_table[VECTOR_DISTANCE_COSINE][VECTOR_TYPE_F32] = float32_distance_cosine_avx512;
+    dispatch_distance_table[VECTOR_DISTANCE_COSINE][VECTOR_TYPE_F16] = float16_distance_cosine_avx512;
+    dispatch_distance_table[VECTOR_DISTANCE_COSINE][VECTOR_TYPE_BF16] = bfloat16_distance_cosine_avx512;
+    dispatch_distance_table[VECTOR_DISTANCE_COSINE][VECTOR_TYPE_U8] = uint8_distance_cosine_avx512;
+    dispatch_distance_table[VECTOR_DISTANCE_COSINE][VECTOR_TYPE_I8] = int8_distance_cosine_avx512;
+
+    dispatch_distance_table[VECTOR_DISTANCE_DOT][VECTOR_TYPE_F32] = float32_distance_dot_avx512;
+    dispatch_distance_table[VECTOR_DISTANCE_DOT][VECTOR_TYPE_F16] = float16_distance_dot_avx512;
+    dispatch_distance_table[VECTOR_DISTANCE_DOT][VECTOR_TYPE_BF16] = bfloat16_distance_dot_avx512;
+    dispatch_distance_table[VECTOR_DISTANCE_DOT][VECTOR_TYPE_U8] = uint8_distance_dot_avx512;
+    dispatch_distance_table[VECTOR_DISTANCE_DOT][VECTOR_TYPE_I8] = int8_distance_dot_avx512;
+
+    dispatch_distance_table[VECTOR_DISTANCE_L1][VECTOR_TYPE_F32] = float32_distance_l1_avx512;
+    dispatch_distance_table[VECTOR_DISTANCE_L1][VECTOR_TYPE_F16] = float16_distance_l1_avx512;
+    dispatch_distance_table[VECTOR_DISTANCE_L1][VECTOR_TYPE_BF16] = bfloat16_distance_l1_avx512;
+    dispatch_distance_table[VECTOR_DISTANCE_L1][VECTOR_TYPE_U8] = uint8_distance_l1_avx512;
+    dispatch_distance_table[VECTOR_DISTANCE_L1][VECTOR_TYPE_I8] = int8_distance_l1_avx512;
+
+    dispatch_distance_table[VECTOR_DISTANCE_HAMMING][VECTOR_TYPE_BIT] = bit1_distance_hamming_avx512;
+
+    distance_backend_name = "AVX512";
+#endif
+}

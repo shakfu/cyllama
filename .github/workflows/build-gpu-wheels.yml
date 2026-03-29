@@ -3,6 +3,14 @@ name: build-gpu-wheels
 on:
   workflow_dispatch:
     inputs:
+      link_mode:
+        description: 'Linking mode'
+        required: true
+        default: 'static'
+        type: choice
+        options:
+          - static
+          - dynamic
       cuda:
         description: 'Build CUDA wheels'
         required: false
@@ -36,10 +44,10 @@ env:
 
 jobs:
   # ---------------------------------------------------------------------------
-  # CUDA wheels (Linux only, CUDA 12.8)
+  # CUDA wheels (Linux only, CUDA 12.4)
   # ---------------------------------------------------------------------------
   build_cuda:
-    name: CUDA 12.4 - Linux x86_64
+    name: CUDA 12.4 - Linux x86_64 (${{ inputs.link_mode }})
     if: inputs.cuda
     runs-on: ubuntu-22.04
 
@@ -77,6 +85,7 @@ jobs:
             CMAKE_CUDA_ARCHITECTURES="70-real;75-real;80-real;86-real;89-real;90"
             GGML_CUDA=1 GGML_METAL=0
             /opt/python/cp310-cp310/bin/python scripts/manage.py build --all --deps-only
+            ${{ inputs.link_mode == 'dynamic' && '--dynamic' || '' }}
           CIBW_BEFORE_BUILD_LINUX: >
             sed -i 's/^name = "cyllama"/name = "cyllama-cuda12"/' {project}/pyproject.toml
           CIBW_ENVIRONMENT_LINUX: >
@@ -88,9 +97,12 @@ jobs:
             LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
             CFLAGS=-s
             CXXFLAGS=-s
+            WITH_DYLIB=${{ inputs.link_mode == 'dynamic' && '1' || '0' }}
           CIBW_TEST_COMMAND: ""
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
+            LD_LIBRARY_PATH={project}/thirdparty/llama.cpp/dynamic:$LD_LIBRARY_PATH
             auditwheel repair -w {dest_dir} {wheel}
+            --plat manylinux_2_35_x86_64
             --exclude libcuda.so.1
             --exclude libcudart.so.12
             --exclude libcublas.so.12
@@ -109,7 +121,7 @@ jobs:
   # ROCm wheels (Linux only, ROCm 6.3)
   # ---------------------------------------------------------------------------
   build_rocm:
-    name: ROCm 6.3 - Linux x86_64
+    name: ROCm 6.3 - Linux x86_64 (${{ inputs.link_mode }})
     if: inputs.rocm
     runs-on: ubuntu-22.04
 
@@ -150,6 +162,7 @@ jobs:
             HIP_PATH=/opt/rocm
             GGML_HIP=1 GGML_METAL=0
             /opt/python/cp310-cp310/bin/python scripts/manage.py build --all --deps-only
+            ${{ inputs.link_mode == 'dynamic' && '--dynamic' || '' }}
           CIBW_BEFORE_BUILD_LINUX: >
             sed -i 's/^name = "cyllama"/name = "cyllama-rocm"/' {project}/pyproject.toml
           CIBW_ENVIRONMENT_LINUX: >
@@ -162,8 +175,10 @@ jobs:
             LIBRARY_PATH=/usr/lib/gcc/x86_64-redhat-linux/8:$LIBRARY_PATH
             CFLAGS=-s
             CXXFLAGS=-s
+            WITH_DYLIB=${{ inputs.link_mode == 'dynamic' && '1' || '0' }}
           CIBW_TEST_COMMAND: ""
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
+            LD_LIBRARY_PATH={project}/thirdparty/llama.cpp/dynamic:$LD_LIBRARY_PATH
             auditwheel repair -w {dest_dir} {wheel}
             --plat manylinux_2_35_x86_64
             --exclude libamdhip64.so.6
@@ -188,7 +203,7 @@ jobs:
   # SYCL wheels (Linux only, Intel oneAPI)
   # ---------------------------------------------------------------------------
   build_sycl:
-    name: SYCL - Linux x86_64
+    name: SYCL - Linux x86_64 (${{ inputs.link_mode }})
     if: inputs.sycl
     runs-on: ubuntu-22.04
 
@@ -222,6 +237,7 @@ jobs:
             PATH=/opt/python/cp310-cp310/bin:$PATH
             GGML_SYCL=1 GGML_METAL=0
             /opt/python/cp310-cp310/bin/python scripts/manage.py build --all --deps-only
+            ${{ inputs.link_mode == 'dynamic' && '--dynamic' || '' }}
           CIBW_BEFORE_BUILD_LINUX: >
             sed -i 's/^name = "cyllama"/name = "cyllama-sycl"/' {project}/pyproject.toml
           CIBW_ENVIRONMENT_LINUX: >
@@ -233,8 +249,10 @@ jobs:
             LD_LIBRARY_PATH=/opt/intel/oneapi/compiler/latest/lib:/opt/intel/oneapi/mkl/latest/lib:$LD_LIBRARY_PATH
             CFLAGS=-s
             CXXFLAGS=-s
+            WITH_DYLIB=${{ inputs.link_mode == 'dynamic' && '1' || '0' }}
           CIBW_TEST_COMMAND: ""
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
+            LD_LIBRARY_PATH={project}/thirdparty/llama.cpp/dynamic:$LD_LIBRARY_PATH
             auditwheel repair -w {dest_dir} {wheel}
             --plat manylinux_2_35_x86_64
             --exclude libsycl.so.8
@@ -242,6 +260,7 @@ jobs:
             --exclude libsvml.so
             --exclude libimf.so
             --exclude libintlc.so.5
+            --exclude libtbb.so.12
 
       - name: List built wheels
         run: ls -lah wheelhouse/
@@ -253,10 +272,10 @@ jobs:
           path: ./wheelhouse/*.whl
 
   # ---------------------------------------------------------------------------
-  # Vulkan wheels (Linux + Windows)
+  # Vulkan wheels (Linux)
   # ---------------------------------------------------------------------------
   build_vulkan:
-    name: Vulkan - Linux x86_64
+    name: Vulkan - Linux x86_64 (${{ inputs.link_mode }})
     if: inputs.vulkan
     runs-on: ubuntu-22.04
 
@@ -292,6 +311,7 @@ jobs:
             PATH=/opt/python/cp310-cp310/bin:$PATH
             GGML_VULKAN=1 GGML_METAL=0
             /opt/python/cp310-cp310/bin/python scripts/manage.py build --all --deps-only
+            ${{ inputs.link_mode == 'dynamic' && '--dynamic' || '' }}
           CIBW_BEFORE_BUILD_LINUX: >
             sed -i 's/^name = "cyllama"/name = "cyllama-vulkan"/' {project}/pyproject.toml
           CIBW_ENVIRONMENT_LINUX: >
@@ -299,8 +319,10 @@ jobs:
             GGML_METAL=0
             CFLAGS=-s
             CXXFLAGS=-s
+            WITH_DYLIB=${{ inputs.link_mode == 'dynamic' && '1' || '0' }}
           CIBW_TEST_COMMAND: ""
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
+            LD_LIBRARY_PATH={project}/thirdparty/llama.cpp/dynamic:$LD_LIBRARY_PATH
             auditwheel repair -w {dest_dir} {wheel}
             --plat manylinux_2_35_x86_64
             --exclude libvulkan.so.1

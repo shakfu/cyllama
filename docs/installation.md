@@ -36,19 +36,24 @@ sudo dnf install -y gcc-c++ cmake git python3-devel
 pip install cyllama
 ```
 
-### Pre-built GPU Wheels
+### GPU-Accelerated Variants
 
-Pre-built GPU wheels are available from [GitHub Releases](https://github.com/shakfu/cyllama/releases) (too large for PyPI):
+GPU variants are available on PyPI as separate packages (dynamically linked, Linux x86_64 only):
 
 ```bash
-# NVIDIA GPU (CUDA 12.4) -- replace cp310 with your Python version
-pip install https://github.com/shakfu/cyllama/releases/download/0.1.21/cyllama_cuda12-0.1.21-cp310-cp310-manylinux2014_x86_64.manylinux_2_17_x86_64.whl
-
-# AMD GPU (ROCm 6.3, requires glibc >= 2.35)
-pip install https://github.com/shakfu/cyllama/releases/download/0.1.21/cyllama_rocm-0.1.21-cp310-cp310-manylinux_2_31_x86_64.manylinux_2_35_x86_64.whl
+pip install cyllama-cuda12   # NVIDIA GPU (CUDA 12.4)
+pip install cyllama-rocm     # AMD GPU (ROCm 6.3, requires glibc >= 2.35)
+pip install cyllama-sycl     # Intel GPU (oneAPI SYCL 2025.3)
+pip install cyllama-vulkan   # Cross-platform GPU (Vulkan)
 ```
 
-All GPU variants install the same `cyllama` Python package -- only the compiled backend differs.
+All GPU variants install the same `cyllama` Python package -- only the compiled backend differs. Install one at a time (they replace each other). GPU variants require the corresponding driver/runtime installed on your system.
+
+You can verify which backend is active after installation:
+
+```bash
+python -m cyllama info
+```
 
 ## Build from Source
 
@@ -106,6 +111,9 @@ See [Building with Different Backends](build_backends.md) for detailed GPU setup
 
 ```bash
 WITH_STABLEDIFFUSION=1 make build
+
+# Use stable-diffusion.cpp's own vendored ggml (instead of llama.cpp's)
+SD_USE_VENDORED_GGML=1 make build
 ```
 
 **Whisper support** (included by default):

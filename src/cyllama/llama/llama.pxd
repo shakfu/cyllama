@@ -278,6 +278,7 @@ cdef extern from "llama.h":
         void * abort_callback_data
 
         # Keep the booleans together and at the end of the struct to avoid misalignment during copy-by-value.
+        bint embeddings   # if true, extract embeddings (together with logits)
         bint offload_kqv  # offload the KQV ops (including the KV cache) to GPU
         bint no_perf      # measure performance timings
         bint op_offload   # offload host tensor operations to device

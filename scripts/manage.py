@@ -55,13 +55,12 @@ Backend support (via build command flags or environment variables):
     --cpu-only, -C    Disable all GPU backends
 
 Environment variables:
-    GGML_METAL=1      Enable Metal backend (llama.cpp, whisper.cpp)
+    GGML_METAL=1      Enable Metal backend (default ON on macOS, all components)
     GGML_CUDA=1       Enable CUDA backend
     GGML_VULKAN=1     Enable Vulkan backend
     GGML_SYCL=1       Enable SYCL backend
     GGML_HIP=1        Enable HIP/ROCm backend
     GGML_OPENCL=1     Enable OpenCL backend
-    SD_METAL=0        Disable Metal backend for stable-diffusion.cpp (default ON on macOS)
 """
 
 import argparse
@@ -70,6 +69,7 @@ import os
 import platform
 import re
 import shutil
+import tempfile
 import stat
 import subprocess
 import sys
@@ -136,7 +136,7 @@ PLATFORM = platform.system()
 ARCH = platform.machine()
 PY_VER_MINOR = sys.version_info.minor
 
-STABLE_BUILD = getenv("STABLE_BUILD", True)
+STABLE_BUILD = getenv("STABLE_BUILD", False)
 if STABLE_BUILD:
     # known to build and work without errors, 100% tests pass
     LLAMACPP_VERSION = "b8429"
@@ -145,7 +145,7 @@ if STABLE_BUILD:
     SQLITEVECTOR_VERSION = "0.9.93"
 else:
     # experimental bleeding-edge builds ` = ""` means get latest
-    LLAMACPP_VERSION = "b8429"
+    LLAMACPP_VERSION = "b8522"
     WHISPERCPP_VERSION = "v1.8.4"
     SDCPP_VERSION = "master-537-545fac4"
     SQLITEVECTOR_VERSION = "0.9.93"
@@ -1051,7 +1051,203 @@ class LlamaCppBuilder(Builder):
         # Copy backend-specific libraries
         self.copy_backend_libs()
 
-        # self.move(self.prefix / "bin", self.project.bin)
+    def build_shared(self) -> None:
+        """Build from source with BUILD_SHARED_LIBS=ON and copy to dynamic/.
+
+        Unlike build() which copies individual .a files via copy_lib(),
+        this collects .so/.dylib files directly from the cmake build tree
+        since BUILD_SHARED_LIBS=ON produces shared libs, not static ones.
+        """
+        # Run the cmake configure + build steps (headers + cmake config + cmake build)
+        # but skip the copy_lib steps which look for .a files.
+        if not self.src_dir.exists():
+            self.setup()
+        self.log.info(f"building {self.name} (shared)")
+        self.prefix.mkdir(exist_ok=True)
+        self.include.mkdir(exist_ok=True)
+        self.glob_copy(self.src_dir / "common", self.include, patterns=["*.h", "*.hpp"])
+        self.glob_copy(self.src_dir / "ggml" / "include", self.include, patterns=["*.h"])
+        self.glob_copy(self.src_dir / "include", self.include, patterns=["*.h"])
+        jinja_include = self.include / "jinja"
+        jinja_include.mkdir(exist_ok=True)
+        self.glob_copy(self.src_dir / "common" / "jinja", jinja_include, patterns=["*.h", "*.hpp"])
+        nlohmann_include = self.include / "nlohmann"
+        nlohmann_include.mkdir(exist_ok=True)
+        self.glob_copy(self.src_dir / "vendor" / "nlohmann", nlohmann_include, patterns=["*.hpp"])
+        self.glob_copy(self.src_dir / "tools" / "mtmd", self.include, patterns=["*.h"])
+
+        backend_options = self.get_backend_cmake_options()
+        self.cmake_config(
+            src_dir=self.src_dir,
+            build_dir=self.build_dir,
+            BUILD_SHARED_LIBS=True,
+            CMAKE_POSITION_INDEPENDENT_CODE=True,
+            LLAMA_CURL=False,
+            LLAMA_OPENSSL=True,
+            LLAMA_BUILD_SERVER=False,
+            LLAMA_BUILD_TESTS=False,
+            LLAMA_BUILD_EXAMPLES=False,
+            **backend_options,
+        )
+        self.cmake_build_targets(
+            build_dir=self.build_dir, targets=["llama", "common", "mtmd"], release=True
+        )
+
+        # Collect all shared libs from the build tree into dynamic/
+        self.dynamic_lib.mkdir(parents=True, exist_ok=True)
+        if PLATFORM == "Darwin":
+            patterns = ["**/*.dylib"]
+        elif PLATFORM == "Windows":
+            patterns = ["**/*.dll"]
+        else:
+            patterns = ["**/*.so", "**/*.so.*"]
+
+        copied = 0
+        seen = set()
+        for pattern in patterns:
+            for item in self.build_dir.glob(pattern):
+                if item.name in seen:
+                    continue
+                seen.add(item.name)
+                dest = self.dynamic_lib / item.name
+                if dest.exists() or dest.is_symlink():
+                    dest.unlink()
+                # Dereference symlinks so wheels get real files
+                if item.is_symlink():
+                    real = item.resolve()
+                    if real.exists():
+                        shutil.copy2(str(real), str(dest))
+                    else:
+                        continue
+                else:
+                    shutil.copy2(str(item), str(dest))
+                copied += 1
+                self.log.info(f"  {item.name} -> dynamic/")
+        self.log.info(f"Installed {copied} shared libs to {self.dynamic_lib}")
+
+    # -----------------------------------------------------------------
+    # Dynamic linking: download pre-built release
+    # -----------------------------------------------------------------
+
+    @property
+    def dynamic_lib(self) -> Path:
+        """Directory for pre-built shared libraries."""
+        return self.prefix / "dynamic"
+
+    def _release_asset_name(self) -> str | None:
+        """Get the expected release asset filename for the current platform."""
+        version = self.version
+        system = PLATFORM.lower()
+        arch = ARCH.lower()
+
+        if system == "darwin":
+            os_tag = "macos"
+            arch_tag = "arm64" if arch in ("arm64", "aarch64") else "x64"
+            return f"llama-{version}-bin-{os_tag}-{arch_tag}.tar.gz"
+        elif system == "linux":
+            arch_tag = "x64" if arch in ("x86_64", "amd64") else arch
+            # Check for GPU backends
+            if getenv("GGML_CUDA", default=False):
+                return None  # No pre-built CUDA release for Linux
+            elif getenv("GGML_SYCL", default=False):
+                return None  # No pre-built SYCL release for Linux
+            elif getenv("GGML_VULKAN", default=False):
+                return f"llama-{version}-bin-ubuntu-vulkan-{arch_tag}.tar.gz"
+            elif getenv("GGML_HIP", default=False):
+                return None  # Build from source to match installed ROCm version
+            else:
+                return f"llama-{version}-bin-ubuntu-{arch_tag}.tar.gz"
+        elif system == "windows":
+            arch_tag = "arm64" if arch in ("arm64", "aarch64") else "x64"
+            if getenv("GGML_CUDA", default=False):
+                return f"llama-{version}-bin-win-cuda-12.4-{arch_tag}.zip"
+            else:
+                return f"llama-{version}-bin-win-cpu-{arch_tag}.zip"
+        else:
+            raise RuntimeError(f"Unsupported platform: {system}/{arch}")
+
+    def _release_url(self) -> str:
+        """Get the download URL for the pre-built release."""
+        asset = self._release_asset_name()
+        return f"https://github.com/ggml-org/llama.cpp/releases/download/{self.version}/{asset}"
+
+    def download_release(self) -> None:
+        """Download pre-built release and extract shared libraries.
+
+        Downloads the release tarball for the current platform, extracts
+        shared libraries (.dylib/.so/.dll) to thirdparty/llama.cpp/dynamic/.
+        Headers are still obtained from the source checkout (call build() or
+        setup() first to populate thirdparty/llama.cpp/include/).
+        """
+        # Ensure headers exist (source checkout + header copy)
+        if not self.include.exists() or not any(self.include.iterdir()):
+            self.log.info("Headers not found, running source setup for headers...")
+            if not self.src_dir.exists():
+                self.setup()
+            # Copy headers only (same as build() header section)
+            self.prefix.mkdir(exist_ok=True)
+            self.include.mkdir(exist_ok=True)
+            self.glob_copy(self.src_dir / "common", self.include, patterns=["*.h", "*.hpp"])
+            self.glob_copy(self.src_dir / "ggml" / "include", self.include, patterns=["*.h"])
+            self.glob_copy(self.src_dir / "include", self.include, patterns=["*.h"])
+            jinja_include = self.include / "jinja"
+            jinja_include.mkdir(exist_ok=True)
+            self.glob_copy(self.src_dir / "common" / "jinja", jinja_include, patterns=["*.h", "*.hpp"])
+            nlohmann_include = self.include / "nlohmann"
+            nlohmann_include.mkdir(exist_ok=True)
+            self.glob_copy(self.src_dir / "vendor" / "nlohmann", nlohmann_include, patterns=["*.hpp"])
+            self.glob_copy(self.src_dir / "tools" / "mtmd", self.include, patterns=["*.h"])
+
+        url = self._release_url()
+        self.log.info(f"Downloading pre-built release: {url}")
+
+        # Download to a temp location
+        tmp_dir = Path(tempfile.mkdtemp())
+        try:
+            archive_path = self.download(url, tofolder=tmp_dir, max_size=1024 * 1024 * 500)
+
+            # Extract
+            extract_dir = tmp_dir / "extracted"
+            extract_dir.mkdir()
+            self.extract(archive_path, tofolder=extract_dir)
+
+            # Find the extracted directory (tarball extracts to a subdirectory)
+            extracted_dirs = [d for d in extract_dir.iterdir() if d.is_dir()]
+            if extracted_dirs:
+                release_dir = extracted_dirs[0]
+            else:
+                release_dir = extract_dir
+
+            # Copy shared libraries to dynamic/ directory
+            # Dereference symlinks so all files are concrete (wheels can't store symlinks)
+            self.dynamic_lib.mkdir(parents=True, exist_ok=True)
+
+            if PLATFORM == "Darwin":
+                lib_exts = (".dylib",)
+            elif PLATFORM == "Windows":
+                lib_exts = (".dll",)
+            else:
+                lib_exts = (".so",)
+
+            copied = 0
+            for item in release_dir.iterdir():
+                if not any(ext in item.name for ext in lib_exts):
+                    continue
+                dest = self.dynamic_lib / item.name
+                if dest.exists() or dest.is_symlink():
+                    dest.unlink()
+                # follow_symlinks=True (default) dereferences symlinks into real files
+                shutil.copy2(str(item), str(dest))
+                copied += 1
+                suffix = ""
+                if item.is_symlink():
+                    suffix = f" (from symlink -> {os.readlink(str(item))})"
+                self.log.info(f"  {item.name}{suffix}")
+
+            self.log.info(f"Installed {copied} files to {self.dynamic_lib}")
+
+        finally:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
 class WhisperCppBuilder(Builder):
@@ -1160,14 +1356,15 @@ class StableDiffusionCppBuilder(Builder):
     def get_backend_cmake_options(self) -> dict:
         """Get CMake options based on backend environment variables.
 
-        stable-diffusion.cpp uses SD_* flags (not GGML_*).
-        SD_METAL defaults to ON on macOS.
+        stable-diffusion.cpp uses SD_* CMake flags internally, but we read
+        the same GGML_* env vars as llama.cpp and whisper.cpp to ensure all
+        components use a consistent backend.
         """
         options = {}
 
-        # Read backend flags from environment (default Metal=1 on macOS, others=0)
-        sd_metal = getenv(
-            "SD_METAL", default=(True if PLATFORM == "Darwin" else False)
+        # Read backend flags from environment (same GGML_* vars as other components)
+        ggml_metal = getenv(
+            "GGML_METAL", default=(True if PLATFORM == "Darwin" else False)
         )
         ggml_cuda = getenv("GGML_CUDA", default=False)
         ggml_vulkan = getenv("GGML_VULKAN", default=False)
@@ -1175,7 +1372,7 @@ class StableDiffusionCppBuilder(Builder):
         ggml_hip = getenv("GGML_HIP", default=False)
         ggml_opencl = getenv("GGML_OPENCL", default=False)
 
-        if sd_metal and PLATFORM == "Darwin":
+        if ggml_metal and PLATFORM == "Darwin":
             options["SD_METAL"] = "ON"
             self.log.info("Enabling Metal backend for stable-diffusion.cpp")
 
@@ -1667,7 +1864,6 @@ class Application(ShellCmd, metaclass=MetaCommander):
     @opt("--hip", "-H", "enable HIP/ROCm backend (AMD GPUs)")
     @opt("--opencl", "-o", "enable OpenCL backend")
     @opt("--cpu-only", "-C", "disable all GPU backends (CPU only)")
-    @opt("--sd-metal", "-M", "enable Metal for stable-diffusion.cpp (default on macOS)")
     @opt("-w", "--whisper-cpp", "build whisper-cpp")
     @opt("-d", "--stable-diffusion", "build stable-diffusion")
     @opt("-l", "--llama-cpp", "build llama-cpp")
@@ -1675,6 +1871,8 @@ class Application(ShellCmd, metaclass=MetaCommander):
     @opt("-s", "--shared", "build shared libraries")
     @opt("-a", "--all", "build all")
     @opt("-D", "--deps-only", "build dependencies only, skip editable install")
+    @opt("--dynamic", "-Y", "download pre-built llama.cpp release (dynamic linking)")
+    @option("--sd-vendored-ggml", help="link stable-diffusion against its own vendored ggml", action="store_true")
     @option(
         "--llama-version",
         default=LLAMACPP_VERSION,
@@ -1705,7 +1903,6 @@ class Application(ShellCmd, metaclass=MetaCommander):
             os.environ["GGML_SYCL"] = "0"
             os.environ["GGML_HIP"] = "0"
             os.environ["GGML_OPENCL"] = "0"
-            os.environ["SD_METAL"] = "0"
         else:
             if args.metal:
                 os.environ["GGML_METAL"] = "1"
@@ -1719,8 +1916,9 @@ class Application(ShellCmd, metaclass=MetaCommander):
                 os.environ["GGML_HIP"] = "1"
             if args.opencl:
                 os.environ["GGML_OPENCL"] = "1"
-            if args.sd_metal:
-                os.environ["SD_METAL"] = "1"
+
+        if args.sd_vendored_ggml:
+            os.environ["SD_USE_VENDORED_GGML"] = "1"
 
         # Map builder classes to their version arguments
         builder_versions = {
@@ -1752,14 +1950,28 @@ class Application(ShellCmd, metaclass=MetaCommander):
         for BuilderClass in _builders:
             version = builder_versions.get(BuilderClass)
             builder = BuilderClass(version=version)
-            builder.build()
+            if args.dynamic and BuilderClass == LlamaCppBuilder:
+                asset = builder._release_asset_name()
+                if asset is None:
+                    self.log.warning(
+                        "No pre-built dynamic release available for this "
+                        "platform/backend combo, building from source with "
+                        "BUILD_SHARED_LIBS=ON"
+                    )
+                    builder.build_shared()
+                else:
+                    builder.download_release()
+            else:
+                builder.build()
 
         # Write build info
         self._write_build_info(builder_versions)
 
         # Build using scikit-build-core (editable install)
         if not args.deps_only:
-            _cmd = "uv pip install -e ."
+            if args.dynamic:
+                os.environ["WITH_DYLIB"] = "1"
+            _cmd = "uv sync --reinstall-package cyllama"
             self.cmd(_cmd)
 
     def _write_build_info(self, builder_versions: dict) -> None:
@@ -1769,19 +1981,35 @@ class Application(ShellCmd, metaclass=MetaCommander):
         build_dir = Path("build")
         info = {}
 
+        def _read_ggml_version(cmake_path: Path) -> str | None:
+            if not cmake_path.exists():
+                return None
+            content = cmake_path.read_text()
+            major = re.search(r"set\(GGML_VERSION_MAJOR\s+(\d+)\)", content)
+            minor = re.search(r"set\(GGML_VERSION_MINOR\s+(\d+)\)", content)
+            patch = re.search(r"set\(GGML_VERSION_PATCH\s+(\d+)\)", content)
+            if major and minor and patch:
+                return f"{major.group(1)}.{minor.group(1)}.{patch.group(1)}"
+            return None
+
+        # By default, all backends link against llama.cpp's ggml (both static
+        # and dynamic builds). When SD_USE_VENDORED_GGML=1, stable-diffusion.cpp
+        # uses its own vendored ggml instead, so we report that version.
+        llama_ggml_version = _read_ggml_version(
+            build_dir / "llama.cpp" / "ggml" / "CMakeLists.txt"
+        )
+        sd_uses_vendored_ggml = os.environ.get("SD_USE_VENDORED_GGML") == "1"
+
         for BuilderClass, version in builder_versions.items():
             name = BuilderClass.name.replace(".", "_").replace("-", "_")
             info[f"{name}_version"] = version
 
-            # Read ggml version from CMakeLists.txt
-            ggml_cmake = build_dir / BuilderClass.name / "ggml" / "CMakeLists.txt"
-            if ggml_cmake.exists():
-                content = ggml_cmake.read_text()
-                major = re.search(r"set\(GGML_VERSION_MAJOR\s+(\d+)\)", content)
-                minor = re.search(r"set\(GGML_VERSION_MINOR\s+(\d+)\)", content)
-                patch = re.search(r"set\(GGML_VERSION_PATCH\s+(\d+)\)", content)
-                if major and minor and patch:
-                    info[f"{name}_ggml_version"] = f"{major.group(1)}.{minor.group(1)}.{patch.group(1)}"
+            ggml_ver = _read_ggml_version(
+                build_dir / BuilderClass.name / "ggml" / "CMakeLists.txt"
+            )
+            if ggml_ver is not None:
+                use_vendored = sd_uses_vendored_ggml and BuilderClass == StableDiffusionCppBuilder
+                info[f"{name}_ggml_version"] = ggml_ver if use_vendored else (llama_ggml_version or ggml_ver)
 
         out_path = Path("src/cyllama/_build_info.py")
         with open(out_path, "w") as f:

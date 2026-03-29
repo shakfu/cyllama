@@ -32,30 +32,16 @@ pip install cyllama
 
 ### GPU-Accelerated Variants
 
-Pre-built wheels with GPU backend support are available as separate packages from [GitHub Releases](https://github.com/shakfu/cyllama/releases) (too large for PyPI):
-
-- [x] `cyllama-cuda12` -- NVIDIA GPU (CUDA 12.4)
-- [x] `cyllama-rocm` -- AMD GPU (ROCm 6.3, requires glibc >= 2.35)
-- [x] `cyllama-sycl` -- Intel GPU (oneAPI SYCL 2025.3)
-- [x] `cyllama-vulkan` -- Cross-platform GPU (Vulkan)
-
-All variants install the same `cyllama` Python package -- only the compiled backend differs. Install one at a time (they replace each other). GPU variants require the corresponding driver/runtime installed on your system.
+GPU variants are available on PyPI as separate packages (dynamically linked, Linux x86_64 only):
 
 ```sh
-# Install gpu-variants directly (replace cp310 with your Python version: cp311, cp312, cp313, cp314)
-
-# cuda
-pip install https://github.com/shakfu/cyllama/releases/download/0.1.21/cyllama_cuda12-0.1.21-cp310-cp310-manylinux2014_x86_64.manylinux_2_17_x86_64.whl
-
-# rocm
-pip install https://github.com/shakfu/cyllama/releases/download/0.1.21/cyllama_rocm-0.1.21-cp310-cp310-manylinux_2_31_x86_64.manylinux_2_35_x86_64.whl
-
-# sycl
-pip install https://github.com/shakfu/cyllama/releases/download/0.1.21/cyllama_sycl-0.1.21-cp310-cp310-manylinux_2_31_x86_64.manylinux_2_35_x86_64.whl
-
-# vulkan
-pip install https://github.com/shakfu/cyllama/releases/download/0.1.21/cyllama_vulkan-0.1.21-cp310-cp310-manylinux_2_31_x86_64.manylinux_2_35_x86_64.whl
+pip install cyllama-cuda12   # NVIDIA GPU (CUDA 12.4)
+pip install cyllama-rocm     # AMD GPU (ROCm 6.3, requires glibc >= 2.35)
+pip install cyllama-sycl     # Intel GPU (oneAPI SYCL 2025.3)
+pip install cyllama-vulkan   # Cross-platform GPU (Vulkan)
 ```
+
+All variants install the same `cyllama` Python package -- only the compiled backend differs. Install one at a time (they replace each other). GPU variants require the corresponding driver/runtime installed on your system.
 
 You can verify which backend is active after installation:
 
@@ -455,7 +441,7 @@ metadata = ctx.get_all_metadata()
 print(f"Model: {metadata['general.name']}")
 ```
 
-**Structured Output** - JSON schema to grammar conversion:
+**Structured Output** - JSON schema to grammar conversion (pure Python, no C++ dependency):
 
 ```python
 from cyllama.llama.llama_cpp import json_schema_to_grammar
@@ -556,7 +542,7 @@ models = list_cached_models()
 
 ## Status
 
-**Current Version**: 0.1.21 (Mar 2026)
+**Current Version**: 0.2.0 (Mar 2026)
 **llama.cpp Version**: b8429
 **Build System**: scikit-build-core + CMake
 **Test Coverage**: 1100+ tests passing
@@ -564,6 +550,7 @@ models = list_cached_models()
 
 ### Recent Releases
 
+- **v0.2.0** (Mar 2026) - Dynamic-linked GPU wheels (CUDA, ROCm, SYCL, Vulkan) on PyPI, unified ggml, sqlite-vector vendored
 - **v0.1.21** (Mar 2026) - GPU wheel builds: CUDA + ROCm, sqlite-vector bundled
 - **v0.1.20** (Feb 2026) - Update llama.cpp + stable-diffusion.cpp
 - **v0.1.19** (Dev 2025) - Metal fix for stable-diffusion.cpp
@@ -613,11 +600,15 @@ To build `cyllama` from source:
 ### Build Commands
 
 ```sh
-# Full build (default)
+# Full build (default: static linking, builds llama.cpp from source)
 make              # Build dependencies + editable install
+
+# Dynamic linking (downloads pre-built llama.cpp release)
+make build-dynamic  # No source compilation needed for llama.cpp
 
 # Build wheel for distribution
 make wheel        # Creates wheel in dist/
+make dist         # Creates sdist + wheel in dist/
 
 # Backend-specific builds
 make build-metal  # macOS Metal (default on macOS)

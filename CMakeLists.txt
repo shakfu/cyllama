@@ -8,6 +8,11 @@ project(cyllama LANGUAGES C CXX)
 option(WITH_WHISPER "Build whisper.cpp wrapper" ON)
 option(WITH_STABLEDIFFUSION "Build stable-diffusion.cpp wrapper" ON)
 option(WITH_DYLIB "Use dynamic libraries instead of static" OFF)
+option(SD_USE_VENDORED_GGML "Link stable-diffusion against its own vendored ggml" OFF)
+
+# When WITH_DYLIB=ON, point this to a directory containing pre-built dylibs
+# (e.g., from a llama.cpp release tarball). Defaults to thirdparty/llama.cpp/lib.
+set(LLAMACPP_DYLIB_DIR "" CACHE PATH "Path to pre-built llama.cpp shared libraries")
 
 # Backend options - set defaults based on platform
 if(APPLE)
@@ -82,6 +87,22 @@ if(DEFINED ENV{GGML_OPENCL})
     elseif("$ENV{GGML_OPENCL}" STREQUAL "0")
         set(GGML_OPENCL OFF CACHE BOOL "Enable OpenCL backend" FORCE)
     endif()
+endif()
+
+if(DEFINED ENV{WITH_DYLIB})
+    if("$ENV{WITH_DYLIB}" STREQUAL "1")
+        set(WITH_DYLIB ON CACHE BOOL "Use dynamic libraries instead of static" FORCE)
+    endif()
+endif()
+
+if(DEFINED ENV{SD_USE_VENDORED_GGML})
+    if("$ENV{SD_USE_VENDORED_GGML}" STREQUAL "1")
+        set(SD_USE_VENDORED_GGML ON CACHE BOOL "Link stable-diffusion against its own vendored ggml" FORCE)
+    endif()
+endif()
+
+if(DEFINED ENV{LLAMACPP_DYLIB_DIR})
+    set(LLAMACPP_DYLIB_DIR "$ENV{LLAMACPP_DYLIB_DIR}" CACHE PATH "Path to pre-built llama.cpp shared libraries" FORCE)
 endif()
 
 # -----------------------------------------------------------------------------
@@ -173,68 +194,187 @@ if(WITH_STABLEDIFFUSION)
     list(APPEND COMMON_LINK_DIRS "${SDCPP_LIB}")
 endif()
 
-# Collect static libraries to link
+# =============================================================================
+# Library collection (static or dynamic)
+# =============================================================================
+
 set(STATIC_LIBS "")
+set(DYLIBS "")       # shared libraries to link (WITH_DYLIB mode)
+set(DYLIB_FILES "")  # shared library files to copy alongside extensions
 
-static_lib(LIB_COMMON "${LLAMACPP_LIB}" "common")
-static_lib(LIB_CPP_HTTPLIB "${LLAMACPP_LIB}" "cpp-httplib")
-static_lib(LIB_LLAMA "${LLAMACPP_LIB}" "llama")
-static_lib(LIB_GGML "${LLAMACPP_LIB}" "ggml")
-static_lib(LIB_GGML_BASE "${LLAMACPP_LIB}" "ggml-base")
-static_lib(LIB_GGML_CPU "${LLAMACPP_LIB}" "ggml-cpu")
-static_lib(LIB_MTMD "${LLAMACPP_LIB}" "mtmd")
+if(WITH_DYLIB)
+    # -------------------------------------------------------------------------
+    # Dynamic linking: link against pre-built shared libraries
+    # -------------------------------------------------------------------------
+    if(NOT LLAMACPP_DYLIB_DIR)
+        set(LLAMACPP_DYLIB_DIR "${LLAMACPP_DIR}/dynamic")
+    endif()
+    message(STATUS "WITH_DYLIB: ON (dylib dir: ${LLAMACPP_DYLIB_DIR})")
 
-list(APPEND STATIC_LIBS
-    "${LIB_COMMON}"
-    "${LIB_CPP_HTTPLIB}"
-    "${LIB_LLAMA}"
-    "${LIB_GGML}"
-    "${LIB_GGML_BASE}"
-    "${LIB_GGML_CPU}"
-    "${LIB_MTMD}"
-)
+    # Find shared libraries in the dylib directory
+    # On macOS: .dylib, on Linux: .so
+    if(APPLE)
+        set(_dylib_ext "dylib")
+    else()
+        set(_dylib_ext "so")
+    endif()
 
+    # Core llama.cpp shared libraries (available in release tarballs)
+    set(_DYLIB_NAMES llama ggml ggml-base ggml-rpc mtmd)
+
+    # ggml-cpu: on Linux, release tarballs ship arch-specific variants only
+    # (e.g. libggml-cpu-haswell.so) with no base libggml-cpu.so
+    if(APPLE)
+        list(APPEND _DYLIB_NAMES ggml-cpu)
+    else()
+        file(GLOB _cpu_variants "${LLAMACPP_DYLIB_DIR}/libggml-cpu-*.${_dylib_ext}")
+        if(_cpu_variants)
+            # Install all CPU variants for runtime dispatch
+            list(APPEND DYLIB_FILES ${_cpu_variants})
+            # Link against the first variant to resolve symbols (e.g. ggml_threadpool_free)
+            list(GET _cpu_variants 0 _cpu_link_lib)
+            list(APPEND DYLIBS "${_cpu_link_lib}")
+            foreach(_v ${_cpu_variants})
+                get_filename_component(_vn ${_v} NAME)
+                message(STATUS "  Found CPU variant: ${_vn}")
+            endforeach()
+        else()
+            # Fallback: try the base name (self-built may have it)
+            list(APPEND _DYLIB_NAMES ggml-cpu)
+        endif()
+    endif()
+
+    # Backend-specific shared libraries
+    if(GGML_METAL)
+        list(APPEND _DYLIB_NAMES ggml-blas ggml-metal)
+    endif()
+    if(GGML_CUDA)
+        list(APPEND _DYLIB_NAMES ggml-cuda)
+    endif()
+    if(GGML_VULKAN)
+        list(APPEND _DYLIB_NAMES ggml-vulkan)
+    endif()
+    if(GGML_SYCL)
+        list(APPEND _DYLIB_NAMES ggml-sycl)
+    endif()
+    if(GGML_HIP)
+        list(APPEND _DYLIB_NAMES ggml-hip)
+    endif()
+    if(GGML_OPENCL)
+        list(APPEND _DYLIB_NAMES ggml-opencl)
+    endif()
+
+    foreach(_name ${_DYLIB_NAMES})
+        # Find the actual library file (follow symlinks)
+        find_library(_found_${_name}
+            NAMES ${_name}
+            PATHS "${LLAMACPP_DYLIB_DIR}"
+            NO_DEFAULT_PATH
+        )
+        if(_found_${_name})
+            list(APPEND DYLIBS "${_found_${_name}}")
+            # Install the soname file -- that's what @rpath / $ORIGIN references at runtime
+            # macOS soname format: libllama.0.dylib
+            # Linux soname format: libllama.so.0
+            if(APPLE)
+                file(GLOB _soname "${LLAMACPP_DYLIB_DIR}/lib${_name}.[0-9].${_dylib_ext}")
+            else()
+                file(GLOB _soname "${LLAMACPP_DYLIB_DIR}/lib${_name}.${_dylib_ext}.[0-9]")
+            endif()
+            if(_soname)
+                list(APPEND DYLIB_FILES ${_soname})
+            else()
+                # Fallback: use whatever find_library found
+                list(APPEND DYLIB_FILES "${_found_${_name}}")
+            endif()
+            message(STATUS "  Found shared lib: ${_found_${_name}}")
+        else()
+            message(WARNING "  Shared lib not found: lib${_name}.${_dylib_ext} in ${LLAMACPP_DYLIB_DIR}")
+        endif()
+    endforeach()
+
+    # cpp-httplib: not in release tarballs, needed for embedded server
+    static_lib(LIB_CPP_HTTPLIB "${LLAMACPP_LIB}" "cpp-httplib")
+    if(EXISTS "${LIB_CPP_HTTPLIB}")
+        list(APPEND STATIC_LIBS "${LIB_CPP_HTTPLIB}")
+        message(STATUS "  Static lib (embedded server): ${LIB_CPP_HTTPLIB}")
+    endif()
+
+    # Add dylib directory to link search path
+    list(APPEND COMMON_LINK_DIRS "${LLAMACPP_DYLIB_DIR}")
+
+else()
+    # -------------------------------------------------------------------------
+    # Static linking: original behavior
+    # -------------------------------------------------------------------------
+    message(STATUS "WITH_DYLIB: OFF (static linking)")
+
+    static_lib(LIB_LLAMA "${LLAMACPP_LIB}" "llama")
+    static_lib(LIB_GGML "${LLAMACPP_LIB}" "ggml")
+    static_lib(LIB_GGML_BASE "${LLAMACPP_LIB}" "ggml-base")
+    static_lib(LIB_GGML_CPU "${LLAMACPP_LIB}" "ggml-cpu")
+    static_lib(LIB_MTMD "${LLAMACPP_LIB}" "mtmd")
+
+    list(APPEND STATIC_LIBS
+        "${LIB_LLAMA}"
+        "${LIB_GGML}"
+        "${LIB_GGML_BASE}"
+        "${LIB_GGML_CPU}"
+        "${LIB_MTMD}"
+    )
+
+    # cpp-httplib: optional, only needed for embedded server
+    static_lib(LIB_CPP_HTTPLIB "${LLAMACPP_LIB}" "cpp-httplib")
+    if(EXISTS "${LIB_CPP_HTTPLIB}")
+        list(APPEND STATIC_LIBS "${LIB_CPP_HTTPLIB}")
+        message(STATUS "  Static lib (embedded server): ${LIB_CPP_HTTPLIB}")
+    endif()
+
+    # Backend-specific static libraries
+    if(GGML_METAL)
+        static_lib(LIB_GGML_BLAS "${LLAMACPP_LIB}" "ggml-blas")
+        static_lib(LIB_GGML_METAL "${LLAMACPP_LIB}" "ggml-metal")
+        list(APPEND STATIC_LIBS "${LIB_GGML_BLAS}" "${LIB_GGML_METAL}")
+    endif()
+
+    if(GGML_CUDA)
+        static_lib(LIB_GGML_CUDA "${LLAMACPP_LIB}" "ggml-cuda")
+        list(APPEND STATIC_LIBS "${LIB_GGML_CUDA}")
+    endif()
+
+    if(GGML_VULKAN)
+        static_lib(LIB_GGML_VULKAN "${LLAMACPP_LIB}" "ggml-vulkan")
+        list(APPEND STATIC_LIBS "${LIB_GGML_VULKAN}")
+    endif()
+
+    if(GGML_SYCL)
+        static_lib(LIB_GGML_SYCL "${LLAMACPP_LIB}" "ggml-sycl")
+        list(APPEND STATIC_LIBS "${LIB_GGML_SYCL}")
+    endif()
+
+    if(GGML_HIP)
+        static_lib(LIB_GGML_HIP "${LLAMACPP_LIB}" "ggml-hip")
+        list(APPEND STATIC_LIBS "${LIB_GGML_HIP}")
+    endif()
+
+    if(GGML_OPENCL)
+        static_lib(LIB_GGML_OPENCL "${LLAMACPP_LIB}" "ggml-opencl")
+        list(APPEND STATIC_LIBS "${LIB_GGML_OPENCL}")
+    endif()
+endif()
+
+# Whisper: static libs are always needed, but ggml comes from dylibs when available
 if(WITH_WHISPER)
     static_lib(LIB_WHISPER_COMMON "${WHISPERCPP_LIB}" "common")
     static_lib(LIB_WHISPER "${WHISPERCPP_LIB}" "whisper")
-    list(APPEND STATIC_LIBS "${LIB_WHISPER_COMMON}" "${LIB_WHISPER}")
+    if(NOT WITH_DYLIB)
+        # Static build: add whisper libs globally (linked into every extension)
+        list(APPEND STATIC_LIBS "${LIB_WHISPER_COMMON}" "${LIB_WHISPER}")
+    endif()
 endif()
 
 if(WITH_STABLEDIFFUSION)
-    # Define LIB_SD here but don't add to STATIC_LIBS - SD extension has its own linking
     static_lib(LIB_SD "${SDCPP_LIB}" "stable-diffusion")
-endif()
-
-# Backend-specific libraries
-if(GGML_METAL)
-    static_lib(LIB_GGML_BLAS "${LLAMACPP_LIB}" "ggml-blas")
-    static_lib(LIB_GGML_METAL "${LLAMACPP_LIB}" "ggml-metal")
-    list(APPEND STATIC_LIBS "${LIB_GGML_BLAS}" "${LIB_GGML_METAL}")
-endif()
-
-if(GGML_CUDA)
-    static_lib(LIB_GGML_CUDA "${LLAMACPP_LIB}" "ggml-cuda")
-    list(APPEND STATIC_LIBS "${LIB_GGML_CUDA}")
-endif()
-
-if(GGML_VULKAN)
-    static_lib(LIB_GGML_VULKAN "${LLAMACPP_LIB}" "ggml-vulkan")
-    list(APPEND STATIC_LIBS "${LIB_GGML_VULKAN}")
-endif()
-
-if(GGML_SYCL)
-    static_lib(LIB_GGML_SYCL "${LLAMACPP_LIB}" "ggml-sycl")
-    list(APPEND STATIC_LIBS "${LIB_GGML_SYCL}")
-endif()
-
-if(GGML_HIP)
-    static_lib(LIB_GGML_HIP "${LLAMACPP_LIB}" "ggml-hip")
-    list(APPEND STATIC_LIBS "${LIB_GGML_HIP}")
-endif()
-
-if(GGML_OPENCL)
-    static_lib(LIB_GGML_OPENCL "${LLAMACPP_LIB}" "ggml-opencl")
-    list(APPEND STATIC_LIBS "${LIB_GGML_OPENCL}")
 endif()
 
 # System libraries
@@ -261,16 +401,8 @@ if(GGML_METAL)
     )
 endif()
 
-# cpp-httplib requires OpenSSL when built with CPPHTTPLIB_OPENSSL_SUPPORT
-find_package(OpenSSL QUIET)
-if(OpenSSL_FOUND)
-    list(APPEND SYSTEM_LIBS OpenSSL::SSL OpenSSL::Crypto)
-    if(APPLE)
-        find_library(CORE_FOUNDATION_FRAMEWORK CoreFoundation REQUIRED)
-        find_library(SECURITY_FRAMEWORK Security REQUIRED)
-        list(APPEND SYSTEM_LIBS ${CORE_FOUNDATION_FRAMEWORK} ${SECURITY_FRAMEWORK})
-    endif()
-endif()
+# OpenSSL linking removed: EmbeddedServer doesn't expose SSL config,
+# and absolute homebrew paths break wheel portability.
 
 if(GGML_CUDA)
     find_package(CUDAToolkit REQUIRED)
@@ -377,12 +509,16 @@ function(add_cython_extension target_name pyx_file)
     # Link directories
     target_link_directories(${target_name} PRIVATE ${COMMON_LINK_DIRS})
 
-    # Link static libraries
-    # On Linux, use whole-archive selectively for ggml libs to ensure all symbols
-    # are included (needed for symbols like ggml_repeat_4d called via function pointers)
-    # Only ggml libs need this - applying to all libs causes duplicate symbol errors
-    if(UNIX AND NOT APPLE)
-        # Separate ggml libs (need whole-archive) from other libs
+    # Link libraries
+    if(WITH_DYLIB)
+        # Dynamic linking: shared libs + any remaining static libs
+        target_link_libraries(${target_name} PRIVATE
+            ${DYLIBS}
+            ${STATIC_LIBS}
+            ${SYSTEM_LIBS}
+        )
+    elseif(UNIX AND NOT APPLE)
+        # Static linking on Linux: use whole-archive for ggml libs
         set(_GGML_LIBS ${LIB_GGML} ${LIB_GGML_BASE} ${LIB_GGML_CPU})
         if(GGML_METAL)
             list(APPEND _GGML_LIBS ${LIB_GGML_BLAS} ${LIB_GGML_METAL})
@@ -403,19 +539,26 @@ function(add_cython_extension target_name pyx_file)
             list(APPEND _GGML_LIBS ${LIB_GGML_OPENCL})
         endif()
 
-        # Other libs that don't need whole-archive
-        # Note: SD libs are NOT included here - SD extension links its own ggml
-        set(_OTHER_LIBS ${LIB_COMMON} ${LIB_CPP_HTTPLIB} ${LIB_LLAMA} ${LIB_MTMD})
+        set(_OTHER_LIBS ${LIB_LLAMA} ${LIB_MTMD})
+        if(EXISTS "${LIB_CPP_HTTPLIB}")
+            list(APPEND _OTHER_LIBS ${LIB_CPP_HTTPLIB})
+        endif()
         if(WITH_WHISPER)
             list(APPEND _OTHER_LIBS ${LIB_WHISPER_COMMON} ${LIB_WHISPER})
         endif()
 
+        set(_WHOLE_ARCHIVE_LIBS ${_GGML_LIBS})
+        if(EXISTS "${LIB_CPP_HTTPLIB}")
+            list(APPEND _WHOLE_ARCHIVE_LIBS ${LIB_CPP_HTTPLIB})
+        endif()
+
         target_link_libraries(${target_name} PRIVATE
-            -Wl,--whole-archive ${_GGML_LIBS} ${LIB_CPP_HTTPLIB} -Wl,--no-whole-archive
+            -Wl,--whole-archive ${_WHOLE_ARCHIVE_LIBS} -Wl,--no-whole-archive
             ${_OTHER_LIBS}
             ${SYSTEM_LIBS}
         )
     else()
+        # Static linking on macOS/Windows
         target_link_libraries(${target_name} PRIVATE ${STATIC_LIBS} ${SYSTEM_LIBS})
     endif()
 
@@ -432,15 +575,20 @@ function(add_cython_extension target_name pyx_file)
         CXX_STANDARD_REQUIRED ON
     )
 
-    # macOS-specific settings
+    # RPATH settings
+    set(_build_rpath "${LLAMACPP_LIB};${WHISPERCPP_LIB};${SDCPP_LIB}")
+    if(WITH_DYLIB AND LLAMACPP_DYLIB_DIR)
+        set(_build_rpath "${LLAMACPP_DYLIB_DIR};${_build_rpath}")
+    endif()
+
     if(APPLE)
         set_target_properties(${target_name} PROPERTIES
-            BUILD_RPATH "${LLAMACPP_LIB};${WHISPERCPP_LIB};${SDCPP_LIB}"
+            BUILD_RPATH "${_build_rpath}"
             INSTALL_RPATH "@loader_path"
         )
     elseif(UNIX)
         set_target_properties(${target_name} PROPERTIES
-            BUILD_RPATH "${LLAMACPP_LIB};${WHISPERCPP_LIB};${SDCPP_LIB}"
+            BUILD_RPATH "${_build_rpath}"
             INSTALL_RPATH "$ORIGIN"
         )
     endif()
@@ -458,11 +606,16 @@ endfunction()
 # -----------------------------------------------------------------------------
 
 # llama_cpp extension
+# JSON schema -> GBNF grammar conversion is now handled by pure Python
+# (src/cyllama/json_schema_to_grammar.py), eliminating the need for
+# json-schema-to-grammar.cpp, json-partial.cpp, and json_schema.cpp.
+set(_LLAMA_CPP_SOURCES
+    "${CMAKE_SOURCE_DIR}/src/cyllama/llama/helpers/tts.cpp"
+)
+
 add_cython_extension(llama_cpp
     "${CMAKE_SOURCE_DIR}/src/cyllama/llama/llama_cpp.pyx"
-    SOURCES
-        "${CMAKE_SOURCE_DIR}/src/cyllama/llama/helpers/tts.cpp"
-        "${CMAKE_SOURCE_DIR}/src/cyllama/llama/helpers/json_schema.cpp"
+    SOURCES ${_LLAMA_CPP_SOURCES}
     DESTINATION "cyllama/llama"
 )
 
@@ -507,7 +660,7 @@ if(UNIX AND NOT APPLE)
     endif()
 
     # Note: SD libs are NOT included here - SD extension links its own ggml
-    set(_OTHER_LIBS ${LIB_COMMON} ${LIB_LLAMA} ${LIB_MTMD})
+    set(_OTHER_LIBS ${LIB_LLAMA} ${LIB_MTMD})
     if(WITH_WHISPER)
         list(APPEND _OTHER_LIBS ${LIB_WHISPER_COMMON} ${LIB_WHISPER})
     endif()
@@ -541,15 +694,56 @@ install(TARGETS embedded DESTINATION "cyllama/llama/server")
 
 # whisper_cpp extension
 if(WITH_WHISPER)
-    add_cython_extension(whisper_cpp
-        "${CMAKE_SOURCE_DIR}/src/cyllama/whisper/whisper_cpp.pyx"
-        DESTINATION "cyllama/whisper"
-    )
+    if(WITH_DYLIB)
+        # Dynamic: link whisper-specific code statically, reuse llama.cpp's ggml dylibs
+        cython_transpile("${CMAKE_SOURCE_DIR}/src/cyllama/whisper/whisper_cpp.pyx"
+            LANGUAGE CXX
+            OUTPUT_VARIABLE whisper_cpp_src
+            CYTHON_ARGS ${CYTHON_INCLUDE_ARGS}
+        )
+
+        python_add_library(whisper_cpp MODULE WITH_SOABI ${whisper_cpp_src})
+
+        target_include_directories(whisper_cpp PRIVATE ${COMMON_INCLUDE_DIRS})
+        target_link_directories(whisper_cpp PRIVATE ${COMMON_LINK_DIRS})
+
+        target_link_libraries(whisper_cpp PRIVATE
+            ${LIB_WHISPER}
+            ${LIB_WHISPER_COMMON}
+            ${DYLIBS}
+            ${SYSTEM_LIBS}
+        )
+
+        target_compile_options(whisper_cpp PRIVATE ${CXX_COMPILE_OPTIONS})
+        set_target_properties(whisper_cpp PROPERTIES
+            CXX_STANDARD 17
+            CXX_STANDARD_REQUIRED ON
+        )
+
+        # Dylibs live in cyllama/llama/, whisper installs to cyllama/whisper/
+        if(APPLE)
+            set_target_properties(whisper_cpp PROPERTIES
+                BUILD_RPATH "${LLAMACPP_DYLIB_DIR};${WHISPERCPP_LIB}"
+                INSTALL_RPATH "@loader_path/../llama"
+            )
+        elseif(UNIX)
+            set_target_properties(whisper_cpp PROPERTIES
+                BUILD_RPATH "${LLAMACPP_DYLIB_DIR};${WHISPERCPP_LIB}"
+                INSTALL_RPATH "$ORIGIN/../llama"
+            )
+        endif()
+
+        install(TARGETS whisper_cpp DESTINATION "cyllama/whisper")
+    else()
+        add_cython_extension(whisper_cpp
+            "${CMAKE_SOURCE_DIR}/src/cyllama/whisper/whisper_cpp.pyx"
+            DESTINATION "cyllama/whisper"
+        )
+    endif()
 endif()
 
-# stable_diffusion extension - uses SD's own ggml libraries, not llama.cpp's
+# stable_diffusion extension
 if(WITH_STABLEDIFFUSION)
-    # Transpile Cython to C++
     cython_transpile("${CMAKE_SOURCE_DIR}/src/cyllama/sd/stable_diffusion.pyx"
         LANGUAGE CXX
         OUTPUT_VARIABLE sd_cpp
@@ -561,106 +755,158 @@ if(WITH_STABLEDIFFUSION)
         "${CMAKE_SOURCE_DIR}/src/cyllama/sd/stb_impl.cpp"
     )
 
-    target_include_directories(stable_diffusion PRIVATE
-        ${COMMON_INCLUDE_DIRS}
-    )
-
-    target_link_directories(stable_diffusion PRIVATE "${SDCPP_LIB}")
-
-    # SD-specific ggml libraries (from stable-diffusion.cpp build)
-    static_lib(LIB_SD_GGML "${SDCPP_LIB}" "ggml")
-    static_lib(LIB_SD_GGML_BASE "${SDCPP_LIB}" "ggml-base")
-    static_lib(LIB_SD_GGML_CPU "${SDCPP_LIB}" "ggml-cpu")
-
-    set(SD_STATIC_LIBS
-        "${LIB_SD}"
-        "${LIB_SD_GGML}"
-        "${LIB_SD_GGML_BASE}"
-        "${LIB_SD_GGML_CPU}"
-    )
-
-    # Backend-specific ggml libraries for SD
-    # Note: SD has its own Metal support that may differ from llama.cpp's GGML_METAL setting
-    # We check if SD's ggml-metal library exists to determine if SD was built with Metal
-    static_lib(_SD_METAL_LIB_PATH "${SDCPP_LIB}" "ggml-metal")
-    if(EXISTS "${_SD_METAL_LIB_PATH}")
-        message(STATUS "SD Metal library found: ${_SD_METAL_LIB_PATH}")
-        static_lib(LIB_SD_GGML_BLAS "${SDCPP_LIB}" "ggml-blas")
-        static_lib(LIB_SD_GGML_METAL "${SDCPP_LIB}" "ggml-metal")
-        list(APPEND SD_STATIC_LIBS "${LIB_SD_GGML_BLAS}" "${LIB_SD_GGML_METAL}")
-    else()
-        message(STATUS "SD Metal library not found, SD will use CPU backend")
-    endif()
-
-    # Check for CUDA support in SD
-    static_lib(_SD_CUDA_LIB_PATH "${SDCPP_LIB}" "ggml-cuda")
-    if(EXISTS "${_SD_CUDA_LIB_PATH}")
-        list(APPEND SD_STATIC_LIBS "${_SD_CUDA_LIB_PATH}")
-    endif()
-
-    # Check for Vulkan support in SD
-    static_lib(_SD_VULKAN_LIB_PATH "${SDCPP_LIB}" "ggml-vulkan")
-    if(EXISTS "${_SD_VULKAN_LIB_PATH}")
-        list(APPEND SD_STATIC_LIBS "${_SD_VULKAN_LIB_PATH}")
-    endif()
-
-    # Check for HIP/ROCm support in SD
-    static_lib(_SD_HIP_LIB_PATH "${SDCPP_LIB}" "ggml-hip")
-    if(EXISTS "${_SD_HIP_LIB_PATH}")
-        list(APPEND SD_STATIC_LIBS "${_SD_HIP_LIB_PATH}")
-    endif()
-
-    # Check for SYCL support in SD
-    static_lib(_SD_SYCL_LIB_PATH "${SDCPP_LIB}" "ggml-sycl")
-    if(EXISTS "${_SD_SYCL_LIB_PATH}")
-        list(APPEND SD_STATIC_LIBS "${_SD_SYCL_LIB_PATH}")
-    endif()
-
-    # Check for OpenCL support in SD
-    static_lib(_SD_OPENCL_LIB_PATH "${SDCPP_LIB}" "ggml-opencl")
-    if(EXISTS "${_SD_OPENCL_LIB_PATH}")
-        list(APPEND SD_STATIC_LIBS "${_SD_OPENCL_LIB_PATH}")
-    endif()
-
-    target_link_libraries(stable_diffusion PRIVATE ${SD_STATIC_LIBS} ${SYSTEM_LIBS})
+    target_include_directories(stable_diffusion PRIVATE ${COMMON_INCLUDE_DIRS})
 
     target_compile_options(stable_diffusion PRIVATE ${CXX_COMPILE_OPTIONS})
-
     set_target_properties(stable_diffusion PROPERTIES
         CXX_STANDARD 17
         CXX_STANDARD_REQUIRED ON
     )
 
-    if(APPLE)
-        set_target_properties(stable_diffusion PROPERTIES
-            BUILD_RPATH "${SDCPP_LIB}"
-            INSTALL_RPATH "@loader_path"
+    if(WITH_DYLIB AND NOT SD_USE_VENDORED_GGML)
+        # Dynamic: link libstable-diffusion.a statically, reuse llama.cpp's ggml dylibs
+        target_link_directories(stable_diffusion PRIVATE "${SDCPP_LIB}" ${COMMON_LINK_DIRS})
+        target_link_libraries(stable_diffusion PRIVATE
+            "${LIB_SD}"
+            ${DYLIBS}
+            ${SYSTEM_LIBS}
         )
-    elseif(UNIX)
-        set_target_properties(stable_diffusion PROPERTIES
-            BUILD_RPATH "${SDCPP_LIB}"
-            INSTALL_RPATH "$ORIGIN"
-        )
+
+        # Dylibs live in cyllama/llama/, SD installs to cyllama/sd/
+        if(APPLE)
+            set_target_properties(stable_diffusion PROPERTIES
+                BUILD_RPATH "${LLAMACPP_DYLIB_DIR};${SDCPP_LIB}"
+                INSTALL_RPATH "@loader_path/../llama"
+            )
+        elseif(UNIX)
+            set_target_properties(stable_diffusion PROPERTIES
+                BUILD_RPATH "${LLAMACPP_DYLIB_DIR};${SDCPP_LIB}"
+                INSTALL_RPATH "$ORIGIN/../llama"
+            )
+        endif()
+    else()
+        # Static (or dynamic + SD_USE_VENDORED_GGML): choose ggml source
+        target_link_directories(stable_diffusion PRIVATE "${SDCPP_LIB}" ${COMMON_LINK_DIRS})
+
+        if(SD_USE_VENDORED_GGML)
+            # Use stable-diffusion.cpp's own vendored ggml libs
+            set(SD_GGML_LIB_DIR "${SDCPP_LIB}")
+        else()
+            # Default: use llama.cpp's ggml (unified across all backends)
+            set(SD_GGML_LIB_DIR "${LLAMACPP_LIB}")
+        endif()
+
+        static_lib(SD_LIB_GGML "${SD_GGML_LIB_DIR}" "ggml")
+        static_lib(SD_LIB_GGML_BASE "${SD_GGML_LIB_DIR}" "ggml-base")
+        static_lib(SD_LIB_GGML_CPU "${SD_GGML_LIB_DIR}" "ggml-cpu")
+        set(SD_GGML_LIBS ${SD_LIB_GGML} ${SD_LIB_GGML_BASE} ${SD_LIB_GGML_CPU})
+        if(GGML_METAL)
+            static_lib(SD_LIB_GGML_BLAS "${SD_GGML_LIB_DIR}" "ggml-blas")
+            static_lib(SD_LIB_GGML_METAL "${SD_GGML_LIB_DIR}" "ggml-metal")
+            list(APPEND SD_GGML_LIBS ${SD_LIB_GGML_BLAS} ${SD_LIB_GGML_METAL})
+        endif()
+        if(GGML_CUDA)
+            static_lib(SD_LIB_GGML_CUDA "${SD_GGML_LIB_DIR}" "ggml-cuda")
+            list(APPEND SD_GGML_LIBS ${SD_LIB_GGML_CUDA})
+        endif()
+        if(GGML_VULKAN)
+            static_lib(SD_LIB_GGML_VULKAN "${SD_GGML_LIB_DIR}" "ggml-vulkan")
+            list(APPEND SD_GGML_LIBS ${SD_LIB_GGML_VULKAN})
+        endif()
+        if(GGML_HIP)
+            static_lib(SD_LIB_GGML_HIP "${SD_GGML_LIB_DIR}" "ggml-hip")
+            list(APPEND SD_GGML_LIBS ${SD_LIB_GGML_HIP})
+        endif()
+        if(GGML_SYCL)
+            static_lib(SD_LIB_GGML_SYCL "${SD_GGML_LIB_DIR}" "ggml-sycl")
+            list(APPEND SD_GGML_LIBS ${SD_LIB_GGML_SYCL})
+        endif()
+        if(GGML_OPENCL)
+            static_lib(SD_LIB_GGML_OPENCL "${SD_GGML_LIB_DIR}" "ggml-opencl")
+            list(APPEND SD_GGML_LIBS ${SD_LIB_GGML_OPENCL})
+        endif()
+
+        if(UNIX AND NOT APPLE)
+            target_link_libraries(stable_diffusion PRIVATE
+                -Wl,--whole-archive ${SD_GGML_LIBS} -Wl,--no-whole-archive
+                "${LIB_SD}"
+                ${SYSTEM_LIBS}
+            )
+        else()
+            target_link_libraries(stable_diffusion PRIVATE
+                "${LIB_SD}" ${SD_GGML_LIBS} ${SYSTEM_LIBS}
+            )
+        endif()
+
+        if(APPLE)
+            set_target_properties(stable_diffusion PROPERTIES
+                BUILD_RPATH "${SD_GGML_LIB_DIR};${SDCPP_LIB}"
+                INSTALL_RPATH "@loader_path"
+            )
+        elseif(UNIX)
+            set_target_properties(stable_diffusion PROPERTIES
+                BUILD_RPATH "${SD_GGML_LIB_DIR};${SDCPP_LIB}"
+                INSTALL_RPATH "$ORIGIN"
+            )
+        endif()
     endif()
 
     install(TARGETS stable_diffusion DESTINATION "cyllama/sd")
 endif()
 
 # -----------------------------------------------------------------------------
-# Install sqlite-vector extension (built by manage.py, not a CMake target)
+# sqlite-vector extension (vendored source, built as shared library)
 # -----------------------------------------------------------------------------
 
+set(_VECTOR_SRC_DIR "${CMAKE_SOURCE_DIR}/thirdparty/sqlite-vector")
+set(_VECTOR_SOURCES
+    "${_VECTOR_SRC_DIR}/sqlite-vector.c"
+    "${_VECTOR_SRC_DIR}/distance-cpu.c"
+    "${_VECTOR_SRC_DIR}/distance-avx2.c"
+    "${_VECTOR_SRC_DIR}/distance-avx512.c"
+    "${_VECTOR_SRC_DIR}/distance-sse2.c"
+    "${_VECTOR_SRC_DIR}/distance-neon.c"
+    "${_VECTOR_SRC_DIR}/distance-rvv.c"
+)
+
+add_library(vector SHARED ${_VECTOR_SOURCES})
+target_include_directories(vector PRIVATE "${_VECTOR_SRC_DIR}")
+target_compile_options(vector PRIVATE -O3 -fPIC -Wall -Wextra -Wno-unused-parameter)
+
+# No lib prefix — output is vector.so / vector.dylib / vector.dll
+set_target_properties(vector PROPERTIES
+    PREFIX ""
+    C_STANDARD 11
+)
+
 if(APPLE)
-    set(_vector_ext "vector.dylib")
+    set_target_properties(vector PROPERTIES
+        SUFFIX ".dylib"
+        LINK_FLAGS "-dynamiclib -undefined dynamic_lookup"
+    )
 elseif(WIN32)
-    set(_vector_ext "vector.dll")
+    set_target_properties(vector PROPERTIES SUFFIX ".dll")
 else()
-    set(_vector_ext "vector.so")
+    set_target_properties(vector PROPERTIES SUFFIX ".so")
 endif()
 
-set(_vector_path "${CMAKE_SOURCE_DIR}/src/cyllama/rag/${_vector_ext}")
-if(EXISTS "${_vector_path}")
-    install(FILES "${_vector_path}" DESTINATION "cyllama/rag")
+install(TARGETS vector DESTINATION "cyllama/rag")
+
+# -----------------------------------------------------------------------------
+# Install shared libraries (WITH_DYLIB mode)
+# -----------------------------------------------------------------------------
+
+if(WITH_DYLIB AND DYLIB_FILES)
+    # On macOS: install dylibs alongside the extension so @loader_path resolves.
+    # On Linux: auditwheel vendors and patches libs into <pkg>.libs/, so skip
+    # this install to avoid duplication in the wheel.
+    if(APPLE)
+        install(FILES ${DYLIB_FILES} DESTINATION "cyllama/llama")
+    endif()
+    foreach(_f ${DYLIB_FILES})
+        get_filename_component(_n "${_f}" NAME)
+        message(STATUS "  dylib: ${_n}")
+    endforeach()
 endif()
 
 # -----------------------------------------------------------------------------
