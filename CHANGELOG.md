@@ -17,42 +17,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
-### Fixed
-
-- **GPU dynamic wheel builds** - Fixed `--dynamic` mode silently downloading CPU-only pre-built binaries for CUDA, ROCm, and SYCL on Linux, where no matching pre-built GPU release assets exist. The build now falls back to compiling llama.cpp from source with `BUILD_SHARED_LIBS=ON` and collects the resulting shared libraries (including backend-specific libs like `libggml-cuda.so`) into the dynamic lib directory
-
-- **argparse crash with `--sd-vendored-ggml`** - Fixed `TypeError: 'NoneType' object is not subscriptable` when `opt()` was called with `None` as the short option name, which caused `manage.py` to crash on Python 3.10+ in CI
-
-- **GPU wheel duplication** - Shared libraries are no longer installed twice in Linux GPU wheels. CMake `install()` of dynamic libs is now macOS-only (`@loader_path`); on Linux, `auditwheel` handles vendoring into `<pkg>.libs/` via `LD_LIBRARY_PATH`. This roughly halves CUDA wheel size (81MB -> 45MB compressed)
-
-- **auditwheel glibc compatibility for CUDA wheels** - Added `--plat manylinux_2_35_x86_64` to the CUDA `auditwheel repair` command to accommodate newer glibc symbols from source-built shared libraries, matching the other GPU variants
-
-### Changed
-
-- **Pure Python JSON schema-to-grammar** - Replaced the C++ `json-schema-to-grammar.cpp`/`json-partial.cpp` compilation with a vendored pure Python implementation (`src/cyllama/utils/json_schema_to_grammar.py`). This eliminates the need for a llama.cpp source checkout during `build-dynamic`, removes `build_info_stub.cpp` and `json_schema.cpp` C++ helpers, and simplifies the CMake build for both static and dynamic linking modes. Agents import directly from `cyllama.utils` instead of going through the llama layer
-
-- **Vendored sqlite-vector source** - sqlite-vector is now vendored in `thirdparty/sqlite-vector/` and built from source via CMake as part of the normal build, replacing the separate `manage.py` build step and pre-built binary copy. This ensures `vector.so` is always included in wheels (including `uv build` sdist→wheel pipeline) without needing `.gitignore` hacks or binary files in the source tree
-
-- **Unified ggml 0.9.8 across all extensions** - Both static and dynamic builds now use llama.cpp's ggml 0.9.8 consistently for llama.cpp, whisper.cpp, and stable-diffusion.cpp (previously SD vendored ggml 0.9.5). In dynamic builds, all extensions share a single set of `libggml*.so`. In static builds, each extension links llama.cpp's ggml static libs (symbols are hidden, so no runtime conflicts). Set `SD_USE_VENDORED_GGML=1` (env var or CMake option) to link stable-diffusion against its own vendored ggml instead; available via `manage.py build --sd-vendored-ggml`
-
-- **Unified GPU backend flags** - All components (llama.cpp, whisper.cpp, stable-diffusion.cpp) now use the same `GGML_*` environment variables for backend selection. Removed the separate `--sd-metal` / `SD_METAL` flag; `GGML_METAL` (and `--metal`) now applies to all components consistently
+## [0.2.0] - 2026-03-29
 
 ### Added
 
-- **GPU wheel CI workflow** (`build-gpu-wheels.yml`) - Builds CUDA, ROCm, SYCL, and Vulkan wheels via `cibuildwheel` with both static and dynamic linking modes. Dynamic wheel sizes: CUDA 45MB, ROCm 51MB, Vulkan 28MB, SYCL 84MB. Static wheel sizes: CUDA 148MB, ROCm 170MB, Vulkan 79MB, SYCL 48MB.
+- **GPU variant packages on PyPI** - Dynamically linked GPU wheels published to PyPI for the first time:
+  - `pip install cyllama-cuda12` -- NVIDIA GPU (CUDA 12.4, architectures: Volta through Hopper + PTX)
+  - `pip install cyllama-rocm` -- AMD GPU (ROCm 6.3, requires glibc >= 2.35)
+  - `pip install cyllama-sycl` -- Intel GPU (oneAPI SYCL 2025.3, requires glibc >= 2.35)
+  - `pip install cyllama-vulkan` -- Cross-platform GPU (Vulkan, requires glibc >= 2.35)
+  - All variants install the same `cyllama` Python package (same import, different backends)
+  - Dynamic linking reduces wheel sizes to PyPI-publishable levels: CUDA 45MB, ROCm 51MB, Vulkan 28MB, SYCL 84MB
 
-- **Dynamic Linking Support** - New `WITH_DYLIB=1` build mode links against pre-built llama.cpp shared libraries from GitHub releases instead of building from source
+- **Dynamic Linking Support** - New `WITH_DYLIB=1` build mode links against pre-built llama.cpp shared libraries instead of building from source
   - Set `LLAMACPP_DYLIB_DIR=/path/to/release` to point at a pre-built release tarball
   - Shared libraries (`libllama.dylib`, `libggml*.dylib`, `libmtmd.dylib`) are copied alongside the extension for runtime resolution
   - Extension size drops from ~15 MB (static) to ~1.6 MB (dynamic) -- inference engine code is external
   - Static linking (`WITH_DYLIB=OFF`) remains the default and is unchanged
 
-- **LlamaContext memory management methods** - Added `memory_seq_rm`, `memory_seq_cp`, `memory_seq_keep`, `memory_seq_add`, `memory_seq_pos_min`, `memory_seq_pos_max` for direct KV cache sequence manipulation
-
 - **Dynamic whisper.cpp linking** - In `WITH_DYLIB` mode, `whisper_cpp` now reuses llama.cpp's ggml shared libraries instead of statically linking its own copy
   - `libwhisper.a` and `libcommon.a` (whisper-specific code) are still linked statically
   - ggml symbols resolve at runtime from the already-bundled `libggml*.dylib` in `cyllama/llama/` via `@loader_path/../llama`
   - Eliminates duplicate ggml code in the wheel
+
+- **GPU wheel CI workflow** (`build-gpu-wheels.yml`) - Builds CUDA, ROCm, SYCL, and Vulkan wheels via `cibuildwheel` with both static and dynamic linking modes, with checkbox-based backend selection for parallel builds
+
+- **LlamaContext memory management methods** - Added `memory_seq_rm`, `memory_seq_cp`, `memory_seq_keep`, `memory_seq_add`, `memory_seq_pos_min`, `memory_seq_pos_max` for direct KV cache sequence manipulation
 
 ### Changed
 
@@ -64,6 +54,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - **Batch helpers** -- `common_batch_add`/`common_batch_clear` inlined as direct array assignment
   - **Parameter conversion** -- `common_context_params_to_llama` inlined as field-by-field assignment
 
+- **Pure Python JSON schema-to-grammar** - Replaced the C++ `json-schema-to-grammar.cpp`/`json-partial.cpp` compilation with a vendored pure Python implementation (`src/cyllama/utils/json_schema_to_grammar.py`). This eliminates the need for a llama.cpp source checkout during `build-dynamic`, removes `build_info_stub.cpp` and `json_schema.cpp` C++ helpers, and simplifies the CMake build for both static and dynamic linking modes. Agents import directly from `cyllama.utils` instead of going through the llama layer
+
+- **Vendored sqlite-vector source** - sqlite-vector is now vendored in `thirdparty/sqlite-vector/` and built from source via CMake as part of the normal build, replacing the separate `manage.py` build step and pre-built binary copy. This ensures `vector.so` is always included in wheels (including `uv build` sdist->wheel pipeline) without needing `.gitignore` hacks or binary files in the source tree
+
+- **Unified ggml 0.9.8 across all extensions** - Both static and dynamic builds now use llama.cpp's ggml 0.9.8 consistently for llama.cpp, whisper.cpp, and stable-diffusion.cpp (previously SD vendored ggml 0.9.5). In dynamic builds, all extensions share a single set of `libggml*.so`. In static builds, each extension links llama.cpp's ggml static libs (symbols are hidden, so no runtime conflicts). Set `SD_USE_VENDORED_GGML=1` (env var or CMake option) to link stable-diffusion against its own vendored ggml instead; available via `manage.py build --sd-vendored-ggml`
+
+- **Unified GPU backend flags** - All components (llama.cpp, whisper.cpp, stable-diffusion.cpp) now use the same `GGML_*` environment variables for backend selection. Removed the separate `--sd-metal` / `SD_METAL` flag; `GGML_METAL` (and `--metal`) now applies to all components consistently
+
+- **Documentation** - Moved Installation section above Quick Start in README; added feature summary list; updated docs to remove "book" language; fixed Python version requirements (3.10+); updated ROCm/Vulkan backend docs
+
 ### Removed
 
 - **OpenSSL linking** -- Removed `find_package(OpenSSL)` from CMake. The embedded server (`cpp-httplib`) does not expose SSL configuration, and the absolute homebrew paths (`/opt/homebrew/opt/openssl@3/`) broke wheel portability on other machines
@@ -74,26 +74,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Fixed
 
-- **`_build_info.py` reported wrong ggml version for stable-diffusion** -- `stable_diffusion_cpp_ggml_version` was read from SD's vendored source (0.9.5) instead of the actually-linked llama.cpp ggml (0.9.8). `_write_build_info` now uses llama.cpp's ggml version as canonical for all backends, unless `SD_USE_VENDORED_GGML=1` is set
-- **`common.pxd` struct field mismatch** -- `flash_attn` (bool) corrected to `flash_attn_type` (enum) matching upstream `common_params`
-- **`llama.pxd` missing field** -- Added `embeddings` bool to `llama_context_params` (was causing struct layout mismatch)
+- **GPU dynamic wheel builds** - Fixed `--dynamic` mode silently downloading CPU-only pre-built binaries for CUDA, ROCm, and SYCL on Linux, where no matching pre-built GPU release assets exist. The build now falls back to compiling llama.cpp from source with `BUILD_SHARED_LIBS=ON` and collects the resulting shared libraries (including backend-specific libs like `libggml-cuda.so`) into the dynamic lib directory
 
----
+- **GPU wheel duplication** - Shared libraries are no longer installed twice in Linux GPU wheels. CMake `install()` of dynamic libs is now macOS-only (`@loader_path`); on Linux, `auditwheel` handles vendoring into `<pkg>.libs/` via `LD_LIBRARY_PATH`. This roughly halves CUDA wheel size (81MB -> 45MB compressed)
 
-- **GPU Backend Wheel Variants** - Pre-built wheels for all four GPU backends available from GitHub Releases
-  - `cyllama-cuda12` -- NVIDIA GPU (CUDA 12.4, architectures: Volta through Hopper + PTX)
-  - `cyllama-rocm` -- AMD GPU (ROCm 6.3, manylinux_2_35)
-  - `cyllama-vulkan` -- Cross-platform GPU (Vulkan, manylinux_2_35)
-  - `cyllama-sycl` -- Intel GPU (oneAPI SYCL 2025.3, manylinux_2_35)
-  - All variants install the same `cyllama` Python package (same import, different backends)
-
-- **Workflow improvements** - `build-gpu-wheels` workflow now uses checkboxes for backend selection (multiple backends can be built in parallel)
-
-### Changed
-
-- **Documentation** - Moved Installation section above Quick Start in README; added feature summary list; updated docs to remove "book" language; fixed Python version requirements (3.10+); updated ROCm/Vulkan backend docs
-
-### Fixed
+- **GPU Wheel Import Error** - Fixed `.so` files installing to wrong directory (e.g. `cyllama_cuda12/llama/` instead of `cyllama/llama/`) by hardcoding install destination to `cyllama` instead of using `SKBUILD_PROJECT_NAME` which changed with the package rename
 
 - **ROCm 6.3 Wheel Build** - Fixed multiple issues preventing ROCm wheels from building
   - Patched sqlite-vector to define `_GNU_SOURCE` for `strcasestr` on manylinux/AlmaLinux 8
@@ -109,14 +94,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - Set `CC=icx CXX=icpx` for SYCL compiler support
   - Added `-fsycl` as link-only flag (not compile flag) to preserve SYCL device code from `libggml-sycl.a` without forcing C files to compile as C++
 
-- **CUDA Wheel Size** - Restored CUDA wheels to ~148 MB (was ~682 MB)
+- **CUDA Wheel Size** - Restored CUDA wheels to ~148 MB static (was ~682 MB); dynamic wheels are 45MB
   - Removed `CMAKE_CUDA_ARCHITECTURES` passthrough from deps build; llama.cpp defaults use virtual/PTX for older architectures, producing much smaller static libraries
   - Added free disk space step to prevent `strip` failing with "No space left on device"
   - Added `install.strip = true` in pyproject.toml (scikit-build-core default changed in recent versions)
+  - Added `--plat manylinux_2_35_x86_64` to auditwheel repair for glibc compatibility
 
 - **sqlite-vector Missing from Wheels** - Added CMake `install(FILES ...)` directive to explicitly include `vector.so`/`vector.dylib` (was excluded by `.gitignore` filtering in scikit-build-core)
 
-- **GPU Wheel Import Error** - Fixed `.so` files installing to wrong directory (e.g. `cyllama_cuda12/llama/` instead of `cyllama/llama/`) by hardcoding install destination to `cyllama` instead of using `SKBUILD_PROJECT_NAME` which changed with the package rename
+- **argparse crash with `--sd-vendored-ggml`** - Fixed `TypeError: 'NoneType' object is not subscriptable` when `opt()` was called with `None` as the short option name, which caused `manage.py` to crash on Python 3.10+ in CI
+
+- **`_build_info.py` reported wrong ggml version for stable-diffusion** -- `stable_diffusion_cpp_ggml_version` was read from SD's vendored source (0.9.5) instead of the actually-linked llama.cpp ggml (0.9.8). `_write_build_info` now uses llama.cpp's ggml version as canonical for all backends, unless `SD_USE_VENDORED_GGML=1` is set
+- **`common.pxd` struct field mismatch** -- `flash_attn` (bool) corrected to `flash_attn_type` (enum) matching upstream `common_params`
+- **`llama.pxd` missing field** -- Added `embeddings` bool to `llama_context_params` (was causing struct layout mismatch)
 
 ## [0.1.21]
 
