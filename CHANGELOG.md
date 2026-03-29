@@ -17,6 +17,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+### Fixed
+
+- **whisper.cpp CUDA backend not loading** - whisper.cpp was running inference on CPU only because `ggml_backend_load_all()` was never called before creating a `WhisperContext`. Added `ggml_backend_load_all()` to the whisper module (matching llama.cpp's existing pattern) and updated `whisper/cli.py` to call it before context creation
+- **whisper.cpp backend detection in `cyllama info`** - The info command used outdated `KEY = 1` parsing for whisper backends, but modern whisper.cpp reports dynamically-loaded backends in `BACKEND : feature = val |` format. Fixed to parse the new format and call `ggml_backend_load_all()` before querying
+- **stable-diffusion.cpp backend reporting in `cyllama info`** - Added `ggml_backend_load_all()` to the sd module so `cyllama info` correctly reports GPU backends without relying on llama.cpp having been initialized first
+- **Duplicate ggml header conflicts** - `COMMON_INCLUDE_DIRS` included all thirdparty include paths (llama.cpp, whisper.cpp, stable-diffusion.cpp), causing `#pragma once` path-based include guard failures when identical `ggml.h`/`ggml-backend.h` headers existed under multiple directories. Cleaned up so `COMMON_INCLUDE_DIRS` only contains llama.cpp + base dirs; whisper and sd targets now get only their own + llama.cpp's include dirs via per-target configuration
+
 ## [0.2.0] - 2026-03-29
 
 ### Added

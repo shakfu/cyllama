@@ -70,6 +70,8 @@ from .stable_diffusion import (
     # Model utilities
     convert_model,
     canny_preprocess,
+    # Backend loading
+    ggml_backend_load_all,
     # Utility functions
     get_num_cores,
     get_system_info,
@@ -105,6 +107,8 @@ __all__ = [
     # Model utilities
     "convert_model",
     "canny_preprocess",
+    # Backend loading
+    "ggml_backend_load_all",
     # Utility functions
     "get_num_cores",
     "get_system_info",

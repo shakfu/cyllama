@@ -341,3 +341,10 @@ cdef extern from "whisper.h":
     # Logging
     cdef void whisper_log_set(void * log_callback, void * user_data)  # ggml_log_callback
 
+
+cdef extern from *:
+    # From ggml-backend.h — declared here to avoid duplicate header inclusion
+    # when both llama.cpp and whisper.cpp include paths are present.
+    cdef void ggml_backend_load_all()
+    cdef void ggml_backend_load_all_from_path(const char * dir_path)
+

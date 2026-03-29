@@ -185,12 +185,10 @@ set(COMMON_LINK_DIRS
 )
 
 if(WITH_WHISPER)
-    list(APPEND COMMON_INCLUDE_DIRS "${WHISPERCPP_INCLUDE}")
     list(APPEND COMMON_LINK_DIRS "${WHISPERCPP_LIB}")
 endif()
 
 if(WITH_STABLEDIFFUSION)
-    list(APPEND COMMON_INCLUDE_DIRS "${SDCPP_INCLUDE}")
     list(APPEND COMMON_LINK_DIRS "${SDCPP_LIB}")
 endif()
 
@@ -704,7 +702,16 @@ if(WITH_WHISPER)
 
         python_add_library(whisper_cpp MODULE WITH_SOABI ${whisper_cpp_src})
 
-        target_include_directories(whisper_cpp PRIVATE ${COMMON_INCLUDE_DIRS})
+        # Whisper needs its own include dir + llama.cpp's (for shared ggml headers).
+        # Do NOT add sd include dirs — their duplicate ggml headers conflict
+        # via #pragma once (path-based guard).
+        target_include_directories(whisper_cpp PRIVATE
+            "${CMAKE_SOURCE_DIR}/src/cyllama"
+            "${CMAKE_SOURCE_DIR}/src/cyllama/llama"
+            "${LLAMACPP_INCLUDE}"
+            "${WHISPERCPP_INCLUDE}"
+            "${CMAKE_SOURCE_DIR}/include"
+        )
         target_link_directories(whisper_cpp PRIVATE ${COMMON_LINK_DIRS})
 
         target_link_libraries(whisper_cpp PRIVATE
@@ -737,6 +744,7 @@ if(WITH_WHISPER)
     else()
         add_cython_extension(whisper_cpp
             "${CMAKE_SOURCE_DIR}/src/cyllama/whisper/whisper_cpp.pyx"
+            INCLUDE_DIRS "${WHISPERCPP_INCLUDE}"
             DESTINATION "cyllama/whisper"
         )
     endif()
@@ -755,7 +763,16 @@ if(WITH_STABLEDIFFUSION)
         "${CMAKE_SOURCE_DIR}/src/cyllama/sd/stb_impl.cpp"
     )
 
-    target_include_directories(stable_diffusion PRIVATE ${COMMON_INCLUDE_DIRS})
+    # SD needs its own include dir + llama.cpp's (for shared ggml headers).
+    # Do NOT add whisper include dirs — their duplicate ggml headers conflict
+    # via #pragma once (path-based guard).
+    target_include_directories(stable_diffusion PRIVATE
+        "${CMAKE_SOURCE_DIR}/src/cyllama"
+        "${CMAKE_SOURCE_DIR}/src/cyllama/llama"
+        "${LLAMACPP_INCLUDE}"
+        "${SDCPP_INCLUDE}"
+        "${CMAKE_SOURCE_DIR}/include"
+    )
 
     target_compile_options(stable_diffusion PRIVATE ${CXX_COMPILE_OPTIONS})
     set_target_properties(stable_diffusion PROPERTIES

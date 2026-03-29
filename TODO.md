@@ -9,6 +9,7 @@
 
 - [ ] Investigate using versioned dylibs (e.g. `libllama.4.dylib`) instead of `.0.dylib` in dynamic wheels
 - [ ] Fix absolute homebrew OpenSSL paths in wheel (`/opt/homebrew/opt/openssl@3/lib/libssl.3.dylib`) -- either bundle with `@rpath` or skip OpenSSL for redistributable wheels
+- [ ] stable-diffusion.cpp uses compile-time `#ifdef SD_USE_CUDA` for backend selection instead of dynamic `ggml_backend_load_all()` like llama.cpp and whisper.cpp — propose dynamic backend discovery upstream or patch locally for consistency
 
 ## Medium Priority
 

@@ -412,3 +412,8 @@ cdef extern from "stable-diffusion.h":
 
     const char* sd_commit()
     const char* sd_version()
+
+
+cdef extern from "ggml-backend.h" nogil:
+    cdef void ggml_backend_load_all()
+    cdef void ggml_backend_load_all_from_path(const char * dir_path)

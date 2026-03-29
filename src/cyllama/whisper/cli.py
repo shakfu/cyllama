@@ -362,6 +362,9 @@ def process_file(input_file: str, params: WhisperParams) -> None:
             print(f"Resampling from {sample_rate}Hz to {wh.WHISPER.SAMPLE_RATE}Hz")
         samples = resample_audio(samples, sample_rate, wh.WHISPER.SAMPLE_RATE)
 
+    # Load GPU backends before creating context
+    wh.ggml_backend_load_all()
+
     # Initialize Whisper context
     try:
         ctx = wh.WhisperContext(params.model)

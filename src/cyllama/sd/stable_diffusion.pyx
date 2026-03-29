@@ -144,6 +144,21 @@ class LoraApplyMode(IntEnum):
 # Utility functions
 # =============================================================================
 
+def ggml_backend_load_all():
+    """Load all available ggml backends (CUDA, Metal, Vulkan, etc.).
+
+    Call before querying system info so that GPU backends are registered.
+    """
+    import os
+    _dir = os.path.dirname(os.path.abspath(__file__))
+    # In dynamic builds the backend libs live alongside the llama extension
+    _llama_dir = os.path.join(os.path.dirname(_dir), "llama")
+    if os.path.isdir(_llama_dir):
+        ggml_backend_load_all_from_path(_llama_dir.encode())
+    else:
+        ggml_backend_load_all_from_path(_dir.encode())
+
+
 def get_num_cores() -> int:
     """Get the number of physical CPU cores."""
     return sd_get_num_physical_cores()

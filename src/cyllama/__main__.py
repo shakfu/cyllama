@@ -89,20 +89,25 @@ def cmd_info():
     try:
         from .whisper import whisper_cpp
 
+        # Load backends so whisper sees GPU registries (mirrors what
+        # every upstream whisper.cpp example does in main())
+        whisper_cpp.ggml_backend_load_all()
+
         info_str = whisper_cpp.print_system_info()
         whisper_ver = build_info.get("whisper_cpp_version", "unknown")
         print(f"  version:       {whisper_ver}")
         print(f"  ggml version:  {build_info.get('whisper_cpp_ggml_version', whisper_cpp.version())}")
         info = _parse_system_info(info_str)
         features = _cpu_features_from_info(info)
-        # Extract backends from system info
-        backend_keys = {"MTL": "Metal", "CUDA": "CUDA", "VULKAN": "Vulkan", "COREML": "CoreML", "OPENVINO": "OpenVINO"}
-        backends = []
-        for key, name in backend_keys.items():
-            for info_key, val in info.items():
-                if key in info_key and val == "1":
-                    backends.append(name)
-                    break
+        # whisper_print_system_info lists dynamically-loaded backends with
+        # "BACKEND : feature = val |" format.  Detect backend name prefixes.
+        backend_names = ["CUDA", "Metal", "Vulkan", "SYCL", "HIP", "OpenCL"]
+        backends = [b for b in backend_names if f"{b} :" in info_str]
+        # Also check whisper-specific compile-time backends
+        if info.get("COREML") == "1":
+            backends.append("CoreML")
+        if info.get("OPENVINO") == "1":
+            backends.append("OpenVINO")
         print(f"  backends:      {', '.join(backends) if backends else 'CPU'}")
         if features:
             print(f"  CPU features:  {', '.join(features)}")
@@ -114,7 +119,10 @@ def cmd_info():
     # stable-diffusion.cpp
     print("stable-diffusion.cpp:")
     try:
-        from .sd import get_system_info
+        from .sd import get_system_info, ggml_backend_load_all as sd_load_backends
+
+        # Load backends so sd sees GPU registries
+        sd_load_backends()
 
         sd_ver = build_info.get("stable_diffusion_cpp_version", "unknown")
         print(f"  version:       {sd_ver}")
@@ -122,8 +130,8 @@ def cmd_info():
         info_str = get_system_info()
         info = _parse_system_info(info_str)
         features = _cpu_features_from_info(info)
-        # SD doesn't report backends via system_info, so infer from llama.cpp's
-        # ggml registry (SD uses the same ggml build on macOS/CUDA)
+        # sd_get_system_info only reports CPU features (old-style ggml_cpu_has_*),
+        # so query the ggml backend registry for GPU backends.
         try:
             from .llama import llama_cpp as cy
 
@@ -131,7 +139,7 @@ def cmd_info():
             sd_backends = [r for r in regs if r not in ("CPU", "BLAS")]
             print(f"  backends:      {', '.join(sd_backends) if sd_backends else 'CPU'}")
         except Exception:
-            print("  backends:      unknown")
+            print("  backends:      CPU")
         if features:
             print(f"  CPU features:  {', '.join(features)}")
     except Exception as e:
