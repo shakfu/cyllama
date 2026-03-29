@@ -744,7 +744,11 @@ float bit1_distance_hamming_cpu (const void *v1, const void *v2, int n) {
 // MARK: - ENTRYPOINT -
 
 #if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)
-    #include <cpuid.h>
+    #if defined(_MSC_VER)
+        #include <intrin.h>
+    #else
+        #include <cpuid.h>
+    #endif
 
     static void x86_cpuid(int leaf, int subleaf, int *eax, int *ebx, int *ecx, int *edx) {
         #if defined(_MSC_VER)
