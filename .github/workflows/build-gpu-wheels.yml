@@ -36,6 +36,11 @@ on:
         required: false
         default: false
         type: boolean
+      ci_python:
+        description: 'Python path prefix inside manylinux container'
+        required: false
+        default: '/opt/python/cp310-cp310/bin'
+        type: string
 
 env:
   CIBW_BUILD_VERBOSITY: 1
@@ -80,14 +85,15 @@ jobs:
             yum-config-manager --add-repo https://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/cuda-rhel7.repo &&
             yum install -y cuda-nvcc-12-4 cuda-cudart-devel-12-4 cuda-driver-devel-12-4 libcublas-devel-12-4 &&
             ln -s /usr/local/cuda-12.4 /usr/local/cuda &&
-            /opt/python/cp310-cp310/bin/pip install cmake ninja &&
-            PATH=/usr/local/cuda/bin:/opt/python/cp310-cp310/bin:$PATH
+            ${{ inputs.ci_python }}/pip install cmake ninja &&
+            PATH=/usr/local/cuda/bin:${{ inputs.ci_python }}:$PATH
             CMAKE_CUDA_ARCHITECTURES="70-real;75-real;80-real;86-real;89-real;90"
             GGML_CUDA=1 GGML_METAL=0
-            /opt/python/cp310-cp310/bin/python scripts/manage.py build --all --deps-only
+            ${{ inputs.ci_python }}/python scripts/manage.py build --all --deps-only
             ${{ inputs.link_mode == 'dynamic' && '--dynamic' || '' }}
           CIBW_BEFORE_BUILD_LINUX: >
-            sed -i 's/^name = "cyllama"/name = "cyllama-cuda12"/' {project}/pyproject.toml
+            sed -i 's/^name = "cyllama"/name = "cyllama-cuda12"/' {project}/pyproject.toml &&
+            grep -q '^name = "cyllama-cuda12"' {project}/pyproject.toml || { echo "ERROR: sed rename to cyllama-cuda12 failed"; exit 1; }
           CIBW_ENVIRONMENT_LINUX: >
             GGML_CUDA=1
             GGML_METAL=0
@@ -100,6 +106,7 @@ jobs:
             WITH_DYLIB=${{ inputs.link_mode == 'dynamic' && '1' || '0' }}
           CIBW_TEST_COMMAND: ""
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
+            test -d {project}/thirdparty/llama.cpp/dynamic || { echo "ERROR: dynamic lib dir missing: {project}/thirdparty/llama.cpp/dynamic"; exit 1; } &&
             LD_LIBRARY_PATH={project}/thirdparty/llama.cpp/dynamic:$LD_LIBRARY_PATH
             auditwheel repair -w {dest_dir} {wheel}
             --plat manylinux_2_35_x86_64
@@ -155,16 +162,17 @@ jobs:
             dnf install -y rocm-hip-runtime-devel hipblas-devel rocblas-devel libstdc++-static &&
             ls -d /opt/rocm-* | head -1 | xargs -I{} ln -sf {} /opt/rocm &&
             ln -sf /usr/lib/gcc/x86_64-redhat-linux/8/libstdc++.a /opt/rocm/lib/libstdc++.a &&
-            /opt/python/cp310-cp310/bin/pip install cmake ninja &&
-            PATH=/opt/rocm/bin:/opt/python/cp310-cp310/bin:$PATH
+            ${{ inputs.ci_python }}/pip install cmake ninja &&
+            PATH=/opt/rocm/bin:${{ inputs.ci_python }}:$PATH
             LIBRARY_PATH=/usr/lib/gcc/x86_64-redhat-linux/8:$LIBRARY_PATH
             CMAKE_HIP_ARCHITECTURES="gfx90a;gfx942;gfx1100"
             HIP_PATH=/opt/rocm
             GGML_HIP=1 GGML_METAL=0
-            /opt/python/cp310-cp310/bin/python scripts/manage.py build --all --deps-only
+            ${{ inputs.ci_python }}/python scripts/manage.py build --all --deps-only
             ${{ inputs.link_mode == 'dynamic' && '--dynamic' || '' }}
           CIBW_BEFORE_BUILD_LINUX: >
-            sed -i 's/^name = "cyllama"/name = "cyllama-rocm"/' {project}/pyproject.toml
+            sed -i 's/^name = "cyllama"/name = "cyllama-rocm"/' {project}/pyproject.toml &&
+            grep -q '^name = "cyllama-rocm"' {project}/pyproject.toml || { echo "ERROR: sed rename to cyllama-rocm failed"; exit 1; }
           CIBW_ENVIRONMENT_LINUX: >
             GGML_HIP=1
             GGML_METAL=0
@@ -178,6 +186,7 @@ jobs:
             WITH_DYLIB=${{ inputs.link_mode == 'dynamic' && '1' || '0' }}
           CIBW_TEST_COMMAND: ""
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
+            test -d {project}/thirdparty/llama.cpp/dynamic || { echo "ERROR: dynamic lib dir missing: {project}/thirdparty/llama.cpp/dynamic"; exit 1; } &&
             LD_LIBRARY_PATH={project}/thirdparty/llama.cpp/dynamic:$LD_LIBRARY_PATH
             auditwheel repair -w {dest_dir} {wheel}
             --plat manylinux_2_35_x86_64
@@ -231,15 +240,16 @@ jobs:
             rpm --import https://yum.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB &&
             dnf config-manager --add-repo https://yum.repos.intel.com/oneapi &&
             dnf install -y intel-oneapi-dpcpp-cpp-2025.3 intel-oneapi-mkl-devel-2025.3 &&
-            /opt/python/cp310-cp310/bin/pip install cmake ninja &&
+            ${{ inputs.ci_python }}/pip install cmake ninja &&
             source /opt/intel/oneapi/setvars.sh &&
             export CC=icx CXX=icpx &&
-            PATH=/opt/python/cp310-cp310/bin:$PATH
+            PATH=${{ inputs.ci_python }}:$PATH
             GGML_SYCL=1 GGML_METAL=0
-            /opt/python/cp310-cp310/bin/python scripts/manage.py build --all --deps-only
+            ${{ inputs.ci_python }}/python scripts/manage.py build --all --deps-only
             ${{ inputs.link_mode == 'dynamic' && '--dynamic' || '' }}
           CIBW_BEFORE_BUILD_LINUX: >
-            sed -i 's/^name = "cyllama"/name = "cyllama-sycl"/' {project}/pyproject.toml
+            sed -i 's/^name = "cyllama"/name = "cyllama-sycl"/' {project}/pyproject.toml &&
+            grep -q '^name = "cyllama-sycl"' {project}/pyproject.toml || { echo "ERROR: sed rename to cyllama-sycl failed"; exit 1; }
           CIBW_ENVIRONMENT_LINUX: >
             GGML_SYCL=1
             GGML_METAL=0
@@ -252,6 +262,7 @@ jobs:
             WITH_DYLIB=${{ inputs.link_mode == 'dynamic' && '1' || '0' }}
           CIBW_TEST_COMMAND: ""
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
+            test -d {project}/thirdparty/llama.cpp/dynamic || { echo "ERROR: dynamic lib dir missing: {project}/thirdparty/llama.cpp/dynamic"; exit 1; } &&
             LD_LIBRARY_PATH={project}/thirdparty/llama.cpp/dynamic:$LD_LIBRARY_PATH
             auditwheel repair -w {dest_dir} {wheel}
             --plat manylinux_2_35_x86_64
@@ -307,13 +318,14 @@ jobs:
             cmake --build build --target glslc_exe --parallel 4 &&
             cp build/glslc/glslc /usr/local/bin/glslc &&
             cd /project && rm -rf /tmp/shaderc &&
-            /opt/python/cp310-cp310/bin/pip install cmake ninja &&
-            PATH=/opt/python/cp310-cp310/bin:$PATH
+            ${{ inputs.ci_python }}/pip install cmake ninja &&
+            PATH=${{ inputs.ci_python }}:$PATH
             GGML_VULKAN=1 GGML_METAL=0
-            /opt/python/cp310-cp310/bin/python scripts/manage.py build --all --deps-only
+            ${{ inputs.ci_python }}/python scripts/manage.py build --all --deps-only
             ${{ inputs.link_mode == 'dynamic' && '--dynamic' || '' }}
           CIBW_BEFORE_BUILD_LINUX: >
-            sed -i 's/^name = "cyllama"/name = "cyllama-vulkan"/' {project}/pyproject.toml
+            sed -i 's/^name = "cyllama"/name = "cyllama-vulkan"/' {project}/pyproject.toml &&
+            grep -q '^name = "cyllama-vulkan"' {project}/pyproject.toml || { echo "ERROR: sed rename to cyllama-vulkan failed"; exit 1; }
           CIBW_ENVIRONMENT_LINUX: >
             GGML_VULKAN=1
             GGML_METAL=0
@@ -322,6 +334,7 @@ jobs:
             WITH_DYLIB=${{ inputs.link_mode == 'dynamic' && '1' || '0' }}
           CIBW_TEST_COMMAND: ""
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
+            test -d {project}/thirdparty/llama.cpp/dynamic || { echo "ERROR: dynamic lib dir missing: {project}/thirdparty/llama.cpp/dynamic"; exit 1; } &&
             LD_LIBRARY_PATH={project}/thirdparty/llama.cpp/dynamic:$LD_LIBRARY_PATH
             auditwheel repair -w {dest_dir} {wheel}
             --plat manylinux_2_35_x86_64

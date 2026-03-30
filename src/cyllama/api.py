@@ -1021,9 +1021,17 @@ class LLM:
             tmpl = self.model.get_default_chat_template()
 
         if tmpl:
-            chat_messages = [
-                LlamaChatMessage(role=msg.get("role", "user"), content=msg.get("content", "")) for msg in messages
-            ]
+            chat_messages = []
+            for i, msg in enumerate(messages):
+                if not isinstance(msg, dict):
+                    raise TypeError(f"Message at index {i} must be a dict, got {type(msg).__name__}")
+                role = msg.get("role")
+                if not role or not isinstance(role, str):
+                    raise ValueError(f"Message at index {i} missing or invalid 'role': {msg!r}")
+                content = msg.get("content")
+                if content is None:
+                    raise ValueError(f"Message at index {i} missing 'content' key")
+                chat_messages.append(LlamaChatMessage(role=role, content=str(content)))
             return self.model.chat_apply_template(tmpl, chat_messages, add_generation_prompt)
         else:
             return _format_messages_simple(messages)
@@ -1596,8 +1604,21 @@ class AsyncLLM:
                         raise item
                     yield item
             finally:
-                # Ensure producer completes
-                await producer_task
+                # Ensure producer completes; if it hasn't started yet or is
+                # still running, cancel it and suppress CancelledError.
+                if not producer_task.done():
+                    producer_task.cancel()
+                    try:
+                        await producer_task
+                    except asyncio.CancelledError:
+                        pass
+                else:
+                    # Retrieve (and discard) the result so any exception
+                    # doesn't become an unhandled task exception.
+                    try:
+                        producer_task.result()
+                    except Exception:
+                        pass
 
     async def generate_with_stats(self, prompt: str, config: Optional[GenerationConfig] = None) -> Response:
         """

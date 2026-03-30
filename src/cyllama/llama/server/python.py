@@ -66,8 +66,10 @@ class ChatRequest:
     max_tokens: Optional[int] = None
     temperature: float = 0.8
     top_p: float = 0.9
+    min_p: float = 0.05
     stream: bool = False
     stop: Optional[List[str]] = None
+    seed: Optional[int] = None
 
 
 @dataclass
@@ -107,12 +109,9 @@ class ServerSlot:
         ctx_params.n_batch = config.n_batch
         self.context = LlamaContext(model, ctx_params, verbose=False)
 
-        # Create sampler with similar settings to chat.py
-        sampler_params = LlamaSamplerChainParams()
-        self.sampler = LlamaSampler(sampler_params)
-        self.sampler.add_min_p(0.05, 1)
-        self.sampler.add_temp(0.8)
-        self.sampler.add_dist(1337)
+        # Sampler is rebuilt per-request to support per-request parameters
+        self.sampler: Optional[LlamaSampler] = None
+        self._build_sampler()
 
         # Slot state
         self.is_processing = False
@@ -121,6 +120,21 @@ class ServerSlot:
         # Processing state
         self.generated_tokens: List[int] = []
         self.response_text = ""
+
+    def _build_sampler(
+        self,
+        temperature: float = 0.8,
+        min_p: float = 0.05,
+        seed: Optional[int] = None,
+    ) -> None:
+        """Build (or rebuild) the sampler chain with the given parameters."""
+        from ..llama_cpp import LlamaSamplerChainParams
+
+        sampler_params = LlamaSamplerChainParams()
+        self.sampler = LlamaSampler(sampler_params)
+        self.sampler.add_min_p(min_p, 1)
+        self.sampler.add_temp(temperature)
+        self.sampler.add_dist(seed if seed is not None else 1337)
 
     def reset(self):
         """Reset the slot for a new request."""
@@ -131,9 +145,17 @@ class ServerSlot:
         # Reset the context state
         self.context.n_tokens = 0
 
-    def process_and_generate(self, prompt: str, max_tokens: int = 100) -> str:
-        """Process prompt and generate response using the slot's context"""
+    def process_and_generate(self, prompt: str, max_tokens: int = 100, request: Optional["ChatRequest"] = None) -> str:
+        """Process prompt and generate response using the slot's context."""
         try:
+            # Rebuild sampler with per-request parameters when provided
+            if request is not None:
+                self._build_sampler(
+                    temperature=request.temperature,
+                    min_p=request.min_p,
+                    seed=request.seed,
+                )
+
             # Use the existing context for this slot
             context = self.context
 
@@ -268,7 +290,7 @@ class PythonServer:
 
             # Use the new simplified approach
             max_tokens = request.max_tokens or 100
-            generated_text = slot.process_and_generate(prompt, max_tokens)
+            generated_text = slot.process_and_generate(prompt, max_tokens, request=request)
 
             # Check stop words
             if request.stop and generated_text:
@@ -451,8 +473,10 @@ class PythonServer:
                         max_tokens=data.get("max_tokens"),
                         temperature=data.get("temperature", 0.8),
                         top_p=data.get("top_p", 0.9),
+                        min_p=data.get("min_p", 0.05),
                         stream=data.get("stream", False),
                         stop=data.get("stop"),
+                        seed=data.get("seed"),
                     )
 
                     # Process request

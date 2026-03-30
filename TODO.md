@@ -9,15 +9,15 @@
 
 ### High
 
-- [ ] Validate `LLAMACPP_DYLIB_DIR` exists in CMakeLists.txt when `WITH_DYLIB=ON` — currently defaults to `thirdparty/llama.cpp/dynamic` without checking contents
-- [ ] Log warning for broken symlinks in `build_shared()` (`scripts/manage.py:1116-1123`) — missing targets are silently skipped, producing incomplete wheels
-- [ ] Validate `sed` package-rename commands in `build-gpu-wheels.yml` — if pattern doesn't match, sed succeeds silently and wheels ship with wrong package name
-- [ ] Validate `LD_LIBRARY_PATH` directory exists in `CIBW_REPAIR_WHEEL_COMMAND_LINUX` (`build-gpu-wheels.yml`)
-- [ ] Make CI Python path configurable instead of hardcoding `/opt/python/cp310-cp310/bin/python` in `build-gpu-wheels.yml`
-- [ ] Improve Windows `get_lib_path()` fallback (`scripts/manage.py:781-809`) — returns `Release/` path on failure regardless of actual config
-- [ ] Validate chat message dicts in `api.py:1020-1025` — `msg.get("role", "user")` silently accepts empty/malformed messages
-- [ ] Fix incomplete exception handling in `AsyncLLM.stream()` (`api.py:1588-1601`) — producer_task may not be properly awaited if consumer raises before producer starts
-- [ ] Make server sampler parameters configurable (`llama/server/python.py:113-115`) — seed 1337, temp 0.8, min_p 0.05 are hardcoded with no per-request override
+- [x] Validate `LLAMACPP_DYLIB_DIR` exists in CMakeLists.txt when `WITH_DYLIB=ON` — currently defaults to `thirdparty/llama.cpp/dynamic` without checking contents
+- [x] Log warning for broken symlinks in `build_shared()` (`scripts/manage.py:1116-1123`) — missing targets are silently skipped, producing incomplete wheels
+- [x] Validate `sed` package-rename commands in `build-gpu-wheels.yml` — if pattern doesn't match, sed succeeds silently and wheels ship with wrong package name
+- [x] Validate `LD_LIBRARY_PATH` directory exists in `CIBW_REPAIR_WHEEL_COMMAND_LINUX` (`build-gpu-wheels.yml`)
+- [x] Make CI Python path configurable instead of hardcoding `/opt/python/cp310-cp310/bin/python` in `build-gpu-wheels.yml`
+- [x] Improve Windows `get_lib_path()` fallback (`scripts/manage.py:781-809`) — returns `Release/` path on failure regardless of actual config
+- [x] Validate chat message dicts in `api.py:1020-1025` — `msg.get("role", "user")` silently accepts empty/malformed messages
+- [x] Fix incomplete exception handling in `AsyncLLM.stream()` (`api.py:1588-1601`) — producer_task may not be properly awaited if consumer raises before producer starts
+- [x] Make server sampler parameters configurable (`llama/server/python.py:113-115`) — seed 1337, temp 0.8, min_p 0.05 are hardcoded with no per-request override
 
 ### Medium
 

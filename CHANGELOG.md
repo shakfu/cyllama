@@ -17,7 +17,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+### Added
+
+- **Per-request sampler parameters in PythonServer** - `temperature`, `min_p`, and `seed` are now configurable per request via the OpenAI-compatible `/v1/chat/completions` endpoint instead of being hardcoded (seed 1337, temp 0.8, min_p 0.05)
+
+### Changed
+
+- **CI Python path is now configurable** - Replaced hardcoded `/opt/python/cp310-cp310/bin/python` in `build-gpu-wheels.yml` with a `ci_python` workflow input (defaults to `/opt/python/cp310-cp310/bin`)
+- **Windows `get_lib_path()` searches more build configurations** - Now tries `RelWithDebInfo/`, `MinSizeRel/`, and `Debug/` before falling back, with a warning listing all searched paths
+
 ### Fixed
+
+- **`LLAMACPP_DYLIB_DIR` validated when `WITH_DYLIB=ON`** - CMake now emits `FATAL_ERROR` if the directory does not exist or is empty, instead of silently defaulting to an absent `thirdparty/llama.cpp/dynamic`
+- **Broken symlinks in `build_shared()` now logged** - Previously, symlinks with missing targets were silently skipped during shared library collection, potentially producing incomplete wheels. A warning now identifies the broken symlink and its target
+- **`sed` package-rename validated in GPU wheel CI** - Each `sed` rename in `build-gpu-wheels.yml` is now followed by a `grep -q` check that fails the build if the pattern did not match, preventing wheels from shipping with the wrong package name
+- **`LD_LIBRARY_PATH` directory validated in wheel repair** - `CIBW_REPAIR_WHEEL_COMMAND_LINUX` now checks that the dynamic lib directory exists before running `auditwheel`, instead of silently falling back to system paths
+- **Chat message validation in `apply_chat_template()`** - `msg.get("role", "user")` replaced with explicit validation: messages must be dicts with a non-empty string `role` and a present `content` key. Raises `TypeError`/`ValueError` with the offending index
+- **`AsyncLLM.stream()` producer task cleanup** - If the consumer raises before the producer starts or finishes, the producer task is now cancelled and awaited cleanly instead of being left dangling
 
 - **whisper.cpp CUDA backend not loading** - whisper.cpp was running inference on CPU only because `ggml_backend_load_all()` was never called before creating a `WhisperContext`. Added `ggml_backend_load_all()` to the whisper module (matching llama.cpp's existing pattern) and updated `whisper/cli.py` to call it before context creation
 - **whisper.cpp backend detection in `cyllama info`** - The info command used outdated `KEY = 1` parsing for whisper backends, but modern whisper.cpp reports dynamically-loaded backends in `BACKEND : feature = val |` format. Fixed to parse the new format and call `ggml_backend_load_all()` before querying

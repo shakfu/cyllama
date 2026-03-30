@@ -207,6 +207,19 @@ if(WITH_DYLIB)
     if(NOT LLAMACPP_DYLIB_DIR)
         set(LLAMACPP_DYLIB_DIR "${LLAMACPP_DIR}/dynamic")
     endif()
+    if(NOT EXISTS "${LLAMACPP_DYLIB_DIR}")
+        message(FATAL_ERROR
+            "WITH_DYLIB=ON but LLAMACPP_DYLIB_DIR does not exist: ${LLAMACPP_DYLIB_DIR}\n"
+            "Either build shared libs first (make build-shared) or set LLAMACPP_DYLIB_DIR "
+            "to a directory containing pre-built llama.cpp shared libraries.")
+    endif()
+    file(GLOB _dylib_contents "${LLAMACPP_DYLIB_DIR}/*")
+    if(NOT _dylib_contents)
+        message(FATAL_ERROR
+            "WITH_DYLIB=ON but LLAMACPP_DYLIB_DIR is empty: ${LLAMACPP_DYLIB_DIR}\n"
+            "The directory exists but contains no files. Build shared libs first or "
+            "provide a directory with pre-built llama.cpp shared libraries.")
+    endif()
     message(STATUS "WITH_DYLIB: ON (dylib dir: ${LLAMACPP_DYLIB_DIR})")
 
     # Find shared libraries in the dylib directory

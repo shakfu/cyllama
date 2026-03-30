@@ -809,7 +809,20 @@ class AbstractBuilder(ShellCmd):
             direct_path = base / f"{name}.lib"
             if direct_path.exists():
                 return direct_path
+            # Try other common configurations
+            for config in ("RelWithDebInfo", "MinSizeRel", "Debug"):
+                config_path = base / config / f"{name}.lib"
+                if config_path.exists():
+                    self.log.warning(
+                        f"Library {name}.lib not found in Release/ or root, "
+                        f"using {config}/ build"
+                    )
+                    return config_path
             # Return expected Release path for error messages
+            self.log.warning(
+                f"Library {name}.lib not found in any configuration under {base}. "
+                f"Searched: Release/, direct, RelWithDebInfo/, MinSizeRel/, Debug/"
+            )
             return release_path
         else:
             # Unix: libname.a directly in directory
@@ -1140,6 +1153,10 @@ class LlamaCppBuilder(Builder):
                     if real.exists():
                         shutil.copy2(str(real), str(dest))
                     else:
+                        self.log.warning(
+                            f"Broken symlink skipped: {item} -> {item.readlink()} "
+                            f"(target does not exist)"
+                        )
                         continue
                 else:
                     shutil.copy2(str(item), str(dest))
