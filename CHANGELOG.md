@@ -20,6 +20,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 ### Added
 
 - **Per-request sampler parameters in PythonServer** - `temperature`, `min_p`, and `seed` are now configurable per request via the OpenAI-compatible `/v1/chat/completions` endpoint instead of being hardcoded (seed 1337, temp 0.8, min_p 0.05)
+- **`GenerationConfig.to_dict()`** - New method that converts a config to a dictionary with mutable values copied, replacing duplicated dict-building logic in `LLM.__init__` and `AsyncLLM._build_config()` (also fixes missing `main_gpu`, `split_mode`, `tensor_split` fields in the async variant)
+- **Configurable TTS token IDs** - `TTSGenerator` now accepts `guide_token_id` and `audio_code_range` parameters instead of hardcoding token ID 198 and range 151672-155772 (OuteTTS defaults preserved)
+- **Timeout support for `AsyncLLM.stream()`** - New `timeout` parameter (seconds) limits how long the consumer waits for each chunk, raising `asyncio.TimeoutError` if the model stalls
 
 ### Changed
 
@@ -34,7 +37,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 - **`LD_LIBRARY_PATH` directory validated in wheel repair** - `CIBW_REPAIR_WHEEL_COMMAND_LINUX` now checks that the dynamic lib directory exists before running `auditwheel`, instead of silently falling back to system paths
 - **Chat message validation in `apply_chat_template()`** - `msg.get("role", "user")` replaced with explicit validation: messages must be dicts with a non-empty string `role` and a present `content` key. Raises `TypeError`/`ValueError` with the offending index
 - **`AsyncLLM.stream()` producer task cleanup** - If the consumer raises before the producer starts or finishes, the producer task is now cancelled and awaited cleanly instead of being left dangling
-
+- **GIL released during `whisper_full()` and `llama_encode()`** - Long-running C inference calls now release the GIL, allowing other Python threads to run concurrently during whisper transcription and encoder-decoder encoding
+- **Stable diffusion callback exceptions now logged** - `_c_log_callback` and `_c_progress_callback` now log exceptions via `logging.warning` instead of silently swallowing them with bare `except: pass`
+- **Overflow-safe image size calculations in stable_diffusion.pyx** - `SDImage.from_numpy()` and `SDImage.load()` now check for integer overflow before `malloc`, raising `OverflowError` instead of silently truncating or allocating undersized buffers
+- **`*.a` files excluded from sdist** - `sdist.exclude` in `pyproject.toml` now filters out `thirdparty/*/lib/*.a` and `*.lib` files that were previously included via `sdist.include` of `thirdparty/*/lib` directories
+- **`_release_url()` guarded against `None` asset name** - `_release_asset_name()` can return `None` for unsupported platform/backend combinations; `_release_url()` now returns `None` instead of interpolating `"None"` into the URL, and `download_release()` raises a clear `RuntimeError`
+- **Invalid chat template names now warn** - When a template name that looks like an identifier (e.g. `"chatml"`) is not found in the model, a `UserWarning` is emitted before falling back to treating it as a raw Jinja string
+- **`LLM.__del__` wrapped in try-except** - `close()` called from the destructor can raise during interpreter shutdown or partial initialization; exceptions are now suppressed
+- **Shared metadata dicts in `VectorStore.add()`** - `metadata = [{}] * len(embeddings)` replaced with list comprehension to prevent all entries sharing the same dict reference
+- **Metadata JSON-serialization validated upfront** - `VectorStore.add()` now validates all metadata dicts are JSON-serializable before starting the insert loop, giving a clear `ValueError` with the offending index
+- **HybridStore FTS triggers documented for exclusive access** - `_create_fts_table()` docstring now documents that the INSERT/DELETE/UPDATE triggers require exclusive write access to the SQLite database
 - **whisper.cpp CUDA backend not loading** - whisper.cpp was running inference on CPU only because `ggml_backend_load_all()` was never called before creating a `WhisperContext`. Added `ggml_backend_load_all()` to the whisper module (matching llama.cpp's existing pattern) and updated `whisper/cli.py` to call it before context creation
 - **whisper.cpp backend detection in `cyllama info`** - The info command used outdated `KEY = 1` parsing for whisper backends, but modern whisper.cpp reports dynamically-loaded backends in `BACKEND : feature = val |` format. Fixed to parse the new format and call `ggml_backend_load_all()` before querying
 - **stable-diffusion.cpp backend reporting in `cyllama info`** - Added `ggml_backend_load_all()` to the sd module so `cyllama info` correctly reports GPU backends without relying on llama.cpp having been initialized first

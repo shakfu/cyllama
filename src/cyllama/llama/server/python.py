@@ -102,7 +102,7 @@ class ServerSlot:
         self.config = config
 
         # Create context and sampler for this slot
-        from ..llama_cpp import LlamaContextParams, LlamaSamplerChainParams
+        from ..llama_cpp import LlamaContextParams
 
         ctx_params = LlamaContextParams()
         ctx_params.n_ctx = config.n_ctx

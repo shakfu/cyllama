@@ -775,7 +775,7 @@ cdef extern from "llama.h":
     # Stores the encoder output internally for later use by the decoder cross-attention layers.
     #   0 - success
     # < 0 - error. the memory state is restored to the state before this call
-    cdef int32_t llama_encode(llama_context * ctx, llama_batch batch)
+    cdef int32_t llama_encode(llama_context * ctx, llama_batch batch) nogil
 
     # Process a batch of tokens.
     # Requires the context to have a memory.
@@ -789,7 +789,7 @@ cdef extern from "llama.h":
     #    2 - aborted     (processed ubatches will remain in the context's memory)
     #   -1 - invalid input batch
     # < -1 - fatal error (processed ubatches will remain in the context's memory)
-    cdef int32_t llama_decode(llama_context * ctx, llama_batch batch)
+    cdef int32_t llama_decode(llama_context * ctx, llama_batch batch) nogil
 
     # Set the number of threads used for decoding
     # n_threads is the number of threads used for generation (single token)

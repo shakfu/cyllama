@@ -8,8 +8,11 @@ Provides Python bindings for image generation using Stable Diffusion models.
 """
 
 import os
+import logging
 from typing import Optional, List, Callable, Union
 from enum import IntEnum
+
+_logger = logging.getLogger(__name__)
 
 cimport cython
 from libc.stdlib cimport malloc, free
@@ -204,8 +207,8 @@ cdef void _c_log_callback(sd_log_level_t level, const char* text, void* data) no
         try:
             py_text = text.decode('utf-8') if text else ""
             _log_callback(LogLevel(level), py_text)
-        except Exception:
-            pass  # Ignore exceptions in callbacks
+        except Exception as e:
+            _logger.warning("Exception in sd log callback: %s", e)
 
 
 cdef void _c_progress_callback(int step, int steps, float time, void* data) noexcept with gil:
@@ -214,8 +217,8 @@ cdef void _c_progress_callback(int step, int steps, float time, void* data) noex
     if _progress_callback is not None:
         try:
             _progress_callback(step, steps, time)
-        except Exception:
-            pass  # Ignore exceptions in callbacks
+        except Exception as e:
+            _logger.warning("Exception in sd progress callback: %s", e)
 
 
 def set_log_callback(callback: Optional[Callable[[LogLevel, str], None]]):
@@ -577,7 +580,14 @@ cdef class SDImage:
         img._image.width = arr.shape[1]
         img._image.channel = arr.shape[2]
 
-        cdef size_t size = arr.shape[0] * arr.shape[1] * arr.shape[2]
+        cdef size_t h = arr.shape[0]
+        cdef size_t w = arr.shape[1]
+        cdef size_t c = arr.shape[2]
+        if h > 0 and w > (<size_t>-1) // h:
+            raise OverflowError(f"Image dimensions too large: {h} x {w} x {c}")
+        if h * w > 0 and c > (<size_t>-1) // (h * w):
+            raise OverflowError(f"Image dimensions too large: {h} x {w} x {c}")
+        cdef size_t size = h * w * c
         img._image.data = <uint8_t*>malloc(size)
         if img._image.data == NULL:
             raise MemoryError("Failed to allocate image data")
@@ -783,7 +793,16 @@ cdef class SDImage:
         img._image.height = h
         img._image.channel = actual_channels
 
-        cdef size_t size = w * h * actual_channels
+        cdef size_t sw = <size_t>w
+        cdef size_t sh = <size_t>h
+        cdef size_t sc = <size_t>actual_channels
+        if sh > 0 and sw > (<size_t>-1) // sh:
+            stbi_image_free(data)
+            raise OverflowError(f"Image dimensions too large: {w} x {h} x {actual_channels}")
+        if sw * sh > 0 and sc > (<size_t>-1) // (sw * sh):
+            stbi_image_free(data)
+            raise OverflowError(f"Image dimensions too large: {w} x {h} x {actual_channels}")
+        cdef size_t size = sw * sh * sc
         img._image.data = <uint8_t*>malloc(size)
         if img._image.data == NULL:
             stbi_image_free(data)

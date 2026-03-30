@@ -2334,7 +2334,11 @@ cdef class LlamaContext:
           0 - success
         < 0 - error
         """
-        cdef int32_t res = llama.llama_encode(self.ptr, batch.p)
+        cdef llama.llama_context * ctx_ptr = self.ptr
+        cdef llama.llama_batch c_batch = batch.p
+        cdef int32_t res
+        with nogil:
+            res = llama.llama_encode(ctx_ptr, c_batch)
         if res < 0:
             raise RuntimeError("error encoding batch")
 

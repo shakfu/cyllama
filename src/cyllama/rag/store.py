@@ -259,9 +259,17 @@ class VectorStore:
             raise ValueError(f"embeddings and texts must have same length: {len(embeddings)} vs {len(texts)}")
 
         if metadata is None:
-            metadata = [{}] * len(embeddings)
+            metadata = [{} for _ in range(len(embeddings))]
         elif len(metadata) != len(embeddings):
             raise ValueError(f"metadata must have same length as embeddings: {len(metadata)} vs {len(embeddings)}")
+
+        # Pre-validate metadata serializability to give clear errors
+        for i, meta in enumerate(metadata):
+            if meta:
+                try:
+                    json.dumps(meta)
+                except (TypeError, ValueError) as e:
+                    raise ValueError(f"Metadata at index {i} is not JSON-serializable: {e}") from e
 
         ids: list[int] = []
         cursor = self.conn.cursor()

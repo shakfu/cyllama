@@ -59,6 +59,8 @@ sdist.exclude = [
     "dist/",
     ".git/",
     "*.egg-info/",
+    "thirdparty/*/lib/*.a",
+    "thirdparty/*/lib/*.lib",
 ]
 
 

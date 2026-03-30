@@ -1205,9 +1205,11 @@ class LlamaCppBuilder(Builder):
         else:
             raise RuntimeError(f"Unsupported platform: {system}/{arch}")
 
-    def _release_url(self) -> str:
-        """Get the download URL for the pre-built release."""
+    def _release_url(self) -> str | None:
+        """Get the download URL for the pre-built release, or None if unavailable."""
         asset = self._release_asset_name()
+        if asset is None:
+            return None
         return f"https://github.com/ggml-org/llama.cpp/releases/download/{self.version}/{asset}"
 
     def download_release(self) -> None:
@@ -1238,6 +1240,11 @@ class LlamaCppBuilder(Builder):
             self.glob_copy(self.src_dir / "tools" / "mtmd", self.include, patterns=["*.h"])
 
         url = self._release_url()
+        if url is None:
+            raise RuntimeError(
+                f"No pre-built release available for {PLATFORM}/{ARCH} with the "
+                f"current backend configuration. Build from source instead."
+            )
         self.log.info(f"Downloading pre-built release: {url}")
 
         # Download to a temp location

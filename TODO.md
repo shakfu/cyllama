@@ -21,26 +21,20 @@
 
 ### Medium
 
-- [ ] Release GIL during `whisper_full()` (`whisper_cpp.pyx:508-510`) — blocks all Python threads during inference
-- [ ] Release GIL during `llama_encode()` (`llama_cpp.pyx:2323`) — blocks all Python threads during encoding
-- [ ] Log exceptions in sd callbacks instead of `except Exception: pass` (`stable_diffusion.pyx:200-218`)
-- [ ] Add overflow-safe integer arithmetic for image size calculations (`stable_diffusion.pyx:575-588,787-793`)
-- [ ] Make RPATH conditional on `WITH_WHISPER`/`WITH_STABLEDIFFUSION` (`CMakeLists.txt:577-592`) — currently includes whisper/sd lib paths unconditionally
-- [ ] Validate Cython include paths exist before passing to `cython_transpile()` (`CMakeLists.txt:469-481`)
-- [ ] Exclude `*.a` files from sdist — `wheel.exclude` removes them but sdist includes `thirdparty/*/lib` dirs
-- [ ] Log when `GGML_*` environment variables override build defaults (`scripts/manage.py:97-120`)
-- [ ] Guard `_release_url()` against `None` from `_release_asset_name()` (`scripts/manage.py:1137-1172`)
-- [ ] Fail early on invalid chat template name (`api.py:1013-1025`) — currently silently treated as a Jinja template string
-- [ ] Make TTS token IDs configurable (`llama/tts.py:385-394`) — IDs 198, 151672-155772 hardcoded for specific model
-- [ ] Wrap `close()` in try-except in `LLM.__del__` (`api.py:569-572`)
-- [ ] Add timeout support to `AsyncLLM.stream()` thread operations (`api.py:1574-1601`)
-- [ ] Extract config dict building into `GenerationConfig.to_dict()` (`api.py:500-517`) — duplicated in `LLM.__init__` and `AsyncLLM._build_config()`
-- [ ] Fix `metadata = [{}] * len(embeddings)` shared dict reference (`rag/store.py:226`) — use list comprehension instead
-- [ ] Validate metadata values are JSON-serializable before `json.dumps()` (`rag/store.py:236`)
-- [ ] Add type checking for loader metadata inclusion (`rag/loaders.py:350-353`) — all non-text keys included without validation
-- [ ] Add `_check_closed()` to `VectorStore.__repr__()` (`rag/store.py`)
-- [ ] Document that HybridStore FTS triggers require exclusive access (`rag/advanced.py:566-591`)
-- [ ] Preserve exception type distinction in `DirectoryLoader` error handling (`rag/loaders.py:612-618`)
+- [x] Release GIL during `whisper_full()` (`whisper_cpp.pyx:508-510`) — blocks all Python threads during inference
+- [x] Release GIL during `llama_encode()` (`llama_cpp.pyx:2323`) — blocks all Python threads during encoding
+- [x] Log exceptions in sd callbacks instead of `except Exception: pass` (`stable_diffusion.pyx:200-218`)
+- [x] Add overflow-safe integer arithmetic for image size calculations (`stable_diffusion.pyx:575-588,787-793`)
+- [x] Exclude `*.a` files from sdist — `wheel.exclude` removes them but sdist includes `thirdparty/*/lib` dirs
+- [x] Guard `_release_url()` against `None` from `_release_asset_name()` (`scripts/manage.py:1137-1172`)
+- [x] Fail early on invalid chat template name (`api.py:1013-1025`) — currently silently treated as a Jinja template string
+- [x] Make TTS token IDs configurable (`llama/tts.py:385-394`) — IDs 198, 151672-155772 hardcoded for specific model
+- [x] Wrap `close()` in try-except in `LLM.__del__` (`api.py:569-572`)
+- [x] Add timeout support to `AsyncLLM.stream()` thread operations (`api.py:1574-1601`)
+- [x] Extract config dict building into `GenerationConfig.to_dict()` (`api.py:500-517`) — duplicated in `LLM.__init__` and `AsyncLLM._build_config()` (also missing `main_gpu`, `split_mode`, `tensor_split` in async variant)
+- [x] Fix `metadata = [{}] * len(embeddings)` shared dict reference (`rag/store.py:226`) — use list comprehension instead
+- [x] Validate metadata values are JSON-serializable before `json.dumps()` (`rag/store.py:236`)
+- [x] Document that HybridStore FTS triggers require exclusive access (`rag/advanced.py:566-591`)
 
 ### Low
 

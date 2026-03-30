@@ -553,7 +553,14 @@ class HybridStore:
         self._create_fts_table()
 
     def _create_fts_table(self) -> None:
-        """Create FTS5 virtual table for full-text search."""
+        """Create FTS5 virtual table for full-text search.
+
+        Note: The triggers created here (INSERT, DELETE, UPDATE) require exclusive
+        write access to the underlying SQLite database. Concurrent writers from
+        separate connections or processes may trigger ``sqlite3.OperationalError``
+        (database is locked). If concurrent access is needed, serialise writes
+        externally or use WAL mode with a single writer.
+        """
         fts_table = f"{self.table_name}_fts"
 
         # Create FTS5 table if it doesn't exist

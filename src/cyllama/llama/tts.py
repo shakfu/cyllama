@@ -135,8 +135,18 @@ class TTSGenerator:
         n_predict: int = 4096,
         speaker_file: Optional[str] = None,
         use_guide_tokens: bool = True,
+        guide_token_id: int = 198,
+        audio_code_range: Tuple[int, int] = (151672, 155772),
     ):
-        """Initialize TTS with models and parameters"""
+        """Initialize TTS with models and parameters.
+
+        Args:
+            guide_token_id: Token ID that precedes a new word (default: 198, newline for OuteTTS).
+            audio_code_range: (start, end) inclusive range of audio code token IDs
+                (default: (151672, 155772) for OuteTTS).
+        """
+        self.guide_token_id = guide_token_id
+        self.audio_code_range = audio_code_range
 
         # Load dynamic backends
         cy.ggml_backend_load_all()
@@ -382,7 +392,7 @@ lovely<|t_0.56|><|code_start|><|634|><|596|><|1766|><|1556|><|1306|><|1285|><|14
                 new_token_id = guide_token  # Ensure correct word fragment is used
 
             # This is the token id that always precedes a new word (matches C++ line 892)
-            next_token_uses_guide_token = new_token_id == 198  # newline token
+            next_token_uses_guide_token = new_token_id == self.guide_token_id
 
             # Accept the sampled token (matches C++ line 894)
             self.sampler.accept(new_token_id)
@@ -390,7 +400,7 @@ lovely<|t_0.56|><|code_start|><|634|><|596|><|1766|><|1556|><|1306|><|1285|><|14
             codes.append(new_token_id)
 
             # Count audio codes as we generate them
-            if 151672 <= new_token_id <= 155772:
+            if self.audio_code_range[0] <= new_token_id <= self.audio_code_range[1]:
                 audio_codes_generated += 1
 
             # Check for end of generation (matches C++ lines 901-917)

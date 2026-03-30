@@ -507,7 +507,10 @@ cdef class WhisperContext:
         c_samples = &samples_view[0]
         n_samples = len(samples)
 
-        result = wh.whisper_full(self._c_ctx, params._c_params, c_samples, n_samples)
+        cdef wh.whisper_context * ctx = self._c_ctx
+        cdef wh.whisper_full_params c_params = params._c_params
+        with nogil:
+            result = wh.whisper_full(ctx, c_params, c_samples, n_samples)
         if result != 0:
             raise RuntimeError(f"Whisper full processing failed with error {result}")
         return result

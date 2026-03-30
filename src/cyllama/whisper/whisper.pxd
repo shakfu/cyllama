@@ -286,7 +286,7 @@ cdef extern from "whisper.h":
     cdef whisper_full_params whisper_full_default_params(whisper_sampling_strategy strategy)
 
     # Main processing functions
-    cdef int whisper_full(whisper_context * ctx, whisper_full_params params, const float * samples, int n_samples)
+    cdef int whisper_full(whisper_context * ctx, whisper_full_params params, const float * samples, int n_samples) nogil
     cdef int whisper_full_with_state(whisper_context * ctx, whisper_state * state, whisper_full_params params, const float * samples, int n_samples)
     cdef int whisper_full_parallel(whisper_context * ctx, whisper_full_params params, const float * samples, int n_samples, int n_processors)
 

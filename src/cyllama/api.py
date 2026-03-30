@@ -138,6 +138,27 @@ class GenerationConfig:
     add_bos: bool = True
     parse_special: bool = True
 
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert config to a dictionary, copying mutable values."""
+        return {
+            "max_tokens": self.max_tokens,
+            "temperature": self.temperature,
+            "top_k": self.top_k,
+            "top_p": self.top_p,
+            "min_p": self.min_p,
+            "repeat_penalty": self.repeat_penalty,
+            "n_gpu_layers": self.n_gpu_layers,
+            "main_gpu": self.main_gpu,
+            "split_mode": self.split_mode,
+            "tensor_split": self.tensor_split.copy() if self.tensor_split else None,
+            "n_ctx": self.n_ctx,
+            "n_batch": self.n_batch,
+            "seed": self.seed,
+            "stop_sequences": self.stop_sequences.copy(),
+            "add_bos": self.add_bos,
+            "parse_special": self.parse_special,
+        }
+
     def __post_init__(self):
         """Validate parameters after initialization."""
         errors = []
@@ -501,24 +522,7 @@ class LLM:
         else:
             if kwargs:
                 # Create a copy of config with kwargs overrides
-                config_dict = {
-                    "max_tokens": config.max_tokens,
-                    "temperature": config.temperature,
-                    "top_k": config.top_k,
-                    "top_p": config.top_p,
-                    "min_p": config.min_p,
-                    "repeat_penalty": config.repeat_penalty,
-                    "n_gpu_layers": config.n_gpu_layers,
-                    "main_gpu": config.main_gpu,
-                    "split_mode": config.split_mode,
-                    "tensor_split": config.tensor_split.copy() if config.tensor_split else None,
-                    "n_ctx": config.n_ctx,
-                    "n_batch": config.n_batch,
-                    "seed": config.seed,
-                    "stop_sequences": config.stop_sequences.copy(),
-                    "add_bos": config.add_bos,
-                    "parse_special": config.parse_special,
-                }
+                config_dict = config.to_dict()
                 config_dict.update(kwargs)
                 self.config = GenerationConfig(**config_dict)
             else:
@@ -573,7 +577,10 @@ class LLM:
     def __del__(self):
         """Destructor - cleanup resources if not already done."""
         if not getattr(self, "_closed", True):
-            self.close()
+            try:
+                self.close()
+            except Exception:
+                pass
 
     def close(self):
         """
@@ -1016,6 +1023,16 @@ class LLM:
         if template:
             tmpl = self.model.get_default_chat_template_by_name(template)
             if not tmpl:
+                # Distinguish named template lookups from raw Jinja strings:
+                # short alphanumeric names (e.g. "chatml", "llama3") are likely
+                # intended as built-in template names, not raw Jinja.
+                if template.isidentifier():
+                    import warnings
+
+                    warnings.warn(
+                        f"Chat template name {template!r} not found in model; treating as raw Jinja template string",
+                        stacklevel=2,
+                    )
                 tmpl = template
         else:
             tmpl = self.model.get_default_chat_template()
@@ -1547,7 +1564,13 @@ class AsyncLLM:
         """
         return await self(prompt, config, **kwargs)
 
-    async def stream(self, prompt: str, config: Optional[GenerationConfig] = None, **kwargs) -> AsyncIterator[str]:
+    async def stream(
+        self,
+        prompt: str,
+        config: Optional[GenerationConfig] = None,
+        timeout: Optional[float] = None,
+        **kwargs,
+    ) -> AsyncIterator[str]:
         """
         Stream generated text chunks asynchronously.
 
@@ -1557,6 +1580,7 @@ class AsyncLLM:
         Args:
             prompt: Input text prompt
             config: Generation configuration
+            timeout: Maximum seconds to wait for each chunk (None = no limit)
             **kwargs: Override config parameters
 
         Yields:
@@ -1597,7 +1621,10 @@ class AsyncLLM:
 
             try:
                 while True:
-                    item = await queue.get()
+                    if timeout is not None:
+                        item = await asyncio.wait_for(queue.get(), timeout=timeout)
+                    else:
+                        item = await queue.get()
                     if item is None:
                         break
                     if isinstance(item, Exception):
@@ -1688,21 +1715,7 @@ class AsyncLLM:
     def _build_config(self, base_config: Optional[GenerationConfig], overrides: Dict[str, Any]) -> GenerationConfig:
         """Build a config with overrides applied."""
         config = base_config or self._llm.config
-        config_dict = {
-            "max_tokens": config.max_tokens,
-            "temperature": config.temperature,
-            "top_k": config.top_k,
-            "top_p": config.top_p,
-            "min_p": config.min_p,
-            "repeat_penalty": config.repeat_penalty,
-            "n_gpu_layers": config.n_gpu_layers,
-            "n_ctx": config.n_ctx,
-            "n_batch": config.n_batch,
-            "seed": config.seed,
-            "stop_sequences": config.stop_sequences.copy(),
-            "add_bos": config.add_bos,
-            "parse_special": config.parse_special,
-        }
+        config_dict = config.to_dict()
         config_dict.update(overrides)
         return GenerationConfig(**config_dict)
 
