@@ -99,6 +99,19 @@ class TextLoader(BaseLoader):
         >>> print(docs[0].text)
     """
 
+    _VALID_ERROR_HANDLERS = frozenset(
+        {
+            "strict",
+            "ignore",
+            "replace",
+            "xmlcharrefreplace",
+            "backslashreplace",
+            "namereplace",
+            "surrogateescape",
+            "surrogatepass",
+        }
+    )
+
     def __init__(
         self,
         encoding: str = "utf-8",
@@ -110,6 +123,10 @@ class TextLoader(BaseLoader):
             encoding: Text encoding (default: utf-8)
             errors: How to handle encoding errors ('strict', 'ignore', 'replace')
         """
+        if errors not in self._VALID_ERROR_HANDLERS:
+            raise ValueError(
+                f"Invalid errors parameter: {errors!r}. Must be one of: {', '.join(sorted(self._VALID_ERROR_HANDLERS))}"
+            )
         self.encoding = encoding
         self.errors = errors
 

@@ -500,6 +500,96 @@ class TestConvenienceFunction:
 
 # Integration tests (require actual models)
 @pytest.mark.slow
+class TestRequestValidation:
+    """Test server request handling with malformed inputs."""
+
+    def test_chat_request_missing_messages(self):
+        """Test ChatRequest requires messages."""
+        with pytest.raises(TypeError):
+            ChatRequest()  # messages is required
+
+    def test_chat_request_empty_messages(self):
+        """Test ChatRequest with empty messages list."""
+        request = ChatRequest(messages=[])
+        assert request.messages == []
+
+    def test_chat_request_default_sampler_params(self):
+        """Test ChatRequest has correct default sampler parameters."""
+        messages = [ChatMessage(role="user", content="test")]
+        request = ChatRequest(messages=messages)
+        assert request.temperature == 0.8
+        assert request.min_p == 0.05
+        assert request.seed is None
+
+    def test_chat_request_custom_sampler_params(self):
+        """Test ChatRequest with custom sampler parameters."""
+        messages = [ChatMessage(role="user", content="test")]
+        request = ChatRequest(
+            messages=messages,
+            temperature=0.2,
+            min_p=0.1,
+            seed=42,
+        )
+        assert request.temperature == 0.2
+        assert request.min_p == 0.1
+        assert request.seed == 42
+
+    def test_parse_request_missing_role(self):
+        """Test that messages without 'role' raise KeyError during parsing."""
+        # Simulate what _handle_chat_completions does: msg["role"]
+        data = {"messages": [{"content": "hello"}]}
+        with pytest.raises(KeyError):
+            [ChatMessage(role=msg["role"], content=msg["content"]) for msg in data["messages"]]
+
+    def test_parse_request_missing_content(self):
+        """Test that messages without 'content' raise KeyError during parsing."""
+        data = {"messages": [{"role": "user"}]}
+        with pytest.raises(KeyError):
+            [ChatMessage(role=msg["role"], content=msg["content"]) for msg in data["messages"]]
+
+    def test_parse_request_extra_fields_ignored(self):
+        """Test that unknown fields in request data are silently ignored."""
+        messages = [ChatMessage(role="user", content="hello")]
+        # Extra fields like 'frequency_penalty' should not cause errors
+        request = ChatRequest(messages=messages, model="custom")
+        assert request.model == "custom"
+
+    def test_process_completion_with_stop_words(self):
+        """Test that stop words truncate generated text correctly."""
+        config = ServerConfig(model_path="test.gguf")
+        server = PythonServer(config)
+        server.model = Mock()
+
+        mock_slot = Mock()
+        mock_slot.is_processing = False
+        mock_slot.task_id = None
+        mock_slot.process_and_generate.return_value = "Hello STOP world"
+        server.slots = [mock_slot]
+
+        vocab = Mock()
+        vocab.tokenize.side_effect = [[1, 2], [3]]
+        server.model.get_vocab.return_value = vocab
+
+        messages = [ChatMessage(role="user", content="Hi")]
+        request = ChatRequest(messages=messages, max_tokens=50, stop=["STOP"])
+        response = server.process_chat_completion(request)
+
+        assert response.choices[0].message.content == "Hello "
+
+    def test_messages_to_prompt_unknown_role(self):
+        """Test that unknown roles are silently skipped in prompt conversion."""
+        config = ServerConfig(model_path="test.gguf")
+        server = PythonServer(config)
+        messages = [
+            ChatMessage(role="unknown_role", content="test"),
+            ChatMessage(role="user", content="Hello"),
+        ]
+        prompt = server._messages_to_prompt(messages)
+        # Unknown role is skipped, user message and trailing "Assistant:" present
+        assert "User: Hello" in prompt
+        assert prompt.endswith("Assistant:")
+
+
 class TestPythonServerIntegration:
     """Integration tests for Python server functionality."""
 

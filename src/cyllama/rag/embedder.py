@@ -24,20 +24,36 @@ class CacheInfo(NamedTuple):
     misses: int
     maxsize: int
     currsize: int
+    memory_bytes: int = 0
+
+
+# Estimated overhead per cache entry: 8 bytes per float + ~56 bytes tuple overhead
+# + ~50 bytes key string overhead.  Only the float payload is significant at typical
+# embedding dimensions (384-4096), so we track ``len(value) * 8`` as the entry size.
+_BYTES_PER_FLOAT = 8
 
 
 class _LRUCache:
-    """Simple LRU cache implementation for embeddings.
+    """Memory-aware LRU cache for embeddings.
+
+    Evicts entries when *either* the entry count exceeds ``maxsize`` *or* the
+    estimated memory footprint exceeds ``max_memory_bytes`` (if set).
 
     Uses OrderedDict to maintain insertion order and evict oldest entries.
     Thread-safe for single-threaded use (typical for embedding workloads).
     """
 
-    def __init__(self, maxsize: int):
+    def __init__(self, maxsize: int, max_memory_bytes: int = 0):
         self.maxsize = maxsize
+        self.max_memory_bytes = max_memory_bytes
         self._cache: OrderedDict[str, tuple[float, ...]] = OrderedDict()
         self._hits = 0
         self._misses = 0
+        self._memory_bytes = 0
+
+    @staticmethod
+    def _entry_bytes(value: tuple[float, ...]) -> int:
+        return len(value) * _BYTES_PER_FLOAT
 
     def get(self, key: str) -> tuple[float, ...] | None:
         """Get item from cache, moving it to end (most recently used)."""
@@ -48,20 +64,37 @@ class _LRUCache:
         self._misses += 1
         return None
 
+    def _evict_one(self) -> None:
+        """Evict the least-recently-used entry."""
+        _, old_val = self._cache.popitem(last=False)
+        self._memory_bytes -= self._entry_bytes(old_val)
+
     def put(self, key: str, value: tuple[float, ...]) -> None:
         """Add item to cache, evicting oldest if at capacity."""
         if key in self._cache:
             self._cache.move_to_end(key)
-        else:
-            if len(self._cache) >= self.maxsize:
-                self._cache.popitem(last=False)
-            self._cache[key] = value
+            return
+
+        entry_size = self._entry_bytes(value)
+
+        # Evict until within count limit
+        while len(self._cache) >= self.maxsize:
+            self._evict_one()
+
+        # Evict until within memory limit (if configured)
+        if self.max_memory_bytes > 0:
+            while self._memory_bytes + entry_size > self.max_memory_bytes and self._cache:
+                self._evict_one()
+
+        self._cache[key] = value
+        self._memory_bytes += entry_size
 
     def clear(self) -> None:
         """Clear the cache and reset statistics."""
         self._cache.clear()
         self._hits = 0
         self._misses = 0
+        self._memory_bytes = 0
 
     def info(self) -> CacheInfo:
         """Return cache statistics."""
@@ -70,6 +103,7 @@ class _LRUCache:
             misses=self._misses,
             maxsize=self.maxsize,
             currsize=len(self._cache),
+            memory_bytes=self._memory_bytes,
         )
 
 
@@ -111,6 +145,7 @@ class Embedder:
         normalize: bool = True,
         verbose: bool = False,
         cache_size: int = 0,
+        cache_max_memory_bytes: int = 0,
     ):
         """Initialize embedder with an embedding model.
 
@@ -123,6 +158,9 @@ class Embedder:
             normalize: Whether to L2-normalize output vectors
             verbose: Whether to print model loading info
             cache_size: Max number of embeddings to cache (0 = disabled)
+            cache_max_memory_bytes: Max memory for cache in bytes (0 = no memory limit,
+                count-based eviction only).  For example, 100_000_000 limits the cache
+                to ~100 MB regardless of ``cache_size``.
         """
         self.model_path = model_path
         self.n_ctx = n_ctx
@@ -150,7 +188,11 @@ class Embedder:
         # Create context with embedding settings
         # Note: We always use pooling_type=NONE (0) and do pooling manually
         # because llama.cpp's internal pooling doesn't always work correctly
-        # with generative models being used for embeddings
+        # with generative models being used for embeddings.
+        # TODO(pooling): Re-evaluate periodically -- llama.cpp pooling has improved
+        # in recent releases.  If llama_context returns correct pooled embeddings
+        # for both dedicated embedding models AND generative models, the manual
+        # _mean_pool_manual / _get_sequence_embedding fallback can be removed.
         ctx_params = LlamaContextParams()
         ctx_params.n_ctx = n_ctx
         ctx_params.n_batch = n_batch
@@ -166,7 +208,7 @@ class Embedder:
         # Initialize embedding cache if requested
         self._cache: _LRUCache | None = None
         if cache_size > 0:
-            self._cache = _LRUCache(cache_size)
+            self._cache = _LRUCache(cache_size, max_memory_bytes=cache_max_memory_bytes)
 
     @property
     def dimension(self) -> int:

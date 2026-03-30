@@ -52,6 +52,17 @@ class TestTextLoader:
         docs = loader.load(file_path)
         assert docs[0].text == "Hello"
 
+    def test_invalid_errors_parameter(self):
+        """Test that invalid errors parameter raises ValueError."""
+        with pytest.raises(ValueError, match="Invalid errors parameter"):
+            TextLoader(errors="invalid_handler")
+
+    def test_valid_errors_parameters(self):
+        """Test that all standard error handlers are accepted."""
+        for handler in ("strict", "ignore", "replace", "backslashreplace", "xmlcharrefreplace"):
+            loader = TextLoader(errors=handler)
+            assert loader.errors == handler
+
     def test_load_nonexistent_file(self):
         """Test loading nonexistent file raises error."""
         loader = TextLoader()
@@ -385,6 +396,68 @@ class TestDirectoryLoader:
 
         assert len(docs) == 1
         assert docs[0].text == "Custom"
+
+
+class TestDirectoryLoaderSymlinks:
+    """Test DirectoryLoader symlink handling."""
+
+    def test_symlink_to_file(self, temp_dir):
+        """Test that symlinks to files are loaded."""
+        real_file = temp_dir / "real.txt"
+        real_file.write_text("Real content")
+        link = temp_dir / "link.txt"
+        link.symlink_to(real_file)
+
+        loader = DirectoryLoader()
+        docs = loader.load(temp_dir)
+
+        texts = {d.text for d in docs}
+        assert "Real content" in texts
+        # Both real file and symlink should be loadable
+        assert len(docs) == 2
+
+    def test_symlink_to_directory(self, temp_dir):
+        """Test recursive loading follows symlinked directories."""
+        subdir = temp_dir / "subdir"
+        subdir.mkdir()
+        (subdir / "nested.txt").write_text("Nested content")
+        link = temp_dir / "linked_dir"
+        link.symlink_to(subdir)
+
+        loader = DirectoryLoader(glob="**/*.txt", recursive=True)
+        docs = loader.load(temp_dir)
+
+        texts = [d.text for d in docs]
+        # Should find nested.txt via both real path and symlinked dir
+        assert any("Nested content" in t for t in texts)
+
+    def test_broken_symlink_skipped(self, temp_dir):
+        """Test that broken symlinks don't crash the loader."""
+        (temp_dir / "good.txt").write_text("Good")
+        broken_link = temp_dir / "broken.txt"
+        broken_link.symlink_to(temp_dir / "nonexistent.txt")
+
+        loader = DirectoryLoader()
+        docs = loader.load(temp_dir)
+
+        assert len(docs) == 1
+        assert docs[0].text == "Good"
+
+    def test_symlink_outside_directory(self, temp_dir):
+        """Test symlinks pointing outside the base directory."""
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as other_dir:
+            external_file = Path(other_dir) / "external.txt"
+            external_file.write_text("External content")
+            link = temp_dir / "external_link.txt"
+            link.symlink_to(external_file)
+
+            loader = DirectoryLoader()
+            docs = loader.load(temp_dir)
+
+            texts = [d.text for d in docs]
+            assert "External content" in texts
 
 
 class TestPDFLoader:

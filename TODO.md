@@ -38,17 +38,13 @@
 
 ### Low
 
-- [ ] Standardize UnicodeDecodeError handling between `api.py` and `batching.py`
-- [ ] Consider returning `Response` from `Response.__add__()` instead of `str` (`api.py:263-275`)
-- [ ] Audit stop buffer flush at EOS in streaming (`api.py:920-924`)
-- [ ] Remove unused instance variables in `LlamaCLI` (`llama/cli.py:26-27`)
-- [ ] Consider memory-aware LRU for embedding cache (`rag/embedder.py:29-74`)
-- [ ] Monitor llama.cpp pooling reliability — manual pooling workaround may become unnecessary (`rag/embedder.py:151-157`)
-- [ ] Validate `errors` parameter in `TextLoader.__init__()` (`rag/loaders.py:102-114`)
-- [ ] Add concurrent VectorStore access tests
-- [ ] Add symlink handling tests for DirectoryLoader
-- [ ] Add server request validation tests with malformed JSON
-- [ ] Non-deterministic CI artifact naming — `strategy.job-index` changes if matrix changes (`build-cibw.yaml:39`)
+- [x] Consider memory-aware LRU for embedding cache (`rag/embedder.py:29-74`)
+- [x] Monitor llama.cpp pooling reliability — manual pooling workaround may become unnecessary (`rag/embedder.py:151-157`)
+- [x] Validate `errors` parameter in `TextLoader.__init__()` (`rag/loaders.py:102-114`)
+- [x] Add concurrent VectorStore access tests
+- [x] Add symlink handling tests for DirectoryLoader
+- [x] Add server request validation tests with malformed JSON
+- [x] Non-deterministic CI artifact naming — `strategy.job-index` changes if matrix changes (`build-cibw.yaml:39`)
 
 ## Wheel / Packaging
 

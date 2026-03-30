@@ -23,14 +23,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 - **`GenerationConfig.to_dict()`** - New method that converts a config to a dictionary with mutable values copied, replacing duplicated dict-building logic in `LLM.__init__` and `AsyncLLM._build_config()` (also fixes missing `main_gpu`, `split_mode`, `tensor_split` fields in the async variant)
 - **Configurable TTS token IDs** - `TTSGenerator` now accepts `guide_token_id` and `audio_code_range` parameters instead of hardcoding token ID 198 and range 151672-155772 (OuteTTS defaults preserved)
 - **Timeout support for `AsyncLLM.stream()`** - New `timeout` parameter (seconds) limits how long the consumer waits for each chunk, raising `asyncio.TimeoutError` if the model stalls
+- **Memory-aware LRU cache for embeddings** - `Embedder` now accepts `cache_max_memory_bytes` to cap cache memory usage in addition to count-based eviction. `CacheInfo` includes a `memory_bytes` field
+
+### Tests
+
+- **Concurrent VectorStore access** - Tests verify cross-thread safety: shared instances correctly reject cross-thread use, and separate instances on the same file support concurrent reads and writes
+- **DirectoryLoader symlink handling** - Tests cover symlinks to files, directories, broken symlinks, and symlinks pointing outside the base directory
+- **Server request validation** - Tests for PythonServer with malformed inputs: missing messages, missing role/content keys, stop word truncation, unknown roles
+- **Memory-aware LRU cache** - Unit tests for count-based eviction, memory-based eviction, memory tracking accuracy, and duplicate key handling
+- **TextLoader errors parameter** - Tests for invalid and valid codec error handler names
+- **`make leaks` RSS-growth leak detector** - New Makefile target runs `scripts/leak_check.py`, which exercises model load/unload and inference in a loop, measuring RSS per cycle and failing if growth exceeds a threshold (default 20%). Detects native memory leaks in Cython wrappers without the false-positive noise of `leaks --atExit` on CPython
 
 ### Changed
 
 - **CI Python path is now configurable** - Replaced hardcoded `/opt/python/cp310-cp310/bin/python` in `build-gpu-wheels.yml` with a `ci_python` workflow input (defaults to `/opt/python/cp310-cp310/bin`)
 - **Windows `get_lib_path()` searches more build configurations** - Now tries `RelWithDebInfo/`, `MinSizeRel/`, and `Debug/` before falling back, with a warning listing all searched paths
+- **CI artifact naming deterministic** - Replaced `strategy.job-index` with `matrix.os` in `build-cibw.yaml` artifact names, preventing name changes when the matrix definition is modified
 
 ### Fixed
 
+- **`TextLoader` validates `errors` parameter** - Invalid codec error handler names (e.g. `"invalid"`) now raise `ValueError` at construction time instead of producing a cryptic `LookupError` deep in file I/O
 - **`LLAMACPP_DYLIB_DIR` validated when `WITH_DYLIB=ON`** - CMake now emits `FATAL_ERROR` if the directory does not exist or is empty, instead of silently defaulting to an absent `thirdparty/llama.cpp/dynamic`
 - **Broken symlinks in `build_shared()` now logged** - Previously, symlinks with missing targets were silently skipped during shared library collection, potentially producing incomplete wheels. A warning now identifies the broken symlink and its target
 - **`sed` package-rename validated in GPU wheel CI** - Each `sed` rename in `build-gpu-wheels.yml` is now followed by a `grep -q` check that fails the build if the pattern did not match, preventing wheels from shipping with the wrong package name

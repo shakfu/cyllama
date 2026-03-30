@@ -371,3 +371,74 @@ class TestEmbedderCache:
         """Test that repr doesn't include cache_size when disabled."""
         repr_str = repr(embedder)
         assert "cache_size" not in repr_str
+
+
+class TestLRUCacheMemoryAware:
+    """Unit tests for memory-aware _LRUCache (no model required)."""
+
+    def test_count_based_eviction(self):
+        """Test basic count-based LRU eviction."""
+        from cyllama.rag.embedder import _LRUCache
+
+        cache = _LRUCache(maxsize=3)
+        cache.put("a", (1.0, 2.0))
+        cache.put("b", (3.0, 4.0))
+        cache.put("c", (5.0, 6.0))
+        # Cache is full; inserting d should evict a
+        cache.put("d", (7.0, 8.0))
+
+        assert cache.get("a") is None
+        assert cache.get("d") == (7.0, 8.0)
+        assert cache.info().currsize == 3
+
+    def test_memory_based_eviction(self):
+        """Test that memory limit triggers eviction before count limit."""
+        from cyllama.rag.embedder import _LRUCache, _BYTES_PER_FLOAT
+
+        dim = 100  # 100 floats = 800 bytes per entry
+        entry_bytes = dim * _BYTES_PER_FLOAT  # 800
+        # Allow ~2.5 entries worth of memory
+        cache = _LRUCache(maxsize=1000, max_memory_bytes=int(entry_bytes * 2.5))
+
+        cache.put("a", tuple(float(i) for i in range(dim)))
+        cache.put("b", tuple(float(i) for i in range(dim)))
+        assert cache.info().currsize == 2
+
+        # Third entry should evict oldest to stay within memory
+        cache.put("c", tuple(float(i) for i in range(dim)))
+        assert cache.info().currsize == 2
+        assert cache.get("a") is None  # evicted
+        assert cache.get("c") is not None
+
+    def test_memory_tracking_accurate(self):
+        """Test that memory_bytes tracks insertions and evictions."""
+        from cyllama.rag.embedder import _LRUCache, _BYTES_PER_FLOAT
+
+        cache = _LRUCache(maxsize=10)
+        cache.put("x", (1.0, 2.0, 3.0))
+        assert cache.info().memory_bytes == 3 * _BYTES_PER_FLOAT
+
+        cache.put("y", (4.0, 5.0))
+        assert cache.info().memory_bytes == 5 * _BYTES_PER_FLOAT
+
+        cache.clear()
+        assert cache.info().memory_bytes == 0
+
+    def test_duplicate_key_no_double_count(self):
+        """Test that re-putting an existing key doesn't double-count memory."""
+        from cyllama.rag.embedder import _LRUCache, _BYTES_PER_FLOAT
+
+        cache = _LRUCache(maxsize=10)
+        cache.put("k", (1.0, 2.0))
+        cache.put("k", (1.0, 2.0))  # duplicate
+        assert cache.info().currsize == 1
+        assert cache.info().memory_bytes == 2 * _BYTES_PER_FLOAT
+
+    def test_cache_info_has_memory_bytes(self):
+        """Test that CacheInfo includes memory_bytes field."""
+        from cyllama.rag.embedder import _LRUCache
+
+        cache = _LRUCache(maxsize=5)
+        info = cache.info()
+        assert hasattr(info, "memory_bytes")
+        assert info.memory_bytes == 0

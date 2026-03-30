@@ -102,7 +102,7 @@ publish-test: check
 # =============================================================================
 # Testing
 # =============================================================================
-.PHONY: test coverage memray
+.PHONY: test coverage memray leaks
 
 test:
 	@uv run pytest -s
@@ -112,6 +112,9 @@ coverage:
 
 memray:
 	@uv run pytest --memray --native tests
+
+leaks: $(MODEL)
+	@uv run python scripts/leak_check.py --cycles 10 --threshold 20
 
 # =============================================================================
 # Code quality
