@@ -15,7 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ---
 
-## [Unreleased]
+## [0.2.1]
 
 ### Added
 
@@ -78,7 +78,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 - **Division by zero in `Embedder._mean_pool_manual()`** - Returns a zero vector when `n_tokens` is 0 instead of raising `ZeroDivisionError`
 - **`VectorStore.open()` lost metric and vector_type** - Store configuration (metric, vector_type, dimension) is now persisted in a `{table}_meta` table and restored on reopen, instead of silently defaulting to cosine/float32. Backwards compatible with databases created before this change
 
-## [0.2.0] - 2026-03-29
+## [0.2.0]
 
 ### Added
 

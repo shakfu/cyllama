@@ -140,6 +140,7 @@ Cyllama uses **scikit-build-core** with CMake for building the Cython extensions
 | `make clean` | Remove build artifacts |
 | `make reset` | Full reset including thirdparty |
 | `make remake` | Clean rebuild with tests |
+| `make leaks` | RSS-growth memory leak detection |
 
 ### Wheel Distribution
 

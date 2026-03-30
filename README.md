@@ -531,7 +531,7 @@ models = list_cached_models()
 
 **Production-Ready**: Battle-tested and comprehensive
 
-- 1100+ passing tests with extensive coverage
+- 1150+ passing tests with extensive coverage
 - Comprehensive documentation and examples
 - Proper error handling and logging
 - Framework integration for real applications
@@ -544,14 +544,15 @@ models = list_cached_models()
 
 ## Status
 
-**Current Version**: 0.2.0 (Mar 2026)
+**Current Version**: 0.2.1 (Mar 2026)
 **llama.cpp Version**: b8429
 **Build System**: scikit-build-core + CMake
-**Test Coverage**: 1100+ tests passing
+**Test Coverage**: 1150+ tests passing
 **Platform**: macOS (tested), Linux (tested), Windows (tested)
 
 ### Recent Releases
 
+- **v0.2.1** (Mar 2026) - Code quality hardening: GIL release for whisper/encode, async stream fixes, memory-aware embedding cache, CI robustness, 30+ bug fixes, 1150+ tests
 - **v0.2.0** (Mar 2026) - Dynamic-linked GPU wheels (CUDA, ROCm, SYCL, Vulkan) on PyPI, unified ggml, sqlite-vector vendored
 - **v0.1.21** (Mar 2026) - GPU wheel builds: CUDA + ROCm, sqlite-vector bundled
 - **v0.1.20** (Feb 2026) - Update llama.cpp + stable-diffusion.cpp
@@ -628,6 +629,9 @@ make lint         # Lint with ruff (auto-fix)
 make format       # Format with ruff
 make typecheck    # Type check with mypy
 make qa           # Run all: lint, typecheck, format
+
+# Memory leak detection
+make leaks        # RSS-growth leak check (10 cycles, 20% threshold)
 
 # Publishing
 make check        # Validate wheels with twine
@@ -713,7 +717,7 @@ bin/llama-cli -c 512 -n 32 -m models/Llama-3.2-1B-Instruct-Q8_0.gguf \
  -p "Is mathematics discovered or invented?"
 ```
 
-With 1100+ passing tests, the library is ready for both quick prototyping and production use:
+With 1150+ passing tests, the library is ready for both quick prototyping and production use:
 
 ```sh
 make test  # Run full test suite
