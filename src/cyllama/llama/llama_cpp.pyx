@@ -1541,6 +1541,8 @@ cdef class LlamaVocab:
         # Pre-allocate with reasonable maximum (most texts are much shorter than vocab size)
         cdef int max_tokens = min(self.n_vocab, len(text) * 2 + 100)  # Conservative estimate
         cdef llama.llama_token * tokens = <llama.llama_token *>malloc(sizeof(llama.llama_token) * max_tokens)
+        if tokens is NULL:
+            raise MemoryError("Failed to allocate token buffer")
         cdef bytes text_bytes = text.encode()
         cdef int text_len = len(text_bytes)
         cdef const char* text_ptr = <const char*>text_bytes
@@ -1599,6 +1601,8 @@ cdef class LlamaVocab:
         """
         cdef str result = ""
         cdef char * buf = <char *>malloc(sizeof(char) * text_len_max)
+        if buf is NULL:
+            raise MemoryError("Failed to allocate detokenize buffer")
         cdef std_vector[int] vec
 
         for i in tokens:

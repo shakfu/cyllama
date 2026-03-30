@@ -515,6 +515,13 @@ class ShellCmd:
         **options: Union[str, bool, int],
     ) -> None:
         """activate cmake configuration / generation stage"""
+        src_dir = Path(src_dir)
+        build_dir = Path(build_dir)
+        if not src_dir.exists():
+            raise FileNotFoundError(
+                f"CMake source directory not found: {src_dir}"
+            )
+        build_dir.mkdir(parents=True, exist_ok=True)
         _cmds = [f"cmake -S {src_dir} -B {build_dir}"]
         if scripts:
             _cmds.append(" ".join(f"-C {path}" for path in scripts))
@@ -808,7 +815,14 @@ class AbstractBuilder(ShellCmd):
             # Unix: libname.a directly in directory
             return base / f"lib{name}.a"
 
-    def copy_lib(self, build_dir: Path, subdir: str, name: str, dest: Path) -> bool:
+    def copy_lib(
+        self,
+        build_dir: Path,
+        subdir: str,
+        name: str,
+        dest: Path,
+        required: bool = True,
+    ) -> bool:
         """Copy a library from build directory to destination.
 
         Args:
@@ -816,9 +830,13 @@ class AbstractBuilder(ShellCmd):
             subdir: Subdirectory within build_dir
             name: Library name without prefix/extension
             dest: Destination directory
+            required: If True, raise on missing library; if False, warn and skip
 
         Returns:
             True if copied successfully, False otherwise
+
+        Raises:
+            FileNotFoundError: If required=True and library not found
         """
         lib_path = self.get_lib_path(build_dir, subdir, name)
         if lib_path.exists():
@@ -826,7 +844,11 @@ class AbstractBuilder(ShellCmd):
             self.log.info(f"Copied {lib_path.name} to {dest}")
             return True
         else:
-            self.log.warning(f"Library not found: {lib_path}")
+            if required:
+                raise FileNotFoundError(
+                    f"Required library not found: {lib_path}"
+                )
+            self.log.warning(f"Optional library not found: {lib_path}")
             return False
 
     def libs_static_exist(self) -> bool:
@@ -1041,7 +1063,7 @@ class LlamaCppBuilder(Builder):
 
         # Copy core libraries from build directory (platform-aware)
         self.copy_lib(self.build_dir, "common", "common", self.lib)
-        self.copy_lib(self.build_dir, "vendor/cpp-httplib", "cpp-httplib", self.lib)
+        self.copy_lib(self.build_dir, "vendor/cpp-httplib", "cpp-httplib", self.lib, required=False)
         self.copy_lib(self.build_dir, "src", "llama", self.lib)
         self.copy_lib(self.build_dir, "ggml/src", "ggml", self.lib)
         self.copy_lib(self.build_dir, "ggml/src", "ggml-base", self.lib)

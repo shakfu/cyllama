@@ -530,6 +530,10 @@ class HybridStore:
         """
         from .store import VectorStore
 
+        from .store import _validate_table_name
+
+        _validate_table_name(table_name)
+
         self.dimension = dimension
         self.db_path = db_path
         self.table_name = table_name

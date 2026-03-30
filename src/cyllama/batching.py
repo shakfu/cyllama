@@ -468,5 +468,5 @@ def batch_generate(
             if hasattr(config, key):
                 setattr(config, key, value)
 
-    generator = BatchGenerator(model_path, batch_size=batch_size, n_seq_max=n_seq_max)
-    return generator.generate_batch(prompts, config)
+    with BatchGenerator(model_path, batch_size=batch_size, n_seq_max=n_seq_max) as generator:
+        return generator.generate_batch(prompts, config)

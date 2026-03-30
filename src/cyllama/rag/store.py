@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 import struct
 import sys
@@ -10,6 +11,17 @@ from pathlib import Path
 from typing import Any
 
 from .types import SearchResult
+
+_VALID_TABLE_NAME = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
+
+
+def _validate_table_name(name: str) -> None:
+    """Validate that a table name is a safe SQL identifier."""
+    if not _VALID_TABLE_NAME.match(name):
+        raise ValueError(
+            f"Invalid table name: {name!r}. "
+            "Must start with a letter or underscore and contain only alphanumerics and underscores."
+        )
 
 
 class VectorStoreError(Exception):
@@ -72,6 +84,8 @@ class VectorStore:
         """
         if dimension <= 0:
             raise ValueError(f"dimension must be positive, got {dimension}")
+
+        _validate_table_name(table_name)
 
         metric_lower = metric.lower()
         if metric_lower not in self.VALID_METRICS:
@@ -487,6 +501,8 @@ class VectorStore:
         """
         if not Path(db_path).exists():
             raise VectorStoreError(f"Database not found: {db_path}")
+
+        _validate_table_name(table_name)
 
         # Connect to read metadata
         conn = sqlite3.connect(db_path)

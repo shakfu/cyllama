@@ -444,6 +444,8 @@ cdef class WhisperContext:
         cdef int n_tokens = 0
         cdef bytes text_bytes = text.encode('utf-8')
         cdef wh.whisper_token * tokens = <wh.whisper_token *>malloc(max_tokens * sizeof(wh.whisper_token))
+        if tokens is NULL:
+            raise MemoryError("Failed to allocate token buffer")
 
         try:
             n_tokens = wh.whisper_tokenize(self._c_ctx, text_bytes, tokens, max_tokens)

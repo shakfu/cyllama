@@ -1091,8 +1091,8 @@ def complete(
             if hasattr(config, key):
                 setattr(config, key, value)
 
-    llm = LLM(model_path, config=config, verbose=verbose)
-    return llm(prompt, stream=stream)
+    with LLM(model_path, config=config, verbose=verbose) as llm:
+        return llm(prompt, stream=stream)
 
 
 def chat(

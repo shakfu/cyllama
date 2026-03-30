@@ -23,6 +23,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 - **whisper.cpp backend detection in `cyllama info`** - The info command used outdated `KEY = 1` parsing for whisper backends, but modern whisper.cpp reports dynamically-loaded backends in `BACKEND : feature = val |` format. Fixed to parse the new format and call `ggml_backend_load_all()` before querying
 - **stable-diffusion.cpp backend reporting in `cyllama info`** - Added `ggml_backend_load_all()` to the sd module so `cyllama info` correctly reports GPU backends without relying on llama.cpp having been initialized first
 - **Duplicate ggml header conflicts** - `COMMON_INCLUDE_DIRS` included all thirdparty include paths (llama.cpp, whisper.cpp, stable-diffusion.cpp), causing `#pragma once` path-based include guard failures when identical `ggml.h`/`ggml-backend.h` headers existed under multiple directories. Cleaned up so `COMMON_INCLUDE_DIRS` only contains llama.cpp + base dirs; whisper and sd targets now get only their own + llama.cpp's include dirs via per-target configuration
+- **Missing malloc NULL checks** - Added NULL checks after `malloc()` in whisper `tokenize()`, llama `tokenize()`, and llama `detokenize()` to raise `MemoryError` instead of crashing on allocation failure
+- **Resource leaks in convenience functions** - `complete()`, `chat()`, and `batch_generate()` now use context managers to ensure GPU memory and model resources are freed after use
+- **SQL injection risk in VectorStore** - Table names are now validated against `^[a-zA-Z_][a-zA-Z0-9_]*$` in `VectorStore.__init__()`, `VectorStore.open()`, and `HybridStore.__init__()` to prevent SQL injection via f-string interpolated identifiers
+- **Silent build failures with missing libraries** - Dynamic library discovery in CMakeLists.txt now uses `FATAL_ERROR` instead of `WARNING` when required shared libraries are missing, preventing broken wheels. `copy_lib()` in manage.py now raises `FileNotFoundError` for required libraries instead of silently returning `False`
+- **Missing cmake source directory validation** - `cmake_config()` now validates that `src_dir` exists before invoking cmake, raising `FileNotFoundError` instead of producing cryptic cmake errors
+- **Unvalidated CI before-build scripts** - `before-build` and `before-all` scripts in pyproject.toml now verify that `manage.py` actually produced libraries before proceeding with wheel builds, preventing broken wheels from silent dependency build failures
 
 ## [0.2.0] - 2026-03-29
 
