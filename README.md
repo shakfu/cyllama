@@ -8,6 +8,8 @@ cyllama is a comprehensive no-dependencies Python library for local AI inference
 
 It combines the performance of compiled Cython wrappers with a simple, high-level Python API for cross-modal AI inference.
 
+**[Documentation](https://shakfu.github.io/cyllama/)** | **[PyPI](https://pypi.org/project/cyllama/)** | **[Changelog](CHANGELOG.md)**
+
 ## Features
 
 - High-level API -- `complete()`, `chat()`, `LLM` class for quick prototyping / text generation.
