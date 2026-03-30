@@ -36,13 +36,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Changed
 
-- **CI Python path is now configurable** - Replaced hardcoded `/opt/python/cp310-cp310/bin/python` in `build-gpu-wheels.yml` with a `ci_python` workflow input (defaults to `/opt/python/cp310-cp310/bin`)
+- **CI Python path auto-discovered in manylinux** - Replaced hardcoded `/opt/python/cp310-cp310/bin/python` in `build-gpu-wheels.yml` with runtime discovery (`ls -d /opt/python/cp3*/bin | head -1`), removing the need for a workflow input
 - **Windows `get_lib_path()` searches more build configurations** - Now tries `RelWithDebInfo/`, `MinSizeRel/`, and `Debug/` before falling back, with a warning listing all searched paths
 - **CI artifact naming deterministic** - Replaced `strategy.job-index` with `matrix.os` in `build-cibw.yaml` artifact names, preventing name changes when the matrix definition is modified
 
 ### Fixed
 
 - **`TextLoader` validates `errors` parameter** - Invalid codec error handler names (e.g. `"invalid"`) now raise `ValueError` at construction time instead of producing a cryptic `LookupError` deep in file I/O
+- **CUDA dynamic wheel build failed on missing `libggml-rpc.so`** - `ggml-rpc` was incorrectly listed as a required core library in `CMakeLists.txt`, but it's an optional RPC backend not always present in self-builds or release tarballs. Moved to optional; build warns instead of failing when absent
 - **`LLAMACPP_DYLIB_DIR` validated when `WITH_DYLIB=ON`** - CMake now emits `FATAL_ERROR` if the directory does not exist or is empty, instead of silently defaulting to an absent `thirdparty/llama.cpp/dynamic`
 - **Broken symlinks in `build_shared()` now logged** - Previously, symlinks with missing targets were silently skipped during shared library collection, potentially producing incomplete wheels. A warning now identifies the broken symlink and its target
 - **`sed` package-rename validated in GPU wheel CI** - Each `sed` rename in `build-gpu-wheels.yml` is now followed by a `grep -q` check that fails the build if the pattern did not match, preventing wheels from shipping with the wrong package name
