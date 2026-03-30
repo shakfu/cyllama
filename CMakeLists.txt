@@ -231,7 +231,9 @@ if(WITH_DYLIB)
     endif()
 
     # Core llama.cpp shared libraries (available in release tarballs)
-    set(_DYLIB_NAMES llama ggml ggml-base ggml-rpc mtmd)
+    set(_DYLIB_NAMES llama ggml ggml-base mtmd)
+    # Optional core libraries (not always present in release tarballs or self-builds)
+    set(_OPTIONAL_DYLIB_NAMES ggml-rpc)
 
     # ggml-cpu: on Linux, release tarballs ship arch-specific variants only
     # (e.g. libggml-cpu-haswell.so) with no base libggml-cpu.so.
@@ -337,6 +339,11 @@ if(WITH_DYLIB)
     # Find core libraries (FATAL_ERROR if missing)
     foreach(_name ${_DYLIB_NAMES})
         _find_dylib(${_name} TRUE)
+    endforeach()
+
+    # Find optional core libraries (WARNING if missing)
+    foreach(_name ${_OPTIONAL_DYLIB_NAMES})
+        _find_dylib(${_name} FALSE)
     endforeach()
 
     # Find backend libraries (FATAL_ERROR if missing — they were explicitly enabled)
