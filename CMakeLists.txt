@@ -221,7 +221,11 @@ if(WITH_DYLIB)
     set(_DYLIB_NAMES llama ggml ggml-base ggml-rpc mtmd)
 
     # ggml-cpu: on Linux, release tarballs ship arch-specific variants only
-    # (e.g. libggml-cpu-haswell.so) with no base libggml-cpu.so
+    # (e.g. libggml-cpu-haswell.so) with no base libggml-cpu.so.
+    # All variants are installed for ggml's runtime dispatch, but we must
+    # link against the most portable one for symbol resolution — otherwise
+    # the dynamic linker loads a variant with unsupported instructions
+    # before ggml gets a chance to pick the right one.
     if(APPLE)
         list(APPEND _DYLIB_NAMES ggml-cpu)
     else()
@@ -229,9 +233,31 @@ if(WITH_DYLIB)
         if(_cpu_variants)
             # Install all CPU variants for runtime dispatch
             list(APPEND DYLIB_FILES ${_cpu_variants})
-            # Link against the first variant to resolve symbols (e.g. ggml_threadpool_free)
-            list(GET _cpu_variants 0 _cpu_link_lib)
+            # Link against the most portable variant for symbol resolution.
+            # Preference order: base ggml-cpu > x64 > sse42 > first available.
+            set(_cpu_link_lib "")
+            find_library(_cpu_base ggml-cpu PATHS "${LLAMACPP_DYLIB_DIR}" NO_DEFAULT_PATH)
+            if(_cpu_base)
+                set(_cpu_link_lib "${_cpu_base}")
+            else()
+                foreach(_candidate x64 sse42)
+                    find_library(_cpu_portable ggml-cpu-${_candidate}
+                        PATHS "${LLAMACPP_DYLIB_DIR}" NO_DEFAULT_PATH)
+                    if(_cpu_portable)
+                        set(_cpu_link_lib "${_cpu_portable}")
+                        break()
+                    endif()
+                    unset(_cpu_portable CACHE)
+                endforeach()
+            endif()
+            if(NOT _cpu_link_lib)
+                # Last resort: pick the first variant (may crash on incompatible CPUs)
+                list(GET _cpu_variants 0 _cpu_link_lib)
+                message(WARNING "No portable CPU variant (x64/sse42) found, linking against ${_cpu_link_lib}")
+            endif()
             list(APPEND DYLIBS "${_cpu_link_lib}")
+            get_filename_component(_link_name "${_cpu_link_lib}" NAME)
+            message(STATUS "  CPU link variant: ${_link_name}")
             foreach(_v ${_cpu_variants})
                 get_filename_component(_vn ${_v} NAME)
                 message(STATUS "  Found CPU variant: ${_vn}")

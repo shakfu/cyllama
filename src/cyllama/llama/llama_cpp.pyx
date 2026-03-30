@@ -79,12 +79,17 @@ cdef void log_callback(ggml.ggml_log_level level, const char * text, void * py_l
     """ggml_log_callback wrapper to enabling python callbacks to be used"""
     (<object>py_log_callback)(level, text.decode())
 
+# Hold a reference to the active log callback to prevent garbage collection
+# while the C code still holds a pointer to it.
+_active_log_callback = None
 
 def set_log_callback(object py_log_callback):
     """Set callback for all future logging events.
 
     If this is not called, or NULL is supplied, everything is output on stderr.
     """
+    global _active_log_callback
+    _active_log_callback = py_log_callback
     llama.llama_log_set(<ggml.ggml_log_callback>&log_callback, <void*>py_log_callback)
 
 
@@ -644,8 +649,13 @@ cdef class LlamaBatch:
             pos: Position in the sequence
             seq_ids: List of sequence IDs this token belongs to
             logits: Whether to compute logits for this token
+
+        Raises:
+            IndexError: If batch is full
         """
         cdef int n = self.p.n_tokens
+        if n >= self._n_tokens:
+            raise IndexError(f"Batch is full (capacity={self._n_tokens})")
         self.p.token[n] = id
         self.p.pos[n] = pos
         self.p.n_seq_id[n] = <int32_t>len(seq_ids)

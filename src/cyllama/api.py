@@ -1562,6 +1562,7 @@ class AsyncLLM:
 
         # Use a queue to bridge sync generator to async iterator
         queue: asyncio.Queue[Union[str, None, Exception]] = asyncio.Queue()
+        loop = asyncio.get_running_loop()
 
         async def producer():
             """Run sync generator in thread and put items in queue."""
@@ -1577,8 +1578,6 @@ class AsyncLLM:
                 await asyncio.to_thread(generate_sync)
             except Exception as e:
                 await queue.put(e)
-
-        loop = asyncio.get_event_loop()
 
         # Start producer task
         async with self._lock:

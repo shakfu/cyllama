@@ -29,6 +29,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 - **Silent build failures with missing libraries** - Dynamic library discovery in CMakeLists.txt now uses `FATAL_ERROR` instead of `WARNING` when required shared libraries are missing, preventing broken wheels. `copy_lib()` in manage.py now raises `FileNotFoundError` for required libraries instead of silently returning `False`
 - **Missing cmake source directory validation** - `cmake_config()` now validates that `src_dir` exists before invoking cmake, raising `FileNotFoundError` instead of producing cryptic cmake errors
 - **Unvalidated CI before-build scripts** - `before-build` and `before-all` scripts in pyproject.toml now verify that `manage.py` actually produced libraries before proceeding with wheel builds, preventing broken wheels from silent dependency build failures
+- **Illegal instruction crash with pre-built dynamic wheels** - Dynamic builds linked against an arbitrary CPU variant (e.g. `libggml-cpu-alderlake.so`) chosen by non-deterministic GLOB order, which could contain instructions unsupported by the target CPU. Now links against the most portable variant (`x64` then `sse42`) for symbol resolution; ggml's runtime dispatcher still selects the optimal variant for the actual CPU
+- **Callback use-after-free in `set_log_callback()`** - The Python callback passed to `llama_log_set()` was not stored, allowing it to be garbage collected while C code still held a pointer. Now kept alive via a module-level reference
+- **Missing bounds check in `LlamaBatch.add()`** - Writing past batch capacity caused undefined behavior. Now raises `IndexError` when the batch is full
+- **Async event loop race in `AsyncLLM.stream()`** - `asyncio.get_event_loop()` replaced with `asyncio.get_running_loop()` to avoid acquiring the wrong loop after `asyncio.to_thread()`
 
 ## [0.2.0] - 2026-03-29
 
