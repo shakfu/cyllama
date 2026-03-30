@@ -1204,9 +1204,9 @@ def apply_chat_template(
 
     ggml_backend_load_all()
 
-    # Load model to get template
+    # Load model to get template (n_gpu_layers=0: metadata only, no GPU alloc)
     model_params = LlamaModelParams()
-    model_params.n_gpu_layers = 0  # Don't load to GPU, just need metadata
+    model_params.n_gpu_layers = 0
     model = LlamaModel(model_path, model_params)
 
     # Get template - use provided or model's default
@@ -1229,8 +1229,6 @@ def apply_chat_template(
         logger.debug("No chat template found, using fallback format")
         prompt = _format_messages_simple(messages)
 
-    # Model cleanup handled by garbage collection
-    del model
     return prompt
 
 
@@ -1279,8 +1277,6 @@ def get_chat_template(model_path: str, template_name: Optional[str] = None) -> s
     else:
         result = model.get_default_chat_template()
 
-    # Model cleanup handled by garbage collection
-    del model
     return result
 
 
