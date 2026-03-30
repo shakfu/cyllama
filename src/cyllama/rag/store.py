@@ -159,6 +159,28 @@ class VectorStore:
             )
         """)
 
+        # Store vector store configuration for reopening
+        meta_table = f"{self.table_name}_meta"
+        self.conn.execute(f"""
+            CREATE TABLE IF NOT EXISTS {meta_table} (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            )
+        """)
+        self.conn.execute(
+            f"INSERT OR REPLACE INTO {meta_table} (key, value) VALUES (?, ?)",
+            ("metric", self.metric),
+        )
+        self.conn.execute(
+            f"INSERT OR REPLACE INTO {meta_table} (key, value) VALUES (?, ?)",
+            ("vector_type", self.vector_type),
+        )
+        self.conn.execute(
+            f"INSERT OR REPLACE INTO {meta_table} (key, value) VALUES (?, ?)",
+            ("dimension", str(self.dimension)),
+        )
+        self.conn.commit()
+
         # Map metric names to sqlite-vector distance names
         distance_map = {
             "cosine": "COSINE",
@@ -520,28 +542,44 @@ class VectorStore:
             if cursor.fetchone() is None:
                 raise VectorStoreError(f"Table '{table_name}' not found in {db_path}")
 
-            # Get a sample embedding to determine dimension
-            cursor = conn.execute(f"SELECT embedding FROM {table_name} LIMIT 1")
-            row = cursor.fetchone()
-            if row is None:
-                raise VectorStoreError(f"Table '{table_name}' is empty, cannot determine dimension")
+            # Read stored configuration from metadata table
+            meta_table = f"{table_name}_meta"
+            metric = "cosine"
+            vector_type = "float32"
+            dimension = None
 
-            # Decode to get dimension
-            blob = row[0]
-            dimension = len(blob) // 4  # float32 = 4 bytes
+            cursor = conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+                (meta_table,),
+            )
+            if cursor.fetchone() is not None:
+                # Read from metadata table
+                for row in conn.execute(f"SELECT key, value FROM {meta_table}"):
+                    if row[0] == "metric":
+                        metric = row[1]
+                    elif row[0] == "vector_type":
+                        vector_type = row[1]
+                    elif row[0] == "dimension":
+                        dimension = int(row[1])
+
+            # Fall back to inferring dimension from embedding data
+            if dimension is None:
+                cursor = conn.execute(f"SELECT embedding FROM {table_name} LIMIT 1")
+                row = cursor.fetchone()
+                if row is None:
+                    raise VectorStoreError(f"Table '{table_name}' is empty, cannot determine dimension")
+                blob = row[0]
+                dimension = len(blob) // 4  # float32 = 4 bytes
 
         finally:
             conn.close()
 
-        # Create store with detected dimension
-        # Note: metric and vector_type default to cosine/float32
-        # The actual values are stored in sqlite-vector's internal state
         return cls(
             dimension=dimension,
             db_path=db_path,
             table_name=table_name,
-            metric="cosine",
-            vector_type="float32",
+            metric=metric,
+            vector_type=vector_type,
         )
 
     def __len__(self) -> int:

@@ -42,6 +42,7 @@ Async Example:
 
 import asyncio
 import hashlib
+import os
 from collections import OrderedDict
 from typing import (
     AsyncIterator,
@@ -487,6 +488,9 @@ class LLM:
         self._cache: Optional[_ResponseLRUCache] = None
         if cache_size > 0:
             self._cache = _ResponseLRUCache(cache_size, cache_ttl)
+
+        if not os.path.isfile(model_path):
+            raise FileNotFoundError(f"Model file not found: {model_path}")
 
         # Build config: start with provided config or defaults, then apply kwargs
         if config is None:

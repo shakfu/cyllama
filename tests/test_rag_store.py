@@ -383,7 +383,7 @@ class TestVectorStorePersistence:
             VectorStore.open("/nonexistent/path.db")
 
     def test_open_empty_table(self):
-        """Test opening database with empty table."""
+        """Test opening database with empty table succeeds via stored metadata."""
         with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
             db_path = f.name
 
@@ -392,9 +392,12 @@ class TestVectorStorePersistence:
             with VectorStore(dimension=4, db_path=db_path) as store:
                 pass  # Don't add anything
 
-            # Try to open - should fail because we can't determine dimension
-            with pytest.raises(VectorStoreError, match="empty"):
-                VectorStore.open(db_path)
+            # Should succeed — dimension/metric/vector_type are in metadata table
+            with VectorStore.open(db_path) as store:
+                assert store.dimension == 4
+                assert store.metric == "cosine"
+                assert store.vector_type == "float32"
+                assert len(store) == 0
         finally:
             Path(db_path).unlink(missing_ok=True)
 

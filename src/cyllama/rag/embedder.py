@@ -380,6 +380,9 @@ class Embedder:
             n_tokens = len(raw_embeddings) // n_embd
 
         result = [0.0] * n_embd
+        if n_tokens == 0:
+            return result
+
         for t in range(n_tokens):
             offset = t * n_embd
             for i in range(n_embd):
