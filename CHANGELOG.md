@@ -15,6 +15,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ---
 
+## [0.2.2]
+
+### Fixed
+
+- **SIGILL crash on CUDA/Vulkan wheels built with `-march=native`** - Wheels compiled on a build machine with AVX-512 or other advanced instruction sets would crash (exit code 132 / SIGILL on CUDA, `Failed to load model` on Vulkan) when run on machines lacking those instructions. All three cmake builds (llama.cpp, whisper.cpp, stable-diffusion.cpp) now set `GGML_NATIVE=OFF` to produce portable binaries
+
 ## [0.2.1]
 
 ### Added

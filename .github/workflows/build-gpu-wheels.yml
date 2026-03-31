@@ -6,11 +6,11 @@ on:
       link_mode:
         description: 'Linking mode'
         required: true
-        default: 'static'
+        default: 'dynamic'
         type: choice
         options:
-          - static
           - dynamic
+          - static
       cuda:
         description: 'Build CUDA wheels'
         required: false
