@@ -936,6 +936,9 @@ class LlamaCppBuilder(Builder):
         """Get CMake options based on backend environment variables."""
         options = {}
 
+        # Disable -march=native for portable/distributable wheels
+        options["GGML_NATIVE"] = "OFF"
+
         # Read backend flags from environment (default Metal=1 on macOS, others=0)
         ggml_metal = getenv(
             "GGML_METAL", default=(True if PLATFORM == "Darwin" else False)
@@ -1315,6 +1318,9 @@ class WhisperCppBuilder(Builder):
         """
         options = {}
 
+        # Disable -march=native for portable/distributable wheels
+        options["GGML_NATIVE"] = "OFF"
+
         # Read backend flags from environment (default Metal=1 on macOS, others=0)
         ggml_metal = getenv(
             "GGML_METAL", default=(True if PLATFORM == "Darwin" else False)
@@ -1407,6 +1413,9 @@ class StableDiffusionCppBuilder(Builder):
         components use a consistent backend.
         """
         options = {}
+
+        # Disable -march=native for portable/distributable wheels
+        options["GGML_NATIVE"] = "OFF"
 
         # Read backend flags from environment (same GGML_* vars as other components)
         ggml_metal = getenv(
