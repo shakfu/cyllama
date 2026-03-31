@@ -24,6 +24,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 ### Added
 
 - **Automatic GitHub pre-release uploads** - Both `build-cibw` and `build-gpu-wheels` workflows now upload wheels to a GitHub pre-release tagged with the `pyproject.toml` version
+- **Experimental cached CI workflows** - `build-cibw-cached` and `build-gpu-wheels-cached` variants cache `thirdparty/` build artifacts between runs using `actions/cache`, keyed on `scripts/manage.py` hash. On cache hit, `CIBW_BEFORE_ALL` skips the deps build (including shaderc for Vulkan), reducing CI time on unchanged dependencies
 
 ## [0.2.1]
 
