@@ -937,10 +937,15 @@ class LlamaCppBuilder(Builder):
         options = {}
 
         # Disable -march=native for portable/distributable wheels.
-        # GGML_NATIVE_DEFAULT=OFF prevents INS_ENB=ON which would
-        # individually enable AVX2, FMA, F16C etc. (not portable and bloats binaries).
+        # Also explicitly disable instruction sets that default to ON when
+        # GGML_NATIVE=OFF (via INS_ENB), since they are not portable and
+        # bloat CUDA host code (~4.5x size increase).
         options["GGML_NATIVE"] = "OFF"
-        options["GGML_NATIVE_DEFAULT"] = "OFF"
+        options["GGML_AVX"] = "OFF"
+        options["GGML_AVX2"] = "OFF"
+        options["GGML_FMA"] = "OFF"
+        options["GGML_F16C"] = "OFF"
+        options["GGML_BMI2"] = "OFF"
 
         # Read backend flags from environment (default Metal=1 on macOS, others=0)
         ggml_metal = getenv(
@@ -1322,10 +1327,15 @@ class WhisperCppBuilder(Builder):
         options = {}
 
         # Disable -march=native for portable/distributable wheels.
-        # GGML_NATIVE_DEFAULT=OFF prevents INS_ENB=ON which would
-        # individually enable AVX2, FMA, F16C etc. (not portable and bloats binaries).
+        # Also explicitly disable instruction sets that default to ON when
+        # GGML_NATIVE=OFF (via INS_ENB), since they are not portable and
+        # bloat CUDA host code (~4.5x size increase).
         options["GGML_NATIVE"] = "OFF"
-        options["GGML_NATIVE_DEFAULT"] = "OFF"
+        options["GGML_AVX"] = "OFF"
+        options["GGML_AVX2"] = "OFF"
+        options["GGML_FMA"] = "OFF"
+        options["GGML_F16C"] = "OFF"
+        options["GGML_BMI2"] = "OFF"
 
         # Read backend flags from environment (default Metal=1 on macOS, others=0)
         ggml_metal = getenv(
@@ -1421,10 +1431,15 @@ class StableDiffusionCppBuilder(Builder):
         options = {}
 
         # Disable -march=native for portable/distributable wheels.
-        # GGML_NATIVE_DEFAULT=OFF prevents INS_ENB=ON which would
-        # individually enable AVX2, FMA, F16C etc. (not portable and bloats binaries).
+        # Also explicitly disable instruction sets that default to ON when
+        # GGML_NATIVE=OFF (via INS_ENB), since they are not portable and
+        # bloat CUDA host code (~4.5x size increase).
         options["GGML_NATIVE"] = "OFF"
-        options["GGML_NATIVE_DEFAULT"] = "OFF"
+        options["GGML_AVX"] = "OFF"
+        options["GGML_AVX2"] = "OFF"
+        options["GGML_FMA"] = "OFF"
+        options["GGML_F16C"] = "OFF"
+        options["GGML_BMI2"] = "OFF"
 
         # Read backend flags from environment (same GGML_* vars as other components)
         ggml_metal = getenv(

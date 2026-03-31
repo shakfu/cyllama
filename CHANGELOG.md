@@ -19,7 +19,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Fixed
 
-- **SIGILL crash on CUDA/Vulkan wheels built with `-march=native`** - Wheels compiled on a build machine with AVX-512 or other advanced instruction sets would crash (exit code 132 / SIGILL on CUDA, `Failed to load model` on Vulkan) when run on machines lacking those instructions. All three cmake builds (llama.cpp, whisper.cpp, stable-diffusion.cpp) now set `GGML_NATIVE=OFF` and `GGML_NATIVE_DEFAULT=OFF` to produce portable baseline x86_64 binaries without individually enabling AVX2/FMA/F16C
+- **SIGILL crash and bloated CUDA/Vulkan wheels** - Wheels compiled on a build machine with AVX-512 or other advanced instruction sets would crash (exit code 132 / SIGILL on CUDA, `Failed to load model` on Vulkan) when run on machines lacking those instructions. All three cmake builds (llama.cpp, whisper.cpp, stable-diffusion.cpp) now set `GGML_NATIVE=OFF` and explicitly disable `GGML_AVX`, `GGML_AVX2`, `GGML_FMA`, `GGML_F16C`, `GGML_BMI2` to produce portable baseline x86_64 binaries. This also fixes a ~4.5x size regression in the CUDA wheel (449 MB -> ~99 MB uncompressed) caused by these instruction set definitions being compiled into CUDA host code
 
 ### Added
 

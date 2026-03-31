@@ -86,7 +86,7 @@ jobs:
           text = open('pyproject.toml').read()
           print(re.search(r'^version\s*=\s*\"([^\"]+)\"', text, re.M).group(1))
           ")
-          TAG="v${VERSION}"
+          TAG="${VERSION}"
           echo "Version: ${VERSION}, Tag: ${TAG}"
           gh release create "${TAG}" --prerelease --title "${TAG}" 2>/dev/null || true
           gh release upload "${TAG}" dist/*.whl --clobber
