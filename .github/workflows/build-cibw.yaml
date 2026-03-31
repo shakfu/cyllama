@@ -61,3 +61,32 @@ jobs:
         with:
           name: cyllama-wheels-all
           path: dist/*.whl
+
+  upload_release:
+    name: Upload wheels to GitHub Release
+    needs: collect_wheels
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Download collected wheels
+        uses: actions/download-artifact@v5
+        with:
+          name: cyllama-wheels-all
+          path: dist
+
+      - name: Upload to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=$(python3 -c "
+          import re
+          text = open('pyproject.toml').read()
+          print(re.search(r'^version\s*=\s*\"([^\"]+)\"', text, re.M).group(1))
+          ")
+          TAG="v${VERSION}"
+          echo "Version: ${VERSION}, Tag: ${TAG}"
+          gh release create "${TAG}" --prerelease --title "${TAG}" 2>/dev/null || true
+          gh release upload "${TAG}" dist/*.whl --clobber

@@ -432,6 +432,43 @@ jobs:
           path: index/
 
   # ---------------------------------------------------------------------------
+  # Upload wheels to GitHub pre-release
+  # ---------------------------------------------------------------------------
+  upload_release:
+    name: Upload wheels to GitHub Release
+    needs: collect
+    if: always() && !cancelled() && needs.collect.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all wheel artifacts
+        uses: actions/download-artifact@v5
+        with:
+          path: artifacts
+          pattern: wheels-*
+
+      - name: Upload to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=$(python3 -c "
+          import re
+          text = open('pyproject.toml').read()
+          print(re.search(r'^version\s*=\s*\"([^\"]+)\"', text, re.M).group(1))
+          ")
+          TAG="v${VERSION}"
+          echo "Version: ${VERSION}, Tag: ${TAG}"
+          mkdir -p dist
+          find artifacts -name "*.whl" -exec cp {} dist/ \;
+          echo "=== Wheels to upload ==="
+          ls -lh dist/
+          gh release create "${TAG}" --prerelease --title "${TAG}" 2>/dev/null || true
+          gh release upload "${TAG}" dist/*.whl --clobber
+
+  # ---------------------------------------------------------------------------
   # Publish wheel index to GitHub Pages
   # ---------------------------------------------------------------------------
   publish_index:

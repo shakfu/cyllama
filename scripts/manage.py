@@ -936,8 +936,11 @@ class LlamaCppBuilder(Builder):
         """Get CMake options based on backend environment variables."""
         options = {}
 
-        # Disable -march=native for portable/distributable wheels
+        # Disable -march=native for portable/distributable wheels.
+        # GGML_NATIVE_DEFAULT=OFF prevents INS_ENB=ON which would
+        # individually enable AVX2, FMA, F16C etc. (not portable and bloats binaries).
         options["GGML_NATIVE"] = "OFF"
+        options["GGML_NATIVE_DEFAULT"] = "OFF"
 
         # Read backend flags from environment (default Metal=1 on macOS, others=0)
         ggml_metal = getenv(
@@ -1318,8 +1321,11 @@ class WhisperCppBuilder(Builder):
         """
         options = {}
 
-        # Disable -march=native for portable/distributable wheels
+        # Disable -march=native for portable/distributable wheels.
+        # GGML_NATIVE_DEFAULT=OFF prevents INS_ENB=ON which would
+        # individually enable AVX2, FMA, F16C etc. (not portable and bloats binaries).
         options["GGML_NATIVE"] = "OFF"
+        options["GGML_NATIVE_DEFAULT"] = "OFF"
 
         # Read backend flags from environment (default Metal=1 on macOS, others=0)
         ggml_metal = getenv(
@@ -1414,8 +1420,11 @@ class StableDiffusionCppBuilder(Builder):
         """
         options = {}
 
-        # Disable -march=native for portable/distributable wheels
+        # Disable -march=native for portable/distributable wheels.
+        # GGML_NATIVE_DEFAULT=OFF prevents INS_ENB=ON which would
+        # individually enable AVX2, FMA, F16C etc. (not portable and bloats binaries).
         options["GGML_NATIVE"] = "OFF"
+        options["GGML_NATIVE_DEFAULT"] = "OFF"
 
         # Read backend flags from environment (same GGML_* vars as other components)
         ggml_metal = getenv(
