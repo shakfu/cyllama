@@ -19,7 +19,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Fixed
 
-- **CUDA wheel size regression (762 MB -> ~99 MB uncompressed)** - The `CMAKE_CUDA_ARCHITECTURES` passthrough added in the previous fix was compiling SASS for 5 architectures plus PTX for 1, producing a 762 MB `libggml-cuda.so`. Changed to `CMAKE_CUDA_ARCHITECTURES="75"` (PTX-only for sm_75/Turing), which lets the CUDA driver JIT-compile for the user's actual GPU at runtime. This matches v0.2.1's proven single-arch approach while being forward-proof for CUDA 13.x (which drops pre-Turing support)
+- **CUDA wheel size regression (762 MB -> 187 MB uncompressed, 216 MB -> 80 MB compressed)** - The `CMAKE_CUDA_ARCHITECTURES` passthrough added in the previous fix was compiling SASS for 5 architectures plus PTX for 1, producing a 762 MB `libggml-cuda.so`. Changed to `CMAKE_CUDA_ARCHITECTURES="75"` (PTX-only for sm_75/Turing), which lets the CUDA driver JIT-compile for the user's actual GPU at runtime. Supports Turing and newer GPUs (RTX 20xx+, T4+), forward-proof for CUDA 13.x which drops pre-Turing support
 - **`GGML_NATIVE=OFF` moved from `manage.py` to CI workflows** - The portability flags were previously hardcoded in `manage.py`'s `get_backend_cmake_options()`, affecting local development builds. Now set exclusively in `CIBW_BEFORE_ALL_LINUX` and `CIBW_ENVIRONMENT_LINUX` for all four GPU backends (CUDA, ROCm, SYCL, Vulkan), keeping local builds native while ensuring CI wheels are portable
 
 ### Added
