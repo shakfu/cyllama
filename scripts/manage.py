@@ -1521,6 +1521,17 @@ class SqliteVectorBuilder(Builder):
         """sqlite-vector main build function using make"""
         if not self.src_dir.exists():
             self.setup()
+
+        # Windows: upstream Makefile uses Unix-only rules (mkdir -p, gcc). The
+        # scikit-build wheel compiles the same sources from thirdparty/sqlite-vector
+        # via MSVC in the root CMakeLists.txt, so skip make here.
+        vendored_c = self.project.cwd / "thirdparty" / "sqlite-vector" / "sqlite-vector.c"
+        if PLATFORM == "Windows" and vendored_c.is_file():
+            self.log.info(
+                "skipping sqlite-vector make on Windows (CMake builds from thirdparty/sqlite-vector)"
+            )
+            return
+
         self.log.info(f"building {self.name}")
 
         # Ensure destination directory exists
