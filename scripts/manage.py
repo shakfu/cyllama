@@ -959,6 +959,21 @@ class LlamaCppBuilder(Builder):
                 self.log.info(f"✓ Enabling CUDA backend (architectures: {cuda_archs})")
             else:
                 self.log.info("✓ Enabling CUDA backend (using llama.cpp default architectures)")
+            # Forward CUDA performance tuning flags
+            cuda_compiler = os.environ.get("CMAKE_CUDA_COMPILER")
+            if cuda_compiler:
+                options["CMAKE_CUDA_COMPILER"] = cuda_compiler
+                self.log.info(f"  CUDA compiler: {cuda_compiler}")
+            for flag in (
+                "GGML_CUDA_FORCE_MMQ",
+                "GGML_CUDA_FORCE_CUBLAS",
+                "GGML_CUDA_PEER_MAX_BATCH_SIZE",
+                "GGML_CUDA_FA_ALL_QUANTS",
+            ):
+                val = os.environ.get(flag)
+                if val is not None:
+                    options[flag] = val
+                    self.log.info(f"  {flag}={val}")
 
         if ggml_vulkan:
             options["GGML_VULKAN"] = "ON"
@@ -976,10 +991,29 @@ class LlamaCppBuilder(Builder):
                 self.log.info(f"✓ Enabling HIP/ROCm backend (architectures: {hip_archs})")
             else:
                 self.log.info("✓ Enabling HIP/ROCm backend")
+            if getenv("GGML_HIP_ROCWMMA_FATTN", default=False):
+                options["GGML_HIP_ROCWMMA_FATTN"] = "ON"
+                self.log.info("  rocWMMA flash attention enabled")
 
         if ggml_opencl:
             options["GGML_OPENCL"] = "ON"
             self.log.info("✓ Enabling OpenCL backend")
+
+        # BLAS backend (explicit selection for Linux/Windows)
+        if getenv("GGML_BLAS", default=False):
+            options["GGML_BLAS"] = "ON"
+            blas_vendor = os.environ.get("GGML_BLAS_VENDOR")
+            if blas_vendor:
+                options["GGML_BLAS_VENDOR"] = blas_vendor
+                self.log.info(f"✓ Enabling BLAS backend (vendor: {blas_vendor})")
+            else:
+                self.log.info("✓ Enabling BLAS backend")
+
+        # OpenMP control (default ON in llama.cpp)
+        openmp = os.environ.get("GGML_OPENMP")
+        if openmp is not None:
+            options["GGML_OPENMP"] = "ON" if openmp == "1" else "OFF"
+            self.log.info(f"  GGML_OPENMP={options['GGML_OPENMP']}")
 
         return options
 
@@ -1204,7 +1238,8 @@ class LlamaCppBuilder(Builder):
         elif system == "windows":
             arch_tag = "arm64" if arch in ("arm64", "aarch64") else "x64"
             if getenv("GGML_CUDA", default=False):
-                return f"llama-{version}-bin-win-cuda-12.4-{arch_tag}.zip"
+                cuda_ver = os.environ.get("LLAMACPP_CUDA_RELEASE", "12.4")
+                return f"llama-{version}-bin-win-cuda-{cuda_ver}-{arch_tag}.zip"
             else:
                 return f"llama-{version}-bin-win-cpu-{arch_tag}.zip"
         else:
@@ -1343,6 +1378,18 @@ class WhisperCppBuilder(Builder):
             cuda_archs = os.environ.get("CMAKE_CUDA_ARCHITECTURES")
             if cuda_archs:
                 options["CMAKE_CUDA_ARCHITECTURES"] = cuda_archs
+            cuda_compiler = os.environ.get("CMAKE_CUDA_COMPILER")
+            if cuda_compiler:
+                options["CMAKE_CUDA_COMPILER"] = cuda_compiler
+            for flag in (
+                "GGML_CUDA_FORCE_MMQ",
+                "GGML_CUDA_FORCE_CUBLAS",
+                "GGML_CUDA_PEER_MAX_BATCH_SIZE",
+                "GGML_CUDA_FA_ALL_QUANTS",
+            ):
+                val = os.environ.get(flag)
+                if val is not None:
+                    options[flag] = val
             self.log.info("Enabling CUDA backend for whisper.cpp")
 
         if ggml_vulkan:
@@ -1358,11 +1405,24 @@ class WhisperCppBuilder(Builder):
             hip_archs = os.environ.get("CMAKE_HIP_ARCHITECTURES")
             if hip_archs:
                 options["CMAKE_HIP_ARCHITECTURES"] = hip_archs
+            if getenv("GGML_HIP_ROCWMMA_FATTN", default=False):
+                options["GGML_HIP_ROCWMMA_FATTN"] = "ON"
             self.log.info("Enabling HIP/ROCm backend for whisper.cpp")
 
         if ggml_opencl:
             options["GGML_OPENCL"] = "ON"
             self.log.info("Enabling OpenCL backend for whisper.cpp")
+
+        if getenv("GGML_BLAS", default=False):
+            options["GGML_BLAS"] = "ON"
+            blas_vendor = os.environ.get("GGML_BLAS_VENDOR")
+            if blas_vendor:
+                options["GGML_BLAS_VENDOR"] = blas_vendor
+            self.log.info("Enabling BLAS backend for whisper.cpp")
+
+        openmp = os.environ.get("GGML_OPENMP")
+        if openmp is not None:
+            options["GGML_OPENMP"] = "ON" if openmp == "1" else "OFF"
 
         return options
 
@@ -1435,6 +1495,18 @@ class StableDiffusionCppBuilder(Builder):
             cuda_archs = os.environ.get("CMAKE_CUDA_ARCHITECTURES")
             if cuda_archs:
                 options["CMAKE_CUDA_ARCHITECTURES"] = cuda_archs
+            cuda_compiler = os.environ.get("CMAKE_CUDA_COMPILER")
+            if cuda_compiler:
+                options["CMAKE_CUDA_COMPILER"] = cuda_compiler
+            for flag in (
+                "GGML_CUDA_FORCE_MMQ",
+                "GGML_CUDA_FORCE_CUBLAS",
+                "GGML_CUDA_PEER_MAX_BATCH_SIZE",
+                "GGML_CUDA_FA_ALL_QUANTS",
+            ):
+                val = os.environ.get(flag)
+                if val is not None:
+                    options[flag] = val
             self.log.info("Enabling CUDA backend for stable-diffusion.cpp")
 
         if ggml_vulkan:
@@ -1455,6 +1527,10 @@ class StableDiffusionCppBuilder(Builder):
         if ggml_opencl:
             options["SD_OPENCL"] = "ON"
             self.log.info("Enabling OpenCL backend for stable-diffusion.cpp")
+
+        openmp = os.environ.get("GGML_OPENMP")
+        if openmp is not None:
+            options["GGML_OPENMP"] = "ON" if openmp == "1" else "OFF"
 
         return options
 
@@ -1920,6 +1996,8 @@ class Application(ShellCmd, metaclass=MetaCommander):
     @opt("--sycl", "-y", "enable SYCL backend (Intel GPUs)")
     @opt("--hip", "-H", "enable HIP/ROCm backend (AMD GPUs)")
     @opt("--opencl", "-o", "enable OpenCL backend")
+    @option("--blas", help="enable BLAS backend (use GGML_BLAS_VENDOR env var for vendor)", action="store_true")
+    @option("--no-openmp", help="disable OpenMP", action="store_true")
     @opt("--cpu-only", "-C", "disable all GPU backends (CPU only)")
     @opt("-w", "--whisper-cpp", "build whisper-cpp")
     @opt("-d", "--stable-diffusion", "build stable-diffusion")
@@ -1973,6 +2051,10 @@ class Application(ShellCmd, metaclass=MetaCommander):
                 os.environ["GGML_HIP"] = "1"
             if args.opencl:
                 os.environ["GGML_OPENCL"] = "1"
+            if args.blas:
+                os.environ["GGML_BLAS"] = "1"
+        if args.no_openmp:
+            os.environ["GGML_OPENMP"] = "0"
 
         if args.sd_vendored_ggml:
             os.environ["SD_USE_VENDORED_GGML"] = "1"

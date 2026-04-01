@@ -71,7 +71,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: thirdparty/
-          key: deps-cuda-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage.py') }}
+          key: deps-cuda-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage.py', '.github/workflows/build-gpu-wheels-cached.yml') }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -95,8 +95,8 @@ jobs:
             CI_PYTHON=$(ls -d /opt/python/cp3*/bin | head -1) &&
             $CI_PYTHON/pip install cmake ninja &&
             PATH=/usr/local/cuda/bin:$CI_PYTHON:$PATH
-            CMAKE_CUDA_ARCHITECTURES="70-real;75-real;80-real;86-real;89-real;90"
-            GGML_CUDA=1 GGML_METAL=0
+            CMAKE_CUDA_ARCHITECTURES="75"
+            GGML_NATIVE=OFF GGML_CUDA=1 GGML_METAL=0
             $CI_PYTHON/python scripts/manage.py build --all --deps-only
             ${{ inputs.link_mode == 'dynamic' && '--dynamic' || '' }}
           CIBW_BEFORE_BUILD_LINUX: >
@@ -106,7 +106,8 @@ jobs:
             GGML_CUDA=1
             GGML_METAL=0
             CUDA_PATH=/usr/local/cuda
-            CMAKE_CUDA_ARCHITECTURES="70-real;75-real;80-real;86-real;89-real;90"
+            CMAKE_CUDA_ARCHITECTURES="75"
+            GGML_NATIVE=OFF
             PATH=/usr/local/cuda/bin:$PATH
             LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
             CFLAGS=-s
@@ -156,7 +157,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: thirdparty/
-          key: deps-rocm-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage.py') }}
+          key: deps-rocm-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage.py', '.github/workflows/build-gpu-wheels-cached.yml') }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -184,13 +185,14 @@ jobs:
             LIBRARY_PATH=/usr/lib/gcc/x86_64-redhat-linux/8:$LIBRARY_PATH
             CMAKE_HIP_ARCHITECTURES="gfx90a;gfx942;gfx1100"
             HIP_PATH=/opt/rocm
-            GGML_HIP=1 GGML_METAL=0
+            GGML_NATIVE=OFF GGML_HIP=1 GGML_METAL=0
             $CI_PYTHON/python scripts/manage.py build --all --deps-only
             ${{ inputs.link_mode == 'dynamic' && '--dynamic' || '' }}
           CIBW_BEFORE_BUILD_LINUX: >
             sed -i 's/^name = "cyllama"/name = "cyllama-rocm"/' {project}/pyproject.toml &&
             grep -q '^name = "cyllama-rocm"' {project}/pyproject.toml || { echo "ERROR: sed rename to cyllama-rocm failed"; exit 1; }
           CIBW_ENVIRONMENT_LINUX: >
+            GGML_NATIVE=OFF
             GGML_HIP=1
             GGML_METAL=0
             HIP_PATH=/opt/rocm
@@ -244,7 +246,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: thirdparty/
-          key: deps-sycl-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage.py') }}
+          key: deps-sycl-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage.py', '.github/workflows/build-gpu-wheels-cached.yml') }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -270,13 +272,14 @@ jobs:
             source /opt/intel/oneapi/setvars.sh &&
             export CC=icx CXX=icpx &&
             PATH=$CI_PYTHON:$PATH
-            GGML_SYCL=1 GGML_METAL=0
+            GGML_NATIVE=OFF GGML_SYCL=1 GGML_METAL=0
             $CI_PYTHON/python scripts/manage.py build --all --deps-only
             ${{ inputs.link_mode == 'dynamic' && '--dynamic' || '' }}
           CIBW_BEFORE_BUILD_LINUX: >
             sed -i 's/^name = "cyllama"/name = "cyllama-sycl"/' {project}/pyproject.toml &&
             grep -q '^name = "cyllama-sycl"' {project}/pyproject.toml || { echo "ERROR: sed rename to cyllama-sycl failed"; exit 1; }
           CIBW_ENVIRONMENT_LINUX: >
+            GGML_NATIVE=OFF
             GGML_SYCL=1
             GGML_METAL=0
             CC=icx
@@ -328,7 +331,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: thirdparty/
-          key: deps-vulkan-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage.py') }}
+          key: deps-vulkan-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage.py', '.github/workflows/build-gpu-wheels-cached.yml') }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -355,13 +358,14 @@ jobs:
             CI_PYTHON=$(ls -d /opt/python/cp3*/bin | head -1) &&
             $CI_PYTHON/pip install cmake ninja &&
             PATH=$CI_PYTHON:$PATH
-            GGML_VULKAN=1 GGML_METAL=0
+            GGML_NATIVE=OFF GGML_VULKAN=1 GGML_METAL=0
             $CI_PYTHON/python scripts/manage.py build --all --deps-only
             ${{ inputs.link_mode == 'dynamic' && '--dynamic' || '' }}
           CIBW_BEFORE_BUILD_LINUX: >
             sed -i 's/^name = "cyllama"/name = "cyllama-vulkan"/' {project}/pyproject.toml &&
             grep -q '^name = "cyllama-vulkan"' {project}/pyproject.toml || { echo "ERROR: sed rename to cyllama-vulkan failed"; exit 1; }
           CIBW_ENVIRONMENT_LINUX: >
+            GGML_NATIVE=OFF
             GGML_VULKAN=1
             GGML_METAL=0
             CFLAGS=-s

@@ -19,12 +19,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Fixed
 
-- **CUDA wheel size regression (762 MB -> 187 MB uncompressed, 216 MB -> 80 MB compressed)** - The `CMAKE_CUDA_ARCHITECTURES` passthrough added in the previous fix was compiling SASS for 5 architectures plus PTX for 1, producing a 762 MB `libggml-cuda.so`. Changed to `CMAKE_CUDA_ARCHITECTURES="75"` (PTX-only for sm_75/Turing), which lets the CUDA driver JIT-compile for the user's actual GPU at runtime. Supports Turing and newer GPUs (RTX 20xx+, T4+), forward-proof for CUDA 13.x which drops pre-Turing support
+- **CUDA wheel size stability** - The `CMAKE_CUDA_ARCHITECTURES` passthrough added in the previous fix was compiling SASS for 5 architectures plus PTX for 1, producing a 762 MB `libggml-cuda.so`. Changed to `CMAKE_CUDA_ARCHITECTURES="75"` (PTX-only for sm_75/Turing), which lets the CUDA driver JIT-compile for the user's actual GPU at runtime. Supports Turing and newer GPUs (RTX 20xx+, T4+), forward-proof for CUDA 13.x which drops pre-Turing support
 - **`GGML_NATIVE=OFF` moved from `manage.py` to CI workflows** - The portability flags were previously hardcoded in `manage.py`'s `get_backend_cmake_options()`, affecting local development builds. Now set exclusively in `CIBW_BEFORE_ALL_LINUX` and `CIBW_ENVIRONMENT_LINUX` for all four GPU backends (CUDA, ROCm, SYCL, Vulkan), keeping local builds native while ensuring CI wheels are portable
+- **Cached GPU workflow synced with active workflow** - `build-gpu-wheels-cached.yml` was stale: CUDA job was missing `GGML_NATIVE=OFF` (risking SIGILL on user CPUs) and used the broad architecture list instead of PTX-only `"75"`. All four backends (CUDA, ROCm, SYCL, Vulkan) now match `build-gpu-wheels.yml` settings. Cache keys now hash both `scripts/manage.py` and the workflow file itself, preventing stale binaries after workflow-only changes
 
 ### Added
 
+- **CUDA performance tuning flags** - `GGML_CUDA_FORCE_MMQ`, `GGML_CUDA_FORCE_CUBLAS`, `GGML_CUDA_PEER_MAX_BATCH_SIZE`, and `GGML_CUDA_FA_ALL_QUANTS` are now forwarded from environment variables to CMake in all three builders (llama.cpp, whisper.cpp, stable-diffusion.cpp)
+- **`CMAKE_CUDA_COMPILER` passthrough** - Users with multiple CUDA toolkit installations can set `CMAKE_CUDA_COMPILER=/path/to/nvcc` to select a specific compiler
+- **Parameterized CUDA version for dynamic builds** - `_release_asset_name()` reads `LLAMACPP_CUDA_RELEASE` env var (default `"12.4"`) instead of hardcoding the CUDA version in the Windows dynamic download asset name
+- **`--blas` CLI flag and `GGML_BLAS`/`GGML_BLAS_VENDOR` passthrough** - Enables explicit BLAS backend selection (OpenBLAS, Intel MKL, etc.) for llama.cpp and whisper.cpp builds. Vendor is set via `GGML_BLAS_VENDOR` env var
+- **`--no-openmp` CLI flag and `GGML_OPENMP` passthrough** - Allows disabling OpenMP for Arm and embedded builds. Forwarded to all three builders
+- **`GGML_HIP_ROCWMMA_FATTN` passthrough** - Enables rocWMMA-accelerated flash attention for AMD GPUs with supported hardware, forwarded to llama.cpp and whisper.cpp builders
 - **Automatic GitHub pre-release uploads** - Both `build-cibw` and `build-gpu-wheels` workflows now upload wheels to a GitHub pre-release tagged with the `pyproject.toml` version
+- **Build options analysis** - Added `docs/dev/build-options.md` documenting the comparison of local, CI, and upstream llama.cpp build configurations
+- **Advanced Build Options guide** - Added `docs/build_options.md` covering CUDA tuning, architecture targeting, BLAS/OpenMP configuration, dynamic linking, Windows builds, and complete environment variable reference
 
 ### Changed
 

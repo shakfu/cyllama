@@ -540,7 +540,7 @@ class TestConcurrentAccess:
 
     @pytest.mark.skipif(
         sys.platform == "win32",
-        reason="Windows mandatory file locking causes SQLite 'database is locked' under heavy concurrent writes"
+        reason="Windows mandatory file locking causes SQLite 'database is locked' under heavy concurrent writes",
     )
     def test_concurrent_writes_separate_instances(self):
         """Test concurrent writes via separate store instances on same file."""
