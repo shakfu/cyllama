@@ -31,6 +31,11 @@ on:
         required: false
         default: false
         type: boolean
+      upload_release:
+        description: 'Upload wheels to GitHub Release'
+        required: false
+        default: false
+        type: boolean
       publish_index:
         description: 'Publish to GitHub Pages wheel index'
         required: false
@@ -469,7 +474,7 @@ jobs:
   upload_release:
     name: Upload wheels to GitHub Release
     needs: collect
-    if: always() && !cancelled() && needs.collect.result == 'success'
+    if: inputs.upload_release && always() && !cancelled() && needs.collect.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: write

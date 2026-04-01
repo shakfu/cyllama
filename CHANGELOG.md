@@ -19,11 +19,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Fixed
 
-- **SIGILL crash and bloated CUDA/Vulkan wheels** - Wheels compiled on a build machine with AVX-512 or other advanced instruction sets would crash (exit code 132 / SIGILL on CUDA, `Failed to load model` on Vulkan) when run on machines lacking those instructions. All three cmake builds (llama.cpp, whisper.cpp, stable-diffusion.cpp) now set `GGML_NATIVE=OFF` and explicitly disable `GGML_AVX`, `GGML_AVX2`, `GGML_FMA`, `GGML_F16C`, `GGML_BMI2` to produce portable baseline x86_64 binaries. This also fixes a ~4.5x size regression in the CUDA wheel (449 MB -> ~99 MB uncompressed) caused by these instruction set definitions being compiled into CUDA host code
+- **CUDA wheel size regression (762 MB -> ~99 MB uncompressed)** - The `CMAKE_CUDA_ARCHITECTURES` passthrough added in the previous fix was compiling SASS for 5 architectures plus PTX for 1, producing a 762 MB `libggml-cuda.so`. Changed to `CMAKE_CUDA_ARCHITECTURES="75"` (PTX-only for sm_75/Turing), which lets the CUDA driver JIT-compile for the user's actual GPU at runtime. This matches v0.2.1's proven single-arch approach while being forward-proof for CUDA 13.x (which drops pre-Turing support)
+- **`GGML_NATIVE=OFF` moved from `manage.py` to CI workflows** - The portability flags were previously hardcoded in `manage.py`'s `get_backend_cmake_options()`, affecting local development builds. Now set exclusively in `CIBW_BEFORE_ALL_LINUX` and `CIBW_ENVIRONMENT_LINUX` for all four GPU backends (CUDA, ROCm, SYCL, Vulkan), keeping local builds native while ensuring CI wheels are portable
 
 ### Added
 
 - **Automatic GitHub pre-release uploads** - Both `build-cibw` and `build-gpu-wheels` workflows now upload wheels to a GitHub pre-release tagged with the `pyproject.toml` version
+
+### Changed
+
+- **GitHub Release upload is now opt-in** - The `upload_release` job in all four wheel workflows (`build-cibw`, `build-cibw-cached`, `build-gpu-wheels`, `build-gpu-wheels-cached`) is gated behind a new "Upload wheels to GitHub Release" checkbox (default off), preventing accidental releases during test builds
 - **Experimental cached CI workflows** - `build-cibw-cached` and `build-gpu-wheels-cached` variants cache `thirdparty/` build artifacts between runs using `actions/cache`, keyed on `scripts/manage.py` hash. On cache hit, `CIBW_BEFORE_ALL` skips the deps build (including shaderc for Vulkan), reducing CI time on unchanged dependencies
 
 ## [0.2.1]
