@@ -91,8 +91,8 @@ jobs:
         shell: bash
         run: |
           mkdir -p models
-          wget -q https://huggingface.co/unsloth/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q8_0.gguf \
-            -O models/Llama-3.2-1B-Instruct-Q8_0.gguf
+          curl -sL https://huggingface.co/unsloth/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q8_0.gguf \
+            -o models/Llama-3.2-1B-Instruct-Q8_0.gguf
 
       - name: Find matching wheel
         id: find-wheel
