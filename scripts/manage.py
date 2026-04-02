@@ -2105,6 +2105,7 @@ class Application(ShellCmd, metaclass=MetaCommander):
 
         # Write build info
         self._write_build_info(builder_versions)
+        self._write_backend_info()
 
         # Build using scikit-build-core (editable install)
         if not args.deps_only:
@@ -2157,6 +2158,53 @@ class Application(ShellCmd, metaclass=MetaCommander):
                 f.write(f'{k} = "{v}"\n')
 
         self.log.info(f"Wrote build info to {out_path}")
+
+    def _write_backend_info(self) -> None:
+        """Write backend config to src/cyllama/_backend.py."""
+        backends = {
+            "blas": getenv("GGML_BLAS", default=False),
+            "cuda": getenv("GGML_CUDA", default=False),
+            "hip": getenv("GGML_HIP", default=False),
+            "metal": getenv("GGML_METAL", default=(PLATFORM == "Darwin")),
+            "opencl": getenv("GGML_OPENCL", default=False),
+            "sycl": getenv("GGML_SYCL", default=False),
+            "vulkan": getenv("GGML_VULKAN", default=False),
+        }
+
+        def _opt(key: str) -> str | None:
+            return os.environ.get(key) or None
+
+        options = {
+            # CUDA options
+            "cuda_architectures": _opt("CMAKE_CUDA_ARCHITECTURES"),
+            "cuda_compiler": _opt("CMAKE_CUDA_COMPILER"),
+            "cuda_fa_all_quants": _opt("GGML_CUDA_FA_ALL_QUANTS"),
+            "cuda_force_cublas": _opt("GGML_CUDA_FORCE_CUBLAS"),
+            "cuda_force_mmq": _opt("GGML_CUDA_FORCE_MMQ"),
+            "cuda_peer_max_batch_size": _opt("GGML_CUDA_PEER_MAX_BATCH_SIZE"),
+            # HIP options
+            "hip_architectures": _opt("CMAKE_HIP_ARCHITECTURES"),
+            "hip_rocwmma_fattn": getenv("GGML_HIP_ROCWMMA_FATTN", default=False),
+            # BLAS options
+            "blas_vendor": _opt("GGML_BLAS_VENDOR"),
+            # General options
+            "openmp": _opt("GGML_OPENMP"),
+        }
+
+        out_path = Path("src/cyllama/_backend.py")
+        with open(out_path, "w") as f:
+            f.write('"""Auto-generated backend config from manage.py."""\n\n')
+            for k, v in sorted(backends.items()):
+                f.write(f"{k} = {v}\n")
+            f.write("\n# Backend-specific options\n")
+            for k, v in options.items():
+                if isinstance(v, bool):
+                    f.write(f"{k} = {v}\n")
+                elif v is None:
+                    f.write(f"{k} = None\n")
+                else:
+                    f.write(f'{k} = "{v}"\n')
+        self.log.info(f"Wrote backend info to {out_path}")
 
     # ------------------------------------------------------------------------
     # wheel

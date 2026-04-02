@@ -23,6 +23,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Added
 
+- **Build-time backend config (`_backend.py`)** - `manage.py` now generates `src/cyllama/_backend.py` alongside `_build_info.py`, recording which GPU backends (CUDA, Metal, Vulkan, HIP, SYCL, OpenCL, BLAS) were enabled and their configuration options (CUDA architectures, compiler, tuning flags, HIP architectures, BLAS vendor, OpenMP). Queryable at runtime via `from cyllama import _backend`
+- **Windows CUDA DLL discovery** - New `cyllama.utils.platform` module with `ensure_native_deps()`, called automatically before native extension loads. On Windows with a CUDA build, registers CUDA toolkit DLL directories via `os.add_dll_directory()` (env vars, PATH, and standard install locations). No-op on other platforms or non-CUDA builds. Guards placed in `llama/__init__.py`, `whisper/__init__.py`, and `sd/__init__.py` so all three backends are covered
 - **CUDA performance tuning flags** - `GGML_CUDA_FORCE_MMQ`, `GGML_CUDA_FORCE_CUBLAS`, `GGML_CUDA_PEER_MAX_BATCH_SIZE`, and `GGML_CUDA_FA_ALL_QUANTS` are now forwarded from environment variables to CMake in all three builders (llama.cpp, whisper.cpp, stable-diffusion.cpp)
 - **`CMAKE_CUDA_COMPILER` passthrough** - Users with multiple CUDA toolkit installations can set `CMAKE_CUDA_COMPILER=/path/to/nvcc` to select a specific compiler
 - **Parameterized CUDA version for dynamic builds** - `_release_asset_name()` reads `LLAMACPP_CUDA_RELEASE` env var (default `"12.4"`) instead of hardcoding the CUDA version in the Windows dynamic download asset name
