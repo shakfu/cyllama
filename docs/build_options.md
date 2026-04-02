@@ -190,6 +190,16 @@ python scripts/manage.py build --all --deps-only --cuda
 
 Make sure `CUDA_PATH` or your `PATH` points to the correct CUDA toolkit installation so CMake can find it.
 
+### Runtime DLL Discovery
+
+On Windows, CUDA-linked extensions depend on toolkit DLLs (e.g. `cublas64_13.dll`). When cyllama is built with `GGML_CUDA=1`, it automatically registers CUDA DLL search paths via `os.add_dll_directory()` before loading native extensions. The discovery checks, in order:
+
+1. `CUDA_PATH` / `CUDA_HOME` environment variables
+2. `nvcc` on `PATH`
+3. Standard install location (`C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\`)
+
+This is a no-op on non-Windows platforms or non-CUDA builds, controlled by the build-time `_backend.py` config.
+
 ## Complete Environment Variable Reference
 
 ### Backend Selection
