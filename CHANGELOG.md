@@ -17,6 +17,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+### Added
+
+- **Wheel smoke tests in CI** - New `build-cibw2.yaml` workflow adds a `smoke_test` job that runs after wheel builds on Linux, macOS ARM, and Windows. Installs each platform's wheel in a clean venv and validates: all core imports (API, Cython extensions, agents, integrations, optional whisper/sd), plus a minimal inference call with the 1B test model. Test model is cached across runs via `actions/cache`. Release upload is now gated on smoke test success
+
 ### Fixed
 
 - **Cached GPU workflow synced with active workflow** - `build-gpu-wheels-cached.yml` was stale: CUDA job was missing `GGML_NATIVE=OFF` (risking SIGILL on user CPUs) and used the broad architecture list instead of PTX-only `"75"`. All four backends (CUDA, ROCm, SYCL, Vulkan) now match `build-gpu-wheels.yml` settings. Cache keys now hash both `scripts/manage.py` and the workflow file itself, preventing stale binaries after workflow-only changes
