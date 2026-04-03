@@ -8,9 +8,12 @@ thirdparty/llama.cpp/dynamic
 
 # cython generated code
 src/cyllama/llama/llama_cpp.cpp
+src/cyllama/llama/llama_cpp.c
 src/cyllama/llama/server/embedded.cpp
+src/cyllama/sd/stable_diffusion.c
 src/cyllama/whisper/whisper_cpp.cpp
 src/cyllama/stablediffusion/stable_diffusion.cpp
+src/cyllama/whisper/whisper_cpp.c
 
 tests/cpp
 changes.diff
