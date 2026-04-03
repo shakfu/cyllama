@@ -1033,6 +1033,13 @@ class LlamaCppBuilder(Builder):
             options["GGML_OPENMP"] = "ON" if openmp == "1" else "OFF"
             self.log.info(f"  GGML_OPENMP={options['GGML_OPENMP']}")
 
+        # GGML_NATIVE: optimize for the build machine's CPU.  Must be OFF
+        # for portable/CI wheels and when GGML_CPU_ALL_VARIANTS is used.
+        ggml_native = os.environ.get("GGML_NATIVE")
+        if ggml_native is not None:
+            options["GGML_NATIVE"] = "ON" if ggml_native == "1" else "OFF"
+            self.log.info(f"  GGML_NATIVE={options['GGML_NATIVE']}")
+
         # CPU all-variants: build ggml-cpu for multiple x86 ISAs (AVX, AVX2,
         # AVX512, etc.) so the optimal one is selected at runtime.  Requires
         # GGML_BACKEND_DL (set automatically by build_shared).
@@ -1177,6 +1184,10 @@ class LlamaCppBuilder(Builder):
         self.glob_copy(self.src_dir / "tools" / "mtmd", self.include, patterns=["*.h"])
 
         backend_options = self.get_backend_cmake_options()
+        # GGML_NATIVE is incompatible with GGML_BACKEND_DL; disable it
+        # unless GGML_CPU_ALL_VARIANTS already handled it.
+        if "GGML_NATIVE" not in backend_options:
+            backend_options["GGML_NATIVE"] = "OFF"
         self.cmake_config(
             src_dir=self.src_dir,
             build_dir=self.build_dir,
