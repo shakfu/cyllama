@@ -587,7 +587,7 @@ def ggml_backend_load_all():
     Must be called before creating a WhisperContext so that GPU backends
     are registered and available for inference.
     """
-    import os
+    import os, glob
     _dir = os.path.dirname(os.path.abspath(__file__))
     # In dynamic builds the backend libs live alongside the llama extension
     _llama_dir = os.path.join(os.path.dirname(_dir), "llama")
@@ -595,6 +595,12 @@ def ggml_backend_load_all():
         wh.ggml_backend_load_all_from_path(_llama_dir.encode())
     else:
         wh.ggml_backend_load_all_from_path(_dir.encode())
+    # Dynamic (auditwheel-repaired) wheels place backend libs in a
+    # cyllama_<variant>.libs/ directory two levels up from this file.
+    # Scan that directory too so GPU backends get registered.
+    _site = os.path.dirname(os.path.dirname(_dir))  # site-packages/
+    for libs_dir in glob.glob(os.path.join(_site, "cyllama*.libs")):
+        wh.ggml_backend_load_all_from_path(libs_dir.encode())
 
 def version():
     return wh.whisper_version().decode('utf-8')

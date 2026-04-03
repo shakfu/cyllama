@@ -2177,21 +2177,42 @@ class Application(ShellCmd, metaclass=MetaCommander):
         # By default, all backends link against llama.cpp's ggml (both static
         # and dynamic builds). When SD_USE_VENDORED_GGML=1, stable-diffusion.cpp
         # uses its own vendored ggml instead, so we report that version.
-        llama_ggml_version = _read_ggml_version(
-            build_dir / "llama.cpp" / "ggml" / "CMakeLists.txt"
-        )
+        #
+        # Read ggml versions from each builder's source tree.  Collect all
+        # versions first so we can determine the canonical (llama.cpp) one.
+        # Search multiple paths: the build source tree (always present after
+        # build()), then the sd.cpp vendored copy (as a last-resort reference
+        # for the ggml ABI version when llama.cpp sources were cleaned up).
+        ggml_versions: dict[type, str | None] = {}
+        for BuilderClass in builder_versions:
+            ggml_versions[BuilderClass] = _read_ggml_version(
+                build_dir / BuilderClass.name / "ggml" / "CMakeLists.txt"
+            )
+
+        llama_ggml_version = ggml_versions.get(LlamaCppBuilder)
+        # Fallback: if llama.cpp sources are unavailable (e.g. --dynamic
+        # download_release skipped cloning), try whisper.cpp's ggml which
+        # shares the same version as llama.cpp's.
+        if not llama_ggml_version:
+            llama_ggml_version = ggml_versions.get(WhisperCppBuilder)
         sd_uses_vendored_ggml = os.environ.get("SD_USE_VENDORED_GGML") == "1"
 
         for BuilderClass, version in builder_versions.items():
             name = BuilderClass.name.replace(".", "_").replace("-", "_")
             info[f"{name}_version"] = version
 
-            ggml_ver = _read_ggml_version(
-                build_dir / BuilderClass.name / "ggml" / "CMakeLists.txt"
-            )
+            ggml_ver = ggml_versions[BuilderClass]
             if ggml_ver is not None:
                 use_vendored = sd_uses_vendored_ggml and BuilderClass == StableDiffusionCppBuilder
-                info[f"{name}_ggml_version"] = ggml_ver if use_vendored else (llama_ggml_version or ggml_ver)
+                if not use_vendored and llama_ggml_version:
+                    info[f"{name}_ggml_version"] = llama_ggml_version
+                else:
+                    info[f"{name}_ggml_version"] = ggml_ver
+                    if not use_vendored and not llama_ggml_version:
+                        self.log.warning(
+                            f"Could not determine llama.cpp ggml version; "
+                            f"reporting {BuilderClass.name}'s vendored ggml {ggml_ver}"
+                        )
 
         out_path = Path("src/cyllama/_build_info.py")
         with open(out_path, "w") as f:

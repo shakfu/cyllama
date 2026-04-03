@@ -2960,13 +2960,19 @@ def ggml_commit() -> str:
     return ggml.ggml_commit().decode()
 
 def ggml_backend_load_all():
-    import os
+    import os, glob
     # ggml's default search paths (executable dir, cwd) won't find backend
     # libs bundled alongside this extension. Always search our package dir.
     # In static builds this harmlessly finds nothing; in dynamic builds it
     # discovers the libggml-cpu-*.so / .dylib variants.
     _dir = os.path.dirname(os.path.abspath(__file__))
     ggml.ggml_backend_load_all_from_path(_dir.encode())
+    # Dynamic (auditwheel-repaired) wheels place backend libs in a
+    # cyllama_<variant>.libs/ directory two levels up from this file.
+    # Scan that directory too so GPU backends get registered.
+    _site = os.path.dirname(os.path.dirname(_dir))  # site-packages/
+    for libs_dir in glob.glob(os.path.join(_site, "cyllama*.libs")):
+        ggml.ggml_backend_load_all_from_path(libs_dir.encode())
 
 def ggml_backend_reg_count() -> int:
     """Return the number of registered backend registries."""

@@ -15,27 +15,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ---
 
-<<<<<<< HEAD
 ## [0.2.3]
-
-### Fixed
-
-- **Crash on failed image generation** - `save_outputs` now skips images with no valid data instead of raising `ValueError: Image has no valid data`. All image generation commands (`txt2img`, `img2img`, `inpaint`, `controlnet`) report a clean error and exit with code 1 when no images are generated successfully (e.g. due to CUDA OOM)
-- **`--offload-to-cpu` now enables `free_params_immediately`** - When CPU offloading is requested, model parameters are freed from VRAM immediately after each component finishes, maximizing available VRAM for the next component
-- **GPU backend cross-contamination in wheel builds** - All three dep builders (llama.cpp, whisper.cpp, stable-diffusion.cpp) now explicitly set unused GPU backends to `OFF` in CMake, preventing stale cache entries from enabling the wrong backend. This fixes an issue where the Vulkan wheel's `libstable-diffusion.a` could be compiled with `SD_USE_CUDA` instead of `SD_USE_VULKAN`
-=======
-## [Unreleased]
 
 ### Added
 
 - **Wheel smoke tests in CI** - New `build-cibw2.yaml` workflow adds a `smoke_test` job that runs after wheel builds on Linux, macOS ARM, and Windows. Installs each platform's wheel in a clean venv and validates: all core imports (API, Cython extensions, agents, integrations, optional whisper/sd), plus a minimal inference call with the 1B test model. Test model is cached across runs via `actions/cache`. Release upload is now gated on smoke test success
-
-### Fixed
-
-- **Cached GPU workflow synced with active workflow** - `build-gpu-wheels-cached.yml` was stale: CUDA job was missing `GGML_NATIVE=OFF` (risking SIGILL on user CPUs) and used the broad architecture list instead of PTX-only `"75"`. All four backends (CUDA, ROCm, SYCL, Vulkan) now match `build-gpu-wheels.yml` settings. Cache keys now hash both `scripts/manage.py` and the workflow file itself, preventing stale binaries after workflow-only changes
-
-### Added
-
 - **Build-time backend config (`_backend.py`)** - `manage.py` now generates `src/cyllama/_backend.py` alongside `_build_info.py`, recording which GPU backends (CUDA, Metal, Vulkan, HIP, SYCL, OpenCL, BLAS) were enabled and their configuration options (CUDA architectures, compiler, tuning flags, HIP architectures, BLAS vendor, OpenMP). Queryable at runtime via `from cyllama import _backend`
 - **Windows CUDA DLL discovery** - New `cyllama.utils.platform` module with `ensure_native_deps()`, called automatically before native extension loads. On Windows with a CUDA build, registers CUDA toolkit DLL directories via `os.add_dll_directory()` (env vars, PATH, and standard install locations). No-op on other platforms or non-CUDA builds. Guards placed in `llama/__init__.py`, `whisper/__init__.py`, and `sd/__init__.py` so all three backends are covered
 - **CUDA performance tuning flags** - `GGML_CUDA_FORCE_MMQ`, `GGML_CUDA_FORCE_CUBLAS`, `GGML_CUDA_PEER_MAX_BATCH_SIZE`, and `GGML_CUDA_FA_ALL_QUANTS` are now forwarded from environment variables to CMake in all three builders (llama.cpp, whisper.cpp, stable-diffusion.cpp)
@@ -46,7 +30,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 - **`GGML_HIP_ROCWMMA_FATTN` passthrough** - Enables rocWMMA-accelerated flash attention for AMD GPUs with supported hardware, forwarded to llama.cpp and whisper.cpp builders
 - **Build options analysis** - Added `docs/dev/build-options.md` documenting the comparison of local, CI, and upstream llama.cpp build configurations
 - **Advanced Build Options guide** - Added `docs/build_options.md` covering CUDA tuning, architecture targeting, BLAS/OpenMP configuration, dynamic linking, Windows builds, and complete environment variable reference
->>>>>>> e0eff5e869e4718fc9695f94b405bd46c4b133ec
+
+### Fixed
+
+- **Crash on failed image generation** - `save_outputs` now skips images with no valid data instead of raising `ValueError: Image has no valid data`. All image generation commands (`txt2img`, `img2img`, `inpaint`, `controlnet`) report a clean error and exit with code 1 when no images are generated successfully (e.g. due to CUDA OOM)
+- **`--offload-to-cpu` now enables `free_params_immediately`** - When CPU offloading is requested, model parameters are freed from VRAM immediately after each component finishes, maximizing available VRAM for the next component
+- **GPU backend cross-contamination in wheel builds** - All three dep builders (llama.cpp, whisper.cpp, stable-diffusion.cpp) now explicitly set unused GPU backends to `OFF` in CMake, preventing stale cache entries from enabling the wrong backend. This fixes an issue where the Vulkan wheel's `libstable-diffusion.a` could be compiled with `SD_USE_CUDA` instead of `SD_USE_VULKAN`
+- **GPU backend discovery in dynamic wheels** - `ggml_backend_load_all()` in all three modules (llama, whisper, sd) now also scans the `cyllama_<variant>.libs/` directory where `auditwheel` places backend shared libraries. Previously only `cyllama/llama/` was searched, so GPU backends like `libggml-vulkan` were linked but never registered with ggml's backend registry
+- **Incorrect ggml version reported for sd.cpp in dynamic builds** - `_write_build_info` reported sd.cpp's vendored ggml version (0.9.5) instead of the shared llama.cpp ggml version (0.9.8) when llama.cpp sources were unavailable (e.g. `--dynamic` builds that download pre-built binaries). Now falls back to whisper.cpp's ggml version (which matches llama.cpp's) and warns if neither is available
+- **Cached GPU workflow synced with active workflow** - `build-gpu-wheels-cached.yml` was stale: CUDA job was missing `GGML_NATIVE=OFF` (risking SIGILL on user CPUs) and used the broad architecture list instead of PTX-only `"75"`. All four backends (CUDA, ROCm, SYCL, Vulkan) now match `build-gpu-wheels.yml` settings. Cache keys now hash both `scripts/manage.py` and the workflow file itself, preventing stale binaries after workflow-only changes
 
 ## [0.2.2]
 
