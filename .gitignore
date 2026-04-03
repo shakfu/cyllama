@@ -6,6 +6,9 @@ models
 thirdparty/llama-cpp-python
 thirdparty/llama.cpp/dynamic
 
+# build-generated backend config
+src/cyllama/_backend.py
+
 # cython generated code
 src/cyllama/llama/llama_cpp.cpp
 src/cyllama/llama/llama_cpp.c
