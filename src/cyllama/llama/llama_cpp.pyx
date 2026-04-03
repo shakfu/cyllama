@@ -2960,19 +2960,22 @@ def ggml_commit() -> str:
     return ggml.ggml_commit().decode()
 
 def ggml_backend_load_all():
-    import os, glob
+    import os
+    from .._backend_dl import libs_to_load
     # ggml's default search paths (executable dir, cwd) won't find backend
     # libs bundled alongside this extension. Always search our package dir.
     # In static builds this harmlessly finds nothing; in dynamic builds it
     # discovers the libggml-cpu-*.so / .dylib variants.
     _dir = os.path.dirname(os.path.abspath(__file__))
     ggml.ggml_backend_load_all_from_path(_dir.encode())
-    # Dynamic (auditwheel-repaired) wheels place backend libs in a
-    # cyllama_<variant>.libs/ directory two levels up from this file.
-    # Scan that directory too so GPU backends get registered.
+    # Wheel repair tools (auditwheel/delvewheel) place backend libs in a
+    # cyllama_<variant>.libs/ directory and rename them with content hashes.
+    # ggml's built-in discovery breaks on renamed files, so we load each
+    # candidate individually — ggml_backend_load() silently skips files
+    # that are not valid backends.
     _site = os.path.dirname(os.path.dirname(_dir))  # site-packages/
-    for libs_dir in glob.glob(os.path.join(_site, "cyllama*.libs")):
-        ggml.ggml_backend_load_all_from_path(libs_dir.encode())
+    for _path in libs_to_load(_site):
+        ggml.ggml_backend_load(_path)
 
 def ggml_backend_unload(str name not None):
     """Unload a dynamically-loaded backend by name and unregister it.

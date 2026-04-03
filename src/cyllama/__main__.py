@@ -40,6 +40,34 @@ def _cpu_features_from_info(info: dict[str, str]) -> list[str]:
     return features
 
 
+def _get_built_backends() -> list[str]:
+    """Return GPU backend names enabled at build time (from _backend.py)."""
+    try:
+        from . import _backend
+    except ImportError:
+        return []
+    _names = {
+        "cuda": "CUDA",
+        "vulkan": "Vulkan",
+        "metal": "Metal",
+        "hip": "HIP",
+        "sycl": "SYCL",
+        "opencl": "OpenCL",
+        "blas": "BLAS",
+    }
+    return [name for attr, name in _names.items() if getattr(_backend, attr, False)]
+
+
+def _get_loaded_backends() -> list[str]:
+    """Return GPU backend names currently registered in the ggml registry."""
+    try:
+        from .llama import llama_cpp as cy
+
+        return [r for r in cy.ggml_backend_reg_names() if r not in ("CPU",)]
+    except Exception:
+        return []
+
+
 def _get_build_info() -> dict:
     """Load build info if available."""
     try:
@@ -70,6 +98,8 @@ def cmd_info():
         print(f"  version:       {llama_ver}")
         print(f"  ggml version:  {cy.ggml_version()}")
         print(f"  ggml commit:   {cy.ggml_commit()}")
+        built = _get_built_backends()
+        print(f"  built:         {', '.join(built) if built else 'CPU only'}")
         print(f"  registries:    {', '.join(cy.ggml_backend_reg_names())}")
         devices = cy.ggml_backend_dev_info()
         if devices:
@@ -100,16 +130,10 @@ def cmd_info():
         print(f"  ggml version:  {build_info.get('whisper_cpp_ggml_version', whisper_cpp.version())}")
         info = _parse_system_info(info_str)
         features = _cpu_features_from_info(info)
-        # whisper_print_system_info lists dynamically-loaded backends with
-        # "BACKEND : feature = val |" format.  Detect backend name prefixes.
-        backend_names = ["CUDA", "Metal", "Vulkan", "SYCL", "HIP", "OpenCL"]
-        backends = [b for b in backend_names if f"{b} :" in info_str]
-        # Also check whisper-specific compile-time backends
-        if info.get("COREML") == "1":
-            backends.append("CoreML")
-        if info.get("OPENVINO") == "1":
-            backends.append("OpenVINO")
-        print(f"  backends:      {', '.join(backends) if backends else 'CPU'}")
+        built = _get_built_backends()
+        loaded = _get_loaded_backends()
+        print(f"  built:         {', '.join(built) if built else 'CPU only'}")
+        print(f"  backends:      {', '.join(loaded) if loaded else 'CPU'}")
         if features:
             print(f"  CPU features:  {', '.join(features)}")
     except Exception as e:
@@ -131,16 +155,10 @@ def cmd_info():
         info_str = get_system_info()
         info = _parse_system_info(info_str)
         features = _cpu_features_from_info(info)
-        # sd_get_system_info only reports CPU features (old-style ggml_cpu_has_*),
-        # so query the ggml backend registry for GPU backends.
-        try:
-            from .llama import llama_cpp as cy
-
-            regs = cy.ggml_backend_reg_names()
-            sd_backends = [r for r in regs if r not in ("CPU", "BLAS")]
-            print(f"  backends:      {', '.join(sd_backends) if sd_backends else 'CPU'}")
-        except Exception:
-            print("  backends:      CPU")
+        built = _get_built_backends()
+        loaded = _get_loaded_backends()
+        print(f"  built:         {', '.join(built) if built else 'CPU only'}")
+        print(f"  backends:      {', '.join(loaded) if loaded else 'CPU'}")
         if features:
             print(f"  CPU features:  {', '.join(features)}")
     except Exception as e:

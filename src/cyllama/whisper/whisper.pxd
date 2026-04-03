@@ -345,6 +345,9 @@ cdef extern from "whisper.h":
 cdef extern from *:
     # From ggml-backend.h — declared here to avoid duplicate header inclusion
     # when both llama.cpp and whisper.cpp include paths are present.
+    ctypedef struct ggml_backend_reg: pass
+    ctypedef ggml_backend_reg * ggml_backend_reg_t
+    cdef ggml_backend_reg_t ggml_backend_load(const char * path)
     cdef void ggml_backend_load_all()
     cdef void ggml_backend_load_all_from_path(const char * dir_path)
 

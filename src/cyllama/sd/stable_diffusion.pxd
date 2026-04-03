@@ -415,5 +415,8 @@ cdef extern from "stable-diffusion.h":
 
 
 cdef extern from "ggml-backend.h" nogil:
+    ctypedef struct ggml_backend_reg: pass
+    ctypedef ggml_backend_reg * ggml_backend_reg_t
+    cdef ggml_backend_reg_t ggml_backend_load(const char * path)
     cdef void ggml_backend_load_all()
     cdef void ggml_backend_load_all_from_path(const char * dir_path)

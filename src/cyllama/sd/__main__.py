@@ -286,8 +286,7 @@ def save_outputs(images, args):
     saved = 0
     for i, img in enumerate(images):
         if not img.is_valid:
-            print(f"Warning: image {i + 1}/{batch} has no valid data, skipping",
-                  file=sys.stderr)
+            print(f"Warning: image {i + 1}/{batch} has no valid data, skipping", file=sys.stderr)
             continue
         if batch == 1:
             output_path = args.output

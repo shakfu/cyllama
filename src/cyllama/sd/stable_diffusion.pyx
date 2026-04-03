@@ -152,7 +152,8 @@ def ggml_backend_load_all():
 
     Call before querying system info so that GPU backends are registered.
     """
-    import os, glob
+    import os
+    from .._backend_dl import libs_to_load
     _dir = os.path.dirname(os.path.abspath(__file__))
     # In dynamic builds the backend libs live alongside the llama extension
     _llama_dir = os.path.join(os.path.dirname(_dir), "llama")
@@ -160,12 +161,14 @@ def ggml_backend_load_all():
         ggml_backend_load_all_from_path(_llama_dir.encode())
     else:
         ggml_backend_load_all_from_path(_dir.encode())
-    # Dynamic (auditwheel-repaired) wheels place backend libs in a
-    # cyllama_<variant>.libs/ directory two levels up from this file.
-    # Scan that directory too so GPU backends get registered.
+    # Wheel repair tools (auditwheel/delvewheel) place backend libs in a
+    # cyllama_<variant>.libs/ directory and rename them with content hashes.
+    # ggml's built-in discovery breaks on renamed files, so we load each
+    # candidate individually — ggml_backend_load() silently skips files
+    # that are not valid backends.
     _site = os.path.dirname(os.path.dirname(_dir))  # site-packages/
-    for libs_dir in glob.glob(os.path.join(_site, "cyllama*.libs")):
-        ggml_backend_load_all_from_path(libs_dir.encode())
+    for _path in libs_to_load(_site):
+        ggml_backend_load(_path)
 
 
 def get_num_cores() -> int:
