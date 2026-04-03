@@ -65,6 +65,7 @@ def cmd_info():
         from .llama import llama_cpp as cy
 
         cy.llama_backend_init()
+        cy.ggml_backend_load_all()
         llama_ver = build_info.get("llama_cpp_version", "unknown")
         print(f"  version:       {llama_ver}")
         print(f"  ggml version:  {cy.ggml_version()}")

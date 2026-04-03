@@ -30,6 +30,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 - **`GGML_HIP_ROCWMMA_FATTN` passthrough** - Enables rocWMMA-accelerated flash attention for AMD GPUs with supported hardware, forwarded to llama.cpp and whisper.cpp builders
 - **Build options analysis** - Added `docs/dev/build-options.md` documenting the comparison of local, CI, and upstream llama.cpp build configurations
 - **Advanced Build Options guide** - Added `docs/build_options.md` covering CUDA tuning, architecture targeting, BLAS/OpenMP configuration, dynamic linking, Windows builds, and complete environment variable reference
+- **`ggml_backend_unload()` exposed in llama_cpp** - New Python-callable function to unload a dynamically-loaded backend by name (e.g. `"Vulkan"`, `"CUDA"`) and unregister it from the ggml backend registry. Only works with backends loaded via `ggml_backend_load_all()` (i.e. `GGML_BACKEND_DL` builds)
+- **`GGML_CPU_ALL_VARIANTS` build option** - New `--cpu-all-variants` CLI flag and `GGML_CPU_ALL_VARIANTS=1` env var for `manage.py build`. Builds the ggml-cpu backend for multiple x86 ISAs (AVX, AVX2, AVX512, etc.) as separate shared libraries; the optimal one is selected at runtime. Automatically disables `GGML_NATIVE` (they are incompatible). Requires `GGML_BACKEND_DL` (set automatically by `build_shared`)
+- **`GGML_BACKEND_DL` enabled for dynamic builds** - `LlamaCppBuilder.build_shared()` now passes `GGML_BACKEND_DL=ON` to CMake so that GPU backend shared libraries (Vulkan, CUDA, etc.) are built as loadable modules with the `ggml_backend_score` entry point. Without this, `auditwheel`-repaired wheels contained the backend `.so` files but ggml's runtime loader silently skipped them
 
 ### Fixed
 
@@ -39,6 +42,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 - **GPU backend discovery in dynamic wheels** - `ggml_backend_load_all()` in all three modules (llama, whisper, sd) now also scans the `cyllama_<variant>.libs/` directory where `auditwheel` places backend shared libraries. Previously only `cyllama/llama/` was searched, so GPU backends like `libggml-vulkan` were linked but never registered with ggml's backend registry
 - **Incorrect ggml version reported for sd.cpp in dynamic builds** - `_write_build_info` reported sd.cpp's vendored ggml version (0.9.5) instead of the shared llama.cpp ggml version (0.9.8) when llama.cpp sources were unavailable (e.g. `--dynamic` builds that download pre-built binaries). Now falls back to whisper.cpp's ggml version (which matches llama.cpp's) and warns if neither is available
 - **Cached GPU workflow synced with active workflow** - `build-gpu-wheels-cached.yml` was stale: CUDA job was missing `GGML_NATIVE=OFF` (risking SIGILL on user CPUs) and used the broad architecture list instead of PTX-only `"75"`. All four backends (CUDA, ROCm, SYCL, Vulkan) now match `build-gpu-wheels.yml` settings. Cache keys now hash both `scripts/manage.py` and the workflow file itself, preventing stale binaries after workflow-only changes
+- **GPU offload reported as False in dynamic wheels** - `cmd_info()` in `__main__.py` called `llama_backend_init()` but never called `ggml_backend_load_all()` for the llama.cpp section, so the backend registry was empty and `llama_supports_gpu_offload()` returned `False`. The whisper and sd sections already had this call. Now all three sections load backends before querying them
 
 ## [0.2.2]
 

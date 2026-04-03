@@ -2974,6 +2974,22 @@ def ggml_backend_load_all():
     for libs_dir in glob.glob(os.path.join(_site, "cyllama*.libs")):
         ggml.ggml_backend_load_all_from_path(libs_dir.encode())
 
+def ggml_backend_unload(str name not None):
+    """Unload a dynamically-loaded backend by name and unregister it.
+
+    Only backends that were loaded via ggml_backend_load_all() (i.e.
+    GGML_BACKEND_DL builds) can be unloaded.  The *name* must match the
+    registry name exactly (e.g. "Vulkan", "CUDA").
+    """
+    cdef size_t n = ggml.ggml_backend_reg_count()
+    cdef bytes bname = name.encode()
+    for i in range(n):
+        reg = ggml.ggml_backend_reg_get(i)
+        if ggml.ggml_backend_reg_name(reg) == bname:
+            ggml.ggml_backend_unload(reg)
+            return
+    raise ValueError(f"backend '{name}' not found in registry")
+
 def ggml_backend_reg_count() -> int:
     """Return the number of registered backend registries."""
     return ggml.ggml_backend_reg_count()

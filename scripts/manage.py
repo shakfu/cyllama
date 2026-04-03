@@ -53,6 +53,7 @@ Backend support (via build command flags or environment variables):
     --hip, -H         Enable HIP/ROCm backend (AMD GPUs)
     --opencl, -o      Enable OpenCL backend
     --cpu-only, -C    Disable all GPU backends
+    --cpu-all-variants Build CPU backend variants for all x86 ISAs (requires --dynamic)
 
 Environment variables:
     GGML_METAL=1      Enable Metal backend (default ON on macOS, all components)
@@ -61,6 +62,7 @@ Environment variables:
     GGML_SYCL=1       Enable SYCL backend
     GGML_HIP=1        Enable HIP/ROCm backend
     GGML_OPENCL=1     Enable OpenCL backend
+    GGML_CPU_ALL_VARIANTS=1  Build CPU variants for all x86 ISAs (AVX, AVX2, AVX512, etc.)
 """
 
 import argparse
@@ -1031,6 +1033,14 @@ class LlamaCppBuilder(Builder):
             options["GGML_OPENMP"] = "ON" if openmp == "1" else "OFF"
             self.log.info(f"  GGML_OPENMP={options['GGML_OPENMP']}")
 
+        # CPU all-variants: build ggml-cpu for multiple x86 ISAs (AVX, AVX2,
+        # AVX512, etc.) so the optimal one is selected at runtime.  Requires
+        # GGML_BACKEND_DL (set automatically by build_shared).
+        if getenv("GGML_CPU_ALL_VARIANTS", default=False):
+            options["GGML_CPU_ALL_VARIANTS"] = "ON"
+            options["GGML_NATIVE"] = "OFF"
+            self.log.info("Enabling CPU all-variants (multi-ISA)")
+
         return options
 
     def copy_backend_libs(self) -> None:
@@ -1171,6 +1181,7 @@ class LlamaCppBuilder(Builder):
             src_dir=self.src_dir,
             build_dir=self.build_dir,
             BUILD_SHARED_LIBS=True,
+            GGML_BACKEND_DL=True,
             CMAKE_POSITION_INDEPENDENT_CODE=True,
             LLAMA_CURL=False,
             LLAMA_OPENSSL=True,
@@ -2041,6 +2052,7 @@ class Application(ShellCmd, metaclass=MetaCommander):
     @option("--blas", help="enable BLAS backend (use GGML_BLAS_VENDOR env var for vendor)", action="store_true")
     @option("--no-openmp", help="disable OpenMP", action="store_true")
     @opt("--cpu-only", "-C", "disable all GPU backends (CPU only)")
+    @option("--cpu-all-variants", help="build CPU backend variants for all x86 ISAs (requires --dynamic)", action="store_true")
     @opt("-w", "--whisper-cpp", "build whisper-cpp")
     @opt("-d", "--stable-diffusion", "build stable-diffusion")
     @opt("-l", "--llama-cpp", "build llama-cpp")
@@ -2097,6 +2109,8 @@ class Application(ShellCmd, metaclass=MetaCommander):
                 os.environ["GGML_BLAS"] = "1"
         if args.no_openmp:
             os.environ["GGML_OPENMP"] = "0"
+        if args.cpu_all_variants:
+            os.environ["GGML_CPU_ALL_VARIANTS"] = "1"
 
         if args.sd_vendored_ggml:
             os.environ["SD_USE_VENDORED_GGML"] = "1"
