@@ -201,6 +201,7 @@ def create_context_params(args):
     # Memory/performance options
     if hasattr(args, "offload_to_cpu") and args.offload_to_cpu:
         params.offload_params_to_cpu = True
+        params.free_params_immediately = True
     if hasattr(args, "clip_on_cpu") and args.clip_on_cpu:
         params.keep_clip_on_cpu = True
     if hasattr(args, "vae_on_cpu") and args.vae_on_cpu:
@@ -282,13 +283,20 @@ def parse_sampler_scheduler(args):
 def save_outputs(images, args):
     """Save generated images."""
     batch = len(images)
+    saved = 0
     for i, img in enumerate(images):
+        if not img.is_valid:
+            print(f"Warning: image {i + 1}/{batch} has no valid data, skipping",
+                  file=sys.stderr)
+            continue
         if batch == 1:
             output_path = args.output
         else:
             base, ext = os.path.splitext(args.output)
             output_path = f"{base}_{i + 1}{ext}"
         save_image(img, output_path)
+        saved += 1
+    return saved
 
 
 # =============================================================================
@@ -354,7 +362,10 @@ def cmd_txt2img(args):
         print()
     print(f"Generated {len(images)} image(s) in {gen_time:.2f}s")
 
-    save_outputs(images, args)
+    saved = save_outputs(images, args)
+    if saved == 0:
+        print("Error: no images were generated successfully", file=sys.stderr)
+        return 1
     return 0
 
 
@@ -432,7 +443,10 @@ def cmd_img2img(args):
         print()
     print(f"Generated {len(images)} image(s) in {gen_time:.2f}s")
 
-    save_outputs(images, args)
+    saved = save_outputs(images, args)
+    if saved == 0:
+        print("Error: no images were generated successfully", file=sys.stderr)
+        return 1
     return 0
 
 
@@ -515,7 +529,10 @@ def cmd_inpaint(args):
         print()
     print(f"Generated {len(images)} image(s) in {gen_time:.2f}s")
 
-    save_outputs(images, args)
+    saved = save_outputs(images, args)
+    if saved == 0:
+        print("Error: no images were generated successfully", file=sys.stderr)
+        return 1
     return 0
 
 
@@ -595,7 +612,10 @@ def cmd_controlnet(args):
         print()
     print(f"Generated {len(images)} image(s) in {gen_time:.2f}s")
 
-    save_outputs(images, args)
+    saved = save_outputs(images, args)
+    if saved == 0:
+        print("Error: no images were generated successfully", file=sys.stderr)
+        return 1
     return 0
 
 

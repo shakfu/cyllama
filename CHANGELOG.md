@@ -15,6 +15,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ---
 
+## [0.2.3]
+
+### Fixed
+
+- **Crash on failed image generation** - `save_outputs` now skips images with no valid data instead of raising `ValueError: Image has no valid data`. All image generation commands (`txt2img`, `img2img`, `inpaint`, `controlnet`) report a clean error and exit with code 1 when no images are generated successfully (e.g. due to CUDA OOM)
+- **`--offload-to-cpu` now enables `free_params_immediately`** - When CPU offloading is requested, model parameters are freed from VRAM immediately after each component finishes, maximizing available VRAM for the next component
+- **GPU backend cross-contamination in wheel builds** - All three dep builders (llama.cpp, whisper.cpp, stable-diffusion.cpp) now explicitly set unused GPU backends to `OFF` in CMake, preventing stale cache entries from enabling the wrong backend. This fixes an issue where the Vulkan wheel's `libstable-diffusion.a` could be compiled with `SD_USE_CUDA` instead of `SD_USE_VULKAN`
+
 ## [0.2.2]
 
 ### Fixed
