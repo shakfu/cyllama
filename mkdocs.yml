@@ -49,6 +49,7 @@ nav:
     - Cookbook: cookbook.md
     - Examples: examples.md
     - Build Backends: build_backends.md
+    - Advanced Build Options: build_options.md
     - Context Caching: context_caching.md
     - Server Usage: server_usage_examples.md
   - Whisper.cpp:

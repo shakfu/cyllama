@@ -1,6 +1,13 @@
 name: build-cibw
 
-on: [workflow_dispatch]
+on:
+  workflow_dispatch:
+    inputs:
+      upload_release:
+        description: 'Upload wheels to GitHub Release'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   build_wheels:
@@ -65,6 +72,7 @@ jobs:
   upload_release:
     name: Upload wheels to GitHub Release
     needs: collect_wheels
+    if: inputs.upload_release
     runs-on: ubuntu-latest
     permissions:
       contents: write

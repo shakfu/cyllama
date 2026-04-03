@@ -1,5 +1,6 @@
 """Tests for the RAG VectorStore class."""
 
+import sys
 import tempfile
 from pathlib import Path
 
@@ -537,6 +538,10 @@ class TestConcurrentAccess:
             assert len(error_holder) == 1
             assert "thread" in str(error_holder[0]).lower()
 
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="Windows mandatory file locking causes SQLite 'database is locked' under heavy concurrent writes",
+    )
     def test_concurrent_writes_separate_instances(self):
         """Test concurrent writes via separate store instances on same file."""
         import threading

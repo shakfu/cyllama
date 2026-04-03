@@ -53,6 +53,14 @@ You can verify which backend is active after installation:
 python -m cyllama info
 ```
 
+You can also query the backend configuration at runtime:
+
+```python
+from cyllama import _backend
+print(_backend.cuda)   # True if built with CUDA
+print(_backend.metal)  # True if built with Metal
+```
+
 ### Build from source with a specific backend
 
 ```sh

@@ -1,6 +1,13 @@
 name: build-cibw-cached
 
-on: [workflow_dispatch]
+on:
+  workflow_dispatch:
+    inputs:
+      upload_release:
+        description: 'Upload wheels to GitHub Release'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   build_wheels:
@@ -33,7 +40,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: thirdparty/
-          key: deps-cibw-${{ matrix.os }}-${{ hashFiles('scripts/manage.py') }}
+          key: deps-cibw-${{ matrix.os }}-${{ hashFiles('scripts/manage.py', '.github/workflows/build-cibw-cached.yaml') }}
 
       - name: Build wheels
         uses: pypa/cibuildwheel@v3.4.0
@@ -72,6 +79,7 @@ jobs:
   upload_release:
     name: Upload wheels to GitHub Release
     needs: collect_wheels
+    if: inputs.upload_release
     runs-on: ubuntu-latest
     permissions:
       contents: write

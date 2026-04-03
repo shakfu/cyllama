@@ -47,6 +47,10 @@ CLI Usage:
     python -m cyllama.sd info
 """
 
+from ..utils.platform import ensure_native_deps
+
+ensure_native_deps()
+
 from .stable_diffusion import (
     # Main classes
     SDContext,

@@ -79,7 +79,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"__init__.py" = ["F401"]  # Re-exports
+"__init__.py" = ["F401", "E402"]  # Re-exports, native dep setup before imports
 "src/cyllama/agents/*" = ["E402", "F811", "F821"]  # Conditional imports, forward refs, factory methods
 "src/cyllama/api.py" = ["E402"]  # Import after path setup
 "src/cyllama/batching.py" = ["E402"]  # Import after path setup

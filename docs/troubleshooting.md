@@ -296,6 +296,41 @@ response = chat(messages, model_path="model.gguf")
    nvidia-smi
    ```
 
+### CUDA DLLs Not Found (Windows)
+
+**Symptoms:** `ImportError` or `DLL load failed` when importing cyllama on Windows with a CUDA build.
+
+**Cause:** CUDA toolkit DLLs (e.g. `cublas64_13.dll`) are not on the DLL search path.
+
+Cyllama automatically discovers CUDA DLL paths when built with `GGML_CUDA=1`, but the discovery may fail if:
+
+- CUDA toolkit is installed in a non-standard location
+- Neither `CUDA_PATH` nor `CUDA_HOME` is set
+- `nvcc` is not on `PATH`
+
+**Solutions:**
+
+1. **Set the CUDA_PATH environment variable:**
+
+   ```powershell
+   $env:CUDA_PATH = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.4"
+   ```
+
+2. **Add CUDA bin to PATH:**
+
+   ```powershell
+   $env:PATH = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.4\bin;$env:PATH"
+   ```
+
+3. **Verify the build detected CUDA:**
+
+   ```python
+   from cyllama import _backend
+   print(_backend.cuda)  # Should be True
+   ```
+
+   If `False`, the package was not built with CUDA support. Rebuild with `GGML_CUDA=1`.
+
 ### Vulkan Issues
 
 **Symptoms:** Vulkan backend not loading.
