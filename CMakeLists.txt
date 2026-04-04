@@ -271,6 +271,7 @@ if(WITH_DYLIB)
                 message(WARNING "No portable CPU variant (x64/sse42) found, linking against ${_cpu_link_lib}")
             endif()
             list(APPEND DYLIBS "${_cpu_link_lib}")
+            list(APPEND DYLIB_FILES "${_cpu_link_lib}")
             get_filename_component(_link_name "${_cpu_link_lib}" NAME)
             message(STATUS "  CPU link variant: ${_link_name}")
             foreach(_v ${_cpu_variants})
@@ -978,12 +979,10 @@ install(TARGETS vector DESTINATION "cyllama/rag")
 # -----------------------------------------------------------------------------
 
 if(WITH_DYLIB AND DYLIB_FILES)
-    # On macOS: install dylibs alongside the extension so @loader_path resolves.
-    # On Linux: auditwheel vendors and patches libs into <pkg>.libs/, so skip
-    # this install to avoid duplication in the wheel.
-    if(APPLE)
-        install(FILES ${DYLIB_FILES} DESTINATION "cyllama/llama")
-    endif()
+    # Install dylibs alongside the extension so $ORIGIN / @loader_path resolves.
+    # For wheel builds on Linux, auditwheel will later vendor and patch these
+    # into <pkg>.libs/, but editable installs need them in place.
+    install(FILES ${DYLIB_FILES} DESTINATION "cyllama/llama")
     foreach(_f ${DYLIB_FILES})
         get_filename_component(_n "${_f}" NAME)
         message(STATUS "  dylib: ${_n}")

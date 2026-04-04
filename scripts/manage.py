@@ -2395,11 +2395,16 @@ class Application(ShellCmd, metaclass=MetaCommander):
             if cpp.exists():
                 self.remove(cpp, silent=not verbose)
 
-        # Reset: also remove build/ and thirdparty libs
+        # Clean dynamic/ from thirdparty deps
+        thirdparty = cwd / "thirdparty"
+        for dep in ["llama.cpp", "whisper.cpp", "stable-diffusion.cpp"]:
+            self.remove(thirdparty / dep / "dynamic", silent=not verbose)
+
+        # Reset: also remove build/, thirdparty libs, and .venv
         if args.reset:
             self.remove(cwd / "build", silent=not verbose)
+            self.remove(cwd / ".venv", silent=not verbose)
 
-            thirdparty = cwd / "thirdparty"
             for dep in ["llama.cpp", "whisper.cpp", "stable-diffusion.cpp"]:
                 dep_dir = thirdparty / dep
                 for subdir in ["bin", "lib", "include"]:

@@ -17,6 +17,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [0.2.3]
 
+### Fixed
+
+- **Dynamic build install on Linux** - Shared libraries (`.so`) were not installed alongside Cython extensions on Linux, causing `ImportError: libggml-cpu.so: cannot open shared object file` at runtime. The `CMakeLists.txt` only installed dylibs on macOS (expecting `auditwheel` for wheels), but editable installs via `uv sync` need them in place since extensions use `RUNPATH=$ORIGIN`. Now installs dylibs on all platforms
+- **`libggml-cpu.so` missing from dynamic installs** - The CPU link library (`libggml-cpu.so`) was added to the link list but not to `DYLIB_FILES`, so it was never installed alongside the extension even though the extension requires it at runtime. Now added to `DYLIB_FILES` when CPU variants are present
+- **`make clean` did not remove `thirdparty/<dep>/dynamic/`** - Stale shared libraries from a previous dynamic build survived `make clean`, potentially causing mismatches when switching between static and dynamic builds. `dynamic/` is now cleaned for all three deps (llama.cpp, whisper.cpp, stable-diffusion.cpp)
+- **`make reset` did not remove `.venv`** - A stale editable install with wrong RUNPATH could persist across reset + rebuild cycles. `make reset` now removes `.venv` to ensure a clean environment
+
+### Changed
+
+- **Backend build targets now have static and dynamic variants** - Each backend has both `build-<backend>` (static) and `build-<backend>-dynamic` (dynamic) Makefile targets. Same for wheels: `wheel-<backend>` and `wheel-<backend>-dynamic`. All build targets use `clean` as a prerequisite to avoid stale cmake caches
+- **Added OpenCL build targets** - `build-opencl`, `build-opencl-dynamic`, `wheel-opencl`, and `wheel-opencl-dynamic` were missing and are now available
+
 ### Added
 
 - **Wheel smoke tests in CI** - New `build-cibw2.yaml` workflow adds a `smoke_test` job that runs after wheel builds on Linux, macOS ARM, and Windows. Installs each platform's wheel in a clean venv and validates: all core imports (API, Cython extensions, agents, integrations, optional whisper/sd), plus a minimal inference call with the 1B test model. Test model is cached across runs via `actions/cache`. Release upload is now gated on smoke test success

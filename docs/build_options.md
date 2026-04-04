@@ -15,17 +15,26 @@ Most options in this guide affect Phase 1. Backend flags (`GGML_CUDA`, etc.) aff
 
 By default, cyllama links statically -- all llama.cpp code is compiled into the extension. This produces a self-contained install with no runtime dependencies on shared libraries.
 
-Dynamic linking is available via the `--dynamic` flag:
+Dynamic linking is available via the `build-*-dynamic` Makefile targets or the `--dynamic` flag:
 
 ```bash
-# Download pre-built llama.cpp shared libraries and link against them
-python3 scripts/manage.py build --all --dynamic
+# Using Makefile targets (recommended)
+make build-cpu-dynamic      # CPU-only, shared libs
+make build-cuda-dynamic     # CUDA, shared libs
+make build-vulkan-dynamic   # Vulkan, shared libs
 
-# Or build shared libraries from source
-python3 scripts/manage.py build --all --shared
+# Using manage.py directly
+python3 scripts/manage.py build --all --dynamic
 ```
 
-In `--dynamic` mode, the build downloads pre-built release archives from the llama.cpp GitHub releases when available. If no pre-built asset exists for your platform/backend combination, it falls back to building from source with `BUILD_SHARED_LIBS=ON`.
+In dynamic mode, the build downloads pre-built release archives from the llama.cpp GitHub releases when available. If no pre-built asset exists for your platform/backend combination, it falls back to building from source with `BUILD_SHARED_LIBS=ON`.
+
+Wheel builds also have dynamic variants:
+
+```bash
+make wheel-cuda           # Static wheel (self-contained)
+make wheel-cuda-dynamic   # Dynamic wheel (shared libs bundled)
+```
 
 ### Pre-built Dynamic Releases
 
