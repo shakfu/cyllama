@@ -52,7 +52,7 @@ All GPU variants install the same `cyllama` Python package -- only the compiled 
 You can verify which backend is active after installation:
 
 ```bash
-python -m cyllama info
+cyllama info
 ```
 
 ## Build from Source
@@ -87,17 +87,18 @@ make build
 
 ### GPU Backends
 
-Build with specific GPU support:
+Build with specific GPU support (static or dynamic):
 
 ```bash
-# NVIDIA CUDA
-make build-cuda
+# Static builds (all libs compiled into the extension)
+make build-cpu       # CPU only
+make build-cuda      # NVIDIA CUDA
+make build-vulkan    # Vulkan (cross-platform)
 
-# Vulkan (cross-platform)
-make build-vulkan
-
-# CPU only (no GPU)
-make build-cpu
+# Dynamic builds (shared libs installed alongside extension)
+make build-cpu-dynamic
+make build-cuda-dynamic
+make build-vulkan-dynamic
 
 # Multiple backends
 GGML_CUDA=1 GGML_VULKAN=1 make build
@@ -136,9 +137,13 @@ Cyllama uses **scikit-build-core** with CMake for building the Cython extensions
 | Command | Description |
 |---------|-------------|
 | `make` | Full build (dependencies + editable install) |
+| `make build-<backend>` | Static build for a specific backend (e.g. `build-cuda`) |
+| `make build-<backend>-dynamic` | Dynamic build for a specific backend (e.g. `build-cuda-dynamic`) |
 | `make wheel` | Build wheel for distribution |
-| `make clean` | Remove build artifacts |
-| `make reset` | Full reset including thirdparty |
+| `make wheel-<backend>` | Static wheel for a specific backend |
+| `make wheel-<backend>-dynamic` | Dynamic wheel for a specific backend |
+| `make clean` | Remove build artifacts and dynamic libs |
+| `make reset` | Full reset including thirdparty and .venv |
 | `make remake` | Clean rebuild with tests |
 | `make leaks` | RSS-growth memory leak detection |
 

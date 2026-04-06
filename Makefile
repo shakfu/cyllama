@@ -45,7 +45,7 @@ endif
 # =============================================================================
 # Primary targets
 # =============================================================================
-.PHONY: all build setup sync dev lean reset remake
+.PHONY: all build build-dynamic setup sync dev lean reset remake
 
 all: build
 
@@ -187,8 +187,14 @@ download-all: $(MODEL) $(MODEL_RAG) $(MODEL_LLAVA)
 # =============================================================================
 # Backend-specific builds
 # =============================================================================
-.PHONY: show-backends build-cpu build-metal build-cuda build-vulkan build-sycl build-hip
-.PHONY: wheel-cpu wheel-metal wheel-cuda wheel-vulkan wheel-hip wheel-sycl
+.PHONY: show-backends
+.PHONY: build-cpu build-cpu-dynamic build-metal build-metal-dynamic
+.PHONY: build-cuda build-cuda-dynamic build-vulkan build-vulkan-dynamic
+.PHONY: build-sycl build-sycl-dynamic build-hip build-hip-dynamic
+.PHONY: build-opencl build-opencl-dynamic
+.PHONY: wheel-cpu wheel-metal wheel-cuda wheel-vulkan wheel-sycl wheel-hip wheel-opencl
+.PHONY: wheel-cpu-dynamic wheel-metal-dynamic wheel-cuda-dynamic wheel-vulkan-dynamic
+.PHONY: wheel-sycl-dynamic wheel-hip-dynamic wheel-opencl-dynamic
 
 show-backends:
 	@echo "Current backend configuration:"
@@ -199,35 +205,56 @@ show-backends:
 	@echo "  GGML_HIP:     $(GGML_HIP)"
 	@echo "  GGML_OPENCL:  $(GGML_OPENCL)"
 
-# Full backend builds: reset deps, rebuild with specific backend, install
-build-cpu:
-	@$(SYSTEM_PYTHON) scripts/manage.py clean --reset
-	@GGML_METAL=0 GGML_CUDA=0 GGML_VULKAN=0 GGML_HIP=0 GGML_SYCL=0 \
-		$(SYSTEM_PYTHON) scripts/manage.py build --all
+# Env vars to disable all GPU backends
+_CPU_ONLY := GGML_METAL=0 GGML_CUDA=0 GGML_VULKAN=0 GGML_HIP=0 GGML_SYCL=0 GGML_OPENCL=0
 
-build-metal:
-	@$(SYSTEM_PYTHON) scripts/manage.py clean --reset
+# Static backend builds (clean, build deps as static libs, install)
+build-cpu: clean
+	@$(_CPU_ONLY) $(SYSTEM_PYTHON) scripts/manage.py build --all
+
+build-metal: clean
 	@GGML_METAL=1 $(SYSTEM_PYTHON) scripts/manage.py build --all
 
-build-cuda:
-	@$(SYSTEM_PYTHON) scripts/manage.py clean --reset
+build-cuda: clean
 	@GGML_CUDA=1 $(SYSTEM_PYTHON) scripts/manage.py build --all
 
-build-vulkan:
-	@$(SYSTEM_PYTHON) scripts/manage.py clean --reset
+build-vulkan: clean
 	@GGML_VULKAN=1 $(SYSTEM_PYTHON) scripts/manage.py build --all
 
-build-sycl:
-	@$(SYSTEM_PYTHON) scripts/manage.py clean --reset
+build-sycl: clean
 	@GGML_SYCL=1 $(SYSTEM_PYTHON) scripts/manage.py build --all
 
-build-hip:
-	@$(SYSTEM_PYTHON) scripts/manage.py clean --reset
+build-hip: clean
 	@GGML_HIP=1 $(SYSTEM_PYTHON) scripts/manage.py build --all
 
-# Wheel builds with specific backends (assumes clean state or matching deps)
+build-opencl: clean
+	@GGML_OPENCL=1 $(SYSTEM_PYTHON) scripts/manage.py build --all
+
+# Dynamic backend builds (clean, build deps as shared libs, install)
+build-cpu-dynamic: clean
+	@$(_CPU_ONLY) $(SYSTEM_PYTHON) scripts/manage.py build --all --dynamic
+
+build-metal-dynamic: clean
+	@GGML_METAL=1 $(SYSTEM_PYTHON) scripts/manage.py build --all --dynamic
+
+build-cuda-dynamic: clean
+	@GGML_CUDA=1 $(SYSTEM_PYTHON) scripts/manage.py build --all --dynamic
+
+build-vulkan-dynamic: clean
+	@GGML_VULKAN=1 $(SYSTEM_PYTHON) scripts/manage.py build --all --dynamic
+
+build-sycl-dynamic: clean
+	@GGML_SYCL=1 $(SYSTEM_PYTHON) scripts/manage.py build --all --dynamic
+
+build-hip-dynamic: clean
+	@GGML_HIP=1 $(SYSTEM_PYTHON) scripts/manage.py build --all --dynamic
+
+build-opencl-dynamic: clean
+	@GGML_OPENCL=1 $(SYSTEM_PYTHON) scripts/manage.py build --all --dynamic
+
+# Static wheel builds
 wheel-cpu:
-	@GGML_METAL=0 GGML_CUDA=0 GGML_VULKAN=0 GGML_HIP=0 GGML_SYCL=0 uv build --wheel
+	@$(_CPU_ONLY) uv build --wheel
 
 wheel-metal:
 	@GGML_METAL=1 uv build --wheel
@@ -238,11 +265,36 @@ wheel-cuda:
 wheel-vulkan:
 	@GGML_VULKAN=1 uv build --wheel
 
+wheel-sycl:
+	@GGML_SYCL=1 uv build --wheel
+
 wheel-hip:
 	@GGML_HIP=1 uv build --wheel
 
-wheel-sycl:
-	@GGML_SYCL=1 uv build --wheel
+wheel-opencl:
+	@GGML_OPENCL=1 uv build --wheel
+
+# Dynamic wheel builds
+wheel-cpu-dynamic:
+	@$(_CPU_ONLY) WITH_DYLIB=1 uv build --wheel
+
+wheel-metal-dynamic:
+	@GGML_METAL=1 WITH_DYLIB=1 uv build --wheel
+
+wheel-cuda-dynamic:
+	@GGML_CUDA=1 WITH_DYLIB=1 uv build --wheel
+
+wheel-vulkan-dynamic:
+	@GGML_VULKAN=1 WITH_DYLIB=1 uv build --wheel
+
+wheel-sycl-dynamic:
+	@GGML_SYCL=1 WITH_DYLIB=1 uv build --wheel
+
+wheel-hip-dynamic:
+	@GGML_HIP=1 WITH_DYLIB=1 uv build --wheel
+
+wheel-opencl-dynamic:
+	@GGML_OPENCL=1 WITH_DYLIB=1 uv build --wheel
 
 # =============================================================================
 # CLI and server tests

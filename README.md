@@ -50,7 +50,7 @@ All variants install the same `cyllama` Python package -- only the compiled back
 You can verify which backend is active after installation:
 
 ```sh
-python -m cyllama info
+cyllama info
 ```
 
 You can also query the backend configuration at runtime:
@@ -624,15 +624,31 @@ make build-dynamic  # No source compilation needed for llama.cpp
 make wheel        # Creates wheel in dist/
 make dist         # Creates sdist + wheel in dist/
 
-# Backend-specific builds
+# Backend-specific builds (static)
+make build-cpu    # CPU only
 make build-metal  # macOS Metal (default on macOS)
 make build-cuda   # NVIDIA CUDA
 make build-vulkan # Vulkan (cross-platform)
-make build-cpu    # CPU only
+make build-hip    # AMD ROCm
+make build-sycl   # Intel SYCL
+make build-opencl # OpenCL
+
+# Backend-specific builds (dynamic -- shared libs)
+make build-cpu-dynamic
+make build-cuda-dynamic
+make build-vulkan-dynamic
+make build-metal-dynamic
+make build-hip-dynamic
+make build-sycl-dynamic
+make build-opencl-dynamic
+
+# Backend-specific wheels (static and dynamic)
+make wheel-cuda           # Static wheel
+make wheel-cuda-dynamic   # Dynamic wheel with shared libs
 
 # Clean and rebuild
-make clean        # Remove build artifacts
-make reset        # Full reset including thirdparty
+make clean        # Remove build artifacts + dynamic libs
+make reset        # Full reset including thirdparty and .venv
 make remake       # Clean rebuild with tests
 
 # Code quality
@@ -655,11 +671,13 @@ make publish-test # Upload to TestPyPI
 By default, cyllama builds with Metal support on macOS and CPU-only on Linux. To enable other GPU backends (CUDA, Vulkan, etc.):
 
 ```sh
-# CUDA (NVIDIA GPUs)
+# Static builds (all libs compiled in)
 make build-cuda
-
-# Vulkan (Cross-platform GPU)
 make build-vulkan
+
+# Dynamic builds (shared libs installed alongside extension)
+make build-cuda-dynamic
+make build-vulkan-dynamic
 
 # Multiple backends
 export GGML_CUDA=1 GGML_VULKAN=1

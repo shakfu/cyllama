@@ -20,26 +20,30 @@ python3 scripts/manage.py build --llama-cpp
 
 ### Build with Specific Backend
 
-**Using Makefile:**
+Each backend has both static and dynamic build targets. Static builds compile all libraries into the extension. Dynamic builds use shared libraries (`.so`/`.dylib`) installed alongside the extension.
+
+**Using Makefile (static):**
 
 ```bash
-# CUDA (NVIDIA GPUs)
-make build-cuda
+make build-cpu       # CPU-only (no GPU)
+make build-metal     # Metal (macOS)
+make build-cuda      # CUDA (NVIDIA GPUs)
+make build-vulkan    # Vulkan (cross-platform GPU)
+make build-sycl      # SYCL (Intel GPUs)
+make build-hip       # HIP/ROCm (AMD GPUs)
+make build-opencl    # OpenCL
+```
 
-# Vulkan (Cross-platform GPU)
-make build-vulkan
+**Using Makefile (dynamic -- shared libs):**
 
-# CPU-only (no GPU)
-make build-cpu
-
-# SYCL (Intel GPUs)
-make build-sycl
-
-# HIP/ROCm (AMD GPUs)
-make build-hip
-
-# All backends (Metal + CUDA + Vulkan)
-make build-all
+```bash
+make build-cpu-dynamic
+make build-metal-dynamic
+make build-cuda-dynamic
+make build-vulkan-dynamic
+make build-sycl-dynamic
+make build-hip-dynamic
+make build-opencl-dynamic
 ```
 
 **Using manage.py:**
@@ -360,11 +364,18 @@ model = LLM(
 If you encounter issues after changing backends:
 
 ```bash
-# Clean everything and rebuild
+# Clean build artifacts and dynamic libs (keeps thirdparty sources and .venv)
+make clean
+
+# Full reset including thirdparty libs and .venv
 make reset
-export GGML_CUDA=1  # or your desired backend
-make build
+
+# Then rebuild with your desired backend
+make build-cuda           # static
+make build-cuda-dynamic   # dynamic
 ```
+
+The `build-*` targets automatically run `clean` as a prerequisite, so switching backends is safe without manual cleanup.
 
 ## Performance Comparison
 

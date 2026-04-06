@@ -1,4 +1,4 @@
-"""cyllama CLI: python -m cyllama [command]"""
+"""cyllama CLI: cyllama [command] (or python -m cyllama [command])"""
 
 import platform
 import sys
@@ -174,7 +174,7 @@ def cmd_version():
 
 def main():
     if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help"):
-        print("Usage: python -m cyllama <command>")
+        print("Usage: cyllama <command>")
         print()
         print("Commands:")
         print("  info      Show build and backend information")

@@ -93,7 +93,8 @@ jobs:
             ${{ inputs.link_mode == 'dynamic' && '--dynamic' || '' }}
           CIBW_BEFORE_BUILD_LINUX: >
             sed -i 's/^name = "cyllama"/name = "cyllama-cuda12"/' {project}/pyproject.toml &&
-            grep -q '^name = "cyllama-cuda12"' {project}/pyproject.toml || { echo "ERROR: sed rename to cyllama-cuda12 failed"; exit 1; }
+            grep -q '^name = "cyllama-cuda12"' {project}/pyproject.toml || { echo "ERROR: sed rename to cyllama-cuda12 failed"; exit 1; } &&
+            cd {project} && python scripts/manage.py write-backend-info
           CIBW_ENVIRONMENT_LINUX: >
             GGML_CUDA=1
             GGML_METAL=0
@@ -174,7 +175,8 @@ jobs:
             ${{ inputs.link_mode == 'dynamic' && '--dynamic' || '' }}
           CIBW_BEFORE_BUILD_LINUX: >
             sed -i 's/^name = "cyllama"/name = "cyllama-rocm"/' {project}/pyproject.toml &&
-            grep -q '^name = "cyllama-rocm"' {project}/pyproject.toml || { echo "ERROR: sed rename to cyllama-rocm failed"; exit 1; }
+            grep -q '^name = "cyllama-rocm"' {project}/pyproject.toml || { echo "ERROR: sed rename to cyllama-rocm failed"; exit 1; } &&
+            cd {project} && python scripts/manage.py write-backend-info
           CIBW_ENVIRONMENT_LINUX: >
             GGML_NATIVE=OFF
             GGML_HIP=1
@@ -253,7 +255,8 @@ jobs:
             ${{ inputs.link_mode == 'dynamic' && '--dynamic' || '' }}
           CIBW_BEFORE_BUILD_LINUX: >
             sed -i 's/^name = "cyllama"/name = "cyllama-sycl"/' {project}/pyproject.toml &&
-            grep -q '^name = "cyllama-sycl"' {project}/pyproject.toml || { echo "ERROR: sed rename to cyllama-sycl failed"; exit 1; }
+            grep -q '^name = "cyllama-sycl"' {project}/pyproject.toml || { echo "ERROR: sed rename to cyllama-sycl failed"; exit 1; } &&
+            cd {project} && python scripts/manage.py write-backend-info
           CIBW_ENVIRONMENT_LINUX: >
             GGML_NATIVE=OFF
             GGML_SYCL=1
@@ -331,7 +334,8 @@ jobs:
             ${{ inputs.link_mode == 'dynamic' && '--dynamic' || '' }}
           CIBW_BEFORE_BUILD_LINUX: >
             sed -i 's/^name = "cyllama"/name = "cyllama-vulkan"/' {project}/pyproject.toml &&
-            grep -q '^name = "cyllama-vulkan"' {project}/pyproject.toml || { echo "ERROR: sed rename to cyllama-vulkan failed"; exit 1; }
+            grep -q '^name = "cyllama-vulkan"' {project}/pyproject.toml || { echo "ERROR: sed rename to cyllama-vulkan failed"; exit 1; } &&
+            cd {project} && python scripts/manage.py write-backend-info
           CIBW_ENVIRONMENT_LINUX: >
             GGML_NATIVE=OFF
             GGML_VULKAN=1
