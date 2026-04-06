@@ -1894,7 +1894,7 @@ cdef class SDContext:
                  clip_skip: int = -1,
                  eta: float = 0.0,
                  slg_scale: float = 0.0,
-                 flow_shift: float = 0.0,
+                 flow_shift: float = float('inf'),
                  vae_tiling: bool = False) -> List[SDImage]:
         """
         Generate images from a text prompt.
