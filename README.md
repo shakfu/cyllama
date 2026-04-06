@@ -50,7 +50,7 @@ All variants install the same `cyllama` Python package -- only the compiled back
 You can verify which backend is active after installation:
 
 ```sh
-python -m cyllama info
+cyllama info
 ```
 
 You can also query the backend configuration at runtime:

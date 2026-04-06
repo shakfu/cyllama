@@ -52,7 +52,7 @@ All GPU variants install the same `cyllama` Python package -- only the compiled 
 You can verify which backend is active after installation:
 
 ```bash
-python -m cyllama info
+cyllama info
 ```
 
 ## Build from Source

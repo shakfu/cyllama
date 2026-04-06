@@ -26,6 +26,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Changed
 
+- **`cyllama` CLI entry point** - Added `[project.scripts]` entry point in `pyproject.toml` so `cyllama info` works directly instead of `python -m cyllama info`. Updated README and docs accordingly
 - **Backend build targets now have static and dynamic variants** - Each backend has both `build-<backend>` (static) and `build-<backend>-dynamic` (dynamic) Makefile targets. Same for wheels: `wheel-<backend>` and `wheel-<backend>-dynamic`. All build targets use `clean` as a prerequisite to avoid stale cmake caches
 - **Added OpenCL build targets** - `build-opencl`, `build-opencl-dynamic`, `wheel-opencl`, and `wheel-opencl-dynamic` were missing and are now available
 

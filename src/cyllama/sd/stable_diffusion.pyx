@@ -1995,15 +1995,33 @@ cdef class SDContext:
         if result == NULL:
             raise RuntimeError("Image generation failed")
 
-        # Convert results to Python list
+        # Convert results to Python list, validating each image
         images = []
         cdef int i
+        cdef int n_invalid = 0
         for i in range(params.batch_count):
             img = SDImage._from_c_image(result[i], owns_data=True)
+            if not img.is_valid:
+                n_invalid += 1
             images.append(img)
 
         # Free the array (but not individual image data, now owned by SDImage objects)
         free(result)
+
+        if n_invalid == params.batch_count:
+            raise RuntimeError(
+                "Image generation failed: all images have invalid data. "
+                "This usually means GPU memory allocation failed (out of memory). "
+                "Try a smaller model quantization (e.g. Q4_K_M), reduced dimensions, "
+                "or --offload-to-cpu (note: offloading may not work for all model "
+                "architectures, e.g. z-image)."
+            )
+        elif n_invalid > 0:
+            import warnings
+            warnings.warn(
+                f"{n_invalid}/{params.batch_count} images failed to generate "
+                f"(likely GPU memory allocation failure)"
+            )
 
         return images
 
@@ -2103,15 +2121,33 @@ cdef class SDContext:
         if result == NULL:
             raise RuntimeError("Video generation failed")
 
-        # Convert results to Python list
+        # Convert results to Python list, validating each frame
         frames = []
         cdef int i
+        cdef int n_invalid = 0
         for i in range(num_frames_out):
             frame = SDImage._from_c_image(result[i], owns_data=True)
+            if not frame.is_valid:
+                n_invalid += 1
             frames.append(frame)
 
         # Free the array
         free(result)
+
+        if n_invalid == num_frames_out:
+            raise RuntimeError(
+                "Video generation failed: all frames have invalid data. "
+                "This usually means GPU memory allocation failed (out of memory). "
+                "Try a smaller model quantization (e.g. Q4_K_M), reduced dimensions, "
+                "or --offload-to-cpu (note: offloading may not work for all model "
+                "architectures, e.g. z-image)."
+            )
+        elif n_invalid > 0:
+            import warnings
+            warnings.warn(
+                f"{n_invalid}/{num_frames_out} video frames failed to generate "
+                f"(likely GPU memory allocation failure)"
+            )
 
         return frames
 
