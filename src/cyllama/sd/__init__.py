@@ -4,10 +4,10 @@ Stable Diffusion module for cyllama.
 Provides Python bindings for stable-diffusion.cpp image generation.
 
 Example:
-    from cyllama.sd import text_to_image, SDContext, SDContextParams
+    from cyllama.sd import text_to_image, text_to_images, SDContext, SDContextParams
 
-    # Simple usage
-    images = text_to_image(
+    # Simple usage - single image
+    image = text_to_image(
         model_path="sd-v1-5.safetensors",
         prompt="a photo of a cat",
         width=512,
@@ -15,9 +15,16 @@ Example:
     )
 
     # Save in common formats (no dependencies - uses bundled stb library)
-    images[0].save("output.png")
-    images[0].save("output.jpg", quality=90)
-    images[0].save("output.bmp")
+    image.save("output.png")
+    image.save("output.jpg", quality=90)
+    image.save("output.bmp")
+
+    # Batch generation - multiple variants
+    images = text_to_images(
+        model_path="sd-v1-5.safetensors",
+        prompt="a photo of a cat",
+        batch_count=4,
+    )
 
     # Load images (PNG, JPEG, BMP, TGA, GIF, PSD, HDR, PIC supported)
     img = SDImage.load("input.png")
@@ -70,6 +77,7 @@ from .stable_diffusion import (
     LoraApplyMode,
     # Convenience functions
     text_to_image,
+    text_to_images,
     image_to_image,
     # Model utilities
     convert_model,
@@ -107,6 +115,7 @@ __all__ = [
     "LoraApplyMode",
     # Convenience functions
     "text_to_image",
+    "text_to_images",
     "image_to_image",
     # Model utilities
     "convert_model",

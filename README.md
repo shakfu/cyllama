@@ -294,7 +294,7 @@ See [Whisper docs](docs/whisper.md) for full documentation.
 from cyllama.sd import text_to_image
 
 # Simple text-to-image
-images = text_to_image(
+image = text_to_image(
     model_path="models/sd_xl_turbo_1.0.q8_0.gguf",
     prompt="a photo of a cute cat",
     width=512,
@@ -302,7 +302,7 @@ images = text_to_image(
     sample_steps=4,
     cfg_scale=1.0
 )
-images[0].save("output.png")
+image.save("output.png")
 ```
 
 **Advanced Generation** - Full control with SDContext:
@@ -562,6 +562,7 @@ models = list_cached_models()
 
 ### Recent Releases
 
+- **v0.2.2** (Apr 2026) - CUDA wheel size stability (PTX-only sm_75), portability flags moved from manage.py to CI workflows
 - **v0.2.1** (Mar 2026) - Code quality hardening: GIL release for whisper/encode, async stream fixes, memory-aware embedding cache, CI robustness, 30+ bug fixes, 1150+ tests
 - **v0.2.0** (Mar 2026) - Dynamic-linked GPU wheels (CUDA, ROCm, SYCL, Vulkan) on PyPI, unified ggml, sqlite-vector vendored
 - **v0.1.21** (Mar 2026) - GPU wheel builds: CUDA + ROCm, sqlite-vector bundled

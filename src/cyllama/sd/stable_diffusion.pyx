@@ -2391,7 +2391,7 @@ def set_preview_callback(
 # Convenience functions
 # =============================================================================
 
-def text_to_image(
+def text_to_images(
     model_path: str,
     prompt: str,
     negative_prompt: str = "",
@@ -2420,10 +2420,12 @@ def text_to_image(
     diffusion_flash_attn: bool = False
 ) -> List[SDImage]:
     """
-    Generate images from text prompt (convenience function).
+    Generate a batch of image variants from a text prompt (convenience function).
 
-    This creates a context, generates images, and cleans up automatically.
-    For generating multiple images with the same model, use SDContext directly.
+    Each image in the batch uses an incremented seed, producing different
+    variants of the same prompt. This creates a context, generates images,
+    and cleans up automatically. For generating multiple images with the
+    same model, use SDContext directly.
 
     Args:
         model_path: Path to model file
@@ -2432,7 +2434,7 @@ def text_to_image(
         width: Output width
         height: Output height
         seed: Random seed (-1 for random)
-        batch_count: Number of images
+        batch_count: Number of image variants to generate
         sample_steps: Diffusion steps
         cfg_scale: CFG scale
         sample_method: Sampling method
@@ -2492,6 +2494,99 @@ def text_to_image(
             vae_tiling=vae_tiling,
             clip_skip=clip_skip
         )
+
+
+def text_to_image(
+    model_path: str,
+    prompt: str,
+    negative_prompt: str = "",
+    width: int = 512,
+    height: int = 512,
+    seed: int = -1,
+    sample_steps: int = 20,
+    cfg_scale: float = 7.0,
+    sample_method: SampleMethod = SampleMethod.EULER_A,
+    scheduler: Scheduler = Scheduler.DISCRETE,
+    n_threads: int = -1,
+    vae_path: Optional[str] = None,
+    taesd_path: Optional[str] = None,
+    clip_l_path: Optional[str] = None,
+    clip_g_path: Optional[str] = None,
+    t5xxl_path: Optional[str] = None,
+    control_net_path: Optional[str] = None,
+    clip_skip: int = -1,
+    eta: float = 0.0,
+    slg_scale: float = 0.0,
+    vae_tiling: bool = False,
+    offload_to_cpu: bool = False,
+    keep_clip_on_cpu: bool = False,
+    keep_vae_on_cpu: bool = False,
+    diffusion_flash_attn: bool = False
+) -> SDImage:
+    """
+    Generate a single image from a text prompt (convenience function).
+
+    This creates a context, generates one image, and cleans up automatically.
+    For generating multiple image variants, use text_to_images() instead.
+
+    Args:
+        model_path: Path to model file
+        prompt: Text prompt
+        negative_prompt: Negative prompt
+        width: Output width
+        height: Output height
+        seed: Random seed (-1 for random)
+        sample_steps: Diffusion steps
+        cfg_scale: CFG scale
+        sample_method: Sampling method
+        scheduler: Noise scheduler
+        n_threads: Number of threads
+        vae_path: Path to VAE (optional)
+        taesd_path: Path to TAESD for fast previews
+        clip_l_path: Path to CLIP-L (for SDXL/SD3)
+        clip_g_path: Path to CLIP-G (for SDXL/SD3)
+        t5xxl_path: Path to T5-XXL (for SD3/FLUX)
+        control_net_path: Path to ControlNet model
+        clip_skip: CLIP skip layers
+        eta: Eta for DDIM-like samplers
+        slg_scale: Skip layer guidance scale (0 = disabled)
+        vae_tiling: Enable VAE tiling for large images
+        offload_to_cpu: Offload model to CPU (low VRAM)
+        keep_clip_on_cpu: Keep CLIP on CPU
+        keep_vae_on_cpu: Keep VAE on CPU
+        diffusion_flash_attn: Use flash attention
+
+    Returns:
+        A single generated SDImage object
+    """
+    return text_to_images(
+        model_path=model_path,
+        prompt=prompt,
+        negative_prompt=negative_prompt,
+        width=width,
+        height=height,
+        seed=seed,
+        batch_count=1,
+        sample_steps=sample_steps,
+        cfg_scale=cfg_scale,
+        sample_method=sample_method,
+        scheduler=scheduler,
+        n_threads=n_threads,
+        vae_path=vae_path,
+        taesd_path=taesd_path,
+        clip_l_path=clip_l_path,
+        clip_g_path=clip_g_path,
+        t5xxl_path=t5xxl_path,
+        control_net_path=control_net_path,
+        clip_skip=clip_skip,
+        eta=eta,
+        slg_scale=slg_scale,
+        vae_tiling=vae_tiling,
+        offload_to_cpu=offload_to_cpu,
+        keep_clip_on_cpu=keep_clip_on_cpu,
+        keep_vae_on_cpu=keep_vae_on_cpu,
+        diffusion_flash_attn=diffusion_flash_attn,
+    )[0]
 
 
 def image_to_image(

@@ -24,6 +24,7 @@ from cyllama.sd import (
     PreviewMode,
     LoraApplyMode,
     text_to_image,
+    text_to_images,
     image_to_image,
     convert_model,
     canny_preprocess,
@@ -1107,6 +1108,10 @@ class TestConvenienceFunctions:
         """Test that text_to_image can be imported."""
         assert text_to_image is not None
 
+    def test_text_to_images_import(self):
+        """Test that text_to_images can be imported."""
+        assert text_to_images is not None
+
     def test_image_to_image_import(self):
         """Test that image_to_image can be imported."""
         assert image_to_image is not None
@@ -1115,6 +1120,11 @@ class TestConvenienceFunctions:
         """Test that text_to_image raises error for invalid model."""
         with pytest.raises(RuntimeError):
             text_to_image(model_path="/nonexistent/model.safetensors", prompt="test")
+
+    def test_text_to_images_invalid_model(self):
+        """Test that text_to_images raises error for invalid model."""
+        with pytest.raises(RuntimeError):
+            text_to_images(model_path="/nonexistent/model.safetensors", prompt="test")
 
     def test_image_to_image_invalid_model(self):
         """Test that image_to_image raises error for invalid model."""
@@ -1131,8 +1141,8 @@ class TestConvenienceFunctionsIntegration:
     """Integration tests for convenience functions."""
 
     def test_text_to_image(self):
-        """Test text_to_image convenience function."""
-        images = text_to_image(
+        """Test text_to_image returns a single SDImage."""
+        image = text_to_image(
             model_path=MODEL_PATH,
             prompt="a simple test",
             width=256,
@@ -1143,9 +1153,28 @@ class TestConvenienceFunctionsIntegration:
             n_threads=4,
         )
 
-        assert len(images) == 1
-        assert images[0].width == 256
-        assert images[0].height == 256
+        assert isinstance(image, SDImage)
+        assert image.width == 256
+        assert image.height == 256
+
+    def test_text_to_images(self):
+        """Test text_to_images returns a list of SDImage variants."""
+        images = text_to_images(
+            model_path=MODEL_PATH,
+            prompt="a simple test",
+            width=256,
+            height=256,
+            seed=42,
+            batch_count=2,
+            sample_steps=1,
+            cfg_scale=1.0,
+            n_threads=4,
+        )
+
+        assert isinstance(images, list)
+        assert len(images) == 2
+        assert all(isinstance(img, SDImage) for img in images)
+        assert all(img.width == 256 and img.height == 256 for img in images)
 
     @pytest.mark.skip(reason="image_to_image after text_to_image in same session causes segfault - needs investigation")
     def test_image_to_image(self):
