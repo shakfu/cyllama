@@ -1,0 +1,121 @@
+direction: down
+
+title: cyllama Architecture {
+  shape: text
+  near: top-center
+  style.font-size: 28
+  style.bold: true
+}
+
+# ---- Python Application Layer ----
+app: Python Application {
+  style.fill: "#e8f4fd"
+  style.stroke: "#1976d2"
+  style.font-size: 16
+}
+
+# ---- High-Level API ----
+highlevel: High-Level API {
+  style.fill: "#e8f5e9"
+  style.stroke: "#388e3c"
+
+  api: "api.py\ncomplete() / chat() / LLM" {
+    style.font-size: 13
+  }
+  batching: "batching.py\nbatch_generate()" {
+    style.font-size: 13
+  }
+  memory: "memory.py\nGPU memory estimation" {
+    style.font-size: 13
+  }
+}
+
+# ---- Framework Layer ----
+frameworks: Frameworks {
+  style.fill: "#fff3e0"
+  style.stroke: "#f57c00"
+
+  agents: "Agents\nReAct / Constrained\nContract / Async" {
+    style.font-size: 13
+  }
+  rag: "RAG\nEmbedder / VectorStore\nPipeline" {
+    style.font-size: 13
+  }
+  integrations: "Integrations\nOpenAI compat\nLangChain" {
+    style.font-size: 13
+  }
+  servers: "Servers\nEmbeddedServer\nPythonServer" {
+    style.font-size: 13
+  }
+}
+
+# ---- Cython Binding Layer ----
+cython: Cython Bindings {
+  style.fill: "#f3e5f5"
+  style.stroke: "#7b1fa2"
+
+  llama_pyx: "llama_cpp.pyx\n+ speculative.pxi\n+ tts_helpers.pxi" {
+    style.font-size: 13
+  }
+  whisper_pyx: "whisper_cpp.pyx" {
+    style.font-size: 13
+  }
+  sd_pyx: "stable_diffusion.pyx" {
+    style.font-size: 13
+  }
+  mtmd: "mtmd.pxi\nMultimodal (LLAVA)" {
+    style.font-size: 13
+  }
+}
+
+# ---- C/C++ Libraries ----
+cpp: "C/C++ Inference Engines" {
+  style.fill: "#ffebee"
+  style.stroke: "#c62828"
+
+  llama_cpp: llama.cpp {
+    style.font-size: 13
+  }
+  whisper_cpp: whisper.cpp {
+    style.font-size: 13
+  }
+  sd_cpp: stable-diffusion.cpp {
+    style.font-size: 13
+  }
+}
+
+# ---- Hardware Backends ----
+hw: Hardware Backends {
+  style.fill: "#eceff1"
+  style.stroke: "#455a64"
+
+  metal: Metal {
+    style.font-size: 13
+  }
+  cuda: CUDA {
+    style.font-size: 13
+  }
+  vulkan: Vulkan {
+    style.font-size: 13
+  }
+  cpu: CPU {
+    style.font-size: 13
+  }
+}
+
+# ---- Connections ----
+app -> highlevel
+app -> frameworks
+
+highlevel -> cython
+frameworks.agents -> highlevel.api
+frameworks.rag -> cython.llama_pyx
+frameworks.integrations -> highlevel.api
+frameworks.servers -> cython.llama_pyx
+
+cython.llama_pyx -> cpp.llama_cpp
+cython.whisper_pyx -> cpp.whisper_cpp
+cython.sd_pyx -> cpp.sd_cpp
+cython.mtmd -> cpp.llama_cpp
+
+cpp -> hw

@@ -472,6 +472,56 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architecture
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Architecture">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#layer-breakdown" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Layer Breakdown
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#data-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data Flow
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#key-design-decisions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Design Decisions
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#quick-example" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1469,6 +1519,56 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architecture
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Architecture">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#layer-breakdown" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Layer Breakdown
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#data-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data Flow
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#key-design-decisions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Design Decisions
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#quick-example" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1544,6 +1644,59 @@
 <li><strong>OpenAI-compatible API</strong> - Drop-in client replacement</li>
 <li><strong>LangChain</strong> - Full LLM interface implementation</li>
 <li><strong>ACP/MCP support</strong> - Agent and Model Context Protocols</li>
+</ul>
+<h2 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Permanent link">&para;</a></h2>
+<p>Cyllama is structured as a layered stack. At the bottom, three C/C++ inference engines handle the heavy computation. Cython bindings (<code>.pyx</code> files) expose these engines to Python with minimal overhead. On top of the bindings, a high-level API provides simple functions like <code>complete()</code> and <code>chat()</code>, while framework modules (agents, RAG, servers, integrations) compose these primitives into higher-level capabilities.</p>
+<p><img alt="Architecture Diagram" src="../assets/architecture.svg" /></p>
+<h3 id="layer-breakdown">Layer Breakdown<a class="headerlink" href="#layer-breakdown" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Layer</th>
+<th>Components</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>High-Level API</strong></td>
+<td><code>api.py</code>, <code>batching.py</code>, <code>memory.py</code></td>
+<td>Simple Python interface for generation, batch processing, and memory estimation</td>
+</tr>
+<tr>
+<td><strong>Frameworks</strong></td>
+<td><code>agents/</code>, <code>rag/</code>, <code>integrations/</code>, <code>llama/server/</code></td>
+<td>ReAct/Constrained/Contract agents, RAG pipeline, OpenAI/LangChain compatibility, HTTP servers</td>
+</tr>
+<tr>
+<td><strong>Cython Bindings</strong></td>
+<td><code>llama_cpp.pyx</code>, <code>whisper_cpp.pyx</code>, <code>stable_diffusion.pyx</code>, <code>mtmd.pxi</code></td>
+<td>Direct C++ bindings with <code>.pxd</code> declarations; includes speculative decoding and TTS extensions</td>
+</tr>
+<tr>
+<td><strong>C/C++ Engines</strong></td>
+<td>llama.cpp, whisper.cpp, stable-diffusion.cpp</td>
+<td>Core inference: text generation, speech recognition, image generation</td>
+</tr>
+<tr>
+<td><strong>Hardware Backends</strong></td>
+<td>Metal, CUDA, Vulkan, CPU</td>
+<td>GPU/CPU acceleration selected at build time</td>
+</tr>
+</tbody>
+</table>
+<h3 id="data-flow">Data Flow<a class="headerlink" href="#data-flow" title="Permanent link">&para;</a></h3>
+<ol>
+<li>User calls a high-level function (e.g., <code>complete("prompt", model_path="model.gguf")</code>)</li>
+<li>The API layer loads the model via Cython bindings, which allocate C++ context objects</li>
+<li>Tokens are sampled in C++ and streamed back through Cython to Python callbacks</li>
+<li>Framework modules (agents, RAG) orchestrate multiple calls to the API layer, adding tool use, retrieval, or structured output on top</li>
+</ol>
+<h3 id="key-design-decisions">Key Design Decisions<a class="headerlink" href="#key-design-decisions" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Cython over ctypes/pybind11</strong>: Cython provides near-zero overhead bindings while keeping build complexity manageable. The <code>.pxd</code> declaration files mirror C++ headers, and <code>.pxi</code> includes allow modular extension (speculative decoding, TTS, multimodal) without monolithic files.</li>
+<li><strong>Zero Python dependencies</strong>: The core library has no runtime dependencies beyond Python itself. Optional integrations (LangChain, OpenAI compat) import lazily.</li>
+<li><strong>Dual server strategy</strong>: <code>EmbeddedServer</code> wraps llama.cpp's built-in Mongoose-based HTTP server for maximum performance; <code>PythonServer</code> offers a pure-Python alternative for flexibility and debugging.</li>
 </ul>
 <h2 id="quick-example">Quick Example<a class="headerlink" href="#quick-example" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama</span><span class="w"> </span><span class="kn">import</span> <span class="n">complete</span>
