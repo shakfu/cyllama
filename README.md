@@ -21,7 +21,7 @@ It combines the performance of compiled Cython wrappers with a simple, high-leve
 - RAG -- retrieval-augmented generation with local embeddings and [sqlite-vector](https://github.com/sqliteai/sqlite-vector)
 - Speech recognition -- whisper.cpp transcription and translation
 - Image/Video generation -- stable-diffusion.cpp handles image, image-edit and video models.
-- OpenAI-compatible servers -- EmbeddedServer (C/Mongoose) and PythonServer
+- OpenAI-compatible servers -- EmbeddedServer (C/Mongoose) and PythonServer with chat completions and embeddings endpoints
 - Framework integrations -- OpenAI API client, LangChain LLM interface
 
 ## Installation
@@ -792,7 +792,7 @@ To serve docs locally: `make docs-serve`
 - [x] JSON schema to grammar conversion
 - [x] Model download helper
 - [x] N-gram cache
-- [x] OpenAI-compatible servers (PythonServer, EmbeddedServer, LlamaServer)
+- [x] OpenAI-compatible servers (PythonServer, EmbeddedServer, LlamaServer) with chat and embeddings
 - [x] Whisper.cpp integration
 - [x] Multimodal support (LLAVA)
 - [x] Memory estimation utilities

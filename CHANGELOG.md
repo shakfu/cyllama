@@ -15,6 +15,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- **`/v1/embeddings` endpoint in PythonServer and EmbeddedServer** - Both server implementations now support the OpenAI-compatible `/v1/embeddings` endpoint. When `embedding=True` in `ServerConfig`, the server instantiates an `Embedder` to handle embedding requests over HTTP. New config fields: `embedding_model_path` (defaults to `model_path`), `embedding_n_ctx`, `embedding_n_batch`, `embedding_n_gpu_layers`, `embedding_pooling`, and `embedding_normalize`. Accepts single string or batch input, returns OpenAI-format response with usage stats. Resolves [#14](https://github.com/shakfu/cyllama/issues/14)
+
 ## [0.2.3]
 
 ### Fixed

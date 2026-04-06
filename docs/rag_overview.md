@@ -142,6 +142,34 @@ huggingface-cli download BAAI/bge-small-en-v1.5-gguf bge-small-en-v1.5-q8_0.gguf
 wget https://huggingface.co/BAAI/bge-small-en-v1.5-gguf/resolve/main/bge-small-en-v1.5-q8_0.gguf
 ```
 
+## Serving Embeddings over HTTP
+
+The Embedder can also be served via the built-in OpenAI-compatible server (`PythonServer` or `EmbeddedServer`). This lets lightweight clients generate embeddings over HTTP without installing cyllama or having GPU access locally:
+
+```python
+from cyllama.llama.server.python import ServerConfig, PythonServer
+
+config = ServerConfig(
+    model_path="models/Llama-3.2-1B-Instruct-Q8_0.gguf",
+    embedding=True,
+    embedding_model_path="models/bge-small-en-v1.5-q8_0.gguf",
+)
+
+with PythonServer(config) as server:
+    # Serves /v1/chat/completions and /v1/embeddings
+    import time
+    while True:
+        time.sleep(1)
+```
+
+```bash
+curl -X POST http://localhost:8080/v1/embeddings \
+  -H "Content-Type: application/json" \
+  -d '{"input": "hello world"}'
+```
+
+See [Embedder docs](rag_embedder.md#serving-embeddings-over-http) and [Server Usage](server_usage_examples.md) for configuration details.
+
 ## Next Steps
 
 - [Embedder](rag_embedder.md) - Generating embeddings

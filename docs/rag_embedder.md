@@ -197,6 +197,47 @@ with VectorStore(dimension=embedder.dimension) as store:
 embedder.close()
 ```
 
+## Serving Embeddings over HTTP
+
+The Embedder can be served via the built-in OpenAI-compatible server, allowing lightweight clients to generate embeddings without cyllama or GPU access locally:
+
+```python
+from cyllama.llama.server.python import ServerConfig, PythonServer
+
+config = ServerConfig(
+    model_path="models/Llama-3.2-1B-Instruct-Q8_0.gguf",
+    embedding=True,
+    embedding_model_path="models/bge-small-en-v1.5-q8_0.gguf",
+    embedding_pooling="mean",
+    embedding_normalize=True,
+)
+
+with PythonServer(config) as server:
+    import time
+    while True:
+        time.sleep(1)
+```
+
+Clients can then call the standard `/v1/embeddings` endpoint:
+
+```bash
+curl -X POST http://localhost:8080/v1/embeddings \
+  -H "Content-Type: application/json" \
+  -d '{"input": "hello world"}'
+```
+
+Or use the built-in client:
+
+```python
+from cyllama.llama.server.launcher import LlamaServerClient
+
+client = LlamaServerClient("http://localhost:8080")
+result = client.embedding("hello world")
+print(result["data"][0]["embedding"][:5])
+```
+
+All Embedder options (pooling strategy, normalization, context size, GPU layers) are configurable via the `ServerConfig` `embedding_*` parameters. See [Server Usage](server_usage_examples.md) for the full configuration reference.
+
 ## Performance Tips
 
 1. **Batch Processing**: Use `embed_batch()` instead of multiple `embed()` calls

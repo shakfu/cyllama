@@ -72,6 +72,7 @@ cdef class EmbeddedServer:
     cdef mg_connection *_listener
     cdef object _config
     cdef object _model
+    cdef object _embedder
     cdef list _slots
     cdef object _logger
     cdef bint _running
@@ -115,6 +116,7 @@ cdef class EmbeddedServer:
     def __init__(self, config: ServerConfig):
         self._config = config
         self._model = None
+        self._embedder = None
         self._slots = []
         self._logger = logging.getLogger(__name__)
 
@@ -136,6 +138,25 @@ cdef class EmbeddedServer:
                 self._slots.append(slot)
 
             self._logger.info(f"Model loaded successfully with {len(self._slots)} slots")
+
+            # Initialize embedder if embedding mode is enabled
+            if self._config.embedding:
+                from ...rag.embedder import Embedder
+
+                emb_model = self._config.embedding_model_path or self._config.model_path
+                self._embedder = Embedder(
+                    model_path=emb_model,
+                    n_ctx=self._config.embedding_n_ctx,
+                    n_batch=self._config.embedding_n_batch,
+                    n_gpu_layers=self._config.embedding_n_gpu_layers,
+                    pooling=self._config.embedding_pooling,
+                    normalize=self._config.embedding_normalize,
+                )
+                self._logger.info(
+                    f"Embedder loaded: dim={self._embedder.dimension}, "
+                    f"pooling={self._embedder.pooling}"
+                )
+
             self._logger.info("About to return True from load_model()")
             return True
 
@@ -296,7 +317,7 @@ cdef class EmbeddedServer:
                 if uri == "/v1/chat/completions":
                     self._handle_chat_completions(conn, body)
                 elif uri == "/v1/embeddings":
-                    conn.send_error(501, "Embeddings not yet implemented")
+                    self._handle_embeddings(conn, body)
                 else:
                     conn.send_error(404, "Not Found")
             else:
@@ -374,6 +395,64 @@ cdef class EmbeddedServer:
             conn.send_error(400, "Invalid JSON")
         except Exception as e:
             self._logger.error(f"Chat completion error: {e}")
+            conn.send_error(500, str(e))
+
+    def _handle_embeddings(self, conn: MongooseConnection, body: str):
+        """Handle /v1/embeddings endpoint."""
+        if not self._config.embedding or self._embedder is None:
+            conn.send_error(400, "Embeddings not enabled")
+            return
+
+        try:
+            if not body.strip():
+                conn.send_error(400, "Empty request body")
+                return
+
+            data = json.loads(body)
+            input_data = data.get("input")
+            if input_data is None:
+                conn.send_error(400, "Missing 'input' field")
+                return
+
+            # Normalize input to list of strings
+            if isinstance(input_data, str):
+                texts = [input_data]
+            elif isinstance(input_data, list):
+                texts = [str(t) for t in input_data]
+            else:
+                conn.send_error(400, "Invalid 'input' field: must be string or list of strings")
+                return
+
+            model_name = data.get("model", self._config.model_alias)
+
+            # Generate embeddings
+            results = []
+            total_tokens = 0
+            for i, text in enumerate(texts):
+                result = self._embedder.embed_with_info(text)
+                results.append({
+                    "object": "embedding",
+                    "embedding": result.embedding,
+                    "index": i,
+                })
+                total_tokens += result.token_count
+
+            response_data = {
+                "object": "list",
+                "data": results,
+                "model": model_name,
+                "usage": {
+                    "prompt_tokens": total_tokens,
+                    "total_tokens": total_tokens,
+                },
+            }
+
+            conn.send_json(response_data)
+
+        except json.JSONDecodeError:
+            conn.send_error(400, "Invalid JSON")
+        except Exception as e:
+            self._logger.error(f"Embeddings error: {e}")
             conn.send_error(500, str(e))
 
     def _process_chat_completion(self, request: ChatRequest) -> ChatResponse:

@@ -39,6 +39,14 @@ class TestServerConfig:
         assert config.n_parallel == 1
         assert config.model_alias == "gpt-3.5-turbo"
 
+        # Embedding defaults
+        assert config.embedding_model_path is None
+        assert config.embedding_n_ctx == 512
+        assert config.embedding_n_batch == 512
+        assert config.embedding_n_gpu_layers == -1
+        assert config.embedding_pooling == "mean"
+        assert config.embedding_normalize is True
+
     def test_custom_config(self):
         """Test custom configuration values."""
         config = ServerConfig(
@@ -60,6 +68,32 @@ class TestServerConfig:
         assert config.embedding is True
         assert config.n_parallel == 4
         assert config.model_alias == "custom-model"
+
+    def test_embedding_config(self):
+        """Test embedding-specific configuration values."""
+        config = ServerConfig(
+            model_path="chat.gguf",
+            embedding=True,
+            embedding_model_path="embed.gguf",
+            embedding_n_ctx=256,
+            embedding_n_batch=256,
+            embedding_n_gpu_layers=0,
+            embedding_pooling="cls",
+            embedding_normalize=False,
+        )
+
+        assert config.embedding is True
+        assert config.embedding_model_path == "embed.gguf"
+        assert config.embedding_n_ctx == 256
+        assert config.embedding_n_batch == 256
+        assert config.embedding_n_gpu_layers == 0
+        assert config.embedding_pooling == "cls"
+        assert config.embedding_normalize is False
+
+    def test_embedding_model_path_defaults_to_none(self):
+        """Test that embedding_model_path defaults to None (uses model_path at runtime)."""
+        config = ServerConfig(model_path="model.gguf", embedding=True)
+        assert config.embedding_model_path is None
 
 
 class TestChatMessage:
@@ -464,6 +498,224 @@ class TestHTTPEndpoints:
         handler._send_json_response(health_response)
 
         handler._send_json_response.assert_called_once_with({"status": "ok"})
+
+
+class TestEmbeddingsEndpoint:
+    """Test /v1/embeddings endpoint functionality."""
+
+    @pytest.fixture
+    def embedding_config(self):
+        """Create a config with embedding enabled."""
+        return ServerConfig(
+            model_path="test.gguf",
+            port=18095,
+            embedding=True,
+            embedding_model_path="embed.gguf",
+        )
+
+    @pytest.fixture
+    def mock_embedder(self):
+        """Create a mock Embedder."""
+        from cyllama.rag.types import EmbeddingResult
+
+        embedder = Mock()
+        embedder.dimension = 384
+        embedder.pooling = "mean"
+        embedder.embed_with_info.return_value = EmbeddingResult(
+            embedding=[0.1, 0.2, 0.3],
+            text="hello",
+            token_count=2,
+        )
+        return embedder
+
+    def test_embeddings_disabled(self):
+        """Test embeddings endpoint returns error when not enabled."""
+        config = ServerConfig(model_path="test.gguf", port=18095, embedding=False)
+        server = PythonServer(config)
+        server.model = Mock()
+
+        handler_class = server._create_request_handler()
+        handler = Mock(spec=handler_class)
+        handler._send_error = Mock()
+        handler._send_json_response = Mock()
+
+        handle_embeddings = handler_class._handle_embeddings.__get__(handler)
+        handle_embeddings({"input": "hello"})
+
+        handler._send_error.assert_called_once_with(400, "Embeddings not enabled")
+
+    def test_embeddings_single_input(self, embedding_config, mock_embedder):
+        """Test embeddings with a single string input."""
+        server = PythonServer(embedding_config)
+        server.model = Mock()
+        server.embedder = mock_embedder
+
+        handler_class = server._create_request_handler()
+        handler = Mock(spec=handler_class)
+        handler._send_error = Mock()
+        handler._send_json_response = Mock()
+
+        handle_embeddings = handler_class._handle_embeddings.__get__(handler)
+        handle_embeddings({"input": "hello world"})
+
+        handler._send_json_response.assert_called_once()
+        response = handler._send_json_response.call_args[0][0]
+
+        assert response["object"] == "list"
+        assert len(response["data"]) == 1
+        assert response["data"][0]["object"] == "embedding"
+        assert response["data"][0]["embedding"] == [0.1, 0.2, 0.3]
+        assert response["data"][0]["index"] == 0
+        assert response["usage"]["prompt_tokens"] == 2
+        assert response["usage"]["total_tokens"] == 2
+
+    def test_embeddings_batch_input(self, embedding_config, mock_embedder):
+        """Test embeddings with a list of strings."""
+        from cyllama.rag.types import EmbeddingResult
+
+        mock_embedder.embed_with_info.side_effect = [
+            EmbeddingResult(embedding=[0.1, 0.2], text="first", token_count=1),
+            EmbeddingResult(embedding=[0.3, 0.4], text="second", token_count=3),
+        ]
+
+        server = PythonServer(embedding_config)
+        server.model = Mock()
+        server.embedder = mock_embedder
+
+        handler_class = server._create_request_handler()
+        handler = Mock(spec=handler_class)
+        handler._send_error = Mock()
+        handler._send_json_response = Mock()
+
+        handle_embeddings = handler_class._handle_embeddings.__get__(handler)
+        handle_embeddings({"input": ["first", "second"]})
+
+        handler._send_json_response.assert_called_once()
+        response = handler._send_json_response.call_args[0][0]
+
+        assert len(response["data"]) == 2
+        assert response["data"][0]["index"] == 0
+        assert response["data"][0]["embedding"] == [0.1, 0.2]
+        assert response["data"][1]["index"] == 1
+        assert response["data"][1]["embedding"] == [0.3, 0.4]
+        assert response["usage"]["prompt_tokens"] == 4
+        assert response["usage"]["total_tokens"] == 4
+
+    def test_embeddings_missing_input(self, embedding_config, mock_embedder):
+        """Test embeddings with missing input field."""
+        server = PythonServer(embedding_config)
+        server.model = Mock()
+        server.embedder = mock_embedder
+
+        handler_class = server._create_request_handler()
+        handler = Mock(spec=handler_class)
+        handler._send_error = Mock()
+        handler._send_json_response = Mock()
+
+        handle_embeddings = handler_class._handle_embeddings.__get__(handler)
+        handle_embeddings({"model": "test"})
+
+        handler._send_error.assert_called_once_with(400, "Missing 'input' field")
+
+    def test_embeddings_invalid_input_type(self, embedding_config, mock_embedder):
+        """Test embeddings with invalid input type."""
+        server = PythonServer(embedding_config)
+        server.model = Mock()
+        server.embedder = mock_embedder
+
+        handler_class = server._create_request_handler()
+        handler = Mock(spec=handler_class)
+        handler._send_error = Mock()
+        handler._send_json_response = Mock()
+
+        handle_embeddings = handler_class._handle_embeddings.__get__(handler)
+        handle_embeddings({"input": 12345})
+
+        handler._send_error.assert_called_once_with(
+            400, "Invalid 'input' field: must be string or list of strings"
+        )
+
+    def test_embeddings_custom_model_name(self, embedding_config, mock_embedder):
+        """Test embeddings response includes custom model name."""
+        server = PythonServer(embedding_config)
+        server.model = Mock()
+        server.embedder = mock_embedder
+
+        handler_class = server._create_request_handler()
+        handler = Mock(spec=handler_class)
+        handler._send_error = Mock()
+        handler._send_json_response = Mock()
+
+        handle_embeddings = handler_class._handle_embeddings.__get__(handler)
+        handle_embeddings({"input": "hello", "model": "nomic-embed-text"})
+
+        response = handler._send_json_response.call_args[0][0]
+        assert response["model"] == "nomic-embed-text"
+
+    def test_load_model_initializes_embedder(self):
+        """Test that load_model creates an Embedder when embedding=True."""
+        config = ServerConfig(
+            model_path="test.gguf",
+            embedding=True,
+            embedding_model_path="embed.gguf",
+            embedding_pooling="cls",
+            embedding_normalize=False,
+        )
+        server = PythonServer(config)
+
+        mock_embedder = Mock()
+        with (
+            patch("cyllama.llama.server.python.LlamaModel"),
+            patch("cyllama.llama.server.python.ServerSlot"),
+            patch("cyllama.rag.embedder.Embedder", return_value=mock_embedder) as MockEmbedder,
+        ):
+            result = server.load_model()
+
+            assert result is True
+            assert server.embedder is mock_embedder
+            MockEmbedder.assert_called_once_with(
+                model_path="embed.gguf",
+                n_ctx=512,
+                n_batch=512,
+                n_gpu_layers=-1,
+                pooling="cls",
+                normalize=False,
+            )
+
+    def test_load_model_embedder_uses_model_path_fallback(self):
+        """Test that load_model uses model_path when embedding_model_path is None."""
+        config = ServerConfig(
+            model_path="chat.gguf",
+            embedding=True,
+        )
+        server = PythonServer(config)
+
+        mock_embedder = Mock()
+        with (
+            patch("cyllama.llama.server.python.LlamaModel"),
+            patch("cyllama.llama.server.python.ServerSlot"),
+            patch("cyllama.rag.embedder.Embedder", return_value=mock_embedder) as MockEmbedder,
+        ):
+            result = server.load_model()
+
+            assert result is True
+            # Should use model_path since embedding_model_path is None
+            call_kwargs = MockEmbedder.call_args[1]
+            assert call_kwargs["model_path"] == "chat.gguf"
+
+    def test_load_model_no_embedder_when_disabled(self):
+        """Test that load_model does not create Embedder when embedding=False."""
+        config = ServerConfig(model_path="test.gguf", embedding=False)
+        server = PythonServer(config)
+
+        with (
+            patch("cyllama.llama.server.python.LlamaModel"),
+            patch("cyllama.llama.server.python.ServerSlot"),
+        ):
+            result = server.load_model()
+
+            assert result is True
+            assert server.embedder is None
 
 
 class TestConvenienceFunction:

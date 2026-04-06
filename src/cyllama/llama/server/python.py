@@ -45,6 +45,14 @@ class ServerConfig:
     embedding: bool = False
     n_parallel: int = 1  # Number of parallel slots
 
+    # Embedding configuration (used when embedding=True)
+    embedding_model_path: Optional[str] = None  # defaults to model_path if None
+    embedding_n_ctx: int = 512
+    embedding_n_batch: int = 512
+    embedding_n_gpu_layers: int = -1
+    embedding_pooling: str = "mean"
+    embedding_normalize: bool = True
+
     # OpenAI compatibility
     model_alias: str = "gpt-3.5-turbo"
 
@@ -235,6 +243,7 @@ class PythonServer:
         self.config = config
         self.model: Optional[LlamaModel] = None
         self.slots: List[ServerSlot] = []
+        self.embedder = None  # Initialized when config.embedding is True
 
         # HTTP server
         self.httpd: Optional[HTTPServer] = None
@@ -259,6 +268,25 @@ class PythonServer:
                 self.slots.append(slot)
 
             self.logger.info(f"Model loaded successfully with {len(self.slots)} slots")
+
+            # Initialize embedder if embedding mode is enabled
+            if self.config.embedding:
+                from ...rag.embedder import Embedder
+
+                emb_model = self.config.embedding_model_path or self.config.model_path
+                self.embedder = Embedder(
+                    model_path=emb_model,
+                    n_ctx=self.config.embedding_n_ctx,
+                    n_batch=self.config.embedding_n_batch,
+                    n_gpu_layers=self.config.embedding_n_gpu_layers,
+                    pooling=self.config.embedding_pooling,
+                    normalize=self.config.embedding_normalize,
+                )
+                self.logger.info(
+                    f"Embedder loaded: dim={self.embedder.dimension}, "
+                    f"pooling={self.embedder.pooling}"
+                )
+
             return True
 
         except Exception as e:
@@ -507,12 +535,55 @@ class PythonServer:
 
             def _handle_embeddings(self, data: Dict[str, Any]):
                 """Handle /v1/embeddings endpoint."""
-                if not server_instance.config.embedding:
+                if not server_instance.config.embedding or server_instance.embedder is None:
                     self._send_error(400, "Embeddings not enabled")
                     return
 
-                # Placeholder - would need embedding model support
-                self._send_error(501, "Embeddings not yet implemented")
+                try:
+                    input_data = data.get("input")
+                    if input_data is None:
+                        self._send_error(400, "Missing 'input' field")
+                        return
+
+                    # Normalize input to list of strings
+                    if isinstance(input_data, str):
+                        texts = [input_data]
+                    elif isinstance(input_data, list):
+                        texts = [str(t) for t in input_data]
+                    else:
+                        self._send_error(400, "Invalid 'input' field: must be string or list of strings")
+                        return
+
+                    embedder = server_instance.embedder
+                    model_name = data.get("model", server_instance.config.model_alias)
+
+                    # Generate embeddings
+                    results = []
+                    total_tokens = 0
+                    for i, text in enumerate(texts):
+                        result = embedder.embed_with_info(text)
+                        results.append({
+                            "object": "embedding",
+                            "embedding": result.embedding,
+                            "index": i,
+                        })
+                        total_tokens += result.token_count
+
+                    response_data = {
+                        "object": "list",
+                        "data": results,
+                        "model": model_name,
+                        "usage": {
+                            "prompt_tokens": total_tokens,
+                            "total_tokens": total_tokens,
+                        },
+                    }
+
+                    self._send_json_response(response_data)
+
+                except Exception as e:
+                    server_instance.logger.error(f"Embeddings error: {e}")
+                    self._send_error(500, str(e))
 
         return RequestHandler
 
