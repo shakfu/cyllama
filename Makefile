@@ -372,7 +372,7 @@ endif
 # =============================================================================
 # Documentation
 # =============================================================================
-.PHONY: docs docs-serve docs-build docs-deploy docs-clean diff
+.PHONY: docs docs-serve docs-build docs-deploy docs-clean docs-diagrams diff
 
 docs: docs-serve
 
@@ -384,6 +384,11 @@ docs-build:
 
 docs-deploy:
 	@uv run mkdocs gh-deploy --force
+
+docs-diagrams:
+	@for f in docs/assets/*.d2; do \
+		d2 "$$f" "$${f%.d2}.svg"; \
+	done
 
 docs-clean:
 	@rm -rf site

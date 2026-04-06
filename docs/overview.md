@@ -34,6 +34,35 @@
 - **LangChain** - Full LLM interface implementation
 - **ACP/MCP support** - Agent and Model Context Protocols
 
+## Architecture
+
+Cyllama is structured as a layered stack. At the bottom, three C/C++ inference engines handle the heavy computation. Cython bindings (`.pyx` files) expose these engines to Python with minimal overhead. On top of the bindings, a high-level API provides simple functions like `complete()` and `chat()`, while framework modules (agents, RAG, servers, integrations) compose these primitives into higher-level capabilities.
+
+![Architecture Diagram](assets/architecture.svg)
+
+### Layer Breakdown
+
+| Layer | Components | Role |
+|-------|-----------|------|
+| **High-Level API** | `api.py`, `batching.py`, `memory.py` | Simple Python interface for generation, batch processing, and memory estimation |
+| **Frameworks** | `agents/`, `rag/`, `integrations/`, `llama/server/` | ReAct/Constrained/Contract agents, RAG pipeline, OpenAI/LangChain compatibility, HTTP servers |
+| **Cython Bindings** | `llama_cpp.pyx`, `whisper_cpp.pyx`, `stable_diffusion.pyx`, `mtmd.pxi` | Direct C++ bindings with `.pxd` declarations; includes speculative decoding and TTS extensions |
+| **C/C++ Engines** | llama.cpp, whisper.cpp, stable-diffusion.cpp | Core inference: text generation, speech recognition, image generation |
+| **Hardware Backends** | Metal, CUDA, Vulkan, CPU | GPU/CPU acceleration selected at build time |
+
+### Data Flow
+
+1. User calls a high-level function (e.g., `complete("prompt", model_path="model.gguf")`)
+2. The API layer loads the model via Cython bindings, which allocate C++ context objects
+3. Tokens are sampled in C++ and streamed back through Cython to Python callbacks
+4. Framework modules (agents, RAG) orchestrate multiple calls to the API layer, adding tool use, retrieval, or structured output on top
+
+### Key Design Decisions
+
+- **Cython over ctypes/pybind11**: Cython provides near-zero overhead bindings while keeping build complexity manageable. The `.pxd` declaration files mirror C++ headers, and `.pxi` includes allow modular extension (speculative decoding, TTS, multimodal) without monolithic files.
+- **Zero Python dependencies**: The core library has no runtime dependencies beyond Python itself. Optional integrations (LangChain, OpenAI compat) import lazily.
+- **Dual server strategy**: `EmbeddedServer` wraps llama.cpp's built-in Mongoose-based HTTP server for maximum performance; `PythonServer` offers a pure-Python alternative for flexibility and debugging.
+
 ## Quick Example
 
 ```python
