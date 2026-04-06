@@ -562,6 +562,7 @@ models = list_cached_models()
 
 ### Recent Releases
 
+- **v0.2.3** (Apr 2026) - SD flow_shift black-image fix, GPU OOM validation, dynamic Linux install fixes, wheel backend discovery after auditwheel/delvewheel rename, CLI entry point, wheel smoke tests, OpenCL targets, CUDA tuning flags
 - **v0.2.2** (Apr 2026) - CUDA wheel size stability (PTX-only sm_75), portability flags moved from manage.py to CI workflows
 - **v0.2.1** (Mar 2026) - Code quality hardening: GIL release for whisper/encode, async stream fixes, memory-aware embedding cache, CI robustness, 30+ bug fixes, 1150+ tests
 - **v0.2.0** (Mar 2026) - Dynamic-linked GPU wheels (CUDA, ROCm, SYCL, Vulkan) on PyPI, unified ggml, sqlite-vector vendored

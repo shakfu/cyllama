@@ -38,6 +38,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Changed
 
+- **`text_to_image()` now returns a single `SDImage`** - The convenience function previously returned `List[SDImage]` with `batch_count` always 1, requiring callers to unpack `images[0]`. It now returns a single `SDImage` directly. The old batch behavior is available via the new `text_to_images()` function, which accepts `batch_count` and returns `List[SDImage]`
 - **`cyllama` CLI entry point** - Added `[project.scripts]` entry point in `pyproject.toml` so `cyllama info` works directly instead of `python -m cyllama info`. Updated README and docs accordingly
 - **Backend build targets now have static and dynamic variants** - Each backend has both `build-<backend>` (static) and `build-<backend>-dynamic` (dynamic) Makefile targets. Same for wheels: `wheel-<backend>` and `wheel-<backend>-dynamic`. All build targets use `clean` as a prerequisite to avoid stale cmake caches
 - **Added OpenCL build targets** - `build-opencl`, `build-opencl-dynamic`, `wheel-opencl`, and `wheel-opencl-dynamic` were missing and are now available
