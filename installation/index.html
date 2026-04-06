@@ -963,6 +963,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../build_options/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Advanced Build Options
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../context_caching/" class="md-nav__link">
         
   
@@ -2038,7 +2066,7 @@
 </code></pre></div>
 <p>All GPU variants install the same <code>cyllama</code> Python package -- only the compiled backend differs. Install one at a time (they replace each other). GPU variants require the corresponding driver/runtime installed on your system.</p>
 <p>You can verify which backend is active after installation:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>python<span class="w"> </span>-m<span class="w"> </span>cyllama<span class="w"> </span>info
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>cyllama<span class="w"> </span>info
 </code></pre></div>
 <h2 id="build-from-source">Build from Source<a class="headerlink" href="#build-from-source" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># Clone repository</span>
@@ -2064,18 +2092,19 @@
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>make<span class="w"> </span>build
 </code></pre></div>
 <h3 id="gpu-backends">GPU Backends<a class="headerlink" href="#gpu-backends" title="Permanent link">&para;</a></h3>
-<p>Build with specific GPU support:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># NVIDIA CUDA</span>
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>make<span class="w"> </span>build-cuda
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>
-<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="c1"># Vulkan (cross-platform)</span>
-<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>make<span class="w"> </span>build-vulkan
-<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>
-<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="c1"># CPU only (no GPU)</span>
-<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>make<span class="w"> </span>build-cpu
-<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>
-<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="c1"># Multiple backends</span>
-<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a><span class="nv">GGML_CUDA</span><span class="o">=</span><span class="m">1</span><span class="w"> </span><span class="nv">GGML_VULKAN</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>make<span class="w"> </span>build
+<p>Build with specific GPU support (static or dynamic):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># Static builds (all libs compiled into the extension)</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>make<span class="w"> </span>build-cpu<span class="w">       </span><span class="c1"># CPU only</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>make<span class="w"> </span>build-cuda<span class="w">      </span><span class="c1"># NVIDIA CUDA</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>make<span class="w"> </span>build-vulkan<span class="w">    </span><span class="c1"># Vulkan (cross-platform)</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="c1"># Dynamic builds (shared libs installed alongside extension)</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>make<span class="w"> </span>build-cpu-dynamic
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>make<span class="w"> </span>build-cuda-dynamic
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>make<span class="w"> </span>build-vulkan-dynamic
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a>
+<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a><span class="c1"># Multiple backends</span>
+<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a><span class="nv">GGML_CUDA</span><span class="o">=</span><span class="m">1</span><span class="w"> </span><span class="nv">GGML_VULKAN</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>make<span class="w"> </span>build
 </code></pre></div>
 <p>See <a href="../build_backends/">Building with Different Backends</a> for detailed GPU setup instructions.</p>
 <h3 id="optional-components">Optional Components<a class="headerlink" href="#optional-components" title="Permanent link">&para;</a></h3>
@@ -2110,16 +2139,32 @@
 <td>Full build (dependencies + editable install)</td>
 </tr>
 <tr>
+<td><code>make build-&lt;backend&gt;</code></td>
+<td>Static build for a specific backend (e.g. <code>build-cuda</code>)</td>
+</tr>
+<tr>
+<td><code>make build-&lt;backend&gt;-dynamic</code></td>
+<td>Dynamic build for a specific backend (e.g. <code>build-cuda-dynamic</code>)</td>
+</tr>
+<tr>
 <td><code>make wheel</code></td>
 <td>Build wheel for distribution</td>
 </tr>
 <tr>
+<td><code>make wheel-&lt;backend&gt;</code></td>
+<td>Static wheel for a specific backend</td>
+</tr>
+<tr>
+<td><code>make wheel-&lt;backend&gt;-dynamic</code></td>
+<td>Dynamic wheel for a specific backend</td>
+</tr>
+<tr>
 <td><code>make clean</code></td>
-<td>Remove build artifacts</td>
+<td>Remove build artifacts and dynamic libs</td>
 </tr>
 <tr>
 <td><code>make reset</code></td>
-<td>Full reset including thirdparty</td>
+<td>Full reset including thirdparty and .venv</td>
 </tr>
 <tr>
 <td><code>make remake</code></td>
