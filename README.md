@@ -18,7 +18,7 @@ It combines the performance of compiled Cython wrappers with a simple, high-leve
 - GPU acceleration -- Metal (macOS), CUDA (NVIDIA), ROCm (AMD), Vulkan (cross-platform)
 - Speculative decoding -- 2-3x speedup with draft models
 - Agent framework -- ReActAgent, ConstrainedAgent, ContractAgent with tool calling
-- RAG -- retrieval-augmented generation with local embeddings and SQLite-vector
+- RAG -- retrieval-augmented generation with local embeddings and [sqlite-vector](https://github.com/sqliteai/sqlite-vector)
 - Speech recognition -- whisper.cpp transcription and translation
 - Image/Video generation -- stable-diffusion.cpp handles image, image-edit and video models.
 - OpenAI-compatible servers -- EmbeddedServer (C/Mongoose) and PythonServer
