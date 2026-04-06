@@ -74,7 +74,7 @@ cdef extern from "mongoose.h":
         char is_readable
         char is_writable
 
-    ctypedef void (*mg_event_handler_t)(mg_connection *c, int ev, void *ev_data, void *fn_data)
+    ctypedef void (*mg_event_handler_t)(mg_connection *c, int ev, void *ev_data)
 
     ctypedef struct mg_mgr:
         mg_connection *conns

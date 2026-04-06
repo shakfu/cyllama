@@ -530,7 +530,7 @@ cdef class EmbeddedServer:
 
 
 # C callback function for HTTP events
-cdef void _http_event_handler(mg_connection *c, int ev, void *ev_data, void *fn_data) noexcept:
+cdef void _http_event_handler(mg_connection *c, int ev, void *ev_data) noexcept:
     """C callback for Mongoose HTTP events."""
     cdef mg_http_message *hm
     cdef EmbeddedServer server
