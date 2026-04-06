@@ -102,7 +102,7 @@ jobs:
           CIBW_BEFORE_BUILD_LINUX: >
             sed -i 's/^name = "cyllama"/name = "cyllama-cuda12"/' {project}/pyproject.toml &&
             grep -q '^name = "cyllama-cuda12"' {project}/pyproject.toml || { echo "ERROR: sed rename to cyllama-cuda12 failed"; exit 1; } &&
-            cd {project} && python scripts/manage.py write-backend-info
+            cd {project} && python scripts/manage.py write_backend_info
           CIBW_ENVIRONMENT_LINUX: >
             GGML_CUDA=1
             GGML_METAL=0
@@ -192,7 +192,7 @@ jobs:
           CIBW_BEFORE_BUILD_LINUX: >
             sed -i 's/^name = "cyllama"/name = "cyllama-rocm"/' {project}/pyproject.toml &&
             grep -q '^name = "cyllama-rocm"' {project}/pyproject.toml || { echo "ERROR: sed rename to cyllama-rocm failed"; exit 1; } &&
-            cd {project} && python scripts/manage.py write-backend-info
+            cd {project} && python scripts/manage.py write_backend_info
           CIBW_ENVIRONMENT_LINUX: >
             GGML_NATIVE=OFF
             GGML_HIP=1
@@ -280,7 +280,7 @@ jobs:
           CIBW_BEFORE_BUILD_LINUX: >
             sed -i 's/^name = "cyllama"/name = "cyllama-sycl"/' {project}/pyproject.toml &&
             grep -q '^name = "cyllama-sycl"' {project}/pyproject.toml || { echo "ERROR: sed rename to cyllama-sycl failed"; exit 1; } &&
-            cd {project} && python scripts/manage.py write-backend-info
+            cd {project} && python scripts/manage.py write_backend_info
           CIBW_ENVIRONMENT_LINUX: >
             GGML_NATIVE=OFF
             GGML_SYCL=1
@@ -367,13 +367,13 @@ jobs:
           CIBW_BEFORE_BUILD_LINUX: >
             sed -i 's/^name = "cyllama"/name = "cyllama-vulkan"/' {project}/pyproject.toml &&
             grep -q '^name = "cyllama-vulkan"' {project}/pyproject.toml || { echo "ERROR: sed rename to cyllama-vulkan failed"; exit 1; } &&
-            cd {project} && python scripts/manage.py write-backend-info
+            cd {project} && python scripts/manage.py write_backend_info
           CIBW_ENVIRONMENT_LINUX: >
             GGML_NATIVE=OFF
             GGML_VULKAN=1
             GGML_METAL=0
             CFLAGS=-s
-            CXXFLAGS=-s
+            CXXFLAGS=-s`
             WITH_DYLIB=${{ inputs.link_mode == 'dynamic' && '1' || '0' }}
           CIBW_TEST_COMMAND: ""
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
