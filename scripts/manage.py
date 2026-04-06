@@ -2295,6 +2295,13 @@ class Application(ShellCmd, metaclass=MetaCommander):
         self.log.info(f"Wrote backend info to {out_path}")
 
     # ------------------------------------------------------------------------
+    # write-backend-info
+
+    def do_write_backend_info(self, args: argparse.Namespace) -> None:
+        """write _backend.py from current GGML_* env vars"""
+        self._write_backend_info()
+
+    # ------------------------------------------------------------------------
     # wheel
 
     @opt("--release", "-r", "build and release all wheels")

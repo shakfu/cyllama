@@ -47,6 +47,7 @@ wheel.exclude = ["*.pyx", "*.pxd", "*.pxi", "*.cpp", "*.c", "*.h", "*.hpp", "*.a
 wheel.license-files = ["LICENSE"]
 build-dir = "build/{wheel_tag}"
 sdist.include = [
+    "src/cyllama/_backend.py",
     "thirdparty/llama.cpp/include",
     "thirdparty/llama.cpp/lib",
     "thirdparty/llama.cpp/dynamic",

@@ -349,7 +349,7 @@ def cmd_txt2img(args):
             clip_skip=args.clip_skip,
             eta=args.eta,
             slg_scale=args.slg_scale,
-            flow_shift=args.flow_shift if getattr(args, "flow_shift", None) is not None else float('inf'),
+            flow_shift=args.flow_shift if getattr(args, "flow_shift", None) is not None else float("inf"),
             vae_tiling=args.vae_tiling,
         )
     except RuntimeError as e:
@@ -430,7 +430,7 @@ def cmd_img2img(args):
             clip_skip=args.clip_skip,
             eta=args.eta,
             slg_scale=args.slg_scale,
-            flow_shift=args.flow_shift if getattr(args, "flow_shift", None) is not None else float('inf'),
+            flow_shift=args.flow_shift if getattr(args, "flow_shift", None) is not None else float("inf"),
             vae_tiling=args.vae_tiling,
         )
     except RuntimeError as e:
@@ -516,7 +516,7 @@ def cmd_inpaint(args):
             strength=args.strength,
             clip_skip=args.clip_skip,
             eta=args.eta,
-            flow_shift=args.flow_shift if getattr(args, "flow_shift", None) is not None else float('inf'),
+            flow_shift=args.flow_shift if getattr(args, "flow_shift", None) is not None else float("inf"),
             vae_tiling=args.vae_tiling,
         )
     except RuntimeError as e:
@@ -599,7 +599,7 @@ def cmd_controlnet(args):
             clip_skip=args.clip_skip,
             eta=args.eta,
             slg_scale=args.slg_scale,
-            flow_shift=args.flow_shift if getattr(args, "flow_shift", None) is not None else float('inf'),
+            flow_shift=args.flow_shift if getattr(args, "flow_shift", None) is not None else float("inf"),
             vae_tiling=args.vae_tiling,
         )
     except RuntimeError as e:
