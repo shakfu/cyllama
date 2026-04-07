@@ -574,6 +574,105 @@ class TestCmdEmbed:
 
 
 # ---------------------------------------------------------------------------
+# cmd_rag
+# ---------------------------------------------------------------------------
+
+class TestCmdRag:
+    def _make_args(self, **overrides):
+        defaults = dict(
+            model="llm.gguf", embedding_model="emb.gguf",
+            file=None, dir=None, glob="**/*",
+            prompt=None, system=None, max_tokens=512, temperature=0.7,
+            top_k=5, threshold=None, n_gpu_layers=99,
+            stream=False, sources=False,
+        )
+        defaults.update(overrides)
+        return argparse.Namespace(**defaults)
+
+    def test_no_documents(self):
+        """Should return 1 when no files or dirs provided."""
+        from cyllama.__main__ import cmd_rag
+        args = self._make_args()
+
+        mock_rag = MagicMock()
+        mock_rag.add_documents.return_value = []
+        with patch("cyllama.rag.RAG", return_value=mock_rag):
+            ret = cmd_rag(args)
+        assert ret == 1
+
+    def test_single_query(self, capsys):
+        """Single query with -p."""
+        from cyllama.__main__ import cmd_rag
+        args = self._make_args(file=["corpus.txt"], prompt="What is this about?")
+
+        mock_rag = MagicMock()
+        mock_rag.add_documents.return_value = [1, 2, 3]
+        mock_response = MagicMock()
+        mock_response.text = "It is about testing."
+        mock_response.sources = []
+        mock_rag.query.return_value = mock_response
+
+        with patch("cyllama.rag.RAG", return_value=mock_rag):
+            ret = cmd_rag(args)
+
+        assert ret == 0
+        out = capsys.readouterr().out
+        assert "It is about testing." in out
+
+    def test_single_query_stream(self, capsys):
+        """Streaming single query."""
+        from cyllama.__main__ import cmd_rag
+        args = self._make_args(file=["corpus.txt"], prompt="question", stream=True)
+
+        mock_rag = MagicMock()
+        mock_rag.add_documents.return_value = [1, 2]
+        mock_rag.stream.return_value = iter(["hello", " world"])
+
+        with patch("cyllama.rag.RAG", return_value=mock_rag):
+            ret = cmd_rag(args)
+
+        assert ret == 0
+        out = capsys.readouterr().out
+        assert "hello world" in out
+
+    def test_single_query_with_sources(self, capsys):
+        """Single query with --sources."""
+        from cyllama.__main__ import cmd_rag
+        args = self._make_args(file=["corpus.txt"], prompt="question", sources=True)
+
+        mock_rag = MagicMock()
+        mock_rag.add_documents.return_value = [1]
+        mock_source = MagicMock()
+        mock_source.score = 0.85
+        mock_source.text = "relevant chunk text here"
+        mock_response = MagicMock()
+        mock_response.text = "answer"
+        mock_response.sources = [mock_source]
+        mock_rag.query.return_value = mock_response
+
+        with patch("cyllama.rag.RAG", return_value=mock_rag):
+            ret = cmd_rag(args)
+
+        assert ret == 0
+        out = capsys.readouterr().out
+        assert "Sources" in out
+        assert "0.8500" in out
+
+    def test_keyboard_interrupt(self):
+        """Should handle KeyboardInterrupt gracefully."""
+        from cyllama.__main__ import cmd_rag
+        args = self._make_args(file=["corpus.txt"], prompt="question")
+
+        mock_rag = MagicMock()
+        mock_rag.add_documents.return_value = [1]
+        mock_rag.query.side_effect = KeyboardInterrupt
+
+        with patch("cyllama.rag.RAG", return_value=mock_rag):
+            ret = cmd_rag(args)
+        assert ret == 130
+
+
+# ---------------------------------------------------------------------------
 # _delegate
 # ---------------------------------------------------------------------------
 
@@ -637,6 +736,13 @@ class TestMainDispatch:
         from cyllama.__main__ import main
         with patch("sys.argv", ["cyllama", "embed", "-m", "m.gguf", "-t", "hi"]), \
              patch("cyllama.__main__.cmd_embed", return_value=0) as mock:
+            main()
+        mock.assert_called_once()
+
+    def test_rag_dispatch(self):
+        from cyllama.__main__ import main
+        with patch("sys.argv", ["cyllama", "rag", "-m", "m.gguf", "-e", "e.gguf", "-f", "f.txt"]), \
+             patch("cyllama.__main__.cmd_rag", return_value=0) as mock:
             main()
         mock.assert_called_once()
 

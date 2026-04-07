@@ -43,7 +43,7 @@ class RAGConfig:
     similarity_threshold: float | None = None
 
     # Generation settings
-    max_tokens: int = 512
+    max_tokens: int = 200
     temperature: float = 0.7
 
     # Prompt template
@@ -200,6 +200,7 @@ class RAGPipeline:
         gen_config = GenerationConfig(
             max_tokens=cfg.max_tokens,
             temperature=cfg.temperature,
+            stop_sequences=["Question:", "\nContext:", "\nAnswer:"],
         )
         response = self.generator(prompt, config=gen_config)
 
@@ -248,6 +249,7 @@ class RAGPipeline:
         gen_config = GenerationConfig(
             max_tokens=cfg.max_tokens,
             temperature=cfg.temperature,
+            stop_sequences=["Question:", "\nContext:", "\nAnswer:"],
         )
         yield from self.generator(prompt, config=gen_config, stream=True)
 

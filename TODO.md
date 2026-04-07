@@ -6,7 +6,8 @@
 - [ ] Structured logging system (JSON output option, agent decision flow logging)
 - [x] Wheel smoke tests in CI (build wheel, install in clean venv, run minimal inference to catch packaging regressions)
 - [ ] Memory leak tests (loop create/destroy of LLM, SDContext, WhisperContext objects, assert RSS stays bounded)
-- [ ] Signal/interrupt handling (verify Ctrl-C during long inference doesn't segfault or leave resources dangling)
+- [x] Signal/interrupt handling (verify Ctrl-C during long inference doesn't segfault or leave resources dangling)
+- [ ] RAG response repetition — models (e.g. Qwen3-4B) repeat/paraphrase their answer in a loop when not given explicit system instructions. Stop sequences for template markers (`Question:`, `Answer:`, `Context:`) help but don't fully prevent it since the model repeats within a single text block. Current workaround: lower `max_tokens` (default 200) and/or use `-s` system instruction. Potential approaches: repetition penalty tuning, n-gram repetition detection at the streaming level, or chat-template-based prompting instead of raw completion
 
 ## Wheel / Packaging
 

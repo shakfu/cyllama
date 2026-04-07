@@ -337,6 +337,113 @@ def cmd_embed(args):
     return 0
 
 
+def cmd_rag(args):
+    """RAG: query documents with a language model."""
+    from .rag import RAG, RAGConfig
+
+    # Build prompt template with optional system instruction
+    if args.system:
+        prompt_template = f"""{args.system}
+
+Use the following context to answer the question. If the context doesn't contain relevant information, say so.
+
+Context:
+{{context}}
+
+Question: {{question}}
+
+Answer:"""
+    else:
+        prompt_template = None  # use default
+
+    config = RAGConfig(
+        top_k=args.top_k,
+        similarity_threshold=args.threshold or None,
+        max_tokens=args.max_tokens,
+        temperature=args.temperature,
+        **({"prompt_template": prompt_template} if prompt_template else {}),
+    )
+
+    rag = RAG(
+        embedding_model=args.embedding_model,
+        generation_model=args.model,
+        n_gpu_layers=args.n_gpu_layers,
+        config=config,
+    )
+
+    # Load documents
+    n_added = 0
+    if args.file:
+        n_added += len(rag.add_documents(args.file))
+    if args.dir:
+        from .rag import load_directory
+        for path in args.dir:
+            docs = load_directory(path, glob=args.glob)
+            n_added += len(rag.add_texts([d.text for d in docs]))
+
+    if n_added == 0:
+        print("Error: no documents loaded. Provide files via -f or directories via -d", file=sys.stderr)
+        rag.close()
+        return 1
+
+    import os
+    from . import __version__
+    model_name = os.path.basename(args.model)
+    try:
+        cols = os.get_terminal_size().columns
+    except OSError:
+        cols = 80
+    left = f"cyllama v{__version__} rag"
+    print(f"{left}{model_name:>{cols - len(left)}}")
+    print(f"{n_added} chunks indexed")
+
+    if args.prompt:
+        # Single query mode
+        try:
+            if args.stream:
+                for chunk in rag.stream(args.prompt, config):
+                    print(chunk, end="", flush=True)
+                print()
+            else:
+                response = rag.query(args.prompt, config)
+                print(response.text)
+                if args.sources:
+                    print("\n--- Sources ---")
+                    for src in response.sources:
+                        print(f"  [{src.score:.4f}] {src.text[:120]}...")
+        except KeyboardInterrupt:
+            print("\nInterrupted", file=sys.stderr)
+            rag.close()
+            return 130
+    else:
+        # Interactive mode
+        try:
+            while True:
+                print("\033[32m> \033[0m", end="")
+                try:
+                    question = input().strip()
+                except (EOFError, KeyboardInterrupt):
+                    break
+                if not question:
+                    continue
+                print("\033[33m", end="")
+                for chunk in rag.stream(question, config):
+                    print(chunk, end="", flush=True)
+                print("\033[0m")
+                if args.sources:
+                    results = rag.search(question, k=config.top_k, threshold=config.similarity_threshold)
+                    if results:
+                        print("--- Sources ---")
+                        for src in results:
+                            print(f"  [{src.score:.4f}] {src.text[:120]}...")
+                        print()
+        except KeyboardInterrupt:
+            pass
+
+    rag.close()
+    return 0
+
+
 def _delegate(module_path, import_name="main"):
     """Delegate to a sub-module's main(), stripping the subcommand from sys.argv."""
     sys.argv = ["cyllama " + sys.argv[1]] + sys.argv[2:]
@@ -412,6 +519,23 @@ def main():
     embed_parser.add_argument("--threshold", type=float, default=0.0,
                               help="Minimum similarity score to display (default: 0.0)")
 
+    # -- rag --------------------------------------------------------------
+    rag_parser = subparsers.add_parser("rag", help="Query documents with RAG")
+    rag_parser.add_argument("-m", "--model", required=True, help="Path to GGUF generation model")
+    rag_parser.add_argument("-e", "--embedding-model", required=True, help="Path to GGUF embedding model")
+    rag_parser.add_argument("-f", "--file", action="append", help="File to index (repeatable)")
+    rag_parser.add_argument("-d", "--dir", action="append", help="Directory to index (repeatable)")
+    rag_parser.add_argument("--glob", default="**/*", help="Glob pattern for directory loading (default: **/*)")
+    rag_parser.add_argument("-p", "--prompt", help="Single query (omit for interactive)")
+    rag_parser.add_argument("-s", "--system", help="System instruction (e.g. 'Answer in one paragraph')")
+    rag_parser.add_argument("-n", "--max-tokens", type=int, default=200)
+    rag_parser.add_argument("--temperature", type=float, default=0.7)
+    rag_parser.add_argument("-k", "--top-k", type=int, default=5, help="Number of chunks to retrieve")
+    rag_parser.add_argument("--threshold", type=float, default=None, help="Minimum similarity threshold")
+    rag_parser.add_argument("-ngl", "--n-gpu-layers", type=int, default=99)
+    rag_parser.add_argument("--stream", action="store_true", help="Stream output tokens")
+    rag_parser.add_argument("--sources", action="store_true", help="Show source chunks")
+
     # -- delegation commands ----------------------------------------------
     subparsers.add_parser("server", help="Start OpenAI-compatible API server")
     subparsers.add_parser("transcribe", help="Speech-to-text transcription")
@@ -437,6 +561,8 @@ def main():
         return cmd_chat(args)
     elif args.command == "embed":
         return cmd_embed(args)
+    elif args.command == "rag":
+        return cmd_rag(args)
     elif args.command == "server":
         return _delegate(".llama.server.__main__")
     elif args.command == "transcribe":
