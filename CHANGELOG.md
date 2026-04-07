@@ -37,6 +37,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 - **Incorrect `mg_event_handler_t` typedef in Mongoose `.pxd`** - The Cython declaration used a 4-argument signature `(c, ev, ev_data, fn_data)` but Mongoose 7.x defines the callback as 3 arguments `(c, ev, ev_data)`. The mismatch was silently harmless at runtime (the extra `fn_data` parameter was never used -- the server accesses `c->mgr->userdata` instead), but it was technically undefined behavior. Fixed the typedef in `mongoose.pxd` and the `_http_event_handler` callback in `embedded.pyx` to match the actual Mongoose header
 
+- **Vulkan cached CI workflow failed to parse environment** - Stray backtick in `CIBW_ENVIRONMENT_LINUX` for the Vulkan job in `build-gpu-wheels-cached.yml` caused cibuildwheel to reject the entire environment block with `Malformed environment option`. The other three backend jobs (CUDA, ROCm, SYCL) were unaffected
+
 ### Added
 
 - **`/v1/embeddings` endpoint in PythonServer and EmbeddedServer** - Both server implementations now support the OpenAI-compatible `/v1/embeddings` endpoint. When `embedding=True` in `ServerConfig`, the server instantiates an `Embedder` to handle embedding requests over HTTP. New config fields: `embedding_model_path` (defaults to `model_path`), `embedding_n_ctx`, `embedding_n_batch`, `embedding_n_gpu_layers`, `embedding_pooling`, and `embedding_normalize`. Accepts single string or batch input, returns OpenAI-format response with usage stats. Resolves [#14](https://github.com/shakfu/cyllama/issues/14)

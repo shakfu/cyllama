@@ -373,7 +373,7 @@ jobs:
             GGML_VULKAN=1
             GGML_METAL=0
             CFLAGS=-s
-            CXXFLAGS=-s`
+            CXXFLAGS=-s
             WITH_DYLIB=${{ inputs.link_mode == 'dynamic' && '1' || '0' }}
           CIBW_TEST_COMMAND: ""
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
