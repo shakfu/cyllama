@@ -19,6 +19,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Fixed
 
+- **Stable Diffusion CUDA crash with `--offload-to-cpu`** - Image generation with `--offload-to-cpu` (and optionally `--vae-on-cpu`) crashed with `GGML_ASSERT(ggml_are_same_layout(src, dst))` during tensor copy. Root cause: `libstable-diffusion.a` was compiled against ggml 0.9.5 headers but linked at runtime against llama.cpp's ggml 0.9.8 shared libraries. Between these versions, `GGML_OP_GATED_DELTA_NET` was inserted into the `ggml_op` enum, shifting all subsequent op values by 1. This caused the SD code to build compute graphs with misidentified operations, leading to corrupted tensor layouts. Fixed by replacing SD's vendored ggml with llama.cpp's ggml during the build, ensuring both compile-time and runtime enum values match. The sync is automatic via `_sync_ggml_abi()` in `manage.py` for both local and CI builds
+
 - **Incorrect `mg_event_handler_t` typedef in Mongoose `.pxd`** - The Cython declaration used a 4-argument signature `(c, ev, ev_data, fn_data)` but Mongoose 7.x defines the callback as 3 arguments `(c, ev, ev_data)`. The mismatch was silently harmless at runtime (the extra `fn_data` parameter was never used -- the server accesses `c->mgr->userdata` instead), but it was technically undefined behavior. Fixed the typedef in `mongoose.pxd` and the `_http_event_handler` callback in `embedded.pyx` to match the actual Mongoose header
 
 ### Added

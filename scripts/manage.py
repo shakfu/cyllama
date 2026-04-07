@@ -1598,11 +1598,45 @@ class StableDiffusionCppBuilder(Builder):
 
         return options
 
+    def _sync_ggml_abi(self) -> None:
+        """Sync ggml ABI between stable-diffusion.cpp and llama.cpp.
+
+        stable-diffusion.cpp vendors its own ggml (potentially older), but the
+        final extension links against llama.cpp's ggml dylibs.  If enum values
+        (ggml_op, ggml_type) diverge between versions, the SD code will build
+        compute graphs with wrong op ids, causing assertion failures at runtime.
+
+        We replace SD's vendored ggml directory with llama.cpp's ggml so that
+        headers, source, and the runtime dylibs all use the same version.
+        """
+        import shutil
+
+        llama_ggml = self.project.src / "llama.cpp" / "ggml"
+        sd_ggml = self.src_dir / "ggml"
+        if not llama_ggml.exists() or not sd_ggml.exists():
+            self.log.warn(
+                "Cannot sync ggml ABI: llama.cpp or SD ggml dir missing"
+            )
+            return
+
+        # Replace SD's vendored ggml with llama.cpp's copy
+        shutil.rmtree(sd_ggml)
+        shutil.copytree(llama_ggml, sd_ggml)
+        self.log.info(
+            "Replaced SD's vendored ggml with llama.cpp's ggml for "
+            "ABI compatibility"
+        )
+
     def build(self, shared: bool = False) -> None:
         """stable-diffusion.cpp main build function"""
         if not self.src_dir.exists():
             self.setup()
         self.log.info(f"building {self.name}")
+
+        # Sync ggml ABI from llama.cpp before compiling so that enum
+        # values (ggml_op, ggml_type) match the dylibs we link against.
+        self._sync_ggml_abi()
+
         self.prefix.mkdir(exist_ok=True)
         self.include.mkdir(exist_ok=True)
         self.glob_copy(self.src_dir, self.include, patterns=["*.h", "*.hpp"])
