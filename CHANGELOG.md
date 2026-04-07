@@ -19,7 +19,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Added
 
-- **Unified CLI** - `cyllama` command now exposes all major functionality via subcommands: `generate` (alias `gen`), `chat`, `embed`, `server`, `transcribe`, `tts`, `sd`, `agent`, `memory`. The previous `info` and `version` commands are preserved. High-level commands (`generate`, `chat`, `embed`) use the Python API directly; others delegate to existing sub-module CLIs. `chat` and `generate` expose full sampling parameters (`--top-k`, `--top-p`, `--min-p`, `--repeat-penalty`). `embed` supports `--dim`, `--similarity QUERY` with `--threshold`, `--pooling`, `--no-normalize`, and `-c`/`--ctx-size`
+- **Unified CLI** - `cyllama` command now exposes all major functionality via subcommands: `generate` (alias `gen`), `chat`, `embed`, `rag`, `server`, `transcribe`, `tts`, `sd`, `agent`, `memory`. The previous `info` and `version` commands are preserved. High-level commands (`generate`, `chat`, `embed`) use the Python API directly; others delegate to existing sub-module CLIs. `chat` and `generate` expose full sampling parameters (`--top-k`, `--top-p`, `--min-p`, `--repeat-penalty`). `embed` supports `--dim`, `--similarity QUERY` with `--threshold`, `--pooling`, `--no-normalize`, and `-c`/`--ctx-size`
+
+- **`cyllama rag` CLI** - New `rag` subcommand for command-line retrieval-augmented generation. Index files (`-f`) or directories (`-d`) and query them with a generation model (`-m`) and an embedding model (`-e`). Supports single-query (`-p`) and interactive modes, streaming (`--stream`), source display (`--sources`), configurable retrieval (`-k`, `--threshold`), system instructions (`-s`), and GPU offloading (`-ngl`)
 
 ### Fixed
 

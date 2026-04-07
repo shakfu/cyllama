@@ -100,6 +100,46 @@ cyllama embed -m models/bge-small.gguf --similarity "machine learning" -f corpus
 cyllama embed -m models/bge-small.gguf -t "hello" --pooling cls --no-normalize
 ```
 
+### RAG (Retrieval-Augmented Generation)
+
+```bash
+# Single query against a directory of documents
+cyllama rag -m models/llama.gguf -e models/bge-small.gguf \
+    -d docs/ -p "How do I configure X?" --stream
+
+# Index specific files and enter interactive mode
+cyllama rag -m models/llama.gguf -e models/bge-small.gguf \
+    -f guide.md -f faq.md
+
+# With system instruction, top-k, and similarity threshold
+cyllama rag -m models/llama.gguf -e models/bge-small.gguf \
+    -d docs/ -p "Summarize the architecture" \
+    -s "Answer in one paragraph" -k 3 --threshold 0.4
+
+# Show source chunks used for the answer
+cyllama rag -m models/llama.gguf -e models/bge-small.gguf \
+    -f manual.md -p "What are the limits?" --sources
+```
+
+**Options:**
+
+| Flag | Description |
+|------|-------------|
+| `-m, --model` | Path to GGUF generation model (required) |
+| `-e, --embedding-model` | Path to GGUF embedding model (required) |
+| `-f, --file` | File to index (repeatable) |
+| `-d, --dir` | Directory to index (repeatable) |
+| `--glob` | Glob pattern for directory loading (default: `**/*`) |
+| `-p, --prompt` | Single query (omit for interactive mode) |
+| `-s, --system` | System instruction |
+| `-n, --max-tokens` | Maximum tokens to generate (default: 200) |
+| `--temperature` | Generation temperature (default: 0.7) |
+| `-k, --top-k` | Number of chunks to retrieve (default: 5) |
+| `--threshold` | Minimum similarity threshold |
+| `-ngl, --n-gpu-layers` | GPU layers to offload (default: 99) |
+| `--stream` | Stream output tokens |
+| `--sources` | Show source chunks with similarity scores |
+
 ### Other Commands
 
 ```bash

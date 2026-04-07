@@ -43,7 +43,7 @@ class RAGConfig:
     similarity_threshold: float | None = None
 
     # Generation settings
-    max_tokens: int = 200
+    max_tokens: int = 512
     temperature: float = 0.7
 
     # Prompt template

@@ -88,6 +88,8 @@ cyllama embed -m models/bge-small.gguf --dim                        # print dime
 cyllama embed -m models/bge-small.gguf --similarity "cats" -f corpus.txt --threshold 0.5
 
 # Other commands
+cyllama rag -m models/llama.gguf -e models/bge-small.gguf -d docs/ -p "How do I configure X?"
+cyllama rag -m models/llama.gguf -e models/bge-small.gguf -f file.md   # interactive mode
 cyllama server -m models/llama.gguf --port 8080
 cyllama transcribe -m models/ggml-base.en.bin audio.wav
 cyllama tts -m models/tts.gguf -p "Hello world"
@@ -379,6 +381,18 @@ Supports SD 1.x/2.x, SDXL, SD3, FLUX, FLUX2, z-image-turbo, video generation (Wa
 
 ### RAG (Retrieval-Augmented Generation)
 
+**CLI** - Query your documents from the command line:
+
+```bash
+# Single query against a directory of docs
+cyllama rag -m models/llama.gguf -e models/bge-small.gguf \
+    -d docs/ -p "How do I configure X?" --stream
+
+# Interactive mode with source display
+cyllama rag -m models/llama.gguf -e models/bge-small.gguf \
+    -f guide.md -f faq.md --sources
+```
+
 **Simple RAG** - Query your documents with LLMs:
 
 ```python
@@ -469,7 +483,7 @@ agent = ReActAgent(llm=llm, tools=[search_tool])
 result = agent.run("Find information about X in the knowledge base")
 ```
 
-Supports text chunking, multiple embedding pooling strategies, LRU caching for repeated queries, async operations, reranking, and SQLite-vector for persistent storage.
+Supports text chunking, multiple embedding pooling strategies, LRU caching for repeated queries, async operations, reranking, and SQLite-vector for persistent storage. See [RAG Overview](docs/rag_overview.md) for full documentation.
 
 ### Common Utilities
 
@@ -584,7 +598,7 @@ models = list_cached_models()
 
 ## Status
 
-**Current Version**: 0.2.1 (Mar 2026)
+**Current Version**: 0.2.3 (Apr 2026)
 **llama.cpp Version**: b8429
 **Build System**: scikit-build-core + CMake
 **Test Coverage**: 1150+ tests passing
@@ -592,6 +606,7 @@ models = list_cached_models()
 
 ### Recent Releases
 
+- **v0.2.4** (Apr 2026, dev) - Unified CLI (`cyllama gen`, `chat`, `embed`, `rag`, ...), `cyllama rag` command-line RAG, Ctrl+C during inference, embeddings endpoint, Embedder logging fix, interactive chat token limit fix
 - **v0.2.3** (Apr 2026) - SD flow_shift black-image fix, GPU OOM validation, dynamic Linux install fixes, wheel backend discovery after auditwheel/delvewheel rename, CLI entry point, wheel smoke tests, OpenCL targets, CUDA tuning flags
 - **v0.2.2** (Apr 2026) - CUDA wheel size stability (PTX-only sm_75), portability flags moved from manage.py to CI workflows
 - **v0.2.1** (Mar 2026) - Code quality hardening: GIL release for whisper/encode, async stream fixes, memory-aware embedding cache, CI robustness, 30+ bug fixes, 1150+ tests
@@ -801,6 +816,7 @@ To serve docs locally: `make docs-serve`
 
 - **[User Guide](docs/user_guide.md)** - Comprehensive guide covering all features
 - **[API Reference](docs/api_reference.md)** - Complete API documentation
+- **[RAG Overview](docs/rag_overview.md)** - Retrieval-augmented generation guide
 - **[Cookbook](docs/cookbook.md)** - Practical recipes and patterns
 - **[Changelog](CHANGELOG.md)** - Complete release history
 - **Examples** - See `tests/examples/` for working code samples
