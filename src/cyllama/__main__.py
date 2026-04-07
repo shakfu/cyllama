@@ -1,5 +1,6 @@
 """cyllama CLI: cyllama [command] (or python -m cyllama [command])"""
 
+import argparse
 import platform
 import sys
 
@@ -172,25 +173,285 @@ def cmd_version():
     print(__version__)
 
 
-def main():
-    if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help"):
-        print("Usage: cyllama <command>")
-        print()
-        print("Commands:")
-        print("  info      Show build and backend information")
-        print("  version   Show version")
+def cmd_generate(args):
+    """Generate text from a prompt."""
+    from .api import GenerationConfig, complete
+
+    # Read prompt from arg, file, or stdin
+    if args.prompt:
+        prompt = args.prompt
+    elif args.file:
+        with open(args.file) as f:
+            prompt = f.read()
+    elif not sys.stdin.isatty():
+        prompt = sys.stdin.read()
+    else:
+        print("Error: provide a prompt via -p, -f, or stdin", file=sys.stderr)
+        return 1
+
+    config = GenerationConfig(
+        max_tokens=args.max_tokens,
+        temperature=args.temperature,
+        top_k=args.top_k,
+        top_p=args.top_p,
+        min_p=args.min_p,
+        repeat_penalty=args.repeat_penalty,
+        n_gpu_layers=args.n_gpu_layers,
+        n_ctx=args.ctx_size,
+        seed=args.seed,
+    )
+
+    try:
+        if args.stream:
+            for chunk in complete(prompt, args.model, config, stream=True, verbose=args.verbose):
+                print(chunk, end="", flush=True)
+            print()
+        else:
+            response = complete(prompt, args.model, config, verbose=args.verbose)
+            if args.json:
+                print(response.to_json())
+            else:
+                print(response)
+    except KeyboardInterrupt:
+        print("\nInterrupted", file=sys.stderr)
+        return 130
+
+    return 0
+
+
+def cmd_chat(args):
+    """Chat with a model."""
+    from . import __version__
+    import os
+    model_name = os.path.basename(args.model)
+    left = f"cyllama v{__version__} chat"
+    right = model_name
+    try:
+        cols = os.get_terminal_size().columns
+    except OSError:
+        cols = 80
+    print(f"{left}{right:>{cols - len(left)}}")
+
+    if args.prompt:
+        # Single-turn mode via high-level API
+        from .api import GenerationConfig, chat
+
+        messages = []
+        if args.system:
+            messages.append({"role": "system", "content": args.system})
+        messages.append({"role": "user", "content": args.prompt})
+
+        config = GenerationConfig(
+            max_tokens=args.max_tokens,
+            temperature=args.temperature,
+            top_k=args.top_k,
+            top_p=args.top_p,
+            min_p=args.min_p,
+            repeat_penalty=args.repeat_penalty,
+            n_gpu_layers=args.n_gpu_layers,
+            n_ctx=args.ctx_size,
+            seed=args.seed,
+        )
+
+        if args.stream:
+            for chunk in chat(messages, args.model, config, stream=True,
+                              verbose=args.verbose, template=args.template):
+                print(chunk, end="", flush=True)
+            print()
+        else:
+            response = chat(messages, args.model, config,
+                            verbose=args.verbose, template=args.template)
+            if args.json:
+                print(response.to_json())
+            else:
+                print(response)
+    else:
+        # Interactive mode - delegate to llama.chat
+        sys.argv = [
+            "cyllama chat",
+            "-m", args.model,
+            "-c", str(args.ctx_size),
+            "-ngl", str(args.n_gpu_layers),
+            "-n", str(args.max_tokens),
+        ]
+        from .llama.chat import main as chat_main
+        chat_main()
+
+    return 0
+
+
+def cmd_embed(args):
+    """Compute text embeddings."""
+    from .rag.embedder import Embedder
+
+    embedder = Embedder(
+        args.model,
+        n_ctx=args.ctx_size,
+        n_gpu_layers=args.n_gpu_layers,
+        pooling=args.pooling,
+        normalize=not args.no_normalize,
+    )
+
+    # --dim: print dimensions and exit
+    if args.dim:
+        print(embedder.dimension)
         return 0
 
-    cmd = sys.argv[1]
-    if cmd == "info":
-        cmd_info()
-    elif cmd == "version":
-        cmd_version()
-    else:
-        print(f"Unknown command: {cmd}")
+    # Collect texts
+    texts = []
+    if args.text:
+        texts.extend(args.text)
+    if args.file:
+        with open(args.file) as f:
+            texts.extend(line.strip() for line in f if line.strip())
+    if not sys.stdin.isatty():
+        texts.extend(line.strip() for line in sys.stdin if line.strip())
+
+    # --similarity: rank texts by cosine similarity to query
+    if args.similarity:
+        if not texts:
+            print("Error: provide texts to rank via -t, -f, or stdin", file=sys.stderr)
+            return 1
+        query_emb = embedder.embed(args.similarity)
+        text_embs = embedder.embed_batch(texts)
+        # Cosine similarity (embeddings are already normalized by default)
+        scores = []
+        for text, emb in zip(texts, text_embs):
+            dot = sum(a * b for a, b in zip(query_emb, emb))
+            scores.append((dot, text))
+        scores.sort(reverse=True)
+        for score, text in scores:
+            if score < args.threshold:
+                break
+            print(f"{score:6.4f}  {text}")
+        return 0
+
+    # Default: output raw embeddings as JSON
+    if not texts:
+        print("Error: provide text via -t, -f, or stdin", file=sys.stderr)
         return 1
+
+    import json
+    embeddings = embedder.embed_batch(texts)
+    print(json.dumps([e.tolist() for e in embeddings]))
+    return 0
+
+
+def _delegate(module_path, import_name="main"):
+    """Delegate to a sub-module's main(), stripping the subcommand from sys.argv."""
+    sys.argv = ["cyllama " + sys.argv[1]] + sys.argv[2:]
+    import importlib
+    mod = importlib.import_module(module_path, package="cyllama")
+    return getattr(mod, import_name)()
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog="cyllama",
+        description="cyllama CLI",
+    )
+    subparsers = parser.add_subparsers(dest="command")
+
+    # -- info / version ---------------------------------------------------
+    subparsers.add_parser("info", help="Show build and backend information")
+    subparsers.add_parser("version", help="Show version")
+
+    # -- generate (alias: gen) --------------------------------------------
+    gen_parser = subparsers.add_parser("generate", aliases=["gen"],
+                                       help="Generate text from a prompt")
+    gen_parser.add_argument("-m", "--model", required=True, help="Path to GGUF model")
+    gen_parser.add_argument("-p", "--prompt", help="Text prompt")
+    gen_parser.add_argument("-f", "--file", help="Read prompt from file")
+    gen_parser.add_argument("-n", "--max-tokens", type=int, default=512)
+    gen_parser.add_argument("--temperature", type=float, default=0.8)
+    gen_parser.add_argument("--top-k", type=int, default=40)
+    gen_parser.add_argument("--top-p", type=float, default=0.95)
+    gen_parser.add_argument("--min-p", type=float, default=0.05)
+    gen_parser.add_argument("--repeat-penalty", type=float, default=1.1)
+    gen_parser.add_argument("-ngl", "--n-gpu-layers", type=int, default=99)
+    gen_parser.add_argument("-c", "--ctx-size", type=int, default=None)
+    gen_parser.add_argument("--seed", type=int, default=-1)
+    gen_parser.add_argument("--stream", action="store_true", help="Stream output tokens")
+    gen_parser.add_argument("--json", action="store_true", help="Output as JSON")
+    gen_parser.add_argument("--verbose", action="store_true")
+
+    # -- chat -------------------------------------------------------------
+    chat_parser = subparsers.add_parser("chat", help="Chat with a model")
+    chat_parser.add_argument("-m", "--model", required=True, help="Path to GGUF model")
+    chat_parser.add_argument("-p", "--prompt", help="Single-turn message (omit for interactive)")
+    chat_parser.add_argument("-s", "--system", help="System prompt")
+    chat_parser.add_argument("--template", help="Chat template (e.g. chatml, llama3)")
+    chat_parser.add_argument("-n", "--max-tokens", type=int, default=512)
+    chat_parser.add_argument("--temperature", type=float, default=0.8)
+    chat_parser.add_argument("--top-k", type=int, default=40)
+    chat_parser.add_argument("--top-p", type=float, default=0.95)
+    chat_parser.add_argument("--min-p", type=float, default=0.05)
+    chat_parser.add_argument("--repeat-penalty", type=float, default=1.1)
+    chat_parser.add_argument("-ngl", "--n-gpu-layers", type=int, default=99)
+    chat_parser.add_argument("-c", "--ctx-size", type=int, default=2048)
+    chat_parser.add_argument("--seed", type=int, default=-1)
+    chat_parser.add_argument("--stream", action="store_true", help="Stream output tokens")
+    chat_parser.add_argument("--json", action="store_true", help="Output as JSON")
+    chat_parser.add_argument("--verbose", action="store_true")
+
+    # -- embed ------------------------------------------------------------
+    embed_parser = subparsers.add_parser("embed", help="Compute text embeddings")
+    embed_parser.add_argument("-m", "--model", required=True, help="Path to GGUF embedding model")
+    embed_parser.add_argument("-t", "--text", action="append", help="Text to embed (repeatable)")
+    embed_parser.add_argument("-f", "--file", help="Read texts from file (one per line)")
+    embed_parser.add_argument("-ngl", "--n-gpu-layers", type=int, default=99)
+    embed_parser.add_argument("-c", "--ctx-size", type=int, default=512)
+    embed_parser.add_argument("--pooling", default="mean", choices=["mean", "cls", "last"],
+                              help="Pooling strategy (default: mean)")
+    embed_parser.add_argument("--no-normalize", action="store_true",
+                              help="Skip L2 normalization of embeddings")
+    embed_parser.add_argument("--dim", action="store_true",
+                              help="Print embedding dimensions and exit")
+    embed_parser.add_argument("--similarity", metavar="QUERY",
+                              help="Rank texts by similarity to QUERY")
+    embed_parser.add_argument("--threshold", type=float, default=0.0,
+                              help="Minimum similarity score to display (default: 0.0)")
+
+    # -- delegation commands ----------------------------------------------
+    subparsers.add_parser("server", help="Start OpenAI-compatible API server")
+    subparsers.add_parser("transcribe", help="Speech-to-text transcription")
+    subparsers.add_parser("tts", help="Text-to-speech synthesis")
+    subparsers.add_parser("sd", help="Stable Diffusion image generation")
+    subparsers.add_parser("agent", help="Run agents")
+    subparsers.add_parser("memory", help="Estimate GPU memory requirements")
+
+    # Parse only the known args so delegation commands can pass through
+    args, remaining = parser.parse_known_args()
+
+    if args.command is None:
+        parser.print_help()
+        return 0
+
+    if args.command == "info":
+        cmd_info()
+    elif args.command == "version":
+        cmd_version()
+    elif args.command in ("generate", "gen"):
+        return cmd_generate(args)
+    elif args.command == "chat":
+        return cmd_chat(args)
+    elif args.command == "embed":
+        return cmd_embed(args)
+    elif args.command == "server":
+        return _delegate(".llama.server.__main__")
+    elif args.command == "transcribe":
+        return _delegate(".whisper.cli")
+    elif args.command == "tts":
+        return _delegate(".llama.tts")
+    elif args.command == "sd":
+        return _delegate(".sd.__main__")
+    elif args.command == "agent":
+        return _delegate(".agents.cli")
+    elif args.command == "memory":
+        return _delegate(".memory")
+
     return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main() or 0)

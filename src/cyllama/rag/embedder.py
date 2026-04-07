@@ -13,6 +13,7 @@ from ..llama.llama_cpp import (
     LlamaContextParams,
     LlamaModel,
     LlamaModelParams,
+    disable_logging,
 )
 from .types import EmbeddingResult
 
@@ -167,6 +168,9 @@ class Embedder:
         self.n_batch = n_batch
         self._normalize = normalize
         self._verbose = verbose
+
+        if not verbose:
+            disable_logging()
 
         # Parse pooling type
         pooling_map = {

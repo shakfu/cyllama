@@ -9,7 +9,7 @@ import sys
 import argparse
 from typing import List, Dict
 
-from . import (
+from .llama_cpp import (
     LlamaModel,
     LlamaContext,
     LlamaSampler,
@@ -33,7 +33,7 @@ def print_usage():
 class Chat:
     """Chat interface using cyllama"""
 
-    def __init__(self, model_path: str, n_ctx: int = 2048, ngl: int = 99):
+    def __init__(self, model_path: str, n_ctx: int = 2048, ngl: int = 99, max_tokens: int = 512):
         """Initialize the chat with model and parameters"""
         # Set up error-only logging (skip for now to avoid issues)
         # set_log_callback(lambda level, text: sys.stderr.write(text) if level >= 3 else None)
@@ -71,6 +71,7 @@ class Chat:
         self.model_path = model_path
         self.n_ctx = n_ctx
         self.ngl = ngl
+        self.max_tokens = max_tokens
 
     def generate(self, prompt: str) -> str:
         """Generate response for the given prompt using a fresh context"""
@@ -100,7 +101,7 @@ class Chat:
             return response
 
         # Generation loop
-        max_tokens = 50  # Reasonable limit for chat responses
+        max_tokens = self.max_tokens
         consecutive_spaces = 0  # Track consecutive spaces/newlines to avoid infinite generation
 
         for i in range(max_tokens):
@@ -225,11 +226,12 @@ def main():
     parser.add_argument("-m", "--model", required=True, help="Path to model file")
     parser.add_argument("-c", "--context", type=int, default=2048, help="Context size")
     parser.add_argument("-ngl", "--n-gpu-layers", type=int, default=99, help="Number of GPU layers")
+    parser.add_argument("-n", "--max-tokens", type=int, default=512, help="Max tokens per response")
 
     args = parser.parse_args()
 
     try:
-        chat = Chat(args.model, args.context, args.n_gpu_layers)
+        chat = Chat(args.model, args.context, args.n_gpu_layers, args.max_tokens)
         chat.chat_loop()
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)

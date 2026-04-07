@@ -17,7 +17,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+### Added
+
+- **Unified CLI** - `cyllama` command now exposes all major functionality via subcommands: `generate` (alias `gen`), `chat`, `embed`, `server`, `transcribe`, `tts`, `sd`, `agent`, `memory`. The previous `info` and `version` commands are preserved. High-level commands (`generate`, `chat`, `embed`) use the Python API directly; others delegate to existing sub-module CLIs. `chat` and `generate` expose full sampling parameters (`--top-k`, `--top-p`, `--min-p`, `--repeat-penalty`). `embed` supports `--dim`, `--similarity QUERY` with `--threshold`, `--pooling`, `--no-normalize`, and `-c`/`--ctx-size`
+
 ### Fixed
+
+- **Ctrl+C during inference now works** - `llama_decode()` was holding the Python GIL, preventing SIGINT handlers from firing during text generation. Released the GIL with `nogil` (matching what `llama_encode()` already did). The CLI also catches `KeyboardInterrupt` for a clean exit instead of a traceback
+
+- **Embedder logging noise** - `Embedder` accepted a `verbose` parameter but never called `disable_logging()`, so llama.cpp model loading output was always printed. Now suppresses logging when `verbose=False` (the default), matching how `LLM` already works
+
+- **Interactive chat responses truncated at 50 tokens** - `Chat.generate()` in `llama/chat.py` had `max_tokens` hardcoded to 50. Now defaults to 512 and is configurable via `-n`/`--max-tokens` on the command line
+
+- **`llama/chat.py` broken import** - `from . import LlamaModel` failed because `llama/__init__.py` does not re-export `llama_cpp` extension classes. Changed to import from `.llama_cpp` directly
 
 - **Stable Diffusion CUDA crash with `--offload-to-cpu`** - Image generation with `--offload-to-cpu` (and optionally `--vae-on-cpu`) crashed with `GGML_ASSERT(ggml_are_same_layout(src, dst))` during tensor copy. Root cause: `libstable-diffusion.a` was compiled against ggml 0.9.5 headers but linked at runtime against llama.cpp's ggml 0.9.8 shared libraries. Between these versions, `GGML_OP_GATED_DELTA_NET` was inserted into the `ggml_op` enum, shifting all subsequent op values by 1. This caused the SD code to build compute graphs with misidentified operations, leading to corrupted tensor layouts. Fixed by replacing SD's vendored ggml with llama.cpp's ggml during the build, ensuring both compile-time and runtime enum values match. The sync is automatic via `_sync_ggml_abi()` in `manage.py` for both local and CI builds
 

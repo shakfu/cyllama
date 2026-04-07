@@ -68,6 +68,36 @@ GGML_CUDA=1 pip install cyllama --no-binary cyllama
 GGML_VULKAN=1 pip install cyllama --no-binary cyllama
 ```
 
+## Command-Line Interface
+
+cyllama provides a unified CLI for all major functionality:
+
+```bash
+# Text generation
+cyllama gen -m models/llama.gguf -p "What is Python?" --stream
+cyllama gen -m models/llama.gguf -p "Write a haiku" --temperature 0.9 --json
+
+# Chat (single-turn or interactive)
+cyllama chat -m models/llama.gguf -p "Explain gravity" -s "You are a physicist"
+cyllama chat -m models/llama.gguf                      # interactive mode
+cyllama chat -m models/llama.gguf -n 1024              # interactive, up to 1024 tokens per response
+
+# Embeddings
+cyllama embed -m models/bge-small.gguf -t "hello world" -t "another text"
+cyllama embed -m models/bge-small.gguf --dim                        # print dimensions
+cyllama embed -m models/bge-small.gguf --similarity "cats" -f corpus.txt --threshold 0.5
+
+# Other commands
+cyllama server -m models/llama.gguf --port 8080
+cyllama transcribe -m models/ggml-base.en.bin audio.wav
+cyllama tts -m models/tts.gguf -p "Hello world"
+cyllama sd txt2img --model models/sd.gguf --prompt "a sunset"
+cyllama info       # build and backend information
+cyllama memory -m models/llama.gguf  # GPU memory estimation
+```
+
+Run `cyllama --help` or `cyllama <command> --help` for full usage.
+
 ## Quick Start
 
 ```python
@@ -329,20 +359,20 @@ images = ctx.generate(
 
 ```bash
 # Text to image
-python -m cyllama.sd txt2img \
+cyllama sd txt2img \
     --model models/sd_xl_turbo_1.0.q8_0.gguf \
     --prompt "a beautiful sunset" \
     --output sunset.png
 
 # Image to image
-python -m cyllama.sd img2img \
+cyllama sd img2img \
     --model models/sd-v1-5.gguf \
     --init-img input.png \
     --prompt "oil painting style" \
     --strength 0.7
 
 # Show system info
-python -m cyllama.sd info
+cyllama sd info
 ```
 
 Supports SD 1.x/2.x, SDXL, SD3, FLUX, FLUX2, z-image-turbo, video generation (Wan/CogVideoX), LoRA, ControlNet, inpainting, and ESRGAN upscaling. See [Stable Diffusion docs](docs/stable_diffusion.md) for full documentation.

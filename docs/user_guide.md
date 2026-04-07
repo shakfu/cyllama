@@ -5,12 +5,13 @@ Complete guide to using cyllama for LLM inference.
 ## Table of Contents
 
 1. [Getting Started](#getting-started)
-2. [High-Level API](#high-level-api)
-3. [Streaming Generation](#streaming-generation)
-4. [Framework Integrations](#framework-integrations)
-5. [Advanced Features](#advanced-features)
-6. [Performance Optimization](#performance-optimization)
-7. [Troubleshooting](#troubleshooting)
+2. [Command-Line Interface](#command-line-interface)
+3. [High-Level API](#high-level-api)
+4. [Streaming Generation](#streaming-generation)
+5. [Framework Integrations](#framework-integrations)
+6. [Advanced Features](#advanced-features)
+7. [Performance Optimization](#performance-optimization)
+8. [Troubleshooting](#troubleshooting)
 
 ## Getting Started
 
@@ -36,6 +37,82 @@ response = complete(
 )
 print(response)
 ```
+
+## Command-Line Interface
+
+cyllama provides a unified CLI with subcommands for all major functionality:
+
+```bash
+cyllama <command> [options]
+```
+
+### Text Generation
+
+```bash
+# Single prompt (alias: gen)
+cyllama generate -m models/llama.gguf -p "What is Python?"
+cyllama gen -m models/llama.gguf -p "What is Python?" --stream
+
+# Read prompt from file or stdin
+cyllama gen -m models/llama.gguf -f prompt.txt
+echo "Hello" | cyllama gen -m models/llama.gguf
+
+# Sampling parameters
+cyllama gen -m models/llama.gguf -p "Be creative" \
+    --temperature 0.9 --top-k 50 --top-p 0.95 -n 256
+
+# JSON output with stats
+cyllama gen -m models/llama.gguf -p "Hello" --json
+```
+
+### Chat
+
+```bash
+# Single-turn with system prompt
+cyllama chat -m models/llama.gguf -p "Explain gravity" -s "You are a physicist"
+
+# Interactive chat (omit -p)
+cyllama chat -m models/llama.gguf
+
+# Longer responses (default: 512 tokens)
+cyllama chat -m models/llama.gguf -n 1024
+
+# With explicit chat template
+cyllama chat -m models/llama.gguf -p "Hello" --template chatml
+```
+
+### Embeddings
+
+```bash
+# Embed one or more texts
+cyllama embed -m models/bge-small.gguf -t "hello world" -t "another text"
+
+# From file (one text per line)
+cyllama embed -m models/bge-small.gguf -f texts.txt
+
+# Check embedding dimensions
+cyllama embed -m models/bge-small.gguf --dim
+
+# Similarity search with threshold
+cyllama embed -m models/bge-small.gguf --similarity "machine learning" -f corpus.txt --threshold 0.5
+
+# Custom pooling and normalization
+cyllama embed -m models/bge-small.gguf -t "hello" --pooling cls --no-normalize
+```
+
+### Other Commands
+
+```bash
+cyllama server -m models/llama.gguf    # OpenAI-compatible server
+cyllama transcribe -m models/ggml-base.en.bin audio.wav
+cyllama tts -m models/tts.gguf -p "Hello world"
+cyllama sd txt2img --model models/sd.gguf --prompt "a sunset"
+cyllama agent run task.yaml            # Run agents
+cyllama memory -m models/llama.gguf    # GPU memory estimation
+cyllama info                           # Build and backend info
+```
+
+Use `cyllama <command> --help` for full option details. Ctrl+C cleanly interrupts generation.
 
 ## High-Level API
 

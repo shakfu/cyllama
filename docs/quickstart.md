@@ -14,6 +14,21 @@ make
 make download
 ```
 
+## Command Line
+
+The fastest way to try cyllama is from the command line:
+
+```bash
+# Generate text
+cyllama gen -m models/Llama-3.2-1B-Instruct-Q8_0.gguf -p "What is Python?" --stream
+
+# Interactive chat
+cyllama chat -m models/Llama-3.2-1B-Instruct-Q8_0.gguf
+
+# See all commands
+cyllama --help
+```
+
 ## Your First Generation
 
 ```python
