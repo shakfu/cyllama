@@ -1337,16 +1337,25 @@ cdef class LlamaModelQuantizeParams:
         self.p.keep_split = value
 
     @property
+    def dry_run(self) -> bool:
+        """calculate and show the final quantization size without performing quantization"""
+        return self.p.dry_run
+
+    @dry_run.setter
+    def dry_run(self, value: bool):
+        self.p.dry_run = value
+
+    @property
     def imatrix(self) -> None:
         """pointer to importance matrix data"""
 
     @property
     def kv_overrides(self) -> None:
-        """pointer to vector containing overrides"""
+        """pointer to kv overrides"""
 
     @property
-    def tensor_types(self) -> None:
-        """pointer to vector containing tensor types"""
+    def tt_overrides(self) -> None:
+        """pointer to tensor overrides"""
 
 
 cdef class LlamaLogitBias:

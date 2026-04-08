@@ -113,6 +113,8 @@ cdef extern from "llama.h":
         LLAMA_FTYPE_MOSTLY_TQ1_0         = 36   # except 1d tensors
         LLAMA_FTYPE_MOSTLY_TQ2_0         = 37   # except 1d tensors
         LLAMA_FTYPE_MOSTLY_MXFP4_MOE     = 38   # except 1d tensors
+        LLAMA_FTYPE_MOSTLY_NVFP4         = 39   # except 1d tensors
+        LLAMA_FTYPE_MOSTLY_Q1_0          = 40   # except 1d tensors
         LLAMA_FTYPE_GUESSED              = 1024
 
     cdef enum llama_rope_scaling_type:
@@ -289,20 +291,30 @@ cdef extern from "llama.h":
                           # try to disable when n_seq_max > 1 for improved performance when the sequences do not share a large prefix
                           # ref: https://github.com/ggml-org/llama.cpp/pull/14363
 
+    ctypedef struct llama_model_tensor_override:
+        const char * pattern
+        ggml.ggml_type type
+
+    ctypedef struct llama_model_imatrix_data:
+        const char * name
+        const float * data
+        size_t size
+
     ctypedef struct llama_model_quantize_params:
-        int32_t nthread                     # number of threads to use for quantizing, if <=0 will use std::thread::hardware_concurrency()
-        llama_ftype ftype                   # quantize to this llama_ftype
-        ggml.ggml_type output_tensor_type        # output tensor type
-        ggml.ggml_type token_embedding_type      # itoken embeddings tensor type
-        bint allow_requantize               # allow quantizing non-f32/f16 tensors
-        bint quantize_output_tensor         # quantize output.weight
-        bint only_copy                      # only copy tensors - ftype, allow_requantize and quantize_output_tensor are ignored
-        bint pure                           # quantize all tensors to the default type
-        bint keep_split                     # quantize to the same number of shards
-        void * imatrix                      # pointer to importance matrix data
-        void * kv_overrides                 # pointer to vector containing overrides
-        void * tensor_types                 # pointer to vector containing tensor types
-        void * prune_layers                 # pointer to vector containing layer indices to prune
+        int32_t nthread                                             # number of threads to use for quantizing, if <=0 will use std::thread::hardware_concurrency()
+        llama_ftype ftype                                           # quantize to this llama_ftype
+        ggml.ggml_type output_tensor_type                           # output tensor type
+        ggml.ggml_type token_embedding_type                         # token embeddings tensor type
+        bint allow_requantize                                       # allow quantizing non-f32/f16 tensors
+        bint quantize_output_tensor                                 # quantize output.weight
+        bint only_copy                                              # only copy tensors - ftype, allow_requantize and quantize_output_tensor are ignored
+        bint pure                                                   # quantize all tensors to the default type
+        bint keep_split                                             # quantize to the same number of shards
+        bint dry_run                                                # calculate and show the final quantization size without performing quantization
+        const llama_model_imatrix_data * imatrix                    # pointer to importance matrix data
+        const llama_model_kv_override * kv_overrides                # pointer to kv overrides
+        const llama_model_tensor_override * tt_overrides            # pointer to tensor overrides
+        const int32_t * prune_layers                                # pointer to layer indices to prune
 
     ctypedef struct llama_logit_bias:
         llama_token token
