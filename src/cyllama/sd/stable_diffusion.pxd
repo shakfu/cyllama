@@ -93,6 +93,7 @@ cdef extern from "stable-diffusion.h":
         SD_TYPE_TQ1_0
         SD_TYPE_TQ2_0
         SD_TYPE_MXFP4
+        SD_TYPE_NVFP4
         SD_TYPE_COUNT
 
     ctypedef enum sd_log_level_t:

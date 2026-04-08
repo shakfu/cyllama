@@ -282,10 +282,7 @@ class PythonServer:
                     pooling=self.config.embedding_pooling,
                     normalize=self.config.embedding_normalize,
                 )
-                self.logger.info(
-                    f"Embedder loaded: dim={self.embedder.dimension}, "
-                    f"pooling={self.embedder.pooling}"
-                )
+                self.logger.info(f"Embedder loaded: dim={self.embedder.dimension}, pooling={self.embedder.pooling}")
 
             return True
 
@@ -562,11 +559,13 @@ class PythonServer:
                     total_tokens = 0
                     for i, text in enumerate(texts):
                         result = embedder.embed_with_info(text)
-                        results.append({
-                            "object": "embedding",
-                            "embedding": result.embedding,
-                            "index": i,
-                        })
+                        results.append(
+                            {
+                                "object": "embedding",
+                                "embedding": result.embedding,
+                                "index": i,
+                            }
+                        )
                         total_tokens += result.token_count
 
                     response_data = {

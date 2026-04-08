@@ -223,6 +223,7 @@ def cmd_chat(args):
     """Chat with a model."""
     from . import __version__
     import os
+
     model_name = os.path.basename(args.model)
     left = f"cyllama v{__version__} chat"
     right = model_name
@@ -254,13 +255,11 @@ def cmd_chat(args):
         )
 
         if args.stream:
-            for chunk in chat(messages, args.model, config, stream=True,
-                              verbose=args.verbose, template=args.template):
+            for chunk in chat(messages, args.model, config, stream=True, verbose=args.verbose, template=args.template):
                 print(chunk, end="", flush=True)
             print()
         else:
-            response = chat(messages, args.model, config,
-                            verbose=args.verbose, template=args.template)
+            response = chat(messages, args.model, config, verbose=args.verbose, template=args.template)
             if args.json:
                 print(response.to_json())
             else:
@@ -269,12 +268,17 @@ def cmd_chat(args):
         # Interactive mode - delegate to llama.chat
         sys.argv = [
             "cyllama chat",
-            "-m", args.model,
-            "-c", str(args.ctx_size),
-            "-ngl", str(args.n_gpu_layers),
-            "-n", str(args.max_tokens),
+            "-m",
+            args.model,
+            "-c",
+            str(args.ctx_size),
+            "-ngl",
+            str(args.n_gpu_layers),
+            "-n",
+            str(args.max_tokens),
         ]
         from .llama.chat import main as chat_main
+
         chat_main()
 
     return 0
@@ -332,6 +336,7 @@ def cmd_embed(args):
         return 1
 
     import json
+
     embeddings = embedder.embed_batch(texts)
     print(json.dumps([e.tolist() for e in embeddings]))
     return 0
@@ -377,6 +382,7 @@ Answer:"""
         n_added += len(rag.add_documents(args.file))
     if args.dir:
         from .rag import load_directory
+
         for path in args.dir:
             docs = load_directory(path, glob=args.glob)
             n_added += len(rag.add_texts([d.text for d in docs]))
@@ -388,6 +394,7 @@ Answer:"""
 
     import os
     from . import __version__
+
     model_name = os.path.basename(args.model)
     try:
         cols = os.get_terminal_size().columns
@@ -448,6 +455,7 @@ def _delegate(module_path, import_name="main"):
     """Delegate to a sub-module's main(), stripping the subcommand from sys.argv."""
     sys.argv = ["cyllama " + sys.argv[1]] + sys.argv[2:]
     import importlib
+
     mod = importlib.import_module(module_path, package="cyllama")
     return getattr(mod, import_name)()
 
@@ -464,8 +472,7 @@ def main():
     subparsers.add_parser("version", help="Show version")
 
     # -- generate (alias: gen) --------------------------------------------
-    gen_parser = subparsers.add_parser("generate", aliases=["gen"],
-                                       help="Generate text from a prompt")
+    gen_parser = subparsers.add_parser("generate", aliases=["gen"], help="Generate text from a prompt")
     gen_parser.add_argument("-m", "--model", required=True, help="Path to GGUF model")
     gen_parser.add_argument("-p", "--prompt", help="Text prompt")
     gen_parser.add_argument("-f", "--file", help="Read prompt from file")
@@ -508,16 +515,15 @@ def main():
     embed_parser.add_argument("-f", "--file", help="Read texts from file (one per line)")
     embed_parser.add_argument("-ngl", "--n-gpu-layers", type=int, default=99)
     embed_parser.add_argument("-c", "--ctx-size", type=int, default=512)
-    embed_parser.add_argument("--pooling", default="mean", choices=["mean", "cls", "last"],
-                              help="Pooling strategy (default: mean)")
-    embed_parser.add_argument("--no-normalize", action="store_true",
-                              help="Skip L2 normalization of embeddings")
-    embed_parser.add_argument("--dim", action="store_true",
-                              help="Print embedding dimensions and exit")
-    embed_parser.add_argument("--similarity", metavar="QUERY",
-                              help="Rank texts by similarity to QUERY")
-    embed_parser.add_argument("--threshold", type=float, default=0.0,
-                              help="Minimum similarity score to display (default: 0.0)")
+    embed_parser.add_argument(
+        "--pooling", default="mean", choices=["mean", "cls", "last"], help="Pooling strategy (default: mean)"
+    )
+    embed_parser.add_argument("--no-normalize", action="store_true", help="Skip L2 normalization of embeddings")
+    embed_parser.add_argument("--dim", action="store_true", help="Print embedding dimensions and exit")
+    embed_parser.add_argument("--similarity", metavar="QUERY", help="Rank texts by similarity to QUERY")
+    embed_parser.add_argument(
+        "--threshold", type=float, default=0.0, help="Minimum similarity score to display (default: 0.0)"
+    )
 
     # -- rag --------------------------------------------------------------
     rag_parser = subparsers.add_parser("rag", help="Query documents with RAG")

@@ -631,9 +631,7 @@ class TestEmbeddingsEndpoint:
         handle_embeddings = handler_class._handle_embeddings.__get__(handler)
         handle_embeddings({"input": 12345})
 
-        handler._send_error.assert_called_once_with(
-            400, "Invalid 'input' field: must be string or list of strings"
-        )
+        handler._send_error.assert_called_once_with(400, "Invalid 'input' field: must be string or list of strings")
 
     def test_embeddings_custom_model_name(self, embedding_config, mock_embedder):
         """Test embeddings response includes custom model name."""
