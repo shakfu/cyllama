@@ -152,7 +152,7 @@ cyllama memory -m models/llama.gguf    # GPU memory estimation
 cyllama info                           # Build and backend info
 ```
 
-Use `cyllama <command> --help` for full option details. Ctrl+C cleanly interrupts generation.
+Use `cyllama <command> --help` for full option details. Ctrl+C cleanly interrupts generation. See the [CLI Cheatsheet](cli-cheatsheet.md) for the complete reference covering all commands and sub-module CLIs.
 
 ## High-Level API
 

@@ -1,3 +1,4 @@
+#!/usr/bin/env sh
 
 uv run cyllama embed \
 	-m models/bge-small-en-v1.5-q8_0.gguf \

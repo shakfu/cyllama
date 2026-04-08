@@ -98,7 +98,7 @@ cyllama info       # build and backend information
 cyllama memory -m models/llama.gguf  # GPU memory estimation
 ```
 
-Run `cyllama --help` or `cyllama <command> --help` for full usage.
+Run `cyllama --help` or `cyllama <command> --help` for full usage. See [CLI Cheatsheet](docs/cli-cheatsheet.md) for the complete reference.
 
 ## Quick Start
 
@@ -815,6 +815,7 @@ Full documentation is available at [https://shakfu.github.io/cyllama/](https://s
 To serve docs locally: `make docs-serve`
 
 - **[User Guide](docs/user_guide.md)** - Comprehensive guide covering all features
+- **[CLI Cheatsheet](docs/cli-cheatsheet.md)** - Complete CLI reference for all commands
 - **[API Reference](docs/api_reference.md)** - Complete API documentation
 - **[RAG Overview](docs/rag_overview.md)** - Retrieval-augmented generation guide
 - **[Cookbook](docs/cookbook.md)** - Practical recipes and patterns

@@ -23,6 +23,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 - **`cyllama rag` CLI** - New `rag` subcommand for command-line retrieval-augmented generation. Index files (`-f`) or directories (`-d`) and query them with a generation model (`-m`) and an embedding model (`-e`). Supports single-query (`-p`) and interactive modes, streaming (`--stream`), source display (`--sources`), configurable retrieval (`-k`, `--threshold`), system instructions (`-s`), and GPU offloading (`-ngl`)
 
+- **CLI Cheatsheet** - New `docs/cli-cheatsheet.md` documenting every flag for all CLI entry points in one place: the unified `cyllama` commands (`generate`, `chat`, `embed`, `rag`, `server`, `transcribe`, `tts`, `sd`, `agent`, `memory`, `info`, `version`), all sub-module CLIs (`python -m cyllama.<module>`), and the low-level `python -m cyllama.llama.cli`
+
 ### Fixed
 
 - **Ctrl+C during inference now works** - `llama_decode()` was holding the Python GIL, preventing SIGINT handlers from firing during text generation. Released the GIL with `nogil` (matching what `llama_encode()` already did). The CLI also catches `KeyboardInterrupt` for a clean exit instead of a traceback
@@ -42,6 +44,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 ### Added
 
 - **`/v1/embeddings` endpoint in PythonServer and EmbeddedServer** - Both server implementations now support the OpenAI-compatible `/v1/embeddings` endpoint. When `embedding=True` in `ServerConfig`, the server instantiates an `Embedder` to handle embedding requests over HTTP. New config fields: `embedding_model_path` (defaults to `model_path`), `embedding_n_ctx`, `embedding_n_batch`, `embedding_n_gpu_layers`, `embedding_pooling`, and `embedding_normalize`. Accepts single string or batch input, returns OpenAI-format response with usage stats. Resolves [#14](https://github.com/shakfu/cyllama/issues/14)
+
+### Tested
+
+- **Stable Diffusion z-image-turbo text-to-image on Metal** - Successfully generated 1024x512 (H x W) images using `cyllama sd txt2img` with z-image-turbo (Q6_K) + Qwen3-4B (Q8_0) + ae.safetensors VAE on macOS M2 Max (32GB). The combined model footprint (~19.5GB VRAM) exceeds the M1's Metal working set limit (~11.5GB), causing `kIOGPUCommandBufferCallbackErrorOutOfMemory`. `--offload-to-cpu` does not help when the single largest component (z_image diffusion model, 11.7GB) already exceeds the GPU limit. Requires 32GB+ unified memory for Metal; CPU backend works on smaller machines via swap
 
 ## [0.2.3]
 
