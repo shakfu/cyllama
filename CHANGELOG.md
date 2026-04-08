@@ -41,6 +41,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 - **Vulkan cached CI workflow failed to parse environment** - Stray backtick in `CIBW_ENVIRONMENT_LINUX` for the Vulkan job in `build-gpu-wheels-cached.yml` caused cibuildwheel to reject the entire environment block with `Malformed environment option`. The other three backend jobs (CUDA, ROCm, SYCL) were unaffected
 
+- **Stable Diffusion CUDA wheel build failed linking libwebp** - The latest stable-diffusion.cpp release bundles libwebp, whose `lossless_avx2.c` uses `_mm256_cvtsi256_si32` -- an intrinsic missing from GCC 10 (`devtoolset-10` on manylinux_2_28). The linker error only affected `sd-cli` and `sd-server` executables, not `libstable-diffusion.a`. Fixed by building only the `stable-diffusion` library target in CI (where `sd-cli`/`sd-server` are not needed); local builds continue to build all targets
+
 ### Added
 
 - **`/v1/embeddings` endpoint in PythonServer and EmbeddedServer** - Both server implementations now support the OpenAI-compatible `/v1/embeddings` endpoint. When `embedding=True` in `ServerConfig`, the server instantiates an `Embedder` to handle embedding requests over HTTP. New config fields: `embedding_model_path` (defaults to `model_path`), `embedding_n_ctx`, `embedding_n_batch`, `embedding_n_gpu_layers`, `embedding_pooling`, and `embedding_normalize`. Accepts single string or batch input, returns OpenAI-format response with usage stats. Resolves [#14](https://github.com/shakfu/cyllama/issues/14)

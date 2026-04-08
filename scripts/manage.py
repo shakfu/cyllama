@@ -1663,7 +1663,17 @@ class StableDiffusionCppBuilder(Builder):
             CMAKE_INSTALL_LIBDIR="lib",  # Prevent lib64 on 64-bit Linux
             **backend_options,
         )
-        self.cmake_build(build_dir=self.build_dir, release=True)
+        if os.environ.get("CI"):
+            # In CI, build only the library target to avoid linking sd-cli/sd-server
+            # against libwebp, which fails on GCC 10 (manylinux_2_28) due to
+            # missing _mm256_cvtsi256_si32 intrinsic in lossless_avx2.c
+            self.cmake_build_targets(
+                build_dir=self.build_dir,
+                targets=["stable-diffusion"],
+                release=True,
+            )
+        else:
+            self.cmake_build(build_dir=self.build_dir, release=True)
         self.cmake_install(build_dir=self.build_dir, prefix=self.prefix)
         self.copy_lib(self.build_dir, ".", "stable-diffusion", self.lib)
 
