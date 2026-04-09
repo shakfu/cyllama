@@ -27,6 +27,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 - **CLI Cheatsheet** - New `docs/cli-cheatsheet.md` documenting every flag for all CLI entry points in one place: the unified `cyllama` commands (`generate`, `chat`, `embed`, `rag`, `server`, `transcribe`, `tts`, `sd`, `agent`, `memory`, `info`, `version`), all sub-module CLIs (`python -m cyllama.<module>`), and the low-level `python -m cyllama.llama.cli`
 
+- **`/v1/embeddings` endpoint in PythonServer and EmbeddedServer** - Both server implementations now support the OpenAI-compatible `/v1/embeddings` endpoint. When `embedding=True` in `ServerConfig`, the server instantiates an `Embedder` to handle embedding requests over HTTP. New config fields: `embedding_model_path` (defaults to `model_path`), `embedding_n_ctx`, `embedding_n_batch`, `embedding_n_gpu_layers`, `embedding_pooling`, and `embedding_normalize`. Accepts single string or batch input, returns OpenAI-format response with usage stats. Resolves [#14](https://github.com/shakfu/cyllama/issues/14)
+
 ### Fixed
 
 - **CI build failed installing sd-cli from stable-diffusion.cpp** - `cmake --install` tried to install the `sd-cli` executable even though CI only needs the `stable-diffusion` library. The underlying cause was GCC 10 on manylinux2014 missing the `_mm256_cvtsi256_si32` intrinsic, which broke compilation of sd.cpp's vendored libwebp `lossless_avx2.c` when linking `sd-cli`/`sd-server`. Alternative fixes included `SD_WEBP=OFF` to disable webp support or installing `libwebp-devel` in the CI container to use the system library instead. Fixed by adding a `--no-sd-examples` flag to `manage.py build` that sets `SD_BUILD_EXAMPLES=OFF` at CMake configure time, preventing the examples from being built or installed. All CI workflows and cibuildwheel configs now pass this flag. Local builds still build examples by default
@@ -51,10 +53,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 - **SIGILL crash in CI smoke tests** - Wheels built by `build-cibw2` and `build-cibw-cached` crashed with `Illegal instruction (core dumped)` on the smoke-test runner because `GGML_NATIVE` was never set in the cibuildwheel environment. Without the env var, `manage.py` does not pass it to CMake, and CMake defaults to `GGML_NATIVE=ON`, compiling with the build machine's native CPU instructions (e.g. AVX-512) which may not exist on the target runner. Added `GGML_NATIVE = "0"` to the cibuildwheel environment for all three platforms (Linux, macOS, Windows) in `pyproject.toml`. Also added `pyproject.toml` to the cache key hash in both cached workflows so stale native-compiled caches are invalidated
 
-### Added
-
-- **`/v1/embeddings` endpoint in PythonServer and EmbeddedServer** - Both server implementations now support the OpenAI-compatible `/v1/embeddings` endpoint. When `embedding=True` in `ServerConfig`, the server instantiates an `Embedder` to handle embedding requests over HTTP. New config fields: `embedding_model_path` (defaults to `model_path`), `embedding_n_ctx`, `embedding_n_batch`, `embedding_n_gpu_layers`, `embedding_pooling`, and `embedding_normalize`. Accepts single string or batch input, returns OpenAI-format response with usage stats. Resolves [#14](https://github.com/shakfu/cyllama/issues/14)
-
 ### Changed
 
 - **Upgraded llama.cpp from b8429 to b8705** - Updated Cython bindings (`llama.pxd`, `llama_cpp.pyx`) for API changes in the new release. Shared ggml version is now 0.9.11
@@ -63,7 +61,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Tested
 
-- **Stable Diffusion z-image-turbo text-to-image on Metal** - Successfully generated 1024x512 (H x W) images using `cyllama sd txt2img` with z-image-turbo (Q6_K) + Qwen3-4B (Q8_0) + ae.safetensors VAE on macOS M2 Max (32GB). The combined model footprint (~19.5GB VRAM) exceeds the M1's Metal working set limit (~11.5GB), causing `kIOGPUCommandBufferCallbackErrorOutOfMemory`. `--offload-to-cpu` does not help when the single largest component (z_image diffusion model, 11.7GB) already exceeds the GPU limit. Requires 32GB+ unified memory for Metal; CPU backend works on smaller machines via swap
+- **Stable Diffusion z-image-turbo text-to-image on Metal** - Successfully generated 1024x512 (H x W) images using `cyllama sd txt2img` with z-image-turbo (Q6_K) + Qwen3-4B (Q8_0) + ae.safetensors VAE on macOS M2 Max (32GB). The combined model footprint (~19.5GB VRAM) exceeds the M1's Metal working set limit (~11.5GB), causing `kIOGPUCommandBufferCallbackErrorOutOfMemory`. `--offload-to-cpu` does not help when the single largest component (z_image diffusion model, 11.7GB) already exceeds the GPU limit. Requires 32GB+ unified memory for Metal; CPU backend works on smaller machines via swap. This is highlighted here because the metal backend was previously buggy on stable-diffusion.cpp
 
 ## [0.2.3]
 
