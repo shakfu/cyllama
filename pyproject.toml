@@ -163,21 +163,21 @@ before-all = "yum install -y git && /opt/python/cp310-cp310/bin/pip install cmak
 before-build = ""
 
 # Environment variables for Linux builds
-environment = { GGML_METAL = "0" }
+environment = { GGML_METAL = "0", GGML_NATIVE = "0" }
 
 # Repair wheels with auditwheel
 repair-wheel-command = "auditwheel repair -w {dest_dir} {wheel}"
 
 [tool.cibuildwheel.macos]
 # Environment variables for macOS builds
-environment = { MACOSX_DEPLOYMENT_TARGET = "11.0", GGML_METAL = "1" }
+environment = { MACOSX_DEPLOYMENT_TARGET = "11.0", GGML_METAL = "1", GGML_NATIVE = "0" }
 
 # Repair wheels with delocate
 repair-wheel-command = "delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel} --exclude libssl --exclude libcrypto"
 
 [tool.cibuildwheel.windows]
 # Environment variables for Windows builds
-environment = { GGML_METAL = "0" }
+environment = { GGML_METAL = "0", GGML_NATIVE = "0" }
 
 # Install delvewheel before repair
 before-build = "pip install delvewheel && python scripts/manage.py build --all --deps-only --no-sd-examples && python -c \"from pathlib import Path; libs=list(Path('thirdparty/llama.cpp/lib').glob('*llama*')); assert libs, 'manage.py produced no libraries'\""

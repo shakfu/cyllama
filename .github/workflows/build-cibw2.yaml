@@ -40,7 +40,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: thirdparty/
-          key: deps-cibw2-${{ matrix.os }}-${{ hashFiles('scripts/manage.py', '.github/workflows/build-cibw2.yaml') }}
+          key: deps-cibw2-${{ matrix.os }}-${{ hashFiles('scripts/manage.py', 'pyproject.toml', '.github/workflows/build-cibw2.yaml') }}
 
       - name: Build wheels
         uses: pypa/cibuildwheel@v3.4.0
