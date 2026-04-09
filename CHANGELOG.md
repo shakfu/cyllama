@@ -17,6 +17,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+## [0.2.4]
+
 ### Added
 
 - **Unified CLI** - `cyllama` command now exposes all major functionality via subcommands: `generate` (alias `gen`), `chat`, `embed`, `rag`, `server`, `transcribe`, `tts`, `sd`, `agent`, `memory`. The previous `info` and `version` commands are preserved. High-level commands (`generate`, `chat`, `embed`) use the Python API directly; others delegate to existing sub-module CLIs. `chat` and `generate` expose full sampling parameters (`--top-k`, `--top-p`, `--min-p`, `--repeat-penalty`). `embed` supports `--dim`, `--similarity QUERY` with `--threshold`, `--pooling`, `--no-normalize`, and `-c`/`--ctx-size`
@@ -46,6 +48,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 ### Added
 
 - **`/v1/embeddings` endpoint in PythonServer and EmbeddedServer** - Both server implementations now support the OpenAI-compatible `/v1/embeddings` endpoint. When `embedding=True` in `ServerConfig`, the server instantiates an `Embedder` to handle embedding requests over HTTP. New config fields: `embedding_model_path` (defaults to `model_path`), `embedding_n_ctx`, `embedding_n_batch`, `embedding_n_gpu_layers`, `embedding_pooling`, and `embedding_normalize`. Accepts single string or batch input, returns OpenAI-format response with usage stats. Resolves [#14](https://github.com/shakfu/cyllama/issues/14)
+
+### Changed
+
+- **Upgraded llama.cpp from b8429 to b8705** - Updated Cython bindings (`llama.pxd`, `llama_cpp.pyx`) for API changes in the new release. Shared ggml version is now 0.9.11
+
+- **Upgraded stable-diffusion.cpp from master-537-545fac4 to master-558-8afbeb6** - Updated `stable_diffusion.pxd` for new header declarations. The ggml ABI sync (`_sync_ggml_abi()`) ensures SD's vendored ggml stays aligned with llama.cpp's ggml 0.9.11
 
 ### Tested
 
