@@ -1627,7 +1627,7 @@ class StableDiffusionCppBuilder(Builder):
             "ABI compatibility"
         )
 
-    def build(self, shared: bool = False) -> None:
+    def build(self, shared: bool = False, examples: bool = True) -> None:
         """stable-diffusion.cpp main build function"""
         if not self.src_dir.exists():
             self.setup()
@@ -1661,19 +1661,10 @@ class StableDiffusionCppBuilder(Builder):
             CMAKE_C_VISIBILITY_PRESET="hidden",
             CMAKE_VISIBILITY_INLINES_HIDDEN=True,
             CMAKE_INSTALL_LIBDIR="lib",  # Prevent lib64 on 64-bit Linux
+            SD_BUILD_EXAMPLES=examples,
             **backend_options,
         )
-        if os.environ.get("CI"):
-            # In CI, build only the library target to avoid linking sd-cli/sd-server
-            # against libwebp, which fails on GCC 10 (manylinux_2_28) due to
-            # missing _mm256_cvtsi256_si32 intrinsic in lossless_avx2.c
-            self.cmake_build_targets(
-                build_dir=self.build_dir,
-                targets=["stable-diffusion"],
-                release=True,
-            )
-        else:
-            self.cmake_build(build_dir=self.build_dir, release=True)
+        self.cmake_build(build_dir=self.build_dir, release=True)
         self.cmake_install(build_dir=self.build_dir, prefix=self.prefix)
         self.copy_lib(self.build_dir, ".", "stable-diffusion", self.lib)
 
@@ -2116,6 +2107,7 @@ class Application(ShellCmd, metaclass=MetaCommander):
     @opt("-a", "--all", "build all")
     @opt("-D", "--deps-only", "build dependencies only, skip editable install")
     @opt("--dynamic", "-Y", "download pre-built llama.cpp release (dynamic linking)")
+    @option("--no-sd-examples", help="skip building stable-diffusion.cpp examples (sd-cli, sd-server)", action="store_true")
     @option("--sd-vendored-ggml", help="link stable-diffusion against its own vendored ggml", action="store_true")
     @option(
         "--llama-version",
@@ -2212,7 +2204,10 @@ class Application(ShellCmd, metaclass=MetaCommander):
                 else:
                     builder.download_release()
             else:
-                builder.build()
+                kwargs = {}
+                if isinstance(builder, StableDiffusionCppBuilder) and args.no_sd_examples:
+                    kwargs["examples"] = False
+                builder.build(**kwargs)
 
         # Write build info
         self._write_build_info(builder_versions)

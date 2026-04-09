@@ -89,7 +89,7 @@ jobs:
             PATH=/usr/local/cuda/bin:$CI_PYTHON:$PATH
             CMAKE_CUDA_ARCHITECTURES="75"
             GGML_NATIVE=OFF GGML_CUDA=1 GGML_METAL=0
-            $CI_PYTHON/python scripts/manage.py build --all --deps-only
+            $CI_PYTHON/python scripts/manage.py build --all --deps-only --no-sd-examples
             ${{ inputs.link_mode == 'dynamic' && '--dynamic' || '' }}
           CIBW_BEFORE_BUILD_LINUX: >
             sed -i 's/^name = "cyllama"/name = "cyllama-cuda12"/' {project}/pyproject.toml &&
@@ -171,7 +171,7 @@ jobs:
             CMAKE_HIP_ARCHITECTURES="gfx90a;gfx942;gfx1100"
             HIP_PATH=/opt/rocm
             GGML_NATIVE=OFF GGML_HIP=1 GGML_METAL=0
-            $CI_PYTHON/python scripts/manage.py build --all --deps-only
+            $CI_PYTHON/python scripts/manage.py build --all --deps-only --no-sd-examples
             ${{ inputs.link_mode == 'dynamic' && '--dynamic' || '' }}
           CIBW_BEFORE_BUILD_LINUX: >
             sed -i 's/^name = "cyllama"/name = "cyllama-rocm"/' {project}/pyproject.toml &&
@@ -251,7 +251,7 @@ jobs:
             export CC=icx CXX=icpx &&
             PATH=$CI_PYTHON:$PATH
             GGML_NATIVE=OFF GGML_SYCL=1 GGML_METAL=0
-            $CI_PYTHON/python scripts/manage.py build --all --deps-only
+            $CI_PYTHON/python scripts/manage.py build --all --deps-only --no-sd-examples
             ${{ inputs.link_mode == 'dynamic' && '--dynamic' || '' }}
           CIBW_BEFORE_BUILD_LINUX: >
             sed -i 's/^name = "cyllama"/name = "cyllama-sycl"/' {project}/pyproject.toml &&
@@ -330,7 +330,7 @@ jobs:
             $CI_PYTHON/pip install cmake ninja &&
             PATH=$CI_PYTHON:$PATH
             GGML_NATIVE=OFF GGML_VULKAN=1 GGML_METAL=0
-            $CI_PYTHON/python scripts/manage.py build --all --deps-only
+            $CI_PYTHON/python scripts/manage.py build --all --deps-only --no-sd-examples
             ${{ inputs.link_mode == 'dynamic' && '--dynamic' || '' }}
           CIBW_BEFORE_BUILD_LINUX: >
             sed -i 's/^name = "cyllama"/name = "cyllama-vulkan"/' {project}/pyproject.toml &&
