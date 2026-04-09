@@ -27,6 +27,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Fixed
 
+- **CI build failed installing sd-cli from stable-diffusion.cpp** - `cmake --install` tried to install the `sd-cli` executable even though CI only builds the `stable-diffusion` library target. Fixed by setting `SD_BUILD_EXAMPLES=False` in CI so the examples are not configured and the install step no longer looks for them. Local builds still build examples
+
+- **Concurrent VectorStore reads fail with "database is locked"** - Opening multiple `VectorStore` instances on the same database file from separate threads failed immediately because `sqlite3.connect()` was called without a `timeout`. The default 0-second wait meant any lock contention during extension loading caused instant failure. Added `timeout=10` to both connection sites (`__init__` and `open`)
+
 - **Ctrl+C during inference now works** - `llama_decode()` was holding the Python GIL, preventing SIGINT handlers from firing during text generation. Released the GIL with `nogil` (matching what `llama_encode()` already did). The CLI also catches `KeyboardInterrupt` for a clean exit instead of a traceback
 
 - **Embedder logging noise** - `Embedder` accepted a `verbose` parameter but never called `disable_logging()`, so llama.cpp model loading output was always printed. Now suppresses logging when `verbose=False` (the default), matching how `LLM` already works

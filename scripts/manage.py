@@ -1661,6 +1661,7 @@ class StableDiffusionCppBuilder(Builder):
             CMAKE_C_VISIBILITY_PRESET="hidden",
             CMAKE_VISIBILITY_INLINES_HIDDEN=True,
             CMAKE_INSTALL_LIBDIR="lib",  # Prevent lib64 on 64-bit Linux
+            SD_BUILD_EXAMPLES=not os.environ.get("CI"),
             **backend_options,
         )
         if os.environ.get("CI"):

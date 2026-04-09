@@ -105,7 +105,7 @@ class VectorStore:
 
         # Connect to database
         try:
-            self.conn = sqlite3.connect(db_path)
+            self.conn = sqlite3.connect(db_path, timeout=10)
         except sqlite3.Error as e:
             raise VectorStoreError(f"Failed to connect to database: {e}") from e
 
@@ -535,7 +535,7 @@ class VectorStore:
         _validate_table_name(table_name)
 
         # Connect to read metadata
-        conn = sqlite3.connect(db_path)
+        conn = sqlite3.connect(db_path, timeout=10)
 
         try:
             # Load extension to read vector metadata
