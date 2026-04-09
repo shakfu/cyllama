@@ -27,7 +27,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Fixed
 
-- **CI build failed installing sd-cli from stable-diffusion.cpp** - `cmake --install` tried to install the `sd-cli` executable even though CI only builds the `stable-diffusion` library target. Fixed by setting `SD_BUILD_EXAMPLES=False` in CI so the examples are not configured and the install step no longer looks for them. Local builds still build examples
+- **CI build failed installing sd-cli from stable-diffusion.cpp** - `cmake --install` tried to install the `sd-cli` executable even though CI only needs the `stable-diffusion` library. The underlying cause was GCC 10 on manylinux2014 missing the `_mm256_cvtsi256_si32` intrinsic, which broke compilation of sd.cpp's vendored libwebp `lossless_avx2.c` when linking `sd-cli`/`sd-server`. Alternative fixes included `SD_WEBP=OFF` to disable webp support or installing `libwebp-devel` in the CI container to use the system library instead. Fixed by adding a `--no-sd-examples` flag to `manage.py build` that sets `SD_BUILD_EXAMPLES=OFF` at CMake configure time, preventing the examples from being built or installed. All CI workflows and cibuildwheel configs now pass this flag. Local builds still build examples by default
 
 - **Concurrent VectorStore reads fail with "database is locked"** - Opening multiple `VectorStore` instances on the same database file from separate threads failed immediately because `sqlite3.connect()` was called without a `timeout`. The default 0-second wait meant any lock contention during extension loading caused instant failure. Added `timeout=10` to both connection sites (`__init__` and `open`)
 
