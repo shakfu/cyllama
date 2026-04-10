@@ -108,7 +108,7 @@ cyllama embed -m models/bge-small.gguf --similarity "machine learning" -f corpus
 Retrieval-augmented generation over local documents.
 
 ```bash
-# Single query
+# Single query, ephemeral in-memory index (default)
 cyllama rag -m models/llama.gguf -e models/bge-small.gguf \
     -d docs/ -p "How do I configure X?" --stream
 
@@ -121,6 +121,66 @@ cyllama rag -m models/llama.gguf -e models/bge-small.gguf \
     -d docs/ -s "Answer in one paragraph" -k 3 --threshold 0.4
 ```
 
+### Persistent index (`--db`)
+
+By default the vector index is held in memory and rebuilt on every
+run. For corpora large enough that re-embedding is expensive, pass
+`--db PATH` to persist the index to a SQLite file and reuse it on
+subsequent runs:
+
+```bash
+# First run: index the corpus into a file
+cyllama rag -m models/llama.gguf -e models/bge-small.gguf \
+    -f docs/corpus.txt --db ./rag.db
+
+# Subsequent runs: reuse the index, no -f needed
+cyllama rag -m models/llama.gguf -e models/bge-small.gguf \
+    --db ./rag.db
+
+# Append more files to the existing index
+cyllama rag -m models/llama.gguf -e models/bge-small.gguf \
+    -f docs/new.txt --db ./rag.db
+
+# Rebuild from scratch (e.g. after switching embedding model)
+cyllama rag -m models/llama.gguf -e models/bge-small.gguf \
+    -f docs/corpus.txt --db ./rag.db --rebuild
+```
+
+The DB records the embedding model fingerprint (basename + file size),
+chunk size, and chunk overlap when it's first created. Reopening with a
+different embedding model, vector metric, or chunking config raises a
+clear error rather than silently producing wrong rankings — pass
+`--rebuild` to recreate the index against the new config.
+
+### Corpus deduplication (automatic)
+
+Each indexed file is hashed (md5 of its raw bytes) and the hash is
+recorded in the DB's `embeddings_sources` table. Re-running with the
+same `-f` files is a no-op on the indexing side — the files are
+silently skipped and the user goes straight to query mode. The status
+line surfaces the skip count:
+
+```bash
+$ cyllama rag -m ... -e ... -f corpus.txt --db ./rag.db
+128 chunks indexed -> ./rag.db                          # first run
+
+$ cyllama rag -m ... -e ... -f corpus.txt --db ./rag.db
+reusing 128 chunks from ./rag.db (1 unchanged)          # second run, dedup fired
+
+$ cyllama rag -m ... -e ... -f corpus.txt -f new.txt --db ./rag.db
+3 new chunks appended to ./rag.db (128 existing, 131 total) (1 unchanged)
+```
+
+Editing a file in place (same basename, different content) is detected
+as a hash mismatch and refused with a clear error message — rename the
+file (treat it as a new source) or use `--rebuild` to recreate the
+whole index from the new content. This prevents the index from silently
+ending up with two versions of the same logical source.
+
+`add_texts` (the directory-loading path used by `-d`) deduplicates the
+same way, using a `text:<hash-prefix>` synthetic label since text
+strings don't have a meaningful name.
+
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
 | `-m, --model` | string | (required) | Path to GGUF generation model |
@@ -129,16 +189,23 @@ cyllama rag -m models/llama.gguf -e models/bge-small.gguf \
 | `-d, --dir` | string | | Directory to index (repeatable) |
 | `--glob` | string | `**/*` | Glob pattern for directory loading |
 | `-p, --prompt` | string | | Single query (omit for interactive) |
-| `-s, --system` | string | | System instruction prepended to prompt template |
-| `-n, --max-tokens` | int | 200 | Maximum tokens to generate |
+| `-s, --system` | string | | System instruction (system prompt in chat mode) |
+| `-n, --max-tokens` | int | 512 | Maximum tokens to generate |
 | `--temperature` | float | 0.7 | Generation temperature |
 | `-k, --top-k` | int | 5 | Number of chunks to retrieve |
 | `--threshold` | float | (none) | Minimum similarity threshold |
 | `-ngl, --n-gpu-layers` | int | 99 | GPU layers to offload |
 | `--stream` | flag | | Stream output tokens |
 | `--sources` | flag | | Show source chunks with similarity scores |
+| `--db` | string | (none) | Path to persistent SQLite vector store |
+| `--rebuild` | flag | | Delete `--db` and recreate from `-f`/`-d` |
+| `--no-chat-template` | flag | | Use raw-completion path instead of chat template |
+| `--show-think` | flag | | Show `<think>` reasoning blocks (default: stripped) |
+| `--repetition-threshold` | int | 2 | Stop generation after n-gram repeats this many times (0 disables) |
+| `--repetition-ngram` | int | 5 | Word-level n-gram length for repetition detection |
+| `--repetition-window` | int | 300 | Number of recent words tracked by the repetition detector |
 
-At least one document source (`-f` or `-d`) is required.
+At least one document source (`-f`/`-d`) **or** an existing `--db` is required.
 
 ---
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Iterator
 
@@ -14,6 +15,49 @@ from .types import Document
 
 if TYPE_CHECKING:
     pass
+
+
+class IndexResult(list):
+    """Result of an :meth:`RAG.add_documents` or :meth:`RAG.add_texts` call.
+
+    Subclasses ``list[int]`` so callers using the legacy contract
+    (``n_added += len(rag.add_documents(...))``, ``for chunk_id in
+    rag.add_documents(...)``, ``rag.add_documents(...)[0]``) keep
+    working with no code changes -- the list payload is the IDs of the
+    chunks that were *newly inserted* by this call.
+
+    The :attr:`skipped_labels` attribute exposes the dedup information
+    for callers that want it: each entry is the human-readable label
+    (file basename for ``add_documents``, hash-prefixed text label for
+    ``add_texts``) of a source that was already in the store and was
+    therefore not re-indexed.
+
+    A source is considered already-indexed when its content hash
+    (md5 of the file bytes for documents, md5 of the text bytes for
+    raw texts) matches a row in the store's ``{table_name}_sources``
+    deduplication table. This means re-running ``cyllama rag -f
+    corpus.txt --db rag.db`` after a successful first run is a no-op
+    on the indexing side -- the corpus is silently skipped and the
+    user goes straight to query mode.
+    """
+
+    skipped_labels: list[str]
+
+    def __init__(self, added_ids: list[int], skipped_labels: list[str]) -> None:
+        super().__init__(added_ids)
+        self.skipped_labels = skipped_labels
+
+
+def _content_hash(data: bytes) -> str:
+    """Return the md5 hex digest of ``data``.
+
+    md5 is the right choice here because we're using it as a content
+    fingerprint for deduplication, not as a security primitive. md5 is
+    fast, has a small fixed-size hex output (~32 chars, fits comfortably
+    in the SQLite primary key), and the chance of a collision across
+    a user's corpus is effectively zero.
+    """
+    return hashlib.md5(data).hexdigest()
 
 
 class RAG:
@@ -81,11 +125,20 @@ class RAG:
         self.embedding_model = embedding_model
         self.generation_model = generation_model
 
-        # Initialize components
+        # Initialize components. We pass the embedding-model path and
+        # the chunking config down to VectorStore so they get recorded
+        # in the on-disk metadata table. On reopen, VectorStore verifies
+        # the caller's config matches what's already in the DB and
+        # raises a friendly error on mismatch (different embedder,
+        # different chunk size, etc.) instead of silently producing
+        # garbage by mixing two configurations.
         self.embedder = Embedder(embedding_model)
         self.store = VectorStore(
             dimension=self.embedder.dimension,
             db_path=db_path,
+            embedding_model_path=embedding_model,
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
         )
         self.splitter = TextSplitter(
             chunk_size=chunk_size,
@@ -109,8 +162,22 @@ class RAG:
         texts: list[str],
         metadata: list[dict[str, Any]] | None = None,
         split: bool = True,
-    ) -> list[int]:
+    ) -> IndexResult:
         """Add text strings to the knowledge base.
+
+        Each text is hashed (md5 of its UTF-8 bytes) and checked
+        against the store's deduplication table. Texts whose hash
+        already exists in the store are silently skipped -- their
+        labels are returned in the :attr:`IndexResult.skipped_labels`
+        list. New texts are split, embedded, and added under their
+        content hash so future calls with the same text are
+        deduplicated.
+
+        If a text's content hash differs from a previously-indexed
+        text with the same source label, ``ValueError`` is raised --
+        this catches the "I changed the content but kept the label"
+        case where appending would silently produce two versions in
+        the index. The caller should rebuild the index in that case.
 
         Args:
             texts: List of text strings to add
@@ -118,40 +185,88 @@ class RAG:
             split: Whether to split texts into chunks (default: True)
 
         Returns:
-            List of IDs for the added items
+            IndexResult (subclass of ``list[int]``) containing the IDs
+            of the newly inserted chunks. ``.skipped_labels`` lists the
+            labels of texts that were already indexed.
         """
         self._check_closed()
 
         if metadata is not None and len(metadata) != len(texts):
             raise ValueError(f"metadata length ({len(metadata)}) must match texts length ({len(texts)})")
 
-        all_chunks = []
-        all_metadata = []
+        added_ids: list[int] = []
+        skipped_labels: list[str] = []
 
         for i, text in enumerate(texts):
-            if split:
-                chunks = self.splitter.split(text)
-            else:
-                chunks = [text]
+            text_hash = _content_hash(text.encode("utf-8"))
+            # Use the first 8 hex chars of the hash as a synthetic
+            # label. add_texts callers don't have a meaningful name
+            # for the text (unlike add_documents which uses the file
+            # basename), so the hash prefix is the most stable
+            # identifier we can produce.
+            text_label = f"text:{text_hash[:8]}"
 
+            if self.store.is_source_indexed(text_hash):
+                skipped_labels.append(text_label)
+                continue
+
+            # Same label, different content -> caller is appending a
+            # changed version of an existing source. We refuse rather
+            # than silently producing two versions in the index.
+            existing = self.store.get_source_by_label(text_label)
+            if existing is not None and existing["content_hash"] != text_hash:
+                raise ValueError(
+                    f"Source label {text_label!r} is already in the store with "
+                    f"a different content hash ({existing['content_hash']!r} vs "
+                    f"{text_hash!r}). This shouldn't happen for add_texts since "
+                    f"the label is derived from the content hash itself; if "
+                    f"you're seeing this, the dedup table is corrupted."
+                )
+
+            # New text -- split, embed, add with the source hash so
+            # future calls dedupe.
             text_meta = metadata[i] if metadata else {}
-            for j, chunk in enumerate(chunks):
-                all_chunks.append(chunk)
-                chunk_meta = text_meta.copy()
-                chunk_meta["chunk_index"] = j
-                all_metadata.append(chunk_meta)
+            chunks = self.splitter.split(text) if split else [text]
+            chunk_metadata = []
+            for j, _ in enumerate(chunks):
+                m = text_meta.copy()
+                m["chunk_index"] = j
+                chunk_metadata.append(m)
 
-        # Generate embeddings and add to store
-        embeddings = self.embedder.embed_batch(all_chunks)
-        return self.store.add(embeddings, all_chunks, all_metadata)
+            embeddings = self.embedder.embed_batch(chunks)
+            ids = self.store.add(
+                embeddings,
+                chunks,
+                chunk_metadata,
+                source_hash=text_hash,
+                source_label=text_label,
+            )
+            added_ids.extend(ids)
+
+        return IndexResult(added_ids, skipped_labels)
 
     def add_documents(
         self,
         paths: list[str | Path],
         split: bool = True,
         **loader_kwargs,
-    ) -> list[int]:
+    ) -> IndexResult:
         """Load and add documents from files.
+
+        Each file is hashed (md5 of its raw bytes) and checked against
+        the store's deduplication table. Files whose hash already
+        exists in the store are silently skipped -- their basenames
+        are returned in the :attr:`IndexResult.skipped_labels` list.
+        Re-running ``add_documents`` with the same files is therefore
+        a no-op on the indexing side, which is what users expect when
+        they re-launch a CLI session against an existing ``--db PATH``.
+
+        If a file's content hash differs from a previously-indexed
+        source with the same basename, ``ValueError`` is raised --
+        this catches "I edited the file but kept the name" where
+        appending would silently produce two versions in the index.
+        The caller should rename the file or use ``--rebuild`` in
+        that case.
 
         Args:
             paths: List of file paths to load
@@ -159,24 +274,93 @@ class RAG:
             **loader_kwargs: Additional arguments passed to loaders
 
         Returns:
-            List of IDs for the added items
+            IndexResult (subclass of ``list[int]``) containing the IDs
+            of the newly inserted chunks across all newly-indexed
+            files. ``.skipped_labels`` lists the basenames of files
+            that were already indexed.
         """
         self._check_closed()
 
-        all_ids = []
+        added_ids: list[int] = []
+        skipped_labels: list[str] = []
+
         for path in paths:
             path = Path(path)
+            label = path.name
+
+            # Hash the raw bytes of the file. This is what catches
+            # "user edited the file" -- a single byte difference
+            # produces a different md5. We hash the file content,
+            # not the loaded Document text, because the loader may
+            # be non-deterministic in subtle ways (whitespace
+            # normalisation, encoding fixups) and we want the dedup
+            # decision to be based on what the user actually has on
+            # disk.
+            try:
+                file_bytes = path.read_bytes()
+            except OSError as e:
+                raise ValueError(f"Could not read {path} for hashing: {e}") from e
+
+            file_hash = _content_hash(file_bytes)
+
+            if self.store.is_source_indexed(file_hash):
+                skipped_labels.append(label)
+                continue
+
+            # Same basename, different content -> file was edited.
+            # Refuse rather than producing two versions of the same
+            # logical source in the index.
+            existing = self.store.get_source_by_label(label)
+            if existing is not None and existing["content_hash"] != file_hash:
+                raise ValueError(
+                    f"File {label!r} is already in the store with a different "
+                    f"content hash. The file content has changed since it was "
+                    f"indexed. To append the new version, either rename the "
+                    f"file (treat it as a new source) or pass --rebuild to "
+                    f"recreate the index from scratch."
+                )
+
+            # New file. Load it (the loader may produce one or more
+            # Document objects per file -- we collect all of them
+            # under the same source hash so the dedup table sees the
+            # file as a single unit).
             docs = load_document(path, **loader_kwargs)
 
+            all_chunks: list[str] = []
+            all_metadata: list[dict[str, Any]] = []
             for doc in docs:
-                ids = self.add_texts(
-                    [doc.text],
-                    metadata=[{"source": str(path), **doc.metadata}],
-                    split=split,
-                )
-                all_ids.extend(ids)
+                doc_meta = {"source": str(path), **doc.metadata}
+                chunks = self.splitter.split(doc.text) if split else [doc.text]
+                for j, chunk in enumerate(chunks):
+                    m = doc_meta.copy()
+                    m["chunk_index"] = j
+                    all_chunks.append(chunk)
+                    all_metadata.append(m)
 
-        return all_ids
+            if not all_chunks:
+                # Empty file produced no chunks. Still record it in
+                # the dedup table so re-runs skip it instead of
+                # repeatedly trying to load and produce nothing.
+                # Use add() with empty lists -- the source row will
+                # be inserted with chunk_count=0.
+                self.store.add(
+                    [], [], None,
+                    source_hash=file_hash,
+                    source_label=label,
+                )
+                continue
+
+            embeddings = self.embedder.embed_batch(all_chunks)
+            ids = self.store.add(
+                embeddings,
+                all_chunks,
+                all_metadata,
+                source_hash=file_hash,
+                source_label=label,
+            )
+            added_ids.extend(ids)
+
+        return IndexResult(added_ids, skipped_labels)
 
     def add_document(
         self,

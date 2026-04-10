@@ -66,7 +66,7 @@ from .pipeline import (
     RAGPipeline,
     RAGResponse,
 )
-from .rag import RAG
+from .rag import RAG, IndexResult
 from .repetition import NGramRepetitionDetector
 from .splitter import MarkdownSplitter, TextSplitter, TokenTextSplitter
 from .store import VectorStore, VectorStoreError
@@ -75,6 +75,7 @@ from .types import Chunk, Document, EmbeddingResult, SearchResult
 __all__ = [
     # High-level RAG Interface
     "RAG",
+    "IndexResult",
     "AsyncRAG",
     # RAG Pipeline
     "RAGPipeline",

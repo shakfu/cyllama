@@ -403,31 +403,117 @@ Answer:"""
         **({"prompt_template": prompt_template} if prompt_template else {}),
     )
 
-    rag = RAG(
-        embedding_model=args.embedding_model,
-        generation_model=args.model,
-        n_gpu_layers=args.n_gpu_layers,
-        config=config,
-    )
-
-    # Load documents
-    n_added = 0
-    if args.file:
-        n_added += len(rag.add_documents(args.file))
-    if args.dir:
-        from .rag import load_directory
-
-        for path in args.dir:
-            docs = load_directory(path, glob=args.glob)
-            n_added += len(rag.add_texts([d.text for d in docs]))
-
-    if n_added == 0:
-        print("Error: no documents loaded. Provide files via -f or directories via -d", file=sys.stderr)
-        rag.close()
-        return 1
-
+    # ------------------------------------------------------------------
+    # Decide where the index lives, and whether we're (re)building or
+    # reusing it. The decision matrix:
+    #
+    #   --db not given                       in-memory, must index files
+    #   --db PATH, no DB, no files           error
+    #   --db PATH, no DB, files              create DB, index files
+    #   --db PATH, DB exists, no files       reuse DB, no indexing
+    #   --db PATH, DB exists, files          reopen DB, append files
+    #   --db PATH, DB exists, files+rebuild  delete DB, recreate, index
+    #   --db PATH, DB exists, no files+rebuild  error (rebuild needs sources)
+    #
+    # The metadata-compatibility check inside VectorStore.__init__ runs
+    # automatically on every reopen, so a misconfigured combination
+    # (different embedder, different chunk size) raises a friendly
+    # VectorStoreError before we get to indexing or querying.
+    # ------------------------------------------------------------------
     import os
     from . import __version__
+
+    has_sources = bool(args.file or args.dir)
+    db_exists = args.db is not None and os.path.exists(args.db)
+
+    if args.db is not None and args.rebuild:
+        if not has_sources:
+            print(
+                "Error: --rebuild requires -f/-d (rebuilding from no sources would empty the index)",
+                file=sys.stderr,
+            )
+            return 1
+        if db_exists:
+            try:
+                os.remove(args.db)
+            except OSError as e:
+                print(f"Error: could not remove existing --db {args.db}: {e}", file=sys.stderr)
+                return 1
+            db_exists = False
+
+    if args.db is not None and not db_exists and not has_sources:
+        print(
+            f"Error: --db {args.db} does not exist and no -f/-d provided to populate it",
+            file=sys.stderr,
+        )
+        return 1
+
+    if args.db is None and not has_sources:
+        print(
+            "Error: no documents loaded. Provide files via -f or directories via -d, "
+            "or pass --db PATH to reuse an existing index",
+            file=sys.stderr,
+        )
+        return 1
+
+    # Construct RAG with the appropriate db_path. The default is
+    # ":memory:" (in-memory, ephemeral); --db PATH switches to a
+    # file-backed store. Either way the same RAG class handles it.
+    rag_kwargs = {
+        "embedding_model": args.embedding_model,
+        "generation_model": args.model,
+        "n_gpu_layers": args.n_gpu_layers,
+        "config": config,
+    }
+    if args.db is not None:
+        rag_kwargs["db_path"] = args.db
+
+    try:
+        rag = RAG(**rag_kwargs)
+    except Exception as e:
+        # VectorStore.__init__ raises VectorStoreError on metadata
+        # mismatch (different embedder, different metric, different
+        # chunk config). The message is already user-friendly so we
+        # just print and exit cleanly rather than dumping a traceback.
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+    # Load documents (if any) into the store. If --db is given and
+    # the DB already exists with no -f/-d, we skip indexing and just
+    # query what's on disk. RAG.add_documents/add_texts now hash each
+    # source and skip ones already in the store, so re-running with
+    # the same -f corpus.txt against an existing DB is a no-op
+    # (everything is reported as "skipped" and the user goes straight
+    # to query mode).
+    n_added = 0
+    n_skipped = 0
+    if has_sources:
+        if args.file:
+            try:
+                result = rag.add_documents(args.file)
+            except ValueError as e:
+                # Raised when a file basename matches an existing
+                # source but the content differs. The message
+                # already names the file and tells the user how to
+                # proceed; we just print and exit cleanly.
+                print(f"Error: {e}", file=sys.stderr)
+                rag.close()
+                return 1
+            n_added += len(result)
+            n_skipped += len(result.skipped_labels)
+        if args.dir:
+            from .rag import load_directory
+
+            for path in args.dir:
+                docs = load_directory(path, glob=args.glob)
+                try:
+                    result = rag.add_texts([d.text for d in docs])
+                except ValueError as e:
+                    print(f"Error: {e}", file=sys.stderr)
+                    rag.close()
+                    return 1
+                n_added += len(result)
+                n_skipped += len(result.skipped_labels)
 
     model_name = os.path.basename(args.model)
     try:
@@ -436,7 +522,36 @@ Answer:"""
         cols = 80
     left = f"cyllama v{__version__} rag"
     print(f"{left}{model_name:>{cols - len(left)}}")
-    print(f"{n_added} chunks indexed")
+
+    # Status line: tell the user whether we indexed fresh, appended,
+    # reused, or skipped on dedup. Useful for confirming --db worked
+    # and for spotting "I expected new files to be picked up but
+    # nothing happened" cases.
+    total_chunks = len(rag.store)
+    skipped_suffix = f" ({n_skipped} unchanged)" if n_skipped > 0 else ""
+    if args.db is None:
+        # In-memory mode -- dedup still applies if the user passes
+        # the same file twice in one invocation, but the typical
+        # case is "fresh build, all sources are new".
+        print(f"{n_added} chunks indexed{skipped_suffix}")
+    elif n_added == 0 and n_skipped == 0:
+        print(f"reusing {total_chunks} chunks from {args.db}")
+    elif n_added == 0:
+        # All sources were already indexed -- pure reuse with
+        # explicit confirmation that the user's -f/-d arguments
+        # were considered and skipped on dedup.
+        print(f"reusing {total_chunks} chunks from {args.db}{skipped_suffix}")
+    elif total_chunks == n_added:
+        # Fresh DB or first index of these sources.
+        print(f"{n_added} chunks indexed -> {args.db}{skipped_suffix}")
+    else:
+        # Append: some sources were new, some were already there
+        # (or some were dedup-skipped on this run).
+        previous = total_chunks - n_added
+        print(
+            f"{n_added} new chunks appended to {args.db} "
+            f"({previous} existing, {total_chunks} total){skipped_suffix}"
+        )
 
     if args.prompt:
         # Single query mode
@@ -584,6 +699,31 @@ def main():
     rag_parser.add_argument("-ngl", "--n-gpu-layers", type=int, default=99)
     rag_parser.add_argument("--stream", action="store_true", help="Stream output tokens")
     rag_parser.add_argument("--sources", action="store_true", help="Show source chunks")
+    rag_parser.add_argument(
+        "--db",
+        metavar="PATH",
+        default=None,
+        help=(
+            "Path to a SQLite vector store file. With --db, the index is "
+            "persisted to disk and reopened on subsequent runs, so the "
+            "corpus is embedded only once. If PATH does not exist it will "
+            "be created. If PATH exists, the embedding model and chunking "
+            "config must match the original (mismatch raises a clear "
+            "error). Without --db, the index is held in-memory and "
+            "rebuilt on every run (current default behavior). When --db "
+            "is set and no -f/-d is given, the existing index is queried "
+            "as-is without re-indexing."
+        ),
+    )
+    rag_parser.add_argument(
+        "--rebuild",
+        action="store_true",
+        help=(
+            "Delete the database at --db and recreate it from the "
+            "current -f/-d sources. Use after switching embedding models "
+            "or changing chunking config. Has no effect without --db."
+        ),
+    )
     rag_parser.add_argument(
         "--no-chat-template",
         action="store_true",

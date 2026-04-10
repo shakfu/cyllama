@@ -14,6 +14,18 @@ import pytest
 from unittest.mock import MagicMock, patch, call
 
 
+def _ir(added=None, skipped=None):
+    """Build an IndexResult for use as `mock_rag.add_documents.return_value`.
+
+    Tests that mock the RAG class need to return an IndexResult-shaped
+    object now that `cmd_rag` reads `result.skipped_labels`. Wrap the
+    construction so individual tests don't have to import IndexResult.
+    """
+    from cyllama.rag import IndexResult
+
+    return IndexResult(added or [], skipped or [])
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -691,6 +703,8 @@ class TestCmdRag:
             repetition_window=300,
             no_chat_template=False,
             show_think=False,
+            db=None,
+            rebuild=False,
         )
         defaults.update(overrides)
         return argparse.Namespace(**defaults)
@@ -702,7 +716,7 @@ class TestCmdRag:
         args = self._make_args()
 
         mock_rag = MagicMock()
-        mock_rag.add_documents.return_value = []
+        mock_rag.add_documents.return_value = _ir()
         with patch("cyllama.rag.RAG", return_value=mock_rag):
             ret = cmd_rag(args)
         assert ret == 1
@@ -714,7 +728,7 @@ class TestCmdRag:
         args = self._make_args(file=["corpus.txt"], prompt="What is this about?")
 
         mock_rag = MagicMock()
-        mock_rag.add_documents.return_value = [1, 2, 3]
+        mock_rag.add_documents.return_value = _ir([1, 2, 3])
         mock_response = MagicMock()
         mock_response.text = "It is about testing."
         mock_response.sources = []
@@ -734,7 +748,7 @@ class TestCmdRag:
         args = self._make_args(file=["corpus.txt"], prompt="question", stream=True)
 
         mock_rag = MagicMock()
-        mock_rag.add_documents.return_value = [1, 2]
+        mock_rag.add_documents.return_value = _ir([1, 2])
         mock_rag.stream.return_value = iter(["hello", " world"])
 
         with patch("cyllama.rag.RAG", return_value=mock_rag):
@@ -751,7 +765,7 @@ class TestCmdRag:
         args = self._make_args(file=["corpus.txt"], prompt="question", sources=True)
 
         mock_rag = MagicMock()
-        mock_rag.add_documents.return_value = [1]
+        mock_rag.add_documents.return_value = _ir([1])
         mock_source = MagicMock()
         mock_source.score = 0.85
         mock_source.text = "relevant chunk text here"
@@ -775,7 +789,7 @@ class TestCmdRag:
         args = self._make_args(file=["corpus.txt"], prompt="question")
 
         mock_rag = MagicMock()
-        mock_rag.add_documents.return_value = [1]
+        mock_rag.add_documents.return_value = _ir([1])
         mock_rag.query.side_effect = KeyboardInterrupt
 
         with patch("cyllama.rag.RAG", return_value=mock_rag):
@@ -790,7 +804,7 @@ class TestCmdRag:
         args = self._make_args(file=["corpus.txt"], prompt="q")
 
         mock_rag = MagicMock()
-        mock_rag.add_documents.return_value = [1]
+        mock_rag.add_documents.return_value = _ir([1])
         mock_rag.query.return_value = MagicMock(text="ok", sources=[])
 
         with patch("cyllama.rag.RAG", return_value=mock_rag) as mock_cls:
@@ -807,7 +821,7 @@ class TestCmdRag:
         args = self._make_args(file=["corpus.txt"], prompt="q", no_chat_template=True)
 
         mock_rag = MagicMock()
-        mock_rag.add_documents.return_value = [1]
+        mock_rag.add_documents.return_value = _ir([1])
         mock_rag.query.return_value = MagicMock(text="ok", sources=[])
 
         with patch("cyllama.rag.RAG", return_value=mock_rag) as mock_cls:
@@ -829,7 +843,7 @@ class TestCmdRag:
         )
 
         mock_rag = MagicMock()
-        mock_rag.add_documents.return_value = [1]
+        mock_rag.add_documents.return_value = _ir([1])
         mock_rag.query.return_value = MagicMock(text="ok", sources=[])
 
         with patch("cyllama.rag.RAG", return_value=mock_rag) as mock_cls:
@@ -856,7 +870,7 @@ class TestCmdRag:
         )
 
         mock_rag = MagicMock()
-        mock_rag.add_documents.return_value = [1]
+        mock_rag.add_documents.return_value = _ir([1])
         mock_rag.query.return_value = MagicMock(text="ok", sources=[])
 
         with patch("cyllama.rag.RAG", return_value=mock_rag) as mock_cls:
@@ -877,7 +891,7 @@ class TestCmdRag:
         args = self._make_args(file=["corpus.txt"], prompt="q")
 
         mock_rag = MagicMock()
-        mock_rag.add_documents.return_value = [1]
+        mock_rag.add_documents.return_value = _ir([1])
         mock_rag.query.return_value = MagicMock(text="ok", sources=[])
 
         with patch("cyllama.rag.RAG", return_value=mock_rag) as mock_cls:
@@ -894,7 +908,7 @@ class TestCmdRag:
         args = self._make_args(file=["corpus.txt"], prompt="q", show_think=True)
 
         mock_rag = MagicMock()
-        mock_rag.add_documents.return_value = [1]
+        mock_rag.add_documents.return_value = _ir([1])
         mock_rag.query.return_value = MagicMock(text="ok", sources=[])
 
         with patch("cyllama.rag.RAG", return_value=mock_rag) as mock_cls:
@@ -902,6 +916,183 @@ class TestCmdRag:
 
         config = mock_cls.call_args[1]["config"]
         assert config.strip_think_blocks is False
+
+    # ----------------------------------------------------------------
+    # --db / --rebuild decision matrix
+    # ----------------------------------------------------------------
+
+    def test_db_not_passed_keeps_in_memory_default(self, tmp_path):
+        """Without --db, RAG must be constructed without a db_path
+        kwarg (so it defaults to ':memory:'). This pins the
+        backwards-compatible default."""
+        from cyllama.__main__ import cmd_rag
+
+        args = self._make_args(file=["corpus.txt"], prompt="q")
+
+        mock_rag = MagicMock()
+        mock_rag.add_documents.return_value = _ir([1])
+        mock_rag.query.return_value = MagicMock(text="ok", sources=[])
+
+        with patch("cyllama.rag.RAG", return_value=mock_rag) as mock_cls:
+            cmd_rag(args)
+
+        # db_path should NOT be in the kwargs when --db is not passed
+        assert "db_path" not in mock_cls.call_args.kwargs
+
+    def test_db_passed_routes_to_file_backed_store(self, tmp_path):
+        """With --db PATH, RAG must be constructed with db_path=PATH so
+        the underlying VectorStore writes to the file."""
+        from cyllama.__main__ import cmd_rag
+
+        db = str(tmp_path / "test.db")
+        args = self._make_args(file=["corpus.txt"], prompt="q", db=db)
+
+        mock_rag = MagicMock()
+        mock_rag.add_documents.return_value = _ir([1])
+        mock_rag.store = MagicMock()
+        mock_rag.store.__len__ = lambda self: 1
+        mock_rag.query.return_value = MagicMock(text="ok", sources=[])
+
+        with patch("cyllama.rag.RAG", return_value=mock_rag) as mock_cls:
+            cmd_rag(args)
+
+        assert mock_cls.call_args.kwargs.get("db_path") == db
+
+    def test_db_exists_no_files_skips_indexing(self, tmp_path):
+        """When --db PATH exists and no -f/-d is given, the existing
+        index is queried as-is. RAG.add_documents must not be called."""
+        from cyllama.__main__ import cmd_rag
+
+        # Create a non-empty file at the db path so os.path.exists returns True
+        db = str(tmp_path / "test.db")
+        with open(db, "w") as f:
+            f.write("")  # empty file -- the test only checks `exists`
+
+        args = self._make_args(prompt="q", db=db)
+
+        mock_rag = MagicMock()
+        mock_rag.store = MagicMock()
+        mock_rag.store.__len__ = lambda self: 42  # pretend 42 chunks already in store
+        mock_rag.query.return_value = MagicMock(text="ok", sources=[])
+
+        with patch("cyllama.rag.RAG", return_value=mock_rag):
+            cmd_rag(args)
+
+        mock_rag.add_documents.assert_not_called()
+        mock_rag.add_texts.assert_not_called()
+
+    def test_db_exists_with_files_appends(self, tmp_path):
+        """When --db PATH exists and -f/-d is given, RAG.add_documents
+        is called to append the new files to the existing index."""
+        from cyllama.__main__ import cmd_rag
+
+        db = str(tmp_path / "test.db")
+        with open(db, "w") as f:
+            f.write("")  # exists
+
+        args = self._make_args(file=["new.txt"], prompt="q", db=db)
+
+        mock_rag = MagicMock()
+        mock_rag.add_documents.return_value = _ir([1, 2, 3])
+        mock_rag.store = MagicMock()
+        mock_rag.store.__len__ = lambda self: 45  # 42 existing + 3 new
+        mock_rag.query.return_value = MagicMock(text="ok", sources=[])
+
+        with patch("cyllama.rag.RAG", return_value=mock_rag):
+            cmd_rag(args)
+
+        mock_rag.add_documents.assert_called_once_with(["new.txt"])
+
+    def test_db_does_not_exist_no_files_errors(self, tmp_path):
+        """--db PATH that doesn't exist + no -f/-d is an error: there's
+        nothing to query and nothing to populate from."""
+        from cyllama.__main__ import cmd_rag
+
+        db = str(tmp_path / "nonexistent.db")  # don't create
+        args = self._make_args(prompt="q", db=db)
+
+        ret = cmd_rag(args)
+        assert ret == 1
+
+    def test_no_db_no_files_errors(self):
+        """No --db, no -f/-d is the original 'no documents' error.
+        Pinned to make sure adding --db logic didn't break the
+        original error case."""
+        from cyllama.__main__ import cmd_rag
+
+        args = self._make_args(prompt="q")
+
+        mock_rag = MagicMock()
+        mock_rag.add_documents.return_value = _ir()
+        with patch("cyllama.rag.RAG", return_value=mock_rag):
+            ret = cmd_rag(args)
+        assert ret == 1
+
+    def test_rebuild_without_sources_errors(self, tmp_path):
+        """--rebuild without -f/-d would empty the index. We refuse
+        rather than silently doing it, since the user almost certainly
+        meant to also pass new sources."""
+        from cyllama.__main__ import cmd_rag
+
+        db = str(tmp_path / "test.db")
+        with open(db, "w") as f:
+            f.write("")
+        args = self._make_args(prompt="q", db=db, rebuild=True)
+
+        ret = cmd_rag(args)
+        assert ret == 1
+
+    def test_rebuild_with_sources_deletes_and_recreates(self, tmp_path):
+        """--rebuild with -f/-d should delete the existing DB file
+        before constructing RAG, so the new index is fresh."""
+        import os
+        from cyllama.__main__ import cmd_rag
+
+        db = str(tmp_path / "test.db")
+        with open(db, "w") as f:
+            f.write("stale data")
+        assert os.path.exists(db)
+
+        args = self._make_args(file=["corpus.txt"], prompt="q", db=db, rebuild=True)
+
+        mock_rag = MagicMock()
+        mock_rag.add_documents.return_value = _ir([1, 2, 3])
+        mock_rag.store = MagicMock()
+        mock_rag.store.__len__ = lambda self: 3
+        mock_rag.query.return_value = MagicMock(text="ok", sources=[])
+
+        with patch("cyllama.rag.RAG", return_value=mock_rag):
+            cmd_rag(args)
+
+        # After cmd_rag returns, the original (stale) file content
+        # should have been removed; the test passes either way as
+        # long as no exception was raised, but we additionally
+        # verify the rag was constructed (which means the rebuild
+        # path didn't error out before getting to the construction).
+        mock_rag.add_documents.assert_called_once()
+
+    def test_vector_store_error_propagated_as_friendly_message(self, tmp_path, capsys):
+        """When VectorStore raises VectorStoreError on metadata
+        mismatch (different embedder, etc.), the CLI must catch it,
+        print a friendly message, and exit non-zero -- not dump a
+        traceback."""
+        from cyllama.__main__ import cmd_rag
+        from cyllama.rag import VectorStoreError
+
+        db = str(tmp_path / "test.db")
+        with open(db, "w") as f:
+            f.write("")
+        args = self._make_args(prompt="q", db=db)
+
+        with patch(
+            "cyllama.rag.RAG",
+            side_effect=VectorStoreError("dimension 384 != 768"),
+        ):
+            ret = cmd_rag(args)
+
+        assert ret == 1
+        captured = capsys.readouterr()
+        assert "dimension" in captured.err.lower()
 
 
 # ---------------------------------------------------------------------------

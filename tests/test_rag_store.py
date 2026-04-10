@@ -403,6 +403,323 @@ class TestVectorStorePersistence:
             Path(db_path).unlink(missing_ok=True)
 
 
+class TestVectorStoreMetadataCompatibility:
+    """Test that reopening a populated DB with incompatible config raises
+    a clear error rather than silently corrupting the index by mixing
+    two configurations.
+
+    The metadata schema records: dimension, metric, vector_type (hard
+    mismatches), embedding_model_basename, embedding_model_size_bytes,
+    chunk_size, chunk_overlap (soft mismatches -- only fire when the
+    caller passes the field). All checks happen inside `_init_table`
+    on every constructor call against a populated DB.
+    """
+
+    def _make_db(self, tmp_path, **kwargs):
+        """Create a populated DB at a temp path with the given config,
+        close it, and return the path. Used as the 'before' state for
+        every reopen test in this class."""
+        db_path = str(tmp_path / "store.db")
+        defaults = dict(dimension=4, db_path=db_path)
+        defaults.update(kwargs)
+        with VectorStore(**defaults) as store:
+            store.add([[1.0, 0.0, 0.0, 0.0]], ["sample"])
+        return db_path
+
+    # ---- hard mismatches: always fire on any reopen ----
+
+    def test_reopen_with_different_dimension_raises(self, tmp_path):
+        db_path = self._make_db(tmp_path)
+        with pytest.raises(VectorStoreError, match="dimension"):
+            VectorStore(dimension=8, db_path=db_path)
+
+    def test_reopen_with_different_metric_raises(self, tmp_path):
+        db_path = self._make_db(tmp_path, metric="cosine")
+        with pytest.raises(VectorStoreError, match="metric"):
+            VectorStore(dimension=4, db_path=db_path, metric="l2")
+
+    def test_reopen_with_different_vector_type_raises(self, tmp_path):
+        db_path = self._make_db(tmp_path, vector_type="float32")
+        with pytest.raises(VectorStoreError, match="vector_type"):
+            VectorStore(dimension=4, db_path=db_path, vector_type="int8")
+
+    # ---- soft mismatches: only fire when the caller provides the field ----
+
+    def test_reopen_with_different_embedding_model_basename_raises(self, tmp_path):
+        db_path = self._make_db(tmp_path, embedding_model_path="/fake/embedder-a.gguf")
+        with pytest.raises(VectorStoreError, match="embedding model"):
+            VectorStore(
+                dimension=4, db_path=db_path,
+                embedding_model_path="/fake/embedder-b.gguf",
+            )
+
+    def test_reopen_with_different_embedding_model_size_raises(self, tmp_path, monkeypatch):
+        """Same basename but different file size: catches the
+        re-quantization case (q4 -> q8 of the same model)."""
+        # Create the original DB with a real on-disk fake embedder
+        # so getsize() returns a real value to record
+        fake_embedder = tmp_path / "embedder.gguf"
+        fake_embedder.write_bytes(b"x" * 1000)
+        db_path = self._make_db(tmp_path, embedding_model_path=str(fake_embedder))
+
+        # Now grow the file to a different size and try to reopen
+        fake_embedder.write_bytes(b"x" * 2000)
+        with pytest.raises(VectorStoreError, match="bytes"):
+            VectorStore(dimension=4, db_path=db_path, embedding_model_path=str(fake_embedder))
+
+    def test_reopen_with_different_chunk_size_raises(self, tmp_path):
+        db_path = self._make_db(tmp_path, chunk_size=512)
+        with pytest.raises(VectorStoreError, match="chunk_size"):
+            VectorStore(dimension=4, db_path=db_path, chunk_size=1024)
+
+    def test_reopen_with_different_chunk_overlap_raises(self, tmp_path):
+        db_path = self._make_db(tmp_path, chunk_overlap=50)
+        with pytest.raises(VectorStoreError, match="chunk_overlap"):
+            VectorStore(dimension=4, db_path=db_path, chunk_overlap=100)
+
+    # ---- soft mismatches OPT-OUT: caller doesn't pass the field ----
+
+    def test_reopen_without_optional_fields_skips_soft_checks(self, tmp_path):
+        """A caller that doesn't pass embedding_model_path/chunk_size/
+        chunk_overlap explicitly opts out of those compatibility checks.
+        Useful for read-only consumers (e.g. the `cyllama rag --db PATH`
+        query-only case where the user doesn't want to re-supply the
+        original config)."""
+        db_path = self._make_db(
+            tmp_path,
+            embedding_model_path="/fake/embedder.gguf",
+            chunk_size=512,
+            chunk_overlap=50,
+        )
+        # Reopen with no soft fields -- should succeed
+        with VectorStore(dimension=4, db_path=db_path) as store:
+            assert len(store) == 1
+
+    # ---- happy path: matching config reopens cleanly ----
+
+    def test_reopen_with_matching_config_succeeds(self, tmp_path):
+        db_path = self._make_db(
+            tmp_path,
+            dimension=4,
+            metric="cosine",
+            vector_type="float32",
+            embedding_model_path="/fake/embedder.gguf",
+            chunk_size=512,
+            chunk_overlap=50,
+        )
+        with VectorStore(
+            dimension=4,
+            db_path=db_path,
+            metric="cosine",
+            vector_type="float32",
+            embedding_model_path="/fake/embedder.gguf",
+            chunk_size=512,
+            chunk_overlap=50,
+        ) as store:
+            assert len(store) == 1
+
+    def test_metadata_persists_across_multiple_reopens(self, tmp_path):
+        """Metadata written on first init must survive multiple
+        reopen cycles. Pin this so a later refactor of `_init_table`
+        can't accidentally start overwriting metadata on every open."""
+        db_path = str(tmp_path / "store.db")
+
+        # First init: writes metadata
+        with VectorStore(
+            dimension=4, db_path=db_path,
+            embedding_model_path="/fake/e.gguf",
+            chunk_size=512, chunk_overlap=50,
+        ) as store:
+            store.add([[1.0, 0.0, 0.0, 0.0]], ["one"])
+
+        # Reopen 1: matches, adds another row
+        with VectorStore(
+            dimension=4, db_path=db_path,
+            embedding_model_path="/fake/e.gguf",
+            chunk_size=512, chunk_overlap=50,
+        ) as store:
+            assert len(store) == 1
+            store.add([[0.0, 1.0, 0.0, 0.0]], ["two"])
+
+        # Reopen 2: still matches (the metadata wasn't corrupted by
+        # the second open)
+        with VectorStore(
+            dimension=4, db_path=db_path,
+            embedding_model_path="/fake/e.gguf",
+            chunk_size=512, chunk_overlap=50,
+        ) as store:
+            assert len(store) == 2
+
+    def test_created_at_is_stable_across_reopens(self, tmp_path):
+        """`created_at` should be set on the first init and not
+        overwritten on subsequent reopens. Lets users see when the
+        index was first built, regardless of when it was last
+        accessed."""
+        db_path = str(tmp_path / "store.db")
+
+        with VectorStore(dimension=4, db_path=db_path) as store:
+            cursor = store.conn.execute(
+                f"SELECT value FROM {store.table_name}_meta WHERE key='created_at'"
+            )
+            row = cursor.fetchone()
+            assert row is not None, "created_at should be written on first init"
+            first_created = row[0]
+
+        with VectorStore(dimension=4, db_path=db_path) as store:
+            cursor = store.conn.execute(
+                f"SELECT value FROM {store.table_name}_meta WHERE key='created_at'"
+            )
+            second_created = cursor.fetchone()[0]
+
+        assert first_created == second_created, (
+            f"created_at must not change on reopen "
+            f"(was {first_created!r}, became {second_created!r})"
+        )
+
+
+class TestVectorStoreSourceDedup:
+    """Test the source-deduplication table created in `_init_table`
+    and the helper methods used by the high-level RAG layer to decide
+    whether to skip a previously-indexed source.
+
+    The dedup contract:
+
+    * Every call to ``add(..., source_hash=H, source_label=L)`` inserts
+      a row into ``{table_name}_sources`` in the same commit as the
+      chunk inserts (atomicity guarantee).
+    * ``is_source_indexed(H)`` returns True iff a row with that hash
+      already exists.
+    * ``get_source_by_label(L)`` lets the caller detect "same label,
+      different content" -- a file whose basename matches but whose
+      content differs.
+    * ``list_sources()`` returns all recorded sources for diagnostics.
+    * The legacy ``add()`` call (no ``source_hash`` kwarg) still works
+      and does NOT touch the sources table -- backward compatible.
+    """
+
+    def test_sources_table_created_on_init(self, tmp_path):
+        """The sources table must exist after `__init__` even on a
+        store that has never had a source recorded. Otherwise the
+        first `is_source_indexed` query would raise."""
+        db_path = str(tmp_path / "store.db")
+        with VectorStore(dimension=4, db_path=db_path) as store:
+            # Should not raise
+            assert store.is_source_indexed("nonexistent") is False
+            assert store.list_sources() == []
+
+    def test_add_without_source_hash_does_not_record(self):
+        """Backward compat: add() without source_hash should leave the
+        sources table empty. Pinned so a future refactor can't
+        accidentally start recording every add() as an anonymous
+        source."""
+        with VectorStore(dimension=3) as store:
+            store.add([[1.0, 0.0, 0.0]], ["chunk"])
+            assert store.list_sources() == []
+
+    def test_add_with_source_hash_records_one_row(self):
+        with VectorStore(dimension=3) as store:
+            store.add(
+                [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
+                ["chunk a", "chunk b"],
+                source_hash="abc123",
+                source_label="foo.txt",
+            )
+            sources = store.list_sources()
+            assert len(sources) == 1
+            assert sources[0]["content_hash"] == "abc123"
+            assert sources[0]["source_label"] == "foo.txt"
+            assert sources[0]["chunk_count"] == 2
+            assert "indexed_at" in sources[0]
+
+    def test_is_source_indexed_returns_true_after_add(self):
+        with VectorStore(dimension=3) as store:
+            assert not store.is_source_indexed("hash1")
+            store.add(
+                [[1.0, 0.0, 0.0]], ["x"],
+                source_hash="hash1", source_label="x.txt",
+            )
+            assert store.is_source_indexed("hash1")
+            # Different hash still returns False
+            assert not store.is_source_indexed("hash2")
+
+    def test_get_source_by_label_returns_row_or_none(self):
+        with VectorStore(dimension=3) as store:
+            assert store.get_source_by_label("missing") is None
+            store.add(
+                [[1.0, 0.0, 0.0]], ["x"],
+                source_hash="abc", source_label="present.txt",
+            )
+            row = store.get_source_by_label("present.txt")
+            assert row is not None
+            assert row["content_hash"] == "abc"
+            assert row["source_label"] == "present.txt"
+            assert row["chunk_count"] == 1
+
+    def test_add_requires_label_when_hash_provided(self):
+        with VectorStore(dimension=3) as store:
+            with pytest.raises(ValueError, match="source_label"):
+                store.add(
+                    [[1.0, 0.0, 0.0]], ["x"],
+                    source_hash="abc",  # no source_label
+                )
+
+    def test_source_record_persists_across_reopen(self, tmp_path):
+        """Critical: the dedup table must round-trip through close+
+        reopen so file-backed stores actually deduplicate across
+        process invocations."""
+        db_path = str(tmp_path / "store.db")
+
+        with VectorStore(dimension=3, db_path=db_path) as store:
+            store.add(
+                [[1.0, 0.0, 0.0]], ["chunk"],
+                source_hash="persistent_hash", source_label="persistent.txt",
+            )
+
+        # Reopen and verify the source is still there
+        with VectorStore(dimension=3, db_path=db_path) as store:
+            assert store.is_source_indexed("persistent_hash")
+            sources = store.list_sources()
+            assert len(sources) == 1
+
+    def test_atomic_insert_chunks_and_source_in_one_commit(self):
+        """The chunks and the source row must be visible in the same
+        transaction. We test this indirectly: if the chunk inserts
+        succeed but the source insert fails (e.g. duplicate primary
+        key), the chunks should be rolled back so the dedup table is
+        never out of sync with the data table.
+        """
+        with VectorStore(dimension=3) as store:
+            # First add succeeds
+            store.add(
+                [[1.0, 0.0, 0.0]], ["original"],
+                source_hash="dup_hash", source_label="a.txt",
+            )
+            assert len(store) == 1
+
+            # Second add with the SAME source_hash would violate the
+            # PRIMARY KEY constraint on the sources table, which
+            # should roll back the whole transaction (no new chunks).
+            with pytest.raises(Exception):  # sqlite3.IntegrityError
+                store.add(
+                    [[0.0, 1.0, 0.0]], ["new"],
+                    source_hash="dup_hash", source_label="a.txt",
+                )
+
+            # Verify atomicity: count is still 1, not 2.
+            assert len(store) == 1
+
+    def test_multiple_sources_recorded_independently(self):
+        with VectorStore(dimension=3) as store:
+            store.add([[1.0, 0.0, 0.0]], ["a"], source_hash="h1", source_label="a.txt")
+            store.add([[0.0, 1.0, 0.0]], ["b"], source_hash="h2", source_label="b.txt")
+            store.add([[0.0, 0.0, 1.0]], ["c"], source_hash="h3", source_label="c.txt")
+
+            assert len(store.list_sources()) == 3
+            assert store.is_source_indexed("h1")
+            assert store.is_source_indexed("h2")
+            assert store.is_source_indexed("h3")
+
+
 class TestVectorStoreContextManager:
     """Test context manager protocol."""
 

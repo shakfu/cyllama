@@ -69,6 +69,9 @@ class VectorStore:
         table_name: str = "embeddings",
         metric: str = "cosine",
         vector_type: str = "float32",
+        embedding_model_path: str | None = None,
+        chunk_size: int | None = None,
+        chunk_overlap: int | None = None,
     ):
         """Initialize vector store with sqlite-vector.
 
@@ -78,9 +81,24 @@ class VectorStore:
             table_name: Name of the embeddings table
             metric: Distance metric: "cosine", "l2", "dot", "l1", "squared_l2"
             vector_type: Vector storage type: "float32", "float16", "int8", "uint8", "bfloat16"
+            embedding_model_path: Optional path to the embedding model GGUF
+                used to populate this store. If provided, the model's
+                basename and file size are recorded in the metadata table
+                so reopens against the same DB can verify the user is
+                using the same (or at least size-compatible) embedding
+                model. Mismatch raises ``VectorStoreError`` with a
+                friendly message rather than silently producing garbage.
+            chunk_size: Optional chunk size used to populate this store.
+                If provided, recorded in metadata so reopens can detect
+                a chunking-config mismatch.
+            chunk_overlap: Optional chunk overlap used to populate this
+                store. Same purpose as ``chunk_size``.
 
         Raises:
-            VectorStoreError: If extension cannot be loaded or invalid parameters
+            VectorStoreError: If extension cannot be loaded, invalid
+                parameters, or the database already exists with
+                incompatible metadata (different dimension, metric,
+                vector_type, embedding model, or chunking config).
         """
         if dimension <= 0:
             raise ValueError(f"dimension must be positive, got {dimension}")
@@ -103,6 +121,32 @@ class VectorStore:
         self._quantized = False
         self._closed = False
 
+        # Compute the embedding-model fingerprint up front so we can
+        # both verify it on reopen AND store it on first init. We use
+        # basename + file size in bytes as the fingerprint:
+        # - basename catches the obvious "user switched models" case
+        # - file size catches "user re-quantized to a different bit
+        #   width" without requiring a multi-GB content hash
+        # Together they detect the realistic mismatch cases without
+        # being expensive to compute.
+        self._embedding_model_path = embedding_model_path
+        self._embedding_model_basename: str | None = None
+        self._embedding_model_size_bytes: int | None = None
+        if embedding_model_path is not None:
+            import os as _os
+
+            self._embedding_model_basename = _os.path.basename(embedding_model_path)
+            try:
+                self._embedding_model_size_bytes = _os.path.getsize(embedding_model_path)
+            except OSError:
+                # Path doesn't exist or isn't readable -- store basename
+                # only. The compatibility check will be looser but
+                # we shouldn't refuse to construct the store.
+                self._embedding_model_size_bytes = None
+
+        self._chunk_size = chunk_size
+        self._chunk_overlap = chunk_overlap
+
         # Connect to database
         try:
             self.conn = sqlite3.connect(db_path, timeout=10)
@@ -112,7 +156,9 @@ class VectorStore:
         # Load sqlite-vector extension
         self._load_extension()
 
-        # Create table and initialize vector search
+        # Create table and initialize vector search. This is the point
+        # where, on reopen of an existing populated DB, the metadata
+        # compatibility check fires and may raise.
         self._init_table()
 
     def _load_extension(self) -> None:
@@ -148,8 +194,17 @@ class VectorStore:
             return self.EXTENSION_PATH.with_suffix(".so")
 
     def _init_table(self) -> None:
-        """Create table and initialize vector search."""
-        # Create table if not exists
+        """Create table and initialize vector search.
+
+        On a fresh DB this writes the configuration to the
+        ``{table_name}_meta`` table. On reopen of an existing
+        populated DB this reads the stored configuration and
+        verifies it matches what the caller passed in -- mismatch
+        raises ``VectorStoreError`` rather than silently corrupting
+        the index by mixing two configurations.
+        """
+        # Create the data table if it doesn't already exist. CREATE
+        # TABLE IF NOT EXISTS makes the reopen case a no-op.
         self.conn.execute(f"""
             CREATE TABLE IF NOT EXISTS {self.table_name} (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -159,7 +214,6 @@ class VectorStore:
             )
         """)
 
-        # Store vector store configuration for reopening
         meta_table = f"{self.table_name}_meta"
         self.conn.execute(f"""
             CREATE TABLE IF NOT EXISTS {meta_table} (
@@ -167,18 +221,84 @@ class VectorStore:
                 value TEXT NOT NULL
             )
         """)
-        self.conn.execute(
-            f"INSERT OR REPLACE INTO {meta_table} (key, value) VALUES (?, ?)",
-            ("metric", self.metric),
-        )
-        self.conn.execute(
-            f"INSERT OR REPLACE INTO {meta_table} (key, value) VALUES (?, ?)",
-            ("vector_type", self.vector_type),
-        )
-        self.conn.execute(
-            f"INSERT OR REPLACE INTO {meta_table} (key, value) VALUES (?, ?)",
-            ("dimension", str(self.dimension)),
-        )
+
+        # Source-deduplication table. Records (content_hash, label,
+        # chunk_count, indexed_at) for every source that has ever been
+        # added to this store, so future add() calls can detect a
+        # source that was already indexed and skip it instead of
+        # producing duplicate chunks. The hash is the user's choice
+        # (typically md5 of the file bytes for add_documents or
+        # md5 of the text bytes for add_texts); VectorStore just
+        # stores and queries the values.
+        sources_table = f"{self.table_name}_sources"
+        self.conn.execute(f"""
+            CREATE TABLE IF NOT EXISTS {sources_table} (
+                content_hash TEXT PRIMARY KEY,
+                source_label TEXT NOT NULL,
+                chunk_count  INTEGER NOT NULL,
+                indexed_at   TEXT NOT NULL
+            )
+        """)
+        # Secondary index on the label so the "same basename,
+        # different content" check is fast even for large source lists.
+        self.conn.execute(f"""
+            CREATE INDEX IF NOT EXISTS {sources_table}_label_idx
+            ON {sources_table}(source_label)
+        """)
+
+        # Read whatever metadata is already in the DB. On a fresh DB
+        # this returns an empty dict and we fall through to writing
+        # ours. On a reopen this returns the stored config and we
+        # validate before writing anything.
+        stored = {
+            row[0]: row[1]
+            for row in self.conn.execute(f"SELECT key, value FROM {meta_table}")
+        }
+
+        if stored:
+            self._verify_compatibility(stored)
+
+        # Either fresh DB (stored was empty) or compatible reopen
+        # (verify_compatibility returned without raising). Write/update
+        # the metadata fields. INSERT OR REPLACE is correct here
+        # because all the values we're about to write either match
+        # what's already there (compatible reopen) or are new (fresh
+        # DB / new metadata fields added in a later cyllama version).
+        from datetime import datetime, timezone
+
+        try:
+            from .. import __version__ as _cyllama_version
+        except ImportError:  # pragma: no cover - extremely defensive
+            _cyllama_version = "unknown"
+
+        meta_to_write = {
+            "metric": self.metric,
+            "vector_type": self.vector_type,
+            "dimension": str(self.dimension),
+            "cyllama_version": str(_cyllama_version),
+        }
+        # Only write fingerprints if the caller provided them. We
+        # don't want to overwrite a populated DB's fingerprint with
+        # NULL just because someone called the constructor without
+        # the new params. The fields are individually optional.
+        if self._embedding_model_basename is not None:
+            meta_to_write["embedding_model_basename"] = self._embedding_model_basename
+        if self._embedding_model_size_bytes is not None:
+            meta_to_write["embedding_model_size_bytes"] = str(self._embedding_model_size_bytes)
+        if self._chunk_size is not None:
+            meta_to_write["chunk_size"] = str(self._chunk_size)
+        if self._chunk_overlap is not None:
+            meta_to_write["chunk_overlap"] = str(self._chunk_overlap)
+        # Set created_at only on a fresh DB so it remains the original
+        # creation timestamp on reopens. Use UTC for portability.
+        if "created_at" not in stored:
+            meta_to_write["created_at"] = datetime.now(timezone.utc).isoformat()
+
+        for key, value in meta_to_write.items():
+            self.conn.execute(
+                f"INSERT OR REPLACE INTO {meta_table} (key, value) VALUES (?, ?)",
+                (key, value),
+            )
         self.conn.commit()
 
         # Map metric names to sqlite-vector distance names
@@ -210,6 +330,121 @@ class VectorStore:
         except sqlite3.OperationalError as e:
             raise VectorStoreError(f"Failed to initialize vector search: {e}") from e
 
+    def _verify_compatibility(self, stored: dict[str, str]) -> None:
+        """Verify the caller's configuration matches what's already in
+        the database, raising ``VectorStoreError`` on mismatch.
+
+        Called only when reopening an existing populated DB. The
+        comparison rules:
+
+        * **Hard mismatches** (raise immediately) -- dimension, metric,
+          vector_type. These would corrupt the index if the caller
+          tried to add new vectors with the wrong shape or compare
+          old vectors with the wrong distance.
+        * **Soft mismatches** (raise unless the caller passed
+          ``None`` for the field) -- ``embedding_model_basename``,
+          ``embedding_model_size_bytes``, ``chunk_size``,
+          ``chunk_overlap``. These would silently produce bad results
+          (different embedder vectors aren't comparable; different
+          chunking produces inconsistent retrieval) but the caller
+          can opt out of the check by simply not passing the field
+          to the constructor.
+
+        The error message for each case names the stored value, the
+        attempted value, and a one-line hint about how to fix.
+        """
+        # Hard checks: these always fire because the caller always
+        # passes them (or constructor defaults).
+        stored_dimension = stored.get("dimension")
+        if stored_dimension is not None and int(stored_dimension) != self.dimension:
+            raise VectorStoreError(
+                f"VectorStore at {self.db_path!r} was created with "
+                f"dimension={stored_dimension} but the caller is opening "
+                f"it with dimension={self.dimension}. This usually means "
+                f"you switched to a different embedding model. Either "
+                f"use the original embedding model, point at a different "
+                f"--db, or pass --rebuild to recreate the index from "
+                f"scratch."
+            )
+
+        stored_metric = stored.get("metric")
+        if stored_metric is not None and stored_metric != self.metric:
+            raise VectorStoreError(
+                f"VectorStore at {self.db_path!r} was created with "
+                f"metric={stored_metric!r} but the caller is opening "
+                f"it with metric={self.metric!r}. Distance metrics are "
+                f"not interchangeable -- vectors stored under one metric "
+                f"would produce wrong rankings under another. Either "
+                f"use the original metric or pass --rebuild to recreate."
+            )
+
+        stored_vector_type = stored.get("vector_type")
+        if stored_vector_type is not None and stored_vector_type != self.vector_type:
+            raise VectorStoreError(
+                f"VectorStore at {self.db_path!r} was created with "
+                f"vector_type={stored_vector_type!r} but the caller is "
+                f"opening it with vector_type={self.vector_type!r}. "
+                f"Vector storage formats are not interchangeable -- "
+                f"the encoded BLOBs are different sizes. Either use "
+                f"the original vector_type or pass --rebuild to recreate."
+            )
+
+        # Soft checks: only fire if the caller actually provided the
+        # field. A caller that doesn't pass embedding_model_path /
+        # chunk_size / chunk_overlap explicitly opts out of the check.
+        if self._embedding_model_basename is not None:
+            stored_basename = stored.get("embedding_model_basename")
+            if stored_basename is not None and stored_basename != self._embedding_model_basename:
+                raise VectorStoreError(
+                    f"VectorStore at {self.db_path!r} was created with "
+                    f"embedding model {stored_basename!r} but the caller "
+                    f"is opening it with {self._embedding_model_basename!r}. "
+                    f"Vectors from two different embedding models live "
+                    f"in different vector spaces and cannot be compared. "
+                    f"Either use the original embedding model or pass "
+                    f"--rebuild to recreate the index."
+                )
+
+        if self._embedding_model_size_bytes is not None:
+            stored_size = stored.get("embedding_model_size_bytes")
+            if stored_size is not None and int(stored_size) != self._embedding_model_size_bytes:
+                raise VectorStoreError(
+                    f"VectorStore at {self.db_path!r} was created with "
+                    f"an embedding model file of {stored_size} bytes, "
+                    f"but the current embedding model file is "
+                    f"{self._embedding_model_size_bytes} bytes. The "
+                    f"basename matches but the file size differs, which "
+                    f"usually means a different quantization (e.g. q4 vs "
+                    f"q8) or a different release of the same model. The "
+                    f"vectors are not necessarily compatible. Either use "
+                    f"the original file, or pass --rebuild to recreate "
+                    f"the index against the new file."
+                )
+
+        if self._chunk_size is not None:
+            stored_chunk_size = stored.get("chunk_size")
+            if stored_chunk_size is not None and int(stored_chunk_size) != self._chunk_size:
+                raise VectorStoreError(
+                    f"VectorStore at {self.db_path!r} was created with "
+                    f"chunk_size={stored_chunk_size} but the caller is "
+                    f"opening it with chunk_size={self._chunk_size}. "
+                    f"Mixing chunk sizes in one index produces inconsistent "
+                    f"retrieval. Either use the original chunk_size or "
+                    f"pass --rebuild to recreate the index."
+                )
+
+        if self._chunk_overlap is not None:
+            stored_chunk_overlap = stored.get("chunk_overlap")
+            if stored_chunk_overlap is not None and int(stored_chunk_overlap) != self._chunk_overlap:
+                raise VectorStoreError(
+                    f"VectorStore at {self.db_path!r} was created with "
+                    f"chunk_overlap={stored_chunk_overlap} but the caller "
+                    f"is opening it with chunk_overlap={self._chunk_overlap}. "
+                    f"Mixing chunk overlaps in one index produces "
+                    f"inconsistent retrieval. Either use the original "
+                    f"chunk_overlap or pass --rebuild to recreate the index."
+                )
+
     def _encode_vector(self, vector: list[float]) -> bytes:
         """Encode vector as binary BLOB (Float32).
 
@@ -234,11 +469,81 @@ class VectorStore:
         """
         return list(struct.unpack(f"{self.dimension}f", blob))
 
+    # ------------------------------------------------------------------
+    # Source-deduplication queries (the records are written by add()
+    # when the source_hash kwarg is passed; these methods read them
+    # back so the higher-level RAG layer can decide whether to skip
+    # an already-indexed source).
+    # ------------------------------------------------------------------
+
+    def is_source_indexed(self, content_hash: str) -> bool:
+        """Return True if a source with this content hash has already
+        been added to the store via ``add(source_hash=...)``."""
+        self._check_closed()
+        sources_table = f"{self.table_name}_sources"
+        cursor = self.conn.execute(
+            f"SELECT 1 FROM {sources_table} WHERE content_hash = ? LIMIT 1",
+            (content_hash,),
+        )
+        return cursor.fetchone() is not None
+
+    def get_source_by_label(self, source_label: str) -> dict[str, Any] | None:
+        """Look up a source by its label (e.g. file basename) and
+        return the stored row, or None if no source with that label
+        has been indexed.
+
+        Used by the RAG layer to detect "same basename, different
+        content" collisions: if a label is already in the table but
+        the caller's content hash differs, we know the file content
+        changed and the user needs to either rename or rebuild.
+        """
+        self._check_closed()
+        sources_table = f"{self.table_name}_sources"
+        cursor = self.conn.execute(
+            f"SELECT content_hash, source_label, chunk_count, indexed_at "
+            f"FROM {sources_table} WHERE source_label = ? LIMIT 1",
+            (source_label,),
+        )
+        row = cursor.fetchone()
+        if row is None:
+            return None
+        return {
+            "content_hash": row[0],
+            "source_label": row[1],
+            "chunk_count": row[2],
+            "indexed_at": row[3],
+        }
+
+    def list_sources(self) -> list[dict[str, Any]]:
+        """Return all source records ordered by indexing time.
+
+        Useful for ``cyllama rag --db PATH --list-sources``-style
+        diagnostics and for tests that want to assert what's in the
+        dedup table without poking at the schema directly.
+        """
+        self._check_closed()
+        sources_table = f"{self.table_name}_sources"
+        cursor = self.conn.execute(
+            f"SELECT content_hash, source_label, chunk_count, indexed_at "
+            f"FROM {sources_table} ORDER BY indexed_at"
+        )
+        return [
+            {
+                "content_hash": row[0],
+                "source_label": row[1],
+                "chunk_count": row[2],
+                "indexed_at": row[3],
+            }
+            for row in cursor.fetchall()
+        ]
+
     def add(
         self,
         embeddings: list[list[float]],
         texts: list[str],
         metadata: list[dict[str, Any]] | None = None,
+        source_hash: str | None = None,
+        source_label: str | None = None,
     ) -> list[int]:
         """Add embeddings with associated texts and metadata.
 
@@ -246,17 +551,35 @@ class VectorStore:
             embeddings: List of embedding vectors
             texts: List of text strings (must match embeddings length)
             metadata: Optional list of metadata dicts
+            source_hash: Optional content hash (typically md5 hex digest)
+                identifying the source these chunks came from. When
+                provided, an entry is recorded in the
+                ``{table_name}_sources`` table in the same commit as
+                the chunk inserts, so the chunks-and-source pair is
+                atomically visible. Callers use this together with
+                :meth:`is_source_indexed` to skip re-indexing a source
+                whose content hasn't changed.
+            source_label: Optional human-readable label for the source
+                (e.g. file basename). Required when ``source_hash`` is
+                provided. Stored as-is for display in
+                :meth:`list_sources` and used to detect "same basename,
+                different content" collisions one layer up.
 
         Returns:
             List of generated IDs for the added items
 
         Raises:
-            ValueError: If lengths don't match or vectors have wrong dimension
+            ValueError: If lengths don't match, vectors have wrong
+                dimension, or ``source_hash`` is provided without
+                ``source_label``.
         """
         self._check_closed()
 
         if len(embeddings) != len(texts):
             raise ValueError(f"embeddings and texts must have same length: {len(embeddings)} vs {len(texts)}")
+
+        if source_hash is not None and source_label is None:
+            raise ValueError("source_hash requires source_label")
 
         if metadata is None:
             metadata = [{} for _ in range(len(embeddings))]
@@ -271,16 +594,47 @@ class VectorStore:
                 except (TypeError, ValueError) as e:
                     raise ValueError(f"Metadata at index {i} is not JSON-serializable: {e}") from e
 
+        # Use `with self.conn:` to get transactional semantics: commit
+        # on successful exit, rollback on any exception. This is what
+        # makes chunks-and-source atomic -- if the source INSERT
+        # raises (e.g. PRIMARY KEY violation on a duplicate hash),
+        # the chunk inserts above are also rolled back. Without this,
+        # a failed source insert would leave the store with orphaned
+        # chunks that the dedup table doesn't know about.
         ids: list[int] = []
-        cursor = self.conn.cursor()
-        for emb, text, meta in zip(embeddings, texts, metadata):
-            blob = self._encode_vector(emb)
-            cursor.execute(
-                f"INSERT INTO {self.table_name} (text, embedding, metadata) VALUES (?, ?, ?)",
-                (text, blob, json.dumps(meta) if meta else None),
-            )
-            ids.append(cursor.lastrowid or 0)
-        self.conn.commit()
+        try:
+            with self.conn:
+                cursor = self.conn.cursor()
+                for emb, text, meta in zip(embeddings, texts, metadata):
+                    blob = self._encode_vector(emb)
+                    cursor.execute(
+                        f"INSERT INTO {self.table_name} (text, embedding, metadata) VALUES (?, ?, ?)",
+                        (text, blob, json.dumps(meta) if meta else None),
+                    )
+                    ids.append(cursor.lastrowid or 0)
+
+                if source_hash is not None:
+                    from datetime import datetime, timezone
+
+                    sources_table = f"{self.table_name}_sources"
+                    cursor.execute(
+                        f"INSERT INTO {sources_table} "
+                        f"(content_hash, source_label, chunk_count, indexed_at) "
+                        f"VALUES (?, ?, ?, ?)",
+                        (
+                            source_hash,
+                            source_label,
+                            len(embeddings),
+                            datetime.now(timezone.utc).isoformat(),
+                        ),
+                    )
+        except sqlite3.IntegrityError:
+            # The `with self.conn:` block already rolled back, but
+            # the local `ids` list is now misleading because the
+            # chunks aren't actually in the DB. Clear it so the
+            # caller doesn't see phantom IDs.
+            ids = []
+            raise
 
         # Invalidate quantization on new data
         self._quantized = False
