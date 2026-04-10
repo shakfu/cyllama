@@ -685,6 +685,10 @@ class TestCmdRag:
             n_gpu_layers=99,
             stream=False,
             sources=False,
+            # Match the argparse defaults set on rag_parser in __main__.py
+            repetition_threshold=3,
+            repetition_ngram=5,
+            repetition_window=300,
         )
         defaults.update(overrides)
         return argparse.Namespace(**defaults)

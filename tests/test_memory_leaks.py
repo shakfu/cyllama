@@ -132,9 +132,7 @@ class TestLLMLeaks:
             gc.collect()
             samples.append(get_rss_mb())
 
-        assert_rss_bounded(
-            baseline, samples, tolerance_mb=self.TOLERANCE_MB, label="LLM"
-        )
+        assert_rss_bounded(baseline, samples, tolerance_mb=self.TOLERANCE_MB, label="LLM")
 
 
 # ---------------------------------------------------------------------------
@@ -180,9 +178,7 @@ class TestSDContextLeaks:
             gc.collect()
             samples.append(get_rss_mb())
 
-        assert_rss_bounded(
-            baseline, samples, tolerance_mb=self.TOLERANCE_MB, label="SDContext"
-        )
+        assert_rss_bounded(baseline, samples, tolerance_mb=self.TOLERANCE_MB, label="SDContext")
 
 
 # ---------------------------------------------------------------------------

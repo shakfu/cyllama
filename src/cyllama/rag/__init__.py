@@ -59,8 +59,15 @@ from .loaders import (
     load_directory,
     load_document,
 )
-from .pipeline import DEFAULT_PROMPT_TEMPLATE, RAGConfig, RAGPipeline, RAGResponse
+from .pipeline import (
+    DEFAULT_PROMPT_TEMPLATE,
+    DEFAULT_RAG_SYSTEM_PROMPT,
+    RAGConfig,
+    RAGPipeline,
+    RAGResponse,
+)
 from .rag import RAG
+from .repetition import NGramRepetitionDetector
 from .splitter import MarkdownSplitter, TextSplitter, TokenTextSplitter
 from .store import VectorStore, VectorStoreError
 from .types import Chunk, Document, EmbeddingResult, SearchResult
@@ -74,6 +81,8 @@ __all__ = [
     "RAGConfig",
     "RAGResponse",
     "DEFAULT_PROMPT_TEMPLATE",
+    "DEFAULT_RAG_SYSTEM_PROMPT",
+    "NGramRepetitionDetector",
     # Advanced Features
     "HybridStore",
     "Reranker",

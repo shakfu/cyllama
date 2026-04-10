@@ -366,6 +366,13 @@ Answer:"""
         similarity_threshold=args.threshold or None,
         max_tokens=args.max_tokens,
         temperature=args.temperature,
+        # Enable streaming-level n-gram repetition detection by default in
+        # the CLI: this is the surface where users hit the Qwen3-style
+        # paraphrase-loop bug, so it should be on out of the box. Library
+        # callers stay opt-in via RAGConfig defaults.
+        repetition_threshold=args.repetition_threshold,
+        repetition_ngram=args.repetition_ngram,
+        repetition_window=args.repetition_window,
         **({"prompt_template": prompt_template} if prompt_template else {}),
     )
 
@@ -541,6 +548,24 @@ def main():
     rag_parser.add_argument("-ngl", "--n-gpu-layers", type=int, default=99)
     rag_parser.add_argument("--stream", action="store_true", help="Stream output tokens")
     rag_parser.add_argument("--sources", action="store_true", help="Show source chunks")
+    rag_parser.add_argument(
+        "--repetition-threshold",
+        type=int,
+        default=3,
+        help="Stop generation after the same n-gram repeats this many times in the rolling window. 0 disables (default: 3)",
+    )
+    rag_parser.add_argument(
+        "--repetition-ngram",
+        type=int,
+        default=5,
+        help="Word-level n-gram length for repetition detection (default: 5)",
+    )
+    rag_parser.add_argument(
+        "--repetition-window",
+        type=int,
+        default=300,
+        help="Number of recent words kept by the repetition detector (default: 300, tuned for paragraph-length loops)",
+    )
 
     # -- delegation commands ----------------------------------------------
     subparsers.add_parser("server", help="Start OpenAI-compatible API server")

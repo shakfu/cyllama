@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Iterator
 
+from .repetition import NGramRepetitionDetector
 from .types import SearchResult
 
 if TYPE_CHECKING:
@@ -13,7 +14,7 @@ if TYPE_CHECKING:
     from .store import VectorStore
 
 
-# Default prompt template for RAG queries
+# Default prompt template for RAG queries (raw-completion path).
 DEFAULT_PROMPT_TEMPLATE = """Use the following context to answer the question. If the context doesn't contain relevant information, say so.
 
 Context:
@@ -22,6 +23,17 @@ Context:
 Question: {question}
 
 Answer:"""
+
+
+# Default system prompt for the chat-template path. This replaces the
+# Question:/Answer: framing that some chat-tuned models (notably Qwen3)
+# misinterpret as a continuation pattern and loop on.
+DEFAULT_RAG_SYSTEM_PROMPT = (
+    "You are a helpful assistant. Answer the user's question using the "
+    "provided context. If the context does not contain the information "
+    "needed, say so plainly. Give your answer once and do not repeat or "
+    "paraphrase it."
+)
 
 
 @dataclass
@@ -36,6 +48,21 @@ class RAGConfig:
         prompt_template: Template for formatting the RAG prompt
         context_separator: String to join retrieved documents (default: "\\n\\n")
         include_metadata: Whether to include metadata in context (default: False)
+        repetition_window: Word-level rolling-window size for the streaming
+            n-gram repetition detector. Default: 80.
+        repetition_ngram: N-gram length used by the repetition detector.
+            Default: 5.
+        repetition_threshold: Repeat count that trips the detector and
+            stops generation early. ``0`` disables the detector entirely
+            (default). Set to e.g. ``3`` to enable.
+        use_chat_template: When True, the pipeline calls
+            ``generator.chat()`` with a system + user message instead of
+            sending a raw completion prompt. Default: False. Use this for
+            chat-tuned models that loop on the raw "Question:/Answer:"
+            framing.
+        system_prompt: System message used when ``use_chat_template`` is
+            True. Defaults to a prompt that explicitly tells the model
+            not to repeat or paraphrase its answer.
     """
 
     # Retrieval settings
@@ -46,12 +73,27 @@ class RAGConfig:
     max_tokens: int = 512
     temperature: float = 0.7
 
-    # Prompt template
+    # Prompt template (raw-completion path)
     prompt_template: str = DEFAULT_PROMPT_TEMPLATE
 
     # Context formatting
     context_separator: str = "\n\n"
     include_metadata: bool = False
+
+    # Repetition detection (streaming-level loop guard).
+    # Defaults to off so the bare RAGConfig() preserves the historical
+    # behaviour; opt in by setting repetition_threshold > 0. The CLI
+    # turns this on by default because that's where the bug was hit.
+    # Window size is tuned for paragraph-length loops (Qwen3-4B greedy
+    # decoding), not just short phrase loops.
+    repetition_window: int = 300
+    repetition_ngram: int = 5
+    repetition_threshold: int = 0
+
+    # Chat-template prompting (alternative to raw completion). Off by
+    # default for the same backwards-compat reason.
+    use_chat_template: bool = False
+    system_prompt: str | None = None
 
     def __post_init__(self):
         """Validate configuration values."""
@@ -63,6 +105,21 @@ class RAGConfig:
             raise ValueError(f"max_tokens must be >= 1, got {self.max_tokens}")
         if self.temperature < 0:
             raise ValueError(f"temperature must be >= 0, got {self.temperature}")
+        if self.repetition_threshold < 0:
+            raise ValueError(f"repetition_threshold must be >= 0 (0 = disabled), got {self.repetition_threshold}")
+        if self.repetition_threshold > 0:
+            # Only validate the other repetition fields when the detector
+            # is actually enabled, so a config that leaves them at zero
+            # while disabling the feature is still legal.
+            if self.repetition_ngram < 2:
+                raise ValueError(
+                    f"repetition_ngram must be >= 2 when repetition is enabled, got {self.repetition_ngram}"
+                )
+            if self.repetition_window < self.repetition_ngram:
+                raise ValueError(
+                    f"repetition_window ({self.repetition_window}) must be "
+                    f">= repetition_ngram ({self.repetition_ngram})"
+                )
 
 
 @dataclass
@@ -168,8 +225,9 @@ class RAGPipeline:
         Steps:
         1. Embed the question
         2. Retrieve relevant documents
-        3. Format prompt with context
-        4. Generate response
+        3. Format prompt (or chat messages) with context
+        4. Generate response, optionally with streaming-level repetition
+           detection or via the model's chat template
 
         Args:
             question: The question to answer
@@ -190,24 +248,27 @@ class RAGPipeline:
             threshold=cfg.similarity_threshold,
         )
 
-        # 3. Format the prompt
-        prompt = self._format_prompt(question, sources, cfg)
+        gen_config = self._build_gen_config(cfg)
 
-        # 4. Generate response
-        # Import here to avoid circular imports
-        from ..api import GenerationConfig
-
-        gen_config = GenerationConfig(
-            max_tokens=cfg.max_tokens,
-            temperature=cfg.temperature,
-            stop_sequences=["Question:", "\nContext:", "\nAnswer:"],
-        )
-        response = self.generator(prompt, config=gen_config)
+        # When neither feature is enabled we keep the legacy fast path
+        # that calls the generator non-streaming and preserves the rich
+        # GenerationStats that come back on the Response object. The
+        # streaming path used by the new features cannot recover those
+        # stats from a chunk iterator.
+        if cfg.repetition_threshold > 0 or cfg.use_chat_template:
+            chunks = list(self._generate_chunks(question, sources, cfg, gen_config))
+            text = "".join(chunks)
+            stats = None
+        else:
+            prompt = self._format_prompt(question, sources, cfg)
+            response = self.generator(prompt, config=gen_config)
+            text = str(response)
+            stats = getattr(response, "stats", None)
 
         return RAGResponse(
-            text=str(response),
+            text=text,
             sources=sources,
-            stats=getattr(response, "stats", None),
+            stats=stats,
             query=question,
         )
 
@@ -219,6 +280,8 @@ class RAGPipeline:
         """Stream response tokens for a question.
 
         Yields tokens as they are generated, useful for real-time display.
+        Honours ``RAGConfig.repetition_threshold`` and
+        ``RAGConfig.use_chat_template``.
 
         Args:
             question: The question to answer
@@ -239,19 +302,70 @@ class RAGPipeline:
             threshold=cfg.similarity_threshold,
         )
 
-        # 3. Format the prompt
-        prompt = self._format_prompt(question, sources, cfg)
+        gen_config = self._build_gen_config(cfg)
+        yield from self._generate_chunks(question, sources, cfg, gen_config)
 
-        # 4. Stream response
-        # Import here to avoid circular imports
+    def _build_gen_config(self, cfg: RAGConfig) -> Any:
+        """Construct the underlying GenerationConfig from a RAGConfig."""
         from ..api import GenerationConfig
 
-        gen_config = GenerationConfig(
+        # The Question:/Context:/Answer: stop sequences only make sense
+        # for the raw-completion prompt template; they would otherwise
+        # match a user question that happens to mention "Question:".
+        stop_sequences = ["Question:", "\nContext:", "\nAnswer:"] if not cfg.use_chat_template else []
+        return GenerationConfig(
             max_tokens=cfg.max_tokens,
             temperature=cfg.temperature,
-            stop_sequences=["Question:", "\nContext:", "\nAnswer:"],
+            stop_sequences=stop_sequences,
         )
-        yield from self.generator(prompt, config=gen_config, stream=True)
+
+    def _build_chat_messages(
+        self,
+        question: str,
+        sources: list[SearchResult],
+        cfg: RAGConfig,
+    ) -> list[dict[str, str]]:
+        """Build chat messages for the chat-template generation path."""
+        context = self._format_context(sources, cfg)
+        system = cfg.system_prompt or DEFAULT_RAG_SYSTEM_PROMPT
+        user = f"Context:\n{context}\n\nQuestion: {question}"
+        return [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ]
+
+    def _generate_chunks(
+        self,
+        question: str,
+        sources: list[SearchResult],
+        cfg: RAGConfig,
+        gen_config: Any,
+    ) -> Iterator[str]:
+        """Yield generated chunks from the chosen path, with optional
+        streaming-level repetition detection.
+
+        Both ``query()`` and ``stream()`` go through this helper so the
+        chat-template branch and the loop guard live in exactly one place.
+        """
+        if cfg.use_chat_template:
+            messages = self._build_chat_messages(question, sources, cfg)
+            token_iter = self.generator.chat(messages, config=gen_config, stream=True)
+        else:
+            prompt = self._format_prompt(question, sources, cfg)
+            token_iter = self.generator(prompt, config=gen_config, stream=True)
+
+        if cfg.repetition_threshold > 0:
+            detector = NGramRepetitionDetector(
+                window=cfg.repetition_window,
+                ngram=cfg.repetition_ngram,
+                threshold=cfg.repetition_threshold,
+            )
+            for chunk in token_iter:
+                yield chunk
+                if detector.feed(chunk):
+                    return
+        else:
+            yield from token_iter
 
     def retrieve(
         self,
@@ -277,6 +391,25 @@ class RAGPipeline:
             threshold=cfg.similarity_threshold,
         )
 
+    def _format_context(
+        self,
+        sources: list[SearchResult],
+        config: RAGConfig,
+    ) -> str:
+        """Join retrieved sources into a single context string.
+
+        Used by both the raw-completion prompt template and the
+        chat-template message builder.
+        """
+        context_parts = []
+        for source in sources:
+            if config.include_metadata and source.metadata:
+                meta_str = ", ".join(f"{k}: {v}" for k, v in source.metadata.items())
+                context_parts.append(f"[{meta_str}]\n{source.text}")
+            else:
+                context_parts.append(source.text)
+        return config.context_separator.join(context_parts)
+
     def _format_prompt(
         self,
         question: str,
@@ -293,18 +426,7 @@ class RAGPipeline:
         Returns:
             Formatted prompt string
         """
-        # Build context from sources
-        context_parts = []
-        for source in sources:
-            if config.include_metadata and source.metadata:
-                meta_str = ", ".join(f"{k}: {v}" for k, v in source.metadata.items())
-                context_parts.append(f"[{meta_str}]\n{source.text}")
-            else:
-                context_parts.append(source.text)
-
-        context = config.context_separator.join(context_parts)
-
-        # Format the template
+        context = self._format_context(sources, config)
         return config.prompt_template.format(
             context=context,
             question=question,

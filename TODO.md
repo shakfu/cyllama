@@ -3,7 +3,6 @@
 ## High Priority
 
 - [ ] Thread safety audit (concurrent-access stress tests for shared C++ objects after GIL release)
-- [ ] RAG response repetition — models (e.g. Qwen3-4B) repeat/paraphrase their answer in a loop when not given explicit system instructions. Repetition penalty (default 1.1) helps but doesn't fully prevent it. Current workaround: lower `max_tokens` and/or use `-s` system instruction. Next steps: n-gram repetition detection at the streaming level, or chat-template-based prompting instead of raw completion
 
 ## Medium Priority
 
@@ -39,6 +38,7 @@
 
 ## Completed
 
+- [x] RAG response repetition — Qwen3-4B paragraph-loop bug fixed and pinned by regression test against the actual model. Two opt-in fixes: streaming-level n-gram repetition detector (`RAGConfig.repetition_threshold`) and chat-template prompting path (`RAGConfig.use_chat_template`). CLI enables the detector by default
 - [x] Memory leak tests (loop create/destroy of LLM, SDContext, WhisperContext objects, assert RSS stays bounded)
 - [x] Error message audit (bad model path, corrupt GGUF, OOM context -- clear errors, not segfaults or raw C++ assertions)
 - [x] Wheel smoke tests in CI

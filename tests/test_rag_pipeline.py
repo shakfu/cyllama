@@ -349,3 +349,193 @@ class TestDefaultPromptTemplate:
         )
         assert "Some context here" in formatted
         assert "What is this?" in formatted
+
+
+# ---------------------------------------------------------------------------
+# Repetition detection and chat-template path
+# ---------------------------------------------------------------------------
+
+
+def _make_pipeline(generator):
+    """Build a RAGPipeline backed by the given mock generator."""
+    embedder = MagicMock()
+    embedder.embed.return_value = [0.1, 0.2, 0.3]
+
+    store = MagicMock()
+    store.search.return_value = [
+        SearchResult(id="1", text="Context document", score=0.9, metadata={}),
+    ]
+
+    return RAGPipeline(embedder=embedder, store=store, generator=generator)
+
+
+def _streaming_generator(chunks):
+    """Build a mock generator whose __call__ returns ``chunks`` on
+    ``stream=True`` and a string-stub Response otherwise."""
+
+    def _call(*args, **kwargs):
+        if kwargs.get("stream"):
+            return iter(chunks)
+        resp = MagicMock()
+        resp.__str__ = MagicMock(return_value="".join(chunks))
+        resp.stats = None
+        return resp
+
+    return MagicMock(side_effect=_call)
+
+
+class TestRAGConfigRepetitionValidation:
+    """Validation rules for the new RAGConfig fields."""
+
+    def test_negative_threshold_rejected(self):
+        with pytest.raises(ValueError, match="repetition_threshold must be >= 0"):
+            RAGConfig(repetition_threshold=-1)
+
+    def test_invalid_ngram_when_enabled(self):
+        with pytest.raises(ValueError, match="repetition_ngram must be >= 2"):
+            RAGConfig(repetition_threshold=3, repetition_ngram=1)
+
+    def test_window_smaller_than_ngram_when_enabled(self):
+        with pytest.raises(ValueError, match="repetition_window .* must be >="):
+            RAGConfig(repetition_threshold=3, repetition_ngram=5, repetition_window=3)
+
+    def test_disabled_skips_geometry_checks(self):
+        # Bogus geometry is fine when the feature is disabled
+        cfg = RAGConfig(repetition_threshold=0, repetition_ngram=1, repetition_window=1)
+        assert cfg.repetition_threshold == 0
+
+
+class TestRAGPipelineRepetition:
+    """Streaming-level loop guard."""
+
+    def test_default_off_uses_legacy_path(self):
+        """With detection off, query() should call the generator
+        non-streaming and preserve the existing behaviour."""
+        gen = MagicMock()
+        resp = MagicMock()
+        resp.__str__ = MagicMock(return_value="answer")
+        resp.stats = None
+        gen.return_value = resp
+
+        pipeline = _make_pipeline(gen)
+        result = pipeline.query("Q?")
+
+        assert result.text == "answer"
+        # Generator was called once, non-streaming (no stream= kwarg)
+        call = gen.call_args
+        assert call is not None
+        assert call.kwargs.get("stream") is None or call.kwargs.get("stream") is False
+
+    def test_query_routes_through_streaming_when_enabled(self):
+        """With detection on, query() must consume the streaming
+        iterator so the detector can act on chunks."""
+        chunks = ["The ", "answer ", "is ", "42."]
+        gen = _streaming_generator(chunks)
+        pipeline = _make_pipeline(gen)
+        cfg = RAGConfig(repetition_threshold=3)
+
+        result = pipeline.query("Q?", config=cfg)
+
+        assert result.text == "The answer is 42."
+        call = gen.call_args
+        assert call.kwargs.get("stream") is True
+
+    def test_stream_stops_when_loop_detected(self):
+        """Pipeline.stream() must terminate as soon as the detector
+        flags the trailing n-gram as repetitive."""
+        # Five repeats of the same 4-word answer, one word per chunk.
+        repeated = ["the ", "answer ", "is ", "forty-two. "] * 5
+        gen = _streaming_generator(repeated)
+        pipeline = _make_pipeline(gen)
+        cfg = RAGConfig(repetition_threshold=3, repetition_ngram=4, repetition_window=80)
+
+        out = list(pipeline.stream("Q?", config=cfg))
+
+        # The detector trips on the third full repeat, so we must have
+        # yielded fewer chunks than the full 20-chunk stream.
+        assert len(out) < len(repeated), f"expected the loop guard to cut the stream short, got all {len(out)} chunks"
+        # And we must have yielded at least the first full answer plus
+        # enough of the second to trigger the detector.
+        assert "".join(out).count("the") >= 2
+
+    def test_query_stops_when_loop_detected(self):
+        """query() routed through streaming should also stop early."""
+        repeated = ["the ", "answer ", "is ", "forty-two. "] * 5
+        gen = _streaming_generator(repeated)
+        pipeline = _make_pipeline(gen)
+        cfg = RAGConfig(repetition_threshold=3, repetition_ngram=4)
+
+        result = pipeline.query("Q?", config=cfg)
+
+        # Text is shorter than the full 5x repeat
+        full = "".join(repeated)
+        assert len(result.text) < len(full)
+        # And stats is None on this code path (we don't have a Response
+        # object to harvest them from when streaming).
+        assert result.stats is None
+
+
+class TestRAGPipelineChatTemplate:
+    """Chat-template generation path."""
+
+    def test_use_chat_template_calls_generator_chat(self):
+        """When use_chat_template is True, the pipeline must route
+        through generator.chat() with system+user messages instead of
+        generator.__call__ with a raw prompt."""
+        gen = MagicMock()
+        gen.chat.return_value = iter(["chat ", "response"])
+
+        pipeline = _make_pipeline(gen)
+        cfg = RAGConfig(use_chat_template=True)
+        result = pipeline.query("What is X?", config=cfg)
+
+        # generator.chat was called, not generator.__call__
+        gen.chat.assert_called_once()
+        # The plain generator was never invoked for generation
+        gen.assert_not_called()
+
+        # Inspect the messages: system + user, with question + context
+        chat_call = gen.chat.call_args
+        messages = chat_call.args[0] if chat_call.args else chat_call.kwargs.get("messages")
+        assert messages is not None
+        roles = [m["role"] for m in messages]
+        assert roles == ["system", "user"]
+        assert "What is X?" in messages[1]["content"]
+        assert "Context document" in messages[1]["content"]
+
+        # Streaming kwarg must be set so we can iterate
+        assert chat_call.kwargs.get("stream") is True
+
+        # The chunks were concatenated into the response text
+        assert result.text == "chat response"
+
+    def test_custom_system_prompt(self):
+        gen = MagicMock()
+        gen.chat.return_value = iter(["ok"])
+
+        pipeline = _make_pipeline(gen)
+        cfg = RAGConfig(
+            use_chat_template=True,
+            system_prompt="You are a brevity bot. Answer in five words.",
+        )
+        pipeline.query("Q?", config=cfg)
+
+        chat_call = gen.chat.call_args
+        messages = chat_call.args[0] if chat_call.args else chat_call.kwargs.get("messages")
+        assert messages[0]["content"] == "You are a brevity bot. Answer in five words."
+
+    def test_chat_template_combined_with_repetition(self):
+        """Both features together: chat-template path is iterated and
+        cut short by the detector."""
+        gen = MagicMock()
+        looping = ["x ", "y ", "z "] * 10
+        gen.chat.return_value = iter(looping)
+
+        pipeline = _make_pipeline(gen)
+        cfg = RAGConfig(
+            use_chat_template=True,
+            repetition_threshold=3,
+            repetition_ngram=2,
+        )
+        out = list(pipeline.stream("Q?", config=cfg))
+        assert len(out) < len(looping)
