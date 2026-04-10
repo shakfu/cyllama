@@ -155,6 +155,15 @@ class Chat:
 
     def chat_loop(self):
         """Main chat loop"""
+        # Enable readline-style line editing and persistent history
+        # (up/down arrows cycle through prior turns, Ctrl-R reverse
+        # search, etc.). Gracefully no-ops on platforms without
+        # readline. Uses a separate history file from `cyllama rag` so
+        # the two REPLs don't pollute each other.
+        from .._readline import setup_history, history_path_for
+
+        setup_history(history_path_for("chat"))
+
         while True:
             # Get user input
             print("\033[32m> \033[0m", end="")

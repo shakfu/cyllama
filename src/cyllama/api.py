@@ -74,6 +74,17 @@ from .llama.llama_cpp import (
     disable_logging,
 )
 
+# Alias the vendored jinja2 TemplateError so the chat-template fallback
+# inside _apply_template can catch it without paying the import cost on
+# every call. The vendored jinja2 lives at cyllama._vendor.jinja2 and is
+# pure Python, so this import is cheap and always succeeds -- but we
+# guard with try/except anyway so a corrupted vendor directory doesn't
+# break api.py module loading.
+try:
+    from cyllama._vendor.jinja2.exceptions import TemplateError as _JinjaTemplateError
+except ImportError:  # pragma: no cover - vendor directory should always exist
+    _JinjaTemplateError = type("_JinjaTemplateError", (Exception,), {})
+
 
 @dataclass
 class GenerationConfig:
@@ -1023,7 +1034,58 @@ class LLM:
         template: Optional[str] = None,
         add_generation_prompt: bool = True,
     ) -> str:
-        """Apply chat template to messages using the loaded model."""
+        """Apply chat template to messages using the loaded model.
+
+        Two paths, tried in order:
+
+        1. **Vendored jinja2 (full Jinja support).** When the caller has
+           not requested a specific template, evaluate the model's
+           embedded chat template via the vendored ``jinja2`` interpreter
+           under ``cyllama._vendor``. This handles any GGUF whose
+           embedded template uses Jinja syntax that llama.cpp's basic C
+           API doesn't recognise (Gemma 4 is the canonical example -- the
+           substring heuristic in ``llm_chat_detect_template`` fails to
+           match its template, so the legacy path returns -1, but the
+           Jinja interpreter evaluates it cleanly).
+
+        2. **Legacy substring-heuristic path.** Falls back to the
+           original ``llama_chat_apply_template`` C API on
+           ``TemplateError`` (template raised, e.g. Gemma's
+           ``raise_exception('System role not supported')``) or any
+           other failure inside the Jinja path. The fallback also fires
+           when the caller explicitly requests a named template via the
+           ``template`` parameter, since named-template lookup is a
+           feature of the legacy path.
+
+        The pipeline-level three-tier fallback in
+        ``cyllama.rag.pipeline.RAGPipeline._chat_with_fallback`` (system
+        + user -> merged user -> raw completion) sits outside this
+        method as the outermost safety net, so any RuntimeError that
+        propagates here is caught one layer up and degraded gracefully.
+        """
+        # Try the vendored jinja2 path when no specific template was
+        # requested. The Jinja interpreter handles full Jinja semantics,
+        # so it works on every embedded template the legacy substring
+        # heuristic doesn't recognise.
+        if template is None:
+            try:
+                return self._apply_jinja_template(messages, add_generation_prompt)
+            except _JinjaTemplateError:
+                # Template raised inside Jinja (e.g. Gemma's
+                # raise_exception). Fall through to the legacy path,
+                # which has its own per-template-name handling. The
+                # pipeline-level fallback above us catches anything
+                # that fails on both paths.
+                pass
+            except Exception:
+                # Any other failure inside the vendored jinja2 path
+                # (TemplateSyntaxError on a malformed template, missing
+                # bos_token retrieval, etc.) -- fall back to the legacy
+                # path. We catch broadly here because we'd rather
+                # degrade to the older code path than crash the
+                # caller; the legacy path is well-understood.
+                pass
+
         # Get template - use provided or model's default
         if template:
             tmpl = self.model.get_default_chat_template_by_name(template)
@@ -1057,6 +1119,102 @@ class LLM:
             return self.model.chat_apply_template(tmpl, chat_messages, add_generation_prompt)
         else:
             return _format_messages_simple(messages)
+
+    def _apply_jinja_template(
+        self,
+        messages: List[Dict[str, str]],
+        add_generation_prompt: bool = True,
+    ) -> str:
+        """Render the model's embedded chat template via vendored jinja2.
+
+        Mirrors HuggingFace ``transformers.PreTrainedTokenizerBase.apply_chat_template``:
+        get the embedded template string from GGUF metadata, evaluate it
+        in an ``ImmutableSandboxedEnvironment`` with the standard context
+        (``messages``, ``bos_token``, ``eos_token``, ``add_generation_prompt``)
+        and the standard custom globals (``raise_exception``,
+        ``strftime_now``) plus the ``tojson`` filter. The same approach
+        is used by millions of HuggingFace users, so any GGUF whose chat
+        template was generated from a HuggingFace tokenizer config is
+        compatible by construction.
+
+        Raises:
+            _JinjaTemplateError: If the template explicitly raised
+                (e.g. Gemma's ``raise_exception('System role not
+                supported')``) or if the model has no embedded template.
+            ImportError: Should not happen because jinja2 is vendored,
+                but caught defensively in the caller.
+        """
+        import json
+        from datetime import datetime
+
+        from cyllama._vendor.jinja2 import ext as _jinja2_ext
+        from cyllama._vendor.jinja2.exceptions import TemplateError
+        from cyllama._vendor.jinja2.sandbox import ImmutableSandboxedEnvironment
+
+        template_str = self.model.get_default_chat_template()
+        if not template_str:
+            raise TemplateError("Model has no embedded chat template")
+
+        # Resolve bos/eos token strings via the existing public C API.
+        # The model exposes token IDs through its vocab; we convert them
+        # to text via token_to_piece. Tokens may legitimately be missing
+        # (some embedding-only models have no BOS/EOS), in which case we
+        # pass empty strings -- a template that references {{ bos_token }}
+        # will just render an empty string in that position.
+        vocab = self.model.get_vocab()
+        bos_id = vocab.token_bos()
+        eos_id = vocab.token_eos()
+        bos_token = vocab.token_to_piece(bos_id, special=True) if bos_id >= 0 else ""
+        eos_token = vocab.token_to_piece(eos_id, special=True) if eos_id >= 0 else ""
+
+        def raise_exception(message: str) -> str:
+            raise TemplateError(message)
+
+        def tojson_filter(
+            value,
+            ensure_ascii: bool = False,
+            indent: Optional[int] = None,
+            separators=None,
+            sort_keys: bool = False,
+        ) -> str:
+            return json.dumps(
+                value,
+                ensure_ascii=ensure_ascii,
+                indent=indent,
+                separators=separators,
+                sort_keys=sort_keys,
+            )
+
+        def strftime_now(fmt: str) -> str:
+            return datetime.now().strftime(fmt)
+
+        env = ImmutableSandboxedEnvironment(
+            trim_blocks=True,
+            lstrip_blocks=True,
+            extensions=[_jinja2_ext.loopcontrols],
+        )
+        env.filters["tojson"] = tojson_filter
+        env.globals["raise_exception"] = raise_exception
+        env.globals["strftime_now"] = strftime_now
+
+        # Validate and normalise messages: same shape checks the legacy
+        # path performs, but raised inside the new code path so callers
+        # see consistent error types regardless of which branch ran.
+        for i, msg in enumerate(messages):
+            if not isinstance(msg, dict):
+                raise TypeError(f"Message at index {i} must be a dict, got {type(msg).__name__}")
+            if not msg.get("role") or not isinstance(msg.get("role"), str):
+                raise ValueError(f"Message at index {i} missing or invalid 'role': {msg!r}")
+            if msg.get("content") is None:
+                raise ValueError(f"Message at index {i} missing 'content' key")
+
+        compiled = env.from_string(template_str)
+        return compiled.render(
+            messages=messages,
+            bos_token=bos_token,
+            eos_token=eos_token,
+            add_generation_prompt=add_generation_prompt,
+        )
 
     def get_chat_template(self, template_name: Optional[str] = None) -> str:
         """

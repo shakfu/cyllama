@@ -457,7 +457,14 @@ Answer:"""
             rag.close()
             return 130
     else:
-        # Interactive mode
+        # Interactive mode. Enable readline-style line editing and
+        # persistent history (up/down arrows cycle through prior
+        # questions, left/right edit, Ctrl-R reverse-search, etc.).
+        # Gracefully no-ops on platforms without readline.
+        from ._readline import setup_history, history_path_for
+
+        setup_history(history_path_for("rag"))
+
         try:
             while True:
                 print("\033[32m> \033[0m", end="")
