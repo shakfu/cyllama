@@ -2,38 +2,31 @@
 
 ## High Priority
 
-- [ ] Response caching for identical prompts (decorator-based with TTL)
-- [ ] Structured logging system (JSON output option, agent decision flow logging)
-- [x] Wheel smoke tests in CI (build wheel, install in clean venv, run minimal inference to catch packaging regressions)
 - [ ] Memory leak tests (loop create/destroy of LLM, SDContext, WhisperContext objects, assert RSS stays bounded)
-- [x] Signal/interrupt handling (verify Ctrl-C during long inference doesn't segfault or leave resources dangling)
-- [ ] RAG response repetition — models (e.g. Qwen3-4B) repeat/paraphrase their answer in a loop when not given explicit system instructions. Stop sequences for template markers (`Question:`, `Answer:`, `Context:`) help but don't fully prevent it since the model repeats within a single text block. Current workaround: lower `max_tokens` (default 200) and/or use `-s` system instruction. Potential approaches: repetition penalty tuning, n-gram repetition detection at the streaming level, or chat-template-based prompting instead of raw completion
-
-## Wheel / Packaging
-
-- [ ] stable-diffusion.cpp uses compile-time `#ifdef SD_USE_CUDA` for backend selection instead of dynamic `ggml_backend_load_all()` like llama.cpp and whisper.cpp — propose dynamic backend discovery upstream or patch locally for consistency
+- [ ] Error message audit (bad model path, corrupt GGUF, OOM context -- ensure clear errors, not segfaults or raw C++ assertions)
+- [ ] Thread safety audit (concurrent-access stress tests for shared C++ objects after GIL release)
+- [ ] RAG response repetition — models (e.g. Qwen3-4B) repeat/paraphrase their answer in a loop when not given explicit system instructions. Repetition penalty (default 1.1) helps but doesn't fully prevent it. Current workaround: lower `max_tokens` and/or use `-s` system instruction. Next steps: n-gram repetition detection at the streaming level, or chat-template-based prompting instead of raw completion
 
 ## Medium Priority
 
 - [ ] Performance benchmarking suite (token generation speed, memory profiling, regression detection)
-- [ ] Thread safety audit (concurrent-access stress tests for shared C++ objects after GIL release)
-- [ ] Error message audit (bad model path, corrupt GGUF, OOM context -- ensure clear errors, not segfaults or raw C++ assertions)
-- [ ] Enhanced error context (custom exception classes with context dict)
-- [ ] Document server implementations (PythonServer, EmbeddedServer, LlamaServer usage)
+- [ ] Response caching for identical prompts (decorator-based with TTL)
+- [ ] Structured logging system (JSON output option, agent decision flow logging)
+
+## Wheel / Packaging
+
+- [ ] stable-diffusion.cpp uses compile-time `#ifdef SD_USE_CUDA` for backend selection instead of dynamic `ggml_backend_load_all()` like llama.cpp and whisper.cpp — propose dynamic backend discovery upstream or patch locally for consistency
+- [ ] Investigate using versioned dylibs (e.g. `libllama.4.dylib`) instead of `.0.dylib` in dynamic wheels
 
 ## Lower Priority
 
 - [ ] Web UI for testing
-- [ ] Add PDF loader tests with sample PDF files
-- [ ] TokenTextSplitter with llama.cpp tokenizer integration (use model's tokenizer for accurate token counts)
-- [ ] Investigate using versioned dylibs (e.g. `libllama.4.dylib`) instead of `.0.dylib` in dynamic wheels
 
 ## RAG Scaling (see docs/dev/scaling_rag.md)
 
 ### Phase 2: Quick Wins
 
-- [ ] Auto-quantization after bulk inserts (threshold-based)
-- [ ] Persistent quantization state in database metadata
+- [ ] Persistent quantization state in database metadata (quantize() exists but state is in-memory only)
 
 ### Phase 3: Async/Parallel
 
@@ -44,6 +37,16 @@
 ### Phase 4: Advanced
 
 - [ ] Metadata pre-filtering in vector search (filter by source, date, etc.)
-- [ ] Reranking support (cross-encoder for improved precision)
 - [ ] Sharding for 1M+ vector workloads
+
+## Completed
+
+- [x] Wheel smoke tests in CI
+- [x] Signal/interrupt handling (Ctrl-C safe)
+- [x] PDF loader tests (PDFLoader + TestPDFLoader)
+- [x] TokenTextSplitter with llama.cpp tokenizer integration (rag/splitter.py)
+- [x] Document server implementations (docs/server_usage_examples.md)
+- [x] Enhanced error context (ActionParseError, VectorStoreError, LoaderError with context dicts)
+- [x] Auto-quantization after bulk inserts (VectorStore.quantize())
+- [x] Reranking support (Reranker class in rag/advanced.py)
 
