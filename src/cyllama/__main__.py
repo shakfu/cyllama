@@ -577,7 +577,7 @@ def main():
     rag_parser.add_argument("--glob", default="**/*", help="Glob pattern for directory loading (default: **/*)")
     rag_parser.add_argument("-p", "--prompt", help="Single query (omit for interactive)")
     rag_parser.add_argument("-s", "--system", help="System instruction (e.g. 'Answer in one paragraph')")
-    rag_parser.add_argument("-n", "--max-tokens", type=int, default=200)
+    rag_parser.add_argument("-n", "--max-tokens", type=int, default=512)
     rag_parser.add_argument("--temperature", type=float, default=0.7)
     rag_parser.add_argument("-k", "--top-k", type=int, default=5, help="Number of chunks to retrieve")
     rag_parser.add_argument("--threshold", type=float, default=None, help="Minimum similarity threshold")
@@ -615,10 +615,11 @@ def main():
         type=int,
         default=2,
         # Default of 2 means the detector fires on the FIRST repeat of a
-        # 5-gram, not the second. This matters because the CLI's default
-        # max_tokens (200) is too small for paragraph-length loops to
-        # accumulate three full repeats within the budget -- threshold=3
-        # would never trip on the canonical Qwen3-4B failure mode.
+        # 5-gram, not the second. The whole point of a loop guard is to
+        # cut the loop as early as possible -- waiting for a third repeat
+        # wastes tokens on content the user doesn't want. ngram=5 makes
+        # exact 5-word phrase repeats themselves rare in non-loopy text,
+        # so the false-positive risk is low.
         help="Stop generation after the same n-gram repeats this many times in the rolling window. 0 disables (default: 2)",
     )
     rag_parser.add_argument(
