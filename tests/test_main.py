@@ -686,9 +686,11 @@ class TestCmdRag:
             stream=False,
             sources=False,
             # Match the argparse defaults set on rag_parser in __main__.py
-            repetition_threshold=3,
+            repetition_threshold=2,
             repetition_ngram=5,
             repetition_window=300,
+            no_chat_template=False,
+            show_think=False,
         )
         defaults.update(overrides)
         return argparse.Namespace(**defaults)
@@ -779,6 +781,127 @@ class TestCmdRag:
         with patch("cyllama.rag.RAG", return_value=mock_rag):
             ret = cmd_rag(args)
         assert ret == 130
+
+    def test_chat_template_on_by_default(self):
+        """The CLI must build a RAGConfig with use_chat_template=True
+        unless --no-chat-template is passed. Pins the default policy."""
+        from cyllama.__main__ import cmd_rag
+
+        args = self._make_args(file=["corpus.txt"], prompt="q")
+
+        mock_rag = MagicMock()
+        mock_rag.add_documents.return_value = [1]
+        mock_rag.query.return_value = MagicMock(text="ok", sources=[])
+
+        with patch("cyllama.rag.RAG", return_value=mock_rag) as mock_cls:
+            cmd_rag(args)
+
+        config = mock_cls.call_args[1]["config"]
+        assert config.use_chat_template is True
+
+    def test_no_chat_template_opts_out(self):
+        """--no-chat-template must flip the config back to the legacy
+        raw-completion path."""
+        from cyllama.__main__ import cmd_rag
+
+        args = self._make_args(file=["corpus.txt"], prompt="q", no_chat_template=True)
+
+        mock_rag = MagicMock()
+        mock_rag.add_documents.return_value = [1]
+        mock_rag.query.return_value = MagicMock(text="ok", sources=[])
+
+        with patch("cyllama.rag.RAG", return_value=mock_rag) as mock_cls:
+            cmd_rag(args)
+
+        config = mock_cls.call_args[1]["config"]
+        assert config.use_chat_template is False
+
+    def test_system_routed_to_system_prompt_in_chat_mode(self):
+        """In the default chat-template mode, --system must populate
+        RAGConfig.system_prompt (the native system message), not the
+        prompt_template (which is unused in this path)."""
+        from cyllama.__main__ import cmd_rag
+
+        args = self._make_args(
+            file=["corpus.txt"],
+            prompt="q",
+            system="Answer in one sentence.",
+        )
+
+        mock_rag = MagicMock()
+        mock_rag.add_documents.return_value = [1]
+        mock_rag.query.return_value = MagicMock(text="ok", sources=[])
+
+        with patch("cyllama.rag.RAG", return_value=mock_rag) as mock_cls:
+            cmd_rag(args)
+
+        config = mock_cls.call_args[1]["config"]
+        assert config.use_chat_template is True
+        assert config.system_prompt == "Answer in one sentence."
+        # And the raw-completion template is left at the default, NOT
+        # mangled with the system instruction (that happens only on the
+        # legacy path).
+        assert "Answer in one sentence" not in config.prompt_template
+
+    def test_system_routed_to_prompt_template_in_legacy_mode(self):
+        """With --no-chat-template, --system is baked into the
+        prompt_template (legacy behaviour)."""
+        from cyllama.__main__ import cmd_rag
+
+        args = self._make_args(
+            file=["corpus.txt"],
+            prompt="q",
+            system="Answer in one sentence.",
+            no_chat_template=True,
+        )
+
+        mock_rag = MagicMock()
+        mock_rag.add_documents.return_value = [1]
+        mock_rag.query.return_value = MagicMock(text="ok", sources=[])
+
+        with patch("cyllama.rag.RAG", return_value=mock_rag) as mock_cls:
+            cmd_rag(args)
+
+        config = mock_cls.call_args[1]["config"]
+        assert config.use_chat_template is False
+        # System instruction is now in the prompt_template
+        assert "Answer in one sentence." in config.prompt_template
+        # And system_prompt is left at the default (None)
+        assert config.system_prompt is None
+
+    def test_strip_think_blocks_on_by_default(self):
+        """The CLI must build a RAGConfig with strip_think_blocks=True
+        unless --show-think is passed. Pins the default policy."""
+        from cyllama.__main__ import cmd_rag
+
+        args = self._make_args(file=["corpus.txt"], prompt="q")
+
+        mock_rag = MagicMock()
+        mock_rag.add_documents.return_value = [1]
+        mock_rag.query.return_value = MagicMock(text="ok", sources=[])
+
+        with patch("cyllama.rag.RAG", return_value=mock_rag) as mock_cls:
+            cmd_rag(args)
+
+        config = mock_cls.call_args[1]["config"]
+        assert config.strip_think_blocks is True
+
+    def test_show_think_opts_out_of_strip(self):
+        """--show-think must flip strip_think_blocks back to False so
+        reasoning content remains visible in the transcript."""
+        from cyllama.__main__ import cmd_rag
+
+        args = self._make_args(file=["corpus.txt"], prompt="q", show_think=True)
+
+        mock_rag = MagicMock()
+        mock_rag.add_documents.return_value = [1]
+        mock_rag.query.return_value = MagicMock(text="ok", sources=[])
+
+        with patch("cyllama.rag.RAG", return_value=mock_rag) as mock_cls:
+            cmd_rag(args)
+
+        config = mock_cls.call_args[1]["config"]
+        assert config.strip_think_blocks is False
 
 
 # ---------------------------------------------------------------------------

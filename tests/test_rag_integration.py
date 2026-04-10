@@ -296,3 +296,38 @@ class TestQwen3RAGLoopRegression:
         assert "paris" in text_lower or "africa" in text_lower, (
             f"expected the chat-template answer to mention Paris or Africa, got: {response.text!r}"
         )
+
+    def test_cli_default_combo_stops_loop(self, qwen3_rag):
+        """Pin the exact CLI default combination (max_tokens=200,
+        repetition_threshold=2, repetition_ngram=5, repetition_window=300)
+        against the Qwen3 loop. The earlier test_repetition_detector_stops_loop
+        uses max_tokens=512, which hides the bug where threshold=3 cannot
+        fire within the CLI's default token budget because the third
+        repeat never starts. This test reproduces the exact `cyllama rag`
+        defaults so a regression in the CLI defaults is caught here.
+        """
+        from cyllama.rag import RAGConfig
+
+        cfg = RAGConfig(
+            top_k=5,  # CLI default
+            max_tokens=200,  # CLI default
+            temperature=0.0,
+            repetition_threshold=2,  # CLI default
+            repetition_ngram=5,  # CLI default
+            repetition_window=300,  # CLI default
+        )
+        # Use the prompt the user actually hit ("Summarize the story")
+        # rather than the geographic-setting query the other tests use,
+        # since that's the empirically-loopy interaction reported.
+        response = qwen3_rag.query("Summarize the story", config=cfg)
+
+        word_count = len(response.text.split())
+        # A clean single-paragraph summary is ~110 words. The legacy
+        # broken behaviour produces ~185 words (one full paragraph + most
+        # of a second before max_tokens cuts it off). With threshold=2 the
+        # detector should fire shortly after paragraph 2 begins, well
+        # under the legacy floor.
+        assert word_count < 160, (
+            f"expected detector to stop generation under 160 words with CLI defaults, "
+            f"got {word_count}: {response.text!r}"
+        )

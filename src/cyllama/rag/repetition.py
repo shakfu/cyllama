@@ -1,16 +1,29 @@
-"""N-gram repetition detection for streaming generation.
+"""Streaming output filters for RAG generation.
 
-The high-level RAG pipeline routes generated tokens through this detector
-so that chat-tuned models which loop on a paraphrased answer (Qwen3-4B is
-the canonical offender) can be cut off early instead of running until
-``max_tokens``.
+This module contains the per-chunk filters that the RAG pipeline routes
+generated tokens through:
 
-The detector operates on word-normalised text -- lowercase, ``\\w+`` tokens
-only -- so trailing punctuation, capitalisation, and whitespace
-differences do not defeat it. It maintains a rolling window of the most
-recent words and, after each chunk, checks whether the trailing n-gram
-has occurred at least ``threshold`` times within the window. If so,
-:meth:`feed` returns True and the caller should stop generation.
+* :class:`NGramRepetitionDetector` -- catches lexical loops (paragraph-
+  level paraphrase loops are the canonical Qwen3-4B failure mode).
+* :class:`ThinkBlockStripper` -- removes ``<think>...</think>`` reasoning
+  blocks emitted by models that ship with chain-of-thought enabled by
+  default (Qwen3, DeepSeek-R1, etc.). The blocks otherwise consume the
+  entire token budget on small ``max_tokens`` values, leaving no budget
+  for the actual answer.
+
+Both filters are designed for use inside a streaming generator: each
+chunk goes in, the filter decides what (if anything) to emit, and any
+relevant state survives across chunks (rolling window for the detector,
+inside-block buffer for the stripper). Chunk boundaries falling inside
+sub-word tokens or in the middle of an XML-style tag are handled.
+
+The N-gram detector operates on word-normalised text -- lowercase,
+``\\w+`` tokens only -- so trailing punctuation, capitalisation, and
+whitespace differences do not defeat it. It maintains a rolling window
+of the most recent words and, after each chunk, checks whether the
+trailing n-gram has occurred at least ``threshold`` times within the
+window. If so, :meth:`NGramRepetitionDetector.feed` returns True and
+the caller should stop generation.
 
 Defaults (window=300, ngram=5, threshold=3) are tuned against the
 Qwen3-4B paragraph-loop failure mode: greedy decoding can repeat an
@@ -26,7 +39,7 @@ from __future__ import annotations
 
 import re
 from collections import deque
-from typing import Deque
+from typing import Deque, Iterator
 
 # Word tokeniser: ``\w+`` matches Unicode word characters (letters, digits,
 # underscore) so we treat punctuation/whitespace as separators. Lowercasing
@@ -124,3 +137,153 @@ class NGramRepetitionDetector:
                     self._triggered = True
                     return True
         return False
+
+
+# Open and close tags for the chain-of-thought block convention used by
+# Qwen3, DeepSeek-R1, and other reasoning-tuned models. Lowercase only --
+# none of the supported models emit uppercase variants.
+_THINK_OPEN = "<think>"
+_THINK_CLOSE = "</think>"
+
+
+class ThinkBlockStripper:
+    """Stream-safe ``<think>...</think>`` block remover.
+
+    Reasoning-tuned models (Qwen3, DeepSeek-R1, etc.) emit a chain-of-
+    thought block before their actual answer when invoked through their
+    native chat template. Inside a small ``max_tokens`` budget the block
+    routinely consumes the entire budget, leaving no room for the
+    answer. This stripper consumes those blocks before they reach the
+    user.
+
+    The stripper is *not* a regex pass over a complete string -- it must
+    work on a token stream, which means:
+
+    * The opening tag ``<think>`` may be split across two chunks (e.g.
+      ``"<thi"`` then ``"nk>"``). The stripper buffers a small tail
+      between chunks so a partial tag is never emitted as plain text.
+    * The closing tag ``</think>`` is handled the same way.
+    * Multiple ``<think>`` blocks per stream are supported (state
+      machine flips back and forth).
+    * Unclosed blocks (model never emits ``</think>``) discard the rest
+      of the stream -- judged correct because the model is broken.
+    * Nested blocks are *not* supported: a single ``</think>`` always
+      closes the current scope. None of the supported models emit
+      nested blocks in practice.
+
+    Usage::
+
+        stripper = ThinkBlockStripper()
+        for chunk in token_iter:
+            for cleaned in stripper.feed(chunk):
+                yield cleaned
+        for cleaned in stripper.flush():
+            yield cleaned
+    """
+
+    def __init__(self) -> None:
+        # Buffer holds chars we haven't yet decided what to do with.
+        # While outside a think block this is content waiting to be
+        # emitted (held back only because the trailing edge might be a
+        # partial open tag). While inside, it's content waiting to be
+        # discarded (held back only because the trailing edge might be a
+        # partial close tag).
+        self._buf = ""
+        self._inside = False
+        # When True, swallow leading whitespace from the next emitted
+        # output until the first non-whitespace character. Set at
+        # construction (so leading whitespace at the start of the stream
+        # is consumed) and re-set on every inside->outside transition
+        # (so the whitespace Qwen3 wraps around its <think> block --
+        # typically `\n` after `</think>` -- doesn't survive into the
+        # user-facing answer as a leading blank line).
+        self._pending_lstrip = True
+
+    def _clean(self, text: str) -> str:
+        """Apply pending lstrip and return the (possibly empty) result.
+
+        Used by every code path that's about to yield ``text``. Once a
+        non-whitespace character has been seen, the lstrip flag is
+        cleared and subsequent calls return ``text`` unchanged until the
+        next inside->outside transition arms it again.
+        """
+        if not text or not self._pending_lstrip:
+            return text
+        text = text.lstrip()
+        if text:
+            self._pending_lstrip = False
+        return text
+
+    def feed(self, chunk: str) -> Iterator[str]:
+        """Append a chunk and yield zero or more strings of cleaned output.
+
+        The yielded strings, when concatenated, give the input stream
+        with all complete ``<think>...</think>`` blocks removed and
+        leading whitespace stripped from the start of each post-block
+        segment. Any residual content held back to handle a possible
+        partial tag at the boundary is yielded by a later :meth:`feed`
+        or :meth:`flush`.
+        """
+        if not chunk:
+            return
+        self._buf += chunk
+
+        while True:
+            if not self._inside:
+                # Outside a think block: look for the next opening tag.
+                idx = self._buf.find(_THINK_OPEN)
+                if idx == -1:
+                    # No complete open tag in the buffer. Emit
+                    # everything except a possible partial tag at the
+                    # tail (the last len(_THINK_OPEN)-1 chars are kept
+                    # back so we don't accidentally emit "<thi" as
+                    # visible output that should have been part of an
+                    # eventual "<think>").
+                    safe = max(0, len(self._buf) - (len(_THINK_OPEN) - 1))
+                    if safe > 0:
+                        text = self._clean(self._buf[:safe])
+                        self._buf = self._buf[safe:]
+                        if text:
+                            yield text
+                    return
+                # Found a full open tag. Emit everything before it,
+                # discard the tag itself, and switch to inside.
+                if idx > 0:
+                    text = self._clean(self._buf[:idx])
+                    if text:
+                        yield text
+                self._buf = self._buf[idx + len(_THINK_OPEN) :]
+                self._inside = True
+            else:
+                # Inside a think block: look for the next closing tag.
+                idx = self._buf.find(_THINK_CLOSE)
+                if idx == -1:
+                    # No complete close tag yet. Discard everything
+                    # except the tail that might be a partial close tag.
+                    safe = max(0, len(self._buf) - (len(_THINK_CLOSE) - 1))
+                    self._buf = self._buf[safe:]
+                    return
+                # Found the close tag. Discard up through it, switch
+                # back to outside, and re-arm the lstrip so the
+                # whitespace immediately following the close tag is
+                # swallowed (Qwen3 emits `\n` after `</think>`).
+                self._buf = self._buf[idx + len(_THINK_CLOSE) :]
+                self._inside = False
+                self._pending_lstrip = True
+
+    def flush(self) -> Iterator[str]:
+        """Emit any held-back content at end of stream.
+
+        Call this after the token iterator is exhausted. If the stream
+        ended outside a think block, any buffered tail (which couldn't
+        be a partial open tag because there are no more chunks coming)
+        is emitted -- after applying any pending lstrip, in case the
+        entire tail is leading whitespace. If it ended inside an
+        unclosed block, the buffered content is dropped because we
+        cannot prove it isn't reasoning the model never finished.
+        """
+        if not self._inside and self._buf:
+            text = self._clean(self._buf)
+            self._buf = ""
+            if text:
+                yield text

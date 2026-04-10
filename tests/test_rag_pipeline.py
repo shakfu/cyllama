@@ -474,6 +474,35 @@ class TestRAGPipelineRepetition:
         # object to harvest them from when streaming).
         assert result.stats is None
 
+    def test_triggering_chunk_is_yielded_not_dropped(self):
+        """The chunk that *completes* the repeating n-gram is yielded to
+        the caller before the generator exits. This pins the
+        yield-then-feed ordering in `_generate_chunks`: a tiny dangling
+        loop-fragment at the end of the output is the deliberate UX
+        trade-off (it acts as a visible "the guard fired" tell, so users
+        can distinguish a loop-cut from a max_tokens-cut).
+
+        With ngram=2, threshold=3, and a perfectly periodic ``x y z``
+        stream, the trailing 2-gram ``x y`` first hits 3 occurrences when
+        the 8th chunk (the third ``y``) is fed. That chunk must be in
+        the output, and the generator must stop immediately after.
+        """
+        looping = ["x ", "y ", "z "] * 10  # 30 chunks
+        gen = _streaming_generator(looping)
+        pipeline = _make_pipeline(gen)
+        cfg = RAGConfig(repetition_threshold=3, repetition_ngram=2)
+
+        out = list(pipeline.stream("Q?", config=cfg))
+
+        # 8 chunks yielded: 7 leading up to the trigger plus the
+        # triggering chunk itself ("y ").
+        assert len(out) == 8, f"expected 8 chunks (trigger chunk yielded), got {len(out)}: {out!r}"
+        text = "".join(out)
+        assert text == "x y z x y z x y "
+        # The text ends on the loop-completing ``y`` -- the visible
+        # signature of yield-then-feed.
+        assert text.rstrip().endswith("y")
+
 
 class TestRAGPipelineChatTemplate:
     """Chat-template generation path."""
@@ -536,6 +565,361 @@ class TestRAGPipelineChatTemplate:
             use_chat_template=True,
             repetition_threshold=3,
             repetition_ngram=2,
+            strip_think_blocks=False,  # isolate the detector under test
         )
         out = list(pipeline.stream("Q?", config=cfg))
         assert len(out) < len(looping)
+
+
+class TestRAGPipelineThinkStripping:
+    """`<think>...</think>` stripping wiring through the pipeline."""
+
+    def test_strip_off_by_default_in_library_config(self):
+        """`RAGConfig()` defaults `strip_think_blocks=False` for the
+        same backwards-compat reason as the other streaming-path
+        features: enabling it forces routing through the streaming
+        code path, which loses GenerationStats. Library callers must
+        opt in. The CLI flips this for end users."""
+        cfg = RAGConfig()
+        assert cfg.strip_think_blocks is False
+
+    def test_strip_think_blocks_when_opted_in(self):
+        """A model that emits a Qwen3-style think block must have it
+        removed before chunks reach the caller when the user opts in."""
+        gen = MagicMock()
+        chunks = [
+            "<think>",
+            "Okay, let me reason about this. ",
+            "The user wants the answer.",
+            "</think>",
+            "The answer is 42.",
+        ]
+        gen.chat.return_value = iter(chunks)
+
+        pipeline = _make_pipeline(gen)
+        cfg = RAGConfig(use_chat_template=True, strip_think_blocks=True)
+        out = list(pipeline.stream("Q?", config=cfg))
+        text = "".join(out)
+
+        assert "Okay" not in text
+        assert "reason about" not in text
+        assert text == "The answer is 42."
+
+    def test_strip_think_blocks_passthrough_when_disabled(self):
+        """With strip_think_blocks=False, reasoning content is preserved
+        verbatim -- e.g. for debugging or transcript capture."""
+        gen = MagicMock()
+        chunks = ["<think>", "reasoning", "</think>", "answer"]
+        gen.chat.return_value = iter(chunks)
+
+        pipeline = _make_pipeline(gen)
+        cfg = RAGConfig(use_chat_template=True, strip_think_blocks=False)
+        text = "".join(pipeline.stream("Q?", config=cfg))
+
+        assert text == "<think>reasoning</think>answer"
+
+    def test_strip_alone_routes_through_streaming(self):
+        """Setting strip_think_blocks=True must route the pipeline
+        through `_generate_chunks` even when neither repetition nor
+        chat-template is enabled. Otherwise the strip would silently
+        no-op on the legacy non-streaming path."""
+        gen = MagicMock()
+        gen.return_value = iter(["<think>x</think>final"])
+
+        pipeline = _make_pipeline(gen)
+        cfg = RAGConfig(
+            use_chat_template=False,
+            repetition_threshold=0,
+            strip_think_blocks=True,
+        )
+        result = pipeline.query("Q?", config=cfg)
+
+        # Strip applied -> only "final" reaches the caller.
+        assert result.text == "final"
+        # And stats is None because we took the streaming path (the
+        # GenerationStats trade-off documented on the routing gate).
+        assert result.stats is None
+
+    def test_strip_then_detect_filter_order(self):
+        """Filter order pin: the stripper runs *before* the repetition
+        detector. If the order were reversed, the detector's window
+        would be polluted with reasoning content the user never sees,
+        and could false-positive on legitimate phrase repetition between
+        the think block and the answer.
+
+        We construct a stream where the *think block* contains a
+        phrase that, if it leaked into the detector's window, would
+        cause the detector to fire on the answer's first repetition of
+        that phrase. With strip-then-detect, the detector never sees
+        the think content, so it does not fire and the full answer is
+        emitted.
+        """
+        gen = MagicMock()
+        chunks = [
+            "<think>",
+            "the answer is yes ",  # this phrase is inside the think block
+            "the answer is yes ",  # repeat inside the think block
+            "</think>",
+            "the answer is yes.",  # appears once in the user-visible answer
+        ]
+        gen.chat.return_value = iter(chunks)
+
+        pipeline = _make_pipeline(gen)
+        cfg = RAGConfig(
+            use_chat_template=True,
+            strip_think_blocks=True,
+            repetition_threshold=2,
+            repetition_ngram=4,
+        )
+        text = "".join(pipeline.stream("Q?", config=cfg))
+
+        # The user sees only the post-strip content, and the detector
+        # has not fired (the phrase appears only once after stripping).
+        assert text == "the answer is yes."
+
+
+class TestRAGPipelineSystemRoleFallback:
+    """Feature-detection fallback for chat templates that reject the
+    `system` role (Gemma 2/3, some Mistral variants, etc.).
+
+    The test surface here is small but load-bearing: without this
+    fallback, `cyllama rag -m gemma-*.gguf` crashes immediately on the
+    first query with `RuntimeError: Failed to apply chat template`. The
+    fallback merges the system content into the first user message and
+    retries, so the same downstream code path works for both
+    template families.
+    """
+
+    def test_canonical_path_used_when_system_role_supported(self):
+        """When the underlying chat() call succeeds with [system, user],
+        no fallback is invoked and the canonical messages reach the
+        generator unchanged."""
+        gen = MagicMock()
+        gen.chat.return_value = iter(["ok"])
+
+        pipeline = _make_pipeline(gen)
+        cfg = RAGConfig(use_chat_template=True)
+        list(pipeline.stream("Q?", config=cfg))
+
+        gen.chat.assert_called_once()
+        messages = gen.chat.call_args.args[0]
+        roles = [m["role"] for m in messages]
+        assert roles == ["system", "user"]
+        assert pipeline._system_role_supported is True
+
+    def test_falls_back_to_merged_on_template_runtime_error(self):
+        """When the first chat() call raises a chat-template error, the
+        fallback merges system into user and retries. The retry must
+        succeed and the generator must end up with a single user
+        message containing the system content as a prefix."""
+        gen = MagicMock()
+        # First call: simulate Gemma rejecting the system role.
+        # Second call: succeeds with the merged messages.
+        gen.chat.side_effect = [
+            RuntimeError("Failed to apply chat template"),
+            iter(["gemma response"]),
+        ]
+
+        pipeline = _make_pipeline(gen)
+        cfg = RAGConfig(
+            use_chat_template=True,
+            system_prompt="You are a helpful assistant.",
+        )
+        out = "".join(pipeline.stream("Q?", config=cfg))
+
+        assert out == "gemma response"
+        assert gen.chat.call_count == 2
+        # Inspect the retry call's messages
+        retry_messages = gen.chat.call_args_list[1].args[0]
+        roles = [m["role"] for m in retry_messages]
+        assert roles == ["user"], f"expected only a user role after merge, got {roles}"
+        merged_user = retry_messages[0]["content"]
+        assert "You are a helpful assistant." in merged_user
+        assert "Q?" in merged_user
+        assert pipeline._system_role_supported is False
+
+    def test_fallback_decision_is_cached_across_queries(self):
+        """After the first query has discovered the chat template
+        rejects system role, subsequent queries must skip the failed
+        attempt and call chat() exactly once with merged messages."""
+        gen = MagicMock()
+        gen.chat.side_effect = [
+            RuntimeError("Failed to apply chat template"),
+            iter(["first response"]),
+            iter(["second response"]),
+            iter(["third response"]),
+        ]
+
+        pipeline = _make_pipeline(gen)
+        cfg = RAGConfig(use_chat_template=True)
+        list(pipeline.stream("Q1?", config=cfg))
+        list(pipeline.stream("Q2?", config=cfg))
+        list(pipeline.stream("Q3?", config=cfg))
+
+        # 1 failed call + 1 successful retry on Q1, then 1 successful
+        # call each on Q2 and Q3 -> 4 total chat() invocations.
+        assert gen.chat.call_count == 4
+        # And every call after the first must be the merged shape.
+        for call in gen.chat.call_args_list[1:]:
+            messages = call.args[0]
+            assert [m["role"] for m in messages] == ["user"]
+
+    def test_unrelated_runtime_errors_are_not_swallowed(self):
+        """A RuntimeError that doesn't look like a chat-template
+        rejection must propagate, not be silently retried with merged
+        messages. Otherwise we'd mask genuine bugs (OOM, model crash,
+        etc.) under a misleading 'fell back to user-only' code path."""
+        gen = MagicMock()
+        gen.chat.side_effect = RuntimeError("CUDA out of memory")
+
+        pipeline = _make_pipeline(gen)
+        cfg = RAGConfig(use_chat_template=True)
+
+        with pytest.raises(RuntimeError, match="CUDA out of memory"):
+            list(pipeline.stream("Q?", config=cfg))
+        # No fallback was attempted.
+        assert gen.chat.call_count == 1
+        assert pipeline._system_role_supported is None
+
+    def test_merge_helper_preserves_message_list_immutability(self):
+        """The fallback must not mutate the canonical messages list
+        held by the caller; it returns a new list."""
+        original = [
+            {"role": "system", "content": "system content"},
+            {"role": "user", "content": "user content"},
+        ]
+        merged = RAGPipeline._merge_system_into_user(original)
+
+        # Caller's list is unchanged
+        assert original[0]["role"] == "system"
+        assert original[0]["content"] == "system content"
+        assert len(original) == 2
+        # Merged is the expected shape
+        assert len(merged) == 1
+        assert merged[0]["role"] == "user"
+        assert "system content" in merged[0]["content"]
+        assert "user content" in merged[0]["content"]
+
+    def test_merge_helper_handles_no_system_message(self):
+        """If there's no system message in the input, the merge is a
+        no-op (returns user message unchanged)."""
+        original = [{"role": "user", "content": "just a user message"}]
+        merged = RAGPipeline._merge_system_into_user(original)
+        assert len(merged) == 1
+        assert merged[0]["role"] == "user"
+        assert merged[0]["content"] == "just a user message"
+
+
+class TestRAGPipelineRawCompletionFallback:
+    """Third-tier fallback: when both chat-template shapes fail with a
+    template error, the pipeline degrades to the raw-completion path.
+
+    This handles the case where llama.cpp's basic `llama_chat_apply_template`
+    C API can't apply the model's embedded Jinja chat template at all
+    (e.g. some Gemma 4 GGUFs whose embedded Jinja doesn't match any of
+    the substring heuristics in `llm_chat_detect_template`). The merge
+    fallback won't help because the failure isn't about the system role
+    -- it's about the template being unevaluable.
+    """
+
+    def test_falls_back_to_completion_when_both_chat_shapes_fail(self):
+        """When canonical AND merged chat calls both raise template
+        errors, the pipeline must call the generator via the raw
+        __call__ path with a formatted completion prompt, and the
+        result must reach the caller."""
+        gen = MagicMock()
+        # Both chat attempts raise; the raw completion call succeeds.
+        gen.chat.side_effect = [
+            RuntimeError("Failed to apply chat template"),
+            RuntimeError("Failed to apply chat template"),
+        ]
+        gen.return_value = iter(["completion ", "answer"])
+
+        pipeline = _make_pipeline(gen)
+        cfg = RAGConfig(use_chat_template=True)
+
+        with pytest.warns(RuntimeWarning, match="raw-completion"):
+            out = "".join(pipeline.stream("Q?", config=cfg))
+
+        assert out == "completion answer"
+        # Two failed chat attempts, then exactly one successful
+        # raw-completion call.
+        assert gen.chat.call_count == 2
+        assert gen.call_count == 1
+        # And the cache flag is now sticky.
+        assert pipeline._chat_template_unusable is True
+
+    def test_completion_fallback_decision_is_cached(self):
+        """After the pipeline has discovered chat template is unusable,
+        subsequent queries skip both chat attempts entirely and call
+        the generator's raw __call__ directly."""
+        gen = MagicMock()
+        gen.chat.side_effect = [
+            RuntimeError("Failed to apply chat template"),
+            RuntimeError("Failed to apply chat template"),
+        ]
+        gen.return_value = iter(["first"])
+
+        pipeline = _make_pipeline(gen)
+        cfg = RAGConfig(use_chat_template=True)
+
+        # First query: 2 chat failures + 1 completion success.
+        with pytest.warns(RuntimeWarning):
+            list(pipeline.stream("Q1?", config=cfg))
+
+        # Reset and prep generator for two more queries -- chat must
+        # not be called at all from here on.
+        gen.chat.reset_mock()
+        gen.reset_mock()
+        gen.return_value = iter(["second"])
+        list(pipeline.stream("Q2?", config=cfg))
+        gen.return_value = iter(["third"])
+        list(pipeline.stream("Q3?", config=cfg))
+
+        gen.chat.assert_not_called()
+        assert gen.call_count == 2
+
+    def test_completion_fallback_uses_completion_stop_sequences(self):
+        """The fallback must rebuild gen_config with the
+        Question:/Answer: stop sequences that the raw-completion path
+        needs -- otherwise the model can run past the answer into a
+        hallucinated next turn. The original gen_config (built for the
+        chat path) had no stop sequences."""
+        gen = MagicMock()
+        gen.chat.side_effect = [
+            RuntimeError("Failed to apply chat template"),
+            RuntimeError("Failed to apply chat template"),
+        ]
+        gen.return_value = iter(["ok"])
+
+        pipeline = _make_pipeline(gen)
+        cfg = RAGConfig(use_chat_template=True)
+
+        with pytest.warns(RuntimeWarning):
+            list(pipeline.stream("Q?", config=cfg))
+
+        # Inspect the gen_config passed to the raw-completion call.
+        completion_call_kwargs = gen.call_args.kwargs
+        completion_config = completion_call_kwargs.get("config")
+        assert completion_config is not None
+        assert "Question:" in completion_config.stop_sequences
+        assert "\nContext:" in completion_config.stop_sequences
+        assert "\nAnswer:" in completion_config.stop_sequences
+
+    def test_unrelated_error_does_not_trigger_completion_fallback(self):
+        """A RuntimeError that doesn't mention 'template' must
+        propagate, not trigger the completion fallback. Otherwise we'd
+        mask genuine bugs (CUDA OOM, model crash) under a misleading
+        'falling back' code path."""
+        gen = MagicMock()
+        # First call: simulate a non-template RuntimeError.
+        gen.chat.side_effect = RuntimeError("CUDA out of memory")
+
+        pipeline = _make_pipeline(gen)
+        cfg = RAGConfig(use_chat_template=True)
+
+        with pytest.raises(RuntimeError, match="CUDA out of memory"):
+            list(pipeline.stream("Q?", config=cfg))
+        # No completion fallback was attempted.
+        assert gen.call_count == 0
+        assert pipeline._chat_template_unusable is False

@@ -346,9 +346,26 @@ def cmd_rag(args):
     """RAG: query documents with a language model."""
     from .rag import RAG, RAGConfig
 
-    # Build prompt template with optional system instruction
+    # The CLI defaults to the chat-template path because nearly every
+    # GGUF used with `cyllama rag` in practice is a chat-tuned model
+    # (Llama-3-Instruct, Qwen3-Chat, Mistral-Instruct, etc.) and the
+    # raw-completion `Question:/Answer:` template causes those models to
+    # leak their instruction-tuning artifacts (Qwen3 dumping its <think>
+    # block, models re-roleplaying as the user, paragraph paraphrase
+    # loops, etc.). `--no-chat-template` reverts to the legacy raw
+    # completion path for base/completion models that need it.
+    use_chat_template = not args.no_chat_template
+
+    # --system is honoured by both paths, but goes to a different field:
+    #   chat-template path -> system_prompt (native system message)
+    #   raw-completion path -> baked into prompt_template
+    prompt_template: str | None = None
+    system_prompt: str | None = None
     if args.system:
-        prompt_template = f"""{args.system}
+        if use_chat_template:
+            system_prompt = args.system
+        else:
+            prompt_template = f"""{args.system}
 
 Use the following context to answer the question. If the context doesn't contain relevant information, say so.
 
@@ -358,21 +375,31 @@ Context:
 Question: {{question}}
 
 Answer:"""
-    else:
-        prompt_template = None  # use default
 
     config = RAGConfig(
         top_k=args.top_k,
         similarity_threshold=args.threshold or None,
         max_tokens=args.max_tokens,
         temperature=args.temperature,
-        # Enable streaming-level n-gram repetition detection by default in
-        # the CLI: this is the surface where users hit the Qwen3-style
-        # paraphrase-loop bug, so it should be on out of the box. Library
-        # callers stay opt-in via RAGConfig defaults.
+        # Streaming-level n-gram repetition detection stays on as a
+        # belt-and-suspenders safety net: even with the chat-template
+        # path doing the heavy lifting, the detector catches any residual
+        # lexical loops on the small fraction of model/prompt
+        # combinations the chat path doesn't fully tame.
         repetition_threshold=args.repetition_threshold,
         repetition_ngram=args.repetition_ngram,
         repetition_window=args.repetition_window,
+        use_chat_template=use_chat_template,
+        # Strip <think>...</think> reasoning blocks by default. Reasoning-
+        # tuned models (Qwen3, DeepSeek-R1) emit a chain-of-thought block
+        # before their actual answer when invoked via their native chat
+        # template, and the block routinely consumes the entire 200-token
+        # budget, leaving zero tokens for the answer the user actually
+        # wanted. The system prompt also asks for `/no_think` mode and
+        # forbids reasoning, but the stripper is the safety net for
+        # models that ignore the directive.
+        strip_think_blocks=not args.show_think,
+        **({"system_prompt": system_prompt} if system_prompt else {}),
         **({"prompt_template": prompt_template} if prompt_template else {}),
     )
 
@@ -450,7 +477,9 @@ Answer:"""
                         print("--- Sources ---")
                         for src in results:
                             print(f"  [{src.score:.4f}] {src.text[:120]}...")
-                        print()
+                # Blank line between turns for visual separation between
+                # the answer and the next prompt.
+                print()
         except KeyboardInterrupt:
             pass
 
@@ -549,10 +578,41 @@ def main():
     rag_parser.add_argument("--stream", action="store_true", help="Stream output tokens")
     rag_parser.add_argument("--sources", action="store_true", help="Show source chunks")
     rag_parser.add_argument(
+        "--no-chat-template",
+        action="store_true",
+        help=(
+            "Use raw-completion prompting instead of the model's native "
+            "chat template. The chat template is on by default because "
+            "nearly all GGUF models used with `cyllama rag` are chat-tuned, "
+            "and the raw-completion path causes them to leak instruction-"
+            "tuning artifacts (Qwen3 <think> blocks, paragraph paraphrase "
+            "loops, model re-roleplaying as the user). Pass this flag for "
+            "base/completion models that need the legacy path."
+        ),
+    )
+    rag_parser.add_argument(
+        "--show-think",
+        action="store_true",
+        help=(
+            "Show <think>...</think> reasoning blocks emitted by Qwen3, "
+            "DeepSeek-R1, and other reasoning-tuned models. By default "
+            "these blocks are stripped from the streamed output because "
+            "they typically consume the entire --max-tokens budget on "
+            "small budgets, leaving no room for the actual answer. Pass "
+            "this flag for debugging or when you want the reasoning "
+            "visible in the transcript."
+        ),
+    )
+    rag_parser.add_argument(
         "--repetition-threshold",
         type=int,
-        default=3,
-        help="Stop generation after the same n-gram repeats this many times in the rolling window. 0 disables (default: 3)",
+        default=2,
+        # Default of 2 means the detector fires on the FIRST repeat of a
+        # 5-gram, not the second. This matters because the CLI's default
+        # max_tokens (200) is too small for paragraph-length loops to
+        # accumulate three full repeats within the budget -- threshold=3
+        # would never trip on the canonical Qwen3-4B failure mode.
+        help="Stop generation after the same n-gram repeats this many times in the rolling window. 0 disables (default: 2)",
     )
     rag_parser.add_argument(
         "--repetition-ngram",
