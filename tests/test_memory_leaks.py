@@ -151,7 +151,11 @@ class TestSDContextLeaks:
     SDContext.__init__/__dealloc__, which is the dominant allocation
     path."""
 
-    WARMUP_CYCLES = 1
+    # SD's allocator pools are large (~4 GB model) and take more than one
+    # cycle to stabilize -- a single warmup leaves a ~270 MB jump on the
+    # first measured cycle that then flattens out completely. Two warmups
+    # absorb that settling so the measurement window reflects steady-state.
+    WARMUP_CYCLES = 2
     MEASURE_CYCLES = 3
     TOLERANCE_MB = 250  # SD model is ~4 GB; allocator slack is larger
 
