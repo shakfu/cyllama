@@ -1846,12 +1846,44 @@ cdef class SDContext:
             params: Context parameters including model paths
 
         Raises:
-            RuntimeError: If context creation fails
+            FileNotFoundError: If a configured model path does not exist.
+            IsADirectoryError: If a configured model path is a directory.
+            PermissionError: If a configured model file is not readable.
+            ValueError: If a configured model file is empty or otherwise invalid.
+            RuntimeError: If context creation fails for any other reason.
         """
+        from cyllama._validation import validate_model_file
+
+        # Validate every configured model path up front so we surface a
+        # clear, typed error instead of a NULL pointer from new_sd_ctx().
+        # SD supports several optional sub-models; we check whichever the
+        # caller actually set.
+        path_specs = (
+            ("model_path", "Stable Diffusion model"),
+            ("diffusion_model_path", "diffusion model"),
+            ("vae_path", "VAE"),
+            ("clip_l_path", "CLIP-L"),
+            ("clip_g_path", "CLIP-G"),
+            ("t5xxl_path", "T5-XXL"),
+            ("control_net_path", "ControlNet"),
+            ("taesd_path", "TAESD"),
+            ("photo_maker_path", "PhotoMaker"),
+        )
+        for attr, label in path_specs:
+            value = getattr(params, attr, None)
+            if value:
+                validate_model_file(value, kind=label)
+
         self._params = params
         self._ctx = new_sd_ctx(&params._params)
         if self._ctx == NULL:
-            raise RuntimeError("Failed to create Stable Diffusion context. Check model path and parameters.")
+            raise RuntimeError(
+                "Failed to create Stable Diffusion context. "
+                "All configured paths exist and are readable, but stable-diffusion.cpp "
+                "could not initialize. Possible causes: unsupported model format or "
+                "version, mismatched companion files (VAE/CLIP/T5), insufficient memory, "
+                "or invalid weight type. Check stderr for details from stable-diffusion.cpp."
+            )
 
     @property
     def is_valid(self) -> bool:

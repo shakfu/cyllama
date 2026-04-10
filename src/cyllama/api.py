@@ -42,7 +42,6 @@ Async Example:
 
 import asyncio
 import hashlib
-import os
 from collections import OrderedDict
 from typing import (
     AsyncIterator,
@@ -510,8 +509,14 @@ class LLM:
         if cache_size > 0:
             self._cache = _ResponseLRUCache(cache_size, cache_ttl)
 
-        if not os.path.isfile(model_path):
-            raise FileNotFoundError(f"Model file not found: {model_path}")
+        from ._validation import validate_gguf_file
+
+        # Surface clear, typed errors (FileNotFoundError, IsADirectoryError,
+        # PermissionError, ValueError) for the common bad-input cases before
+        # llama.cpp gets a chance to fail with a NULL pointer or segfault
+        # inside its GGUF parser. validate_gguf_file checks magic, version,
+        # and tensor/kv counts.
+        validate_gguf_file(model_path, kind="GGUF model")
 
         # Build config: start with provided config or defaults, then apply kwargs
         if config is None:

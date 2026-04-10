@@ -1118,12 +1118,12 @@ class TestConvenienceFunctions:
 
     def test_text_to_image_invalid_model(self):
         """Test that text_to_image raises error for invalid model."""
-        with pytest.raises(RuntimeError):
+        with pytest.raises(FileNotFoundError):
             text_to_image(model_path="/nonexistent/model.safetensors", prompt="test")
 
     def test_text_to_images_invalid_model(self):
         """Test that text_to_images raises error for invalid model."""
-        with pytest.raises(RuntimeError):
+        with pytest.raises(FileNotFoundError):
             text_to_images(model_path="/nonexistent/model.safetensors", prompt="test")
 
     def test_image_to_image_invalid_model(self):
@@ -1131,7 +1131,7 @@ class TestConvenienceFunctions:
         arr = np.zeros((64, 64, 3), dtype=np.uint8)
         init_img = SDImage.from_numpy(arr)
 
-        with pytest.raises(RuntimeError):
+        with pytest.raises(FileNotFoundError):
             image_to_image(model_path="/nonexistent/model.safetensors", init_image=init_img, prompt="test")
 
 

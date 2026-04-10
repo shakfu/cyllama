@@ -17,6 +17,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+### Added
+
+- **Error message audit for model loaders** - All four model entry points (`LLM`, `LlamaModel`, `LlamaContext`, `WhisperContext`, `SDContext`) now raise clear, typed Python exceptions for the common bad-input failure modes (missing path, directory, unreadable file, empty file, wrong magic, truncated header, OOM context size) instead of returning opaque NULL pointers, raising raw C++ assertions, or segfaulting. Introduces a shared `cyllama._validation` helper module exposing `validate_model_file`, `validate_gguf_file`, and `validate_whisper_file`. `validate_gguf_file` reads the 24-byte GGUF header (magic + version + tensor_count + kv_count) and rejects files that would otherwise crash inside llama.cpp's GGUF parser; `validate_whisper_file` accepts either GGUF or legacy ggml magics. `LlamaContext.__init__` also gained a KV-cache memory pre-check that estimates required memory from `n_layer × n_ctx × n_embd` and refuses anything beyond a 100 TiB sanity cap, since llama.cpp's allocator can segfault rather than return NULL on extreme OOM. The `LlamaContextParams.n_ctx` setter intercepts negative values with an actionable `ValueError` instead of letting Cython's uint32 conversion produce the opaque "can't convert negative value to uint32_t". Resolves the "Error message audit" item in `TODO.md`
+
+### Changed
+
+- **`LlamaModel.__init__` exception types** - Bad model paths now raise `FileNotFoundError`, `IsADirectoryError`, `PermissionError`, or `ValueError` (truncated/wrong-magic/wrong-version GGUF) where appropriate, instead of a single `ValueError("Model path does not exist")`. The post-load NULL check still raises `ValueError("Failed to load model from file: ...")` (substring preserved for backward compatibility) but with a richer message listing likely causes (unsupported quantization, OOM, aborted callback, corrupt tensor section)
+
+- **`LlamaContext.__init__` NULL handling** - On NULL return from `llama_init_from_model`, now raises `RuntimeError` with the model path, requested `n_ctx`, model `n_ctx_train`, and OOM/n_batch hints (was a generic `ValueError("Failed to create llama_context")`)
+
+- **`WhisperContext.__init__` and `SDContext.__init__` validation** - Both now validate every configured model path up front (SD also validates every configured sub-model path: VAE, CLIP-L/G, T5-XXL, ControlNet, TAESD, PhotoMaker, diffusion model). Existing tests in `test_whisper.py` and `test_sd.py` that asserted `RuntimeError` for missing-file cases were updated to assert the more accurate `FileNotFoundError`
+
+### Tests
+
+- **`tests/test_error_messages.py`** - 30 new tests pinning the failure modes covered by the error-message audit: validator unit tests, plus per-loader tests for missing path / directory / empty file / garbage file / truncated GGUF / short GGUF / OOM `n_ctx` / negative `n_ctx` (uint32 setter) / uint32 overflow / `n_ctx=0` sentinel / missing sub-model paths. All tests run inside the main pytest process — no subprocess isolation needed because the validation layer rejects the bad inputs before they cross the FFI boundary
+
 ## [0.2.4]
 
 ### Added

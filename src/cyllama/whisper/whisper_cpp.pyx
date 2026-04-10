@@ -333,14 +333,27 @@ cdef class WhisperContext:
     cdef wh.whisper_context * _c_ctx
 
     def __init__(self, model_path, WhisperContextParams params=None):
+        from cyllama._validation import validate_whisper_file
+
         if params is None:
             params = WhisperContextParams()
+
+        # Whisper accepts both legacy ggml and newer GGUF magics. Validate
+        # that the file exists, is readable, non-empty, AND has a known
+        # whisper magic in its first 4 bytes -- otherwise whisper.cpp will
+        # try to parse arbitrary garbage and may segfault before returning.
+        validate_whisper_file(model_path, kind="whisper model")
 
         model_path_bytes = model_path.encode('utf-8')
         self._c_ctx = wh.whisper_init_from_file_with_params(model_path_bytes, params._c_params)
 
         if self._c_ctx == NULL:
-            raise RuntimeError(f"Failed to load whisper model from {model_path}")
+            raise RuntimeError(
+                f"Failed to load whisper model from {model_path}. "
+                "The file passed basic checks but whisper.cpp could not load it. "
+                "Possible causes: unsupported model format/version, corrupt file, "
+                "or insufficient memory."
+            )
 
     def __dealloc__(self):
         if self._c_ctx != NULL:

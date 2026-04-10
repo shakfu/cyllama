@@ -294,7 +294,7 @@ def test_whisper_module_functions():
 
 def test_whisper_context_invalid_model():
     """Test whisper context with invalid model path."""
-    with pytest.raises(RuntimeError):
+    with pytest.raises(FileNotFoundError):
         wh.WhisperContext("/nonexistent/model.bin")
 
 

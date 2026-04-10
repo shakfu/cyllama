@@ -1034,6 +1034,14 @@ cdef class LlamaContextParams:
 
     @n_ctx.setter
     def n_ctx(self, value: int):
+        # n_ctx is uint32_t in the C struct. Cython would catch a negative
+        # value with the opaque "can't convert negative value to uint32_t",
+        # so intercept it first to point users at the correct sentinel.
+        if value < 0:
+            raise ValueError(
+                f"n_ctx must be >= 0 (use 0 to inherit the model's training "
+                f"context length), got {value}"
+            )
         self.p.n_ctx = value
 
     @property
@@ -1679,12 +1687,17 @@ cdef class LlamaModel:
         self._cached_size = 0
 
     def __init__(self, path_model: str, params: Optional[LlamaModelParams] = None, verbose: bool = True):
+        from cyllama._validation import validate_gguf_file
+
         self.path_model = path_model
         self.params = params if params else LlamaModelParams()
         self.verbose = verbose
 
-        if not os.path.exists(path_model):
-            raise ValueError(f"Model path does not exist: {path_model}")
+        # Surface clear, typed errors *before* handing the path to llama.cpp.
+        # This validates not just the magic but also the GGUF version and the
+        # tensor/kv counts, so a truncated or corrupt header is rejected here
+        # rather than crashing inside the C++ GGUF parser.
+        validate_gguf_file(path_model, kind="GGUF model")
 
         # with suppress_stdout_stderr(disable=verbose):
         self.ptr = llama.llama_model_load_from_file(
@@ -1693,7 +1706,14 @@ cdef class LlamaModel:
         )
 
         if self.ptr is NULL:
-            raise ValueError(f"Failed to load model from file: {path_model}")
+            raise ValueError(
+                f"Failed to load model from file: {path_model}. "
+                "The file passed format checks but llama.cpp could not load it. "
+                "Possible causes: unsupported GGUF version or quantization, "
+                "insufficient memory, an aborted progress callback, or a corrupt "
+                "tensor section. Run with verbose=True to see detailed errors "
+                "from llama.cpp."
+            )
 
         # Initialize property cache after model is loaded
         self._initialize_cache()
@@ -2038,10 +2058,47 @@ cdef class LlamaContext:
         self.params = params if params else LlamaContextParams()
         self.verbose = verbose
 
+        # KV cache memory pre-check. llama.cpp's allocator does not always
+        # return NULL on OOM -- on some platforms it segfaults inside the
+        # backend buffer allocator. We refuse absurd context sizes here so
+        # the failure is a clean Python exception, not a process crash.
+        #
+        # Over-estimate KV cache size using n_embd as an upper bound for
+        # n_embd_k_gqa + n_embd_v_gqa, with 2 bytes/element (f16):
+        #     2 (k+v) * n_layer * n_ctx * n_embd * 2 bytes  ==  4 * n_layer * n_ctx * n_embd
+        # Anything above MAX_KV_BYTES is rejected. The cap is generous --
+        # well above any realistic single-host workload but well below the
+        # absurd values (TB-PB range) that crash the allocator.
+        #
+        # Done in Python ints (not cdef) so the multiplication is arbitrary
+        # precision and we don't risk silent overflow at the int32/int64
+        # boundary -- which is exactly where pathological test inputs land.
+        n_ctx_eff = self.params.n_ctx if self.params.n_ctx > 0 else self.model.n_ctx_train
+        if n_ctx_eff > 0:
+            estimated_kv_bytes = 4 * int(self.model.n_layer) * int(n_ctx_eff) * int(self.model.n_embd)
+            MAX_KV_BYTES = 100 * (1 << 40)  # 100 TiB
+            if estimated_kv_bytes > MAX_KV_BYTES:
+                raise RuntimeError(
+                    f"Refusing to create llama_context: requested n_ctx={n_ctx_eff} "
+                    f"would need an estimated ~{estimated_kv_bytes >> 30} GiB of KV cache "
+                    f"(model n_layer={self.model.n_layer}, n_embd={self.model.n_embd}), "
+                    f"which exceeds the {MAX_KV_BYTES >> 40} TiB sanity cap. "
+                    "Lower n_ctx or use a smaller model. "
+                    "(This check exists because llama.cpp's allocator can segfault "
+                    "rather than return NULL on extreme OOM.)"
+                )
+
         self.ptr = llama.llama_init_from_model(self.model.ptr, self.params.p)
 
         if self.ptr is NULL:
-            raise ValueError("Failed to create llama_context")
+            raise RuntimeError(
+                f"Failed to create llama_context "
+                f"(model={self.model.path_model!r}, requested n_ctx={self.params.n_ctx}, "
+                f"model n_ctx_train={self.model.n_ctx_train}). "
+                "Common causes: requested context size too large for available memory (OOM), "
+                "n_ctx exceeds what the model supports, or invalid context parameters. "
+                "Try lowering n_ctx or n_batch."
+            )
 
     def __dealloc__(self):
         if self.ptr is not NULL and self.owner is True:
