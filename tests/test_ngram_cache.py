@@ -28,8 +28,8 @@ def test_ngram_cache_update():
     tokens = [1, 2, 3, 4, 5]
     cache.update(tokens, ngram_min=2, ngram_max=4)
 
-    # Should not raise
-    print("\nSuccessfully updated cache with tokens")
+    # After update, the cache must be queryable and return a list.
+    assert isinstance(cache.draft([1, 2], n_draft=1, ngram_min=2, ngram_max=4), list)
 
 
 def test_ngram_cache_update_with_repetition():
@@ -40,7 +40,11 @@ def test_ngram_cache_update_with_repetition():
     tokens = [1, 2, 3, 4, 5, 2, 3, 4, 6, 2, 3, 4, 7]
     cache.update(tokens, ngram_min=2, ngram_max=4)
 
-    print(f"\nUpdated cache with {len(tokens)} tokens including repetitions")
+    # The repeated prefix [2, 3] should yield a non-empty draft since
+    # [2, 3, 4] appears multiple times in the input.
+    draft = cache.draft([2, 3], n_draft=3, ngram_min=2, ngram_max=4)
+    assert isinstance(draft, list)
+    assert len(draft) > 0, f"expected non-empty draft for repeated pattern, got {draft}"
 
 
 def test_ngram_cache_incremental_update():
@@ -55,7 +59,9 @@ def test_ngram_cache_incremental_update():
     tokens_extended = [1, 2, 3, 4, 5, 6, 7, 8]
     cache.update(tokens_extended, ngram_min=2, ngram_max=3, nnew=3)
 
-    print("\nSuccessfully performed incremental update")
+    # After incremental update, a prefix from the original sequence must
+    # still be queryable.
+    assert isinstance(cache.draft([1, 2], n_draft=1, ngram_min=2, ngram_max=3), list)
 
 
 def test_ngram_cache_draft():
@@ -142,13 +148,11 @@ def test_ngram_cache_merge():
     # Merge cache2 into cache1
     cache1.merge(cache2)
 
-    # Both patterns should work
+    # Both patterns must now be queryable from cache1.
     draft1 = cache1.draft([1, 2], n_draft=3)
     draft2 = cache1.draft([10, 11], n_draft=3)
-
-    print("\nAfter merge:")
-    print(f"  Pattern [1,2] drafts: {draft1}")
-    print(f"  Pattern [10,11] drafts: {draft2}")
+    assert isinstance(draft1, list)
+    assert isinstance(draft2, list)
 
 
 def test_ngram_cache_merge_type_error():
@@ -164,9 +168,8 @@ def test_ngram_cache_merge_type_error():
 
 def test_ngram_cache_parameters():
     """Test various parameter combinations."""
-    cache = NgramCache()
-
-    # Test different ngram_min/max values
+    # Each (ngram_min, ngram_max) pair must round-trip through
+    # update/draft without raising and must return a list.
     test_cases = [
         (1, 2),
         (2, 4),
@@ -180,7 +183,9 @@ def test_ngram_cache_parameters():
         cache_test = NgramCache()
         cache_test.update(tokens, ngram_min=ngram_min, ngram_max=ngram_max)
         draft = cache_test.draft([1, 2], n_draft=3, ngram_min=ngram_min, ngram_max=ngram_max)
-        print(f"\nngram_min={ngram_min}, ngram_max={ngram_max}: draft={draft}")
+        assert isinstance(draft, list), (
+            f"draft returned {type(draft).__name__} for ngram_min={ngram_min}, ngram_max={ngram_max}"
+        )
 
 
 def test_ngram_cache_large_sequence():
@@ -195,15 +200,12 @@ def test_ngram_cache_large_sequence():
 
     cache.update(tokens, ngram_min=2, ngram_max=4)
 
-    # Should predict well due to strong patterns
+    # Should predict well due to strong patterns -- [1, 2, 3] appears 10
+    # times in the input, so a draft on [1, 2, 3] must be non-empty.
     inp = [1, 2, 3]
     draft = cache.draft(inp, n_draft=10)
-
-    print("\nLarge sequence test:")
-    print(f"  Total tokens: {len(tokens)}")
-    print(f"  Input: {inp}")
-    print(f"  Draft: {draft}")
-    print(f"  Draft length: {len(draft)}")
+    assert isinstance(draft, list)
+    assert len(draft) > 0, f"expected non-empty draft for repeated pattern, got {draft}"
 
 
 def test_ngram_cache_with_context_caches():
@@ -222,8 +224,9 @@ def test_ngram_cache_with_context_caches():
     draft = context_cache.draft(
         inp, n_draft=5, context_cache=context_cache, dynamic_cache=dynamic_cache, static_cache=static_cache
     )
-
-    print(f"\nMulti-cache draft for {inp}: {draft}")
+    # Multi-cache draft must return a list without raising when all three
+    # caches are provided together.
+    assert isinstance(draft, list)
 
 
 def test_ngram_cache_repr():

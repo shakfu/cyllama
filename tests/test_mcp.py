@@ -61,7 +61,8 @@ class TestMcpServerConfig:
             transport=McpTransportType.STDIO,
             command="test",
         )
-        config.validate()  # Should not raise
+        # validate() should return None on success (contrast: raises ValueError on bad config).
+        assert config.validate() is None
 
     def test_validate_http_success(self):
         config = McpServerConfig(
@@ -69,7 +70,7 @@ class TestMcpServerConfig:
             transport=McpTransportType.HTTP,
             url="http://test",
         )
-        config.validate()  # Should not raise
+        assert config.validate() is None
 
 
 class TestMcpTool:
@@ -250,7 +251,11 @@ class TestMcpHttpConnection:
             url="http://localhost:8080",
         )
         conn = McpHttpConnection(config)
-        conn.connect()  # Should not raise
+        # HTTP connect is a no-op: the stateful connection is per-request.
+        # Calling it should be safe and return None; repeated calls should
+        # not accumulate state.
+        assert conn.connect() is None
+        assert conn.connect() is None
 
     def test_disconnect_is_noop(self):
         config = McpServerConfig(
@@ -259,7 +264,9 @@ class TestMcpHttpConnection:
             url="http://localhost:8080",
         )
         conn = McpHttpConnection(config)
-        conn.disconnect()  # Should not raise
+        # Disconnect without a prior connect must be idempotent.
+        assert conn.disconnect() is None
+        assert conn.disconnect() is None
 
     def test_next_id_increments(self):
         config = McpServerConfig(

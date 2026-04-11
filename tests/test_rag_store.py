@@ -749,7 +749,10 @@ class TestVectorStoreContextManager:
         """Test that close can be called multiple times."""
         store = VectorStore(dimension=4)
         store.close()
-        store.close()  # Should not raise
+        store.close()  # Should not raise on second call
+        # After close, any data operation must raise with a "closed" marker.
+        with pytest.raises(VectorStoreError, match="closed"):
+            store.add([[1.0, 0.0, 0.0, 0.0]], ["test"])
 
 
 class TestVectorStoreRepr:

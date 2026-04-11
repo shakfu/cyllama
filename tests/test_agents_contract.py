@@ -22,6 +22,7 @@ from cyllama.agents import (
     AgentEvent,
 )
 from cyllama.agents.contract import (
+    _get_current_context,
     _set_current_context,
     ContractContext,
 )
@@ -274,7 +275,11 @@ class TestContractAssert:
 
     def test_contract_assert_passes(self):
         """Test contract_assert does nothing when condition is True."""
-        contract_assert(True, "should not fail")  # Should not raise
+        # contract_assert(True, ...) must return None without raising and
+        # must not install or mutate any thread-local context state.
+        _set_current_context(None)
+        assert contract_assert(True, "should not fail") is None
+        assert _get_current_context() is None
 
     def test_contract_assert_fails_enforce(self):
         """Test contract_assert raises ContractTermination on failure."""
@@ -284,7 +289,11 @@ class TestContractAssert:
 
     def test_contract_assert_with_ignore_policy(self):
         """Test contract_assert does nothing with IGNORE policy."""
-        contract_assert(False, "should be ignored", policy=ContractPolicy.IGNORE)
+        # With IGNORE, a False condition must not raise and must return None.
+        # Without a context, this is the only path that lets a False
+        # assertion reach a successful return value.
+        _set_current_context(None)
+        assert contract_assert(False, "should be ignored", policy=ContractPolicy.IGNORE) is None
 
     def test_contract_assert_with_context(self):
         """Test contract_assert uses context when available."""
@@ -883,8 +892,13 @@ class TestContractContextExtended:
         """Test context with no handler set."""
         ctx = ContractContext(policy=ContractPolicy.OBSERVE, handler=None, location="test")
         violation = ContractViolation(kind="assert", location="test", predicate="x", message="m")
-        # Should not raise - handler is None so nothing to call
-        ctx.handle_violation(violation)
+        # With handler=None the dispatcher must short-circuit and return None
+        # without raising -- OBSERVE is supposed to be non-fatal even when
+        # there is no one listening.
+        assert ctx.handle_violation(violation) is None
+        # The handler slot should still be None after the call (no accidental
+        # install of a default handler).
+        assert ctx.handler is None
 
 
 # =============================================================================
@@ -945,7 +959,10 @@ class TestContractAssertOutsideContext:
     def test_assert_pass_outside_context(self):
         """Test contract_assert passes outside context."""
         _set_current_context(None)
-        contract_assert(True, "should pass")  # Should not raise
+        # Truthy condition outside any context: must return None and must
+        # not install a context as a side effect.
+        assert contract_assert(True, "should pass") is None
+        assert _get_current_context() is None
 
     def test_assert_fail_outside_context_enforce(self):
         """Test contract_assert fails with ENFORCE outside context."""
@@ -957,7 +974,11 @@ class TestContractAssertOutsideContext:
     def test_assert_fail_outside_context_ignore(self):
         """Test contract_assert with IGNORE policy outside context."""
         _set_current_context(None)
-        contract_assert(False, "ignored", policy=ContractPolicy.IGNORE)  # Should not raise
+        # IGNORE outside any context: a False condition must be swallowed
+        # rather than raised, and must not leak a context into thread-local
+        # storage on its way through.
+        assert contract_assert(False, "ignored", policy=ContractPolicy.IGNORE) is None
+        assert _get_current_context() is None
 
 
 # =============================================================================

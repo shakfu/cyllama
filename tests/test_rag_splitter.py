@@ -198,10 +198,15 @@ class TestTextSplitterCustomSeparators:
         )
         text = "First sentence. Second sentence."
         chunks = splitter.split(text)
-        # Without keeping separator, periods should not be at end of chunks
-        for chunk in chunks[:-1]:  # Exclude last chunk
-            chunk = chunk.strip()
-            # With keep_separator=False, separator is removed
+        assert len(chunks) >= 1
+        # With keep_separator=False the ". " separator must not appear as a
+        # suffix on any chunk (the last chunk retains the final period because
+        # it was not followed by the separator in the original text).
+        for chunk in chunks[:-1]:
+            stripped = chunk.strip()
+            assert not stripped.endswith(". "), (
+                f"chunk should not end with separator when keep_separator=False: {chunk!r}"
+            )
 
     def test_custom_length_function(self):
         """Test with custom length function."""

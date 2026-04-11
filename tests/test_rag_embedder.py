@@ -349,7 +349,10 @@ class TestEmbedderCache:
 
     def test_cache_clear_does_nothing_when_disabled(self, embedder: Embedder):
         """Test that cache_clear doesn't raise when cache is disabled."""
-        embedder.cache_clear()  # Should not raise
+        embedder.cache_clear()  # should not raise even though no cache exists
+        # With caching disabled, cache_info() returns None (not a zero-filled
+        # CacheInfo) -- this behavior is the contract documented on the API.
+        assert embedder.cache_info() is None
 
     def test_cache_info_namedtuple(self, cached_embedder: Embedder):
         """Test that CacheInfo is a proper NamedTuple."""

@@ -21,12 +21,14 @@ class TestEnsureNativeDeps:
     """Tests for ensure_native_deps()."""
 
     def test_noop_on_non_windows(self):
-        from cyllama.utils.platform import ensure_native_deps
+        from cyllama.utils import platform as plat_mod
 
-        with mock.patch("cyllama.utils.platform.sys") as mock_sys:
+        with mock.patch.object(plat_mod, "sys") as mock_sys:
             mock_sys.platform = "linux"
-            ensure_native_deps()
-            # Should return without doing anything beyond setting _initialized
+            plat_mod.ensure_native_deps()
+            # Observable side effect: _initialized flips to True even on
+            # non-Windows so subsequent calls short-circuit.
+            assert plat_mod._initialized is True
 
     def test_idempotent(self):
         from cyllama.utils import platform as plat_mod
@@ -117,7 +119,12 @@ class TestSetupCudaDllPaths:
             original = os.add_dll_directory
             delattr(os, "add_dll_directory")
         try:
-            _setup_cuda_dll_paths()  # should return without error
+            # The function must tolerate os.add_dll_directory being missing
+            # (as it is on non-Windows platforms at runtime) and return None.
+            assert _setup_cuda_dll_paths() is None
+            # The attribute should still be absent -- the function must not
+            # accidentally install it as a side effect.
+            assert not hasattr(os, "add_dll_directory")
         finally:
             if had_attr:
                 os.add_dll_directory = original

@@ -49,10 +49,17 @@ class TestVendoredJinja2:
     """
 
     def test_vendor_imports_cleanly(self):
-        from cyllama._vendor import jinja2  # noqa: F401
-        from cyllama._vendor.jinja2 import Environment  # noqa: F401
-        from cyllama._vendor.jinja2.exceptions import TemplateError  # noqa: F401
-        from cyllama._vendor.jinja2.sandbox import ImmutableSandboxedEnvironment  # noqa: F401
+        from cyllama._vendor import jinja2
+        from cyllama._vendor.jinja2 import Environment
+        from cyllama._vendor.jinja2.exceptions import TemplateError
+        from cyllama._vendor.jinja2.sandbox import ImmutableSandboxedEnvironment
+
+        # Each import must yield the real vendored module/symbol, not a
+        # half-initialized stub from a broken vendoring pass.
+        assert jinja2.__name__ == "cyllama._vendor.jinja2"
+        assert Environment.__module__.startswith("cyllama._vendor.jinja2")
+        assert issubclass(TemplateError, Exception)
+        assert issubclass(ImmutableSandboxedEnvironment, Environment)
 
     def test_undefined_variable_renders_as_empty_string(self):
         """An unset variable must render as `''`, not as the literal

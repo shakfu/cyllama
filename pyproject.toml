@@ -24,7 +24,9 @@ classifiers = [
   "Programming Language :: Cython",
   "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
-dependencies = []
+dependencies = [
+    "pytest-review>=0.1.2",
+]
 
 [project.urls]
 Homepage = "https://github.com/shakfu/cyllama"
@@ -97,8 +99,15 @@ ignore_missing_imports = true
 check_untyped_defs = false
 
 [tool.pytest.ini_options]
-pythonpath = ["src"]
+# "tests" is on pythonpath so that test modules can do
+# `from conftest import DEFAULT_MODEL` without relying on pytest's
+# rootdir-hack sys.path ordering, which breaks on full-directory collection.
+pythonpath = ["src", "tests"]
 testpaths = ["tests"]
+# tests/examples/ holds demo scripts, not pytest tests. Exclude by
+# directory name so pytest never descends into it (also prevents a
+# nested conftest.py collision with tests/conftest.py).
+norecursedirs = ["examples"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 markers = [

@@ -364,9 +364,15 @@ def test_whisper_timing_functions(whisper_model_path):
     """Test whisper timing functions."""
     ctx = wh.WhisperContext(whisper_model_path)
 
-    # These should not raise exceptions
+    # reset_timings() and print_timings() must not raise and both must be
+    # idempotent (call each twice to catch state corruption on second call).
+    ctx.reset_timings()
     ctx.reset_timings()
     ctx.print_timings()
+    ctx.print_timings()
+    # Native context must still be queryable after the timing operations;
+    # n_vocab calls through to the C API, so a corrupted ctx would crash.
+    assert ctx.n_vocab > 0
 
 
 # Integration test that mimics the actual whisper CLI usage

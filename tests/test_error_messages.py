@@ -126,8 +126,10 @@ class TestValidationHelper:
     def test_magic_check_skipped_when_none(self, garbage_file: str):
         from cyllama._validation import validate_model_file
 
-        # Should not raise: file exists, non-empty, magic check disabled.
-        validate_model_file(garbage_file, expected_magic=None)
+        # With expected_magic=None, a garbage file must validate cleanly
+        # (no magic check performed). validate_model_file returns None on
+        # success, so the call completing with a None return is the signal.
+        assert validate_model_file(garbage_file, expected_magic=None) is None
 
 
 # ---------------------------------------------------------------------------

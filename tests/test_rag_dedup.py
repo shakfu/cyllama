@@ -296,7 +296,9 @@ class TestContentHash:
         assert all(c in "0123456789abcdef" for c in h)
 
     def test_deterministic(self):
-        assert _content_hash(b"hello") == _content_hash(b"hello")
+        h1 = _content_hash(b"hello")
+        h2 = _content_hash(b"hello")
+        assert h1 == h2
 
     def test_different_inputs_produce_different_hashes(self):
         assert _content_hash(b"a") != _content_hash(b"b")

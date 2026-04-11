@@ -929,4 +929,9 @@ class TestEmbeddedServerLifecycle:
         with EmbeddedServer(config) as server:
             # Wait a moment to ensure server is fully operational
             time.sleep(1)
-        # Context manager exit should have called stop()
+            # __enter__ must yield the server instance itself, not a wrapper.
+            assert isinstance(server, EmbeddedServer)
+        # __exit__ called stop(); calling stop() again must be idempotent
+        # (no double-free or raise). This is the only observable post-exit
+        # check since _running is cdef and not Python-accessible.
+        server.stop()

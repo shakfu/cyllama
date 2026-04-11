@@ -540,17 +540,3 @@ def test_run_context_size_validation(cli, mocker: MockerFixture):
     assert mock_parse.return_value.ctx_size == 8
 
 
-# Platform-specific test skipping
-import platform
-
-PLATFORM = platform.system()
-ARCH = platform.machine()
-
-
-# Skip certain tests on specific platforms if needed
-@pytest.mark.skipif(PLATFORM == "Darwin" and ARCH == "x86_64", reason="Skip on intel macs")
-def test_platform_specific_functionality(cli):
-    """Test functionality that may be platform-specific."""
-    # This is a placeholder for platform-specific tests
-    # that might need to be skipped on certain platforms
-    pass

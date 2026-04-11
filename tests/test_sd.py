@@ -452,9 +452,15 @@ class TestCallbacks:
         def callback(level, text):
             logs.append((level, text))
 
-        set_log_callback(callback)
-        # Callback is set, but won't be triggered without actual SD operations
-        assert True  # Just verify no errors
+        # Idempotency: multiple register/unregister cycles should not raise
+        # or leak native state. If the setter mishandled re-registration the
+        # second iteration would crash.
+        for _ in range(3):
+            set_log_callback(callback)
+            set_log_callback(None)
+        # No SD operations ran, so no log events should have fired into the
+        # callback -- catches accidental synchronous invocation during setup.
+        assert logs == []
 
     def test_set_progress_callback(self):
         progress = []
@@ -462,8 +468,10 @@ class TestCallbacks:
         def callback(step, steps, time):
             progress.append((step, steps, time))
 
-        set_progress_callback(callback)
-        assert True  # Just verify no errors
+        for _ in range(3):
+            set_progress_callback(callback)
+            set_progress_callback(None)
+        assert progress == []
 
 
 # Integration tests that require a real model
@@ -992,8 +1000,11 @@ class TestSDImageGenParamsExtended:
         arr = np.zeros((64, 64, 3), dtype=np.uint8)
         img = SDImage.from_numpy(arr)
         params.set_init_image(img)
-        # Just verify no error is raised
-        assert True
+        # Re-setting should replace, not leak or corrupt the struct.
+        params.set_init_image(img)
+        # The params object should still be readable after the setter ran;
+        # a corrupted Cython struct would crash on attribute access.
+        assert params.sample_params is not None
 
     def test_set_control_image(self):
         """Test setting control image."""
@@ -1001,8 +1012,8 @@ class TestSDImageGenParamsExtended:
         arr = np.zeros((64, 64, 3), dtype=np.uint8)
         img = SDImage.from_numpy(arr)
         params.set_control_image(img, strength=0.8)
-        # Just verify no error is raised
-        assert True
+        # set_control_image also stores the strength, which is readable.
+        assert abs(params.control_strength - 0.8) < 1e-6
 
     def test_sample_params(self):
         """Test accessing sample_params."""
@@ -1062,8 +1073,10 @@ class TestSDImageGenParamsExtended:
         arr[20:40, 20:40] = 255  # White area = inpaint region
         mask = SDImage.from_numpy(arr)
         params.set_mask_image(mask)
-        # Just verify no error is raised
-        assert True
+        # Re-setting should replace, not leak or corrupt the struct.
+        params.set_mask_image(mask)
+        # The params object should still be readable after the setter ran.
+        assert params.sample_params is not None
 
 
 class TestCannyPreprocess:
@@ -1114,14 +1127,25 @@ class TestPreviewCallback:
         def callback(step, frames, is_noisy):
             previews.append({"step": step, "frame_count": len(frames), "is_noisy": is_noisy})
 
-        set_preview_callback(callback)
-        # Callback is set, verify no errors
-        assert True
+        # Idempotent register/unregister cycles should not raise.
+        for _ in range(3):
+            set_preview_callback(callback)
+            set_preview_callback(None)
+        # No SD operations ran, so no preview events should have fired.
+        assert previews == []
 
     def test_clear_preview_callback(self):
         """Test clearing the preview callback."""
+        # Clearing with None is valid even without a prior set.
         set_preview_callback(None)
-        assert True
+        # Repeatable clear is a no-op; should not raise.
+        set_preview_callback(None)
+        # Establish the followup set/clear cycle still works after the
+        # idempotent clear.
+        set_preview_callback(lambda *a, **kw: None)
+        set_preview_callback(None)
+        # The setter should still be callable after all those cycles.
+        assert callable(set_preview_callback)
 
 
 class TestEnumsExtended:

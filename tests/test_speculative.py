@@ -133,10 +133,6 @@ class TestSpeculativeInitialization:
         with pytest.raises(RuntimeError, match="Failed to initialize"):
             Speculative(params, ctx_target)
 
-    def test_initialization_incompatible_raises(self):
-        """Test that incompatible contexts raise ValueError."""
-        pass
-
 
 class TestSpeculativeEdgeCases:
     """Tests for edge cases and error conditions."""
