@@ -32,11 +32,18 @@ Implementation notes:
 from __future__ import annotations
 
 import gc
-import resource
 import sys
 from pathlib import Path
 
 import pytest
+
+# ``resource`` is POSIX-only. The whole module is skipped on Windows by
+# the ``pytestmark`` below, but ``pytestmark`` is evaluated *after* module
+# import, so an unconditional ``import resource`` at the top level would
+# fail collection on Windows before the skip can fire. Gate the import on
+# the same platform predicate the skip uses.
+if sys.platform != "win32":
+    import resource
 
 ROOT = Path(__file__).resolve().parent.parent
 WHISPER_MODEL = ROOT / "models" / "ggml-base.en.bin"
