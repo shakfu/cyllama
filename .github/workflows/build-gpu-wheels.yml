@@ -66,6 +66,13 @@ jobs:
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
           df -h
 
+      - name: Cache thirdparty deps
+        id: cache-deps
+        uses: actions/cache@v4
+        with:
+          path: thirdparty/
+          key: deps-cuda-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage.py', '.github/workflows/build-gpu-wheels.yml') }}
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -84,6 +91,7 @@ jobs:
             yum-config-manager --add-repo https://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/cuda-rhel7.repo &&
             yum install -y cuda-nvcc-12-4 cuda-cudart-devel-12-4 cuda-driver-devel-12-4 libcublas-devel-12-4 &&
             ln -s /usr/local/cuda-12.4 /usr/local/cuda &&
+            if [ -d /project/thirdparty/llama.cpp/lib ]; then echo "=== Deps cached, skipping build ==="; exit 0; fi &&
             CI_PYTHON=$(ls -d /opt/python/cp3*/bin | head -1) &&
             $CI_PYTHON/pip install cmake ninja &&
             PATH=/usr/local/cuda/bin:$CI_PYTHON:$PATH
@@ -145,6 +153,13 @@ jobs:
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
           df -h
 
+      - name: Cache thirdparty deps
+        id: cache-deps
+        uses: actions/cache@v4
+        with:
+          path: thirdparty/
+          key: deps-rocm-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage.py', '.github/workflows/build-gpu-wheels.yml') }}
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -164,6 +179,7 @@ jobs:
             dnf install -y rocm-hip-runtime-devel hipblas-devel rocblas-devel libstdc++-static &&
             ls -d /opt/rocm-* | head -1 | xargs -I{} ln -sf {} /opt/rocm &&
             ln -sf /usr/lib/gcc/x86_64-redhat-linux/8/libstdc++.a /opt/rocm/lib/libstdc++.a &&
+            if [ -d /project/thirdparty/llama.cpp/lib ]; then echo "=== Deps cached, skipping build ==="; exit 0; fi &&
             CI_PYTHON=$(ls -d /opt/python/cp3*/bin | head -1) &&
             $CI_PYTHON/pip install cmake ninja &&
             PATH=/opt/rocm/bin:$CI_PYTHON:$PATH
@@ -227,6 +243,13 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Cache thirdparty deps
+        id: cache-deps
+        uses: actions/cache@v4
+        with:
+          path: thirdparty/
+          key: deps-sycl-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage.py', '.github/workflows/build-gpu-wheels.yml') }}
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -245,6 +268,7 @@ jobs:
             rpm --import https://yum.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB &&
             dnf config-manager --add-repo https://yum.repos.intel.com/oneapi &&
             dnf install -y intel-oneapi-dpcpp-cpp-2025.3 intel-oneapi-mkl-devel-2025.3 &&
+            if [ -d /project/thirdparty/llama.cpp/lib ]; then echo "=== Deps cached, skipping build ==="; exit 0; fi &&
             CI_PYTHON=$(ls -d /opt/python/cp3*/bin | head -1) &&
             $CI_PYTHON/pip install cmake ninja &&
             source /opt/intel/oneapi/setvars.sh &&
@@ -305,6 +329,13 @@ jobs:
           fetch-depth: 0
           clean: true
 
+      - name: Cache thirdparty deps
+        id: cache-deps
+        uses: actions/cache@v4
+        with:
+          path: thirdparty/
+          key: deps-vulkan-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage.py', '.github/workflows/build-gpu-wheels.yml') }}
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -320,6 +351,7 @@ jobs:
           CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
           CIBW_BEFORE_ALL_LINUX: >
             dnf install -y git vulkan-headers vulkan-loader-devel &&
+            if [ -d /project/thirdparty/llama.cpp/lib ]; then echo "=== Deps cached, skipping build ==="; exit 0; fi &&
             git clone --depth 1 https://github.com/google/shaderc.git /tmp/shaderc &&
             cd /tmp/shaderc && python3 utils/git-sync-deps &&
             cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DSHADERC_SKIP_TESTS=ON -DSHADERC_SKIP_EXAMPLES=ON -DSHADERC_SKIP_COPYRIGHT_CHECK=ON &&
@@ -359,6 +391,123 @@ jobs:
         with:
           name: wheels-vulkan-linux-x86_64
           path: ./wheelhouse/*.whl
+
+  # ---------------------------------------------------------------------------
+  # Import smoke tests (no GPU required)
+  # ---------------------------------------------------------------------------
+  smoke_test:
+    name: Smoke test - ${{ matrix.backend }}
+    needs: [build_cuda, build_rocm, build_sycl, build_vulkan]
+    if: always() && !cancelled() && (needs.build_cuda.result == 'success' || needs.build_rocm.result == 'success' || needs.build_sycl.result == 'success' || needs.build_vulkan.result == 'success')
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - backend: cuda
+            artifact: wheels-cuda-linux-x86_64
+            condition: inputs.cuda
+          - backend: rocm
+            artifact: wheels-rocm-linux-x86_64
+            condition: inputs.rocm
+          - backend: sycl
+            artifact: wheels-sycl-linux-x86_64
+            condition: inputs.sycl
+          - backend: vulkan
+            artifact: wheels-vulkan-linux-x86_64
+            condition: inputs.vulkan
+
+    steps:
+      - name: Check if backend was built
+        id: check
+        run: |
+          if [ "${{ matrix.condition }}" != "true" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-python@v5
+        if: steps.check.outputs.skip != 'true'
+        with:
+          python-version: "3.12"
+
+      - name: Download wheel artifacts
+        if: steps.check.outputs.skip != 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: wheels
+
+      - name: Find matching wheel
+        if: steps.check.outputs.skip != 'true'
+        id: find-wheel
+        run: |
+          WHEEL=$(find wheels -name "*cp312*" | head -1)
+          if [ -z "$WHEEL" ]; then
+            WHEEL=$(find wheels -name "*.whl" | head -1)
+          fi
+          echo "wheel=$WHEEL" >> "$GITHUB_OUTPUT"
+          echo "Found wheel: $WHEEL"
+
+      - name: Install wheel in clean venv
+        if: steps.check.outputs.skip != 'true'
+        run: |
+          python -m venv smoke-venv
+          source smoke-venv/bin/activate
+          pip install "${{ steps.find-wheel.outputs.wheel }}"
+
+      - name: Smoke test - imports
+        if: steps.check.outputs.skip != 'true'
+        run: |
+          source smoke-venv/bin/activate
+          python -c "
+          import cyllama
+          print(f'cyllama {cyllama.__version__} imported successfully')
+
+          # Core API imports
+          from cyllama import LLM, complete, chat, AsyncLLM
+          from cyllama import batch_generate, BatchGenerator
+          from cyllama import estimate_gpu_layers, estimate_memory_usage
+          from cyllama import GenerationConfig, Response
+
+          # Cython extension imports
+          from cyllama.llama import llama_cpp
+          print('llama_cpp extension loaded')
+
+          # Agent framework
+          from cyllama.agents import ReActAgent, ConstrainedAgent, ContractAgent, tool
+          print('agents loaded')
+
+          # Integrations
+          from cyllama.integrations.openai_compat import OpenAICompatibleClient
+          print('integrations loaded')
+
+          # Optional extensions
+          try:
+              from cyllama.whisper import whisper_cpp
+              print('whisper_cpp extension loaded')
+          except ImportError as e:
+              print(f'whisper_cpp not available: {e}')
+
+          try:
+              from cyllama.sd import stable_diffusion
+              print('stable_diffusion extension loaded')
+          except ImportError as e:
+              print(f'stable_diffusion not available: {e}')
+
+          # Backend info
+          try:
+              from cyllama import _backend
+              print(f'Backend: cuda={getattr(_backend, \"cuda\", False)}, '
+                    f'vulkan={getattr(_backend, \"vulkan\", False)}, '
+                    f'hip={getattr(_backend, \"hip\", False)}, '
+                    f'sycl={getattr(_backend, \"sycl\", False)}')
+          except ImportError:
+              print('No _backend module')
+
+          print('All imports passed (${{ matrix.backend }})')
+          "
 
   # ---------------------------------------------------------------------------
   # Collect and optionally publish to GitHub Pages wheel index
@@ -449,7 +598,7 @@ jobs:
   # ---------------------------------------------------------------------------
   upload_release:
     name: Upload wheels to GitHub Release
-    needs: collect
+    needs: [collect, smoke_test]
     if: inputs.upload_release && always() && !cancelled() && needs.collect.result == 'success'
     runs-on: ubuntu-latest
     permissions:

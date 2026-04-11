@@ -1,5 +1,6 @@
 """Tests for the stable diffusion module."""
 
+import gc
 import os
 import tempfile
 import pytest
@@ -477,6 +478,11 @@ class TestSDContextIntegration:
 
         ctx = SDContext(params)
         assert ctx.is_valid
+        # Force immediate SD.cpp cleanup so Metal/ggml state doesn't
+        # accumulate across successive SDContext lifecycles in the same
+        # process. See tests/test_memory_leaks.py for the same pattern.
+        del ctx
+        gc.collect()
 
     def test_generate_image(self):
         params = SDContextParams()
@@ -508,6 +514,11 @@ class TestSDContextIntegration:
         assert arr.max() <= 255
         # Image should have some variation (not all black or white)
         assert arr.std() > 5
+        # Force immediate SD.cpp cleanup so Metal/ggml state doesn't
+        # accumulate across successive SDContext lifecycles in the same
+        # process. See tests/test_memory_leaks.py for the same pattern.
+        del ctx
+        gc.collect()
 
     @pytest.mark.skip(reason="Multiple generations on same context causes segfault - needs investigation")
     def test_deterministic_seed(self):
@@ -608,6 +619,11 @@ class TestSDContextConcurrencyGuard:
             assert "not thread-safe" in msg
         finally:
             ctx._busy_lock.release()
+        # Force immediate SD.cpp cleanup so Metal/ggml state doesn't
+        # accumulate across successive SDContext lifecycles in the same
+        # process. See tests/test_memory_leaks.py for the same pattern.
+        del ctx
+        gc.collect()
 
     def test_concurrent_generate_with_params_raises(self):
         """Same as above but exercises the lower-level
@@ -647,6 +663,11 @@ class TestSDContextConcurrencyGuard:
             assert "another thread" in str(errors[0])
         finally:
             ctx._busy_lock.release()
+        # Force immediate SD.cpp cleanup so Metal/ggml state doesn't
+        # accumulate across successive SDContext lifecycles in the same
+        # process. See tests/test_memory_leaks.py for the same pattern.
+        del ctx
+        gc.collect()
 
     def test_lock_release_allows_subsequent_acquire(self):
         """Sanity check: after releasing the busy-lock,
@@ -661,6 +682,11 @@ class TestSDContextConcurrencyGuard:
         # Should not raise
         ctx._try_acquire_busy()
         ctx._busy_lock.release()
+        # Force immediate SD.cpp cleanup so Metal/ggml state doesn't
+        # accumulate across successive SDContext lifecycles in the same
+        # process. See tests/test_memory_leaks.py for the same pattern.
+        del ctx
+        gc.collect()
 
 
 class TestSDImageExtended:

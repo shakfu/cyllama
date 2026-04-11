@@ -9,6 +9,7 @@
 - [ ] Performance benchmarking suite (token generation speed, memory profiling, regression detection)
 - [ ] Response caching for identical prompts (decorator-based with TTL)
 - [ ] Structured logging system (JSON output option, agent decision flow logging)
+- [ ] Migrate the 5 `SDContext`-creating tests in `tests/test_sd.py` to the new `sd_ctx_factory` fixture in `tests/conftest.py` so the cleanup pattern (`del ctx; gc.collect()`) is centralized instead of duplicated inline. Affected tests: `TestSDContextIntegration::test_context_creation`, `TestSDContextIntegration::test_generate_image`, `TestSDContextConcurrencyGuard::test_concurrent_generate_raises`, `TestSDContextConcurrencyGuard::test_concurrent_generate_with_params_raises`, `TestSDContextConcurrencyGuard::test_lock_release_allows_subsequent_acquire`. Rationale and the 5-cycle crash reproducer are in `docs/dev/test-cleanup.md`
 
 ## Wheel / Packaging
 

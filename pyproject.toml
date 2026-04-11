@@ -125,6 +125,7 @@ dev = [
     "twine>=6.1.0",
     "mkdocs>=1.6.1",
     "mkdocs-material>=9.6.0",
+    "pytest-review>=0.1.2",
 ]
 pdf = [
     "docling>=2.31.0",

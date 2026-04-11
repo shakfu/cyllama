@@ -488,6 +488,7 @@ dev = [
     { name = "pytest-cov" },
     { name = "pytest-memray", marker = "sys_platform != 'win32'" },
     { name = "pytest-mock" },
+    { name = "pytest-review" },
     { name = "requests" },
     { name = "ruff" },
     { name = "twine" },
@@ -514,6 +515,7 @@ dev = [
     { name = "pytest-cov", specifier = ">=5.0.0" },
     { name = "pytest-memray", marker = "sys_platform != 'win32'", specifier = ">=1.8.0" },
     { name = "pytest-mock", specifier = ">=3.14.1" },
+    { name = "pytest-review", specifier = ">=0.1.2" },
     { name = "requests", specifier = ">=2.32.4" },
     { name = "ruff", specifier = ">=0.12.12" },
     { name = "twine", specifier = ">=6.1.0" },
@@ -3024,6 +3026,19 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/68/14/eb014d26be205d38ad5ad20d9a80f7d201472e08167f0bb4361e251084a9/pytest_mock-3.15.1.tar.gz", hash = "sha256:1849a238f6f396da19762269de72cb1814ab44416fa73a8686deac10b0d87a0f", size = 34036, upload-time = "2025-09-16T16:37:27.081Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/5a/cc/06253936f4a7fa2e0f48dfe6d851d9c56df896a9ab09ac019d70b760619c/pytest_mock-3.15.1-py3-none-any.whl", hash = "sha256:0a25e2eb88fe5168d535041d09a4529a188176ae608a6d249ee65abc0949630d", size = 10095, upload-time = "2025-09-16T16:37:25.734Z" },
+]
+
+[[package]]
+name = "pytest-review"
+version = "0.1.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pytest" },
+    { name = "tomli", marker = "python_full_version < '3.11'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/b4/76/eea08c19cf26859861fd6fc5d37d1386dfeba65535ec58c5457487edcbb1/pytest_review-0.1.2.tar.gz", hash = "sha256:68456595ccc35a9e33f5d5a59a1e07f3efee509b3c95d2370d2e022d891cf1f2", size = 124808, upload-time = "2026-03-12T18:23:45.643Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b3/08/a98be87c9e3caf669bce9d1bb6c3f4f077bc111e27f52b1d1a6487eefa54/pytest_review-0.1.2-py3-none-any.whl", hash = "sha256:0498dc2ea4a7a956f8dfd3f2e83c6398a5b977dfcabf06be3f1e24c47c89ec8c", size = 41891, upload-time = "2026-03-12T18:23:44.311Z" },
 ]
 
 [[package]]

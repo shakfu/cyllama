@@ -35,6 +35,13 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - name: Cache thirdparty deps
+        id: cache-deps
+        uses: actions/cache@v4
+        with:
+          path: thirdparty/
+          key: deps-cibw2-${{ matrix.os }}-${{ hashFiles('scripts/manage.py', 'pyproject.toml', '.github/workflows/build-cibw.yaml') }}
+
       - name: Build wheels
         uses: pypa/cibuildwheel@v3.4.0
         env:
@@ -45,6 +52,137 @@ jobs:
         with:
           name: cibw-wheels-${{ matrix.os }}
           path: ./wheelhouse/*.whl
+
+  smoke_test:
+    name: Smoke test on ${{ matrix.os }}
+    needs: build_wheels
+    runs-on: ${{ matrix.runs-on }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: linux-intel
+            runs-on: ubuntu-latest
+          - os: macos-arm
+            runs-on: macos-latest
+          - os: windows-intel
+            runs-on: windows-latest
+
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download wheel artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: cibw-wheels-${{ matrix.os }}
+          path: wheels
+
+      - name: Cache test model
+        id: cache-model
+        uses: actions/cache@v4
+        with:
+          path: models/Llama-3.2-1B-Instruct-Q8_0.gguf
+          key: test-model-llama-3.2-1b-q8
+
+      - name: Download test model
+        if: steps.cache-model.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          mkdir -p models
+          curl -sL https://huggingface.co/unsloth/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q8_0.gguf \
+            -o models/Llama-3.2-1B-Instruct-Q8_0.gguf
+
+      - name: Find matching wheel
+        id: find-wheel
+        shell: bash
+        run: |
+          WHEEL=$(find wheels -name "*cp312*" | head -1)
+          if [ -z "$WHEEL" ]; then
+            WHEEL=$(find wheels -name "*.whl" | head -1)
+          fi
+          echo "wheel=$WHEEL" >> "$GITHUB_OUTPUT"
+          echo "Found wheel: $WHEEL"
+
+      - name: Install wheel in clean venv
+        shell: bash
+        run: |
+          python -m venv smoke-venv
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            source smoke-venv/Scripts/activate
+          else
+            source smoke-venv/bin/activate
+          fi
+          pip install "${{ steps.find-wheel.outputs.wheel }}"
+
+      - name: Smoke test - imports
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            source smoke-venv/Scripts/activate
+          else
+            source smoke-venv/bin/activate
+          fi
+          python -c "
+          import cyllama
+          print(f'cyllama {cyllama.__version__} imported successfully')
+
+          # Core API imports
+          from cyllama import LLM, complete, chat, AsyncLLM
+          from cyllama import batch_generate, BatchGenerator
+          from cyllama import estimate_gpu_layers, estimate_memory_usage
+          from cyllama import GenerationConfig, Response
+
+          # Cython extension imports
+          from cyllama.llama import llama_cpp
+          print('llama_cpp extension loaded')
+
+          # Agent framework
+          from cyllama.agents import ReActAgent, ConstrainedAgent, ContractAgent, tool
+          print('agents loaded')
+
+          # Integrations
+          from cyllama.integrations.openai_compat import OpenAICompatibleClient
+          print('integrations loaded')
+
+          # Optional extensions (may not be built on all platforms)
+          try:
+              from cyllama.whisper import whisper_cpp
+              print('whisper_cpp extension loaded')
+          except ImportError as e:
+              print(f'whisper_cpp not available: {e}')
+
+          try:
+              from cyllama.sd import stable_diffusion
+              print('stable_diffusion extension loaded')
+          except ImportError as e:
+              print(f'stable_diffusion not available: {e}')
+
+          print('All imports passed')
+          "
+
+      - name: Smoke test - inference
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            source smoke-venv/Scripts/activate
+          else
+            source smoke-venv/bin/activate
+          fi
+          python -c "
+          from cyllama import complete
+
+          response = complete(
+              'What is 2+2? Reply with just the number.',
+              model_path='models/Llama-3.2-1B-Instruct-Q8_0.gguf',
+              n_ctx=128,
+              max_tokens=16,
+          )
+          print(f'Response: {response}')
+          assert len(str(response).strip()) > 0, 'Empty response from model'
+          print('Inference smoke test passed')
+          "
 
   collect_wheels:
     name: Collect all wheels
@@ -71,7 +209,7 @@ jobs:
 
   upload_release:
     name: Upload wheels to GitHub Release
-    needs: collect_wheels
+    needs: [collect_wheels, smoke_test]
     if: inputs.upload_release
     runs-on: ubuntu-latest
     permissions:

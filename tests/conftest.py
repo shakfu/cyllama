@@ -117,6 +117,72 @@ def llm_shared(model_path: str):
 
 
 # =============================================================================
+# SD Context Fixtures with Cleanup
+# =============================================================================
+
+
+@pytest.fixture
+def sd_ctx_factory():
+    """
+    Factory fixture that constructs SDContext instances with automatic cleanup.
+
+    SDContext holds ~4-6GB of Metal/ggml state per instance. Letting multiple
+    instances survive simultaneously in the same test process crashes macOS
+    Metal after ~5 cycles because cumulative Metal working-set pressure
+    exceeds the GPU's recommended working set. The crash manifests as either
+    a clean RuntimeError("Image generation failed") from the v0.2.3 validation
+    guardrail, or a hard Fatal Python error abort from native code, depending
+    on which failure path fires first.
+
+    This fixture centralizes the forced-cleanup pattern. Tests that use it
+    get automatic `del + gc.collect()` at teardown and do not need to
+    remember the manual pattern in their test body.
+
+    Usage:
+        def test_something(sd_ctx_factory):
+            from cyllama.sd import SDContext, SDContextParams
+
+            params = SDContextParams()
+            params.model_path = "models/sd_xl_turbo_1.0.q8_0.gguf"
+            ctx = sd_ctx_factory(params)
+            assert ctx.is_valid
+            # No manual cleanup needed; teardown releases ctx + gc.collect()
+
+    The fixture is function-scoped so every test gets a fresh cleanup cycle.
+    If a test needs multiple contexts (e.g. to exercise a regression that
+    requires two), call the factory multiple times -- all of them will be
+    released on teardown.
+
+    See docs/dev/test-cleanup.md for the full diagnosis and the 5-cycle
+    reproducer that motivated this fixture.
+
+    Yields:
+        A callable `make(params) -> SDContext` that constructs and tracks
+        SDContext instances for automatic teardown.
+    """
+    import gc
+
+    created: list = []
+
+    def make(params):
+        from cyllama.sd import SDContext
+
+        ctx = SDContext(params)
+        created.append(ctx)
+        return ctx
+
+    yield make
+
+    # Drop the factory's references, then force a collection cycle so
+    # native cleanup runs deterministically before the next test starts.
+    # Order matters: clear() first so the only remaining refs (if any) are
+    # in the test frame, which pytest releases on return; gc.collect() then
+    # finalizes everything.
+    created.clear()
+    gc.collect()
+
+
+# =============================================================================
 # Generation Config Fixtures
 # =============================================================================
 

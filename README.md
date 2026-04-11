@@ -90,6 +90,8 @@ cyllama embed -m models/bge-small.gguf --similarity "cats" -f corpus.txt --thres
 # Other commands
 cyllama rag -m models/llama.gguf -e models/bge-small.gguf -d docs/ -p "How do I configure X?"
 cyllama rag -m models/llama.gguf -e models/bge-small.gguf -f file.md   # interactive mode
+cyllama rag -m models/llama.gguf -e models/bge-small.gguf -d docs/ --db docs.sqlite -p "..."  # index to persistent DB
+cyllama rag -m models/llama.gguf -e models/bge-small.gguf --db docs.sqlite -p "..."           # reuse existing DB, no re-indexing
 cyllama server -m models/llama.gguf --port 8080
 cyllama transcribe -m models/ggml-base.en.bin audio.wav
 cyllama tts -m models/tts.gguf -p "Hello world"
@@ -391,6 +393,12 @@ cyllama rag -m models/llama.gguf -e models/bge-small.gguf \
 # Interactive mode with source display
 cyllama rag -m models/llama.gguf -e models/bge-small.gguf \
     -f guide.md -f faq.md --sources
+
+# Persistent vector store: index once, reuse across runs
+cyllama rag -m models/llama.gguf -e models/bge-small.gguf \
+    -d docs/ --db docs.sqlite -p "How do I configure X?"   # first run: indexes to docs.sqlite
+cyllama rag -m models/llama.gguf -e models/bge-small.gguf \
+    --db docs.sqlite -p "Another question?"                # later runs: reuse index, no re-embedding
 ```
 
 **Simple RAG** - Query your documents with LLMs:
@@ -585,7 +593,7 @@ models = list_cached_models()
 
 **Production-Ready**: Battle-tested and comprehensive
 
-- 1150+ passing tests with extensive coverage
+- 1450+ passing tests with extensive coverage
 - Comprehensive documentation and examples
 - Proper error handling and logging
 - Framework integration for real applications
@@ -598,15 +606,16 @@ models = list_cached_models()
 
 ## Status
 
-**Current Version**: 0.2.3 (Apr 2026)
-**llama.cpp Version**: b8429
+**Current Version**: 0.2.5 (Apr 2026)
+**llama.cpp Version**: b8757
 **Build System**: scikit-build-core + CMake
-**Test Coverage**: 1150+ tests passing
+**Test Coverage**: 1450+ tests passing
 **Platform**: macOS (tested), Linux (tested), Windows (tested)
 
 ### Recent Releases
 
-- **v0.2.4** (Apr 2026, dev) - Unified CLI (`cyllama gen`, `chat`, `embed`, `rag`, ...), `cyllama rag` command-line RAG, Ctrl+C during inference, embeddings endpoint, Embedder logging fix, interactive chat token limit fix
+- **v0.2.5** (Apr 2026) - Typed loader exceptions, concurrent-use guard on `LLM`/`Embedder`/`WhisperContext`/`SDContext`, persistent RAG vector store (`cyllama rag --db`), corpus deduplication, vendored jinja2 chat templates (fixes Gemma 4 and other non-substring-detectable templates), Qwen3 `<think>`-block stripping + n-gram repetition guard, readline history for REPLs, memory-leak regression tests, llama.cpp b8757
+- **v0.2.4** (Apr 2026) - Unified CLI (`cyllama gen`, `chat`, `embed`, `rag`, ...), `cyllama rag` command-line RAG, Ctrl+C during inference, embeddings endpoint, Embedder logging fix, interactive chat token limit fix
 - **v0.2.3** (Apr 2026) - SD flow_shift black-image fix, GPU OOM validation, dynamic Linux install fixes, wheel backend discovery after auditwheel/delvewheel rename, CLI entry point, wheel smoke tests, OpenCL targets, CUDA tuning flags
 - **v0.2.2** (Apr 2026) - CUDA wheel size stability (PTX-only sm_75), portability flags moved from manage.py to CI workflows
 - **v0.2.1** (Mar 2026) - Code quality hardening: GIL release for whisper/encode, async stream fixes, memory-aware embedding cache, CI robustness, 30+ bug fixes, 1150+ tests
@@ -792,7 +801,7 @@ bin/llama-cli -c 512 -n 32 -m models/Llama-3.2-1B-Instruct-Q8_0.gguf \
  -p "Is mathematics discovered or invented?"
 ```
 
-With 1150+ passing tests, the library is ready for both quick prototyping and production use:
+With 1450+ passing tests, the library is ready for both quick prototyping and production use:
 
 ```sh
 make test  # Run full test suite
