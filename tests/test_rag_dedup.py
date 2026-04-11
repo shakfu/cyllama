@@ -38,6 +38,7 @@ from cyllama.rag.splitter import TextSplitter
 # Skip the entire module on platforms where sqlite-vector isn't built
 def _extension_available() -> bool:
     import sqlite3
+
     if not hasattr(sqlite3.Connection, "enable_load_extension"):
         return False
     ext_path = Path(__file__).parent.parent / "src" / "cyllama" / "rag" / "vector"

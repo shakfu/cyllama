@@ -199,8 +199,5 @@ class TestHistoryRoundTrip:
         readline.read_history_file(str(histfile))
         assert readline.get_current_history_length() == 3
         # The most recent three entries should be the survivors
-        items = [
-            readline.get_history_item(i)
-            for i in range(1, readline.get_current_history_length() + 1)
-        ]
+        items = [readline.get_history_item(i) for i in range(1, readline.get_current_history_length() + 1)]
         assert items == ["entry 7", "entry 8", "entry 9"]

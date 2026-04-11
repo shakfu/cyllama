@@ -82,8 +82,7 @@ class TestVendoredJinja2:
 
         compiled = Environment().compile("[{{ x }}]", raw=True)
         assert "from cyllama._vendor.jinja2.runtime import " in compiled, (
-            f"compiled template imports from the wrong runtime module:\n"
-            f"{compiled.splitlines()[0]}"
+            f"compiled template imports from the wrong runtime module:\n{compiled.splitlines()[0]}"
         )
         assert "from jinja2.runtime import " not in compiled
 
@@ -99,12 +98,7 @@ class TestVendoredJinja2:
         from cyllama._vendor.jinja2 import Environment
 
         env = Environment(trim_blocks=True, lstrip_blocks=True)
-        tpl = env.from_string(
-            "{%- if not x is defined %}"
-            "{%- set x = 'default-value' %}"
-            "{%- endif %}"
-            "[{{ x }}]"
-        )
+        tpl = env.from_string("{%- if not x is defined %}{%- set x = 'default-value' %}{%- endif %}[{{ x }}]")
         assert tpl.render() == "[default-value]"
 
     def test_sandbox_environment_supports_loopcontrols(self):
@@ -121,9 +115,7 @@ class TestVendoredJinja2:
             extensions=[_ext.loopcontrols],
         )
         # `break` only works under loopcontrols
-        tpl = env.from_string(
-            "{%- for i in range(10) %}{{ i }}{%- if i == 2 %}{%- break %}{%- endif %}{%- endfor %}"
-        )
+        tpl = env.from_string("{%- for i in range(10) %}{{ i }}{%- if i == 2 %}{%- break %}{%- endif %}{%- endfor %}")
         assert tpl.render() == "012"
 
     def test_raise_exception_global_propagates_template_error(self):
@@ -200,9 +192,7 @@ class TestApplyJinjaTemplate:
         from cyllama.api import LLM
 
         llm = LLM(model_path, verbose=False)
-        prompt = llm._apply_jinja_template(
-            [{"role": "user", "content": "Just a user message."}]
-        )
+        prompt = llm._apply_jinja_template([{"role": "user", "content": "Just a user message."}])
         assert "Just a user message." in prompt
         assert "<|start_header_id|>user<|end_header_id|>" in prompt
 

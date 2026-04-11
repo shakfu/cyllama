@@ -250,10 +250,7 @@ class VectorStore:
         # this returns an empty dict and we fall through to writing
         # ours. On a reopen this returns the stored config and we
         # validate before writing anything.
-        stored = {
-            row[0]: row[1]
-            for row in self.conn.execute(f"SELECT key, value FROM {meta_table}")
-        }
+        stored = {row[0]: row[1] for row in self.conn.execute(f"SELECT key, value FROM {meta_table}")}
 
         if stored:
             self._verify_compatibility(stored)
@@ -524,8 +521,7 @@ class VectorStore:
         self._check_closed()
         sources_table = f"{self.table_name}_sources"
         cursor = self.conn.execute(
-            f"SELECT content_hash, source_label, chunk_count, indexed_at "
-            f"FROM {sources_table} ORDER BY indexed_at"
+            f"SELECT content_hash, source_label, chunk_count, indexed_at FROM {sources_table} ORDER BY indexed_at"
         )
         return [
             {

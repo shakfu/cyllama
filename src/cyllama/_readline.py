@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import atexit
 import os
-from typing import Optional
 
 
 def setup_history(

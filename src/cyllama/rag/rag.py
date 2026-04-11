@@ -344,7 +344,9 @@ class RAG:
                 # Use add() with empty lists -- the source row will
                 # be inserted with chunk_count=0.
                 self.store.add(
-                    [], [], None,
+                    [],
+                    [],
+                    None,
                     source_hash=file_hash,
                     source_label=label,
                 )

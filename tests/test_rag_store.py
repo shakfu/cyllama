@@ -449,7 +449,8 @@ class TestVectorStoreMetadataCompatibility:
         db_path = self._make_db(tmp_path, embedding_model_path="/fake/embedder-a.gguf")
         with pytest.raises(VectorStoreError, match="embedding model"):
             VectorStore(
-                dimension=4, db_path=db_path,
+                dimension=4,
+                db_path=db_path,
                 embedding_model_path="/fake/embedder-b.gguf",
             )
 
@@ -526,17 +527,21 @@ class TestVectorStoreMetadataCompatibility:
 
         # First init: writes metadata
         with VectorStore(
-            dimension=4, db_path=db_path,
+            dimension=4,
+            db_path=db_path,
             embedding_model_path="/fake/e.gguf",
-            chunk_size=512, chunk_overlap=50,
+            chunk_size=512,
+            chunk_overlap=50,
         ) as store:
             store.add([[1.0, 0.0, 0.0, 0.0]], ["one"])
 
         # Reopen 1: matches, adds another row
         with VectorStore(
-            dimension=4, db_path=db_path,
+            dimension=4,
+            db_path=db_path,
             embedding_model_path="/fake/e.gguf",
-            chunk_size=512, chunk_overlap=50,
+            chunk_size=512,
+            chunk_overlap=50,
         ) as store:
             assert len(store) == 1
             store.add([[0.0, 1.0, 0.0, 0.0]], ["two"])
@@ -544,9 +549,11 @@ class TestVectorStoreMetadataCompatibility:
         # Reopen 2: still matches (the metadata wasn't corrupted by
         # the second open)
         with VectorStore(
-            dimension=4, db_path=db_path,
+            dimension=4,
+            db_path=db_path,
             embedding_model_path="/fake/e.gguf",
-            chunk_size=512, chunk_overlap=50,
+            chunk_size=512,
+            chunk_overlap=50,
         ) as store:
             assert len(store) == 2
 
@@ -558,22 +565,17 @@ class TestVectorStoreMetadataCompatibility:
         db_path = str(tmp_path / "store.db")
 
         with VectorStore(dimension=4, db_path=db_path) as store:
-            cursor = store.conn.execute(
-                f"SELECT value FROM {store.table_name}_meta WHERE key='created_at'"
-            )
+            cursor = store.conn.execute(f"SELECT value FROM {store.table_name}_meta WHERE key='created_at'")
             row = cursor.fetchone()
             assert row is not None, "created_at should be written on first init"
             first_created = row[0]
 
         with VectorStore(dimension=4, db_path=db_path) as store:
-            cursor = store.conn.execute(
-                f"SELECT value FROM {store.table_name}_meta WHERE key='created_at'"
-            )
+            cursor = store.conn.execute(f"SELECT value FROM {store.table_name}_meta WHERE key='created_at'")
             second_created = cursor.fetchone()[0]
 
         assert first_created == second_created, (
-            f"created_at must not change on reopen "
-            f"(was {first_created!r}, became {second_created!r})"
+            f"created_at must not change on reopen (was {first_created!r}, became {second_created!r})"
         )
 
 
@@ -635,8 +637,10 @@ class TestVectorStoreSourceDedup:
         with VectorStore(dimension=3) as store:
             assert not store.is_source_indexed("hash1")
             store.add(
-                [[1.0, 0.0, 0.0]], ["x"],
-                source_hash="hash1", source_label="x.txt",
+                [[1.0, 0.0, 0.0]],
+                ["x"],
+                source_hash="hash1",
+                source_label="x.txt",
             )
             assert store.is_source_indexed("hash1")
             # Different hash still returns False
@@ -646,8 +650,10 @@ class TestVectorStoreSourceDedup:
         with VectorStore(dimension=3) as store:
             assert store.get_source_by_label("missing") is None
             store.add(
-                [[1.0, 0.0, 0.0]], ["x"],
-                source_hash="abc", source_label="present.txt",
+                [[1.0, 0.0, 0.0]],
+                ["x"],
+                source_hash="abc",
+                source_label="present.txt",
             )
             row = store.get_source_by_label("present.txt")
             assert row is not None
@@ -659,7 +665,8 @@ class TestVectorStoreSourceDedup:
         with VectorStore(dimension=3) as store:
             with pytest.raises(ValueError, match="source_label"):
                 store.add(
-                    [[1.0, 0.0, 0.0]], ["x"],
+                    [[1.0, 0.0, 0.0]],
+                    ["x"],
                     source_hash="abc",  # no source_label
                 )
 
@@ -671,8 +678,10 @@ class TestVectorStoreSourceDedup:
 
         with VectorStore(dimension=3, db_path=db_path) as store:
             store.add(
-                [[1.0, 0.0, 0.0]], ["chunk"],
-                source_hash="persistent_hash", source_label="persistent.txt",
+                [[1.0, 0.0, 0.0]],
+                ["chunk"],
+                source_hash="persistent_hash",
+                source_label="persistent.txt",
             )
 
         # Reopen and verify the source is still there
@@ -691,8 +700,10 @@ class TestVectorStoreSourceDedup:
         with VectorStore(dimension=3) as store:
             # First add succeeds
             store.add(
-                [[1.0, 0.0, 0.0]], ["original"],
-                source_hash="dup_hash", source_label="a.txt",
+                [[1.0, 0.0, 0.0]],
+                ["original"],
+                source_hash="dup_hash",
+                source_label="a.txt",
             )
             assert len(store) == 1
 
@@ -701,8 +712,10 @@ class TestVectorStoreSourceDedup:
             # should roll back the whole transaction (no new chunks).
             with pytest.raises(Exception):  # sqlite3.IntegrityError
                 store.add(
-                    [[0.0, 1.0, 0.0]], ["new"],
-                    source_hash="dup_hash", source_label="a.txt",
+                    [[0.0, 1.0, 0.0]],
+                    ["new"],
+                    source_hash="dup_hash",
+                    source_label="a.txt",
                 )
 
             # Verify atomicity: count is still 1, not 2.

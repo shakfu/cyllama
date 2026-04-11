@@ -548,10 +548,7 @@ Answer:"""
         # Append: some sources were new, some were already there
         # (or some were dedup-skipped on this run).
         previous = total_chunks - n_added
-        print(
-            f"{n_added} new chunks appended to {args.db} "
-            f"({previous} existing, {total_chunks} total){skipped_suffix}"
-        )
+        print(f"{n_added} new chunks appended to {args.db} ({previous} existing, {total_chunks} total){skipped_suffix}")
 
     if args.prompt:
         # Single query mode
