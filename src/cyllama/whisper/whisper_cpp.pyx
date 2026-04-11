@@ -331,8 +331,16 @@ cdef class WhisperTokenData:
 
 cdef class WhisperContext:
     cdef wh.whisper_context * _c_ctx
+    # `readonly` so external code (notably the concurrency-guard
+    # regression tests) can call `_busy_lock.acquire(blocking=False)` /
+    # `release()` to simulate "another thread is in flight" without
+    # needing to actually run a slow whisper_full pass on a worker
+    # thread. The lock is still set internally by __init__; readonly
+    # only blocks Python-level rebinding.
+    cdef readonly object _busy_lock
 
     def __init__(self, model_path, WhisperContextParams params=None):
+        import threading
         from cyllama._validation import validate_whisper_file
 
         if params is None:
@@ -353,6 +361,27 @@ cdef class WhisperContext:
                 "The file passed basic checks but whisper.cpp could not load it. "
                 "Possible causes: unsupported model format/version, corrupt file, "
                 "or insufficient memory."
+            )
+
+        # Concurrent-use guard for the underlying whisper.cpp context.
+        # whisper_context is not thread-safe and full() / encode()
+        # release the GIL during native calls, so two threads racing on
+        # the same context corrupt internal state. We use a non-blocking
+        # lock acquired around each guarded method: legitimate sequential
+        # ownership transfer (asyncio.to_thread, ThreadPoolExecutor) keeps
+        # working, but real concurrent use raises a clear RuntimeError.
+        # __dealloc__ is intentionally NOT guarded because gc may run it
+        # on any thread.
+        self._busy_lock = threading.Lock()
+
+    def _try_acquire_busy(self):
+        """Acquire the busy-lock or raise on contention."""
+        if not self._busy_lock.acquire(blocking=False):
+            raise RuntimeError(
+                "WhisperContext is currently being used by another thread. "
+                "whisper.cpp contexts are not thread-safe -- create one "
+                "WhisperContext per thread instead of sharing a single "
+                "instance across threads."
             )
 
     def __dealloc__(self):
@@ -504,7 +533,12 @@ cdef class WhisperContext:
     #         raise RuntimeError(f"PCM to mel conversion failed with error {result}")
 
     def encode(self, int offset=0, int n_threads=1):
-        cdef int result = wh.whisper_encode(self._c_ctx, offset, n_threads)
+        self._try_acquire_busy()
+        cdef int result = 0
+        try:
+            result = wh.whisper_encode(self._c_ctx, offset, n_threads)
+        finally:
+            self._busy_lock.release()
         if result != 0:
             raise RuntimeError(f"Encoding failed with error {result}")
 
@@ -512,18 +546,26 @@ cdef class WhisperContext:
         cdef const float * c_samples = NULL
         cdef int n_samples = 0
         cdef int result = 0
+        cdef float[::1] samples_view
+        cdef wh.whisper_context * ctx
+        cdef wh.whisper_full_params c_params
 
         if params is None:
             params = WhisperFullParams()
 
-        cdef float[::1] samples_view = samples
+        samples_view = samples
         c_samples = &samples_view[0]
         n_samples = len(samples)
 
-        cdef wh.whisper_context * ctx = self._c_ctx
-        cdef wh.whisper_full_params c_params = params._c_params
-        with nogil:
-            result = wh.whisper_full(ctx, c_params, c_samples, n_samples)
+        ctx = self._c_ctx
+        c_params = params._c_params
+
+        self._try_acquire_busy()
+        try:
+            with nogil:
+                result = wh.whisper_full(ctx, c_params, c_samples, n_samples)
+        finally:
+            self._busy_lock.release()
         if result != 0:
             raise RuntimeError(f"Whisper full processing failed with error {result}")
         return result

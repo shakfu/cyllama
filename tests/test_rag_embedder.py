@@ -373,6 +373,152 @@ class TestEmbedderCache:
         assert "cache_size" not in repr_str
 
 
+class TestEmbedderConcurrencyGuard:
+    """Tests for the concurrent-use guard on Embedder instances.
+
+    Embedder holds a llama.cpp context which is not thread-safe under
+    concurrent native calls. The guard catches actual contention via a
+    non-blocking lock around each native-touching public method
+    (`embed`, `embed_with_info`). Sequential ownership transfer between
+    threads (asyncio.to_thread, ThreadPoolExecutor with one-call-per-
+    worker) is deliberately allowed because it is safe.
+
+    Mirrors TestLLMConcurrencyGuard / TestSDContextConcurrencyGuard /
+    TestWhisperContextConcurrencyGuard. See docs/dev/runtime-guard.md
+    for the design rationale.
+    """
+
+    def test_concurrent_embed_from_other_thread_raises(self, embedder: Embedder):
+        """A worker thread calling embed() while the busy-lock is
+        already held must raise RuntimeError without entering native
+        code."""
+        import threading
+
+        # Simulate "thread A is currently inside embed()" by holding the
+        # busy lock from the test thread.
+        assert embedder._busy_lock.acquire(blocking=False) is True
+        try:
+            errors: list[Exception] = []
+
+            def worker():
+                try:
+                    embedder.embed("hello")
+                except RuntimeError as e:
+                    errors.append(e)
+
+            t = threading.Thread(target=worker)
+            t.start()
+            t.join(timeout=10)
+
+            assert not t.is_alive(), "worker did not return — guard may be missing"
+            assert len(errors) == 1, f"Expected concurrent embed() to raise, got: {errors}"
+            msg = str(errors[0])
+            assert "another thread" in msg
+            assert "not thread-safe" in msg
+        finally:
+            embedder._busy_lock.release()
+
+    def test_concurrent_embed_with_info_from_other_thread_raises(self, embedder: Embedder):
+        """Same as above but exercises the embed_with_info() entry point."""
+        import threading
+
+        assert embedder._busy_lock.acquire(blocking=False) is True
+        try:
+            errors: list[Exception] = []
+
+            def worker():
+                try:
+                    embedder.embed_with_info("hello")
+                except RuntimeError as e:
+                    errors.append(e)
+
+            t = threading.Thread(target=worker)
+            t.start()
+            t.join(timeout=10)
+
+            assert not t.is_alive(), "worker did not return — guard may be missing"
+            assert len(errors) == 1
+            assert "another thread" in str(errors[0])
+        finally:
+            embedder._busy_lock.release()
+
+    def test_concurrent_embed_batch_from_other_thread_raises(self, embedder: Embedder):
+        """embed_batch() does not acquire its own lock but delegates to
+        embed(), which does. The first delegated call hits the guard."""
+        import threading
+
+        assert embedder._busy_lock.acquire(blocking=False) is True
+        try:
+            errors: list[Exception] = []
+
+            def worker():
+                try:
+                    embedder.embed_batch(["one", "two", "three"])
+                except RuntimeError as e:
+                    errors.append(e)
+
+            t = threading.Thread(target=worker)
+            t.start()
+            t.join(timeout=10)
+
+            assert not t.is_alive(), "worker did not return — guard may be missing"
+            assert len(errors) == 1
+            assert "another thread" in str(errors[0])
+        finally:
+            embedder._busy_lock.release()
+
+    def test_sequential_cross_thread_use_works(self, embedder: Embedder):
+        """asyncio.to_thread / executor pattern: Embedder created on
+        main thread, used on a worker thread, no concurrent access —
+        must work. This is the legitimate sequential-handoff pattern."""
+        import threading
+
+        result_holder: list = [None]
+        errors: list[Exception] = []
+
+        def worker():
+            try:
+                result_holder[0] = embedder.embed("hello")
+            except Exception as e:
+                errors.append(e)
+
+        t = threading.Thread(target=worker)
+        t.start()
+        t.join()
+
+        assert errors == [], f"Sequential cross-thread call should succeed: {errors}"
+        assert result_holder[0] is not None
+        assert len(result_holder[0]) == embedder.dimension
+
+    def test_lock_released_after_exception(self, model_path: str):
+        """If embed() raises mid-call (e.g. on bogus input), the busy
+        lock must still be released so subsequent calls succeed."""
+        emb = Embedder(model_path, n_gpu_layers=0)
+        try:
+            # Force an exception inside embed() by passing a non-string.
+            # This will raise inside the native call path, but the lock
+            # release must still fire via the finally clause.
+            with pytest.raises((TypeError, AttributeError)):
+                emb.embed(None)  # type: ignore[arg-type]
+
+            # Subsequent call must succeed (lock was released).
+            result = emb.embed("hello")
+            assert isinstance(result, list)
+            assert len(result) == emb.dimension
+        finally:
+            emb.close()
+
+    def test_lock_release_allows_subsequent_acquire(self, embedder: Embedder):
+        """Sanity check on the lock semantics: after releasing manually,
+        the next acquire succeeds."""
+        assert embedder._busy_lock.acquire(blocking=False) is True
+        embedder._busy_lock.release()
+
+        # _try_acquire_busy() should now succeed; release after.
+        embedder._try_acquire_busy()
+        embedder._busy_lock.release()
+
+
 class TestLRUCacheMemoryAware:
     """Unit tests for memory-aware _LRUCache (no model required)."""
 

@@ -42,6 +42,7 @@ Async Example:
 
 import asyncio
 import hashlib
+import threading
 from collections import OrderedDict
 from typing import (
     AsyncIterator,
@@ -515,6 +516,23 @@ class LLM:
         self.verbose = verbose
         self._closed = False
 
+        # Concurrent-use guard for the underlying llama.cpp context.
+        # llama_context is not thread-safe and we release the GIL during
+        # native generation calls, so two Python threads sharing one LLM
+        # can race inside C++ code and corrupt KV cache, sampler, or
+        # batch state. We protect every native-touching public method
+        # with a non-blocking acquire of this lock: a second concurrent
+        # caller fails fast with a clear RuntimeError instead of silently
+        # corrupting state.
+        #
+        # This is intentionally a contention check, NOT a thread-id
+        # check: legitimate sequential ownership transfer between threads
+        # (e.g. asyncio.to_thread, ThreadPoolExecutor.submit) must keep
+        # working, since there is no concurrent access in those patterns.
+        # close()/__del__ are intentionally NOT guarded because the
+        # garbage collector may run them on any thread.
+        self._busy_lock = threading.Lock()
+
         # Initialize response cache
         self._cache: Optional[_ResponseLRUCache] = None
         if cache_size > 0:
@@ -625,6 +643,39 @@ class LLM:
 
         self._closed = True
 
+    def _try_acquire_busy(self) -> None:
+        """Acquire the busy-lock or raise on contention.
+
+        Non-blocking: if another thread is currently inside a guarded
+        method, we raise immediately rather than serialize behind it.
+        Serializing would hide the bug; raising lets the caller see that
+        their concurrent-use pattern is unsafe and fix it.
+        """
+        if not self._busy_lock.acquire(blocking=False):
+            raise RuntimeError(
+                "LLM is currently being used by another thread. llama.cpp "
+                "contexts are not thread-safe — create one LLM per thread "
+                "instead of sharing a single instance across threads."
+            )
+
+    def _stream_with_busy_release(self, gen):
+        """Wrap a streaming generator so the busy lock is released when
+        the stream is exhausted, closed, or garbage collected.
+
+        Generator ``finally`` blocks run on every termination path
+        (StopIteration, exception, .close(), gc), so the lock is
+        guaranteed to be released even if the caller drops the iterator
+        without consuming it.
+        """
+        try:
+            yield from gen
+        finally:
+            try:
+                self._busy_lock.release()
+            except RuntimeError:
+                # Lock already released — defensive, should not happen.
+                pass
+
     def reset_context(self):
         """
         Force recreation of context on next generation.
@@ -633,11 +684,15 @@ class LLM:
         Useful when you want to start a completely new conversation without
         any prior context.
         """
-        if self._ctx is not None:
-            if self.verbose:
-                print("Resetting context")
-            self._ctx = None
-            self._ctx_size = 0
+        self._try_acquire_busy()
+        try:
+            if self._ctx is not None:
+                if self.verbose:
+                    print("Resetting context")
+                self._ctx = None
+                self._ctx_size = 0
+        finally:
+            self._busy_lock.release()
 
     @property
     def cache_enabled(self) -> bool:
@@ -792,10 +847,17 @@ class LLM:
             Response object (if stream=False) or iterator of text chunks (if stream=True).
             The Response object can be used as a string due to __str__ implementation.
         """
+        self._try_acquire_busy()
         if stream:
-            return self._generate_stream(prompt, config, on_token)
-        else:
+            # The wrapper releases the lock when the generator is
+            # exhausted, closed, or garbage collected. Returning the
+            # wrapper unconditionally (no try/finally here) hands lock
+            # ownership to the generator.
+            return self._stream_with_busy_release(self._generate_stream(prompt, config, on_token))
+        try:
             return self._generate(prompt, config, on_token)
+        finally:
+            self._busy_lock.release()
 
     def _generate(
         self, prompt: str, config: Optional[GenerationConfig] = None, on_token: Optional[Callable[[str], None]] = None
@@ -994,7 +1056,11 @@ class LLM:
         Returns:
             Response object with text and statistics
         """
-        return self._generate(prompt, config)
+        self._try_acquire_busy()
+        try:
+            return self._generate(prompt, config)
+        finally:
+            self._busy_lock.release()
 
     def chat(
         self,
@@ -1025,6 +1091,9 @@ class LLM:
             >>> print(response)  # Works like a string
             >>> print(response.stats.tokens_per_second)  # Access stats
         """
+        # No busy-lock acquire here: chat() is a thin wrapper that
+        # delegates to __call__, which holds the lock. Acquiring twice
+        # would deadlock since the lock is non-reentrant.
         prompt = self._apply_template(messages, template)
         return self(prompt, config=config, stream=stream)
 
@@ -1086,21 +1155,19 @@ class LLM:
                 # caller; the legacy path is well-understood.
                 pass
 
-        # Get template - use provided or model's default
+        # Get template - use provided or model's default. The provided
+        # `template` argument can be (a) a Jinja template string, (b) the
+        # GGUF metadata key under which a named template is stored, or
+        # (c) one of llama.cpp's built-in aliases (chatml, llama3, gemma,
+        # mistral, ...). Cases (a) and (c) are both handled directly by
+        # llama_chat_apply_template, so we resolve case (b) first via the
+        # metadata lookup and otherwise hand the string off as-is. We do
+        # NOT pre-emptively warn about unrecognised names: the metadata
+        # lookup and the built-in alias table are two different sources
+        # of truth, and asking only the metadata lookup would
+        # false-positive on every legitimate built-in alias.
         if template:
-            tmpl = self.model.get_default_chat_template_by_name(template)
-            if not tmpl:
-                # Distinguish named template lookups from raw Jinja strings:
-                # short alphanumeric names (e.g. "chatml", "llama3") are likely
-                # intended as built-in template names, not raw Jinja.
-                if template.isidentifier():
-                    import warnings
-
-                    warnings.warn(
-                        f"Chat template name {template!r} not found in model; treating as raw Jinja template string",
-                        stacklevel=2,
-                    )
-                tmpl = template
+            tmpl = self.model.get_default_chat_template_by_name(template) or template
         else:
             tmpl = self.model.get_default_chat_template()
 

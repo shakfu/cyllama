@@ -519,3 +519,98 @@ def test_whisper_language_setter_fixed():
     # 1. Added _language_bytes member to keep bytes object alive
     # 2. Fixed None handling by checking value before encoding
     # 3. Use proper const char* casting from bytes object
+
+
+class TestWhisperContextConcurrencyGuard:
+    """Tests for the concurrent-use guard on WhisperContext.
+
+    whisper_context is not thread-safe under concurrent native calls.
+    The guard catches actual contention via a non-blocking lock
+    acquired around `encode()` and `full()`. A second concurrent
+    caller hits the guard and raises a clear RuntimeError before any
+    native code runs.
+
+    The test pattern matches TestSDContextConcurrencyGuard and
+    TestLLMConcurrencyGuard: hold the busy-lock from the test thread
+    to simulate "another thread is currently inside encode()/full()",
+    then invoke the real public method on a worker thread and assert
+    it raises RuntimeError. The worker never reaches native code
+    because `_try_acquire_busy()` rejects it first.
+    """
+
+    def test_concurrent_encode_raises(self, whisper_model_path):
+        """A worker thread calling encode() while the busy-lock is
+        already held must raise RuntimeError without entering native
+        code."""
+        import threading
+
+        ctx = wh.WhisperContext(whisper_model_path)
+
+        assert ctx._busy_lock.acquire(blocking=False) is True
+        try:
+            errors: list[Exception] = []
+
+            def worker():
+                try:
+                    ctx.encode(offset=0, n_threads=1)
+                except RuntimeError as e:
+                    errors.append(e)
+
+            t = threading.Thread(target=worker)
+            t.start()
+            t.join(timeout=10)
+
+            assert not t.is_alive(), "worker did not return — guard may be missing"
+            assert len(errors) == 1, f"Expected concurrent encode() to raise, got: {errors}"
+            msg = str(errors[0])
+            assert "another thread" in msg
+            assert "not thread-safe" in msg
+        finally:
+            ctx._busy_lock.release()
+
+    def test_concurrent_full_raises(self, whisper_model_path):
+        """A worker thread calling full() while the busy-lock is
+        already held must raise RuntimeError without entering native
+        code. Uses a tiny synthetic samples buffer because the worker
+        never actually processes it."""
+        import threading
+
+        ctx = wh.WhisperContext(whisper_model_path)
+        # 1 second of silence at 16kHz; the buffer is never consumed
+        # because the worker raises before reaching whisper_full.
+        samples = np.zeros(wh.WHISPER.SAMPLE_RATE, dtype=np.float32)
+
+        assert ctx._busy_lock.acquire(blocking=False) is True
+        try:
+            errors: list[Exception] = []
+
+            def worker():
+                try:
+                    ctx.full(samples)
+                except RuntimeError as e:
+                    errors.append(e)
+
+            t = threading.Thread(target=worker)
+            t.start()
+            t.join(timeout=10)
+
+            assert not t.is_alive(), "worker did not return — guard may be missing"
+            assert len(errors) == 1, f"Expected concurrent full() to raise, got: {errors}"
+            msg = str(errors[0])
+            assert "another thread" in msg
+            assert "not thread-safe" in msg
+        finally:
+            ctx._busy_lock.release()
+
+    def test_lock_release_allows_subsequent_acquire(self, whisper_model_path):
+        """Sanity check: after releasing the busy-lock,
+        `_try_acquire_busy()` succeeds again so a normal call would
+        proceed."""
+        ctx = wh.WhisperContext(whisper_model_path)
+
+        assert ctx._busy_lock.acquire(blocking=False) is True
+        ctx._busy_lock.release()
+
+        # Should not raise
+        ctx._try_acquire_busy()
+        ctx._busy_lock.release()

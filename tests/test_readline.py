@@ -185,14 +185,26 @@ class TestHistoryRoundTrip:
     def test_max_entries_truncates_on_save(self, tmp_path):
         """Adding more entries than max_entries should drop the oldest
         when the file is written, so the history file doesn't grow
-        unbounded across many sessions."""
+        unbounded across many sessions.
+
+        The test routes through ``save_history`` rather than calling
+        ``readline.write_history_file`` directly, because that's the
+        production save path (the atexit handler set up by
+        ``setup_history`` calls ``save_history``) and on libedit-backed
+        Pythons it transparently restores the ``_HiStOrY_V2_`` magic
+        header that libedit's writer drops whenever truncation kicks in.
+        Without that workaround, the file libedit wrote would be
+        unreadable to libedit's own ``read_history_file``.
+        """
+        from cyllama._readline import save_history
+
         histfile = tmp_path / "history"
 
         readline.clear_history()
         setup_history(str(histfile), max_entries=3)
         for i in range(10):
             readline.add_history(f"entry {i}")
-        readline.write_history_file(str(histfile))
+        assert save_history(str(histfile)) is True
 
         # Re-read into a clean slate and verify only the last 3 survived
         readline.clear_history()

@@ -465,6 +465,157 @@ class TestThreadSafety:
         assert cleanup_count[0] == 3  # All cleaned up
 
 
+class TestLLMConcurrencyGuard:
+    """Tests for the concurrent-use guard on LLM instances.
+
+    LLM holds a llama.cpp context which is not thread-safe under
+    concurrent native calls. The guard catches actual contention (two
+    threads trying to call into the LLM at the same moment) by acquiring
+    a non-blocking lock around each guarded method. Sequential ownership
+    transfer between threads (asyncio.to_thread, ThreadPoolExecutor) is
+    deliberately allowed because it is safe.
+    """
+
+    @pytest.fixture(scope="class")
+    def model_path(self):
+        return DEFAULT_MODEL
+
+    def test_concurrent_calls_from_two_threads_raises(self, model_path):
+        """Two threads racing on the same LLM: the second one raises.
+
+        Uses an on_token callback in thread A to pause inside the call,
+        giving thread B a chance to attempt a concurrent call. Thread B
+        should hit the busy-lock and raise a clear RuntimeError.
+        """
+        from cyllama import LLM, GenerationConfig
+
+        llm = LLM(model_path, verbose=False)
+        try:
+            in_call = threading.Event()
+            proceed = threading.Event()
+            errors_b: list[Exception] = []
+
+            def on_token(_t):
+                in_call.set()
+                # Hold the lock open just long enough for thread B to race.
+                proceed.wait(timeout=10)
+
+            def thread_a():
+                try:
+                    llm(
+                        "hello",
+                        config=GenerationConfig(max_tokens=10, temperature=0.0),
+                        on_token=on_token,
+                    )
+                except Exception:
+                    pass
+
+            def thread_b():
+                in_call.wait(timeout=10)
+                try:
+                    llm("world", config=GenerationConfig(max_tokens=3, temperature=0.0))
+                except RuntimeError as e:
+                    errors_b.append(e)
+                finally:
+                    proceed.set()
+
+            ta = threading.Thread(target=thread_a)
+            tb = threading.Thread(target=thread_b)
+            ta.start()
+            tb.start()
+            tb.join(timeout=20)
+            ta.join(timeout=20)
+
+            assert len(errors_b) == 1, f"Expected concurrent call to raise, got: {errors_b}"
+            msg = str(errors_b[0])
+            assert "another thread" in msg
+            assert "not thread-safe" in msg
+        finally:
+            llm.close()
+
+    def test_sequential_cross_thread_use_works(self, model_path):
+        """asyncio.to_thread / executor pattern: LLM created on main,
+        used on a worker thread, no concurrent access — must work.
+
+        This is the legitimate pattern AsyncReActAgent uses, and an
+        earlier thread-id-matching guard wrongly broke it.
+        """
+        from cyllama import LLM, GenerationConfig
+
+        llm = LLM(model_path, verbose=False)
+        try:
+            result_holder: list = [None]
+            errors: list[Exception] = []
+
+            def worker():
+                try:
+                    result_holder[0] = llm("hi", config=GenerationConfig(max_tokens=3, temperature=0.0))
+                except Exception as e:
+                    errors.append(e)
+
+            t = threading.Thread(target=worker)
+            t.start()
+            t.join()
+
+            assert errors == [], f"Sequential cross-thread call should succeed: {errors}"
+            assert result_holder[0] is not None
+        finally:
+            llm.close()
+
+    def test_lock_released_after_exception(self, model_path):
+        """If a guarded call raises, the lock must still be released
+        so subsequent calls succeed."""
+        from cyllama import LLM, GenerationConfig
+
+        llm = LLM(model_path, verbose=False)
+        try:
+            # Force an exception inside the call by passing an invalid
+            # max_tokens value via on_token raising.
+            def bad_callback(_t):
+                raise ValueError("intentional test failure")
+
+            with pytest.raises(ValueError, match="intentional test failure"):
+                llm(
+                    "hi",
+                    config=GenerationConfig(max_tokens=10, temperature=0.0),
+                    on_token=bad_callback,
+                )
+
+            # Subsequent call must succeed (lock was released in finally).
+            response = llm("hi", config=GenerationConfig(max_tokens=3, temperature=0.0))
+            assert isinstance(response, (str, Response))
+        finally:
+            llm.close()
+
+    def test_same_thread_works(self, model_path):
+        """Sanity check: the guard does not break single-threaded use."""
+        from cyllama import LLM, GenerationConfig
+
+        with LLM(model_path, verbose=False) as llm:
+            response = llm("hi", config=GenerationConfig(max_tokens=3, temperature=0.0))
+            assert isinstance(response, (str, Response))
+
+    def test_close_from_other_thread_allowed(self, model_path):
+        """close() must NOT be guarded — gc / __del__ may run on any thread."""
+        from cyllama import LLM
+
+        llm = LLM(model_path, verbose=False)
+
+        errors: list[Exception] = []
+
+        def closer():
+            try:
+                llm.close()
+            except Exception as e:
+                errors.append(e)
+
+        t = threading.Thread(target=closer)
+        t.start()
+        t.join()
+
+        assert errors == [], f"close() should be callable from any thread, got: {errors}"
+
+
 class TestMemoryPoolThreadSafety:
     """Tests for memory pool thread safety."""
 

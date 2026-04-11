@@ -2,7 +2,7 @@
 
 ## High Priority
 
-- [ ] Thread safety audit (concurrent-access stress tests for shared C++ objects after GIL release)
+(no high-priority items currently open)
 
 ## Medium Priority
 
@@ -49,4 +49,5 @@
 - [x] Enhanced error context (ActionParseError, VectorStoreError, LoaderError with context dicts)
 - [x] Auto-quantization after bulk inserts (VectorStore.quantize())
 - [x] Reranking support (Reranker class in rag/advanced.py)
+- [x] Concurrent-use runtime guard on `LLM` / `Embedder` / `WhisperContext` / `SDContext` — non-blocking `threading.Lock` around every native-touching public method, raises `RuntimeError` on actual two-thread contention while allowing sequential cross-thread handoff (asyncio.to_thread, ThreadPoolExecutor). 17 regression tests across `TestLLMConcurrencyGuard` (5), `TestEmbedderConcurrencyGuard` (6), `TestSDContextConcurrencyGuard` (3), `TestWhisperContextConcurrencyGuard` (3), all passing end-to-end with the standard project model fixtures. Maintainer rationale in `docs/dev/runtime-guard.md`; user-facing companion in `docs/threading.md`
 

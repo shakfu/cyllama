@@ -1829,14 +1829,41 @@ cdef class SDContext:
     """
     cdef sd_ctx_t* _ctx
     cdef SDContextParams _params
+    # `readonly` so external code (notably the concurrency-guard
+    # regression tests) can call `_busy_lock.acquire(blocking=False)` /
+    # `release()` to simulate "another thread is in flight" without
+    # needing to actually run a slow native sampling pass on a worker
+    # thread. The lock is still set internally by __init__; readonly
+    # only blocks Python-level rebinding (`ctx._busy_lock = ...`).
+    cdef readonly object _busy_lock
 
     def __cinit__(self):
         self._ctx = NULL
+        self._busy_lock = None
 
     def __dealloc__(self):
         if self._ctx != NULL:
             free_sd_ctx(self._ctx)
             self._ctx = NULL
+
+    def _try_acquire_busy(self):
+        """Acquire the busy-lock or raise on contention.
+
+        sd_ctx_t is not thread-safe and generate() / generate_video() /
+        generate_with_params() release the GIL during native sampling.
+        Two threads racing on the same context corrupt internal state.
+        Non-blocking: legitimate sequential ownership transfer between
+        threads (asyncio.to_thread, ThreadPoolExecutor) keeps working,
+        but real concurrent use raises a clear RuntimeError. __dealloc__
+        is NOT guarded because gc may run it on any thread.
+        """
+        if not self._busy_lock.acquire(blocking=False):
+            raise RuntimeError(
+                "SDContext is currently being used by another thread. "
+                "stable-diffusion.cpp contexts are not thread-safe -- "
+                "create one SDContext per thread instead of sharing a "
+                "single instance across threads."
+            )
 
     def __init__(self, params: SDContextParams):
         """
@@ -1884,6 +1911,10 @@ cdef class SDContext:
                 "version, mismatched companion files (VAE/CLIP/T5), insufficient memory, "
                 "or invalid weight type. Check stderr for details from stable-diffusion.cpp."
             )
+
+        # Initialize the concurrent-use guard. See _try_acquire_busy().
+        import threading
+        self._busy_lock = threading.Lock()
 
     @property
     def is_valid(self) -> bool:
@@ -2023,7 +2054,12 @@ cdef class SDContext:
         # Ensure sample params are synced
         params._params.sample_params = params._sample_params._params
 
-        cdef sd_image_t* result = generate_image(self._ctx, &params._params)
+        cdef sd_image_t* result
+        self._try_acquire_busy()
+        try:
+            result = generate_image(self._ctx, &params._params)
+        finally:
+            self._busy_lock.release()
         if result == NULL:
             raise RuntimeError("Image generation failed")
 
@@ -2148,7 +2184,12 @@ cdef class SDContext:
 
         # Generate video
         cdef int num_frames_out = 0
-        cdef sd_image_t* result = generate_video(self._ctx, &vid_params, &num_frames_out)
+        cdef sd_image_t* result
+        self._try_acquire_busy()
+        try:
+            result = generate_video(self._ctx, &vid_params, &num_frames_out)
+        finally:
+            self._busy_lock.release()
 
         if result == NULL:
             raise RuntimeError("Video generation failed")

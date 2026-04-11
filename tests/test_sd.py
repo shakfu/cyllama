@@ -544,6 +544,125 @@ class TestSDContextIntegration:
         assert np.array_equal(arr1, arr2)
 
 
+@pytest.mark.skipif(not os.path.exists(MODEL_PATH), reason=f"Model not found at {MODEL_PATH}")
+class TestSDContextConcurrencyGuard:
+    """Tests for the concurrent-use guard on SDContext.
+
+    sd_ctx_t is not thread-safe under concurrent native calls. The
+    guard catches actual contention via a non-blocking lock acquired
+    around each native-touching public method (`generate`,
+    `generate_with_params`, `generate_video`). A second concurrent
+    caller hits the guard and raises a clear RuntimeError before any
+    native code runs — so the test is safe even though
+    multi-generation on the same context is a known segfault
+    (TestSDContextIntegration::test_deterministic_seed is
+    skipped for that reason).
+
+    The test pattern: hold the busy-lock from the test thread to
+    simulate "another thread is currently inside generate()", then
+    invoke the real public method on a worker thread and assert it
+    raises RuntimeError. The worker never reaches native code because
+    `_try_acquire_busy()` rejects it first.
+    """
+
+    def _make_ctx(self) -> SDContext:
+        params = SDContextParams()
+        params.model_path = MODEL_PATH
+        params.n_threads = 4
+        return SDContext(params)
+
+    def test_concurrent_generate_raises(self):
+        """A worker thread calling generate() while the busy-lock is
+        already held must raise RuntimeError without entering native
+        code."""
+        import threading
+
+        ctx = self._make_ctx()
+        # Simulate "thread A is currently inside generate()" by holding
+        # the lock from the test thread.
+        assert ctx._busy_lock.acquire(blocking=False) is True
+        try:
+            errors: list[Exception] = []
+
+            def worker():
+                try:
+                    ctx.generate(
+                        prompt="x",
+                        width=64,
+                        height=64,
+                        seed=0,
+                        sample_steps=1,
+                        cfg_scale=1.0,
+                    )
+                except RuntimeError as e:
+                    errors.append(e)
+
+            t = threading.Thread(target=worker)
+            t.start()
+            t.join(timeout=10)
+
+            assert not t.is_alive(), "worker did not return — guard may be missing"
+            assert len(errors) == 1, f"Expected concurrent generate() to raise, got: {errors}"
+            msg = str(errors[0])
+            assert "another thread" in msg
+            assert "not thread-safe" in msg
+        finally:
+            ctx._busy_lock.release()
+
+    def test_concurrent_generate_with_params_raises(self):
+        """Same as above but exercises the lower-level
+        generate_with_params() entry point directly."""
+        import threading
+
+        ctx = self._make_ctx()
+        gen_params = SDImageGenParams(
+            prompt="x",
+            negative_prompt="",
+            width=64,
+            height=64,
+            seed=0,
+            batch_count=1,
+            sample_steps=1,
+            cfg_scale=1.0,
+            sample_method=ctx.get_default_sample_method(),
+            scheduler=ctx.get_default_scheduler(),
+        )
+
+        assert ctx._busy_lock.acquire(blocking=False) is True
+        try:
+            errors: list[Exception] = []
+
+            def worker():
+                try:
+                    ctx.generate_with_params(gen_params)
+                except RuntimeError as e:
+                    errors.append(e)
+
+            t = threading.Thread(target=worker)
+            t.start()
+            t.join(timeout=10)
+
+            assert not t.is_alive(), "worker did not return — guard may be missing"
+            assert len(errors) == 1, f"Expected concurrent generate_with_params() to raise, got: {errors}"
+            assert "another thread" in str(errors[0])
+        finally:
+            ctx._busy_lock.release()
+
+    def test_lock_release_allows_subsequent_acquire(self):
+        """Sanity check: after releasing the busy-lock,
+        `_try_acquire_busy()` succeeds again so a normal call would
+        proceed. We don't actually call generate() to avoid the
+        unrelated multi-generation segfault."""
+        ctx = self._make_ctx()
+
+        assert ctx._busy_lock.acquire(blocking=False) is True
+        ctx._busy_lock.release()
+
+        # Should not raise
+        ctx._try_acquire_busy()
+        ctx._busy_lock.release()
+
+
 class TestSDImageExtended:
     """Extended SDImage tests."""
 

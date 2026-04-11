@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import threading
 from collections import OrderedDict
 from enum import IntEnum
 from typing import Iterator, NamedTuple
@@ -214,6 +215,18 @@ class Embedder:
         if cache_size > 0:
             self._cache = _LRUCache(cache_size, max_memory_bytes=cache_max_memory_bytes)
 
+        # Concurrent-use guard for the underlying llama.cpp context.
+        # Mirrors the LLM guard (see src/cyllama/api.py and
+        # docs/dev/runtime-guard.md): llama_context is not thread-safe
+        # and the embedding code path releases the GIL inside _ctx.decode()
+        # just like generation does, so two threads sharing one Embedder
+        # can race inside C++ code and corrupt KV cache or embedder
+        # state. The lock is acquired non-blockingly around each native-
+        # touching public method; legitimate sequential ownership transfer
+        # between threads (asyncio.to_thread, ThreadPoolExecutor) keeps
+        # working since the guard catches contention, not thread identity.
+        self._busy_lock = threading.Lock()
+
     @property
     def dimension(self) -> int:
         """Return embedding dimension (n_embd)."""
@@ -266,6 +279,21 @@ class Embedder:
         if self._cache is not None:
             self._cache.clear()
 
+    def _try_acquire_busy(self) -> None:
+        """Acquire the busy-lock or raise on contention.
+
+        Non-blocking: if another thread is currently inside a guarded
+        method, we raise immediately rather than serialize behind it.
+        Mirrors the LLM/WhisperContext/SDContext pattern. See
+        ``docs/dev/runtime-guard.md`` for the rationale.
+        """
+        if not self._busy_lock.acquire(blocking=False):
+            raise RuntimeError(
+                "Embedder is currently being used by another thread. llama.cpp "
+                "contexts are not thread-safe — create one Embedder per thread "
+                "instead of sharing a single instance across threads."
+            )
+
     def embed(self, text: str) -> list[float]:
         """Embed a single text string.
 
@@ -278,20 +306,29 @@ class Embedder:
         Returns:
             Embedding vector as a list of floats
         """
-        # Check cache first if enabled
-        if self._cache is not None:
-            cached = self._cache.get(text)
-            if cached is not None:
-                return list(cached)
+        self._try_acquire_busy()
+        try:
+            # Check cache first if enabled. We check inside the busy lock
+            # for the same reason LLM does: a cache hit during another
+            # thread's in-flight call should still raise rather than
+            # silently smuggling a result through. The user's contract
+            # is "one in-flight call per Embedder instance" regardless of
+            # whether that call hits cache or native code.
+            if self._cache is not None:
+                cached = self._cache.get(text)
+                if cached is not None:
+                    return list(cached)
 
-        # Compute embedding
-        result = self._embed_single(text)
+            # Compute embedding
+            result = self._embed_single(text)
 
-        # Store in cache if enabled
-        if self._cache is not None:
-            self._cache.put(text, tuple(result.embedding))
+            # Store in cache if enabled
+            if self._cache is not None:
+                self._cache.put(text, tuple(result.embedding))
 
-        return result.embedding
+            return result.embedding
+        finally:
+            self._busy_lock.release()
 
     def embed_with_info(self, text: str) -> EmbeddingResult:
         """Embed a single text string and return detailed result.
@@ -302,7 +339,11 @@ class Embedder:
         Returns:
             EmbeddingResult with embedding, text, and token count
         """
-        return self._embed_single(text)
+        self._try_acquire_busy()
+        try:
+            return self._embed_single(text)
+        finally:
+            self._busy_lock.release()
 
     def embed_batch(self, texts: list[str]) -> list[list[float]]:
         """Embed multiple texts efficiently.
@@ -313,6 +354,13 @@ class Embedder:
         Returns:
             List of embedding vectors
         """
+        # No busy-lock acquire here: embed_batch is a thin wrapper that
+        # delegates to embed(), which holds the lock per item. Acquiring
+        # twice would deadlock since the lock is non-reentrant. Note that
+        # this means a parallel embed_batch from another thread will see
+        # interleaved per-item locking, not exclusive batch ownership —
+        # which is correct (each embed() call is self-contained) and
+        # mirrors how LLM.chat() delegates to LLM.__call__.
         return [self.embed(text) for text in texts]
 
     def embed_documents(
@@ -329,6 +377,7 @@ class Embedder:
         Returns:
             List of embedding vectors
         """
+        # No busy-lock acquire here — delegates to embed() per document.
         embeddings = []
         total = len(documents)
         for i, doc in enumerate(documents):
@@ -349,6 +398,7 @@ class Embedder:
         Yields:
             Embedding vectors one at a time
         """
+        # No busy-lock acquire here — delegates to embed() per text.
         for text in texts:
             yield self.embed(text)
 
