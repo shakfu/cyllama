@@ -210,10 +210,64 @@ cyllama rag -m models/llama.gguf -e models/bge-small.gguf \
 | `-ngl, --n-gpu-layers` | GPU layers to offload | 99 |
 | `--stream` | Stream output tokens | off |
 | `--sources` | Show source chunks with similarity scores | off |
+| `--db PATH` | Persist the vector index to a SQLite file (see below) | (in-memory) |
+| `--rebuild` | Delete the `--db` file and re-index from `-f`/`-d` | off |
+| `--no-chat-template` | Use raw-completion prompting instead of the model's chat template | off (chat template on) |
+| `--show-think` | Keep `<think>...</think>` reasoning blocks in the output | off (stripped) |
+| `--repetition-threshold N` | Stop generation after the same n-gram repeats N times. `0` disables. | 2 |
+| `--repetition-ngram N` | Word-level n-gram length for repetition detection | 5 |
+| `--repetition-window N` | Rolling word-window size for repetition detection | 300 |
 
-At least one document source (`-f` or `-d`) is required.
+At least one document source (`-f` or `-d`) is required on the first run. With `--db PATH`, subsequent runs may omit `-f`/`-d` to query the existing index.
 
 In interactive mode, type your questions at the `>` prompt. Press Ctrl+C or EOF to exit.
+
+### Persistent Vector Store (CLI)
+
+By default `cyllama rag` builds the index in memory and rebuilds it on every invocation. With `--db PATH`, the index is persisted to a SQLite file and reused on subsequent runs, so the corpus is embedded only once:
+
+```bash
+# First run: index the corpus and persist it
+cyllama rag -m models/llama.gguf -e models/bge-small.gguf \
+    --db rag.db -f corpus.txt -p "What is in the corpus?"
+
+# Subsequent runs: reuse the persisted index without re-embedding
+cyllama rag -m models/llama.gguf -e models/bge-small.gguf \
+    --db rag.db -p "Another question?"
+
+# Re-running with the same -f is a true no-op on indexing — the
+# file's content hash is already in the dedup table:
+cyllama rag -m models/llama.gguf -e models/bge-small.gguf \
+    --db rag.db -f corpus.txt -p "..."
+# > reusing N chunks from rag.db (1 unchanged)
+
+# Switched embedding models or chunking? Use --rebuild:
+cyllama rag -m models/llama.gguf -e models/bge-base.gguf \
+    --db rag.db --rebuild -f corpus.txt -p "..."
+```
+
+Decision matrix:
+
+| Args | Behavior |
+|------|----------|
+| `--db PATH` only, DB exists | Reuse existing index, no indexing |
+| `--db PATH` + `-f/-d`, DB missing | Create DB, index sources |
+| `--db PATH` + `-f/-d`, DB exists | Reopen DB, append (dedup-skipping unchanged sources) |
+| `--db PATH --rebuild` + `-f/-d` | Delete DB, recreate, index sources |
+| `--db PATH --rebuild` without `-f/-d` | Error (rebuild needs sources) |
+| `--db PATH` missing, no `-f/-d` | Error (nothing to query) |
+
+If the embedding model basename, chunk size, or chunk overlap on a reopen does not match what's stored in the DB's metadata table, `cyllama rag` exits with a clear error pointing at `--rebuild`. See [VectorStore — Metadata Validation](rag_vectorstore.md#metadata-validation) for details.
+
+### Generation Defaults Worth Knowing
+
+The CLI flips three `RAGConfig` fields from their library defaults because they fix common failure modes for chat-tuned and reasoning-tuned models. See [RAG Pipeline — RAGConfig](rag_pipeline.md#ragconfig) for the underlying fields.
+
+| Behavior | CLI default | Disable with |
+|----------|-------------|--------------|
+| Native chat-template prompting | on | `--no-chat-template` |
+| `<think>` block stripping | on | `--show-think` |
+| N-gram repetition guard | on (`threshold=2`) | `--repetition-threshold 0` |
 
 ## Next Steps
 

@@ -103,6 +103,58 @@ Given the above sources, answer: {question}"""
 )
 ```
 
+### Chat-Template Generation
+
+For chat-tuned models, route generation through the model's native chat template instead of the raw `Question:/Answer:` `prompt_template`. This sidesteps a class of bugs (paragraph paraphrase loops, leaked instruction-tuning artifacts, model re-roleplaying as the user) that can occur when chat-tuned models are fed bare completion prompts:
+
+```python
+config = RAGConfig(
+    use_chat_template=True,
+    system_prompt="Answer using only the provided context. Do not repeat yourself.",
+)
+```
+
+When `use_chat_template=True`, the pipeline calls `generator.chat()` with a system message (from `system_prompt`) plus a user message containing the retrieved context. The raw `prompt_template` is ignored in this mode.
+
+| Field | Default (library) | Default (`cyllama rag`) |
+|-------|-------------------|--------------------------|
+| `use_chat_template` | `False` | `True` (disable with `--no-chat-template`) |
+| `system_prompt` | `None` (built-in instruction) | (same) |
+
+### Reasoning-Block Stripping
+
+Reasoning-tuned models (Qwen3, DeepSeek-R1, and similar) emit `<think>...</think>` blocks before their actual answer. On small `max_tokens` budgets the reasoning often consumes the entire budget, leaving no room for the answer the user wanted. `strip_think_blocks` removes these blocks from the streamed output:
+
+```python
+config = RAGConfig(strip_think_blocks=True)
+```
+
+The strip is implemented by `cyllama.rag.repetition.ThinkBlockStripper`, a stream-safe state machine that handles tags split across chunk boundaries, multiple blocks per stream, and unclosed blocks. It runs as the outermost filter in the pipeline so downstream filters (e.g. the repetition detector) see post-strip text.
+
+| Field | Default (library) | Default (`cyllama rag`) |
+|-------|-------------------|--------------------------|
+| `strip_think_blocks` | `False` | `True` (expose with `--show-think`) |
+
+### Repetition Detection
+
+A streaming-level guard against the "model loops on the same paragraph" failure mode (notably hit on Qwen3-4B greedy decoding). `NGramRepetitionDetector` watches a rolling word window and stops generation when the same n-gram repeats too many times:
+
+```python
+config = RAGConfig(
+    repetition_threshold=2,   # 0 disables; >=2 enables
+    repetition_ngram=5,       # word-level n-gram length
+    repetition_window=300,    # rolling window size
+)
+```
+
+| Field | Default (library) | Default (`cyllama rag`) |
+|-------|-------------------|--------------------------|
+| `repetition_threshold` | `0` (disabled) | `2` (`--repetition-threshold N`, `0` disables) |
+| `repetition_ngram` | `5` | `5` (`--repetition-ngram`) |
+| `repetition_window` | `300` | `300` (`--repetition-window`) |
+
+The library defaults are off so a bare `RAGConfig()` preserves historical behavior. The CLI opts in by default because that's where the bug surfaces.
+
 ## RAGResponse
 
 Query responses include text, sources, and statistics:
@@ -249,12 +301,26 @@ with RAG(
         print(f"   Sources: {len(response.sources)}")
 ```
 
+## Corpus Deduplication
+
+`RAG.add_texts` and `RAG.add_documents` md5-hash each input before indexing. Inputs whose hash is already in the store are silently skipped, so re-running the same indexing call (or a `cyllama rag --db PATH -f corpus.txt` re-run) is a true no-op on the indexing side rather than appending a duplicate copy.
+
+Both methods return an `IndexResult` (a subclass of `list[int]` for backwards compatibility — `len(result)` and iteration still yield the newly inserted chunk IDs):
+
+```python
+result = rag.add_documents(["guide.md", "tutorial.md"])
+print(f"Added {len(result)} new chunks")
+print(f"Skipped (already indexed): {result.skipped_labels}")
+```
+
+If a file's basename matches an already-indexed source but its content hash differs, `add_documents` raises `ValueError` — this catches the "I edited the file but kept the name" case where a silent append would leave two versions in the index. The fix is to rebuild (`--rebuild` on the CLI) or rename the file.
+
 ## RAG Methods Summary
 
 | Method | Description |
 |--------|-------------|
-| `add_texts(texts, metadata, split)` | Add text strings to knowledge base |
-| `add_documents(paths, split)` | Load and add files |
+| `add_texts(texts, metadata, split)` | Add text strings to knowledge base; returns `IndexResult` |
+| `add_documents(paths, split)` | Load and add files; returns `IndexResult` |
 | `add_document(document, split)` | Add single Document object |
 | `query(question, config)` | Get RAGResponse with generated text |
 | `stream(question, config)` | Stream response tokens |

@@ -34,13 +34,18 @@ embedder.close()
 
 ```python
 store = VectorStore(
-    dimension=384,           # Embedding dimension (required)
-    db_path=":memory:",      # Database path (":memory:" or file path)
-    table_name="embeddings", # Table name for vectors
-    metric="cosine",         # Distance metric
-    vector_type="float32"    # Vector storage type
+    dimension=384,                       # Embedding dimension (required)
+    db_path=":memory:",                  # Database path (":memory:" or file path)
+    table_name="embeddings",             # Table name for vectors
+    metric="cosine",                     # Distance metric
+    vector_type="float32",               # Vector storage type
+    embedding_model_path="bge.gguf",     # Optional: recorded for compat checks
+    chunk_size=512,                      # Optional: recorded for compat checks
+    chunk_overlap=50,                    # Optional: recorded for compat checks
 )
 ```
+
+The `embedding_model_path`, `chunk_size`, and `chunk_overlap` arguments are optional. When provided, they are written to the `{table_name}_meta` table on first creation and verified against the caller's values on every reopen — see [Metadata Validation](#metadata-validation) below. `RAG.__init__` forwards them automatically.
 
 ### Distance Metrics
 
@@ -174,6 +179,61 @@ store = VectorStore.open("vectors.db")
 results = store.search(query_embedding, k=5)
 store.close()
 ```
+
+## Metadata Validation
+
+A persistent `VectorStore` records its configuration in a `{table_name}_meta` SQLite table on first creation:
+
+- **Hard fields** (always validated on reopen): `dimension`, `metric`, `vector_type`
+- **Soft fields** (validated only when the caller passes the matching kwarg): `embedding_model_basename`, `embedding_model_size_bytes`, `chunk_size`, `chunk_overlap`
+- **Informational**: `cyllama_version`, `created_at`
+
+On reopen, any mismatch between a stored hard field and the caller's value raises `VectorStoreError` with a message naming the stored value, the attempted value, and the fix. Soft fields only fire when the caller actually passes the corresponding constructor argument, so callers that don't care about embedding-model fingerprinting can opt out by simply not passing it.
+
+```python
+from cyllama.rag import VectorStore, VectorStoreError
+
+# First run: creates the DB with metadata
+store = VectorStore(
+    dimension=384,
+    db_path="vectors.db",
+    embedding_model_path="models/bge-small.gguf",
+    chunk_size=512,
+    chunk_overlap=50,
+)
+store.close()
+
+# Later: reopening with a different chunk size raises immediately
+try:
+    store = VectorStore(
+        dimension=384,
+        db_path="vectors.db",
+        embedding_model_path="models/bge-small.gguf",
+        chunk_size=1024,   # mismatch!
+        chunk_overlap=50,
+    )
+except VectorStoreError as e:
+    print(e)
+    # "vectors.db was indexed with chunk_size=512 but the caller is
+    #  opening it with chunk_size=1024. ... Either use the original
+    #  chunk_size or pass --rebuild to recreate the index."
+```
+
+This catches the silent-corruption case where mixing two embedding models or two chunk configurations into a single index would produce garbage retrieval. It is the mechanism behind the `cyllama rag --rebuild` flag (see [RAG Overview — Persistent Vector Store](rag_overview.md#persistent-vector-store-cli)).
+
+## Source Deduplication
+
+A `VectorStore` also tracks per-source content hashes in a `{table_name}_sources` table — `(content_hash, source_label, chunk_count, indexed_at)`. The `add()` method accepts optional `source_hash` and `source_label` kwargs, written atomically with the chunk inserts in a single SQLite transaction so a process death between writes can't leave the store with orphaned chunks.
+
+Three read methods are available:
+
+```python
+store.is_source_indexed(content_hash)   # bool: has this hash been added?
+store.get_source_by_label(source_label) # row dict or None
+store.list_sources()                    # all source rows, oldest first
+```
+
+These power the dedup logic in `RAG.add_documents` / `RAG.add_texts` (see [RAG Pipeline — Corpus Deduplication](rag_pipeline.md#corpus-deduplication)). Most users won't call them directly.
 
 ## Quantization for Large Datasets
 
