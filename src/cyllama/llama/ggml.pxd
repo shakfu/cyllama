@@ -341,6 +341,8 @@ cdef extern from "ggml-backend.h":
         GGML_BACKEND_DEVICE_TYPE_IGPU
         # accelerator devices intended to be used together with the CPU backend (e.g. BLAS or AMX)
         GGML_BACKEND_DEVICE_TYPE_ACCEL
+        # "meta" device wrapping multiple other devices for tensor parallelism
+        GGML_BACKEND_DEVICE_TYPE_META
 
     # functionality supported by the device
     ctypedef struct ggml_backend_dev_caps:

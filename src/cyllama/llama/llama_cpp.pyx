@@ -3080,7 +3080,7 @@ def ggml_backend_dev_info() -> list:
     """Return info for all available backend devices.
 
     Returns a list of dicts with keys: name, description, type.
-    Type is one of: 'CPU', 'GPU', 'iGPU', 'ACCEL'.
+    Type is one of: 'CPU', 'GPU', 'iGPU', 'ACCEL', 'META'.
     """
     cdef size_t n = ggml.ggml_backend_dev_count()
     type_names = {
@@ -3088,6 +3088,7 @@ def ggml_backend_dev_info() -> list:
         ggml.GGML_BACKEND_DEVICE_TYPE_GPU: "GPU",
         ggml.GGML_BACKEND_DEVICE_TYPE_IGPU: "iGPU",
         ggml.GGML_BACKEND_DEVICE_TYPE_ACCEL: "ACCEL",
+        ggml.GGML_BACKEND_DEVICE_TYPE_META: "META",
     }
     devices = []
     for i in range(n):

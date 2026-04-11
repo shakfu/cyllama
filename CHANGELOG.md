@@ -17,6 +17,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+## [0.2.5]
+
 ### Added
 
 - **Typed exceptions for model loaders** - `LLM`, `LlamaModel`, `LlamaContext`, `WhisperContext`, and `SDContext` now raise `FileNotFoundError`, `IsADirectoryError`, `PermissionError`, or `ValueError` for the common bad-input cases (missing path, directory, empty file, wrong magic, truncated header, OOM `n_ctx`) instead of opaque NULL pointers, raw C++ assertions, or segfaults. Shared validation logic in new `cyllama._validation` module. 30 regression tests in `tests/test_error_messages.py`. Resolves the "Error message audit" item in `TODO.md`
@@ -51,6 +53,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 - **`save_history()` public helper in `cyllama._readline`** - Companion to `setup_history()` that callers can use to flush readline history mid-session. The atexit handler installed by `setup_history` now routes through it, so production save and test save share the same code path. Transparently applies the libedit magic-header workaround (see `Fixed` below)
 
 ### Changed
+
+- **Upgraded llama.cpp from b8705 to b8757** - Mirrored two upstream enum additions in the Cython bindings: `LLAMA_SPLIT_MODE_TENSOR = 3` added to `llama_split_mode` in `src/cyllama/llama/llama.pxd`, and `GGML_BACKEND_DEVICE_TYPE_META` ("meta device wrapping multiple other devices for tensor parallelism") added to `ggml_backend_dev_type` in `src/cyllama/llama/ggml.pxd`. The `device_info()` helper in `llama_cpp.pyx` learned the new `META` type-name mapping. Other upstream header changes in this range (new `_2d` async tensor copy variants and `const` qualifiers in `ggml-backend.h`, `PROJECTOR_TYPE_DOTS_OCR` in `clip-impl.h`, the `common_download_*` refactor in `download.h`, `ggml_backend_cuda_allreduce_tensor` in `ggml-cuda.h`) touch symbols cyllama does not bind, so no further sync was required
+
+- **Upgraded stable-diffusion.cpp from master-558-8afbeb6 to master-559-dd75372** - No `stable_diffusion.pxd` changes required for this bump: SD-specific public headers are unchanged in the upstream range. The only header diffs that landed under `thirdparty/stable-diffusion.cpp/include/` are in `ggml-backend.h` and `ggml-cuda.h`, and they are byte-for-byte identical to the llama.cpp ggml header diffs in the entry above — they appear under SD's include directory because `_sync_ggml_abi()` (`scripts/manage.py:1601-1628`) replaces SD's vendored ggml with llama.cpp's ggml at build time to keep enum-id ABI in sync between the two libraries linking against the same ggml dylib. None of the new symbols (`ggml_backend_tensor_set_2d` family, `GGML_BACKEND_DEVICE_TYPE_META`, `ggml_backend_cuda_allreduce_tensor`) are bound in `src/cyllama/sd/`
 
 - **`LlamaModel.__init__` exception types** - Bad model paths now raise `FileNotFoundError`, `IsADirectoryError`, `PermissionError`, or `ValueError` (truncated/wrong-magic/wrong-version GGUF). Post-load NULL check still raises `ValueError("Failed to load model from file: ...")` (substring preserved) but with a richer message listing likely causes
 
