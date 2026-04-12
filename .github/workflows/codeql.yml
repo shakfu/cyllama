@@ -1,4 +1,4 @@
-name: "CodeQL Scan"
+name: codeql-scan
 
 on: [workflow_dispatch]
 
