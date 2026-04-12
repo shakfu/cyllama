@@ -33,11 +33,11 @@ jobs:
             runs-on: macos-latest
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Cache thirdparty deps
         id: cache-deps
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: thirdparty/
           key: deps-cibw2-${{ matrix.os }}-${{ hashFiles('scripts/manage.py', 'pyproject.toml', '.github/workflows/build-cibw.yaml') }}
@@ -48,7 +48,7 @@ jobs:
           CIBW_PLATFORM: ${{ matrix.platform || 'auto' }}
           CIBW_ARCHS: ${{ matrix.archs || 'auto' }}
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: cibw-wheels-${{ matrix.os }}
           path: ./wheelhouse/*.whl
@@ -69,19 +69,19 @@ jobs:
             runs-on: windows-latest
 
     steps:
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
       - name: Download wheel artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: cibw-wheels-${{ matrix.os }}
           path: wheels
 
       - name: Cache test model
         id: cache-model
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: models/Llama-3.2-1B-Instruct-Q8_0.gguf
           key: test-model-llama-3.2-1b-q8
@@ -190,7 +190,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download all wheel artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           path: artifacts
           pattern: cibw-wheels-*
@@ -202,7 +202,7 @@ jobs:
           echo "=== Collected wheels ==="
           ls -lh dist/
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: cyllama-wheels-all
           path: dist/*.whl
@@ -215,10 +215,10 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Download collected wheels
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: cyllama-wheels-all
           path: dist

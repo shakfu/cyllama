@@ -57,7 +57,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -68,13 +68,13 @@ jobs:
 
       - name: Cache thirdparty deps
         id: cache-deps
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: thirdparty/
           key: deps-cuda-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage.py', '.github/workflows/build-gpu-wheels.yml') }}
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
@@ -91,14 +91,15 @@ jobs:
             yum-config-manager --add-repo https://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/cuda-rhel7.repo &&
             yum install -y cuda-nvcc-12-4 cuda-cudart-devel-12-4 cuda-driver-devel-12-4 libcublas-devel-12-4 &&
             ln -s /usr/local/cuda-12.4 /usr/local/cuda &&
-            if [ -d /project/thirdparty/llama.cpp/lib ]; then echo "=== Deps cached, skipping build ==="; exit 0; fi &&
+            if [ -f /project/thirdparty/.deps-complete ]; then echo "=== Deps cached, skipping build ==="; exit 0; fi &&
             CI_PYTHON=$(ls -d /opt/python/cp3*/bin | head -1) &&
             $CI_PYTHON/pip install cmake ninja &&
             PATH=/usr/local/cuda/bin:$CI_PYTHON:$PATH
             CMAKE_CUDA_ARCHITECTURES="75"
             GGML_NATIVE=OFF GGML_CUDA=1 GGML_METAL=0
             $CI_PYTHON/python scripts/manage.py build --all --deps-only --no-sd-examples
-            ${{ inputs.link_mode == 'dynamic' && '--dynamic' || '' }}
+            ${{ inputs.link_mode == 'dynamic' && '--dynamic' || '' }} &&
+            touch /project/thirdparty/.deps-complete
           CIBW_BEFORE_BUILD_LINUX: >
             sed -i 's/^name = "cyllama"/name = "cyllama-cuda12"/' {project}/pyproject.toml &&
             grep -q '^name = "cyllama-cuda12"' {project}/pyproject.toml || { echo "ERROR: sed rename to cyllama-cuda12 failed"; exit 1; } &&
@@ -129,7 +130,7 @@ jobs:
         run: ls -lah wheelhouse/
 
       - name: Upload wheels
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: wheels-cuda-linux-x86_64
           path: ./wheelhouse/*.whl
@@ -144,7 +145,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -155,13 +156,13 @@ jobs:
 
       - name: Cache thirdparty deps
         id: cache-deps
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: thirdparty/
           key: deps-rocm-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage.py', '.github/workflows/build-gpu-wheels.yml') }}
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
@@ -179,7 +180,7 @@ jobs:
             dnf install -y rocm-hip-runtime-devel hipblas-devel rocblas-devel libstdc++-static &&
             ls -d /opt/rocm-* | head -1 | xargs -I{} ln -sf {} /opt/rocm &&
             ln -sf /usr/lib/gcc/x86_64-redhat-linux/8/libstdc++.a /opt/rocm/lib/libstdc++.a &&
-            if [ -d /project/thirdparty/llama.cpp/lib ]; then echo "=== Deps cached, skipping build ==="; exit 0; fi &&
+            if [ -f /project/thirdparty/.deps-complete ]; then echo "=== Deps cached, skipping build ==="; exit 0; fi &&
             CI_PYTHON=$(ls -d /opt/python/cp3*/bin | head -1) &&
             $CI_PYTHON/pip install cmake ninja &&
             PATH=/opt/rocm/bin:$CI_PYTHON:$PATH
@@ -188,7 +189,8 @@ jobs:
             HIP_PATH=/opt/rocm
             GGML_NATIVE=OFF GGML_HIP=1 GGML_METAL=0
             $CI_PYTHON/python scripts/manage.py build --all --deps-only --no-sd-examples
-            ${{ inputs.link_mode == 'dynamic' && '--dynamic' || '' }}
+            ${{ inputs.link_mode == 'dynamic' && '--dynamic' || '' }} &&
+            touch /project/thirdparty/.deps-complete
           CIBW_BEFORE_BUILD_LINUX: >
             sed -i 's/^name = "cyllama"/name = "cyllama-rocm"/' {project}/pyproject.toml &&
             grep -q '^name = "cyllama-rocm"' {project}/pyproject.toml || { echo "ERROR: sed rename to cyllama-rocm failed"; exit 1; } &&
@@ -224,7 +226,7 @@ jobs:
         run: ls -lah wheelhouse/
 
       - name: Upload wheels
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: wheels-rocm-linux-x86_64
           path: ./wheelhouse/*.whl
@@ -239,19 +241,19 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - name: Cache thirdparty deps
         id: cache-deps
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: thirdparty/
           key: deps-sycl-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage.py', '.github/workflows/build-gpu-wheels.yml') }}
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
@@ -268,7 +270,7 @@ jobs:
             rpm --import https://yum.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB &&
             dnf config-manager --add-repo https://yum.repos.intel.com/oneapi &&
             dnf install -y intel-oneapi-dpcpp-cpp-2025.3 intel-oneapi-mkl-devel-2025.3 &&
-            if [ -d /project/thirdparty/llama.cpp/lib ]; then echo "=== Deps cached, skipping build ==="; exit 0; fi &&
+            if [ -f /project/thirdparty/.deps-complete ]; then echo "=== Deps cached, skipping build ==="; exit 0; fi &&
             CI_PYTHON=$(ls -d /opt/python/cp3*/bin | head -1) &&
             $CI_PYTHON/pip install cmake ninja &&
             source /opt/intel/oneapi/setvars.sh &&
@@ -276,7 +278,8 @@ jobs:
             PATH=$CI_PYTHON:$PATH
             GGML_NATIVE=OFF GGML_SYCL=1 GGML_METAL=0
             $CI_PYTHON/python scripts/manage.py build --all --deps-only --no-sd-examples
-            ${{ inputs.link_mode == 'dynamic' && '--dynamic' || '' }}
+            ${{ inputs.link_mode == 'dynamic' && '--dynamic' || '' }} &&
+            touch /project/thirdparty/.deps-complete
           CIBW_BEFORE_BUILD_LINUX: >
             sed -i 's/^name = "cyllama"/name = "cyllama-sycl"/' {project}/pyproject.toml &&
             grep -q '^name = "cyllama-sycl"' {project}/pyproject.toml || { echo "ERROR: sed rename to cyllama-sycl failed"; exit 1; } &&
@@ -309,7 +312,7 @@ jobs:
         run: ls -lah wheelhouse/
 
       - name: Upload wheels
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: wheels-sycl-linux-x86_64
           path: ./wheelhouse/*.whl
@@ -324,20 +327,20 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
           clean: true
 
       - name: Cache thirdparty deps
         id: cache-deps
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: thirdparty/
           key: deps-vulkan-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage.py', '.github/workflows/build-gpu-wheels.yml') }}
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
@@ -351,7 +354,7 @@ jobs:
           CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
           CIBW_BEFORE_ALL_LINUX: >
             dnf install -y git vulkan-headers vulkan-loader-devel &&
-            if [ -d /project/thirdparty/llama.cpp/lib ]; then echo "=== Deps cached, skipping build ==="; exit 0; fi &&
+            if [ -f /project/thirdparty/.deps-complete ]; then echo "=== Deps cached, skipping build ==="; exit 0; fi &&
             git clone --depth 1 https://github.com/google/shaderc.git /tmp/shaderc &&
             cd /tmp/shaderc && python3 utils/git-sync-deps &&
             cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DSHADERC_SKIP_TESTS=ON -DSHADERC_SKIP_EXAMPLES=ON -DSHADERC_SKIP_COPYRIGHT_CHECK=ON &&
@@ -363,7 +366,8 @@ jobs:
             PATH=$CI_PYTHON:$PATH
             GGML_NATIVE=OFF GGML_VULKAN=1 GGML_METAL=0
             $CI_PYTHON/python scripts/manage.py build --all --deps-only --no-sd-examples
-            ${{ inputs.link_mode == 'dynamic' && '--dynamic' || '' }}
+            ${{ inputs.link_mode == 'dynamic' && '--dynamic' || '' }} &&
+            touch /project/thirdparty/.deps-complete
           CIBW_BEFORE_BUILD_LINUX: >
             sed -i 's/^name = "cyllama"/name = "cyllama-vulkan"/' {project}/pyproject.toml &&
             grep -q '^name = "cyllama-vulkan"' {project}/pyproject.toml || { echo "ERROR: sed rename to cyllama-vulkan failed"; exit 1; } &&
@@ -387,7 +391,7 @@ jobs:
         run: ls -lah wheelhouse/
 
       - name: Upload wheels
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: wheels-vulkan-linux-x86_64
           path: ./wheelhouse/*.whl
@@ -427,14 +431,14 @@ jobs:
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         if: steps.check.outputs.skip != 'true'
         with:
           python-version: "3.12"
 
       - name: Download wheel artifacts
         if: steps.check.outputs.skip != 'true'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: ${{ matrix.artifact }}
           path: wheels
@@ -520,7 +524,7 @@ jobs:
 
     steps:
       - name: Download all wheel artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           path: artifacts
           pattern: wheels-*
@@ -588,7 +592,7 @@ jobs:
           find index -name "*.html" -exec echo {} \; -exec cat {} \; -exec echo \;
 
       - name: Upload index artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: gpu-wheel-index
           path: index/
@@ -604,10 +608,10 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Download all wheel artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           path: artifacts
           pattern: wheels-*
@@ -646,7 +650,7 @@ jobs:
 
     steps:
       - name: Download index
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: gpu-wheel-index
           path: wheel-index
