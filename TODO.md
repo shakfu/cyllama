@@ -2,7 +2,7 @@
 
 ## High Priority
 
-(no high-priority items currently open)
+- [ ] Audit all `__init__` defaults in SD wrapper classes (`SDContextParams`, `SDSampleParams`, `SDImageGenParams`) against the corresponding C `sd_*_init()` defaults. The `__cinit__` methods correctly call the C init functions, but `__init__` then overrides fields with Python-side defaults that can diverge from the C library. The `wtype` (F16 vs COUNT) and `eta` (0.0 vs INFINITY) CUDA bugs came from this pattern. A one-time pass comparing every `__init__` default to its C counterpart would catch any remaining mismatches
 
 ## Medium Priority
 
@@ -14,6 +14,7 @@
 ## Wheel / Packaging
 
 - [ ] stable-diffusion.cpp uses compile-time `#ifdef SD_USE_CUDA` for backend selection instead of dynamic `ggml_backend_load_all()` like llama.cpp and whisper.cpp — propose dynamic backend discovery upstream or patch locally for consistency
+
 - [ ] Investigate using versioned dylibs (e.g. `libllama.4.dylib`) instead of `.0.dylib` in dynamic wheels
 
 ## Lower Priority
