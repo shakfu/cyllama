@@ -1,0 +1,2311 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="High-performance Python library for local AI inference">
+      
+      
+        <meta name="author" content="S. Alireza">
+      
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Chat Templates in cyllama - cyllama</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#chat-templates-in-cyllama" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="cyllama" class="md-header__button md-logo" aria-label="cyllama" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            cyllama
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Chat Templates in cyllama
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/shakfu/cyllama" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    shakfu/cyllama
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="cyllama" class="md-nav__button md-logo" aria-label="cyllama" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    cyllama
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/shakfu/cyllama" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    shakfu/cyllama
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../intro/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Introduction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quick Start
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../summary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Summary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Llama.cpp
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Llama.cpp
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user_guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cookbook/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cookbook
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../build_backends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build Backends
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../build_options/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Advanced Build Options
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../context_caching/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context Caching
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../server_usage_examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Server Usage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Whisper.cpp
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Whisper.cpp
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../whisper/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Whisper Integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stable Diffusion
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Stable Diffusion
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../stable_diffusion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stable Diffusion Integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agents
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Agents
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents_overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agent Framework
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_11" >
+        
+          
+          <label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RAG
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_11">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    RAG
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../rag_overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../rag_embedder/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Embedder
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../rag_vectorstore/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VectorStore
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../rag_text_processing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Text Processing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../rag_pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RAG Pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../rag_advanced/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Advanced Features
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_12" >
+        
+          
+          <label class="md-nav__link" for="__nav_12" id="__nav_12_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_12">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api_reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-this-is-for" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What this is for
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#quick-reference-how-to-use-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quick reference: how to use it
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#architecture-the-four-code-paths" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architecture: the four code paths
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Architecture: the four code paths">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#path-1-vendored-jinja2-the-default" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Path 1: vendored jinja2 (the default)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#path-2-legacy-substring-heuristic-named-templates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Path 2: legacy substring-heuristic (named templates)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#path-3-pipeline-level-system-into-user-merge" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Path 3: pipeline-level system-into-user merge
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#path-4-pipeline-level-raw-completion-fallback-final-safety-net" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Path 4: pipeline-level raw-completion fallback (final safety net)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#visual-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Visual summary
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-vendored-jinja2-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The vendored jinja2 setup
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The vendored jinja2 setup">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#whats-in-srccyllama_vendor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What's in src/cyllama/_vendor/
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-vendored-rather-than-a-runtime-dependency" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why vendored rather than a runtime dependency
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-two-import-path-rewrites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The two import-path rewrites
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The two import-path rewrites">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rewrite-1-from-markupsafe-import-from-cyllama_vendormarkupsafe-import" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rewrite 1: from markupsafe import → from cyllama._vendor.markupsafe import
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rewrite-2-from-jinja2runtime-import-from-cyllama_vendorjinja2runtime-import" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rewrite 2: from jinja2.runtime import → from cyllama._vendor.jinja2.runtime import
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#re-vendoring-jinja2-markupsafe" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Re-vendoring jinja2 / markupsafe
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#extending-the-renderer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Extending the renderer
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Extending the renderer">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#adding-a-custom-global" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adding a custom global
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#adding-a-custom-filter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adding a custom filter
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#suppressing-reasoning-blocks-at-the-template-level" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Suppressing reasoning blocks at the template level
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#debugging" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Debugging
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Debugging">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#inspecting-the-rendered-prompt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Inspecting the rendered prompt
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#inspecting-the-embedded-template-itself" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Inspecting the embedded template itself
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#checking-which-path-was-taken" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Checking which path was taken
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#common-failure-modes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Common failure modes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#testing-against-a-specific-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Testing against a specific model
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reference
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#historical-context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Historical context
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Historical context">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-basic-c-api-limitation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The basic C API limitation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-we-dont-link-libcommona" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why we don't link libcommon.a
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-we-vendor-jinja2-instead" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why we vendor jinja2 instead
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-we-kept-the-legacy-substring-path-as-a-fallback" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why we kept the legacy substring path as a fallback
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-the-pipeline-level-fallback-layers-exist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why the pipeline-level fallback layers exist
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#open-follow-ups" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Open follow-ups
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="chat-templates-in-cyllama">Chat Templates in cyllama<a class="headerlink" href="#chat-templates-in-cyllama" title="Permanent link">&para;</a></h1>
+<p>This document is a guide to how cyllama handles chat templates: the user-facing API, the layered architecture under it, the vendored Jinja interpreter, the extension points for customising rendering, debugging tools, and the operational procedures (re-vendoring, testing).</p>
+<p>A historical-context section at the end preserves the design analysis that led to the current implementation, for maintainers who need to understand <em>why</em> the system is shaped this way (e.g. before considering a change to it).</p>
+<h2 id="what-this-is-for">What this is for<a class="headerlink" href="#what-this-is-for" title="Permanent link">&para;</a></h2>
+<p>When you call <code>LLM.chat(messages)</code> (or its CLI equivalents <code>cyllama chat -p ...</code> and <code>cyllama rag</code>), cyllama needs to convert the list of <code>{"role": ..., "content": ...}</code> dicts into a single prompt string in the exact format the model was instruction-tuned on. Different model families use different formats:</p>
+<ul>
+<li><strong>Llama-3-Instruct</strong>: <code>&lt;|start_header_id|&gt;system&lt;|end_header_id|&gt;\n\n...&lt;|eot_id|&gt;...</code></li>
+<li><strong>Qwen2.5/3-Chat</strong>: ChatML-style <code>&lt;|im_start|&gt;system\n...\n&lt;|im_end|&gt;...</code></li>
+<li><strong>Mistral-Instruct</strong>: <code>[INST] ... [/INST]</code></li>
+<li><strong>Gemma 2/3</strong>: <code>&lt;start_of_turn&gt;user\n...\n&lt;end_of_turn&gt;</code></li>
+<li><strong>Gemma 4</strong>: <code>&lt;|turn&gt;user\n...\n&lt;turn|&gt;</code> (different from Gemma 2/3, this caused a real bug)</li>
+<li><strong>Phi-3/4-Instruct</strong>: <code>&lt;|user|&gt;\n...&lt;|end|&gt;</code></li>
+<li>and many others, each with their own quirks</li>
+</ul>
+<p>Each GGUF file embeds its own chat template as a Jinja string in its metadata (this is the same template the model's HuggingFace tokenizer config ships with). cyllama's job is to evaluate that template against the user's messages and produce the prompt the model expects.</p>
+<h2 id="quick-reference-how-to-use-it">Quick reference: how to use it<a class="headerlink" href="#quick-reference-how-to-use-it" title="Permanent link">&para;</a></h2>
+<p>The Python API surface is small. The most common entry point is <code>LLM.chat()</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama</span><span class="w"> </span><span class="kn">import</span> <span class="n">LLM</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">llm</span> <span class="o">=</span> <span class="n">LLM</span><span class="p">(</span><span class="s2">&quot;models/Llama-3.2-1B-Instruct-Q8_0.gguf&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="n">response</span> <span class="o">=</span> <span class="n">llm</span><span class="o">.</span><span class="n">chat</span><span class="p">([</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="p">{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;system&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s2">&quot;You are a helpful assistant.&quot;</span><span class="p">},</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="p">{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s2">&quot;What is the capital of France?&quot;</span><span class="p">},</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">])</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="nb">print</span><span class="p">(</span><span class="n">response</span><span class="p">)</span>  <span class="c1"># &quot;The capital of France is Paris.&quot;</span>
+</code></pre></div>
+<p><code>LLM.chat()</code> takes the standard OpenAI-style message list and handles the rest internally: applies the model's embedded chat template, generates tokens, and returns a <code>Response</code> object that prints as a string and exposes <code>response.stats</code>.</p>
+<p>For lower-level access, <code>LLM._apply_template()</code> returns the rendered prompt string without generating anything:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">prompt</span> <span class="o">=</span> <span class="n">llm</span><span class="o">.</span><span class="n">_apply_template</span><span class="p">([</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    <span class="p">{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s2">&quot;Hi.&quot;</span><span class="p">},</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="p">])</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="nb">print</span><span class="p">(</span><span class="n">prompt</span><span class="p">)</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="c1"># &lt;|begin_of_text|&gt;&lt;|start_header_id|&gt;user&lt;|end_header_id|&gt;</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="c1">#</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="c1"># Hi.&lt;|eot_id|&gt;&lt;|start_header_id|&gt;assistant&lt;|end_header_id|&gt;</span>
+</code></pre></div>
+<p>This is useful for debugging, for inspecting what cyllama is actually sending to the model, or for routing the prompt through a non-standard generation path.</p>
+<p>A standalone <code>apply_chat_template()</code> function is also exposed at the package level for callers that don't want to construct an <code>LLM</code> instance just to render a prompt:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.api</span><span class="w"> </span><span class="kn">import</span> <span class="n">apply_chat_template</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">prompt</span> <span class="o">=</span> <span class="n">apply_chat_template</span><span class="p">(</span><span class="n">messages</span><span class="p">,</span> <span class="s2">&quot;models/llama-3.gguf&quot;</span><span class="p">)</span>
+</code></pre></div>
+<p>For RAG usage, the same flow happens automatically inside <code>RAGPipeline</code> when <code>RAGConfig.use_chat_template=True</code> (which is the default for the <code>cyllama rag</code> CLI). See <code>docs/rag_pipeline.md</code> for the RAG-specific surface.</p>
+<h2 id="architecture-the-four-code-paths">Architecture: the four code paths<a class="headerlink" href="#architecture-the-four-code-paths" title="Permanent link">&para;</a></h2>
+<p>When you call <code>LLM.chat()</code>, the rendering goes through up to four code paths in priority order. Each path is a fallback for the one above it. Most of the time only the first path runs.</p>
+<h3 id="path-1-vendored-jinja2-the-default">Path 1: vendored jinja2 (the default)<a class="headerlink" href="#path-1-vendored-jinja2-the-default" title="Permanent link">&para;</a></h3>
+<p><code>LLM._apply_template()</code> calls <code>LLM._apply_jinja_template()</code> first whenever the caller hasn't explicitly requested a named template. This path:</p>
+<ol>
+<li>Pulls the embedded chat template string from the GGUF metadata via <code>LlamaModel.get_default_chat_template()</code> (a one-line wrapper around llama.cpp's stable public C API <code>llama_model_chat_template</code>).</li>
+<li>Resolves the model's <code>bos_token</code> and <code>eos_token</code> strings via <code>vocab.token_to_piece(vocab.token_bos(), special=True)</code> and the same for EOS.</li>
+<li>Constructs an <code>ImmutableSandboxedEnvironment</code> from the vendored <code>cyllama._vendor.jinja2</code>, with the same configuration HuggingFace's <code>transformers.PreTrainedTokenizerBase.apply_chat_template</code> uses:<ul>
+<li><code>trim_blocks=True</code>, <code>lstrip_blocks=True</code></li>
+<li><code>loopcontrols</code> extension enabled (some templates use <code>{% break %}</code>)</li>
+<li><code>tojson</code> filter (used by tool-calling templates)</li>
+<li><code>raise_exception</code> global (used by templates that abort on bad input)</li>
+<li><code>strftime_now</code> global (used by Llama-3's <code>Today Date:</code> line and similar)</li>
+</ul>
+</li>
+<li>Renders the template with <code>messages</code>, <code>bos_token</code>, <code>eos_token</code>, and <code>add_generation_prompt</code> in scope.</li>
+<li>Returns the rendered string.</li>
+</ol>
+<p>This path handles <strong>any</strong> GGUF whose embedded template uses Jinja syntax, regardless of whether llama.cpp's hardcoded substring heuristics recognise it. Gemma 4 was the canonical case that motivated this — its template uses <code>&lt;|turn&gt;</code> markers, which llama.cpp's <code>llm_chat_detect_template</code> doesn't match, so the legacy basic-C-API path returned -1 with no diagnostic. The vendored jinja2 just evaluates the actual Jinja and produces the correct prompt.</p>
+<p>The implementation is in <code>src/cyllama/api.py:_apply_jinja_template</code>. About 80 lines of Python.</p>
+<h3 id="path-2-legacy-substring-heuristic-named-templates">Path 2: legacy substring-heuristic (named templates)<a class="headerlink" href="#path-2-legacy-substring-heuristic-named-templates" title="Permanent link">&para;</a></h3>
+<p>If the caller passes <code>template="llama3"</code> (or any named template), <code>_apply_template</code> skips the Jinja path entirely and uses <code>LlamaModel.chat_apply_template(...)</code>, the Cython binding around llama.cpp's basic <code>llama_chat_apply_template</code> C API. This path:</p>
+<ol>
+<li>Looks up the named template in llama.cpp's <code>LLM_CHAT_TEMPLATES</code> map (<code>build/llama.cpp/src/llama-chat.cpp:30-82</code>), or treats the string as a raw Jinja template if no name match.</li>
+<li>If detection fails (the substring heuristics in <code>llm_chat_detect_template</code> at lines 88-200+ of the same file), returns -1.</li>
+<li>cyllama's wrapper raises <code>RuntimeError("Failed to apply chat template")</code> on -1.</li>
+</ol>
+<p>This path is <strong>only</strong> used when the caller explicitly requests a named template. It's preserved as a fallback for the rare case where <code>jinja2</code> itself can't evaluate a template (<code>TemplateSyntaxError</code> on a malformed embedded template, etc.) — <code>_apply_template</code> will catch the <code>_JinjaTemplateError</code> from path 1 and fall through to this path.</p>
+<p>The implementation is in <code>src/cyllama/api.py:_apply_template</code> (the part after the <code>try: return self._apply_jinja_template(...)</code> block).</p>
+<h3 id="path-3-pipeline-level-system-into-user-merge">Path 3: pipeline-level system-into-user merge<a class="headerlink" href="#path-3-pipeline-level-system-into-user-merge" title="Permanent link">&para;</a></h3>
+<p>This path only fires inside <code>RAGPipeline._chat_with_fallback</code>, not in <code>LLM._apply_template</code>. It exists because some chat templates explicitly raise on a <code>system</code> role (Gemma 2/3 with the hardcoded path, Orion, some older instruct templates). The flow:</p>
+<ol>
+<li>RAG pipeline calls <code>LLM.chat([{"role": "system", ...}, {"role": "user", ...}])</code>.</li>
+<li>The chat call propagates a <code>RuntimeError</code> whose message contains "template" (from path 1's fallback into path 2 returning -1, or from path 1 raising <code>TemplateError("System role not supported")</code>).</li>
+<li><code>_chat_with_fallback</code> catches that error, merges the system content into the first user message, and retries with <code>[{"role": "user", "content": "{system}\n\n{user}"}]</code>.</li>
+<li>Caches the decision on <code>self._system_role_supported</code> so subsequent queries skip the failed first attempt.</li>
+</ol>
+<p>The implementation is in <code>src/cyllama/rag/pipeline.py:_chat_with_fallback</code>. With the vendored jinja2 path in place, this path almost never fires for currently-supported models (jinja2 evaluates Gemma 4's template directly without raising), but it's preserved for templates that genuinely call <code>raise_exception('System role not supported')</code> at the Jinja level.</p>
+<h3 id="path-4-pipeline-level-raw-completion-fallback-final-safety-net">Path 4: pipeline-level raw-completion fallback (final safety net)<a class="headerlink" href="#path-4-pipeline-level-raw-completion-fallback-final-safety-net" title="Permanent link">&para;</a></h3>
+<p>If both path 1 and path 3 fail, <code>RAGPipeline._generate_chunks</code> permanently degrades to the raw-completion path for the rest of the pipeline's lifetime:</p>
+<ol>
+<li>Catches the <code>RuntimeError("...template...")</code> from <code>_chat_with_fallback</code>.</li>
+<li>Sets <code>self._chat_template_unusable = True</code> so future queries skip the chat attempts.</li>
+<li>Rebuilds <code>gen_config</code> to include the <code>Question:/Answer:</code> stop sequences that the legacy raw-completion path needs (the original <code>gen_config</code> had no stop sequences because it was built for the chat path).</li>
+<li>Renders a <code>Question:/Context:/Answer:</code> style prompt and calls the generator directly.</li>
+<li>Emits a one-time <code>RuntimeWarning</code> so the silent quality degradation isn't invisible.</li>
+</ol>
+<p>This path is the last-resort safety net. With the vendored jinja2 path in place, it should fire only on truly malformed templates or corrupted GGUFs.</p>
+<p>The implementation is in <code>src/cyllama/rag/pipeline.py:_generate_chunks</code> (the <code>except RuntimeError</code> block).</p>
+<h3 id="visual-summary">Visual summary<a class="headerlink" href="#visual-summary" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>LLM.chat(messages) ──────────────► LLM._apply_template(messages, template=None)
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>                                      │
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>                                      ▼
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>                       ┌──────────────────────────────┐
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>                       │ Path 1: vendored jinja2      │
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>                       │ (cyllama._vendor.jinja2)     │
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>                       │ -&gt; embedded GGUF template    │
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>                       │ -&gt; ImmutableSandboxedEnv     │
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>                       │ -&gt; rendered prompt string    │
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>                       └──────────────────────────────┘
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>                                      │ on TemplateError
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>                                      ▼
+<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>                       ┌──────────────────────────────┐
+<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>                       │ Path 2: legacy substring     │
+<a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a>                       │ heuristic (basic C API)      │
+<a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a>                       │ -&gt; llama_chat_apply_template │
+<a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a>                       │ -&gt; rendered prompt string    │
+<a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a>                       └──────────────────────────────┘
+<a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a>                                      │ on RuntimeError(&quot;...template...&quot;)
+<a id="__codelineno-3-20" name="__codelineno-3-20" href="#__codelineno-3-20"></a>                                      │ (only inside RAG pipeline)
+<a id="__codelineno-3-21" name="__codelineno-3-21" href="#__codelineno-3-21"></a>                                      ▼
+<a id="__codelineno-3-22" name="__codelineno-3-22" href="#__codelineno-3-22"></a>                       ┌──────────────────────────────┐
+<a id="__codelineno-3-23" name="__codelineno-3-23" href="#__codelineno-3-23"></a>                       │ Path 3: system-&gt;user merge   │
+<a id="__codelineno-3-24" name="__codelineno-3-24" href="#__codelineno-3-24"></a>                       │ -&gt; retry path 1 with merged  │
+<a id="__codelineno-3-25" name="__codelineno-3-25" href="#__codelineno-3-25"></a>                       │    [{&quot;role&quot;: &quot;user&quot;, ...}]   │
+<a id="__codelineno-3-26" name="__codelineno-3-26" href="#__codelineno-3-26"></a>                       │ -&gt; cached on _system_role_   │
+<a id="__codelineno-3-27" name="__codelineno-3-27" href="#__codelineno-3-27"></a>                       │    supported                 │
+<a id="__codelineno-3-28" name="__codelineno-3-28" href="#__codelineno-3-28"></a>                       └──────────────────────────────┘
+<a id="__codelineno-3-29" name="__codelineno-3-29" href="#__codelineno-3-29"></a>                                      │ on RuntimeError(&quot;...template...&quot;)
+<a id="__codelineno-3-30" name="__codelineno-3-30" href="#__codelineno-3-30"></a>                                      ▼
+<a id="__codelineno-3-31" name="__codelineno-3-31" href="#__codelineno-3-31"></a>                       ┌──────────────────────────────┐
+<a id="__codelineno-3-32" name="__codelineno-3-32" href="#__codelineno-3-32"></a>                       │ Path 4: raw-completion       │
+<a id="__codelineno-3-33" name="__codelineno-3-33" href="#__codelineno-3-33"></a>                       │ -&gt; Question:/Answer: prompt  │
+<a id="__codelineno-3-34" name="__codelineno-3-34" href="#__codelineno-3-34"></a>                       │ -&gt; cached on _chat_template_ │
+<a id="__codelineno-3-35" name="__codelineno-3-35" href="#__codelineno-3-35"></a>                       │    unusable                  │
+<a id="__codelineno-3-36" name="__codelineno-3-36" href="#__codelineno-3-36"></a>                       │ -&gt; one-time RuntimeWarning   │
+<a id="__codelineno-3-37" name="__codelineno-3-37" href="#__codelineno-3-37"></a>                       └──────────────────────────────┘
+</code></pre></div>
+<p>Most calls only execute path 1. Paths 2-4 exist as defense-in-depth so an unexpected template never crashes the user's REPL.</p>
+<h2 id="the-vendored-jinja2-setup">The vendored jinja2 setup<a class="headerlink" href="#the-vendored-jinja2-setup" title="Permanent link">&para;</a></h2>
+<p>cyllama ships pure-Python copies of <code>jinja2 3.1.6</code> and <code>markupsafe 3.0.3</code> under <code>src/cyllama/_vendor/</code>. They are loaded under the <code>cyllama._vendor.*</code> namespace so they cannot collide with whatever versions the user has installed in their own environment.</p>
+<h3 id="whats-in-srccyllama_vendor">What's in <code>src/cyllama/_vendor/</code><a class="headerlink" href="#whats-in-srccyllama_vendor" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>src/cyllama/_vendor/
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>├── __init__.py              # package marker, vendoring policy docstring
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>├── README.md                # operational docs (versions, rewrites, do-not-modify)
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>├── LICENSE.jinja2           # BSD-3 from jinja2
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>├── LICENSE.markupsafe       # BSD-3 from markupsafe
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>├── jinja2/                  # 26 .py files, ~14,425 lines
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>│   ├── __init__.py
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>│   ├── compiler.py          # *** has one critical patch (see below) ***
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>│   ├── environment.py
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>│   ├── runtime.py
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>│   ├── sandbox.py           # ImmutableSandboxedEnvironment lives here
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>│   └── ... (22 more)
+<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>└── markupsafe/              # 3 files, ~404 lines (no _speedups.c)
+<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a>    ├── __init__.py
+<a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a>    ├── _native.py           # pure-Python escape fallback
+<a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a>    └── py.typed
+</code></pre></div>
+<p>Total: ~14,800 lines of pure Python, ~616 KB on disk. Negligible relative to cyllama's 30-90 MB compiled wheels.</p>
+<h3 id="why-vendored-rather-than-a-runtime-dependency">Why vendored rather than a runtime dependency<a class="headerlink" href="#why-vendored-rather-than-a-runtime-dependency" title="Permanent link">&para;</a></h3>
+<p>cyllama is distributed as binary wheels with bundled native libraries (libllama, libggml, libwhisper, libsd). The package philosophy is "everything you need is in the wheel." Adding ~600 KB of vendored Python to fit that model is a rounding error, and the alternative — declaring the deps in <code>pyproject.toml</code> and letting pip resolve them — would:</p>
+<ol>
+<li><strong>Introduce a transitive dependency</strong> that can conflict with the user's environment.</li>
+<li><strong>Weaken reproducibility</strong>: different <code>jinja2</code> versions can render the same chat template differently, so two users running the same cyllama version could see different outputs.</li>
+<li><strong>Break the self-contained-wheel invariant</strong> that cyllama otherwise maintains.</li>
+</ol>
+<p>The trade-off is that security patches for <code>jinja2</code> require a cyllama release rather than a <code>pip install --upgrade jinja2</code>. Mitigating factors: <code>jinja2</code>'s security history is short and almost entirely about evaluating <em>untrusted</em> templates, which cyllama doesn't do. cyllama evaluates GGUF metadata templates inside <code>ImmutableSandboxedEnvironment</code>, which is the safe-evaluation mode explicitly designed for untrusted input. The realistic security exposure is low.</p>
+<p>The full trade-off analysis (including the alternatives that were considered and rejected) is in the historical context section at the end of this document.</p>
+<h3 id="the-two-import-path-rewrites">The two import-path rewrites<a class="headerlink" href="#the-two-import-path-rewrites" title="Permanent link">&para;</a></h3>
+<p>When jinja2 is installed via pip into a normal <code>site-packages</code> location, all of its internal cross-module imports work because they find each other through the standard Python import machinery. When you copy the same files into <code>src/cyllama/_vendor/jinja2/</code>, two specific import patterns break:</p>
+<h4 id="rewrite-1-from-markupsafe-import-from-cyllama_vendormarkupsafe-import">Rewrite 1: <code>from markupsafe import</code> → <code>from cyllama._vendor.markupsafe import</code><a class="headerlink" href="#rewrite-1-from-markupsafe-import-from-cyllama_vendormarkupsafe-import" title="Permanent link">&para;</a></h4>
+<p><code>jinja2</code> does <code>from markupsafe import escape, Markup, soft_str</code> and <code>import markupsafe</code> across 9 of its source files. Without rewriting, those imports would resolve to whatever <code>markupsafe</code> is on the user's <code>sys.path</code> (or fail with <code>ImportError</code> if none is installed). The rewrite changes them to point at <code>cyllama._vendor.markupsafe</code>.</p>
+<p>This is the standard <code>pip._vendor</code> / <code>setuptools._vendor</code> pattern.</p>
+<h4 id="rewrite-2-from-jinja2runtime-import-from-cyllama_vendorjinja2runtime-import">Rewrite 2: <code>from jinja2.runtime import</code> → <code>from cyllama._vendor.jinja2.runtime import</code><a class="headerlink" href="#rewrite-2-from-jinja2runtime-import-from-cyllama_vendorjinja2runtime-import" title="Permanent link">&para;</a></h4>
+<p>This one is more subtle and is the rewrite that took longest to discover.</p>
+<p><code>jinja2</code>'s <code>compiler.py</code> emits a literal <code>from jinja2.runtime import ...</code> line into the Python source of every <em>compiled template</em>. This is not at module load time — it's at template-compile time, written into the compiled bytecode. Every template the vendored jinja2 compiles contains this line.</p>
+<p>Without the rewrite, every compiled template tries to import from the top-level <code>jinja2.runtime</code> module:</p>
+<ul>
+<li><strong>If the user has <code>jinja2</code> installed in their environment</strong>, compiled templates from the vendored jinja2 silently pull runtime symbols from the <em>user's</em> jinja2, mixing two versions in undefined ways. The observable failure mode is <code>_MissingType</code> sentinels leaking into rendered output as the literal string <code>"missing"</code> instead of being converted to <code>Undefined</code> — because the cross-module identity check <code>if rv is missing:</code> between the two <code>missing</code> sentinels fails, and the sentinel propagates as a string.</li>
+<li><strong>If the user has no jinja2 installed</strong>, the import fails entirely and template rendering raises <code>ImportError</code>.</li>
+</ul>
+<p>The rewrite changes the emit string to <code>from cyllama._vendor.jinja2.runtime import ...</code> so compiled templates always pull from the vendored runtime. The patch lives in <code>src/cyllama/_vendor/jinja2/compiler.py</code> at the line that calls <code>self.writeline(...)</code> to emit the import block.</p>
+<p>Both rewrites are scripted in <code>scripts/vendor_jinja2.sh</code> and applied automatically on every re-vendor. The script also verifies that no stray non-rewritten imports remain after sed runs, and fails loudly if it finds any. See "Re-vendoring" below for the full procedure.</p>
+<h3 id="re-vendoring-jinja2-markupsafe">Re-vendoring jinja2 / markupsafe<a class="headerlink" href="#re-vendoring-jinja2-markupsafe" title="Permanent link">&para;</a></h3>
+<p>To update the vendored libraries to a newer version:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>./scripts/vendor_jinja2.sh<span class="w"> </span><span class="o">[</span>JINJA2_VERSION<span class="o">]</span><span class="w"> </span><span class="o">[</span>MARKUPSAFE_VERSION<span class="o">]</span>
+</code></pre></div>
+<p>Both arguments are optional; defaults are pinned in the script. The script:</p>
+<ol>
+<li>Downloads the requested wheels via <code>pip download --no-deps</code>.</li>
+<li>Extracts the <code>.py</code> source files into <code>src/cyllama/_vendor/</code>.</li>
+<li>Removes <code>markupsafe</code>'s optional <code>_speedups.c</code> C extension and any compiled <code>.so</code> artifacts (we use the pure-Python <code>_native.py</code> path; HTML escaping is irrelevant for chat-template rendering and vendoring the C extension would reintroduce build complexity).</li>
+<li>Re-runs both import-path rewrites against the new sources.</li>
+<li>Copies fresh <code>LICENSE.txt</code> files from each wheel's <code>dist-info/licenses/</code> into the vendor directory.</li>
+<li>Verifies no stray un-rewritten imports remain, failing loudly if any are found.</li>
+</ol>
+<p>After running it:</p>
+<ol>
+<li>Run the chat-template tests: <code>uv run pytest tests/test_jinja_chat.py tests/test_chat.py -v</code>. The 15 tests in <code>test_jinja_chat.py</code> are designed to catch most regressions (the <code>_MissingType</code> leak, the <code>set</code> inside <code>if not x is defined</code> pattern, the loopcontrols extension, etc.).</li>
+<li>Update the version table in <code>src/cyllama/_vendor/README.md</code>.</li>
+<li>Inspect the diff. Expected changes: only files inside <code>_vendor/</code> should be touched. The two rewrites should appear as small line-level changes; everything else should be the upstream content.</li>
+<li>Commit.</li>
+</ol>
+<p>You should re-vendor maybe 2-3 times a year — <code>jinja2</code> ships at that pace and is very stable. Outside of security advisories, there is rarely an urgent reason to update.</p>
+<h2 id="extending-the-renderer">Extending the renderer<a class="headerlink" href="#extending-the-renderer" title="Permanent link">&para;</a></h2>
+<p>The Jinja environment in <code>LLM._apply_jinja_template</code> is configured with the same globals and filters HuggingFace's <code>apply_chat_template</code> provides. If a model's embedded template references something that isn't currently provided, you have two extension points.</p>
+<h3 id="adding-a-custom-global">Adding a custom global<a class="headerlink" href="#adding-a-custom-global" title="Permanent link">&para;</a></h3>
+<p>A "global" is a function or value the template can reference directly, like <code>raise_exception('...')</code> or <code>strftime_now('%Y')</code>. To add one, edit <code>LLM._apply_jinja_template</code> in <code>src/cyllama/api.py</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">_apply_jinja_template</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">messages</span><span class="p">,</span> <span class="n">add_generation_prompt</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>    <span class="c1"># ... existing setup ...</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">my_custom_function</span><span class="p">(</span><span class="n">arg</span><span class="p">):</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>        <span class="k">return</span> <span class="n">some_computed_value</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>    <span class="n">env</span><span class="o">.</span><span class="n">globals</span><span class="p">[</span><span class="s2">&quot;my_custom_function&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">my_custom_function</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>    <span class="c1"># ... existing render call ...</span>
+</code></pre></div>
+<p>The function is then accessible inside the template as <code>{{ my_custom_function('arg') }}</code>. Keep the function pure-Python and side-effect-free where possible — templates run inside <code>ImmutableSandboxedEnvironment</code>, which restricts attribute access and method calls for security, but globals run unrestricted.</p>
+<h3 id="adding-a-custom-filter">Adding a custom filter<a class="headerlink" href="#adding-a-custom-filter" title="Permanent link">&para;</a></h3>
+<p>A "filter" is applied to a value with the pipe operator, like <code>{{ messages | tojson }}</code> or <code>{{ name | trim }}</code>. The current renderer provides <code>tojson</code> (used by tool-calling templates). To add another:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">my_filter</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>    <span class="k">return</span> <span class="n">some_transformation</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="n">env</span><span class="o">.</span><span class="n">filters</span><span class="p">[</span><span class="s2">&quot;my_filter&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">my_filter</span>
+</code></pre></div>
+<p>Then templates can do <code>{{ value | my_filter }}</code> or <code>{{ value | my_filter('arg') }}</code>.</p>
+<h3 id="suppressing-reasoning-blocks-at-the-template-level">Suppressing reasoning blocks at the template level<a class="headerlink" href="#suppressing-reasoning-blocks-at-the-template-level" title="Permanent link">&para;</a></h3>
+<p>Some reasoning-tuned models (Qwen3, DeepSeek-R1) emit a <code>&lt;think&gt;...&lt;/think&gt;</code> block before their actual answer. The current cyllama implementation strips these blocks at the <em>streaming output</em> level via <code>cyllama.rag.repetition.ThinkBlockStripper</code>, but a cleaner approach is to suppress them at the <em>template</em> level by passing <code>enable_thinking=False</code> as a render kwarg.</p>
+<p>Qwen3's chat template (and some others) accepts an <code>enable_thinking</code> template variable that, when False, skips the <code>&lt;think&gt;</code> block generation entirely. This is much more efficient than letting the model generate the block and then discarding it — it saves both tokens <em>and</em> generation time.</p>
+<p>To wire this up, add a render kwarg to <code>_apply_jinja_template</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="k">return</span> <span class="n">compiled</span><span class="o">.</span><span class="n">render</span><span class="p">(</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>    <span class="n">messages</span><span class="o">=</span><span class="n">messages</span><span class="p">,</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>    <span class="n">bos_token</span><span class="o">=</span><span class="n">bos_token</span><span class="p">,</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>    <span class="n">eos_token</span><span class="o">=</span><span class="n">eos_token</span><span class="p">,</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>    <span class="n">add_generation_prompt</span><span class="o">=</span><span class="n">add_generation_prompt</span><span class="p">,</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>    <span class="n">enable_thinking</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>  <span class="c1"># NEW</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="p">)</span>
+</code></pre></div>
+<p>Templates that don't use <code>enable_thinking</code> will silently ignore the kwarg (Jinja2 doesn't error on extra context variables). Templates that do use it will skip the reasoning block.</p>
+<p>This is documented as an open follow-up: a survey of how widely the <code>enable_thinking</code> convention is adopted across reasoning-tuned models would tell us whether to make this the default, expose it via <code>RAGConfig</code>, or leave it manual. Until then, the streaming <code>ThinkBlockStripper</code> remains the cyllama default for reasoning suppression.</p>
+<h2 id="debugging">Debugging<a class="headerlink" href="#debugging" title="Permanent link">&para;</a></h2>
+<h3 id="inspecting-the-rendered-prompt">Inspecting the rendered prompt<a class="headerlink" href="#inspecting-the-rendered-prompt" title="Permanent link">&para;</a></h3>
+<p>The fastest way to see what cyllama is sending to the model is to call <code>_apply_template</code> directly and print the result:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama</span><span class="w"> </span><span class="kn">import</span> <span class="n">LLM</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="n">llm</span> <span class="o">=</span> <span class="n">LLM</span><span class="p">(</span><span class="s2">&quot;models/your-model.gguf&quot;</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="n">prompt</span> <span class="o">=</span> <span class="n">llm</span><span class="o">.</span><span class="n">_apply_template</span><span class="p">([</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>    <span class="p">{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;system&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s2">&quot;You are helpful.&quot;</span><span class="p">},</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>    <span class="p">{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s2">&quot;Hi.&quot;</span><span class="p">},</span>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="p">])</span>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="nb">print</span><span class="p">(</span><span class="nb">repr</span><span class="p">(</span><span class="n">prompt</span><span class="p">))</span>
+</code></pre></div>
+<p><code>repr()</code> shows escape characters explicitly (<code>\n</code>, <code>\t</code>) so you can see the exact byte sequence. The prompt should:</p>
+<ol>
+<li>Begin with the model's BOS token (or include it after a Jinja-rendered preamble).</li>
+<li>Have the system message in the model's expected role marker.</li>
+<li>Have each turn properly delimited.</li>
+<li>End with the assistant role marker and <code>add_generation_prompt=True</code>'s trailing prefix.</li>
+</ol>
+<h3 id="inspecting-the-embedded-template-itself">Inspecting the embedded template itself<a class="headerlink" href="#inspecting-the-embedded-template-itself" title="Permanent link">&para;</a></h3>
+<p>If the rendered prompt looks wrong, dump the raw template to see what Jinja source cyllama is evaluating:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama</span><span class="w"> </span><span class="kn">import</span> <span class="n">LLM</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="n">llm</span> <span class="o">=</span> <span class="n">LLM</span><span class="p">(</span><span class="s2">&quot;models/your-model.gguf&quot;</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="n">template_str</span> <span class="o">=</span> <span class="n">llm</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">get_default_chat_template</span><span class="p">()</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">line</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">template_str</span><span class="o">.</span><span class="n">splitlines</span><span class="p">(),</span> <span class="mi">1</span><span class="p">):</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">i</span><span class="si">:</span><span class="s2">3d</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">line</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</code></pre></div>
+<p>This is the literal string from the GGUF metadata. If it's empty, the model has no embedded template and <code>_apply_jinja_template</code> will raise <code>TemplateError("Model has no embedded chat template")</code>, falling through to the legacy path which will use a built-in default if the model name matches one.</p>
+<h3 id="checking-which-path-was-taken">Checking which path was taken<a class="headerlink" href="#checking-which-path-was-taken" title="Permanent link">&para;</a></h3>
+<p>Currently there's no explicit per-call logging of which code path rendered the template. If you need this for diagnostics, the cleanest way is to instrument <code>_apply_template</code> temporarily:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">_apply_template</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">messages</span><span class="p">,</span> <span class="n">template</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">add_generation_prompt</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>    <span class="k">if</span> <span class="n">template</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>        <span class="k">try</span><span class="p">:</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>            <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_apply_jinja_template</span><span class="p">(</span><span class="n">messages</span><span class="p">,</span> <span class="n">add_generation_prompt</span><span class="p">)</span>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[chat template] used vendored jinja2 path&quot;</span><span class="p">,</span> <span class="n">file</span><span class="o">=</span><span class="n">sys</span><span class="o">.</span><span class="n">stderr</span><span class="p">)</span>
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>            <span class="k">return</span> <span class="n">result</span>
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>        <span class="k">except</span> <span class="n">_JinjaTemplateError</span><span class="p">:</span>
+<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a>            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[chat template] jinja2 path raised, falling back&quot;</span><span class="p">,</span> <span class="n">file</span><span class="o">=</span><span class="n">sys</span><span class="o">.</span><span class="n">stderr</span><span class="p">)</span>
+<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a>            <span class="k">pass</span>
+<a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a>    <span class="c1"># ... legacy path ...</span>
+<a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[chat template] used legacy substring-heuristic path&quot;</span><span class="p">,</span> <span class="n">file</span><span class="o">=</span><span class="n">sys</span><span class="o">.</span><span class="n">stderr</span><span class="p">)</span>
+<a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a>    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">chat_apply_template</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
+</code></pre></div>
+<p>For the RAG pipeline's three-tier fallback, set a breakpoint or logging in <code>RAGPipeline._chat_with_fallback</code> and <code>RAGPipeline._generate_chunks</code>. The <code>_system_role_supported</code> and <code>_chat_template_unusable</code> instance attributes record which fallbacks have fired:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;system role supported: </span><span class="si">{</span><span class="n">pipeline</span><span class="o">.</span><span class="n">_system_role_supported</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;chat template unusable: </span><span class="si">{</span><span class="n">pipeline</span><span class="o">.</span><span class="n">_chat_template_unusable</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</code></pre></div>
+<p><code>None</code> means "haven't tried yet"; <code>True</code>/<code>False</code> means "the corresponding probe has fired and cached its result".</p>
+<h3 id="common-failure-modes">Common failure modes<a class="headerlink" href="#common-failure-modes" title="Permanent link">&para;</a></h3>
+<ol>
+<li>
+<p><strong><code>RuntimeError: Failed to apply chat template</code></strong> at the binding level (<code>llama_cpp.pyx:1948</code>). This means the legacy substring-heuristic path was reached and llama.cpp's <code>llama_chat_apply_template</code> returned -1. Either:</p>
+<ul>
+<li>The Jinja path raised first and the wrapper fell through (look for the cause in the Jinja path)</li>
+<li>The caller passed a <code>template=</code> parameter that doesn't match anything in <code>LLM_CHAT_TEMPLATES</code> and isn't a recognisable Jinja string</li>
+</ul>
+</li>
+<li>
+<p><strong><code>TemplateError: Model has no embedded chat template</code></strong> from <code>_apply_jinja_template</code>. The GGUF metadata doesn't contain a chat template at all. This is normal for embedding-only models; for chat-tuned models it usually means the GGUF was built without preserving the tokenizer config. The wrapper will fall through to the legacy path, which has its own <code>_format_messages_simple</code> fallback.</p>
+</li>
+<li>
+<p><strong><code>TemplateError</code> with a model-specific message</strong> like "System role not supported" (Gemma 2/3 with their <code>raise_exception</code> calls). The Jinja path is correctly evaluating the template and the template is intentionally raising. In <code>LLM.chat()</code> direct usage this propagates to the caller; in <code>RAGPipeline</code> usage the system-into-user merge fallback (path 3) catches it and retries.</p>
+</li>
+<li>
+<p><strong><code>_MissingType</code> sentinel literal <code>"missing"</code> appearing in rendered output.</strong> This means the vendored jinja2's <code>compiler.py</code> is emitting compiled templates with <code>from jinja2.runtime import ...</code> instead of <code>from cyllama._vendor.jinja2.runtime import ...</code>. The rewrite was either skipped during re-vendoring or got reverted. Re-run <code>scripts/vendor_jinja2.sh</code> to fix.</p>
+</li>
+<li>
+<p><strong><code>{% set %}</code> inside an <code>if</code> block doesn't escape the block</strong> for templates that use the <code>{% if not x is defined %}{% set x = ... %}{% endif %}</code> pattern (real Llama-3 templates do this). This is a known Jinja2 quirk that depends on the variable being checked vs. the variable being set. There's a regression test for it in <code>tests/test_jinja_chat.py::TestVendoredJinja2::test_set_inside_is_defined_if_escapes_block</code>. If this test starts failing after a re-vendor, the upstream Jinja2 changed its scope behaviour and the templates may need a workaround.</p>
+</li>
+</ol>
+<h3 id="testing-against-a-specific-model">Testing against a specific model<a class="headerlink" href="#testing-against-a-specific-model" title="Permanent link">&para;</a></h3>
+<p><code>tests/test_jinja_chat.py</code> is the canonical test suite for the chat-template renderer. To run it against a model that isn't in the standard fixtures:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="c1"># tests/test_jinja_chat.py already has a TestGemma4Regression class</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="c1"># that follows this pattern; copy it for new models.</span>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>
+<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a><span class="n">MY_MODEL</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">parent</span> <span class="o">/</span> <span class="s2">&quot;models&quot;</span> <span class="o">/</span> <span class="s2">&quot;your-model.gguf&quot;</span>
+<a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a>
+<a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a><span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">skipif</span><span class="p">(</span><span class="ow">not</span> <span class="n">MY_MODEL</span><span class="o">.</span><span class="n">exists</span><span class="p">(),</span> <span class="n">reason</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;model not found at </span><span class="si">{</span><span class="n">MY_MODEL</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a><span class="k">class</span><span class="w"> </span><span class="nc">TestMyModel</span><span class="p">:</span>
+<a id="__codelineno-13-11" name="__codelineno-13-11" href="#__codelineno-13-11"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">test_jinja_path_renders_template</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<a id="__codelineno-13-12" name="__codelineno-13-12" href="#__codelineno-13-12"></a>        <span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.api</span><span class="w"> </span><span class="kn">import</span> <span class="n">LLM</span>
+<a id="__codelineno-13-13" name="__codelineno-13-13" href="#__codelineno-13-13"></a>        <span class="n">llm</span> <span class="o">=</span> <span class="n">LLM</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">MY_MODEL</span><span class="p">),</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<a id="__codelineno-13-14" name="__codelineno-13-14" href="#__codelineno-13-14"></a>        <span class="k">try</span><span class="p">:</span>
+<a id="__codelineno-13-15" name="__codelineno-13-15" href="#__codelineno-13-15"></a>            <span class="n">prompt</span> <span class="o">=</span> <span class="n">llm</span><span class="o">.</span><span class="n">_apply_jinja_template</span><span class="p">([</span>
+<a id="__codelineno-13-16" name="__codelineno-13-16" href="#__codelineno-13-16"></a>                <span class="p">{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;system&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s2">&quot;You are helpful.&quot;</span><span class="p">},</span>
+<a id="__codelineno-13-17" name="__codelineno-13-17" href="#__codelineno-13-17"></a>                <span class="p">{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s2">&quot;Hi.&quot;</span><span class="p">},</span>
+<a id="__codelineno-13-18" name="__codelineno-13-18" href="#__codelineno-13-18"></a>            <span class="p">])</span>
+<a id="__codelineno-13-19" name="__codelineno-13-19" href="#__codelineno-13-19"></a>            <span class="k">assert</span> <span class="s2">&quot;expected_marker&quot;</span> <span class="ow">in</span> <span class="n">prompt</span>
+<a id="__codelineno-13-20" name="__codelineno-13-20" href="#__codelineno-13-20"></a>        <span class="k">finally</span><span class="p">:</span>
+<a id="__codelineno-13-21" name="__codelineno-13-21" href="#__codelineno-13-21"></a>            <span class="n">llm</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+<a id="__codelineno-13-22" name="__codelineno-13-22" href="#__codelineno-13-22"></a>
+<a id="__codelineno-13-23" name="__codelineno-13-23" href="#__codelineno-13-23"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">test_chat_method_works_end_to_end</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<a id="__codelineno-13-24" name="__codelineno-13-24" href="#__codelineno-13-24"></a>        <span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.api</span><span class="w"> </span><span class="kn">import</span> <span class="n">LLM</span><span class="p">,</span> <span class="n">GenerationConfig</span>
+<a id="__codelineno-13-25" name="__codelineno-13-25" href="#__codelineno-13-25"></a>        <span class="n">llm</span> <span class="o">=</span> <span class="n">LLM</span><span class="p">(</span>
+<a id="__codelineno-13-26" name="__codelineno-13-26" href="#__codelineno-13-26"></a>            <span class="nb">str</span><span class="p">(</span><span class="n">MY_MODEL</span><span class="p">),</span>
+<a id="__codelineno-13-27" name="__codelineno-13-27" href="#__codelineno-13-27"></a>            <span class="n">config</span><span class="o">=</span><span class="n">GenerationConfig</span><span class="p">(</span><span class="n">max_tokens</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">temperature</span><span class="o">=</span><span class="mf">0.0</span><span class="p">),</span>
+<a id="__codelineno-13-28" name="__codelineno-13-28" href="#__codelineno-13-28"></a>            <span class="n">verbose</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+<a id="__codelineno-13-29" name="__codelineno-13-29" href="#__codelineno-13-29"></a>        <span class="p">)</span>
+<a id="__codelineno-13-30" name="__codelineno-13-30" href="#__codelineno-13-30"></a>        <span class="k">try</span><span class="p">:</span>
+<a id="__codelineno-13-31" name="__codelineno-13-31" href="#__codelineno-13-31"></a>            <span class="n">response</span> <span class="o">=</span> <span class="n">llm</span><span class="o">.</span><span class="n">chat</span><span class="p">([</span>
+<a id="__codelineno-13-32" name="__codelineno-13-32" href="#__codelineno-13-32"></a>                <span class="p">{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s2">&quot;What is 2+2?&quot;</span><span class="p">},</span>
+<a id="__codelineno-13-33" name="__codelineno-13-33" href="#__codelineno-13-33"></a>            <span class="p">])</span>
+<a id="__codelineno-13-34" name="__codelineno-13-34" href="#__codelineno-13-34"></a>            <span class="k">assert</span> <span class="s2">&quot;4&quot;</span> <span class="ow">in</span> <span class="nb">str</span><span class="p">(</span><span class="n">response</span><span class="p">)</span>
+<a id="__codelineno-13-35" name="__codelineno-13-35" href="#__codelineno-13-35"></a>        <span class="k">finally</span><span class="p">:</span>
+<a id="__codelineno-13-36" name="__codelineno-13-36" href="#__codelineno-13-36"></a>            <span class="n">llm</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+</code></pre></div>
+<p>The <code>try: ... finally: llm.close()</code> pattern is important — it prevents two large model contexts from briefly overlapping on the GPU between tests, which can cause flaky <code>RuntimeError: llama_decode failed</code> errors with large models.</p>
+<h2 id="reference">Reference<a class="headerlink" href="#reference" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>src/cyllama/api.py:_apply_template</code></td>
+<td>Main wrapper, tries jinja2 path then legacy fallback</td>
+</tr>
+<tr>
+<td><code>src/cyllama/api.py:_apply_jinja_template</code></td>
+<td>The vendored-jinja2 rendering implementation</td>
+</tr>
+<tr>
+<td><code>src/cyllama/_vendor/jinja2/</code></td>
+<td>Vendored jinja2 3.1.6, with two import-path rewrites applied</td>
+</tr>
+<tr>
+<td><code>src/cyllama/_vendor/markupsafe/</code></td>
+<td>Vendored markupsafe 3.0.3, no C speedups</td>
+</tr>
+<tr>
+<td><code>src/cyllama/_vendor/README.md</code></td>
+<td>Operational docs for the vendor directory</td>
+</tr>
+<tr>
+<td><code>src/cyllama/_vendor/__init__.py</code></td>
+<td>Vendoring policy docstring</td>
+</tr>
+<tr>
+<td><code>src/cyllama/_vendor/jinja2/compiler.py:843</code></td>
+<td>The hardcoded <code>from cyllama._vendor.jinja2.runtime import</code> line (rewrite target)</td>
+</tr>
+<tr>
+<td><code>scripts/vendor_jinja2.sh</code></td>
+<td>Re-vendoring script with the two sed rewrites</td>
+</tr>
+<tr>
+<td><code>src/cyllama/llama/llama_cpp.pyx:get_default_chat_template</code></td>
+<td>Cython binding for <code>llama_model_chat_template</code> (extracts embedded template string)</td>
+</tr>
+<tr>
+<td><code>src/cyllama/llama/llama_cpp.pyx:chat_apply_template</code></td>
+<td>Cython binding for the legacy <code>llama_chat_apply_template</code> C API</td>
+</tr>
+<tr>
+<td><code>src/cyllama/rag/pipeline.py:_chat_with_fallback</code></td>
+<td>RAG pipeline's path-3 system-merge fallback</td>
+</tr>
+<tr>
+<td><code>src/cyllama/rag/pipeline.py:_generate_chunks</code></td>
+<td>RAG pipeline's path-4 raw-completion final safety net</td>
+</tr>
+<tr>
+<td><code>tests/test_jinja_chat.py</code></td>
+<td>15 tests covering the vendored renderer end-to-end</td>
+</tr>
+<tr>
+<td><code>tests/test_chat.py</code></td>
+<td>Existing chat template tests against the legacy path</td>
+</tr>
+<tr>
+<td><code>tests/test_rag_pipeline.py</code></td>
+<td>Pipeline-level fallback tests (paths 3 and 4)</td>
+</tr>
+</tbody>
+</table>
+<p>llama.cpp internals (for understanding <em>why</em> the legacy path is limited):</p>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>build/llama.cpp/src/llama-chat.cpp:30-82</code></td>
+<td><code>LLM_CHAT_TEMPLATES</code> name -&gt; enum map</td>
+</tr>
+<tr>
+<td><code>build/llama.cpp/src/llama-chat.cpp:88</code></td>
+<td><code>llm_chat_detect_template</code> substring heuristics (lines 95-200+)</td>
+</tr>
+<tr>
+<td><code>build/llama.cpp/src/llama.cpp:1109</code></td>
+<td><code>llama_chat_apply_template</code> public C API</td>
+</tr>
+<tr>
+<td><code>build/llama.cpp/common/chat.h</code></td>
+<td>The Jinja-aware path in <code>libcommon.a</code> (NOT linked by cyllama — see historical context)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="historical-context">Historical context<a class="headerlink" href="#historical-context" title="Permanent link">&para;</a></h2>
+<p>This section preserves the design analysis that led to the current implementation. It exists for maintainers who need to understand <em>why</em> the system is shaped this way before considering a change to it. None of this is operationally necessary for using or extending the current renderer.</p>
+<h3 id="the-basic-c-api-limitation">The basic C API limitation<a class="headerlink" href="#the-basic-c-api-limitation" title="Permanent link">&para;</a></h3>
+<p>llama.cpp exposes two chat-template APIs:</p>
+<ol>
+<li>
+<p><code>llama_chat_apply_template</code> in the public C API (<code>include/llama.h</code>). This is what cyllama's Cython binding originally called. It only handles a hardcoded set of templates detected via substring heuristics on the embedded template string. If the substring detection fails, it returns -1 with no diagnostic.</p>
+</li>
+<li>
+<p><code>common_chat_templates_apply</code> in <code>common/chat.cpp</code>. This uses llama.cpp's internal Jinja interpreter (<code>common/jinja/</code>) to evaluate the template directly, regardless of substring matching.</p>
+</li>
+</ol>
+<p>The basic C API was the original cyllama binding because it's part of llama.cpp's stable public API surface. The problem was that any model whose embedded Jinja template doesn't match one of the hardcoded substring heuristics fails entirely. <strong>Gemma 4</strong> was the canonical case: its template uses <code>&lt;|turn&gt;</code> markers, but llama.cpp's heuristic looks for <code>&lt;start_of_turn&gt;</code> (which Gemma 2/3 use). The heuristic returned <code>LLM_CHAT_TEMPLATE_UNKNOWN</code> and the function returned -1 regardless of message shape.</p>
+<h3 id="why-we-dont-link-libcommona">Why we don't link <code>libcommon.a</code><a class="headerlink" href="#why-we-dont-link-libcommona" title="Permanent link">&para;</a></h3>
+<p>The obvious fix would be to call <code>common_chat_templates_apply</code> from cyllama's Cython binding. The headers and the static library are already installed by <code>manage.py</code> at build time. Linking would be a few lines of CMake.</p>
+<p>The reason we don't is that <strong><code>libcommon.a</code> is not part of llama.cpp's stable API</strong>. It's the example/utility library that backs <code>llama-server</code>, <code>llama-cli</code>, etc. Function signatures, struct layouts (especially <code>common_chat_templates_inputs</code> and <code>common_chat_params</code>, which gain fields per release), and even header file paths change between llama.cpp versions without notice. Linking against it would mean:</p>
+<ul>
+<li>The cyllama build breaks on most llama.cpp upgrades</li>
+<li>Cython <code>.pxd</code> declarations have to be re-audited against <code>chat.h</code> after every upgrade</li>
+<li>Subtle ABI mismatches could produce silent corruption: Cython trusts the declaration, so if a struct field has shifted, reads return garbage without a compile error</li>
+<li>The Cython binding work has to be redone whenever upstream restructures <code>chat.cpp</code></li>
+</ul>
+<p>This is a large recurring maintenance burden for a behaviour we can get a different way.</p>
+<h3 id="why-we-vendor-jinja2-instead">Why we vendor jinja2 instead<a class="headerlink" href="#why-we-vendor-jinja2-instead" title="Permanent link">&para;</a></h3>
+<p>Once <code>libcommon.a</code> was off the table, the next question was how to evaluate Jinja templates in a way that works regardless of llama.cpp's hardcoded substring detection. The options were:</p>
+<ul>
+<li><strong>Add <code>jinja2</code> as a runtime dependency</strong> (Option D in the original analysis): standard Python idiom, smallest implementation, but introduces a transitive dep that conflicts with the self-contained-wheel philosophy and weakens reproducibility (different <code>jinja2</code> versions can render the same template differently).</li>
+<li><strong>Vendor a C++ Jinja interpreter</strong> (Option E): copy <code>minja</code> or llama.cpp's <code>common/jinja/</code> into cyllama's source tree and compile it as part of the extension. Eliminates the dependency, gives byte-for-byte parity with <code>llama-server</code>, but requires substantial Cython binding work plus a build matrix that has to compile vendored C++ across macOS, Linux, and Windows with multiple GPU backends. Estimated 4-8 hours of focused work plus per-iteration build cycles.</li>
+<li><strong>Vendor <code>jinja2</code> itself as pure Python</strong> (Option F, what we shipped): copy <code>jinja2 3.1.6</code> and <code>markupsafe 3.0.3</code> under <code>cyllama._vendor.*</code>. ~616 KB pure Python, no Cython binding, no build matrix risk, no transitive deps. Same Jinja semantics as HuggingFace's <code>apply_chat_template</code> because it IS the same library. ~1.5 hours of focused work.</li>
+</ul>
+<p>Option F won because the cost-benefit profile dominated the alternatives for cyllama specifically:</p>
+<ul>
+<li>cyllama already distributes binary wheels with bundled native libraries (50+ MB), so adding 600 KB of vendored Python is a rounding error</li>
+<li>Reproducibility matters more for chat-template rendering than for typical Python deps — the entire job of this code path is "produce a deterministic prompt string from a model's metadata"</li>
+<li>jinja2 is mature, BSD-3-licensed, and ships 2-3 minor releases per year, so the manual re-vendoring burden is small</li>
+<li>The security exposure is low because we evaluate trusted GGUF metadata inside <code>ImmutableSandboxedEnvironment</code></li>
+</ul>
+<h3 id="why-we-kept-the-legacy-substring-path-as-a-fallback">Why we kept the legacy substring path as a fallback<a class="headerlink" href="#why-we-kept-the-legacy-substring-path-as-a-fallback" title="Permanent link">&para;</a></h3>
+<p>After Option F shipped, the legacy <code>chat_apply_template</code> Cython binding became mostly dead code — it only fires now if <code>_apply_jinja_template</code> raises (<code>TemplateError</code>, malformed template, no embedded template) or if the caller explicitly requests a named template via <code>LLM.chat(messages, template="llama3")</code>.</p>
+<p>It's preserved as a safety net rather than removed because:</p>
+<ol>
+<li>It costs almost nothing to keep (it's already in the Cython binding)</li>
+<li>It handles the named-template case that the Jinja path doesn't currently support (the Jinja path requires an embedded template, not a name)</li>
+<li>It's a defensive layer for the rare cases where the upstream <code>jinja2</code> version we vendored has a bug evaluating some specific template</li>
+<li>If the binding ever breaks (e.g. a llama.cpp upgrade changes <code>chat_apply_template</code>'s signature), it would be caught by <code>tests/test_chat.py</code> rather than silently leaving the named-template feature broken</li>
+</ol>
+<p>If the legacy path is empirically dead-code over many model families and many releases, it can be removed in a follow-up. Until then, it's cheap insurance.</p>
+<h3 id="why-the-pipeline-level-fallback-layers-exist">Why the pipeline-level fallback layers exist<a class="headerlink" href="#why-the-pipeline-level-fallback-layers-exist" title="Permanent link">&para;</a></h3>
+<p>The three pipeline-level fallback layers (<code>_chat_with_fallback</code> for system-role merging, <code>_generate_chunks</code> for raw-completion degradation) were added before the vendored-jinja2 path existed, when Gemma 4 was crashing the RAG pipeline immediately on the first query. They were the user-facing fix that shipped first; the vendored-jinja2 path is the proper underlying fix that came later.</p>
+<p>With the vendored jinja2 path in place, paths 3 and 4 fire much less often:</p>
+<ul>
+<li><strong>Path 3 (system-into-user merge)</strong> still fires on Gemma 2/3 templates that explicitly call <code>raise_exception('System role not supported')</code> at the Jinja level. Both the legacy path AND the vendored Jinja path correctly propagate this exception, so the merge fallback is still load-bearing for those models.</li>
+<li><strong>Path 4 (raw-completion degradation)</strong> fires only if BOTH chat shapes (system+user, merged user) raise template errors. With the vendored Jinja path correctly evaluating any well-formed Jinja template, this should now only fire on truly malformed embedded templates or corrupted GGUFs.</li>
+</ul>
+<p>Both paths are preserved as defense-in-depth. The maintenance cost is low (a handful of lines of Python plus the cached state on <code>RAGPipeline</code>) and the correctness benefit is real for the long tail of models we don't have in our test fixtures.</p>
+<h3 id="open-follow-ups">Open follow-ups<a class="headerlink" href="#open-follow-ups" title="Permanent link">&para;</a></h3>
+<p>These are documented for future maintainers who may want to pick them up. None are urgent.</p>
+<ol>
+<li>
+<p><strong><code>enable_thinking=False</code> for Qwen3 and similar reasoning models.</strong> Qwen3's HuggingFace template supports an <code>enable_thinking</code> template kwarg that, when False, suppresses the <code>&lt;think&gt;</code> block at the <em>template</em> level — much cleaner than the current text-stripping <code>ThinkBlockStripper</code> because it saves both tokens <em>and</em> generation time. A survey of how widely the convention is adopted across reasoning-tuned models would tell us whether to make this the default, expose it via <code>RAGConfig</code>, or leave it manual. If adoption is broad enough, the <code>ThinkBlockStripper</code> could potentially be deleted.</p>
+</li>
+<li>
+<p><strong>Removing the legacy substring-heuristic Cython binding.</strong> Once we have empirical confidence that the vendored Jinja path covers every model family in cyllama's user base, the legacy <code>chat_apply_template</code> method on <code>LlamaModel</code> and the <code>_apply_template</code> fallback to it become dead code. Removing them would simplify the codebase by ~50 lines and eliminate one path that has to be maintained.</p>
+</li>
+<li>
+<p><strong>Removing the pipeline-level path-4 raw-completion fallback.</strong> Same reasoning. With Jinja support in place, this should never fire in practice. Removing it would simplify <code>RAGPipeline._generate_chunks</code> and the warning message that ships with it.</p>
+</li>
+<li>
+<p><strong>Public API for <code>_apply_jinja_template</code>.</strong> Currently it's a private method with the underscore prefix. If users want to render a chat template without going through <code>LLM.chat()</code> or the standalone <code>apply_chat_template()</code> function, they'd benefit from a public method. This is purely a naming/documentation change.</p>
+</li>
+<li>
+<p><strong>Linux/Windows verification of the vendored path.</strong> All testing has been done on macOS-Metal. The vendored path is pure Python so it should work identically on Linux and Windows, but a CI run against at least one Linux backend would confirm.</p>
+</li>
+<li>
+<p><strong>Survey of which embedded templates use which Jinja features.</strong> Some templates use advanced features (<code>{% include %}</code>, <code>{% extends %}</code>, custom tests) that we haven't exercised. A scripted survey across the top-N chat-tuned GGUFs on HuggingFace would tell us whether the current renderer covers everything in practice or whether some templates need additional extensions.</p>
+</li>
+</ol>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.expand", "navigation.top", "search.highlight", "content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

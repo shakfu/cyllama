@@ -1,0 +1,2042 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="High-performance Python library for local AI inference">
+      
+      
+        <meta name="author" content="S. Alireza">
+      
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Concurrent-use runtime guard - cyllama</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#concurrent-use-runtime-guard" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="cyllama" class="md-header__button md-logo" aria-label="cyllama" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            cyllama
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Concurrent-use runtime guard
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/shakfu/cyllama" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    shakfu/cyllama
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="cyllama" class="md-nav__button md-logo" aria-label="cyllama" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    cyllama
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/shakfu/cyllama" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    shakfu/cyllama
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../intro/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Introduction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quick Start
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../summary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Summary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Llama.cpp
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Llama.cpp
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user_guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cookbook/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cookbook
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../build_backends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build Backends
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../build_options/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Advanced Build Options
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../context_caching/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context Caching
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../server_usage_examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Server Usage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Whisper.cpp
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Whisper.cpp
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../whisper/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Whisper Integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stable Diffusion
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Stable Diffusion
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../stable_diffusion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stable Diffusion Integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agents
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Agents
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents_overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agent Framework
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_11" >
+        
+          
+          <label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RAG
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_11">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    RAG
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../rag_overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../rag_embedder/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Embedder
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../rag_vectorstore/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VectorStore
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../rag_text_processing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Text Processing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../rag_pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RAG Pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../rag_advanced/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Advanced Features
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_12" >
+        
+          
+          <label class="md-nav__link" for="__nav_12" id="__nav_12_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_12">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api_reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-this-is-for" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What this is for
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#quick-reference-how-it-presents-to-users" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quick reference: how it presents to users
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Quick reference: how it presents to users">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#one-narrow-exception-sequential-ownership-transfer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        One narrow exception: sequential ownership transfer
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#implementation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Implementation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Implementation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#core-mechanism" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Core mechanism
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-acquire-helper" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The acquire helper
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#where-the-guard-is-called" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where the guard is called
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-streaming-wrapper" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The streaming wrapper
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cython-layout-notes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cython layout notes
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#test-pattern" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Test pattern
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#extending-the-guard" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Extending the guard
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#design-analysis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Design analysis
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Design analysis">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-we-picked" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What we picked
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#alternatives-considered" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Alternatives considered
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Alternatives considered">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#alternative-1-strict-thread-id-matching" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Alternative 1: Strict thread-id matching
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#alternative-2-blocking-lock-serialize-instead-of-raise" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Alternative 2: Blocking lock (serialize instead of raise)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#alternative-3-per-thread-context-pool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Alternative 3: Per-thread context pool
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#alternative-4-documentation-only-no-runtime-check" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Alternative 4: Documentation only, no runtime check
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#alternative-5-fix-it-upstream" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Alternative 5: Fix it upstream
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#known-weaknesses-of-the-current-design" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Known weaknesses of the current design
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-raise-is-the-right-call-for-cyllama-specifically" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why "raise" is the right call for cyllama specifically
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#open-follow-ups" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Open follow-ups
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="concurrent-use-runtime-guard">Concurrent-use runtime guard<a class="headerlink" href="#concurrent-use-runtime-guard" title="Permanent link">&para;</a></h1>
+<blockquote>
+<p><strong>The rule:</strong> Always use one context per thread. Do not share the same context across threads.</p>
+<p>This applies to every <code>LLM</code>, <code>WhisperContext</code>, and <code>SDContext</code> instance. The underlying llama.cpp / whisper.cpp / stable-diffusion.cpp contexts are not designed for concurrent access — sharing one across threads corrupts internal state silently. cyllama enforces the rule at runtime with a non-blocking lock; the rest of this document explains the hazard, the implementation, the alternatives we rejected, and how to extend the guard when adding new native-touching methods.</p>
+</blockquote>
+<p>This document is a maintainer guide. It covers:</p>
+<ul>
+<li>The underlying hazard and why it exists</li>
+<li>The current implementation</li>
+<li>The alternative designs that were considered and rejected</li>
+<li>Known weaknesses of the current design</li>
+<li>When and how to extend the guard if a new native-touching method is added</li>
+</ul>
+<p>The design analysis at the end is preserved so future maintainers can decide whether to keep, replace, or extend the guard based on first principles, not by reading the code and guessing.</p>
+<h2 id="what-this-is-for">What this is for<a class="headerlink" href="#what-this-is-for" title="Permanent link">&para;</a></h2>
+<p>llama.cpp's <code>llama_context</code>, whisper.cpp's <code>whisper_context</code>, and stable-diffusion.cpp's <code>sd_ctx_t</code> are <strong>not safe to use from multiple threads simultaneously</strong>. The data structures rely on single-owner access: the KV cache, sampler state, batch buffers, and RNG state are all touched without locking on every token. Two concurrent native calls into the same context produce silent corruption (garbage tokens, scrambled state) or segfaults under load.</p>
+<p>How well each upstream documents this varies — and the variation itself is part of why cyllama needs a Python-level guard rather than relying on users to read C headers:</p>
+<p><strong>whisper.cpp</strong> is explicit and unambiguous. Three places in <code>thirdparty/whisper.cpp/include/whisper.h</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1">// thirdparty/whisper.cpp/include/whisper.h:45-46</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="c1">// The following interface is thread-safe as long as the same whisper_context is not used by multiple threads</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="c1">// concurrently.</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1">// thirdparty/whisper.cpp/include/whisper.h:600-603</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="c1">// Run the entire model: PCM -&gt; log mel spectrogram -&gt; encoder -&gt; decoder -&gt; text</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="c1">// Not thread safe for same context</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="c1">// Uses the specified decoding strategy to obtain the text.</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="n">WHISPER_API</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">whisper_full</span><span class="p">(...);</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1">// thirdparty/whisper.cpp/include/whisper.h:616-621</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="c1">// Split the input audio in chunks and process each chunk separately using whisper_full_with_state()</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="c1">// Result is stored in the default state of the context</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="c1">// Not thread safe if executed in parallel on the same context.</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="n">WHISPER_API</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">whisper_full_parallel</span><span class="p">(...);</span>
+</code></pre></div>
+<p>So for whisper, the rule is stated in the header: do not call <code>whisper_full</code>/<code>whisper_full_parallel</code> on the same <code>whisper_context</code> from multiple threads. cyllama's <code>WhisperContext._busy_lock</code> enforces exactly this.</p>
+<p><strong>llama.cpp</strong> is <strong>not</strong> explicit about <code>llama_context</code> thread safety in the C header. <code>thirdparty/llama.cpp/include/llama.h</code> has thread-safety annotations only on two scoped subsystems:</p>
+<ul>
+<li>The Tokenization section (line 1120) is marked safe: <code>// The API is thread-safe.</code> — but the comment is positioned just above the <code>llama_tokenize</code> family and applies only to that section, not to the whole API.</li>
+<li>Global logger state is marked unsafe at lines 521 and 1511: <code>// this function is NOT thread safe because it modifies the global llama logger state</code> and similar.</li>
+</ul>
+<p>The actually-dangerous functions — <code>llama_decode</code>, <code>llama_encode</code>, <code>llama_sampler_sample</code>, <code>llama_set_*</code> — have <strong>no thread-safety annotation either way</strong>. Their docstrings document return codes and memory-state behaviour but not thread safety. The <code>ggml.h</code> "Multi-threading" section that you'd hope would clarify things is literally <code>// TODO</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1">// thirdparty/llama.cpp/include/ggml.h:155-158</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="c1">// ## Multi-threading</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="c1">//</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1">// TODO</span>
+</code></pre></div>
+<p>The headers are silent, but the upstream issue tracker is <strong>explicit</strong> about the rule, and the rule exactly matches what cyllama enforces. Three references that together establish the contract:</p>
+<ol>
+<li>
+<p><strong><a href="https://github.com/ggml-org/llama.cpp/issues/499">ggml-org/llama.cpp#499</a></strong> — <em>"Thread safety"</em> (SpeedyCraftah, March 2023). The original question: <em>"Is llama.cpp thread safe? I have encountered some problems and weird issues when creating a CTX on another thread and then using it in another."</em> Answered by Ronsor with the canonical <em>"not yet, but it's a priority and parallel inference is on the roadmap."</em> Crucially, <strong>slaren</strong> (Diego Devesa, llama.cpp maintainer) clarified that the design goal was thread-safe usage of <strong>different <code>llama_context</code> objects</strong>, not concurrent use of the same one — <em>"llama.cpp shouldn't be too far from being thread safe over different <code>llama_context</code> objects."</em> And <strong>ggerganov</strong> noted that the supported parallelism story is "multiple models, multiple contexts, and parallel decoding [via batching]" — <em>not</em> sharing a context across threads. So as of March 2023, the rule was already on record: one context per thread is the supported pattern, sharing one context across threads is not.</p>
+</li>
+<li>
+<p><strong><a href="https://github.com/ggml-org/llama.cpp/issues/3960">ggml-org/llama.cpp#3960</a></strong> — <em>"ggml : become thread-safe"</em> (opened by ggerganov himself, November 2023). The fact that the project's lead author opened this issue is itself the most authoritative statement possible that ggml wasn't thread-safe at the time. The body: <em>"We should be able to run inference on multiple graphs, backends and devices in parallel. Currently, there are CUDA singletons that break this requirement and possibly there could be other problems."</em> Note the framing: the goal is parallel inference across <strong>multiple graphs</strong> (i.e. multiple contexts), not concurrent access to one graph. After the fix landed, the same issue thread states the post-fix contract in plain terms:</p>
+</li>
+</ol>
+<blockquote>
+<p><em>"For example, using multiple llama contexts simultaneously each with a different CUDA GPU on different threads should now be possible. CPU and Metal also should be thread-safe, other backends probably not."</em></p>
+</blockquote>
+<p>Three things to note about this quote, because it is the closest thing to an explicit, citable upstream statement of the rule:</p>
+<ul>
+<li>The unit of parallelism is <strong>"multiple llama contexts"</strong> (plural). The supported pattern is one context per worker, never one context shared between workers.</li>
+<li>Backend safety varies. <strong>CPU and Metal</strong> are thread-safe (across contexts). <strong>CUDA</strong> is thread-safe in the multi-GPU/multi-context case. <strong>"Other backends probably not"</strong> — Vulkan, SYCL, HIP, OpenCL are explicitly <em>not</em> claimed to be thread-safe, even across contexts. cyllama users on those backends should treat the runtime guard as the only safety net.</li>
+<li>
+<p>The hedge ("should now be possible", "probably not") is the maintainer's own. Even within the supported pattern, upstream is not making a strong guarantee.</p>
+</li>
+<li>
+<p><strong><a href="https://github.com/ggml-org/llama.cpp/pull/6170">ggml-org/llama.cpp#6170</a></strong> — <em>"cuda : refactor to remove global resources"</em> (slaren, merged March 2024). This is the PR that closed #3960. Its scope is narrower than the issue title implies: it fixes the CUDA backend singletons that prevented even the per-context case from working. The PR description: <em>"Pools and other resources are tied to the <code>ggml_backend</code> instance and are freed along with it. It should also be thread-safe."</em> Note the hedge ("should") and the scope (CUDA backend resources, not <code>llama_context</code> state).</p>
+</li>
+</ul>
+<p>The crucial inference: <strong>closing #3960 does not mean "you can now share one <code>llama_context</code> across threads."</strong> It means "the CUDA singletons that broke per-context isolation are gone, so one-context-per-thread actually works now." The KV cache, sampler state, and batch buffers inside a single <code>llama_context</code> are still single-owner data structures touched on every token without locks — there's no PR claiming to have changed that, because it was never the goal.</p>
+<p>So the upstream design contract for llama.cpp, established across these three threads, is exactly the rule cyllama's runtime guard enforces:</p>
+<blockquote>
+<p><strong>Always use one context per thread. Do not share the same context across threads.</strong></p>
+<p>Concretely: one <code>llama_context</code> is safe to use from one thread at a time. Multiple <code>llama_context</code> objects (one per worker thread) can run in parallel, subject to backend caveats noted above. Sharing one <code>llama_context</code> across multiple concurrent native calls is not supported and never has been.</p>
+</blockquote>
+<p>The headers don't say this — but the issue tracker does, and ggerganov / slaren are the authoritative sources for "what llama.cpp supports." cyllama's <code>LLM._busy_lock</code> prevents the unsupported pattern (one context, multiple concurrent users) while allowing the legitimate sequential-handoff pattern (one context, one in-flight call, possibly bounced between threads via <code>asyncio.to_thread</code>).</p>
+<p><strong>stable-diffusion.cpp</strong> is also <strong>not</strong> explicit. <code>thirdparty/stable-diffusion.cpp/include/stable-diffusion.h</code> has no thread-safety statements about <code>sd_ctx_t</code>, <code>generate_image</code>, or <code>generate_video</code>. The only "thread-safe" mentions in the include directory are in unrelated bundled libraries (<code>stb_image.h</code>, <code>ggml-cann.h</code>). The non-thread-safety is again conventional knowledge from the implementation rather than a documented contract.</p>
+<p>Net: of the three upstreams, only whisper.cpp documents the rule. For llama.cpp and sd.cpp, "concurrent use of one context corrupts state" is true but not stated where users would find it. The runtime guard is doing real informational work, not just enforcing something the user could have looked up.</p>
+<p>cyllama makes this slightly worse than vanilla Python because <strong>it releases the GIL around native calls</strong> to allow other Python threads to run during inference. This is a deliberate, documented win for throughput in async server contexts (<code>AsyncLLM</code>, <code>PythonServer</code>, <code>AsyncReActAgent</code> all rely on it). The downside: two Python threads holding references to the same <code>LLM</code> can now actually execute native code in parallel, instead of being serialized by the GIL by accident. So:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">llm</span> <span class="o">=</span> <span class="n">LLM</span><span class="p">(</span><span class="s2">&quot;model.gguf&quot;</span><span class="p">)</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="k">def</span><span class="w"> </span><span class="nf">worker</span><span class="p">():</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>    <span class="n">llm</span><span class="p">(</span><span class="s2">&quot;hello&quot;</span><span class="p">)</span>  <span class="c1"># native call, GIL released</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="n">t1</span> <span class="o">=</span> <span class="n">threading</span><span class="o">.</span><span class="n">Thread</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">worker</span><span class="p">)</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="n">t2</span> <span class="o">=</span> <span class="n">threading</span><span class="o">.</span><span class="n">Thread</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">worker</span><span class="p">)</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="n">t1</span><span class="o">.</span><span class="n">start</span><span class="p">();</span> <span class="n">t2</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>   <span class="c1"># ← two native calls into one context, in parallel</span>
+</code></pre></div>
+<p>What you got from this before the guard was <strong>silent corruption</strong>: garbage tokens, scrambled KV cache, occasional segfaults under load, or — worst case — a clean run that returned nonsense the user trusted. None of these surface as a clear "you did it wrong" error. Users blamed the model.</p>
+<p>The runtime guard converts this silent UB into a loud <code>RuntimeError</code> on the <em>first</em> concurrent call.</p>
+<h2 id="quick-reference-how-it-presents-to-users">Quick reference: how it presents to users<a class="headerlink" href="#quick-reference-how-it-presents-to-users" title="Permanent link">&para;</a></h2>
+<blockquote>
+<p><strong>Always use one context per thread. Do not share the same context across threads.</strong></p>
+</blockquote>
+<p>That is the entire rule for users. The runtime guard exists to enforce it loudly when it's violated, not to enable any clever pattern around it. If you find yourself wanting to share an <code>LLM</code> (or <code>WhisperContext</code>, or <code>SDContext</code>) across worker threads, the answer is always <em>create one per worker</em> — even if it costs extra memory.</p>
+<p>When two threads try to use the same instance concurrently, the second one raises:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>RuntimeError: LLM is currently being used by another thread. llama.cpp
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>contexts are not thread-safe — create one LLM per thread instead of
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>sharing a single instance across threads.
+</code></pre></div>
+<p>Equivalent messages exist for <code>WhisperContext</code> and <code>SDContext</code>. The fix is always the same: create one instance per thread (or per worker), don't share.</p>
+<h3 id="one-narrow-exception-sequential-ownership-transfer">One narrow exception: sequential ownership transfer<a class="headerlink" href="#one-narrow-exception-sequential-ownership-transfer" title="Permanent link">&para;</a></h3>
+<p>The rule "one context per thread" is about <em>concurrent</em> use. There is one pattern that <em>looks</em> like cross-thread use but isn't, and it must keep working:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># asyncio.to_thread / executor handoff: LLM created on the main thread,</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="c1"># called sequentially on a worker thread. No contention, no error.</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="n">llm</span> <span class="o">=</span> <span class="n">LLM</span><span class="p">(</span><span class="s2">&quot;model.gguf&quot;</span><span class="p">)</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">to_thread</span><span class="p">(</span><span class="n">llm</span><span class="p">,</span> <span class="s2">&quot;hello&quot;</span><span class="p">)</span>
+</code></pre></div>
+<p>Here the LLM was created on the main asyncio thread but the actual call happens on a worker thread. There is <strong>no concurrent access</strong> — the main thread isn't using the LLM while the worker is. This is <em>sequential ownership transfer</em>, not sharing, and it's the pattern <code>AsyncReActAgent.run</code> relies on. The guard catches <strong>contention</strong>, not thread identity, so this pattern works.</p>
+<p>Why call this out? Because the very first version of this guard used strict thread-id matching and broke <code>AsyncReActAgent</code> immediately. The contention-based design is what lets the rule "one context per thread" coexist with the legitimate <code>asyncio.to_thread</code> pattern. See "Alternative 1: Strict thread-id matching" in the design analysis section for the full story.</p>
+<h2 id="implementation">Implementation<a class="headerlink" href="#implementation" title="Permanent link">&para;</a></h2>
+<h3 id="core-mechanism">Core mechanism<a class="headerlink" href="#core-mechanism" title="Permanent link">&para;</a></h3>
+<p>Each guarded class holds a <code>threading.Lock</code> set in <code>__init__</code> after the underlying native context is successfully created:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># src/cyllama/api.py             — LLM</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="c1"># src/cyllama/rag/embedder.py    — Embedder</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="bp">self</span><span class="o">.</span><span class="n">_busy_lock</span> <span class="o">=</span> <span class="n">threading</span><span class="o">.</span><span class="n">Lock</span><span class="p">()</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c"># src/cyllama/whisper/whisper_cpp.pyx — WhisperContext</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="c"># src/cyllama/sd/stable_diffusion.pyx     — SDContext</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="k">cdef</span><span class="w"> </span><span class="kr">readonly</span> <span class="kt">object</span> <span class="nv">_busy_lock</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="k">def</span><span class="w"> </span><span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">...</span><span class="p">):</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>    <span class="o">...</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>    <span class="k">import</span><span class="w"> </span><span class="nn">threading</span>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_busy_lock</span> <span class="o">=</span> <span class="n">threading</span><span class="o">.</span><span class="n">Lock</span><span class="p">()</span>
+</code></pre></div>
+<p>Note the <code>cdef readonly object</code> declaration on the Cython classes: this exposes the lock as a Python-readable attribute (so the regression tests can simulate contention by holding it directly) while preventing rebinding from Python. The <code>LLM</code> and <code>Embedder</code> classes are pure Python so the attribute is visible by default.</p>
+<h3 id="the-acquire-helper">The acquire helper<a class="headerlink" href="#the-acquire-helper" title="Permanent link">&para;</a></h3>
+<p>A small private method on each class implements the non-blocking acquire:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">_try_acquire_busy</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_busy_lock</span><span class="o">.</span><span class="n">acquire</span><span class="p">(</span><span class="n">blocking</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>            <span class="s2">&quot;LLM is currently being used by another thread. llama.cpp &quot;</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>            <span class="s2">&quot;contexts are not thread-safe — create one LLM per thread &quot;</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>            <span class="s2">&quot;instead of sharing a single instance across threads.&quot;</span>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>        <span class="p">)</span>
+</code></pre></div>
+<p><code>blocking=False</code> is the load-bearing detail: a second concurrent caller fails fast instead of waiting in line. The reason for failing fast over serializing is discussed in the design-analysis section below.</p>
+<h3 id="where-the-guard-is-called">Where the guard is called<a class="headerlink" href="#where-the-guard-is-called" title="Permanent link">&para;</a></h3>
+<p>Each native-touching public method acquires the lock, runs its native call inside <code>try</code>, and releases in <code>finally</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="k">def</span><span class="w"> </span><span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">prompt</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">stream</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">on_token</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_try_acquire_busy</span><span class="p">()</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>    <span class="k">if</span> <span class="n">stream</span><span class="p">:</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_stream_with_busy_release</span><span class="p">(</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>            <span class="bp">self</span><span class="o">.</span><span class="n">_generate_stream</span><span class="p">(</span><span class="n">prompt</span><span class="p">,</span> <span class="n">config</span><span class="p">,</span> <span class="n">on_token</span><span class="p">)</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>        <span class="p">)</span>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>    <span class="k">try</span><span class="p">:</span>
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_generate</span><span class="p">(</span><span class="n">prompt</span><span class="p">,</span> <span class="n">config</span><span class="p">,</span> <span class="n">on_token</span><span class="p">)</span>
+<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a>    <span class="k">finally</span><span class="p">:</span>
+<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_busy_lock</span><span class="o">.</span><span class="n">release</span><span class="p">()</span>
+</code></pre></div>
+<p>The guarded methods, by class:</p>
+<table>
+<thead>
+<tr>
+<th>Class</th>
+<th>Guarded methods</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>LLM</code></td>
+<td><code>__call__</code>, <code>generate_with_stats</code>, <code>reset_context</code></td>
+<td><code>chat()</code> is unguarded because it delegates to <code>__call__</code>, which already holds the lock. Acquiring twice would deadlock since <code>Lock</code> is non-reentrant.</td>
+</tr>
+<tr>
+<td><code>Embedder</code></td>
+<td><code>embed</code>, <code>embed_with_info</code></td>
+<td><code>embed_batch</code>, <code>embed_documents</code>, <code>embed_iter</code> are unguarded — they delegate to <code>embed()</code> per item, which acquires/releases per item. This means a parallel <code>embed_batch</code> from another thread will see interleaved per-item locking, not exclusive batch ownership; that's correct because each <code>embed()</code> call is self-contained.</td>
+</tr>
+<tr>
+<td><code>WhisperContext</code></td>
+<td><code>encode</code>, <code>full</code></td>
+<td><code>full()</code> releases the GIL inside <code>with nogil:</code> while holding the lock.</td>
+</tr>
+<tr>
+<td><code>SDContext</code></td>
+<td><code>generate_with_params</code>, <code>generate_video</code></td>
+<td><code>generate()</code> is unguarded because it delegates to <code>generate_with_params()</code>.</td>
+</tr>
+</tbody>
+</table>
+<p><code>close()</code>, <code>__del__</code>, and <code>__dealloc__</code> are <strong>deliberately unguarded</strong> because the garbage collector may run them on any thread, and a guard there would convert benign cross-thread cleanup into a hard failure.</p>
+<h3 id="the-streaming-wrapper">The streaming wrapper<a class="headerlink" href="#the-streaming-wrapper" title="Permanent link">&para;</a></h3>
+<p><code>LLM.__call__(stream=True)</code> returns a generator that may live longer than the <code>__call__</code> invocation itself. We can't release the lock when <code>__call__</code> returns — we have to hold it until the generator is exhausted, closed, or garbage-collected.</p>
+<p>This is handled by wrapping the underlying stream generator:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">_stream_with_busy_release</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">gen</span><span class="p">):</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>    <span class="k">try</span><span class="p">:</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>        <span class="k">yield from</span> <span class="n">gen</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>    <span class="k">finally</span><span class="p">:</span>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>        <span class="k">try</span><span class="p">:</span>
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>            <span class="bp">self</span><span class="o">.</span><span class="n">_busy_lock</span><span class="o">.</span><span class="n">release</span><span class="p">()</span>
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>        <span class="k">except</span> <span class="ne">RuntimeError</span><span class="p">:</span>
+<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a>            <span class="c1"># Lock already released — defensive, should not happen.</span>
+<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a>            <span class="k">pass</span>
+</code></pre></div>
+<p>Generator <code>finally</code> blocks run on every termination path (StopIteration, exception, <code>.close()</code>, gc), so the lock is guaranteed to be released even if the caller drops the iterator without consuming it.</p>
+<h3 id="cython-layout-notes">Cython layout notes<a class="headerlink" href="#cython-layout-notes" title="Permanent link">&para;</a></h3>
+<p>The <code>cdef</code> class layouts deserve a callout because they're slightly subtle:</p>
+<ol>
+<li>
+<p><strong><code>cdef readonly object _busy_lock</code></strong> — <code>readonly</code> is essential. Plain <code>cdef object</code> makes the attribute invisible from Python (so the test couldn't hold it). Without <code>readonly</code>, the attribute would be writable from Python (<code>ctx._busy_lock = something_else</code>), which we don't want — only the class itself should bind it during <code>__init__</code>. <code>readonly</code> is the minimum exposure needed.</p>
+</li>
+<li>
+<p><strong><code>cdef</code> declarations at the top of <code>def</code> methods.</strong> Cython requires all <code>cdef</code> declarations in a function body to be hoisted to the top of the function — they can't appear inside <code>try</code> blocks or after Python statements. The <code>WhisperContext.full()</code> method had to be restructured to declare <code>cdef float[::1] samples_view</code> and friends at the top before the <code>_try_acquire_busy()</code> call.</p>
+</li>
+<li>
+<p><strong><code>__init__</code> import inside the function.</strong> The <code>import threading</code> is local to <code>__init__</code> rather than at module top. This is just a minor optimization to avoid pulling in <code>threading</code> at module load time when it's only needed once per instance.</p>
+</li>
+</ol>
+<h2 id="test-pattern">Test pattern<a class="headerlink" href="#test-pattern" title="Permanent link">&para;</a></h2>
+<p>The same pattern appears in all three regression test classes:</p>
+<ol>
+<li>Create an instance with a real model.</li>
+<li>Manually <code>acquire(blocking=False)</code> the busy-lock from the <strong>test thread</strong> to simulate "thread A is currently in flight."</li>
+<li>Spawn a worker thread that calls the actual public method.</li>
+<li>Assert the worker raised <code>RuntimeError</code> containing <code>"another thread"</code> and <code>"not thread-safe"</code>.</li>
+<li>Release the lock in <code>finally</code>.</li>
+</ol>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">test_concurrent_generate_raises</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>    <span class="n">ctx</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_make_ctx</span><span class="p">()</span>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>    <span class="k">assert</span> <span class="n">ctx</span><span class="o">.</span><span class="n">_busy_lock</span><span class="o">.</span><span class="n">acquire</span><span class="p">(</span><span class="n">blocking</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">True</span>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>    <span class="k">try</span><span class="p">:</span>
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>        <span class="n">errors</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="ne">Exception</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>        <span class="k">def</span><span class="w"> </span><span class="nf">worker</span><span class="p">():</span>
+<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a>            <span class="k">try</span><span class="p">:</span>
+<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a>                <span class="n">ctx</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="n">prompt</span><span class="o">=</span><span class="s2">&quot;x&quot;</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span>
+<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a>                             <span class="n">seed</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">sample_steps</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">cfg_scale</span><span class="o">=</span><span class="mf">1.0</span><span class="p">)</span>
+<a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a>            <span class="k">except</span> <span class="ne">RuntimeError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+<a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a>                <span class="n">errors</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+<a id="__codelineno-12-12" name="__codelineno-12-12" href="#__codelineno-12-12"></a>
+<a id="__codelineno-12-13" name="__codelineno-12-13" href="#__codelineno-12-13"></a>        <span class="n">t</span> <span class="o">=</span> <span class="n">threading</span><span class="o">.</span><span class="n">Thread</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">worker</span><span class="p">)</span>
+<a id="__codelineno-12-14" name="__codelineno-12-14" href="#__codelineno-12-14"></a>        <span class="n">t</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+<a id="__codelineno-12-15" name="__codelineno-12-15" href="#__codelineno-12-15"></a>        <span class="n">t</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">timeout</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+<a id="__codelineno-12-16" name="__codelineno-12-16" href="#__codelineno-12-16"></a>
+<a id="__codelineno-12-17" name="__codelineno-12-17" href="#__codelineno-12-17"></a>        <span class="k">assert</span> <span class="ow">not</span> <span class="n">t</span><span class="o">.</span><span class="n">is_alive</span><span class="p">(),</span> <span class="s2">&quot;worker did not return — guard may be missing&quot;</span>
+<a id="__codelineno-12-18" name="__codelineno-12-18" href="#__codelineno-12-18"></a>        <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">errors</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>
+<a id="__codelineno-12-19" name="__codelineno-12-19" href="#__codelineno-12-19"></a>        <span class="k">assert</span> <span class="s2">&quot;another thread&quot;</span> <span class="ow">in</span> <span class="nb">str</span><span class="p">(</span><span class="n">errors</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+<a id="__codelineno-12-20" name="__codelineno-12-20" href="#__codelineno-12-20"></a>        <span class="k">assert</span> <span class="s2">&quot;not thread-safe&quot;</span> <span class="ow">in</span> <span class="nb">str</span><span class="p">(</span><span class="n">errors</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+<a id="__codelineno-12-21" name="__codelineno-12-21" href="#__codelineno-12-21"></a>    <span class="k">finally</span><span class="p">:</span>
+<a id="__codelineno-12-22" name="__codelineno-12-22" href="#__codelineno-12-22"></a>        <span class="n">ctx</span><span class="o">.</span><span class="n">_busy_lock</span><span class="o">.</span><span class="n">release</span><span class="p">()</span>
+</code></pre></div>
+<p>This pattern is intentional for two reasons:</p>
+<ul>
+<li><strong>It exercises the real public-API entry points.</strong> The worker calls <code>ctx.generate()</code> (or <code>llm()</code>, or <code>ctx.full()</code>), proving the guard is wired up to the user-visible method, not just to some internal helper.</li>
+<li><strong>The worker never reaches native code.</strong> It hits <code>_try_acquire_busy()</code> and raises before any native call runs. This is critical for <code>SDContext</code> because <code>test_deterministic_seed</code> is currently skipped with the comment <em>"Multiple generations on same context causes segfault — needs investigation"</em>. By ensuring the worker never reaches native code, our test avoids that unrelated bug.</li>
+</ul>
+<p>The <code>LLM</code> test (<code>tests/test_comprehensive.py::TestLLMConcurrencyGuard::test_concurrent_calls_from_two_threads_raises</code>) uses a slightly different pattern because <code>LLM</code> exposes an <code>on_token</code> callback that gives us a deterministic way to pause inside a real call: thread A starts a real generation, the <code>on_token</code> callback blocks on a <code>threading.Event</code>, thread B then attempts a concurrent call and is rejected. This is a stronger end-to-end test than the lock-holding shortcut because it actually runs native code in thread A. Use whichever pattern makes sense for the API surface being tested.</p>
+<p>The test classes:</p>
+<table>
+<thead>
+<tr>
+<th>Class</th>
+<th>File</th>
+<th>Tests</th>
+<th>Model fixture</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>TestLLMConcurrencyGuard</code></td>
+<td><code>tests/test_comprehensive.py</code></td>
+<td>5</td>
+<td><code>Llama-3.2-1B-Instruct-Q8_0.gguf</code></td>
+</tr>
+<tr>
+<td><code>TestEmbedderConcurrencyGuard</code></td>
+<td><code>tests/test_rag_embedder.py</code></td>
+<td>6</td>
+<td><code>Llama-3.2-1B-Instruct-Q8_0.gguf</code></td>
+</tr>
+<tr>
+<td><code>TestSDContextConcurrencyGuard</code></td>
+<td><code>tests/test_sd.py</code></td>
+<td>3</td>
+<td><code>sd_xl_turbo_1.0.q8_0.gguf</code></td>
+</tr>
+<tr>
+<td><code>TestWhisperContextConcurrencyGuard</code></td>
+<td><code>tests/test_whisper.py</code></td>
+<td>3</td>
+<td><code>ggml-base.en.bin</code></td>
+</tr>
+</tbody>
+</table>
+<p>Each class skips cleanly when its model is missing, so the suite stays runnable on machines without all three.</p>
+<h2 id="extending-the-guard">Extending the guard<a class="headerlink" href="#extending-the-guard" title="Permanent link">&para;</a></h2>
+<p>If you add a new method to <code>LLM</code>, <code>WhisperContext</code>, or <code>SDContext</code> that touches native state, <strong>you must add the acquire/release pair</strong>. There is no static check that catches this — the discipline is purely manual.</p>
+<p>Checklist for a new guarded method:</p>
+<ol>
+<li>Does the method touch <code>self._ctx</code>, <code>self._sampler</code>, <code>self.model</code>, <code>self._c_ctx</code>, <code>self.ptr</code>, or any other attribute that wraps a C++ object's mutable state?</li>
+<li>Does the method trigger a native call that releases the GIL (<code>with nogil:</code>, or any binding that internally does so)?</li>
+<li>If yes to either: wrap the body in <code>_try_acquire_busy()</code> / <code>try</code> / <code>finally: self._busy_lock.release()</code>.</li>
+<li>If the method is a thin delegator that only calls another already-guarded public method: do <strong>not</strong> acquire (the inner method will). <code>Lock</code> is non-reentrant — double acquire from the same thread would deadlock. Document the delegation in a comment.</li>
+<li>If the method returns a generator that holds native state across yields (streaming): use the <code>_stream_with_busy_release()</code> wrapper pattern.</li>
+<li>Add a regression test that follows the pattern in the table above. The test should hit your new method specifically, even if other guarded methods on the same class are already covered — bug-of-omission tests need to be per-method, not per-class.</li>
+</ol>
+<p>Methods that <strong>don't</strong> need the guard:</p>
+<ul>
+<li>Pure Python helpers that don't touch C++ state (cache management, config validation, message-list parsing).</li>
+<li>Read-only metadata accessors that go through llama.cpp's thread-safe <code>llama_model_*</code> family (model name, n_params, vocab queries) — these are documented as safe.</li>
+<li><code>close()</code>, <code>__del__</code>, <code>__exit__</code>, <code>__dealloc__</code> — see the rationale above.</li>
+<li>Methods that already delegate to a guarded method.</li>
+</ul>
+<p>When in doubt: read the upstream comment for the underlying C function. llama.cpp documents thread safety per-function in <code>llama.h</code>.</p>
+<h2 id="design-analysis">Design analysis<a class="headerlink" href="#design-analysis" title="Permanent link">&para;</a></h2>
+<h3 id="what-we-picked">What we picked<a class="headerlink" href="#what-we-picked" title="Permanent link">&para;</a></h3>
+<p>A non-blocking <code>threading.Lock</code> acquired around every native-touching public method, raising <code>RuntimeError</code> on contention.</p>
+<h3 id="alternatives-considered">Alternatives considered<a class="headerlink" href="#alternatives-considered" title="Permanent link">&para;</a></h3>
+<h4 id="alternative-1-strict-thread-id-matching">Alternative 1: Strict thread-id matching<a class="headerlink" href="#alternative-1-strict-thread-id-matching" title="Permanent link">&para;</a></h4>
+<p>Record the creating thread's id in <code>__init__</code>, check on every method that the current thread matches. This was the <strong>first</strong> design we tried; it shipped briefly and broke immediately.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="c1"># DON&#39;T DO THIS — it false-positives on legitimate patterns.</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">...</span><span class="p">):</span>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_owning_thread_id</span> <span class="o">=</span> <span class="n">threading</span><span class="o">.</span><span class="n">get_ident</span><span class="p">()</span>
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="k">def</span><span class="w"> </span><span class="nf">_check_thread</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>    <span class="k">if</span> <span class="n">threading</span><span class="o">.</span><span class="n">get_ident</span><span class="p">()</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_owning_thread_id</span><span class="p">:</span>
+<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a>        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;created on thread X, called from thread Y&quot;</span><span class="p">)</span>
+</code></pre></div>
+<p><strong>Why rejected:</strong> false-positives on <code>asyncio.to_thread</code>, <code>ThreadPoolExecutor.submit</code>, and any executor handoff. The <code>AsyncReActAgent</code> integration tests broke instantly because <code>agent.run</code> does <code>await asyncio.to_thread(self._agent.run, task)</code> — perfectly safe sequential ownership transfer, but the LLM was created on the main asyncio thread and used on a worker. Strict thread-id matching can't tell the difference between safe handoff and unsafe sharing.</p>
+<p>The lesson: the rule we want to enforce is "no two native calls overlap in time," not "all native calls happen on the creating thread." Those are different rules, and only the first one matches the actual hazard.</p>
+<h4 id="alternative-2-blocking-lock-serialize-instead-of-raise">Alternative 2: Blocking lock (serialize instead of raise)<a class="headerlink" href="#alternative-2-blocking-lock-serialize-instead-of-raise" title="Permanent link">&para;</a></h4>
+<p>Use <code>acquire(blocking=True)</code> so concurrent callers wait their turn instead of raising. This is what most stdlib Python objects in this position do: <code>sqlite3</code> (with <code>check_same_thread=False</code>), <code>requests.Session</code>, <code>http.client.HTTPConnection</code>, etc.</p>
+<p><strong>Pros:</strong>
+- Code that worked accidentally (relying on GIL serialization or coincidental timing) keeps working.
+- No surprise behavior change for existing users.
+- Matches Python ecosystem norms.</p>
+<p><strong>Cons:</strong>
+- <strong>Hides architectural mistakes.</strong> A user who accidentally shares one <code>LLM</code> across 8 worker threads gets 1/8th the throughput they expected, with no signal telling them why. They discover the problem months later staring at a flame graph.
+- <strong>Unbounded latency in async contexts.</strong> A blocking acquire inside an <code>asyncio.to_thread</code> call can deadlock the event loop or stall it for arbitrary periods if the lock-holder is slow.
+- <strong>Loses the "fail loud" signal.</strong> cyllama generally takes the position that bad inputs and unsafe usage should raise immediately, not degrade silently. Other parts of the codebase do the same: <code>validate_gguf_file</code>, <code>VectorStoreError</code> on metadata mismatch, the typed exceptions on model loaders.</p>
+<p><strong>When to revisit this:</strong> If cyllama's positioning ever shifts toward "high-level convenience library where users don't think about threading," serialize would become the right call. The conversion is a one-line change (<code>blocking=False</code> → <code>blocking=True</code>) — the lock infrastructure stays the same, so this decision isn't permanently locked in.</p>
+<h4 id="alternative-3-per-thread-context-pool">Alternative 3: Per-thread context pool<a class="headerlink" href="#alternative-3-per-thread-context-pool" title="Permanent link">&para;</a></h4>
+<p>Maintain a pool of contexts inside each <code>LLM</code>, allocate one per thread on first use, multiplex calls automatically.</p>
+<p><strong>Pros:</strong>
+- Actually allows concurrent inference instead of just preventing the bad case.</p>
+<p><strong>Cons:</strong>
+- <strong>Memory blowup.</strong> A <code>llama_context</code> with default <code>n_ctx=2048</code> consumes hundreds of MB to a few GB depending on the model. Allocating one per worker thread is prohibitive — most production setups can barely fit <em>one</em> context per GPU.
+- <strong>Wrong layer.</strong> If a user wants concurrent inference, they should make that decision explicitly by creating multiple <code>LLM</code> instances (or by using multiple GPUs). Hiding the cost inside the wrapper makes it look free when it isn't.
+- <strong>Doesn't help the asyncio.to_thread case.</strong> That pattern uses one context shared across many short calls, which works fine without a pool — adding pooling would just waste memory.</p>
+<h4 id="alternative-4-documentation-only-no-runtime-check">Alternative 4: Documentation only, no runtime check<a class="headerlink" href="#alternative-4-documentation-only-no-runtime-check" title="Permanent link">&para;</a></h4>
+<p>Just say "don't share <code>LLM</code> across threads" in the docs and rely on users reading them.</p>
+<p><strong>Pros:</strong>
+- Zero overhead.
+- No false positives.</p>
+<p><strong>Cons:</strong>
+- <strong>Silent UB when the rule is violated.</strong> The failure mode is corrupt KV cache → garbage tokens → user blames the model and files a confused bug report. Extremely hard to debug.
+- <strong>Contradicts cyllama's "fail loud" philosophy.</strong> We have typed exceptions on model loaders, validation errors on <code>VectorStore</code> metadata, friendly errors on missing files, etc. Letting this one class of bug fall through silently would be inconsistent.
+- <strong>The runtime check is cheap.</strong> One atomic int compare per call, which is negligible compared to a token generation step.</p>
+<h4 id="alternative-5-fix-it-upstream">Alternative 5: Fix it upstream<a class="headerlink" href="#alternative-5-fix-it-upstream" title="Permanent link">&para;</a></h4>
+<p>Make llama.cpp / whisper.cpp / sd.cpp actually thread-safe.</p>
+<p><strong>Why rejected:</strong> not in our control. Upstream has explicitly chosen not to lock the inner generation loop because it would be expensive — the sampler state and KV cache are touched on every token, and a per-token mutex would dominate runtime. Patching it locally would mean re-syncing on every upstream version bump, which is the same maintenance burden as the current guard but harder.</p>
+<p>Worth noting: even if upstream became thread-safe, we'd probably want to keep some form of the guard, because "thread-safe" in upstream-speak typically means "won't crash" — not "concurrent calls produce sensible results."</p>
+<h3 id="known-weaknesses-of-the-current-design">Known weaknesses of the current design<a class="headerlink" href="#known-weaknesses-of-the-current-design" title="Permanent link">&para;</a></h3>
+<ol>
+<li>
+<p><strong>Maintenance discipline.</strong> "Every method that touches native state must call <code>_try_acquire_busy()</code> first." There is no static check for this — a future PR adding a new method that touches <code>self._ctx</code> directly without the guard would silently bypass it. The only mitigation is the test discipline described above.</p>
+</li>
+<li>
+<p><strong>Streaming holds the lock for the entire stream.</strong> A user who wants to "stream the answer to the user while embedding the next query" can't do it on one <code>LLM</code>. This is <em>correct</em> (concurrent native calls would corrupt state), but it's a behavioral surprise. The right answer is "use two <code>LLM</code> instances, one for generation and one for embedding," which is what most production setups do anyway.</p>
+</li>
+<li>
+<p><strong>No support for reentrancy from callbacks.</strong> If a user's <code>on_token</code> callback calls <code>llm()</code> again from the same thread, they get a <code>RuntimeError</code> immediately because the lock isn't reentrant (<code>Lock</code>, not <code>RLock</code>). This is exotic and probably correct — recursion into the same llama.cpp context is upstream UB regardless — but it's not signposted in user-facing docs. If someone needs to do this, they should create a second <code>LLM</code> for the inner call.</p>
+</li>
+<li>
+<p><strong>Contention check, not correctness check.</strong> What we actually want to express is "no two native calls into the same context overlap in time." The lock gives us that <em>in practice</em>, but only because every Python entry into native code goes through one of the guarded methods. If a future binding exposes raw <code>llama_decode()</code> to Python (or any other native call) without going through the wrapper, the guard wouldn't help.</p>
+</li>
+<li>
+<p><strong>Doesn't address the upstream root cause.</strong> We're papering over an upstream limitation. That's fine — sometimes papering over is the correct response — but it means we'll need this guard for as long as upstream remains non-thread-safe (which is likely indefinitely), and any new upstream API surface will need the same treatment.</p>
+</li>
+<li>
+<p><strong>Lock release across threads.</strong> <code>threading.Lock</code> allows release from any thread, which we rely on for the streaming wrapper case (a generator created on thread A might be consumed and finally-ed on thread B). This is not a bug, but it's worth being aware of: we cannot use <code>threading.RLock</code> (which enforces same-thread release) without breaking the streaming case. If you ever want reentrancy, you'll need a custom recursion-counter implementation, not a stdlib <code>RLock</code>.</p>
+</li>
+</ol>
+<h3 id="why-raise-is-the-right-call-for-cyllama-specifically">Why "raise" is the right call for cyllama specifically<a class="headerlink" href="#why-raise-is-the-right-call-for-cyllama-specifically" title="Permanent link">&para;</a></h3>
+<p>Putting it all together: cyllama is positioned as a low-level Python wrapper around llama.cpp. Users who pick it up are typically building their own inference architecture — async servers, agent frameworks, RAG pipelines, batch processors. They need to know about thread-safety constraints so they can design their architecture correctly.</p>
+<p>A serializing lock would be friendlier in the moment but would hide architectural mistakes that show up as unexplained performance problems weeks later, in production, under load, where they're the hardest to debug. A loud <code>RuntimeError</code> on the first concurrent call is annoying but actionable. The annoyance happens during development, when the user is in a position to fix it.</p>
+<p>If cyllama were positioned higher up the stack — "give me an LLM, I don't care about threading" — the calculus would be different and serialize would win. But that's not the niche cyllama occupies, and changing the runtime guard wouldn't change the niche.</p>
+<h3 id="open-follow-ups">Open follow-ups<a class="headerlink" href="#open-follow-ups" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><code>docs/</code> user-facing threading model page.</strong> Tracked in <code>TODO.md</code> under High Priority. Should describe the "one in-flight call per instance" rule, the <code>asyncio.to_thread</code> pattern that's safe, the recommendation to create one <code>LLM</code> per worker, and the <code>RuntimeError</code> users will see if they get it wrong. This document is for maintainers; a separate user-facing one is still needed.</li>
+<li><strong>Static check for missing guards.</strong> No good story here — Cython doesn't lend itself to lint-time analysis, and the discipline is per-method. Could be done at code-review time via a checklist, or via a runtime check that wraps every public method on the class with an assertion that <code>_busy_lock</code> was touched. Both feel overengineered.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.expand", "navigation.top", "search.highlight", "content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>
