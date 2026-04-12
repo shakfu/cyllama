@@ -23,9 +23,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 - **Blank white image from `cyllama.sd` txt2img on CUDA backend** - `SDContextParams` defaulted `wtype` to `SDType.F16`, forcing dequantization of all model weights to F16 at load time. The C library defaults to `SD_TYPE_COUNT` (auto-detect), which preserves the model's native quantization. For quantized models like `z_image_turbo-Q6_K.gguf`, the forced F16 override combined with `--offload-to-cpu` on CUDA produced blank white output. Added `SDType.COUNT` to the enum and changed the default to match the C library. Metal was unaffected because its hardware is F16-native
 
+- **`sample_method` and `scheduler` defaulted to hardcoded values instead of auto-detect** - `SDSampleParams`, `SDImageGenParams`, `SDContext.generate()`, `generate_video()`, `text_to_image()`, `text_to_images()`, and `image_to_image()` all defaulted `sample_method` to `EULER_A` and `scheduler` to `DISCRETE`. The C library defaults to `SAMPLE_METHOD_COUNT` / `SCHEDULER_COUNT`, which are sentinel values that auto-resolve to the model's preferred method at generation time. Added `SampleMethod.COUNT`, `Scheduler.COUNT`, and `Prediction.COUNT` to the enums and changed all defaults to match the C library
+
 - **`eta` parameter defaulted to 0.0 instead of auto-resolve** - `SDSampleParams`, `SDContext.generate()`, `text_to_image()`, `text_to_images()`, and the `--eta` CLI flag all defaulted eta to `0.0`. The C library defaults to `INFINITY`, which is a sentinel that auto-resolves to the appropriate value per sample method (e.g. 1.0 for EULER_A, 0.0 for EULER). Changed all defaults to `float('inf')` to match
 
 - **`Prediction.SD3_FLOW` and `Prediction.DEFAULT` referenced in CLI but not defined** - The `--prediction` CLI handler referenced non-existent enum members. Fixed to use `Prediction.FLOW` and `Prediction.EPS` respectively
+
+- **Stale defaults in SD documentation** - Updated `docs/stable_diffusion.md`, `docs/api_reference.md`, and `docs/cli-cheatsheet.md` to reflect the corrected defaults: `wtype` (`COUNT` not `F16`), `eta` (`inf` not `0.0`), `sample_method`/`scheduler` (`COUNT` not `EULER_A`/`DISCRETE`), and `--prediction` choices (`flow` not `sd3_flow`)
 
 ## [0.2.6]
 

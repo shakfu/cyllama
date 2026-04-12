@@ -1434,8 +1434,8 @@ images = ctx.generate(
     height=512,
     sample_steps=4,
     cfg_scale=1.0,
-    sample_method=SampleMethod.EULER,
-    scheduler=Scheduler.DISCRETE
+    sample_method=SampleMethod.EULER,  # or COUNT for auto-detect
+    scheduler=Scheduler.DISCRETE       # or COUNT for auto-detect
 )
 
 # Check if context is valid
@@ -1463,7 +1463,7 @@ params.lora_model_dir = "loras/"         # LoRA directory
 params.n_threads = 4                      # Thread count
 params.vae_decode_only = True            # VAE decode only mode
 params.diffusion_flash_attn = False      # Flash attention
-params.wtype = SDType.F16                # Weight type
+params.wtype = SDType.COUNT              # Weight type (COUNT = auto-detect)
 params.rng_type = RngType.CPU            # RNG type
 ```
 
@@ -1523,8 +1523,8 @@ params.set_control_image(control_img, strength=0.8)
 sample = params.sample_params
 sample.sample_steps = 20
 sample.cfg_scale = 7.0
-sample.sample_method = SampleMethod.EULER
-sample.scheduler = Scheduler.KARRAS
+sample.sample_method = SampleMethod.COUNT  # COUNT = auto-detect from model
+sample.scheduler = Scheduler.COUNT         # COUNT = auto-detect from model
 ```
 
 ### `SDSampleParams`
@@ -1535,11 +1535,11 @@ Sampling configuration.
 from cyllama.stablediffusion import SDSampleParams, SampleMethod, Scheduler
 
 params = SDSampleParams()
-params.sample_method = SampleMethod.EULER_A
-params.scheduler = Scheduler.KARRAS
+params.sample_method = SampleMethod.COUNT  # COUNT = auto-detect from model
+params.scheduler = Scheduler.COUNT         # COUNT = auto-detect from model
 params.sample_steps = 20
 params.cfg_scale = 7.0
-params.eta = 0.0                 # Noise multiplier
+params.eta = float('inf')        # inf = auto-resolve per method
 ```
 
 ### `Upscaler`

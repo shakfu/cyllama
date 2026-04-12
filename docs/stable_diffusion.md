@@ -85,7 +85,7 @@ def text_to_image(
     control_net_path: str = None,
     lora_model_dir: str = None,
     clip_skip: int = -1,
-    eta: float = 0.0,
+    eta: float = float('inf'),
     slg_scale: float = 0.0,
     vae_tiling: bool = False,
     offload_to_cpu: bool = False,
@@ -110,7 +110,7 @@ def text_to_image(
 | `scheduler` | Scheduler | None | Noise scheduler |
 | `clip_skip` | int | -1 | CLIP layers to skip |
 | `n_threads` | int | -1 | Thread count (-1 = auto) |
-| `eta` | float | 0.0 | Eta for DDIM/TCD samplers |
+| `eta` | float | inf | Eta for samplers (inf = auto-resolve per method) |
 | `slg_scale` | float | 0.0 | Skip layer guidance scale |
 | `vae_tiling` | bool | False | Enable VAE tiling for large images |
 | `offload_to_cpu` | bool | False | Offload weights to CPU (low VRAM) |
@@ -199,10 +199,10 @@ params.tensor_type_rules = "^vae\\.=f16"      # Mixed precision rules
 
 # Numeric/enum parameters
 params.n_threads = 4                          # Thread count
-params.wtype = SDType.F16                     # Weight type
+params.wtype = SDType.COUNT                   # Weight type (COUNT = auto-detect)
 params.rng_type = RngType.CUDA                # RNG type
 params.sampler_rng_type = RngType.CPU         # Sampler RNG type
-params.prediction = Prediction.DEFAULT        # Prediction type
+params.prediction = Prediction.COUNT          # Prediction type (COUNT = auto-detect)
 params.lora_apply_mode = LoraApplyMode.AUTO   # LoRA application mode
 params.chroma_t5_mask_pad = 0                 # Chroma T5 mask pad
 
@@ -298,9 +298,9 @@ params.set_control_image(control_img, strength=0.8)
 sample = params.sample_params
 sample.sample_steps = 20
 sample.cfg_scale = 7.0
-sample.sample_method = SampleMethod.EULER
+sample.sample_method = SampleMethod.COUNT  # COUNT = auto-detect from model
 sample.scheduler = Scheduler.KARRAS
-sample.eta = 0.0
+sample.eta = float('inf')                  # inf = auto-resolve per method
 sample.slg_scale = 2.5           # Skip layer guidance
 sample.slg_layer_start = 0.01
 sample.slg_layer_end = 0.2
@@ -316,13 +316,13 @@ Sampling configuration.
 from cyllama.sd import SDSampleParams, SampleMethod, Scheduler
 
 params = SDSampleParams()
-params.sample_method = SampleMethod.EULER_A
-params.scheduler = Scheduler.KARRAS
+params.sample_method = SampleMethod.COUNT  # COUNT = auto-detect from model
+params.scheduler = Scheduler.COUNT         # COUNT = auto-detect from model
 params.sample_steps = 20
 params.cfg_scale = 7.0
-params.eta = 0.0                  # Noise multiplier
+params.eta = float('inf')         # inf = auto-resolve per method
 params.shifted_timestep = 0       # NitroFusion models
-params.flow_shift = 0.0           # Flow shift (SD3.x/Wan)
+params.flow_shift = float('inf')  # inf = auto-detect (SD3.x/Wan)
 params.img_cfg_scale = 1.5        # Image guidance
 params.distilled_guidance = 3.5   # FLUX guidance
 params.slg_scale = 0.0            # Skip layer guidance

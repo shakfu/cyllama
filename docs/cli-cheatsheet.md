@@ -449,10 +449,10 @@ All generation subcommands (`txt2img`, `img2img`, `inpaint`, `controlnet`) share
 |------|------|---------|-------------|
 | `--sampler` | string | | Method: `euler`, `euler_a`, `heun`, `dpm2`, `dpm++2s_a`, `dpm++2m`, `dpm++2mv2`, `ipndm`, `ipndm_v`, `lcm`, `tcd` |
 | `--scheduler` | string | | Schedule: `discrete`, `karras`, `exponential`, `ays`, `gits` |
-| `--eta` | float | 0.0 | Eta for DDIM/TCD samplers |
+| `--eta` | float | inf | Eta for samplers (inf = auto-resolve per method) |
 | `--rng` | choice | | RNG type: `std_default`, `cuda`, `cpu` |
 | `--sampler-rng` | choice | | Sampler RNG type |
-| `--prediction` | choice | | Prediction type: `eps`, `v`, `edm_v`, `sd3_flow`, `flux_flow`, `flux2_flow` |
+| `--prediction` | choice | | Prediction type: `eps`, `v`, `edm_v`, `flow`, `flux_flow`, `flux2_flow` |
 
 ### Guidance Options
 

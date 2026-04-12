@@ -2,7 +2,7 @@
 
 ## High Priority
 
-- [ ] Audit all `__init__` defaults in SD wrapper classes (`SDContextParams`, `SDSampleParams`, `SDImageGenParams`) against the corresponding C `sd_*_init()` defaults. The `__cinit__` methods correctly call the C init functions, but `__init__` then overrides fields with Python-side defaults that can diverge from the C library. The `wtype` (F16 vs COUNT) and `eta` (0.0 vs INFINITY) CUDA bugs came from this pattern. A one-time pass comparing every `__init__` default to its C counterpart would catch any remaining mismatches
+(no high-priority items currently open)
 
 ## Medium Priority
 
@@ -40,6 +40,7 @@
 
 ## Completed
 
+- [x] Audit SD wrapper `__init__` defaults against C `sd_*_init()` defaults — found and fixed 4 mismatches: `wtype` (F16 vs COUNT), `eta` (0.0 vs INFINITY), `sample_method` (EULER_A vs SAMPLE_METHOD_COUNT), `scheduler` (DISCRETE vs SCHEDULER_COUNT). Added COUNT sentinel values to `SDType`, `SampleMethod`, `Scheduler`, and `Prediction` enums. All defaults now match the C library exactly
 - [x] RAG response repetition — Qwen3-4B paragraph-loop bug fixed and pinned by regression test against the actual model. Two opt-in fixes: streaming-level n-gram repetition detector (`RAGConfig.repetition_threshold`) and chat-template prompting path (`RAGConfig.use_chat_template`). CLI enables the detector by default
 - [x] Memory leak tests (loop create/destroy of LLM, SDContext, WhisperContext objects, assert RSS stays bounded)
 - [x] Error message audit (bad model path, corrupt GGUF, OOM context -- clear errors, not segfaults or raw C++ assertions)

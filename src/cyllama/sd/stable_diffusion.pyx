@@ -74,6 +74,7 @@ class SampleMethod(IntEnum):
     TCD = TCD_SAMPLE_METHOD
     RES_MULTISTEP = RES_MULTISTEP_SAMPLE_METHOD
     RES_2S = RES_2S_SAMPLE_METHOD
+    COUNT = SAMPLE_METHOD_COUNT
 
 
 class Scheduler(IntEnum):
@@ -89,6 +90,7 @@ class Scheduler(IntEnum):
     KL_OPTIMAL = KL_OPTIMAL_SCHEDULER
     LCM = LCM_SCHEDULER
     BONG_TANGENT = BONG_TANGENT_SCHEDULER
+    COUNT = SCHEDULER_COUNT
 
 
 class Prediction(IntEnum):
@@ -99,6 +101,7 @@ class Prediction(IntEnum):
     FLOW = FLOW_PRED
     FLUX_FLOW = FLUX_FLOW_PRED
     FLUX2_FLOW = FLUX2_FLOW_PRED
+    COUNT = PREDICTION_COUNT
 
 
 class SDType(IntEnum):
@@ -1371,8 +1374,8 @@ cdef class SDSampleParams:
         sd_sample_params_init(&self._params)
 
     def __init__(self,
-                 sample_method: SampleMethod = SampleMethod.EULER_A,
-                 scheduler: Scheduler = Scheduler.DISCRETE,
+                 sample_method: SampleMethod = SampleMethod.COUNT,
+                 scheduler: Scheduler = Scheduler.COUNT,
                  sample_steps: int = 20,
                  cfg_scale: float = 7.0,
                  eta: float = float('inf')):
@@ -1380,8 +1383,8 @@ cdef class SDSampleParams:
         Initialize sampling parameters.
 
         Args:
-            sample_method: Sampling method to use
-            scheduler: Noise scheduler
+            sample_method: Sampling method (COUNT = auto-detect from model)
+            scheduler: Noise scheduler (COUNT = auto-detect from model)
             sample_steps: Number of diffusion steps
             cfg_scale: Classifier-free guidance scale
             eta: Eta parameter for some samplers (inf = auto-resolve per method)
@@ -1543,8 +1546,8 @@ cdef class SDImageGenParams:
                  batch_count: int = 1,
                  sample_steps: int = 20,
                  cfg_scale: float = 7.0,
-                 sample_method: SampleMethod = SampleMethod.EULER_A,
-                 scheduler: Scheduler = Scheduler.DISCRETE,
+                 sample_method: SampleMethod = SampleMethod.COUNT,
+                 scheduler: Scheduler = Scheduler.COUNT,
                  strength: float = 0.75,
                  clip_skip: int = -1):
         """
@@ -1559,8 +1562,8 @@ cdef class SDImageGenParams:
             batch_count: Number of images to generate
             sample_steps: Number of diffusion steps
             cfg_scale: Classifier-free guidance scale
-            sample_method: Sampling method
-            scheduler: Noise scheduler
+            sample_method: Sampling method (COUNT = auto-detect from model)
+            scheduler: Noise scheduler (COUNT = auto-detect from model)
             strength: Strength for img2img (0.0-1.0)
             clip_skip: Number of CLIP layers to skip
         """
@@ -1994,11 +1997,11 @@ cdef class SDContext:
         if self._ctx == NULL:
             raise RuntimeError("Context not initialized")
 
-        # Use model defaults if not specified
+        # COUNT sentinels let the C library auto-detect from the loaded model
         if sample_method is None:
-            sample_method = self.get_default_sample_method()
+            sample_method = SampleMethod.COUNT
         if scheduler is None:
-            scheduler = self.get_default_scheduler()
+            scheduler = Scheduler.COUNT
 
         # Create generation parameters
         cdef SDImageGenParams gen_params = SDImageGenParams(
@@ -2147,11 +2150,11 @@ cdef class SDContext:
         if self._ctx == NULL:
             raise RuntimeError("Context not initialized")
 
-        # Use model defaults if not specified
+        # COUNT sentinels let the C library auto-detect from the loaded model
         if sample_method is None:
-            sample_method = self.get_default_sample_method()
+            sample_method = SampleMethod.COUNT
         if scheduler is None:
-            scheduler = self.get_default_scheduler()
+            scheduler = Scheduler.COUNT
 
         # Initialize video generation parameters
         cdef sd_vid_gen_params_t vid_params
@@ -2511,8 +2514,8 @@ def text_to_images(
     batch_count: int = 1,
     sample_steps: int = 20,
     cfg_scale: float = 7.0,
-    sample_method: SampleMethod = SampleMethod.EULER_A,
-    scheduler: Scheduler = Scheduler.DISCRETE,
+    sample_method: SampleMethod = SampleMethod.COUNT,
+    scheduler: Scheduler = Scheduler.COUNT,
     n_threads: int = -1,
     vae_path: Optional[str] = None,
     taesd_path: Optional[str] = None,
@@ -2615,8 +2618,8 @@ def text_to_image(
     seed: int = -1,
     sample_steps: int = 20,
     cfg_scale: float = 7.0,
-    sample_method: SampleMethod = SampleMethod.EULER_A,
-    scheduler: Scheduler = Scheduler.DISCRETE,
+    sample_method: SampleMethod = SampleMethod.COUNT,
+    scheduler: Scheduler = Scheduler.COUNT,
     n_threads: int = -1,
     vae_path: Optional[str] = None,
     taesd_path: Optional[str] = None,
@@ -2708,8 +2711,8 @@ def image_to_image(
     seed: int = -1,
     sample_steps: int = 20,
     cfg_scale: float = 7.0,
-    sample_method: SampleMethod = SampleMethod.EULER_A,
-    scheduler: Scheduler = Scheduler.DISCRETE,
+    sample_method: SampleMethod = SampleMethod.COUNT,
+    scheduler: Scheduler = Scheduler.COUNT,
     n_threads: int = -1,
     vae_path: Optional[str] = None,
     clip_skip: int = -1
