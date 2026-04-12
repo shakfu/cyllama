@@ -1,5 +1,8 @@
 name: build-cibw
 
+permissions:
+  contents: read
+
 on:
   workflow_dispatch:
     inputs:
@@ -8,6 +11,8 @@ on:
         required: false
         default: false
         type: boolean
+
+
 
 jobs:
   build_wheels:

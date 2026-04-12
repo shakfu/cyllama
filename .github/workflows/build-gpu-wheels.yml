@@ -1,5 +1,8 @@
 name: build-gpu-wheels
 
+permissions:
+  contents: read
+
 on:
   workflow_dispatch:
     inputs:
@@ -41,6 +44,8 @@ on:
         required: false
         default: false
         type: boolean
+
+
 env:
   CIBW_BUILD_VERBOSITY: 1
   CIBW_BUILD: "cp310-* cp311-* cp312-* cp313-* cp314-*"
