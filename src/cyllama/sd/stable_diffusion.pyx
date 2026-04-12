@@ -118,6 +118,7 @@ class SDType(IntEnum):
     Q6_K = SD_TYPE_Q6_K
     Q8_K = SD_TYPE_Q8_K
     BF16 = SD_TYPE_BF16
+    COUNT = SD_TYPE_COUNT
 
 
 class LogLevel(IntEnum):
@@ -870,7 +871,7 @@ cdef class SDContextParams:
                  t5xxl_path: Optional[str] = None,
                  diffusion_model_path: Optional[str] = None,
                  n_threads: int = -1,
-                 wtype: SDType = SDType.F16,
+                 wtype: SDType = SDType.COUNT,
                  vae_decode_only: bool = True):
         """
         Initialize context parameters.
@@ -1374,7 +1375,7 @@ cdef class SDSampleParams:
                  scheduler: Scheduler = Scheduler.DISCRETE,
                  sample_steps: int = 20,
                  cfg_scale: float = 7.0,
-                 eta: float = 0.0):
+                 eta: float = float('inf')):
         """
         Initialize sampling parameters.
 
@@ -1383,7 +1384,7 @@ cdef class SDSampleParams:
             scheduler: Noise scheduler
             sample_steps: Number of diffusion steps
             cfg_scale: Classifier-free guidance scale
-            eta: Eta parameter for some samplers
+            eta: Eta parameter for some samplers (inf = auto-resolve per method)
         """
         self.sample_method = sample_method
         self.scheduler = scheduler
@@ -1955,7 +1956,7 @@ cdef class SDContext:
                  control_strength: float = 1.0,
                  strength: float = 0.75,
                  clip_skip: int = -1,
-                 eta: float = 0.0,
+                 eta: float = float('inf'),
                  slg_scale: float = 0.0,
                  flow_shift: float = float('inf'),
                  vae_tiling: bool = False) -> List[SDImage]:
@@ -2520,7 +2521,7 @@ def text_to_images(
     t5xxl_path: Optional[str] = None,
     control_net_path: Optional[str] = None,
     clip_skip: int = -1,
-    eta: float = 0.0,
+    eta: float = float('inf'),
     slg_scale: float = 0.0,
     vae_tiling: bool = False,
     offload_to_cpu: bool = False,
@@ -2624,7 +2625,7 @@ def text_to_image(
     t5xxl_path: Optional[str] = None,
     control_net_path: Optional[str] = None,
     clip_skip: int = -1,
-    eta: float = 0.0,
+    eta: float = float('inf'),
     slg_scale: float = 0.0,
     vae_tiling: bool = False,
     offload_to_cpu: bool = False,

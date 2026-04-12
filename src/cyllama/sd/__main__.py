@@ -227,11 +227,11 @@ def create_context_params(args):
             "eps": Prediction.EPS,
             "v": Prediction.V,
             "edm_v": Prediction.EDM_V,
-            "sd3_flow": Prediction.SD3_FLOW,
+            "flow": Prediction.FLOW,
             "flux_flow": Prediction.FLUX_FLOW,
             "flux2_flow": Prediction.FLUX2_FLOW,
         }
-        params.prediction = pred_map.get(args.prediction, Prediction.DEFAULT)
+        params.prediction = pred_map.get(args.prediction, Prediction.EPS)
     if hasattr(args, "lora_apply_mode") and args.lora_apply_mode:
         mode_map = {
             "auto": LoraApplyMode.AUTO,
@@ -869,7 +869,7 @@ def add_common_sampler_args(parser):
     """Add sampler/scheduler arguments."""
     parser.add_argument("--sampler", help="Sampling method (euler, euler_a, heun, dpm2, etc.)")
     parser.add_argument("--scheduler", help="Scheduler (discrete, karras, exponential, ays, etc.)")
-    parser.add_argument("--eta", type=float, default=0.0, help="Eta for DDIM/TCD samplers")
+    parser.add_argument("--eta", type=float, default=float("inf"), help="Eta for samplers (default: auto-resolve per method)")
     parser.add_argument("--rng", choices=["std_default", "cuda", "cpu"], help="RNG type")
     parser.add_argument(
         "--sampler-rng", dest="sampler_rng", choices=["std_default", "cuda", "cpu"], help="Sampler RNG type"
