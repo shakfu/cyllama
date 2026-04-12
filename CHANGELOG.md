@@ -17,6 +17,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+## [0.2.6]
+
+### Fixed
+
+- **`pytest-review` erroneously included as a runtime dependency in 0.2.5** - `pytest-review>=0.1.2` was accidentally added to `[project] dependencies` (and duplicated in `[dependency-groups] dev`), causing `pip install cyllama` to pull in a test-only package and its transitive dependencies. Removed from both sections; `dependencies` is now empty again as intended
+
 ## [0.2.5]
 
 ### Added
