@@ -33,6 +33,7 @@ from dataclasses import dataclass, field
 import time
 import uuid
 
+from .._defaults import DEFAULT_N_GPU_LAYERS
 from ..api import LLM, GenerationConfig, Response
 
 
@@ -253,7 +254,7 @@ class OpenAICompatibleClient:
         >>> print(response.choices[0].message.content)
     """
 
-    def __init__(self, model_path: str, temperature: float = 0.7, n_gpu_layers: int = 99, verbose: bool = False):
+    def __init__(self, model_path: str, temperature: float = 0.7, n_gpu_layers: int = DEFAULT_N_GPU_LAYERS, verbose: bool = False):
         """
         Initialize the OpenAI-compatible client.
 

@@ -58,7 +58,7 @@ CREATE INDEX idx_config_key ON config(key);
 | `default_model` | `"models/llama.gguf"` | str |
 | `default_temperature` | `0.7` | float |
 | `default_max_tokens` | `512` | int |
-| `n_gpu_layers` | `99` | int |
+| `n_gpu_layers` | `-1` | int |
 
 ### 2. Response Cache Table
 

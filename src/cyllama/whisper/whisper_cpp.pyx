@@ -1,5 +1,7 @@
 # distutils: language = c++
 
+import sys
+
 from libc.stdlib cimport malloc, calloc, realloc, free
 
 from . cimport whisper as wh
@@ -386,6 +388,8 @@ cdef class WhisperContext:
 
     def __dealloc__(self):
         if self._c_ctx != NULL:
+            if sys.is_finalizing():
+                return
             wh.whisper_free(self._c_ctx)
             self._c_ctx = NULL
 
@@ -632,6 +636,8 @@ cdef class WhisperState:
 
     def __dealloc__(self):
         if self._c_state != NULL:
+            if sys.is_finalizing():
+                return
             wh.whisper_free_state(self._c_state)
             self._c_state = NULL
 

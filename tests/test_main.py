@@ -13,6 +13,17 @@ import tempfile
 import pytest
 from unittest.mock import MagicMock, patch, call
 
+from cyllama._defaults import (
+    DEFAULT_MAX_TOKENS,
+    DEFAULT_TEMPERATURE,
+    DEFAULT_TOP_K,
+    DEFAULT_TOP_P,
+    DEFAULT_MIN_P,
+    DEFAULT_REPEAT_PENALTY,
+    DEFAULT_N_GPU_LAYERS,
+    LLAMA_DEFAULT_SEED,
+)
+
 
 def _ir(added=None, skipped=None):
     """Build an IndexResult for use as `mock_rag.add_documents.return_value`.
@@ -47,15 +58,15 @@ def _parse(argv):
         gen_parser.add_argument("-m", "--model", required=True)
         gen_parser.add_argument("-p", "--prompt")
         gen_parser.add_argument("-f", "--file")
-        gen_parser.add_argument("-n", "--max-tokens", type=int, default=512)
-        gen_parser.add_argument("--temperature", type=float, default=0.8)
-        gen_parser.add_argument("--top-k", type=int, default=40)
-        gen_parser.add_argument("--top-p", type=float, default=0.95)
-        gen_parser.add_argument("--min-p", type=float, default=0.05)
-        gen_parser.add_argument("--repeat-penalty", type=float, default=1.1)
-        gen_parser.add_argument("-ngl", "--n-gpu-layers", type=int, default=99)
+        gen_parser.add_argument("-n", "--max-tokens", type=int, default=DEFAULT_MAX_TOKENS)
+        gen_parser.add_argument("--temperature", type=float, default=DEFAULT_TEMPERATURE)
+        gen_parser.add_argument("--top-k", type=int, default=DEFAULT_TOP_K)
+        gen_parser.add_argument("--top-p", type=float, default=DEFAULT_TOP_P)
+        gen_parser.add_argument("--min-p", type=float, default=DEFAULT_MIN_P)
+        gen_parser.add_argument("--repeat-penalty", type=float, default=DEFAULT_REPEAT_PENALTY)
+        gen_parser.add_argument("-ngl", "--n-gpu-layers", type=int, default=DEFAULT_N_GPU_LAYERS)
         gen_parser.add_argument("-c", "--ctx-size", type=int, default=None)
-        gen_parser.add_argument("--seed", type=int, default=-1)
+        gen_parser.add_argument("--seed", type=int, default=LLAMA_DEFAULT_SEED)
         gen_parser.add_argument("--stream", action="store_true")
         gen_parser.add_argument("--json", action="store_true")
         gen_parser.add_argument("--verbose", action="store_true")
@@ -65,15 +76,15 @@ def _parse(argv):
         chat_parser.add_argument("-p", "--prompt")
         chat_parser.add_argument("-s", "--system")
         chat_parser.add_argument("--template")
-        chat_parser.add_argument("-n", "--max-tokens", type=int, default=512)
-        chat_parser.add_argument("--temperature", type=float, default=0.8)
-        chat_parser.add_argument("--top-k", type=int, default=40)
-        chat_parser.add_argument("--top-p", type=float, default=0.95)
-        chat_parser.add_argument("--min-p", type=float, default=0.05)
-        chat_parser.add_argument("--repeat-penalty", type=float, default=1.1)
-        chat_parser.add_argument("-ngl", "--n-gpu-layers", type=int, default=99)
+        chat_parser.add_argument("-n", "--max-tokens", type=int, default=DEFAULT_MAX_TOKENS)
+        chat_parser.add_argument("--temperature", type=float, default=DEFAULT_TEMPERATURE)
+        chat_parser.add_argument("--top-k", type=int, default=DEFAULT_TOP_K)
+        chat_parser.add_argument("--top-p", type=float, default=DEFAULT_TOP_P)
+        chat_parser.add_argument("--min-p", type=float, default=DEFAULT_MIN_P)
+        chat_parser.add_argument("--repeat-penalty", type=float, default=DEFAULT_REPEAT_PENALTY)
+        chat_parser.add_argument("-ngl", "--n-gpu-layers", type=int, default=DEFAULT_N_GPU_LAYERS)
         chat_parser.add_argument("-c", "--ctx-size", type=int, default=2048)
-        chat_parser.add_argument("--seed", type=int, default=-1)
+        chat_parser.add_argument("--seed", type=int, default=LLAMA_DEFAULT_SEED)
         chat_parser.add_argument("--stream", action="store_true")
         chat_parser.add_argument("--json", action="store_true")
         chat_parser.add_argument("--verbose", action="store_true")
@@ -82,7 +93,7 @@ def _parse(argv):
         embed_parser.add_argument("-m", "--model", required=True)
         embed_parser.add_argument("-t", "--text", action="append")
         embed_parser.add_argument("-f", "--file")
-        embed_parser.add_argument("-ngl", "--n-gpu-layers", type=int, default=99)
+        embed_parser.add_argument("-ngl", "--n-gpu-layers", type=int, default=DEFAULT_N_GPU_LAYERS)
         embed_parser.add_argument("-c", "--ctx-size", type=int, default=512)
         embed_parser.add_argument("--pooling", default="mean", choices=["mean", "cls", "last"])
         embed_parser.add_argument("--no-normalize", action="store_true")
@@ -125,10 +136,10 @@ class TestArgParsing:
         assert args.top_k == 40
         assert args.top_p == 0.95
         assert args.min_p == 0.05
-        assert args.repeat_penalty == 1.1
-        assert args.n_gpu_layers == 99
+        assert args.repeat_penalty == 1.0
+        assert args.n_gpu_layers == -1
         assert args.ctx_size is None
-        assert args.seed == -1
+        assert args.seed == 0xFFFFFFFF
         assert args.stream is False
         assert args.json is False
         assert args.verbose is False
@@ -209,7 +220,7 @@ class TestArgParsing:
         args = _parse(["embed", "-m", "emb.gguf", "-t", "hello"])
         assert args.command == "embed"
         assert args.text == ["hello"]
-        assert args.n_gpu_layers == 99
+        assert args.n_gpu_layers == -1
 
     def test_embed_multiple_texts(self):
         args = _parse(["embed", "-m", "emb.gguf", "-t", "one", "-t", "two"])
@@ -254,10 +265,10 @@ class TestCmdGenerate:
             top_k=40,
             top_p=0.95,
             min_p=0.05,
-            repeat_penalty=1.1,
-            n_gpu_layers=99,
+            repeat_penalty=1.0,
+            n_gpu_layers=-1,
             ctx_size=None,
-            seed=-1,
+            seed=0xFFFFFFFF,
             stream=False,
             json=False,
             verbose=False,
@@ -385,10 +396,10 @@ class TestCmdChat:
             top_k=40,
             top_p=0.95,
             min_p=0.05,
-            repeat_penalty=1.1,
-            n_gpu_layers=99,
+            repeat_penalty=1.0,
+            n_gpu_layers=-1,
             ctx_size=2048,
-            seed=-1,
+            seed=0xFFFFFFFF,
             stream=False,
             json=False,
             verbose=False,
@@ -486,7 +497,7 @@ class TestCmdEmbed:
             model="emb.gguf",
             text=None,
             file=None,
-            n_gpu_layers=99,
+            n_gpu_layers=-1,
             ctx_size=512,
             pooling="mean",
             no_normalize=False,
@@ -694,7 +705,7 @@ class TestCmdRag:
             temperature=0.7,
             top_k=5,
             threshold=None,
-            n_gpu_layers=99,
+            n_gpu_layers=-1,
             stream=False,
             sources=False,
             # Match the argparse defaults set on rag_parser in __main__.py

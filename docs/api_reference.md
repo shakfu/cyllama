@@ -413,11 +413,11 @@ class GenerationConfig:
     top_k: int = 40
     top_p: float = 0.95
     min_p: float = 0.05
-    repeat_penalty: float = 1.1
-    n_gpu_layers: int = 99
+    repeat_penalty: float = 1.0
+    n_gpu_layers: int = -1
     n_ctx: Optional[int] = None
-    n_batch: int = 512
-    seed: int = -1
+    n_batch: int = 2048
+    seed: int = 0xFFFFFFFF
     stop_sequences: List[str] = field(default_factory=list)
     add_bos: bool = True
     parse_special: bool = True
@@ -430,11 +430,11 @@ class GenerationConfig:
 - `top_k`: Top-k sampling parameter (default: 40)
 - `top_p`: Top-p (nucleus) sampling (default: 0.95)
 - `min_p`: Minimum probability threshold (default: 0.05)
-- `repeat_penalty`: Penalty for repeating tokens (default: 1.1)
-- `n_gpu_layers`: GPU layers to offload (default: 99 = all)
+- `repeat_penalty`: Penalty for repeating tokens, 1.0 = disabled (default: 1.0)
+- `n_gpu_layers`: GPU layers to offload, -1 = all layers (default: -1)
 - `n_ctx`: Context window size, None = auto (default: None)
-- `n_batch`: Batch size for processing (default: 512)
-- `seed`: Random seed, -1 = random (default: -1)
+- `n_batch`: Batch size for processing (default: 2048)
+- `seed`: Random seed, LLAMA_DEFAULT_SEED = random (default: 0xFFFFFFFF)
 - `stop_sequences`: Strings that stop generation (default: [])
 - `add_bos`: Add beginning-of-sequence token (default: True)
 - `parse_special`: Parse special tokens in prompt (default: True)
@@ -643,7 +643,7 @@ class OpenAICompatibleClient:
         model_path: str,
         temperature: float = 0.7,
         max_tokens: int = 512,
-        n_gpu_layers: int = 99
+        n_gpu_layers: int = -1
     )
 ```
 
@@ -695,8 +695,8 @@ class CyllamaLLM(LLM):
     max_tokens: int = 512
     top_k: int = 40
     top_p: float = 0.95
-    repeat_penalty: float = 1.1
-    n_gpu_layers: int = 99
+    repeat_penalty: float = 1.0
+    n_gpu_layers: int = -1
 ```
 
 **Example:**

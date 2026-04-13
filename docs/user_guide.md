@@ -136,7 +136,7 @@ cyllama rag -m models/llama.gguf -e models/bge-small.gguf \
 | `--temperature` | Generation temperature (default: 0.7) |
 | `-k, --top-k` | Number of chunks to retrieve (default: 5) |
 | `--threshold` | Minimum similarity threshold |
-| `-ngl, --n-gpu-layers` | GPU layers to offload (default: 99) |
+| `-ngl, --n-gpu-layers` | GPU layers to offload (default: -1, all layers) |
 | `--stream` | Stream output tokens |
 | `--sources` | Show source chunks with similarity scores |
 
@@ -177,7 +177,7 @@ config = GenerationConfig(
     temperature=0.8,
     top_p=0.95,
     top_k=40,
-    repeat_penalty=1.1
+    repeat_penalty=1.1  # Enable repetition penalty
 )
 
 response = complete(
@@ -458,15 +458,15 @@ config = GenerationConfig(
     top_k=40,                 # Top-k sampling
     top_p=0.95,               # Nucleus sampling
     min_p=0.05,               # Minimum probability threshold
-    repeat_penalty=1.1,       # Penalize repetition
+    repeat_penalty=1.0,       # Repetition penalty (1.0 = disabled)
 
     # Model parameters
-    n_gpu_layers=99,          # Layers to offload to GPU (-1 = all)
+    n_gpu_layers=-1,          # Layers to offload to GPU (-1 = all)
     n_ctx=2048,               # Context window size
-    n_batch=512,              # Batch size for processing
+    n_batch=2048,             # Batch size for processing
 
     # Control
-    seed=42,                  # Random seed (-1 = random)
+    seed=42,                  # Random seed (LLAMA_DEFAULT_SEED = random)
     stop_sequences=["END"],   # Stop generation at these strings
 
     # Tokenization
@@ -571,8 +571,8 @@ Understanding how generation works helps you optimize performance.
 ```python
 from cyllama import LLM, GenerationConfig
 
-# Offload all layers to GPU
-config = GenerationConfig(n_gpu_layers=-1)  # or 99
+# Offload all layers to GPU (default)
+config = GenerationConfig(n_gpu_layers=-1)  # all layers
 gen = LLM("models/llama.gguf", config=config)
 
 # Partial GPU offloading (for large models)
@@ -621,7 +621,7 @@ config = GenerationConfig(n_batch=128)
 config = GenerationConfig(n_gpu_layers=-1)
 
 # Increase batch size
-config = GenerationConfig(n_batch=512)
+config = GenerationConfig(n_batch=2048)
 
 # Use speculative decoding (if you have a draft model)
 ```

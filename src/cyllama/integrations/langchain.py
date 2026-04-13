@@ -16,6 +16,7 @@ Example:
 
 from typing import Any, List, Optional, Iterator, Dict
 
+from .._defaults import DEFAULT_REPEAT_PENALTY, DEFAULT_N_GPU_LAYERS
 from ..api import LLM as CyllamaLLMCore, GenerationConfig, Response
 
 
@@ -67,8 +68,8 @@ class CyllamaLLM(LangChainLLM):
     top_k: int = 40
     top_p: float = 0.95
     min_p: float = 0.05
-    repeat_penalty: float = 1.1
-    n_gpu_layers: int = 99
+    repeat_penalty: float = DEFAULT_REPEAT_PENALTY
+    n_gpu_layers: int = DEFAULT_N_GPU_LAYERS
     n_ctx: Optional[int] = None
     stop_sequences: List[str] = []
     verbose: bool = False

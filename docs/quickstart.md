@@ -139,7 +139,7 @@ config = GenerationConfig(
     temperature=0.7,     # Randomness (0.0 = deterministic)
     top_p=0.95,          # Nucleus sampling
     top_k=40,            # Top-k sampling
-    repeat_penalty=1.1,  # Penalize repetition
+    repeat_penalty=1.1,  # Enable repetition penalty (default: 1.0 = disabled)
 )
 
 llm = LLM("models/Llama-3.2-1B-Instruct-Q8_0.gguf", config=config)

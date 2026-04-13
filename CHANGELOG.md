@@ -17,6 +17,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+### Added
+
+- **`_defaults.py` central constants module** - All generation-related default values (`LLAMA_DEFAULT_SEED`, `DEFAULT_N_GPU_LAYERS`, `DEFAULT_TEMPERATURE`, `DEFAULT_REPEAT_PENALTY`, `DEFAULT_N_BATCH`, etc.) now live in `cyllama._defaults` and are re-exported from `cyllama.__init__`. Consumers (`api.py`, `__main__.py`, `batching.py`, `integrations/langchain.py`, `integrations/openai_compat.py`) import from this single source of truth instead of hardcoding literals. Eliminates the default-drift bug class where the CLI, high-level API, and integrations silently diverged
+
+- **`flash_attn_type` property on `LlamaContextParams`** - Exposes the `llama_flash_attn_type` enum field (AUTO=-1, DISABLED=0, ENABLED=1) that was previously commented out (referenced the old `flash_attn` bool removed upstream). Users can now enable or disable Flash Attention at context creation time
+
+### Fixed
+
+- **Double free / corruption on exit with CUDA backend** - When the Python interpreter shut down, Cython `__dealloc__` methods called native free functions (`llama_model_free`, `llama_free`, `llama_sampler_free`, etc.) after the CUDA runtime had already torn down its driver context via its own `atexit` handler. This caused `cudaFree()` to hit already-freed GPU memory, producing `double free or corruption (!prev)` on process exit. All native-owning `__dealloc__` methods in `llama_cpp.pyx`, `stable_diffusion.pyx`, and `whisper_cpp.pyx` now skip the native free when `sys.is_finalizing()` returns `True`, letting the OS reclaim all memory on process termination instead. Normal GC, explicit `close()`, `del`, and context manager cleanup are unaffected
+
+- **`n_gpu_layers` defaulted to `99` instead of `-1` (all layers)** - `GenerationConfig`, `BatchGenerator`, `CyllamaLLM` (LangChain), `OpenAICompatibleClient`, and all CLI commands (`generate`, `chat`, `embed`, `rag`) hardcoded `n_gpu_layers=99`. The C library uses `-1` as the sentinel for "offload all layers". With `99`, models with more than 99 layers (e.g. large MoE architectures) silently failed to fully offload. The validation also rejected `-1`, preventing users from using the C library's sentinel even explicitly. Changed all defaults to `-1` and relaxed validation to `>= -1`
+
+- **`repeat_penalty` defaulted to `1.1` but was never applied** - `GenerationConfig` defaulted `repeat_penalty` to `1.1` (differing from the C library's `1.0` = disabled), but `_ensure_sampler()` never called `add_penalties()`. The field was dead code -- users who set `repeat_penalty=1.5` expecting it to work got no effect. Changed the default to `1.0` (matching the C library) and wired `add_penalties()` into the sampler chain when `repeat_penalty != 1.0`
+
+- **`seed` used low-entropy `time.time()` instead of `LLAMA_DEFAULT_SEED`** - `GenerationConfig` defaulted `seed` to `-1`, which `_ensure_sampler()` translated to `int(time.time())`. This produced second-granularity seeds: two calls within the same second generated identical output. The C library uses `LLAMA_DEFAULT_SEED` (`0xFFFFFFFF`) as a sentinel that triggers proper internal randomisation. Changed the default to `0xFFFFFFFF` and pass it directly to `add_dist()`. Same fix applied to `BatchGenerator` and `ConstrainedAgent` sampler setup
+
+- **`n_batch` defaulted to `512` instead of C library's `2048`** - `GenerationConfig` and CLI commands used `n_batch=512`. The C library's `llama_context_default_params()` returns `n_batch=2048`. The smaller batch size caused more decode calls for long prompts, slowing prompt processing. Changed to `2048`
+
+- **Stale defaults in llama.cpp documentation** - Updated `docs/api_reference.md`, `docs/user_guide.md`, `docs/cli-cheatsheet.md`, `docs/quickstart.md`, `docs/troubleshooting.md`, `docs/cookbook.md`, `docs/build_backends.md`, and `docs/dev/sqlite_db.md` to reflect the corrected defaults
+
 ## [0.2.7]
 
 ### Fixed

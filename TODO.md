@@ -17,6 +17,14 @@
 
 - [ ] Investigate using versioned dylibs (e.g. `libllama.4.dylib`) instead of `.0.dylib` in dynamic wheels
 
+## Wrapper API Surface
+
+- [ ] Expose missing `WhisperFullParams` fields as Python properties — only ~15 of ~40+ fields are accessible. Notable gaps: `initial_prompt` (commonly used to guide transcription with domain vocabulary), `detect_language`, `suppress_regex`, `no_speech_thold`, `temperature_inc` (fallback temperature increment), `greedy.best_of`, `beam_search.beam_size`, `beam_search.patience`, `audio_ctx`, `max_len`, `max_tokens` (per-segment), `prompt_tokens`/`prompt_n_tokens`, `vad`/`vad_model_path`/`vad_params`. All fields retain correct C defaults via `whisper_full_default_params()` but cannot be changed from Python. Identified during the v0.2.8 defaults audit
+
+- [ ] Expose missing `WhisperContextParams` fields — `dtw_aheads_preset`, `dtw_n_top`, `dtw_aheads`, `dtw_mem_size` (DTW timestamp alignment). Low priority unless users request word-level timestamps
+
+- [ ] Expose missing `LlamaContextParams` fields — `op_offload`, `swa_full`, `kv_unified`, `embeddings` (settable at creation time, not just post-creation via `set_embeddings_mode()`). All retain correct C defaults but cannot be overridden from Python. Identified during the v0.2.8 defaults audit
+
 ## Lower Priority
 
 - [ ] Web UI for testing

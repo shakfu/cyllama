@@ -16,6 +16,7 @@ cimport gguf
 
 
 import os
+import sys
 # from enum import Enum
 from typing import Optional, Sequence, Callable
 
@@ -618,6 +619,8 @@ cdef class LlamaBatch:
     def __dealloc__(self):
         """The batch has to be freed with `llama_batch_free()`"""
         if self.owner is True:
+            if sys.is_finalizing():
+                return
             llama.llama_batch_free(self.p)
 
     def close(self):
@@ -1226,14 +1229,20 @@ cdef class LlamaContextParams:
     def offload_kqv(self, value: bool):
         self.p.offload_kqv = value
 
-    # @property
-    # def flash_attn(self) -> bool:
-    #     """whether to use flash attention [EXPERIMENTAL]"""
-    #     return self.p.flash_attn
+    @property
+    def flash_attn_type(self) -> int:
+        """When to enable Flash Attention.
 
-    # @flash_attn.setter
-    # def flash_attn(self, value: bool):
-    #     self.p.flash_attn = value
+        Values:
+            -1 = AUTO (default, let the library decide)
+             0 = DISABLED
+             1 = ENABLED
+        """
+        return self.p.flash_attn_type
+
+    @flash_attn_type.setter
+    def flash_attn_type(self, value: int):
+        self.p.flash_attn_type = <llama.llama_flash_attn_type>value
 
     @property
     def no_perf(self) -> bool:
@@ -1720,6 +1729,13 @@ cdef class LlamaModel:
 
     def __dealloc__(self):
         if self.ptr is not NULL and self.owner is True:
+            # During interpreter shutdown the CUDA runtime may already
+            # have torn down its driver context via an atexit handler.
+            # Calling llama_model_free at that point hits freed GPU
+            # memory -> "double free or corruption (!prev)".  Skip the
+            # native free and let the OS reclaim everything on exit.
+            if sys.is_finalizing():
+                return
             llama.llama_model_free(self.ptr)
             self.ptr = NULL
 
@@ -2102,6 +2118,8 @@ cdef class LlamaContext:
 
     def __dealloc__(self):
         if self.ptr is not NULL and self.owner is True:
+            if sys.is_finalizing():
+                return
             llama.llama_free(self.ptr)
             self.ptr = NULL
 
@@ -2672,6 +2690,8 @@ cdef class LlamaSampler:
 
     def __dealloc__(self):
         if self.ptr is not NULL and self.owner is True:
+            if sys.is_finalizing():
+                return
             llama.llama_sampler_free(self.ptr)
             self.ptr = NULL
 
@@ -2949,6 +2969,8 @@ cdef class LlamaAdapterLora:
     def __dealloc__(self):
         # De-allocate if not null and flag is set
         if self.ptr is not NULL and self.owner is True:
+            if sys.is_finalizing():
+                return
             llama.llama_adapter_lora_free(self.ptr)
             self.ptr = NULL
 
