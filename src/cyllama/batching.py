@@ -28,6 +28,8 @@ import time
 
 logger = logging.getLogger(__name__)
 
+from ._defaults import DEFAULT_N_GPU_LAYERS
+
 from .llama.llama_cpp import (
     LlamaModel,
     LlamaContext,
@@ -93,7 +95,7 @@ class BatchGenerator:
         model_path: str,
         batch_size: int = 512,
         n_ctx: int = 2048,
-        n_gpu_layers: int = 99,
+        n_gpu_layers: int = DEFAULT_N_GPU_LAYERS,
         n_seq_max: int = 8,
         verbose: bool = False,
         use_pooling: bool = False,

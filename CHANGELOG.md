@@ -17,6 +17,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+### Changed
+
+- **Centralized default constants in `cyllama._defaults`** - All generation-related magic numbers (temperature, top_k, top_p, min_p, repeat_penalty, max_tokens, n_gpu_layers, n_batch, seed, etc.) now live in a single `_defaults.py` module. `api.py`, `__main__.py`, `batching.py`, `agents/react.py`, `llama/chat.py`, `llama/tts.py`, `rag/pipeline.py`, and the `langchain`/`openai_compat` integrations all import from it. Constants are re-exported from `cyllama.__init__` for library consumers
+
+- **Aligned defaults with llama.cpp C library** - `repeat_penalty` changed from 1.1 to 1.0 (disabled, matching C default), `n_gpu_layers` from 99 to -1 (canonical sentinel for "offload all"), `n_batch` from 512 to 2048 (C default), `seed` from -1 to 0xFFFFFFFF (C sentinel, lets the library handle randomization internally instead of low-entropy `time.time()` seeds). `n_gpu_layers` validation now accepts -1
+
 ## [0.2.7]
 
 ### Fixed

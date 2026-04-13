@@ -62,6 +62,20 @@ import time
 
 logger = logging.getLogger(__name__)
 
+from ._defaults import (
+    LLAMA_DEFAULT_SEED,
+    DEFAULT_TEMPERATURE,
+    DEFAULT_TOP_K,
+    DEFAULT_TOP_P,
+    DEFAULT_MIN_P,
+    DEFAULT_REPEAT_PENALTY,
+    DEFAULT_MAX_TOKENS,
+    DEFAULT_N_GPU_LAYERS,
+    DEFAULT_N_BATCH,
+    DEFAULT_MAIN_GPU,
+    DEFAULT_SPLIT_MODE,
+)
+
 from .llama.llama_cpp import (
     LlamaModel,
     LlamaContext,
@@ -93,15 +107,15 @@ class GenerationConfig:
     Configuration for text generation.
 
     Attributes:
-        max_tokens: Maximum number of tokens to generate (default: 512)
-        temperature: Sampling temperature, 0.0 = greedy (default: 0.8)
-        top_k: Top-k sampling parameter (default: 40)
-        top_p: Top-p (nucleus) sampling parameter (default: 0.95)
-        min_p: Minimum probability threshold (default: 0.05)
-        repeat_penalty: Penalty for repeating tokens (default: 1.1)
-        n_gpu_layers: Number of layers to offload to GPU (default: 99)
-        main_gpu: Primary GPU device index for inference (default: 0)
-        split_mode: How to split model across GPUs (default: 1 = LAYER)
+        max_tokens: Maximum number of tokens to generate (see _defaults.py)
+        temperature: Sampling temperature, 0.0 = greedy (see _defaults.py)
+        top_k: Top-k sampling parameter (see _defaults.py)
+        top_p: Top-p (nucleus) sampling parameter (see _defaults.py)
+        min_p: Minimum probability threshold (see _defaults.py)
+        repeat_penalty: Penalty for repeating tokens (see _defaults.py)
+        n_gpu_layers: Number of layers to offload to GPU (see _defaults.py)
+        main_gpu: Primary GPU device index for inference (see _defaults.py)
+        split_mode: How to split model across GPUs (see _defaults.py)
             0 = NONE: Use single GPU only (main_gpu)
             1 = LAYER: Split layers and KV cache across GPUs
             2 = ROW: Split with tensor parallelism (if supported)
@@ -109,8 +123,8 @@ class GenerationConfig:
             List of floats, one per GPU. Values are normalized by llama.cpp.
             Example: [1, 2] assigns 1/3 to GPU 0 and 2/3 to GPU 1.
         n_ctx: Context window size, None = auto (default: None)
-        n_batch: Batch size for processing (default: 512)
-        seed: Random seed for reproducibility, -1 = random (default: -1)
+        n_batch: Batch size for processing (see _defaults.py)
+        seed: Random seed for reproducibility (see _defaults.py)
         stop_sequences: List of strings that stop generation (default: [])
         add_bos: Add beginning-of-sequence token (default: True)
         parse_special: Parse special tokens in prompt (default: True)
@@ -132,19 +146,19 @@ class GenerationConfig:
         >>> config = GenerationConfig(tensor_split=[0.3, 0.7])
     """
 
-    max_tokens: int = 512
-    temperature: float = 0.8
-    top_k: int = 40
-    top_p: float = 0.95
-    min_p: float = 0.05
-    repeat_penalty: float = 1.1
-    n_gpu_layers: int = 99
-    main_gpu: int = 0
-    split_mode: int = 1
+    max_tokens: int = DEFAULT_MAX_TOKENS
+    temperature: float = DEFAULT_TEMPERATURE
+    top_k: int = DEFAULT_TOP_K
+    top_p: float = DEFAULT_TOP_P
+    min_p: float = DEFAULT_MIN_P
+    repeat_penalty: float = DEFAULT_REPEAT_PENALTY
+    n_gpu_layers: int = DEFAULT_N_GPU_LAYERS
+    main_gpu: int = DEFAULT_MAIN_GPU
+    split_mode: int = DEFAULT_SPLIT_MODE
     tensor_split: Optional[List[float]] = None
     n_ctx: Optional[int] = None
-    n_batch: int = 512
-    seed: int = -1
+    n_batch: int = DEFAULT_N_BATCH
+    seed: int = LLAMA_DEFAULT_SEED
     stop_sequences: List[str] = field(default_factory=list)
     add_bos: bool = True
     parse_special: bool = True
@@ -192,8 +206,8 @@ class GenerationConfig:
         if self.repeat_penalty < 0.0:
             errors.append(f"repeat_penalty must be >= 0.0, got {self.repeat_penalty}")
 
-        if self.n_gpu_layers < 0:
-            errors.append(f"n_gpu_layers must be >= 0, got {self.n_gpu_layers}")
+        if self.n_gpu_layers < -1:
+            errors.append(f"n_gpu_layers must be >= -1 (-1 = offload all), got {self.n_gpu_layers}")
 
         if self.main_gpu < 0:
             errors.append(f"main_gpu must be >= 0, got {self.main_gpu}")
@@ -735,7 +749,7 @@ class LLM:
         - n_gpu_layers, main_gpu, split_mode, tensor_split, n_ctx, n_batch
         """
         # Skip caching for random seed
-        if config.seed == -1:
+        if config.seed == LLAMA_DEFAULT_SEED:
             return None
 
         # Build key from output-affecting parameters
@@ -822,10 +836,10 @@ class LLM:
             self._sampler.add_temp(config.temperature)
 
             # Distribution sampler
-            if config.seed != -1:
+            if config.seed != LLAMA_DEFAULT_SEED:
                 self._sampler.add_dist(config.seed)
             else:
-                self._sampler.add_dist(int(time.time()))
+                self._sampler.add_dist(LLAMA_DEFAULT_SEED)
 
     def __call__(
         self,
@@ -1540,7 +1554,7 @@ def get_chat_template(model_path: str, template_name: Optional[str] = None) -> s
 
 
 def simple(
-    model_path: str, prompt: str, ngl: int = 99, n_predict: int = 32, n_ctx: Optional[int] = None, verbose: bool = False
+    model_path: str, prompt: str, ngl: int = DEFAULT_N_GPU_LAYERS, n_predict: int = 32, n_ctx: Optional[int] = None, verbose: bool = False
 ) -> bool:
     """
     Simple, educational example showing raw llama.cpp usage.

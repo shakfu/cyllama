@@ -4,6 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from cyllama._defaults import DEFAULT_MAX_TOKENS, DEFAULT_TEMPERATURE
 from cyllama.rag.pipeline import (
     DEFAULT_PROMPT_TEMPLATE,
     RAGConfig,
@@ -21,8 +22,8 @@ class TestRAGConfig:
         config = RAGConfig()
         assert config.top_k == 5
         assert config.similarity_threshold is None
-        assert config.max_tokens == 512
-        assert config.temperature == 0.7
+        assert config.max_tokens == DEFAULT_MAX_TOKENS
+        assert config.temperature == DEFAULT_TEMPERATURE
         assert config.prompt_template == DEFAULT_PROMPT_TEMPLATE
         assert config.context_separator == "\n\n"
         assert config.include_metadata is False

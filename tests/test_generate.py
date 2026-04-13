@@ -10,6 +10,17 @@ from cyllama import (
     GenerationConfig,
     Response,
 )
+from cyllama._defaults import (
+    LLAMA_DEFAULT_SEED,
+    DEFAULT_TEMPERATURE,
+    DEFAULT_TOP_K,
+    DEFAULT_TOP_P,
+    DEFAULT_MIN_P,
+    DEFAULT_REPEAT_PENALTY,
+    DEFAULT_MAX_TOKENS,
+    DEFAULT_N_GPU_LAYERS,
+    DEFAULT_N_BATCH,
+)
 
 
 class TestGenerationConfig:
@@ -18,16 +29,16 @@ class TestGenerationConfig:
     def test_default_config(self):
         """Test default configuration values."""
         config = GenerationConfig()
-        assert config.max_tokens == 512
-        assert config.temperature == 0.8
-        assert config.top_k == 40
-        assert config.top_p == 0.95
-        assert config.min_p == 0.05
-        assert config.repeat_penalty == 1.1
-        assert config.n_gpu_layers == 99
+        assert config.max_tokens == DEFAULT_MAX_TOKENS
+        assert config.temperature == DEFAULT_TEMPERATURE
+        assert config.top_k == DEFAULT_TOP_K
+        assert config.top_p == DEFAULT_TOP_P
+        assert config.min_p == DEFAULT_MIN_P
+        assert config.repeat_penalty == DEFAULT_REPEAT_PENALTY
+        assert config.n_gpu_layers == DEFAULT_N_GPU_LAYERS
         assert config.n_ctx is None
-        assert config.n_batch == 512
-        assert config.seed == -1
+        assert config.n_batch == DEFAULT_N_BATCH
+        assert config.seed == LLAMA_DEFAULT_SEED
         assert config.stop_sequences == []
         assert config.add_bos is True
         assert config.parse_special is True
@@ -105,9 +116,11 @@ class TestGenerationConfig:
 
     def test_validation_n_gpu_layers(self):
         """Test n_gpu_layers validation."""
-        with pytest.raises(ValueError, match="n_gpu_layers must be >= 0"):
-            GenerationConfig(n_gpu_layers=-1)
-        # Valid edge case
+        with pytest.raises(ValueError, match="n_gpu_layers must be >= -1"):
+            GenerationConfig(n_gpu_layers=-2)
+        # Valid edge cases
+        config = GenerationConfig(n_gpu_layers=-1)
+        assert config.n_gpu_layers == -1
         config = GenerationConfig(n_gpu_layers=0)
         assert config.n_gpu_layers == 0
 

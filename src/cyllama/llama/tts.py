@@ -11,6 +11,7 @@ import argparse
 import math
 from typing import List, Optional, Dict, Tuple
 
+from .._defaults import DEFAULT_N_GPU_LAYERS
 from . import llama_cpp as cy
 
 
@@ -131,7 +132,7 @@ class TTSGenerator:
         cts_model_path: str,  # codes-to-speech model
         n_ctx: int = 8192,
         n_batch: int = 8192,
-        ngl: int = 99,
+        ngl: int = DEFAULT_N_GPU_LAYERS,
         n_predict: int = 4096,
         speaker_file: Optional[str] = None,
         use_guide_tokens: bool = True,
@@ -552,7 +553,7 @@ def main():
     parser.add_argument("-o", "--output", default="output.wav", help="Output WAV file")
     parser.add_argument("-c", "--context", type=int, default=8192, help="Context size")
     parser.add_argument("-b", "--batch", type=int, default=8192, help="Batch size")
-    parser.add_argument("-ngl", "--n-gpu-layers", type=int, default=99, help="Number of GPU layers")
+    parser.add_argument("-ngl", "--n-gpu-layers", type=int, default=DEFAULT_N_GPU_LAYERS, help="Number of GPU layers")
     parser.add_argument("-n", "--n-predict", type=int, default=4096, help="Number of tokens to predict")
     parser.add_argument("--speaker-file", help="Speaker profile JSON file")
     parser.add_argument(
