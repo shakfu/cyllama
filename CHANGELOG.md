@@ -17,6 +17,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+### Added
+
+- **New `LlamaContextParams` properties** - Exposed `flash_attn_type` (replaces the previously commented-out `flash_attn` boolean with the new int-based enum: -1=auto, 0=disabled, 1=enabled), `embeddings` (extract embeddings together with logits), `op_offload` (offload host tensor operations to device), `swa_full` (full-size SWA cache for improved perf when `n_seq_max > 1`), and `kv_unified` (unified buffer across input sequences for attention)
+
+- **Expanded `WhisperFullParams` bindings** - Exposed ~30 previously inaccessible parameters: timestamp thresholds (`thold_pt`, `thold_ptsum`), segment control (`max_len`, `split_on_word`, `max_tokens`), debug/speed-up (`debug_mode`, `audio_ctx`, `tdrz_enable`), prompt/regex (`suppress_regex`, `initial_prompt`, `carry_initial_prompt`), language detection (`detect_language`), decoding/suppression (`suppress_blank`, `suppress_nst`, `max_initial_ts`, `length_penalty`), temperature fallback (`temperature_inc`, `entropy_thold`, `logprob_thold`, `no_speech_thold`), strategy params (`greedy_best_of`, `beam_size`, `beam_patience` via inline C accessors for anonymous-struct fields), grammar (`grammar_penalty`), and VAD (`vad`, `vad_model_path`). String parameters (`initial_prompt`, `suppress_regex`, `vad_model_path`) use the established bytes-ref-pinning pattern to keep C pointers valid
+
+- **Expanded `SDSampleParams` bindings** - Added `slg_layers` (skip-layer guidance layer indices with owned int buffer) and `custom_sigmas` (custom noise schedule sigma values with owned float buffer). Both manage heap-allocated arrays with proper `__dealloc__` cleanup
+
+- **Expanded `SDImageGenParams` bindings** - Added LoRA support (`set_loras()` accepting list of dicts with path/multiplier/is_high_noise), reference images for IP-Adapter (`set_ref_images()`), Photo Maker parameters (`set_pm_id_images()`, `pm_id_embed_path`, `pm_style_strength`), VAE tiling (`vae_tile_rel_size`), and full step-cache parameter surface (`cache_error_decay_rate`, `cache_use_relative_threshold`, `cache_reset_error_on_compute`, `cache_fn_compute_blocks`, `cache_bn_compute_blocks`, `cache_residual_diff_threshold`, `cache_max_warmup_steps`, `cache_max_cached_steps`, `cache_max_continuous_cached_steps`, `cache_taylorseer_n_derivatives`, `cache_taylorseer_skip_interval`, `cache_scm_mask`, `cache_scm_policy_dynamic`, `cache_spectrum_w`, `cache_spectrum_m`, `cache_spectrum_lam`, `cache_spectrum_window_size`, `cache_spectrum_flex_window`, `cache_spectrum_warmup_steps`, `cache_spectrum_stop_percent`). All heap-allocated buffers (`_ref_images_buf`, `_loras_buf`, `_pm_id_images_buf`) are freed in `__dealloc__`
+
+- **Spectrum cache fields in `stable_diffusion.pxd`** - Declared `spectrum_w`, `spectrum_m`, `spectrum_lam`, `spectrum_window_size`, `spectrum_flex_window`, `spectrum_warmup_steps`, and `spectrum_stop_percent` in the `sd_sample_params_t` extern struct
+
+- **`SDContext.generate_video()` new parameters** - Added `eta` (default `inf`, auto-resolve per sample method), `moe_boundary` (Mixture of Experts boundary, default 0.875), and `vace_strength` (VACE strength, default 1.0) to the video generation API
+
 ### Changed
 
 - **Centralized default constants in `cyllama._defaults`** - All generation-related magic numbers (temperature, top_k, top_p, min_p, repeat_penalty, max_tokens, n_gpu_layers, n_batch, seed, etc.) now live in a single `_defaults.py` module. `api.py`, `__main__.py`, `batching.py`, `agents/react.py`, `llama/chat.py`, `llama/tts.py`, `rag/pipeline.py`, and the `langchain`/`openai_compat` integrations all import from it. Constants are re-exported from `cyllama.__init__` for library consumers

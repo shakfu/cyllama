@@ -1369,9 +1369,19 @@ cdef class SDSampleParams:
     Sampling parameters for image generation.
     """
     cdef sd_sample_params_t _params
+    cdef int* _slg_layers
+    cdef float* _custom_sigmas
 
     def __cinit__(self):
         sd_sample_params_init(&self._params)
+        self._slg_layers = NULL
+        self._custom_sigmas = NULL
+
+    def __dealloc__(self):
+        if self._slg_layers != NULL:
+            free(self._slg_layers)
+        if self._custom_sigmas != NULL:
+            free(self._custom_sigmas)
 
     def __init__(self,
                  sample_method: SampleMethod = SampleMethod.COUNT,
@@ -1507,6 +1517,54 @@ cdef class SDSampleParams:
     def slg_layer_end(self, value: float):
         self._params.guidance.slg.layer_end = value
 
+    @property
+    def slg_layers(self) -> list:
+        """Layer indices for skip-layer guidance."""
+        result = []
+        if self._params.guidance.slg.layers != NULL:
+            for i in range(self._params.guidance.slg.layer_count):
+                result.append(self._params.guidance.slg.layers[i])
+        return result
+
+    @slg_layers.setter
+    def slg_layers(self, values: list):
+        if self._slg_layers != NULL:
+            free(self._slg_layers)
+            self._slg_layers = NULL
+        if values is None or len(values) == 0:
+            self._params.guidance.slg.layers = NULL
+            self._params.guidance.slg.layer_count = 0
+        else:
+            self._slg_layers = <int*>malloc(len(values) * sizeof(int))
+            for i in range(len(values)):
+                self._slg_layers[i] = <int>values[i]
+            self._params.guidance.slg.layers = self._slg_layers
+            self._params.guidance.slg.layer_count = len(values)
+
+    @property
+    def custom_sigmas(self) -> list:
+        """Custom noise schedule sigma values."""
+        result = []
+        if self._params.custom_sigmas != NULL:
+            for i in range(self._params.custom_sigmas_count):
+                result.append(self._params.custom_sigmas[i])
+        return result
+
+    @custom_sigmas.setter
+    def custom_sigmas(self, values: list):
+        if self._custom_sigmas != NULL:
+            free(self._custom_sigmas)
+            self._custom_sigmas = NULL
+        if values is None or len(values) == 0:
+            self._params.custom_sigmas = NULL
+            self._params.custom_sigmas_count = 0
+        else:
+            self._custom_sigmas = <float*>malloc(len(values) * sizeof(float))
+            for i in range(len(values)):
+                self._custom_sigmas[i] = <float>values[i]
+            self._params.custom_sigmas = self._custom_sigmas
+            self._params.custom_sigmas_count = len(values)
+
     def __str__(self) -> str:
         """Get string representation."""
         cdef char* s = sd_sample_params_to_str(&self._params)
@@ -1528,14 +1586,38 @@ cdef class SDImageGenParams:
     cdef sd_img_gen_params_t _params
     cdef bytes _prompt_bytes
     cdef bytes _negative_prompt_bytes
+    cdef bytes _pm_id_embed_path_bytes
+    cdef bytes _scm_mask_bytes
     cdef SDSampleParams _sample_params
     cdef SDImage _init_image
     cdef SDImage _mask_image
     cdef SDImage _control_image
+    cdef list _ref_images  # keep SDImage refs alive
+    cdef sd_image_t* _ref_images_buf
+    cdef list _lora_paths_bytes  # keep bytes refs alive for lora paths
+    cdef sd_lora_t* _loras_buf
+    cdef list _pm_id_images  # keep SDImage refs alive for photo maker
+    cdef sd_image_t* _pm_id_images_buf
 
     def __cinit__(self):
         sd_img_gen_params_init(&self._params)
         self._sample_params = SDSampleParams()
+        self._ref_images = None
+        self._ref_images_buf = NULL
+        self._lora_paths_bytes = None
+        self._loras_buf = NULL
+        self._pm_id_images = None
+        self._pm_id_images_buf = NULL
+        self._pm_id_embed_path_bytes = None
+        self._scm_mask_bytes = None
+
+    def __dealloc__(self):
+        if self._ref_images_buf != NULL:
+            free(self._ref_images_buf)
+        if self._loras_buf != NULL:
+            free(self._loras_buf)
+        if self._pm_id_images_buf != NULL:
+            free(self._pm_id_images_buf)
 
     def __init__(self,
                  prompt: str = "",
@@ -1807,6 +1889,292 @@ cdef class SDImageGenParams:
     @increase_ref_index.setter
     def increase_ref_index(self, value: bool):
         self._params.increase_ref_index = value
+
+    # --- LoRA parameters ---
+
+    def set_loras(self, loras: list):
+        """Set LoRA configurations.
+
+        Args:
+            loras: List of dicts with keys: 'path' (str), 'multiplier' (float, default 1.0),
+                   'is_high_noise' (bool, default False).
+        """
+        if self._loras_buf != NULL:
+            free(self._loras_buf)
+            self._loras_buf = NULL
+        if loras is None or len(loras) == 0:
+            self._params.loras = NULL
+            self._params.lora_count = 0
+            self._lora_paths_bytes = None
+            return
+        cdef int n = len(loras)
+        self._loras_buf = <sd_lora_t*>malloc(n * sizeof(sd_lora_t))
+        self._lora_paths_bytes = []
+        for i in range(n):
+            entry = loras[i]
+            path_bytes = entry['path'].encode('utf-8')
+            self._lora_paths_bytes.append(path_bytes)
+            self._loras_buf[i].path = <const char*>path_bytes
+            self._loras_buf[i].multiplier = <float>entry.get('multiplier', 1.0)
+            self._loras_buf[i].is_high_noise = <bint>entry.get('is_high_noise', False)
+        self._params.loras = self._loras_buf
+        self._params.lora_count = n
+
+    # --- Reference images ---
+
+    def set_ref_images(self, images: list):
+        """Set reference images for IP-Adapter or similar.
+
+        Args:
+            images: List of SDImage objects.
+        """
+        if self._ref_images_buf != NULL:
+            free(self._ref_images_buf)
+            self._ref_images_buf = NULL
+        if images is None or len(images) == 0:
+            self._params.ref_images = NULL
+            self._params.ref_images_count = 0
+            self._ref_images = None
+            return
+        cdef int n = len(images)
+        self._ref_images = images  # prevent GC
+        self._ref_images_buf = <sd_image_t*>malloc(n * sizeof(sd_image_t))
+        for i in range(n):
+            self._ref_images_buf[i] = (<SDImage>images[i])._image
+        self._params.ref_images = self._ref_images_buf
+        self._params.ref_images_count = n
+
+    # --- Photo Maker parameters ---
+
+    def set_pm_id_images(self, images: list):
+        """Set Photo Maker identity images.
+
+        Args:
+            images: List of SDImage objects.
+        """
+        if self._pm_id_images_buf != NULL:
+            free(self._pm_id_images_buf)
+            self._pm_id_images_buf = NULL
+        if images is None or len(images) == 0:
+            self._params.pm_params.id_images = NULL
+            self._params.pm_params.id_images_count = 0
+            self._pm_id_images = None
+            return
+        cdef int n = len(images)
+        self._pm_id_images = images  # prevent GC
+        self._pm_id_images_buf = <sd_image_t*>malloc(n * sizeof(sd_image_t))
+        for i in range(n):
+            self._pm_id_images_buf[i] = (<SDImage>images[i])._image
+        self._params.pm_params.id_images = self._pm_id_images_buf
+        self._params.pm_params.id_images_count = n
+
+    @property
+    def pm_id_embed_path(self) -> str:
+        """Photo Maker embedding path."""
+        if self._params.pm_params.id_embed_path == NULL:
+            return None
+        return self._params.pm_params.id_embed_path.decode('utf-8')
+
+    @pm_id_embed_path.setter
+    def pm_id_embed_path(self, value):
+        if value is None:
+            self._params.pm_params.id_embed_path = NULL
+            self._pm_id_embed_path_bytes = None
+        else:
+            self._pm_id_embed_path_bytes = value.encode('utf-8')
+            self._params.pm_params.id_embed_path = <const char*>self._pm_id_embed_path_bytes
+
+    @property
+    def pm_style_strength(self) -> float:
+        """Photo Maker style strength."""
+        return self._params.pm_params.style_strength
+
+    @pm_style_strength.setter
+    def pm_style_strength(self, value: float):
+        self._params.pm_params.style_strength = value
+
+    # --- VAE Tiling relative size ---
+
+    @property
+    def vae_tile_rel_size(self) -> tuple:
+        """VAE tile relative size (x, y)."""
+        return (self._params.vae_tiling_params.rel_size_x,
+                self._params.vae_tiling_params.rel_size_y)
+
+    @vae_tile_rel_size.setter
+    def vae_tile_rel_size(self, value: tuple):
+        self._params.vae_tiling_params.rel_size_x = value[0]
+        self._params.vae_tiling_params.rel_size_y = value[1]
+
+    # --- Extended cache parameters ---
+
+    @property
+    def cache_error_decay_rate(self) -> float:
+        return self._params.cache.error_decay_rate
+
+    @cache_error_decay_rate.setter
+    def cache_error_decay_rate(self, value: float):
+        self._params.cache.error_decay_rate = value
+
+    @property
+    def cache_use_relative_threshold(self) -> bool:
+        return self._params.cache.use_relative_threshold
+
+    @cache_use_relative_threshold.setter
+    def cache_use_relative_threshold(self, value: bool):
+        self._params.cache.use_relative_threshold = value
+
+    @property
+    def cache_reset_error_on_compute(self) -> bool:
+        return self._params.cache.reset_error_on_compute
+
+    @cache_reset_error_on_compute.setter
+    def cache_reset_error_on_compute(self, value: bool):
+        self._params.cache.reset_error_on_compute = value
+
+    @property
+    def cache_fn_compute_blocks(self) -> int:
+        return self._params.cache.Fn_compute_blocks
+
+    @cache_fn_compute_blocks.setter
+    def cache_fn_compute_blocks(self, value: int):
+        self._params.cache.Fn_compute_blocks = value
+
+    @property
+    def cache_bn_compute_blocks(self) -> int:
+        return self._params.cache.Bn_compute_blocks
+
+    @cache_bn_compute_blocks.setter
+    def cache_bn_compute_blocks(self, value: int):
+        self._params.cache.Bn_compute_blocks = value
+
+    @property
+    def cache_residual_diff_threshold(self) -> float:
+        return self._params.cache.residual_diff_threshold
+
+    @cache_residual_diff_threshold.setter
+    def cache_residual_diff_threshold(self, value: float):
+        self._params.cache.residual_diff_threshold = value
+
+    @property
+    def cache_max_warmup_steps(self) -> int:
+        return self._params.cache.max_warmup_steps
+
+    @cache_max_warmup_steps.setter
+    def cache_max_warmup_steps(self, value: int):
+        self._params.cache.max_warmup_steps = value
+
+    @property
+    def cache_max_cached_steps(self) -> int:
+        return self._params.cache.max_cached_steps
+
+    @cache_max_cached_steps.setter
+    def cache_max_cached_steps(self, value: int):
+        self._params.cache.max_cached_steps = value
+
+    @property
+    def cache_max_continuous_cached_steps(self) -> int:
+        return self._params.cache.max_continuous_cached_steps
+
+    @cache_max_continuous_cached_steps.setter
+    def cache_max_continuous_cached_steps(self, value: int):
+        self._params.cache.max_continuous_cached_steps = value
+
+    @property
+    def cache_taylorseer_n_derivatives(self) -> int:
+        return self._params.cache.taylorseer_n_derivatives
+
+    @cache_taylorseer_n_derivatives.setter
+    def cache_taylorseer_n_derivatives(self, value: int):
+        self._params.cache.taylorseer_n_derivatives = value
+
+    @property
+    def cache_taylorseer_skip_interval(self) -> int:
+        return self._params.cache.taylorseer_skip_interval
+
+    @cache_taylorseer_skip_interval.setter
+    def cache_taylorseer_skip_interval(self, value: int):
+        self._params.cache.taylorseer_skip_interval = value
+
+    @property
+    def cache_scm_mask(self) -> str:
+        """Spectrum cache mask path."""
+        if self._params.cache.scm_mask == NULL:
+            return None
+        return self._params.cache.scm_mask.decode('utf-8')
+
+    @cache_scm_mask.setter
+    def cache_scm_mask(self, value):
+        if value is None:
+            self._params.cache.scm_mask = NULL
+            self._scm_mask_bytes = None
+        else:
+            self._scm_mask_bytes = value.encode('utf-8')
+            self._params.cache.scm_mask = <const char*>self._scm_mask_bytes
+
+    @property
+    def cache_scm_policy_dynamic(self) -> bool:
+        return self._params.cache.scm_policy_dynamic
+
+    @cache_scm_policy_dynamic.setter
+    def cache_scm_policy_dynamic(self, value: bool):
+        self._params.cache.scm_policy_dynamic = value
+
+    @property
+    def cache_spectrum_w(self) -> float:
+        return self._params.cache.spectrum_w
+
+    @cache_spectrum_w.setter
+    def cache_spectrum_w(self, value: float):
+        self._params.cache.spectrum_w = value
+
+    @property
+    def cache_spectrum_m(self) -> int:
+        return self._params.cache.spectrum_m
+
+    @cache_spectrum_m.setter
+    def cache_spectrum_m(self, value: int):
+        self._params.cache.spectrum_m = value
+
+    @property
+    def cache_spectrum_lam(self) -> float:
+        return self._params.cache.spectrum_lam
+
+    @cache_spectrum_lam.setter
+    def cache_spectrum_lam(self, value: float):
+        self._params.cache.spectrum_lam = value
+
+    @property
+    def cache_spectrum_window_size(self) -> int:
+        return self._params.cache.spectrum_window_size
+
+    @cache_spectrum_window_size.setter
+    def cache_spectrum_window_size(self, value: int):
+        self._params.cache.spectrum_window_size = value
+
+    @property
+    def cache_spectrum_flex_window(self) -> float:
+        return self._params.cache.spectrum_flex_window
+
+    @cache_spectrum_flex_window.setter
+    def cache_spectrum_flex_window(self, value: float):
+        self._params.cache.spectrum_flex_window = value
+
+    @property
+    def cache_spectrum_warmup_steps(self) -> int:
+        return self._params.cache.spectrum_warmup_steps
+
+    @cache_spectrum_warmup_steps.setter
+    def cache_spectrum_warmup_steps(self, value: int):
+        self._params.cache.spectrum_warmup_steps = value
+
+    @property
+    def cache_spectrum_stop_percent(self) -> float:
+        return self._params.cache.spectrum_stop_percent
+
+    @cache_spectrum_stop_percent.setter
+    def cache_spectrum_stop_percent(self, value: float):
+        self._params.cache.spectrum_stop_percent = value
 
     def __str__(self) -> str:
         """Get string representation."""
@@ -2121,7 +2489,10 @@ cdef class SDContext:
                        init_image: Optional[SDImage] = None,
                        end_image: Optional[SDImage] = None,
                        strength: float = 0.75,
-                       clip_skip: int = -1) -> List[SDImage]:
+                       clip_skip: int = -1,
+                       eta: float = float('inf'),
+                       moe_boundary: float = 0.875,
+                       vace_strength: float = 1.0) -> List[SDImage]:
         """
         Generate video frames from a text prompt.
 
@@ -2140,6 +2511,9 @@ cdef class SDContext:
             end_image: End image for video interpolation (optional)
             strength: Denoising strength (0.0-1.0)
             clip_skip: Number of CLIP layers to skip
+            eta: Eta parameter for samplers (inf = auto-resolve per method)
+            moe_boundary: Mixture of Experts boundary
+            vace_strength: VACE strength parameter
 
         Returns:
             List of SDImage objects representing video frames
@@ -2179,6 +2553,9 @@ cdef class SDContext:
         vid_params.sample_params.scheduler = <scheduler_t>scheduler
         vid_params.sample_params.sample_steps = sample_steps
         vid_params.sample_params.guidance.txt_cfg = cfg_scale
+        vid_params.sample_params.eta = eta
+        vid_params.moe_boundary = moe_boundary
+        vid_params.vace_strength = vace_strength
 
         # Set init/end images if provided
         if init_image is not None:

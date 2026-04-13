@@ -1226,14 +1226,23 @@ cdef class LlamaContextParams:
     def offload_kqv(self, value: bool):
         self.p.offload_kqv = value
 
-    # @property
-    # def flash_attn(self) -> bool:
-    #     """whether to use flash attention [EXPERIMENTAL]"""
-    #     return self.p.flash_attn
+    @property
+    def flash_attn_type(self) -> int:
+        """when to enable Flash Attention (-1=auto, 0=disabled, 1=enabled)"""
+        return self.p.flash_attn_type
 
-    # @flash_attn.setter
-    # def flash_attn(self, value: bool):
-    #     self.p.flash_attn = value
+    @flash_attn_type.setter
+    def flash_attn_type(self, value: int):
+        self.p.flash_attn_type = <llama.llama_flash_attn_type>value
+
+    @property
+    def embeddings(self) -> bool:
+        """if true, extract embeddings (together with logits)"""
+        return self.p.embeddings
+
+    @embeddings.setter
+    def embeddings(self, value: bool):
+        self.p.embeddings = value
 
     @property
     def no_perf(self) -> bool:
@@ -1243,6 +1252,33 @@ cdef class LlamaContextParams:
     @no_perf.setter
     def no_perf(self, value: bool):
         self.p.no_perf = value
+
+    @property
+    def op_offload(self) -> bool:
+        """offload host tensor operations to device"""
+        return self.p.op_offload
+
+    @op_offload.setter
+    def op_offload(self, value: bool):
+        self.p.op_offload = value
+
+    @property
+    def swa_full(self) -> bool:
+        """use full-size SWA cache (may improve perf when n_seq_max > 1)"""
+        return self.p.swa_full
+
+    @swa_full.setter
+    def swa_full(self, value: bool):
+        self.p.swa_full = value
+
+    @property
+    def kv_unified(self) -> bool:
+        """use a unified buffer across input sequences for attention"""
+        return self.p.kv_unified
+
+    @kv_unified.setter
+    def kv_unified(self, value: bool):
+        self.p.kv_unified = value
 
     # ggml.ggml_abort_callback abort_callback;
     # void *              abort_callback_data;

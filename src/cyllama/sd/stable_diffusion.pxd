@@ -241,6 +241,13 @@ cdef extern from "stable-diffusion.h":
         int taylorseer_skip_interval
         const char* scm_mask
         bint scm_policy_dynamic
+        float spectrum_w
+        int spectrum_m
+        float spectrum_lam
+        int spectrum_window_size
+        float spectrum_flex_window
+        int spectrum_warmup_steps
+        float spectrum_stop_percent
 
     ctypedef struct sd_img_gen_params_t:
         const sd_lora_t* loras

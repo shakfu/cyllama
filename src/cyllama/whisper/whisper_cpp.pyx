@@ -141,10 +141,16 @@ cdef class WhisperVadParams:
 cdef class WhisperFullParams:
     cdef wh.whisper_full_params _c_params
     cdef bytes _language_bytes  # Keep bytes object alive for language parameter
+    cdef bytes _initial_prompt_bytes
+    cdef bytes _suppress_regex_bytes
+    cdef bytes _vad_model_path_bytes
 
     def __init__(self, strategy=wh.WHISPER_SAMPLING_GREEDY):
         self._c_params = wh.whisper_full_default_params(strategy)
         self._language_bytes = None
+        self._initial_prompt_bytes = None
+        self._suppress_regex_bytes = None
+        self._vad_model_path_bytes = None
 
     @property
     def strategy(self):
@@ -280,6 +286,297 @@ cdef class WhisperFullParams:
         else:
             self._language_bytes = value.encode('utf-8')
             self._c_params.language = <const char*>self._language_bytes
+
+    # -----------------------------------------------------------------------
+    # Token-level timestamp parameters
+    # -----------------------------------------------------------------------
+
+    @property
+    def thold_pt(self):
+        """timestamp token probability threshold"""
+        return self._c_params.thold_pt
+
+    @thold_pt.setter
+    def thold_pt(self, float value):
+        self._c_params.thold_pt = value
+
+    @property
+    def thold_ptsum(self):
+        """timestamp token sum probability threshold"""
+        return self._c_params.thold_ptsum
+
+    @thold_ptsum.setter
+    def thold_ptsum(self, float value):
+        self._c_params.thold_ptsum = value
+
+    @property
+    def max_len(self):
+        """max segment length in characters"""
+        return self._c_params.max_len
+
+    @max_len.setter
+    def max_len(self, int value):
+        self._c_params.max_len = value
+
+    @property
+    def split_on_word(self):
+        """split on word rather than on token"""
+        return self._c_params.split_on_word
+
+    @split_on_word.setter
+    def split_on_word(self, bint value):
+        self._c_params.split_on_word = value
+
+    @property
+    def max_tokens(self):
+        """max tokens per segment (0 = no limit)"""
+        return self._c_params.max_tokens
+
+    @max_tokens.setter
+    def max_tokens(self, int value):
+        self._c_params.max_tokens = value
+
+    # -----------------------------------------------------------------------
+    # Speed-up / debug
+    # -----------------------------------------------------------------------
+
+    @property
+    def debug_mode(self):
+        """enable debug mode (eg. dump log_mel)"""
+        return self._c_params.debug_mode
+
+    @debug_mode.setter
+    def debug_mode(self, bint value):
+        self._c_params.debug_mode = value
+
+    @property
+    def audio_ctx(self):
+        """overwrite the audio context size (0 = use default)"""
+        return self._c_params.audio_ctx
+
+    @audio_ctx.setter
+    def audio_ctx(self, int value):
+        self._c_params.audio_ctx = value
+
+    @property
+    def tdrz_enable(self):
+        """enable tinydiarize speaker turn detection"""
+        return self._c_params.tdrz_enable
+
+    @tdrz_enable.setter
+    def tdrz_enable(self, bint value):
+        self._c_params.tdrz_enable = value
+
+    # -----------------------------------------------------------------------
+    # Prompt / regex
+    # -----------------------------------------------------------------------
+
+    @property
+    def suppress_regex(self):
+        """regex to suppress tokens matching this pattern"""
+        if self._c_params.suppress_regex == NULL:
+            return None
+        return self._c_params.suppress_regex.decode('utf-8')
+
+    @suppress_regex.setter
+    def suppress_regex(self, value):
+        if value is None:
+            self._c_params.suppress_regex = NULL
+            self._suppress_regex_bytes = None
+        else:
+            self._suppress_regex_bytes = value.encode('utf-8')
+            self._c_params.suppress_regex = <const char*>self._suppress_regex_bytes
+
+    @property
+    def initial_prompt(self):
+        """initial prompt to condition the model (prepended to every decode window)"""
+        if self._c_params.initial_prompt == NULL:
+            return None
+        return self._c_params.initial_prompt.decode('utf-8')
+
+    @initial_prompt.setter
+    def initial_prompt(self, value):
+        if value is None:
+            self._c_params.initial_prompt = NULL
+            self._initial_prompt_bytes = None
+        else:
+            self._initial_prompt_bytes = value.encode('utf-8')
+            self._c_params.initial_prompt = <const char*>self._initial_prompt_bytes
+
+    @property
+    def carry_initial_prompt(self):
+        """if true, always prepend initial_prompt to every decode window"""
+        return self._c_params.carry_initial_prompt
+
+    @carry_initial_prompt.setter
+    def carry_initial_prompt(self, bint value):
+        self._c_params.carry_initial_prompt = value
+
+    # -----------------------------------------------------------------------
+    # Language detection
+    # -----------------------------------------------------------------------
+
+    @property
+    def detect_language(self):
+        """if true, auto-detect spoken language"""
+        return self._c_params.detect_language
+
+    @detect_language.setter
+    def detect_language(self, bint value):
+        self._c_params.detect_language = value
+
+    # -----------------------------------------------------------------------
+    # Decoding / suppression
+    # -----------------------------------------------------------------------
+
+    @property
+    def suppress_blank(self):
+        """suppress blank outputs at the beginning of sampling"""
+        return self._c_params.suppress_blank
+
+    @suppress_blank.setter
+    def suppress_blank(self, bint value):
+        self._c_params.suppress_blank = value
+
+    @property
+    def suppress_nst(self):
+        """suppress non-speech tokens"""
+        return self._c_params.suppress_nst
+
+    @suppress_nst.setter
+    def suppress_nst(self, bint value):
+        self._c_params.suppress_nst = value
+
+    @property
+    def max_initial_ts(self):
+        """max initial timestamp (1.0 = no limit)"""
+        return self._c_params.max_initial_ts
+
+    @max_initial_ts.setter
+    def max_initial_ts(self, float value):
+        self._c_params.max_initial_ts = value
+
+    @property
+    def length_penalty(self):
+        """length penalty (-1.0 = default from model)"""
+        return self._c_params.length_penalty
+
+    @length_penalty.setter
+    def length_penalty(self, float value):
+        self._c_params.length_penalty = value
+
+    # -----------------------------------------------------------------------
+    # Temperature fallback
+    # -----------------------------------------------------------------------
+
+    @property
+    def temperature_inc(self):
+        """temperature increment on fallback (0.0 = disabled)"""
+        return self._c_params.temperature_inc
+
+    @temperature_inc.setter
+    def temperature_inc(self, float value):
+        self._c_params.temperature_inc = value
+
+    @property
+    def entropy_thold(self):
+        """entropy threshold for decoder fail (triggers temperature fallback)"""
+        return self._c_params.entropy_thold
+
+    @entropy_thold.setter
+    def entropy_thold(self, float value):
+        self._c_params.entropy_thold = value
+
+    @property
+    def logprob_thold(self):
+        """avg logprob threshold for decoder fail (triggers temperature fallback)"""
+        return self._c_params.logprob_thold
+
+    @logprob_thold.setter
+    def logprob_thold(self, float value):
+        self._c_params.logprob_thold = value
+
+    @property
+    def no_speech_thold(self):
+        """no speech probability threshold"""
+        return self._c_params.no_speech_thold
+
+    @no_speech_thold.setter
+    def no_speech_thold(self, float value):
+        self._c_params.no_speech_thold = value
+
+    # -----------------------------------------------------------------------
+    # Greedy / beam search strategy params
+    # -----------------------------------------------------------------------
+
+    @property
+    def greedy_best_of(self):
+        """number of best candidates to keep for greedy strategy"""
+        return wh.whisper_params_get_greedy_best_of(&self._c_params)
+
+    @greedy_best_of.setter
+    def greedy_best_of(self, int value):
+        wh.whisper_params_set_greedy_best_of(&self._c_params, value)
+
+    @property
+    def beam_size(self):
+        """beam size for beam search strategy"""
+        return wh.whisper_params_get_beam_size(&self._c_params)
+
+    @beam_size.setter
+    def beam_size(self, int value):
+        wh.whisper_params_set_beam_size(&self._c_params, value)
+
+    @property
+    def beam_patience(self):
+        """beam search patience factor"""
+        return wh.whisper_params_get_beam_patience(&self._c_params)
+
+    @beam_patience.setter
+    def beam_patience(self, float value):
+        wh.whisper_params_set_beam_patience(&self._c_params, value)
+
+    # -----------------------------------------------------------------------
+    # Grammar
+    # -----------------------------------------------------------------------
+
+    @property
+    def grammar_penalty(self):
+        """penalty applied to grammar-violating tokens"""
+        return self._c_params.grammar_penalty
+
+    @grammar_penalty.setter
+    def grammar_penalty(self, float value):
+        self._c_params.grammar_penalty = value
+
+    # -----------------------------------------------------------------------
+    # VAD (Voice Activity Detection)
+    # -----------------------------------------------------------------------
+
+    @property
+    def vad(self):
+        """enable voice activity detection"""
+        return self._c_params.vad
+
+    @vad.setter
+    def vad(self, bint value):
+        self._c_params.vad = value
+
+    @property
+    def vad_model_path(self):
+        """path to VAD model file"""
+        if self._c_params.vad_model_path == NULL:
+            return None
+        return self._c_params.vad_model_path.decode('utf-8')
+
+    @vad_model_path.setter
+    def vad_model_path(self, value):
+        if value is None:
+            self._c_params.vad_model_path = NULL
+            self._vad_model_path_bytes = None
+        else:
+            self._vad_model_path_bytes = value.encode('utf-8')
+            self._c_params.vad_model_path = <const char*>self._vad_model_path_bytes
 
 
 cdef class WhisperTokenData:

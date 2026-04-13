@@ -149,6 +149,7 @@ cdef extern from "whisper.h":
         bint tdrz_enable
         const char * suppress_regex
         const char * initial_prompt
+        bint carry_initial_prompt
         const whisper_token * prompt_tokens
         int prompt_n_tokens
         const char * language
@@ -340,6 +341,34 @@ cdef extern from "whisper.h":
 
     # Logging
     cdef void whisper_log_set(void * log_callback, void * user_data)  # ggml_log_callback
+
+cdef extern from *:
+    """
+    static inline int whisper_params_get_greedy_best_of(const struct whisper_full_params *p) {
+        return p->greedy.best_of;
+    }
+    static inline void whisper_params_set_greedy_best_of(struct whisper_full_params *p, int v) {
+        p->greedy.best_of = v;
+    }
+    static inline int whisper_params_get_beam_size(const struct whisper_full_params *p) {
+        return p->beam_search.beam_size;
+    }
+    static inline void whisper_params_set_beam_size(struct whisper_full_params *p, int v) {
+        p->beam_search.beam_size = v;
+    }
+    static inline float whisper_params_get_beam_patience(const struct whisper_full_params *p) {
+        return p->beam_search.patience;
+    }
+    static inline void whisper_params_set_beam_patience(struct whisper_full_params *p, float v) {
+        p->beam_search.patience = v;
+    }
+    """
+    int whisper_params_get_greedy_best_of(const whisper_full_params *p)
+    void whisper_params_set_greedy_best_of(whisper_full_params *p, int v)
+    int whisper_params_get_beam_size(const whisper_full_params *p)
+    void whisper_params_set_beam_size(whisper_full_params *p, int v)
+    float whisper_params_get_beam_patience(const whisper_full_params *p)
+    void whisper_params_set_beam_patience(whisper_full_params *p, float v)
 
 
 cdef extern from *:
