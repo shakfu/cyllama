@@ -22,6 +22,32 @@ The SONAME rewrite changes the dependency graph that glibc's dynamic linker uses
 
 Vulkan wheels go through the same `auditwheel repair` process on their bundled llama/ggml libs and do not crash. The difference is that CUDA's runtime manages teardown via `atexit` handlers registered internally by `libcudart`. Vulkan cleanup is explicit (the application calls `vkDestroy*` functions), so unload ordering is irrelevant. ROCm and SYCL have not been tested but may exhibit similar issues if their runtimes use atexit-based teardown.
 
+### Multiple CUDA versions installed simultaneously
+
+When a system has multiple CUDA toolkit versions installed (e.g. CUDA 12 and CUDA 13), the dynamic linker may resolve `libcudart.so` to a different major version than the one the wheel was built against. This causes the same double-free symptom through a different mechanism:
+
+1. The wheel's bundled `libggml-cuda.so` is linked against CUDA 12 (built with `cuda-12.4`)
+2. At runtime, the dynamic linker resolves `libcudart.so` to the CUDA 13 version from the system, depending on `LD_LIBRARY_PATH` ordering and ldconfig priority
+3. The mismatched runtime initializes its own internal atexit handlers with different memory layout assumptions
+4. On shutdown, the CUDA 13 teardown attempts to free structures allocated by CUDA 12 conventions (or vice versa), triggering the double-free
+
+This is a well-documented pattern in the CUDA ecosystem. PyTorch, CuPy, and other projects that ship CUDA wheels use `--exclude` to avoid bundling CUDA runtime libraries for exactly this reason — letting the system provide a single consistent CUDA installation. However, `--exclude` alone does not prevent the issue when multiple system CUDA versions coexist and the linker picks the wrong one.
+
+#### Diagnosing version mismatch
+
+```bash
+# Check which libcudart is actually loaded at runtime
+LD_DEBUG=libs python -c "from cyllama.llama import llama_cpp" 2>&1 | grep cudart
+
+# List all CUDA runtime versions available on the system
+ldconfig -p | grep cudart
+
+# Check the version the extension was linked against
+ldd $(python -c "import cyllama.llama.llama_cpp as m; print(m.__file__)") | grep cudart
+```
+
+If the loaded version differs from the linked version, the mismatch is confirmed. The user-side fix is to ensure `LD_LIBRARY_PATH` or the linker configuration (`/etc/ld.so.conf.d/`) prioritizes the CUDA version matching the wheel.
+
 ### Why it is non-deterministic
 
 Several factors vary between runs:
@@ -30,15 +56,18 @@ Several factors vary between runs:
 - **`dlclose` ordering** depends on the full set of loaded shared objects, which varies with installed packages (numpy, etc.) and load timing
 - **CUDA runtime state** depends on what GPU operations actually ran. Import-only tests may exit cleanly because CUDA never fully initialized its teardown hooks
 - **Python GC timing** determines whether Cython destructors run before or during interpreter shutdown. If contexts are freed before shutdown starts, the `dlclose` race is avoided
+- **Multiple CUDA versions** on the same system change which `libcudart.so` the linker resolves, varying the atexit handler behavior depending on environment variable ordering and ldconfig state
 
 ### Reproduction matrix
 
-| Build method | Clean exit? |
-|---|---|
-| `uv build --wheel` static (no `WITH_DYLIB`) | Yes |
-| `uv build --wheel` `WITH_DYLIB=1`, no auditwheel | Yes |
-| `uv build --wheel` `WITH_DYLIB=1` + `auditwheel repair` (current CI) | No, double free |
-| `uv build --wheel` `WITH_DYLIB=1` + `auditwheel repair --exclude` (bundled libs) | Yes |
+| Build method | Runtime environment | Clean exit? |
+|---|---|---|
+| `uv build --wheel` static (no `WITH_DYLIB`) | Any | Yes |
+| `uv build --wheel` `WITH_DYLIB=1`, no auditwheel | Matching CUDA | Yes |
+| `uv build --wheel` `WITH_DYLIB=1` + `auditwheel repair` | Single CUDA version | No, double free |
+| `uv build --wheel` `WITH_DYLIB=1` + `auditwheel repair` | Multiple CUDA versions | No, double free |
+| `uv build --wheel` `WITH_DYLIB=1` + `auditwheel repair --exclude` | Matching CUDA | Yes |
+| `uv build --wheel` `WITH_DYLIB=1` + `auditwheel repair --exclude` | Mismatched CUDA version | No, double free |
 
 ## Solutions
 
@@ -204,6 +233,42 @@ Ship the wheel as-is and document the crash as a known issue.
 - Undermines confidence in the CUDA wheel
 
 **Status:** Not recommended.
+
+## RPATH hardening
+
+The project's shared libraries use `$ORIGIN`-relative RPATHs to resolve bundled dependencies:
+
+| Extension location | INSTALL_RPATH | Resolves to |
+|---|---|---|
+| `cyllama/llama/llama_cpp.so` | `$ORIGIN` | `cyllama/llama/` |
+| `cyllama/whisper/whisper_cpp.so` | `$ORIGIN/../llama` | `cyllama/llama/` |
+| `cyllama/sd/stable_diffusion.so` | `$ORIGIN/../llama` | `cyllama/llama/` |
+
+This ensures the bundled project libraries (`libllama.so.0`, `libggml-base.so.0`, `libggml-cpu.so`, etc.) in `cyllama/llama/` are always found before any system copies.
+
+However, CUDA system libraries (`libcudart.so.12`, `libcublas.so.12`, `libcublasLt.so.12`) are **not bundled** in the wheel (excluded via `--exclude`). They are resolved entirely by the system dynamic linker's default search order: `LD_LIBRARY_PATH`, then `RUNPATH`/`RPATH`, then `/etc/ld.so.conf`, then `/lib` and `/usr/lib`. There is no way to harden RPATH for libraries the wheel does not ship.
+
+This is the same model used by PyTorch (`torch`), CuPy, and other CUDA wheels — CUDA runtime libraries are a system dependency because:
+
+- The user must have a compatible GPU driver installed regardless (a system-level dependency)
+- CUDA's forward-compatibility model ties the runtime to the driver version
+- Bundling CUDA libs causes version conflicts when other packages (PyTorch, etc.) bundle different versions
+
+### User-side mitigation for multi-version CUDA systems
+
+When multiple CUDA toolkit versions are installed, users must ensure the correct version is found first:
+
+```bash
+# Option 1: Set LD_LIBRARY_PATH to prefer the matching CUDA version
+export LD_LIBRARY_PATH=/usr/local/cuda-12.4/lib64:$LD_LIBRARY_PATH
+
+# Option 2: Use update-alternatives to set the default CUDA version
+sudo update-alternatives --set cuda /usr/local/cuda-12.4
+
+# Option 3: Configure ldconfig to prioritize the correct version
+echo "/usr/local/cuda-12.4/lib64" | sudo tee /etc/ld.so.conf.d/cuda-12.conf
+sudo ldconfig
+```
 
 ## Recommendation
 
