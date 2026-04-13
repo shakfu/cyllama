@@ -73,6 +73,7 @@ class WhisperParams:
         self.use_gpu = True
         self.flash_attn = False
         self.suppress_nst = False
+        self.verbose = False
 
         # String parameters
         self.language = "en"
@@ -362,6 +363,10 @@ def process_file(input_file: str, params: WhisperParams) -> None:
             print(f"Resampling from {sample_rate}Hz to {wh.WHISPER.SAMPLE_RATE}Hz")
         samples = resample_audio(samples, sample_rate, wh.WHISPER.SAMPLE_RATE)
 
+    # Suppress C-level log noise by default
+    if not params.verbose:
+        wh.disable_logging()
+
     # Load GPU backends before creating context
     wh.ggml_backend_load_all()
 
@@ -571,6 +576,8 @@ Examples:
     parser.add_argument("-pp", "--print-progress", action="store_true", help="Print progress")
     parser.add_argument("-nt", "--no-timestamps", action="store_true", help="Do not print timestamps")
     parser.add_argument("-ng", "--no-gpu", action="store_true", help="Disable GPU")
+    parser.add_argument("-v", "--verbose", action="store_true",
+                        help="Show C-level log output from whisper.cpp/ggml")
 
     args = parser.parse_args()
 
@@ -616,6 +623,7 @@ Examples:
     params.print_progress = args.print_progress
     params.no_timestamps = args.no_timestamps
     params.use_gpu = not args.no_gpu
+    params.verbose = args.verbose
 
     return params
 

@@ -31,6 +31,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 - **`SDContext.generate_video()` new parameters** - Added `eta` (default `inf`, auto-resolve per sample method), `moe_boundary` (Mixture of Experts boundary, default 0.875), and `vace_strength` (VACE strength, default 1.0) to the video generation API
 
+- **`whisper_cpp.disable_logging()`** - New module-level function that suppresses all C-level log output from whisper.cpp and ggml by installing a no-op `ggml_log_callback` via `whisper_log_set`. The `whisper.pxd` now declares the proper `ggml_log_callback` typedef and `ggml_log_level` enum so `whisper_log_set` uses the correct function pointer type instead of `void *`
+
+- **`cyllama transcribe -v/--verbose` flag** - The whisper CLI now suppresses C-level log spam (ggml device init, model loading, backend allocation, Metal diagnostics) by default. Pass `-v`/`--verbose` to restore the full native output for debugging
+
+### Fixed
+
+- **`test_whisper_timing_functions` called `ctx.n_vocab` without parentheses** - The test compared a bound method object against `int` instead of calling it, causing a `TypeError`. Fixed to `ctx.n_vocab()`
+
 ### Changed
 
 - **Centralized default constants in `cyllama._defaults`** - All generation-related magic numbers (temperature, top_k, top_p, min_p, repeat_penalty, max_tokens, n_gpu_layers, n_batch, seed, etc.) now live in a single `_defaults.py` module. `api.py`, `__main__.py`, `batching.py`, `agents/react.py`, `llama/chat.py`, `llama/tts.py`, `rag/pipeline.py`, and the `langchain`/`openai_compat` integrations all import from it. Constants are re-exported from `cyllama.__init__` for library consumers

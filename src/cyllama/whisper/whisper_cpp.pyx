@@ -957,6 +957,13 @@ def ggml_backend_load_all():
     for _path in libs_to_load(_site):
         wh.ggml_backend_load(_path)
 
+cdef void _no_log_cb(wh.ggml_log_level level, const char * text, void * user_data) noexcept:
+    pass
+
+def disable_logging():
+    """Suppress all C-level log output from whisper.cpp and ggml."""
+    wh.whisper_log_set(_no_log_cb, NULL)
+
 def version():
     return wh.whisper_version().decode('utf-8')
 

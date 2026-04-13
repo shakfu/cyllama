@@ -340,7 +340,10 @@ cdef extern from "whisper.h":
     cdef const char * whisper_bench_ggml_mul_mat_str(int n_threads)
 
     # Logging
-    cdef void whisper_log_set(void * log_callback, void * user_data)  # ggml_log_callback
+    ctypedef enum ggml_log_level:
+        pass
+    ctypedef void (*ggml_log_callback)(ggml_log_level level, const char * text, void * user_data)
+    cdef void whisper_log_set(ggml_log_callback log_callback, void * user_data)
 
 cdef extern from *:
     """
