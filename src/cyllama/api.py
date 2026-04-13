@@ -69,6 +69,9 @@ from ._defaults import (
     DEFAULT_TOP_P,
     DEFAULT_MIN_P,
     DEFAULT_REPEAT_PENALTY,
+    DEFAULT_PENALTY_LAST_N,
+    DEFAULT_PENALTY_FREQ,
+    DEFAULT_PENALTY_PRESENT,
     DEFAULT_N_GPU_LAYERS,
     DEFAULT_N_BATCH,
     DEFAULT_MAIN_GPU,
@@ -828,10 +831,10 @@ class LLM:
         # Add penalties sampler if repeat_penalty is enabled
         if config.repeat_penalty != 1.0:
             self._sampler.add_penalties(
-                penalty_last_n=64,
+                penalty_last_n=DEFAULT_PENALTY_LAST_N,
                 penalty_repeat=config.repeat_penalty,
-                penalty_freq=0.0,
-                penalty_present=0.0,
+                penalty_freq=DEFAULT_PENALTY_FREQ,
+                penalty_present=DEFAULT_PENALTY_PRESENT,
             )
 
         # Add sampling methods based on config

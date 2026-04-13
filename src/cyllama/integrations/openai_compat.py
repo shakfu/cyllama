@@ -33,7 +33,12 @@ from dataclasses import dataclass, field
 import time
 import uuid
 
-from .._defaults import DEFAULT_N_GPU_LAYERS
+from .._defaults import (
+    DEFAULT_MAX_TOKENS,
+    DEFAULT_TEMPERATURE,
+    DEFAULT_TOP_P,
+    DEFAULT_N_GPU_LAYERS,
+)
 from ..api import LLM, GenerationConfig, Response
 
 
@@ -113,9 +118,9 @@ class ChatCompletions:
     def create(
         self,
         messages: List[Dict[str, str]],
-        temperature: float = 0.7,
-        max_tokens: int = 512,
-        top_p: float = 0.95,
+        temperature: float = DEFAULT_TEMPERATURE,
+        max_tokens: int = DEFAULT_MAX_TOKENS,
+        top_p: float = DEFAULT_TOP_P,
         stream: bool = False,
         stop: Optional[List[str]] = None,
         **kwargs,
@@ -254,7 +259,7 @@ class OpenAICompatibleClient:
         >>> print(response.choices[0].message.content)
     """
 
-    def __init__(self, model_path: str, temperature: float = 0.7, n_gpu_layers: int = DEFAULT_N_GPU_LAYERS, verbose: bool = False):
+    def __init__(self, model_path: str, temperature: float = DEFAULT_TEMPERATURE, n_gpu_layers: int = DEFAULT_N_GPU_LAYERS, verbose: bool = False):
         """
         Initialize the OpenAI-compatible client.
 

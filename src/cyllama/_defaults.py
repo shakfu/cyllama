@@ -28,6 +28,9 @@ DEFAULT_TOP_K: int = 40
 DEFAULT_TOP_P: float = 0.95
 DEFAULT_MIN_P: float = 0.05
 DEFAULT_REPEAT_PENALTY: float = 1.0   # 1.0 = disabled (C library default)
+DEFAULT_PENALTY_LAST_N: int = 64     # last n tokens to penalize (common.h default)
+DEFAULT_PENALTY_FREQ: float = 0.0    # frequency penalty, 0.0 = disabled
+DEFAULT_PENALTY_PRESENT: float = 0.0 # presence penalty, 0.0 = disabled
 
 # ---------------------------------------------------------------------------
 # Generation
