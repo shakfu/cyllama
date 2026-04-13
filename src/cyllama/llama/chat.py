@@ -9,7 +9,6 @@ import sys
 import argparse
 from typing import List, Dict
 
-from .._defaults import DEFAULT_MAX_TOKENS, DEFAULT_N_GPU_LAYERS
 from .llama_cpp import (
     LlamaModel,
     LlamaContext,
@@ -34,7 +33,7 @@ def print_usage():
 class Chat:
     """Chat interface using cyllama"""
 
-    def __init__(self, model_path: str, n_ctx: int = 2048, ngl: int = DEFAULT_N_GPU_LAYERS, max_tokens: int = DEFAULT_MAX_TOKENS):
+    def __init__(self, model_path: str, n_ctx: int = 2048, ngl: int = 99, max_tokens: int = 512):
         """Initialize the chat with model and parameters"""
         # Set up error-only logging (skip for now to avoid issues)
         # set_log_callback(lambda level, text: sys.stderr.write(text) if level >= 3 else None)
@@ -235,8 +234,8 @@ def main():
     parser = argparse.ArgumentParser(description="Simple chat using cyllama")
     parser.add_argument("-m", "--model", required=True, help="Path to model file")
     parser.add_argument("-c", "--context", type=int, default=2048, help="Context size")
-    parser.add_argument("-ngl", "--n-gpu-layers", type=int, default=DEFAULT_N_GPU_LAYERS, help="Number of GPU layers")
-    parser.add_argument("-n", "--max-tokens", type=int, default=DEFAULT_MAX_TOKENS, help="Max tokens per response")
+    parser.add_argument("-ngl", "--n-gpu-layers", type=int, default=99, help="Number of GPU layers")
+    parser.add_argument("-n", "--max-tokens", type=int, default=512, help="Max tokens per response")
 
     args = parser.parse_args()
 

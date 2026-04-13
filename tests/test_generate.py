@@ -23,11 +23,11 @@ class TestGenerationConfig:
         assert config.top_k == 40
         assert config.top_p == 0.95
         assert config.min_p == 0.05
-        assert config.repeat_penalty == 1.0
-        assert config.n_gpu_layers == -1
+        assert config.repeat_penalty == 1.1
+        assert config.n_gpu_layers == 99
         assert config.n_ctx is None
-        assert config.n_batch == 2048
-        assert config.seed == 0xFFFFFFFF
+        assert config.n_batch == 512
+        assert config.seed == -1
         assert config.stop_sequences == []
         assert config.add_bos is True
         assert config.parse_special is True
@@ -105,11 +105,9 @@ class TestGenerationConfig:
 
     def test_validation_n_gpu_layers(self):
         """Test n_gpu_layers validation."""
-        with pytest.raises(ValueError, match="n_gpu_layers must be >= -1"):
-            GenerationConfig(n_gpu_layers=-2)
-        # Valid edge cases
-        config = GenerationConfig(n_gpu_layers=-1)
-        assert config.n_gpu_layers == -1
+        with pytest.raises(ValueError, match="n_gpu_layers must be >= 0"):
+            GenerationConfig(n_gpu_layers=-1)
+        # Valid edge case
         config = GenerationConfig(n_gpu_layers=0)
         assert config.n_gpu_layers == 0
 
@@ -137,11 +135,11 @@ class TestGenerationConfig:
 
     def test_validation_seed(self):
         """Test seed validation."""
-        with pytest.raises(ValueError, match="seed must be >= 0"):
-            GenerationConfig(seed=-1)
+        with pytest.raises(ValueError, match="seed must be >= -1"):
+            GenerationConfig(seed=-2)
         # Valid edge cases
-        config = GenerationConfig(seed=0xFFFFFFFF)  # LLAMA_DEFAULT_SEED = random
-        assert config.seed == 0xFFFFFFFF
+        config = GenerationConfig(seed=-1)  # random
+        assert config.seed == -1
         config = GenerationConfig(seed=0)
         assert config.seed == 0
         config = GenerationConfig(seed=42)

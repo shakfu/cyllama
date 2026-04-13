@@ -337,7 +337,7 @@ class TestGemma4Regression:
 
         llm = LLM(
             str(GEMMA_MODEL),
-            config=GenerationConfig(max_tokens=50, temperature=0.0),
+            config=GenerationConfig(max_tokens=50, temperature=0.0, n_gpu_layers=99),
             verbose=False,
         )
         try:

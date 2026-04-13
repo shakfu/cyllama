@@ -16,15 +16,6 @@ Example:
 
 from typing import Any, List, Optional, Iterator, Dict
 
-from .._defaults import (
-    DEFAULT_MAX_TOKENS,
-    DEFAULT_TEMPERATURE,
-    DEFAULT_TOP_K,
-    DEFAULT_TOP_P,
-    DEFAULT_MIN_P,
-    DEFAULT_REPEAT_PENALTY,
-    DEFAULT_N_GPU_LAYERS,
-)
 from ..api import LLM as CyllamaLLMCore, GenerationConfig, Response
 
 
@@ -71,13 +62,13 @@ class CyllamaLLM(LangChainLLM):
     """
 
     model_path: str
-    temperature: float = DEFAULT_TEMPERATURE
-    max_tokens: int = DEFAULT_MAX_TOKENS
-    top_k: int = DEFAULT_TOP_K
-    top_p: float = DEFAULT_TOP_P
-    min_p: float = DEFAULT_MIN_P
-    repeat_penalty: float = DEFAULT_REPEAT_PENALTY
-    n_gpu_layers: int = DEFAULT_N_GPU_LAYERS
+    temperature: float = 0.7
+    max_tokens: int = 512
+    top_k: int = 40
+    top_p: float = 0.95
+    min_p: float = 0.05
+    repeat_penalty: float = 1.1
+    n_gpu_layers: int = 99
     n_ctx: Optional[int] = None
     stop_sequences: List[str] = []
     verbose: bool = False

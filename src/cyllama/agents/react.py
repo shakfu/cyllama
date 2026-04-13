@@ -17,7 +17,6 @@ from typing import List, Optional, Iterator, Dict, Any, Tuple
 from dataclasses import dataclass, field
 from enum import Enum
 
-from .._defaults import DEFAULT_MAX_TOKENS, DEFAULT_TEMPERATURE
 from ..api import LLM, GenerationConfig
 from .tools import Tool, ToolRegistry
 
@@ -252,8 +251,8 @@ Begin!"""
         self.max_consecutive_same_tool = max_consecutive_same_tool
         self.max_context_chars = max_context_chars
         self.generation_config = generation_config or GenerationConfig(
-            temperature=DEFAULT_TEMPERATURE,
-            max_tokens=DEFAULT_MAX_TOKENS,
+            temperature=0.7,
+            max_tokens=512,
             stop_sequences=[
                 "\nObservation:",  # Most common - newline then Observation:
                 "\nObservation :",  # With space before colon

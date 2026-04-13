@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Iterator
 
-from .._defaults import DEFAULT_MAX_TOKENS, DEFAULT_TEMPERATURE
 from .repetition import NGramRepetitionDetector, ThinkBlockStripper
 from .types import SearchResult
 
@@ -88,8 +87,8 @@ class RAGConfig:
     similarity_threshold: float | None = None
 
     # Generation settings
-    max_tokens: int = DEFAULT_MAX_TOKENS
-    temperature: float = DEFAULT_TEMPERATURE
+    max_tokens: int = 512
+    temperature: float = 0.7
 
     # Prompt template (raw-completion path)
     prompt_template: str = DEFAULT_PROMPT_TEMPLATE

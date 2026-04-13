@@ -8,7 +8,6 @@ Provides Python bindings for image generation using Stable Diffusion models.
 """
 
 import os
-import sys
 import logging
 from typing import Optional, List, Callable, Union
 from enum import IntEnum
@@ -1848,8 +1847,6 @@ cdef class SDContext:
 
     def __dealloc__(self):
         if self._ctx != NULL:
-            if sys.is_finalizing():
-                return
             free_sd_ctx(self._ctx)
             self._ctx = NULL
 
@@ -2252,8 +2249,6 @@ cdef class Upscaler:
 
     def __dealloc__(self):
         if self._ctx != NULL:
-            if sys.is_finalizing():
-                return
             free_upscaler_ctx(self._ctx)
             self._ctx = NULL
 

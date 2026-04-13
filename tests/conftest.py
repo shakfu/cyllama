@@ -192,7 +192,7 @@ def fast_config():
     """GenerationConfig optimized for fast testing (low max_tokens)."""
     from cyllama import GenerationConfig
 
-    return GenerationConfig(max_tokens=32, temperature=0.7)
+    return GenerationConfig(max_tokens=32, temperature=0.7, n_gpu_layers=99)
 
 
 @pytest.fixture

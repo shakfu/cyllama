@@ -35,10 +35,10 @@ echo "Hello" | cyllama gen -m models/llama.gguf
 | `--top-k` | int | 40 | Top-k sampling |
 | `--top-p` | float | 0.95 | Nucleus sampling |
 | `--min-p` | float | 0.05 | Minimum probability threshold |
-| `--repeat-penalty` | float | 1.0 | Repetition penalty (1.0 = disabled) |
-| `-ngl, --n-gpu-layers` | int | -1 | GPU layers to offload (-1 = all) |
+| `--repeat-penalty` | float | 1.1 | Repetition penalty |
+| `-ngl, --n-gpu-layers` | int | 99 | GPU layers to offload |
 | `-c, --ctx-size` | int | (auto) | Context window size |
-| `--seed` | int | LLAMA_DEFAULT_SEED | Random seed (default = random) |
+| `--seed` | int | -1 | Random seed (-1 = random) |
 | `--stream` | flag | | Stream tokens to stdout |
 | `--json` | flag | | Output as JSON with stats |
 | `--verbose` | flag | | Verbose output |
@@ -67,10 +67,10 @@ cyllama chat -m models/llama.gguf -n 1024 --template chatml
 | `--top-k` | int | 40 | Top-k sampling |
 | `--top-p` | float | 0.95 | Nucleus sampling |
 | `--min-p` | float | 0.05 | Minimum probability threshold |
-| `--repeat-penalty` | float | 1.0 | Repetition penalty (1.0 = disabled) |
-| `-ngl, --n-gpu-layers` | int | -1 | GPU layers to offload (-1 = all) |
+| `--repeat-penalty` | float | 1.1 | Repetition penalty |
+| `-ngl, --n-gpu-layers` | int | 99 | GPU layers to offload |
 | `-c, --ctx-size` | int | 2048 | Context window size |
-| `--seed` | int | LLAMA_DEFAULT_SEED | Random seed (default = random) |
+| `--seed` | int | -1 | Random seed (-1 = random) |
 | `--stream` | flag | | Stream tokens to stdout |
 | `--json` | flag | | Output as JSON with stats |
 | `--verbose` | flag | | Verbose output |
@@ -93,7 +93,7 @@ cyllama embed -m models/bge-small.gguf --similarity "machine learning" -f corpus
 | `-m, --model` | string | (required) | Path to GGUF embedding model |
 | `-t, --text` | string | | Text to embed (repeatable) |
 | `-f, --file` | string | | Read texts from file (one per line) |
-| `-ngl, --n-gpu-layers` | int | -1 | GPU layers to offload (-1 = all) |
+| `-ngl, --n-gpu-layers` | int | 99 | GPU layers to offload |
 | `-c, --ctx-size` | int | 512 | Context window size |
 | `--pooling` | choice | mean | Pooling strategy: `mean`, `cls`, `last` |
 | `--no-normalize` | flag | | Skip L2 normalization |
@@ -194,7 +194,7 @@ strings don't have a meaningful name.
 | `--temperature` | float | 0.7 | Generation temperature |
 | `-k, --top-k` | int | 5 | Number of chunks to retrieve |
 | `--threshold` | float | (none) | Minimum similarity threshold |
-| `-ngl, --n-gpu-layers` | int | -1 | GPU layers to offload (-1 = all) |
+| `-ngl, --n-gpu-layers` | int | 99 | GPU layers to offload |
 | `--stream` | flag | | Stream output tokens |
 | `--sources` | flag | | Show source chunks with similarity scores |
 | `--db` | string | (none) | Path to persistent SQLite vector store |
@@ -322,7 +322,7 @@ cyllama tts -m models/tts.gguf -mv models/vocoder.gguf -p "Hello" -o speech.wav
 | `-o, --output` | string | output.wav | Output WAV file |
 | `-c, --context` | int | 8192 | Context size |
 | `-b, --batch` | int | 8192 | Batch size |
-| `-ngl, --n-gpu-layers` | int | -1 | GPU layers to offload (-1 = all) |
+| `-ngl, --n-gpu-layers` | int | 99 | GPU layers to offload |
 | `-n, --n-predict` | int | 4096 | Max tokens to predict |
 | `--speaker-file` | string | | Speaker profile JSON file |
 | `--use-guide-tokens` | flag | (on) | Use guide tokens (prevents hallucinations) |

@@ -41,7 +41,6 @@ from .llama.llama_cpp import (
     get_pooled_batch,
     return_batch_to_pool,
 )
-from ._defaults import DEFAULT_N_GPU_LAYERS
 from .api import GenerationConfig, Response, GenerationStats
 
 
@@ -94,7 +93,7 @@ class BatchGenerator:
         model_path: str,
         batch_size: int = 512,
         n_ctx: int = 2048,
-        n_gpu_layers: int = DEFAULT_N_GPU_LAYERS,
+        n_gpu_layers: int = 99,
         n_seq_max: int = 8,
         verbose: bool = False,
         use_pooling: bool = False,
@@ -285,7 +284,7 @@ class BatchGenerator:
             sampler.add_top_k(config.top_k)
             sampler.add_top_p(config.top_p, 1)
             sampler.add_temp(config.temperature)
-            sampler.add_dist(config.seed)
+            sampler.add_dist(config.seed if config.seed != -1 else int(time.time()))
 
         # Process prompts in batch (use pooling if enabled)
         if self.use_pooling:

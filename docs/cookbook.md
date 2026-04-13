@@ -340,12 +340,12 @@ def create_memory_efficient_generator(model_path: str, available_memory_mb: int)
     memory_info = estimate_memory_usage(
         model_path,
         n_ctx=2048,
-        n_batch=2048
+        n_batch=512
     )
 
     # Adjust parameters if needed
     n_ctx = 2048
-    n_batch = 2048
+    n_batch = 512
     n_gpu_layers = -1
 
     if memory_info.total_mb > available_memory_mb:

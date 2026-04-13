@@ -149,7 +149,10 @@ class GrammarConstrainedLLM(LLM):
             self._sampler.add_temp(config.temperature)
 
             # Distribution sampler for final selection
-            self._sampler.add_dist(config.seed)
+            if config.seed != -1:
+                self._sampler.add_dist(config.seed)
+            else:
+                self._sampler.add_dist(int(time.time()))
 
 
 @dataclass

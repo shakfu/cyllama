@@ -62,22 +62,6 @@ import time
 
 logger = logging.getLogger(__name__)
 
-from ._defaults import (
-    DEFAULT_MAX_TOKENS,
-    DEFAULT_TEMPERATURE,
-    DEFAULT_TOP_K,
-    DEFAULT_TOP_P,
-    DEFAULT_MIN_P,
-    DEFAULT_REPEAT_PENALTY,
-    DEFAULT_PENALTY_LAST_N,
-    DEFAULT_PENALTY_FREQ,
-    DEFAULT_PENALTY_PRESENT,
-    DEFAULT_N_GPU_LAYERS,
-    DEFAULT_N_BATCH,
-    DEFAULT_MAIN_GPU,
-    DEFAULT_SPLIT_MODE,
-    LLAMA_DEFAULT_SEED,
-)
 from .llama.llama_cpp import (
     LlamaModel,
     LlamaContext,
@@ -114,8 +98,8 @@ class GenerationConfig:
         top_k: Top-k sampling parameter (default: 40)
         top_p: Top-p (nucleus) sampling parameter (default: 0.95)
         min_p: Minimum probability threshold (default: 0.05)
-        repeat_penalty: Penalty for repeating tokens, 1.0 = disabled (default: 1.0)
-        n_gpu_layers: Number of layers to offload to GPU, -1 = all (default: -1)
+        repeat_penalty: Penalty for repeating tokens (default: 1.1)
+        n_gpu_layers: Number of layers to offload to GPU (default: 99)
         main_gpu: Primary GPU device index for inference (default: 0)
         split_mode: How to split model across GPUs (default: 1 = LAYER)
             0 = NONE: Use single GPU only (main_gpu)
@@ -124,11 +108,9 @@ class GenerationConfig:
         tensor_split: Proportion of work per GPU (default: None = auto)
             List of floats, one per GPU. Values are normalized by llama.cpp.
             Example: [1, 2] assigns 1/3 to GPU 0 and 2/3 to GPU 1.
-        n_ctx: Context window size, None = auto-sized as prompt_length +
-            max_tokens (default: None). Note: the C library defaults to 512,
-            but auto-sizing avoids silent truncation for longer prompts.
-        n_batch: Batch size for processing (default: 2048)
-        seed: Random seed for reproducibility, LLAMA_DEFAULT_SEED = random (default: LLAMA_DEFAULT_SEED)
+        n_ctx: Context window size, None = auto (default: None)
+        n_batch: Batch size for processing (default: 512)
+        seed: Random seed for reproducibility, -1 = random (default: -1)
         stop_sequences: List of strings that stop generation (default: [])
         add_bos: Add beginning-of-sequence token (default: True)
         parse_special: Parse special tokens in prompt (default: True)
@@ -141,28 +123,28 @@ class GenerationConfig:
         >>> config = GenerationConfig(main_gpu=1)
         >>>
         >>> # Multi-GPU with layer splitting
-        >>> config = GenerationConfig(split_mode=1, n_gpu_layers=-1)
+        >>> config = GenerationConfig(split_mode=1, n_gpu_layers=99)
         >>>
         >>> # Multi-GPU with tensor parallelism (row splitting)
-        >>> config = GenerationConfig(split_mode=2, n_gpu_layers=-1)
+        >>> config = GenerationConfig(split_mode=2, n_gpu_layers=99)
         >>>
         >>> # Custom tensor split: 30% GPU 0, 70% GPU 1
         >>> config = GenerationConfig(tensor_split=[0.3, 0.7])
     """
 
-    max_tokens: int = DEFAULT_MAX_TOKENS
-    temperature: float = DEFAULT_TEMPERATURE
-    top_k: int = DEFAULT_TOP_K
-    top_p: float = DEFAULT_TOP_P
-    min_p: float = DEFAULT_MIN_P
-    repeat_penalty: float = DEFAULT_REPEAT_PENALTY
-    n_gpu_layers: int = DEFAULT_N_GPU_LAYERS
-    main_gpu: int = DEFAULT_MAIN_GPU
-    split_mode: int = DEFAULT_SPLIT_MODE
+    max_tokens: int = 512
+    temperature: float = 0.8
+    top_k: int = 40
+    top_p: float = 0.95
+    min_p: float = 0.05
+    repeat_penalty: float = 1.1
+    n_gpu_layers: int = 99
+    main_gpu: int = 0
+    split_mode: int = 1
     tensor_split: Optional[List[float]] = None
     n_ctx: Optional[int] = None
-    n_batch: int = DEFAULT_N_BATCH
-    seed: int = LLAMA_DEFAULT_SEED
+    n_batch: int = 512
+    seed: int = -1
     stop_sequences: List[str] = field(default_factory=list)
     add_bos: bool = True
     parse_special: bool = True
@@ -210,8 +192,8 @@ class GenerationConfig:
         if self.repeat_penalty < 0.0:
             errors.append(f"repeat_penalty must be >= 0.0, got {self.repeat_penalty}")
 
-        if self.n_gpu_layers < -1:
-            errors.append(f"n_gpu_layers must be >= -1 (-1 = all layers), got {self.n_gpu_layers}")
+        if self.n_gpu_layers < 0:
+            errors.append(f"n_gpu_layers must be >= 0, got {self.n_gpu_layers}")
 
         if self.main_gpu < 0:
             errors.append(f"main_gpu must be >= 0, got {self.main_gpu}")
@@ -231,8 +213,8 @@ class GenerationConfig:
         if self.n_batch < 1:
             errors.append(f"n_batch must be >= 1, got {self.n_batch}")
 
-        if self.seed < 0:
-            errors.append(f"seed must be >= 0 (0xFFFFFFFF = random), got {self.seed}")
+        if self.seed < -1:
+            errors.append(f"seed must be >= -1, got {self.seed}")
 
         if errors:
             raise ValueError("Invalid GenerationConfig: " + "; ".join(errors))
@@ -753,7 +735,7 @@ class LLM:
         - n_gpu_layers, main_gpu, split_mode, tensor_split, n_ctx, n_batch
         """
         # Skip caching for random seed
-        if config.seed == LLAMA_DEFAULT_SEED:
+        if config.seed == -1:
             return None
 
         # Build key from output-affecting parameters
@@ -828,15 +810,6 @@ class LLM:
 
         self._sampler = LlamaSampler(sampler_params)
 
-        # Add penalties sampler if repeat_penalty is enabled
-        if config.repeat_penalty != 1.0:
-            self._sampler.add_penalties(
-                penalty_last_n=DEFAULT_PENALTY_LAST_N,
-                penalty_repeat=config.repeat_penalty,
-                penalty_freq=DEFAULT_PENALTY_FREQ,
-                penalty_present=DEFAULT_PENALTY_PRESENT,
-            )
-
         # Add sampling methods based on config
         if config.temperature == 0.0:
             # Greedy sampling
@@ -849,7 +822,10 @@ class LLM:
             self._sampler.add_temp(config.temperature)
 
             # Distribution sampler
-            self._sampler.add_dist(config.seed)
+            if config.seed != -1:
+                self._sampler.add_dist(config.seed)
+            else:
+                self._sampler.add_dist(int(time.time()))
 
     def __call__(
         self,
