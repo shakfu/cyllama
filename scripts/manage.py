@@ -1201,8 +1201,23 @@ class LlamaCppBuilder(Builder):
             LLAMA_BUILD_EXAMPLES=False,
             **backend_options,
         )
+        # With GGML_BACKEND_DL=True, backends are separate plugin targets
+        # that are not transitive dependencies of llama.  Build them explicitly.
+        targets = ["llama", "common", "mtmd"]
+        if backend_options.get("GGML_VULKAN") == "ON":
+            targets.append("ggml-vulkan")
+        if backend_options.get("GGML_CUDA") == "ON":
+            targets.append("ggml-cuda")
+        if backend_options.get("GGML_METAL") == "ON":
+            targets.append("ggml-metal")
+        if backend_options.get("GGML_HIP") == "ON":
+            targets.append("ggml-hip")
+        if backend_options.get("GGML_SYCL") == "ON":
+            targets.append("ggml-sycl")
+        if backend_options.get("GGML_OPENCL") == "ON":
+            targets.append("ggml-opencl")
         self.cmake_build_targets(
-            build_dir=self.build_dir, targets=["llama", "common", "mtmd"], release=True
+            build_dir=self.build_dir, targets=targets, release=True
         )
 
         # Collect all shared libs from the build tree into dynamic/

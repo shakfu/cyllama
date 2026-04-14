@@ -179,14 +179,13 @@ jobs:
             python -c "import os; t=open('pyproject.toml').read(); open('pyproject.toml','w').write(t.replace('name = \"cyllama\"','name = \"cyllama-vulkan\"',1))" &&
             python -c "t=open('pyproject.toml').read(); assert 'name = \"cyllama-vulkan\"' in t, 'rename failed'" &&
             cd {project} &&
-            python scripts/manage.py build --all --deps-only --no-sd-examples
-            ${{ inputs.link_mode == 'dynamic' && '--dynamic' || '' }} &&
+            python scripts/manage.py build --all --deps-only --no-sd-examples &&
             python scripts/manage.py write_backend_info
           CIBW_ENVIRONMENT_WINDOWS: >
             GGML_VULKAN=1
             GGML_METAL=0
             GGML_NATIVE=OFF
-            WITH_DYLIB=${{ inputs.link_mode == 'dynamic' && '1' || '0' }}
+            WITH_DYLIB=0
           CIBW_TEST_COMMAND: ""
           CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: >
             delvewheel repair -w {dest_dir} {wheel}
