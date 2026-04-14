@@ -130,6 +130,12 @@ jobs:
             --exclude libcudart.so.12
             --exclude libcublas.so.12
             --exclude libcublasLt.so.12
+            --exclude libllama.so.0
+            --exclude libggml.so.0
+            --exclude libggml-base.so.0
+            --exclude libggml-cuda.so
+            --exclude libggml-cpu.so
+            --exclude libmtmd.so.0
             --exclude libgomp.so.1
 
       - name: List built wheels
@@ -227,6 +233,12 @@ jobs:
             --exclude libhipblaslt.so.0
             --exclude libamd_comgr.so.2
             --exclude librocprofiler-register.so.0
+            --exclude libllama.so.0
+            --exclude libggml.so.0
+            --exclude libggml-base.so.0
+            --exclude libggml-hip.so
+            --exclude libggml-cpu.so
+            --exclude libmtmd.so.0
             --exclude libgomp.so.1
 
       - name: List built wheels
@@ -314,6 +326,12 @@ jobs:
             --exclude libimf.so
             --exclude libintlc.so.5
             --exclude libtbb.so.12
+            --exclude libllama.so.0
+            --exclude libggml.so.0
+            --exclude libggml-base.so.0
+            --exclude libggml-sycl.so
+            --exclude libggml-cpu.so
+            --exclude libmtmd.so.0
             --exclude libgomp.so.1
 
       - name: List built wheels
@@ -394,6 +412,12 @@ jobs:
             auditwheel repair -w {dest_dir} {wheel}
             --plat manylinux_2_35_x86_64
             --exclude libvulkan.so.1
+            --exclude libllama.so.0
+            --exclude libggml.so.0
+            --exclude libggml-base.so.0
+            --exclude libggml-vulkan.so
+            --exclude libggml-cpu.so
+            --exclude libmtmd.so.0
             --exclude libgomp.so.1
 
       - name: List built wheels
