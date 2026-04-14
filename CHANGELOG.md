@@ -37,6 +37,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Fixed
 
+- **CUDA wheel double-free on interpreter shutdown** - Dynamic-linked CUDA wheels (`WITH_DYLIB=1`) crashed with `double free or corruption (!prev)` during Python exit. The root cause was `auditwheel repair` using `patchelf` to rewrite ELF SONAME headers on bundled GPU runtime libraries, which altered glibc's `dlclose` unload ordering and caused CUDA's internal `atexit` handlers to fire after the memory they referenced had already been unmapped. Fixed by adding `--exclude` flags for GPU runtime system libraries (`libcuda.so.1`, `libcudart.so.12`, `libcublas.so.12`, `libcublasLt.so.12`) and `libgomp.so.1` (GCC OpenMP runtime) so auditwheel leaves them as system dependencies rather than bundling and SONAME-rewriting them. The same `libgomp.so.1` exclude was applied to all GPU wheel variants (ROCm, SYCL, Vulkan). See `docs/dev/cuda-double-free.md` for full analysis
+
 - **`test_whisper_timing_functions` called `ctx.n_vocab` without parentheses** - The test compared a bound method object against `int` instead of calling it, causing a `TypeError`. Fixed to `ctx.n_vocab()`
 
 ### Changed
