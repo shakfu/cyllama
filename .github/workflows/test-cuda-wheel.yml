@@ -22,8 +22,12 @@ env:
 
 jobs:
   build_cuda:
-    name: CUDA 12.4 - Linux x86_64 (${{ inputs.link_mode }})
+    name: CUDA 12.4 - Linux x86_64 (${{ inputs.link_mode }}, ${{ matrix.repair_strategy }})
     runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        repair_strategy: [exclude, addtag]
 
     steps:
       - name: Checkout repository
@@ -87,7 +91,8 @@ jobs:
             WITH_DYLIB=${{ inputs.link_mode == 'dynamic' && '1' || '0' }}
           CIBW_TEST_COMMAND: ""
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
-            test -d {project}/thirdparty/llama.cpp/dynamic || { echo "ERROR: dynamic lib dir missing: {project}/thirdparty/llama.cpp/dynamic"; exit 1; } &&
+            ${{ matrix.repair_strategy == 'exclude' &&
+            'test -d {project}/thirdparty/llama.cpp/dynamic || { echo "ERROR: dynamic lib dir missing"; exit 1; } &&
             LD_LIBRARY_PATH={project}/thirdparty/llama.cpp/dynamic:$LD_LIBRARY_PATH
             auditwheel repair -w {dest_dir} {wheel}
             --plat manylinux_2_35_x86_64
@@ -101,7 +106,10 @@ jobs:
             --exclude libggml-cuda.so
             --exclude libggml-cpu.so
             --exclude libmtmd.so.0
-            --exclude libgomp.so.1
+            --exclude libgomp.so.1'
+            ||
+            'auditwheel addtag -w {dest_dir} {wheel}'
+            }}
 
       - name: List built wheels
         run: ls -lah wheelhouse/
@@ -118,6 +126,6 @@ jobs:
       - name: Upload wheels
         uses: actions/upload-artifact@v7
         with:
-          name: wheels-cuda-test
+          name: wheels-cuda-test-${{ matrix.repair_strategy }}
           path: ./wheelhouse/*.whl
           retention-days: 14
