@@ -101,6 +101,7 @@ jobs:
             --exclude libggml-cuda.so
             --exclude libggml-cpu.so
             --exclude libmtmd.so.0
+            --exclude libgomp.so.1
 
       - name: List built wheels
         run: ls -lah wheelhouse/
