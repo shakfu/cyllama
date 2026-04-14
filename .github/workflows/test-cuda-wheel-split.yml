@@ -1,0 +1,218 @@
+name: test-cuda-wheel-split
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+    inputs:
+      link_mode:
+        description: 'Linking mode'
+        required: true
+        default: 'dynamic'
+        type: choice
+        options:
+          - dynamic
+          - static
+
+env:
+  CIBW_BUILD_VERBOSITY: 1
+  CIBW_BUILD: "cp312-*"
+  CIBW_SKIP: "*-musllinux_* *-win32 *-manylinux_i686"
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Strategy A: skip repair entirely (no auditwheel)
+  # The wheel keeps its linux_x86_64 tag. No SONAME rewriting, no dlclose
+  # ordering issues. See docs/dev/cuda-double-free.md for background.
+  # ---------------------------------------------------------------------------
+  build_cuda_no_repair:
+    name: CUDA 12.4 no-repair - Linux x86_64 (${{ inputs.link_mode }})
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
+          df -h
+
+      - name: Cache thirdparty deps
+        id: cache-deps
+        uses: actions/cache@v5
+        with:
+          path: thirdparty/
+          key: deps-cuda-test-no-repair-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage.py', '.github/workflows/test-cuda-wheel.yml') }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Install cibuildwheel
+        run: pip install cibuildwheel==3.4.0
+
+      - name: Build CUDA wheel
+        run: python -m cibuildwheel --output-dir wheelhouse
+        env:
+          CIBW_ARCHS_LINUX: x86_64
+          CIBW_MANYLINUX_X86_64_IMAGE: manylinux2014
+          CIBW_BEFORE_ALL_LINUX: >
+            yum install -y git yum-utils &&
+            yum-config-manager --add-repo https://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/cuda-rhel7.repo &&
+            yum install -y cuda-nvcc-12-4 cuda-cudart-devel-12-4 cuda-driver-devel-12-4 libcublas-devel-12-4 &&
+            ln -s /usr/local/cuda-12.4 /usr/local/cuda &&
+            if [ -f /project/thirdparty/.deps-complete ]; then echo "=== Deps cached, skipping build ==="; exit 0; fi &&
+            CI_PYTHON=$(ls -d /opt/python/cp3*/bin | head -1) &&
+            $CI_PYTHON/pip install cmake ninja &&
+            PATH=/usr/local/cuda/bin:$CI_PYTHON:$PATH
+            CMAKE_CUDA_ARCHITECTURES="75"
+            GGML_NATIVE=OFF GGML_CUDA=1 GGML_METAL=0
+            $CI_PYTHON/python scripts/manage.py build --all --deps-only --no-sd-examples
+            ${{ inputs.link_mode == 'dynamic' && '--dynamic' || '' }} &&
+            touch /project/thirdparty/.deps-complete
+          CIBW_BEFORE_BUILD_LINUX: >
+            sed -i 's/^name = "cyllama"/name = "cyllama-cuda12"/' {project}/pyproject.toml &&
+            grep -q '^name = "cyllama-cuda12"' {project}/pyproject.toml || { echo "ERROR: sed rename to cyllama-cuda12 failed"; exit 1; } &&
+            cd {project} && python scripts/manage.py write_backend_info
+          CIBW_ENVIRONMENT_LINUX: >
+            GGML_CUDA=1
+            GGML_METAL=0
+            CUDA_PATH=/usr/local/cuda
+            CMAKE_CUDA_ARCHITECTURES="75"
+            GGML_NATIVE=OFF
+            PATH=/usr/local/cuda/bin:$PATH
+            LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
+            CFLAGS=-s
+            CXXFLAGS=-s
+            WITH_DYLIB=${{ inputs.link_mode == 'dynamic' && '1' || '0' }}
+          CIBW_TEST_COMMAND: ""
+          CIBW_REPAIR_WHEEL_COMMAND_LINUX: ""
+
+      - name: List built wheels
+        run: ls -lah wheelhouse/
+
+      - name: Inspect wheel contents
+        run: |
+          pip install wheel-inspect 2>/dev/null || pip install pkginfo
+          for whl in wheelhouse/*.whl; do
+            echo "=== $whl ==="
+            python -m zipfile -l "$whl"
+            echo ""
+          done
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v7
+        with:
+          name: wheels-cuda-test-no-repair
+          path: ./wheelhouse/*.whl
+          retention-days: 14
+
+  # ---------------------------------------------------------------------------
+  # Strategy B: auditwheel repair with --exclude for bundled libs
+  # Produces a manylinux-tagged wheel but skips SONAME rewriting on our libs.
+  # ---------------------------------------------------------------------------
+  build_cuda_exclude:
+    name: CUDA 12.4 exclude - Linux x86_64 (${{ inputs.link_mode }})
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
+          df -h
+
+      - name: Cache thirdparty deps
+        id: cache-deps
+        uses: actions/cache@v5
+        with:
+          path: thirdparty/
+          key: deps-cuda-test-exclude-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage.py', '.github/workflows/test-cuda-wheel.yml') }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Install cibuildwheel
+        run: pip install cibuildwheel==3.4.0
+
+      - name: Build CUDA wheel
+        run: python -m cibuildwheel --output-dir wheelhouse
+        env:
+          CIBW_ARCHS_LINUX: x86_64
+          CIBW_MANYLINUX_X86_64_IMAGE: manylinux2014
+          CIBW_BEFORE_ALL_LINUX: >
+            yum install -y git yum-utils &&
+            yum-config-manager --add-repo https://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/cuda-rhel7.repo &&
+            yum install -y cuda-nvcc-12-4 cuda-cudart-devel-12-4 cuda-driver-devel-12-4 libcublas-devel-12-4 &&
+            ln -s /usr/local/cuda-12.4 /usr/local/cuda &&
+            if [ -f /project/thirdparty/.deps-complete ]; then echo "=== Deps cached, skipping build ==="; exit 0; fi &&
+            CI_PYTHON=$(ls -d /opt/python/cp3*/bin | head -1) &&
+            $CI_PYTHON/pip install cmake ninja &&
+            PATH=/usr/local/cuda/bin:$CI_PYTHON:$PATH
+            CMAKE_CUDA_ARCHITECTURES="75"
+            GGML_NATIVE=OFF GGML_CUDA=1 GGML_METAL=0
+            $CI_PYTHON/python scripts/manage.py build --all --deps-only --no-sd-examples
+            ${{ inputs.link_mode == 'dynamic' && '--dynamic' || '' }} &&
+            touch /project/thirdparty/.deps-complete
+          CIBW_BEFORE_BUILD_LINUX: >
+            sed -i 's/^name = "cyllama"/name = "cyllama-cuda12"/' {project}/pyproject.toml &&
+            grep -q '^name = "cyllama-cuda12"' {project}/pyproject.toml || { echo "ERROR: sed rename to cyllama-cuda12 failed"; exit 1; } &&
+            cd {project} && python scripts/manage.py write_backend_info
+          CIBW_ENVIRONMENT_LINUX: >
+            GGML_CUDA=1
+            GGML_METAL=0
+            CUDA_PATH=/usr/local/cuda
+            CMAKE_CUDA_ARCHITECTURES="75"
+            GGML_NATIVE=OFF
+            PATH=/usr/local/cuda/bin:$PATH
+            LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
+            CFLAGS=-s
+            CXXFLAGS=-s
+            WITH_DYLIB=${{ inputs.link_mode == 'dynamic' && '1' || '0' }}
+          CIBW_TEST_COMMAND: ""
+          CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
+            test -d {project}/thirdparty/llama.cpp/dynamic || { echo "ERROR: dynamic lib dir missing: {project}/thirdparty/llama.cpp/dynamic"; exit 1; } &&
+            LD_LIBRARY_PATH={project}/thirdparty/llama.cpp/dynamic:$LD_LIBRARY_PATH
+            auditwheel repair -w {dest_dir} {wheel}
+            --plat manylinux_2_35_x86_64
+            --exclude libcuda.so.1
+            --exclude libcudart.so.12
+            --exclude libcublas.so.12
+            --exclude libcublasLt.so.12
+            --exclude libllama.so.0
+            --exclude libggml.so.0
+            --exclude libggml-base.so.0
+            --exclude libggml-cuda.so
+            --exclude libggml-cpu.so
+            --exclude libmtmd.so.0
+            --exclude libgomp.so.1
+
+      - name: List built wheels
+        run: ls -lah wheelhouse/
+
+      - name: Inspect wheel contents
+        run: |
+          pip install wheel-inspect 2>/dev/null || pip install pkginfo
+          for whl in wheelhouse/*.whl; do
+            echo "=== $whl ==="
+            python -m zipfile -l "$whl"
+            echo ""
+          done
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v7
+        with:
+          name: wheels-cuda-test-exclude
+          path: ./wheelhouse/*.whl
+          retention-days: 14
