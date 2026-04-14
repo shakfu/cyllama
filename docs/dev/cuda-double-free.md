@@ -155,6 +155,43 @@ This is a potential problem. Bundling a private copy of libgomp can conflict wit
 
 Adding `--exclude libgomp.so.1` to the exclude list would force the system-provided OpenMP to be used consistently and avoid this class of conflict.
 
+#### Runtime validation
+
+The installed wheel was tested on a system with an NVIDIA GeForce RTX 4060 (compute capability 8.9). All three extensions load the CUDA and CPU backends from the correct unbundled paths in `cyllama/llama/`, confirming that the `$ORIGIN` RPATHs work without auditwheel relocation:
+
+```
+$ uv run cyllama info
+
+llama.cpp:
+  load_backend: loaded CUDA backend from .../cyllama/llama/libggml-cuda.so
+  load_backend: loaded CPU backend from .../cyllama/llama/libggml-cpu.so
+  built: CUDA | registries: CUDA, CPU | GPU offload: True
+
+whisper.cpp:
+  load_backend: loaded CUDA backend from .../cyllama/llama/libggml-cuda.so
+  load_backend: loaded CPU backend from .../cyllama/llama/libggml-cpu.so
+  built: CUDA | backends: CUDA, CUDA
+
+stable-diffusion.cpp:
+  load_backend: loaded CUDA backend from .../cyllama/llama/libggml-cuda.so
+  load_backend: loaded CPU backend from .../cyllama/llama/libggml-cpu.so
+  built: CUDA | backends: CUDA, CUDA, CUDA
+```
+
+All three extensions share the same `libggml-cuda.so` and `libggml-cpu.so` from `cyllama/llama/` — no duplicated or SONAME-renamed copies.
+
+The bundled `libggml-cuda.so` correctly resolves CUDA system libraries via the dynamic linker rather than bundling them:
+
+```
+$ ldd .../cyllama/llama/libggml-cuda.so | grep -E 'cuda|cublas'
+  libcudart.so.12   => /lib/x86_64-linux-gnu/libcudart.so.12
+  libcublas.so.12   => /lib/x86_64-linux-gnu/libcublas.so.12
+  libcuda.so.1      => /lib/x86_64-linux-gnu/libcuda.so.1
+  libcublasLt.so.12 => /lib/x86_64-linux-gnu/libcublasLt.so.12
+```
+
+This confirms the `--exclude` strategy works end-to-end: the wheel's bundled libraries use `$ORIGIN` RPATHs to find each other, while CUDA runtime libraries are resolved from the system installation. This is the same model used by PyTorch and CuPy — CUDA libs are a system dependency, not bundled in the wheel.
+
 ### 3. Static linking
 
 Build with `WITH_DYLIB=0` so llama.cpp/ggml are statically linked into the Cython extension `.so`. No shared libraries to relocate, no `dlclose` ordering, no SONAME rewriting.
