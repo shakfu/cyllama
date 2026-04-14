@@ -1203,7 +1203,8 @@ class LlamaCppBuilder(Builder):
         )
         # With GGML_BACKEND_DL=True, backends are separate plugin targets
         # that are not transitive dependencies of llama.  Build them explicitly.
-        targets = ["llama", "common", "mtmd"]
+        # ggml-cpu is always needed; GPU backends are conditional.
+        targets = ["llama", "common", "mtmd", "ggml-cpu"]
         if backend_options.get("GGML_VULKAN") == "ON":
             targets.append("ggml-vulkan")
         if backend_options.get("GGML_CUDA") == "ON":
