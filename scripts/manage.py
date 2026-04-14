@@ -1272,6 +1272,10 @@ class LlamaCppBuilder(Builder):
         arch = ARCH.lower()
 
         if system == "darwin":
+            # Pre-built macOS releases only include Metal backend.
+            # For non-default backends (Vulkan, etc.), build from source.
+            if getenv("GGML_VULKAN", default=False):
+                return None
             os_tag = "macos"
             arch_tag = "arm64" if arch in ("arm64", "aarch64") else "x64"
             return f"llama-{version}-bin-{os_tag}-{arch_tag}.tar.gz"
@@ -1293,6 +1297,8 @@ class LlamaCppBuilder(Builder):
             if getenv("GGML_CUDA", default=False):
                 cuda_ver = os.environ.get("LLAMACPP_CUDA_RELEASE", "12.4")
                 return f"llama-{version}-bin-win-cuda-{cuda_ver}-{arch_tag}.zip"
+            elif getenv("GGML_VULKAN", default=False):
+                return None  # Pre-built Windows releases don't include Vulkan
             else:
                 return f"llama-{version}-bin-win-cpu-{arch_tag}.zip"
         else:
