@@ -4,6 +4,11 @@
 
 Dynamic-linked CUDA wheels (`WITH_DYLIB=1`) crash with `double free or corruption (!prev)` during Python interpreter shutdown. The crash is non-deterministic and only affects wheels processed by `auditwheel repair`.
 
+This issue is **Linux-specific**. The entire chain — `auditwheel repair`, `patchelf` SONAME rewriting, glibc `dlclose` unload ordering — only exists on Linux. macOS and Windows are not affected:
+
+- **macOS** uses `delocate` for wheel repair, which rewrites Mach-O load commands via `install_name_tool` rather than ELF SONAME headers. `delocate` does not alter the dyld unload order in the way that triggers this crash. macOS wheels have their own issues (e.g. duplicate OpenMP runtimes causing segfaults when co-installed with PyTorch — see [LightGBM#6595](https://github.com/lightgbm-org/LightGBM/issues/6595)), but those are a different problem with different root causes.
+- **Windows** uses no wheel repair tool. DLLs are bundled as-is with no SONAME equivalent to rewrite, and the Windows loader does not have the same unload-ordering sensitivity as glibc's `dlclose`.
+
 First observed against commit `36db368`. The initial fix attempted Python-level cleanup before shutdown, but this caused instability on the Metal backend as well. Reverted in `fb522c8`.
 
 ## Root cause
@@ -298,6 +303,19 @@ sudo ldconfig
 Try **solution 1** (`auditwheel addtag`) first. If the wheel already meets the target manylinux policy (verify with `auditwheel show`), it is a one-line fix with no maintenance burden. If `addtag` doesn't work (policy violation), fall back to **solution 2** (`--exclude`), which is validated and whose maintenance cost is low.
 
 If neither build-system approach is viable, **solution 5** (`RTLD_NODELETE`) is the most targeted runtime fix.
+
+### Applies to all GPU backends, not just CUDA
+
+Although the double-free crash was first observed with CUDA, the recommendation to use `auditwheel addtag` (or `--exclude`) applies equally to Vulkan, ROCm, SYCL, and any future GPU backend. The reasoning is backend-agnostic:
+
+1. **The build already handles library placement.** All bundled `.so` files are placed in `cyllama/llama/` with correct `$ORIGIN` RPATHs. auditwheel's relocation machinery adds no value.
+2. **SONAME rewriting is actively harmful.** It alters the `dlclose` unload ordering that glibc uses, which is the root cause of the crash. Any backend whose runtime registers `atexit` handlers (CUDA does; ROCm and SYCL may) is vulnerable.
+3. **Vulkan wheels are affected too, just silently.** Vulkan uses explicit cleanup (`vkDestroy*`) rather than `atexit`, so the altered unload order doesn't cause a crash. But the unnecessary relocation still occurs, and the SONAME-renamed libraries serve no purpose.
+4. **libgomp bundling is cross-backend.** Any GPU variant that links against OpenMP (which ggml uses for CPU threading) will have auditwheel bundle a private, SONAME-renamed copy of `libgomp.so.1`. This can conflict with other packages (PyTorch, NumPy) that load the system's libgomp in the same process — see [LightGBM#6595](https://github.com/lightgbm-org/LightGBM/issues/6595).
+
+Inspection of an installed `--exclude` build (v0.2.7, cp312) confirmed that the only library auditwheel actually relocated was `libgomp.so.1` — everything else was excluded. The sole useful work `auditwheel repair` performed was stamping the manylinux platform tag, which is exactly what `auditwheel addtag` does without any relocation.
+
+All Linux GPU wheel variants (CUDA, Vulkan, ROCm, SYCL) should use `auditwheel addtag` if the wheel meets the manylinux policy, or `auditwheel repair` with a comprehensive `--exclude` list (including `--exclude libgomp.so.1`) as a fallback.
 
 ## Test workflow
 
