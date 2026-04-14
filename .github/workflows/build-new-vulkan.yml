@@ -151,11 +151,11 @@ jobs:
         run: |
           $VK_LATEST = (Invoke-RestMethod -Uri "https://vulkan.lunarg.com/sdk/latest/windows.json").windows
           Write-Host "Latest Vulkan SDK: ${VK_LATEST}"
-          $VK_URL = "https://sdk.lunarg.com/sdk/download/${VK_LATEST}/windows/VulkanSDK-${VK_LATEST}-Installer.exe"
+          $VK_URL = "https://sdk.lunarg.com/sdk/download/${VK_LATEST}/windows/vulkan-sdk.exe"
           Write-Host "Downloading Vulkan SDK from ${VK_URL}..."
-          Invoke-WebRequest -Uri $VK_URL -OutFile VulkanSDK-Installer.exe
+          Invoke-WebRequest -Uri $VK_URL -OutFile vulkan-sdk.exe
           Write-Host "Installing Vulkan SDK..."
-          Start-Process -FilePath .\VulkanSDK-Installer.exe -ArgumentList "--accept-licenses --default-answer --confirm-command install" -Wait -NoNewWindow
+          Start-Process -FilePath .\vulkan-sdk.exe -ArgumentList "--accept-licenses --default-answer --confirm-command install" -Wait -NoNewWindow
           $VK_PATH = "C:\VulkanSDK\${VK_LATEST}"
           Write-Host "VULKAN_SDK=${VK_PATH}"
           echo "VULKAN_SDK=${VK_PATH}" >> $env:GITHUB_ENV
