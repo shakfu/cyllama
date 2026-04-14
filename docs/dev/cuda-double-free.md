@@ -64,7 +64,7 @@ The build already places libraries under `cyllama/llama/` with correct RPATHs, s
 - `addtag` refuses if the wheel doesn't already meet the target manylinux policy; verify with `auditwheel show` first
 - If any non-bundled system libs genuinely need vendoring (unlikely for this project), they won't be
 
-**Status:** Untested. Should be investigated first -- if it works, it is strictly better than the `--exclude` approach.
+**Status:** Requires auditwheel >= 6.0. Stock manylinux2014 and manylinux_2_28 images ship older versions that do not include `addtag` (available commands: `show`, `repair`, `lddtree`). To use this approach, upgrade auditwheel in the container first (e.g. `pip install 'auditwheel>=6.0'` in `CIBW_BEFORE_BUILD`). Alternatively, skip repair entirely with `CIBW_REPAIR_WHEEL_COMMAND_LINUX: ""` -- the wheel keeps its `linux_x86_64` tag but avoids all SONAME rewriting. The test workflow at `.github/workflows/test-cuda-wheel.yml` validates both the skip-repair and `--exclude` strategies.
 
 ### 2. `--exclude` bundled libraries from auditwheel repair
 
@@ -84,6 +84,7 @@ CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
   --exclude libggml-cuda.so
   --exclude libggml-cpu.so
   --exclude libmtmd.so.0
+  --exclude libgomp.so.1
 ```
 
 **Pros:**
