@@ -127,6 +127,29 @@ CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
 
 **Status:** Validated by colleague's report. Test workflow at `.github/workflows/test-cuda-wheel.yml`.
 
+#### Installed wheel structure (0.2.7, cp312, `--exclude` build)
+
+A wheel built with the `--exclude` list above was installed and inspected. The `--exclude` strategy works as intended — the six bundled libraries in `cyllama/llama/` retain their original names with no hash suffixes or SONAME rewriting:
+
+```
+cyllama/llama/libggml-base.so.0
+cyllama/llama/libggml-cpu.so
+cyllama/llama/libggml-cuda.so
+cyllama/llama/libggml.so.0
+cyllama/llama/libllama.so.0
+cyllama/llama/libmtmd.so.0
+```
+
+However, `libgomp.so.1` (GNU OpenMP runtime) was **not** in the `--exclude` list, so auditwheel relocated and SONAME-renamed it:
+
+```
+cyllama_cuda12.libs/libgomp-a34b3233.so.1.0.0
+```
+
+This is a potential problem. Bundling a private copy of libgomp can conflict with other packages (PyTorch, NumPy with OpenMP, etc.) that load the system's `libgomp.so.1` in the same process. While this is unlikely to cause the same `dlclose`-ordering crash as CUDA (OpenMP teardown is less dependent on unload order), it is in the same family of issues — see [LightGBM#6595](https://github.com/lightgbm-org/LightGBM/issues/6595) for a documented case of duplicate OpenMP runtimes causing segfaults on macOS when LightGBM and PyTorch are co-installed.
+
+Adding `--exclude libgomp.so.1` to the exclude list would force the system-provided OpenMP to be used consistently and avoid this class of conflict.
+
 ### 3. Static linking
 
 Build with `WITH_DYLIB=0` so llama.cpp/ggml are statically linked into the Cython extension `.so`. No shared libraries to relocate, no `dlclose` ordering, no SONAME rewriting.
