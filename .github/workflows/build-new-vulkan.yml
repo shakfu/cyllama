@@ -58,10 +58,17 @@ jobs:
         run: |
           brew install vulkan-headers vulkan-loader molten-vk shaderc
           echo "Vulkan SDK installed via Homebrew"
-          which glslc && glslc --version || echo "glslc not on PATH, checking brew prefix"
           SHADERC_BIN="$(brew --prefix shaderc)/bin"
+          VULKAN_PREFIX="$(brew --prefix vulkan-loader)"
           echo "PATH=${SHADERC_BIN}:${PATH}" >> "$GITHUB_ENV"
-          ls -la "${SHADERC_BIN}/"
+          echo "VULKAN_SDK=${VULKAN_PREFIX}" >> "$GITHUB_ENV"
+          echo "CMAKE_PREFIX_PATH=$(brew --prefix vulkan-headers):$(brew --prefix vulkan-loader):$(brew --prefix molten-vk)" >> "$GITHUB_ENV"
+          echo "--- Vulkan paths ---"
+          echo "VULKAN_SDK=${VULKAN_PREFIX}"
+          echo "glslc: ${SHADERC_BIN}/glslc"
+          ${SHADERC_BIN}/glslc --version
+          ls -la "${VULKAN_PREFIX}/lib/" 2>/dev/null || echo "No lib dir in vulkan-loader prefix"
+          ls -la "$(brew --prefix vulkan-headers)/include/vulkan/" 2>/dev/null | head -5
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -79,9 +86,12 @@ jobs:
             pip install delocate &&
             sed -i '' 's/^name = "cyllama"/name = "cyllama-vulkan"/' {project}/pyproject.toml &&
             grep -q '^name = "cyllama-vulkan"' {project}/pyproject.toml || { echo "ERROR: sed rename to cyllama-vulkan failed"; exit 1; } &&
+            echo "=== Env check: GGML_VULKAN=$GGML_VULKAN GGML_METAL=$GGML_METAL VULKAN_SDK=$VULKAN_SDK ===" &&
             cd {project} &&
             python scripts/manage.py build --all --deps-only --no-sd-examples
             ${{ inputs.link_mode == 'dynamic' && '--dynamic' || '' }} &&
+            echo "=== Dynamic libs ===" && ls -la thirdparty/llama.cpp/dynamic/ 2>/dev/null || echo "No dynamic dir" &&
+            echo "=== Static libs ===" && ls -la thirdparty/llama.cpp/lib/ 2>/dev/null || echo "No lib dir" &&
             python scripts/manage.py write_backend_info
           CIBW_ENVIRONMENT_MACOS: >
             MACOSX_DEPLOYMENT_TARGET=11.0
@@ -139,17 +149,18 @@ jobs:
       - name: Install Vulkan SDK
         shell: pwsh
         run: |
-          $VK_VERSION = "1.4.313.0"
-          $VK_URL = "https://sdk.lunarg.com/sdk/download/${VK_VERSION}/windows/VulkanSDK-${VK_VERSION}-Installer.exe"
-          Write-Host "Downloading Vulkan SDK ${VK_VERSION}..."
+          $VK_LATEST = (Invoke-RestMethod -Uri "https://vulkan.lunarg.com/sdk/latest/windows.json").windows
+          Write-Host "Latest Vulkan SDK: ${VK_LATEST}"
+          $VK_URL = "https://sdk.lunarg.com/sdk/download/${VK_LATEST}/windows/VulkanSDK-${VK_LATEST}-Installer.exe"
+          Write-Host "Downloading Vulkan SDK from ${VK_URL}..."
           Invoke-WebRequest -Uri $VK_URL -OutFile VulkanSDK-Installer.exe
           Write-Host "Installing Vulkan SDK..."
           Start-Process -FilePath .\VulkanSDK-Installer.exe -ArgumentList "--accept-licenses --default-answer --confirm-command install" -Wait -NoNewWindow
-          $VK_PATH = "C:\VulkanSDK\${VK_VERSION}"
+          $VK_PATH = "C:\VulkanSDK\${VK_LATEST}"
           Write-Host "VULKAN_SDK=${VK_PATH}"
           echo "VULKAN_SDK=${VK_PATH}" >> $env:GITHUB_ENV
           echo "${VK_PATH}\Bin" >> $env:GITHUB_PATH
-          glslc --version
+          & "${VK_PATH}\Bin\glslc.exe" --version
 
       - name: Set up Python
         uses: actions/setup-python@v6
