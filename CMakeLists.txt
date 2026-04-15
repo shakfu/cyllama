@@ -235,53 +235,50 @@ if(WITH_DYLIB)
     # Optional core libraries (not always present in release tarballs or self-builds)
     set(_OPTIONAL_DYLIB_NAMES ggml-rpc)
 
-    # ggml-cpu: on Linux, release tarballs ship arch-specific variants only
-    # (e.g. libggml-cpu-haswell.so) with no base libggml-cpu.so.
+    # ggml-cpu: with GGML_BACKEND_DL=ON and GGML_NATIVE=OFF, llama.cpp
+    # may produce arch-specific variants (e.g. libggml-cpu-haswell.so,
+    # libggml-cpu-x64.dylib) instead of a base libggml-cpu. This happens
+    # on both Linux (release tarballs) and macOS (Vulkan/non-Metal builds).
     # All variants are installed for ggml's runtime dispatch, but we must
-    # link against the most portable one for symbol resolution — otherwise
-    # the dynamic linker loads a variant with unsupported instructions
-    # before ggml gets a chance to pick the right one.
-    if(APPLE)
-        list(APPEND _DYLIB_NAMES ggml-cpu)
-    else()
-        file(GLOB _cpu_variants "${LLAMACPP_DYLIB_DIR}/libggml-cpu-*.${_dylib_ext}")
-        if(_cpu_variants)
-            # Install all CPU variants for runtime dispatch
-            list(APPEND DYLIB_FILES ${_cpu_variants})
-            # Link against the most portable variant for symbol resolution.
-            # Preference order: base ggml-cpu > x64 > sse42 > first available.
-            set(_cpu_link_lib "")
-            find_library(_cpu_base ggml-cpu PATHS "${LLAMACPP_DYLIB_DIR}" NO_DEFAULT_PATH)
-            if(_cpu_base)
-                set(_cpu_link_lib "${_cpu_base}")
-            else()
-                foreach(_candidate x64 sse42)
-                    find_library(_cpu_portable ggml-cpu-${_candidate}
-                        PATHS "${LLAMACPP_DYLIB_DIR}" NO_DEFAULT_PATH)
-                    if(_cpu_portable)
-                        set(_cpu_link_lib "${_cpu_portable}")
-                        break()
-                    endif()
-                    unset(_cpu_portable CACHE)
-                endforeach()
-            endif()
-            if(NOT _cpu_link_lib)
-                # Last resort: pick the first variant (may crash on incompatible CPUs)
-                list(GET _cpu_variants 0 _cpu_link_lib)
-                message(WARNING "No portable CPU variant (x64/sse42) found, linking against ${_cpu_link_lib}")
-            endif()
-            list(APPEND DYLIBS "${_cpu_link_lib}")
-            list(APPEND DYLIB_FILES "${_cpu_link_lib}")
-            get_filename_component(_link_name "${_cpu_link_lib}" NAME)
-            message(STATUS "  CPU link variant: ${_link_name}")
-            foreach(_v ${_cpu_variants})
-                get_filename_component(_vn ${_v} NAME)
-                message(STATUS "  Found CPU variant: ${_vn}")
-            endforeach()
+    # link against the most portable one for symbol resolution.
+    file(GLOB _cpu_variants "${LLAMACPP_DYLIB_DIR}/libggml-cpu-*.${_dylib_ext}")
+    if(_cpu_variants)
+        # Install all CPU variants for runtime dispatch
+        list(APPEND DYLIB_FILES ${_cpu_variants})
+        # Link against the most portable variant for symbol resolution.
+        # Preference order: base ggml-cpu > x64 > sse42 > first available.
+        set(_cpu_link_lib "")
+        find_library(_cpu_base ggml-cpu PATHS "${LLAMACPP_DYLIB_DIR}" NO_DEFAULT_PATH)
+        if(_cpu_base)
+            set(_cpu_link_lib "${_cpu_base}")
         else()
-            # Fallback: try the base name (self-built may have it)
-            list(APPEND _DYLIB_NAMES ggml-cpu)
+            foreach(_candidate x64 sse42)
+                find_library(_cpu_portable ggml-cpu-${_candidate}
+                    PATHS "${LLAMACPP_DYLIB_DIR}" NO_DEFAULT_PATH)
+                if(_cpu_portable)
+                    set(_cpu_link_lib "${_cpu_portable}")
+                    break()
+                endif()
+                unset(_cpu_portable CACHE)
+            endforeach()
         endif()
+        if(NOT _cpu_link_lib)
+            # Last resort: pick the first variant (may crash on incompatible CPUs)
+            list(GET _cpu_variants 0 _cpu_link_lib)
+            message(WARNING "No portable CPU variant (x64/sse42) found, linking against ${_cpu_link_lib}")
+        endif()
+        list(APPEND DYLIBS "${_cpu_link_lib}")
+        list(APPEND DYLIB_FILES "${_cpu_link_lib}")
+        get_filename_component(_link_name "${_cpu_link_lib}" NAME)
+        message(STATUS "  CPU link variant: ${_link_name}")
+        foreach(_v ${_cpu_variants})
+            get_filename_component(_vn ${_v} NAME)
+            message(STATUS "  Found CPU variant: ${_vn}")
+        endforeach()
+    else()
+        # Fallback: try the base name (self-built with GGML_NATIVE=ON
+        # or Metal-default builds typically produce libggml-cpu directly)
+        list(APPEND _DYLIB_NAMES ggml-cpu)
     endif()
 
     # Backend-specific shared libraries (required when their backend is enabled)

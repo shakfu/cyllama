@@ -282,6 +282,7 @@ jobs:
           CIBW_TEST_COMMAND: ""
           CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: >
             delvewheel repair -w {dest_dir} {wheel}
+            --no-dll nvcuda.dll
             --no-dll cudart64_12.dll
             --no-dll cublas64_12.dll
             --no-dll cublasLt64_12.dll
