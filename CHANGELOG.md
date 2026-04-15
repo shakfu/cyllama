@@ -43,8 +43,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 - **Interactive chat used raw ANSI escape codes instead of color utilities** - Replaced inline `\033[...m` sequences in `llama/chat.py` with `green()`, `yellow()`, and `END` from the existing `cyllama.utils.color` module
 
-- **macOS Vulkan build missing `libggml-cpu`** - `build_shared()` in `scripts/manage.py` only collected `**/*.dylib` on macOS, but `GGML_BACKEND_DL=ON` builds ggml-cpu as a CMake MODULE library which gets a `.so` extension on macOS. Added `**/*.so` to the macOS glob patterns
-
 - **CUDA wheel double-free on interpreter shutdown** - Dynamic-linked CUDA wheels (`WITH_DYLIB=1`) crashed with `double free or corruption (!prev)` during Python exit. The root cause was `auditwheel repair` using `patchelf` to rewrite ELF SONAME headers on bundled GPU runtime libraries, which altered glibc's `dlclose` unload ordering and caused CUDA's internal `atexit` handlers to fire after the memory they referenced had already been unmapped. Fixed by adding `--exclude` flags for GPU runtime system libraries (`libcuda.so.1`, `libcudart.so.12`, `libcublas.so.12`, `libcublasLt.so.12`) and `libgomp.so.1` (GCC OpenMP runtime) so auditwheel leaves them as system dependencies rather than bundling and SONAME-rewriting them. The same `libgomp.so.1` exclude was applied to all GPU wheel variants (ROCm, SYCL, Vulkan). See `docs/dev/cuda-double-free.md` for full analysis
 
 - **`test_whisper_timing_functions` called `ctx.n_vocab` without parentheses** - The test compared a bound method object against `int` instead of calling it, causing a `TypeError`. Fixed to `ctx.n_vocab()`

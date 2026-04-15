@@ -1224,9 +1224,7 @@ class LlamaCppBuilder(Builder):
         # Collect all shared libs from the build tree into dynamic/
         self.dynamic_lib.mkdir(parents=True, exist_ok=True)
         if PLATFORM == "Darwin":
-            # GGML_BACKEND_DL builds backends as CMake MODULE libraries,
-            # which get .so extension on macOS (not .dylib).
-            patterns = ["**/*.dylib", "**/*.so"]
+            patterns = ["**/*.dylib"]
         elif PLATFORM == "Windows":
             patterns = ["**/*.dll"]
         else:
