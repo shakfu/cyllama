@@ -1917,32 +1917,44 @@
 <p>The lesson: the rule we want to enforce is "no two native calls overlap in time," not "all native calls happen on the creating thread." Those are different rules, and only the first one matches the actual hazard.</p>
 <h4 id="alternative-2-blocking-lock-serialize-instead-of-raise">Alternative 2: Blocking lock (serialize instead of raise)<a class="headerlink" href="#alternative-2-blocking-lock-serialize-instead-of-raise" title="Permanent link">&para;</a></h4>
 <p>Use <code>acquire(blocking=True)</code> so concurrent callers wait their turn instead of raising. This is what most stdlib Python objects in this position do: <code>sqlite3</code> (with <code>check_same_thread=False</code>), <code>requests.Session</code>, <code>http.client.HTTPConnection</code>, etc.</p>
-<p><strong>Pros:</strong>
-- Code that worked accidentally (relying on GIL serialization or coincidental timing) keeps working.
-- No surprise behavior change for existing users.
-- Matches Python ecosystem norms.</p>
-<p><strong>Cons:</strong>
-- <strong>Hides architectural mistakes.</strong> A user who accidentally shares one <code>LLM</code> across 8 worker threads gets 1/8th the throughput they expected, with no signal telling them why. They discover the problem months later staring at a flame graph.
-- <strong>Unbounded latency in async contexts.</strong> A blocking acquire inside an <code>asyncio.to_thread</code> call can deadlock the event loop or stall it for arbitrary periods if the lock-holder is slow.
-- <strong>Loses the "fail loud" signal.</strong> cyllama generally takes the position that bad inputs and unsafe usage should raise immediately, not degrade silently. Other parts of the codebase do the same: <code>validate_gguf_file</code>, <code>VectorStoreError</code> on metadata mismatch, the typed exceptions on model loaders.</p>
+<p><strong>Pros:</strong></p>
+<ul>
+<li>Code that worked accidentally (relying on GIL serialization or coincidental timing) keeps working.</li>
+<li>No surprise behavior change for existing users.</li>
+<li>Matches Python ecosystem norms.</li>
+</ul>
+<p><strong>Cons:</strong></p>
+<ul>
+<li><strong>Hides architectural mistakes.</strong> A user who accidentally shares one <code>LLM</code> across 8 worker threads gets 1/8th the throughput they expected, with no signal telling them why. They discover the problem months later staring at a flame graph.</li>
+<li><strong>Unbounded latency in async contexts.</strong> A blocking acquire inside an <code>asyncio.to_thread</code> call can deadlock the event loop or stall it for arbitrary periods if the lock-holder is slow.</li>
+<li><strong>Loses the "fail loud" signal.</strong> cyllama generally takes the position that bad inputs and unsafe usage should raise immediately, not degrade silently. Other parts of the codebase do the same: <code>validate_gguf_file</code>, <code>VectorStoreError</code> on metadata mismatch, the typed exceptions on model loaders.</li>
+</ul>
 <p><strong>When to revisit this:</strong> If cyllama's positioning ever shifts toward "high-level convenience library where users don't think about threading," serialize would become the right call. The conversion is a one-line change (<code>blocking=False</code> → <code>blocking=True</code>) — the lock infrastructure stays the same, so this decision isn't permanently locked in.</p>
 <h4 id="alternative-3-per-thread-context-pool">Alternative 3: Per-thread context pool<a class="headerlink" href="#alternative-3-per-thread-context-pool" title="Permanent link">&para;</a></h4>
 <p>Maintain a pool of contexts inside each <code>LLM</code>, allocate one per thread on first use, multiplex calls automatically.</p>
-<p><strong>Pros:</strong>
-- Actually allows concurrent inference instead of just preventing the bad case.</p>
-<p><strong>Cons:</strong>
-- <strong>Memory blowup.</strong> A <code>llama_context</code> with default <code>n_ctx=2048</code> consumes hundreds of MB to a few GB depending on the model. Allocating one per worker thread is prohibitive — most production setups can barely fit <em>one</em> context per GPU.
-- <strong>Wrong layer.</strong> If a user wants concurrent inference, they should make that decision explicitly by creating multiple <code>LLM</code> instances (or by using multiple GPUs). Hiding the cost inside the wrapper makes it look free when it isn't.
-- <strong>Doesn't help the asyncio.to_thread case.</strong> That pattern uses one context shared across many short calls, which works fine without a pool — adding pooling would just waste memory.</p>
+<p><strong>Pros:</strong></p>
+<ul>
+<li>Actually allows concurrent inference instead of just preventing the bad case.</li>
+</ul>
+<p><strong>Cons:</strong></p>
+<ul>
+<li><strong>Memory blowup.</strong> A <code>llama_context</code> with default <code>n_ctx=2048</code> consumes hundreds of MB to a few GB depending on the model. Allocating one per worker thread is prohibitive — most production setups can barely fit <em>one</em> context per GPU.</li>
+<li><strong>Wrong layer.</strong> If a user wants concurrent inference, they should make that decision explicitly by creating multiple <code>LLM</code> instances (or by using multiple GPUs). Hiding the cost inside the wrapper makes it look free when it isn't.</li>
+<li><strong>Doesn't help the asyncio.to_thread case.</strong> That pattern uses one context shared across many short calls, which works fine without a pool — adding pooling would just waste memory.</li>
+</ul>
 <h4 id="alternative-4-documentation-only-no-runtime-check">Alternative 4: Documentation only, no runtime check<a class="headerlink" href="#alternative-4-documentation-only-no-runtime-check" title="Permanent link">&para;</a></h4>
 <p>Just say "don't share <code>LLM</code> across threads" in the docs and rely on users reading them.</p>
-<p><strong>Pros:</strong>
-- Zero overhead.
-- No false positives.</p>
-<p><strong>Cons:</strong>
-- <strong>Silent UB when the rule is violated.</strong> The failure mode is corrupt KV cache → garbage tokens → user blames the model and files a confused bug report. Extremely hard to debug.
-- <strong>Contradicts cyllama's "fail loud" philosophy.</strong> We have typed exceptions on model loaders, validation errors on <code>VectorStore</code> metadata, friendly errors on missing files, etc. Letting this one class of bug fall through silently would be inconsistent.
-- <strong>The runtime check is cheap.</strong> One atomic int compare per call, which is negligible compared to a token generation step.</p>
+<p><strong>Pros:</strong></p>
+<ul>
+<li>Zero overhead.</li>
+<li>No false positives.</li>
+</ul>
+<p><strong>Cons:</strong></p>
+<ul>
+<li><strong>Silent UB when the rule is violated.</strong> The failure mode is corrupt KV cache → garbage tokens → user blames the model and files a confused bug report. Extremely hard to debug.</li>
+<li><strong>Contradicts cyllama's "fail loud" philosophy.</strong> We have typed exceptions on model loaders, validation errors on <code>VectorStore</code> metadata, friendly errors on missing files, etc. Letting this one class of bug fall through silently would be inconsistent.</li>
+<li><strong>The runtime check is cheap.</strong> One atomic int compare per call, which is negligible compared to a token generation step.</li>
+</ul>
 <h4 id="alternative-5-fix-it-upstream">Alternative 5: Fix it upstream<a class="headerlink" href="#alternative-5-fix-it-upstream" title="Permanent link">&para;</a></h4>
 <p>Make llama.cpp / whisper.cpp / sd.cpp actually thread-safe.</p>
 <p><strong>Why rejected:</strong> not in our control. Upstream has explicitly chosen not to lock the inner generation loop because it would be expensive — the sampler state and KV cache are touched on every token, and a per-token mutex would dominate runtime. Patching it locally would mean re-syncing on every upstream version bump, which is the same maintenance burden as the current guard but harder.</p>

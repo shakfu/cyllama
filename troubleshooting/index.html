@@ -2302,7 +2302,7 @@
 </ol>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama</span><span class="w"> </span><span class="kn">import</span> <span class="n">LLM</span><span class="p">,</span> <span class="n">GenerationConfig</span>
 <a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="n">config</span> <span class="o">=</span> <span class="n">GenerationConfig</span><span class="p">(</span><span class="n">n_gpu_layers</span><span class="o">=</span><span class="mi">20</span><span class="p">)</span>  <span class="c1"># Reduce from 99</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="n">config</span> <span class="o">=</span> <span class="n">GenerationConfig</span><span class="p">(</span><span class="n">n_gpu_layers</span><span class="o">=</span><span class="mi">20</span><span class="p">)</span>  <span class="c1"># Reduce from -1 (all layers)</span>
 <a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="n">llm</span> <span class="o">=</span> <span class="n">LLM</span><span class="p">(</span><span class="s2">&quot;model.gguf&quot;</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">)</span>
 </code></pre></div>
 <ol>
@@ -2337,7 +2337,7 @@
 </ol>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama</span><span class="w"> </span><span class="kn">import</span> <span class="n">LLM</span>
 <a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="n">llm</span> <span class="o">=</span> <span class="n">LLM</span><span class="p">(</span><span class="s2">&quot;model.gguf&quot;</span><span class="p">,</span> <span class="n">n_gpu_layers</span><span class="o">=</span><span class="mi">99</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="n">llm</span> <span class="o">=</span> <span class="n">LLM</span><span class="p">(</span><span class="s2">&quot;model.gguf&quot;</span><span class="p">,</span> <span class="n">n_gpu_layers</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 <a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="c1"># Verbose output should show GPU offload info</span>
 </code></pre></div>
 <ol>
@@ -2372,7 +2372,7 @@
 <div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama</span><span class="w"> </span><span class="kn">import</span> <span class="n">GenerationConfig</span><span class="p">,</span> <span class="n">LLM</span>
 <a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>
 <a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="n">config</span> <span class="o">=</span> <span class="n">GenerationConfig</span><span class="p">(</span>
-<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>    <span class="n">repeat_penalty</span><span class="o">=</span><span class="mf">1.2</span><span class="p">,</span>  <span class="c1"># Increase (default 1.1)</span>
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>    <span class="n">repeat_penalty</span><span class="o">=</span><span class="mf">1.2</span><span class="p">,</span>  <span class="c1"># Increase (default 1.0)</span>
 <a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>    <span class="n">temperature</span><span class="o">=</span><span class="mf">0.8</span><span class="p">,</span>     <span class="c1"># Add some randomness</span>
 <a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>    <span class="n">top_k</span><span class="o">=</span><span class="mi">40</span><span class="p">,</span>
 <a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a>    <span class="n">top_p</span><span class="o">=</span><span class="mf">0.95</span>

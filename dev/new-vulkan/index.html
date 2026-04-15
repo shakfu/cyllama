@@ -23,7 +23,7 @@
     
     
       
-        <title>CUDA Wheel Size Regression: v0.2.1 (99 MB) -> v0.2.2 (449 MB) - cyllama</title>
+        <title>Vulkan for Windows an MacOS intel - cyllama</title>
       
     
     
@@ -74,7 +74,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#cuda-wheel-size-regression-v021-99-mb-v022-449-mb" class="md-skip">
+        <a href="#vulkan-for-windows-an-macos-intel" class="md-skip">
           Skip to content
         </a>
       
@@ -110,7 +110,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              CUDA Wheel Size Regression: v0.2.1 (99 MB) -&gt; v0.2.2 (449 MB)
+              Vulkan for Windows an MacOS intel
             
           </span>
         </div>
@@ -1301,130 +1301,6 @@
     
   
   
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#summary" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Summary
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#evidence" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Evidence
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Evidence">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#v021-wheel-contents-working-99-mb" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        v0.2.1 wheel contents (working, 99 MB)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#v022-wheel-contents-bloated-449-mb" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        v0.2.2 wheel contents (bloated, 449 MB)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#key-observation" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Key observation
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#root-cause" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Root Cause
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#commit-timeline" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Commit timeline
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#fix" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Fix
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#verification" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Verification
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#notes-on-ggml_avxggml_avx2etc-flags" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Notes on GGML_AVX/GGML_AVX2/etc. flags
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
 </nav>
                   </div>
                 </div>
@@ -1443,139 +1319,78 @@
   
 
 
-<h1 id="cuda-wheel-size-regression-v021-99-mb-v022-449-mb">CUDA Wheel Size Regression: v0.2.1 (99 MB) -&gt; v0.2.2 (449 MB)<a class="headerlink" href="#cuda-wheel-size-regression-v021-99-mb-v022-449-mb" title="Permanent link">&para;</a></h1>
-<h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
-<p>The <code>cyllama-cuda12</code> wheel's <code>libggml-cuda.so</code> grew from 99 MB (v0.2.1) to 449 MB uncompressed / 201 MB compressed (v0.2.2). The root cause is that adding <code>GGML_NATIVE=OFF</code> for portability caused llama.cpp's CMake to fall back to its full default CUDA architecture list, without <code>manage.py</code> passing an explicit <code>CMAKE_CUDA_ARCHITECTURES</code> to constrain it.</p>
-<h2 id="evidence">Evidence<a class="headerlink" href="#evidence" title="Permanent link">&para;</a></h2>
-<h3 id="v021-wheel-contents-working-99-mb">v0.2.1 wheel contents (working, 99 MB)<a class="headerlink" href="#v021-wheel-contents-working-99-mb" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>libggml-cuda.so sections:
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>  .nv_fatbin    86 MB
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>  .text         10 MB
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>  Total         99 MB
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>SASS: sm_52 only (130 ELF entries — 1 arch x 130 kernels)
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>PTX:  sm_52 only (130 PTX entries — 1 arch x 130 kernels)
-</code></pre></div>
-<h3 id="v022-wheel-contents-bloated-449-mb">v0.2.2 wheel contents (bloated, 449 MB)<a class="headerlink" href="#v022-wheel-contents-bloated-449-mb" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>libggml-cuda.so sections:
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>  .nv_fatbin   433 MB
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>  .text         10 MB
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>  Total        449 MB
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>SASS: sm_86, sm_89 (260 ELF entries — 2 archs x 130 kernels)
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>PTX:  sm_50, sm_61, sm_70, sm_75, sm_80 (650 PTX entries — 5 archs x 130 kernels)
-</code></pre></div>
-<h3 id="key-observation">Key observation<a class="headerlink" href="#key-observation" title="Permanent link">&para;</a></h3>
-<p>The <code>.text</code> section (host code) is 10 MB in both versions. The instruction set flags (<code>GGML_AVX</code>, <code>GGML_FMA</code>, etc.) are <strong>not</strong> the bloat source. The entire regression is in <code>.nv_fatbin</code> — the CUDA fat binary section containing compiled GPU code for multiple architectures.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>● Now this is the smoking gun.
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>  v0.2.1 vs v0.2.2 comparison
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>  ┌──────────────────┬───────────────────────┬────────────────────────────┐
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>  │                  │        v0.2.1         │           v0.2.2           │
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>  ├──────────────────┼───────────────────────┼────────────────────────────┤
-<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>  │ SASS             │ sm_52 only            │ sm_86, sm_89               │
-<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>  │ architectures    │                       │                            │
-<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>  ├──────────────────┼───────────────────────┼────────────────────────────┤
-<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>  │ PTX              │ sm_52 only            │ sm_50, sm_61, sm_70,       │
-<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>  │ architectures    │                       │ sm_75, sm_80               │
-<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>  ├──────────────────┼───────────────────────┼────────────────────────────┤
-<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>  │ ELF entries      │ 130 (1 arch × 130     │ 260 (2 archs × 130         │
-<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a>  │                  │ kernels)              │ kernels)                   │
-<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a>  ├──────────────────┼───────────────────────┼────────────────────────────┤
-<a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a>  │ PTX entries      │ 130 (1 arch × 130     │ 650 (5 archs × 130         │
-<a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a>  │                  │ kernels)              │ kernels)                   │
-<a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a>  ├──────────────────┼───────────────────────┼────────────────────────────┤
-<a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a>  │ .nv_fatbin size  │ 86 MB                 │ 433 MB                     │
-<a id="__codelineno-2-21" name="__codelineno-2-21" href="#__codelineno-2-21"></a>  ├──────────────────┼───────────────────────┼────────────────────────────┤
-<a id="__codelineno-2-22" name="__codelineno-2-22" href="#__codelineno-2-22"></a>  │ .text size       │ 10 MB                 │ 10 MB                      │
-<a id="__codelineno-2-23" name="__codelineno-2-23" href="#__codelineno-2-23"></a>  ├──────────────────┼───────────────────────┼────────────────────────────┤
-<a id="__codelineno-2-24" name="__codelineno-2-24" href="#__codelineno-2-24"></a>  │ Total            │ 99 MB                 │ 449 MB                     │
-<a id="__codelineno-2-25" name="__codelineno-2-25" href="#__codelineno-2-25"></a>  └──────────────────┴───────────────────────┴────────────────────────────┘
-</code></pre></div>
-<h2 id="root-cause">Root Cause<a class="headerlink" href="#root-cause" title="Permanent link">&para;</a></h2>
-<p>Both v0.2.1 and v0.2.2 used llama.cpp's <strong>default</strong> CUDA architectures because <code>scripts/manage.py</code> never passed <code>CMAKE_CUDA_ARCHITECTURES</code> through to CMake (despite the CI workflow setting it in the environment). The HIP equivalent (<code>CMAKE_HIP_ARCHITECTURES</code>) was handled correctly — CUDA was simply missed.</p>
-<p>The difference is what those defaults resolve to:</p>
-<table>
-<thead>
-<tr>
-<th>Version</th>
-<th><code>GGML_NATIVE</code></th>
-<th>CMake behavior</th>
-<th>Architectures compiled</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>v0.2.1</td>
-<td>ON (default)</td>
-<td>Detects CI runner GPU</td>
-<td>sm_52 only (1 arch)</td>
-</tr>
-<tr>
-<td>v0.2.2</td>
-<td>OFF</td>
-<td>Cannot detect target, uses full default list</td>
-<td>sm_50, sm_52, sm_61, sm_70, sm_75, sm_80, sm_86, sm_89 (8 archs)</td>
-</tr>
-</tbody>
-</table>
-<p>When <code>GGML_NATIVE=ON</code>, llama.cpp's CMake detects the build machine's GPU (sm_52 on the GitHub Actions runner) and compiles for just that architecture with a PTX fallback for forward compatibility. When <code>GGML_NATIVE=OFF</code>, there's no GPU to detect, so CMake falls back to compiling for every default architecture — producing 5x more PTX and 2x more SASS.</p>
-<h2 id="commit-timeline">Commit timeline<a class="headerlink" href="#commit-timeline" title="Permanent link">&para;</a></h2>
-<table>
-<thead>
-<tr>
-<th>Commit</th>
-<th>Change</th>
-<th>Effect on wheel size</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>0.2.1</code> tag</td>
-<td>No <code>GGML_NATIVE</code> set, no <code>CMAKE_CUDA_ARCHITECTURES</code> passthrough</td>
-<td>99 MB (native detection picks sm_52 only)</td>
-</tr>
-<tr>
-<td><code>05b232a</code> "set GGML_NATIVE=OFF"</td>
-<td>Added <code>GGML_NATIVE=OFF</code> for portability</td>
-<td>449 MB (all default archs compiled)</td>
-</tr>
-<tr>
-<td><code>8be93c9</code> "fix cude wheel build-size"</td>
-<td>Added <code>GGML_NATIVE_DEFAULT=OFF</code></td>
-<td>No effect (not a real CMake variable)</td>
-</tr>
-<tr>
-<td><code>f1adaf9</code> "v0.2.2hotfix"</td>
-<td>Explicitly disabled <code>GGML_AVX/AVX2/FMA/F16C/BMI2</code></td>
-<td>No meaningful effect (<code>.text</code> was already 10 MB)</td>
-</tr>
-<tr>
-<td><code>3557d29</code> "another attempt to fix"</td>
-<td>Added <code>CMAKE_CUDA_ARCHITECTURES</code> passthrough in <code>manage.py</code></td>
-<td>Correct fix (not yet verified in CI)</td>
-</tr>
-</tbody>
-</table>
-<h2 id="fix">Fix<a class="headerlink" href="#fix" title="Permanent link">&para;</a></h2>
-<p>The fix in commit <code>3557d29</code> adds the <code>CMAKE_CUDA_ARCHITECTURES</code> environment variable passthrough to all three <code>get_backend_cmake_options()</code> methods in <code>scripts/manage.py</code> (for llama.cpp, whisper.cpp, and stable-diffusion.cpp), matching the existing pattern for <code>CMAKE_HIP_ARCHITECTURES</code>.</p>
-<p>With the CI's <code>CMAKE_CUDA_ARCHITECTURES="70-real;75-real;80-real;86-real;89-real;90"</code> actually reaching CMake:</p>
+<h1 id="vulkan-for-windows-an-macos-intel">Vulkan for Windows an MacOS intel<a class="headerlink" href="#vulkan-for-windows-an-macos-intel" title="Permanent link">&para;</a></h1>
 <ul>
-<li><code>-real</code> suffix = SASS only, no PTX (for sm_70, 75, 80, 86, 89)</li>
-<li><code>90</code> without <code>-real</code> = PTX only for sm_90 (forward compatibility for future GPUs)</li>
-<li>Expected result: ~6 SASS + 1 PTX per kernel instead of 2 SASS + 5 PTX per kernel</li>
+<li><strong>macOS Vulkan build failed with missing <code>libggml-cpu</code> then linker error</strong> - Two issues: (1) <code>build_shared()</code> in <code>scripts/manage.py</code> only collected <code>**/*.dylib</code> on macOS, but <code>GGML_BACKEND_DL=ON</code> builds backends as CMake MODULE libraries which get <code>.so</code> extension on macOS — added <code>**/*.so</code> to the macOS glob patterns. (2) The linker rejected the collected <code>.so</code> files with "unsupported mach-o filetype" because MH_BUNDLE (MODULE) files cannot be linked, only <code>dlopen</code>'d at runtime — updated <code>_find_dylib</code> in <code>CMakeLists.txt</code> to detect <code>.so</code> files on macOS and treat them as install-only (shipped in the wheel for runtime loading, not passed to the linker)</li>
 </ul>
-<p>Expected wheel size should be comparable to or smaller than v0.2.1's 99 MB uncompressed / ~45 MB compressed.</p>
-<h2 id="verification">Verification<a class="headerlink" href="#verification" title="Permanent link">&para;</a></h2>
-<p>v0.2.1 was tested successfully on an RTX 4060 (sm_89, CUDA 12.0):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>$ python -c &quot;... LlamaModel + inference test ...&quot;
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>Response: 2 + 2 = 4
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>v0.2.1 CUDA: PASS
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>$<span class="w"> </span>git<span class="w"> </span>diff<span class="w"> </span>CMakeLists.txt
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>diff<span class="w"> </span>--git<span class="w"> </span>a/CMakeLists.txt<span class="w"> </span>b/CMakeLists.txt
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>index<span class="w"> </span>cdc38ba..851ee75<span class="w"> </span><span class="m">100644</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>---<span class="w"> </span>a/CMakeLists.txt
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>+++<span class="w"> </span>b/CMakeLists.txt
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>@@<span class="w"> </span>-305,7<span class="w"> </span>+305,12<span class="w"> </span>@@<span class="w"> </span><span class="k">if</span><span class="o">(</span>WITH_DYLIB<span class="o">)</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">         </span>list<span class="o">(</span>APPEND<span class="w"> </span>_BACKEND_DYLIB_NAMES<span class="w"> </span>ggml-opencl<span class="o">)</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">     </span>endif<span class="o">()</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>-<span class="w">    </span><span class="c1"># Helper macro: find a shared lib, append to DYLIBS/DYLIB_FILES, or handle missing</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>+<span class="w">    </span><span class="c1"># Helper macro: find a shared lib, append to DYLIBS/DYLIB_FILES, or handle missing.</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>+<span class="w">    </span><span class="c1"># When _link_only is FALSE the lib is added to DYLIB_FILES (install) AND DYLIBS (link).</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>+<span class="w">    </span><span class="c1"># When _link_only is FALSE and the file is a macOS MH_BUNDLE (.so), it is install-only:</span>
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>+<span class="w">    </span><span class="c1"># GGML_BACKEND_DL builds backends as CMake MODULE libraries which get a .so extension</span>
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>+<span class="w">    </span><span class="c1"># on macOS. These are dlopen&#39;d at runtime by ggml and must NOT be passed to the linker</span>
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>+<span class="w">    </span><span class="c1"># (the linker rejects MH_BUNDLE with &quot;unsupported mach-o filetype&quot;).</span>
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="w">     </span>macro<span class="o">(</span>_find_dylib<span class="w"> </span>_name<span class="w"> </span>_is_required<span class="o">)</span>
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="w">         </span>find_library<span class="o">(</span>_found_<span class="si">${</span><span class="nv">_name</span><span class="si">}</span>
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="w">             </span>NAMES<span class="w"> </span><span class="si">${</span><span class="nv">_name</span><span class="si">}</span>
+<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>@@<span class="w"> </span>-313,21<span class="w"> </span>+318,30<span class="w"> </span>@@<span class="w"> </span><span class="k">if</span><span class="o">(</span>WITH_DYLIB<span class="o">)</span>
+<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a><span class="w">             </span>NO_DEFAULT_PATH
+<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a><span class="w">         </span><span class="o">)</span>
+<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a><span class="w">         </span><span class="k">if</span><span class="o">(</span>_found_<span class="si">${</span><span class="nv">_name</span><span class="si">}</span><span class="o">)</span>
+<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>-<span class="w">            </span>list<span class="o">(</span>APPEND<span class="w"> </span>DYLIBS<span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">_found_</span><span class="si">${</span><span class="nv">_name</span><span class="si">}}</span><span class="s2">&quot;</span><span class="o">)</span>
+<a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a>-<span class="w">            </span><span class="c1"># Install the soname file -- that&#39;s what @rpath / $ORIGIN references at runtime</span>
+<a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a>-<span class="w">            </span><span class="c1"># macOS soname format: libllama.0.dylib</span>
+<a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a>-<span class="w">            </span><span class="c1"># Linux soname format: libllama.so.0</span>
+<a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a>-<span class="w">            </span><span class="k">if</span><span class="o">(</span>APPLE<span class="o">)</span>
+<a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a>-<span class="w">                </span>file<span class="o">(</span>GLOB<span class="w"> </span>_soname<span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">LLAMACPP_DYLIB_DIR</span><span class="si">}</span><span class="s2">/lib</span><span class="si">${</span><span class="nv">_name</span><span class="si">}</span><span class="s2">.[0-9].</span><span class="si">${</span><span class="nv">_dylib_ext</span><span class="si">}</span><span class="s2">&quot;</span><span class="o">)</span>
+<a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a>-<span class="w">            </span><span class="k">else</span><span class="o">()</span>
+<a id="__codelineno-0-31" name="__codelineno-0-31" href="#__codelineno-0-31"></a>-<span class="w">                </span>file<span class="o">(</span>GLOB<span class="w"> </span>_soname<span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">LLAMACPP_DYLIB_DIR</span><span class="si">}</span><span class="s2">/lib</span><span class="si">${</span><span class="nv">_name</span><span class="si">}</span><span class="s2">.</span><span class="si">${</span><span class="nv">_dylib_ext</span><span class="si">}</span><span class="s2">.[0-9]&quot;</span><span class="o">)</span>
+<a id="__codelineno-0-32" name="__codelineno-0-32" href="#__codelineno-0-32"></a>-<span class="w">            </span>endif<span class="o">()</span>
+<a id="__codelineno-0-33" name="__codelineno-0-33" href="#__codelineno-0-33"></a>-<span class="w">            </span><span class="k">if</span><span class="o">(</span>_soname<span class="o">)</span>
+<a id="__codelineno-0-34" name="__codelineno-0-34" href="#__codelineno-0-34"></a>-<span class="w">                </span>list<span class="o">(</span>APPEND<span class="w"> </span>DYLIB_FILES<span class="w"> </span><span class="si">${</span><span class="nv">_soname</span><span class="si">}</span><span class="o">)</span>
+<a id="__codelineno-0-35" name="__codelineno-0-35" href="#__codelineno-0-35"></a>-<span class="w">            </span><span class="k">else</span><span class="o">()</span>
+<a id="__codelineno-0-36" name="__codelineno-0-36" href="#__codelineno-0-36"></a>+<span class="w">            </span><span class="c1"># Determine if this is a linkable shared lib or an install-only plugin.</span>
+<a id="__codelineno-0-37" name="__codelineno-0-37" href="#__codelineno-0-37"></a>+<span class="w">            </span><span class="c1"># On macOS, .so files are MH_BUNDLE (MODULE) and cannot be linked.</span>
+<a id="__codelineno-0-38" name="__codelineno-0-38" href="#__codelineno-0-38"></a>+<span class="w">            </span>get_filename_component<span class="o">(</span>_ext<span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">_found_</span><span class="si">${</span><span class="nv">_name</span><span class="si">}}</span><span class="s2">&quot;</span><span class="w"> </span>EXT<span class="o">)</span>
+<a id="__codelineno-0-39" name="__codelineno-0-39" href="#__codelineno-0-39"></a>+<span class="w">            </span><span class="k">if</span><span class="o">(</span>APPLE<span class="w"> </span>AND<span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">_ext</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span>STREQUAL<span class="w"> </span><span class="s2">&quot;.so&quot;</span><span class="o">)</span>
+<a id="__codelineno-0-40" name="__codelineno-0-40" href="#__codelineno-0-40"></a>+<span class="w">                </span><span class="c1"># Install-only: ship in the wheel for runtime dlopen, don&#39;t link</span>
+<a id="__codelineno-0-41" name="__codelineno-0-41" href="#__codelineno-0-41"></a><span class="w">                 </span>list<span class="o">(</span>APPEND<span class="w"> </span>DYLIB_FILES<span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">_found_</span><span class="si">${</span><span class="nv">_name</span><span class="si">}}</span><span class="s2">&quot;</span><span class="o">)</span>
+<a id="__codelineno-0-42" name="__codelineno-0-42" href="#__codelineno-0-42"></a>+<span class="w">                </span>message<span class="o">(</span>STATUS<span class="w"> </span><span class="s2">&quot;  Found backend plugin (install-only): </span><span class="si">${</span><span class="nv">_found_</span><span class="si">${</span><span class="nv">_name</span><span class="si">}}</span><span class="s2">&quot;</span><span class="o">)</span>
+<a id="__codelineno-0-43" name="__codelineno-0-43" href="#__codelineno-0-43"></a>+<span class="w">            </span><span class="k">else</span><span class="o">()</span>
+<a id="__codelineno-0-44" name="__codelineno-0-44" href="#__codelineno-0-44"></a>+<span class="w">                </span>list<span class="o">(</span>APPEND<span class="w"> </span>DYLIBS<span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">_found_</span><span class="si">${</span><span class="nv">_name</span><span class="si">}}</span><span class="s2">&quot;</span><span class="o">)</span>
+<a id="__codelineno-0-45" name="__codelineno-0-45" href="#__codelineno-0-45"></a>+<span class="w">    </span><span class="c1"># GGML_BACKEND_DL builds backends as CMake MODULE libraries which get a .s</span>
+<a id="__codelineno-0-46" name="__codelineno-0-46" href="#__codelineno-0-46"></a>o<span class="w"> </span>extension
+<a id="__codelineno-0-47" name="__codelineno-0-47" href="#__codelineno-0-47"></a>+<span class="w">    </span><span class="c1"># on macOS. These are dlopen&#39;d at runtime by ggml and must NOT be passed t</span>
+<a id="__codelineno-0-48" name="__codelineno-0-48" href="#__codelineno-0-48"></a>o<span class="w"> </span>the<span class="w"> </span>linker
+<a id="__codelineno-0-49" name="__codelineno-0-49" href="#__codelineno-0-49"></a>+<span class="w">    </span><span class="c1"># (the linker rejects MH_BUNDLE with &quot;unsupported mach-o filetype&quot;).</span>
+<a id="__codelineno-0-50" name="__codelineno-0-50" href="#__codelineno-0-50"></a><span class="w">     </span>macro<span class="o">(</span>_find_dylib<span class="w"> </span>_name<span class="w"> </span>_is_required<span class="o">)</span>
+<a id="__codelineno-0-51" name="__codelineno-0-51" href="#__codelineno-0-51"></a><span class="w">         </span>find_library<span class="o">(</span>_found_<span class="si">${</span><span class="nv">_name</span><span class="si">}</span>
+<a id="__codelineno-0-52" name="__codelineno-0-52" href="#__codelineno-0-52"></a><span class="w">             </span>NAMES<span class="w"> </span><span class="si">${</span><span class="nv">_name</span><span class="si">}</span>
+<a id="__codelineno-0-53" name="__codelineno-0-53" href="#__codelineno-0-53"></a>@@<span class="w"> </span>-313,21<span class="w"> </span>+318,30<span class="w"> </span>@@<span class="w"> </span><span class="k">if</span><span class="o">(</span>WITH_DYLIB<span class="o">)</span>
+<a id="__codelineno-0-54" name="__codelineno-0-54" href="#__codelineno-0-54"></a><span class="w">             </span>NO_DEFAULT_PATH
+<a id="__codelineno-0-55" name="__codelineno-0-55" href="#__codelineno-0-55"></a><span class="w">         </span><span class="o">)</span>
+<a id="__codelineno-0-56" name="__codelineno-0-56" href="#__codelineno-0-56"></a><span class="w">         </span><span class="k">if</span><span class="o">(</span>_found_<span class="si">${</span><span class="nv">_name</span><span class="si">}</span><span class="o">)</span>
+<a id="__codelineno-0-57" name="__codelineno-0-57" href="#__codelineno-0-57"></a>-<span class="w">            </span>list<span class="o">(</span>APPEND<span class="w"> </span>DYLIBS<span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">_found_</span><span class="si">${</span><span class="nv">_name</span><span class="si">}}</span><span class="s2">&quot;</span><span class="o">)</span>
+<a id="__codelineno-0-58" name="__codelineno-0-58" href="#__codelineno-0-58"></a>-<span class="w">            </span><span class="c1"># Install the soname file -- that&#39;s what @rpath / $ORIGIN referenc</span>
+<a id="__codelineno-0-59" name="__codelineno-0-59" href="#__codelineno-0-59"></a>es<span class="w"> </span>at<span class="w"> </span>runtime
+<a id="__codelineno-0-60" name="__codelineno-0-60" href="#__codelineno-0-60"></a>-<span class="w">            </span><span class="c1"># macOS soname format: libllama.0.dylib</span>
+<a id="__codelineno-0-61" name="__codelineno-0-61" href="#__codelineno-0-61"></a>-<span class="w">            </span><span class="c1"># Linux soname format: libllama.so.0</span>
+<a id="__codelineno-0-62" name="__codelineno-0-62" href="#__codelineno-0-62"></a>-<span class="w">            </span><span class="k">if</span><span class="o">(</span>APPLE<span class="o">)</span>
+<a id="__codelineno-0-63" name="__codelineno-0-63" href="#__codelineno-0-63"></a>-<span class="w">                </span>file<span class="o">(</span>GLOB<span class="w"> </span>_soname<span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">LLAMACPP_DYLIB_DIR</span><span class="si">}</span><span class="s2">/lib</span><span class="si">${</span><span class="nv">_name</span><span class="si">}</span><span class="s2">.[0-9].</span><span class="si">${</span><span class="nv">_</span>
+<a id="__codelineno-0-64" name="__codelineno-0-64" href="#__codelineno-0-64"></a><span class="p">dylib_ext</span><span class="si">}</span><span class="s2">&quot;</span><span class="o">)</span>
+<a id="__codelineno-0-65" name="__codelineno-0-65" href="#__codelineno-0-65"></a>-<span class="w">            </span><span class="k">else</span><span class="o">()</span>
+<a id="__codelineno-0-66" name="__codelineno-0-66" href="#__codelineno-0-66"></a>-<span class="w">                </span>file<span class="o">(</span>GLOB<span class="w"> </span>_soname<span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">LLAMACPP_DYLIB_DIR</span><span class="si">}</span><span class="s2">/lib</span><span class="si">${</span><span class="nv">_name</span><span class="si">}</span><span class="s2">.</span><span class="si">${</span><span class="nv">_dylib_</span>
+<a id="__codelineno-0-67" name="__codelineno-0-67" href="#__codelineno-0-67"></a><span class="p">ext</span><span class="si">}</span><span class="s2">.[0-9]&quot;</span><span class="o">)</span>
 </code></pre></div>
-<p>The v0.2.1 wheel works despite only containing sm_52 SASS because the PTX for sm_52 is JIT-compiled by the CUDA driver to sm_89 at runtime. This incurs a one-time startup cost but is functionally correct.</p>
-<h2 id="notes-on-ggml_avxggml_avx2etc-flags">Notes on <code>GGML_AVX</code>/<code>GGML_AVX2</code>/etc. flags<a class="headerlink" href="#notes-on-ggml_avxggml_avx2etc-flags" title="Permanent link">&para;</a></h2>
-<p>The explicit <code>GGML_AVX=OFF</code>, <code>GGML_AVX2=OFF</code>, <code>GGML_FMA=OFF</code>, <code>GGML_F16C=OFF</code>, <code>GGML_BMI2=OFF</code> flags added in the fix commits are still correct for <strong>portability</strong> — they prevent SIGILL crashes when the wheel runs on machines lacking those instruction sets. However, they are not the cause of or solution to the size regression. They should be kept for correctness, not for size.</p>
 
 
 

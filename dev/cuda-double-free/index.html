@@ -1,0 +1,2138 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="High-performance Python library for local AI inference">
+      
+      
+        <meta name="author" content="S. Alireza">
+      
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>CUDA double free or corruption (!prev) - cyllama</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#cuda-double-free-or-corruption-prev" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="cyllama" class="md-header__button md-logo" aria-label="cyllama" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            cyllama
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              CUDA double free or corruption (!prev)
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/shakfu/cyllama" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    shakfu/cyllama
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="cyllama" class="md-nav__button md-logo" aria-label="cyllama" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    cyllama
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/shakfu/cyllama" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    shakfu/cyllama
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../intro/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Introduction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quick Start
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../summary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Summary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Llama.cpp
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Llama.cpp
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user_guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cookbook/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cookbook
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../build_backends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build Backends
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../build_options/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Advanced Build Options
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../context_caching/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context Caching
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../server_usage_examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Server Usage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Whisper.cpp
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Whisper.cpp
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../whisper/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Whisper Integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stable Diffusion
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Stable Diffusion
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../stable_diffusion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stable Diffusion Integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agents
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Agents
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents_overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agent Framework
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_11" >
+        
+          
+          <label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RAG
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_11">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    RAG
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../rag_overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../rag_embedder/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Embedder
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../rag_vectorstore/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VectorStore
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../rag_text_processing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Text Processing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../rag_pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RAG Pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../rag_advanced/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Advanced Features
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_12" >
+        
+          
+          <label class="md-nav__link" for="__nav_12" id="__nav_12_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_12">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api_reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Summary
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#root-cause" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Root cause
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Root cause">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-excluding-only-cuda-runtime-libs-is-insufficient" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why excluding only CUDA runtime libs is insufficient
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-each-category-of-excludes-does" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What each category of excludes does
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-all-bundled-project-libs-must-be-excluded" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why all bundled project libs must be excluded
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-it-only-affects-cuda" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why it only affects CUDA
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#multiple-cuda-versions-installed-simultaneously" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multiple CUDA versions installed simultaneously
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Multiple CUDA versions installed simultaneously">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#diagnosing-version-mismatch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Diagnosing version mismatch
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-it-is-non-deterministic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why it is non-deterministic
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reproduction-matrix" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reproduction matrix
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#solutions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Solutions
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Solutions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-skip-auditwheel-repair-entirely" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Skip auditwheel repair entirely
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-exclude-bundled-libraries-from-auditwheel-repair" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. --exclude bundled libraries from auditwheel repair
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-auditwheel-addtag-instead-of-auditwheel-repair" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. auditwheel addtag instead of auditwheel repair
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-static-linking" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Static linking
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-explicit-python-level-cleanup-before-shutdown" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Explicit Python-level cleanup before shutdown
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6-rtld_nodelete-on-the-cuda-linked-library" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. RTLD_NODELETE on the CUDA-linked library
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#7-do-nothing-document-the-issue" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Do nothing, document the issue
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rpath-hardening" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RPATH hardening
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="RPATH hardening">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#user-side-mitigation-for-multi-version-cuda-systems" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        User-side mitigation for multi-version CUDA systems
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#recommendation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Recommendation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Recommendation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#applies-to-all-gpu-backends-not-just-cuda" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Applies to all GPU backends, not just CUDA
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#installed-wheel-structure-027-cp312-exclude-build" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Installed wheel structure (0.2.7, cp312, --exclude build)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#runtime-validation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Runtime validation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#test-workflow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Test workflow
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#references" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        References
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="cuda-double-free-or-corruption-prev">CUDA double free or corruption (!prev)<a class="headerlink" href="#cuda-double-free-or-corruption-prev" title="Permanent link">&para;</a></h1>
+<h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
+<p>Dynamic-linked CUDA wheels (<code>WITH_DYLIB=1</code>) crash with <code>double free or corruption (!prev)</code> during Python interpreter shutdown. The crash is non-deterministic and only affects wheels processed by <code>auditwheel repair</code>.</p>
+<p>This issue is <strong>Linux-specific</strong>. The entire chain -- <code>auditwheel repair</code>, <code>patchelf</code> SONAME rewriting, glibc <code>dlclose</code> unload ordering -- only exists on Linux. macOS and Windows are not affected:</p>
+<ul>
+<li><strong>macOS</strong> uses <code>delocate</code> for wheel repair, which rewrites Mach-O load commands via <code>install_name_tool</code> rather than ELF SONAME headers. <code>delocate</code> does not alter the dyld unload order in the way that triggers this crash. macOS wheels have their own issues (e.g. duplicate OpenMP runtimes causing segfaults when co-installed with PyTorch -- see <a href="https://github.com/lightgbm-org/LightGBM/issues/6595">LightGBM#6595</a>), but those are a different problem with different root causes.</li>
+<li><strong>Windows</strong> uses no wheel repair tool. DLLs are bundled as-is with no SONAME equivalent to rewrite, and the Windows loader does not have the same unload-ordering sensitivity as glibc's <code>dlclose</code>.</li>
+</ul>
+<p>First observed against commit <code>36db368</code>. The initial fix attempted Python-level cleanup before shutdown, but this caused instability on the Metal backend as well. Reverted in <code>fb522c8</code>.</p>
+<h2 id="root-cause">Root cause<a class="headerlink" href="#root-cause" title="Permanent link">&para;</a></h2>
+<p>The issue is caused by <code>auditwheel repair</code>, specifically its use of <code>patchelf</code> to rewrite ELF SONAME headers on bundled shared libraries.</p>
+<p>During repair, auditwheel:</p>
+<ol>
+<li>Copies bundled <code>.so</code> files (<code>libllama.so</code>, <code>libggml-cuda.so</code>, etc.) into <code>cyllama.libs/</code></li>
+<li>Renames them with hash suffixes (e.g., <code>libllama-91896a1c.so.0.0.1</code>)</li>
+<li>Rewrites their ELF SONAME headers via <code>patchelf</code> so the dynamic linker resolves the renamed copies</li>
+</ol>
+<p>The SONAME rewrite changes the dependency graph that glibc's dynamic linker uses to determine <code>dlclose</code> unload ordering. CUDA's runtime (<code>libcudart</code>) registers internal <code>atexit</code> handlers during initialization. When Python shuts down, the altered unload order can cause CUDA's handlers to fire after the memory they reference (in <code>libggml-cuda.so</code>) has already been unmapped.</p>
+<p>The primary suspect is the SONAME rewrite on <code>libggml-cuda.so</code> specifically, since it is the library that links directly against <code>libcudart</code> and whose unload ordering relative to CUDA's atexit handlers matters. However, this has not been isolated -- the validated fix excludes all bundled project libs at once. See <a href="#open-question-minimal-exclude-set">Open question: minimal exclude set</a> below.</p>
+<h3 id="why-excluding-only-cuda-runtime-libs-is-insufficient">Why excluding only CUDA runtime libs is insufficient<a class="headerlink" href="#why-excluding-only-cuda-runtime-libs-is-insufficient" title="Permanent link">&para;</a></h3>
+<p>The original CI workflow already excluded the CUDA runtime system libraries (<code>libcuda.so.1</code>, <code>libcudart.so.12</code>, <code>libcublas.so.12</code>, <code>libcublasLt.so.12</code>) from <code>auditwheel repair</code>. <strong>The double-free still occurred.</strong> This is because those excludes only prevent auditwheel from bundling the CUDA SDK -- they do not prevent it from SONAME-rewriting the project's own bundled libraries.</p>
+<p>With only runtime excludes, auditwheel still:</p>
+<ol>
+<li>Copies <code>libggml-cuda.so</code>, <code>libllama.so.0</code>, etc. from <code>cyllama/llama/</code> into <code>cyllama_cuda12.libs/</code></li>
+<li>Renames them with hash suffixes (e.g., <code>libggml-cuda-3e3d7523.so</code>)</li>
+<li>Rewrites their SONAME headers</li>
+</ol>
+<p>This SONAME rewrite on <code>libggml-cuda.so</code> (and possibly the other bundled libs -- see open question below) alters the <code>dlclose</code> unload graph, triggering the crash. The fix requires excluding the bundled project libs from auditwheel's relocation, in addition to the runtime system libs.</p>
+<h3 id="what-each-category-of-excludes-does">What each category of excludes does<a class="headerlink" href="#what-each-category-of-excludes-does" title="Permanent link">&para;</a></h3>
+<p>The <code>--exclude</code> flags serve two distinct purposes:</p>
+<p><strong>GPU runtime system libs</strong> (e.g., <code>libcuda.so.1</code>, <code>libcudart.so.12</code>, <code>libcublas.so.12</code>): These are system-installed libraries that the wheel should never bundle. Excluding them ensures the user's own CUDA installation is used at runtime, avoiding version conflicts. This is the same approach used by PyTorch and CuPy. Note: excluding these alone does <strong>not</strong> fix the double-free.</p>
+<p><strong>Bundled project libs</strong> (e.g., <code>libllama.so.0</code>, <code>libggml-cuda.so</code>, <code>libggml.so.0</code>, <code>libmtmd.so.0</code>): These are already placed in <code>cyllama/llama/</code> by the build system with correct <code>$ORIGIN</code> RPATHs. Excluding them prevents auditwheel from relocating them to <code>cyllama_cuda12.libs/</code> and SONAME-rewriting them. This is where the double-free fix actually lies -- though it is not yet known whether all of these need to be excluded or only <code>libggml-cuda.so</code>.</p>
+<p><strong><code>libgomp.so.1</code></strong> (GCC OpenMP runtime): A system library linked by <code>libggml-cpu.so</code>. Without excluding it, auditwheel bundles a private, SONAME-renamed copy. This can conflict with other packages (PyTorch, NumPy) that load the system's libgomp in the same process -- see <a href="https://github.com/lightgbm-org/LightGBM/issues/6595">LightGBM#6595</a>.</p>
+<h3 id="why-all-bundled-project-libs-must-be-excluded">Why all bundled project libs must be excluded<a class="headerlink" href="#why-all-bundled-project-libs-must-be-excluded" title="Permanent link">&para;</a></h3>
+<p>It might seem that only <code>libggml-cuda.so</code> needs to be excluded (since it's the only bundled lib that links directly against <code>libcudart</code>). However, a minimal exclude test (runtime libs + <code>libggml-cuda.so</code> only) revealed that <strong>auditwheel refuses to produce a wheel</strong> unless all bundled project libs are excluded:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>auditwheel: error: cannot repair &quot;cyllama_cuda12-0.2.7-cp312-cp312-linux_x86_64.whl&quot;
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>to &quot;manylinux_2_35_x86_64&quot; ABI because of the presence of too-recent versioned symbols.
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>You&#39;ll need to compile the wheel on an older toolchain.
+</code></pre></div>
+<p>When <code>libggml-cuda.so</code> alone is excluded, auditwheel attempts to relocate the remaining bundled libs (<code>libllama.so.0</code>, <code>libggml.so.0</code>, <code>libggml-base.so.0</code>, <code>libggml-cpu.so</code>, <code>libmtmd.so.0</code>, <code>libgomp.so.1</code>). These libs contain glibc symbols newer than what the <code>manylinux_2_35</code> policy allows, so auditwheel aborts. When <strong>all</strong> bundled libs are excluded, auditwheel has nothing to relocate and simply stamps the manylinux tag -- it never inspects the symbol versions.</p>
+<p>This means the full exclude list is not just precautionary -- it is <strong>required</strong> for the repair step to succeed. It is also not possible to isolate whether <code>libggml-cuda.so</code> is the sole double-free trigger via <code>--exclude</code>, since auditwheel won't produce a partially-excluded wheel. (Isolating the trigger would require manually running <code>patchelf</code> on individual libs in an otherwise-unrepaired wheel, which is not worth the effort given that the full exclude approach works and has no downsides.)</p>
+<h3 id="why-it-only-affects-cuda">Why it only affects CUDA<a class="headerlink" href="#why-it-only-affects-cuda" title="Permanent link">&para;</a></h3>
+<p>Vulkan wheels go through the same <code>auditwheel repair</code> process on their bundled llama/ggml libs and do not crash. The difference is that CUDA's runtime manages teardown via <code>atexit</code> handlers registered internally by <code>libcudart</code>. Vulkan cleanup is explicit (the application calls <code>vkDestroy*</code> functions), so unload ordering is irrelevant. ROCm and SYCL have not been tested but may exhibit similar issues if their runtimes use atexit-based teardown.</p>
+<h3 id="multiple-cuda-versions-installed-simultaneously">Multiple CUDA versions installed simultaneously<a class="headerlink" href="#multiple-cuda-versions-installed-simultaneously" title="Permanent link">&para;</a></h3>
+<p>When a system has multiple CUDA toolkit versions installed (e.g. CUDA 12 and CUDA 13), the dynamic linker may resolve <code>libcudart.so</code> to a different major version than the one the wheel was built against. This causes the same double-free symptom through a different mechanism:</p>
+<ol>
+<li>The wheel's bundled <code>libggml-cuda.so</code> is linked against CUDA 12 (built with <code>cuda-12.4</code>)</li>
+<li>At runtime, the dynamic linker resolves <code>libcudart.so</code> to the CUDA 13 version from the system, depending on <code>LD_LIBRARY_PATH</code> ordering and ldconfig priority</li>
+<li>The mismatched runtime initializes its own internal atexit handlers with different memory layout assumptions</li>
+<li>On shutdown, the CUDA 13 teardown attempts to free structures allocated by CUDA 12 conventions (or vice versa), triggering the double-free</li>
+</ol>
+<p>This is a well-documented pattern in the CUDA ecosystem. PyTorch, CuPy, and other projects that ship CUDA wheels use <code>--exclude</code> to avoid bundling CUDA runtime libraries for exactly this reason -- letting the system provide a single consistent CUDA installation. However, <code>--exclude</code> alone does not prevent the issue when multiple system CUDA versions coexist and the linker picks the wrong one.</p>
+<h4 id="diagnosing-version-mismatch">Diagnosing version mismatch<a class="headerlink" href="#diagnosing-version-mismatch" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Check which libcudart is actually loaded at runtime</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nv">LD_DEBUG</span><span class="o">=</span>libs<span class="w"> </span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;from cyllama.llama import llama_cpp&quot;</span><span class="w"> </span><span class="m">2</span>&gt;<span class="p">&amp;</span><span class="m">1</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>cudart
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="c1"># List all CUDA runtime versions available on the system</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>ldconfig<span class="w"> </span>-p<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>cudart
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="c1"># Check the version the extension was linked against</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>ldd<span class="w"> </span><span class="k">$(</span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import cyllama.llama.llama_cpp as m; print(m.__file__)&quot;</span><span class="k">)</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>cudart
+</code></pre></div>
+<p>If the loaded version differs from the linked version, the mismatch is confirmed. The user-side fix is to ensure <code>LD_LIBRARY_PATH</code> or the linker configuration (<code>/etc/ld.so.conf.d/</code>) prioritizes the CUDA version matching the wheel.</p>
+<h3 id="why-it-is-non-deterministic">Why it is non-deterministic<a class="headerlink" href="#why-it-is-non-deterministic" title="Permanent link">&para;</a></h3>
+<p>Several factors vary between runs:</p>
+<ul>
+<li><strong>ASLR</strong> randomizes library mapping addresses, which affects whether a double-free hits unmapped memory (segfault) vs. still-valid memory (silent or no error)</li>
+<li><strong><code>dlclose</code> ordering</strong> depends on the full set of loaded shared objects, which varies with installed packages (numpy, etc.) and load timing</li>
+<li><strong>CUDA runtime state</strong> depends on what GPU operations actually ran. Import-only tests may exit cleanly because CUDA never fully initialized its teardown hooks</li>
+<li><strong>Python GC timing</strong> determines whether Cython destructors run before or during interpreter shutdown. If contexts are freed before shutdown starts, the <code>dlclose</code> race is avoided</li>
+<li><strong>Multiple CUDA versions</strong> on the same system change which <code>libcudart.so</code> the linker resolves, varying the atexit handler behavior depending on environment variable ordering and ldconfig state</li>
+</ul>
+<h3 id="reproduction-matrix">Reproduction matrix<a class="headerlink" href="#reproduction-matrix" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Build method</th>
+<th>Runtime environment</th>
+<th>Clean exit?</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>uv build --wheel</code> static (no <code>WITH_DYLIB</code>)</td>
+<td>Any</td>
+<td>Yes</td>
+<td>No shared libs to relocate</td>
+</tr>
+<tr>
+<td><code>uv build --wheel</code> <code>WITH_DYLIB=1</code>, no auditwheel</td>
+<td>Matching CUDA</td>
+<td>Yes</td>
+<td>No SONAME rewriting</td>
+</tr>
+<tr>
+<td><code>uv build --wheel</code> <code>WITH_DYLIB=1</code> + <code>auditwheel repair</code> (no excludes)</td>
+<td>Single CUDA version</td>
+<td>No</td>
+<td>auditwheel rewrites all bundled libs</td>
+</tr>
+<tr>
+<td><code>uv build --wheel</code> <code>WITH_DYLIB=1</code> + <code>auditwheel repair</code> (runtime excludes only)</td>
+<td>Single CUDA version</td>
+<td>No</td>
+<td>auditwheel still rewrites bundled project libs</td>
+</tr>
+<tr>
+<td><code>uv build --wheel</code> <code>WITH_DYLIB=1</code> + <code>auditwheel repair</code> (runtime + <code>libggml-cuda.so</code> only)</td>
+<td>N/A</td>
+<td>N/A</td>
+<td>auditwheel refuses: remaining libs have too-recent glibc symbols for manylinux_2_35</td>
+</tr>
+<tr>
+<td><code>uv build --wheel</code> <code>WITH_DYLIB=1</code> + <code>auditwheel repair</code> (runtime + all bundled excludes)</td>
+<td>Matching CUDA</td>
+<td>Yes</td>
+<td>Validated fix</td>
+</tr>
+<tr>
+<td><code>uv build --wheel</code> <code>WITH_DYLIB=1</code> + <code>auditwheel repair</code> (runtime + all bundled excludes)</td>
+<td>Mismatched CUDA version</td>
+<td>No</td>
+<td>CUDA version mismatch, different root cause</td>
+</tr>
+</tbody>
+</table>
+<h2 id="solutions">Solutions<a class="headerlink" href="#solutions" title="Permanent link">&para;</a></h2>
+<p>Seven approaches are described below, ordered from most recommended to least.</p>
+<h3 id="1-skip-auditwheel-repair-entirely">1. Skip <code>auditwheel repair</code> entirely<a class="headerlink" href="#1-skip-auditwheel-repair-entirely" title="Permanent link">&para;</a></h3>
+<p>Set <code>CIBW_REPAIR_WHEEL_COMMAND_LINUX: ""</code> so cibuildwheel skips the repair step. The wheel keeps its <code>linux_x86_64</code> platform tag. No SONAME rewriting, no library relocation, no <code>dlclose</code> ordering changes.</p>
+<p><strong>Pros:</strong></p>
+<ul>
+<li>Eliminates the entire class of SONAME-rewriting bugs</li>
+<li>No exclude list to maintain</li>
+<li>One-line change</li>
+</ul>
+<p><strong>Cons:</strong></p>
+<ul>
+<li>The wheel gets a <code>linux_x86_64</code> tag instead of <code>manylinux</code>, which pip may refuse to install on some systems and PyPI will reject for upload</li>
+<li>Only viable for self-hosted wheel indexes or direct installation</li>
+</ul>
+<p><strong>Status:</strong> Validated. The test workflow at <code>.github/workflows/test-cuda-wheel.yml</code> includes a no-repair strategy that produces an identical wheel (in content) to the <code>--exclude</code> strategy, differing only in the platform tag.</p>
+<h3 id="2-exclude-bundled-libraries-from-auditwheel-repair">2. <code>--exclude</code> bundled libraries from auditwheel repair<a class="headerlink" href="#2-exclude-bundled-libraries-from-auditwheel-repair" title="Permanent link">&para;</a></h3>
+<p>Add <code>--exclude</code> flags for <strong>both</strong> GPU runtime system libs and bundled project libs so auditwheel leaves them all untouched (no relocation, no SONAME rewrite). The only work auditwheel performs is stamping the manylinux platform tag.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># CUDA example -- other backends substitute their own runtime libs</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="c1"># and backend-specific ggml lib (libggml-hip.so, libggml-vulkan.so, etc.)</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="nt">CIBW_REPAIR_WHEEL_COMMAND_LINUX</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">&gt;</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">  </span><span class="no">auditwheel repair -w {dest_dir} {wheel}</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">  </span><span class="no">--plat manylinux_2_35_x86_64</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">  </span><span class="no">--exclude libcuda.so.1</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">  </span><span class="no">--exclude libcudart.so.12</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">  </span><span class="no">--exclude libcublas.so.12</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="w">  </span><span class="no">--exclude libcublasLt.so.12</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="w">  </span><span class="no">--exclude libllama.so.0</span>
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="w">  </span><span class="no">--exclude libggml.so.0</span>
+<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="w">  </span><span class="no">--exclude libggml-base.so.0</span>
+<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="w">  </span><span class="no">--exclude libggml-cuda.so</span>
+<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a><span class="w">  </span><span class="no">--exclude libggml-cpu.so</span>
+<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a><span class="w">  </span><span class="no">--exclude libmtmd.so.0</span>
+<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a><span class="w">  </span><span class="no">--exclude libgomp.so.1</span>
+</code></pre></div>
+<p>The exclude list has two categories:</p>
+<ul>
+<li><strong>GPU runtime system libs</strong> (<code>libcuda*</code>, <code>libcublas*</code>): Prevents auditwheel from bundling system-installed CUDA libraries. The user's own CUDA installation is used at runtime. Excluding these alone does not fix the double-free.</li>
+<li><strong>Bundled project libs</strong> (<code>libllama*</code>, <code>libggml*</code>, <code>libmtmd*</code>) and <strong><code>libgomp.so.1</code></strong>: Prevents auditwheel from relocating and SONAME-rewriting libraries that the build system already placed in <code>cyllama/llama/</code> with correct <code>$ORIGIN</code> RPATHs. This is where the double-free fix lies. All bundled project libs must be excluded -- auditwheel refuses to produce a wheel if any non-excluded libs contain glibc symbols too recent for the target manylinux policy (see <a href="#why-all-bundled-project-libs-must-be-excluded">why all bundled project libs must be excluded</a>).</li>
+</ul>
+<p><strong>Pros:</strong></p>
+<ul>
+<li>Directly addresses the root cause (SONAME rewriting of bundled project libs)</li>
+<li>Produces a manylinux-tagged wheel that pip and PyPI accept</li>
+<li>Validated in the reproduction matrix and on hardware (RTX 4060)</li>
+<li>Zero runtime cost</li>
+</ul>
+<p><strong>Cons:</strong></p>
+<ul>
+<li>Maintenance burden: every new upstream <code>.so</code> (new ggml backend, new library) requires a new <code>--exclude</code> line. Missing one will cause auditwheel to fail (too-recent glibc symbols) or, if the symbols happen to pass the policy check, reintroduce the SONAME rewriting</li>
+<li>Weaker manylinux compliance: trusts the build's RPATHs rather than auditwheel's relocation guarantees</li>
+</ul>
+<p><strong>Status:</strong> Validated. Applied to all GPU variants in <code>.github/workflows/build-gpu-wheels2.yml</code>. Test workflow at <code>.github/workflows/test-cuda-wheel.yml</code>.</p>
+<h3 id="3-auditwheel-addtag-instead-of-auditwheel-repair">3. <code>auditwheel addtag</code> instead of <code>auditwheel repair</code><a class="headerlink" href="#3-auditwheel-addtag-instead-of-auditwheel-repair" title="Permanent link">&para;</a></h3>
+<p>Replace <code>auditwheel repair</code> entirely with <code>auditwheel addtag</code>, which stamps the <code>manylinux</code> platform tag on the wheel without copying, renaming, or patching any libraries.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nt">CIBW_REPAIR_WHEEL_COMMAND_LINUX</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">&gt;</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span><span class="no">auditwheel addtag -w {dest_dir} {wheel}</span>
+</code></pre></div>
+<p>The build already places libraries under <code>cyllama/llama/</code> with correct RPATHs, so auditwheel's relocation is unnecessary.</p>
+<p><strong>Pros:</strong></p>
+<ul>
+<li>Eliminates the entire class of SONAME-rewriting bugs</li>
+<li>No exclude list to maintain</li>
+<li>One-line change</li>
+</ul>
+<p><strong>Cons:</strong></p>
+<ul>
+<li><code>addtag</code> refuses if the wheel doesn't already meet the target manylinux policy; verify with <code>auditwheel show</code> first</li>
+<li>If any non-bundled system libs genuinely need vendoring (unlikely for this project), they won't be</li>
+<li>Requires auditwheel &gt;= 6.0. Stock manylinux2014 and manylinux_2_28 images ship older versions that do not include <code>addtag</code> (available commands: <code>show</code>, <code>repair</code>, <code>lddtree</code>). Must upgrade auditwheel in the container first (e.g. <code>pip install 'auditwheel&gt;=6.0'</code> in <code>CIBW_BEFORE_BUILD</code>)</li>
+</ul>
+<p><strong>Status:</strong> Not viable with current CI images. The manylinux containers used in CI do not ship auditwheel &gt;= 6.0, and the <code>addtag</code> subcommand is not available. Upgrading auditwheel in-container is possible but adds complexity for no benefit over <code>--exclude</code>.</p>
+<h3 id="4-static-linking">4. Static linking<a class="headerlink" href="#4-static-linking" title="Permanent link">&para;</a></h3>
+<p>Build with <code>WITH_DYLIB=0</code> so llama.cpp/ggml are statically linked into the Cython extension <code>.so</code>. No shared libraries to relocate, no <code>dlclose</code> ordering, no SONAME rewriting.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nt">CIBW_ENVIRONMENT_LINUX</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">&gt;</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="no">WITH_DYLIB=0</span>
+</code></pre></div>
+<p><strong>Pros:</strong></p>
+<ul>
+<li>Simplest possible fix -- no auditwheel complexity at all</li>
+<li>Single <code>.so</code> extension file with no dependency graph</li>
+<li>Already validated: static builds exit cleanly in the reproduction matrix</li>
+</ul>
+<p><strong>Cons:</strong></p>
+<ul>
+<li>Larger wheel size: each Cython extension (llama, whisper, sd) embeds its own copy of ggml</li>
+<li>Cannot share loaded libraries across extensions at runtime</li>
+<li>May break if CUDA expects to <code>dlopen</code> ggml backends dynamically at runtime</li>
+<li>The project already offers both link modes; this would mean abandoning dynamic linking for CUDA</li>
+</ul>
+<p><strong>Status:</strong> Known to work. Already the default for non-GPU wheels.</p>
+<h3 id="5-explicit-python-level-cleanup-before-shutdown">5. Explicit Python-level cleanup before shutdown<a class="headerlink" href="#5-explicit-python-level-cleanup-before-shutdown" title="Permanent link">&para;</a></h3>
+<p>Register a Python <code>atexit</code> handler that tears down native state before the interpreter starts unloading modules.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># In cyllama/__init__.py or the CUDA backend init path</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">atexit</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="kn">import</span><span class="w"> </span><span class="nn">gc</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="k">def</span><span class="w"> </span><span class="nf">_cuda_cleanup</span><span class="p">():</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>    <span class="n">gc</span><span class="o">.</span><span class="n">collect</span><span class="p">()</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>    <span class="c1"># If exposed: llama_backend_free()</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="n">atexit</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">_cuda_cleanup</span><span class="p">)</span>
+</code></pre></div>
+<p><strong>Pros:</strong></p>
+<ul>
+<li>Doesn't touch the build system at all</li>
+<li>Works with unmodified auditwheel</li>
+</ul>
+<p><strong>Cons:</strong></p>
+<ul>
+<li>Fragile. Python's <code>atexit</code> execution order is not guaranteed relative to extension module <code>__del__</code> methods or module <code>__del__</code> cleanup</li>
+<li>Races against the same non-determinism that causes the bug -- may reduce crash frequency without eliminating it</li>
+<li>Requires that all native contexts are freed during the <code>gc.collect()</code> call, which depends on no circular references holding them alive</li>
+<li>Does not fix the underlying <code>dlclose</code> ordering problem</li>
+</ul>
+<p><strong>Status:</strong> Untested. Not recommended as a primary fix due to inherent fragility.</p>
+<h3 id="6-rtld_nodelete-on-the-cuda-linked-library">6. <code>RTLD_NODELETE</code> on the CUDA-linked library<a class="headerlink" href="#6-rtld_nodelete-on-the-cuda-linked-library" title="Permanent link">&para;</a></h3>
+<p>Mark <code>libggml-cuda.so</code> so the dynamic linker never unloads it, ensuring CUDA's atexit handlers always find valid memory.</p>
+<p>From C (in a Cython init path):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">dlopen</span><span class="p">(</span><span class="s">&quot;libggml-cuda.so&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">RTLD_NOW</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">RTLD_NODELETE</span><span class="p">);</span>
+</code></pre></div>
+<p>Or from Python:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">ctypes</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="n">ctypes</span><span class="o">.</span><span class="n">CDLL</span><span class="p">(</span><span class="s2">&quot;libggml-cuda.so&quot;</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="n">ctypes</span><span class="o">.</span><span class="n">RTLD_GLOBAL</span> <span class="o">|</span> <span class="mh">0x1000</span><span class="p">)</span>  <span class="c1"># RTLD_NODELETE</span>
+</code></pre></div>
+<p><strong>Pros:</strong></p>
+<ul>
+<li>Surgically prevents the specific unload-ordering bug</li>
+<li>The library stays mapped until process exit, so CUDA's atexit handlers always find valid memory</li>
+<li>No build system changes required</li>
+</ul>
+<p><strong>Cons:</strong></p>
+<ul>
+<li>Library memory is never reclaimed (minor, since the process is exiting anyway)</li>
+<li>Requires knowing the exact <code>.so</code> path, which differs after auditwheel renames it</li>
+<li>Platform-specific: <code>RTLD_NODELETE</code> is a Linux/glibc feature</li>
+<li>Obscure: future maintainers won't immediately understand why a manual <code>dlopen</code> with unusual flags exists</li>
+</ul>
+<p><strong>Status:</strong> Untested. Viable as a targeted fix if build-system changes are undesirable.</p>
+<h3 id="7-do-nothing-document-the-issue">7. Do nothing, document the issue<a class="headerlink" href="#7-do-nothing-document-the-issue" title="Permanent link">&para;</a></h3>
+<p>Ship the wheel as-is and document the crash as a known issue.</p>
+<p><strong>Pros:</strong></p>
+<ul>
+<li>Zero effort</li>
+</ul>
+<p><strong>Cons:</strong></p>
+<ul>
+<li>The crash manifests as a segfault or glibc abort on interpreter exit with no actionable error message</li>
+<li>Users cannot reasonably diagnose or work around it</li>
+<li>Undermines confidence in the CUDA wheel</li>
+</ul>
+<p><strong>Status:</strong> Not recommended.</p>
+<h2 id="rpath-hardening">RPATH hardening<a class="headerlink" href="#rpath-hardening" title="Permanent link">&para;</a></h2>
+<p>The project's shared libraries use <code>$ORIGIN</code>-relative RPATHs to resolve bundled dependencies:</p>
+<table>
+<thead>
+<tr>
+<th>Extension location</th>
+<th>INSTALL_RPATH</th>
+<th>Resolves to</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>cyllama/llama/llama_cpp.so</code></td>
+<td><code>$ORIGIN</code></td>
+<td><code>cyllama/llama/</code></td>
+</tr>
+<tr>
+<td><code>cyllama/whisper/whisper_cpp.so</code></td>
+<td><code>$ORIGIN/../llama</code></td>
+<td><code>cyllama/llama/</code></td>
+</tr>
+<tr>
+<td><code>cyllama/sd/stable_diffusion.so</code></td>
+<td><code>$ORIGIN/../llama</code></td>
+<td><code>cyllama/llama/</code></td>
+</tr>
+</tbody>
+</table>
+<p>This ensures the bundled project libraries (<code>libllama.so.0</code>, <code>libggml-base.so.0</code>, <code>libggml-cpu.so</code>, etc.) in <code>cyllama/llama/</code> are always found before any system copies.</p>
+<p>However, CUDA system libraries (<code>libcudart.so.12</code>, <code>libcublas.so.12</code>, <code>libcublasLt.so.12</code>) are <strong>not bundled</strong> in the wheel (excluded via <code>--exclude</code>). They are resolved entirely by the system dynamic linker's default search order: <code>LD_LIBRARY_PATH</code>, then <code>RUNPATH</code>/<code>RPATH</code>, then <code>/etc/ld.so.conf</code>, then <code>/lib</code> and <code>/usr/lib</code>. There is no way to harden RPATH for libraries the wheel does not ship.</p>
+<p>This is the same model used by PyTorch (<code>torch</code>), CuPy, and other CUDA wheels -- CUDA runtime libraries are a system dependency because:</p>
+<ul>
+<li>The user must have a compatible GPU driver installed regardless (a system-level dependency)</li>
+<li>CUDA's forward-compatibility model ties the runtime to the driver version</li>
+<li>Bundling CUDA libs causes version conflicts when other packages (PyTorch, etc.) bundle different versions</li>
+</ul>
+<h3 id="user-side-mitigation-for-multi-version-cuda-systems">User-side mitigation for multi-version CUDA systems<a class="headerlink" href="#user-side-mitigation-for-multi-version-cuda-systems" title="Permanent link">&para;</a></h3>
+<p>When multiple CUDA toolkit versions are installed, users must ensure the correct version is found first:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># Option 1: Set LD_LIBRARY_PATH to prefer the matching CUDA version</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">LD_LIBRARY_PATH</span><span class="o">=</span>/usr/local/cuda-12.4/lib64:<span class="nv">$LD_LIBRARY_PATH</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="c1"># Option 2: Use update-alternatives to set the default CUDA version</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>sudo<span class="w"> </span>update-alternatives<span class="w"> </span>--set<span class="w"> </span>cuda<span class="w"> </span>/usr/local/cuda-12.4
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="c1"># Option 3: Configure ldconfig to prioritize the correct version</span>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;/usr/local/cuda-12.4/lib64&quot;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>sudo<span class="w"> </span>tee<span class="w"> </span>/etc/ld.so.conf.d/cuda-12.conf
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>sudo<span class="w"> </span>ldconfig
+</code></pre></div>
+<h2 id="recommendation">Recommendation<a class="headerlink" href="#recommendation" title="Permanent link">&para;</a></h2>
+<p>Use <strong>solution 2</strong> (<code>--exclude</code> with both runtime and bundled project libs). It is validated, produces manylinux-tagged wheels, and works with the auditwheel version shipped in stock manylinux containers.</p>
+<p>The <code>--exclude</code> list must include <strong>both categories</strong>:</p>
+<ol>
+<li>GPU runtime system libs (backend-specific: <code>libcuda*</code>, <code>libamdhip*</code>, <code>libsycl*</code>, <code>libvulkan*</code>, etc.)</li>
+<li>Bundled project libs (<code>libllama.so.0</code>, <code>libggml*.so</code>, <code>libmtmd.so.0</code>) and <code>libgomp.so.1</code></li>
+</ol>
+<p>Excluding only the runtime libs (category 1) is insufficient -- the double-free persisted with the original CI workflow that excluded only <code>libcuda.so.1</code>, <code>libcudart.so.12</code>, <code>libcublas.so.12</code>, and <code>libcublasLt.so.12</code>. The SONAME rewrite on the bundled project libs (particularly <code>libggml-cuda.so</code>) is the actual trigger.</p>
+<p>All bundled project libs must be excluded -- not just <code>libggml-cuda.so</code>. A minimal exclude test (runtime libs + <code>libggml-cuda.so</code> only) showed that auditwheel refuses to process the remaining bundled libs because they contain glibc symbols too recent for the <code>manylinux_2_35</code> policy. The full exclude list is the only viable configuration.</p>
+<h3 id="applies-to-all-gpu-backends-not-just-cuda">Applies to all GPU backends, not just CUDA<a class="headerlink" href="#applies-to-all-gpu-backends-not-just-cuda" title="Permanent link">&para;</a></h3>
+<p>Although the double-free crash was first observed with CUDA, the <code>--exclude</code> approach applies equally to Vulkan, ROCm, SYCL, and any future GPU backend. The reasoning is backend-agnostic:</p>
+<ol>
+<li><strong>The build already handles library placement.</strong> All bundled <code>.so</code> files are placed in <code>cyllama/llama/</code> with correct <code>$ORIGIN</code> RPATHs. auditwheel's relocation machinery adds no value.</li>
+<li><strong>SONAME rewriting is actively harmful for CUDA, and unnecessary for others.</strong> It alters the <code>dlclose</code> unload ordering that glibc uses, which is the root cause of the CUDA crash. Any backend whose runtime registers <code>atexit</code> handlers (CUDA does; ROCm and SYCL may) is vulnerable.</li>
+<li><strong>Vulkan wheels are affected too, just silently.</strong> Vulkan uses explicit cleanup (<code>vkDestroy*</code>) rather than <code>atexit</code>, so the altered unload order doesn't cause a crash. But the unnecessary relocation still occurs, and the SONAME-renamed libraries serve no purpose.</li>
+<li><strong>libgomp bundling is cross-backend.</strong> Any GPU variant that links against OpenMP (which ggml uses for CPU threading) will have auditwheel bundle a private, SONAME-renamed copy of <code>libgomp.so.1</code>. This can conflict with other packages (PyTorch, NumPy) that load the system's libgomp in the same process -- see <a href="https://github.com/lightgbm-org/LightGBM/issues/6595">LightGBM#6595</a>.</li>
+</ol>
+<p>The full <code>--exclude</code> list per backend (runtime libs vary, bundled project libs are the same):</p>
+<table>
+<thead>
+<tr>
+<th>Backend</th>
+<th>Runtime system lib excludes</th>
+<th>Bundled project lib excludes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CUDA</td>
+<td><code>libcuda.so.1</code>, <code>libcudart.so.12</code>, <code>libcublas.so.12</code>, <code>libcublasLt.so.12</code></td>
+<td><code>libllama.so.0</code>, <code>libggml.so.0</code>, <code>libggml-base.so.0</code>, <code>libggml-cuda.so</code>, <code>libggml-cpu.so</code>, <code>libmtmd.so.0</code>, <code>libgomp.so.1</code></td>
+</tr>
+<tr>
+<td>ROCm</td>
+<td><code>libamdhip64.so.6</code>, <code>libhipblas.so.2</code>, <code>librocblas.so.4</code>, <code>libhsa-runtime64.so.1</code>, <code>librocsolver.so.0</code>, <code>libhipblaslt.so.0</code>, <code>libamd_comgr.so.2</code>, <code>librocprofiler-register.so.0</code></td>
+<td><code>libllama.so.0</code>, <code>libggml.so.0</code>, <code>libggml-base.so.0</code>, <code>libggml-hip.so</code>, <code>libggml-cpu.so</code>, <code>libmtmd.so.0</code>, <code>libgomp.so.1</code></td>
+</tr>
+<tr>
+<td>SYCL</td>
+<td><code>libsycl.so.8</code>, <code>libOpenCL.so.1</code>, <code>libsvml.so</code>, <code>libimf.so</code>, <code>libintlc.so.5</code>, <code>libtbb.so.12</code></td>
+<td><code>libllama.so.0</code>, <code>libggml.so.0</code>, <code>libggml-base.so.0</code>, <code>libggml-sycl.so</code>, <code>libggml-cpu.so</code>, <code>libmtmd.so.0</code>, <code>libgomp.so.1</code></td>
+</tr>
+<tr>
+<td>Vulkan</td>
+<td><code>libvulkan.so.1</code></td>
+<td><code>libllama.so.0</code>, <code>libggml.so.0</code>, <code>libggml-base.so.0</code>, <code>libggml-vulkan.so</code>, <code>libggml-cpu.so</code>, <code>libmtmd.so.0</code>, <code>libgomp.so.1</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="installed-wheel-structure-027-cp312-exclude-build">Installed wheel structure (0.2.7, cp312, <code>--exclude</code> build)<a class="headerlink" href="#installed-wheel-structure-027-cp312-exclude-build" title="Permanent link">&para;</a></h3>
+<p>A wheel built with the full <code>--exclude</code> list was installed and inspected. The bundled libraries in <code>cyllama/llama/</code> retain their original names with no hash suffixes or SONAME rewriting:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>cyllama/llama/libggml-base.so.0
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>cyllama/llama/libggml-cpu.so
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>cyllama/llama/libggml-cuda.so
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>cyllama/llama/libggml.so.0
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>cyllama/llama/libllama.so.0
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>cyllama/llama/libmtmd.so.0
+</code></pre></div>
+<p>No <code>cyllama_cuda12.libs/</code> directory exists -- auditwheel did not relocate any libraries. The only work auditwheel performed was stamping the manylinux platform tag.</p>
+<h3 id="runtime-validation">Runtime validation<a class="headerlink" href="#runtime-validation" title="Permanent link">&para;</a></h3>
+<p>The installed wheel was tested on a system with an NVIDIA GeForce RTX 4060 (compute capability 8.9). All three extensions load the CUDA and CPU backends from the correct unbundled paths in <code>cyllama/llama/</code>, confirming that the <code>$ORIGIN</code> RPATHs work without auditwheel relocation:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>$ uv run cyllama info
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>llama.cpp:
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>  load_backend: loaded CUDA backend from .../cyllama/llama/libggml-cuda.so
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>  load_backend: loaded CPU backend from .../cyllama/llama/libggml-cpu.so
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>  built: CUDA | registries: CUDA, CPU | GPU offload: True
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>whisper.cpp:
+<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a>  load_backend: loaded CUDA backend from .../cyllama/llama/libggml-cuda.so
+<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a>  load_backend: loaded CPU backend from .../cyllama/llama/libggml-cpu.so
+<a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a>  built: CUDA | backends: CUDA, CUDA
+<a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a>
+<a id="__codelineno-10-13" name="__codelineno-10-13" href="#__codelineno-10-13"></a>stable-diffusion.cpp:
+<a id="__codelineno-10-14" name="__codelineno-10-14" href="#__codelineno-10-14"></a>  load_backend: loaded CUDA backend from .../cyllama/llama/libggml-cuda.so
+<a id="__codelineno-10-15" name="__codelineno-10-15" href="#__codelineno-10-15"></a>  load_backend: loaded CPU backend from .../cyllama/llama/libggml-cpu.so
+<a id="__codelineno-10-16" name="__codelineno-10-16" href="#__codelineno-10-16"></a>  built: CUDA | backends: CUDA, CUDA, CUDA
+</code></pre></div>
+<p>All three extensions share the same <code>libggml-cuda.so</code> and <code>libggml-cpu.so</code> from <code>cyllama/llama/</code> -- no duplicated or SONAME-renamed copies.</p>
+<p>The bundled <code>libggml-cuda.so</code> correctly resolves CUDA system libraries via the dynamic linker rather than bundling them:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>$ ldd .../cyllama/llama/libggml-cuda.so | grep -E &#39;cuda|cublas&#39;
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>  libcudart.so.12   =&gt; /lib/x86_64-linux-gnu/libcudart.so.12
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>  libcublas.so.12   =&gt; /lib/x86_64-linux-gnu/libcublas.so.12
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>  libcuda.so.1      =&gt; /lib/x86_64-linux-gnu/libcuda.so.1
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>  libcublasLt.so.12 =&gt; /lib/x86_64-linux-gnu/libcublasLt.so.12
+</code></pre></div>
+<p>This confirms the <code>--exclude</code> strategy works end-to-end: the wheel's bundled libraries use <code>$ORIGIN</code> RPATHs to find each other, while CUDA runtime libraries are resolved from the system installation. This is the same model used by PyTorch and CuPy -- CUDA libs are a system dependency, not bundled in the wheel.</p>
+<h2 id="test-workflow">Test workflow<a class="headerlink" href="#test-workflow" title="Permanent link">&para;</a></h2>
+<p><code>.github/workflows/test-cuda-wheel.yml</code> is a standalone CI workflow for validating the fix. It builds a single CUDA wheel (cp312 only) once and then tests two repair strategies as lightweight downstream jobs on the same artifact:</p>
+<ol>
+<li><strong>No-repair</strong> (Strategy A): <code>CIBW_REPAIR_WHEEL_COMMAND_LINUX: ""</code> -- the unrepaired wheel with a <code>linux_x86_64</code> tag. Serves as a baseline to confirm the build itself is correct.</li>
+<li><strong>Full exclude</strong> (Strategy B): <code>auditwheel repair --exclude ...</code> with the complete exclude list (runtime libs + all bundled project libs + libgomp) -- the production-equivalent wheel with a manylinux tag.</li>
+</ol>
+<p>A third strategy (minimal exclude: runtime libs + <code>libggml-cuda.so</code> only) was attempted but auditwheel refuses to produce the wheel because the remaining non-excluded bundled libs contain glibc symbols too recent for <code>manylinux_2_35</code>. This confirms the full exclude list is required.</p>
+<p>The build happens once; the repair strategies run as downstream jobs, avoiding duplicate CUDA builds.</p>
+<p>Trigger it manually from the Actions tab. Note that tests run on CPU-only runners (no GPU available), so they validate clean <code>dlclose</code> ordering but cannot exercise the full CUDA atexit path. A passing test gives moderate confidence; a failing test is definitive.</p>
+<h2 id="references">References<a class="headerlink" href="#references" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Reproduction report: colleague's analysis of commit <code>2755d96</code></li>
+<li>Revert: <code>fb522c8</code> (reverted <code>36db368</code>)</li>
+<li>auditwheel SONAME rewriting: <a href="https://github.com/pypa/auditwheel/issues/289">pypa/auditwheel#289</a></li>
+<li>patchelf SONAME behavior: <a href="https://github.com/NixOS/patchelf/issues/275">NixOS/patchelf#275</a></li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.expand", "navigation.top", "search.highlight", "content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

@@ -1965,14 +1965,14 @@
 <tr>
 <td><code>--repeat-penalty</code></td>
 <td>float</td>
-<td>1.1</td>
-<td>Repetition penalty</td>
+<td>1.0</td>
+<td>Repetition penalty (1.0 = disabled)</td>
 </tr>
 <tr>
 <td><code>-ngl, --n-gpu-layers</code></td>
 <td>int</td>
-<td>99</td>
-<td>GPU layers to offload</td>
+<td>-1</td>
+<td>GPU layers to offload (-1 = all)</td>
 </tr>
 <tr>
 <td><code>-c, --ctx-size</code></td>
@@ -1983,8 +1983,8 @@
 <tr>
 <td><code>--seed</code></td>
 <td>int</td>
-<td>-1</td>
-<td>Random seed (-1 = random)</td>
+<td>4294967295</td>
+<td>Random seed (0xFFFFFFFF = random)</td>
 </tr>
 <tr>
 <td><code>--stream</code></td>
@@ -2002,7 +2002,7 @@
 <td><code>--verbose</code></td>
 <td>flag</td>
 <td></td>
-<td>Verbose output</td>
+<td>Enable verbose logging</td>
 </tr>
 </tbody>
 </table>
@@ -2014,6 +2014,7 @@
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>cyllama<span class="w"> </span>chat<span class="w"> </span>-m<span class="w"> </span>models/llama.gguf<span class="w"> </span>-s<span class="w"> </span><span class="s2">&quot;You are a physicist&quot;</span><span class="w"> </span><span class="c1"># with system prompt</span>
 <a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>cyllama<span class="w"> </span>chat<span class="w"> </span>-m<span class="w"> </span>models/llama.gguf<span class="w"> </span>-n<span class="w"> </span><span class="m">1024</span><span class="w"> </span>--template<span class="w"> </span>chatml
 </code></pre></div>
+<p>Interactive mode streams tokens by default. Single-turn mode (<code>-p</code>) buffers the full response.</p>
 <table>
 <thead>
 <tr>
@@ -2081,14 +2082,14 @@
 <tr>
 <td><code>--repeat-penalty</code></td>
 <td>float</td>
-<td>1.1</td>
-<td>Repetition penalty</td>
+<td>1.0</td>
+<td>Repetition penalty (1.0 = disabled)</td>
 </tr>
 <tr>
 <td><code>-ngl, --n-gpu-layers</code></td>
 <td>int</td>
-<td>99</td>
-<td>GPU layers to offload</td>
+<td>-1</td>
+<td>GPU layers to offload (-1 = all)</td>
 </tr>
 <tr>
 <td><code>-c, --ctx-size</code></td>
@@ -2099,14 +2100,20 @@
 <tr>
 <td><code>--seed</code></td>
 <td>int</td>
-<td>-1</td>
-<td>Random seed (-1 = random)</td>
+<td>4294967295</td>
+<td>Random seed (0xFFFFFFFF = random)</td>
 </tr>
 <tr>
 <td><code>--stream</code></td>
 <td>flag</td>
 <td></td>
-<td>Stream tokens to stdout</td>
+<td>Stream tokens in single-turn mode (<code>-p</code>)</td>
+</tr>
+<tr>
+<td><code>--no-stream</code></td>
+<td>flag</td>
+<td></td>
+<td>Buffer full response in interactive mode</td>
 </tr>
 <tr>
 <td><code>--json</code></td>
@@ -2118,7 +2125,7 @@
 <td><code>--verbose</code></td>
 <td>flag</td>
 <td></td>
-<td>Verbose output</td>
+<td>Enable verbose logging</td>
 </tr>
 </tbody>
 </table>
@@ -2161,8 +2168,8 @@
 <tr>
 <td><code>-ngl, --n-gpu-layers</code></td>
 <td>int</td>
-<td>99</td>
-<td>GPU layers to offload</td>
+<td>-1</td>
+<td>GPU layers to offload (-1 = all)</td>
 </tr>
 <tr>
 <td><code>-c, --ctx-size</code></td>
@@ -2327,8 +2334,8 @@ strings don't have a meaningful name.</p>
 <tr>
 <td><code>--temperature</code></td>
 <td>float</td>
-<td>0.7</td>
-<td>Generation temperature</td>
+<td>0.8</td>
+<td>Sampling temperature</td>
 </tr>
 <tr>
 <td><code>-k, --top-k</code></td>
@@ -2345,8 +2352,8 @@ strings don't have a meaningful name.</p>
 <tr>
 <td><code>-ngl, --n-gpu-layers</code></td>
 <td>int</td>
-<td>99</td>
-<td>GPU layers to offload</td>
+<td>-1</td>
+<td>GPU layers to offload (-1 = all)</td>
 </tr>
 <tr>
 <td><code>--stream</code></td>
@@ -2708,6 +2715,10 @@ strings don't have a meaningful name.</p>
 <td><code>-ng, --no-gpu</code></td>
 <td>Disable GPU</td>
 </tr>
+<tr>
+<td><code>-v, --verbose</code></td>
+<td>Show C-level log output from whisper.cpp/ggml</td>
+</tr>
 </tbody>
 </table>
 <hr />
@@ -2766,8 +2777,8 @@ strings don't have a meaningful name.</p>
 <tr>
 <td><code>-ngl, --n-gpu-layers</code></td>
 <td>int</td>
-<td>99</td>
-<td>GPU layers to offload</td>
+<td>-1</td>
+<td>GPU layers to offload (-1 = all)</td>
 </tr>
 <tr>
 <td><code>-n, --n-predict</code></td>

@@ -2220,7 +2220,7 @@
 <a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a><span class="c1"># Check what&#39;s available</span>
 <a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.llama.llama_cpp</span><span class="w"> </span><span class="kn">import</span> <span class="n">LlamaModel</span><span class="p">,</span> <span class="n">LlamaModelParams</span>
 <a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a><span class="n">params</span> <span class="o">=</span> <span class="n">LlamaModelParams</span><span class="p">()</span>
-<a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a><span class="n">params</span><span class="o">.</span><span class="n">n_gpu_layers</span> <span class="o">=</span> <span class="mi">99</span>  <span class="c1"># Request GPU offload</span>
+<a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a><span class="n">params</span><span class="o">.</span><span class="n">n_gpu_layers</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>  <span class="c1"># Offload all layers to GPU</span>
 <a id="__codelineno-16-10" name="__codelineno-16-10" href="#__codelineno-16-10"></a><span class="c1"># If GPU is available, layers will be offloaded</span>
 </code></pre></div>
 <h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h2>

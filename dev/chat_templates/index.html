@@ -1775,14 +1775,12 @@
 <ol>
 <li>Pulls the embedded chat template string from the GGUF metadata via <code>LlamaModel.get_default_chat_template()</code> (a one-line wrapper around llama.cpp's stable public C API <code>llama_model_chat_template</code>).</li>
 <li>Resolves the model's <code>bos_token</code> and <code>eos_token</code> strings via <code>vocab.token_to_piece(vocab.token_bos(), special=True)</code> and the same for EOS.</li>
-<li>Constructs an <code>ImmutableSandboxedEnvironment</code> from the vendored <code>cyllama._vendor.jinja2</code>, with the same configuration HuggingFace's <code>transformers.PreTrainedTokenizerBase.apply_chat_template</code> uses:<ul>
+<li>Constructs an <code>ImmutableSandboxedEnvironment</code> from the vendored <code>cyllama._vendor.jinja2</code>, with the same configuration HuggingFace's <code>transformers.PreTrainedTokenizerBase.apply_chat_template</code> uses:</li>
 <li><code>trim_blocks=True</code>, <code>lstrip_blocks=True</code></li>
 <li><code>loopcontrols</code> extension enabled (some templates use <code>{% break %}</code>)</li>
 <li><code>tojson</code> filter (used by tool-calling templates)</li>
 <li><code>raise_exception</code> global (used by templates that abort on bad input)</li>
 <li><code>strftime_now</code> global (used by Llama-3's <code>Today Date:</code> line and similar)</li>
-</ul>
-</li>
 <li>Renders the template with <code>messages</code>, <code>bos_token</code>, <code>eos_token</code>, and <code>add_generation_prompt</code> in scope.</li>
 <li>Returns the rendered string.</li>
 </ol>
@@ -2011,12 +2009,10 @@
 <p><code>None</code> means "haven't tried yet"; <code>True</code>/<code>False</code> means "the corresponding probe has fired and cached its result".</p>
 <h3 id="common-failure-modes">Common failure modes<a class="headerlink" href="#common-failure-modes" title="Permanent link">&para;</a></h3>
 <ol>
-<li>
-<p><strong><code>RuntimeError: Failed to apply chat template</code></strong> at the binding level (<code>llama_cpp.pyx:1948</code>). This means the legacy substring-heuristic path was reached and llama.cpp's <code>llama_chat_apply_template</code> returned -1. Either:</p>
-<ul>
+<li><strong><code>RuntimeError: Failed to apply chat template</code></strong> at the binding level (<code>llama_cpp.pyx:1948</code>). This means the legacy substring-heuristic path was reached and llama.cpp's <code>llama_chat_apply_template</code> returned -1. Either:</li>
 <li>The Jinja path raised first and the wrapper fell through (look for the cause in the Jinja path)</li>
-<li>The caller passed a <code>template=</code> parameter that doesn't match anything in <code>LLM_CHAT_TEMPLATES</code> and isn't a recognisable Jinja string</li>
-</ul>
+<li>
+<p>The caller passed a <code>template=</code> parameter that doesn't match anything in <code>LLM_CHAT_TEMPLATES</code> and isn't a recognisable Jinja string</p>
 </li>
 <li>
 <p><strong><code>TemplateError: Model has no embedded chat template</code></strong> from <code>_apply_jinja_template</code>. The GGUF metadata doesn't contain a chat template at all. This is normal for embedding-only models; for chat-tuned models it usually means the GGUF was built without preserving the tokenizer config. The wrapper will fall through to the legacy path, which has its own <code>_format_messages_simple</code> fallback.</p>

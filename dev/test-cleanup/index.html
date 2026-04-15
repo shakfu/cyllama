@@ -1661,27 +1661,35 @@
 <h2 id="design-analysis-alternatives-considered">Design analysis: alternatives considered<a class="headerlink" href="#design-analysis-alternatives-considered" title="Permanent link">&para;</a></h2>
 <h3 id="alternative-1-pytest-forked-subprocess-per-test">Alternative 1: <code>pytest-forked</code> / subprocess per test<a class="headerlink" href="#alternative-1-pytest-forked-subprocess-per-test" title="Permanent link">&para;</a></h3>
 <p>Each SD test runs in its own subprocess. No cross-test state possible. Zero risk of recurrence.</p>
-<p><strong>Rejected because:</strong>
-- Adds a plugin dependency for one class of tests.
-- Subprocess startup is ~1 second per test; <code>tests/test_sd.py</code> has 8 tests that touch <code>SDContext</code>, so ~8 seconds of overhead on every run.
-- Masks the problem rather than addressing it — a future test that needs to create 5 contexts <em>within</em> one process would still crash.</p>
+<p><strong>Rejected because:</strong></p>
+<ul>
+<li>Adds a plugin dependency for one class of tests.</li>
+<li>Subprocess startup is ~1 second per test; <code>tests/test_sd.py</code> has 8 tests that touch <code>SDContext</code>, so ~8 seconds of overhead on every run.</li>
+<li>Masks the problem rather than addressing it — a future test that needs to create 5 contexts <em>within</em> one process would still crash.</li>
+</ul>
 <h3 id="alternative-2-skip-the-affected-tests-the-short-lived-first-fix">Alternative 2: Skip the affected tests (the short-lived first fix)<a class="headerlink" href="#alternative-2-skip-the-affected-tests-the-short-lived-first-fix" title="Permanent link">&para;</a></h3>
 <p>Mark <code>TestSDContextIntegration</code> and <code>TestSDContextConcurrencyGuard</code> with <code>@pytest.mark.skip</code>, matching the existing precedent for <code>test_deterministic_seed:512</code>.</p>
-<p><strong>Rejected because:</strong>
-- Loses coverage for the v0.2.5 <code>SDContext</code> concurrent-use guard — the feature whose whole purpose is to prevent silent state corruption on shared contexts. Shipping the guard without its regression tests is worse than the crash.
-- Loses the only end-to-end generation smoke test (<code>test_generate_image</code>).</p>
+<p><strong>Rejected because:</strong></p>
+<ul>
+<li>Loses coverage for the v0.2.5 <code>SDContext</code> concurrent-use guard — the feature whose whole purpose is to prevent silent state corruption on shared contexts. Shipping the guard without its regression tests is worse than the crash.</li>
+<li>Loses the only end-to-end generation smoke test (<code>test_generate_image</code>).</li>
+</ul>
 <h3 id="alternative-3-reorder-tests-to-put-integration-tests-before-the-guard-tests">Alternative 3: Reorder tests to put integration tests before the guard tests<a class="headerlink" href="#alternative-3-reorder-tests-to-put-integration-tests-before-the-guard-tests" title="Permanent link">&para;</a></h3>
 <p>Move <code>TestConvenienceFunctionsIntegration</code> earlier in source order. The guard tests then run <em>after</em> the integration tests and only crash things that don't exist yet.</p>
-<p><strong>Rejected because:</strong>
-- Fragile: any future test added between them silently re-breaks the ordering.
-- Obscures intent: source-order dependencies are invisible in PR review.
-- Doesn't actually fix the bug — it just hides it behind a precarious sequence.</p>
+<p><strong>Rejected because:</strong></p>
+<ul>
+<li>Fragile: any future test added between them silently re-breaks the ordering.</li>
+<li>Obscures intent: source-order dependencies are invisible in PR review.</li>
+<li>Doesn't actually fix the bug — it just hides it behind a precarious sequence.</li>
+</ul>
 <h3 id="alternative-4-fix-sdcpps-destructor-ordering-upstream">Alternative 4: Fix SD.cpp's destructor ordering upstream<a class="headerlink" href="#alternative-4-fix-sdcpps-destructor-ordering-upstream" title="Permanent link">&para;</a></h3>
 <p>File an issue on <code>leejet/stable-diffusion.cpp</code> explaining the 5-cycle leak and the member-destructor ordering suspicion. Wait for upstream to fix.</p>
-<p><strong>Rejected because:</strong>
-- Not verified to be the root cause — the fix might land and not help.
-- Uncertain timeline. Multiple SD.cpp Metal bugs have already taken multiple releases to resolve (see v0.2.3 and v0.2.4 CHANGELOG entries).
-- Doesn't unblock the current test suite regardless of outcome.</p>
+<p><strong>Rejected because:</strong></p>
+<ul>
+<li>Not verified to be the root cause — the fix might land and not help.</li>
+<li>Uncertain timeline. Multiple SD.cpp Metal bugs have already taken multiple releases to resolve (see v0.2.3 and v0.2.4 CHANGELOG entries).</li>
+<li>Doesn't unblock the current test suite regardless of outcome.</li>
+</ul>
 <p>We should still file the upstream issue as follow-up, but not as the primary fix.</p>
 <h3 id="alternative-5-chosen-python-side-forced-cleanup">Alternative 5 (chosen): Python-side forced cleanup<a class="headerlink" href="#alternative-5-chosen-python-side-forced-cleanup" title="Permanent link">&para;</a></h3>
 <p>Add <code>del ctx; gc.collect()</code> to the 5 offending tests. Zero new dependencies, no reordering, no lost coverage, matches existing <code>test_memory_leaks.py</code> precedent.</p>
