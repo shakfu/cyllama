@@ -413,8 +413,8 @@ class GenerationConfig:
     top_k: int = 40
     top_p: float = 0.95
     min_p: float = 0.05
-    repeat_penalty: float = 1.1
-    n_gpu_layers: int = 99
+    repeat_penalty: float = 1.0
+    n_gpu_layers: int = -1
     n_ctx: Optional[int] = None
     n_batch: int = 512
     seed: int = -1
@@ -430,8 +430,8 @@ class GenerationConfig:
 - `top_k`: Top-k sampling parameter (default: 40)
 - `top_p`: Top-p (nucleus) sampling (default: 0.95)
 - `min_p`: Minimum probability threshold (default: 0.05)
-- `repeat_penalty`: Penalty for repeating tokens (default: 1.1)
-- `n_gpu_layers`: GPU layers to offload (default: 99 = all)
+- `repeat_penalty`: Penalty for repeating tokens (default: 1.0, disabled)
+- `n_gpu_layers`: GPU layers to offload (default: -1 = all)
 - `n_ctx`: Context window size, None = auto (default: None)
 - `n_batch`: Batch size for processing (default: 512)
 - `seed`: Random seed, -1 = random (default: -1)
@@ -643,7 +643,7 @@ class OpenAICompatibleClient:
         model_path: str,
         temperature: float = 0.7,
         max_tokens: int = 512,
-        n_gpu_layers: int = 99
+        n_gpu_layers: int = -1
     )
 ```
 
@@ -695,8 +695,8 @@ class CyllamaLLM(LLM):
     max_tokens: int = 512
     top_k: int = 40
     top_p: float = 0.95
-    repeat_penalty: float = 1.1
-    n_gpu_layers: int = 99
+    repeat_penalty: float = 1.0
+    n_gpu_layers: int = -1
 ```
 
 **Example:**
@@ -819,7 +819,7 @@ Represents a loaded GGUF model.
 from cyllama.llama.llama_cpp import LlamaModel, LlamaModelParams
 
 params = LlamaModelParams()
-params.n_gpu_layers = 99
+params.n_gpu_layers = -1
 params.use_mmap = True
 params.use_mlock = False
 
@@ -1168,7 +1168,7 @@ start_server(
     host="127.0.0.1",
     port=8000,
     n_ctx=2048,
-    n_gpu_layers=99
+    n_gpu_layers=-1
 )
 
 # Use with OpenAI client

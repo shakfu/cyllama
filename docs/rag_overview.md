@@ -204,10 +204,10 @@ cyllama rag -m models/llama.gguf -e models/bge-small.gguf \
 | `-p, --prompt` | Single query (omit for interactive mode) | |
 | `-s, --system` | System instruction prepended to the prompt template | |
 | `-n, --max-tokens` | Maximum tokens to generate | 200 |
-| `--temperature` | Generation temperature | 0.7 |
+| `--temperature` | Generation temperature | 0.8 |
 | `-k, --top-k` | Number of chunks to retrieve | 5 |
 | `--threshold` | Minimum similarity threshold | (none) |
-| `-ngl, --n-gpu-layers` | GPU layers to offload | 99 |
+| `-ngl, --n-gpu-layers` | GPU layers to offload | -1 |
 | `--stream` | Stream output tokens | off |
 | `--sources` | Show source chunks with similarity scores | off |
 | `--db PATH` | Persist the vector index to a SQLite file (see below) | (in-memory) |

@@ -133,10 +133,10 @@ cyllama rag -m models/llama.gguf -e models/bge-small.gguf \
 | `-p, --prompt` | Single query (omit for interactive mode) |
 | `-s, --system` | System instruction |
 | `-n, --max-tokens` | Maximum tokens to generate (default: 200) |
-| `--temperature` | Generation temperature (default: 0.7) |
+| `--temperature` | Generation temperature (default: 0.8) |
 | `-k, --top-k` | Number of chunks to retrieve (default: 5) |
 | `--threshold` | Minimum similarity threshold |
-| `-ngl, --n-gpu-layers` | GPU layers to offload (default: 99) |
+| `-ngl, --n-gpu-layers` | GPU layers to offload (default: -1) |
 | `--stream` | Stream output tokens |
 | `--sources` | Show source chunks with similarity scores |
 
@@ -458,10 +458,10 @@ config = GenerationConfig(
     top_k=40,                 # Top-k sampling
     top_p=0.95,               # Nucleus sampling
     min_p=0.05,               # Minimum probability threshold
-    repeat_penalty=1.1,       # Penalize repetition
+    repeat_penalty=1.0,       # Penalize repetition (1.0 = off)
 
     # Model parameters
-    n_gpu_layers=99,          # Layers to offload to GPU (-1 = all)
+    n_gpu_layers=-1,          # Layers to offload to GPU (-1 = all)
     n_ctx=2048,               # Context window size
     n_batch=512,              # Batch size for processing
 
@@ -572,7 +572,7 @@ Understanding how generation works helps you optimize performance.
 from cyllama import LLM, GenerationConfig
 
 # Offload all layers to GPU
-config = GenerationConfig(n_gpu_layers=-1)  # or 99
+config = GenerationConfig(n_gpu_layers=-1)  # offload all layers
 gen = LLM("models/llama.gguf", config=config)
 
 # Partial GPU offloading (for large models)

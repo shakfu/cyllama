@@ -165,7 +165,7 @@ The following gaps were identified during the initial analysis and have since be
 
 ## Environment Variable Flow
 
-```
+```text
 User sets GGML_CUDA=1
     |
     v

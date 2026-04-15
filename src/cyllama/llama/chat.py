@@ -9,8 +9,17 @@ import sys
 import argparse
 from typing import List, Dict
 
-from .._defaults import DEFAULT_MAX_TOKENS, DEFAULT_N_GPU_LAYERS
-from ..utils.color import green, yellow, END
+from .._defaults import (
+    DEFAULT_MAX_TOKENS,
+    DEFAULT_MIN_P,
+    DEFAULT_N_GPU_LAYERS,
+    DEFAULT_REPEAT_PENALTY,
+    DEFAULT_TEMPERATURE,
+    DEFAULT_TOP_K,
+    DEFAULT_TOP_P,
+    LLAMA_DEFAULT_SEED,
+)
+from ..utils.color import green, yellow, END, esc, FG_END
 
 from .llama_cpp import (
     LlamaModel,
@@ -42,7 +51,19 @@ def print_usage():
 class Chat:
     """Chat interface using cyllama"""
 
-    def __init__(self, model_path: str, n_ctx: int = 2048, ngl: int = DEFAULT_N_GPU_LAYERS, max_tokens: int = DEFAULT_MAX_TOKENS):
+    def __init__(
+        self,
+        model_path: str,
+        n_ctx: int = 2048,
+        ngl: int = DEFAULT_N_GPU_LAYERS,
+        max_tokens: int = DEFAULT_MAX_TOKENS,
+        temperature: float = DEFAULT_TEMPERATURE,
+        top_k: int = DEFAULT_TOP_K,
+        top_p: float = DEFAULT_TOP_P,
+        min_p: float = DEFAULT_MIN_P,
+        repeat_penalty: float = DEFAULT_REPEAT_PENALTY,
+        seed: int = LLAMA_DEFAULT_SEED,
+    ):
         """Initialize the chat with model and parameters"""
         # Set up error-only logging (skip for now to avoid issues)
         # set_log_callback(lambda level, text: sys.stderr.write(text) if level >= 3 else None)
@@ -64,12 +85,16 @@ class Chat:
         ctx_params.n_batch = n_ctx
         self.context = LlamaContext(self.model, ctx_params)
 
-        # Initialize sampler
+        # Initialize sampler with caller-provided parameters
         sampler_params = LlamaSamplerChainParams()
         self.sampler = LlamaSampler(sampler_params)
-        self.sampler.add_min_p(0.05, 1)
-        self.sampler.add_temp(0.8)
-        self.sampler.add_dist(1337)  # Use fixed seed like LLAMA_DEFAULT_SEED
+        if repeat_penalty != 1.0:
+            self.sampler.add_penalties(64, repeat_penalty, 0.0, 0.0)
+        self.sampler.add_top_k(top_k)
+        self.sampler.add_top_p(top_p, 1)
+        self.sampler.add_min_p(min_p, 1)
+        self.sampler.add_temp(temperature)
+        self.sampler.add_dist(seed)
 
         # Initialize chat state (simplified - use list of dicts instead of LlamaChatMessage objects)
         self.messages: List[Dict[str, str]] = []
@@ -187,8 +212,14 @@ class Chat:
             add_generation_prompt=add_generation_prompt,
         )
 
-    def generate(self, prompt: str) -> str:
-        """Generate response for the given prompt using a fresh context"""
+    def generate(self, prompt: str, on_token=None) -> str:
+        """Generate response for the given prompt using a fresh context.
+
+        Args:
+            prompt: The full templated prompt to generate from.
+            on_token: Optional callback invoked with each token piece as
+                it is generated.  Used for streaming output.
+        """
         # Create a fresh context for this generation to avoid state issues
         fresh_context = LlamaContext(self.model, self.context.params, verbose=False)
 
@@ -236,6 +267,8 @@ class Chat:
             try:
                 piece = self.vocab.token_to_piece(new_token_id, 0, True)
                 response += piece
+                if on_token is not None:
+                    on_token(piece)
 
             except Exception as e:
                 print(f"Failed to convert token to piece: {e}")
@@ -256,8 +289,14 @@ class Chat:
 
         return response.strip()
 
-    def chat_loop(self):
-        """Main chat loop"""
+    def chat_loop(self, stream: bool = True):
+        """Main chat loop.
+
+        Args:
+            stream: If True (default), print tokens as they are
+                generated.  If False, buffer the full response before
+                printing.
+        """
         # Enable readline-style line editing and persistent history
         # (up/down arrows cycle through prior turns, Ctrl-R reverse
         # search, etc.). Gracefully no-ops on platforms without
@@ -267,34 +306,49 @@ class Chat:
 
         setup_history(history_path_for("chat"))
 
-        while True:
-            # Get user input
-            print(green("> "), end="")
-            try:
-                user_input = input().strip()
-            except (EOFError, KeyboardInterrupt):
-                break
+        try:
+            while True:
+                # Get user input
+                print(green("> "), end="")
+                try:
+                    user_input = input().strip()
+                except (EOFError, KeyboardInterrupt):
+                    break
 
-            if not user_input:
-                break
+                if not user_input:
+                    break
 
-            # Always use dict format for messages (works with both jinja
-            # and C API paths via _apply_template)
-            self.messages.append({"role": "user", "content": user_input})
-            prompt = self._apply_template(self.messages, add_assistant_msg=True)
+                # Always use dict format for messages (works with both jinja
+                # and C API paths via _apply_template)
+                self.messages.append({"role": "user", "content": user_input})
+                prompt = self._apply_template(self.messages, add_assistant_msg=True)
 
-            # Generate response
-            try:
-                response = self.generate(prompt)
-                print(yellow(response))
+                # Generate response
+                try:
+                    if stream:
+                        print(esc(33), end="", flush=True)  # yellow foreground
+                        response = self.generate(
+                            prompt,
+                            on_token=lambda piece: print(piece, end="", flush=True),
+                        )
+                        print(FG_END)
+                    else:
+                        response = self.generate(prompt)
+                        print(yellow(response))
 
+                    self.messages.append({"role": "assistant", "content": response})
 
-                self.messages.append({"role": "assistant", "content": response})
-
-            except Exception as e:
-                print(f"\nError: {e}", file=sys.stderr)
-                # Remove the user message that caused the error
-                self.messages.pop()
+                except KeyboardInterrupt:
+                    print(FG_END)
+                    break
+                except Exception as e:
+                    print(FG_END, end="")
+                    print(f"\nError: {e}", file=sys.stderr)
+                    # Remove the user message that caused the error
+                    self.messages.pop()
+        finally:
+            # Always reset terminal colors on exit
+            print(END, end="", flush=True)
 
 
 def main():
@@ -305,12 +359,37 @@ def main():
     parser.add_argument("-c", "--context", type=int, default=2048, help="Context size")
     parser.add_argument("-ngl", "--n-gpu-layers", type=int, default=DEFAULT_N_GPU_LAYERS, help="Number of GPU layers")
     parser.add_argument("-n", "--max-tokens", type=int, default=DEFAULT_MAX_TOKENS, help="Max tokens per response")
+    parser.add_argument("--temperature", type=float, default=DEFAULT_TEMPERATURE,
+                        help="Sampling temperature (default: %(default)s)")
+    parser.add_argument("--top-k", type=int, default=DEFAULT_TOP_K,
+                        help="Top-k sampling (default: %(default)s)")
+    parser.add_argument("--top-p", type=float, default=DEFAULT_TOP_P,
+                        help="Top-p (nucleus) sampling (default: %(default)s)")
+    parser.add_argument("--min-p", type=float, default=DEFAULT_MIN_P,
+                        help="Min-p sampling threshold (default: %(default)s)")
+    parser.add_argument("--repeat-penalty", type=float, default=DEFAULT_REPEAT_PENALTY,
+                        help="Repetition penalty, 1.0 = disabled (default: %(default)s)")
+    parser.add_argument("--seed", type=int, default=LLAMA_DEFAULT_SEED,
+                        help="Random seed (default: %(default)s)")
+    parser.add_argument("--no-stream", action="store_true",
+                        help="Buffer full response before printing (default: stream)")
 
     args = parser.parse_args()
 
     try:
-        chat = Chat(args.model, args.context, args.n_gpu_layers, args.max_tokens)
-        chat.chat_loop()
+        chat = Chat(
+            args.model,
+            n_ctx=args.context,
+            ngl=args.n_gpu_layers,
+            max_tokens=args.max_tokens,
+            temperature=args.temperature,
+            top_k=args.top_k,
+            top_p=args.top_p,
+            min_p=args.min_p,
+            repeat_penalty=args.repeat_penalty,
+            seed=args.seed,
+        )
+        chat.chat_loop(stream=not args.no_stream)
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)

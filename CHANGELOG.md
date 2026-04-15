@@ -17,6 +17,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+## [0.2.8]
+
 ### Added
 
 - **New `LlamaContextParams` properties** - Exposed `flash_attn_type` (replaces the previously commented-out `flash_attn` boolean with the new int-based enum: -1=auto, 0=disabled, 1=enabled), `embeddings` (extract embeddings together with logits), `op_offload` (offload host tensor operations to device), `swa_full` (full-size SWA cache for improved perf when `n_seq_max > 1`), and `kv_unified` (unified buffer across input sequences for attention)
@@ -35,6 +37,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 - **`cyllama transcribe -v/--verbose` flag** - The whisper CLI now suppresses C-level log spam (ggml device init, model loading, backend allocation, Metal diagnostics) by default. Pass `-v`/`--verbose` to restore the full native output for debugging
 
+- **Interactive chat streaming** - `cyllama chat` interactive mode now streams tokens as they are generated (matching `cyllama rag` behavior). Pass `--no-stream` to buffer the full response before printing. The `Chat` class gains an `on_token` callback parameter on `generate()` and a `stream` parameter on `chat_loop()`
+
+- **Interactive chat sampling parameters** - `cyllama chat` interactive mode now honors `--temperature`, `--top-k`, `--top-p`, `--min-p`, `--repeat-penalty`, and `--seed`. Previously these flags were silently dropped when entering interactive mode; the `Chat` class hardcoded `min_p=0.05`, `temp=0.8`, `seed=1337`. The `Chat.__init__` constructor now accepts all six parameters and wires them into the sampler chain (penalties, top_k, top_p, min_p, temp, dist) in the correct order
+
 ### Fixed
 
 - **Interactive chat crashed on Gemma 4 with `Failed to apply chat template`** - The `Chat` class in `llama/chat.py` called `llama_chat_apply_template` (C API) directly, which uses a hardcoded substring heuristic that doesn't recognise Gemma 4's `<|turn>` template format. Added a two-tier template path mirroring `api.py`: try the vendored jinja2 interpreter first (handles Gemma 4, Qwen3, and any template the C heuristic doesn't cover), then fall back to the C API
@@ -46,6 +52,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 - **CUDA wheel double-free on interpreter shutdown** - Dynamic-linked CUDA wheels (`WITH_DYLIB=1`) crashed with `double free or corruption (!prev)` during Python exit. The root cause was `auditwheel repair` using `patchelf` to rewrite ELF SONAME headers on bundled GPU runtime libraries, which altered glibc's `dlclose` unload ordering and caused CUDA's internal `atexit` handlers to fire after the memory they referenced had already been unmapped. Fixed by adding `--exclude` flags for GPU runtime system libraries (`libcuda.so.1`, `libcudart.so.12`, `libcublas.so.12`, `libcublasLt.so.12`) and `libgomp.so.1` (GCC OpenMP runtime) so auditwheel leaves them as system dependencies rather than bundling and SONAME-rewriting them. The same `libgomp.so.1` exclude was applied to all GPU wheel variants (ROCm, SYCL, Vulkan). See `docs/dev/cuda-double-free.md` for full analysis
 
 - **`test_whisper_timing_functions` called `ctx.n_vocab` without parentheses** - The test compared a bound method object against `int` instead of calling it, causing a `TypeError`. Fixed to `ctx.n_vocab()`
+
+- **`cyllama <delegation-command> --help` showed no options** - The six delegation subcommands (`transcribe`, `server`, `tts`, `sd`, `agent`, `memory`) were registered with `add_help=True` (argparse default), so `--help` was intercepted by the top-level subparser and never reached the delegate's own parser. Fixed by adding `add_help=False` to all delegation subparsers
+
+- **Interactive chat left terminal colored after Ctrl-C** - If Ctrl-C was pressed during streaming generation, the yellow ANSI foreground escape was never reset, leaving the shell prompt colored. The chat loop is now wrapped in `try/finally` with an unconditional `END` reset
+
+- **CLI help strings missing on sampling flags** - `--max-tokens`, `--temperature`, `--top-k`, `--top-p`, `--min-p`, `--repeat-penalty`, `-ngl`, `-c`, `--seed`, and `--verbose` had no `help=` text in the `generate`, `chat`, `embed`, and `rag` argument parsers. All now include descriptions with default values via `%(default)s`
 
 ### Changed
 

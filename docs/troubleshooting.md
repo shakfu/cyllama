@@ -96,7 +96,7 @@ ls thirdparty/llama.cpp/include/
    ```python
    from cyllama import LLM, GenerationConfig
 
-   config = GenerationConfig(n_gpu_layers=20)  # Reduce from 99
+   config = GenerationConfig(n_gpu_layers=20)  # Reduce from -1 (all layers)
    llm = LLM("model.gguf", config=config)
    ```
 
@@ -135,7 +135,7 @@ ls thirdparty/llama.cpp/include/
    ```python
    from cyllama import LLM
 
-   llm = LLM("model.gguf", n_gpu_layers=99, verbose=True)
+   llm = LLM("model.gguf", n_gpu_layers=-1, verbose=True)
    # Verbose output should show GPU offload info
    ```
 
@@ -182,7 +182,7 @@ response = complete(
 from cyllama import GenerationConfig, LLM
 
 config = GenerationConfig(
-    repeat_penalty=1.2,  # Increase (default 1.1)
+    repeat_penalty=1.2,  # Increase (default 1.0)
     temperature=0.8,     # Add some randomness
     top_k=40,
     top_p=0.95

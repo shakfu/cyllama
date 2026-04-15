@@ -2,7 +2,9 @@
 
 ## High Priority
 
-(no high-priority items currently open)
+## High Priority
+
+- [ ] Add `--stats` flag to CLI `generation` and `chat` modes (`src/cyllama/llama/cli.py`). When set, display a formatted table of session statistics on exit (prompt tokens, generated tokens, total time, prompt eval time, generation time, tokens/second). Stats should be collected throughout the session and shown once when the session ends (Ctrl-C, EOT, or `/exit`). The high-level API already provides `GenerationStats` (see `api.py:238-246`) and the low-level `LlamaContext`/`LlamaSampler` expose `print_perf_data()` / `reset_perf_data()` -- wire these into the CLI behind the flag. Default: off.
 
 ## Medium Priority
 

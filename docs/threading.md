@@ -235,7 +235,7 @@ threading.Thread(target=worker).start()
 
 You'll get something like:
 
-```
+```text
 sqlite3.ProgrammingError: SQLite objects created in a thread can only
 be used in that same thread.
 ```

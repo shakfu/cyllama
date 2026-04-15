@@ -1,7 +1,7 @@
 # Concurrent-use runtime guard
 
 > **The rule:** Always use one context per thread. Do not share the same context across threads.
-
+>
 > This applies to every `LLM`, `WhisperContext`, and `SDContext` instance. The underlying llama.cpp / whisper.cpp / stable-diffusion.cpp contexts are not designed for concurrent access — sharing one across threads corrupts internal state silently. cyllama enforces the rule at runtime with a non-blocking lock; the rest of this document explains the hazard, the implementation, the alternatives we rejected, and how to extend the guard when adding new native-touching methods.
 
 This document is a maintainer guide. It covers:
@@ -115,7 +115,7 @@ That is the entire rule for users. The runtime guard exists to enforce it loudly
 
 When two threads try to use the same instance concurrently, the second one raises:
 
-```
+```text
 RuntimeError: LLM is currently being used by another thread. llama.cpp
 contexts are not thread-safe — create one LLM per thread instead of
 sharing a single instance across threads.
@@ -343,11 +343,13 @@ The lesson: the rule we want to enforce is "no two native calls overlap in time,
 Use `acquire(blocking=True)` so concurrent callers wait their turn instead of raising. This is what most stdlib Python objects in this position do: `sqlite3` (with `check_same_thread=False`), `requests.Session`, `http.client.HTTPConnection`, etc.
 
 **Pros:**
+
 - Code that worked accidentally (relying on GIL serialization or coincidental timing) keeps working.
 - No surprise behavior change for existing users.
 - Matches Python ecosystem norms.
 
 **Cons:**
+
 - **Hides architectural mistakes.** A user who accidentally shares one `LLM` across 8 worker threads gets 1/8th the throughput they expected, with no signal telling them why. They discover the problem months later staring at a flame graph.
 - **Unbounded latency in async contexts.** A blocking acquire inside an `asyncio.to_thread` call can deadlock the event loop or stall it for arbitrary periods if the lock-holder is slow.
 - **Loses the "fail loud" signal.** cyllama generally takes the position that bad inputs and unsafe usage should raise immediately, not degrade silently. Other parts of the codebase do the same: `validate_gguf_file`, `VectorStoreError` on metadata mismatch, the typed exceptions on model loaders.
@@ -359,9 +361,11 @@ Use `acquire(blocking=True)` so concurrent callers wait their turn instead of ra
 Maintain a pool of contexts inside each `LLM`, allocate one per thread on first use, multiplex calls automatically.
 
 **Pros:**
+
 - Actually allows concurrent inference instead of just preventing the bad case.
 
 **Cons:**
+
 - **Memory blowup.** A `llama_context` with default `n_ctx=2048` consumes hundreds of MB to a few GB depending on the model. Allocating one per worker thread is prohibitive — most production setups can barely fit *one* context per GPU.
 - **Wrong layer.** If a user wants concurrent inference, they should make that decision explicitly by creating multiple `LLM` instances (or by using multiple GPUs). Hiding the cost inside the wrapper makes it look free when it isn't.
 - **Doesn't help the asyncio.to_thread case.** That pattern uses one context shared across many short calls, which works fine without a pool — adding pooling would just waste memory.
@@ -371,10 +375,12 @@ Maintain a pool of contexts inside each `LLM`, allocate one per thread on first 
 Just say "don't share `LLM` across threads" in the docs and rely on users reading them.
 
 **Pros:**
+
 - Zero overhead.
 - No false positives.
 
 **Cons:**
+
 - **Silent UB when the rule is violated.** The failure mode is corrupt KV cache → garbage tokens → user blames the model and files a confused bug report. Extremely hard to debug.
 - **Contradicts cyllama's "fail loud" philosophy.** We have typed exceptions on model loaders, validation errors on `VectorStore` metadata, friendly errors on missing files, etc. Letting this one class of bug fall through silently would be inconsistent.
 - **The runtime check is cheap.** One atomic int compare per call, which is negligible compared to a token generation step.

@@ -1,7 +1,7 @@
 # Test cleanup requirements for native-backed contexts
 
 > **The rule:** When a test creates an `SDContext`, `LLM`, or `WhisperContext`, explicitly delete it and run `gc.collect()` at the end of the test body. Do not rely on Python's reference-scoping to release native resources between tests.
-
+>
 > This applies most critically to `SDContext` (where violating the rule crashes the process on macOS Metal) and as a precaution to `LLM` and `WhisperContext` (where the same class of bug is theoretically possible but has not been observed in practice).
 
 This document is a maintainer guide. It explains:
@@ -165,6 +165,7 @@ This is potentially a latent upstream issue but we have not confirmed it. The Py
 Each SD test runs in its own subprocess. No cross-test state possible. Zero risk of recurrence.
 
 **Rejected because:**
+
 - Adds a plugin dependency for one class of tests.
 - Subprocess startup is ~1 second per test; `tests/test_sd.py` has 8 tests that touch `SDContext`, so ~8 seconds of overhead on every run.
 - Masks the problem rather than addressing it — a future test that needs to create 5 contexts *within* one process would still crash.
@@ -174,6 +175,7 @@ Each SD test runs in its own subprocess. No cross-test state possible. Zero risk
 Mark `TestSDContextIntegration` and `TestSDContextConcurrencyGuard` with `@pytest.mark.skip`, matching the existing precedent for `test_deterministic_seed:512`.
 
 **Rejected because:**
+
 - Loses coverage for the v0.2.5 `SDContext` concurrent-use guard — the feature whose whole purpose is to prevent silent state corruption on shared contexts. Shipping the guard without its regression tests is worse than the crash.
 - Loses the only end-to-end generation smoke test (`test_generate_image`).
 
@@ -182,6 +184,7 @@ Mark `TestSDContextIntegration` and `TestSDContextConcurrencyGuard` with `@pytes
 Move `TestConvenienceFunctionsIntegration` earlier in source order. The guard tests then run *after* the integration tests and only crash things that don't exist yet.
 
 **Rejected because:**
+
 - Fragile: any future test added between them silently re-breaks the ordering.
 - Obscures intent: source-order dependencies are invisible in PR review.
 - Doesn't actually fix the bug — it just hides it behind a precarious sequence.
@@ -191,6 +194,7 @@ Move `TestConvenienceFunctionsIntegration` earlier in source order. The guard te
 File an issue on `leejet/stable-diffusion.cpp` explaining the 5-cycle leak and the member-destructor ordering suspicion. Wait for upstream to fix.
 
 **Rejected because:**
+
 - Not verified to be the root cause — the fix might land and not help.
 - Uncertain timeline. Multiple SD.cpp Metal bugs have already taken multiple releases to resolve (see v0.2.3 and v0.2.4 CHANGELOG entries).
 - Doesn't unblock the current test suite regardless of outcome.

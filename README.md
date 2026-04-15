@@ -32,11 +32,11 @@ It combines the performance of compiled Cython wrappers with a simple, high-leve
 pip install cyllama
 ```
 
-This installs the cpu-backend for linux and windows. For MacOS, the Metal backend is installed, by default, to take advantage of Apple Silicon.
+This installs the cpu-backend for linux and windows. For MacOS, the Metal backend is installed by default to take advantage of Apple Silicon.
 
 ### GPU-Accelerated Variants
 
-GPU variants are available on PyPI as separate packages (dynamically linked, Linux x86_64 only):
+GPU variants are available on PyPI as separate packages (dynamically linked, Linux x86_64 only for now):
 
 ```sh
 pip install cyllama-cuda12   # NVIDIA GPU (CUDA 12.4)
@@ -210,7 +210,7 @@ info = llm.cache_info()  # ResponseCacheInfo(hits=1, misses=1, maxsize=100, curr
 llm.cache_clear()
 ```
 
-Note: Caching requires a fixed seed (`seed != -1`) since random seeds produce non-deterministic output. Streaming responses are not cached.
+Note: Caching requires a fixed seed (not the default random sentinel) since random seeds produce non-deterministic output. Streaming responses are not cached.
 
 ### Framework Integrations
 
@@ -593,7 +593,7 @@ models = list_cached_models()
 
 **Production-Ready**: Battle-tested and comprehensive
 
-- 1450+ passing tests with extensive coverage
+- 1460+ passing tests with extensive coverage
 - Comprehensive documentation and examples
 - Proper error handling and logging
 - Framework integration for real applications
@@ -606,14 +606,47 @@ models = list_cached_models()
 
 ## Status
 
-**Current Version**: 0.2.5 (Apr 2026)
+**Current Version**: 0.2.8 (Apr 2026)
 **llama.cpp Version**: b8757
 **Build System**: scikit-build-core + CMake
-**Test Coverage**: 1450+ tests passing
-**Platform**: macOS (tested), Linux (tested), Windows (tested)
+**Test Coverage**: 1460+ tests passing
+
+### Platform & GPU Availability
+
+Pre-built wheels on PyPI:
+
+| Package | Backend | Platform | Arch | Linking |
+|---|---|---|---|---|
+| `cyllama` | CPU | Linux | x86_64 | static |
+| `cyllama` | CPU | Windows | x86_64 | static |
+| `cyllama` | Metal | macOS | arm64 (Apple Silicon) | static |
+| `cyllama` | Metal | macOS | x86_64 (Intel) | static |
+| `cyllama-cuda12` | CUDA 12.4 | Linux | x86_64 | dynamic |
+| `cyllama-rocm` | ROCm 6.3 | Linux | x86_64 | dynamic |
+| `cyllama-sycl` | Intel SYCL (oneAPI 2025.3) | Linux | x86_64 | dynamic |
+| `cyllama-vulkan` | Vulkan | Linux | x86_64 | dynamic |
+
+We will be adding additional wheel support for more platforms in the future, starting with vulkan and cuda12 support Windows.
+
+Build from source (any platform with a C++ toolchain):
+
+| Backend | macOS | Linux | Windows |
+|---|---|---|---|
+| CPU | `make build-cpu` | `make build-cpu` | `make build-cpu` |
+| Metal | `make build-metal` (default) | -- | -- |
+| CUDA | -- | `make build-cuda` | `make build-cuda` |
+| ROCm (HIP) | -- | `make build-hip` | -- |
+| Vulkan | `make build-vulkan` | `make build-vulkan` | `make build-vulkan` |
+| SYCL | -- | `make build-sycl` | -- |
+| OpenCL | `make build-opencl` | `make build-opencl` | `make build-opencl` |
+
+All source builds support both static (`make build-<backend>`) and dynamic (`make build-<backend>-dynamic`) linking.
 
 ### Recent Releases
 
+- **v0.2.8** (Apr 2026) - Expanded Cython bindings for `LlamaContextParams` (`flash_attn_type`, `embeddings`, `op_offload`, `swa_full`, `kv_unified`), ~30 new `WhisperFullParams` properties, `SDSampleParams`/`SDImageGenParams` additions (skip-layer guidance, custom sigmas, LoRA, IP-Adapter, Photo Maker, step-cache surface), `whisper_cpp.disable_logging()`, `cyllama transcribe -v` flag, centralized defaults in `cyllama._defaults` aligned with llama.cpp C library, Gemma 4 interactive chat fix, Qwen3 reasoning-block truncation fix, CUDA wheel double-free fix
+- **v0.2.7** (Apr 2026) - SD defaults aligned with C library: `wtype` auto-detect (fixes blank images on CUDA), `sample_method`/`scheduler` auto-resolve, `eta` changed from 0.0 to infinity sentinel
+- **v0.2.6** (Apr 2026) - Removed accidental `pytest-review` runtime dependency from 0.2.5
 - **v0.2.5** (Apr 2026) - Typed loader exceptions, concurrent-use guard on `LLM`/`Embedder`/`WhisperContext`/`SDContext`, persistent RAG vector store (`cyllama rag --db`), corpus deduplication, vendored jinja2 chat templates (fixes Gemma 4 and other non-substring-detectable templates), Qwen3 `<think>`-block stripping + n-gram repetition guard, readline history for REPLs, memory-leak regression tests, llama.cpp b8757
 - **v0.2.4** (Apr 2026) - Unified CLI (`cyllama gen`, `chat`, `embed`, `rag`, ...), `cyllama rag` command-line RAG, Ctrl+C during inference, embeddings endpoint, Embedder logging fix, interactive chat token limit fix
 - **v0.2.3** (Apr 2026) - SD flow_shift black-image fix, GPU OOM validation, dynamic Linux install fixes, wheel backend discovery after auditwheel/delvewheel rename, CLI entry point, wheel smoke tests, OpenCL targets, CUDA tuning flags
@@ -752,10 +785,10 @@ from cyllama import LLM, GenerationConfig
 llm = LLM("model.gguf", main_gpu=1)
 
 # Multi-GPU with layer splitting (default mode)
-llm = LLM("model.gguf", split_mode=1, n_gpu_layers=99)
+llm = LLM("model.gguf", split_mode=1, n_gpu_layers=-1)
 
 # Multi-GPU with tensor parallelism (row splitting)
-llm = LLM("model.gguf", split_mode=2, n_gpu_layers=99)
+llm = LLM("model.gguf", split_mode=2, n_gpu_layers=-1)
 
 # Custom tensor split: 30% GPU 0, 70% GPU 1
 llm = LLM("model.gguf", tensor_split=[0.3, 0.7])
@@ -765,7 +798,7 @@ config = GenerationConfig(
     main_gpu=0,
     split_mode=1,          # 0=NONE, 1=LAYER, 2=ROW
     tensor_split=[1, 2],   # 1/3 GPU0, 2/3 GPU1
-    n_gpu_layers=99
+    n_gpu_layers=-1
 )
 llm = LLM("model.gguf", config=config)
 ```
@@ -801,7 +834,7 @@ bin/llama-cli -c 512 -n 32 -m models/Llama-3.2-1B-Instruct-Q8_0.gguf \
  -p "Is mathematics discovered or invented?"
 ```
 
-With 1450+ passing tests, the library is ready for both quick prototyping and production use:
+With 1460+ passing tests, the library is ready for both quick prototyping and production use:
 
 ```sh
 make test  # Run full test suite

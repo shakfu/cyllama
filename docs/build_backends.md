@@ -355,7 +355,7 @@ from cyllama import LLM
 
 model = LLM(
     model_path="model.gguf",
-    n_gpu_layers=99,  # Offload all layers to GPU
+    n_gpu_layers=-1,  # Offload all layers to GPU
 )
 ```
 

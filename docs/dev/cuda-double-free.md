@@ -51,7 +51,7 @@ The `--exclude` flags serve two distinct purposes:
 
 It might seem that only `libggml-cuda.so` needs to be excluded (since it's the only bundled lib that links directly against `libcudart`). However, a minimal exclude test (runtime libs + `libggml-cuda.so` only) revealed that **auditwheel refuses to produce a wheel** unless all bundled project libs are excluded:
 
-```
+```text
 auditwheel: error: cannot repair "cyllama_cuda12-0.2.7-cp312-cp312-linux_x86_64.whl"
 to "manylinux_2_35_x86_64" ABI because of the presence of too-recent versioned symbols.
 You'll need to compile the wheel on an older toolchain.
@@ -122,11 +122,13 @@ Seven approaches are described below, ordered from most recommended to least.
 Set `CIBW_REPAIR_WHEEL_COMMAND_LINUX: ""` so cibuildwheel skips the repair step. The wheel keeps its `linux_x86_64` platform tag. No SONAME rewriting, no library relocation, no `dlclose` ordering changes.
 
 **Pros:**
+
 - Eliminates the entire class of SONAME-rewriting bugs
 - No exclude list to maintain
 - One-line change
 
 **Cons:**
+
 - The wheel gets a `linux_x86_64` tag instead of `manylinux`, which pip may refuse to install on some systems and PyPI will reject for upload
 - Only viable for self-hosted wheel indexes or direct installation
 
@@ -161,12 +163,14 @@ The exclude list has two categories:
 - **Bundled project libs** (`libllama*`, `libggml*`, `libmtmd*`) and **`libgomp.so.1`**: Prevents auditwheel from relocating and SONAME-rewriting libraries that the build system already placed in `cyllama/llama/` with correct `$ORIGIN` RPATHs. This is where the double-free fix lies. All bundled project libs must be excluded -- auditwheel refuses to produce a wheel if any non-excluded libs contain glibc symbols too recent for the target manylinux policy (see [why all bundled project libs must be excluded](#why-all-bundled-project-libs-must-be-excluded)).
 
 **Pros:**
+
 - Directly addresses the root cause (SONAME rewriting of bundled project libs)
 - Produces a manylinux-tagged wheel that pip and PyPI accept
 - Validated in the reproduction matrix and on hardware (RTX 4060)
 - Zero runtime cost
 
 **Cons:**
+
 - Maintenance burden: every new upstream `.so` (new ggml backend, new library) requires a new `--exclude` line. Missing one will cause auditwheel to fail (too-recent glibc symbols) or, if the symbols happen to pass the policy check, reintroduce the SONAME rewriting
 - Weaker manylinux compliance: trusts the build's RPATHs rather than auditwheel's relocation guarantees
 
@@ -184,11 +188,13 @@ CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
 The build already places libraries under `cyllama/llama/` with correct RPATHs, so auditwheel's relocation is unnecessary.
 
 **Pros:**
+
 - Eliminates the entire class of SONAME-rewriting bugs
 - No exclude list to maintain
 - One-line change
 
 **Cons:**
+
 - `addtag` refuses if the wheel doesn't already meet the target manylinux policy; verify with `auditwheel show` first
 - If any non-bundled system libs genuinely need vendoring (unlikely for this project), they won't be
 - Requires auditwheel >= 6.0. Stock manylinux2014 and manylinux_2_28 images ship older versions that do not include `addtag` (available commands: `show`, `repair`, `lddtree`). Must upgrade auditwheel in the container first (e.g. `pip install 'auditwheel>=6.0'` in `CIBW_BEFORE_BUILD`)
@@ -205,11 +211,13 @@ CIBW_ENVIRONMENT_LINUX: >
 ```
 
 **Pros:**
+
 - Simplest possible fix -- no auditwheel complexity at all
 - Single `.so` extension file with no dependency graph
 - Already validated: static builds exit cleanly in the reproduction matrix
 
 **Cons:**
+
 - Larger wheel size: each Cython extension (llama, whisper, sd) embeds its own copy of ggml
 - Cannot share loaded libraries across extensions at runtime
 - May break if CUDA expects to `dlopen` ggml backends dynamically at runtime
@@ -234,10 +242,12 @@ atexit.register(_cuda_cleanup)
 ```
 
 **Pros:**
+
 - Doesn't touch the build system at all
 - Works with unmodified auditwheel
 
 **Cons:**
+
 - Fragile. Python's `atexit` execution order is not guaranteed relative to extension module `__del__` methods or module `__del__` cleanup
 - Races against the same non-determinism that causes the bug -- may reduce crash frequency without eliminating it
 - Requires that all native contexts are freed during the `gc.collect()` call, which depends on no circular references holding them alive
@@ -250,22 +260,26 @@ atexit.register(_cuda_cleanup)
 Mark `libggml-cuda.so` so the dynamic linker never unloads it, ensuring CUDA's atexit handlers always find valid memory.
 
 From C (in a Cython init path):
+
 ```c
 dlopen("libggml-cuda.so", RTLD_NOW | RTLD_NODELETE);
 ```
 
 Or from Python:
+
 ```python
 import ctypes
 ctypes.CDLL("libggml-cuda.so", mode=ctypes.RTLD_GLOBAL | 0x1000)  # RTLD_NODELETE
 ```
 
 **Pros:**
+
 - Surgically prevents the specific unload-ordering bug
 - The library stays mapped until process exit, so CUDA's atexit handlers always find valid memory
 - No build system changes required
 
 **Cons:**
+
 - Library memory is never reclaimed (minor, since the process is exiting anyway)
 - Requires knowing the exact `.so` path, which differs after auditwheel renames it
 - Platform-specific: `RTLD_NODELETE` is a Linux/glibc feature
@@ -278,9 +292,11 @@ ctypes.CDLL("libggml-cuda.so", mode=ctypes.RTLD_GLOBAL | 0x1000)  # RTLD_NODELET
 Ship the wheel as-is and document the crash as a known issue.
 
 **Pros:**
+
 - Zero effort
 
 **Cons:**
+
 - The crash manifests as a segfault or glibc abort on interpreter exit with no actionable error message
 - Users cannot reasonably diagnose or work around it
 - Undermines confidence in the CUDA wheel
@@ -328,6 +344,7 @@ sudo ldconfig
 Use **solution 2** (`--exclude` with both runtime and bundled project libs). It is validated, produces manylinux-tagged wheels, and works with the auditwheel version shipped in stock manylinux containers.
 
 The `--exclude` list must include **both categories**:
+
 1. GPU runtime system libs (backend-specific: `libcuda*`, `libamdhip*`, `libsycl*`, `libvulkan*`, etc.)
 2. Bundled project libs (`libllama.so.0`, `libggml*.so`, `libmtmd.so.0`) and `libgomp.so.1`
 
@@ -357,7 +374,7 @@ The full `--exclude` list per backend (runtime libs vary, bundled project libs a
 
 A wheel built with the full `--exclude` list was installed and inspected. The bundled libraries in `cyllama/llama/` retain their original names with no hash suffixes or SONAME rewriting:
 
-```
+```text
 cyllama/llama/libggml-base.so.0
 cyllama/llama/libggml-cpu.so
 cyllama/llama/libggml-cuda.so
@@ -372,7 +389,7 @@ No `cyllama_cuda12.libs/` directory exists -- auditwheel did not relocate any li
 
 The installed wheel was tested on a system with an NVIDIA GeForce RTX 4060 (compute capability 8.9). All three extensions load the CUDA and CPU backends from the correct unbundled paths in `cyllama/llama/`, confirming that the `$ORIGIN` RPATHs work without auditwheel relocation:
 
-```
+```text
 $ uv run cyllama info
 
 llama.cpp:
@@ -395,7 +412,7 @@ All three extensions share the same `libggml-cuda.so` and `libggml-cpu.so` from 
 
 The bundled `libggml-cuda.so` correctly resolves CUDA system libraries via the dynamic linker rather than bundling them:
 
-```
+```text
 $ ldd .../cyllama/llama/libggml-cuda.so | grep -E 'cuda|cublas'
   libcudart.so.12   => /lib/x86_64-linux-gnu/libcudart.so.12
   libcublas.so.12   => /lib/x86_64-linux-gnu/libcublas.so.12

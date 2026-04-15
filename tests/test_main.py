@@ -390,6 +390,7 @@ class TestCmdChat:
             ctx_size=2048,
             seed=-1,
             stream=False,
+            no_stream=False,
             json=False,
             verbose=False,
         )

@@ -216,7 +216,7 @@ ggml_backend_load_all()
 # Check what's available
 from cyllama.llama.llama_cpp import LlamaModel, LlamaModelParams
 params = LlamaModelParams()
-params.n_gpu_layers = 99  # Request GPU offload
+params.n_gpu_layers = -1  # Offload all layers to GPU
 # If GPU is available, layers will be offloaded
 ```
 

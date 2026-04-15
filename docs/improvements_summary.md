@@ -187,7 +187,7 @@ from cyllama import (
 # Complex setup...
 ggml_backend_load_all()
 model_params = LlamaModelParams()
-model_params.n_gpu_layers = 99
+model_params.n_gpu_layers = -1
 model = LlamaModel("model.gguf", model_params)
 
 ctx_params = LlamaContextParams()

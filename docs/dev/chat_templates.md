@@ -69,11 +69,11 @@ When you call `LLM.chat()`, the rendering goes through up to four code paths in 
 1. Pulls the embedded chat template string from the GGUF metadata via `LlamaModel.get_default_chat_template()` (a one-line wrapper around llama.cpp's stable public C API `llama_model_chat_template`).
 2. Resolves the model's `bos_token` and `eos_token` strings via `vocab.token_to_piece(vocab.token_bos(), special=True)` and the same for EOS.
 3. Constructs an `ImmutableSandboxedEnvironment` from the vendored `cyllama._vendor.jinja2`, with the same configuration HuggingFace's `transformers.PreTrainedTokenizerBase.apply_chat_template` uses:
-    - `trim_blocks=True`, `lstrip_blocks=True`
-    - `loopcontrols` extension enabled (some templates use `{% break %}`)
-    - `tojson` filter (used by tool-calling templates)
-    - `raise_exception` global (used by templates that abort on bad input)
-    - `strftime_now` global (used by Llama-3's `Today Date:` line and similar)
+   - `trim_blocks=True`, `lstrip_blocks=True`
+   - `loopcontrols` extension enabled (some templates use `{% break %}`)
+   - `tojson` filter (used by tool-calling templates)
+   - `raise_exception` global (used by templates that abort on bad input)
+   - `strftime_now` global (used by Llama-3's `Today Date:` line and similar)
 4. Renders the template with `messages`, `bos_token`, `eos_token`, and `add_generation_prompt` in scope.
 5. Returns the rendered string.
 
@@ -120,7 +120,7 @@ The implementation is in `src/cyllama/rag/pipeline.py:_generate_chunks` (the `ex
 
 ### Visual summary
 
-```
+```text
 LLM.chat(messages) ──────────────► LLM._apply_template(messages, template=None)
                                       │
                                       ▼
@@ -168,7 +168,7 @@ cyllama ships pure-Python copies of `jinja2 3.1.6` and `markupsafe 3.0.3` under 
 
 ### What's in `src/cyllama/_vendor/`
 
-```
+```text
 src/cyllama/_vendor/
 ├── __init__.py              # package marker, vendoring policy docstring
 ├── README.md                # operational docs (versions, rewrites, do-not-modify)
@@ -379,8 +379,8 @@ print(f"chat template unusable: {pipeline._chat_template_unusable}")
 ### Common failure modes
 
 1. **`RuntimeError: Failed to apply chat template`** at the binding level (`llama_cpp.pyx:1948`). This means the legacy substring-heuristic path was reached and llama.cpp's `llama_chat_apply_template` returned -1. Either:
-    - The Jinja path raised first and the wrapper fell through (look for the cause in the Jinja path)
-    - The caller passed a `template=` parameter that doesn't match anything in `LLM_CHAT_TEMPLATES` and isn't a recognisable Jinja string
+   - The Jinja path raised first and the wrapper fell through (look for the cause in the Jinja path)
+   - The caller passed a `template=` parameter that doesn't match anything in `LLM_CHAT_TEMPLATES` and isn't a recognisable Jinja string
 
 2. **`TemplateError: Model has no embedded chat template`** from `_apply_jinja_template`. The GGUF metadata doesn't contain a chat template at all. This is normal for embedding-only models; for chat-tuned models it usually means the GGUF was built without preserving the tokenizer config. The wrapper will fall through to the legacy path, which has its own `_format_messages_simple` fallback.
 
