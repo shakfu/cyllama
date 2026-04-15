@@ -1,4 +1,4 @@
-name: build-new-vulkan
+name: build-new-wheels
 
 permissions:
   contents: read
@@ -14,13 +14,18 @@ on:
         options:
           - dynamic
           - static
-      macos_intel:
-        description: 'Build macOS Intel (x86_64)'
+      vulkan_macos_intel:
+        description: 'Build Vulkan macOS Intel (x86_64)'
         required: false
         default: true
         type: boolean
-      windows:
-        description: 'Build Windows (x86_64)'
+      vulkan_windows:
+        description: 'Build Vulkan Windows (x86_64)'
+        required: false
+        default: true
+        type: boolean
+      cuda_windows:
+        description: 'Build CUDA 12 Windows (x86_64)'
         required: false
         default: true
         type: boolean
@@ -38,7 +43,7 @@ jobs:
   # ---------------------------------------------------------------------------
   build_vulkan_macos_intel:
     name: Vulkan - macOS Intel (${{ inputs.link_mode }})
-    if: inputs.macos_intel
+    if: inputs.vulkan_macos_intel
     runs-on: macos-15-intel
 
     steps:
@@ -52,7 +57,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: thirdparty/
-          key: deps-vulkan-macos-intel-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage.py', '.github/workflows/build-new-vulkan.yml') }}
+          key: deps-vulkan-macos-intel-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage.py', '.github/workflows/build-new-wheels.yml') }}
 
       - name: Install Vulkan SDK
         run: |
@@ -130,7 +135,7 @@ jobs:
   # ---------------------------------------------------------------------------
   build_vulkan_windows:
     name: Vulkan - Windows (${{ inputs.link_mode }})
-    if: inputs.windows
+    if: inputs.vulkan_windows
     runs-on: windows-latest
 
     steps:
@@ -144,7 +149,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: thirdparty/
-          key: deps-vulkan-windows-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage.py', '.github/workflows/build-new-vulkan.yml') }}
+          key: deps-vulkan-windows-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage.py', '.github/workflows/build-new-wheels.yml') }}
 
       - name: Install Vulkan SDK
         shell: pwsh
@@ -212,25 +217,120 @@ jobs:
           retention-days: 14
 
   # ---------------------------------------------------------------------------
+  # CUDA 12 - Windows (x86_64)
+  # Uses NVIDIA CUDA Toolkit 12.4. delvewheel handles wheel repair.
+  # The windows-latest runner has ~14 GB free; CUDA toolkit install needs ~5 GB.
+  # ---------------------------------------------------------------------------
+  build_cuda_windows:
+    name: CUDA 12.4 - Windows (${{ inputs.link_mode }})
+    if: inputs.cuda_windows
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Cache thirdparty deps
+        id: cache-deps
+        uses: actions/cache@v5
+        with:
+          path: thirdparty/
+          key: deps-cuda-windows-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage.py', '.github/workflows/build-new-wheels.yml') }}
+
+      - name: Install CUDA Toolkit 12.4
+        uses: Jimver/cuda-toolkit@v0.2.21
+        id: cuda-toolkit
+        with:
+          cuda: '12.4.0'
+          method: 'network'
+          sub-packages: '["nvcc", "cudart", "cublas", "cublas_dev", "visual_studio_integration"]'
+
+      - name: Verify CUDA installation
+        shell: bash
+        run: |
+          echo "CUDA_PATH=$CUDA_PATH"
+          nvcc --version
+          ls "$CUDA_PATH/lib/x64/" | head -20
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Install cibuildwheel
+        run: pip install cibuildwheel==3.4.0
+
+      - name: Build CUDA wheels
+        run: python -m cibuildwheel --output-dir wheelhouse
+        env:
+          CIBW_ARCHS_WINDOWS: AMD64
+          CIBW_BEFORE_BUILD_WINDOWS: >
+            pip install delvewheel &&
+            python -c "import os; t=open('pyproject.toml').read(); open('pyproject.toml','w').write(t.replace('name = \"cyllama\"','name = \"cyllama-cuda12\"',1))" &&
+            python -c "t=open('pyproject.toml').read(); assert 'name = \"cyllama-cuda12\"' in t, 'rename failed'" &&
+            cd {project} &&
+            python scripts/manage.py build --all --deps-only --no-sd-examples &&
+            python scripts/manage.py write_backend_info
+          CIBW_ENVIRONMENT_WINDOWS: >
+            GGML_CUDA=1
+            GGML_METAL=0
+            GGML_NATIVE=OFF
+            CMAKE_CUDA_ARCHITECTURES="75"
+            WITH_DYLIB=0
+          CIBW_TEST_COMMAND: ""
+          CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: >
+            delvewheel repair -w {dest_dir} {wheel}
+            --no-dll cudart64_12.dll
+            --no-dll cublas64_12.dll
+            --no-dll cublasLt64_12.dll
+
+      - name: List built wheels
+        shell: bash
+        run: ls -lah wheelhouse/
+
+      - name: Inspect wheel contents
+        shell: bash
+        run: |
+          pip install wheel-inspect 2>/dev/null || pip install pkginfo
+          for whl in wheelhouse/*.whl; do
+            echo "=== $whl ==="
+            python -m zipfile -l "$whl"
+            echo ""
+          done
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v7
+        with:
+          name: wheels-cuda-windows
+          path: ./wheelhouse/*.whl
+          retention-days: 14
+
+  # ---------------------------------------------------------------------------
   # Import smoke tests (no GPU required)
   # ---------------------------------------------------------------------------
   smoke_test:
     name: Smoke test - ${{ matrix.platform }}
-    needs: [build_vulkan_macos_intel, build_vulkan_windows]
-    if: always() && !cancelled() && (needs.build_vulkan_macos_intel.result == 'success' || needs.build_vulkan_windows.result == 'success')
+    needs: [build_vulkan_macos_intel, build_vulkan_windows, build_cuda_windows]
+    if: always() && !cancelled() && (needs.build_vulkan_macos_intel.result == 'success' || needs.build_vulkan_windows.result == 'success' || needs.build_cuda_windows.result == 'success')
     runs-on: ${{ matrix.runs-on }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - platform: macos-intel
+          - platform: vulkan-macos-intel
             runs-on: macos-15-intel
             artifact: wheels-vulkan-macos-intel
-            condition: inputs.macos_intel
-          - platform: windows
+            condition: inputs.vulkan_macos_intel
+          - platform: vulkan-windows
             runs-on: windows-latest
             artifact: wheels-vulkan-windows
-            condition: inputs.windows
+            condition: inputs.vulkan_windows
+          - platform: cuda-windows
+            runs-on: windows-latest
+            artifact: wheels-cuda-windows
+            condition: inputs.cuda_windows
 
     steps:
       - name: Check if platform was built
@@ -313,8 +413,8 @@ jobs:
 
           try:
               from cyllama import _backend
-              print(f'Backend: vulkan={getattr(_backend, \"vulkan\", False)}, '
-                    f'cuda={getattr(_backend, \"cuda\", False)}, '
+              print(f'Backend: cuda={getattr(_backend, \"cuda\", False)}, '
+                    f'vulkan={getattr(_backend, \"vulkan\", False)}, '
                     f'metal={getattr(_backend, \"metal\", False)}')
           except ImportError:
               print('No _backend module')
