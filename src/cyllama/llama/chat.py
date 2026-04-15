@@ -10,6 +10,8 @@ import argparse
 from typing import List, Dict
 
 from .._defaults import DEFAULT_MAX_TOKENS, DEFAULT_N_GPU_LAYERS
+from ..utils.color import green, yellow, END
+
 from .llama_cpp import (
     LlamaModel,
     LlamaContext,
@@ -22,6 +24,12 @@ from .llama_cpp import (
     llama_batch_get_one,
     disable_logging,
 )
+
+# Vendored jinja2 for chat-template rendering (same path as api.py).
+try:
+    from cyllama._vendor.jinja2.exceptions import TemplateError as _JinjaTemplateError
+except ImportError:  # pragma: no cover
+    _JinjaTemplateError = type("_JinjaTemplateError", (Exception,), {})
 
 
 def print_usage():
@@ -74,6 +82,111 @@ class Chat:
         self.ngl = ngl
         self.max_tokens = max_tokens
 
+    def _apply_template(
+        self,
+        messages: List,
+        add_assistant_msg: bool = True,
+    ) -> str:
+        """Apply chat template using vendored jinja2 with C API fallback.
+
+        Mirrors the two-tier approach in ``cyllama.api.LLM._apply_template``:
+        try the vendored jinja2 interpreter first (handles Gemma 4, Qwen3,
+        and any template the C heuristic doesn't recognise), then fall back
+        to the C ``llama_chat_apply_template`` on failure.
+        """
+        # --- Tier 1: vendored jinja2 ---
+        try:
+            return self._apply_jinja_template(messages, add_assistant_msg)
+        except _JinjaTemplateError:
+            pass
+        except Exception:
+            pass
+
+        # --- Tier 2: C API (substring heuristic) ---
+        tmpl = self.model.get_default_chat_template()
+        if tmpl:
+            chat_msgs = []
+            for msg in messages:
+                if isinstance(msg, LlamaChatMessage):
+                    chat_msgs.append(msg)
+                else:
+                    chat_msgs.append(
+                        LlamaChatMessage(role=msg["role"], content=msg["content"])
+                    )
+            return self.model.chat_apply_template(tmpl, chat_msgs, add_assistant_msg)
+
+        # --- Tier 3: simple User/Assistant formatting ---
+        conversation = ""
+        for msg in messages:
+            role = msg["role"] if isinstance(msg, dict) else msg.role
+            content = msg["content"] if isinstance(msg, dict) else msg.content
+            if role == "user":
+                conversation += f"User: {content}\n"
+            elif role == "assistant":
+                conversation += f"Assistant: {content}\n"
+            elif role == "system":
+                conversation += f"System: {content}\n"
+        if add_assistant_msg:
+            conversation += "Assistant:"
+        return conversation
+
+    def _apply_jinja_template(
+        self,
+        messages: List,
+        add_generation_prompt: bool = True,
+    ) -> str:
+        """Render the model's embedded chat template via vendored jinja2."""
+        import json
+        from datetime import datetime
+
+        from cyllama._vendor.jinja2 import ext as _jinja2_ext
+        from cyllama._vendor.jinja2.exceptions import TemplateError
+        from cyllama._vendor.jinja2.sandbox import ImmutableSandboxedEnvironment
+
+        template_str = self.model.get_default_chat_template()
+        if not template_str:
+            raise TemplateError("Model has no embedded chat template")
+
+        vocab = self.model.get_vocab()
+        bos_id = vocab.token_bos()
+        eos_id = vocab.token_eos()
+        bos_token = vocab.token_to_piece(bos_id, special=True) if bos_id >= 0 else ""
+        eos_token = vocab.token_to_piece(eos_id, special=True) if eos_id >= 0 else ""
+
+        def raise_exception(message: str) -> str:
+            raise TemplateError(message)
+
+        def tojson_filter(value, ensure_ascii=False, indent=None, separators=None, sort_keys=False):
+            return json.dumps(value, ensure_ascii=ensure_ascii, indent=indent, separators=separators, sort_keys=sort_keys)
+
+        def strftime_now(fmt: str) -> str:
+            return datetime.now().strftime(fmt)
+
+        env = ImmutableSandboxedEnvironment(
+            trim_blocks=True,
+            lstrip_blocks=True,
+            extensions=[_jinja2_ext.loopcontrols],
+        )
+        env.filters["tojson"] = tojson_filter
+        env.globals["raise_exception"] = raise_exception
+        env.globals["strftime_now"] = strftime_now
+
+        # Normalise messages to dicts for the template
+        msg_dicts = []
+        for msg in messages:
+            if isinstance(msg, dict):
+                msg_dicts.append(msg)
+            else:
+                msg_dicts.append({"role": msg.role, "content": msg.content})
+
+        compiled = env.from_string(template_str)
+        return compiled.render(
+            messages=msg_dicts,
+            bos_token=bos_token,
+            eos_token=eos_token,
+            add_generation_prompt=add_generation_prompt,
+        )
+
     def generate(self, prompt: str) -> str:
         """Generate response for the given prompt using a fresh context"""
         # Create a fresh context for this generation to avoid state issues
@@ -103,13 +216,12 @@ class Chat:
 
         # Generation loop
         max_tokens = self.max_tokens
-        consecutive_spaces = 0  # Track consecutive spaces/newlines to avoid infinite generation
 
         for i in range(max_tokens):
             # Check context size
             n_ctx = fresh_context.n_ctx
             if n_past >= n_ctx - 1:  # Leave room for at least one more token
-                print("\033[0m")
+                print(END)
                 print("context size exceeded", file=sys.stderr)
                 break
 
@@ -123,16 +235,6 @@ class Chat:
             # Convert token to piece and add to response
             try:
                 piece = self.vocab.token_to_piece(new_token_id, 0, True)
-
-                # Stop generating if we get too many consecutive spaces/newlines
-                if piece.strip() == "":
-                    consecutive_spaces += 1
-                    if consecutive_spaces >= 3:  # Stop after 3 consecutive whitespace tokens
-                        break
-                else:
-                    consecutive_spaces = 0
-
-                print(piece, end="", flush=True)
                 response += piece
 
             except Exception as e:
@@ -167,7 +269,7 @@ class Chat:
 
         while True:
             # Get user input
-            print("\033[32m> \033[0m", end="")
+            print(green("> "), end="")
             try:
                 user_input = input().strip()
             except (EOFError, KeyboardInterrupt):
@@ -176,55 +278,21 @@ class Chat:
             if not user_input:
                 break
 
-            tmpl = self.model.get_default_chat_template()
-
-            if tmpl:
-                # Use LlamaChatMessage objects for template-based chat
-                self.messages.append(LlamaChatMessage(role="user", content=user_input))
-                prompt = self.model.chat_apply_template(tmpl, self.messages, add_assistant_msg=True)
-            else:
-                # Add user message to conversation history using dict format
-                self.messages.append({"role": "user", "content": user_input})
-
-                # Format conversation with User/Assistant format (this works well with this model)
-                conversation = ""
-                for msg in self.messages:
-                    if msg["role"] == "user":
-                        conversation += f"User: {msg['content']}\n"
-                    elif msg["role"] == "assistant":
-                        conversation += f"Assistant: {msg['content']}\n"
-
-                # Add prompt for the assistant to continue
-                conversation += "Assistant:"
-
-                # Extract the prompt (new part since last message)
-                prompt = conversation[self.prev_len :]
+            # Always use dict format for messages (works with both jinja
+            # and C API paths via _apply_template)
+            self.messages.append({"role": "user", "content": user_input})
+            prompt = self._apply_template(self.messages, add_assistant_msg=True)
 
             # Generate response
-            print("\033[33m", end="")
             try:
                 response = self.generate(prompt)
-                print("\n\033[0m")
+                print(yellow(response))
 
-                # Add assistant message
-                if tmpl:
-                    # Use LlamaChatMessage for template-based chat
-                    self.messages.append(LlamaChatMessage(role="assistant", content=response))
-                else:
-                    # Use dict format for non-template chat
-                    self.messages.append({"role": "assistant", "content": response})
 
-                    # Update previous length for next iteration
-                    full_conversation = ""
-                    for msg in self.messages:
-                        if msg["role"] == "user":
-                            full_conversation += f"User: {msg['content']}\n"
-                        elif msg["role"] == "assistant":
-                            full_conversation += f"Assistant: {msg['content']}\n"
-                    self.prev_len = len(full_conversation)
+                self.messages.append({"role": "assistant", "content": response})
 
             except Exception as e:
-                print(f"\nError generating response: {e}", file=sys.stderr)
+                print(f"\nError: {e}", file=sys.stderr)
                 # Remove the user message that caused the error
                 self.messages.pop()
 
