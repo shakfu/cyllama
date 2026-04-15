@@ -63,7 +63,7 @@ cdef extern from "mtmd.h":
     cdef void mtmd_free(mtmd_context * ctx)
 
     # Context queries
-    cdef bint mtmd_decode_use_non_causal(mtmd_context * ctx)
+    cdef bint mtmd_decode_use_non_causal(mtmd_context * ctx, const mtmd_input_chunk * chunk)
     cdef bint mtmd_decode_use_mrope(mtmd_context * ctx)
     cdef bint mtmd_support_vision(mtmd_context * ctx)
     cdef bint mtmd_support_audio(mtmd_context * ctx)

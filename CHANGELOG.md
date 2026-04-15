@@ -17,6 +17,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+### Changed
+
+- **Updated llama.cpp from b8757 to b8802** - Updated bundled llama.cpp. Adapted Cython bindings to the `mtmd_decode_use_non_causal` signature change (now takes a second `chunk` parameter; passing `NULL` preserves the previous default behavior per upstream docs)
+
+- **Updated stable-diffusion.cpp from master-559-dd75372 to master-567-ee5bf95** - Updated bundled stable-diffusion.cpp (no API-breaking changes)
+
+### Added
+
+- **Multimodal (mtmd) integration tests** - Added 5 integration tests in `TestMtmdIntegration` that exercise the native mtmd Cython bindings end-to-end against a real gemma-4 model: context creation with capability checks, single/multi-image tokenization, text token readback, and marker/bitmap mismatch error handling. Tests auto-skip when model files are not present
+
 ## [0.2.8]
 
 ### Added

@@ -462,7 +462,7 @@ cdef class MtmdContext:
         """Check if model requires non-causal attention for decode."""
         if self._ctx is NULL:
             return False
-        return mtmd_decode_use_non_causal(self._ctx)
+        return mtmd_decode_use_non_causal(self._ctx, NULL)
 
     @property
     def uses_mrope(self) -> bool:

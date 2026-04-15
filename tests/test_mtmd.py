@@ -31,6 +31,7 @@ from cyllama.llama.mtmd import (
     MtmdContextParams,
     MtmdBitmap,
     MtmdInputChunks,
+    MtmdInputChunkType,
     get_default_media_marker,
     MultimodalProcessor,
     VisionLanguageChat,
@@ -439,52 +440,118 @@ class TestErrorHandling:
                     processor._load_audio_bitmap({"invalid": "type"})
 
 
+GEMMA4_MODEL = Path("models/gemma-4-E4B-it-Q4_K_M.gguf")
+GEMMA4_MMPROJ = Path("models/mmproj-gemma-4-E4B-it-BF16.gguf")
+
+_gemma4_available = GEMMA4_MODEL.exists() and GEMMA4_MMPROJ.exists()
+skip_no_gemma4 = pytest.mark.skipif(
+    not _gemma4_available, reason="gemma-4 model or mmproj not found in models/"
+)
+
+
 @pytest.mark.integration
+@skip_no_gemma4
 class TestMtmdIntegration:
-    """Integration tests that require actual models (marked as integration)."""
+    """Integration tests using gemma-4 multimodal model."""
 
     @pytest.fixture
-    def model_files(self):
-        """Check for required model files."""
-        model_dir = Path("models")
-        if not model_dir.exists():
-            pytest.skip("Models directory not found")
+    def mtmd_ctx(self):
+        """Load gemma-4 model and create MtmdContext with cleanup."""
+        import gc
+        from cyllama.llama.llama_cpp import (
+            LlamaModel,
+            LlamaModelParams,
+            MtmdContext,
+            MtmdContextParams,
+        )
 
-        # Look for any .gguf model file
-        model_files = list(model_dir.glob("*.gguf"))
-        if not model_files:
-            pytest.skip("No GGUF model files found")
+        model_params = LlamaModelParams()
+        model = LlamaModel(str(GEMMA4_MODEL), model_params)
+        params = MtmdContextParams(use_gpu=True, n_threads=4)
+        ctx = MtmdContext(str(GEMMA4_MMPROJ), model, params)
+        yield ctx, model
+        del ctx
+        del model
+        gc.collect()
 
-        # Look for any .mmproj file
-        mmproj_files = list(model_dir.glob("*.mmproj"))
-        if not mmproj_files:
-            pytest.skip("No multimodal projector files found")
+    def test_context_creation(self, mtmd_ctx):
+        """Test that MtmdContext initializes and reports capabilities."""
+        ctx, _model = mtmd_ctx
+        assert ctx.supports_vision is True
+        assert isinstance(ctx.supports_audio, bool)
+        assert isinstance(ctx.uses_non_causal, bool)
+        assert isinstance(ctx.uses_mrope, bool)
+        assert isinstance(ctx.audio_sample_rate, int)
 
-        return model_files[0], mmproj_files[0]
+    def test_tokenize_image(self, mtmd_ctx):
+        """Test tokenizing a prompt with a synthetic image bitmap."""
+        ctx, _model = mtmd_ctx
+        marker = get_default_media_marker()
 
-    @pytest.mark.skip(reason="Requires actual model files and may be slow")
-    def test_real_model_loading(self, model_files):
-        """Test loading real model files."""
-        model_path, mmproj_path = model_files
+        # 4x4 red pixel image
+        bitmap = MtmdBitmap.create_image(4, 4, b"\xff\x00\x00" * 16)
+        text = f"Describe this image: {marker}"
+        chunks = ctx.tokenize(text, [bitmap])
 
-        # Load actual model
-        model = cyllama.LlamaModel(str(model_path))
+        assert len(chunks) == 3
+        assert chunks.total_tokens > 0
 
-        # Create multimodal processor
-        processor = MultimodalProcessor(str(mmproj_path), model)
+        # First chunk: text before image
+        assert chunks[0].type == MtmdInputChunkType.TEXT
+        assert chunks[0].n_tokens > 0
 
-        # Basic capability checks
-        assert isinstance(processor.supports_vision, bool)
-        assert isinstance(processor.supports_audio, bool)
+        # Second chunk: image tokens
+        assert chunks[1].type == MtmdInputChunkType.IMAGE
+        assert chunks[1].n_tokens > 0
 
-    @pytest.mark.skip(reason="Requires actual model files and test images")
-    def test_real_image_processing(self, model_files):
-        """Test processing real images."""
-        model_path, mmproj_path = model_files
+        # Third chunk: text after image
+        assert chunks[2].type == MtmdInputChunkType.TEXT
 
-        # This would require actual test images and working models
-        # Implementation would depend on available test assets
-        pass
+    def test_tokenize_text_tokens_readable(self, mtmd_ctx):
+        """Test that text chunk tokens can be read back."""
+        ctx, _model = mtmd_ctx
+        marker = get_default_media_marker()
+
+        bitmap = MtmdBitmap.create_image(2, 2, b"\x00" * 12)
+        chunks = ctx.tokenize(f"Hello {marker}", [bitmap])
+
+        text_chunk = chunks[0]
+        assert text_chunk.type == MtmdInputChunkType.TEXT
+        tokens = text_chunk.get_text_tokens()
+        assert isinstance(tokens, list)
+        assert all(isinstance(t, int) for t in tokens)
+        assert len(tokens) == text_chunk.n_tokens
+
+    def test_tokenize_multiple_images(self, mtmd_ctx):
+        """Test tokenizing a prompt with multiple image markers."""
+        ctx, _model = mtmd_ctx
+        marker = get_default_media_marker()
+
+        bitmaps = [
+            MtmdBitmap.create_image(2, 2, b"\xff\x00\x00" * 4),
+            MtmdBitmap.create_image(2, 2, b"\x00\xff\x00" * 4),
+        ]
+        text = f"Compare {marker} and {marker}"
+        chunks = ctx.tokenize(text, bitmaps)
+
+        # Expect: text, image, text, image, text (or similar interleaving)
+        assert len(chunks) >= 4
+        image_chunks = [
+            c for i in range(len(chunks))
+            if (c := chunks[i]).type == MtmdInputChunkType.IMAGE
+        ]
+        assert len(image_chunks) == 2
+
+    def test_tokenize_mismatched_bitmaps_raises(self, mtmd_ctx):
+        """Test that mismatched marker/bitmap count raises an error."""
+        ctx, _model = mtmd_ctx
+        marker = get_default_media_marker()
+
+        bitmap = MtmdBitmap.create_image(2, 2, b"\x00" * 12)
+        # Two markers but only one bitmap
+        text = f"{marker} and {marker}"
+        with pytest.raises((RuntimeError, ValueError)):
+            ctx.tokenize(text, [bitmap])
 
 
 if __name__ == "__main__":
