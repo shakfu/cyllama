@@ -62,7 +62,7 @@ import time
 
 logger = logging.getLogger(__name__)
 
-from ._defaults import (
+from .defaults import (
     LLAMA_DEFAULT_SEED,
     DEFAULT_TEMPERATURE,
     DEFAULT_TOP_K,
@@ -107,15 +107,15 @@ class GenerationConfig:
     Configuration for text generation.
 
     Attributes:
-        max_tokens: Maximum number of tokens to generate (see _defaults.py)
-        temperature: Sampling temperature, 0.0 = greedy (see _defaults.py)
-        top_k: Top-k sampling parameter (see _defaults.py)
-        top_p: Top-p (nucleus) sampling parameter (see _defaults.py)
-        min_p: Minimum probability threshold (see _defaults.py)
-        repeat_penalty: Penalty for repeating tokens (see _defaults.py)
-        n_gpu_layers: Number of layers to offload to GPU (see _defaults.py)
-        main_gpu: Primary GPU device index for inference (see _defaults.py)
-        split_mode: How to split model across GPUs (see _defaults.py)
+        max_tokens: Maximum number of tokens to generate (see defaults.py)
+        temperature: Sampling temperature, 0.0 = greedy (see defaults.py)
+        top_k: Top-k sampling parameter (see defaults.py)
+        top_p: Top-p (nucleus) sampling parameter (see defaults.py)
+        min_p: Minimum probability threshold (see defaults.py)
+        repeat_penalty: Penalty for repeating tokens (see defaults.py)
+        n_gpu_layers: Number of layers to offload to GPU (see defaults.py)
+        main_gpu: Primary GPU device index for inference (see defaults.py)
+        split_mode: How to split model across GPUs (see defaults.py)
             0 = NONE: Use single GPU only (main_gpu)
             1 = LAYER: Split layers and KV cache across GPUs
             2 = ROW: Split with tensor parallelism (if supported)
@@ -123,8 +123,8 @@ class GenerationConfig:
             List of floats, one per GPU. Values are normalized by llama.cpp.
             Example: [1, 2] assigns 1/3 to GPU 0 and 2/3 to GPU 1.
         n_ctx: Context window size, None = auto (default: None)
-        n_batch: Batch size for processing (see _defaults.py)
-        seed: Random seed for reproducibility (see _defaults.py)
+        n_batch: Batch size for processing (see defaults.py)
+        seed: Random seed for reproducibility (see defaults.py)
         stop_sequences: List of strings that stop generation (default: [])
         add_bos: Add beginning-of-sequence token (default: True)
         parse_special: Parse special tokens in prompt (default: True)
@@ -552,7 +552,7 @@ class LLM:
         if cache_size > 0:
             self._cache = _ResponseLRUCache(cache_size, cache_ttl)
 
-        from ._validation import validate_gguf_file
+        from .utils.validation import validate_gguf_file
 
         # Surface clear, typed errors (FileNotFoundError, IsADirectoryError,
         # PermissionError, ValueError) for the common bad-input cases before

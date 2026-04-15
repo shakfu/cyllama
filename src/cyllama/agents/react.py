@@ -17,7 +17,7 @@ from typing import List, Optional, Iterator, Dict, Any, Tuple
 from dataclasses import dataclass, field
 from enum import Enum
 
-from .._defaults import DEFAULT_MAX_TOKENS, DEFAULT_TEMPERATURE
+from ..defaults import DEFAULT_MAX_TOKENS, DEFAULT_TEMPERATURE
 from ..api import LLM, GenerationConfig
 from .tools import Tool, ToolRegistry
 

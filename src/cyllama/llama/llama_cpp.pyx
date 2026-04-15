@@ -1723,7 +1723,7 @@ cdef class LlamaModel:
         self._cached_size = 0
 
     def __init__(self, path_model: str, params: Optional[LlamaModelParams] = None, verbose: bool = True):
-        from cyllama._validation import validate_gguf_file
+        from cyllama.utils.validation import validate_gguf_file
 
         self.path_model = path_model
         self.params = params if params else LlamaModelParams()
@@ -3063,7 +3063,7 @@ def ggml_commit() -> str:
 
 def ggml_backend_load_all():
     import os
-    from .._backend_dl import libs_to_load
+    from .._internal.backend_dl import libs_to_load
     # ggml's default search paths (executable dir, cwd) won't find backend
     # libs bundled alongside this extension. Always search our package dir.
     # In static builds this harmlessly finds nothing; in dynamic builds it

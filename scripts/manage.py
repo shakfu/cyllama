@@ -2231,9 +2231,8 @@ class Application(ShellCmd, metaclass=MetaCommander):
                     kwargs["examples"] = False
                 builder.build(**kwargs)
 
-        # Write build info
-        self._write_build_info(builder_versions)
-        self._write_backend_info()
+        # Write build config (combined backend + version info)
+        self._write_build_config(builder_versions)
 
         # Build using scikit-build-core (editable install)
         if not args.deps_only:
@@ -2242,7 +2241,7 @@ class Application(ShellCmd, metaclass=MetaCommander):
             _cmd = "uv sync --reinstall-package cyllama"
             self.cmd(_cmd)
 
-    def _write_build_info(self, builder_versions: dict) -> None:
+    def _write_build_config(self, builder_versions: dict) -> None:
         """Write build info to src/cyllama/_build_info.py."""
         import re
 
@@ -2300,67 +2299,61 @@ class Application(ShellCmd, metaclass=MetaCommander):
                             f"reporting {BuilderClass.name}'s vendored ggml {ggml_ver}"
                         )
 
-        out_path = Path("src/cyllama/_build_info.py")
-        with open(out_path, "w") as f:
-            f.write('"""Auto-generated build info from manage.py."""\n\n')
-            for k, v in sorted(info.items()):
-                f.write(f'{k} = "{v}"\n')
-
-        self.log.info(f"Wrote build info to {out_path}")
-
-    def _write_backend_info(self) -> None:
-        """Write backend config to src/cyllama/_backend.py."""
-        backends = {
-            "blas": getenv("GGML_BLAS", default=False),
-            "cuda": getenv("GGML_CUDA", default=False),
-            "hip": getenv("GGML_HIP", default=False),
-            "metal": getenv("GGML_METAL", default=(PLATFORM == "Darwin")),
-            "opencl": getenv("GGML_OPENCL", default=False),
-            "sycl": getenv("GGML_SYCL", default=False),
-            "vulkan": getenv("GGML_VULKAN", default=False),
-        }
-
+        # Build backend config from environment
         def _opt(key: str) -> str | None:
             return os.environ.get(key) or None
 
-        options = {
-            # CUDA options
-            "cuda_architectures": _opt("CMAKE_CUDA_ARCHITECTURES"),
-            "cuda_compiler": _opt("CMAKE_CUDA_COMPILER"),
-            "cuda_fa_all_quants": _opt("GGML_CUDA_FA_ALL_QUANTS"),
-            "cuda_force_cublas": _opt("GGML_CUDA_FORCE_CUBLAS"),
-            "cuda_force_mmq": _opt("GGML_CUDA_FORCE_MMQ"),
-            "cuda_peer_max_batch_size": _opt("GGML_CUDA_PEER_MAX_BATCH_SIZE"),
-            # HIP options
-            "hip_architectures": _opt("CMAKE_HIP_ARCHITECTURES"),
-            "hip_rocwmma_fattn": getenv("GGML_HIP_ROCWMMA_FATTN", default=False),
-            # BLAS options
-            "blas_vendor": _opt("GGML_BLAS_VENDOR"),
-            # General options
+        backend = {
+            "cuda": {
+                "enabled": getenv("GGML_CUDA", default=False),
+                "architectures": _opt("CMAKE_CUDA_ARCHITECTURES"),
+                "compiler": _opt("CMAKE_CUDA_COMPILER"),
+                "fa_all_quants": _opt("GGML_CUDA_FA_ALL_QUANTS"),
+                "force_cublas": _opt("GGML_CUDA_FORCE_CUBLAS"),
+                "force_mmq": _opt("GGML_CUDA_FORCE_MMQ"),
+                "peer_max_batch_size": _opt("GGML_CUDA_PEER_MAX_BATCH_SIZE"),
+            },
+            "hip": {
+                "enabled": getenv("GGML_HIP", default=False),
+                "architectures": _opt("CMAKE_HIP_ARCHITECTURES"),
+                "rocwmma_fattn": getenv("GGML_HIP_ROCWMMA_FATTN", default=False),
+            },
+            "metal": {
+                "enabled": getenv("GGML_METAL", default=(PLATFORM == "Darwin")),
+            },
+            "vulkan": {
+                "enabled": getenv("GGML_VULKAN", default=False),
+            },
+            "sycl": {
+                "enabled": getenv("GGML_SYCL", default=False),
+            },
+            "opencl": {
+                "enabled": getenv("GGML_OPENCL", default=False),
+            },
+            "blas": {
+                "enabled": getenv("GGML_BLAS", default=False),
+                "vendor": _opt("GGML_BLAS_VENDOR"),
+            },
             "openmp": _opt("GGML_OPENMP"),
         }
 
-        out_path = Path("src/cyllama/_backend.py")
+        import json
+        config = {
+            "backend": backend,
+            "versions": dict(sorted(info.items())),
+        }
+        out_path = Path("src/cyllama/build_config.json")
         with open(out_path, "w") as f:
-            f.write('"""Auto-generated backend config from manage.py."""\n\n')
-            for k, v in sorted(backends.items()):
-                f.write(f"{k} = {v}\n")
-            f.write("\n# Backend-specific options\n")
-            for k, v in options.items():
-                if isinstance(v, bool):
-                    f.write(f"{k} = {v}\n")
-                elif v is None:
-                    f.write(f"{k} = None\n")
-                else:
-                    f.write(f'{k} = "{v}"\n')
-        self.log.info(f"Wrote backend info to {out_path}")
+            json.dump(config, f, indent=2)
+            f.write("\n")
+        self.log.info(f"Wrote build config to {out_path}")
 
     # ------------------------------------------------------------------------
-    # write-backend-info
+    # write-build-config
 
-    def do_write_backend_info(self, args: argparse.Namespace) -> None:
-        """write _backend.py from current GGML_* env vars"""
-        self._write_backend_info()
+    def do_write_build_config(self, args: argparse.Namespace) -> None:
+        """write build_config.json from current GGML_* env vars"""
+        self._write_build_config({})
 
     # ------------------------------------------------------------------------
     # wheel

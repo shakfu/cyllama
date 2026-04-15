@@ -20,12 +20,8 @@ def ensure_native_deps() -> None:
     if sys.platform != "win32":
         return
 
-    try:
-        from .. import _backend
-    except ImportError:
-        return
-
-    if _backend.cuda:
+    from .._internal import build_config
+    if build_config.backend_enabled("cuda"):
         _setup_cuda_dll_paths()
 
 

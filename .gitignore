@@ -6,8 +6,10 @@ models
 thirdparty/llama-cpp-python
 thirdparty/llama.cpp/dynamic
 
-# build-generated backend config
-src/cyllama/_backend.py
+# build-generated config (manage.py writes these; included in wheels)
+src/cyllama/build_config.json
+src/cyllama/_internal/backend.py
+src/cyllama/_internal/build_info.py
 
 # cython generated code
 src/cyllama/llama/llama_cpp.cpp

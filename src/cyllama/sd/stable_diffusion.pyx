@@ -157,7 +157,7 @@ def ggml_backend_load_all():
     Call before querying system info so that GPU backends are registered.
     """
     import os
-    from .._backend_dl import libs_to_load
+    from .._internal.backend_dl import libs_to_load
     _dir = os.path.dirname(os.path.abspath(__file__))
     # In dynamic builds the backend libs live alongside the llama extension
     _llama_dir = os.path.join(os.path.dirname(_dir), "llama")
@@ -2251,7 +2251,7 @@ cdef class SDContext:
             ValueError: If a configured model file is empty or otherwise invalid.
             RuntimeError: If context creation fails for any other reason.
         """
-        from cyllama._validation import validate_model_file
+        from cyllama.utils.validation import validate_model_file
 
         # Validate every configured model path up front so we surface a
         # clear, typed error instead of a NULL pointer from new_sd_ctx().

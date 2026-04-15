@@ -638,7 +638,7 @@ cdef class WhisperContext:
 
     def __init__(self, model_path, WhisperContextParams params=None):
         import threading
-        from cyllama._validation import validate_whisper_file
+        from cyllama.utils.validation import validate_whisper_file
 
         if params is None:
             params = WhisperContextParams()
@@ -940,7 +940,7 @@ def ggml_backend_load_all():
     are registered and available for inference.
     """
     import os
-    from .._backend_dl import libs_to_load
+    from .._internal.backend_dl import libs_to_load
     _dir = os.path.dirname(os.path.abspath(__file__))
     # In dynamic builds the backend libs live alongside the llama extension
     _llama_dir = os.path.join(os.path.dirname(_dir), "llama")

@@ -207,7 +207,7 @@ On Windows, CUDA-linked extensions depend on toolkit DLLs (e.g. `cublas64_13.dll
 2. `nvcc` on `PATH`
 3. Standard install location (`C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\`)
 
-This is a no-op on non-Windows platforms or non-CUDA builds, controlled by the build-time `_backend.py` config.
+This is a no-op on non-Windows platforms or non-CUDA builds, controlled by the build-time `_internal/backend.py` config.
 
 ## Complete Environment Variable Reference
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Iterator
 
-from .._defaults import DEFAULT_MAX_TOKENS, DEFAULT_TEMPERATURE
+from ..defaults import DEFAULT_MAX_TOKENS, DEFAULT_TEMPERATURE
 from .repetition import NGramRepetitionDetector, ThinkBlockStripper
 from .types import SearchResult
 

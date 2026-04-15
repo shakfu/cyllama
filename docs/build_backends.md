@@ -279,17 +279,17 @@ ls -lh thirdparty/llama.cpp/lib/
 
 ### Querying at Runtime
 
-The build generates `src/cyllama/_backend.py` with the enabled backends and their configuration. You can inspect this at runtime:
+The build generates `src/cyllama/_internal/backend.py` with the enabled backends and their configuration. You can inspect this at runtime:
 
 ```python
-from cyllama import _backend
+from cyllama._internal import backend
 
-print(_backend.cuda)    # True if built with CUDA
-print(_backend.metal)   # True if built with Metal
-print(_backend.vulkan)  # True if built with Vulkan
+print(backend.cuda)    # True if built with CUDA
+print(backend.metal)   # True if built with Metal
+print(backend.vulkan)  # True if built with Vulkan
 
 # Backend-specific options (None if not set)
-print(_backend.cuda_architectures)   # e.g. "89" or None
+print(backend.cuda_architectures)   # e.g. "89" or None
 print(_backend.blas_vendor)          # e.g. "OpenBLAS" or None
 ```
 

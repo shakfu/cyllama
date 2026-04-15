@@ -1,7 +1,6 @@
 """Tests for platform-specific runtime setup."""
 
 import os
-import types
 from unittest import mock
 
 import pytest
@@ -43,43 +42,28 @@ class TestEnsureNativeDeps:
             plat_mod.ensure_native_deps()
             # If it weren't idempotent, it would try win32 path on the second call
 
-    def test_noop_when_backend_missing(self):
+    def test_noop_when_build_config_missing(self):
+        """When build_config.json is missing, backend_enabled() returns False and CUDA setup is skipped."""
         from cyllama.utils import platform as plat_mod
-        import cyllama
-
-        # Temporarily remove _backend from the package so the relative
-        # import falls through to sys.modules (where None triggers ImportError)
-        had_backend = hasattr(cyllama, "_backend")
-        if had_backend:
-            orig_backend = cyllama._backend
+        from cyllama._internal import build_config
 
         with (
             mock.patch.object(plat_mod, "sys") as mock_sys,
             mock.patch.object(plat_mod, "_setup_cuda_dll_paths") as mock_cuda,
-            mock.patch.dict("sys.modules", {"cyllama._backend": None}),
+            mock.patch.object(build_config, "backend_enabled", return_value=False),
         ):
-            if had_backend:
-                delattr(cyllama, "_backend")
-            try:
-                mock_sys.platform = "win32"
-                plat_mod.ensure_native_deps()
-                mock_cuda.assert_not_called()
-            finally:
-                if had_backend:
-                    cyllama._backend = orig_backend
+            mock_sys.platform = "win32"
+            plat_mod.ensure_native_deps()
+            mock_cuda.assert_not_called()
 
     def test_skips_cuda_when_not_enabled(self):
         from cyllama.utils import platform as plat_mod
-        import cyllama
-
-        backend = types.ModuleType("cyllama._backend")
-        backend.cuda = False
+        from cyllama._internal import build_config
 
         with (
             mock.patch.object(plat_mod, "sys") as mock_sys,
             mock.patch.object(plat_mod, "_setup_cuda_dll_paths") as mock_cuda,
-            mock.patch.dict("sys.modules", {"cyllama._backend": backend}),
-            mock.patch.object(cyllama, "_backend", backend, create=True),
+            mock.patch.object(build_config, "backend_enabled", return_value=False),
         ):
             mock_sys.platform = "win32"
             plat_mod.ensure_native_deps()
@@ -87,16 +71,12 @@ class TestEnsureNativeDeps:
 
     def test_calls_cuda_setup_when_enabled(self):
         from cyllama.utils import platform as plat_mod
-        import cyllama
-
-        backend = types.ModuleType("cyllama._backend")
-        backend.cuda = True
+        from cyllama._internal import build_config
 
         with (
             mock.patch.object(plat_mod, "sys") as mock_sys,
             mock.patch.object(plat_mod, "_setup_cuda_dll_paths") as mock_cuda,
-            mock.patch.dict("sys.modules", {"cyllama._backend": backend}),
-            mock.patch.object(cyllama, "_backend", backend, create=True),
+            mock.patch.object(build_config, "backend_enabled", return_value=True),
         ):
             mock_sys.platform = "win32"
             plat_mod.ensure_native_deps()

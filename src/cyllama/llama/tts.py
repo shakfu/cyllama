@@ -11,7 +11,7 @@ import argparse
 import math
 from typing import List, Optional, Dict, Tuple
 
-from .._defaults import DEFAULT_N_GPU_LAYERS
+from ..defaults import DEFAULT_N_GPU_LAYERS
 from . import llama_cpp as cy
 
 

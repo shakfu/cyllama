@@ -28,7 +28,7 @@ import time
 
 logger = logging.getLogger(__name__)
 
-from ._defaults import DEFAULT_N_GPU_LAYERS
+from .defaults import DEFAULT_N_GPU_LAYERS
 
 from .llama.llama_cpp import (
     LlamaModel,

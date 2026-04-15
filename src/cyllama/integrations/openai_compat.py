@@ -33,7 +33,7 @@ from dataclasses import dataclass, field
 import time
 import uuid
 
-from .._defaults import (
+from ..defaults import (
     DEFAULT_MAX_TOKENS,
     DEFAULT_TEMPERATURE,
     DEFAULT_TOP_P,

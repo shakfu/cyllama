@@ -1,4 +1,4 @@
-from ._defaults import (  # noqa: F401
+from .defaults import (  # noqa: F401
     LLAMA_DEFAULT_SEED,
     DEFAULT_TEMPERATURE,
     DEFAULT_TOP_K,

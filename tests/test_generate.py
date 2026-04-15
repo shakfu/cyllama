@@ -10,7 +10,7 @@ from cyllama import (
     GenerationConfig,
     Response,
 )
-from cyllama._defaults import (
+from cyllama.defaults import (
     LLAMA_DEFAULT_SEED,
     DEFAULT_TEMPERATURE,
     DEFAULT_TOP_K,

@@ -4,7 +4,7 @@ import argparse
 import platform
 import sys
 
-from ._defaults import (
+from .defaults import (
     LLAMA_DEFAULT_SEED,
     DEFAULT_TEMPERATURE,
     DEFAULT_TOP_K,
@@ -78,11 +78,8 @@ def _cpu_features_from_info(info: dict[str, str]) -> list[str]:
 
 
 def _get_built_backends() -> list[str]:
-    """Return GPU backend names enabled at build time (from _backend.py)."""
-    try:
-        from . import _backend
-    except ImportError:
-        return []
+    """Return GPU backend names enabled at build time."""
+    from ._internal import build_config
     _names = {
         "cuda": "CUDA",
         "vulkan": "Vulkan",
@@ -92,7 +89,7 @@ def _get_built_backends() -> list[str]:
         "opencl": "OpenCL",
         "blas": "BLAS",
     }
-    return [name for attr, name in _names.items() if getattr(_backend, attr, False)]
+    return [name for attr, name in _names.items() if build_config.backend_enabled(attr)]
 
 
 def _get_loaded_backends() -> list[str]:
@@ -107,12 +104,8 @@ def _get_loaded_backends() -> list[str]:
 
 def _get_build_info() -> dict:
     """Load build info if available."""
-    try:
-        from . import _build_info
-
-        return {k: v for k, v in vars(_build_info).items() if not k.startswith("_")}
-    except ImportError:
-        return {}
+    from ._internal import build_config
+    return build_config.versions()
 
 
 def cmd_info():
@@ -622,7 +615,7 @@ Answer:"""
         # persistent history (up/down arrows cycle through prior
         # questions, left/right edit, Ctrl-R reverse-search, etc.).
         # Gracefully no-ops on platforms without readline.
-        from ._readline import setup_history, history_path_for
+        from ._internal.readline import setup_history, history_path_for
 
         setup_history(history_path_for("rag"))
 

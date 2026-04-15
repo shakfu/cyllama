@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from cyllama._defaults import DEFAULT_MAX_TOKENS, DEFAULT_TEMPERATURE
+from cyllama.defaults import DEFAULT_MAX_TOKENS, DEFAULT_TEMPERATURE
 from cyllama.rag.pipeline import (
     DEFAULT_PROMPT_TEMPLATE,
     RAGConfig,

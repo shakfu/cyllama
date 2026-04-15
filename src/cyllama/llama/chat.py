@@ -10,7 +10,7 @@ import time
 import argparse
 from typing import List, Dict
 
-from .._defaults import (
+from ..defaults import (
     DEFAULT_MAX_TOKENS,
     DEFAULT_MIN_P,
     DEFAULT_N_GPU_LAYERS,
@@ -345,7 +345,7 @@ class Chat:
         # search, etc.). Gracefully no-ops on platforms without
         # readline. Uses a separate history file from `cyllama rag` so
         # the two REPLs don't pollute each other.
-        from .._readline import setup_history, history_path_for
+        from .._internal.readline import setup_history, history_path_for
 
         setup_history(history_path_for("chat"))
 

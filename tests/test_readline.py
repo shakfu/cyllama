@@ -1,4 +1,4 @@
-"""Tests for the cyllama._readline history helper.
+"""Tests for the cyllama._internal.readline history helper.
 
 Readline behaviour itself can't be fully tested without a real
 interactive terminal, but the parts of the helper that don't depend on
@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-from cyllama._readline import setup_history, history_path_for
+from cyllama._internal.readline import setup_history, history_path_for
 
 
 # ---------------------------------------------------------------------------
@@ -196,7 +196,7 @@ class TestHistoryRoundTrip:
         Without that workaround, the file libedit wrote would be
         unreadable to libedit's own ``read_history_file``.
         """
-        from cyllama._readline import save_history
+        from cyllama._internal.readline import save_history
 
         histfile = tmp_path / "history"
 

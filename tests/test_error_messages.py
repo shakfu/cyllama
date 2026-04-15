@@ -77,31 +77,31 @@ def unreadable_file(tmp_path: Path) -> str:
 
 class TestValidationHelper:
     def test_missing_path(self, tmp_path: Path):
-        from cyllama._validation import validate_model_file
+        from cyllama.utils.validation import validate_model_file
 
         with pytest.raises(FileNotFoundError, match="not found"):
             validate_model_file(str(tmp_path / "does-not-exist.gguf"))
 
     def test_directory_path(self, tmp_path: Path):
-        from cyllama._validation import validate_model_file
+        from cyllama.utils.validation import validate_model_file
 
         with pytest.raises(IsADirectoryError, match="directory"):
             validate_model_file(str(tmp_path))
 
     def test_empty_file(self, empty_file: str):
-        from cyllama._validation import validate_model_file
+        from cyllama.utils.validation import validate_model_file
 
         with pytest.raises(ValueError, match="empty"):
             validate_model_file(empty_file)
 
     def test_wrong_magic(self, garbage_file: str):
-        from cyllama._validation import GGUF_MAGIC, validate_model_file
+        from cyllama.utils.validation import GGUF_MAGIC, validate_model_file
 
         with pytest.raises(ValueError, match="does not look like a valid"):
             validate_model_file(garbage_file, kind="GGUF model", expected_magic=GGUF_MAGIC)
 
     def test_unreadable(self, unreadable_file: str):
-        from cyllama._validation import validate_model_file
+        from cyllama.utils.validation import validate_model_file
 
         # On many CI runners the test process is root and ignores chmod 0;
         # in that case the validator can't trip and the assertion is moot.
@@ -112,19 +112,19 @@ class TestValidationHelper:
             validate_model_file(unreadable_file)
 
     def test_non_string_path(self):
-        from cyllama._validation import validate_model_file
+        from cyllama.utils.validation import validate_model_file
 
         with pytest.raises(TypeError, match="must be a string"):
             validate_model_file(123)  # type: ignore[arg-type]
 
     def test_empty_string_path(self):
-        from cyllama._validation import validate_model_file
+        from cyllama.utils.validation import validate_model_file
 
         with pytest.raises(ValueError, match="non-empty string"):
             validate_model_file("")
 
     def test_magic_check_skipped_when_none(self, garbage_file: str):
-        from cyllama._validation import validate_model_file
+        from cyllama.utils.validation import validate_model_file
 
         # With expected_magic=None, a garbage file must validate cleanly
         # (no magic check performed). validate_model_file returns None on
