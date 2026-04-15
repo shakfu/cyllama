@@ -7,8 +7,6 @@
 - [ ] Performance benchmarking suite (token generation speed, memory profiling, regression detection)
 - [ ] Response caching for identical prompts (decorator-based with TTL)
 - [ ] Structured logging system (JSON output option, agent decision flow logging)
-- [ ] Migrate the 5 `SDContext`-creating tests in `tests/test_sd.py` to the new `sd_ctx_factory` fixture in `tests/conftest.py` so the cleanup pattern (`del ctx; gc.collect()`) is centralized instead of duplicated inline. Affected tests: `TestSDContextIntegration::test_context_creation`, `TestSDContextIntegration::test_generate_image`, `TestSDContextConcurrencyGuard::test_concurrent_generate_raises`, `TestSDContextConcurrencyGuard::test_concurrent_generate_with_params_raises`, `TestSDContextConcurrencyGuard::test_lock_release_allows_subsequent_acquire`. Rationale and the 5-cycle crash reproducer are in `docs/dev/test-cleanup.md`
-
 ## Wheel / Packaging
 
 - [ ] stable-diffusion.cpp uses compile-time `#ifdef SD_USE_CUDA` for backend selection instead of dynamic `ggml_backend_load_all()` like llama.cpp and whisper.cpp — propose dynamic backend discovery upstream or patch locally for consistency
@@ -39,6 +37,7 @@
 ## Completed
 
 - [x] `--stats` flag for `generate` and `chat` CLI modes -- displays session statistics table on exit (prompt tokens, generated tokens, timing, tokens/second). Uses `GenerationStats` in single-turn modes; accumulates across turns in interactive chat
+- [x] Migrated 5 `SDContext`-creating tests to `sd_ctx_factory` fixture -- centralized `del ctx; gc.collect()` cleanup, removed inline cleanup and unused `gc` import from `test_sd.py`
 - [x] Audit SD wrapper `__init__` defaults against C `sd_*_init()` defaults — found and fixed 4 mismatches: `wtype` (F16 vs COUNT), `eta` (0.0 vs INFINITY), `sample_method` (EULER_A vs SAMPLE_METHOD_COUNT), `scheduler` (DISCRETE vs SCHEDULER_COUNT). Added COUNT sentinel values to `SDType`, `SampleMethod`, `Scheduler`, and `Prediction` enums. All defaults now match the C library exactly
 - [x] RAG response repetition — Qwen3-4B paragraph-loop bug fixed and pinned by regression test against the actual model. Two opt-in fixes: streaming-level n-gram repetition detector (`RAGConfig.repetition_threshold`) and chat-template prompting path (`RAGConfig.use_chat_template`). CLI enables the detector by default
 - [x] Memory leak tests (loop create/destroy of LLM, SDContext, WhisperContext objects, assert RSS stays bounded)
