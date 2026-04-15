@@ -63,6 +63,9 @@ cyllama gen -m models/llama.gguf -p "Be creative" \
 
 # JSON output with stats
 cyllama gen -m models/llama.gguf -p "Hello" --json
+
+# Show session statistics (prompt/gen tokens, timing, tokens/sec)
+cyllama gen -m models/llama.gguf -p "Hello" --stats
 ```
 
 ### Chat
@@ -76,6 +79,9 @@ cyllama chat -m models/llama.gguf
 
 # Longer responses (default: 512 tokens)
 cyllama chat -m models/llama.gguf -n 1024
+
+# Show accumulated session statistics on exit
+cyllama chat -m models/llama.gguf --stats
 
 # With explicit chat template
 cyllama chat -m models/llama.gguf -p "Hello" --template chatml

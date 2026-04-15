@@ -260,6 +260,7 @@ class TestCmdGenerate:
             seed=-1,
             stream=False,
             json=False,
+            stats=False,
             verbose=False,
         )
         defaults.update(overrides)
@@ -392,6 +393,7 @@ class TestCmdChat:
             stream=False,
             no_stream=False,
             json=False,
+            stats=False,
             verbose=False,
         )
         defaults.update(overrides)

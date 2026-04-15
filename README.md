@@ -81,6 +81,7 @@ cyllama gen -m models/llama.gguf -p "Write a haiku" --temperature 0.9 --json
 cyllama chat -m models/llama.gguf -p "Explain gravity" -s "You are a physicist"
 cyllama chat -m models/llama.gguf                      # interactive mode
 cyllama chat -m models/llama.gguf -n 1024              # interactive, up to 1024 tokens per response
+cyllama chat -m models/llama.gguf --stats              # show session stats on exit
 
 # Embeddings
 cyllama embed -m models/bge-small.gguf -t "hello world" -t "another text"

@@ -16,6 +16,31 @@ from ._defaults import (
 )
 
 
+def _print_stats_table(stats) -> None:
+    """Print a formatted table of generation statistics to stderr."""
+    if stats is None:
+        return
+    rows = [
+        ("Prompt tokens", str(stats.prompt_tokens)),
+        ("Generated tokens", str(stats.generated_tokens)),
+    ]
+    if stats.prompt_time > 0:
+        rows.append(("Prompt eval time", f"{stats.prompt_time:.2f} s"))
+    if stats.generation_time > 0:
+        rows.append(("Generation time", f"{stats.generation_time:.2f} s"))
+    rows.append(("Total time", f"{stats.total_time:.2f} s"))
+    rows.append(("Tokens/second", f"{stats.tokens_per_second:.2f}"))
+
+    key_width = max(len(r[0]) for r in rows)
+    val_width = max(len(r[1]) for r in rows)
+    width = key_width + val_width + 5  # " | " + padding
+    line = "-" * width
+    print(line, file=sys.stderr)
+    for key, val in rows:
+        print(f"  {key:<{key_width}} | {val:>{val_width}}", file=sys.stderr)
+    print(line, file=sys.stderr)
+
+
 def _parse_system_info(info_str: str) -> dict[str, str]:
     """Parse 'KEY = VALUE | KEY2 = VALUE2 |' format into a dict."""
     result = {}
@@ -214,6 +239,7 @@ def cmd_generate(args):
 
     try:
         if args.stream:
+            response = None
             for chunk in complete(prompt, args.model, config, stream=True, verbose=args.verbose):
                 print(chunk, end="", flush=True)
             print()
@@ -223,6 +249,8 @@ def cmd_generate(args):
                 print(response.to_json())
             else:
                 print(response)
+        if args.stats and response is not None:
+            _print_stats_table(response.stats)
     except KeyboardInterrupt:
         print("\nInterrupted", file=sys.stderr)
         return 130
@@ -266,6 +294,7 @@ def cmd_chat(args):
         )
 
         if args.stream:
+            response = None
             for chunk in chat(messages, args.model, config, stream=True, verbose=args.verbose, template=args.template):
                 print(chunk, end="", flush=True)
             print()
@@ -275,6 +304,8 @@ def cmd_chat(args):
                 print(response.to_json())
             else:
                 print(response)
+        if args.stats and response is not None:
+            _print_stats_table(response.stats)
     else:
         # Interactive mode - delegate to llama.chat
         argv = [
@@ -292,6 +323,8 @@ def cmd_chat(args):
         ]
         if args.no_stream:
             argv.append("--no-stream")
+        if args.stats:
+            argv.append("--stats")
         sys.argv = argv
         from .llama.chat import main as chat_main
 
@@ -667,6 +700,7 @@ def main():
                             help="Random seed, 0xFFFFFFFF = random (default: %(default)s)")
     gen_parser.add_argument("--stream", action="store_true", help="Stream output tokens")
     gen_parser.add_argument("--json", action="store_true", help="Output as JSON")
+    gen_parser.add_argument("--stats", action="store_true", help="Show session statistics on exit")
     gen_parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
 
     # -- chat -------------------------------------------------------------
@@ -698,6 +732,7 @@ def main():
     chat_parser.add_argument("--no-stream", action="store_true",
                              help="Buffer full response before printing in interactive mode")
     chat_parser.add_argument("--json", action="store_true", help="Output as JSON")
+    chat_parser.add_argument("--stats", action="store_true", help="Show session statistics on exit")
     chat_parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
 
     # -- embed ------------------------------------------------------------

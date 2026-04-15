@@ -41,6 +41,7 @@ echo "Hello" | cyllama gen -m models/llama.gguf
 | `--seed` | int | 4294967295 | Random seed (0xFFFFFFFF = random) |
 | `--stream` | flag | | Stream tokens to stdout |
 | `--json` | flag | | Output as JSON with stats |
+| `--stats` | flag | | Show session statistics on exit |
 | `--verbose` | flag | | Enable verbose logging |
 
 ---
@@ -76,6 +77,7 @@ Interactive mode streams tokens by default. Single-turn mode (`-p`) buffers the 
 | `--stream` | flag | | Stream tokens in single-turn mode (`-p`) |
 | `--no-stream` | flag | | Buffer full response in interactive mode |
 | `--json` | flag | | Output as JSON with stats |
+| `--stats` | flag | | Show session statistics on exit |
 | `--verbose` | flag | | Enable verbose logging |
 
 ---

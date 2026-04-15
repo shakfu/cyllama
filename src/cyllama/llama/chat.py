@@ -6,6 +6,7 @@ This module provides a Python implementation of the chat example using the cylla
 """
 
 import sys
+import time
 import argparse
 from typing import List, Dict
 
@@ -106,6 +107,12 @@ class Chat:
         self.n_ctx = n_ctx
         self.ngl = ngl
         self.max_tokens = max_tokens
+
+        # Session-level statistics
+        self.total_prompt_tokens = 0
+        self.total_generated_tokens = 0
+        self.total_prompt_time = 0.0
+        self.total_generation_time = 0.0
 
     def _apply_template(
         self,
@@ -225,6 +232,7 @@ class Chat:
 
         response = ""
         n_past = 0
+        n_generated = 0
 
         # Tokenize the prompt
         prompt_tokens = self.vocab.tokenize(prompt, True, True)
@@ -236,7 +244,8 @@ class Chat:
         batch = llama_batch_get_one(prompt_tokens, 0)
         n_past = len(prompt_tokens)
 
-        # Decode the initial batch
+        # Decode the initial batch (prompt eval)
+        t_prompt_start = time.perf_counter()
         try:
             ret = fresh_context.decode(batch)
             if ret != 0:
@@ -244,9 +253,11 @@ class Chat:
         except Exception as e:
             print(f"Decode failed with error: {e}")
             return response
+        t_prompt_end = time.perf_counter()
 
         # Generation loop
         max_tokens = self.max_tokens
+        t_gen_start = time.perf_counter()
 
         for i in range(max_tokens):
             # Check context size
@@ -267,6 +278,7 @@ class Chat:
             try:
                 piece = self.vocab.token_to_piece(new_token_id, 0, True)
                 response += piece
+                n_generated += 1
                 if on_token is not None:
                     on_token(piece)
 
@@ -287,15 +299,46 @@ class Chat:
                 print(f"Decode failed at token {i + 1}: {e}")
                 break
 
+        t_gen_end = time.perf_counter()
+
+        # Accumulate session stats
+        self.total_prompt_tokens += len(prompt_tokens)
+        self.total_generated_tokens += n_generated
+        self.total_prompt_time += t_prompt_end - t_prompt_start
+        self.total_generation_time += t_gen_end - t_gen_start
+
         return response.strip()
 
-    def chat_loop(self, stream: bool = True):
+    def print_session_stats(self):
+        """Print a formatted table of accumulated session statistics."""
+        total_time = self.total_prompt_time + self.total_generation_time
+        tps = (self.total_generated_tokens / self.total_generation_time
+               if self.total_generation_time > 0 else 0.0)
+        rows = [
+            ("Prompt tokens", str(self.total_prompt_tokens)),
+            ("Generated tokens", str(self.total_generated_tokens)),
+            ("Prompt eval time", f"{self.total_prompt_time:.2f} s"),
+            ("Generation time", f"{self.total_generation_time:.2f} s"),
+            ("Total time", f"{total_time:.2f} s"),
+            ("Tokens/second", f"{tps:.2f}"),
+        ]
+        key_width = max(len(r[0]) for r in rows)
+        val_width = max(len(r[1]) for r in rows)
+        width = key_width + val_width + 5
+        line = "-" * width
+        print(line, file=sys.stderr)
+        for key, val in rows:
+            print(f"  {key:<{key_width}} | {val:>{val_width}}", file=sys.stderr)
+        print(line, file=sys.stderr)
+
+    def chat_loop(self, stream: bool = True, stats: bool = False):
         """Main chat loop.
 
         Args:
             stream: If True (default), print tokens as they are
                 generated.  If False, buffer the full response before
                 printing.
+            stats: If True, print session statistics on exit.
         """
         # Enable readline-style line editing and persistent history
         # (up/down arrows cycle through prior turns, Ctrl-R reverse
@@ -349,6 +392,9 @@ class Chat:
         finally:
             # Always reset terminal colors on exit
             print(END, end="", flush=True)
+            if stats and self.total_generated_tokens > 0:
+                print(file=sys.stderr)
+                self.print_session_stats()
 
 
 def main():
@@ -373,6 +419,8 @@ def main():
                         help="Random seed (default: %(default)s)")
     parser.add_argument("--no-stream", action="store_true",
                         help="Buffer full response before printing (default: stream)")
+    parser.add_argument("--stats", action="store_true",
+                        help="Show session statistics on exit")
 
     args = parser.parse_args()
 
@@ -389,7 +437,7 @@ def main():
             repeat_penalty=args.repeat_penalty,
             seed=args.seed,
         )
-        chat.chat_loop(stream=not args.no_stream)
+        chat.chat_loop(stream=not args.no_stream, stats=args.stats)
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)

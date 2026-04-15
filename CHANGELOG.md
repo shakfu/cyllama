@@ -27,6 +27,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 - **Multimodal (mtmd) integration tests** - Added 5 integration tests in `TestMtmdIntegration` that exercise the native mtmd Cython bindings end-to-end against a real gemma-4 model: context creation with capability checks, single/multi-image tokenization, text token readback, and marker/bitmap mismatch error handling. Tests auto-skip when model files are not present
 
+- **`--stats` flag for `generate` and `chat` CLI modes** - When set, displays a formatted table of session statistics on exit: prompt tokens, generated tokens, prompt eval time, generation time, total time, and tokens/second. In single-turn modes, stats come from the high-level API's `GenerationStats`. In interactive chat, stats are accumulated across all turns and printed when the session ends (Ctrl-C, EOT, or empty input). Default: off
+
+### Fixed
+
+- **Single-turn `chat()` crashed on Gemma 4 with `Failed to apply chat template`** - The standalone `apply_chat_template()` function in `api.py` (used by `chat()` and `cyllama chat -p`) went straight to the C `llama_chat_apply_template` API without trying the vendored jinja2 interpreter first. Gemma 4's template uses Jinja syntax that the C substring heuristic doesn't recognise. Added the same two-tier fallback (jinja2 first, C API on failure) that `LLM._apply_template` and interactive `Chat._apply_template` already had
+
 ## [0.2.8]
 
 ### Added

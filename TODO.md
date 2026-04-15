@@ -2,10 +2,6 @@
 
 ## High Priority
 
-## High Priority
-
-- [ ] Add `--stats` flag to CLI `generation` and `chat` modes (`src/cyllama/llama/cli.py`). When set, display a formatted table of session statistics on exit (prompt tokens, generated tokens, total time, prompt eval time, generation time, tokens/second). Stats should be collected throughout the session and shown once when the session ends (Ctrl-C, EOT, or `/exit`). The high-level API already provides `GenerationStats` (see `api.py:238-246`) and the low-level `LlamaContext`/`LlamaSampler` expose `print_perf_data()` / `reset_perf_data()` -- wire these into the CLI behind the flag. Default: off.
-
 ## Medium Priority
 
 - [ ] Performance benchmarking suite (token generation speed, memory profiling, regression detection)
@@ -42,6 +38,7 @@
 
 ## Completed
 
+- [x] `--stats` flag for `generate` and `chat` CLI modes -- displays session statistics table on exit (prompt tokens, generated tokens, timing, tokens/second). Uses `GenerationStats` in single-turn modes; accumulates across turns in interactive chat
 - [x] Audit SD wrapper `__init__` defaults against C `sd_*_init()` defaults — found and fixed 4 mismatches: `wtype` (F16 vs COUNT), `eta` (0.0 vs INFINITY), `sample_method` (EULER_A vs SAMPLE_METHOD_COUNT), `scheduler` (DISCRETE vs SCHEDULER_COUNT). Added COUNT sentinel values to `SDType`, `SampleMethod`, `Scheduler`, and `Prediction` enums. All defaults now match the C library exactly
 - [x] RAG response repetition — Qwen3-4B paragraph-loop bug fixed and pinned by regression test against the actual model. Two opt-in fixes: streaming-level n-gram repetition detector (`RAGConfig.repetition_threshold`) and chat-template prompting path (`RAGConfig.use_chat_template`). CLI enables the detector by default
 - [x] Memory leak tests (loop create/destroy of LLM, SDContext, WhisperContext objects, assert RSS stays bounded)

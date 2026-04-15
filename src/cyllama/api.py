@@ -1491,8 +1491,20 @@ def apply_chat_template(
     else:
         tmpl = model.get_default_chat_template()
 
+    # Tier 1: try vendored jinja2 when no specific template was requested.
+    # This handles models whose embedded template uses Jinja syntax that
+    # llama.cpp's C substring heuristic doesn't recognise (e.g. Gemma 4).
+    if template is None and tmpl:
+        try:
+            prompt = _apply_jinja_template_standalone(model, tmpl, messages, add_generation_prompt)
+            return prompt
+        except _JinjaTemplateError:
+            pass
+        except Exception:
+            pass
+
+    # Tier 2: C API (substring heuristic)
     if tmpl:
-        # Convert messages to LlamaChatMessage objects
         chat_messages = [
             LlamaChatMessage(role=msg.get("role", "user"), content=msg.get("content", "")) for msg in messages
         ]
@@ -1503,6 +1515,53 @@ def apply_chat_template(
         prompt = _format_messages_simple(messages)
 
     return prompt
+
+
+def _apply_jinja_template_standalone(
+    model: "LlamaModel",
+    template_str: str,
+    messages: List[Dict[str, str]],
+    add_generation_prompt: bool = True,
+) -> str:
+    """Render a chat template via vendored jinja2 for the standalone apply_chat_template path."""
+    import json
+    from datetime import datetime
+
+    from cyllama._vendor.jinja2 import ext as _jinja2_ext
+    from cyllama._vendor.jinja2.exceptions import TemplateError
+    from cyllama._vendor.jinja2.sandbox import ImmutableSandboxedEnvironment
+
+    vocab = model.get_vocab()
+    bos_id = vocab.token_bos()
+    eos_id = vocab.token_eos()
+    bos_token = vocab.token_to_piece(bos_id, special=True) if bos_id >= 0 else ""
+    eos_token = vocab.token_to_piece(eos_id, special=True) if eos_id >= 0 else ""
+
+    def raise_exception(message: str) -> str:
+        raise TemplateError(message)
+
+    def tojson_filter(value, ensure_ascii=False, indent=None, separators=None, sort_keys=False):
+        return json.dumps(value, ensure_ascii=ensure_ascii, indent=indent, separators=separators, sort_keys=sort_keys)
+
+    def strftime_now(fmt: str) -> str:
+        return datetime.now().strftime(fmt)
+
+    env = ImmutableSandboxedEnvironment(
+        trim_blocks=True,
+        lstrip_blocks=True,
+        extensions=[_jinja2_ext.loopcontrols],
+    )
+    env.filters["tojson"] = tojson_filter
+    env.globals["raise_exception"] = raise_exception
+    env.globals["strftime_now"] = strftime_now
+
+    compiled = env.from_string(template_str)
+    return compiled.render(
+        messages=messages,
+        bos_token=bos_token,
+        eos_token=eos_token,
+        add_generation_prompt=add_generation_prompt,
+    )
 
 
 def _format_messages_simple(messages: List[Dict[str, str]]) -> str:
