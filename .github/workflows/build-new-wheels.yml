@@ -97,7 +97,7 @@ jobs:
             ${{ inputs.link_mode == 'dynamic' && '--dynamic' || '' }} &&
             echo "=== Dynamic libs ===" && ls -la thirdparty/llama.cpp/dynamic/ 2>/dev/null || echo "No dynamic dir" &&
             echo "=== Static libs ===" && ls -la thirdparty/llama.cpp/lib/ 2>/dev/null || echo "No lib dir" &&
-            python scripts/manage.py write_backend_info
+            python scripts/manage.py write_build_config
           CIBW_ENVIRONMENT_MACOS: >
             MACOSX_DEPLOYMENT_TARGET=11.0
             GGML_VULKAN=1
@@ -185,7 +185,7 @@ jobs:
             python -c "t=open('pyproject.toml').read(); assert 'name = \"cyllama-vulkan\"' in t, 'rename failed'" &&
             cd {project} &&
             python scripts/manage.py build --all --deps-only --no-sd-examples &&
-            python scripts/manage.py write_backend_info
+            python scripts/manage.py write_build_config
           CIBW_ENVIRONMENT_WINDOWS: >
             GGML_VULKAN=1
             GGML_METAL=0
@@ -272,7 +272,7 @@ jobs:
             python -c "t=open('pyproject.toml').read(); assert 'name = \"cyllama-cuda12\"' in t, 'rename failed'" &&
             cd {project} &&
             python scripts/manage.py build --all --deps-only --no-sd-examples &&
-            python scripts/manage.py write_backend_info
+            python scripts/manage.py write_build_config
           CIBW_ENVIRONMENT_WINDOWS: >
             GGML_CUDA=1
             GGML_METAL=0
