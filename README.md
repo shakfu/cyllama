@@ -645,6 +645,7 @@ All source builds support both static (`make build-<backend>`) and dynamic (`mak
 
 ### Recent Releases
 
+- **v0.2.9** (Apr 2026) - Fixed CUDA image generation crash (SD now statically links its own vendored ggml by default), `--stats` works in streaming mode, exposed `LlamaContext.get_perf_data()` / `LlamaSampler.get_perf_data()`, `MtmdContextParams.warmup` property, replaced deprecated `mtmd_image_tokens_get_nx/ny` with `mtmd_decoder_pos` API, llama.cpp b8802, stable-diffusion.cpp master-567-ee5bf95
 - **v0.2.8** (Apr 2026) - Expanded Cython bindings for `LlamaContextParams` (`flash_attn_type`, `embeddings`, `op_offload`, `swa_full`, `kv_unified`), ~30 new `WhisperFullParams` properties, `SDSampleParams`/`SDImageGenParams` additions (skip-layer guidance, custom sigmas, LoRA, IP-Adapter, Photo Maker, step-cache surface), `whisper_cpp.disable_logging()`, `cyllama transcribe -v` flag, centralized defaults in `cyllama._defaults` aligned with llama.cpp C library, Gemma 4 interactive chat fix, Qwen3 reasoning-block truncation fix, CUDA wheel double-free fix
 - **v0.2.7** (Apr 2026) - SD defaults aligned with C library: `wtype` auto-detect (fixes blank images on CUDA), `sample_method`/`scheduler` auto-resolve, `eta` changed from 0.0 to infinity sentinel
 - **v0.2.6** (Apr 2026) - Removed accidental `pytest-review` runtime dependency from 0.2.5

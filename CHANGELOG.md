@@ -17,6 +17,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+## [0.2.9]
+
 ### Changed
 
 - **stable-diffusion.cpp now uses its own vendored ggml by default** - The SD extension statically links stable-diffusion.cpp's own vendored ggml instead of sharing llama.cpp's ggml dylibs. Fixes a `ggml_backend_tensor_copy` assertion crash ("cannot copy tensors with different layouts") during CUDA image generation caused by subtle ggml version incompatibilities between llama.cpp and stable-diffusion.cpp. The old behavior (shared ggml) can be restored with `--sd-shared-ggml` or `SD_USE_VENDORED_GGML=0`, but is not recommended for GPU backends. The previous `--sd-vendored-ggml` flag is removed since vendored is now the default
