@@ -1625,7 +1625,12 @@ def get_chat_template(model_path: str, template_name: Optional[str] = None) -> s
 
 
 def simple(
-    model_path: str, prompt: str, ngl: int = DEFAULT_N_GPU_LAYERS, n_predict: int = 32, n_ctx: Optional[int] = None, verbose: bool = False
+    model_path: str,
+    prompt: str,
+    ngl: int = DEFAULT_N_GPU_LAYERS,
+    n_predict: int = 32,
+    n_ctx: Optional[int] = None,
+    verbose: bool = False,
 ) -> bool:
     """
     Simple, educational example showing raw llama.cpp usage.

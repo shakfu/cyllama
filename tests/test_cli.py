@@ -538,5 +538,3 @@ def test_run_context_size_validation(cli, mocker: MockerFixture):
     mock_print.assert_called()
     # Context size should be adjusted to 8
     assert mock_parse.return_value.ctx_size == 8
-
-

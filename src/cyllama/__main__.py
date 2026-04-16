@@ -88,6 +88,7 @@ def _cpu_features_from_info(info: dict[str, str]) -> list[str]:
 def _get_built_backends() -> list[str]:
     """Return GPU backend names enabled at build time."""
     from ._internal import build_config
+
     _names = {
         "cuda": "CUDA",
         "vulkan": "Vulkan",
@@ -113,6 +114,7 @@ def _get_loaded_backends() -> list[str]:
 def _get_build_info() -> dict:
     """Load build info if available."""
     from ._internal import build_config
+
     return build_config.versions()
 
 
@@ -311,16 +313,26 @@ def cmd_chat(args):
         # Interactive mode - delegate to llama.chat
         argv = [
             "cyllama chat",
-            "-m", args.model,
-            "-c", str(args.ctx_size),
-            "-ngl", str(args.n_gpu_layers),
-            "-n", str(args.max_tokens),
-            "--temperature", str(args.temperature),
-            "--top-k", str(args.top_k),
-            "--top-p", str(args.top_p),
-            "--min-p", str(args.min_p),
-            "--repeat-penalty", str(args.repeat_penalty),
-            "--seed", str(args.seed),
+            "-m",
+            args.model,
+            "-c",
+            str(args.ctx_size),
+            "-ngl",
+            str(args.n_gpu_layers),
+            "-n",
+            str(args.max_tokens),
+            "--temperature",
+            str(args.temperature),
+            "--top-k",
+            str(args.top_k),
+            "--top-p",
+            str(args.top_p),
+            "--min-p",
+            str(args.min_p),
+            "--repeat-penalty",
+            str(args.repeat_penalty),
+            "--seed",
+            str(args.seed),
         ]
         if args.no_stream:
             argv.append("--no-stream")
@@ -681,24 +693,40 @@ def main():
     gen_parser.add_argument("-m", "--model", required=True, help="Path to GGUF model")
     gen_parser.add_argument("-p", "--prompt", help="Text prompt")
     gen_parser.add_argument("-f", "--file", help="Read prompt from file")
-    gen_parser.add_argument("-n", "--max-tokens", type=int, default=DEFAULT_MAX_TOKENS,
-                            help="Maximum tokens to generate (default: %(default)s)")
-    gen_parser.add_argument("--temperature", type=float, default=DEFAULT_TEMPERATURE,
-                            help="Sampling temperature (default: %(default)s)")
-    gen_parser.add_argument("--top-k", type=int, default=DEFAULT_TOP_K,
-                            help="Top-k sampling (default: %(default)s)")
-    gen_parser.add_argument("--top-p", type=float, default=DEFAULT_TOP_P,
-                            help="Top-p (nucleus) sampling (default: %(default)s)")
-    gen_parser.add_argument("--min-p", type=float, default=DEFAULT_MIN_P,
-                            help="Min-p sampling threshold (default: %(default)s)")
-    gen_parser.add_argument("--repeat-penalty", type=float, default=DEFAULT_REPEAT_PENALTY,
-                            help="Repetition penalty, 1.0 = disabled (default: %(default)s)")
-    gen_parser.add_argument("-ngl", "--n-gpu-layers", type=int, default=DEFAULT_N_GPU_LAYERS,
-                            help="Number of layers to offload to GPU, -1 = all (default: %(default)s)")
-    gen_parser.add_argument("-c", "--ctx-size", type=int, default=None,
-                            help="Context size in tokens (default: auto)")
-    gen_parser.add_argument("--seed", type=int, default=LLAMA_DEFAULT_SEED,
-                            help="Random seed, 0xFFFFFFFF = random (default: %(default)s)")
+    gen_parser.add_argument(
+        "-n",
+        "--max-tokens",
+        type=int,
+        default=DEFAULT_MAX_TOKENS,
+        help="Maximum tokens to generate (default: %(default)s)",
+    )
+    gen_parser.add_argument(
+        "--temperature", type=float, default=DEFAULT_TEMPERATURE, help="Sampling temperature (default: %(default)s)"
+    )
+    gen_parser.add_argument("--top-k", type=int, default=DEFAULT_TOP_K, help="Top-k sampling (default: %(default)s)")
+    gen_parser.add_argument(
+        "--top-p", type=float, default=DEFAULT_TOP_P, help="Top-p (nucleus) sampling (default: %(default)s)"
+    )
+    gen_parser.add_argument(
+        "--min-p", type=float, default=DEFAULT_MIN_P, help="Min-p sampling threshold (default: %(default)s)"
+    )
+    gen_parser.add_argument(
+        "--repeat-penalty",
+        type=float,
+        default=DEFAULT_REPEAT_PENALTY,
+        help="Repetition penalty, 1.0 = disabled (default: %(default)s)",
+    )
+    gen_parser.add_argument(
+        "-ngl",
+        "--n-gpu-layers",
+        type=int,
+        default=DEFAULT_N_GPU_LAYERS,
+        help="Number of layers to offload to GPU, -1 = all (default: %(default)s)",
+    )
+    gen_parser.add_argument("-c", "--ctx-size", type=int, default=None, help="Context size in tokens (default: auto)")
+    gen_parser.add_argument(
+        "--seed", type=int, default=LLAMA_DEFAULT_SEED, help="Random seed, 0xFFFFFFFF = random (default: %(default)s)"
+    )
     gen_parser.add_argument("--stream", action="store_true", help="Stream output tokens")
     gen_parser.add_argument("--json", action="store_true", help="Output as JSON")
     gen_parser.add_argument("--stats", action="store_true", help="Show session statistics on exit")
@@ -710,28 +738,50 @@ def main():
     chat_parser.add_argument("-p", "--prompt", help="Single-turn message (omit for interactive)")
     chat_parser.add_argument("-s", "--system", help="System prompt")
     chat_parser.add_argument("--template", help="Chat template (e.g. chatml, llama3)")
-    chat_parser.add_argument("-n", "--max-tokens", type=int, default=DEFAULT_MAX_TOKENS,
-                             help="Maximum tokens per response (default: %(default)s)")
-    chat_parser.add_argument("--temperature", type=float, default=DEFAULT_TEMPERATURE,
-                             help="Sampling temperature (default: %(default)s)")
-    chat_parser.add_argument("--top-k", type=int, default=DEFAULT_TOP_K,
-                             help="Top-k sampling (default: %(default)s)")
-    chat_parser.add_argument("--top-p", type=float, default=DEFAULT_TOP_P,
-                             help="Top-p (nucleus) sampling (default: %(default)s)")
-    chat_parser.add_argument("--min-p", type=float, default=DEFAULT_MIN_P,
-                             help="Min-p sampling threshold (default: %(default)s)")
-    chat_parser.add_argument("--repeat-penalty", type=float, default=DEFAULT_REPEAT_PENALTY,
-                             help="Repetition penalty, 1.0 = disabled (default: %(default)s)")
-    chat_parser.add_argument("-ngl", "--n-gpu-layers", type=int, default=DEFAULT_N_GPU_LAYERS,
-                             help="Number of layers to offload to GPU, -1 = all (default: %(default)s)")
-    chat_parser.add_argument("-c", "--ctx-size", type=int, default=2048,
-                             help="Context size in tokens (default: %(default)s)")
-    chat_parser.add_argument("--seed", type=int, default=LLAMA_DEFAULT_SEED,
-                             help="Random seed, 0xFFFFFFFF = random (default: %(default)s)")
-    chat_parser.add_argument("--stream", action="store_true",
-                             help="Stream output tokens (single-turn with -p; interactive streams by default)")
-    chat_parser.add_argument("--no-stream", action="store_true",
-                             help="Buffer full response before printing in interactive mode")
+    chat_parser.add_argument(
+        "-n",
+        "--max-tokens",
+        type=int,
+        default=DEFAULT_MAX_TOKENS,
+        help="Maximum tokens per response (default: %(default)s)",
+    )
+    chat_parser.add_argument(
+        "--temperature", type=float, default=DEFAULT_TEMPERATURE, help="Sampling temperature (default: %(default)s)"
+    )
+    chat_parser.add_argument("--top-k", type=int, default=DEFAULT_TOP_K, help="Top-k sampling (default: %(default)s)")
+    chat_parser.add_argument(
+        "--top-p", type=float, default=DEFAULT_TOP_P, help="Top-p (nucleus) sampling (default: %(default)s)"
+    )
+    chat_parser.add_argument(
+        "--min-p", type=float, default=DEFAULT_MIN_P, help="Min-p sampling threshold (default: %(default)s)"
+    )
+    chat_parser.add_argument(
+        "--repeat-penalty",
+        type=float,
+        default=DEFAULT_REPEAT_PENALTY,
+        help="Repetition penalty, 1.0 = disabled (default: %(default)s)",
+    )
+    chat_parser.add_argument(
+        "-ngl",
+        "--n-gpu-layers",
+        type=int,
+        default=DEFAULT_N_GPU_LAYERS,
+        help="Number of layers to offload to GPU, -1 = all (default: %(default)s)",
+    )
+    chat_parser.add_argument(
+        "-c", "--ctx-size", type=int, default=2048, help="Context size in tokens (default: %(default)s)"
+    )
+    chat_parser.add_argument(
+        "--seed", type=int, default=LLAMA_DEFAULT_SEED, help="Random seed, 0xFFFFFFFF = random (default: %(default)s)"
+    )
+    chat_parser.add_argument(
+        "--stream",
+        action="store_true",
+        help="Stream output tokens (single-turn with -p; interactive streams by default)",
+    )
+    chat_parser.add_argument(
+        "--no-stream", action="store_true", help="Buffer full response before printing in interactive mode"
+    )
     chat_parser.add_argument("--json", action="store_true", help="Output as JSON")
     chat_parser.add_argument("--stats", action="store_true", help="Show session statistics on exit")
     chat_parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
@@ -741,10 +791,16 @@ def main():
     embed_parser.add_argument("-m", "--model", required=True, help="Path to GGUF embedding model")
     embed_parser.add_argument("-t", "--text", action="append", help="Text to embed (repeatable)")
     embed_parser.add_argument("-f", "--file", help="Read texts from file (one per line)")
-    embed_parser.add_argument("-ngl", "--n-gpu-layers", type=int, default=DEFAULT_N_GPU_LAYERS,
-                              help="Number of layers to offload to GPU, -1 = all (default: %(default)s)")
-    embed_parser.add_argument("-c", "--ctx-size", type=int, default=512,
-                              help="Context size in tokens (default: %(default)s)")
+    embed_parser.add_argument(
+        "-ngl",
+        "--n-gpu-layers",
+        type=int,
+        default=DEFAULT_N_GPU_LAYERS,
+        help="Number of layers to offload to GPU, -1 = all (default: %(default)s)",
+    )
+    embed_parser.add_argument(
+        "-c", "--ctx-size", type=int, default=512, help="Context size in tokens (default: %(default)s)"
+    )
     embed_parser.add_argument(
         "--pooling", default="mean", choices=["mean", "cls", "last"], help="Pooling strategy (default: mean)"
     )
@@ -764,14 +820,25 @@ def main():
     rag_parser.add_argument("--glob", default="**/*", help="Glob pattern for directory loading (default: **/*)")
     rag_parser.add_argument("-p", "--prompt", help="Single query (omit for interactive)")
     rag_parser.add_argument("-s", "--system", help="System instruction (e.g. 'Answer in one paragraph')")
-    rag_parser.add_argument("-n", "--max-tokens", type=int, default=DEFAULT_MAX_TOKENS,
-                            help="Maximum tokens to generate (default: %(default)s)")
-    rag_parser.add_argument("--temperature", type=float, default=DEFAULT_TEMPERATURE,
-                            help="Sampling temperature (default: %(default)s)")
+    rag_parser.add_argument(
+        "-n",
+        "--max-tokens",
+        type=int,
+        default=DEFAULT_MAX_TOKENS,
+        help="Maximum tokens to generate (default: %(default)s)",
+    )
+    rag_parser.add_argument(
+        "--temperature", type=float, default=DEFAULT_TEMPERATURE, help="Sampling temperature (default: %(default)s)"
+    )
     rag_parser.add_argument("-k", "--top-k", type=int, default=5, help="Number of chunks to retrieve")
     rag_parser.add_argument("--threshold", type=float, default=None, help="Minimum similarity threshold")
-    rag_parser.add_argument("-ngl", "--n-gpu-layers", type=int, default=DEFAULT_N_GPU_LAYERS,
-                            help="Number of layers to offload to GPU, -1 = all (default: %(default)s)")
+    rag_parser.add_argument(
+        "-ngl",
+        "--n-gpu-layers",
+        type=int,
+        default=DEFAULT_N_GPU_LAYERS,
+        help="Number of layers to offload to GPU, -1 = all (default: %(default)s)",
+    )
     rag_parser.add_argument("--stream", action="store_true", help="Stream output tokens")
     rag_parser.add_argument("--sources", action="store_true", help="Show source chunks")
     rag_parser.add_argument(

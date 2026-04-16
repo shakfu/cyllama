@@ -259,7 +259,13 @@ class OpenAICompatibleClient:
         >>> print(response.choices[0].message.content)
     """
 
-    def __init__(self, model_path: str, temperature: float = DEFAULT_TEMPERATURE, n_gpu_layers: int = DEFAULT_N_GPU_LAYERS, verbose: bool = False):
+    def __init__(
+        self,
+        model_path: str,
+        temperature: float = DEFAULT_TEMPERATURE,
+        n_gpu_layers: int = DEFAULT_N_GPU_LAYERS,
+        verbose: bool = False,
+    ):
         """
         Initialize the OpenAI-compatible client.
 

@@ -869,7 +869,9 @@ def add_common_sampler_args(parser):
     """Add sampler/scheduler arguments."""
     parser.add_argument("--sampler", help="Sampling method (euler, euler_a, heun, dpm2, etc.)")
     parser.add_argument("--scheduler", help="Scheduler (discrete, karras, exponential, ays, etc.)")
-    parser.add_argument("--eta", type=float, default=float("inf"), help="Eta for samplers (default: auto-resolve per method)")
+    parser.add_argument(
+        "--eta", type=float, default=float("inf"), help="Eta for samplers (default: auto-resolve per method)"
+    )
     parser.add_argument("--rng", choices=["std_default", "cuda", "cpu"], help="RNG type")
     parser.add_argument(
         "--sampler-rng", dest="sampler_rng", choices=["std_default", "cuda", "cpu"], help="Sampler RNG type"

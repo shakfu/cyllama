@@ -27,9 +27,9 @@ DEFAULT_TEMPERATURE: float = 0.8
 DEFAULT_TOP_K: int = 40
 DEFAULT_TOP_P: float = 0.95
 DEFAULT_MIN_P: float = 0.05
-DEFAULT_REPEAT_PENALTY: float = 1.0   # 1.0 = disabled (C library default)
-DEFAULT_PENALTY_LAST_N: int = 64      # last n tokens to penalize (common.h default)
-DEFAULT_PENALTY_FREQ: float = 0.0     # frequency penalty, 0.0 = disabled
+DEFAULT_REPEAT_PENALTY: float = 1.0  # 1.0 = disabled (C library default)
+DEFAULT_PENALTY_LAST_N: int = 64  # last n tokens to penalize (common.h default)
+DEFAULT_PENALTY_FREQ: float = 0.0  # frequency penalty, 0.0 = disabled
 DEFAULT_PENALTY_PRESENT: float = 0.0  # presence penalty, 0.0 = disabled
 
 # ---------------------------------------------------------------------------
@@ -40,10 +40,10 @@ DEFAULT_MAX_TOKENS: int = 512
 # ---------------------------------------------------------------------------
 # Model / context
 # ---------------------------------------------------------------------------
-DEFAULT_N_GPU_LAYERS: int = -1   # -1 = offload all layers (C library default)
-DEFAULT_N_BATCH: int = 2048      # C library default (llama_context_default_params)
+DEFAULT_N_GPU_LAYERS: int = -1  # -1 = offload all layers (C library default)
+DEFAULT_N_BATCH: int = 2048  # C library default (llama_context_default_params)
 DEFAULT_MAIN_GPU: int = 0
-DEFAULT_SPLIT_MODE: int = 1      # LLAMA_SPLIT_MODE_LAYER
+DEFAULT_SPLIT_MODE: int = 1  # LLAMA_SPLIT_MODE_LAYER
 
 # n_ctx: intentional divergence from the C library default of 512.
 #

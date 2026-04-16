@@ -142,9 +142,7 @@ class Chat:
                 if isinstance(msg, LlamaChatMessage):
                     chat_msgs.append(msg)
                 else:
-                    chat_msgs.append(
-                        LlamaChatMessage(role=msg["role"], content=msg["content"])
-                    )
+                    chat_msgs.append(LlamaChatMessage(role=msg["role"], content=msg["content"]))
             return self.model.chat_apply_template(tmpl, chat_msgs, add_assistant_msg)
 
         # --- Tier 3: simple User/Assistant formatting ---
@@ -189,7 +187,9 @@ class Chat:
             raise TemplateError(message)
 
         def tojson_filter(value, ensure_ascii=False, indent=None, separators=None, sort_keys=False):
-            return json.dumps(value, ensure_ascii=ensure_ascii, indent=indent, separators=separators, sort_keys=sort_keys)
+            return json.dumps(
+                value, ensure_ascii=ensure_ascii, indent=indent, separators=separators, sort_keys=sort_keys
+            )
 
         def strftime_now(fmt: str) -> str:
             return datetime.now().strftime(fmt)
@@ -312,8 +312,7 @@ class Chat:
     def print_session_stats(self):
         """Print a formatted table of accumulated session statistics."""
         total_time = self.total_prompt_time + self.total_generation_time
-        tps = (self.total_generated_tokens / self.total_generation_time
-               if self.total_generation_time > 0 else 0.0)
+        tps = self.total_generated_tokens / self.total_generation_time if self.total_generation_time > 0 else 0.0
         rows = [
             ("Prompt tokens", str(self.total_prompt_tokens)),
             ("Generated tokens", str(self.total_generated_tokens)),
@@ -405,22 +404,27 @@ def main():
     parser.add_argument("-c", "--context", type=int, default=2048, help="Context size")
     parser.add_argument("-ngl", "--n-gpu-layers", type=int, default=DEFAULT_N_GPU_LAYERS, help="Number of GPU layers")
     parser.add_argument("-n", "--max-tokens", type=int, default=DEFAULT_MAX_TOKENS, help="Max tokens per response")
-    parser.add_argument("--temperature", type=float, default=DEFAULT_TEMPERATURE,
-                        help="Sampling temperature (default: %(default)s)")
-    parser.add_argument("--top-k", type=int, default=DEFAULT_TOP_K,
-                        help="Top-k sampling (default: %(default)s)")
-    parser.add_argument("--top-p", type=float, default=DEFAULT_TOP_P,
-                        help="Top-p (nucleus) sampling (default: %(default)s)")
-    parser.add_argument("--min-p", type=float, default=DEFAULT_MIN_P,
-                        help="Min-p sampling threshold (default: %(default)s)")
-    parser.add_argument("--repeat-penalty", type=float, default=DEFAULT_REPEAT_PENALTY,
-                        help="Repetition penalty, 1.0 = disabled (default: %(default)s)")
-    parser.add_argument("--seed", type=int, default=LLAMA_DEFAULT_SEED,
-                        help="Random seed (default: %(default)s)")
-    parser.add_argument("--no-stream", action="store_true",
-                        help="Buffer full response before printing (default: stream)")
-    parser.add_argument("--stats", action="store_true",
-                        help="Show session statistics on exit")
+    parser.add_argument(
+        "--temperature", type=float, default=DEFAULT_TEMPERATURE, help="Sampling temperature (default: %(default)s)"
+    )
+    parser.add_argument("--top-k", type=int, default=DEFAULT_TOP_K, help="Top-k sampling (default: %(default)s)")
+    parser.add_argument(
+        "--top-p", type=float, default=DEFAULT_TOP_P, help="Top-p (nucleus) sampling (default: %(default)s)"
+    )
+    parser.add_argument(
+        "--min-p", type=float, default=DEFAULT_MIN_P, help="Min-p sampling threshold (default: %(default)s)"
+    )
+    parser.add_argument(
+        "--repeat-penalty",
+        type=float,
+        default=DEFAULT_REPEAT_PENALTY,
+        help="Repetition penalty, 1.0 = disabled (default: %(default)s)",
+    )
+    parser.add_argument("--seed", type=int, default=LLAMA_DEFAULT_SEED, help="Random seed (default: %(default)s)")
+    parser.add_argument(
+        "--no-stream", action="store_true", help="Buffer full response before printing (default: stream)"
+    )
+    parser.add_argument("--stats", action="store_true", help="Show session statistics on exit")
 
     args = parser.parse_args()
 

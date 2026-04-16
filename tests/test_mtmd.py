@@ -444,9 +444,7 @@ GEMMA4_MODEL = Path("models/gemma-4-E4B-it-Q4_K_M.gguf")
 GEMMA4_MMPROJ = Path("models/mmproj-gemma-4-E4B-it-BF16.gguf")
 
 _gemma4_available = GEMMA4_MODEL.exists() and GEMMA4_MMPROJ.exists()
-skip_no_gemma4 = pytest.mark.skipif(
-    not _gemma4_available, reason="gemma-4 model or mmproj not found in models/"
-)
+skip_no_gemma4 = pytest.mark.skipif(not _gemma4_available, reason="gemma-4 model or mmproj not found in models/")
 
 
 @pytest.mark.integration
@@ -536,10 +534,7 @@ class TestMtmdIntegration:
 
         # Expect: text, image, text, image, text (or similar interleaving)
         assert len(chunks) >= 4
-        image_chunks = [
-            c for i in range(len(chunks))
-            if (c := chunks[i]).type == MtmdInputChunkType.IMAGE
-        ]
+        image_chunks = [c for i in range(len(chunks)) if (c := chunks[i]).type == MtmdInputChunkType.IMAGE]
         assert len(image_chunks) == 2
 
     def test_tokenize_mismatched_bitmaps_raises(self, mtmd_ctx):

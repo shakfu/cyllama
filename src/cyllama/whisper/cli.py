@@ -576,8 +576,7 @@ Examples:
     parser.add_argument("-pp", "--print-progress", action="store_true", help="Print progress")
     parser.add_argument("-nt", "--no-timestamps", action="store_true", help="Do not print timestamps")
     parser.add_argument("-ng", "--no-gpu", action="store_true", help="Disable GPU")
-    parser.add_argument("-v", "--verbose", action="store_true",
-                        help="Show C-level log output from whisper.cpp/ggml")
+    parser.add_argument("-v", "--verbose", action="store_true", help="Show C-level log output from whisper.cpp/ggml")
 
     args = parser.parse_args()
 
