@@ -117,7 +117,7 @@ These flags apply uniformly to all components (llama.cpp, whisper.cpp, stable-di
 | `GGML_SYCL` | `0` | Intel SYCL (oneAPI) |
 | `GGML_HIP` | `0` | AMD ROCm/HIP |
 | `GGML_OPENCL` | `0` | OpenCL (Adreno, mobile GPUs) |
-| `SD_USE_VENDORED_GGML` | `0` | Link stable-diffusion against its own vendored ggml instead of llama.cpp's |
+| `SD_USE_VENDORED_GGML` | `1` | Link stable-diffusion against its own vendored ggml (set to `0` to share llama.cpp's ggml; not recommended for GPU backends) |
 
 ## Backend Requirements
 

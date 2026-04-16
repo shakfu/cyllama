@@ -1657,7 +1657,11 @@ class StableDiffusionCppBuilder(Builder):
 
         # Sync ggml ABI from llama.cpp before compiling so that enum
         # values (ggml_op, ggml_type) match the dylibs we link against.
-        self._sync_ggml_abi()
+        # Only needed when SD links against llama.cpp's shared ggml
+        # (--sd-shared-ggml). By default SD uses its own vendored ggml
+        # statically, so syncing would overwrite the vendored source.
+        if os.environ.get("SD_USE_VENDORED_GGML") == "0":
+            self._sync_ggml_abi()
 
         self.prefix.mkdir(exist_ok=True)
         self.include.mkdir(exist_ok=True)
@@ -2130,7 +2134,7 @@ class Application(ShellCmd, metaclass=MetaCommander):
     @opt("-D", "--deps-only", "build dependencies only, skip editable install")
     @opt("--dynamic", "-Y", "download pre-built llama.cpp release (dynamic linking)")
     @option("--no-sd-examples", help="skip building stable-diffusion.cpp examples (sd-cli, sd-server)", action="store_true")
-    @option("--sd-vendored-ggml", help="link stable-diffusion against its own vendored ggml", action="store_true")
+    @option("--sd-shared-ggml", help="link stable-diffusion against llama.cpp's shared ggml instead of its own vendored copy", action="store_true")
     @option(
         "--llama-version",
         default=LLAMACPP_VERSION,
@@ -2181,8 +2185,8 @@ class Application(ShellCmd, metaclass=MetaCommander):
         if args.cpu_all_variants:
             os.environ["GGML_CPU_ALL_VARIANTS"] = "1"
 
-        if args.sd_vendored_ggml:
-            os.environ["SD_USE_VENDORED_GGML"] = "1"
+        if args.sd_shared_ggml:
+            os.environ["SD_USE_VENDORED_GGML"] = "0"
 
         # Map builder classes to their version arguments
         builder_versions = {

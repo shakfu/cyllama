@@ -495,7 +495,7 @@ WITH_DYLIB=1 LLAMACPP_DYLIB_DIR=/path/to/llama-b8522 make build
 
 - `WITH_DYLIB=ON` -- link against shared `.dylib`/`.so` files instead of static `.a` archives
 - `LLAMACPP_DYLIB_DIR=/path/to/release` -- directory containing pre-built shared libraries
-- `SD_USE_VENDORED_GGML=ON` -- link stable-diffusion against its own vendored ggml instead of llama.cpp's
+- `SD_USE_VENDORED_GGML=ON` (default) -- link stable-diffusion against its own vendored ggml; set to `OFF` to share llama.cpp's ggml (not recommended for GPU backends)
 
 **How it works**:
 
@@ -503,7 +503,7 @@ WITH_DYLIB=1 LLAMACPP_DYLIB_DIR=/path/to/llama-b8522 make build
 - `libcpp-httplib.a` still built from source (not in releases, needed for embedded server)
 - `libcommon.a` is no longer linked -- JSON schema-to-grammar conversion is now pure Python, and all other `common.h` dependencies have been eliminated
 - Shared libraries copied alongside extension modules (`cyllama/llama/`) so `@loader_path`/`$ORIGIN` RPATH resolves correctly
-- Whisper and Stable Diffusion remain statically linked (no pre-built releases available). Both use llama.cpp's ggml by default; set `SD_USE_VENDORED_GGML=1` to link stable-diffusion against its own vendored ggml instead
+- Whisper and Stable Diffusion remain statically linked (no pre-built releases available). Stable Diffusion uses its own vendored ggml by default; set `SD_USE_VENDORED_GGML=0` to share llama.cpp's ggml (not recommended for GPU backends due to ggml version incompatibilities)
 
 **Validated results** (macOS arm64, b8522 release):
 
@@ -555,7 +555,7 @@ The `thirdparty/sqlite-vector/` directory includes `sqlite3.h` (13,773 lines) an
 The changelog says "120+ tests verified" for dynamic mode, but the test matrix for dynamic linking across platforms (Linux, macOS) and backends (CUDA, Vulkan) is likely thin. A regression in dynamic mode could be hard to catch without CI coverage.
 
 **5. `SD_USE_VENDORED_GGML` adds configuration complexity**
-A new build option with interactions across static/dynamic modes, multiple backends, and two different ggml versions. The common case (unified ggml) is simple, but the vendored path is an edge case that may not get exercised regularly and could rot.
+A build option with interactions across static/dynamic modes, multiple backends, and two different ggml versions. Now defaults to ON (vendored) after CUDA image generation crashes were traced to ggml version incompatibilities between llama.cpp and stable-diffusion.cpp. The shared-ggml path (`SD_USE_VENDORED_GGML=0`) remains available but is not recommended for GPU backends.
 
 ### Recommendation
 
