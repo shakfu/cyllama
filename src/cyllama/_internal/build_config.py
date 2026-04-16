@@ -57,4 +57,5 @@ def versions() -> dict[str, str]:
 def dump() -> None:
     """Pretty-print the full build config to stdout."""
     import pprint
+
     pprint.pprint(get())
