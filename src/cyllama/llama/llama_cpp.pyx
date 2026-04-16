@@ -2667,9 +2667,22 @@ cdef class LlamaContext:
     # NOTE: Used by llama.cpp examples, avoid using in third-party apps. Instead, do your own performance measurements.
     #
 
-    # def get_perf_data(self):
-    #     """get performance data"""
-    #     cdef llama_perf_context_data data = llama.llama_perf_context(self.ptr)
+    def get_perf_data(self):
+        """Get performance data as a dictionary.
+
+        Returns a dict with keys: t_start_ms, t_load_ms, t_p_eval_ms,
+        t_eval_ms, n_p_eval, n_eval, n_reused.
+        """
+        cdef llama.llama_perf_context_data data = llama.llama_perf_context(self.ptr)
+        return {
+            "t_start_ms": data.t_start_ms,
+            "t_load_ms": data.t_load_ms,
+            "t_p_eval_ms": data.t_p_eval_ms,
+            "t_eval_ms": data.t_eval_ms,
+            "n_p_eval": data.n_p_eval,
+            "n_eval": data.n_eval,
+            "n_reused": data.n_reused,
+        }
 
     def print_perf_data(self):
         """print performance data"""
@@ -2953,11 +2966,18 @@ cdef class LlamaSampler:
     #
 
 
-    # def get_perf_data(self):
-    #     """
-    #     # NOTE: the following work only with samplers constructed via llama_sampler_chain_init
-    #     """
-    #     cdef llama_perf_sampler_data data = llama.llama_perf_sampler(self.ptr)
+    def get_perf_data(self):
+        """Get sampler performance data as a dictionary.
+
+        NOTE: only works with samplers constructed via llama_sampler_chain_init.
+
+        Returns a dict with keys: t_sample_ms, n_sample.
+        """
+        cdef llama.llama_perf_sampler_data data = llama.llama_perf_sampler(self.ptr)
+        return {
+            "t_sample_ms": data.t_sample_ms,
+            "n_sample": data.n_sample,
+        }
 
     def print_perf_data(self):
         """

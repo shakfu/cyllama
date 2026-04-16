@@ -41,6 +41,14 @@ def _print_stats_table(stats) -> None:
     print(line, file=sys.stderr)
 
 
+def _stream_and_collect_stats(llm, chunks):
+    """Consume a streaming iterator, print chunks, then return stats from the LLM."""
+    for chunk in chunks:
+        print(chunk, end="", flush=True)
+    print()
+    return llm._last_stream_stats
+
+
 def _parse_system_info(info_str: str) -> dict[str, str]:
     """Parse 'KEY = VALUE | KEY2 = VALUE2 |' format into a dict."""
     result = {}
@@ -204,7 +212,7 @@ def cmd_version():
 
 def cmd_generate(args):
     """Generate text from a prompt."""
-    from .api import GenerationConfig, complete
+    from .api import GenerationConfig, LLM, complete
 
     # Read prompt from arg, file, or stdin
     if args.prompt:
@@ -232,18 +240,18 @@ def cmd_generate(args):
 
     try:
         if args.stream:
-            response = None
-            for chunk in complete(prompt, args.model, config, stream=True, verbose=args.verbose):
-                print(chunk, end="", flush=True)
-            print()
+            with LLM(args.model, config=config, verbose=args.verbose) as llm:
+                stats = _stream_and_collect_stats(llm, llm(prompt, stream=True))
+            if args.stats and stats is not None:
+                _print_stats_table(stats)
         else:
             response = complete(prompt, args.model, config, verbose=args.verbose)
             if args.json:
                 print(response.to_json())
             else:
                 print(response)
-        if args.stats and response is not None:
-            _print_stats_table(response.stats)
+            if args.stats:
+                _print_stats_table(response.stats)
     except KeyboardInterrupt:
         print("\nInterrupted", file=sys.stderr)
         return 130
@@ -267,7 +275,7 @@ def cmd_chat(args):
 
     if args.prompt:
         # Single-turn mode via high-level API
-        from .api import GenerationConfig, chat
+        from .api import GenerationConfig, LLM, chat
 
         messages = []
         if args.system:
@@ -287,18 +295,18 @@ def cmd_chat(args):
         )
 
         if args.stream:
-            response = None
-            for chunk in chat(messages, args.model, config, stream=True, verbose=args.verbose, template=args.template):
-                print(chunk, end="", flush=True)
-            print()
+            with LLM(args.model, config=config, verbose=args.verbose) as llm:
+                stats = _stream_and_collect_stats(llm, llm.chat(messages, stream=True, template=args.template))
+            if args.stats and stats is not None:
+                _print_stats_table(stats)
         else:
             response = chat(messages, args.model, config, verbose=args.verbose, template=args.template)
             if args.json:
                 print(response.to_json())
             else:
                 print(response)
-        if args.stats and response is not None:
-            _print_stats_table(response.stats)
+            if args.stats:
+                _print_stats_table(response.stats)
     else:
         # Interactive mode - delegate to llama.chat
         argv = [

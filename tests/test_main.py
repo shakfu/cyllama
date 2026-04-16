@@ -310,7 +310,13 @@ class TestCmdGenerate:
 
         args = self._make_args(stream=True)
 
-        with patch("cyllama.api.complete", return_value=iter(["hello", " world"])):
+        mock_llm = MagicMock()
+        mock_llm.__enter__ = MagicMock(return_value=mock_llm)
+        mock_llm.__exit__ = MagicMock(return_value=False)
+        mock_llm.__call__ = MagicMock(return_value=iter(["hello", " world"]))
+        mock_llm._last_stream_stats = None
+
+        with patch("cyllama.api.LLM", return_value=mock_llm):
             ret = cmd_generate(args)
         assert ret == 0
 
@@ -436,7 +442,13 @@ class TestCmdChat:
 
         args = self._make_args(prompt="hi", stream=True)
 
-        with patch("cyllama.api.chat", return_value=iter(["hello"])):
+        mock_llm = MagicMock()
+        mock_llm.__enter__ = MagicMock(return_value=mock_llm)
+        mock_llm.__exit__ = MagicMock(return_value=False)
+        mock_llm.chat = MagicMock(return_value=iter(["hello"]))
+        mock_llm._last_stream_stats = None
+
+        with patch("cyllama.api.LLM", return_value=mock_llm):
             ret = cmd_chat(args)
         assert ret == 0
 

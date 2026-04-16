@@ -31,9 +31,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 - **`--stats` flag for `generate` and `chat` CLI modes** - When set, displays a formatted table of session statistics on exit: prompt tokens, generated tokens, prompt eval time, generation time, total time, and tokens/second. In single-turn modes, stats come from the high-level API's `GenerationStats`. In interactive chat, stats are accumulated across all turns and printed when the session ends (Ctrl-C, EOT, or empty input). Default: off
 
+- **`LlamaContext.get_perf_data()` and `LlamaSampler.get_perf_data()`** - Exposed the previously commented-out C-level performance data as Python dicts. Context returns `t_start_ms`, `t_load_ms`, `t_p_eval_ms`, `t_eval_ms`, `n_p_eval`, `n_eval`, `n_reused`. Sampler returns `t_sample_ms`, `n_sample`. More accurate than wall-clock timing for profiling prompt eval and generation phases
+
+- **`MtmdContextParams.warmup` property** - Exposed the `warmup` field (getter/setter and `__init__` parameter, default `True`). When `False`, skips the warmup encode pass during context creation, reducing initialization latency for callers that don't need it
+
+- **`mtmd_decoder_pos` struct and `mtmd_image_tokens_get_decoder_pos()` in `.pxd`** - Declared the new M-RoPE decoder position API (`mtmd_decoder_pos` with `t`, `x`, `y` fields, `mtmd_image_tokens_get_decoder_pos()`, and `mtmd_helper_image_get_decoder_pos()`) replacing the deprecated `mtmd_image_tokens_get_nx/ny` functions removed upstream in b8802
+
 ### Fixed
 
+- **`--stats` silently skipped in streaming mode** - `cyllama generate --stream --stats` and `cyllama chat --stream --stats` now print the stats table. The streaming path previously set `response = None` and the stats guard `response is not None` always failed. Streaming CLI commands now use `LLM` directly to access `_last_stream_stats` populated at the end of the stream, providing accurate prompt/generated token counts and wall-clock timing
+
 - **Single-turn `chat()` crashed on Gemma 4 with `Failed to apply chat template`** - The standalone `apply_chat_template()` function in `api.py` (used by `chat()` and `cyllama chat -p`) went straight to the C `llama_chat_apply_template` API without trying the vendored jinja2 interpreter first. Gemma 4's template uses Jinja syntax that the C substring heuristic doesn't recognise. Added the same two-tier fallback (jinja2 first, C API on failure) that `LLM._apply_template` and interactive `Chat._apply_template` already had
+
+### Removed
+
+- **Deprecated `mtmd_image_tokens_get_nx/ny` declarations** - Removed from `mtmd.pxd`. These were wrapped in `DEPRECATED()` upstream in b8802 and will be removed. Use `mtmd_image_tokens_get_decoder_pos()` instead
 
 ## [0.2.8]
 

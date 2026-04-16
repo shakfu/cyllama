@@ -101,10 +101,17 @@ cdef extern from "mtmd.h":
 
     # Image tokens queries
     cdef size_t mtmd_image_tokens_get_n_tokens(const mtmd_image_tokens * image_tokens)
-    cdef size_t mtmd_image_tokens_get_nx(const mtmd_image_tokens * image_tokens)
-    cdef size_t mtmd_image_tokens_get_ny(const mtmd_image_tokens * image_tokens)
     cdef const char * mtmd_image_tokens_get_id(const mtmd_image_tokens * image_tokens)
     cdef llama_pos mtmd_image_tokens_get_n_pos(const mtmd_image_tokens * image_tokens)
+
+    # Decoder position for M-RoPE models (replaces deprecated get_nx/get_ny)
+    cdef struct mtmd_decoder_pos:
+        uint32_t t
+        uint32_t x
+        uint32_t y
+
+    # i is the index of the embedding token, ranging from 0 to mtmd_image_tokens_get_n_tokens() - 1
+    cdef mtmd_decoder_pos mtmd_image_tokens_get_decoder_pos(const mtmd_image_tokens * image_tokens, size_t i)
 
     # Core processing
     cdef int32_t mtmd_tokenize(mtmd_context * ctx,
@@ -141,6 +148,10 @@ cdef extern from "mtmd-helper.h":
     # Helper functions for chunk processing
     cdef size_t mtmd_helper_get_n_tokens(const mtmd_input_chunks * chunks)
     cdef llama_pos mtmd_helper_get_n_pos(const mtmd_input_chunks * chunks)
+
+    # Helper to get list of relative decoder positions for image embedding tokens (M-RoPE)
+    # out_pos must have length == mtmd_image_tokens_get_n_tokens(image)
+    cdef void mtmd_helper_image_get_decoder_pos(const mtmd_image_tokens * image, mtmd_decoder_pos * out_pos)
 
     # Helper functions for evaluation
     cdef int32_t mtmd_helper_eval_chunks(mtmd_context * ctx,

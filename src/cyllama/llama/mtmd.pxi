@@ -36,7 +36,8 @@ cdef class MtmdContextParams:
 
     def __init__(self, use_gpu: bool = True, print_timings: bool = False,
                  n_threads: int = 1, media_marker: str = None,
-                 flash_attn_type: int = 0, image_min_tokens: int = -1, image_max_tokens: int = -1):
+                 flash_attn_type: int = 0, image_min_tokens: int = -1,
+                 image_max_tokens: int = -1, warmup: bool = True):
         """Initialize mtmd context parameters.
 
         Args:
@@ -47,6 +48,7 @@ cdef class MtmdContextParams:
             flash_attn_type: Flash attention type (0=auto, see llama_flash_attn_type enum)
             image_min_tokens: Minimum number of tokens for image input (-1=from metadata)
             image_max_tokens: Maximum number of tokens for image input (-1=from metadata)
+            warmup: Whether to run a warmup encode pass after initialization
         """
         self._params = mtmd_context_params_default()
         self._params.use_gpu = use_gpu
@@ -55,6 +57,7 @@ cdef class MtmdContextParams:
         self._params.flash_attn_type = <llama_flash_attn_type>flash_attn_type
         self._params.image_min_tokens = image_min_tokens
         self._params.image_max_tokens = image_max_tokens
+        self._params.warmup = warmup
 
         if media_marker is not None:
             # Store the marker (Note: this requires careful memory management)
@@ -108,6 +111,15 @@ cdef class MtmdContextParams:
     @image_max_tokens.setter
     def image_max_tokens(self, value: int):
         self._params.image_max_tokens = value
+
+    @property
+    def warmup(self) -> bool:
+        """Whether to run a warmup encode pass after initialization."""
+        return self._params.warmup
+
+    @warmup.setter
+    def warmup(self, value: bool):
+        self._params.warmup = value
 
 
 cdef class MtmdBitmap:

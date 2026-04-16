@@ -2,13 +2,13 @@
 
 ## Bugs
 
-- [ ] `--stats` silently skipped in streaming mode (`cyllama generate --stream --stats`) -- the streaming path doesn't return a `Response` object so `response` is `None` and the stats table is never printed
+- [x] `--stats` silently skipped in streaming mode (`cyllama generate --stream --stats`) -- the streaming path doesn't return a `Response` object so `response` is `None` and the stats table is never printed
 
 ## Medium Priority
 
-- [ ] Expose `LlamaContext.get_perf_data()` -- the `llama_perf_context_data` struct is declared in `llama.pxd` but the method is commented out in `llama_cpp.pyx` (line 2670). Would provide C-level prompt eval time and generation time, more accurate than wall-clock timing for `--stats`
-- [ ] Expose `MtmdContextParams.warmup` property -- the C struct field is declared in `mtmd.pxd` but has no Python getter/setter. Defaults to `true`, which adds latency during context creation that callers can't opt out of
-- [ ] Replace deprecated `mtmd_image_tokens_get_nx/ny` with `mtmd_image_tokens_get_decoder_pos` + `mtmd_decoder_pos` struct in `.pxd`/`.pxi`. Upstream wrapped the old functions in `DEPRECATED()` in b8802; they still link but will be removed
+- [x] Expose `LlamaContext.get_perf_data()` -- the `llama_perf_context_data` struct is declared in `llama.pxd` but the method is commented out in `llama_cpp.pyx` (line 2670). Would provide C-level prompt eval time and generation time, more accurate than wall-clock timing for `--stats`
+- [x] Expose `MtmdContextParams.warmup` property -- the C struct field is declared in `mtmd.pxd` but has no Python getter/setter. Defaults to `true`, which adds latency during context creation that callers can't opt out of
+- [x] Replace deprecated `mtmd_image_tokens_get_nx/ny` with `mtmd_image_tokens_get_decoder_pos` + `mtmd_decoder_pos` struct in `.pxd`/`.pxi`. Upstream wrapped the old functions in `DEPRECATED()` in b8802; they still link but will be removed
 - [ ] Performance benchmarking suite (token generation speed, memory profiling, regression detection)
 - [ ] Structured logging system (JSON output option, agent decision flow logging)
 

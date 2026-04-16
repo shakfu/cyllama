@@ -529,6 +529,7 @@ class LLM:
         self.model_path = model_path
         self.verbose = verbose
         self._closed = False
+        self._last_stream_stats: Optional[GenerationStats] = None
 
         # Concurrent-use guard for the underlying llama.cpp context.
         # llama_context is not thread-safe and we release the GIL during
@@ -934,6 +935,8 @@ class LLM:
         # Use provided config or fall back to instance config
         config = config or self.config
 
+        start_time = time.time()
+
         # Tokenize prompt
         prompt_tokens = self.vocab.tokenize(prompt, add_special=config.add_bos, parse_special=config.parse_special)
         n_prompt = len(prompt_tokens)
@@ -1025,6 +1028,15 @@ class LLM:
             if on_token:
                 on_token(stop_buffer)
             yield stop_buffer
+
+        # Store streaming stats so callers can retrieve them after exhaustion
+        total_time = time.time() - start_time
+        self._last_stream_stats = GenerationStats(
+            prompt_tokens=n_prompt,
+            generated_tokens=n_generated,
+            total_time=total_time,
+            tokens_per_second=n_generated / total_time if total_time > 0 else 0.0,
+        )
 
         if self.verbose:
             print(f"\nGenerated {n_generated} tokens")
