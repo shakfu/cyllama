@@ -19,6 +19,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Changed
 
+- **stable-diffusion.cpp now uses its own vendored ggml by default** - The SD extension statically links stable-diffusion.cpp's own vendored ggml instead of sharing llama.cpp's ggml dylibs. Fixes a `ggml_backend_tensor_copy` assertion crash ("cannot copy tensors with different layouts") during CUDA image generation caused by subtle ggml version incompatibilities between llama.cpp and stable-diffusion.cpp. The old behavior (shared ggml) can be restored with `--sd-shared-ggml` or `SD_USE_VENDORED_GGML=0`, but is not recommended for GPU backends. The previous `--sd-vendored-ggml` flag is removed since vendored is now the default
+
 - **Updated llama.cpp from b8757 to b8802** - Updated bundled llama.cpp. Adapted Cython bindings to the `mtmd_decode_use_non_causal` signature change (now takes a second `chunk` parameter; passing `NULL` preserves the previous default behavior per upstream docs)
 
 - **Updated stable-diffusion.cpp from master-559-dd75372 to master-567-ee5bf95** - Updated bundled stable-diffusion.cpp (no API-breaking changes)
@@ -40,6 +42,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 ### Fixed
 
 - **`--stats` silently skipped in streaming mode** - `cyllama generate --stream --stats` and `cyllama chat --stream --stats` now print the stats table. The streaming path previously set `response = None` and the stats guard `response is not None` always failed. Streaming CLI commands now use `LLM` directly to access `_last_stream_stats` populated at the end of the stream, providing accurate prompt/generated token counts and wall-clock timing
+
+- **CUDA image generation crashed with `ggml_are_same_layout` assertion** - `cyllama.sd txt2img` with CUDA crashed during `generate_image()` because the SD extension linked against llama.cpp's shared ggml dylibs, which have subtle incompatibilities with stable-diffusion.cpp's ggml usage (tensor layout assumptions in `ggml_backend_tensor_copy`). Fixed by defaulting `SD_USE_VENDORED_GGML=ON` so SD statically links its own vendored ggml copy
 
 - **Single-turn `chat()` crashed on Gemma 4 with `Failed to apply chat template`** - The standalone `apply_chat_template()` function in `api.py` (used by `chat()` and `cyllama chat -p`) went straight to the C `llama_chat_apply_template` API without trying the vendored jinja2 interpreter first. Gemma 4's template uses Jinja syntax that the C substring heuristic doesn't recognise. Added the same two-tier fallback (jinja2 first, C API on failure) that `LLM._apply_template` and interactive `Chat._apply_template` already had
 
