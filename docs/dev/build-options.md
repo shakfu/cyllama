@@ -50,7 +50,7 @@ These are deliberately excluded as they serve niche hardware. If demand arises, 
 
 | Option | Local | CI Workflows | Upstream Default | Notes |
 |--------|-------|-------------|------------------|-------|
-| `GGML_NATIVE` | Not set (ON) | `OFF` | ON | **Deliberate.** Local builds optimize for the developer's CPU. CI builds set OFF for portable wheels. |
+| `GGML_NATIVE` | Not set (ON) | `OFF` | ON | **Deliberate.** Local builds optimize for the developer's CPU. CI builds set OFF for portable wheels. Incompatible with `GGML_BACKEND_DL` (dynamic builds); see `docs/dev/ggml-config.md`. |
 | `BUILD_SHARED_LIBS` | `False` (static) | Depends on `link_mode` input | ON | Local default is static linking. CI supports both via workflow `link_mode` parameter. |
 | `CMAKE_POSITION_INDEPENDENT_CODE` | `True` | `True` (inherited) | Not set | Required for static libs that get linked into shared Python extensions. |
 | `LLAMA_CURL` | `False` | `False` (inherited) | Not documented | Disabled; cyllama doesn't need libcurl for model downloads. |
@@ -60,12 +60,13 @@ These are deliberately excluded as they serve niche hardware. If demand arises, 
 | `LLAMA_BUILD_EXAMPLES` | `False` | `False` (inherited) | ON | No need for example binaries. |
 | `GGML_OPENMP` | ON (disable with `--no-openmp` or `GGML_OPENMP=0`) | Not set (ON) | ON | Forwarded to all three builders. `CMakeLists.txt` does `find_package(OpenMP)` on Linux. |
 | `GGML_BACKEND_DL` | Not set (OFF) | Not set (OFF) | OFF | Dynamic backend loading at runtime. Not used. |
+| `SD_USE_VENDORED_GGML` | `0` (dynamic targets) | `0` (dynamic) / `1` (static) | ON | When `0`, SD shares llama.cpp's ggml dylibs instead of statically embedding them. Requires `GGML_MAX_NAME=128` propagation; see `docs/dev/ggml-unification.md`. |
 
 ### CUDA-Specific Options
 
 | Option | Local | CI (`build-gpu-wheels.yml`) | Upstream |
 |--------|-------|---------------------------|----------|
-| `CMAKE_CUDA_ARCHITECTURES` | User-provided or llama.cpp default | `"75"` | User-provided or auto |
+| `CMAKE_CUDA_ARCHITECTURES` | `native` (dynamic targets) or llama.cpp default | `"75"` | User-provided or auto |
 | `CMAKE_CUDA_COMPILER` | Forwarded from env | Not set | Custom nvcc path |
 | `GGML_CUDA_FORCE_MMQ` | Forwarded from env | Not set | Force quantized matrix kernels |
 | `GGML_CUDA_FORCE_CUBLAS` | Forwarded from env | Not set | Force FP16 cuBLAS |

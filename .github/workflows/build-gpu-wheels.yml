@@ -102,6 +102,7 @@ jobs:
             PATH=/usr/local/cuda/bin:$CI_PYTHON:$PATH
             CMAKE_CUDA_ARCHITECTURES="75"
             GGML_NATIVE=OFF GGML_CUDA=1 GGML_METAL=0
+            SD_USE_VENDORED_GGML=${{ inputs.link_mode == 'dynamic' && '0' || '1' }}
             $CI_PYTHON/python scripts/manage.py build --all --deps-only --no-sd-examples
             ${{ inputs.link_mode == 'dynamic' && '--dynamic' || '' }} &&
             touch /project/thirdparty/.deps-complete
@@ -120,6 +121,7 @@ jobs:
             CFLAGS=-s
             CXXFLAGS=-s
             WITH_DYLIB=${{ inputs.link_mode == 'dynamic' && '1' || '0' }}
+            SD_USE_VENDORED_GGML=${{ inputs.link_mode == 'dynamic' && '0' || '1' }}
           CIBW_TEST_COMMAND: ""
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
             test -d {project}/thirdparty/llama.cpp/dynamic || { echo "ERROR: dynamic lib dir missing: {project}/thirdparty/llama.cpp/dynamic"; exit 1; } &&
@@ -130,6 +132,13 @@ jobs:
             --exclude libcudart.so.12
             --exclude libcublas.so.12
             --exclude libcublasLt.so.12
+            --exclude libgomp.so.1
+            --exclude libllama.so.0
+            --exclude libggml-cuda.so
+            --exclude libggml.so.0
+            --exclude libggml-base.so.0
+            --exclude libggml-cpu.so
+            --exclude libmtmd.so.0
 
       - name: List built wheels
         run: ls -lah wheelhouse/
@@ -193,6 +202,7 @@ jobs:
             CMAKE_HIP_ARCHITECTURES="gfx90a;gfx942;gfx1100"
             HIP_PATH=/opt/rocm
             GGML_NATIVE=OFF GGML_HIP=1 GGML_METAL=0
+            SD_USE_VENDORED_GGML=${{ inputs.link_mode == 'dynamic' && '0' || '1' }}
             $CI_PYTHON/python scripts/manage.py build --all --deps-only --no-sd-examples
             ${{ inputs.link_mode == 'dynamic' && '--dynamic' || '' }} &&
             touch /project/thirdparty/.deps-complete
@@ -212,6 +222,7 @@ jobs:
             CFLAGS=-s
             CXXFLAGS=-s
             WITH_DYLIB=${{ inputs.link_mode == 'dynamic' && '1' || '0' }}
+            SD_USE_VENDORED_GGML=${{ inputs.link_mode == 'dynamic' && '0' || '1' }}
           CIBW_TEST_COMMAND: ""
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
             test -d {project}/thirdparty/llama.cpp/dynamic || { echo "ERROR: dynamic lib dir missing: {project}/thirdparty/llama.cpp/dynamic"; exit 1; } &&
@@ -226,6 +237,13 @@ jobs:
             --exclude libhipblaslt.so.0
             --exclude libamd_comgr.so.2
             --exclude librocprofiler-register.so.0
+            --exclude libgomp.so.1
+            --exclude libllama.so.0
+            --exclude libggml-hip.so
+            --exclude libggml.so.0
+            --exclude libggml-base.so.0
+            --exclude libggml-cpu.so
+            --exclude libmtmd.so.0
 
       - name: List built wheels
         run: ls -lah wheelhouse/
@@ -282,6 +300,7 @@ jobs:
             export CC=icx CXX=icpx &&
             PATH=$CI_PYTHON:$PATH
             GGML_NATIVE=OFF GGML_SYCL=1 GGML_METAL=0
+            SD_USE_VENDORED_GGML=${{ inputs.link_mode == 'dynamic' && '0' || '1' }}
             $CI_PYTHON/python scripts/manage.py build --all --deps-only --no-sd-examples
             ${{ inputs.link_mode == 'dynamic' && '--dynamic' || '' }} &&
             touch /project/thirdparty/.deps-complete
@@ -300,6 +319,7 @@ jobs:
             CFLAGS=-s
             CXXFLAGS=-s
             WITH_DYLIB=${{ inputs.link_mode == 'dynamic' && '1' || '0' }}
+            SD_USE_VENDORED_GGML=${{ inputs.link_mode == 'dynamic' && '0' || '1' }}
           CIBW_TEST_COMMAND: ""
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
             test -d {project}/thirdparty/llama.cpp/dynamic || { echo "ERROR: dynamic lib dir missing: {project}/thirdparty/llama.cpp/dynamic"; exit 1; } &&
@@ -312,6 +332,13 @@ jobs:
             --exclude libimf.so
             --exclude libintlc.so.5
             --exclude libtbb.so.12
+            --exclude libgomp.so.1
+            --exclude libllama.so.0
+            --exclude libggml-sycl.so
+            --exclude libggml.so.0
+            --exclude libggml-base.so.0
+            --exclude libggml-cpu.so
+            --exclude libmtmd.so.0
 
       - name: List built wheels
         run: ls -lah wheelhouse/
@@ -370,6 +397,7 @@ jobs:
             $CI_PYTHON/pip install cmake ninja &&
             PATH=$CI_PYTHON:$PATH
             GGML_NATIVE=OFF GGML_VULKAN=1 GGML_METAL=0
+            SD_USE_VENDORED_GGML=${{ inputs.link_mode == 'dynamic' && '0' || '1' }}
             $CI_PYTHON/python scripts/manage.py build --all --deps-only --no-sd-examples
             ${{ inputs.link_mode == 'dynamic' && '--dynamic' || '' }} &&
             touch /project/thirdparty/.deps-complete
@@ -384,6 +412,7 @@ jobs:
             CFLAGS=-s
             CXXFLAGS=-s
             WITH_DYLIB=${{ inputs.link_mode == 'dynamic' && '1' || '0' }}
+            SD_USE_VENDORED_GGML=${{ inputs.link_mode == 'dynamic' && '0' || '1' }}
           CIBW_TEST_COMMAND: ""
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
             test -d {project}/thirdparty/llama.cpp/dynamic || { echo "ERROR: dynamic lib dir missing: {project}/thirdparty/llama.cpp/dynamic"; exit 1; } &&
@@ -391,6 +420,13 @@ jobs:
             auditwheel repair -w {dest_dir} {wheel}
             --plat manylinux_2_35_x86_64
             --exclude libvulkan.so.1
+            --exclude libgomp.so.1
+            --exclude libllama.so.0
+            --exclude libggml-vulkan.so
+            --exclude libggml.so.0
+            --exclude libggml-base.so.0
+            --exclude libggml-cpu.so
+            --exclude libmtmd.so.0
 
       - name: List built wheels
         run: ls -lah wheelhouse/

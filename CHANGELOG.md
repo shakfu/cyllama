@@ -17,6 +17,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+### Changed
+
+- **GPU wheel size reduced ~50%** -- The stable-diffusion extension no longer statically embeds the ggml GPU backend (e.g. `libggml-cuda.a`). It now links against llama.cpp's shared ggml dylibs, the same copies already bundled for the llama/whisper bindings. Two ABI issues were resolved to make this work: (1) `_sync_ggml_abi()` overlays llama.cpp's ggml source onto stable-diffusion.cpp before compilation, eliminating enum-ordinal drift; (2) `GGML_MAX_NAME=128` is propagated to the llama.cpp shared lib build to match stable-diffusion.cpp's requirement, preventing `ggml_tensor` struct layout divergence that caused `ggml_are_same_layout` assertion crashes with FLUX-like models under CPU offloading. The 0.2.9 workaround (`SD_USE_VENDORED_GGML=ON` default) is reversed for all dynamic GPU targets. The old static-link behavior remains available via `SD_USE_VENDORED_GGML=1`
+
+- **Local CUDA builds default to native GPU architecture** -- The `build-cuda-dynamic` and `wheel-cuda-dynamic` Makefile targets now default `CMAKE_CUDA_ARCHITECTURES` to `native`, building only for the installed GPU. This reduces `libggml-cuda.so` from ~500 MB (7 architectures) to ~137 MB (1 architecture) for local development. CI continues to target `sm_75` explicitly
+
+### Fixed
+
+- **auditwheel no longer SONAME-rewrites bundled project libs** -- All GPU CI workflows now exclude bundled project libraries (`libllama`, `libggml-*`, `libmtmd`, `libgomp`) from `auditwheel repair`, preventing the SONAME rewriting that caused the double-free crash documented in `docs/dev/cuda-double-free.md`. Each backend also excludes its backend-specific ggml lib (`libggml-cuda.so`, `libggml-hip.so`, etc.)
+
 ## [0.2.9]
 
 ### Changed

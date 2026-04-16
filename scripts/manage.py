@@ -902,6 +902,18 @@ class AbstractBuilder(ShellCmd):
         self.post_process()
 
 
+# stable-diffusion.cpp requires GGML_MAX_NAME=128 (see its CMakeLists.txt:233
+# and ggml_extend.hpp:94).  llama.cpp defaults to 64.  When SD shares
+# llama.cpp's ggml dylibs (SD_USE_VENDORED_GGML=0), both sides must agree on
+# this value or the ggml_tensor struct layout diverges and tensor copies crash.
+_SD_GGML_MAX_NAME = 128
+
+
+def _sd_uses_shared_ggml() -> bool:
+    """Return True when SD is configured to share llama.cpp's ggml."""
+    return os.environ.get("SD_USE_VENDORED_GGML") == "0"
+
+
 class Builder(AbstractBuilder):
     """concrete builder class"""
 
@@ -1122,6 +1134,15 @@ class LlamaCppBuilder(Builder):
         # Get backend-specific CMake options
         backend_options = self.get_backend_cmake_options()
 
+        # When SD shares llama.cpp's ggml dylibs, the ggml_tensor struct
+        # layout must match.  SD requires GGML_MAX_NAME=128; propagate it
+        # to the llama.cpp build so both sides agree.
+        extra = {}
+        if _sd_uses_shared_ggml():
+            _def = f"-DGGML_MAX_NAME={_SD_GGML_MAX_NAME}"
+            extra["CMAKE_C_FLAGS"] = _def
+            extra["CMAKE_CXX_FLAGS"] = _def
+
         self.cmake_config(
             src_dir=self.src_dir,
             build_dir=self.build_dir,
@@ -1135,6 +1156,7 @@ class LlamaCppBuilder(Builder):
             LLAMA_BUILD_SERVER=False,  # Server requires httplib
             LLAMA_BUILD_TESTS=False,  # Tests require httplib
             LLAMA_BUILD_EXAMPLES=False,  # Don't need examples
+            **extra,
             **backend_options,
         )
         # Build specific targets to avoid httplib-dependent tools like llama-run
@@ -1188,6 +1210,14 @@ class LlamaCppBuilder(Builder):
         # unless GGML_CPU_ALL_VARIANTS already handled it.
         if "GGML_NATIVE" not in backend_options:
             backend_options["GGML_NATIVE"] = "OFF"
+
+        # Match SD's GGML_MAX_NAME so ggml_tensor struct layout is identical
+        extra = {}
+        if _sd_uses_shared_ggml():
+            _def = f"-DGGML_MAX_NAME={_SD_GGML_MAX_NAME}"
+            extra["CMAKE_C_FLAGS"] = _def
+            extra["CMAKE_CXX_FLAGS"] = _def
+
         self.cmake_config(
             src_dir=self.src_dir,
             build_dir=self.build_dir,
@@ -1199,6 +1229,7 @@ class LlamaCppBuilder(Builder):
             LLAMA_BUILD_SERVER=False,
             LLAMA_BUILD_TESTS=False,
             LLAMA_BUILD_EXAMPLES=False,
+            **extra,
             **backend_options,
         )
         # With GGML_BACKEND_DL=True, backends are separate plugin targets

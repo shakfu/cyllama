@@ -235,22 +235,22 @@ build-cpu-dynamic: clean
 	@$(_CPU_ONLY) $(SYSTEM_PYTHON) scripts/manage.py build --all --dynamic
 
 build-metal-dynamic: clean
-	@GGML_METAL=1 $(SYSTEM_PYTHON) scripts/manage.py build --all --dynamic
+	@GGML_METAL=1 SD_USE_VENDORED_GGML=0 $(SYSTEM_PYTHON) scripts/manage.py build --all --dynamic
 
 build-cuda-dynamic: clean
-	@GGML_CUDA=1 $(SYSTEM_PYTHON) scripts/manage.py build --all --dynamic
+	@GGML_CUDA=1 SD_USE_VENDORED_GGML=0 CMAKE_CUDA_ARCHITECTURES=$${CMAKE_CUDA_ARCHITECTURES:-native} $(SYSTEM_PYTHON) scripts/manage.py build --all --dynamic
 
 build-vulkan-dynamic: clean
-	@GGML_VULKAN=1 $(SYSTEM_PYTHON) scripts/manage.py build --all --dynamic
+	@GGML_VULKAN=1 SD_USE_VENDORED_GGML=0 $(SYSTEM_PYTHON) scripts/manage.py build --all --dynamic
 
 build-sycl-dynamic: clean
-	@GGML_SYCL=1 $(SYSTEM_PYTHON) scripts/manage.py build --all --dynamic
+	@GGML_SYCL=1 SD_USE_VENDORED_GGML=0 $(SYSTEM_PYTHON) scripts/manage.py build --all --dynamic
 
 build-hip-dynamic: clean
-	@GGML_HIP=1 $(SYSTEM_PYTHON) scripts/manage.py build --all --dynamic
+	@GGML_HIP=1 SD_USE_VENDORED_GGML=0 $(SYSTEM_PYTHON) scripts/manage.py build --all --dynamic
 
 build-opencl-dynamic: clean
-	@GGML_OPENCL=1 $(SYSTEM_PYTHON) scripts/manage.py build --all --dynamic
+	@GGML_OPENCL=1 SD_USE_VENDORED_GGML=0 $(SYSTEM_PYTHON) scripts/manage.py build --all --dynamic
 
 # Static wheel builds
 wheel-cpu:
@@ -279,19 +279,19 @@ wheel-cpu-dynamic:
 	@$(_CPU_ONLY) WITH_DYLIB=1 uv build --wheel
 
 wheel-metal-dynamic:
-	@GGML_METAL=1 WITH_DYLIB=1 uv build --wheel
+	@GGML_METAL=1 WITH_DYLIB=1 SD_USE_VENDORED_GGML=0 uv build --wheel
 
 wheel-cuda-dynamic:
-	@GGML_CUDA=1 WITH_DYLIB=1 uv build --wheel
+	@GGML_CUDA=1 WITH_DYLIB=1 SD_USE_VENDORED_GGML=0 CMAKE_CUDA_ARCHITECTURES=$${CMAKE_CUDA_ARCHITECTURES:-native} uv build --wheel
 
 wheel-vulkan-dynamic:
-	@GGML_VULKAN=1 WITH_DYLIB=1 uv build --wheel
+	@GGML_VULKAN=1 WITH_DYLIB=1 SD_USE_VENDORED_GGML=0 uv build --wheel
 
 wheel-sycl-dynamic:
-	@GGML_SYCL=1 WITH_DYLIB=1 uv build --wheel
+	@GGML_SYCL=1 WITH_DYLIB=1 SD_USE_VENDORED_GGML=0 uv build --wheel
 
 wheel-hip-dynamic:
-	@GGML_HIP=1 WITH_DYLIB=1 uv build --wheel
+	@GGML_HIP=1 WITH_DYLIB=1 SD_USE_VENDORED_GGML=0 uv build --wheel
 
 wheel-opencl-dynamic:
 	@GGML_OPENCL=1 WITH_DYLIB=1 uv build --wheel
