@@ -392,7 +392,9 @@ jobs:
             cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DSHADERC_SKIP_TESTS=ON -DSHADERC_SKIP_EXAMPLES=ON -DSHADERC_SKIP_COPYRIGHT_CHECK=ON &&
             cmake --build build --target glslc_exe --parallel 4 &&
             cp build/glslc/glslc /usr/local/bin/glslc &&
-            cd /project && rm -rf /tmp/shaderc &&
+            cmake -S /tmp/shaderc/third_party/spirv-headers -B /tmp/spirv-headers-build -DCMAKE_INSTALL_PREFIX=/usr/local -DSPIRV_HEADERS_SKIP_EXAMPLES=ON -DSPIRV_HEADERS_SKIP_INSTALL=OFF &&
+            cmake --install /tmp/spirv-headers-build &&
+            cd /project && rm -rf /tmp/shaderc /tmp/spirv-headers-build &&
             CI_PYTHON=$(ls -d /opt/python/cp3*/bin | head -1) &&
             $CI_PYTHON/pip install cmake ninja &&
             PATH=$CI_PYTHON:$PATH

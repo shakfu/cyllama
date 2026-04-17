@@ -35,6 +35,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 - **`CMakeLists.txt` evaluated `SD_USE_VENDORED_GGML` before reading the env var** -- The `if(NOT SD_USE_VENDORED_GGML) add_definitions(-DGGML_MAX_NAME=128) endif()` block sat above the env-var handler that actually updates the variable, so the define never fired when `SD_USE_VENDORED_GGML=0` was supplied via environment (the CI and Makefile-dynamic path). Moved the block below the env-var handlers so the check sees the resolved value. Didn't cause a runtime crash today (the Cython wrappers don't dereference `ggml_tensor` fields) but would have silently misbehaved as soon as any CMake-compiled cyllama code touched the struct
 
+- **Linux Vulkan dynamic wheel build failed with `spirv/unified1/spirv.hpp: No such file or directory`** -- A side-effect of the fix above: forcing llama.cpp to compile from source for Vulkan dynamic builds (so `GGML_MAX_NAME=128` propagates) exposed that llama.cpp's vulkan backend `#include`s `<spirv/unified1/spirv.hpp>`, which is provided by SPIRV-Headers, not by the `vulkan-headers` / `vulkan-loader-devel` packages installed in `CIBW_BEFORE_ALL_LINUX`. Fixed in `.github/workflows/build-gpu-wheels.yml` by installing SPIRV-Headers from the deps that `shaderc`'s `git-sync-deps` already clones into `/tmp/shaderc/third_party/spirv-headers/` (one extra `cmake --install` step before the directory is deleted, no additional download). One-shot side effect: bumping the workflow file invalidates the `deps-{cuda,rocm,sycl,vulkan}-*` caches for the next run, so all four GPU jobs re-bootstrap thirdparty deps once before the cache re-warms
+
 ## [0.2.9]
 
 ### Changed
