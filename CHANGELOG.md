@@ -17,6 +17,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+## [0.2.10]
+
 ### Changed
 
 - **GPU wheel size reduced ~50%** -- The stable-diffusion extension no longer statically embeds the ggml GPU backend (e.g. `libggml-cuda.a`). It now links against llama.cpp's shared ggml dylibs, the same copies already bundled for the llama/whisper bindings. Two ABI issues were resolved to make this work: (1) `_sync_ggml_abi()` overlays llama.cpp's ggml source onto stable-diffusion.cpp before compilation, eliminating enum-ordinal drift; (2) `GGML_MAX_NAME=128` is propagated to the llama.cpp shared lib build to match stable-diffusion.cpp's requirement, preventing `ggml_tensor` struct layout divergence that caused `ggml_are_same_layout` assertion crashes with FLUX-like models under CPU offloading. The 0.2.9 workaround (`SD_USE_VENDORED_GGML=ON` default) is reversed for all dynamic GPU targets. The old static-link behavior remains available via `SD_USE_VENDORED_GGML=1`
@@ -25,7 +27,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Fixed
 
-- **auditwheel no longer SONAME-rewrites bundled project libs** -- All GPU CI workflows now exclude bundled project libraries (`libllama`, `libggml-*`, `libmtmd`, `libgomp`) from `auditwheel repair`, preventing the SONAME rewriting that caused the double-free crash documented in `docs/dev/cuda-double-free.md`. Each backend also excludes its backend-specific ggml lib (`libggml-cuda.so`, `libggml-hip.so`, etc.)
+- **`build_config.json` missing from wheels** -- scikit-build-core's `wheel.packages` collector filters files through `.gitignore`, and `src/cyllama/build_config.json` is listed there (it's generated at build time). As a result the JSON was silently dropped from every wheel, leaving `cyllama info` reporting `unknown` versions and `CPU only` for built backends even on GPU-enabled builds. Fixed by adding a CMake `install(FILES ... OPTIONAL)` directive so the file is installed via the CMake stage, which bypasses the gitignore filter
+
+- **auditwheel no longer SONAME-rewrites bundled project libs** -- All GPU CI workflows now exclude bundled project libraries (`libllama`, `libggml-*`, `libmtmd`, `libgomp`) from `auditwheel repair`, preventing the SONAME rewriting that caused the double-free crash documented in `docs/dev/cuda-double-free.md`. Each backend also excludes its backend-specific ggml lib (`libggml-cuda.so`, `libggml-hip.so`, etc.) from repair. This doesn't mean that the they are not included in the package, they are still included in the cyllama/llama directory rather than the auditwheel `.lib` directory for repaired (i.e. modified) dynamic libraries.
 
 ## [0.2.9]
 

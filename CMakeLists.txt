@@ -996,6 +996,19 @@ if(WITH_DYLIB AND DYLIB_FILES)
 endif()
 
 # -----------------------------------------------------------------------------
+# Install build_config.json
+# -----------------------------------------------------------------------------
+
+# Written by scripts/manage.py at build time. Listed in .gitignore, so
+# scikit-build-core's wheel.packages collector (which filters with gitignore)
+# skips it. Install via CMake so it lands in the wheel regardless.
+install(
+    FILES "${CMAKE_SOURCE_DIR}/src/cyllama/build_config.json"
+    DESTINATION "cyllama"
+    OPTIONAL
+)
+
+# -----------------------------------------------------------------------------
 # Install Python files
 # -----------------------------------------------------------------------------
 
