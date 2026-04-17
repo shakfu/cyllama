@@ -2400,7 +2400,12 @@ class Application(ShellCmd, metaclass=MetaCommander):
 
     def do_write_build_config(self, args: argparse.Namespace) -> None:
         """write build_config.json from current GGML_* env vars"""
-        self._write_build_config({})
+        self._write_build_config({
+            LlamaCppBuilder: LLAMACPP_VERSION,
+            WhisperCppBuilder: WHISPERCPP_VERSION,
+            StableDiffusionCppBuilder: SDCPP_VERSION,
+            SqliteVectorBuilder: SQLITEVECTOR_VERSION,
+        })
 
     # ------------------------------------------------------------------------
     # wheel
