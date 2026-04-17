@@ -674,7 +674,7 @@ jobs:
           find artifacts -name "*.whl" -exec cp {} dist/ \;
           echo "=== Wheels to upload ==="
           ls -lh dist/
-          gh release create "${TAG}" --prerelease --title "${TAG}" 2>/dev/null || true
+          gh release create "${TAG}" --prerelease --title "cyllama ${TAG}" 2>/dev/null || true
           gh release upload "${TAG}" dist/*.whl --clobber
 
   # ---------------------------------------------------------------------------

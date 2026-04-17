@@ -239,5 +239,5 @@ jobs:
           ")
           TAG="${VERSION}"
           echo "Version: ${VERSION}, Tag: ${TAG}"
-          gh release create "${TAG}" --prerelease --title "${TAG}" 2>/dev/null || true
+          gh release create "${TAG}" --prerelease --title "cyllama ${TAG}" 2>/dev/null || true
           gh release upload "${TAG}" dist/*.whl --clobber
