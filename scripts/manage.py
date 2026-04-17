@@ -2251,12 +2251,24 @@ class Application(ShellCmd, metaclass=MetaCommander):
             builder = BuilderClass(version=version)
             if args.dynamic and BuilderClass == LlamaCppBuilder:
                 asset = builder._release_asset_name()
-                if asset is None:
-                    self.log.warning(
-                        "No pre-built dynamic release available for this "
-                        "platform/backend combo, building from source with "
-                        "BUILD_SHARED_LIBS=ON"
-                    )
+                # When SD shares llama.cpp's ggml, the shared libs must be
+                # built with GGML_MAX_NAME=128 so ggml_tensor's layout matches
+                # what SD was compiled with. Upstream pre-built releases use
+                # the default GGML_MAX_NAME=64, so skip them and build from
+                # source to propagate the define.
+                if asset is None or _sd_uses_shared_ggml():
+                    if asset is not None:
+                        self.log.info(
+                            "SD_USE_VENDORED_GGML=0: building llama.cpp from "
+                            "source to propagate GGML_MAX_NAME=128 (skipping "
+                            "upstream pre-built release)"
+                        )
+                    else:
+                        self.log.warning(
+                            "No pre-built dynamic release available for this "
+                            "platform/backend combo, building from source with "
+                            "BUILD_SHARED_LIBS=ON"
+                        )
                     builder.build_shared()
                 else:
                     builder.download_release()

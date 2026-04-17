@@ -240,6 +240,34 @@ bindings -- agrees on `sizeof(ggml_tensor)`.
 `WITH_DYLIB=ON` and `SD_USE_VENDORED_GGML=OFF`. The Makefile dynamic
 targets now set `SD_USE_VENDORED_GGML=0` by default.
 
+### 4. Force build-from-source when SD shares ggml (0.2.10 follow-up)
+
+Problem 2's fix (`GGML_MAX_NAME=128` via `CMAKE_C_FLAGS`) only fires
+during `LlamaCppBuilder.build_shared()`. `manage.py`'s dynamic path
+normally prefers `download_release()` when llama.cpp publishes a
+pre-built tarball for the platform/backend. CUDA/ROCm/SYCL have no such
+tarball on Linux, so they always build from source and the fix
+applies. **Vulkan does publish
+`llama-{ver}-bin-ubuntu-vulkan-x64.tar.gz`**, and those binaries use
+the default `GGML_MAX_NAME=64`. Problem 2's fix never reached Vulkan
+wheels, reproducing the same `ggml_are_same_layout` crash that fix was
+meant to prevent.
+
+Resolution in `scripts/manage.py:2252`:
+
+```python
+if asset is None or _sd_uses_shared_ggml():
+    builder.build_shared()
+else:
+    builder.download_release()
+```
+
+When `SD_USE_VENDORED_GGML=0`, the download path is skipped
+unconditionally — matching the CUDA/ROCm/SYCL flow — so the
+`CMAKE_C_FLAGS=-DGGML_MAX_NAME=128` injection actually reaches every
+dynamic GPU backend's shared libs. See `docs/dev/ggml_max_name.md` for
+the full analysis.
+
 ---
 
 ## Validation results
@@ -276,11 +304,17 @@ via env var).
   when SD shares ggml.
 - `LlamaCppBuilder.build_shared()`: same.
 - `StableDiffusionCppBuilder._sync_ggml_abi()`: unchanged (source sync).
+- `Application.do_build()` (0.2.10): when `SD_USE_VENDORED_GGML=0`, force
+  `build_shared()` regardless of whether a pre-built release asset exists,
+  so Vulkan dynamic wheels pick up the `GGML_MAX_NAME=128` define too.
 
 ### CMakeLists.txt
 
 - `add_definitions(-DGGML_MAX_NAME=128)` when `NOT SD_USE_VENDORED_GGML`,
-  so Cython extensions also see the correct struct layout.
+  so Cython extensions also see the correct struct layout. Placed *after*
+  the `SD_USE_VENDORED_GGML` env-var handler (0.2.10 ordering fix);
+  originally sat above it, which silently skipped the define whenever the
+  env var was the only signal (CI and Makefile dynamic targets).
 
 ### .github/workflows/build-gpu-wheels.yml
 
@@ -296,9 +330,9 @@ double-free crash documented in `docs/dev/cuda-double-free.md`.
 
 - **Flip the CMake default** (Option 4b). After a release cycle of
   real-world coverage, change `SD_USE_VENDORED_GGML` default to `OFF`.
-- **Extend unification to Metal / Vulkan / HIP / SYCL / OpenCL** wheels.
-  Same mechanism applies; each backend needs its own validation on matching
-  hardware.
+- **Extend unification to Metal / HIP / SYCL / OpenCL** wheels. Same
+  mechanism applies; each backend needs its own validation on matching
+  hardware. Vulkan landed in 0.2.10 (`docs/dev/ggml_max_name.md`).
 - **Default `GGML_NATIVE=ON` for local static builds** and
   `CMAKE_CUDA_ARCHITECTURES=native` for local dynamic builds. See
   `docs/dev/ggml-config.md` for the analysis and recommendation.

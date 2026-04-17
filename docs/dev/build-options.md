@@ -107,8 +107,9 @@ These are set in `manage.py:LlamaCppBuilder.build()` and do not appear in upstre
 
 The `--dynamic` flag changes Phase 1 behavior:
 
-1. **If a pre-built release asset exists** for the platform/backend combo, it downloads that archive (DLLs/`.so`/`.dylib` files) from llama.cpp GitHub releases.
-2. **If no asset exists**, it falls back to building from source with `BUILD_SHARED_LIBS=ON`.
+1. **If `SD_USE_VENDORED_GGML=0`**, always build from source with `BUILD_SHARED_LIBS=ON`. Upstream pre-built releases are skipped because they're compiled with the default `GGML_MAX_NAME=64`, which is ABI-incompatible with stable-diffusion.cpp's required `GGML_MAX_NAME=128`. Building from source lets `manage.py` inject the correct define via `CMAKE_C_FLAGS`. See `docs/dev/ggml_max_name.md`.
+2. **Otherwise, if a pre-built release asset exists** for the platform/backend combo, it downloads that archive (DLLs/`.so`/`.dylib` files) from llama.cpp GitHub releases.
+3. **If no asset exists**, it falls back to building from source with `BUILD_SHARED_LIBS=ON`.
 
 ### Pre-built Release Asset Names
 

@@ -10,13 +10,6 @@ option(WITH_STABLEDIFFUSION "Build stable-diffusion.cpp wrapper" ON)
 option(WITH_DYLIB "Use dynamic libraries instead of static" OFF)
 option(SD_USE_VENDORED_GGML "Link stable-diffusion against its own vendored ggml" ON)
 
-# stable-diffusion.cpp requires GGML_MAX_NAME=128 for long tensor names.
-# When SD shares llama.cpp's ggml, both must use the same value or the
-# ggml_tensor struct layout diverges.  Propagate to all targets.
-if(NOT SD_USE_VENDORED_GGML)
-    add_definitions(-DGGML_MAX_NAME=128)
-endif()
-
 # When WITH_DYLIB=ON, point this to a directory containing pre-built dylibs
 # (e.g., from a llama.cpp release tarball). Defaults to thirdparty/llama.cpp/lib.
 set(LLAMACPP_DYLIB_DIR "" CACHE PATH "Path to pre-built llama.cpp shared libraries")
@@ -108,6 +101,15 @@ if(DEFINED ENV{SD_USE_VENDORED_GGML})
     else()
         set(SD_USE_VENDORED_GGML ON CACHE BOOL "Link stable-diffusion against its own vendored ggml" FORCE)
     endif()
+endif()
+
+# stable-diffusion.cpp requires GGML_MAX_NAME=128 for long tensor names.
+# When SD shares llama.cpp's ggml, both must use the same value or the
+# ggml_tensor struct layout diverges. Must run *after* the SD_USE_VENDORED_GGML
+# env-var check above, or this define is skipped when the env var is the only
+# source of OFF.
+if(NOT SD_USE_VENDORED_GGML)
+    add_definitions(-DGGML_MAX_NAME=128)
 endif()
 
 if(DEFINED ENV{LLAMACPP_DYLIB_DIR})
