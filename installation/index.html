@@ -2111,8 +2111,8 @@
 <p><strong>Stable Diffusion support:</strong></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nv">WITH_STABLEDIFFUSION</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>make<span class="w"> </span>build
 <a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>
-<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="c1"># Use stable-diffusion.cpp&#39;s own vendored ggml (instead of llama.cpp&#39;s)</span>
-<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="nv">SD_USE_VENDORED_GGML</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>make<span class="w"> </span>build
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="c1"># Opt into sharing llama.cpp&#39;s ggml (not recommended for GPU backends)</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="nv">SD_USE_VENDORED_GGML</span><span class="o">=</span><span class="m">0</span><span class="w"> </span>make<span class="w"> </span>build
 </code></pre></div>
 <p><strong>Whisper support</strong> (included by default):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>make<span class="w"> </span>build<span class="w">  </span><span class="c1"># Whisper is built automatically</span>

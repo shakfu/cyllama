@@ -1,0 +1,2097 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="High-performance Python library for local AI inference">
+      
+      
+        <meta name="author" content="S. Alireza">
+      
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>ggml unification: eliminating the 210 MB SD bloat in CUDA wheels - cyllama</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#ggml-unification-eliminating-the-210-mb-sd-bloat-in-cuda-wheels" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="cyllama" class="md-header__button md-logo" aria-label="cyllama" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            cyllama
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              ggml unification: eliminating the 210 MB SD bloat in CUDA wheels
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/shakfu/cyllama" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    shakfu/cyllama
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="cyllama" class="md-nav__button md-logo" aria-label="cyllama" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    cyllama
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/shakfu/cyllama" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    shakfu/cyllama
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../intro/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Introduction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quick Start
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../summary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Summary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Llama.cpp
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Llama.cpp
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user_guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cookbook/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cookbook
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../build_backends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build Backends
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../build_options/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Advanced Build Options
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../context_caching/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context Caching
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../server_usage_examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Server Usage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Whisper.cpp
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Whisper.cpp
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../whisper/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Whisper Integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stable Diffusion
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Stable Diffusion
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../stable_diffusion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stable Diffusion Integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agents
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Agents
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents_overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agent Framework
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_11" >
+        
+          
+          <label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RAG
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_11">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    RAG
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../rag_overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../rag_embedder/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Embedder
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../rag_vectorstore/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VectorStore
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../rag_text_processing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Text Processing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../rag_pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RAG Pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../rag_advanced/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Advanced Features
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_12" >
+        
+          
+          <label class="md-nav__link" for="__nav_12" id="__nav_12_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_12">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api_reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Summary
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#problem-statement" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Problem statement
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Problem statement">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#wheel-size" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Wheel size
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pypi-constraint" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PyPI constraint
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#non-goal-splitting-the-distribution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Non-goal: splitting the distribution
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#why-the-current-shape-exists-the-029-workaround" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why the current shape exists: the 0.2.9 workaround
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Why the current shape exists: the 0.2.9 workaround">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#historical-root-cause-pre-029" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Historical root cause (pre-0.2.9)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-two-abi-problems" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The two ABI problems
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The two ABI problems">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#problem-1-enum-ordinal-drift-solved-by-_sync_ggml_abi" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Problem 1: enum ordinal drift (solved by _sync_ggml_abi)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#problem-2-ggml_max_name-struct-layout-mismatch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Problem 2: GGML_MAX_NAME struct layout mismatch
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Problem 2: GGML_MAX_NAME struct layout mismatch">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#discovery" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Discovery
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#diagnosis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Diagnosis
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#root-cause" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Root cause
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-simple-models-passed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why simple models passed
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-the-native-binary-worked" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why the native binary worked
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-fix" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The fix
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The fix">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-source-sync-existing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Source sync (existing)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-ggml_max_name-propagation-new" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. GGML_MAX_NAME propagation (new)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-dynamic-link-path-existing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Dynamic link path (existing)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-force-build-from-source-when-sd-shares-ggml-0210-follow-up" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Force build-from-source when SD shares ggml (0.2.10 follow-up)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#validation-results" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Validation results
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#changes-made" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Changes made
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Changes made">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#makefile" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Makefile
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#scriptsmanagepy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        scripts/manage.py
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cmakeliststxt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CMakeLists.txt
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#githubworkflowsbuild-gpu-wheelsyml" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        .github/workflows/build-gpu-wheels.yml
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#follow-up-work-out-of-scope-for-the-first-landing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Follow-up work (out of scope for the first landing)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#references" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        References
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="ggml-unification-eliminating-the-210-mb-sd-bloat-in-cuda-wheels">ggml unification: eliminating the 210 MB SD bloat in CUDA wheels<a class="headerlink" href="#ggml-unification-eliminating-the-210-mb-sd-bloat-in-cuda-wheels" title="Permanent link">&para;</a></h1>
+<h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
+<p>The <code>cyllama_cuda12</code> wheel shipped at <strong>157 MB compressed / ~427 MB
+uncompressed</strong> in 0.2.9, exceeding PyPI's 100 MB default limit. Two files
+dominated: <code>cyllama/sd/stable_diffusion.cpython-*.so</code> (~210 MB) and
+<code>cyllama/llama/libggml-cuda.so</code> (~202 MB). Both carried the same set of ggml
+CUDA kernels -- the SD extension had <code>libggml-cuda.a</code> whole-archive linked
+into it, while llama.cpp shipped the same backend as a separate shared library.</p>
+<p>The fix required three things:</p>
+<ol>
+<li><strong>Source sync</strong> (<code>_sync_ggml_abi()</code>): replace SD's vendored ggml with
+   llama.cpp's copy so enum values and API signatures match.</li>
+<li><strong>Struct layout sync</strong> (<code>GGML_MAX_NAME=128</code>): propagate SD's larger
+   <code>GGML_MAX_NAME</code> to the llama.cpp shared lib build so <code>ggml_tensor</code> struct
+   layout is identical on both sides.</li>
+<li><strong>Dynamic link path</strong> (<code>WITH_DYLIB=1</code>, <code>SD_USE_VENDORED_GGML=0</code>): link SD
+   against llama.cpp's shared ggml dylibs instead of whole-archiving the
+   static <code>.a</code> files.</li>
+</ol>
+<p>All three are now implemented. The SD <code>.so</code> dropped from 210 MB to 23 MB.</p>
+<hr />
+<h2 id="problem-statement">Problem statement<a class="headerlink" href="#problem-statement" title="Permanent link">&para;</a></h2>
+<h3 id="wheel-size">Wheel size<a class="headerlink" href="#wheel-size" title="Permanent link">&para;</a></h3>
+<p>From <code>dist/cyllama_cuda12-0.2.9-cp313-cp313-manylinux2014_x86_64.*.whl</code>:</p>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th style="text-align: right;">Compressed (approx)</th>
+<th style="text-align: right;">Uncompressed</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>cyllama/sd/stable_diffusion.cpython-*.so</code></td>
+<td style="text-align: right;">~75 MB</td>
+<td style="text-align: right;">210 MB</td>
+<td>Contains whole-archive-linked <code>libggml-cuda.a</code></td>
+</tr>
+<tr>
+<td><code>cyllama/llama/libggml-cuda.so</code></td>
+<td style="text-align: right;">~75 MB</td>
+<td style="text-align: right;">202 MB</td>
+<td>Standalone ggml CUDA backend for llama bindings</td>
+</tr>
+<tr>
+<td><code>cyllama/llama/libllama.so.0</code></td>
+<td style="text-align: right;">~1 MB</td>
+<td style="text-align: right;">3.2 MB</td>
+<td></td>
+</tr>
+<tr>
+<td><code>cyllama/llama/llama_cpp.cpython-*.so</code></td>
+<td style="text-align: right;">~0.6 MB</td>
+<td style="text-align: right;">1.4 MB</td>
+<td>Cython bindings</td>
+</tr>
+<tr>
+<td>everything else</td>
+<td style="text-align: right;">~5 MB</td>
+<td style="text-align: right;">~10 MB</td>
+<td>Python sources, small libs, libs duplicated by auditwheel</td>
+</tr>
+<tr>
+<td><strong>total</strong></td>
+<td style="text-align: right;"><strong>~157 MB</strong></td>
+<td style="text-align: right;"><strong>~427 MB</strong></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p>The two CUDA-carrying <code>.so</code> files held effectively the same compiled kernel
+set. Confirmed by <code>nm -D</code> showing identical ggml_cuda kernel symbols in both.</p>
+<h3 id="pypi-constraint">PyPI constraint<a class="headerlink" href="#pypi-constraint" title="Permanent link">&para;</a></h3>
+<p>PyPI's default per-file limit is 100 MB. At 157 MB the wheel required a
+size-increase grant.</p>
+<h3 id="non-goal-splitting-the-distribution">Non-goal: splitting the distribution<a class="headerlink" href="#non-goal-splitting-the-distribution" title="Permanent link">&para;</a></h3>
+<p>SD is a core feature of cyllama, not an optional add-on. This document
+pursues the single-wheel path.</p>
+<hr />
+<h2 id="why-the-current-shape-exists-the-029-workaround">Why the current shape exists: the 0.2.9 workaround<a class="headerlink" href="#why-the-current-shape-exists-the-029-workaround" title="Permanent link">&para;</a></h2>
+<p>Release 0.2.9 made <code>SD_USE_VENDORED_GGML=ON</code> the default. The rationale:</p>
+<blockquote>
+<p>Fixes a <code>ggml_backend_tensor_copy</code> assertion crash ("cannot copy tensors
+with different layouts") during CUDA image generation caused by subtle ggml
+version incompatibilities between llama.cpp and stable-diffusion.cpp.</p>
+</blockquote>
+<h3 id="historical-root-cause-pre-029">Historical root cause (pre-0.2.9)<a class="headerlink" href="#historical-root-cause-pre-029" title="Permanent link">&para;</a></h3>
+<p>SD's vendored ggml was at an older release. Upstream inserted new operations
+into the <code>ggml_op</code> enum, shifting every subsequent op's integer ordinal. SD
+was compiled against older headers but called into llama.cpp's newer
+<code>libggml-cuda.so</code> at runtime. The mismatched op ids produced compute graphs
+with wrong output shapes, tripping <code>GGML_ASSERT(ggml_are_same_layout(src,
+dst))</code> during the first cross-backend tensor copy.</p>
+<p>0.2.9 short-circuited this by statically linking SD against its own vendored
+ggml with <code>-Wl,--whole-archive</code>. Correct, but every symbol in
+<code>libggml-cuda.a</code> ended up inside the SD extension.</p>
+<hr />
+<h2 id="the-two-abi-problems">The two ABI problems<a class="headerlink" href="#the-two-abi-problems" title="Permanent link">&para;</a></h2>
+<p>Unifying the ggml library required solving two distinct ABI mismatches.</p>
+<h3 id="problem-1-enum-ordinal-drift-solved-by-_sync_ggml_abi">Problem 1: enum ordinal drift (solved by <code>_sync_ggml_abi</code>)<a class="headerlink" href="#problem-1-enum-ordinal-drift-solved-by-_sync_ggml_abi" title="Permanent link">&para;</a></h3>
+<p>SD's vendored ggml (0.9.8) and llama.cpp's ggml (0.9.11) define different
+integer values for <code>ggml_op</code> enum members. The fix replaces SD's vendored
+<code>ggml/</code> directory with llama.cpp's copy at build time:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># scripts/manage.py -- StableDiffusionCppBuilder._sync_ggml_abi()</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="n">sd_ggml</span><span class="p">)</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">shutil</span><span class="o">.</span><span class="n">copytree</span><span class="p">(</span><span class="n">llama_ggml</span><span class="p">,</span> <span class="n">sd_ggml</span><span class="p">)</span>
+</code></pre></div>
+<p>Triggered when <code>SD_USE_VENDORED_GGML=0</code>. After the sync, SD compiles against
+the same ggml headers that the shared dylibs were built from. The enum
+values match; the original 0.2.9 crash mode is eliminated.</p>
+<p>This was sufficient for simple models (SDXL Turbo, 512x512). More complex
+models revealed a second, subtler problem.</p>
+<h3 id="problem-2-ggml_max_name-struct-layout-mismatch">Problem 2: GGML_MAX_NAME struct layout mismatch<a class="headerlink" href="#problem-2-ggml_max_name-struct-layout-mismatch" title="Permanent link">&para;</a></h3>
+<h4 id="discovery">Discovery<a class="headerlink" href="#discovery" title="Permanent link">&para;</a></h4>
+<p>With the source sync in place, SDXL Turbo image generation worked
+perfectly. But FLUX-like models (<code>z_image_turbo</code>) with <code>--offload-to-cpu
+--vae-on-cpu</code> crashed with the same <code>ggml_are_same_layout</code> assertion:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>ggml-backend.cpp:478: GGML_ASSERT(ggml_are_same_layout(src, dst)
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    &amp;&amp; &quot;cannot copy tensors with different layouts&quot;) failed
+</code></pre></div>
+<p>The native <code>sd-cli</code> binary (statically linked, same ggml source after sync)
+worked fine for the same model and parameters.</p>
+<h4 id="diagnosis">Diagnosis<a class="headerlink" href="#diagnosis" title="Permanent link">&para;</a></h4>
+<p>Instrumenting <code>ggml_backend_tensor_copy</code> to print tensor details before the
+assertion revealed:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>src name=leaf_382 type=0 ne=[0,1,1,1]    nb=[4,10240,10240,10240]
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>dst name=          type=0 ne=[2560,1,1,1] nb=[4,10240,10240,10240]
+</code></pre></div>
+<p>The source tensor had <code>ne[0]=0</code> but strides consistent with <code>ne[0]=2560</code>
+(<code>nb[1] = 2560 * 4 = 10240</code>). This meant the tensor was originally created
+with <code>ne[0]=2560</code> but the field was subsequently overwritten with zeros --
+classic struct layout corruption.</p>
+<h4 id="root-cause">Root cause<a class="headerlink" href="#root-cause" title="Permanent link">&para;</a></h4>
+<p><code>ggml.h</code> defines <code>GGML_MAX_NAME</code> with a <code>#ifndef</code> guard:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1">// build/llama.cpp/ggml/include/ggml.h</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="cp">#ifndef GGML_MAX_NAME</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="cp">#   define GGML_MAX_NAME  64</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="cp">#endif</span>
+</code></pre></div>
+<p>stable-diffusion.cpp's <code>CMakeLists.txt:233</code> overrides this for its own build:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nb">if</span><span class="w"> </span><span class="p">(</span><span class="s">NOT</span><span class="w"> </span><span class="s">SD_USE_SYSTEM_GGML</span><span class="p">)</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">    </span><span class="nb">add_definitions</span><span class="p">(</span><span class="s">-DGGML_MAX_NAME=128</span><span class="p">)</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="nb">endif</span><span class="p">()</span>
+</code></pre></div>
+<p>And <code>ggml_extend.hpp:94</code> enforces it:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">static_assert</span><span class="p">(</span><span class="n">GGML_MAX_NAME</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">128</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;GGML_MAX_NAME must be at least 128&quot;</span><span class="p">);</span>
+</code></pre></div>
+<p>The <code>ggml_tensor</code> struct contains <code>char name[GGML_MAX_NAME]</code>. With the
+mismatch:</p>
+<ul>
+<li><strong>SD's compiled code</strong> sees <code>sizeof(ggml_tensor)</code> with a 128-byte <code>name</code>
+  field.</li>
+<li><strong>llama.cpp's shared libs</strong> see <code>sizeof(ggml_tensor)</code> with a 64-byte
+  <code>name</code> field.</li>
+</ul>
+<p>Every field after <code>name</code> in the struct (<code>extra</code>, <code>padding</code>) is at a
+different byte offset. When SD writes to a tensor's <code>ne[0]</code> through what it
+thinks is the correct offset, the shared lib reads from a different location.</p>
+<p>The <code>_sync_ggml_abi()</code> function synced the ggml <em>source</em> but not the
+<em>compile-time defines</em> -- SD's cmake still injected <code>-DGGML_MAX_NAME=128</code>
+before including the synced headers, preempting the <code>#ifndef</code> guard.</p>
+<h4 id="why-simple-models-passed">Why simple models passed<a class="headerlink" href="#why-simple-models-passed" title="Permanent link">&para;</a></h4>
+<p>SDXL Turbo's tensor names are short and its inference path doesn't require
+cross-backend tensor copies with <code>--offload-to-cpu</code>. The 64-byte padding
+difference happened not to corrupt the specific <code>ne[]</code> values accessed
+during that model's execution.</p>
+<p>FLUX models use <code>--offload-to-cpu --vae-on-cpu</code> (necessary because the ~10
+GB model exceeds 8 GB VRAM), which forces
+<code>offload_params_to_runtime_backend()</code> to copy hundreds of tensors between
+CPU and CUDA backends via <code>ggml_backend_tensor_copy</code>. This exercises the
+struct layout at every copy, exposing the corruption.</p>
+<h4 id="why-the-native-binary-worked">Why the native binary worked<a class="headerlink" href="#why-the-native-binary-worked" title="Permanent link">&para;</a></h4>
+<p><code>sd-cli</code> is statically linked. SD's cmake builds its own ggml libraries
+with <code>-DGGML_MAX_NAME=128</code>, and that same value is used throughout the
+binary. No ABI boundary, no mismatch.</p>
+<hr />
+<h2 id="the-fix">The fix<a class="headerlink" href="#the-fix" title="Permanent link">&para;</a></h2>
+<p>Three coordinated changes:</p>
+<h3 id="1-source-sync-existing">1. Source sync (existing)<a class="headerlink" href="#1-source-sync-existing" title="Permanent link">&para;</a></h3>
+<p><code>_sync_ggml_abi()</code> replaces SD's vendored <code>ggml/</code> tree with llama.cpp's
+copy. This eliminates enum ordinal drift.</p>
+<h3 id="2-ggml_max_name-propagation-new">2. GGML_MAX_NAME propagation (new)<a class="headerlink" href="#2-ggml_max_name-propagation-new" title="Permanent link">&para;</a></h3>
+<p>When <code>SD_USE_VENDORED_GGML=0</code>, both <code>LlamaCppBuilder.build()</code> and
+<code>LlamaCppBuilder.build_shared()</code> now pass <code>-DGGML_MAX_NAME=128</code> via
+<code>CMAKE_C_FLAGS</code> and <code>CMAKE_CXX_FLAGS</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># scripts/manage.py</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="n">_SD_GGML_MAX_NAME</span> <span class="o">=</span> <span class="mi">128</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="k">def</span><span class="w"> </span><span class="nf">_sd_uses_shared_ggml</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>    <span class="k">return</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;SD_USE_VENDORED_GGML&quot;</span><span class="p">)</span> <span class="o">==</span> <span class="s2">&quot;0&quot;</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="c1"># In LlamaCppBuilder.build() and build_shared():</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="k">if</span> <span class="n">_sd_uses_shared_ggml</span><span class="p">():</span>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>    <span class="n">_def</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;-DGGML_MAX_NAME=</span><span class="si">{</span><span class="n">_SD_GGML_MAX_NAME</span><span class="si">}</span><span class="s2">&quot;</span>
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>    <span class="n">extra</span><span class="p">[</span><span class="s2">&quot;CMAKE_C_FLAGS&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">_def</span>
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>    <span class="n">extra</span><span class="p">[</span><span class="s2">&quot;CMAKE_CXX_FLAGS&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">_def</span>
+</code></pre></div>
+<p>The main <code>CMakeLists.txt</code> also propagates it to the scikit-build-core wheel
+build (the Cython extensions):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nb">if</span><span class="p">(</span><span class="s">NOT</span><span class="w"> </span><span class="s">SD_USE_VENDORED_GGML</span><span class="p">)</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">    </span><span class="nb">add_definitions</span><span class="p">(</span><span class="s">-DGGML_MAX_NAME=128</span><span class="p">)</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="nb">endif</span><span class="p">()</span>
+</code></pre></div>
+<p>This ensures every component -- llama.cpp shared libs, SD extension, Cython
+bindings -- agrees on <code>sizeof(ggml_tensor)</code>.</p>
+<h3 id="3-dynamic-link-path-existing">3. Dynamic link path (existing)<a class="headerlink" href="#3-dynamic-link-path-existing" title="Permanent link">&para;</a></h3>
+<p><code>CMakeLists.txt:843</code> links SD against llama.cpp's shared ggml dylibs when
+<code>WITH_DYLIB=ON</code> and <code>SD_USE_VENDORED_GGML=OFF</code>. The Makefile dynamic
+targets now set <code>SD_USE_VENDORED_GGML=0</code> by default.</p>
+<h3 id="4-force-build-from-source-when-sd-shares-ggml-0210-follow-up">4. Force build-from-source when SD shares ggml (0.2.10 follow-up)<a class="headerlink" href="#4-force-build-from-source-when-sd-shares-ggml-0210-follow-up" title="Permanent link">&para;</a></h3>
+<p>Problem 2's fix (<code>GGML_MAX_NAME=128</code> via <code>CMAKE_C_FLAGS</code>) only fires
+during <code>LlamaCppBuilder.build_shared()</code>. <code>manage.py</code>'s dynamic path
+normally prefers <code>download_release()</code> when llama.cpp publishes a
+pre-built tarball for the platform/backend. CUDA/ROCm/SYCL have no such
+tarball on Linux, so they always build from source and the fix
+applies. <strong>Vulkan does publish
+<code>llama-{ver}-bin-ubuntu-vulkan-x64.tar.gz</code></strong>, and those binaries use
+the default <code>GGML_MAX_NAME=64</code>. Problem 2's fix never reached Vulkan
+wheels, reproducing the same <code>ggml_are_same_layout</code> crash that fix was
+meant to prevent.</p>
+<p>Resolution in <code>scripts/manage.py:2252</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="k">if</span> <span class="n">asset</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">_sd_uses_shared_ggml</span><span class="p">():</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>    <span class="n">builder</span><span class="o">.</span><span class="n">build_shared</span><span class="p">()</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="k">else</span><span class="p">:</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>    <span class="n">builder</span><span class="o">.</span><span class="n">download_release</span><span class="p">()</span>
+</code></pre></div>
+<p>When <code>SD_USE_VENDORED_GGML=0</code>, the download path is skipped
+unconditionally — matching the CUDA/ROCm/SYCL flow — so the
+<code>CMAKE_C_FLAGS=-DGGML_MAX_NAME=128</code> injection actually reaches every
+dynamic GPU backend's shared libs. See <code>docs/dev/ggml_max_name.md</code> for
+the full analysis.</p>
+<hr />
+<h2 id="validation-results">Validation results<a class="headerlink" href="#validation-results" title="Permanent link">&para;</a></h2>
+<p>Validated on RTX 4060 (sm_89), CUDA 12.0, <code>CMAKE_CUDA_ARCHITECTURES=native</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Check</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SD <code>.so</code> size</td>
+<td>23 MB (down from 210 MB)</td>
+</tr>
+<tr>
+<td><code>libggml-cuda.so</code> size</td>
+<td>137 MB (native sm_89 only)</td>
+</tr>
+<tr>
+<td>ggml_cuda symbols in SD <code>.so</code></td>
+<td>0</td>
+</tr>
+<tr>
+<td><code>import cyllama.sd</code></td>
+<td>OK</td>
+</tr>
+<tr>
+<td>SDXL Turbo image generation</td>
+<td>512x512 at 4.16 it/s, no assertion</td>
+</tr>
+<tr>
+<td>FLUX z_image_turbo with <code>--offload-to-cpu --vae-on-cpu</code></td>
+<td>512x1024, no assertion</td>
+</tr>
+<tr>
+<td>Full test suite</td>
+<td>1432 passed, 35 skipped</td>
+</tr>
+<tr>
+<td>Wheel size (compressed, native arch)</td>
+<td>44 MB</td>
+</tr>
+<tr>
+<td>auditwheel repair</td>
+<td>No duplicated libs</td>
+</tr>
+<tr>
+<td>Repaired wheel in clean venv</td>
+<td>Loads + generates images OK</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="changes-made">Changes made<a class="headerlink" href="#changes-made" title="Permanent link">&para;</a></h2>
+<h3 id="makefile">Makefile<a class="headerlink" href="#makefile" title="Permanent link">&para;</a></h3>
+<p>All GPU dynamic build and wheel targets now set <code>SD_USE_VENDORED_GGML=0</code>.
+CUDA targets default <code>CMAKE_CUDA_ARCHITECTURES</code> to <code>native</code> (overridable
+via env var).</p>
+<h3 id="scriptsmanagepy">scripts/manage.py<a class="headerlink" href="#scriptsmanagepy" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Module-level <code>_SD_GGML_MAX_NAME = 128</code> and <code>_sd_uses_shared_ggml()</code> helper.</li>
+<li><code>LlamaCppBuilder.build()</code>: passes <code>-DGGML_MAX_NAME=128</code> via CMAKE_C/CXX_FLAGS
+  when SD shares ggml.</li>
+<li><code>LlamaCppBuilder.build_shared()</code>: same.</li>
+<li><code>StableDiffusionCppBuilder._sync_ggml_abi()</code>: unchanged (source sync).</li>
+<li><code>Application.do_build()</code> (0.2.10): when <code>SD_USE_VENDORED_GGML=0</code>, force
+  <code>build_shared()</code> regardless of whether a pre-built release asset exists,
+  so Vulkan dynamic wheels pick up the <code>GGML_MAX_NAME=128</code> define too.</li>
+</ul>
+<h3 id="cmakeliststxt">CMakeLists.txt<a class="headerlink" href="#cmakeliststxt" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>add_definitions(-DGGML_MAX_NAME=128)</code> when <code>NOT SD_USE_VENDORED_GGML</code>,
+  so Cython extensions also see the correct struct layout. Placed <em>after</em>
+  the <code>SD_USE_VENDORED_GGML</code> env-var handler (0.2.10 ordering fix);
+  originally sat above it, which silently skipped the define whenever the
+  env var was the only signal (CI and Makefile dynamic targets).</li>
+</ul>
+<h3 id="githubworkflowsbuild-gpu-wheelsyml">.github/workflows/build-gpu-wheels.yml<a class="headerlink" href="#githubworkflowsbuild-gpu-wheelsyml" title="Permanent link">&para;</a></h3>
+<p>All four auditwheel repair blocks (CUDA, ROCm, SYCL, Vulkan) now exclude
+bundled project libs (<code>libllama</code>, <code>libggml-*</code>, <code>libmtmd</code>) and <code>libgomp</code> in
+addition to GPU runtime system libs. This prevents auditwheel from
+SONAME-rewriting the bundled libs, which was the root cause of the
+double-free crash documented in <code>docs/dev/cuda-double-free.md</code>.</p>
+<hr />
+<h2 id="follow-up-work-out-of-scope-for-the-first-landing">Follow-up work (out of scope for the first landing)<a class="headerlink" href="#follow-up-work-out-of-scope-for-the-first-landing" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Flip the CMake default</strong> (Option 4b). After a release cycle of
+  real-world coverage, change <code>SD_USE_VENDORED_GGML</code> default to <code>OFF</code>.</li>
+<li><strong>Extend unification to Metal / HIP / SYCL / OpenCL</strong> wheels. Same
+  mechanism applies; each backend needs its own validation on matching
+  hardware. Vulkan landed in 0.2.10 (<code>docs/dev/ggml_max_name.md</code>).</li>
+<li><strong>Default <code>GGML_NATIVE=ON</code> for local static builds</strong> and
+  <code>CMAKE_CUDA_ARCHITECTURES=native</code> for local dynamic builds. See
+  <code>docs/dev/ggml-config.md</code> for the analysis and recommendation.</li>
+<li><strong>Audit whisper</strong> for the same pattern. Whisper also wraps ggml; if its
+  static path whole-archives ggml backends, the same unification can apply.</li>
+<li><strong>Propose the sync mechanism upstream</strong>. <code>_sync_ggml_abi()</code> is a
+  cyllama-specific workaround. An upstream fix -- either
+  stable-diffusion.cpp tracking ggml's HEAD more closely, or ggml itself
+  committing to stable ABI guarantees -- would remove the need for the sync
+  entirely.</li>
+</ul>
+<hr />
+<h2 id="references">References<a class="headerlink" href="#references" title="Permanent link">&para;</a></h2>
+<ul>
+<li><code>CHANGELOG.md</code> -- 0.2.9 entry documenting the workaround this plan
+  reverses.</li>
+<li><code>CMakeLists.txt:11</code> -- <code>SD_USE_VENDORED_GGML</code> option default.</li>
+<li><code>CMakeLists.txt:15-19</code> -- <code>GGML_MAX_NAME=128</code> propagation.</li>
+<li><code>CMakeLists.txt:849-869</code> -- dynamic-link branch.</li>
+<li><code>CMakeLists.txt:891-894</code>, <code>CMakeLists.txt:913-917</code> -- the whole-archive
+  link whose bloat we eliminated.</li>
+<li><code>scripts/manage.py</code> -- <code>_SD_GGML_MAX_NAME</code>, <code>_sd_uses_shared_ggml()</code>,
+  <code>_sync_ggml_abi()</code>, and the CMAKE_C/CXX_FLAGS injection in both
+  <code>LlamaCppBuilder.build()</code> and <code>LlamaCppBuilder.build_shared()</code>.</li>
+<li><code>build/stable-diffusion.cpp/CMakeLists.txt:233</code> --
+  <code>-DGGML_MAX_NAME=128</code> that SD applies.</li>
+<li><code>build/stable-diffusion.cpp/src/ggml_extend.hpp:94</code> --
+  <code>static_assert(GGML_MAX_NAME &gt;= 128)</code>.</li>
+<li><code>build/llama.cpp/ggml/include/ggml.h</code> -- <code>#ifndef GGML_MAX_NAME</code> /
+  <code>#define GGML_MAX_NAME 64</code> guard.</li>
+<li><code>Makefile</code> -- <code>build-*-dynamic</code> and <code>wheel-*-dynamic</code> targets.</li>
+<li><code>.github/workflows/build-gpu-wheels.yml</code> -- auditwheel exclude sets.</li>
+<li><code>docs/dev/cuda-double-free.md</code> -- auditwheel <code>--exclude</code> rationale.</li>
+<li><code>docs/dev/ggml-config.md</code> -- <code>GGML_NATIVE</code> and <code>CMAKE_CUDA_ARCHITECTURES</code>
+  analysis.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.expand", "navigation.top", "search.highlight", "content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

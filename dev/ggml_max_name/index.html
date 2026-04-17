@@ -23,7 +23,7 @@
     
     
       
-        <title>Build Options Analysis: Local vs CI vs Upstream llama.cpp - cyllama</title>
+        <title>GGML_MAX_NAME ABI mismatch in dynamic Vulkan wheels - cyllama</title>
       
     
     
@@ -74,7 +74,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#build-options-analysis-local-vs-ci-vs-upstream-llamacpp" class="md-skip">
+        <a href="#ggml_max_name-abi-mismatch-in-dynamic-vulkan-wheels" class="md-skip">
           Skip to content
         </a>
       
@@ -110,7 +110,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Build Options Analysis: Local vs CI vs Upstream llama.cpp
+              GGML_MAX_NAME ABI mismatch in dynamic Vulkan wheels
             
           </span>
         </div>
@@ -1308,10 +1308,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#build-flow-overview" class="md-nav__link">
+  <a href="#summary" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Build Flow Overview
+        Summary
       
     </span>
   </a>
@@ -1319,33 +1319,33 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#backend-support-matrix" class="md-nav__link">
+  <a href="#what-has-to-match-and-why-its-not-a-vulkan-specific-rule" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Backend Support Matrix
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Backend Support Matrix">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#currently-supported" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Currently Supported
+        What has to match, and why it's not a Vulkan-specific rule
       
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
-  <a href="#upstream-only-not-supported-in-cyllama" class="md-nav__link">
+      
+        <li class="md-nav__item">
+  <a href="#root-cause" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Upstream-Only (Not Supported in Cyllama)
+        Root cause
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Root cause">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#how-this-manifests-as-an-ggml_are_same_layout-failure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How this manifests as an ggml_are_same_layout failure
       
     </span>
   </a>
@@ -1358,22 +1358,33 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#detailed-option-comparison" class="md-nav__link">
+  <a href="#why-the-existing-fixes-dont-cover-this-path" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Detailed Option Comparison
+        Why the existing fixes don't cover this path
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Detailed Option Comparison">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#proposed-fix" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Proposed fix
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Proposed fix">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#core-build-options" class="md-nav__link">
+  <a href="#tradeoff" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Core Build Options
+        Tradeoff
       
     </span>
   </a>
@@ -1381,43 +1392,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#cuda-specific-options" class="md-nav__link">
+  <a href="#alternative-considered" class="md-nav__link">
     <span class="md-ellipsis">
       
-        CUDA-Specific Options
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#hiprocm-specific-options" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        HIP/ROCm-Specific Options
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#stripdebug-options" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Strip/Debug Options
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#visibility-options-set-in-managepy-for-phase-1" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Visibility Options (set in manage.py for Phase 1)
+        Alternative considered
       
     </span>
   </a>
@@ -1430,66 +1408,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#dynamic-linking-dynamic-mode" class="md-nav__link">
+  <a href="#backend-coverage-after-the-fix" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Dynamic Linking (--dynamic mode)
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Dynamic Linking (--dynamic mode)">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#pre-built-release-asset-names" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Pre-built Release Asset Names
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#design-decisions" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Design Decisions
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Design Decisions">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#cuda-architecture-coverage-in-ci-deliberate-ptx-only-strategy" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        CUDA Architecture Coverage in CI -- Deliberate PTX-Only Strategy
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#resolved-issues" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Resolved Issues
+        Backend coverage after the fix
       
     </span>
   </a>
@@ -1497,32 +1419,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#remaining-recommendations" class="md-nav__link">
+  <a href="#references" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Remaining Recommendations
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#environment-variable-flow" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Environment Variable Flow
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#file-reference" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        File Reference
+        References
       
     </span>
   </a>
@@ -1549,572 +1449,266 @@
   
 
 
-<h1 id="build-options-analysis-local-vs-ci-vs-upstream-llamacpp">Build Options Analysis: Local vs CI vs Upstream llama.cpp<a class="headerlink" href="#build-options-analysis-local-vs-ci-vs-upstream-llamacpp" title="Permanent link">&para;</a></h1>
-<p>This document compares the build options used across three contexts:</p>
-<ol>
-<li><strong>Local builds</strong> -- developer machine via <code>make</code> / <code>manage.py</code></li>
-<li><strong>CI wheel builds</strong> -- GitHub Actions via <code>build-gpu-wheels.yml</code> (the active workflow)</li>
-<li><strong>Upstream llama.cpp</strong> -- options documented in <a href="https://github.com/ggml-org/llama.cpp/blob/master/docs/build.md">llama.cpp/docs/build.md</a></li>
-</ol>
-<blockquote>
-<p><strong>Note:</strong> <code>build-gpu-wheels-cached.yml</code> is an experimental workflow not currently used in production. It has been synced to mirror <code>build-gpu-wheels.yml</code> (settings, flags, and cache keys), but <code>build-gpu-wheels.yml</code> remains the authoritative CI workflow.</p>
-</blockquote>
-<h2 id="build-flow-overview">Build Flow Overview<a class="headerlink" href="#build-flow-overview" title="Permanent link">&para;</a></h2>
-<p>Cyllama's build is a two-phase process:</p>
-<ol>
-<li><strong>Phase 1 -- Build dependencies</strong> (<code>manage.py build --deps-only</code>): Clones llama.cpp (and whisper.cpp, stable-diffusion.cpp), runs CMake to build them, and copies headers + libraries to <code>thirdparty/</code>.</li>
-<li><strong>Phase 2 -- Build cyllama</strong> (<code>uv pip install .</code> or <code>uv sync</code>): scikit-build-core invokes the top-level <code>CMakeLists.txt</code>, which finds the pre-built libraries in <code>thirdparty/</code> and links them into the Cython extension modules.</li>
-</ol>
-<p>Phase 1 is where upstream llama.cpp CMake options matter. Phase 2 uses cyllama's own <code>CMakeLists.txt</code>, which reads the same <code>GGML_*</code> environment variables to determine which backend libraries to link and which system dependencies to find.</p>
-<h2 id="backend-support-matrix">Backend Support Matrix<a class="headerlink" href="#backend-support-matrix" title="Permanent link">&para;</a></h2>
-<h3 id="currently-supported">Currently Supported<a class="headerlink" href="#currently-supported" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>Backend</th>
-<th>Env Var</th>
-<th>Local</th>
-<th>CI</th>
-<th>Upstream</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Metal (macOS)</td>
-<td><code>GGML_METAL</code></td>
-<td>Default ON on macOS</td>
-<td>OFF (Linux CI)</td>
-<td>Default ON on macOS</td>
-</tr>
-<tr>
-<td>CUDA (NVIDIA)</td>
-<td><code>GGML_CUDA</code></td>
-<td>OFF by default</td>
-<td>CUDA 12.4</td>
-<td>ON with <code>-DGGML_CUDA=ON</code></td>
-</tr>
-<tr>
-<td>Vulkan</td>
-<td><code>GGML_VULKAN</code></td>
-<td>OFF by default</td>
-<td>Supported</td>
-<td>ON with <code>-DGGML_VULKAN=ON</code></td>
-</tr>
-<tr>
-<td>HIP/ROCm (AMD)</td>
-<td><code>GGML_HIP</code></td>
-<td>OFF by default</td>
-<td>ROCm 6.3</td>
-<td>ON with <code>-DGGML_HIP=ON</code></td>
-</tr>
-<tr>
-<td>SYCL (Intel)</td>
-<td><code>GGML_SYCL</code></td>
-<td>OFF by default</td>
-<td>Supported</td>
-<td>ON with <code>-DGGML_SYCL=ON</code></td>
-</tr>
-<tr>
-<td>OpenCL</td>
-<td><code>GGML_OPENCL</code></td>
-<td>OFF by default</td>
-<td>Not built</td>
-<td>ON with <code>-DGGML_OPENCL=ON</code></td>
-</tr>
-<tr>
-<td>BLAS (CPU)</td>
-<td><code>GGML_BLAS</code></td>
-<td><code>--blas</code> / <code>GGML_BLAS_VENDOR</code></td>
-<td>Not built</td>
-<td>ON with vendor selection</td>
-</tr>
-</tbody>
-</table>
-<h3 id="upstream-only-not-supported-in-cyllama">Upstream-Only (Not Supported in Cyllama)<a class="headerlink" href="#upstream-only-not-supported-in-cyllama" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>Backend</th>
-<th>Upstream Flag</th>
-<th>Notes</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>MUSA (Moore Threads)</td>
-<td><code>GGML_MUSA</code></td>
-<td>Chinese GPU vendor, niche</td>
-</tr>
-<tr>
-<td>CANN (Ascend NPU)</td>
-<td><code>GGML_CANN</code></td>
-<td>Huawei NPU</td>
-</tr>
-<tr>
-<td>ZenDNN (AMD EPYC)</td>
-<td><code>GGML_ZENDNN</code></td>
-<td>CPU-only optimization for EPYC</td>
-</tr>
-<tr>
-<td>WebGPU</td>
-<td><code>GGML_WEBGPU</code></td>
-<td>In-progress upstream, requires Dawn</td>
-</tr>
-<tr>
-<td>KleidiAI (Arm)</td>
-<td><code>GGML_CPU_KLEIDIAI</code></td>
-<td>Arm-specific CPU optimization</td>
-</tr>
-<tr>
-<td>OpenVINO</td>
-<td>--</td>
-<td>Intel inference runtime</td>
-</tr>
-</tbody>
-</table>
-<p>These are deliberately excluded as they serve niche hardware. If demand arises, they can be added following the same pattern as existing backends in <code>manage.py:get_backend_cmake_options()</code>.</p>
-<h2 id="detailed-option-comparison">Detailed Option Comparison<a class="headerlink" href="#detailed-option-comparison" title="Permanent link">&para;</a></h2>
-<h3 id="core-build-options">Core Build Options<a class="headerlink" href="#core-build-options" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>Option</th>
-<th>Local</th>
-<th>CI Workflows</th>
-<th>Upstream Default</th>
-<th>Notes</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>GGML_NATIVE</code></td>
-<td>Not set (ON)</td>
-<td><code>OFF</code></td>
-<td>ON</td>
-<td><strong>Deliberate.</strong> Local builds optimize for the developer's CPU. CI builds set OFF for portable wheels. Incompatible with <code>GGML_BACKEND_DL</code> (dynamic builds); see <code>docs/dev/ggml-config.md</code>.</td>
-</tr>
-<tr>
-<td><code>BUILD_SHARED_LIBS</code></td>
-<td><code>False</code> (static)</td>
-<td>Depends on <code>link_mode</code> input</td>
-<td>ON</td>
-<td>Local default is static linking. CI supports both via workflow <code>link_mode</code> parameter.</td>
-</tr>
-<tr>
-<td><code>CMAKE_POSITION_INDEPENDENT_CODE</code></td>
-<td><code>True</code></td>
-<td><code>True</code> (inherited)</td>
-<td>Not set</td>
-<td>Required for static libs that get linked into shared Python extensions.</td>
-</tr>
-<tr>
-<td><code>LLAMA_CURL</code></td>
-<td><code>False</code></td>
-<td><code>False</code> (inherited)</td>
-<td>Not documented</td>
-<td>Disabled; cyllama doesn't need libcurl for model downloads.</td>
-</tr>
-<tr>
-<td><code>LLAMA_OPENSSL</code></td>
-<td><code>True</code></td>
-<td><code>True</code> (inherited)</td>
-<td>Not documented</td>
-<td>Enabled for HTTPS support in cpp-httplib (embedded server).</td>
-</tr>
-<tr>
-<td><code>LLAMA_BUILD_SERVER</code></td>
-<td><code>False</code></td>
-<td><code>False</code> (inherited)</td>
-<td>ON</td>
-<td>cyllama has its own Python server; upstream C++ server not needed.</td>
-</tr>
-<tr>
-<td><code>LLAMA_BUILD_TESTS</code></td>
-<td><code>False</code></td>
-<td><code>False</code> (inherited)</td>
-<td>ON</td>
-<td>No need to build llama.cpp's test suite.</td>
-</tr>
-<tr>
-<td><code>LLAMA_BUILD_EXAMPLES</code></td>
-<td><code>False</code></td>
-<td><code>False</code> (inherited)</td>
-<td>ON</td>
-<td>No need for example binaries.</td>
-</tr>
-<tr>
-<td><code>GGML_OPENMP</code></td>
-<td>ON (disable with <code>--no-openmp</code> or <code>GGML_OPENMP=0</code>)</td>
-<td>Not set (ON)</td>
-<td>ON</td>
-<td>Forwarded to all three builders. <code>CMakeLists.txt</code> does <code>find_package(OpenMP)</code> on Linux.</td>
-</tr>
-<tr>
-<td><code>GGML_BACKEND_DL</code></td>
-<td>Not set (OFF)</td>
-<td>Not set (OFF)</td>
-<td>OFF</td>
-<td>Dynamic backend loading at runtime. Not used.</td>
-</tr>
-<tr>
-<td><code>SD_USE_VENDORED_GGML</code></td>
-<td><code>0</code> (dynamic targets)</td>
-<td><code>0</code> (dynamic) / <code>1</code> (static)</td>
-<td>ON</td>
-<td>When <code>0</code>, SD shares llama.cpp's ggml dylibs instead of statically embedding them. Requires <code>GGML_MAX_NAME=128</code> propagation; see <code>docs/dev/ggml-unification.md</code>.</td>
-</tr>
-</tbody>
-</table>
-<h3 id="cuda-specific-options">CUDA-Specific Options<a class="headerlink" href="#cuda-specific-options" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>Option</th>
-<th>Local</th>
-<th>CI (<code>build-gpu-wheels.yml</code>)</th>
-<th>Upstream</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>CMAKE_CUDA_ARCHITECTURES</code></td>
-<td><code>native</code> (dynamic targets) or llama.cpp default</td>
-<td><code>"75"</code></td>
-<td>User-provided or auto</td>
-</tr>
-<tr>
-<td><code>CMAKE_CUDA_COMPILER</code></td>
-<td>Forwarded from env</td>
-<td>Not set</td>
-<td>Custom nvcc path</td>
-</tr>
-<tr>
-<td><code>GGML_CUDA_FORCE_MMQ</code></td>
-<td>Forwarded from env</td>
-<td>Not set</td>
-<td>Force quantized matrix kernels</td>
-</tr>
-<tr>
-<td><code>GGML_CUDA_FORCE_CUBLAS</code></td>
-<td>Forwarded from env</td>
-<td>Not set</td>
-<td>Force FP16 cuBLAS</td>
-</tr>
-<tr>
-<td><code>GGML_CUDA_PEER_MAX_BATCH_SIZE</code></td>
-<td>Forwarded from env</td>
-<td>Not set</td>
-<td>Multi-GPU peer access batch size (default: 128)</td>
-</tr>
-<tr>
-<td><code>GGML_CUDA_FA_ALL_QUANTS</code></td>
-<td>Forwarded from env</td>
-<td>Not set</td>
-<td>Compile all KV cache quant types</td>
-</tr>
-<tr>
-<td><code>GGML_NATIVE</code></td>
-<td>Not set (ON)</td>
-<td><code>OFF</code></td>
-<td>ON</td>
-</tr>
-<tr>
-<td><code>CUDA_PATH</code></td>
-<td>User's env</td>
-<td><code>/usr/local/cuda</code></td>
-<td>User's env</td>
-</tr>
-</tbody>
-</table>
-<p>The CUDA performance tuning flags (<code>GGML_CUDA_FORCE_MMQ</code>, <code>GGML_CUDA_FORCE_CUBLAS</code>, <code>GGML_CUDA_PEER_MAX_BATCH_SIZE</code>, <code>GGML_CUDA_FA_ALL_QUANTS</code>) are compile-time options that affect kernel selection in the built libraries. They are forwarded from environment variables to CMake by <code>get_backend_cmake_options()</code> in all three builders (llama.cpp, whisper.cpp, stable-diffusion.cpp). <code>CMAKE_CUDA_COMPILER</code> is similarly forwarded, allowing users with multiple CUDA toolkit installations to select a specific <code>nvcc</code>.</p>
-<h3 id="hiprocm-specific-options">HIP/ROCm-Specific Options<a class="headerlink" href="#hiprocm-specific-options" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>Option</th>
-<th>Local</th>
-<th>CI</th>
-<th>Upstream</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>CMAKE_HIP_ARCHITECTURES</code></td>
-<td>User-provided</td>
-<td><code>"gfx90a;gfx942;gfx1100"</code></td>
-<td>User-provided via <code>GPU_TARGETS</code></td>
-</tr>
-<tr>
-<td><code>HIP_PATH</code></td>
-<td>User's env</td>
-<td><code>/opt/rocm</code></td>
-<td>From <code>hipconfig -R</code></td>
-</tr>
-<tr>
-<td><code>GGML_HIP_ROCWMMA_FATTN</code></td>
-<td>Forwarded from env (<code>GGML_HIP_ROCWMMA_FATTN=1</code>)</td>
-<td>Not set</td>
-<td>rocWMMA flash attention</td>
-</tr>
-</tbody>
-</table>
-<h3 id="stripdebug-options">Strip/Debug Options<a class="headerlink" href="#stripdebug-options" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>Option</th>
-<th>Local</th>
-<th>CI</th>
-<th>Notes</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>CFLAGS=-s</code></td>
-<td>Not set</td>
-<td>Set</td>
-<td>CI strips debug symbols for smaller wheels</td>
-</tr>
-<tr>
-<td><code>CXXFLAGS=-s</code></td>
-<td>Not set</td>
-<td>Set</td>
-<td>Same</td>
-</tr>
-<tr>
-<td><code>CMAKE_BUILD_TYPE</code></td>
-<td>Not set (Release via scikit-build-core)</td>
-<td>Release</td>
-<td><code>pyproject.toml</code> sets <code>cmake.build-type = "Release"</code></td>
-</tr>
-</tbody>
-</table>
-<h3 id="visibility-options-set-in-managepy-for-phase-1">Visibility Options (set in <code>manage.py</code> for Phase 1)<a class="headerlink" href="#visibility-options-set-in-managepy-for-phase-1" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>Option</th>
-<th>Value</th>
-<th>Purpose</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>CMAKE_CXX_VISIBILITY_PRESET</code></td>
-<td><code>hidden</code></td>
-<td>Hide C++ symbols from exported API</td>
-</tr>
-<tr>
-<td><code>CMAKE_C_VISIBILITY_PRESET</code></td>
-<td><code>hidden</code></td>
-<td>Hide C symbols from exported API</td>
-</tr>
-<tr>
-<td><code>CMAKE_VISIBILITY_INLINES_HIDDEN</code></td>
-<td><code>True</code></td>
-<td>Hide inline function symbols</td>
-</tr>
-</tbody>
-</table>
-<p>These are set in <code>manage.py:LlamaCppBuilder.build()</code> and do not appear in upstream llama.cpp defaults. They reduce symbol pollution and wheel size.</p>
-<h2 id="dynamic-linking-dynamic-mode">Dynamic Linking (<code>--dynamic</code> mode)<a class="headerlink" href="#dynamic-linking-dynamic-mode" title="Permanent link">&para;</a></h2>
-<p>The <code>--dynamic</code> flag changes Phase 1 behavior:</p>
-<ol>
-<li><strong>If <code>SD_USE_VENDORED_GGML=0</code></strong>, always build from source with <code>BUILD_SHARED_LIBS=ON</code>. Upstream pre-built releases are skipped because they're compiled with the default <code>GGML_MAX_NAME=64</code>, which is ABI-incompatible with stable-diffusion.cpp's required <code>GGML_MAX_NAME=128</code>. Building from source lets <code>manage.py</code> inject the correct define via <code>CMAKE_C_FLAGS</code>. See <code>docs/dev/ggml_max_name.md</code>.</li>
-<li><strong>Otherwise, if a pre-built release asset exists</strong> for the platform/backend combo, it downloads that archive (DLLs/<code>.so</code>/<code>.dylib</code> files) from llama.cpp GitHub releases.</li>
-<li><strong>If no asset exists</strong>, it falls back to building from source with <code>BUILD_SHARED_LIBS=ON</code>.</li>
-</ol>
-<h3 id="pre-built-release-asset-names">Pre-built Release Asset Names<a class="headerlink" href="#pre-built-release-asset-names" title="Permanent link">&para;</a></h3>
-<p>Defined in <code>manage.py:LlamaCppBuilder._release_asset_name()</code>:</p>
-<table>
-<thead>
-<tr>
-<th>Platform</th>
-<th>Backend</th>
-<th>Asset Name</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>macOS arm64</td>
-<td>Metal</td>
-<td><code>llama-{ver}-bin-macos-arm64.tar.gz</code></td>
-</tr>
-<tr>
-<td>macOS x86_64</td>
-<td>Metal</td>
-<td><code>llama-{ver}-bin-macos-x64.tar.gz</code></td>
-</tr>
-<tr>
-<td>Linux x86_64</td>
-<td>CPU</td>
-<td><code>llama-{ver}-bin-ubuntu-x64.tar.gz</code></td>
-</tr>
-<tr>
-<td>Linux x86_64</td>
-<td>Vulkan</td>
-<td><code>llama-{ver}-bin-ubuntu-vulkan-x64.tar.gz</code></td>
-</tr>
-<tr>
-<td>Linux x86_64</td>
-<td>CUDA</td>
-<td><code>None</code> (must build from source)</td>
-</tr>
-<tr>
-<td>Linux x86_64</td>
-<td>HIP</td>
-<td><code>None</code> (must build from source)</td>
-</tr>
-<tr>
-<td>Linux x86_64</td>
-<td>SYCL</td>
-<td><code>None</code> (must build from source)</td>
-</tr>
-<tr>
-<td>Windows x64</td>
-<td>CPU</td>
-<td><code>llama-{ver}-bin-win-cpu-x64.zip</code></td>
-</tr>
-<tr>
-<td>Windows x64</td>
-<td>CUDA</td>
-<td><code>llama-{ver}-bin-win-cuda-{cuda_ver}-x64.zip</code></td>
-</tr>
-</tbody>
-</table>
-<p>The Windows CUDA asset version defaults to <code>12.4</code> but can be overridden via the <code>LLAMACPP_CUDA_RELEASE</code> environment variable (e.g., <code>LLAMACPP_CUDA_RELEASE=13.1</code>). This only works if llama.cpp publishes a matching release asset. Users whose CUDA version has no pre-built asset should build from source (omit <code>--dynamic</code>).</p>
-<h2 id="design-decisions">Design Decisions<a class="headerlink" href="#design-decisions" title="Permanent link">&para;</a></h2>
-<h3 id="cuda-architecture-coverage-in-ci-deliberate-ptx-only-strategy">CUDA Architecture Coverage in CI -- Deliberate PTX-Only Strategy<a class="headerlink" href="#cuda-architecture-coverage-in-ci-deliberate-ptx-only-strategy" title="Permanent link">&para;</a></h3>
-<p>The active CI workflow (<code>build-gpu-wheels.yml</code>) sets <code>CMAKE_CUDA_ARCHITECTURES="75"</code>. This is <strong>deliberate</strong>, not an oversight. The history:</p>
-<ol>
-<li>
-<p><strong>v0.2.1</strong> (<code>GGML_NATIVE=ON</code>, no explicit architectures): llama.cpp auto-detected the CI runner's GPU (sm_52), producing a 99 MB <code>libggml-cuda.so</code> with SASS for sm_52 only + PTX fallback.</p>
-</li>
-<li>
-<p><strong>v0.2.2 initial</strong> (<code>GGML_NATIVE=OFF</code>, no explicit architectures): Without a GPU to detect, llama.cpp fell back to its full default architecture list, producing a 449 MB <code>libggml-cuda.so</code> (see <code>docs/dev/0.2.1-release-issue.md</code> for the full investigation).</p>
-</li>
-<li>
-<p><strong>v0.2.2 fix attempt</strong> (<code>GGML_NATIVE=OFF</code>, <code>CMAKE_CUDA_ARCHITECTURES="70-real;75-real;80-real;86-real;89-real;90"</code>): The <code>-real</code> suffix compiles SASS (native code) for each architecture. This produced a 762 MB <code>libggml-cuda.so</code> -- even larger, because SASS for 5 architectures is bigger than PTX for 5.</p>
-</li>
-<li>
-<p><strong>v0.2.2 final</strong> (<code>GGML_NATIVE=OFF</code>, <code>CMAKE_CUDA_ARCHITECTURES="75"</code>): A single architecture without <code>-real</code> produces <strong>PTX only</strong> for sm_75. The CUDA driver JIT-compiles the PTX to the user's actual GPU architecture at runtime (one-time startup cost). This keeps the wheel small while supporting all Turing-and-newer GPUs (RTX 20xx+, T4+). This is also forward-proof: CUDA 13.x drops pre-Turing (sm &lt; 75) support, so sm_75 PTX is the correct minimum.</p>
-</li>
-</ol>
-<p>The tradeoff is clear: PTX-only means a JIT compilation penalty on first load (~seconds), but the wheel is ~45 MB compressed instead of ~300+ MB. This matches v0.2.1's behavior (which also relied on PTX JIT, just from sm_52 instead of sm_75) and was verified working on RTX 4060 (sm_89).</p>
-<p><strong>This is not an issue to fix</strong> -- it is a deliberate size/compatibility tradeoff. If future users report unacceptable JIT latency, the alternative is shipping multiple wheels per architecture or using <code>-real</code> for popular architectures (80, 86, 89) and accepting the size increase.</p>
-<h2 id="resolved-issues">Resolved Issues<a class="headerlink" href="#resolved-issues" title="Permanent link">&para;</a></h2>
-<p>The following gaps were identified during the initial analysis and have since been addressed:</p>
-<table>
-<thead>
-<tr>
-<th>Issue</th>
-<th>Resolution</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Cached workflow stale (<code>GGML_NATIVE</code>, architectures)</td>
-<td>Synced <code>build-gpu-wheels-cached.yml</code> to match active workflow. Cache keys now hash the workflow file.</td>
-</tr>
-<tr>
-<td>CUDA tuning flags not forwarded</td>
-<td><code>GGML_CUDA_FORCE_MMQ</code>, <code>GGML_CUDA_FORCE_CUBLAS</code>, <code>GGML_CUDA_PEER_MAX_BATCH_SIZE</code>, <code>GGML_CUDA_FA_ALL_QUANTS</code> forwarded in all three builders.</td>
-</tr>
-<tr>
-<td><code>CMAKE_CUDA_COMPILER</code> not exposed</td>
-<td>Forwarded from env var in all three builders.</td>
-</tr>
-<tr>
-<td>Windows CUDA dynamic asset hardcoded to 12.4</td>
-<td>Parameterized via <code>LLAMACPP_CUDA_RELEASE</code> env var (default <code>"12.4"</code>).</td>
-</tr>
-<tr>
-<td><code>GGML_BLAS</code> / <code>GGML_BLAS_VENDOR</code> not exposed</td>
-<td>Added <code>--blas</code> CLI flag; vendor set via <code>GGML_BLAS_VENDOR</code> env var. Forwarded in llama.cpp and whisper.cpp builders.</td>
-</tr>
-<tr>
-<td><code>GGML_OPENMP</code> not exposed</td>
-<td>Added <code>--no-openmp</code> CLI flag and <code>GGML_OPENMP</code> env var pass-through in all three builders.</td>
-</tr>
-<tr>
-<td><code>GGML_HIP_ROCWMMA_FATTN</code> not forwarded</td>
-<td>Forwarded from env var in llama.cpp and whisper.cpp builders.</td>
-</tr>
-</tbody>
-</table>
-<h2 id="remaining-recommendations">Remaining Recommendations<a class="headerlink" href="#remaining-recommendations" title="Permanent link">&para;</a></h2>
-<ol>
-<li><strong>Consider <code>GGML_BACKEND_DL</code></strong> -- dynamic backend loading could allow shipping a single wheel that loads GPU backends at runtime, though this is a significant architectural change.</li>
-</ol>
-<h2 id="environment-variable-flow">Environment Variable Flow<a class="headerlink" href="#environment-variable-flow" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>User sets GGML_CUDA=1
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    |
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    v
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>Makefile exports GGML_CUDA
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    |
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    v
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>manage.py reads via getenv(&quot;GGML_CUDA&quot;)
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    |
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    v
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>get_backend_cmake_options() returns {&quot;GGML_CUDA&quot;: &quot;ON&quot;}
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    |
-<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    v
-<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>cmake_config() passes -DGGML_CUDA=ON to llama.cpp&#39;s CMake (Phase 1)
-<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>    |
-<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>    v
-<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>llama.cpp builds with CUDA backend, produces libggml-cuda.a
-<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>    |
-<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>    v
-<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>copy_backend_libs() copies libggml-cuda.a to thirdparty/llama.cpp/lib/
-<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>    |
-<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>    v
-<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>Phase 2: cyllama&#39;s CMakeLists.txt reads $ENV{GGML_CUDA}
-<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>    |
-<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>    v
-<a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a>find_package(CUDAToolkit REQUIRED) + link CUDA::cudart, CUDA::cublas, CUDA::cuda_driver
-<a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a>    |
-<a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a>    v
-<a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a>Static link libggml-cuda.a into Cython extension
+<h1 id="ggml_max_name-abi-mismatch-in-dynamic-vulkan-wheels">GGML_MAX_NAME ABI mismatch in dynamic Vulkan wheels<a class="headerlink" href="#ggml_max_name-abi-mismatch-in-dynamic-vulkan-wheels" title="Permanent link">&para;</a></h1>
+<h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
+<p>Vulkan wheels built from the <code>build-gpu-wheels.yml</code> workflow with
+<code>link_mode=dynamic</code> crash during stable-diffusion image generation with:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>ggml/src/ggml-backend.cpp:478: GGML_ASSERT(ggml_are_same_layout(src, dst) &amp;&amp;
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>  &quot;cannot copy tensors with different layouts&quot;) failed
 </code></pre></div>
-<h2 id="file-reference">File Reference<a class="headerlink" href="#file-reference" title="Permanent link">&para;</a></h2>
+<p>The crash fires on the first <code>ggml_backend_tensor_copy()</code> that transfers a
+CPU-offloaded tensor to the Vulkan buffer. CUDA dynamic wheels built from
+the same workflow do <strong>not</strong> crash, which is the clue that isolates the
+bug.</p>
+<p>The symptom looks identical to the <code>GGML_MAX_NAME</code> ABI issue that the
+0.2.9 → Unreleased work is supposed to fix (via <code>_sync_ggml_abi()</code> and
+<code>CMAKE_C_FLAGS=-DGGML_MAX_NAME=128</code> propagation in
+<code>LlamaCppBuilder.build_shared()</code>). The fix is in place; Vulkan just
+doesn't go through that code path.</p>
+<h2 id="what-has-to-match-and-why-its-not-a-vulkan-specific-rule">What has to match, and why it's not a Vulkan-specific rule<a class="headerlink" href="#what-has-to-match-and-why-its-not-a-vulkan-specific-rule" title="Permanent link">&para;</a></h2>
+<p>Vulkan does <strong>not</strong> have a special <code>GGML_MAX_NAME</code> requirement that CUDA
+lacks. The rule is the same for every backend: when
+<code>SD_USE_VENDORED_GGML=0</code>, <strong>every</strong> ggml-related <code>.so</code> that SD links
+against must be compiled with <code>GGML_MAX_NAME=128</code>. That set is
+<code>libggml-base.so</code>, <code>libggml.so</code>, <code>libggml-cpu.so</code>, and the backend
+plugin (<code>libggml-cuda.so</code>, <code>libggml-vulkan.so</code>, <code>libggml-hip.so</code>, …).
+They all read and write <code>ggml_tensor</code> structs across the boundary with
+SD; any one of them seeing a different layout corrupts field offsets.</p>
+<p>What's different between backends is <em>how the <code>.so</code> files end up on
+disk</em>:</p>
 <table>
 <thead>
 <tr>
-<th>File</th>
-<th>Role</th>
+<th>Backend</th>
+<th>Delivery mechanism in dynamic mode</th>
+<th>Compiled with <code>GGML_MAX_NAME=128</code>?</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>Makefile</code></td>
-<td>Top-level build entry points, backend flag defaults and exports</td>
+<td>CUDA</td>
+<td>built from source (<code>build_shared</code>)</td>
+<td>yes — <code>CMAKE_C_FLAGS</code> injection at <code>manage.py:1215</code></td>
 </tr>
 <tr>
-<td><code>scripts/manage.py</code></td>
-<td>Phase 1 builder: clones, configures, builds, copies llama.cpp/whisper.cpp/sd.cpp</td>
+<td>SYCL</td>
+<td>built from source (<code>build_shared</code>)</td>
+<td>yes — same path</td>
 </tr>
 <tr>
-<td><code>CMakeLists.txt</code></td>
-<td>Phase 2: links pre-built libs into Cython extensions</td>
+<td>HIP</td>
+<td>built from source (<code>build_shared</code>)</td>
+<td>yes — same path</td>
 </tr>
 <tr>
-<td><code>pyproject.toml</code></td>
-<td>scikit-build-core config, cibuildwheel settings for CPU wheels</td>
-</tr>
-<tr>
-<td><code>.github/workflows/build-gpu-wheels.yml</code></td>
-<td>CI: GPU wheel builds (active workflow)</td>
-</tr>
-<tr>
-<td><code>.github/workflows/build-gpu-wheels-cached.yml</code></td>
-<td>CI: GPU wheel builds with caching (experimental, synced but not currently used)</td>
-</tr>
-<tr>
-<td><code>docs/build_backends.md</code></td>
-<td>User-facing backend build documentation</td>
+<td>Vulkan</td>
+<td>downloaded upstream release (<code>download_release</code>)</td>
+<td><strong>no</strong> — upstream ships <code>=64</code></td>
 </tr>
 </tbody>
 </table>
+<p>So the Vulkan crash isn't about Vulkan having a different requirement —
+it's that the requirement was silently not being met because the libs
+came pre-compiled from a third party. The fix just routes Vulkan
+through the same <code>build_shared()</code> path the other GPU backends already
+use, so the existing <code>GGML_MAX_NAME=128</code> injection actually reaches
+<code>libggml-vulkan.so</code>.</p>
+<h2 id="root-cause">Root cause<a class="headerlink" href="#root-cause" title="Permanent link">&para;</a></h2>
+<p><code>scripts/manage.py:2252</code> chooses between two strategies when building
+llama.cpp in dynamic mode:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">dynamic</span> <span class="ow">and</span> <span class="n">BuilderClass</span> <span class="o">==</span> <span class="n">LlamaCppBuilder</span><span class="p">:</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    <span class="n">asset</span> <span class="o">=</span> <span class="n">builder</span><span class="o">.</span><span class="n">_release_asset_name</span><span class="p">()</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="k">if</span> <span class="n">asset</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>        <span class="n">builder</span><span class="o">.</span><span class="n">build_shared</span><span class="p">()</span>     <span class="c1"># compile from source</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    <span class="k">else</span><span class="p">:</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>        <span class="n">builder</span><span class="o">.</span><span class="n">download_release</span><span class="p">()</span> <span class="c1"># grab upstream pre-built tarball</span>
+</code></pre></div>
+<p><code>_release_asset_name()</code> (manage.py:1300) returns:</p>
+<table>
+<thead>
+<tr>
+<th>Backend</th>
+<th>Linux return value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CUDA</td>
+<td><code>None</code> (no upstream release)</td>
+</tr>
+<tr>
+<td>SYCL</td>
+<td><code>None</code></td>
+</tr>
+<tr>
+<td>HIP</td>
+<td><code>None</code></td>
+</tr>
+<tr>
+<td>Vulkan</td>
+<td><code>llama-{version}-bin-ubuntu-vulkan-x64.tar.gz</code></td>
+</tr>
+<tr>
+<td>CPU</td>
+<td><code>llama-{version}-bin-ubuntu-x64.tar.gz</code></td>
+</tr>
+</tbody>
+</table>
+<p>So on CUDA the code falls into <code>build_shared()</code>, which (since b378cba)
+injects <code>-DGGML_MAX_NAME=128</code> into <code>CMAKE_C_FLAGS</code> / <code>CMAKE_CXX_FLAGS</code>
+whenever <code>SD_USE_VENDORED_GGML=0</code>. The resulting <code>libggml-base.so</code>,
+<code>libggml.so</code>, <code>libggml-cuda.so</code> all have <code>ggml_tensor</code> structs with
+<code>char name[128]</code>. stable-diffusion.cpp's <code>libstable-diffusion.a</code> uses
+<code>GGML_MAX_NAME=128</code> (its own default, see
+<code>build/stable-diffusion.cpp/CMakeLists.txt:233</code>). Both sides agree → no
+mismatch.</p>
+<p>On Vulkan the code goes to <code>download_release()</code>, which pulls the
+upstream pre-built <code>llama-bXXXX-bin-ubuntu-vulkan-x64.tar.gz</code>. Upstream
+binaries are compiled with the default <code>GGML_MAX_NAME=64</code>. So:</p>
+<ul>
+<li><code>libstable-diffusion.a</code> (SD): <code>char name[128]</code></li>
+<li><code>libggml-base.so</code> (downloaded): <code>char name[64]</code></li>
+<li><code>libggml-vulkan.so</code> (downloaded): <code>char name[64]</code></li>
+</ul>
+<p><code>sizeof(ggml_tensor)</code> diverges by 64 bytes between the two sides, and
+every field after <code>name</code> (<code>extra</code>, <code>padding</code>) sits at a different offset
+depending on which side allocated the struct.</p>
+<h3 id="how-this-manifests-as-an-ggml_are_same_layout-failure">How this manifests as an <code>ggml_are_same_layout</code> failure<a class="headerlink" href="#how-this-manifests-as-an-ggml_are_same_layout-failure" title="Permanent link">&para;</a></h3>
+<p><code>ggml_are_same_layout()</code> (ggml/src/ggml-impl.h:73) itself only reads
+<code>type</code>, <code>ne[4]</code>, and <code>nb[4]</code> — all fields that are <strong>before</strong> <code>name</code>,
+so their offsets don't depend on <code>GGML_MAX_NAME</code>. The ABI mismatch
+doesn't corrupt those fields directly.</p>
+<p>The mechanism is indirect: SD code assumes <code>name[128]</code> and writes up to
+128 bytes via <code>ggml_set_name()</code> / <code>strncpy(tensor-&gt;name, ..., 128)</code>.
+When the tensor was allocated by the downloaded <code>libggml-base.so</code>, the
+struct only has 64 bytes reserved for <code>name</code>, so the trailing 64 bytes
+spill into <code>extra</code> (pointer) and <code>padding[8]</code>. Later calls inside
+<code>libggml-base.so</code> or <code>libggml-vulkan.so</code> read <code>tensor-&gt;extra</code>
+expecting an <code>ggml-backend.cpp</code> buffer handle or similar — and get
+garbage. Downstream code dereferences that garbage, tensors look
+malformed, and <code>ggml_are_same_layout</code> fires on what looks like a
+size/stride mismatch.</p>
+<p>The CPU-offload path is the trigger because that's where SD constructs a
+host tensor, calls <code>ggml_backend_tensor_copy(host, device)</code>, and crosses
+the ABI boundary.</p>
+<h2 id="why-the-existing-fixes-dont-cover-this-path">Why the existing fixes don't cover this path<a class="headerlink" href="#why-the-existing-fixes-dont-cover-this-path" title="Permanent link">&para;</a></h2>
+<p>Two defenses landed in <code>b378cba</code>:</p>
+<ol>
+<li>
+<p><strong><code>_sync_ggml_abi()</code></strong> (<code>scripts/manage.py:1654</code>) — overlays
+   llama.cpp's ggml source tree onto stable-diffusion.cpp so enum
+   ordinals (<code>ggml_op</code>, <code>ggml_type</code>) match. This runs during SD's
+   <code>build()</code> regardless of which llama.cpp strategy was used, so Vulkan
+   benefits from it.</p>
+</li>
+<li>
+<p><strong><code>GGML_MAX_NAME=128</code> injection into <code>CMAKE_C_FLAGS</code></strong> — only runs
+   inside <code>LlamaCppBuilder.build()</code> (static path, manage.py:1140) and
+   <code>LlamaCppBuilder.build_shared()</code> (dynamic-from-source path,
+   manage.py:1215).</p>
+</li>
+</ol>
+<p><code>download_release()</code> doesn't compile anything, it just extracts a
+pre-built tarball. There's nowhere for the define to apply. So Vulkan
+dynamic wheels escape the fix entirely.</p>
+<p>Root-level <code>CMakeLists.txt:16-18</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nb">if</span><span class="p">(</span><span class="s">NOT</span><span class="w"> </span><span class="s">SD_USE_VENDORED_GGML</span><span class="p">)</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">    </span><span class="nb">add_definitions</span><span class="p">(</span><span class="s">-DGGML_MAX_NAME=128</span><span class="p">)</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="nb">endif</span><span class="p">()</span>
+</code></pre></div>
+<p>is ordered before <code>CMakeLists.txt:105</code> which reads the
+<code>SD_USE_VENDORED_GGML</code> env var, so this <code>add_definitions</code> never fires
+when the env var is the only source of <code>SD_USE_VENDORED_GGML=OFF</code>.
+This is a separate-but-related ordering bug — not the proximal cause of
+the Vulkan crash (the project-level Cython modules don't dereference
+<code>ggml_tensor</code> fields), but worth fixing while touching this area.</p>
+<h2 id="proposed-fix">Proposed fix<a class="headerlink" href="#proposed-fix" title="Permanent link">&para;</a></h2>
+<p>Route Vulkan (and any future backend that gains an upstream release)
+through <code>build_shared()</code> whenever SD is configured to share ggml:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># scripts/manage.py, in do_build()</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">dynamic</span> <span class="ow">and</span> <span class="n">BuilderClass</span> <span class="o">==</span> <span class="n">LlamaCppBuilder</span><span class="p">:</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="n">asset</span> <span class="o">=</span> <span class="n">builder</span><span class="o">.</span><span class="n">_release_asset_name</span><span class="p">()</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="c1"># When SD shares llama.cpp&#39;s ggml, the shared libs must be built</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="c1"># with GGML_MAX_NAME=128 so ggml_tensor&#39;s layout matches what SD</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    <span class="c1"># was compiled with. Upstream pre-built releases use the default</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    <span class="c1"># GGML_MAX_NAME=64, so skip them and build from source to</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>    <span class="c1"># propagate the define.</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>    <span class="k">if</span> <span class="n">asset</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">_sd_uses_shared_ggml</span><span class="p">():</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>        <span class="k">if</span> <span class="n">asset</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>            <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>                <span class="s2">&quot;SD_USE_VENDORED_GGML=0: building llama.cpp from &quot;</span>
+<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>                <span class="s2">&quot;source to propagate GGML_MAX_NAME=128 (skipping &quot;</span>
+<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>                <span class="s2">&quot;upstream pre-built release)&quot;</span>
+<a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a>            <span class="p">)</span>
+<a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a>        <span class="n">builder</span><span class="o">.</span><span class="n">build_shared</span><span class="p">()</span>
+<a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a>    <span class="k">else</span><span class="p">:</span>
+<a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a>        <span class="n">builder</span><span class="o">.</span><span class="n">download_release</span><span class="p">()</span>
+</code></pre></div>
+<h3 id="tradeoff">Tradeoff<a class="headerlink" href="#tradeoff" title="Permanent link">&para;</a></h3>
+<p>Building llama.cpp from source adds CI time (Vulkan CI now has to build
+llama.cpp in addition to shaderc). For a local Vulkan dynamic build on
+this machine the llama.cpp build is ~3-4 minutes. On CI this cost is
+paid once and cached via the <code>actions/cache@v5</code> step that already keys
+on <code>scripts/manage.py</code> + <code>build-gpu-wheels.yml</code>.</p>
+<h3 id="alternative-considered">Alternative considered<a class="headerlink" href="#alternative-considered" title="Permanent link">&para;</a></h3>
+<p>Keeping <code>download_release()</code> and forcing <code>SD_USE_VENDORED_GGML=1</code> on
+Vulkan reverts to the 0.2.9 behavior: SD statically embeds its own ggml
+backend, giving a ~2x wheel size. Rejected because it contradicts the
+entire Unreleased "GPU wheel size reduced ~50%" goal and reintroduces
+the duplicate-ggml-backend runtime risk that motivated unification.</p>
+<h2 id="backend-coverage-after-the-fix">Backend coverage after the fix<a class="headerlink" href="#backend-coverage-after-the-fix" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Backend</th>
+<th><code>_release_asset_name()</code></th>
+<th>Dynamic path (SD_USE_VENDORED_GGML=0)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CUDA</td>
+<td><code>None</code></td>
+<td><code>build_shared()</code> (unchanged)</td>
+</tr>
+<tr>
+<td>SYCL</td>
+<td><code>None</code></td>
+<td><code>build_shared()</code> (unchanged)</td>
+</tr>
+<tr>
+<td>HIP</td>
+<td><code>None</code></td>
+<td><code>build_shared()</code> (unchanged)</td>
+</tr>
+<tr>
+<td>Vulkan</td>
+<td>vulkan tarball URL</td>
+<td><code>build_shared()</code> (was <code>download_release</code>)</td>
+</tr>
+<tr>
+<td>Metal</td>
+<td>n/a (macOS, no Vulkan)</td>
+<td><code>build_shared()</code> (unchanged)</td>
+</tr>
+</tbody>
+</table>
+<p>The CPU dynamic path (no SD) is unaffected: <code>_sd_uses_shared_ggml()</code>
+returns <code>False</code> when <code>SD_USE_VENDORED_GGML</code> is unset, so
+<code>download_release()</code> is still used for plain CPU dynamic wheels.</p>
+<h2 id="references">References<a class="headerlink" href="#references" title="Permanent link">&para;</a></h2>
+<ul>
+<li><code>scripts/manage.py:905-914</code> — <code>_SD_GGML_MAX_NAME</code>, <code>_sd_uses_shared_ggml()</code></li>
+<li><code>scripts/manage.py:1140-1145</code>, <code>1215-1219</code> — <code>CMAKE_C_FLAGS</code> injection</li>
+<li><code>scripts/manage.py:1300</code> — <code>_release_asset_name()</code></li>
+<li><code>scripts/manage.py:1346</code> — <code>download_release()</code></li>
+<li><code>scripts/manage.py:2252</code> — the fix site</li>
+<li><code>CMakeLists.txt:16-18</code>, <code>:105-111</code> — root-level ordering bug (separate)</li>
+<li><code>build/stable-diffusion.cpp/CMakeLists.txt:233</code> — SD's own <code>-DGGML_MAX_NAME=128</code></li>
+<li><code>build/llama.cpp/ggml/include/ggml.h:228</code> — llama.cpp's <code>#define GGML_MAX_NAME 64</code> default</li>
+<li><code>CHANGELOG.md</code> — Unreleased "GPU wheel size reduced ~50%"</li>
+<li><code>docs/dev/ggml-unification.md</code> — broader unification plan</li>
+</ul>
 
 
 

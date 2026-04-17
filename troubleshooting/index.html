@@ -1531,6 +1531,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#vulkan-picks-the-wrong-gpu-igpu-instead-of-discrete" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Vulkan picks the wrong GPU (iGPU instead of discrete)
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1995,6 +2006,17 @@
     <span class="md-ellipsis">
       
         Vulkan Issues
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vulkan-picks-the-wrong-gpu-igpu-instead-of-discrete" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Vulkan picks the wrong GPU (iGPU instead of discrete)
       
     </span>
   </a>
@@ -2507,20 +2529,28 @@
 </ol>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>make<span class="w"> </span>build-vulkan
 </code></pre></div>
+<h3 id="vulkan-picks-the-wrong-gpu-igpu-instead-of-discrete">Vulkan picks the wrong GPU (iGPU instead of discrete)<a class="headerlink" href="#vulkan-picks-the-wrong-gpu-igpu-instead-of-discrete" title="Permanent link">&para;</a></h3>
+<p><strong>Symptoms:</strong> On systems with both an integrated and a discrete GPU (e.g. AMD iGPU + NVIDIA dGPU), the Vulkan backend selects the iGPU by default. Workloads run slowly; <code>nvtop</code> shows the discrete card idle.</p>
+<p><strong>Cause:</strong> ggml-vulkan enumerates every Vulkan-capable device the loader exposes and, absent a filter, uses them all with device 0 first.</p>
+<p><strong>Solution:</strong> Restrict ggml-vulkan to the discrete GPU with <code>GGML_VK_VISIBLE_DEVICES</code> (same semantics as <code>CUDA_VISIBLE_DEVICES</code>):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a><span class="c1"># Find the right index — ggml-vulkan prints devices at init</span>
+<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a><span class="nv">GGML_VK_VISIBLE_DEVICES</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>uv<span class="w"> </span>run<span class="w"> </span>cyllama<span class="w"> </span>info
+</code></pre></div>
+<p>Alternatively, filter at the Vulkan-loader level with <code>MESA_VK_DEVICE_SELECT=&lt;vendor&gt;:&lt;device&gt;</code> (hex PCI IDs) or by pointing <code>VK_ICD_FILENAMES</code> at a single ICD JSON.</p>
 <h2 id="agent-issues">Agent Issues<a class="headerlink" href="#agent-issues" title="Permanent link">&para;</a></h2>
 <h3 id="agent-loops-forever">Agent Loops Forever<a class="headerlink" href="#agent-loops-forever" title="Permanent link">&para;</a></h3>
 <p><strong>Cause:</strong> Agent stuck in reasoning loop.</p>
 <p><strong>Solutions:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">ReActAgent</span>
-<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a>
-<a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">ReActAgent</span><span class="p">(</span>
-<a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a>    <span class="n">llm</span><span class="o">=</span><span class="n">llm</span><span class="p">,</span>
-<a id="__codelineno-30-5" name="__codelineno-30-5" href="#__codelineno-30-5"></a>    <span class="n">tools</span><span class="o">=</span><span class="n">tools</span><span class="p">,</span>
-<a id="__codelineno-30-6" name="__codelineno-30-6" href="#__codelineno-30-6"></a>    <span class="n">max_iterations</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>              <span class="c1"># Hard limit</span>
-<a id="__codelineno-30-7" name="__codelineno-30-7" href="#__codelineno-30-7"></a>    <span class="n">detect_loops</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>             <span class="c1"># Enable loop detection</span>
-<a id="__codelineno-30-8" name="__codelineno-30-8" href="#__codelineno-30-8"></a>    <span class="n">max_consecutive_same_action</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="c1"># Stop after 2 identical actions</span>
-<a id="__codelineno-30-9" name="__codelineno-30-9" href="#__codelineno-30-9"></a>    <span class="n">max_consecutive_same_tool</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span>   <span class="c1"># Stop after 3 calls to same tool</span>
-<a id="__codelineno-30-10" name="__codelineno-30-10" href="#__codelineno-30-10"></a><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">ReActAgent</span>
+<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a>
+<a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">ReActAgent</span><span class="p">(</span>
+<a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a>    <span class="n">llm</span><span class="o">=</span><span class="n">llm</span><span class="p">,</span>
+<a id="__codelineno-31-5" name="__codelineno-31-5" href="#__codelineno-31-5"></a>    <span class="n">tools</span><span class="o">=</span><span class="n">tools</span><span class="p">,</span>
+<a id="__codelineno-31-6" name="__codelineno-31-6" href="#__codelineno-31-6"></a>    <span class="n">max_iterations</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>              <span class="c1"># Hard limit</span>
+<a id="__codelineno-31-7" name="__codelineno-31-7" href="#__codelineno-31-7"></a>    <span class="n">detect_loops</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>             <span class="c1"># Enable loop detection</span>
+<a id="__codelineno-31-8" name="__codelineno-31-8" href="#__codelineno-31-8"></a>    <span class="n">max_consecutive_same_action</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="c1"># Stop after 2 identical actions</span>
+<a id="__codelineno-31-9" name="__codelineno-31-9" href="#__codelineno-31-9"></a>    <span class="n">max_consecutive_same_tool</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span>   <span class="c1"># Stop after 3 calls to same tool</span>
+<a id="__codelineno-31-10" name="__codelineno-31-10" href="#__codelineno-31-10"></a><span class="p">)</span>
 </code></pre></div>
 <h3 id="agent-cant-parse-tool-calls">Agent Can't Parse Tool Calls<a class="headerlink" href="#agent-cant-parse-tool-calls" title="Permanent link">&para;</a></h3>
 <p><strong>Cause:</strong> Model not following expected format.</p>
@@ -2528,10 +2558,10 @@
 <ol>
 <li><strong>Use ConstrainedAgent for guaranteed parsing:</strong></li>
 </ol>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">ConstrainedAgent</span>
-<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a>
-<a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">ConstrainedAgent</span><span class="p">(</span><span class="n">llm</span><span class="o">=</span><span class="n">llm</span><span class="p">,</span> <span class="n">tools</span><span class="o">=</span><span class="n">tools</span><span class="p">)</span>
-<a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a><span class="c1"># Grammar constraints ensure valid JSON output</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">ConstrainedAgent</span>
+<a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a>
+<a id="__codelineno-32-3" name="__codelineno-32-3" href="#__codelineno-32-3"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">ConstrainedAgent</span><span class="p">(</span><span class="n">llm</span><span class="o">=</span><span class="n">llm</span><span class="p">,</span> <span class="n">tools</span><span class="o">=</span><span class="n">tools</span><span class="p">)</span>
+<a id="__codelineno-32-4" name="__codelineno-32-4" href="#__codelineno-32-4"></a><span class="c1"># Grammar constraints ensure valid JSON output</span>
 </code></pre></div>
 <ol>
 <li>
@@ -2541,82 +2571,82 @@
 <p><strong>Simplify tool definitions:</strong></p>
 </li>
 </ol>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a><span class="nd">@tool</span>
-<a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">simple_tool</span><span class="p">(</span><span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>  <span class="c1"># Simple, clear signature</span>
-<a id="__codelineno-32-3" name="__codelineno-32-3" href="#__codelineno-32-3"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Search for information.&quot;&quot;&quot;</span>     <span class="c1"># Clear docstring</span>
-<a id="__codelineno-32-4" name="__codelineno-32-4" href="#__codelineno-32-4"></a>    <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;Results: </span><span class="si">{</span><span class="n">query</span><span class="si">}</span><span class="s2">&quot;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a><span class="nd">@tool</span>
+<a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">simple_tool</span><span class="p">(</span><span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>  <span class="c1"># Simple, clear signature</span>
+<a id="__codelineno-33-3" name="__codelineno-33-3" href="#__codelineno-33-3"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Search for information.&quot;&quot;&quot;</span>     <span class="c1"># Clear docstring</span>
+<a id="__codelineno-33-4" name="__codelineno-33-4" href="#__codelineno-33-4"></a>    <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;Results: </span><span class="si">{</span><span class="n">query</span><span class="si">}</span><span class="s2">&quot;</span>
 </code></pre></div>
 <h3 id="tool-execution-errors">Tool Execution Errors<a class="headerlink" href="#tool-execution-errors" title="Permanent link">&para;</a></h3>
 <p><strong>Cause:</strong> Tool function throws exception.</p>
 <p><strong>Solution:</strong> Add error handling in tools:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a><span class="nd">@tool</span>
-<a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">safe_calculate</span><span class="p">(</span><span class="n">expression</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-<a id="__codelineno-33-3" name="__codelineno-33-3" href="#__codelineno-33-3"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Safely evaluate a math expression.&quot;&quot;&quot;</span>
-<a id="__codelineno-33-4" name="__codelineno-33-4" href="#__codelineno-33-4"></a>    <span class="k">try</span><span class="p">:</span>
-<a id="__codelineno-33-5" name="__codelineno-33-5" href="#__codelineno-33-5"></a>        <span class="n">result</span> <span class="o">=</span> <span class="nb">eval</span><span class="p">(</span><span class="n">expression</span><span class="p">)</span>
-<a id="__codelineno-33-6" name="__codelineno-33-6" href="#__codelineno-33-6"></a>        <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
-<a id="__codelineno-33-7" name="__codelineno-33-7" href="#__codelineno-33-7"></a>    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-<a id="__codelineno-33-8" name="__codelineno-33-8" href="#__codelineno-33-8"></a>        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;Error: Could not evaluate &#39;</span><span class="si">{</span><span class="n">expression</span><span class="si">}</span><span class="s2">&#39;: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a><span class="nd">@tool</span>
+<a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">safe_calculate</span><span class="p">(</span><span class="n">expression</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<a id="__codelineno-34-3" name="__codelineno-34-3" href="#__codelineno-34-3"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Safely evaluate a math expression.&quot;&quot;&quot;</span>
+<a id="__codelineno-34-4" name="__codelineno-34-4" href="#__codelineno-34-4"></a>    <span class="k">try</span><span class="p">:</span>
+<a id="__codelineno-34-5" name="__codelineno-34-5" href="#__codelineno-34-5"></a>        <span class="n">result</span> <span class="o">=</span> <span class="nb">eval</span><span class="p">(</span><span class="n">expression</span><span class="p">)</span>
+<a id="__codelineno-34-6" name="__codelineno-34-6" href="#__codelineno-34-6"></a>        <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
+<a id="__codelineno-34-7" name="__codelineno-34-7" href="#__codelineno-34-7"></a>    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+<a id="__codelineno-34-8" name="__codelineno-34-8" href="#__codelineno-34-8"></a>        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;Error: Could not evaluate &#39;</span><span class="si">{</span><span class="n">expression</span><span class="si">}</span><span class="s2">&#39;: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span>
 </code></pre></div>
 <h2 id="async-issues">Async Issues<a class="headerlink" href="#async-issues" title="Permanent link">&para;</a></h2>
 <h3 id="runtimeerror-event-loop-is-already-running">"RuntimeError: Event loop is already running"<a class="headerlink" href="#runtimeerror-event-loop-is-already-running" title="Permanent link">&para;</a></h3>
 <p><strong>Cause:</strong> Trying to use <code>asyncio.run()</code> inside an existing event loop (e.g., Jupyter).</p>
 <p><strong>Solution:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a><span class="c1"># In Jupyter notebooks, use:</span>
-<a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">nest_asyncio</span>
-<a id="__codelineno-34-3" name="__codelineno-34-3" href="#__codelineno-34-3"></a><span class="n">nest_asyncio</span><span class="o">.</span><span class="n">apply</span><span class="p">()</span>
-<a id="__codelineno-34-4" name="__codelineno-34-4" href="#__codelineno-34-4"></a>
-<a id="__codelineno-34-5" name="__codelineno-34-5" href="#__codelineno-34-5"></a><span class="c1"># Or use await directly:</span>
-<a id="__codelineno-34-6" name="__codelineno-34-6" href="#__codelineno-34-6"></a><span class="n">response</span> <span class="o">=</span> <span class="k">await</span> <span class="n">complete_async</span><span class="p">(</span><span class="s2">&quot;...&quot;</span><span class="p">,</span> <span class="n">model_path</span><span class="o">=</span><span class="s2">&quot;model.gguf&quot;</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a><span class="c1"># In Jupyter notebooks, use:</span>
+<a id="__codelineno-35-2" name="__codelineno-35-2" href="#__codelineno-35-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">nest_asyncio</span>
+<a id="__codelineno-35-3" name="__codelineno-35-3" href="#__codelineno-35-3"></a><span class="n">nest_asyncio</span><span class="o">.</span><span class="n">apply</span><span class="p">()</span>
+<a id="__codelineno-35-4" name="__codelineno-35-4" href="#__codelineno-35-4"></a>
+<a id="__codelineno-35-5" name="__codelineno-35-5" href="#__codelineno-35-5"></a><span class="c1"># Or use await directly:</span>
+<a id="__codelineno-35-6" name="__codelineno-35-6" href="#__codelineno-35-6"></a><span class="n">response</span> <span class="o">=</span> <span class="k">await</span> <span class="n">complete_async</span><span class="p">(</span><span class="s2">&quot;...&quot;</span><span class="p">,</span> <span class="n">model_path</span><span class="o">=</span><span class="s2">&quot;model.gguf&quot;</span><span class="p">)</span>
 </code></pre></div>
 <h3 id="async-tasks-not-running-concurrently">Async Tasks Not Running Concurrently<a class="headerlink" href="#async-tasks-not-running-concurrently" title="Permanent link">&para;</a></h3>
 <p><strong>Cause:</strong> AsyncLLM uses a lock to serialize access (by design, for thread safety).</p>
 <p><strong>Solution:</strong> For true parallelism, use multiple AsyncLLM instances:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
-<a id="__codelineno-35-2" name="__codelineno-35-2" href="#__codelineno-35-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama</span><span class="w"> </span><span class="kn">import</span> <span class="n">AsyncLLM</span>
-<a id="__codelineno-35-3" name="__codelineno-35-3" href="#__codelineno-35-3"></a>
-<a id="__codelineno-35-4" name="__codelineno-35-4" href="#__codelineno-35-4"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">parallel_generation</span><span class="p">():</span>
-<a id="__codelineno-35-5" name="__codelineno-35-5" href="#__codelineno-35-5"></a>    <span class="c1"># Create multiple instances for parallel inference</span>
-<a id="__codelineno-35-6" name="__codelineno-35-6" href="#__codelineno-35-6"></a>    <span class="k">async</span> <span class="k">with</span> <span class="n">AsyncLLM</span><span class="p">(</span><span class="s2">&quot;model.gguf&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">llm1</span><span class="p">,</span> \
-<a id="__codelineno-35-7" name="__codelineno-35-7" href="#__codelineno-35-7"></a>               <span class="n">AsyncLLM</span><span class="p">(</span><span class="s2">&quot;model.gguf&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">llm2</span><span class="p">:</span>
-<a id="__codelineno-35-8" name="__codelineno-35-8" href="#__codelineno-35-8"></a>
-<a id="__codelineno-35-9" name="__codelineno-35-9" href="#__codelineno-35-9"></a>        <span class="n">task1</span> <span class="o">=</span> <span class="n">llm1</span><span class="p">(</span><span class="s2">&quot;Prompt 1&quot;</span><span class="p">)</span>
-<a id="__codelineno-35-10" name="__codelineno-35-10" href="#__codelineno-35-10"></a>        <span class="n">task2</span> <span class="o">=</span> <span class="n">llm2</span><span class="p">(</span><span class="s2">&quot;Prompt 2&quot;</span><span class="p">)</span>
-<a id="__codelineno-35-11" name="__codelineno-35-11" href="#__codelineno-35-11"></a>
-<a id="__codelineno-35-12" name="__codelineno-35-12" href="#__codelineno-35-12"></a>        <span class="n">results</span> <span class="o">=</span> <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">gather</span><span class="p">(</span><span class="n">task1</span><span class="p">,</span> <span class="n">task2</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
+<a id="__codelineno-36-2" name="__codelineno-36-2" href="#__codelineno-36-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama</span><span class="w"> </span><span class="kn">import</span> <span class="n">AsyncLLM</span>
+<a id="__codelineno-36-3" name="__codelineno-36-3" href="#__codelineno-36-3"></a>
+<a id="__codelineno-36-4" name="__codelineno-36-4" href="#__codelineno-36-4"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">parallel_generation</span><span class="p">():</span>
+<a id="__codelineno-36-5" name="__codelineno-36-5" href="#__codelineno-36-5"></a>    <span class="c1"># Create multiple instances for parallel inference</span>
+<a id="__codelineno-36-6" name="__codelineno-36-6" href="#__codelineno-36-6"></a>    <span class="k">async</span> <span class="k">with</span> <span class="n">AsyncLLM</span><span class="p">(</span><span class="s2">&quot;model.gguf&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">llm1</span><span class="p">,</span> \
+<a id="__codelineno-36-7" name="__codelineno-36-7" href="#__codelineno-36-7"></a>               <span class="n">AsyncLLM</span><span class="p">(</span><span class="s2">&quot;model.gguf&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">llm2</span><span class="p">:</span>
+<a id="__codelineno-36-8" name="__codelineno-36-8" href="#__codelineno-36-8"></a>
+<a id="__codelineno-36-9" name="__codelineno-36-9" href="#__codelineno-36-9"></a>        <span class="n">task1</span> <span class="o">=</span> <span class="n">llm1</span><span class="p">(</span><span class="s2">&quot;Prompt 1&quot;</span><span class="p">)</span>
+<a id="__codelineno-36-10" name="__codelineno-36-10" href="#__codelineno-36-10"></a>        <span class="n">task2</span> <span class="o">=</span> <span class="n">llm2</span><span class="p">(</span><span class="s2">&quot;Prompt 2&quot;</span><span class="p">)</span>
+<a id="__codelineno-36-11" name="__codelineno-36-11" href="#__codelineno-36-11"></a>
+<a id="__codelineno-36-12" name="__codelineno-36-12" href="#__codelineno-36-12"></a>        <span class="n">results</span> <span class="o">=</span> <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">gather</span><span class="p">(</span><span class="n">task1</span><span class="p">,</span> <span class="n">task2</span><span class="p">)</span>
 </code></pre></div>
 <h2 id="whisper-issues">Whisper Issues<a class="headerlink" href="#whisper-issues" title="Permanent link">&para;</a></h2>
 <h3 id="invalid-audio-format">"Invalid audio format"<a class="headerlink" href="#invalid-audio-format" title="Permanent link">&para;</a></h3>
 <p><strong>Cause:</strong> Audio not in correct format (16kHz, mono, float32).</p>
 <p><strong>Solution:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
-<a id="__codelineno-36-2" name="__codelineno-36-2" href="#__codelineno-36-2"></a>
-<a id="__codelineno-36-3" name="__codelineno-36-3" href="#__codelineno-36-3"></a><span class="k">def</span><span class="w"> </span><span class="nf">prepare_audio</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="n">sample_rate</span><span class="p">):</span>
-<a id="__codelineno-36-4" name="__codelineno-36-4" href="#__codelineno-36-4"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Convert audio to Whisper-compatible format.&quot;&quot;&quot;</span>
-<a id="__codelineno-36-5" name="__codelineno-36-5" href="#__codelineno-36-5"></a>    <span class="c1"># Resample to 16kHz if needed</span>
-<a id="__codelineno-36-6" name="__codelineno-36-6" href="#__codelineno-36-6"></a>    <span class="k">if</span> <span class="n">sample_rate</span> <span class="o">!=</span> <span class="mi">16000</span><span class="p">:</span>
-<a id="__codelineno-36-7" name="__codelineno-36-7" href="#__codelineno-36-7"></a>        <span class="c1"># Use scipy or librosa for resampling</span>
-<a id="__codelineno-36-8" name="__codelineno-36-8" href="#__codelineno-36-8"></a>        <span class="kn">from</span><span class="w"> </span><span class="nn">scipy</span><span class="w"> </span><span class="kn">import</span> <span class="n">signal</span>
-<a id="__codelineno-36-9" name="__codelineno-36-9" href="#__codelineno-36-9"></a>        <span class="n">samples</span> <span class="o">=</span> <span class="n">signal</span><span class="o">.</span><span class="n">resample</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span> <span class="o">*</span> <span class="mi">16000</span> <span class="o">/</span> <span class="n">sample_rate</span><span class="p">))</span>
-<a id="__codelineno-36-10" name="__codelineno-36-10" href="#__codelineno-36-10"></a>
-<a id="__codelineno-36-11" name="__codelineno-36-11" href="#__codelineno-36-11"></a>    <span class="c1"># Convert to mono if stereo</span>
-<a id="__codelineno-36-12" name="__codelineno-36-12" href="#__codelineno-36-12"></a>    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
-<a id="__codelineno-36-13" name="__codelineno-36-13" href="#__codelineno-36-13"></a>        <span class="n">samples</span> <span class="o">=</span> <span class="n">samples</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
-<a id="__codelineno-36-14" name="__codelineno-36-14" href="#__codelineno-36-14"></a>
-<a id="__codelineno-36-15" name="__codelineno-36-15" href="#__codelineno-36-15"></a>    <span class="c1"># Convert to float32 in [-1, 1]</span>
-<a id="__codelineno-36-16" name="__codelineno-36-16" href="#__codelineno-36-16"></a>    <span class="n">samples</span> <span class="o">=</span> <span class="n">samples</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
-<a id="__codelineno-36-17" name="__codelineno-36-17" href="#__codelineno-36-17"></a>    <span class="k">if</span> <span class="n">samples</span><span class="o">.</span><span class="n">max</span><span class="p">()</span> <span class="o">&gt;</span> <span class="mf">1.0</span> <span class="ow">or</span> <span class="n">samples</span><span class="o">.</span><span class="n">min</span><span class="p">()</span> <span class="o">&lt;</span> <span class="o">-</span><span class="mf">1.0</span><span class="p">:</span>
-<a id="__codelineno-36-18" name="__codelineno-36-18" href="#__codelineno-36-18"></a>        <span class="n">samples</span> <span class="o">=</span> <span class="n">samples</span> <span class="o">/</span> <span class="nb">max</span><span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="n">samples</span><span class="o">.</span><span class="n">max</span><span class="p">()),</span> <span class="nb">abs</span><span class="p">(</span><span class="n">samples</span><span class="o">.</span><span class="n">min</span><span class="p">()))</span>
-<a id="__codelineno-36-19" name="__codelineno-36-19" href="#__codelineno-36-19"></a>
-<a id="__codelineno-36-20" name="__codelineno-36-20" href="#__codelineno-36-20"></a>    <span class="k">return</span> <span class="n">samples</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<a id="__codelineno-37-2" name="__codelineno-37-2" href="#__codelineno-37-2"></a>
+<a id="__codelineno-37-3" name="__codelineno-37-3" href="#__codelineno-37-3"></a><span class="k">def</span><span class="w"> </span><span class="nf">prepare_audio</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="n">sample_rate</span><span class="p">):</span>
+<a id="__codelineno-37-4" name="__codelineno-37-4" href="#__codelineno-37-4"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Convert audio to Whisper-compatible format.&quot;&quot;&quot;</span>
+<a id="__codelineno-37-5" name="__codelineno-37-5" href="#__codelineno-37-5"></a>    <span class="c1"># Resample to 16kHz if needed</span>
+<a id="__codelineno-37-6" name="__codelineno-37-6" href="#__codelineno-37-6"></a>    <span class="k">if</span> <span class="n">sample_rate</span> <span class="o">!=</span> <span class="mi">16000</span><span class="p">:</span>
+<a id="__codelineno-37-7" name="__codelineno-37-7" href="#__codelineno-37-7"></a>        <span class="c1"># Use scipy or librosa for resampling</span>
+<a id="__codelineno-37-8" name="__codelineno-37-8" href="#__codelineno-37-8"></a>        <span class="kn">from</span><span class="w"> </span><span class="nn">scipy</span><span class="w"> </span><span class="kn">import</span> <span class="n">signal</span>
+<a id="__codelineno-37-9" name="__codelineno-37-9" href="#__codelineno-37-9"></a>        <span class="n">samples</span> <span class="o">=</span> <span class="n">signal</span><span class="o">.</span><span class="n">resample</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span> <span class="o">*</span> <span class="mi">16000</span> <span class="o">/</span> <span class="n">sample_rate</span><span class="p">))</span>
+<a id="__codelineno-37-10" name="__codelineno-37-10" href="#__codelineno-37-10"></a>
+<a id="__codelineno-37-11" name="__codelineno-37-11" href="#__codelineno-37-11"></a>    <span class="c1"># Convert to mono if stereo</span>
+<a id="__codelineno-37-12" name="__codelineno-37-12" href="#__codelineno-37-12"></a>    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+<a id="__codelineno-37-13" name="__codelineno-37-13" href="#__codelineno-37-13"></a>        <span class="n">samples</span> <span class="o">=</span> <span class="n">samples</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<a id="__codelineno-37-14" name="__codelineno-37-14" href="#__codelineno-37-14"></a>
+<a id="__codelineno-37-15" name="__codelineno-37-15" href="#__codelineno-37-15"></a>    <span class="c1"># Convert to float32 in [-1, 1]</span>
+<a id="__codelineno-37-16" name="__codelineno-37-16" href="#__codelineno-37-16"></a>    <span class="n">samples</span> <span class="o">=</span> <span class="n">samples</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+<a id="__codelineno-37-17" name="__codelineno-37-17" href="#__codelineno-37-17"></a>    <span class="k">if</span> <span class="n">samples</span><span class="o">.</span><span class="n">max</span><span class="p">()</span> <span class="o">&gt;</span> <span class="mf">1.0</span> <span class="ow">or</span> <span class="n">samples</span><span class="o">.</span><span class="n">min</span><span class="p">()</span> <span class="o">&lt;</span> <span class="o">-</span><span class="mf">1.0</span><span class="p">:</span>
+<a id="__codelineno-37-18" name="__codelineno-37-18" href="#__codelineno-37-18"></a>        <span class="n">samples</span> <span class="o">=</span> <span class="n">samples</span> <span class="o">/</span> <span class="nb">max</span><span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="n">samples</span><span class="o">.</span><span class="n">max</span><span class="p">()),</span> <span class="nb">abs</span><span class="p">(</span><span class="n">samples</span><span class="o">.</span><span class="n">min</span><span class="p">()))</span>
+<a id="__codelineno-37-19" name="__codelineno-37-19" href="#__codelineno-37-19"></a>
+<a id="__codelineno-37-20" name="__codelineno-37-20" href="#__codelineno-37-20"></a>    <span class="k">return</span> <span class="n">samples</span>
 </code></pre></div>
 <h2 id="stable-diffusion-issues">Stable Diffusion Issues<a class="headerlink" href="#stable-diffusion-issues" title="Permanent link">&para;</a></h2>
 <h3 id="module-not-available">"Module not available"<a class="headerlink" href="#module-not-available" title="Permanent link">&para;</a></h3>
 <p><strong>Cause:</strong> Built without Stable Diffusion support.</p>
 <p><strong>Solution:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a><span class="c1"># Rebuild with SD support</span>
-<a id="__codelineno-37-2" name="__codelineno-37-2" href="#__codelineno-37-2"></a><span class="nv">WITH_STABLEDIFFUSION</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>make<span class="w"> </span>reset
-<a id="__codelineno-37-3" name="__codelineno-37-3" href="#__codelineno-37-3"></a><span class="nv">WITH_STABLEDIFFUSION</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>make<span class="w"> </span>build
+<div class="highlight"><pre><span></span><code><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a><span class="c1"># Rebuild with SD support</span>
+<a id="__codelineno-38-2" name="__codelineno-38-2" href="#__codelineno-38-2"></a><span class="nv">WITH_STABLEDIFFUSION</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>make<span class="w"> </span>reset
+<a id="__codelineno-38-3" name="__codelineno-38-3" href="#__codelineno-38-3"></a><span class="nv">WITH_STABLEDIFFUSION</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>make<span class="w"> </span>build
 </code></pre></div>
 <h3 id="images-are-blank-or-corrupted">Images are Blank or Corrupted<a class="headerlink" href="#images-are-blank-or-corrupted" title="Permanent link">&para;</a></h3>
 <p><strong>Cause:</strong> Wrong model type or incompatible settings.</p>
@@ -2624,57 +2654,57 @@
 <ol>
 <li><strong>For SDXL Turbo models:</strong></li>
 </ol>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a><span class="n">images</span> <span class="o">=</span> <span class="n">text_to_image</span><span class="p">(</span>
-<a id="__codelineno-38-2" name="__codelineno-38-2" href="#__codelineno-38-2"></a>    <span class="n">model_path</span><span class="o">=</span><span class="s2">&quot;sd_xl_turbo.gguf&quot;</span><span class="p">,</span>
-<a id="__codelineno-38-3" name="__codelineno-38-3" href="#__codelineno-38-3"></a>    <span class="n">prompt</span><span class="o">=</span><span class="s2">&quot;...&quot;</span><span class="p">,</span>
-<a id="__codelineno-38-4" name="__codelineno-38-4" href="#__codelineno-38-4"></a>    <span class="n">sample_steps</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>   <span class="c1"># Turbo uses fewer steps</span>
-<a id="__codelineno-38-5" name="__codelineno-38-5" href="#__codelineno-38-5"></a>    <span class="n">cfg_scale</span><span class="o">=</span><span class="mf">1.0</span>     <span class="c1"># Turbo uses low CFG</span>
-<a id="__codelineno-38-6" name="__codelineno-38-6" href="#__codelineno-38-6"></a><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a><span class="n">images</span> <span class="o">=</span> <span class="n">text_to_image</span><span class="p">(</span>
+<a id="__codelineno-39-2" name="__codelineno-39-2" href="#__codelineno-39-2"></a>    <span class="n">model_path</span><span class="o">=</span><span class="s2">&quot;sd_xl_turbo.gguf&quot;</span><span class="p">,</span>
+<a id="__codelineno-39-3" name="__codelineno-39-3" href="#__codelineno-39-3"></a>    <span class="n">prompt</span><span class="o">=</span><span class="s2">&quot;...&quot;</span><span class="p">,</span>
+<a id="__codelineno-39-4" name="__codelineno-39-4" href="#__codelineno-39-4"></a>    <span class="n">sample_steps</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>   <span class="c1"># Turbo uses fewer steps</span>
+<a id="__codelineno-39-5" name="__codelineno-39-5" href="#__codelineno-39-5"></a>    <span class="n">cfg_scale</span><span class="o">=</span><span class="mf">1.0</span>     <span class="c1"># Turbo uses low CFG</span>
+<a id="__codelineno-39-6" name="__codelineno-39-6" href="#__codelineno-39-6"></a><span class="p">)</span>
 </code></pre></div>
 <ol>
 <li><strong>For standard SD models:</strong></li>
 </ol>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a><span class="n">images</span> <span class="o">=</span> <span class="n">text_to_image</span><span class="p">(</span>
-<a id="__codelineno-39-2" name="__codelineno-39-2" href="#__codelineno-39-2"></a>    <span class="n">model_path</span><span class="o">=</span><span class="s2">&quot;sd_v1_5.gguf&quot;</span><span class="p">,</span>
-<a id="__codelineno-39-3" name="__codelineno-39-3" href="#__codelineno-39-3"></a>    <span class="n">prompt</span><span class="o">=</span><span class="s2">&quot;...&quot;</span><span class="p">,</span>
-<a id="__codelineno-39-4" name="__codelineno-39-4" href="#__codelineno-39-4"></a>    <span class="n">sample_steps</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span>  <span class="c1"># More steps</span>
-<a id="__codelineno-39-5" name="__codelineno-39-5" href="#__codelineno-39-5"></a>    <span class="n">cfg_scale</span><span class="o">=</span><span class="mf">7.0</span>     <span class="c1"># Higher CFG</span>
-<a id="__codelineno-39-6" name="__codelineno-39-6" href="#__codelineno-39-6"></a><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-40-1" name="__codelineno-40-1" href="#__codelineno-40-1"></a><span class="n">images</span> <span class="o">=</span> <span class="n">text_to_image</span><span class="p">(</span>
+<a id="__codelineno-40-2" name="__codelineno-40-2" href="#__codelineno-40-2"></a>    <span class="n">model_path</span><span class="o">=</span><span class="s2">&quot;sd_v1_5.gguf&quot;</span><span class="p">,</span>
+<a id="__codelineno-40-3" name="__codelineno-40-3" href="#__codelineno-40-3"></a>    <span class="n">prompt</span><span class="o">=</span><span class="s2">&quot;...&quot;</span><span class="p">,</span>
+<a id="__codelineno-40-4" name="__codelineno-40-4" href="#__codelineno-40-4"></a>    <span class="n">sample_steps</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span>  <span class="c1"># More steps</span>
+<a id="__codelineno-40-5" name="__codelineno-40-5" href="#__codelineno-40-5"></a>    <span class="n">cfg_scale</span><span class="o">=</span><span class="mf">7.0</span>     <span class="c1"># Higher CFG</span>
+<a id="__codelineno-40-6" name="__codelineno-40-6" href="#__codelineno-40-6"></a><span class="p">)</span>
 </code></pre></div>
 <h2 id="performance-tips">Performance Tips<a class="headerlink" href="#performance-tips" title="Permanent link">&para;</a></h2>
 <h3 id="slow-first-generation">Slow First Generation<a class="headerlink" href="#slow-first-generation" title="Permanent link">&para;</a></h3>
 <p><strong>Cause:</strong> Model loading and context creation on first call.</p>
 <p><strong>Solution:</strong> Use the LLM class to keep the model loaded:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-40-1" name="__codelineno-40-1" href="#__codelineno-40-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama</span><span class="w"> </span><span class="kn">import</span> <span class="n">LLM</span>
-<a id="__codelineno-40-2" name="__codelineno-40-2" href="#__codelineno-40-2"></a>
-<a id="__codelineno-40-3" name="__codelineno-40-3" href="#__codelineno-40-3"></a><span class="n">llm</span> <span class="o">=</span> <span class="n">LLM</span><span class="p">(</span><span class="s2">&quot;model.gguf&quot;</span><span class="p">)</span>  <span class="c1"># Load once</span>
-<a id="__codelineno-40-4" name="__codelineno-40-4" href="#__codelineno-40-4"></a>
-<a id="__codelineno-40-5" name="__codelineno-40-5" href="#__codelineno-40-5"></a><span class="c1"># Subsequent calls are fast</span>
-<a id="__codelineno-40-6" name="__codelineno-40-6" href="#__codelineno-40-6"></a><span class="k">for</span> <span class="n">prompt</span> <span class="ow">in</span> <span class="n">prompts</span><span class="p">:</span>
-<a id="__codelineno-40-7" name="__codelineno-40-7" href="#__codelineno-40-7"></a>    <span class="n">response</span> <span class="o">=</span> <span class="n">llm</span><span class="p">(</span><span class="n">prompt</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-41-1" name="__codelineno-41-1" href="#__codelineno-41-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama</span><span class="w"> </span><span class="kn">import</span> <span class="n">LLM</span>
+<a id="__codelineno-41-2" name="__codelineno-41-2" href="#__codelineno-41-2"></a>
+<a id="__codelineno-41-3" name="__codelineno-41-3" href="#__codelineno-41-3"></a><span class="n">llm</span> <span class="o">=</span> <span class="n">LLM</span><span class="p">(</span><span class="s2">&quot;model.gguf&quot;</span><span class="p">)</span>  <span class="c1"># Load once</span>
+<a id="__codelineno-41-4" name="__codelineno-41-4" href="#__codelineno-41-4"></a>
+<a id="__codelineno-41-5" name="__codelineno-41-5" href="#__codelineno-41-5"></a><span class="c1"># Subsequent calls are fast</span>
+<a id="__codelineno-41-6" name="__codelineno-41-6" href="#__codelineno-41-6"></a><span class="k">for</span> <span class="n">prompt</span> <span class="ow">in</span> <span class="n">prompts</span><span class="p">:</span>
+<a id="__codelineno-41-7" name="__codelineno-41-7" href="#__codelineno-41-7"></a>    <span class="n">response</span> <span class="o">=</span> <span class="n">llm</span><span class="p">(</span><span class="n">prompt</span><span class="p">)</span>
 </code></pre></div>
 <h3 id="high-memory-usage">High Memory Usage<a class="headerlink" href="#high-memory-usage" title="Permanent link">&para;</a></h3>
 <p><strong>Solutions:</strong></p>
 <ol>
 <li>Close resources when done:</li>
 </ol>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-41-1" name="__codelineno-41-1" href="#__codelineno-41-1"></a><span class="n">llm</span> <span class="o">=</span> <span class="n">LLM</span><span class="p">(</span><span class="s2">&quot;model.gguf&quot;</span><span class="p">)</span>
-<a id="__codelineno-41-2" name="__codelineno-41-2" href="#__codelineno-41-2"></a><span class="c1"># ... use llm ...</span>
-<a id="__codelineno-41-3" name="__codelineno-41-3" href="#__codelineno-41-3"></a><span class="n">llm</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>  <span class="c1"># Free memory</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-42-1" name="__codelineno-42-1" href="#__codelineno-42-1"></a><span class="n">llm</span> <span class="o">=</span> <span class="n">LLM</span><span class="p">(</span><span class="s2">&quot;model.gguf&quot;</span><span class="p">)</span>
+<a id="__codelineno-42-2" name="__codelineno-42-2" href="#__codelineno-42-2"></a><span class="c1"># ... use llm ...</span>
+<a id="__codelineno-42-3" name="__codelineno-42-3" href="#__codelineno-42-3"></a><span class="n">llm</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>  <span class="c1"># Free memory</span>
 </code></pre></div>
 <ol>
 <li>Use context managers:</li>
 </ol>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-42-1" name="__codelineno-42-1" href="#__codelineno-42-1"></a><span class="k">with</span> <span class="n">LLM</span><span class="p">(</span><span class="s2">&quot;model.gguf&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">llm</span><span class="p">:</span>
-<a id="__codelineno-42-2" name="__codelineno-42-2" href="#__codelineno-42-2"></a>    <span class="n">response</span> <span class="o">=</span> <span class="n">llm</span><span class="p">(</span><span class="s2">&quot;...&quot;</span><span class="p">)</span>
-<a id="__codelineno-42-3" name="__codelineno-42-3" href="#__codelineno-42-3"></a><span class="c1"># Automatically freed</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-43-1" name="__codelineno-43-1" href="#__codelineno-43-1"></a><span class="k">with</span> <span class="n">LLM</span><span class="p">(</span><span class="s2">&quot;model.gguf&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">llm</span><span class="p">:</span>
+<a id="__codelineno-43-2" name="__codelineno-43-2" href="#__codelineno-43-2"></a>    <span class="n">response</span> <span class="o">=</span> <span class="n">llm</span><span class="p">(</span><span class="s2">&quot;...&quot;</span><span class="p">)</span>
+<a id="__codelineno-43-3" name="__codelineno-43-3" href="#__codelineno-43-3"></a><span class="c1"># Automatically freed</span>
 </code></pre></div>
 <ol>
 <li>Use batch processing for multiple prompts:</li>
 </ol>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-43-1" name="__codelineno-43-1" href="#__codelineno-43-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama</span><span class="w"> </span><span class="kn">import</span> <span class="n">batch_generate</span>
-<a id="__codelineno-43-2" name="__codelineno-43-2" href="#__codelineno-43-2"></a>
-<a id="__codelineno-43-3" name="__codelineno-43-3" href="#__codelineno-43-3"></a><span class="n">responses</span> <span class="o">=</span> <span class="n">batch_generate</span><span class="p">(</span><span class="n">prompts</span><span class="p">,</span> <span class="n">model_path</span><span class="o">=</span><span class="s2">&quot;model.gguf&quot;</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-44-1" name="__codelineno-44-1" href="#__codelineno-44-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama</span><span class="w"> </span><span class="kn">import</span> <span class="n">batch_generate</span>
+<a id="__codelineno-44-2" name="__codelineno-44-2" href="#__codelineno-44-2"></a>
+<a id="__codelineno-44-3" name="__codelineno-44-3" href="#__codelineno-44-3"></a><span class="n">responses</span> <span class="o">=</span> <span class="n">batch_generate</span><span class="p">(</span><span class="n">prompts</span><span class="p">,</span> <span class="n">model_path</span><span class="o">=</span><span class="s2">&quot;model.gguf&quot;</span><span class="p">)</span>
 </code></pre></div>
 <h2 id="getting-help">Getting Help<a class="headerlink" href="#getting-help" title="Permanent link">&para;</a></h2>
 <p>If you're still having issues:</p>

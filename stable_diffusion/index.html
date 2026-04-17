@@ -2398,7 +2398,7 @@
 
 <h1 id="stable-diffusion-integration">Stable Diffusion Integration<a class="headerlink" href="#stable-diffusion-integration" title="Permanent link">&para;</a></h1>
 <p>Cyllama wraps <a href="https://github.com/leejet/stable-diffusion.cpp">stable-diffusion.cpp</a> to provide image and video generation capabilities in Python.</p>
-<p><strong>Note</strong>: Build with <code>WITH_STABLEDIFFUSION=1</code> to enable this module. By default, stable-diffusion.cpp links against llama.cpp's ggml. To use stable-diffusion.cpp's own vendored ggml instead, set <code>SD_USE_VENDORED_GGML=1</code>.</p>
+<p><strong>Note</strong>: Build with <code>WITH_STABLEDIFFUSION=1</code> to enable this module. By default, stable-diffusion.cpp statically links its own vendored ggml. To share llama.cpp's ggml instead (not recommended for GPU backends), set <code>SD_USE_VENDORED_GGML=0</code>.</p>
 <h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
 <p>The stable diffusion module provides Python bindings to stable-diffusion.cpp, enabling:</p>
 <ul>

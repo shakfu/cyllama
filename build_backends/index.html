@@ -2165,8 +2165,8 @@
 </tr>
 <tr>
 <td><code>SD_USE_VENDORED_GGML</code></td>
-<td><code>0</code></td>
-<td>Link stable-diffusion against its own vendored ggml instead of llama.cpp's</td>
+<td><code>1</code></td>
+<td>Link stable-diffusion against its own vendored ggml (set to <code>0</code> to share llama.cpp's ggml; not recommended for GPU backends)</td>
 </tr>
 </tbody>
 </table>
@@ -2287,15 +2287,15 @@
 <a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a>ls<span class="w"> </span>-lh<span class="w"> </span>thirdparty/llama.cpp/lib/
 </code></pre></div>
 <h3 id="querying-at-runtime">Querying at Runtime<a class="headerlink" href="#querying-at-runtime" title="Permanent link">&para;</a></h3>
-<p>The build generates <code>src/cyllama/_backend.py</code> with the enabled backends and their configuration. You can inspect this at runtime:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama</span><span class="w"> </span><span class="kn">import</span> <span class="n">_backend</span>
+<p>The build generates <code>src/cyllama/_internal/backend.py</code> with the enabled backends and their configuration. You can inspect this at runtime:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama._internal</span><span class="w"> </span><span class="kn">import</span> <span class="n">backend</span>
 <a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>
-<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a><span class="nb">print</span><span class="p">(</span><span class="n">_backend</span><span class="o">.</span><span class="n">cuda</span><span class="p">)</span>    <span class="c1"># True if built with CUDA</span>
-<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a><span class="nb">print</span><span class="p">(</span><span class="n">_backend</span><span class="o">.</span><span class="n">metal</span><span class="p">)</span>   <span class="c1"># True if built with Metal</span>
-<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a><span class="nb">print</span><span class="p">(</span><span class="n">_backend</span><span class="o">.</span><span class="n">vulkan</span><span class="p">)</span>  <span class="c1"># True if built with Vulkan</span>
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a><span class="nb">print</span><span class="p">(</span><span class="n">backend</span><span class="o">.</span><span class="n">cuda</span><span class="p">)</span>    <span class="c1"># True if built with CUDA</span>
+<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a><span class="nb">print</span><span class="p">(</span><span class="n">backend</span><span class="o">.</span><span class="n">metal</span><span class="p">)</span>   <span class="c1"># True if built with Metal</span>
+<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a><span class="nb">print</span><span class="p">(</span><span class="n">backend</span><span class="o">.</span><span class="n">vulkan</span><span class="p">)</span>  <span class="c1"># True if built with Vulkan</span>
 <a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a>
 <a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a><span class="c1"># Backend-specific options (None if not set)</span>
-<a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a><span class="nb">print</span><span class="p">(</span><span class="n">_backend</span><span class="o">.</span><span class="n">cuda_architectures</span><span class="p">)</span>   <span class="c1"># e.g. &quot;89&quot; or None</span>
+<a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a><span class="nb">print</span><span class="p">(</span><span class="n">backend</span><span class="o">.</span><span class="n">cuda_architectures</span><span class="p">)</span>   <span class="c1"># e.g. &quot;89&quot; or None</span>
 <a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a><span class="nb">print</span><span class="p">(</span><span class="n">_backend</span><span class="o">.</span><span class="n">blas_vendor</span><span class="p">)</span>          <span class="c1"># e.g. &quot;OpenBLAS&quot; or None</span>
 </code></pre></div>
 <p>This is also used internally for platform-specific setup such as Windows CUDA DLL discovery (see <a href="../troubleshooting/#cuda-dlls-not-found-windows">Troubleshooting</a>).</p>
