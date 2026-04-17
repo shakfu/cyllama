@@ -17,6 +17,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+### Added
+
+- **`scripts/run_wheel_test.py` self-contained wheel smoke-tester** -- Single-file Python runner for validating built cyllama wheels across all backends (`cpu`, `cuda`, `vulkan`, `rocm`, `sycl`). Detects the installed backend via `importlib.metadata`, can `pip install` any backend wheel, downloads required models from the Hugging Face Hub (overridable via `CYLLAMA_MODEL_<KEY>` env vars and `CYLLAMA_MODELS_DIR`), and runs stable-diffusion (`txt2img`) and text-generation tests as inline Python functions invoking `python -m cyllama` / `python -m cyllama.sd` -- no shell scripts or external Makefile required. Replaces the ad-hoc `~/projects/demo` shell-script + Makefile setup with a reproducible single-file harness that can be dropped into any environment with a built wheel
+
 ## [0.2.10]
 
 ### Changed
