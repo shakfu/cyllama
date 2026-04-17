@@ -353,6 +353,21 @@ Cyllama automatically discovers CUDA DLL paths when built with `GGML_CUDA=1`, bu
    make build-vulkan
    ```
 
+### Vulkan picks the wrong GPU (iGPU instead of discrete)
+
+**Symptoms:** On systems with both an integrated and a discrete GPU (e.g. AMD iGPU + NVIDIA dGPU), the Vulkan backend selects the iGPU by default. Workloads run slowly; `nvtop` shows the discrete card idle.
+
+**Cause:** ggml-vulkan enumerates every Vulkan-capable device the loader exposes and, absent a filter, uses them all with device 0 first.
+
+**Solution:** Restrict ggml-vulkan to the discrete GPU with `GGML_VK_VISIBLE_DEVICES` (same semantics as `CUDA_VISIBLE_DEVICES`):
+
+```bash
+# Find the right index — ggml-vulkan prints devices at init
+GGML_VK_VISIBLE_DEVICES=1 uv run cyllama info
+```
+
+Alternatively, filter at the Vulkan-loader level with `MESA_VK_DEVICE_SELECT=<vendor>:<device>` (hex PCI IDs) or by pointing `VK_ICD_FILENAMES` at a single ICD JSON.
+
 ## Agent Issues
 
 ### Agent Loops Forever
