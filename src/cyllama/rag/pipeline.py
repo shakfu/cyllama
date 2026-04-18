@@ -12,7 +12,7 @@ from .types import SearchResult
 if TYPE_CHECKING:
     from ..api import LLM
     from .types import EmbedderProtocol
-    from .store import VectorStoreProtocol
+    from .types import VectorStoreProtocol
 
 
 # Default prompt template for RAG queries (raw-completion path).

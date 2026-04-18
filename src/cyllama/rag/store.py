@@ -1,10 +1,10 @@
-"""VectorStore class using sqlite-vector for similarity search.
+"""Default sqlite-vector implementation of :class:`VectorStoreProtocol`.
 
-Also defines :class:`VectorStoreProtocol`, the structural contract that
-:class:`~cyllama.rag.pipeline.RAGPipeline` and :class:`~cyllama.rag.RAG`
-require of any store backend. Custom stores (Qdrant, Chroma, LanceDB,
-pgvector, ...) only need to implement this protocol to drop into the
-RAG layer in place of the default sqlite-vector store.
+The protocol itself lives in :mod:`cyllama.rag.types` alongside the
+other RAG shared-vocabulary definitions; this module holds
+:class:`SqliteVectorStore` (the llama.cpp-adjacent default) plus
+``VectorStoreError`` and the deprecation alias for the old
+``VectorStore`` name.
 """
 
 from __future__ import annotations
@@ -15,9 +15,9 @@ import sqlite3
 import struct
 import sys
 from pathlib import Path
-from typing import Any, Protocol, runtime_checkable
+from typing import Any
 
-from .types import SearchResult
+from .types import SearchResult, VectorStoreProtocol
 
 _VALID_TABLE_NAME = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 
@@ -35,86 +35,6 @@ class VectorStoreError(Exception):
     """Exception raised for VectorStore errors."""
 
     pass
-
-
-@runtime_checkable
-class VectorStoreProtocol(Protocol):
-    """Structural contract for backends usable as the RAG store.
-
-    The default :class:`VectorStore` (sqlite-vector) satisfies this
-    protocol; alternative backends only need to implement these
-    methods to be drop-in replacements via ``RAG(store=...)`` or
-    ``RAGPipeline(store=...)``.
-
-    The contract is intentionally narrow -- it covers only what
-    :class:`~cyllama.rag.pipeline.RAGPipeline` and
-    :class:`~cyllama.rag.RAG` actually call on the store. Backend-
-    specific features (sqlite-vector quantization, FTS5 hybrid search
-    via :class:`~cyllama.rag.advanced.HybridStore`, raw SQL access
-    through ``store.conn``) remain on the concrete classes and aren't
-    part of the cross-backend interface.
-
-    Source-dedup methods (``is_source_indexed`` and
-    ``get_source_by_label``) are required because :class:`RAG` uses
-    them to avoid re-indexing unchanged files. Backends without a
-    natural place to track per-source content hashes can return
-    ``False`` / ``None`` to opt out of dedup -- the RAG layer treats
-    that as "always re-index" and behaves correctly, just less
-    efficiently on repeated ``add_documents`` calls.
-    """
-
-    def search(
-        self,
-        query_embedding: list[float],
-        k: int = 5,
-        threshold: float | None = None,
-    ) -> list[SearchResult]:
-        """Return the top-``k`` matches above ``threshold`` similarity."""
-        ...
-
-    def add(
-        self,
-        embeddings: list[list[float]],
-        texts: list[str],
-        metadata: list[dict[str, Any]] | None = None,
-        source_hash: str | None = None,
-        source_label: str | None = None,
-    ) -> list[int]:
-        """Insert chunks; return their assigned IDs.
-
-        ``source_hash`` and ``source_label`` are recorded together with
-        the chunks for dedup purposes; backends that don't support
-        dedup may ignore them.
-        """
-        ...
-
-    def is_source_indexed(self, content_hash: str) -> bool:
-        """Return True if ``add(source_hash=content_hash, ...)`` was
-        previously called. Backends without dedup support may return
-        False unconditionally (the RAG layer will then re-index)."""
-        ...
-
-    def get_source_by_label(self, source_label: str) -> dict[str, Any] | None:
-        """Look up an indexed source by its human-readable label.
-
-        Used to detect "same filename, different content" collisions.
-        Should return a dict with at least ``content_hash`` and
-        ``source_label`` keys, or None if no source with this label is
-        indexed. Backends without dedup support may return None.
-        """
-        ...
-
-    def clear(self) -> int:
-        """Remove all data from the store; return the number of items removed."""
-        ...
-
-    def close(self) -> None:
-        """Release any resources (connections, file handles)."""
-        ...
-
-    def __len__(self) -> int:
-        """Return the number of stored embeddings."""
-        ...
 
 
 class SqliteVectorStore(VectorStoreProtocol):

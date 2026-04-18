@@ -13,8 +13,8 @@ from .embedder import Embedder
 from .loaders import load_document
 from .pipeline import RAGConfig, RAGPipeline, RAGResponse
 from .splitter import TextSplitter
-from .store import SqliteVectorStore, VectorStoreProtocol
-from .types import Document, EmbedderProtocol
+from .store import SqliteVectorStore
+from .types import Document, EmbedderProtocol, VectorStoreProtocol
 
 if TYPE_CHECKING:
     pass

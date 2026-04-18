@@ -69,8 +69,8 @@ from .pipeline import (
 from .rag import RAG, IndexResult
 from .repetition import NGramRepetitionDetector
 from .splitter import MarkdownSplitter, TextSplitter, TokenTextSplitter
-from .store import SqliteVectorStore, VectorStoreError, VectorStoreProtocol
-from .types import Chunk, Document, EmbedderProtocol, EmbeddingResult, SearchResult
+from .store import SqliteVectorStore, VectorStoreError
+from .types import Chunk, Document, EmbedderProtocol, EmbeddingResult, SearchResult, VectorStoreProtocol
 
 __all__ = [
     # High-level RAG Interface
