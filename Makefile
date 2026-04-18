@@ -334,7 +334,7 @@ test-whisper:
 ifeq ($(IS_MACOS),1)
 
 LLAMACPP_LIBS := \
-	$(LLAMACPP)/lib/libcommon.a \
+	$(LLAMACPP)/lib/libllama-common.a \
 	$(LLAMACPP)/lib/libllama.a \
 	$(LLAMACPP)/lib/libggml-base.a \
 	$(LLAMACPP)/lib/libggml.a \

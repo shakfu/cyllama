@@ -138,7 +138,7 @@ PLATFORM = platform.system()
 ARCH = platform.machine()
 PY_VER_MINOR = sys.version_info.minor
 
-STABLE_BUILD = getenv("STABLE_BUILD", True)
+STABLE_BUILD = getenv("STABLE_BUILD", False)
 if STABLE_BUILD:
     # known to build and work without errors, 100% tests pass
     LLAMACPP_VERSION = "b8802"
@@ -147,7 +147,7 @@ if STABLE_BUILD:
     SQLITEVECTOR_VERSION = "0.9.93"
 else:
     # experimental bleeding-edge builds ` = ""` means get latest
-    LLAMACPP_VERSION = "b8802"
+    LLAMACPP_VERSION = "b8833"
     WHISPERCPP_VERSION = "v1.8.4"
     SDCPP_VERSION = "master-567-ee5bf95"
     SQLITEVECTOR_VERSION = "0.9.93"
@@ -936,7 +936,7 @@ class LlamaCppBuilder(Builder):
     version: str = LLAMACPP_VERSION
     repo_url: str = "https://github.com/ggml-org/llama.cpp.git"
     libs_static: list[str] = [
-        "libcommon.a",
+        "libllama-common.a",
         "libggml-base.a",
         "libggml-blas.a",
         "libggml-cpu.a",
@@ -1160,16 +1160,17 @@ class LlamaCppBuilder(Builder):
             **backend_options,
         )
         # Build specific targets to avoid httplib-dependent tools like llama-run
-        # We need: llama, ggml, common, mtmd
+        # We need: llama, ggml, llama-common, mtmd
+        # (upstream b8833 renamed the `common` target -> `llama-common`)
         self.cmake_build_targets(
-            build_dir=self.build_dir, targets=["llama", "common", "mtmd"], release=True
+            build_dir=self.build_dir, targets=["llama", "llama-common", "mtmd"], release=True
         )
 
         # Manually copy required libraries instead of cmake install (which tries to install all components)
         self.lib.mkdir(parents=True, exist_ok=True)
 
         # Copy core libraries from build directory (platform-aware)
-        self.copy_lib(self.build_dir, "common", "common", self.lib)
+        self.copy_lib(self.build_dir, "common", "llama-common", self.lib)
         self.copy_lib(self.build_dir, "vendor/cpp-httplib", "cpp-httplib", self.lib, required=False)
         self.copy_lib(self.build_dir, "src", "llama", self.lib)
         self.copy_lib(self.build_dir, "ggml/src", "ggml", self.lib)
@@ -1235,7 +1236,7 @@ class LlamaCppBuilder(Builder):
         # With GGML_BACKEND_DL=True, backends are separate plugin targets
         # that are not transitive dependencies of llama.  Build them explicitly.
         # ggml-cpu is always needed; GPU backends are conditional.
-        targets = ["llama", "common", "mtmd", "ggml-cpu"]
+        targets = ["llama", "llama-common", "mtmd", "ggml-cpu"]
         if backend_options.get("GGML_VULKAN") == "ON":
             targets.append("ggml-vulkan")
         if backend_options.get("GGML_CUDA") == "ON":
