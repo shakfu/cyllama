@@ -4,7 +4,7 @@ LangChain Agent Integration
 Provides adapters to use cyllama agents with LangChain's agent framework.
 """
 
-from typing import Any, List, Dict
+from typing import Any, Dict, List, cast
 
 from ..agents import ReActAgent, ConstrainedAgent, Tool as CyllaTool
 from ..api import LLM as CyllamaLLMCore
@@ -88,7 +88,7 @@ def cyllama_tool_to_langchain(cyllama_tool: CyllaTool) -> Any:
     ArgsSchema = create_model(f"{cyllama_tool.name}Args", **field_definitions)
 
     # Create LangChain tool
-    def tool_func(**kwargs):
+    def tool_func(**kwargs: Any) -> Any:
         return cyllama_tool(**kwargs)
 
     return StructuredTool(
@@ -111,15 +111,18 @@ def langchain_tool_to_cyllama(langchain_tool: Any) -> CyllaTool:
     description = langchain_tool.description
 
     # Try to get args schema
-    schema = {"type": "object", "properties": {}, "required": []}
+    schema: Dict[str, Any] = {"type": "object", "properties": {}, "required": []}
 
     if hasattr(langchain_tool, "args_schema") and langchain_tool.args_schema:
         try:
             # Extract from Pydantic model
             from pydantic import BaseModel
 
-            if isinstance(langchain_tool.args_schema, type) and issubclass(langchain_tool.args_schema, BaseModel):
-                schema_dict = langchain_tool.args_schema.model_json_schema()
+            args_schema = langchain_tool.args_schema
+            if isinstance(args_schema, type) and issubclass(args_schema, BaseModel):
+                # mypy can't refine to BaseModel subclass after the runtime
+                # check; cast to satisfy the model_json_schema attribute lookup.
+                schema_dict = cast("type[BaseModel]", args_schema).model_json_schema()
                 if "properties" in schema_dict:
                     schema["properties"] = schema_dict["properties"]
                 if "required" in schema_dict:
@@ -128,7 +131,7 @@ def langchain_tool_to_cyllama(langchain_tool: Any) -> CyllaTool:
             pass
 
     # Create wrapper function
-    def wrapper(**kwargs):
+    def wrapper(**kwargs: Any) -> Any:
         return langchain_tool.run(kwargs)
 
     # Create cyllama tool
@@ -240,7 +243,7 @@ class CyllamaAgentLangChainAdapter:
             Agent's answer
         """
         result = self.agent.run(input)
-        return result.answer
+        return str(result.answer)
 
     def __call__(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -267,7 +270,7 @@ class CyllamaAgentLangChainAdapter:
         return output
 
 
-def create_cyllama_react_agent(model_path: str, tools: List[CyllaTool], **kwargs) -> ReActAgent:
+def create_cyllama_react_agent(model_path: str, tools: List[CyllaTool], **kwargs: Any) -> ReActAgent:
     """
     Convenience function to create a cyllama ReAct agent.
 
@@ -283,7 +286,7 @@ def create_cyllama_react_agent(model_path: str, tools: List[CyllaTool], **kwargs
     return ReActAgent(llm=llm, tools=tools, **kwargs)
 
 
-def create_cyllama_constrained_agent(model_path: str, tools: List[CyllaTool], **kwargs) -> ConstrainedAgent:
+def create_cyllama_constrained_agent(model_path: str, tools: List[CyllaTool], **kwargs: Any) -> ConstrainedAgent:
     """
     Convenience function to create a cyllama ConstrainedAgent.
 

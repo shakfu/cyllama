@@ -38,7 +38,8 @@ def backend() -> dict[str, Any]:
 
         {"cuda": {"enabled": false, "architectures": null, ...}, ...}
     """
-    return get().get("backend", {})
+    backend_section: dict[str, Any] = get().get("backend", {})
+    return backend_section
 
 
 def backend_enabled(name: str) -> bool:
@@ -51,7 +52,8 @@ def backend_enabled(name: str) -> bool:
 
 def versions() -> dict[str, str]:
     """Return the ``versions`` section (thirdparty version strings)."""
-    return get().get("versions", {})
+    versions_section: dict[str, str] = get().get("versions", {})
+    return versions_section
 
 
 def dump() -> None:

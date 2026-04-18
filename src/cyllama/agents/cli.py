@@ -18,11 +18,12 @@ import argparse
 import json
 import logging
 import sys
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
-def parse_mcp_stdio(spec: str) -> dict:
+def parse_mcp_stdio(spec: str) -> dict[str, Any]:
     """
     Parse MCP stdio server specification.
 
@@ -41,7 +42,7 @@ def parse_mcp_stdio(spec: str) -> dict:
     }
 
 
-def parse_mcp_http(spec: str) -> dict:
+def parse_mcp_http(spec: str) -> dict[str, Any]:
     """
     Parse MCP HTTP server specification.
 
@@ -276,7 +277,7 @@ def cmd_mcp_test(args: argparse.Namespace) -> int:
     return 0
 
 
-def main():
+def main() -> int:
     """Main entry point."""
     parser = argparse.ArgumentParser(
         description="cyllama agents CLI",
@@ -418,7 +419,8 @@ def main():
         parser.print_help()
         return 1
 
-    return args.func(args)
+    rc: int = args.func(args)
+    return rc
 
 
 if __name__ == "__main__":

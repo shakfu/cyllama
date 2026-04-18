@@ -14,7 +14,7 @@ Example:
     >>> result = chain.run(topic="Python")
 """
 
-from typing import Any, List, Optional, Iterator, Dict
+from typing import Any, Dict, Iterator, List, Optional, cast
 
 from ..defaults import (
     DEFAULT_MAX_TOKENS,
@@ -43,13 +43,16 @@ except ImportError:
         LANGCHAIN_AVAILABLE = True
     except ImportError:
         LANGCHAIN_AVAILABLE = False
+        # When LangChain isn't installed, fall back to typing.Any for
+        # the base class -- the wrapper is then unusable but the import
+        # still succeeds, and mypy treats the alias and the subclass
+        # check as Any-typed so neither path trips strict-mode rules.
+        from typing import Any as _Any
 
-        # Create dummy base class and types
-        class LangChainLLM:
-            pass
+        LangChainLLM = _Any  # noqa: F811
 
         # Dummy type for type hints
-        CallbackManagerForLLMRun = None
+        CallbackManagerForLLMRun = _Any  # noqa: F811
 
 
 class CyllamaLLM(LangChainLLM):
@@ -85,7 +88,7 @@ class CyllamaLLM(LangChainLLM):
     # LangChain-specific attributes
     _generator: Optional[CyllamaLLMCore] = None
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: Any) -> None:
         """Initialize the LLM."""
         if not LANGCHAIN_AVAILABLE:
             raise ImportError("LangChain is not installed. Install it with: pip install langchain")
@@ -191,12 +194,12 @@ class CyllamaLLM(LangChainLLM):
         # Generate with callbacks if provided
         if run_manager:
 
-            def on_token(token: str):
+            def on_token(token: str) -> None:
                 run_manager.on_llm_new_token(token)
 
-            return self.generator(prompt, config=config, on_token=on_token)
+            return cast(Response, self.generator(prompt, config=config, on_token=on_token))
         else:
-            return self.generator(prompt, config=config)
+            return cast(Response, self.generator(prompt, config=config))
 
     def _call(
         self,
@@ -218,7 +221,7 @@ class CyllamaLLM(LangChainLLM):
             Generated text as string (LangChain interface requirement)
         """
         response = self._call_internal(prompt, stop=stop, run_manager=run_manager, **kwargs)
-        return response.text
+        return str(response.text)
 
     def _stream(
         self,
@@ -256,7 +259,7 @@ class CyllamaLLM(LangChainLLM):
             stop_sequences=stop or self.stop_sequences,
         )
 
-        def on_token(token: str):
+        def on_token(token: str) -> None:
             if run_manager:
                 run_manager.on_llm_new_token(token)
 
@@ -279,7 +282,7 @@ class CyllamaLLM(LangChainLLM):
 # Provide helpful error message if imported without LangChain
 if not LANGCHAIN_AVAILABLE:
 
-    def __getattr__(name):
+    def __getattr__(name: str) -> Any:
         if name == "CyllamaLLM":
             raise ImportError(
                 "LangChain integration requires langchain to be installed. Install it with: pip install langchain"

@@ -3,6 +3,9 @@
 import argparse
 import platform
 import sys
+from typing import Any, Dict, Iterator, cast
+
+from .api import Response
 
 from .defaults import (
     LLAMA_DEFAULT_SEED,
@@ -16,7 +19,7 @@ from .defaults import (
 )
 
 
-def _print_stats_table(stats) -> None:
+def _print_stats_table(stats: Any) -> None:
     """Print a formatted table of generation statistics to stderr."""
     if stats is None:
         return
@@ -41,7 +44,7 @@ def _print_stats_table(stats) -> None:
     print(line, file=sys.stderr)
 
 
-def _stream_and_collect_stats(llm, chunks):
+def _stream_and_collect_stats(llm: Any, chunks: Iterator[str]) -> Any:
     """Consume a streaming iterator, print chunks, then return stats from the LLM."""
     for chunk in chunks:
         print(chunk, end="", flush=True)
@@ -111,14 +114,15 @@ def _get_loaded_backends() -> list[str]:
         return []
 
 
-def _get_build_info() -> dict:
+def _get_build_info() -> Dict[str, Any]:
     """Load build info if available."""
     from ._internal import build_config
 
-    return build_config.versions()
+    versions: Dict[str, Any] = build_config.versions()
+    return versions
 
 
-def cmd_info():
+def cmd_info() -> int:
     """Print build and backend information."""
     from . import __version__
 
@@ -158,7 +162,11 @@ def cmd_info():
     # whisper.cpp
     print("whisper.cpp:")
     try:
-        from .whisper import whisper_cpp
+        # whisper_cpp is a Cython-compiled module; import via importlib
+        # because the static type stubs don't expose it as an attribute.
+        import importlib
+
+        whisper_cpp = importlib.import_module(".whisper.whisper_cpp", package="cyllama")
 
         # Load backends so whisper sees GPU registries (mirrors what
         # every upstream whisper.cpp example does in main())
@@ -204,15 +212,18 @@ def cmd_info():
     except Exception as e:
         print(f"  not available ({e})")
 
+    return 0
 
-def cmd_version():
+
+def cmd_version() -> int:
     """Print version."""
     from . import __version__
 
     print(__version__)
+    return 0
 
 
-def cmd_generate(args):
+def cmd_generate(args: argparse.Namespace) -> int:
     """Generate text from a prompt."""
     from .api import GenerationConfig, LLM, complete
 
@@ -243,11 +254,12 @@ def cmd_generate(args):
     try:
         if args.stream:
             with LLM(args.model, config=config, verbose=args.verbose) as llm:
-                stats = _stream_and_collect_stats(llm, llm(prompt, stream=True))
+                stream_iter = cast(Iterator[str], llm(prompt, stream=True))
+                stats = _stream_and_collect_stats(llm, stream_iter)
             if args.stats and stats is not None:
                 _print_stats_table(stats)
         else:
-            response = complete(prompt, args.model, config, verbose=args.verbose)
+            response = cast(Response, complete(prompt, args.model, config, verbose=args.verbose))
             if args.json:
                 print(response.to_json())
             else:
@@ -261,7 +273,7 @@ def cmd_generate(args):
     return 0
 
 
-def cmd_chat(args):
+def cmd_chat(args: argparse.Namespace) -> int:
     """Chat with a model."""
     from . import __version__
     import os
@@ -298,11 +310,15 @@ def cmd_chat(args):
 
         if args.stream:
             with LLM(args.model, config=config, verbose=args.verbose) as llm:
-                stats = _stream_and_collect_stats(llm, llm.chat(messages, stream=True, template=args.template))
+                stream_iter = cast(Iterator[str], llm.chat(messages, stream=True, template=args.template))
+                stats = _stream_and_collect_stats(llm, stream_iter)
             if args.stats and stats is not None:
                 _print_stats_table(stats)
         else:
-            response = chat(messages, args.model, config, verbose=args.verbose, template=args.template)
+            response = cast(
+                Response,
+                chat(messages, args.model, config, verbose=args.verbose, template=args.template),
+            )
             if args.json:
                 print(response.to_json())
             else:
@@ -346,7 +362,7 @@ def cmd_chat(args):
     return 0
 
 
-def cmd_embed(args):
+def cmd_embed(args: argparse.Namespace) -> int:
     """Compute text embeddings."""
     from .rag.embedder import Embedder
 
@@ -400,11 +416,13 @@ def cmd_embed(args):
     import json
 
     embeddings = embedder.embed_batch(texts)
-    print(json.dumps([e.tolist() for e in embeddings]))
+    # embed_batch may return numpy arrays or plain lists; only call
+    # tolist() on the array variant.
+    print(json.dumps([e.tolist() if hasattr(e, "tolist") else list(e) for e in embeddings]))
     return 0
 
 
-def cmd_rag(args):
+def cmd_rag(args: argparse.Namespace) -> int:
     """RAG: query documents with a language model."""
     from .rag import RAG, RAGConfig
 
@@ -438,6 +456,12 @@ Question: {{question}}
 
 Answer:"""
 
+    config_kwargs: Dict[str, Any] = {}
+    if system_prompt:
+        config_kwargs["system_prompt"] = system_prompt
+    if prompt_template:
+        config_kwargs["prompt_template"] = prompt_template
+
     config = RAGConfig(
         top_k=args.top_k,
         similarity_threshold=args.threshold or None,
@@ -461,8 +485,7 @@ Answer:"""
         # forbids reasoning, but the stripper is the safety net for
         # models that ignore the directive.
         strip_think_blocks=not args.show_think,
-        **({"system_prompt": system_prompt} if system_prompt else {}),
-        **({"prompt_template": prompt_template} if prompt_template else {}),
+        **config_kwargs,
     )
 
     # ------------------------------------------------------------------
@@ -668,16 +691,17 @@ Answer:"""
     return 0
 
 
-def _delegate(module_path, import_name="main"):
+def _delegate(module_path: str, import_name: str = "main") -> int:
     """Delegate to a sub-module's main(), stripping the subcommand from sys.argv."""
     sys.argv = ["cyllama " + sys.argv[1]] + sys.argv[2:]
     import importlib
 
     mod = importlib.import_module(module_path, package="cyllama")
-    return getattr(mod, import_name)()
+    result = getattr(mod, import_name)()
+    return int(result) if result is not None else 0
 
 
-def main():
+def main() -> int:
     parser = argparse.ArgumentParser(
         prog="cyllama",
         description="cyllama CLI",

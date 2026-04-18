@@ -21,7 +21,7 @@ Example:
     >>>     print(f"{prompt} -> {response}")
 """
 
-from typing import List, Optional
+from typing import Any, List, Optional
 from dataclasses import dataclass
 import logging
 import time
@@ -191,7 +191,7 @@ class BatchGenerator:
         """Context manager entry."""
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+    def __exit__(self, exc_type: object, exc_val: object, exc_tb: object) -> None:
         """Context manager exit - ensures cleanup."""
         self.close()
 
@@ -439,7 +439,7 @@ def batch_generate(
     batch_size: int = 512,
     n_seq_max: int = 8,
     config: Optional[GenerationConfig] = None,
-    **kwargs,
+    **kwargs: Any,
 ) -> List[Response]:
     """
     Convenience function for batch generation.

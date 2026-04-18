@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import Callable
+from typing import Any, Callable
 
 from .types import Chunk, Document
 
@@ -422,8 +422,8 @@ class MarkdownSplitter(TextSplitter):
         chunk_size: int = 1024,
         chunk_overlap: int = 100,
         separators: list[str] | None = None,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         """Initialize Markdown-aware text splitter.
 
         Args:

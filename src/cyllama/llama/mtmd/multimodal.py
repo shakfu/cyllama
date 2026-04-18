@@ -6,7 +6,7 @@ like vision-language processing and audio analysis.
 """
 
 import os
-from typing import List, Union
+from typing import Any, Iterator, List, Optional, Union, cast
 from pathlib import Path
 import logging
 
@@ -50,7 +50,7 @@ class UnsupportedModalityError(MultimodalError):
 class MultimodalProcessor:
     """High-level multimodal processor for vision and audio tasks."""
 
-    def __init__(self, mmproj_path: str, llama_model, **kwargs):
+    def __init__(self, mmproj_path: str, llama_model: Any, **kwargs: Any) -> None:
         """Initialize multimodal processor.
 
         Args:
@@ -85,17 +85,17 @@ class MultimodalProcessor:
     @property
     def supports_vision(self) -> bool:
         """Check if vision processing is supported."""
-        return self._supports_vision
+        return cast(bool, self._supports_vision)
 
     @property
     def supports_audio(self) -> bool:
         """Check if audio processing is supported."""
-        return self._supports_audio
+        return cast(bool, self._supports_audio)
 
     @property
     def audio_sample_rate(self) -> int:
         """Get supported audio bitrate in Hz."""
-        return self._audio_sample_rate
+        return cast(int, self._audio_sample_rate)
 
     def process_image(
         self, text: str, image: Union[str, bytes, "Image.Image"], add_special: bool = True, parse_special: bool = True
@@ -249,7 +249,7 @@ class MultimodalProcessor:
 class VisionLanguageChat:
     """Specialized class for vision-language conversations."""
 
-    def __init__(self, mmproj_path: str, llama_model, llama_context, **kwargs):
+    def __init__(self, mmproj_path: str, llama_model: Any, llama_context: Any, **kwargs: Any) -> None:
         """Initialize vision-language chat.
 
         Args:
@@ -260,7 +260,7 @@ class VisionLanguageChat:
         """
         self.processor = MultimodalProcessor(mmproj_path, llama_model, **kwargs)
         self.llama_context = llama_context
-        self.conversation_history = []
+        self.conversation_history: List[dict[str, Any]] = []
 
         if not self.processor.supports_vision:
             raise UnsupportedModalityError("Vision not supported by this model")
@@ -309,7 +309,7 @@ class VisionLanguageChat:
 
         return response
 
-    def clear_history(self):
+    def clear_history(self) -> None:
         """Clear conversation history."""
         self.conversation_history.clear()
 
@@ -317,7 +317,7 @@ class VisionLanguageChat:
 class AudioProcessor:
     """Specialized class for audio processing tasks."""
 
-    def __init__(self, mmproj_path: str, llama_model, **kwargs):
+    def __init__(self, mmproj_path: str, llama_model: Any, **kwargs: Any) -> None:
         """Initialize audio processor.
 
         Args:
@@ -365,7 +365,7 @@ class AudioProcessor:
 class ImageAnalyzer:
     """Specialized class for image analysis tasks."""
 
-    def __init__(self, mmproj_path: str, llama_model, **kwargs):
+    def __init__(self, mmproj_path: str, llama_model: Any, **kwargs: Any) -> None:
         """Initialize image analyzer.
 
         Args:

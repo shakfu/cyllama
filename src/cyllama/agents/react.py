@@ -118,7 +118,7 @@ class ActionParseError(ValueError):
         super().__init__(full_msg)
 
     def __str__(self) -> str:
-        return self.args[0]
+        return str(self.args[0])
 
 
 class ReActAgent:

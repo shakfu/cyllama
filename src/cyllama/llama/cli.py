@@ -10,7 +10,7 @@ import argparse
 import sys
 import os
 import signal
-from typing import Optional, List
+from typing import Any, List, Optional, cast
 
 from . import llama_cpp as cy
 
@@ -18,7 +18,7 @@ from . import llama_cpp as cy
 class LlamaCLI:
     """Main CLI class that replicates the functionality of llama.cpp main tool."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.model: Optional[cy.LlamaModel] = None
         self.ctx: Optional[cy.LlamaContext] = None
         self.sampler: Optional[cy.LlamaSampler] = None
@@ -33,7 +33,7 @@ class LlamaCLI:
         # Setup signal handlers
         signal.signal(signal.SIGINT, self._sigint_handler)
 
-    def _sigint_handler(self, signo, frame):
+    def _sigint_handler(self, signo: int, frame: Any) -> None:
         """Handle SIGINT (Ctrl+C) signals."""
         if signo == signal.SIGINT:
             if not self.is_interacting and hasattr(self, "interactive") and self.interactive:
@@ -45,7 +45,7 @@ class LlamaCLI:
                 print("Interrupted by user")
                 sys.exit(130)
 
-    def _print_performance(self):
+    def _print_performance(self) -> None:
         """Print performance statistics."""
         if self.t_main_start > 0:
             t_main_end = cy.ggml_time_us()
@@ -70,7 +70,7 @@ class LlamaCLI:
         except OSError:
             return True
 
-    def _print_usage(self, prog_name: str):
+    def _print_usage(self, prog_name: str) -> None:
         """Print usage information."""
         print("\nexample usage:\n")
         print(
@@ -341,7 +341,7 @@ class LlamaCLI:
 
         return parser.parse_args()
 
-    def _load_model(self, args: argparse.Namespace):
+    def _load_model(self, args: argparse.Namespace) -> None:
         """Load the model and initialize context."""
         print("llama backend init")
 
@@ -423,28 +423,43 @@ class LlamaCLI:
             prompt = prompt.replace('\\"', '"')
             prompt = prompt.replace("\\\\", "\\")
 
-        return prompt
+        return cast(str, prompt)
 
     def _tokenize_prompt(self, prompt: str) -> List[int]:
         """Tokenize the prompt."""
         if not prompt:
             return []
 
-        return self.vocab.tokenize(prompt, add_special=True, parse_special=True)
+        assert self.vocab is not None
+        return cast(List[int], self.vocab.tokenize(prompt, add_special=True, parse_special=True))
 
-    def _generate_text(self, args: argparse.Namespace, prompt_tokens: List[int]):
-        """Generate text based on the prompt."""
+    def _generate_text(self, args: argparse.Namespace, prompt_tokens: List[int]) -> str:
+        """Generate text based on the prompt.
+
+        Existing tests construct a ``LlamaCLI`` with only some of
+        ``vocab``/``ctx``/``sampler`` populated to exercise the early
+        sys.exit paths, so each attribute is narrowed inline at the
+        point of first use rather than asserted up front.
+        """
         if not prompt_tokens:
-            if self.vocab.get_add_bos():
-                prompt_tokens = [self.vocab.token_bos()]
+            vocab = self.vocab
+            assert vocab is not None
+            if vocab.get_add_bos():
+                prompt_tokens = [vocab.token_bos()]
             else:
                 print("input is empty")
                 sys.exit(-1)
 
+        ctx = self.ctx
+        assert ctx is not None
+
         # Check if prompt is too long
-        if len(prompt_tokens) > self.ctx.n_ctx - 4:
-            print(f"prompt is too long ({len(prompt_tokens)} tokens, max {self.ctx.n_ctx - 4})")
+        if len(prompt_tokens) > ctx.n_ctx - 4:
+            print(f"prompt is too long ({len(prompt_tokens)} tokens, max {ctx.n_ctx - 4})")
             sys.exit(1)
+
+        vocab = self.vocab
+        assert vocab is not None
 
         # Prepare batch for prompt
         batch = cy.llama_batch_get_one(prompt_tokens)
@@ -460,7 +475,7 @@ class LlamaCLI:
             batch = cy.llama_batch_get_one(batch_tokens, n_past)
 
             try:
-                self.ctx.decode(batch)
+                ctx.decode(batch)
                 n_past += n_eval
             except ValueError as e:
                 print(f"error: {e}")
@@ -471,29 +486,32 @@ class LlamaCLI:
         n_pos = len(prompt_tokens)
 
         if args.verbose_prompt:
-            print(f"prompt: '{self.vocab.detokenize(prompt_tokens)}'")
+            print(f"prompt: '{vocab.detokenize(prompt_tokens)}'")
             print(f"number of tokens in prompt = {len(prompt_tokens)}")
             for i, token in enumerate(prompt_tokens):
-                piece = self.vocab.token_to_piece(token, special=False)
+                piece = vocab.token_to_piece(token, special=False)
                 print(f"{token:6d} -> '{piece}'")
             print()
 
         # Print prompt if requested
         if args.display_prompt and not args.no_display_prompt:
-            print(self.vocab.detokenize(prompt_tokens), end="", flush=True)
+            print(vocab.detokenize(prompt_tokens), end="", flush=True)
+
+        sampler = self.sampler
+        assert sampler is not None
 
         # Generate response
         response = ""
         for i in range(n_remain):
             # Sample next token
-            new_token_id = self.sampler.sample(self.ctx, -1)
+            new_token_id = sampler.sample(ctx, -1)
 
             # Check for end of generation
-            if self.vocab.is_eog(new_token_id):
+            if vocab.is_eog(new_token_id):
                 break
 
             # Convert token to text
-            piece = self.vocab.token_to_piece(new_token_id, special=True)
+            piece = vocab.token_to_piece(new_token_id, special=True)
             response += piece
             print(piece, end="", flush=True)
 
@@ -502,7 +520,7 @@ class LlamaCLI:
             n_pos += 1
 
             try:
-                self.ctx.decode(batch)
+                ctx.decode(batch)
                 self.n_decode += 1
             except ValueError as e:
                 print(f"error: {e}")
@@ -515,7 +533,7 @@ class LlamaCLI:
 
         return response
 
-    def _interactive_mode(self, args: argparse.Namespace):
+    def _interactive_mode(self, args: argparse.Namespace) -> None:
         """Run in interactive mode."""
         print("== Running in interactive mode. ==")
         print(" - Press Ctrl+C to interject at any time.")
@@ -563,13 +581,14 @@ class LlamaCLI:
                     user_input = user_input + args.in_suffix
 
                 # Tokenize and generate
+                assert self.vocab is not None
                 input_tokens = self.vocab.tokenize(user_input, add_special=False, parse_special=True)
                 if input_tokens:
                     self._generate_text(args, input_tokens)
 
                 self.is_interacting = False
 
-    def run(self):
+    def run(self) -> int:
         """Main entry point."""
         args = self._parse_args()
 
@@ -603,7 +622,7 @@ class LlamaCLI:
         return 0
 
 
-def main():
+def main() -> None:
     """Main entry point for the CLI."""
     cy.disable_logging()
     cli = LlamaCLI()

@@ -63,9 +63,18 @@ import argparse
 import os
 import sys
 import time
+from typing import TYPE_CHECKING, List, Optional, Tuple
+
+if TYPE_CHECKING:
+    from .stable_diffusion import (
+        SampleMethod,
+        Scheduler,
+        SDContextParams,
+        SDImage,
+    )
 
 
-def save_image(img, path: str) -> None:
+def save_image(img: "SDImage", path: str) -> None:
     """Save SDImage to file."""
     try:
         img.save(path)
@@ -81,7 +90,7 @@ def save_image(img, path: str) -> None:
     print(f"Saved: {path}")
 
 
-def save_video_frames(frames, output_path: str, fps: int = 24) -> None:
+def save_video_frames(frames: List["SDImage"], output_path: str, fps: int = 24) -> None:
     """Save video frames to files or video."""
     base, ext = os.path.splitext(output_path)
 
@@ -93,20 +102,20 @@ def save_video_frames(frames, output_path: str, fps: int = 24) -> None:
     print(f"Saved {len(frames)} frames to {base}_*.png")
 
 
-def setup_logging(args):
+def setup_logging(args: argparse.Namespace) -> None:
     """Setup logging and progress callbacks."""
     from .stable_diffusion import set_log_callback, set_progress_callback
 
     if args.verbose:
 
-        def log_cb(level, text):
+        def log_cb(level: int, text: str) -> None:
             level_names = {0: "DEBUG", 1: "INFO", 2: "WARN", 3: "ERROR"}
             print(f"[{level_names.get(level, level)}] {text}", end="")
 
         set_log_callback(log_cb)
     else:
 
-        def log_cb(level, text):
+        def log_cb(level: int, text: str) -> None:
             if level >= 2:
                 print(f"[{'WARN' if level == 2 else 'ERROR'}] {text}", end="")
 
@@ -114,14 +123,14 @@ def setup_logging(args):
 
     if args.progress:
 
-        def progress_cb(step, steps, time_ms):
+        def progress_cb(step: int, steps: int, time_ms: float) -> None:
             pct = (step / steps) * 100 if steps > 0 else 0
             print(f"\rStep {step}/{steps} ({pct:.1f}%) - {time_ms:.2f}s", end="", flush=True)
 
         set_progress_callback(progress_cb)
 
 
-def setup_preview(args):
+def setup_preview(args: argparse.Namespace) -> None:
     """Setup preview callback if requested."""
     if not hasattr(args, "preview") or not args.preview or args.preview == "none":
         return
@@ -138,7 +147,7 @@ def setup_preview(args):
     preview_path = getattr(args, "preview_path", "./preview.png")
     interval = getattr(args, "preview_interval", 1)
 
-    def preview_cb(step, frames, is_noisy):
+    def preview_cb(step: int, frames: List["SDImage"], is_noisy: bool) -> None:
         if frames:
             frames[0].save(preview_path)
             print(f"\rPreview saved: {preview_path} (step {step})", end="", flush=True)
@@ -152,7 +161,7 @@ def setup_preview(args):
     )
 
 
-def validate_model_args(args):
+def validate_model_args(args: argparse.Namespace) -> None:
     """Validate that at least one model path is provided."""
     model = getattr(args, "model", None)
     diffusion_model = getattr(args, "diffusion_model", None)
@@ -161,7 +170,7 @@ def validate_model_args(args):
         sys.exit(1)
 
 
-def create_context_params(args):
+def create_context_params(args: argparse.Namespace) -> "SDContextParams":
     """Create SDContextParams from CLI args."""
     from .stable_diffusion import SDContextParams, RngType, Prediction, LoraApplyMode
 
@@ -255,7 +264,9 @@ def create_context_params(args):
     return params
 
 
-def parse_sampler_scheduler(args):
+def parse_sampler_scheduler(
+    args: argparse.Namespace,
+) -> Tuple[Optional["SampleMethod"], Optional["Scheduler"]]:
     """Parse sampler and scheduler from args."""
     from .stable_diffusion import SampleMethod, Scheduler
 
@@ -280,7 +291,7 @@ def parse_sampler_scheduler(args):
     return sample_method, scheduler
 
 
-def save_outputs(images, args):
+def save_outputs(images: List["SDImage"], args: argparse.Namespace) -> int:
     """Save generated images."""
     batch = len(images)
     saved = 0
@@ -303,7 +314,7 @@ def save_outputs(images, args):
 # =============================================================================
 
 
-def cmd_txt2img(args):
+def cmd_txt2img(args: argparse.Namespace) -> int:
     """Generate images from text prompt."""
     from .stable_diffusion import SDContext
 
@@ -368,7 +379,7 @@ def cmd_txt2img(args):
     return 0
 
 
-def cmd_img2img(args):
+def cmd_img2img(args: argparse.Namespace) -> int:
     """Generate images from init image + prompt."""
     from .stable_diffusion import SDContext, SDImage
 
@@ -449,7 +460,7 @@ def cmd_img2img(args):
     return 0
 
 
-def cmd_inpaint(args):
+def cmd_inpaint(args: argparse.Namespace) -> int:
     """Inpaint image with mask."""
     from .stable_diffusion import SDContext, SDImage
 
@@ -535,7 +546,7 @@ def cmd_inpaint(args):
     return 0
 
 
-def cmd_controlnet(args):
+def cmd_controlnet(args: argparse.Namespace) -> int:
     """Generate with ControlNet guidance."""
     from .stable_diffusion import SDContext, SDImage, canny_preprocess
 
@@ -618,7 +629,7 @@ def cmd_controlnet(args):
     return 0
 
 
-def cmd_video(args):
+def cmd_video(args: argparse.Namespace) -> int:
     """Generate video frames."""
     from .stable_diffusion import SDContext, SDImage
 
@@ -694,13 +705,13 @@ def cmd_video(args):
     return 0
 
 
-def cmd_upscale(args):
+def cmd_upscale(args: argparse.Namespace) -> int:
     """Upscale an image using ESRGAN."""
     from .stable_diffusion import Upscaler, SDImage, set_log_callback
 
     if args.verbose:
 
-        def log_cb(level, text):
+        def log_cb(level: int, text: str) -> None:
             level_names = {0: "DEBUG", 1: "INFO", 2: "WARN", 3: "ERROR"}
             print(f"[{level_names.get(level, level)}] {text}", end="")
 
@@ -746,13 +757,13 @@ def cmd_upscale(args):
     return 0
 
 
-def cmd_convert(args):
+def cmd_convert(args: argparse.Namespace) -> int:
     """Convert model to different format/quantization."""
     from .stable_diffusion import convert_model, SDType, set_log_callback
 
     if args.verbose:
 
-        def log_cb(level, text):
+        def log_cb(level: int, text: str) -> None:
             level_names = {0: "DEBUG", 1: "INFO", 2: "WARN", 3: "ERROR"}
             print(f"[{level_names.get(level, level)}] {text}", end="")
 
@@ -787,7 +798,7 @@ def cmd_convert(args):
     return 0
 
 
-def cmd_info(args):
+def cmd_info(args: argparse.Namespace) -> int:
     """Show system info and available features."""
     from .stable_diffusion import get_num_cores, get_system_info, SampleMethod, Scheduler, SDType, Prediction, RngType
 
@@ -831,7 +842,7 @@ def cmd_info(args):
 # =============================================================================
 
 
-def add_common_model_args(parser):
+def add_common_model_args(parser: argparse.ArgumentParser) -> None:
     """Add common model path arguments."""
     parser.add_argument("--model", "-m", help="Path to model file (or use --diffusion-model)")
     parser.add_argument("--vae", help="Path to VAE model")
@@ -851,7 +862,7 @@ def add_common_model_args(parser):
     )
 
 
-def add_common_gen_args(parser):
+def add_common_gen_args(parser: argparse.ArgumentParser) -> None:
     """Add common generation arguments."""
     parser.add_argument("--prompt", "-p", required=True, help="Text prompt")
     parser.add_argument("--negative", "-n", help="Negative prompt")
@@ -865,7 +876,7 @@ def add_common_gen_args(parser):
     parser.add_argument("--clip-skip", dest="clip_skip", type=int, default=-1, help="CLIP skip layers")
 
 
-def add_common_sampler_args(parser):
+def add_common_sampler_args(parser: argparse.ArgumentParser) -> None:
     """Add sampler/scheduler arguments."""
     parser.add_argument("--sampler", help="Sampling method (euler, euler_a, heun, dpm2, etc.)")
     parser.add_argument("--scheduler", help="Scheduler (discrete, karras, exponential, ays, etc.)")
@@ -883,7 +894,7 @@ def add_common_sampler_args(parser):
     )
 
 
-def add_common_guidance_args(parser):
+def add_common_guidance_args(parser: argparse.ArgumentParser) -> None:
     """Add guidance arguments."""
     parser.add_argument(
         "--slg-scale",
@@ -902,7 +913,7 @@ def add_common_guidance_args(parser):
     )
 
 
-def add_common_memory_args(parser):
+def add_common_memory_args(parser: argparse.ArgumentParser) -> None:
     """Add memory/performance arguments."""
     parser.add_argument("--threads", "-t", type=int, default=-1, help="Number of threads")
     parser.add_argument(
@@ -925,7 +936,7 @@ def add_common_memory_args(parser):
     )
 
 
-def add_common_vae_tiling_args(parser):
+def add_common_vae_tiling_args(parser: argparse.ArgumentParser) -> None:
     """Add VAE tiling arguments."""
     parser.add_argument(
         "--vae-tiling", dest="vae_tiling", action="store_true", help="Enable VAE tiling for large images"
@@ -942,7 +953,7 @@ def add_common_vae_tiling_args(parser):
     )
 
 
-def add_common_preview_args(parser):
+def add_common_preview_args(parser: argparse.ArgumentParser) -> None:
     """Add preview arguments."""
     parser.add_argument("--preview", choices=["none", "proj", "tae", "vae"], default="none", help="Preview mode")
     parser.add_argument("--preview-path", dest="preview_path", default="./preview.png", help="Preview output path")
@@ -960,7 +971,7 @@ def add_common_preview_args(parser):
     )
 
 
-def add_common_misc_args(parser):
+def add_common_misc_args(parser: argparse.ArgumentParser) -> None:
     """Add misc arguments."""
     parser.add_argument(
         "--lora-apply-mode",
@@ -988,7 +999,7 @@ def add_common_misc_args(parser):
 # =============================================================================
 
 
-def main():
+def main() -> int:
     parser = argparse.ArgumentParser(
         description="Stable Diffusion CLI", formatter_class=argparse.RawDescriptionHelpFormatter, epilog=__doc__
     )

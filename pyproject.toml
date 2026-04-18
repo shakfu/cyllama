@@ -47,7 +47,6 @@ wheel.exclude = ["*.pyx", "*.pxd", "*.pxi", "*.cpp", "*.c", "*.h", "*.hpp", "*.a
 wheel.license-files = ["LICENSE"]
 build-dir = "build/{wheel_tag}"
 sdist.include = [
-    "src/cyllama/_backend.py",
     "thirdparty/llama.cpp/include",
     "thirdparty/llama.cpp/lib",
     "thirdparty/llama.cpp/dynamic",
@@ -93,8 +92,28 @@ ignore = [
 
 [tool.mypy]
 python_version = "3.10"
+strict = true
 ignore_missing_imports = true
-check_untyped_defs = false
+# Vendored libraries (jinja2, markupsafe) are not project code.
+exclude = ["src/cyllama/_vendor/"]
+# check_untyped_defs = false
+
+# Third-party libraries without bundled type stubs. We don't take a hard
+# dependency on these (most are optional integrations), so we tell mypy
+# to treat their imports as untyped rather than requiring stubs to be
+# installed in the dev environment.
+[[tool.mypy.overrides]]
+module = ["requests", "langchain.*", "langchain_core.*"]
+ignore_missing_imports = true
+follow_imports = "skip"
+
+# These modules subclass cyllama.api.LLM, which under strict +
+# follow_imports=skip degrades to Any. The subclass relationship is
+# real, not a workaround — relax the strict subclass check rather than
+# dropping skip globally (which slows the whole typecheck pass).
+[[tool.mypy.overrides]]
+module = ["cyllama.agents.constrained", "cyllama.integrations.langchain"]
+disallow_subclassing_any = false
 
 [tool.pytest.ini_options]
 # "tests" is on pythonpath so that test modules can do

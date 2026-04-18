@@ -5,7 +5,7 @@ Provides utilities to convert tool schemas into GBNF grammars that enforce
 valid tool call syntax, ensuring 100% reliable parsing.
 """
 
-from typing import List, Dict, Any
+from typing import Any, Callable, Dict, List
 from enum import Enum
 
 from ..utils.json_schema_to_grammar import json_schema_to_grammar
@@ -58,7 +58,7 @@ def _generate_json_tool_schema(tools: List[Tool], allow_reasoning: bool) -> Dict
     # Build enum of tool names
     tool_names = [tool.name for tool in tools]
 
-    schema = {
+    schema: Dict[str, Any] = {
         "type": "object",
         "properties": {
             "tool_name": {"type": "string", "enum": tool_names, "description": "Name of the tool to call"},
@@ -91,7 +91,7 @@ def _generate_json_array_tool_schema(tools: List[Tool], allow_reasoning: bool) -
     """
     tool_names = [tool.name for tool in tools]
 
-    schema = {
+    schema: Dict[str, Any] = {
         "type": "object",
         "properties": {
             "tool_calls": {
@@ -129,7 +129,7 @@ def _generate_function_call_schema(tools: List[Tool], allow_reasoning: bool) -> 
     """
     tool_names = [tool.name for tool in tools]
 
-    schema = {
+    schema: Dict[str, Any] = {
         "type": "object",
         "properties": {
             "name": {"type": "string", "enum": tool_names, "description": "Function name"},
@@ -182,7 +182,7 @@ def generate_answer_or_tool_schema(tools: List[Tool], allow_reasoning: bool = Tr
     tool_names = [tool.name for tool in tools]
 
     # Using oneOf to allow either answer or tool_call
-    schema = {
+    schema: Dict[str, Any] = {
         "type": "object",
         "properties": {"type": {"type": "string", "enum": ["answer", "tool_call"], "description": "Type of response"}},
         "required": ["type"],
@@ -238,7 +238,7 @@ def generate_specific_tool_schema(tool: Tool) -> Dict[str, Any]:
     Returns:
         JSON schema that validates tool arguments
     """
-    schema = {
+    schema: Dict[str, Any] = {
         "type": "object",
         "properties": {"tool_name": {"type": "string", "const": tool.name}, "tool_args": tool.parameters},
         "required": ["tool_name", "tool_args"],
@@ -268,10 +268,10 @@ class GrammarCache:
     Grammar compilation can be expensive, so we cache results.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._cache: Dict[str, str] = {}
 
-    def get_or_create(self, key: str, generator: callable) -> str:
+    def get_or_create(self, key: str, generator: Callable[[], str]) -> str:
         """
         Get grammar from cache or generate it.
 
@@ -286,7 +286,7 @@ class GrammarCache:
             self._cache[key] = generator()
         return self._cache[key]
 
-    def clear(self):
+    def clear(self) -> None:
         """Clear the cache."""
         self._cache.clear()
 
@@ -338,6 +338,6 @@ def get_cached_answer_or_tool_grammar(tools: List[Tool], allow_reasoning: bool =
     return _grammar_cache.get_or_create(key, lambda: generate_answer_or_tool_grammar(tools, allow_reasoning))
 
 
-def clear_grammar_cache():
+def clear_grammar_cache() -> None:
     """Clear the grammar cache."""
     _grammar_cache.clear()

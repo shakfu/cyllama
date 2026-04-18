@@ -8,7 +8,7 @@ failures and enabling reliable agent execution even with smaller models.
 import json
 import logging
 import time
-from typing import List, Optional, Iterator, Dict, Any, Callable
+from typing import Any, Callable, Dict, Iterator, List, Optional, cast
 from dataclasses import dataclass
 
 from ..api import LLM, GenerationConfig
@@ -73,14 +73,16 @@ class GrammarConstrainedLLM(LLM):
             print(f"Applying grammar constraint: {len(grammar)} chars")
 
         # Ensure context is ready
-        self._ensure_context(n_prompt, config)
+        ctx = self._ensure_context(n_prompt, config)
 
         # Create sampler with grammar constraint
         self._ensure_sampler_with_grammar(config, grammar, grammar_root)
+        sampler = self._sampler
+        assert sampler is not None
 
         # Process prompt
         batch = llama_batch_get_one(prompt_tokens)
-        self._ctx.decode(batch)
+        ctx.decode(batch)
 
         # Generate tokens
         n_pos = n_prompt
@@ -89,7 +91,7 @@ class GrammarConstrainedLLM(LLM):
 
         for _ in range(config.max_tokens):
             # Sample next token with grammar constraint
-            new_token_id = self._sampler.sample(self._ctx, -1)
+            new_token_id = sampler.sample(ctx, -1)
 
             # Check for end of generation
             if self.vocab.is_eog(new_token_id):
@@ -113,13 +115,13 @@ class GrammarConstrainedLLM(LLM):
 
             # Prepare next iteration
             batch = llama_batch_get_one([new_token_id], n_pos)
-            self._ctx.decode(batch)
+            ctx.decode(batch)
             n_pos += 1
             n_generated += 1
 
         return "".join(output_tokens)
 
-    def _ensure_sampler_with_grammar(self, config: GenerationConfig, grammar: str, grammar_root: str):
+    def _ensure_sampler_with_grammar(self, config: GenerationConfig, grammar: str, grammar_root: str) -> None:
         """Create sampler with grammar constraint."""
         sampler_params = LlamaSamplerChainParams()
         sampler_params.no_perf = not self.verbose
@@ -271,6 +273,7 @@ Use tools when needed, then provide a helpful final answer based on the results.
                               is truncated to stay within this limit (default: 16000)
         """
         # Wrap LLM in GrammarConstrainedLLM if needed
+        self.llm: Any
         if isinstance(llm, GrammarConstrainedLLM):
             self.llm = llm
         else:
@@ -428,7 +431,7 @@ Use tools when needed, then provide a helpful final answer based on the results.
                         yield event
 
                     # Tool call
-                    tool_name = response_json.get("tool_name")
+                    tool_name = str(response_json.get("tool_name") or "")
                     tool_args = response_json.get("tool_args", {})
 
                     action_str = f"{tool_name}({json.dumps(tool_args)})"
@@ -704,7 +707,7 @@ Use tools when needed, then provide a helpful final answer based on the results.
         response = response.strip()
 
         # Parse JSON
-        return json.loads(response)
+        return cast(Dict[str, Any], json.loads(response))
 
     def _execute_tool(self, tool_name: str, args: Dict[str, Any]) -> str:
         """
@@ -756,7 +759,7 @@ class EnhancedConstrainedAgent(ConstrainedAgent):
         NotImplementedError. Use ConstrainedAgent instead.
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         """Raise NotImplementedError as this class is not yet implemented."""
         raise NotImplementedError(
             "EnhancedConstrainedAgent is not yet implemented. "

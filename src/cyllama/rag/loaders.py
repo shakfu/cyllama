@@ -664,7 +664,7 @@ class PDFLoader(BaseLoader):
         self.extract_images = extract_images
         self._docling = None
 
-    def _get_docling(self):
+    def _get_docling(self) -> Any:
         """Lazy import of docling."""
         if self._docling is None:
             try:
@@ -717,7 +717,7 @@ class PDFLoader(BaseLoader):
             raise LoaderError(f"Failed to parse PDF {path}: {e}") from e
 
 
-def load_document(path: str | Path, **kwargs) -> list[Document]:
+def load_document(path: str | Path, **kwargs: Any) -> list[Document]:
     """Load a document using the appropriate loader based on file extension.
 
     Convenience function that automatically selects the right loader.
@@ -749,13 +749,13 @@ def load_document(path: str | Path, **kwargs) -> list[Document]:
         raise LoaderError(f"Unsupported file type: {suffix}")
 
     loader = loader_class(**kwargs)
-    return loader.load(path)
+    return list(loader.load(path))
 
 
 def load_directory(
     path: str | Path,
     glob: str = "**/*",
-    **kwargs,
+    **kwargs: Any,
 ) -> list[Document]:
     """Load all matching documents from a directory.
 

@@ -78,12 +78,12 @@ class McpTool:
     input_schema: Dict[str, Any]
     server_name: str
 
-    def to_cyllama_tool(self, call_func: Callable) -> Tool:
+    def to_cyllama_tool(self, call_func: Callable[..., Any]) -> Tool:
         """Convert to a cyllama Tool instance."""
         full_name = f"{self.server_name}/{self.name}"
 
-        def make_tool_func(name, func):
-            def tool_wrapper(**kwargs):
+        def make_tool_func(name: str, func: Callable[..., Any]) -> Callable[..., Any]:
+            def tool_wrapper(**kwargs: Any) -> Any:
                 return func(name, kwargs)
 
             return tool_wrapper
@@ -112,9 +112,9 @@ class McpStdioConnection:
     MCP connection over stdio to a subprocess.
     """
 
-    def __init__(self, config: McpServerConfig):
+    def __init__(self, config: McpServerConfig) -> None:
         self._config = config
-        self._process: Optional[subprocess.Popen] = None
+        self._process: Optional["subprocess.Popen[str]"] = None
         self._request_id = 0
         self._lock = threading.Lock()
         self._read_lock = threading.Lock()
@@ -125,7 +125,9 @@ class McpStdioConnection:
         if self._config.env:
             env.update(self._config.env)
 
-        cmd = [self._config.command] + (self._config.args or [])
+        if not self._config.command:
+            raise RuntimeError(f"MCP server '{self._config.name}': stdio transport requires command")
+        cmd: List[str] = [self._config.command] + list(self._config.args or [])
         logger.info("Starting MCP server '%s': %s", self._config.name, " ".join(cmd))
 
         self._process = subprocess.Popen(
@@ -155,7 +157,9 @@ class McpStdioConnection:
             self._request_id += 1
             return self._request_id
 
-    def send_request(self, method: str, params: Optional[dict] = None, timeout: Optional[float] = None) -> Any:
+    def send_request(
+        self, method: str, params: Optional[Dict[str, Any]] = None, timeout: Optional[float] = None
+    ) -> Any:
         """
         Send a JSON-RPC request and wait for response.
 
@@ -207,7 +211,7 @@ class McpStdioConnection:
 
         return msg.result
 
-    def send_notification(self, method: str, params: Optional[dict] = None) -> None:
+    def send_notification(self, method: str, params: Optional[Dict[str, Any]] = None) -> None:
         """Send a notification (no response expected)."""
         if not self._process or self._process.poll() is not None:
             raise RuntimeError(f"MCP server '{self._config.name}' is not running")
@@ -231,7 +235,7 @@ class McpHttpConnection:
     MCP connection over HTTP.
     """
 
-    def __init__(self, config: McpServerConfig):
+    def __init__(self, config: McpServerConfig) -> None:
         self._config = config
         self._request_id = 0
         self._lock = threading.Lock()
@@ -250,8 +254,10 @@ class McpHttpConnection:
             self._request_id += 1
             return self._request_id
 
-    def send_request(self, method: str, params: Optional[dict] = None, timeout: float = 30.0) -> Any:
+    def send_request(self, method: str, params: Optional[Dict[str, Any]] = None, timeout: float = 30.0) -> Any:
         """Send a JSON-RPC request over HTTP."""
+        if not self._config.url:
+            raise RuntimeError(f"MCP server '{self._config.name}': http transport requires url")
         request_id = self._next_id()
         request = JsonRpcRequest(method=method, params=params, id=request_id)
         request_str = serialize_message(request)
@@ -279,8 +285,10 @@ class McpHttpConnection:
 
         return msg.result
 
-    def send_notification(self, method: str, params: Optional[dict] = None) -> None:
+    def send_notification(self, method: str, params: Optional[Dict[str, Any]] = None) -> None:
         """Send a notification over HTTP."""
+        if not self._config.url:
+            raise RuntimeError(f"MCP server '{self._config.name}': http transport requires url")
         request = JsonRpcRequest(method=method, params=params, id=None)
         request_str = serialize_message(request)
 
@@ -335,6 +343,7 @@ class McpClient:
         config.validate()
 
         # Create connection based on transport type
+        conn: McpConnection
         if config.transport == McpTransportType.STDIO:
             conn = McpStdioConnection(config)
         elif config.transport == McpTransportType.HTTP:
@@ -495,7 +504,7 @@ class McpClient:
         # Return text content
         for item in contents:
             if "text" in item:
-                return item["text"]
+                return str(item["text"])
 
         return ""
 
@@ -545,5 +554,5 @@ class McpClient:
         self.connect_all()
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+    def __exit__(self, exc_type: object, exc_val: object, exc_tb: object) -> None:
         self.disconnect_all()

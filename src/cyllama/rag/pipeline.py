@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Iterator
+from typing import TYPE_CHECKING, Any, Iterator, cast
 
 from ..defaults import DEFAULT_MAX_TOKENS, DEFAULT_TEMPERATURE
 from .repetition import NGramRepetitionDetector, ThinkBlockStripper
@@ -124,7 +124,7 @@ class RAGConfig:
     # so the CLI surfaces, where users hit this bug, opt in by default.
     strip_think_blocks: bool = False
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate configuration values."""
         if self.top_k < 1:
             raise ValueError(f"top_k must be >= 1, got {self.top_k}")
@@ -447,10 +447,13 @@ class RAGPipeline:
         """
         # Already known to fail with system role -> merge up front.
         if self._system_role_supported is False:
-            return self.generator.chat(
-                self._merge_system_into_user(messages),
-                config=gen_config,
-                stream=True,
+            return cast(
+                Iterator[str],
+                self.generator.chat(
+                    self._merge_system_into_user(messages),
+                    config=gen_config,
+                    stream=True,
+                ),
             )
 
         try:
@@ -462,17 +465,20 @@ class RAGPipeline:
             if "template" not in str(e).lower():
                 raise
             self._system_role_supported = False
-            return self.generator.chat(
-                self._merge_system_into_user(messages),
-                config=gen_config,
-                stream=True,
+            return cast(
+                Iterator[str],
+                self.generator.chat(
+                    self._merge_system_into_user(messages),
+                    config=gen_config,
+                    stream=True,
+                ),
             )
 
         # First successful canonical call -> remember so future calls
         # don't have to retry the try/except.
         if self._system_role_supported is None:
             self._system_role_supported = True
-        return token_iter
+        return cast(Iterator[str], token_iter)
 
     def _generate_chunks(
         self,
@@ -543,16 +549,16 @@ class RAGPipeline:
                 # because cfg.use_chat_template was True.
                 gen_config = self._build_gen_config(cfg, force_completion=True)
                 prompt = self._format_prompt(question, sources, cfg)
-                token_iter = self.generator(prompt, config=gen_config, stream=True)
+                token_iter = cast(Iterator[str], self.generator(prompt, config=gen_config, stream=True))
         elif cfg.use_chat_template and self._chat_template_unusable:
             # Cached downgrade: rebuild gen_config for the completion
             # path on every call until the user explicitly opts out.
             gen_config = self._build_gen_config(cfg, force_completion=True)
             prompt = self._format_prompt(question, sources, cfg)
-            token_iter = self.generator(prompt, config=gen_config, stream=True)
+            token_iter = cast(Iterator[str], self.generator(prompt, config=gen_config, stream=True))
         else:
             prompt = self._format_prompt(question, sources, cfg)
-            token_iter = self.generator(prompt, config=gen_config, stream=True)
+            token_iter = cast(Iterator[str], self.generator(prompt, config=gen_config, stream=True))
 
         # Outermost filter: strip <think>...</think> blocks if enabled.
         if cfg.strip_think_blocks:

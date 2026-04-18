@@ -18,12 +18,12 @@ class TestContentBlock:
     """Tests for ACP content blocks."""
 
     def test_text_content(self):
-        block = ContentBlock.text("Hello world")
+        block = ContentBlock.from_text("Hello world")
         assert block.type == "text"
         assert block.text == "Hello world"
 
     def test_to_dict_text(self):
-        block = ContentBlock.text("test")
+        block = ContentBlock.from_text("test")
         d = block.to_dict()
 
         assert d["type"] == "text"
@@ -58,7 +58,7 @@ class TestToolCallUpdate:
             name="calc",
             status=ToolCallStatus.COMPLETED,
             arguments={"x": 1},
-            content=[ContentBlock.text("42")],
+            content=[ContentBlock.from_text("42")],
         )
         d = update.to_dict()
 
@@ -75,14 +75,14 @@ class TestSessionUpdate:
     def test_basic_update(self):
         update = SessionUpdate(
             session_id="sess_1",
-            content=[ContentBlock.text("Hello")],
+            content=[ContentBlock.from_text("Hello")],
         )
         assert update.session_id == "sess_1"
 
     def test_to_dict(self):
         update = SessionUpdate(
             session_id="sess_1",
-            content=[ContentBlock.text("Done")],
+            content=[ContentBlock.from_text("Done")],
             stop_reason=StopReason.END_TURN,
         )
         d = update.to_dict()

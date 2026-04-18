@@ -57,8 +57,8 @@ class AsyncRAG:
         chunk_overlap: int = 50,
         db_path: str = ":memory:",
         config: RAGConfig | None = None,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         """Initialize AsyncRAG with models.
 
         Args:
@@ -88,7 +88,7 @@ class AsyncRAG:
         """Async context manager entry."""
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+    async def __aexit__(self, exc_type: object, exc_val: object, exc_tb: object) -> None:
         """Async context manager exit - ensures cleanup."""
         await self.close()
 
@@ -119,7 +119,7 @@ class AsyncRAG:
         self,
         paths: list[str | Path],
         split: bool = True,
-        **loader_kwargs,
+        **loader_kwargs: Any,
     ) -> list[int]:
         """Load and add documents from files.
 
@@ -167,11 +167,11 @@ class AsyncRAG:
         """
         queue: asyncio.Queue[str | None | Exception] = asyncio.Queue()
 
-        async def producer():
+        async def producer() -> None:
             """Run sync generator in thread and put items in queue."""
             try:
 
-                def generate_sync():
+                def generate_sync() -> None:
                     for chunk in self._rag.stream(question, config):
                         asyncio.run_coroutine_threadsafe(queue.put(chunk), loop)
                     asyncio.run_coroutine_threadsafe(queue.put(None), loop)
@@ -368,12 +368,12 @@ class Reranker:
     n_gpu_layers: int = -1
     _model: Any = field(default=None, repr=False)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Initialize the reranker model."""
         # Lazy load to avoid import errors if not needed
         self._model = None
 
-    def _ensure_model(self):
+    def _ensure_model(self) -> None:
         """Load model on first use."""
         if self._model is None:
             from ..llama import LlamaModel, LlamaContext, LlamaModelParams, LlamaContextParams
@@ -478,7 +478,7 @@ class Reranker:
     def __enter__(self) -> "Reranker":
         return self
 
-    def __exit__(self, *args) -> None:
+    def __exit__(self, *args: Any) -> None:
         self.close()
 
 
@@ -766,7 +766,7 @@ class HybridStore:
             Number of items deleted
         """
         self._check_closed()
-        return self._vector_store.delete(ids)  # type: ignore[arg-type]
+        return self._vector_store.delete(list(ids))
 
     def clear(self) -> int:
         """Clear all data from the store.
@@ -775,7 +775,7 @@ class HybridStore:
             Number of items cleared
         """
         self._check_closed()
-        count = self._vector_store.clear()
+        count: int = self._vector_store.clear()
 
         # Clear FTS table
         fts_table = f"{self.table_name}_fts"
@@ -801,7 +801,7 @@ class HybridStore:
     def __enter__(self) -> "HybridStore":
         return self
 
-    def __exit__(self, *args) -> None:
+    def __exit__(self, *args: Any) -> None:
         self.close()
 
     def __repr__(self) -> str:

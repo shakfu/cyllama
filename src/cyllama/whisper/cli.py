@@ -14,17 +14,24 @@ import wave
 import struct
 import numpy as np
 from pathlib import Path
-from typing import List, Tuple
+from typing import Any, List, Tuple, cast
 import threading
 
-# Import the whisper module (use: python -m cyllama.whisper.cli)
-from . import whisper_cpp as wh
+# Import the whisper module (use: python -m cyllama.whisper.cli).
+# whisper_cpp is a Cython-compiled extension; the runtime import works
+# but mypy can't see the .so as a package attribute. Bind the module
+# through importlib + an Any annotation so attribute access (e.g.
+# wh.WhisperContext) typechecks as Any rather than failing static
+# analysis at every reference.
+import importlib
+
+wh: Any = importlib.import_module(".whisper_cpp", package=__package__)
 
 
 class WhisperParams:
     """Parameters for Whisper CLI, equivalent to whisper_params struct."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         # Basic parameters
         self.n_threads = min(4, threading.active_count())
         self.n_processors = 1
@@ -107,30 +114,32 @@ def load_wav_file(filepath: str) -> Tuple[np.ndarray, int]:
         frames = wav_file.readframes(-1)
         sound_info = wav_file.getparams()
 
+        samples_f: List[float]
+
         # Convert to float32 normalized to [-1, 1]
         if sound_info.sampwidth == 1:
             fmt = f"{len(frames)}B"
-            samples = struct.unpack(fmt, frames)
-            samples = [(s - 128) / 128.0 for s in samples]
+            raw = struct.unpack(fmt, frames)
+            samples_f = [(s - 128) / 128.0 for s in raw]
         elif sound_info.sampwidth == 2:
             fmt = f"{len(frames) // 2}h"
-            samples = struct.unpack(fmt, frames)
-            samples = [s / 32768.0 for s in samples]
+            raw = struct.unpack(fmt, frames)
+            samples_f = [s / 32768.0 for s in raw]
         elif sound_info.sampwidth == 3:
             # 24-bit samples
-            samples = []
+            samples_f = []
             for i in range(0, len(frames), 3):
                 if i + 2 < len(frames):
                     sample = int.from_bytes(frames[i : i + 3], byteorder="little", signed=True)
-                    samples.append(sample / 8388608.0)  # 2^23
+                    samples_f.append(sample / 8388608.0)  # 2^23
         elif sound_info.sampwidth == 4:
             fmt = f"{len(frames) // 4}i"
-            samples = struct.unpack(fmt, frames)
-            samples = [s / 2147483648.0 for s in samples]  # 2^31
+            raw = struct.unpack(fmt, frames)
+            samples_f = [s / 2147483648.0 for s in raw]  # 2^31
         else:
             raise ValueError(f"Unsupported sample width: {sound_info.sampwidth}")
 
-        return np.array(samples, dtype=np.float32), sound_info.framerate
+        return np.array(samples_f, dtype=np.float32), sound_info.framerate
 
 
 def resample_audio(samples: np.ndarray, orig_sr: int, target_sr: int = 16000) -> np.ndarray:
@@ -148,7 +157,7 @@ def resample_audio(samples: np.ndarray, orig_sr: int, target_sr: int = 16000) ->
 
     # Interpolate
     resampled = np.interp(new_indices, old_indices, samples)
-    return resampled.astype(np.float32)
+    return cast(np.ndarray, resampled.astype(np.float32))
 
 
 def escape_string_json(text: str) -> str:
@@ -177,7 +186,7 @@ def format_timestamp(t: int, always_include_hours: bool = False, decimal_marker:
         return f"{min:02d}:{sec:02d}{decimal_marker}{msec:03d}"
 
 
-def output_txt(ctx: wh.WhisperContext, params: WhisperParams, output_file) -> None:
+def output_txt(ctx: wh.WhisperContext, params: WhisperParams, output_file: Any) -> None:
     """Output transcription as plain text."""
     n_segments = ctx.full_n_segments()
 
@@ -191,7 +200,7 @@ def output_txt(ctx: wh.WhisperContext, params: WhisperParams, output_file) -> No
             print(f"[{format_timestamp(t0)} --> {format_timestamp(t1)}] {text.strip()}", file=output_file)
 
 
-def output_vtt(ctx: wh.WhisperContext, params: WhisperParams, output_file) -> None:
+def output_vtt(ctx: wh.WhisperContext, params: WhisperParams, output_file: Any) -> None:
     """Output transcription in WebVTT format."""
     print("WEBVTT", file=output_file)
     print("", file=output_file)
@@ -211,7 +220,7 @@ def output_vtt(ctx: wh.WhisperContext, params: WhisperParams, output_file) -> No
         print("", file=output_file)
 
 
-def output_srt(ctx: wh.WhisperContext, params: WhisperParams, output_file) -> None:
+def output_srt(ctx: wh.WhisperContext, params: WhisperParams, output_file: Any) -> None:
     """Output transcription in SRT format."""
     n_segments = ctx.full_n_segments()
 
@@ -226,7 +235,7 @@ def output_srt(ctx: wh.WhisperContext, params: WhisperParams, output_file) -> No
         print("", file=output_file)
 
 
-def output_csv(ctx: wh.WhisperContext, params: WhisperParams, output_file) -> None:
+def output_csv(ctx: wh.WhisperContext, params: WhisperParams, output_file: Any) -> None:
     """Output transcription in CSV format."""
     print("start,end,text", file=output_file)
 
@@ -245,9 +254,9 @@ def output_csv(ctx: wh.WhisperContext, params: WhisperParams, output_file) -> No
         print(f'{t0_ms},{t1_ms},"{text_escaped}"', file=output_file)
 
 
-def output_json(ctx: wh.WhisperContext, params: WhisperParams, output_file, full: bool = False) -> None:
+def output_json(ctx: wh.WhisperContext, params: WhisperParams, output_file: Any, full: bool = False) -> None:
     """Output transcription in JSON format."""
-    result = {"text": "", "segments": []}
+    result: dict[str, Any] = {"text": "", "segments": []}
 
     n_segments = ctx.full_n_segments()
 
@@ -302,7 +311,7 @@ def output_json(ctx: wh.WhisperContext, params: WhisperParams, output_file, full
     json.dump(result, output_file, indent=2, ensure_ascii=False)
 
 
-def output_lrc(ctx: wh.WhisperContext, params: WhisperParams, output_file) -> None:
+def output_lrc(ctx: wh.WhisperContext, params: WhisperParams, output_file: Any) -> None:
     """Output transcription in LRC format."""
     n_segments = ctx.full_n_segments()
 
@@ -627,7 +636,7 @@ Examples:
     return params
 
 
-def main():
+def main() -> None:
     """Main entry point."""
     params = parse_arguments()
 

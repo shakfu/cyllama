@@ -5,7 +5,7 @@ import time
 from .python import ServerConfig, PythonServer
 
 
-def main():
+def main() -> int:
     parser = argparse.ArgumentParser(description="Llama.cpp Server")
     parser.add_argument("-m", "--model", required=True, help="Path to model file")
     parser.add_argument("--host", default="127.0.0.1", help="Host to bind to")
@@ -76,6 +76,8 @@ def main():
                     time.sleep(1)
             except KeyboardInterrupt:
                 print("\nShutting down Python server...")
+
+    return 0
 
 
 if __name__ == "__main__":

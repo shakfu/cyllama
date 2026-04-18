@@ -6,7 +6,7 @@ import math
 import threading
 from collections import OrderedDict
 from enum import IntEnum
-from typing import Iterator, NamedTuple
+from typing import Any, Iterator, NamedTuple
 
 from ..llama.llama_cpp import (
     LlamaBatch,
@@ -230,7 +230,7 @@ class Embedder:
     @property
     def dimension(self) -> int:
         """Return embedding dimension (n_embd)."""
-        return self._n_embd
+        return int(self._n_embd)
 
     @property
     def pooling(self) -> str:
@@ -512,7 +512,7 @@ class Embedder:
     def __enter__(self) -> "Embedder":
         return self
 
-    def __exit__(self, *args) -> None:
+    def __exit__(self, *args: Any) -> None:
         self.close()
 
     def __repr__(self) -> str:

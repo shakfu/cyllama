@@ -16,7 +16,12 @@ import sys
 from typing import Any, List, Optional, Set, Tuple, Union
 
 
-def _build_repetition(item_rule, min_items, max_items, separator_rule=None):
+def _build_repetition(
+    item_rule: str,
+    min_items: int,
+    max_items: Optional[int],
+    separator_rule: Optional[str] = None,
+) -> str:
     if max_items == 0:
         return ""
 
@@ -44,9 +49,13 @@ def _build_repetition(item_rule, min_items, max_items, separator_rule=None):
 
 
 def _generate_min_max_int(
-    min_value: Optional[int], max_value: Optional[int], out: list, decimals_left: int = 16, top_level: bool = True
-):
-    def digit_range(from_char: str, to_char: str):
+    min_value: Optional[int],
+    max_value: Optional[int],
+    out: List[str],
+    decimals_left: int = 16,
+    top_level: bool = True,
+) -> None:
+    def digit_range(from_char: str, to_char: str) -> None:
         out.append("[")
         if from_char == to_char:
             out.append(from_char)
@@ -56,7 +65,7 @@ def _generate_min_max_int(
             out.append(to_char)
         out.append("]")
 
-    def more_digits(min_digits: int, max_digits: int):
+    def more_digits(min_digits: int, max_digits: int) -> None:
         out.append("[0-9]")
         if min_digits == max_digits and min_digits == 1:
             return
@@ -68,7 +77,7 @@ def _generate_min_max_int(
                 out.append(str(max_digits))
         out.append("}")
 
-    def uniform_range(from_str: str, to_str: str):
+    def uniform_range(from_str: str, to_str: str) -> None:
         i = 0
         while i < len(from_str) and from_str[i] == to_str[i]:
             i += 1
@@ -209,7 +218,7 @@ def _generate_min_max_int(
 
 
 class BuiltinRule:
-    def __init__(self, content: str, deps: list | None = None):
+    def __init__(self, content: str, deps: List[str] | None = None) -> None:
         self.content = content
         self.deps = deps or []
 
@@ -269,31 +278,38 @@ ESCAPED_IN_REGEXPS_BUT_NOT_IN_LITERALS = set("^$.[]()|{}*+?")
 
 
 class SchemaConverter:
-    def __init__(self, *, prop_order, allow_fetch, dotall, raw_pattern):
+    def __init__(
+        self,
+        *,
+        prop_order: dict[str, int],
+        allow_fetch: bool,
+        dotall: bool,
+        raw_pattern: bool,
+    ) -> None:
         self._prop_order = prop_order
         self._allow_fetch = allow_fetch
         self._dotall = dotall
         self._raw_pattern = raw_pattern
-        self._rules = {
+        self._rules: dict[str, str] = {
             "space": SPACE_RULE,
         }
-        self._refs = {}
-        self._refs_being_resolved = set()
+        self._refs: dict[str, Any] = {}
+        self._refs_being_resolved: Set[str] = set()
 
-    def _format_literal(self, literal):
+    def _format_literal(self, literal: str) -> str:
         escaped = GRAMMAR_LITERAL_ESCAPE_RE.sub(
             lambda m: GRAMMAR_LITERAL_ESCAPES.get(m.group(0)) or m.group(0), literal
         )
         return f'"{escaped}"'
 
-    def not_literal(self, literal: str, dotall: bool = True, maybe_escaped_underscores=False) -> str:
+    def not_literal(self, literal: str, dotall: bool = True, maybe_escaped_underscores: bool = False) -> str:
         """
         not_literal('a') -> '[^a]'
         not_literal('abc') -> '([^a] | "a" ([^b] | "b" ([^c])?)?)?'
         """
         assert len(literal) > 0, "Empty literal not supported"
 
-        def recurse(i: int):
+        def recurse(i: int) -> Any:
             c = literal[i]
             if maybe_escaped_underscores and c == "_":
                 yield f"[^{c}\\\\]"
@@ -310,13 +326,13 @@ class SchemaConverter:
 
         return "".join(("(", *recurse(0), ")"))
 
-    def _not_strings(self, strings):
+    def _not_strings(self, strings: List[str]) -> str:
         class TrieNode:
-            def __init__(self):
-                self.children = {}
+            def __init__(self) -> None:
+                self.children: dict[str, "TrieNode"] = {}
                 self.is_end_of_string = False
 
-            def insert(self, string):
+            def insert(self, string: str) -> None:
                 node = self
                 for c in string:
                     node = node.children.setdefault(c, TrieNode())
@@ -329,8 +345,8 @@ class SchemaConverter:
         char_rule = self._add_primitive("char", PRIMITIVE_RULES["char"])
         out = ['["] ( ']
 
-        def visit(node):
-            rejects = []
+        def visit(node: TrieNode) -> None:
+            rejects: List[str] = []
             first = True
             for c in sorted(node.children.keys()):
                 child = node.children[c]
@@ -356,7 +372,7 @@ class SchemaConverter:
         out.append(f' ){"" if trie.is_end_of_string else "?"} ["] space')
         return "".join(out)
 
-    def _add_rule(self, name, rule):
+    def _add_rule(self, name: str, rule: str) -> str:
         esc_name = INVALID_RULE_CHARS_RE.sub("-", name)
         if esc_name not in self._rules or self._rules[esc_name] == rule:
             key = esc_name
@@ -368,14 +384,14 @@ class SchemaConverter:
         self._rules[key] = rule
         return key
 
-    def resolve_refs(self, schema: dict, url: str):
+    def resolve_refs(self, schema: dict[str, Any], url: str) -> Any:
         """
         Resolves all $ref fields in the given schema, fetching any remote schemas,
         replacing $ref with absolute reference URL and populating self._refs with the
         respective referenced (sub)schema dictionaries.
         """
 
-        def visit(n: dict):
+        def visit(n: Any) -> Any:
             if isinstance(n, list):
                 return [visit(x) for x in n]
             elif isinstance(n, dict):
@@ -383,7 +399,7 @@ class SchemaConverter:
                 if ref is not None and ref not in self._refs:
                     if ref.startswith("https://"):
                         assert self._allow_fetch, "Fetching remote schemas is not allowed (use --allow-fetch for force)"
-                        import requests  # type: ignore[import-untyped]
+                        import requests
 
                         frag_split = ref.split("#")
                         base_url = frag_split[0]
@@ -424,7 +440,7 @@ class SchemaConverter:
 
         return visit(schema)
 
-    def _generate_union_rule(self, name, alt_schemas):
+    def _generate_union_rule(self, name: str, alt_schemas: List[dict[str, Any]]) -> str:
         return " | ".join(
             (
                 self.visit(alt_schema, f"{name}{'-' if name else 'alternative-'}{i}")
@@ -432,7 +448,7 @@ class SchemaConverter:
             )
         )
 
-    def _visit_pattern(self, pattern, name):
+    def _visit_pattern(self, pattern: str, name: str) -> str:
         """
         Transforms a regular expression pattern into a GBNF rule.
 
@@ -447,7 +463,7 @@ class SchemaConverter:
 
         assert pattern.startswith("^") and pattern.endswith("$"), 'Pattern must start with "^" and end with "$"'
         pattern = pattern[1:-1]
-        sub_rule_ids = {}
+        sub_rule_ids: dict[str, str] = {}
 
         i = 0
         length = len(pattern)
@@ -456,7 +472,7 @@ class SchemaConverter:
             (txt, is_literal) = s
             return '"' + txt + '"' if is_literal else txt
 
-        def transform() -> tuple[str, bool]:
+        def transform() -> Tuple[str, bool]:
             """
             Parse a unit at index i (advancing it), and return its string representation + whether it's a literal.
             """
@@ -471,7 +487,7 @@ class SchemaConverter:
             # (GBNF's syntax is luckily very close to regular expressions!)
             seq: list[tuple[str, bool]] = []
 
-            def get_dot():
+            def get_dot() -> str:
                 if self._dotall:
                     rule = DOTALL
                 else:
@@ -479,7 +495,7 @@ class SchemaConverter:
                     rule = DOT
                 return self._add_rule("dot", rule)
 
-            def join_seq():
+            def join_seq() -> Tuple[str, bool]:
                 nonlocal seq
                 ret = []
                 for is_literal, g in itertools.groupby(seq, lambda x: x[1]):
@@ -596,7 +612,7 @@ class SchemaConverter:
             name, to_rule(transform()) if self._raw_pattern else '"\\"" (' + to_rule(transform()) + ') "\\"" space'
         )
 
-    def _resolve_ref(self, ref):
+    def _resolve_ref(self, ref: str) -> str:
         ref_fragment = ref.split("#")[-1]
         ref_name = "ref" + re.sub(r"[^a-zA-Z0-9-]+", "-", ref_fragment)
         if ref_name not in self._rules and ref not in self._refs_being_resolved:
@@ -606,10 +622,10 @@ class SchemaConverter:
             self._refs_being_resolved.remove(ref)
         return ref_name
 
-    def _generate_constant_rule(self, value):
+    def _generate_constant_rule(self, value: Any) -> str:
         return self._format_literal(json.dumps(value))
 
-    def visit(self, schema, name):
+    def visit(self, schema: dict[str, Any], name: str) -> str:
         schema_type = schema.get("type")
         schema_format = schema.get("format")
         rule_name = name + "-" if name in RESERVED_NAMES else name or "root"
@@ -647,7 +663,7 @@ class SchemaConverter:
             enum_sets = []
             hybrid_name = name
 
-            def add_component(comp_schema, is_required):
+            def add_component(comp_schema: dict[str, Any], is_required: bool) -> None:
                 if (ref := comp_schema.get("$ref")) is not None:
                     comp_schema = self._refs[ref]
 
@@ -696,6 +712,7 @@ class SchemaConverter:
                     + ' "]" space',
                 )
             else:
+                assert items is not None
                 item_rule_name = self.visit(items, f"{name}{'-' if name else ''}item")
                 min_items = schema.get("minItems", 0)
                 max_items = schema.get("maxItems")
@@ -710,6 +727,7 @@ class SchemaConverter:
             return self._visit_pattern(schema["pattern"], rule_name)
 
         elif schema_type in (None, "string") and re.match(r"^uuid[1-5]?$", schema_format or ""):
+            assert schema_format is not None
             return self._add_primitive("root" if rule_name == "root" else schema_format, PRIMITIVE_RULES["uuid"])
 
         elif schema_type in (None, "string") and f"{schema_format}-string" in STRING_FORMAT_RULES:
@@ -752,7 +770,7 @@ class SchemaConverter:
             assert schema_type in PRIMITIVE_RULES, f"Unrecognized schema: {schema}"
             return self._add_primitive("root" if rule_name == "root" else schema_type, PRIMITIVE_RULES[schema_type])
 
-    def _add_primitive(self, name: str, rule: BuiltinRule):
+    def _add_primitive(self, name: str, rule: BuiltinRule) -> str:
         n = self._add_rule(name, rule.content)
 
         for dep in rule.deps:
@@ -768,7 +786,7 @@ class SchemaConverter:
         required: Set[str],
         name: str,
         additional_properties: Optional[Union[bool, Any]],
-    ):
+    ) -> str:
         prop_order = self._prop_order
         # sort by position in prop_order (if specified) then by original order
         sorted_props = [
@@ -778,7 +796,7 @@ class SchemaConverter:
             )
         ]
 
-        prop_kv_rule_names = {}
+        prop_kv_rule_names: dict[str, str] = {}
         for prop_name, prop_schema in properties:
             prop_rule_name = self.visit(prop_schema, f"{name}{'-' if name else ''}{prop_name}")
             prop_kv_rule_names[prop_name] = self._add_rule(
@@ -812,7 +830,7 @@ class SchemaConverter:
             if required_props:
                 rule += ' "," space ( '
 
-            def get_recursive_refs(ks, first_is_optional):
+            def get_recursive_refs(ks: List[str], first_is_optional: bool) -> str:
                 [k, *rest] = ks
                 kv_rule_name = prop_kv_rule_names[k]
                 comma_ref = f'( "," space {kv_rule_name} )'
@@ -837,11 +855,11 @@ class SchemaConverter:
 
         return rule
 
-    def format_grammar(self):
+    def format_grammar(self) -> str:
         return "\n".join(f"{name} ::= {rule}" for name, rule in sorted(self._rules.items(), key=lambda kv: kv[0]))
 
 
-def json_schema_to_grammar(schema, force_gbnf=False):
+def json_schema_to_grammar(schema: Any, force_gbnf: bool = False) -> str:
     """
     Convert a JSON schema to GBNF grammar for constrained generation.
 

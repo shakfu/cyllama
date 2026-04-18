@@ -14,7 +14,10 @@ import json
 import time
 import threading
 import logging
-from typing import Dict, List, Optional, Any
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
+if TYPE_CHECKING:
+    from ...rag.embedder import Embedder
 from dataclasses import dataclass, field
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse
@@ -144,7 +147,7 @@ class ServerSlot:
         self.sampler.add_temp(temperature)
         self.sampler.add_dist(seed if seed is not None else 1337)
 
-    def reset(self):
+    def reset(self) -> None:
         """Reset the slot for a new request."""
         self.is_processing = False
         self.task_id = None
@@ -197,6 +200,7 @@ class ServerSlot:
                     break
 
                 # Sample next token (like chat.py)
+                assert self.sampler is not None
                 new_token_id = self.sampler.sample(context, -1)
 
                 # Check for EOS
@@ -243,7 +247,7 @@ class PythonServer:
         self.config = config
         self.model: Optional[LlamaModel] = None
         self.slots: List[ServerSlot] = []
-        self.embedder = None  # Initialized when config.embedding is True
+        self.embedder: Optional["Embedder"] = None  # Initialized when config.embedding is True
 
         # HTTP server
         self.httpd: Optional[HTTPServer] = None
@@ -282,7 +286,9 @@ class PythonServer:
                     pooling=self.config.embedding_pooling,
                     normalize=self.config.embedding_normalize,
                 )
-                self.logger.info(f"Embedder loaded: dim={self.embedder.dimension}, pooling={self.embedder.pooling}")
+                emb = self.embedder
+                assert emb is not None
+                self.logger.info(f"Embedder loaded: dim={emb.dimension}, pooling={emb.pooling}")
 
             return True
 
@@ -326,6 +332,7 @@ class PythonServer:
                         break
 
             # Estimate token counts (simplified)
+            assert self.model is not None
             vocab = self.model.get_vocab()
             prompt_tokens = len(vocab.tokenize(prompt, add_special=True, parse_special=True))
             completion_tokens = len(vocab.tokenize(generated_text, add_special=False, parse_special=False))
@@ -391,7 +398,7 @@ class PythonServer:
             self.logger.error(f"Failed to start server: {e}")
             return False
 
-    def stop(self):
+    def stop(self) -> None:
         """Stop the embedded server."""
         if self.running:
             self.running = False
@@ -402,24 +409,25 @@ class PythonServer:
                 self.server_thread.join(timeout=5.0)
             self.logger.info("Server stopped")
 
-    def _server_loop(self):
+    def _server_loop(self) -> None:
         """Main server loop."""
         try:
+            assert self.httpd is not None
             self.httpd.serve_forever()
         except Exception as e:
             if self.running:  # Only log if we didn't shutdown intentionally
                 self.logger.error(f"Server loop error: {e}")
 
-    def _create_request_handler(self):
+    def _create_request_handler(self) -> type:
         """Create the HTTP request handler class."""
         server_instance = self
 
         class RequestHandler(BaseHTTPRequestHandler):
-            def log_message(self, format, *args):
+            def log_message(self, format: str, *args: Any) -> None:
                 # Suppress default logging
                 pass
 
-            def do_GET(self):
+            def do_GET(self) -> None:
                 """Handle GET requests."""
                 path = urlparse(self.path).path
 
@@ -430,7 +438,7 @@ class PythonServer:
                 else:
                     self._send_error(404, "Not Found")
 
-            def do_POST(self):
+            def do_POST(self) -> None:
                 """Handle POST requests."""
                 path = urlparse(self.path).path
 
@@ -456,7 +464,7 @@ class PythonServer:
                     server_instance.logger.error(f"Request error: {e}")
                     self._send_error(500, "Internal Server Error")
 
-            def _send_json_response(self, data: Dict[str, Any], status: int = 200):
+            def _send_json_response(self, data: Dict[str, Any], status: int = 200) -> None:
                 """Send a JSON response."""
                 response = json.dumps(data)
                 self.send_response(status)
@@ -465,12 +473,12 @@ class PythonServer:
                 self.end_headers()
                 self.wfile.write(response.encode("utf-8"))
 
-            def _send_error(self, status: int, message: str):
+            def _send_error(self, status: int, message: str) -> None:
                 """Send an error response."""
                 error_data = {"error": {"type": "invalid_request_error", "message": message}}
                 self._send_json_response(error_data, status)
 
-            def _handle_models(self):
+            def _handle_models(self) -> None:
                 """Handle /v1/models endpoint."""
                 models_data = {
                     "object": "list",
@@ -485,7 +493,7 @@ class PythonServer:
                 }
                 self._send_json_response(models_data)
 
-            def _handle_chat_completions(self, data: Dict[str, Any]):
+            def _handle_chat_completions(self, data: Dict[str, Any]) -> None:
                 """Handle /v1/chat/completions endpoint."""
                 try:
                     # Parse request
@@ -530,7 +538,7 @@ class PythonServer:
                     server_instance.logger.error(f"Chat completion error: {e}")
                     self._send_error(500, str(e))
 
-            def _handle_embeddings(self, data: Dict[str, Any]):
+            def _handle_embeddings(self, data: Dict[str, Any]) -> None:
                 """Handle /v1/embeddings endpoint."""
                 if not server_instance.config.embedding or server_instance.embedder is None:
                     self._send_error(400, "Embeddings not enabled")
@@ -586,20 +594,20 @@ class PythonServer:
 
         return RequestHandler
 
-    def __enter__(self):
+    def __enter__(self) -> "PythonServer":
         """Context manager entry."""
         if self.start():
             return self
         else:
             raise RuntimeError("Failed to start server")
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: object, exc_val: object, exc_tb: object) -> None:
         """Context manager exit."""
         self.stop()
 
 
 # Convenience function
-def start_python_server(model_path: str, **kwargs) -> PythonServer:
+def start_python_server(model_path: str, **kwargs: Any) -> PythonServer:
     """
     Start a Python server with simple configuration.
 

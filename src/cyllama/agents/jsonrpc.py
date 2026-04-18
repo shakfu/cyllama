@@ -41,14 +41,14 @@ class JsonRpcError:
     message: str
     data: Optional[Any] = None
 
-    def to_dict(self) -> dict:
-        result = {"code": self.code, "message": self.message}
+    def to_dict(self) -> Dict[str, Any]:
+        result: Dict[str, Any] = {"code": self.code, "message": self.message}
         if self.data is not None:
             result["data"] = self.data
         return result
 
     @classmethod
-    def from_dict(cls, d: dict) -> "JsonRpcError":
+    def from_dict(cls, d: Dict[str, Any]) -> "JsonRpcError":
         return cls(code=d["code"], message=d["message"], data=d.get("data"))
 
 
@@ -60,8 +60,8 @@ class JsonRpcRequest:
     params: Optional[Dict[str, Any]] = None
     id: Optional[Union[str, int]] = None  # None for notifications
 
-    def to_dict(self) -> dict:
-        result = {"jsonrpc": "2.0", "method": self.method}
+    def to_dict(self) -> Dict[str, Any]:
+        result: Dict[str, Any] = {"jsonrpc": "2.0", "method": self.method}
         if self.params is not None:
             result["params"] = self.params
         if self.id is not None:
@@ -69,7 +69,7 @@ class JsonRpcRequest:
         return result
 
     @classmethod
-    def from_dict(cls, d: dict) -> "JsonRpcRequest":
+    def from_dict(cls, d: Dict[str, Any]) -> "JsonRpcRequest":
         return cls(method=d["method"], params=d.get("params"), id=d.get("id"))
 
     @property
@@ -85,8 +85,8 @@ class JsonRpcResponse:
     result: Optional[Any] = None
     error: Optional[JsonRpcError] = None
 
-    def to_dict(self) -> dict:
-        result = {"jsonrpc": "2.0", "id": self.id}
+    def to_dict(self) -> Dict[str, Any]:
+        result: Dict[str, Any] = {"jsonrpc": "2.0", "id": self.id}
         if self.error is not None:
             result["error"] = self.error.to_dict()
         else:
@@ -94,7 +94,7 @@ class JsonRpcResponse:
         return result
 
     @classmethod
-    def from_dict(cls, d: dict) -> "JsonRpcResponse":
+    def from_dict(cls, d: Dict[str, Any]) -> "JsonRpcResponse":
         error = None
         if "error" in d:
             error = JsonRpcError.from_dict(d["error"])
@@ -138,9 +138,9 @@ class StdioTransport:
 
     def __init__(
         self,
-        input_stream=None,
-        output_stream=None,
-    ):
+        input_stream: Optional[Any] = None,
+        output_stream: Optional[Any] = None,
+    ) -> None:
         self._input = input_stream or sys.stdin
         self._output = output_stream or sys.stdout
         self._lock = threading.Lock()
@@ -182,9 +182,9 @@ class JsonRpcServer:
     Supports both synchronous and async-bridged operation.
     """
 
-    def __init__(self, transport: StdioTransport):
+    def __init__(self, transport: StdioTransport) -> None:
         self._transport = transport
-        self._handlers: Dict[str, Callable] = {}
+        self._handlers: Dict[str, Callable[..., Any]] = {}
         self._pending_requests: Dict[Union[str, int], threading.Event] = {}
         self._pending_responses: Dict[Union[str, int], JsonRpcResponse] = {}
         self._request_id = 0
@@ -192,9 +192,9 @@ class JsonRpcServer:
         self._running = False
 
         # Queue for bridging sync inner agents with async protocol
-        self._outgoing_queue: queue.Queue = queue.Queue()
+        self._outgoing_queue: "queue.Queue[Any]" = queue.Queue()
 
-    def register(self, method: str, handler: Callable) -> None:
+    def register(self, method: str, handler: Callable[..., Any]) -> None:
         """Register a method handler."""
         self._handlers[method] = handler
 
@@ -207,13 +207,13 @@ class JsonRpcServer:
             self._request_id += 1
             return self._request_id
 
-    def send_notification(self, method: str, params: Optional[dict] = None) -> None:
+    def send_notification(self, method: str, params: Optional[Dict[str, Any]] = None) -> None:
         """Send a notification (no response expected)."""
         msg = JsonRpcRequest(method=method, params=params, id=None)
         self._transport.write_message(msg)
 
     def send_request(
-        self, method: str, params: Optional[dict] = None, timeout: Optional[float] = None
+        self, method: str, params: Optional[Dict[str, Any]] = None, timeout: Optional[float] = None
     ) -> JsonRpcResponse:
         """
         Send a request and wait for response.
@@ -320,9 +320,9 @@ class AsyncBridge:
     as notifications by the protocol handler.
     """
 
-    def __init__(self, server: JsonRpcServer):
+    def __init__(self, server: JsonRpcServer) -> None:
         self._server = server
-        self._queue: queue.Queue = queue.Queue()
+        self._queue: "queue.Queue[Any]" = queue.Queue()
         self._worker_thread: Optional[threading.Thread] = None
         self._running = False
 
@@ -353,7 +353,7 @@ class AsyncBridge:
             except Exception as e:
                 logger.error("Error in async bridge worker: %s", e)
 
-    def send_notification(self, method: str, params: Optional[dict] = None) -> None:
+    def send_notification(self, method: str, params: Optional[Dict[str, Any]] = None) -> None:
         """
         Queue a notification to be sent asynchronously.
 
@@ -361,7 +361,7 @@ class AsyncBridge:
         """
         self._queue.put((method, params))
 
-    def send_notification_sync(self, method: str, params: Optional[dict] = None) -> None:
+    def send_notification_sync(self, method: str, params: Optional[Dict[str, Any]] = None) -> None:
         """
         Send a notification immediately (blocking).
 

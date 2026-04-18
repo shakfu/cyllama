@@ -128,7 +128,7 @@ format:
 	@uv run ruff format src/cyllama tests
 
 typecheck:
-	@uv run mypy src/cyllama/rag src/cyllama/utils --follow-imports=skip
+	@uv run mypy src/ --follow-imports=skip
 
 qa: lint typecheck format
 

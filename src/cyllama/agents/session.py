@@ -66,7 +66,7 @@ class Session:
     created_at: float = field(default_factory=time.time)
     updated_at: float = field(default_factory=time.time)
 
-    def add_message(self, role: str, content: str, **metadata) -> Message:
+    def add_message(self, role: str, content: str, **metadata: Any) -> Message:
         """Add a message to the session."""
         msg = Message(role=role, content=content, metadata=metadata)
         self.messages.append(msg)
@@ -163,7 +163,7 @@ class SessionStore(ABC):
 class MemorySessionStore(SessionStore):
     """In-memory session storage (default)."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._sessions: Dict[str, Session] = {}
         self._lock = threading.Lock()
 
@@ -236,7 +236,7 @@ class FileSessionStore(SessionStore):
 
     def list_sessions(self) -> List[str]:
         with self._lock:
-            sessions = []
+            sessions: List[str] = []
             try:
                 filenames = os.listdir(self._directory)
             except OSError as e:

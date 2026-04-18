@@ -28,11 +28,13 @@ Example:
 
 import asyncio
 from typing import (
+    Any,
     AsyncIterator,
-    Optional,
-    List,
-    Union,
     Callable,
+    List,
+    Optional,
+    Union,
+    cast,
 )
 import logging
 
@@ -67,7 +69,7 @@ class AsyncReActAgent:
     def __init__(
         self,
         model_path: str,
-        tools: Optional[List[Union[Tool, Callable]]] = None,
+        tools: Optional[List[Union[Tool, Callable[..., Any]]]] = None,
         config: Optional[GenerationConfig] = None,
         system_prompt: Optional[str] = None,
         max_iterations: int = 10,
@@ -75,8 +77,8 @@ class AsyncReActAgent:
         detect_loops: bool = True,
         max_consecutive_same_action: int = 3,
         max_consecutive_same_tool: int = 5,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         """
         Initialize async ReAct agent.
 
@@ -94,9 +96,13 @@ class AsyncReActAgent:
         """
         # Create LLM instance from model_path
         self._llm = LLM(model_path, config=config, verbose=verbose, **kwargs)
+        # ReActAgent's `tools` param is typed as List[Tool], but the
+        # constructor accepts @tool-decorated callables as well and wraps
+        # them internally. The cast keeps the wrapper's permissive
+        # signature without lying to ReActAgent at runtime.
         self._agent = ReActAgent(
             llm=self._llm,
-            tools=tools,
+            tools=cast(Optional[List[Tool]], tools),
             system_prompt=system_prompt,
             max_iterations=max_iterations,
             verbose=verbose,
@@ -107,16 +113,15 @@ class AsyncReActAgent:
         )
         self._lock = asyncio.Lock()
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> "AsyncReActAgent":
         """Async context manager entry."""
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type: object, exc_val: object, exc_tb: object) -> None:
         """Async context manager exit."""
         await self.close()
-        return False
 
-    async def close(self):
+    async def close(self) -> None:
         """Release resources."""
         if self._llm:
             await asyncio.to_thread(self._llm.close)
@@ -162,11 +167,11 @@ class AsyncReActAgent:
         """
         queue: asyncio.Queue[Union[AgentEvent, None, Exception]] = asyncio.Queue()
 
-        async def producer():
+        async def producer() -> None:
             """Run sync generator in thread and put items in queue."""
             try:
 
-                def generate_sync():
+                def generate_sync() -> None:
                     for event in self._agent.stream(task):
                         asyncio.run_coroutine_threadsafe(queue.put(event), loop)
                     asyncio.run_coroutine_threadsafe(queue.put(None), loop)
@@ -211,14 +216,14 @@ class AsyncConstrainedAgent:
     def __init__(
         self,
         model_path: str,
-        tools: Optional[List[Union[Tool, Callable]]] = None,
+        tools: Optional[List[Union[Tool, Callable[..., Any]]]] = None,
         config: Optional[GenerationConfig] = None,
         generation_config: Optional[ConstrainedGenerationConfig] = None,
         system_prompt: Optional[str] = None,
         max_iterations: int = 10,
         verbose: bool = False,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         """
         Initialize async constrained agent.
 
@@ -236,7 +241,7 @@ class AsyncConstrainedAgent:
         self._llm = LLM(model_path, config=config, verbose=verbose, **kwargs)
         self._agent = ConstrainedAgent(
             llm=self._llm,
-            tools=tools,
+            tools=cast(Optional[List[Tool]], tools),
             generation_config=generation_config,
             system_prompt=system_prompt,
             max_iterations=max_iterations,
@@ -244,24 +249,28 @@ class AsyncConstrainedAgent:
         )
         self._lock = asyncio.Lock()
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> "AsyncConstrainedAgent":
         """Async context manager entry."""
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type: object, exc_val: object, exc_tb: object) -> None:
         """Async context manager exit."""
         await self.close()
-        return False
 
-    async def close(self):
+    async def close(self) -> None:
         """Release resources."""
         if self._llm:
             await asyncio.to_thread(self._llm.close)
 
     @property
     def metrics(self) -> Optional[AgentMetrics]:
-        """Get metrics from the last run."""
-        return self._agent.metrics
+        """Get metrics from the last run.
+
+        ConstrainedAgent has its own ``AgentMetrics`` class with the
+        same shape but a different module path; cast through ``Any``
+        because the wrapper exposes the react-flavoured alias.
+        """
+        return cast(Optional[AgentMetrics], self._agent.metrics)
 
     async def run(self, task: str) -> AgentResult:
         """
@@ -288,10 +297,10 @@ class AsyncConstrainedAgent:
         """
         queue: asyncio.Queue[Union[AgentEvent, None, Exception]] = asyncio.Queue()
 
-        async def producer():
+        async def producer() -> None:
             try:
 
-                def generate_sync():
+                def generate_sync() -> None:
                     for event in self._agent.stream(task):
                         asyncio.run_coroutine_threadsafe(queue.put(event), loop)
                     asyncio.run_coroutine_threadsafe(queue.put(None), loop)

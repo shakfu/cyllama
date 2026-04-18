@@ -28,7 +28,7 @@ Example:
     >>>     print(chunk.choices[0].delta.content, end="")
 """
 
-from typing import List, Dict, Iterator, Optional, Union
+from typing import Any, Dict, Iterator, List, Optional, Union, cast
 from dataclasses import dataclass, field
 import time
 import uuid
@@ -123,7 +123,7 @@ class ChatCompletions:
         top_p: float = DEFAULT_TOP_P,
         stream: bool = False,
         stop: Optional[List[str]] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> Union[ChatCompletion, Iterator[ChatCompletionChunk]]:
         """
         Create a chat completion.
@@ -182,8 +182,8 @@ class ChatCompletions:
         # Tokenize for usage stats
         prompt_tokens = self.generator.vocab.tokenize(prompt, add_special=True, parse_special=True)
 
-        # Generate - returns Response object
-        response: Response = self.generator(prompt, config=config, stream=False)
+        # Generate - returns Response object (cast: stream=False guarantees Response)
+        response = cast(Response, self.generator(prompt, config=config, stream=False))
 
         # Use stats from Response if available, otherwise count tokens manually
         if response.stats is not None:
@@ -289,7 +289,7 @@ class OpenAICompatibleClient:
 # Convenience function
 
 
-def create_openai_client(model_path: str, **kwargs) -> OpenAICompatibleClient:
+def create_openai_client(model_path: str, **kwargs: Any) -> OpenAICompatibleClient:
     """
     Create an OpenAI-compatible client.
 

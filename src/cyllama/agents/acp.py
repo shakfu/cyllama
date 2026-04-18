@@ -60,8 +60,8 @@ class ContentBlock:
     mime_type: Optional[str] = None
     uri: Optional[str] = None
 
-    def to_dict(self) -> dict:
-        result = {"type": self.type}
+    def to_dict(self) -> Dict[str, Any]:
+        result: Dict[str, Any] = {"type": self.type}
         if self.text is not None:
             result["text"] = self.text
         if self.data is not None:
@@ -73,7 +73,12 @@ class ContentBlock:
         return result
 
     @classmethod
-    def text(cls, text: str) -> "ContentBlock":
+    def from_text(cls, text: str) -> "ContentBlock":
+        """Build a text content block.
+
+        Renamed from ``text`` (the original method shadowed the ``text``
+        dataclass field, which strict typecheck rejects).
+        """
         return cls(type="text", text=text)
 
 
@@ -87,8 +92,8 @@ class ToolCallUpdate:
     arguments: Optional[Dict[str, Any]] = None
     content: Optional[List[ContentBlock]] = None
 
-    def to_dict(self) -> dict:
-        result = {
+    def to_dict(self) -> Dict[str, Any]:
+        result: Dict[str, Any] = {
             "id": self.id,
             "name": self.name,
             "status": self.status.value,
@@ -109,8 +114,8 @@ class SessionUpdate:
     tool_calls: Optional[List[ToolCallUpdate]] = None
     stop_reason: Optional[StopReason] = None
 
-    def to_dict(self) -> dict:
-        result = {"sessionId": self.session_id}
+    def to_dict(self) -> Dict[str, Any]:
+        result: Dict[str, Any] = {"sessionId": self.session_id}
         if self.content is not None:
             result["content"] = [c.to_dict() for c in self.content]
         if self.tool_calls is not None:
@@ -132,7 +137,7 @@ class ACPAgent:
 
     def __init__(
         self,
-        llm,
+        llm: Any,
         tools: Optional[List[Tool]] = None,
         inner_agent_type: str = "react",
         mcp_servers: Optional[List[McpServerConfig]] = None,
@@ -141,7 +146,7 @@ class ACPAgent:
         system_prompt: Optional[str] = None,
         max_iterations: int = 10,
         verbose: bool = False,
-    ):
+    ) -> None:
         """
         Initialize ACP agent.
 
@@ -184,7 +189,7 @@ class ACPAgent:
             "default": {"id": "default", "name": "Default", "description": "Standard assistant mode"},
         }
 
-    def _create_inner_agent(self, session: Session) -> ReActAgent:
+    def _create_inner_agent(self, session: Session) -> Any:
         """Create an inner agent for processing prompts."""
         # Combine built-in tools with MCP tools
         all_tools = list(self.tools)
@@ -286,8 +291,10 @@ class ACPAgent:
         try:
             response = self._server.send_request("fs/read_text_file", {"path": path}, timeout=30.0)
             if response.is_error:
+                assert response.error is not None
                 return f"Error reading file: {response.error.message}"
-            return response.result.get("contents", "")
+            assert response.result is not None
+            return str(response.result.get("contents", ""))
         except TimeoutError:
             return "Error: File read timed out"
         except Exception as e:
@@ -303,6 +310,7 @@ class ACPAgent:
                 "fs/write_text_file", {"path": path, "contents": content}, timeout=30.0
             )
             if response.is_error:
+                assert response.error is not None
                 return f"Error writing file: {response.error.message}"
             return "File written successfully"
         except TimeoutError:
@@ -319,8 +327,10 @@ class ACPAgent:
             # Create terminal
             create_resp = self._server.send_request("terminal/create", {"command": command}, timeout=10.0)
             if create_resp.is_error:
+                assert create_resp.error is not None
                 return f"Error creating terminal: {create_resp.error.message}"
 
+            assert create_resp.result is not None
             terminal_id = create_resp.result.get("terminalId")
             if not terminal_id:
                 return "Error: No terminal ID returned"
@@ -335,9 +345,11 @@ class ACPAgent:
             self._server.send_request("terminal/release", {"terminalId": terminal_id}, timeout=5.0)
 
             if output_resp.is_error:
+                assert output_resp.error is not None
                 return f"Error getting output: {output_resp.error.message}"
 
-            return output_resp.result.get("output", "")
+            assert output_resp.result is not None
+            return str(output_resp.result.get("output", ""))
 
         except TimeoutError:
             return "Error: Command timed out"
@@ -382,9 +394,11 @@ class ACPAgent:
             )
 
             if response.is_error:
+                assert response.error is not None
                 logger.warning("Permission request failed: %s", response.error.message)
                 return False
 
+            assert response.result is not None
             outcome = response.result.get("outcome", {})
             if outcome.get("kind") == "cancelled":
                 return False
@@ -407,7 +421,7 @@ class ACPAgent:
 
     # === ACP Method Handlers ===
 
-    def _handle_initialize(self, params: dict) -> dict:
+    def _handle_initialize(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """Handle initialize request."""
         client_info = params.get("clientInfo", {})
         logger.info("ACP client connected: %s %s", client_info.get("name", "unknown"), client_info.get("version", ""))
@@ -450,12 +464,12 @@ class ACPAgent:
             "modes": list(self._modes.values()),
         }
 
-    def _handle_authenticate(self, params: dict) -> dict:
+    def _handle_authenticate(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """Handle authenticate request."""
         # Currently no authentication required
         return {"authenticated": True}
 
-    def _handle_session_new(self, params: dict) -> dict:
+    def _handle_session_new(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """Handle session/new request."""
         session_id = str(uuid.uuid4())
         mode_id = params.get("modeId", "default")
@@ -470,7 +484,7 @@ class ACPAgent:
             "mode": self._modes.get(mode_id, self._modes["default"]),
         }
 
-    def _handle_session_load(self, params: dict) -> dict:
+    def _handle_session_load(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """Handle session/load request."""
         session_id = params.get("sessionId")
         if not session_id:
@@ -484,10 +498,10 @@ class ACPAgent:
 
         return {
             "sessionId": session_id,
-            "mode": self._modes.get(session.mode_id, self._modes["default"]),
+            "mode": self._modes.get(session.mode_id or "default", self._modes["default"]),
         }
 
-    def _handle_session_set_mode(self, params: dict) -> dict:
+    def _handle_session_set_mode(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """Handle session/set_mode request."""
         session_id = params.get("sessionId")
         mode_id = params.get("modeId")
@@ -507,7 +521,7 @@ class ACPAgent:
 
         return {"mode": self._modes[mode_id]}
 
-    def _handle_session_prompt(self, params: dict) -> dict:
+    def _handle_session_prompt(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """Handle session/prompt request."""
         session_id = params.get("sessionId")
         content = params.get("content", [])
@@ -575,7 +589,7 @@ class ACPAgent:
     def _event_to_update(self, session_id: str, event: AgentEvent, tool_call_index: int) -> Optional[SessionUpdate]:
         """Convert an AgentEvent to an ACP SessionUpdate."""
         if event.type == EventType.THOUGHT:
-            return SessionUpdate(session_id=session_id, content=[ContentBlock.text(f"Thinking: {event.content}")])
+            return SessionUpdate(session_id=session_id, content=[ContentBlock.from_text(f"Thinking: {event.content}")])
 
         elif event.type == EventType.ACTION:
             tool_name = event.metadata.get("tool_name", "unknown")
@@ -603,20 +617,20 @@ class ACPAgent:
                         id=f"tc_{tool_call_index - 1}",  # Previous tool call
                         name=tool_name,
                         status=ToolCallStatus.COMPLETED,
-                        content=[ContentBlock.text(event.content)],
+                        content=[ContentBlock.from_text(event.content)],
                     )
                 ],
             )
 
         elif event.type == EventType.ANSWER:
             return SessionUpdate(
-                session_id=session_id, content=[ContentBlock.text(event.content)], stop_reason=StopReason.END_TURN
+                session_id=session_id, content=[ContentBlock.from_text(event.content)], stop_reason=StopReason.END_TURN
             )
 
         elif event.type == EventType.ERROR:
             return SessionUpdate(
                 session_id=session_id,
-                content=[ContentBlock.text(f"Error: {event.content}")],
+                content=[ContentBlock.from_text(f"Error: {event.content}")],
                 stop_reason=StopReason.ERROR,
             )
 
@@ -629,7 +643,7 @@ class ACPAgent:
         elif self._server:
             self._server.send_notification("session/update", update.to_dict())
 
-    def _handle_session_cancel(self, params: dict) -> None:
+    def _handle_session_cancel(self, params: Dict[str, Any]) -> None:
         """Handle session/cancel notification."""
         session_id = params.get("sessionId")
         if session_id == self._current_session_id:
@@ -640,8 +654,8 @@ class ACPAgent:
 
     def serve(
         self,
-        input_stream=None,
-        output_stream=None,
+        input_stream: Optional[Any] = None,
+        output_stream: Optional[Any] = None,
     ) -> None:
         """
         Start the ACP server and process requests.
@@ -688,12 +702,12 @@ class ACPAgent:
 
 
 def serve_acp(
-    llm,
+    llm: Any,
     tools: Optional[List[Tool]] = None,
     mcp_servers: Optional[List[McpServerConfig]] = None,
     session_storage: str = "memory",
     session_path: Optional[str] = None,
-    **kwargs,
+    **kwargs: Any,
 ) -> None:
     """
     Convenience function to start an ACP server.

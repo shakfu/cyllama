@@ -9,7 +9,7 @@ Based on OuteTTS model for high-quality text-to-speech synthesis.
 import sys
 import argparse
 import math
-from typing import List, Optional, Dict, Tuple
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 from ..defaults import DEFAULT_N_GPU_LAYERS
 from . import llama_cpp as cy
@@ -17,12 +17,12 @@ from . import llama_cpp as cy
 
 def save_wav16(filename: str, data: List[float], sample_rate: int) -> bool:
     """Save audio data as 16-bit WAV file"""
-    return cy.save_wav16_from_list(filename, data, sample_rate)
+    return cast(bool, cy.save_wav16_from_list(filename, data, sample_rate))
 
 
 def twiddle(k: int, N: int) -> Tuple[float, float]:
     """Compute twiddle factors for FFT"""
-    return cy.twiddle_factors(1.0, 0.0, k, N)
+    return cast(Tuple[float, float], cy.twiddle_factors(1.0, 0.0, k, N))
 
 
 def embd_to_audio(embd: List[float], n_codes: int, n_embd: int, n_threads: int = 4) -> List[float]:
@@ -90,17 +90,17 @@ def embd_to_audio(embd: List[float], n_codes: int, n_embd: int, n_threads: int =
         if env[i] > 0:
             audio[i] /= env[i]
 
-    return audio
+    return cast(List[float], audio)
 
 
 def process_text(text: str, tts_version: str = "0.2") -> str:
     """Process text for TTS input"""
     # Convert version string to int for Cython function
     version_int = 0 if tts_version == "0.2" else 1  # OUTETTS_V0_2 = 0, OUTETTS_V0_3 = 1
-    return cy.process_text(text, version_int)
+    return cast(str, cy.process_text(text, version_int))
 
 
-def prepare_guide_tokens(vocab, text: str, tts_version: str = "0.2") -> List[int]:
+def prepare_guide_tokens(vocab: Any, text: str, tts_version: str = "0.2") -> List[int]:
     """Prepare guide tokens to prevent hallucinations"""
     delimiter = "<|space|>" if tts_version == "0.3" else "<|text_sep|>"
 
@@ -204,7 +204,7 @@ class TTSGenerator:
         else:
             self.setup_default_speaker()
 
-    def load_speaker(self, speaker_file: str):
+    def load_speaker(self, speaker_file: str) -> None:
         """Load speaker profile from JSON file"""
         import json
 
@@ -224,7 +224,7 @@ class TTSGenerator:
             print(f"Error loading speaker file: {e}", file=sys.stderr)
             self.setup_default_speaker()
 
-    def setup_default_speaker(self):
+    def setup_default_speaker(self) -> None:
         """Setup default speaker profile"""
         # Default speaker profile based on OuteTTS en_male_1 - matches C++ version exactly
         separator = "<|space|>" if self.tts_version == "0.3" else "<|text_sep|>"
@@ -268,7 +268,7 @@ lovely<|t_0.56|><|code_start|><|634|><|596|><|1766|><|1556|><|1306|><|1285|><|14
             # Convert format for v0.3
             self.audio_data = self.audio_data.replace("<|code_start|>", "").replace("<|code_end|>", "<|space|>")
 
-    def audio_text_from_speaker(self, speaker_data: Dict) -> str:
+    def audio_text_from_speaker(self, speaker_data: Dict[str, Any]) -> str:
         """Extract audio text from speaker data"""
         audio_text = "<|text_start|>"
         separator = "<|space|>" if self.tts_version == "0.3" else "<|text_sep|>"
@@ -279,7 +279,7 @@ lovely<|t_0.56|><|code_start|><|634|><|596|><|1766|><|1556|><|1306|><|1285|><|14
 
         return audio_text
 
-    def audio_data_from_speaker(self, speaker_data: Dict) -> str:
+    def audio_data_from_speaker(self, speaker_data: Dict[str, Any]) -> str:
         """Extract audio data from speaker data"""
         audio_data = "<|audio_start|>\n"
 
@@ -542,7 +542,7 @@ lovely<|t_0.56|><|code_start|><|634|><|596|><|1766|><|1556|><|1306|><|1285|><|14
             return False
 
 
-def main():
+def main() -> None:
     """Main entry point"""
     cy.disable_logging()
 

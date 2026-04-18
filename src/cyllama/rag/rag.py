@@ -6,6 +6,9 @@ import hashlib
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Iterator
 
+if TYPE_CHECKING:
+    from .types import SearchResult
+
 from .embedder import Embedder
 from .loaders import load_document
 from .pipeline import RAGConfig, RAGPipeline, RAGResponse
@@ -17,7 +20,7 @@ if TYPE_CHECKING:
     pass
 
 
-class IndexResult(list):
+class IndexResult(list[int]):
     """Result of an :meth:`RAG.add_documents` or :meth:`RAG.add_texts` call.
 
     Subclasses ``list[int]`` so callers using the legacy contract
@@ -103,8 +106,8 @@ class RAG:
         chunk_overlap: int = 50,
         db_path: str = ":memory:",
         config: RAGConfig | None = None,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         """Initialize RAG with models.
 
         Creates Embedder, VectorStore, TextSplitter, and RAGPipeline
@@ -249,7 +252,7 @@ class RAG:
         self,
         paths: list[str | Path],
         split: bool = True,
-        **loader_kwargs,
+        **loader_kwargs: Any,
     ) -> IndexResult:
         """Load and add documents from files.
 
@@ -422,7 +425,7 @@ class RAG:
         self,
         question: str,
         config: RAGConfig | None = None,
-    ) -> list:
+    ) -> list["SearchResult"]:
         """Retrieve relevant documents without generation.
 
         Args:
@@ -440,7 +443,7 @@ class RAG:
         query: str,
         k: int = 5,
         threshold: float | None = None,
-    ) -> list:
+    ) -> list["SearchResult"]:
         """Direct vector search without RAG formatting.
 
         Args:
@@ -486,7 +489,7 @@ class RAG:
         """Context manager entry."""
         return self
 
-    def __exit__(self, *args) -> None:
+    def __exit__(self, *args: Any) -> None:
         """Context manager exit."""
         self.close()
 

@@ -825,7 +825,7 @@ class VectorStore:
             cursor = self.conn.execute(f"""
                 SELECT vector_quantize('{self.table_name}', 'embedding', 'max_memory={max_memory}')
             """)
-            count = cursor.fetchone()[0]
+            count: int = cursor.fetchone()[0]
             self._quantized = True
             return count
         except sqlite3.OperationalError as e:
@@ -944,7 +944,8 @@ class VectorStore:
         """Return number of stored embeddings."""
         self._check_closed()
         cursor = self.conn.execute(f"SELECT COUNT(*) FROM {self.table_name}")
-        return cursor.fetchone()[0]
+        count: int = cursor.fetchone()[0]
+        return count
 
     def __contains__(self, id: str | int) -> bool:
         """Check if an ID exists in the store."""
@@ -958,7 +959,7 @@ class VectorStore:
     def __enter__(self) -> "VectorStore":
         return self
 
-    def __exit__(self, *args) -> None:
+    def __exit__(self, *args: Any) -> None:
         self.close()
 
     def __repr__(self) -> str:

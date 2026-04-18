@@ -12,7 +12,7 @@ import logging
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 # Module logger for error and diagnostic reporting
 logger = logging.getLogger(__name__)
@@ -54,7 +54,7 @@ def get_file_host_endian(file_path: Union[str, Path]) -> Tuple[str, str]:
     return file_endian, host_endian
 
 
-def dump_metadata_json(model_path: Union[str, Path]) -> Dict:
+def dump_metadata_json(model_path: Union[str, Path]) -> Dict[str, Any]:
     """Extract metadata from GGUF model file."""
     try:
         from .llama.llama_cpp import LlamaModel, LlamaModelParams
@@ -183,7 +183,7 @@ def graph_size(
     return graph_mem
 
 
-def projector_memory_requirements(metadata: Dict) -> int:
+def projector_memory_requirements(metadata: Dict[str, Any]) -> int:
     """Calculate memory requirements for projector tensors (multimodal models).
 
     Multimodal models (e.g., LLaVA) use a projector network to map vision
@@ -406,7 +406,7 @@ def estimate_gpu_layers(
 
 def estimate_memory_usage(
     model_path: Union[str, Path], ctx_size: int = 2048, batch_size: int = 1, verbose: bool = False
-) -> Dict:
+) -> Dict[str, Any]:
     """Quick memory usage estimation without GPU constraints.
 
     Args:
@@ -489,7 +489,7 @@ def estimate_memory_usage(
     model_size_q4 = int(total_params * BYTES_PER_Q4_PARAM)
     model_size_q8 = int(total_params * BYTES_PER_Q8_PARAM)
 
-    result = {
+    result: Dict[str, Any] = {
         "model_size_mb": {
             "f32": model_size_f32 // (1024 * 1024),
             "f16": model_size_f16 // (1024 * 1024),

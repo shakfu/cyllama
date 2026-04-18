@@ -8,7 +8,7 @@ This module provides a Python implementation of the chat example using the cylla
 import sys
 import time
 import argparse
-from typing import List, Dict
+from typing import Any, Callable, Dict, List, Optional, Tuple, cast
 
 from ..defaults import (
     DEFAULT_MAX_TOKENS,
@@ -42,7 +42,7 @@ except ImportError:  # pragma: no cover
     _JinjaTemplateError = type("_JinjaTemplateError", (Exception,), {})
 
 
-def print_usage():
+def print_usage() -> None:
     """Print usage information"""
     print("\nexample usage:")
     print(f"\n    {sys.argv[0]} -m model.gguf [-c context_size] [-ngl n_gpu_layers]")
@@ -116,7 +116,7 @@ class Chat:
 
     def _apply_template(
         self,
-        messages: List,
+        messages: List[Any],
         add_assistant_msg: bool = True,
     ) -> str:
         """Apply chat template using vendored jinja2 with C API fallback.
@@ -143,7 +143,7 @@ class Chat:
                     chat_msgs.append(msg)
                 else:
                     chat_msgs.append(LlamaChatMessage(role=msg["role"], content=msg["content"]))
-            return self.model.chat_apply_template(tmpl, chat_msgs, add_assistant_msg)
+            return cast(str, self.model.chat_apply_template(tmpl, chat_msgs, add_assistant_msg))
 
         # --- Tier 3: simple User/Assistant formatting ---
         conversation = ""
@@ -162,7 +162,7 @@ class Chat:
 
     def _apply_jinja_template(
         self,
-        messages: List,
+        messages: List[Any],
         add_generation_prompt: bool = True,
     ) -> str:
         """Render the model's embedded chat template via vendored jinja2."""
@@ -186,7 +186,13 @@ class Chat:
         def raise_exception(message: str) -> str:
             raise TemplateError(message)
 
-        def tojson_filter(value, ensure_ascii=False, indent=None, separators=None, sort_keys=False):
+        def tojson_filter(
+            value: Any,
+            ensure_ascii: bool = False,
+            indent: Optional[int] = None,
+            separators: Optional[Tuple[str, str]] = None,
+            sort_keys: bool = False,
+        ) -> str:
             return json.dumps(
                 value, ensure_ascii=ensure_ascii, indent=indent, separators=separators, sort_keys=sort_keys
             )
@@ -212,14 +218,17 @@ class Chat:
                 msg_dicts.append({"role": msg.role, "content": msg.content})
 
         compiled = env.from_string(template_str)
-        return compiled.render(
-            messages=msg_dicts,
-            bos_token=bos_token,
-            eos_token=eos_token,
-            add_generation_prompt=add_generation_prompt,
+        return cast(
+            str,
+            compiled.render(
+                messages=msg_dicts,
+                bos_token=bos_token,
+                eos_token=eos_token,
+                add_generation_prompt=add_generation_prompt,
+            ),
         )
 
-    def generate(self, prompt: str, on_token=None) -> str:
+    def generate(self, prompt: str, on_token: Optional[Callable[[str], None]] = None) -> str:
         """Generate response for the given prompt using a fresh context.
 
         Args:
@@ -309,7 +318,7 @@ class Chat:
 
         return response.strip()
 
-    def print_session_stats(self):
+    def print_session_stats(self) -> None:
         """Print a formatted table of accumulated session statistics."""
         total_time = self.total_prompt_time + self.total_generation_time
         tps = self.total_generated_tokens / self.total_generation_time if self.total_generation_time > 0 else 0.0
@@ -330,7 +339,7 @@ class Chat:
             print(f"  {key:<{key_width}} | {val:>{val_width}}", file=sys.stderr)
         print(line, file=sys.stderr)
 
-    def chat_loop(self, stream: bool = True, stats: bool = False):
+    def chat_loop(self, stream: bool = True, stats: bool = False) -> None:
         """Main chat loop.
 
         Args:
@@ -396,7 +405,7 @@ class Chat:
                 self.print_session_stats()
 
 
-def main():
+def main() -> None:
     """Main entry point"""
     disable_logging()
     parser = argparse.ArgumentParser(description="Simple chat using cyllama")

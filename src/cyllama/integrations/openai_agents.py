@@ -124,8 +124,8 @@ class OpenAIFunctionCallingClient:
         self.model_path = model_path
         self.tools = tools or []
         self.verbose = verbose
-        self._llm = None
-        self._agent = None
+        self._llm: Optional[CyllamaLLMCore] = None
+        self._agent: Optional[ConstrainedAgent] = None
 
     @property
     def llm(self) -> CyllamaLLMCore:
@@ -243,7 +243,7 @@ class OpenAIFunctionCallingClient:
 
 
 def create_openai_function_calling_client(
-    model_path: str, tools: List[CyllaTool], **kwargs
+    model_path: str, tools: List[CyllaTool], **kwargs: Any
 ) -> OpenAIFunctionCallingClient:
     """
     Convenience function to create OpenAI function calling client.

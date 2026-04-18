@@ -1,4 +1,6 @@
 # Ensure platform-specific DLL paths are set before any native extension loads
+from typing import Any
+
 from ..utils.platform import ensure_native_deps
 
 ensure_native_deps()
@@ -15,7 +17,7 @@ _lazy_imports = {
 }
 
 
-def __getattr__(name):
+def __getattr__(name: str) -> Any:
     if name in _lazy_imports:
         module_path, attr = _lazy_imports[name]
         import importlib

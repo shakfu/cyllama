@@ -45,6 +45,7 @@ import hashlib
 import threading
 from collections import OrderedDict
 from typing import (
+    TYPE_CHECKING,
     AsyncIterator,
     Iterator,
     NamedTuple,
@@ -55,7 +56,11 @@ from typing import (
     Callable,
     Union,
     Tuple,
+    cast,
 )
+
+if TYPE_CHECKING:
+    from .agents.mcp import McpClient, McpResource, McpTool
 from dataclasses import dataclass, field
 import logging
 import time
@@ -184,7 +189,7 @@ class GenerationConfig:
             "parse_special": self.parse_special,
         }
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate parameters after initialization."""
         errors = []
 
@@ -283,7 +288,7 @@ class Response:
         text_preview = self.text[:50] + "..." if len(self.text) > 50 else self.text
         return f"Response(text={text_preview!r}, finish_reason={self.finish_reason!r})"
 
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other: object) -> bool:
         """Compare with strings or other Response objects."""
         if isinstance(other, str):
             return self.text == other
@@ -299,15 +304,15 @@ class Response:
         """Return length of text content."""
         return len(self.text)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[str]:
         """Iterate over characters in text."""
         return iter(self.text)
 
-    def __contains__(self, item) -> bool:
+    def __contains__(self, item: str) -> bool:
         """Check if substring is in text."""
         return item in self.text
 
-    def __add__(self, other) -> str:
+    def __add__(self, other: object) -> str:
         """Concatenate with strings."""
         if isinstance(other, str):
             return self.text + other
@@ -315,7 +320,7 @@ class Response:
             return self.text + other.text
         return NotImplemented
 
-    def __radd__(self, other) -> str:
+    def __radd__(self, other: object) -> str:
         """Support string + Response."""
         if isinstance(other, str):
             return other + self.text
@@ -498,8 +503,8 @@ class LLM:
         verbose: bool = False,
         cache_size: int = 0,
         cache_ttl: Optional[float] = None,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         """
         Initialize generator with a model.
 
@@ -610,20 +615,23 @@ class LLM:
             print(f"Vocabulary size: {self.vocab.n_vocab}")
 
         # Context will be created on-demand and cached when possible
-        self._ctx = None
-        self._ctx_size = 0  # Track current context size for reuse decisions
-        self._sampler = None
+        self._ctx: Optional[LlamaContext] = None
+        self._ctx_size: int = 0  # Track current context size for reuse decisions
+        self._sampler: Optional[LlamaSampler] = None
 
-    def __enter__(self):
+        # MCP client is created lazily on the first add_mcp_server() call so
+        # callers who never use MCP pay no import or connection cost.
+        self._mcp_client: Optional["McpClient"] = None
+
+    def __enter__(self) -> "LLM":
         """Context manager entry."""
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: object, exc_val: object, exc_tb: object) -> None:
         """Context manager exit - ensures cleanup."""
         self.close()
-        return False
 
-    def __del__(self):
+    def __del__(self) -> None:
         """Destructor - cleanup resources if not already done."""
         if not getattr(self, "_closed", True):
             try:
@@ -631,7 +639,7 @@ class LLM:
             except Exception:
                 pass
 
-    def close(self):
+    def close(self) -> None:
         """
         Explicitly release resources (context, sampler).
 
@@ -656,6 +664,17 @@ class LLM:
         if getattr(self, "_sampler", None) is not None:
             self._sampler = None
 
+        # Disconnect any MCP servers the caller attached. Best-effort:
+        # transports already log their own errors and we don't want a flaky
+        # remote server to block local resource cleanup.
+        client = getattr(self, "_mcp_client", None)
+        if client is not None:
+            try:
+                client.disconnect_all()
+            except Exception:
+                pass
+            self._mcp_client = None
+
         self._closed = True
 
     def _try_acquire_busy(self) -> None:
@@ -673,7 +692,7 @@ class LLM:
                 "instead of sharing a single instance across threads."
             )
 
-    def _stream_with_busy_release(self, gen):
+    def _stream_with_busy_release(self, gen: Iterator[str]) -> Iterator[str]:
         """Wrap a streaming generator so the busy lock is released when
         the stream is exhausted, closed, or garbage collected.
 
@@ -691,7 +710,7 @@ class LLM:
                 # Lock already released — defensive, should not happen.
                 pass
 
-    def reset_context(self):
+    def reset_context(self) -> None:
         """
         Force recreation of context on next generation.
 
@@ -770,7 +789,7 @@ class LLM:
         key_str = "\0".join(key_parts)
         return hashlib.sha256(key_str.encode()).hexdigest()
 
-    def _ensure_context(self, prompt_length: int, config: GenerationConfig):
+    def _ensure_context(self, prompt_length: int, config: GenerationConfig) -> LlamaContext:
         """
         Create or recreate context if needed.
 
@@ -782,6 +801,9 @@ class LLM:
 
         The KV cache is cleared via llama_kv_cache_clear() when reusing
         a context to ensure clean state for new generations.
+
+        Returns the live context so callers don't have to re-narrow
+        ``self._ctx`` from ``Optional`` after this method runs.
         """
         # Reopen if closed
         if self._closed:
@@ -799,7 +821,7 @@ class LLM:
             if self.verbose:
                 print(f"Reusing context (size {self._ctx_size}, need {required_ctx})")
             self._ctx.kv_cache_clear()
-            return
+            return self._ctx
 
         # Need to create new context (either none exists or too small)
         if self.verbose:
@@ -814,33 +836,42 @@ class LLM:
         ctx_params.no_perf = not self.verbose
 
         # Note: Seed is set in sampler, not context
-        self._ctx = LlamaContext(self.model, ctx_params)
+        ctx = LlamaContext(self.model, ctx_params)
+        self._ctx = ctx
         self._ctx_size = required_ctx
+        return ctx
 
-    def _ensure_sampler(self, config: GenerationConfig):
-        """Create or recreate sampler if needed."""
+    def _ensure_sampler(self, config: GenerationConfig) -> LlamaSampler:
+        """Create or recreate sampler if needed.
+
+        Returns the live sampler so callers don't have to re-narrow
+        ``self._sampler`` from ``Optional`` after this method runs.
+        """
         # Always create fresh sampler to respect new config
         sampler_params = LlamaSamplerChainParams()
         sampler_params.no_perf = not self.verbose
 
-        self._sampler = LlamaSampler(sampler_params)
+        sampler = LlamaSampler(sampler_params)
 
         # Add sampling methods based on config
         if config.temperature == 0.0:
             # Greedy sampling
-            self._sampler.add_greedy()
+            sampler.add_greedy()
         else:
             # Probabilistic sampling
-            self._sampler.add_min_p(config.min_p, 1)
-            self._sampler.add_top_k(config.top_k)
-            self._sampler.add_top_p(config.top_p, 1)
-            self._sampler.add_temp(config.temperature)
+            sampler.add_min_p(config.min_p, 1)
+            sampler.add_top_k(config.top_k)
+            sampler.add_top_p(config.top_p, 1)
+            sampler.add_temp(config.temperature)
 
             # Distribution sampler
             if config.seed != LLAMA_DEFAULT_SEED:
-                self._sampler.add_dist(config.seed)
+                sampler.add_dist(config.seed)
             else:
-                self._sampler.add_dist(LLAMA_DEFAULT_SEED)
+                sampler.add_dist(LLAMA_DEFAULT_SEED)
+
+        self._sampler = sampler
+        return sampler
 
     def __call__(
         self,
@@ -881,15 +912,16 @@ class LLM:
         config = config or self.config
 
         # Check cache first (only if no on_token callback)
-        cache_key = None
-        if self._cache is not None and on_token is None:
+        cache_key: Optional[str] = None
+        cache = self._cache
+        if cache is not None and on_token is None:
             cache_key = self._make_cache_key(prompt, config)
             if cache_key is not None:
-                cached = self._cache.get(cache_key)
+                cached = cache.get(cache_key)
                 if cached is not None:
                     if self.verbose:
                         print("Cache hit")
-                    return cached
+                    return cast(Response, cached)
 
         start_time = time.time()
 
@@ -918,8 +950,8 @@ class LLM:
         response = Response(text=text, stats=stats, finish_reason="stop", model=self.model_path)
 
         # Store in cache if enabled
-        if cache_key is not None:
-            self._cache.put(cache_key, response)
+        if cache_key is not None and cache is not None:
+            cache.put(cache_key, response)
 
         return response
 
@@ -946,15 +978,15 @@ class LLM:
 
         # Ensure context and sampler are ready
         # Always recreate sampler to ensure fresh state
-        self._ensure_context(n_prompt, config)
-        self._ensure_sampler(config)
+        ctx = self._ensure_context(n_prompt, config)
+        sampler = self._ensure_sampler(config)
 
         # Process prompt in batches to avoid exceeding n_batch limit
         n_batch = config.n_batch
         for i in range(0, n_prompt, n_batch):
             batch_tokens = prompt_tokens[i : i + n_batch]
             batch = llama_batch_get_one(batch_tokens, i)  # Pass position offset
-            self._ctx.decode(batch)
+            ctx.decode(batch)
 
         # Generate tokens
         n_pos = n_prompt
@@ -967,7 +999,7 @@ class LLM:
 
         for _ in range(config.max_tokens):
             # Sample next token
-            new_token_id = self._sampler.sample(self._ctx, -1)
+            new_token_id = sampler.sample(ctx, -1)
 
             # Check for end of generation
             if self.vocab.is_eog(new_token_id):
@@ -1018,7 +1050,7 @@ class LLM:
 
             # Prepare next batch
             batch = llama_batch_get_one([new_token_id], n_pos)
-            self._ctx.decode(batch)
+            ctx.decode(batch)
 
             n_pos += 1
             n_generated += 1
@@ -1040,8 +1072,8 @@ class LLM:
 
         if self.verbose:
             print(f"\nGenerated {n_generated} tokens")
-            self._sampler.print_perf_data()
-            self._ctx.print_perf_data()
+            sampler.print_perf_data()
+            ctx.print_perf_data()
 
     def _find_stop_sequence(self, text: str, stop_sequences: List[str]) -> Tuple[Optional[int], int]:
         """
@@ -1209,7 +1241,7 @@ class LLM:
                 if content is None:
                     raise ValueError(f"Message at index {i} missing 'content' key")
                 chat_messages.append(LlamaChatMessage(role=role, content=str(content)))
-            return self.model.chat_apply_template(tmpl, chat_messages, add_generation_prompt)
+            return cast(str, self.model.chat_apply_template(tmpl, chat_messages, add_generation_prompt))
         else:
             return _format_messages_simple(messages)
 
@@ -1264,10 +1296,10 @@ class LLM:
             raise TemplateError(message)
 
         def tojson_filter(
-            value,
+            value: Any,
             ensure_ascii: bool = False,
             indent: Optional[int] = None,
-            separators=None,
+            separators: Optional[Tuple[str, str]] = None,
             sort_keys: bool = False,
         ) -> str:
             return json.dumps(
@@ -1302,11 +1334,14 @@ class LLM:
                 raise ValueError(f"Message at index {i} missing 'content' key")
 
         compiled = env.from_string(template_str)
-        return compiled.render(
-            messages=messages,
-            bos_token=bos_token,
-            eos_token=eos_token,
-            add_generation_prompt=add_generation_prompt,
+        return cast(
+            str,
+            compiled.render(
+                messages=messages,
+                bos_token=bos_token,
+                eos_token=eos_token,
+                add_generation_prompt=add_generation_prompt,
+            ),
         )
 
     def get_chat_template(self, template_name: Optional[str] = None) -> str:
@@ -1320,8 +1355,214 @@ class LLM:
             Template string, or empty string if not found
         """
         if template_name:
-            return self.model.get_default_chat_template_by_name(template_name)
-        return self.model.get_default_chat_template()
+            return cast(str, self.model.get_default_chat_template_by_name(template_name))
+        return cast(str, self.model.get_default_chat_template())
+
+    # ------------------------------------------------------------------
+    # MCP client surface
+    #
+    # Lifts the transports in ``cyllama.agents.mcp`` onto the high-level
+    # LLM API so non-agent callers can attach MCP servers without going
+    # through the agent framework. The McpClient is created lazily on the
+    # first add_mcp_server() call and torn down in close().
+    # ------------------------------------------------------------------
+
+    def _get_or_create_mcp_client(self) -> "McpClient":
+        """Lazily construct the McpClient on first use."""
+        if self._mcp_client is None:
+            from .agents.mcp import McpClient
+
+            self._mcp_client = McpClient()
+        return self._mcp_client
+
+    def add_mcp_server(
+        self,
+        name: str,
+        *,
+        command: Optional[str] = None,
+        args: Optional[List[str]] = None,
+        env: Optional[Dict[str, str]] = None,
+        cwd: Optional[str] = None,
+        url: Optional[str] = None,
+        headers: Optional[Dict[str, str]] = None,
+        transport: Optional[Any] = None,
+        request_timeout: Optional[float] = None,
+        shutdown_timeout: Optional[float] = None,
+    ) -> None:
+        """Attach an MCP server and connect immediately.
+
+        Transport is inferred from which kwargs are set if ``transport`` is
+        omitted: ``command`` -> stdio, ``url`` -> http. Pass ``transport``
+        explicitly to disambiguate (e.g. when both happen to be set).
+
+        Args:
+            name: Logical name for the server. Tools are exposed as
+                ``"<name>/<tool>"`` to disambiguate identically named tools
+                from different servers.
+            command/args/env/cwd: stdio transport options.
+            url/headers: http transport options.
+            transport: Optional ``McpTransportType`` override.
+            request_timeout/shutdown_timeout: optional per-server overrides.
+        """
+        from .agents.mcp import (
+            McpServerConfig,
+            McpTransportType,
+            DEFAULT_REQUEST_TIMEOUT,
+            DEFAULT_SHUTDOWN_TIMEOUT,
+        )
+
+        if transport is None:
+            if command is not None:
+                transport = McpTransportType.STDIO
+            elif url is not None:
+                transport = McpTransportType.HTTP
+            else:
+                raise ValueError(
+                    "add_mcp_server requires either 'command' (stdio) or 'url' (http), or an explicit 'transport'."
+                )
+
+        config = McpServerConfig(
+            name=name,
+            transport=transport,
+            command=command,
+            args=args,
+            env=env,
+            cwd=cwd,
+            url=url,
+            headers=headers,
+            request_timeout=request_timeout if request_timeout is not None else DEFAULT_REQUEST_TIMEOUT,
+            shutdown_timeout=shutdown_timeout if shutdown_timeout is not None else DEFAULT_SHUTDOWN_TIMEOUT,
+        )
+
+        client = self._get_or_create_mcp_client()
+        client.add_server(config)
+        # Connect this single server now rather than deferring to a global
+        # connect_all(): callers expect add_mcp_server() to fail-fast on a
+        # bad config or unreachable endpoint.
+        client._connect_server(config)
+        client._connected = True
+
+    def remove_mcp_server(self, name: str) -> None:
+        """Disconnect and forget an MCP server by name."""
+        if self._mcp_client is None:
+            return
+        client = self._mcp_client
+        conn = client._connections.pop(name, None)
+        if conn is not None:
+            try:
+                conn.disconnect()
+            except Exception:
+                pass
+        client._servers = [s for s in client._servers if s.name != name]
+        # Drop tools and resources owned by this server.
+        client._tools = {k: v for k, v in client._tools.items() if v.server_name != name}
+        client._resources = {k: v for k, v in client._resources.items() if v.server_name != name}
+        if not client._connections:
+            client._connected = False
+
+    def list_mcp_tools(self) -> List["McpTool"]:
+        """Return all discovered MCP tools as ``McpTool`` instances."""
+        if self._mcp_client is None:
+            return []
+        return list(self._mcp_client.get_tools())
+
+    def list_mcp_resources(self) -> List["McpResource"]:
+        """Return all discovered MCP resources as ``McpResource`` instances."""
+        if self._mcp_client is None:
+            return []
+        return list(self._mcp_client.get_resources())
+
+    def call_mcp_tool(self, name: str, arguments: Dict[str, Any]) -> Any:
+        """Invoke an MCP tool by full ``"server/tool"`` name.
+
+        Useful when the caller wants explicit control over the tool loop
+        rather than handing dispatch to ``chat_with_tools``.
+        """
+        if self._mcp_client is None:
+            raise RuntimeError("No MCP servers attached. Call add_mcp_server() first.")
+        return self._mcp_client.call_tool(name, arguments)
+
+    def read_mcp_resource(self, uri: str) -> str:
+        """Read the contents of an MCP resource by URI."""
+        if self._mcp_client is None:
+            raise RuntimeError("No MCP servers attached. Call add_mcp_server() first.")
+        return self._mcp_client.read_resource(uri)
+
+    def chat_with_tools(
+        self,
+        messages: List[Dict[str, str]],
+        *,
+        tools: Optional[List[Any]] = None,
+        use_mcp: bool = True,
+        max_iterations: int = 8,
+        verbose: bool = False,
+        system_prompt: Optional[str] = None,
+        generation_config: Optional[GenerationConfig] = None,
+    ) -> str:
+        """Run a tool-calling loop over chat messages.
+
+        Built on top of ``ReActAgent``: the agent prompt is text-based, so
+        this works on any GGUF without requiring a model trained for
+        OpenAI-style structured tool calls. MCP tools attached via
+        ``add_mcp_server()`` are merged with caller-supplied ``tools``
+        unless ``use_mcp=False``.
+
+        The last user message is treated as the agent task; any system
+        message becomes the agent's system prompt unless ``system_prompt``
+        is given explicitly. Multi-turn conversation history beyond a
+        single user turn is not yet plumbed through -- the ReAct loop
+        operates one task at a time.
+
+        Args:
+            messages: List of ``{"role": ..., "content": ...}`` dicts.
+            tools: Additional cyllama ``Tool`` instances to expose alongside
+                MCP tools.
+            use_mcp: When True (default), include all MCP tools from
+                attached servers.
+            max_iterations: Maximum thought/action cycles.
+            verbose: Print agent reasoning to stdout.
+            system_prompt: Override the system prompt. If None and the
+                messages contain a leading system message, that content is
+                used.
+            generation_config: Override generation config for the loop.
+
+        Returns:
+            The agent's final answer string.
+        """
+        from .agents.react import ReActAgent
+
+        # Resolve task and system prompt from the messages list.
+        task: Optional[str] = None
+        for msg in reversed(messages):
+            if msg.get("role") == "user":
+                task = str(msg.get("content", ""))
+                break
+        if task is None:
+            raise ValueError("chat_with_tools requires at least one user message")
+
+        if system_prompt is None:
+            for msg in messages:
+                if msg.get("role") == "system":
+                    system_prompt = str(msg.get("content", ""))
+                    break
+
+        merged_tools: List[Any] = list(tools) if tools else []
+        if use_mcp and self._mcp_client is not None:
+            merged_tools.extend(self._mcp_client.get_tools_for_agent())
+
+        agent = ReActAgent(
+            llm=self,
+            tools=merged_tools,
+            system_prompt=system_prompt,
+            max_iterations=max_iterations,
+            verbose=verbose,
+            generation_config=generation_config,
+        )
+        result = agent.run(task)
+        # AgentResult.answer is always a str; the hasattr guard is
+        # defensive against future changes to the agent return type.
+        answer = getattr(result, "answer", None)
+        return str(answer) if answer is not None else str(result)
 
 
 # Convenience functions
@@ -1333,7 +1574,7 @@ def complete(
     config: Optional[GenerationConfig] = None,
     stream: bool = False,
     verbose: bool = False,
-    **kwargs,
+    **kwargs: Any,
 ) -> Union[Response, Iterator[str]]:
     """
     Convenience function for one-off text completion.
@@ -1387,7 +1628,7 @@ def chat(
     stream: bool = False,
     verbose: bool = False,
     template: Optional[str] = None,
-    **kwargs,
+    **kwargs: Any,
 ) -> Union[Response, Iterator[str]]:
     """
     Convenience function for chat-style generation.
@@ -1552,7 +1793,13 @@ def _apply_jinja_template_standalone(
     def raise_exception(message: str) -> str:
         raise TemplateError(message)
 
-    def tojson_filter(value, ensure_ascii=False, indent=None, separators=None, sort_keys=False):
+    def tojson_filter(
+        value: Any,
+        ensure_ascii: bool = False,
+        indent: Optional[int] = None,
+        separators: Optional[Tuple[str, str]] = None,
+        sort_keys: bool = False,
+    ) -> str:
         return json.dumps(value, ensure_ascii=ensure_ascii, indent=indent, separators=separators, sort_keys=sort_keys)
 
     def strftime_now(fmt: str) -> str:
@@ -1568,11 +1815,14 @@ def _apply_jinja_template_standalone(
     env.globals["strftime_now"] = strftime_now
 
     compiled = env.from_string(template_str)
-    return compiled.render(
-        messages=messages,
-        bos_token=bos_token,
-        eos_token=eos_token,
-        add_generation_prompt=add_generation_prompt,
+    return cast(
+        str,
+        compiled.render(
+            messages=messages,
+            bos_token=bos_token,
+            eos_token=eos_token,
+            add_generation_prompt=add_generation_prompt,
+        ),
     )
 
 
@@ -1621,7 +1871,7 @@ def get_chat_template(model_path: str, template_name: Optional[str] = None) -> s
     else:
         result = model.get_default_chat_template()
 
-    return result
+    return cast(str, result)
 
 
 def simple(
@@ -1788,7 +2038,13 @@ class AsyncLLM:
         >>> asyncio.run(main())
     """
 
-    def __init__(self, model_path: str, config: Optional[GenerationConfig] = None, verbose: bool = False, **kwargs):
+    def __init__(
+        self,
+        model_path: str,
+        config: Optional[GenerationConfig] = None,
+        verbose: bool = False,
+        **kwargs: Any,
+    ) -> None:
         """
         Initialize async generator with a model.
 
@@ -1810,16 +2066,15 @@ class AsyncLLM:
         self._llm = LLM(model_path, config=config, verbose=verbose, **kwargs)
         self._lock = asyncio.Lock()
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> "AsyncLLM":
         """Async context manager entry."""
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type: object, exc_val: object, exc_tb: object) -> None:
         """Async context manager exit - ensures cleanup."""
         await self.close()
-        return False
 
-    async def close(self):
+    async def close(self) -> None:
         """
         Explicitly release resources.
 
@@ -1827,7 +2082,7 @@ class AsyncLLM:
         """
         await asyncio.to_thread(self._llm.close)
 
-    async def reset_context(self):
+    async def reset_context(self) -> None:
         """Force recreation of context on next generation."""
         await asyncio.to_thread(self._llm.reset_context)
 
@@ -1841,7 +2096,7 @@ class AsyncLLM:
         """Get the model path."""
         return self._llm.model_path
 
-    async def __call__(self, prompt: str, config: Optional[GenerationConfig] = None, **kwargs) -> Response:
+    async def __call__(self, prompt: str, config: Optional[GenerationConfig] = None, **kwargs: Any) -> Response:
         """
         Generate text from a prompt asynchronously.
 
@@ -1860,15 +2115,19 @@ class AsyncLLM:
             >>> response = await llm("Explain quantum physics", max_tokens=200)
         """
         # Build config with overrides if kwargs provided
+        effective_config: Optional[GenerationConfig]
         if kwargs:
             effective_config = self._build_config(config, kwargs)
         else:
             effective_config = config
 
         async with self._lock:
-            return await asyncio.to_thread(self._llm._generate, prompt, effective_config)
+            return cast(
+                Response,
+                await asyncio.to_thread(self._llm._generate, prompt, effective_config),
+            )
 
-    async def generate(self, prompt: str, config: Optional[GenerationConfig] = None, **kwargs) -> Response:
+    async def generate(self, prompt: str, config: Optional[GenerationConfig] = None, **kwargs: Any) -> Response:
         """
         Generate text from a prompt asynchronously.
 
@@ -1889,7 +2148,7 @@ class AsyncLLM:
         prompt: str,
         config: Optional[GenerationConfig] = None,
         timeout: Optional[float] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> AsyncIterator[str]:
         """
         Stream generated text chunks asynchronously.
@@ -1911,6 +2170,7 @@ class AsyncLLM:
             >>>     print(chunk, end="", flush=True)
         """
         # Build config with overrides if kwargs provided
+        effective_config: Optional[GenerationConfig]
         if kwargs:
             effective_config = self._build_config(config, kwargs)
         else:
@@ -1920,11 +2180,11 @@ class AsyncLLM:
         queue: asyncio.Queue[Union[str, None, Exception]] = asyncio.Queue()
         loop = asyncio.get_running_loop()
 
-        async def producer():
+        async def producer() -> None:
             """Run sync generator in thread and put items in queue."""
             try:
 
-                def generate_sync():
+                def generate_sync() -> None:
                     for chunk in self._llm._generate_stream(prompt, effective_config):
                         # Schedule putting item in queue from the thread
                         asyncio.run_coroutine_threadsafe(queue.put(chunk), loop)
@@ -1982,7 +2242,10 @@ class AsyncLLM:
             Response object with text and statistics
         """
         async with self._lock:
-            return await asyncio.to_thread(self._llm.generate_with_stats, prompt, config)
+            return cast(
+                Response,
+                await asyncio.to_thread(self._llm.generate_with_stats, prompt, config),
+            )
 
     async def chat(
         self,
@@ -2012,12 +2275,15 @@ class AsyncLLM:
             >>> print(response.stats)  # Access statistics
         """
         async with self._lock:
-            return await asyncio.to_thread(
-                self._llm.chat,
-                messages,
-                config,
-                False,  # stream=False
-                template,
+            return cast(
+                Response,
+                await asyncio.to_thread(
+                    self._llm.chat,
+                    messages,
+                    config,
+                    False,  # stream=False
+                    template,
+                ),
             )
 
     def get_chat_template(self, template_name: Optional[str] = None) -> str:
@@ -2041,7 +2307,7 @@ class AsyncLLM:
 
 
 async def complete_async(
-    prompt: str, model_path: str, config: Optional[GenerationConfig] = None, verbose: bool = False, **kwargs
+    prompt: str, model_path: str, config: Optional[GenerationConfig] = None, verbose: bool = False, **kwargs: Any
 ) -> Response:
     """
     Async convenience function for one-off text completion.
@@ -2068,14 +2334,17 @@ async def complete_async(
         >>> print(response)  # Works like a string
         >>> print(response.stats)  # Access statistics
     """
-    return await asyncio.to_thread(
-        complete,
-        prompt,
-        model_path,
-        config,
-        False,  # stream=False
-        verbose,
-        **kwargs,
+    return cast(
+        Response,
+        await asyncio.to_thread(
+            complete,
+            prompt,
+            model_path,
+            config,
+            False,  # stream=False
+            verbose,
+            **kwargs,
+        ),
     )
 
 
@@ -2084,7 +2353,7 @@ async def chat_async(
     model_path: str,
     config: Optional[GenerationConfig] = None,
     verbose: bool = False,
-    **kwargs,
+    **kwargs: Any,
 ) -> Response:
     """
     Async convenience function for chat-style generation.
@@ -2107,19 +2376,22 @@ async def chat_async(
         >>> response = await chat_async(messages, model_path="model.gguf")
         >>> print(response)  # Works like a string
     """
-    return await asyncio.to_thread(
-        chat,
-        messages,
-        model_path,
-        config,
-        False,  # stream=False
-        verbose,
-        **kwargs,
+    return cast(
+        Response,
+        await asyncio.to_thread(
+            chat,
+            messages,
+            model_path,
+            config,
+            False,  # stream=False
+            verbose,
+            **kwargs,
+        ),
     )
 
 
 async def stream_complete_async(
-    prompt: str, model_path: str, config: Optional[GenerationConfig] = None, verbose: bool = False, **kwargs
+    prompt: str, model_path: str, config: Optional[GenerationConfig] = None, verbose: bool = False, **kwargs: Any
 ) -> AsyncIterator[str]:
     """
     Async streaming completion for one-off use.

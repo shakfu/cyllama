@@ -36,11 +36,11 @@ class CustomFormatter(logging.Formatter):
 
     fmt = "%(delta)s - %(levelname)s - %(name)s.%(funcName)s - %(message)s"
 
-    def __init__(self, use_color_flag=COLOR):
+    def __init__(self, use_color_flag: bool = COLOR) -> None:
         self.use_color_flag = use_color_flag
         self._build_formats()
 
-    def _build_formats(self):
+    def _build_formats(self) -> None:
         """Build format strings for each log level."""
         if self.use_color_flag and use_color():
             # Build colored format strings
@@ -85,10 +85,10 @@ class CustomFormatter(logging.Formatter):
                 for level in [logging.DEBUG, logging.INFO, logging.WARNING, logging.ERROR, logging.CRITICAL]
             }
 
-    def format(self, record):
+    def format(self, record: logging.LogRecord) -> str:
         """Custom logger formatting method"""
         if PY_VER_MINOR > 10:
-            duration = datetime.datetime.fromtimestamp(record.relativeCreated / 1000, datetime.UTC)
+            duration = datetime.datetime.fromtimestamp(record.relativeCreated / 1000, datetime.timezone.utc)
         else:
             duration = datetime.datetime.utcfromtimestamp(record.relativeCreated / 1000)
         record.delta = duration.strftime("%H:%M:%S")

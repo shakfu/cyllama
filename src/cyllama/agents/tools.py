@@ -8,7 +8,7 @@ import inspect
 import json
 import logging
 import re
-from typing import Any, Callable, Dict, List, Optional, Union, get_type_hints
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union, get_type_hints
 from dataclasses import dataclass, field
 
 # Module logger
@@ -32,10 +32,10 @@ class Tool:
 
     name: str
     description: str
-    func: Callable
+    func: Callable[..., Any]
     parameters: Dict[str, Any] = field(default_factory=dict)
 
-    def __call__(self, *args, **kwargs) -> Any:
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
         """Execute the tool with given arguments."""
         return self.func(*args, **kwargs)
 
@@ -52,7 +52,7 @@ class Tool:
         required = self.parameters.get("required", [])
 
         param_strs = []
-        example_args = {}
+        example_args: Dict[str, Any] = {}
         for param_name, param_info in params.items():
             param_type = param_info.get("type", "any")
             param_desc = param_info.get("description", "")
@@ -92,7 +92,7 @@ class Tool:
         return {"name": self.name, "description": self.description, "parameters": self.parameters}
 
 
-def _generate_schema_from_function(func: Callable) -> Dict[str, Any]:
+def _generate_schema_from_function(func: Callable[..., Any]) -> Dict[str, Any]:
     """
     Generate JSON schema from function signature and type hints.
 
@@ -142,7 +142,7 @@ def _generate_schema_from_function(func: Callable) -> Dict[str, Any]:
     return {"type": "object", "properties": properties, "required": required}
 
 
-def _safe_get_type_hints(func: Callable) -> Dict[str, Any]:
+def _safe_get_type_hints(func: Callable[..., Any]) -> Dict[str, Any]:
     """
     Safely get type hints from a function, handling errors gracefully.
 
@@ -194,7 +194,7 @@ def _python_type_to_json_type(py_type: type) -> str:
         JSON schema type string
     """
     schema = _python_type_to_json_schema(py_type)
-    return schema.get("type", "string")
+    return str(schema.get("type", "string"))
 
 
 def _python_type_to_json_schema(py_type: type) -> Dict[str, Any]:
@@ -252,7 +252,7 @@ def _python_type_to_json_schema(py_type: type) -> Dict[str, Any]:
 
     # Get origin and args for generic types
     origin = getattr(py_type, "__origin__", None)
-    args = getattr(py_type, "__args__", ())
+    args: Tuple[Any, ...] = getattr(py_type, "__args__", ())
 
     if origin is None:
         # Not a generic type, check if it's a known class
@@ -276,14 +276,14 @@ def _python_type_to_json_schema(py_type: type) -> Dict[str, Any]:
 
         if len(non_none_args) == 1:
             # Optional[T] -> T with nullable
-            schema = _python_type_to_json_schema(non_none_args[0])
+            opt_schema: Dict[str, Any] = _python_type_to_json_schema(non_none_args[0])
             if has_none:
-                schema["nullable"] = True
-            return schema
+                opt_schema["nullable"] = True
+            return opt_schema
         elif len(non_none_args) > 1:
             # Union[A, B, C] -> anyOf
             schemas = [_python_type_to_json_schema(a) for a in non_none_args]
-            result = {"anyOf": schemas}
+            result: Dict[str, Any] = {"anyOf": schemas}
             if has_none:
                 result["nullable"] = True
             return result
@@ -293,39 +293,39 @@ def _python_type_to_json_schema(py_type: type) -> Dict[str, Any]:
 
     # Handle List/list types
     if origin is list:
-        schema = {"type": "array"}
+        list_schema: Dict[str, Any] = {"type": "array"}
         if args:
-            schema["items"] = _python_type_to_json_schema(args[0])
-        return schema
+            list_schema["items"] = _python_type_to_json_schema(args[0])
+        return list_schema
 
     # Handle Dict/dict types
     if origin is dict:
-        schema = {"type": "object"}
+        dict_schema: Dict[str, Any] = {"type": "object"}
         if len(args) >= 2:
             # Dict[K, V] - V becomes additionalProperties
-            schema["additionalProperties"] = _python_type_to_json_schema(args[1])
-        return schema
+            dict_schema["additionalProperties"] = _python_type_to_json_schema(args[1])
+        return dict_schema
 
     # Handle Tuple types
     if origin is tuple:
-        schema = {"type": "array"}
+        tuple_schema: Dict[str, Any] = {"type": "array"}
         if args:
             # Check for Tuple[T, ...] (variable length)
             if len(args) == 2 and args[1] is ...:
-                schema["items"] = _python_type_to_json_schema(args[0])
+                tuple_schema["items"] = _python_type_to_json_schema(args[0])
             else:
                 # Fixed length tuple -> prefixItems
-                schema["prefixItems"] = [_python_type_to_json_schema(a) for a in args]
-                schema["minItems"] = len(args)
-                schema["maxItems"] = len(args)
-        return schema
+                tuple_schema["prefixItems"] = [_python_type_to_json_schema(a) for a in args]
+                tuple_schema["minItems"] = len(args)
+                tuple_schema["maxItems"] = len(args)
+        return tuple_schema
 
     # Handle Set/set types (as array with uniqueItems)
     if origin is set or origin is frozenset:
-        schema = {"type": "array", "uniqueItems": True}
+        set_schema: Dict[str, Any] = {"type": "array", "uniqueItems": True}
         if args:
-            schema["items"] = _python_type_to_json_schema(args[0])
-        return schema
+            set_schema["items"] = _python_type_to_json_schema(args[0])
+        return set_schema
 
     # Handle Literal types
     try:
@@ -364,7 +364,7 @@ def _python_type_to_json_schema(py_type: type) -> Dict[str, Any]:
     return {"type": "string"}
 
 
-def _extract_param_description(func: Callable, param_name: str) -> Optional[str]:
+def _extract_param_description(func: Callable[..., Any], param_name: str) -> Optional[str]:
     """
     Extract parameter description from function docstring.
 
@@ -632,7 +632,12 @@ def _extract_epytext_style(docstring: str, param_name: str) -> Optional[str]:
     return " ".join(description_lines) if description_lines else None
 
 
-def tool(func: Optional[Callable] = None, *, name: Optional[str] = None, description: Optional[str] = None):
+def tool(
+    func: Optional[Callable[..., Any]] = None,
+    *,
+    name: Optional[str] = None,
+    description: Optional[str] = None,
+) -> Any:
     """
     Decorator to register a function as an agent tool.
 
@@ -663,7 +668,7 @@ def tool(func: Optional[Callable] = None, *, name: Optional[str] = None, descrip
         results = search_web(query="python agents")
     """
 
-    def decorator(f: Callable) -> Tool:
+    def decorator(f: Callable[..., Any]) -> Tool:
         tool_name = name or f.__name__
         tool_desc = description or inspect.getdoc(f) or f"Execute {tool_name}"
 
@@ -692,7 +697,7 @@ class ToolRegistry:
     prompt descriptions for all tools.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._tools: Dict[str, Tool] = {}
 
     def register(self, tool_instance: Tool) -> None:
@@ -754,6 +759,6 @@ class ToolRegistry:
         """Check if tool is registered."""
         return name in self._tools
 
-    def __iter__(self):
+    def __iter__(self) -> Any:
         """Iterate over tools."""
         return iter(self._tools.values())

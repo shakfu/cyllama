@@ -13,7 +13,9 @@
 
 ## Explore
 
-- [ ] MCP server (`cyllama/mcp/`) -- expose local inference capabilities (complete, chat, embed, transcribe, generate_image) as MCP tools, model listing as resources. Would let MCP clients (Claude Code, Claude Desktop, etc.) use local GGUF models. Thin wrapper over existing high-level API, `mcp` SDK as optional dependency. Protocol is still evolving -- evaluate when a concrete client integration need arises
+- [ ] MCP integration (two directions):
+  - **Server** (`cyllama/mcp/`): expose local inference (`complete`, `chat`, `embed`, `transcribe`, `generate_image`) as MCP tools and model listing as resources. Two transports: stdio entrypoint for subprocess clients (Claude Desktop), and Streamable-HTTP routes mounted on `EmbeddedServer` (`src/cyllama/llama/server/embedded.pyx`) for Claude Code / remote clients. Reuse `agents/jsonrpc.py` framing and the high-level API in `src/cyllama/api.py` -- no new heavy deps.
+  - **Client (high-level surface)**: stdio + HTTP client transports already exist in `src/cyllama/agents/mcp.py` and are wired into the agent `Tool` abstraction. Lift that onto the top-level `LLM`/`chat()` API (`LLM.add_mcp_server(...)`) so non-agent callers can attach MCP servers and have tools dispatched inside tool-calling loops. Llama.cpp upstream has no server-side MCP -- only the Svelte webui ships a TS client (`build/llama.cpp/tools/server/webui/src/lib/utils/mcp.ts`) -- so this stays a cyllama-layer concern.
 
 ## CI / Workflows
 

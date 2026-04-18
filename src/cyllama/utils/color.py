@@ -92,13 +92,13 @@ Styles:
    :raises ValueError: If the input string's length not equal to 3 or 6.
 """
 
-from typing import Union, Callable, Optional, Tuple, List, Dict
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 import sys
 import threading
 
 
 # Identity function (Python 2/3 compatibility layer from original)
-def t_(s):
+def t_(s: str) -> str:
     """Identity function for string compatibility."""
     return s
 
@@ -107,14 +107,14 @@ _use_color_no_tty = True
 _color_lock = threading.Lock()
 
 
-def use_color_no_tty(flag):
+def use_color_no_tty(flag: bool) -> None:
     """Set whether to use color even when not connected to a TTY."""
     global _use_color_no_tty
     with _color_lock:
         _use_color_no_tty = flag
 
 
-def use_color():
+def use_color() -> bool:
     """Check if color output should be used."""
     if sys.stdout.isatty():
         return True
@@ -134,7 +134,7 @@ def esc(*codes: Union[int, str]) -> str:
 ###############################################################################
 
 
-def make_color(start, end: str) -> Callable[[str], str]:
+def make_color(start: str, end: str) -> Callable[[str], str]:
     def color_func(s: str) -> str:
         if not use_color():
             return s
@@ -246,37 +246,38 @@ GRAYSCALE: Dict[int, int] = dict(_GRAYSCALE)
 GRAYSCALE_POINTS: List[int] = [i for i, _ in _GRAYSCALE]
 
 
-def get_closest(v: int, l: list):
+def get_closest(v: int, l: List[int]) -> int:
     return min(l, key=lambda x: abs(x - v))
 
 
-class Memorize(dict):
-    def __init__(self, func):
+class Memorize(Dict[Any, Any]):
+    def __init__(self, func: Callable[..., Any]) -> None:
         self.func = func
         self.__doc__ = func.__doc__
 
-    def __call__(self, *args):
+    def __call__(self, *args: Any) -> Any:
         return self[args]
 
-    def __missing__(self, key):
+    def __missing__(self, key: Any) -> Any:
         result = self[key] = self.func(*key)
         return result
 
 
-def memorize(func) -> Callable:
-    func._cache = {}
+def memorize(func: Callable[..., Any]) -> Callable[..., Any]:
+    cache: Dict[Tuple[Any, ...], Any] = {}
 
-    def wrapper(*args, **kwargs):
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
         if kwargs:
             return func(*args, **kwargs)
-        if args not in func._cache:
-            func._cache[args] = func(*args, **kwargs)
-        return func._cache[args]
+        if args not in cache:
+            cache[args] = func(*args, **kwargs)
+        return cache[args]
 
     for i in ("__module__", "__name__", "__doc__"):
         setattr(wrapper, i, getattr(func, i))
-    wrapper.__dict__.update(getattr(func, "__dict__", {}))  # type: ignore
-    wrapper._origin = func  # type: ignore
+    wrapper.__dict__.update(getattr(func, "__dict__", {}))
+    setattr(wrapper, "_origin", func)
+    setattr(wrapper, "_cache", cache)
     return wrapper
 
 
@@ -304,8 +305,14 @@ def hex_to_rgb(hx: str) -> Tuple[int, int, int]:
     return tuple(parts)  # type: ignore
 
 
-def make_256(start: str, end: str) -> Callable[[Union[tuple, str], str, Optional[Tuple[int, int, int]]], str]:
-    def rgb_func(rgb: Union[tuple, str], s: str, x: Optional[Tuple[int, int, int]] = None) -> str:
+def make_256(
+    start: str, end: str
+) -> Callable[[Union[Tuple[int, int, int], str], str, Optional[Tuple[int, int, int]]], str]:
+    def rgb_func(
+        rgb: Union[Tuple[int, int, int], str],
+        s: str,
+        x: Optional[Tuple[int, int, int]] = None,
+    ) -> str:
         """
         :param rgb: (R, G, B) tuple, or RRGGBB hex string
         """
@@ -523,7 +530,7 @@ def bullet(txt: str, color: Optional[str] = None, indent: int = 0, marker: str =
     cprint(f"{prefix}{txt}", color)
 
 
-def numbered(items: list, color: Optional[str] = None, start: int = 1) -> None:
+def numbered(items: List[str], color: Optional[str] = None, start: int = 1) -> None:
     """Print a numbered list.
 
     Args:
@@ -622,7 +629,12 @@ def box(
     print(border_char * box_width)
 
 
-def table_row(columns: list, widths: list, colors: Optional[list] = None, separator: str = " | ") -> None:
+def table_row(
+    columns: List[str],
+    widths: List[int],
+    colors: Optional[List[Optional[str]]] = None,
+    separator: str = " | ",
+) -> None:
     """Print a table row with fixed column widths.
 
     Args:
@@ -634,7 +646,9 @@ def table_row(columns: list, widths: list, colors: Optional[list] = None, separa
     parts = []
     for i, (col, width) in enumerate(zip(columns, widths)):
         text = str(col)[:width].ljust(width)
-        if colors and i < len(colors) and colors[i] and colors[i] in COLORS:
-            text = COLORS[colors[i]](text)
+        if colors and i < len(colors):
+            color_name = colors[i]
+            if color_name and color_name in COLORS:
+                text = COLORS[color_name](text)
         parts.append(text)
     print(separator.join(parts))

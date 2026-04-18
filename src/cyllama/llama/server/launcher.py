@@ -14,7 +14,7 @@ import logging
 import subprocess
 import threading
 from pathlib import Path
-from typing import Optional, Dict, Any, List, Union
+from typing import Any, Dict, List, Optional, Union, cast
 from dataclasses import dataclass, field
 
 
@@ -146,7 +146,7 @@ class LlamaServer:
             server_binary: Path to llama-server binary (auto-detected if None)
         """
         self.config = config
-        self.process: Optional[subprocess.Popen] = None
+        self.process: Optional["subprocess.Popen[str]"] = None
         self._shutdown_event = threading.Event()
 
         # Find server binary
@@ -211,6 +211,7 @@ class LlamaServer:
                 self.stop()
                 raise RuntimeError(f"Server failed to start within {timeout} seconds")
 
+        assert self.process is not None
         self.logger.info(f"Server started successfully (PID: {self.process.pid})")
 
     def stop(self, timeout: float = 10.0) -> None:
@@ -340,12 +341,12 @@ class LlamaServer:
         # In practice, you might want to capture logs to files
         return {"stdout": ["Logs would be captured here"], "stderr": ["Error logs would be captured here"]}
 
-    def __enter__(self):
+    def __enter__(self) -> "LlamaServer":
         """Context manager entry."""
         self.start()
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: object, exc_val: object, exc_tb: object) -> None:
         """Context manager exit."""
         self.stop()
 
@@ -380,7 +381,7 @@ class LlamaServerClient:
         except ImportError:
             raise ImportError("requests library is required for LlamaServerClient. Install with: pip install requests")
 
-    def chat_completion(self, messages: List[Dict[str, str]], **kwargs) -> Dict[str, Any]:
+    def chat_completion(self, messages: List[Dict[str, str]], **kwargs: Any) -> Dict[str, Any]:
         """
         Create a chat completion.
 
@@ -396,9 +397,9 @@ class LlamaServerClient:
 
         response = self.session.post(url, json=data)
         response.raise_for_status()
-        return response.json()
+        return cast(Dict[str, Any], response.json())
 
-    def embedding(self, input_text: Union[str, List[str]], **kwargs) -> Dict[str, Any]:
+    def embedding(self, input_text: Union[str, List[str]], **kwargs: Any) -> Dict[str, Any]:
         """
         Create embeddings.
 
@@ -414,25 +415,25 @@ class LlamaServerClient:
 
         response = self.session.post(url, json=data)
         response.raise_for_status()
-        return response.json()
+        return cast(Dict[str, Any], response.json())
 
     def models(self) -> Dict[str, Any]:
         """Get available models."""
         url = f"{self.base_url}/v1/models"
         response = self.session.get(url)
         response.raise_for_status()
-        return response.json()
+        return cast(Dict[str, Any], response.json())
 
     def health(self) -> Dict[str, Any]:
         """Check server health."""
         url = f"{self.base_url}/health"
         response = self.session.get(url)
         response.raise_for_status()
-        return response.json()
+        return cast(Dict[str, Any], response.json())
 
 
 # Convenience functions
-def start_server(model_path: str, **kwargs) -> LlamaServer:
+def start_server(model_path: str, **kwargs: Any) -> LlamaServer:
     """
     Start a server with simple configuration.
 
