@@ -14,7 +14,7 @@ from .loaders import load_document
 from .pipeline import RAGConfig, RAGPipeline, RAGResponse
 from .splitter import TextSplitter
 from .store import SqliteVectorStore, VectorStoreProtocol
-from .types import Document
+from .types import Document, EmbedderProtocol
 
 if TYPE_CHECKING:
     pass
@@ -107,6 +107,7 @@ class RAG:
         db_path: str = ":memory:",
         config: RAGConfig | None = None,
         store: VectorStoreProtocol | None = None,
+        embedder: EmbedderProtocol | None = None,
         **kwargs: Any,
     ) -> None:
         """Initialize RAG with models.
@@ -115,7 +116,8 @@ class RAG:
         with sensible defaults.
 
         Args:
-            embedding_model: Path to embedding model (GGUF file)
+            embedding_model: Path to embedding model (GGUF file).
+                Ignored when ``embedder`` is provided.
             generation_model: Path to generation model (GGUF file)
             chunk_size: Target chunk size for text splitting
             chunk_overlap: Overlap between chunks
@@ -133,6 +135,13 @@ class RAG:
                 using ``db_path``, the embedder's dimension, and the
                 chunking config (recorded in the on-disk metadata table
                 so reopens detect config-mismatch errors).
+            embedder: Optional pre-built embedder conforming to
+                :class:`EmbedderProtocol`. When supplied,
+                ``embedding_model`` is ignored. Use this to plug in
+                alternative embedding backends (OpenAI, sentence-
+                transformers, fastembed, Voyage, Jina, ...) in place of
+                the default llama.cpp ``Embedder``. When None, a default
+                :class:`Embedder` is constructed from ``embedding_model``.
             **kwargs: Additional arguments passed to LLM
         """
         # Import LLM here to avoid circular imports
@@ -148,7 +157,10 @@ class RAG:
         # raises a friendly error on mismatch (different embedder,
         # different chunk size, etc.) instead of silently producing
         # garbage by mixing two configurations.
-        self.embedder = Embedder(embedding_model)
+        if embedder is not None:
+            self.embedder: EmbedderProtocol = embedder
+        else:
+            self.embedder = Embedder(embedding_model)
         if store is not None:
             self.store: VectorStoreProtocol = store
         else:

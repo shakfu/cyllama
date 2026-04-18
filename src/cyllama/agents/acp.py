@@ -13,7 +13,8 @@ from dataclasses import dataclass
 from enum import Enum
 
 from .tools import Tool
-from .react import ReActAgent, AgentEvent, EventType
+from .react import ReActAgent
+from .types import AgentEvent, AgentProtocol, EventType
 from .jsonrpc import (
     JsonRpcServer,
     StdioTransport,
@@ -189,7 +190,7 @@ class ACPAgent:
             "default": {"id": "default", "name": "Default", "description": "Standard assistant mode"},
         }
 
-    def _create_inner_agent(self, session: Session) -> Any:
+    def _create_inner_agent(self, session: Session) -> AgentProtocol:
         """Create an inner agent for processing prompts."""
         # Combine built-in tools with MCP tools
         all_tools = list(self.tools)

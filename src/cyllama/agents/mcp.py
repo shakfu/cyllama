@@ -9,7 +9,7 @@ import logging
 import subprocess
 import threading
 import os
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Protocol, runtime_checkable
 from dataclasses import dataclass
 from enum import Enum
 import urllib.request
@@ -107,7 +107,45 @@ class McpResource:
     server_name: str = ""
 
 
-class McpStdioConnection:
+@runtime_checkable
+class McpConnectionProtocol(Protocol):
+    """Structural contract for MCP transport connections.
+
+    Satisfied by :class:`McpStdioConnection` and :class:`McpHttpConnection`,
+    and any future transport (Streamable-HTTP / SSE -- the
+    ``McpTransportType.SSE`` enum member is reserved). Replaces the
+    previous ``Union[McpStdioConnection, McpHttpConnection]`` alias so
+    new transports can drop in without touching call sites.
+    """
+
+    def connect(self) -> None:
+        """Establish the transport (start subprocess, validate URL, etc.)."""
+        ...
+
+    def disconnect(self) -> None:
+        """Tear down the transport. Safe to call multiple times."""
+        ...
+
+    def send_request(
+        self,
+        method: str,
+        params: Optional[Dict[str, Any]] = None,
+        timeout: Optional[float] = None,
+    ) -> Any:
+        """Send a JSON-RPC request and return its result.
+
+        Implementations may apply a transport-specific default when
+        ``timeout`` is None (stdio uses ``config.request_timeout``;
+        http uses 30s).
+        """
+        ...
+
+    def send_notification(self, method: str, params: Optional[Dict[str, Any]] = None) -> None:
+        """Send a JSON-RPC notification (no response expected)."""
+        ...
+
+
+class McpStdioConnection(McpConnectionProtocol):
     """
     MCP connection over stdio to a subprocess.
     """
@@ -230,7 +268,7 @@ class McpStdioConnection:
             raise RuntimeError(f"MCP server '{self._config.name}' connection lost: {e}") from e
 
 
-class McpHttpConnection:
+class McpHttpConnection(McpConnectionProtocol):
     """
     MCP connection over HTTP.
     """
@@ -254,10 +292,22 @@ class McpHttpConnection:
             self._request_id += 1
             return self._request_id
 
-    def send_request(self, method: str, params: Optional[Dict[str, Any]] = None, timeout: float = 30.0) -> Any:
-        """Send a JSON-RPC request over HTTP."""
+    def send_request(
+        self,
+        method: str,
+        params: Optional[Dict[str, Any]] = None,
+        timeout: Optional[float] = None,
+    ) -> Any:
+        """Send a JSON-RPC request over HTTP.
+
+        ``timeout=None`` defaults to 30 seconds. Signature widened from
+        ``float = 30.0`` to ``Optional[float] = None`` so it conforms
+        to :class:`McpConnectionProtocol`.
+        """
         if not self._config.url:
             raise RuntimeError(f"MCP server '{self._config.name}': http transport requires url")
+        if timeout is None:
+            timeout = 30.0
         request_id = self._next_id()
         request = JsonRpcRequest(method=method, params=params, id=request_id)
         request_str = serialize_message(request)
@@ -305,7 +355,10 @@ class McpHttpConnection:
             logger.warning("MCP notification failed: %s", e)
 
 
-McpConnection = Union[McpStdioConnection, McpHttpConnection]
+# Backwards-compatible alias. New code should reference
+# ``McpConnectionProtocol`` directly; ``McpConnection`` remains as a
+# shorter local alias for the existing call sites in this module.
+McpConnection = McpConnectionProtocol
 
 
 class McpClient:

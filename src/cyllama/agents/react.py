@@ -13,73 +13,15 @@ Reference: https://arxiv.org/abs/2210.03629
 import logging
 import re
 import time
-from typing import List, Optional, Iterator, Dict, Any, Tuple
-from dataclasses import dataclass, field
-from enum import Enum
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 from ..defaults import DEFAULT_MAX_TOKENS, DEFAULT_TEMPERATURE
 from ..api import LLM, GenerationConfig
 from .tools import Tool, ToolRegistry
+from .types import AgentEvent, AgentMetrics, AgentProtocol, AgentResult, EventType
 
 # Module logger
 logger = logging.getLogger(__name__)
-
-
-class EventType(Enum):
-    """Types of events emitted during agent execution."""
-
-    THOUGHT = "thought"
-    ACTION = "action"
-    OBSERVATION = "observation"
-    ANSWER = "answer"
-    ERROR = "error"
-    # Contract-related events
-    CONTRACT_CHECK = "contract_check"
-    CONTRACT_VIOLATION = "contract_violation"
-
-
-@dataclass
-class AgentEvent:
-    """Event emitted during agent execution."""
-
-    type: EventType
-    content: str
-    metadata: Dict[str, Any] = field(default_factory=dict)
-
-
-@dataclass
-class AgentMetrics:
-    """Performance metrics for agent execution."""
-
-    total_time_ms: float = 0.0
-    iterations: int = 0
-    tool_calls: int = 0
-    tool_time_ms: float = 0.0
-    generation_time_ms: float = 0.0
-    tokens_generated: int = 0
-    loop_detected: bool = False
-    error_count: int = 0
-
-    def __str__(self) -> str:
-        return (
-            f"AgentMetrics(iterations={self.iterations}, "
-            f"tool_calls={self.tool_calls}, "
-            f"total_time={self.total_time_ms:.1f}ms, "
-            f"gen_time={self.generation_time_ms:.1f}ms, "
-            f"tool_time={self.tool_time_ms:.1f}ms)"
-        )
-
-
-@dataclass
-class AgentResult:
-    """Result from agent execution."""
-
-    answer: str
-    steps: List[AgentEvent]
-    iterations: int
-    success: bool
-    error: Optional[str] = None
-    metrics: Optional[AgentMetrics] = None
 
 
 class ActionParseError(ValueError):
@@ -121,7 +63,7 @@ class ActionParseError(ValueError):
         return str(self.args[0])
 
 
-class ReActAgent:
+class ReActAgent(AgentProtocol):
     """
     ReAct agent that uses reasoning and tool calling to solve tasks.
 

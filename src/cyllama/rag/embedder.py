@@ -8,6 +8,8 @@ from collections import OrderedDict
 from enum import IntEnum
 from typing import Any, Iterator, NamedTuple
 
+from .types import EmbedderProtocol
+
 from ..llama.llama_cpp import (
     LlamaBatch,
     LlamaContext,
@@ -118,11 +120,16 @@ class PoolingType(IntEnum):
     LAST = 3
 
 
-class Embedder:
+class Embedder(EmbedderProtocol):
     """Generate embeddings using llama.cpp embedding models.
 
     The Embedder class wraps a llama.cpp model to generate vector embeddings
     from text. It supports various pooling strategies and optional L2 normalization.
+
+    Inherits from :class:`EmbedderProtocol` so mypy enforces method-
+    signature compatibility (PEP 544 supports subclassing
+    ``runtime_checkable`` protocols; the class behaves as a regular
+    concrete type).
 
     Example:
         >>> embedder = Embedder("models/bge-small-en-v1.5-q8_0.gguf")

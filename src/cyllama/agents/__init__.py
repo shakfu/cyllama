@@ -15,7 +15,8 @@ Available agents:
 """
 
 from .tools import Tool, tool, ToolRegistry
-from .react import ReActAgent, EventType, AgentEvent, AgentResult, AgentMetrics
+from .react import ReActAgent
+from .types import AgentEvent, AgentMetrics, AgentProtocol, AgentResult, EventType
 from .constrained import ConstrainedAgent, ConstrainedGenerationConfig
 from .grammar import (
     GrammarFormat,
@@ -81,6 +82,7 @@ __all__ = [
     "AgentEvent",
     "AgentResult",
     "AgentMetrics",
+    "AgentProtocol",
     # Configuration
     "ConstrainedGenerationConfig",
     # Grammar utilities

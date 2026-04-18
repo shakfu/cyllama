@@ -38,7 +38,8 @@ from typing import (
 )
 import logging
 
-from .react import ReActAgent, AgentEvent, AgentResult, AgentMetrics
+from .react import ReActAgent
+from .types import AgentEvent, AgentMetrics, AgentResult
 from .constrained import ConstrainedAgent, ConstrainedGenerationConfig
 from .tools import Tool
 from ..api import LLM, GenerationConfig
@@ -264,13 +265,8 @@ class AsyncConstrainedAgent:
 
     @property
     def metrics(self) -> Optional[AgentMetrics]:
-        """Get metrics from the last run.
-
-        ConstrainedAgent has its own ``AgentMetrics`` class with the
-        same shape but a different module path; cast through ``Any``
-        because the wrapper exposes the react-flavoured alias.
-        """
-        return cast(Optional[AgentMetrics], self._agent.metrics)
+        """Get metrics from the last run."""
+        return self._agent.metrics
 
     async def run(self, task: str) -> AgentResult:
         """

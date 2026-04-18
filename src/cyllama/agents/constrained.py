@@ -26,7 +26,7 @@ from .grammar import (
     generate_answer_or_tool_grammar,
     get_cached_answer_or_tool_grammar,
 )
-from .react import EventType, AgentEvent, AgentResult
+from .types import AgentEvent, AgentProtocol, AgentResult, EventType
 
 
 class GrammarConstrainedLLM(LLM):
@@ -168,30 +168,15 @@ class ConstrainedGenerationConfig:
     min_p: float = 0.05
 
 
-@dataclass
-class AgentMetrics:
-    """Performance metrics for agent execution."""
-
-    total_time_ms: float = 0.0
-    iterations: int = 0
-    tool_calls: int = 0
-    tool_time_ms: float = 0.0
-    generation_time_ms: float = 0.0
-    tokens_generated: int = 0
-    loop_detected: bool = False
-    error_count: int = 0
-
-    def __str__(self) -> str:
-        return (
-            f"AgentMetrics(iterations={self.iterations}, "
-            f"tool_calls={self.tool_calls}, "
-            f"total_time={self.total_time_ms:.1f}ms, "
-            f"gen_time={self.generation_time_ms:.1f}ms, "
-            f"tool_time={self.tool_time_ms:.1f}ms)"
-        )
+# AgentMetrics is shared with ReActAgent so callers (notably the
+# AsyncConstrainedAgent wrapper and the AgentProtocol) can treat the
+# return type of ``metrics`` uniformly across both agents. The two
+# classes were byte-identical until this consolidation; the canonical
+# definition now lives in ``agents/types.py``.
+from .types import AgentMetrics  # noqa: E402,F401  (re-exported for backwards compat)
 
 
-class ConstrainedAgent:
+class ConstrainedAgent(AgentProtocol):
     """
     Agent that uses grammar-constrained generation for reliable tool calling.
 

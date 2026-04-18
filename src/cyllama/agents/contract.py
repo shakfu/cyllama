@@ -93,7 +93,8 @@ import logging
 import time
 
 from .tools import Tool
-from .react import AgentEvent, AgentResult, AgentMetrics, EventType, ReActAgent
+from .react import ReActAgent
+from .types import AgentEvent, AgentMetrics, AgentProtocol, AgentResult, EventType
 
 logger = logging.getLogger(__name__)
 
@@ -672,7 +673,7 @@ def contract_assert(
 # =============================================================================
 
 
-class ContractAgent:
+class ContractAgent(AgentProtocol):
     """
     Agent wrapper that adds C++26-inspired contract checking to tool execution.
 

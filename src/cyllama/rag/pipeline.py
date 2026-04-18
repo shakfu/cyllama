@@ -11,7 +11,7 @@ from .types import SearchResult
 
 if TYPE_CHECKING:
     from ..api import LLM
-    from .embedder import Embedder
+    from .types import EmbedderProtocol
     from .store import VectorStoreProtocol
 
 
@@ -226,7 +226,7 @@ class RAGPipeline:
 
     def __init__(
         self,
-        embedder: "Embedder",
+        embedder: "EmbedderProtocol",
         store: "VectorStoreProtocol",
         generator: "LLM",
         config: RAGConfig | None = None,
@@ -234,7 +234,10 @@ class RAGPipeline:
         """Initialize RAG pipeline.
 
         Args:
-            embedder: Embedder for converting queries to vectors
+            embedder: Embedder conforming to ``EmbedderProtocol`` (the
+                default llama.cpp ``Embedder`` satisfies it; cloud
+                backends like OpenAI / Voyage / Cohere can be plugged in
+                via adapters).
             store: Vector store conforming to ``VectorStoreProtocol``
                 (the default sqlite-vector ``VectorStore`` satisfies it,
                 as do alternative backends like Qdrant/Chroma when

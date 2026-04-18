@@ -70,7 +70,7 @@ from .rag import RAG, IndexResult
 from .repetition import NGramRepetitionDetector
 from .splitter import MarkdownSplitter, TextSplitter, TokenTextSplitter
 from .store import SqliteVectorStore, VectorStoreError, VectorStoreProtocol
-from .types import Chunk, Document, EmbeddingResult, SearchResult
+from .types import Chunk, Document, EmbedderProtocol, EmbeddingResult, SearchResult
 
 __all__ = [
     # High-level RAG Interface
@@ -91,6 +91,7 @@ __all__ = [
     "async_search_knowledge",
     # Embedder
     "Embedder",
+    "EmbedderProtocol",
     "PoolingType",
     "CacheInfo",
     # VectorStore
