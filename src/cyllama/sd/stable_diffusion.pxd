@@ -35,6 +35,7 @@ cdef extern from "stable-diffusion.h":
         TCD_SAMPLE_METHOD
         RES_MULTISTEP_SAMPLE_METHOD
         RES_2S_SAMPLE_METHOD
+        ER_SDE_SAMPLE_METHOD
         SAMPLE_METHOD_COUNT
 
     ctypedef enum scheduler_t:
@@ -324,6 +325,8 @@ cdef extern from "stable-diffusion.h":
 
     int32_t sd_get_num_physical_cores()
     const char* sd_get_system_info()
+    bint sd_ctx_supports_image_generation(const sd_ctx_t* sd_ctx)
+    bint sd_ctx_supports_video_generation(const sd_ctx_t* sd_ctx)
 
     # =========================================================================
     # Functions - Type/enum name conversions

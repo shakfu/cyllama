@@ -74,6 +74,7 @@ class SampleMethod(IntEnum):
     TCD = TCD_SAMPLE_METHOD
     RES_MULTISTEP = RES_MULTISTEP_SAMPLE_METHOD
     RES_2S = RES_2S_SAMPLE_METHOD
+    ER_SDE = ER_SDE_SAMPLE_METHOD
     COUNT = SAMPLE_METHOD_COUNT
 
 
@@ -2292,6 +2293,30 @@ cdef class SDContext:
     def is_valid(self) -> bool:
         """Check if context is valid."""
         return self._ctx != NULL
+
+    @property
+    def supports_image_generation(self) -> bool:
+        """Whether the loaded model can produce still images.
+
+        Mirrors upstream ``sd_ctx_supports_image_generation``. Most
+        diffusion checkpoints support image generation; video-only
+        models (e.g. WAN) may not.
+        """
+        if self._ctx == NULL:
+            raise RuntimeError("Context not initialized")
+        return sd_ctx_supports_image_generation(self._ctx)
+
+    @property
+    def supports_video_generation(self) -> bool:
+        """Whether the loaded model can produce video frames.
+
+        Mirrors upstream ``sd_ctx_supports_video_generation``. Standard
+        SD/SDXL/FLUX checkpoints return False; WAN-style video models
+        return True.
+        """
+        if self._ctx == NULL:
+            raise RuntimeError("Context not initialized")
+        return sd_ctx_supports_video_generation(self._ctx)
 
     def get_default_sample_method(self) -> SampleMethod:
         """Get the default sampling method for the loaded model."""

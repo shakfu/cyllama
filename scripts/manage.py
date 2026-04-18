@@ -147,7 +147,7 @@ else:
     # experimental bleeding-edge builds ` = ""` means get latest
     LLAMACPP_VERSION = "b8833"
     WHISPERCPP_VERSION = "v1.8.4"
-    SDCPP_VERSION = "master-567-ee5bf95"
+    SDCPP_VERSION = "master-580-7d33d4b"
     SQLITEVECTOR_VERSION = "0.9.93"
 if PLATFORM == "Darwin":
     MACOSX_DEPLOYMENT_TARGET = setenv("MACOSX_DEPLOYMENT_TARGET", "12.6")
