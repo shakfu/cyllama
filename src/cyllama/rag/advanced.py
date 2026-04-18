@@ -528,9 +528,7 @@ class HybridStore:
             vector_type: Vector storage type
             alpha: Weight for vector search (1-alpha for FTS)
         """
-        from .store import VectorStore
-
-        from .store import _validate_table_name
+        from .store import SqliteVectorStore, _validate_table_name
 
         _validate_table_name(table_name)
 
@@ -540,8 +538,11 @@ class HybridStore:
         self.alpha = alpha
         self._closed = False
 
-        # Create vector store
-        self._vector_store = VectorStore(
+        # Create vector store (HybridStore is sqlite-specific because it
+        # mixes vector search with FTS5 over the same SQLite connection,
+        # so we use the concrete sqlite implementation directly rather
+        # than going through VectorStoreProtocol.)
+        self._vector_store = SqliteVectorStore(
             dimension=dimension,
             db_path=db_path,
             table_name=table_name,

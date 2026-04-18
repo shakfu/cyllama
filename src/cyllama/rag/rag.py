@@ -13,7 +13,7 @@ from .embedder import Embedder
 from .loaders import load_document
 from .pipeline import RAGConfig, RAGPipeline, RAGResponse
 from .splitter import TextSplitter
-from .store import VectorStore
+from .store import SqliteVectorStore, VectorStoreProtocol
 from .types import Document
 
 if TYPE_CHECKING:
@@ -106,6 +106,7 @@ class RAG:
         chunk_overlap: int = 50,
         db_path: str = ":memory:",
         config: RAGConfig | None = None,
+        store: VectorStoreProtocol | None = None,
         **kwargs: Any,
     ) -> None:
         """Initialize RAG with models.
@@ -118,8 +119,20 @@ class RAG:
             generation_model: Path to generation model (GGUF file)
             chunk_size: Target chunk size for text splitting
             chunk_overlap: Overlap between chunks
-            db_path: Path for vector store (":memory:" for in-memory)
+            db_path: Path for vector store (":memory:" for in-memory).
+                Ignored when ``store`` is provided -- the supplied store
+                owns its own persistence.
             config: RAG configuration (uses defaults if None)
+            store: Optional pre-built vector store conforming to
+                :class:`VectorStoreProtocol`. When supplied, ``db_path``
+                is ignored and the caller is responsible for the store's
+                dimension matching the embedder. Use this to plug in
+                alternative backends (Qdrant, Chroma, LanceDB, pgvector,
+                ...) in place of the default sqlite-vector store. When
+                None, a default :class:`VectorStore` is constructed
+                using ``db_path``, the embedder's dimension, and the
+                chunking config (recorded in the on-disk metadata table
+                so reopens detect config-mismatch errors).
             **kwargs: Additional arguments passed to LLM
         """
         # Import LLM here to avoid circular imports
@@ -136,13 +149,16 @@ class RAG:
         # different chunk size, etc.) instead of silently producing
         # garbage by mixing two configurations.
         self.embedder = Embedder(embedding_model)
-        self.store = VectorStore(
-            dimension=self.embedder.dimension,
-            db_path=db_path,
-            embedding_model_path=embedding_model,
-            chunk_size=chunk_size,
-            chunk_overlap=chunk_overlap,
-        )
+        if store is not None:
+            self.store: VectorStoreProtocol = store
+        else:
+            self.store = SqliteVectorStore(
+                dimension=self.embedder.dimension,
+                db_path=db_path,
+                embedding_model_path=embedding_model,
+                chunk_size=chunk_size,
+                chunk_overlap=chunk_overlap,
+            )
         self.splitter = TextSplitter(
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,

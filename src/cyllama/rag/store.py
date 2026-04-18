@@ -1,4 +1,11 @@
-"""VectorStore class using sqlite-vector for similarity search."""
+"""VectorStore class using sqlite-vector for similarity search.
+
+Also defines :class:`VectorStoreProtocol`, the structural contract that
+:class:`~cyllama.rag.pipeline.RAGPipeline` and :class:`~cyllama.rag.RAG`
+require of any store backend. Custom stores (Qdrant, Chroma, LanceDB,
+pgvector, ...) only need to implement this protocol to drop into the
+RAG layer in place of the default sqlite-vector store.
+"""
 
 from __future__ import annotations
 
@@ -8,7 +15,7 @@ import sqlite3
 import struct
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol, runtime_checkable
 
 from .types import SearchResult
 
@@ -30,8 +37,104 @@ class VectorStoreError(Exception):
     pass
 
 
-class VectorStore:
+@runtime_checkable
+class VectorStoreProtocol(Protocol):
+    """Structural contract for backends usable as the RAG store.
+
+    The default :class:`VectorStore` (sqlite-vector) satisfies this
+    protocol; alternative backends only need to implement these
+    methods to be drop-in replacements via ``RAG(store=...)`` or
+    ``RAGPipeline(store=...)``.
+
+    The contract is intentionally narrow -- it covers only what
+    :class:`~cyllama.rag.pipeline.RAGPipeline` and
+    :class:`~cyllama.rag.RAG` actually call on the store. Backend-
+    specific features (sqlite-vector quantization, FTS5 hybrid search
+    via :class:`~cyllama.rag.advanced.HybridStore`, raw SQL access
+    through ``store.conn``) remain on the concrete classes and aren't
+    part of the cross-backend interface.
+
+    Source-dedup methods (``is_source_indexed`` and
+    ``get_source_by_label``) are required because :class:`RAG` uses
+    them to avoid re-indexing unchanged files. Backends without a
+    natural place to track per-source content hashes can return
+    ``False`` / ``None`` to opt out of dedup -- the RAG layer treats
+    that as "always re-index" and behaves correctly, just less
+    efficiently on repeated ``add_documents`` calls.
+    """
+
+    def search(
+        self,
+        query_embedding: list[float],
+        k: int = 5,
+        threshold: float | None = None,
+    ) -> list[SearchResult]:
+        """Return the top-``k`` matches above ``threshold`` similarity."""
+        ...
+
+    def add(
+        self,
+        embeddings: list[list[float]],
+        texts: list[str],
+        metadata: list[dict[str, Any]] | None = None,
+        source_hash: str | None = None,
+        source_label: str | None = None,
+    ) -> list[int]:
+        """Insert chunks; return their assigned IDs.
+
+        ``source_hash`` and ``source_label`` are recorded together with
+        the chunks for dedup purposes; backends that don't support
+        dedup may ignore them.
+        """
+        ...
+
+    def is_source_indexed(self, content_hash: str) -> bool:
+        """Return True if ``add(source_hash=content_hash, ...)`` was
+        previously called. Backends without dedup support may return
+        False unconditionally (the RAG layer will then re-index)."""
+        ...
+
+    def get_source_by_label(self, source_label: str) -> dict[str, Any] | None:
+        """Look up an indexed source by its human-readable label.
+
+        Used to detect "same filename, different content" collisions.
+        Should return a dict with at least ``content_hash`` and
+        ``source_label`` keys, or None if no source with this label is
+        indexed. Backends without dedup support may return None.
+        """
+        ...
+
+    def clear(self) -> int:
+        """Remove all data from the store; return the number of items removed."""
+        ...
+
+    def close(self) -> None:
+        """Release any resources (connections, file handles)."""
+        ...
+
+    def __len__(self) -> int:
+        """Return the number of stored embeddings."""
+        ...
+
+
+class SqliteVectorStore(VectorStoreProtocol):
     """SQLite-based vector store using sqlite-vector extension.
+
+    Inherits from :class:`VectorStoreProtocol` to make the contract
+    explicit and to get static enforcement that the seven required
+    methods stay in sync with the protocol. Subclassing a
+    ``runtime_checkable`` protocol is supported (PEP 544); the class
+    behaves as a regular concrete type, the protocol membership only
+    affects type-checking.
+
+    .. note::
+       Originally named ``VectorStore``. The legacy name is preserved
+       as a module-level alias (``VectorStore = SqliteVectorStore``) so
+       existing ``from cyllama.rag import VectorStore`` imports keep
+       working. New code should prefer ``SqliteVectorStore`` -- the
+       backend-specific name makes the multi-backend story (with
+       Qdrant / Chroma / pgvector adapters via
+       :class:`VectorStoreProtocol`) easier to follow.
 
     VectorStore provides high-performance vector similarity search using the
     sqlite-vector extension. It supports multiple distance metrics and can
@@ -866,7 +969,7 @@ class VectorStore:
         cls,
         db_path: str,
         table_name: str = "embeddings",
-    ) -> "VectorStore":
+    ) -> "SqliteVectorStore":
         """Open existing vector store from disk.
 
         Args:
@@ -956,7 +1059,7 @@ class VectorStore:
         )
         return cursor.fetchone() is not None
 
-    def __enter__(self) -> "VectorStore":
+    def __enter__(self) -> "SqliteVectorStore":
         return self
 
     def __exit__(self, *args: Any) -> None:
@@ -965,7 +1068,31 @@ class VectorStore:
     def __repr__(self) -> str:
         status = "closed" if self._closed else f"open, {len(self)} vectors"
         return (
-            f"VectorStore(dimension={self.dimension}, db_path={self.db_path!r}, "
+            f"SqliteVectorStore(dimension={self.dimension}, db_path={self.db_path!r}, "
             f"table_name={self.table_name!r}, metric={self.metric!r}, "
             f"status={status})"
         )
+
+
+# Deprecated backwards-compatible alias. Existing imports
+# (``from cyllama.rag import VectorStore`` /
+# ``from cyllama.rag.store import VectorStore``) keep working but emit
+# a ``DeprecationWarning`` once per import site -- new code should
+# prefer ``SqliteVectorStore`` so the backend choice is explicit at
+# the call site. Implemented via PEP 562 module-level ``__getattr__``
+# rather than a direct binding so the warning fires only when the
+# legacy name is actually requested, not on every ``import cyllama.rag``.
+
+
+def __getattr__(name: str) -> Any:
+    if name == "VectorStore":
+        import warnings
+
+        warnings.warn(
+            "cyllama.rag.store.VectorStore is deprecated and will be removed "
+            "in a future release; use SqliteVectorStore instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return SqliteVectorStore
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

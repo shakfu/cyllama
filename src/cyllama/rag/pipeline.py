@@ -12,7 +12,7 @@ from .types import SearchResult
 if TYPE_CHECKING:
     from ..api import LLM
     from .embedder import Embedder
-    from .store import VectorStore
+    from .store import VectorStoreProtocol
 
 
 # Default prompt template for RAG queries (raw-completion path).
@@ -227,7 +227,7 @@ class RAGPipeline:
     def __init__(
         self,
         embedder: "Embedder",
-        store: "VectorStore",
+        store: "VectorStoreProtocol",
         generator: "LLM",
         config: RAGConfig | None = None,
     ):
@@ -235,7 +235,10 @@ class RAGPipeline:
 
         Args:
             embedder: Embedder for converting queries to vectors
-            store: VectorStore for similarity search
+            store: Vector store conforming to ``VectorStoreProtocol``
+                (the default sqlite-vector ``VectorStore`` satisfies it,
+                as do alternative backends like Qdrant/Chroma when
+                wrapped in an adapter).
             generator: LLM for generating responses
             config: RAG configuration (uses defaults if None)
         """

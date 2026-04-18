@@ -5,7 +5,7 @@ for embeddings and generation, with sqlite-vector for vector storage.
 
 Components:
     - Embedder: Generate text embeddings using llama.cpp embedding models
-    - VectorStore: SQLite-based vector store using sqlite-vector
+    - SqliteVectorStore (alias VectorStore): SQLite-based vector store using sqlite-vector
     - TextSplitter: Split documents into chunks for embedding
     - Document Loaders: Load documents from various file formats
     - RAGPipeline: Orchestrate retrieval and generation
@@ -69,7 +69,7 @@ from .pipeline import (
 from .rag import RAG, IndexResult
 from .repetition import NGramRepetitionDetector
 from .splitter import MarkdownSplitter, TextSplitter, TokenTextSplitter
-from .store import VectorStore, VectorStoreError
+from .store import SqliteVectorStore, VectorStoreError, VectorStoreProtocol
 from .types import Chunk, Document, EmbeddingResult, SearchResult
 
 __all__ = [
@@ -94,8 +94,10 @@ __all__ = [
     "PoolingType",
     "CacheInfo",
     # VectorStore
-    "VectorStore",
+    "SqliteVectorStore",
+    "VectorStore",  # backwards-compat alias for SqliteVectorStore
     "VectorStoreError",
+    "VectorStoreProtocol",
     # Text Splitters
     "TextSplitter",
     "TokenTextSplitter",
@@ -117,3 +119,26 @@ __all__ = [
     "EmbeddingResult",
     "SearchResult",
 ]
+
+
+def __getattr__(name: str) -> object:
+    """Lazy attribute access for the deprecated ``VectorStore`` alias.
+
+    Implemented via PEP 562 module ``__getattr__`` so the
+    ``DeprecationWarning`` fires only when the legacy name is actually
+    used, not on every ``import cyllama.rag``. The warning is emitted
+    here (rather than delegating to ``cyllama.rag.store.__getattr__``)
+    so ``stacklevel=2`` points at the user's import site instead of
+    cyllama's internal re-export line.
+    """
+    if name == "VectorStore":
+        import warnings
+
+        warnings.warn(
+            "cyllama.rag.VectorStore is deprecated and will be removed in a "
+            "future release; use SqliteVectorStore instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return SqliteVectorStore
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

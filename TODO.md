@@ -45,3 +45,7 @@
 - [ ] Parallel document loading in DirectoryLoader
 - [ ] Batch query processing in RAG pipeline
 - [ ] Sharding for 1M+ vector workloads
+
+## Alternative vector-store backends
+
+- [ ] **Qdrant adapter (`cyllama/rag/stores/qdrant.py`)** -- The cross-backend seam landed (`VectorStoreProtocol` in `src/cyllama/rag/store.py`, `RAG(store=...)` injection point in `src/cyllama/rag/rag.py`). Ship a first reference adapter so users have a worked example: thin wrapper around `qdrant_client.QdrantClient` implementing the seven protocol methods (`search`, `add`, `is_source_indexed`, `get_source_by_label`, `clear`, `close`, `__len__`). Source dedup maps to a Qdrant payload field (e.g. `content_hash`); `is_source_indexed` becomes a count query, `get_source_by_label` a payload filter. Behind an optional dep group (`pip install cyllama[qdrant]`); skip-if-not-installed test pattern from `tests/test_pdf.py`. Once Qdrant works, Chroma / LanceDB / pgvector adapters follow the same template -- consider whether to ship them in-tree or document the protocol and let the community own them.
