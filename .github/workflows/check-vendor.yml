@@ -1,0 +1,53 @@
+name: check-vendor
+
+# Vendor-drift guard: verifies thirdparty/llama.cpp/include/ matches the
+# llama.cpp version pinned in scripts/manage.py. Catches:
+#   - accidental local edits to vendored headers
+#   - upstream files added under non-exact pins
+#   - desynchronization between the pinned version and the committed tree
+#
+# Pattern borrowed from llama.cpp's own check-vendor.yml.
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'scripts/manage.py'
+      - 'thirdparty/llama.cpp/include/**'
+      - '.github/workflows/check-vendor.yml'
+  push:
+    branches: [main, dev]
+    paths:
+      - 'scripts/manage.py'
+      - 'thirdparty/llama.cpp/include/**'
+      - '.github/workflows/check-vendor.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Verify vendored llama.cpp headers
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Re-vendor and diff against committed tree
+        run: python scripts/manage.py check_vendor
+
+      - name: Fail on untracked files under thirdparty/llama.cpp/include/
+        run: |
+          untracked=$(git status --porcelain thirdparty/llama.cpp/include/ | grep '^??' || true)
+          if [ -n "$untracked" ]; then
+            echo "::error::Untracked files under thirdparty/llama.cpp/include/:"
+            echo "$untracked"
+            exit 1
+          fi

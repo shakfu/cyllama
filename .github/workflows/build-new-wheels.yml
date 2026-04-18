@@ -30,6 +30,10 @@ on:
         default: true
         type: boolean
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.link_mode }}
+  cancel-in-progress: true
+
 env:
   CIBW_BUILD_VERBOSITY: 1
   CIBW_BUILD: "cp312-*"
@@ -83,6 +87,12 @@ jobs:
       - name: Install cibuildwheel
         run: pip install cibuildwheel==3.4.0
 
+      - name: ccache
+        uses: ggml-org/ccache-action@v1.2.16
+        with:
+          key: ccache-vulkan-macos-intel-${{ inputs.link_mode }}
+          evict-old-files: 1d
+
       - name: Build Vulkan wheels
         run: python -m cibuildwheel --output-dir wheelhouse
         env:
@@ -103,6 +113,8 @@ jobs:
             GGML_VULKAN=1
             GGML_METAL=0
             GGML_NATIVE=OFF
+            CMAKE_C_COMPILER_LAUNCHER=ccache
+            CMAKE_CXX_COMPILER_LAUNCHER=ccache
             WITH_DYLIB=${{ inputs.link_mode == 'dynamic' && '1' || '0' }}
           CIBW_TEST_COMMAND: ""
           CIBW_REPAIR_WHEEL_COMMAND_MACOS: >

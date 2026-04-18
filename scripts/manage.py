@@ -2447,6 +2447,63 @@ class Application(ShellCmd, metaclass=MetaCommander):
     # ------------------------------------------------------------------------
     # test
 
+    # ------------------------------------------------------------------------
+    # check_vendor
+
+    def do_check_vendor(self, args: argparse.Namespace) -> None:
+        """verify thirdparty/llama.cpp/include/ matches pinned llama.cpp version"""
+        import subprocess
+        import tempfile
+
+        builder = LlamaCppBuilder()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            # Clone into a scratch dir so local build/ state is not disturbed.
+            clone_cmd = [
+                "git", "clone", "--depth", "1",
+                "--branch", builder.version,
+                "--recurse-submodules", "--shallow-submodules",
+                builder.repo_url, str(tmp_path / "llama.cpp"),
+            ]
+            subprocess.run(clone_cmd, check=True)
+            src = tmp_path / "llama.cpp"
+
+            expected = tmp_path / "include"
+            expected.mkdir()
+            builder.glob_copy(src / "common", expected, patterns=["*.h", "*.hpp"])
+            builder.glob_copy(src / "ggml" / "include", expected, patterns=["*.h"])
+            builder.glob_copy(src / "include", expected, patterns=["*.h"])
+            (expected / "jinja").mkdir(exist_ok=True)
+            builder.glob_copy(
+                src / "common" / "jinja", expected / "jinja", patterns=["*.h", "*.hpp"]
+            )
+            (expected / "nlohmann").mkdir(exist_ok=True)
+            builder.glob_copy(
+                src / "vendor" / "nlohmann", expected / "nlohmann", patterns=["*.hpp"]
+            )
+            builder.glob_copy(src / "tools" / "mtmd", expected, patterns=["*.h"])
+
+            committed = builder.include
+            result = subprocess.run(
+                ["diff", "-r", "-q", str(committed), str(expected)],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode != 0:
+                print(
+                    f"ERROR: thirdparty/llama.cpp/include/ differs from pinned "
+                    f"llama.cpp@{builder.version}",
+                    file=sys.stderr,
+                )
+                print(result.stdout, file=sys.stderr)
+                print(result.stderr, file=sys.stderr)
+                sys.exit(1)
+            print(f"OK: vendored headers match llama.cpp@{builder.version}")
+
+    # ------------------------------------------------------------------------
+    # test
+
     @opt("--pytest", "-p", "run pytest")
     def do_test(self, args: argparse.Namespace) -> None:
         """test modules"""
