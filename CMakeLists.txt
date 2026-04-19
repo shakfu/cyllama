@@ -120,6 +120,13 @@ endif()
 # Find dependencies
 # -----------------------------------------------------------------------------
 
+# use ccache if available
+find_program(CCACHE_PROGRAM ccache)
+if(CCACHE_PROGRAM)
+    message(STATUS "Found ccache in ${CCACHE_PROGRAM}")
+    set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE "${CCACHE_PROGRAM}")
+endif()
+
 find_package(Python COMPONENTS Interpreter Development.Module REQUIRED)
 
 # Add cmake module path for cython-cmake
