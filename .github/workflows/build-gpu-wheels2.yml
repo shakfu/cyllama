@@ -115,6 +115,7 @@ jobs:
             $CI_PYTHON/pip install cmake ninja &&
             PATH=/usr/local/cuda/bin:$CI_PYTHON:$PATH
             CCACHE_DIR=/project/.ccache
+            CCACHE_DEPEND=1
             CMAKE_C_COMPILER_LAUNCHER=ccache
             CMAKE_CXX_COMPILER_LAUNCHER=ccache
             CMAKE_CUDA_COMPILER_LAUNCHER=ccache
@@ -139,6 +140,7 @@ jobs:
             CFLAGS=-s
             CXXFLAGS=-s
             CCACHE_DIR=/project/.ccache
+            CCACHE_DEPEND=1
             CMAKE_C_COMPILER_LAUNCHER=ccache
             CMAKE_CXX_COMPILER_LAUNCHER=ccache
             CMAKE_CUDA_COMPILER_LAUNCHER=ccache
@@ -232,6 +234,7 @@ jobs:
             PATH=/opt/rocm/bin:$CI_PYTHON:$PATH
             LIBRARY_PATH=/usr/lib/gcc/x86_64-redhat-linux/8:$LIBRARY_PATH
             CCACHE_DIR=/project/.ccache
+            CCACHE_DEPEND=1
             CMAKE_C_COMPILER_LAUNCHER=ccache
             CMAKE_CXX_COMPILER_LAUNCHER=ccache
             CMAKE_HIP_COMPILER_LAUNCHER=ccache
@@ -258,6 +261,7 @@ jobs:
             CFLAGS=-s
             CXXFLAGS=-s
             CCACHE_DIR=/project/.ccache
+            CCACHE_DEPEND=1
             CMAKE_C_COMPILER_LAUNCHER=ccache
             CMAKE_CXX_COMPILER_LAUNCHER=ccache
             CMAKE_HIP_COMPILER_LAUNCHER=ccache
