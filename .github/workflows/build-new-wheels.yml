@@ -65,13 +65,13 @@ jobs:
 
       - name: Install Vulkan SDK
         run: |
-          brew install vulkan-headers vulkan-loader molten-vk shaderc
+          brew install vulkan-headers vulkan-loader molten-vk shaderc spirv-headers
           echo "Vulkan SDK installed via Homebrew"
           SHADERC_BIN="$(brew --prefix shaderc)/bin"
           VULKAN_PREFIX="$(brew --prefix vulkan-loader)"
           echo "PATH=${SHADERC_BIN}:${PATH}" >> "$GITHUB_ENV"
           echo "VULKAN_SDK=${VULKAN_PREFIX}" >> "$GITHUB_ENV"
-          echo "CMAKE_PREFIX_PATH=$(brew --prefix vulkan-headers):$(brew --prefix vulkan-loader):$(brew --prefix molten-vk)" >> "$GITHUB_ENV"
+          echo "CMAKE_PREFIX_PATH=$(brew --prefix vulkan-headers):$(brew --prefix vulkan-loader):$(brew --prefix molten-vk):$(brew --prefix spirv-headers)" >> "$GITHUB_ENV"
           echo "--- Vulkan paths ---"
           echo "VULKAN_SDK=${VULKAN_PREFIX}"
           echo "glslc: ${SHADERC_BIN}/glslc"
