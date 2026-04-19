@@ -197,11 +197,11 @@ The `alpha` parameter controls the balance:
 Cross-encoder reranking for improved result quality:
 
 ```python
-from cyllama.rag import Reranker, VectorStore, Embedder
+from cyllama.rag import Reranker, SqliteVectorStore, Embedder
 
 # Initial retrieval (fast but less precise)
 embedder = Embedder("models/bge-small.gguf")
-store = VectorStore(dimension=embedder.dimension)
+store = SqliteVectorStore(dimension=embedder.dimension)
 # ... add documents ...
 
 # Get initial results (retrieve more than needed)

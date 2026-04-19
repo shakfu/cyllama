@@ -1,7 +1,7 @@
 # Cyllama API Reference
 
-**Version**: 0.1.20
-**Date**: March 2026
+**Version**: 0.2.11
+**Date**: April 2026
 
 Complete API reference for cyllama, a high-performance Python library for LLM inference built on llama.cpp.
 
@@ -398,6 +398,45 @@ response = gen.chat(messages)
 # Get template
 template = gen.get_chat_template()
 ```
+
+#### MCP client methods
+
+Since 0.2.11 `LLM` can attach to Model Context Protocol servers and drive a tool-calling loop against their tools:
+
+```python
+def add_mcp_server(
+    self,
+    name: str,
+    *,
+    command: Optional[str] = None,
+    args: Optional[list[str]] = None,
+    env: Optional[dict[str, str]] = None,
+    cwd: Optional[str] = None,
+    url: Optional[str] = None,
+    headers: Optional[dict[str, str]] = None,
+    transport: Optional["McpTransportType"] = None,
+    request_timeout: Optional[float] = None,
+    shutdown_timeout: Optional[float] = None,
+) -> None
+def remove_mcp_server(self, name: str) -> None
+def list_mcp_tools(self) -> list["McpTool"]
+def list_mcp_resources(self) -> list["McpResource"]
+def call_mcp_tool(self, name: str, arguments: dict) -> Any
+def read_mcp_resource(self, uri: str) -> str
+def chat_with_tools(
+    self,
+    messages: list[dict],
+    *,
+    tools: Optional[list["Tool"]] = None,
+    use_mcp: bool = True,
+    max_iterations: int = 8,
+    verbose: bool = False,
+    system_prompt: Optional[str] = None,
+    generation_config: Optional[GenerationConfig] = None,
+) -> str
+```
+
+See [MCP Client](mcp.md) for stdio/HTTP quick-start, per-method semantics, and examples of mixing local `Tool`s with MCP tools.
 
 ---
 
@@ -1856,5 +1895,5 @@ for chunk in complete("Write a long essay", model_path="model.gguf",
 
 ---
 
-**Last Updated**: November 21, 2025
-**Cyllama Version**: 0.1.9
+**Last Updated**: April 2026
+**Cyllama Version**: 0.2.11

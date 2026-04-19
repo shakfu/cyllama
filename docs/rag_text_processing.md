@@ -237,7 +237,7 @@ from cyllama.rag import (
     TextSplitter,
     DirectoryLoader,
     Embedder,
-    VectorStore
+    SqliteVectorStore,
 )
 
 # Load documents
@@ -256,7 +256,7 @@ print(f"Created {len(chunks)} chunks from {len(documents)} documents")
 # Embed and store
 embedder = Embedder("models/bge-small.gguf")
 
-with VectorStore(dimension=embedder.dimension, db_path="kb.db") as store:
+with SqliteVectorStore(dimension=embedder.dimension, db_path="kb.db") as store:
     embeddings = embedder.embed_batch(chunks)
     store.add(embeddings, chunks)
     print(f"Indexed {len(store)} chunks")

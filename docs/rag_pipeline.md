@@ -190,11 +190,11 @@ For more control, use `RAGPipeline` directly:
 
 ```python
 from cyllama import LLM
-from cyllama.rag import Embedder, VectorStore, RAGPipeline, RAGConfig
+from cyllama.rag import Embedder, SqliteVectorStore, RAGPipeline, RAGConfig
 
 # Create components
 embedder = Embedder("models/bge-small.gguf")
-store = VectorStore(dimension=embedder.dimension)
+store = SqliteVectorStore(dimension=embedder.dimension)
 llm = LLM("models/llama.gguf")
 
 # Index documents

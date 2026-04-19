@@ -21,7 +21,7 @@ This page is for users writing multi-threaded or async code with cyllama. It cov
 | `SDContext` | **No** — one per thread | Same situation. The cyllama runtime guard is your only safety net here. |
 | `Embedder` | **No** — one per thread | Holds a `LlamaContext` internally. Concurrent calls raise `RuntimeError`. Same guard pattern as `LLM`. |
 | `AsyncLLM` | One instance per LLM, **shared across coroutines is fine** | Wraps an `LLM` plus an internal `asyncio.Lock` that serializes concurrent `await llm(...)` calls cleanly. |
-| `VectorStore` | **No** — rejects cross-thread use | Backed by stdlib `sqlite3` with `check_same_thread=True`. The rejection is automatic and surfaces as `sqlite3.ProgrammingError`. For concurrent access, open a separate `VectorStore` instance per thread on the same DB file (SQLite handles the cross-process locking). |
+| `SqliteVectorStore` | **No** — rejects cross-thread use | Backed by stdlib `sqlite3` with `check_same_thread=True`. The rejection is automatic and surfaces as `sqlite3.ProgrammingError`. For concurrent access, open a separate `SqliteVectorStore` instance per thread on the same DB file (SQLite handles the cross-process locking). |
 | `GenerationConfig` | **Yes** | Plain dataclass of generation parameters. No mutable state worth racing on. |
 | `RAGConfig` | **Yes** | Same — plain dataclass. |
 | `LlamaModel` | Yes for read-only metadata, no for inference | The model weights themselves are immutable after load, so reading model metadata (vocab size, n_params, chat template) is safe. The `LlamaContext` derived from it is the dangerous part. |
@@ -217,15 +217,15 @@ if __name__ == "__main__":
 
 Tradeoffs vs. thread-per-LLM: higher memory (each process has its own copy of model weights — can be mitigated with `mmap`), higher startup cost, but bypasses the GIL entirely and isolates crashes.
 
-## VectorStore: a different rule, same outcome
+## SqliteVectorStore: a different rule, same outcome
 
-`VectorStore` is the one cyllama type with cross-thread protection that does NOT come from cyllama itself — it's inherited from stdlib `sqlite3`, which defaults to `check_same_thread=True`:
+`SqliteVectorStore` is the one cyllama type with cross-thread protection that does NOT come from cyllama itself — it's inherited from stdlib `sqlite3`, which defaults to `check_same_thread=True`:
 
 ```python
 # ❌ Don't do this
-from cyllama.rag import VectorStore
+from cyllama.rag import SqliteVectorStore
 
-store = VectorStore(dimension=384, db_path="vectors.db")
+store = SqliteVectorStore(dimension=384, db_path="vectors.db")
 
 def worker():
     store.search([0.1] * 384, k=5)  # raises sqlite3.ProgrammingError
@@ -240,23 +240,23 @@ sqlite3.ProgrammingError: SQLite objects created in a thread can only
 be used in that same thread.
 ```
 
-**Fix:** open a separate `VectorStore` instance per thread on the same DB file. SQLite handles the cross-process file locking for you:
+**Fix:** open a separate `SqliteVectorStore` instance per thread on the same DB file. SQLite handles the cross-process file locking for you:
 
 ```python
-# ✅ One VectorStore instance per thread on the same DB file
-from cyllama.rag import VectorStore
+# ✅ One SqliteVectorStore instance per thread on the same DB file
+from cyllama.rag import SqliteVectorStore
 
 DB = "vectors.db"
 
 def worker():
-    with VectorStore.open(DB) as store:
+    with SqliteVectorStore.open(DB) as store:
         results = store.search([0.1] * 384, k=5)
         # ...
 
 threading.Thread(target=worker).start()
 ```
 
-Or, if all your workers are reading and you want a thread-pool pattern, give each worker its own long-lived `VectorStore` instance (analogous to the LLM `threading.local()` pattern above).
+Or, if all your workers are reading and you want a thread-pool pattern, give each worker its own long-lived `SqliteVectorStore` instance (analogous to the LLM `threading.local()` pattern above).
 
 ## Backend-specific caveats
 

@@ -16,7 +16,7 @@ Retrieval-Augmented Generation (RAG) enhances LLM responses by retrieving releva
          +-------------------+-------------------+
          |                   |                   |
 +--------v--------+ +--------v--------+ +--------v--------+
-|    Embedder     | |  VectorStore    | |   Generator     |
+|    Embedder     | |SqliteVectorStore| |   Generator     |
 | (embedding LLM) | | (retrieval)     | | (generation LLM)|
 +-----------------+ +-----------------+ +-----------------+
 ```
@@ -279,7 +279,7 @@ Decision matrix:
 | `--db PATH --rebuild` without `-f/-d` | Error (rebuild needs sources) |
 | `--db PATH` missing, no `-f/-d` | Error (nothing to query) |
 
-If the embedding model basename, chunk size, or chunk overlap on a reopen does not match what's stored in the DB's metadata table, `cyllama rag` exits with a clear error pointing at `--rebuild`. See [VectorStore — Metadata Validation](rag_vectorstore.md#metadata-validation) for details.
+If the embedding model basename, chunk size, or chunk overlap on a reopen does not match what's stored in the DB's metadata table, `cyllama rag` exits with a clear error pointing at `--rebuild`. See [SqliteVectorStore — Metadata Validation](rag_vectorstore.md#metadata-validation) for details.
 
 ### Generation Defaults Worth Knowing
 
@@ -294,7 +294,7 @@ The CLI flips three `RAGConfig` fields from their library defaults because they 
 ## Next Steps
 
 - [Embedder](rag_embedder.md) - Generating embeddings
-- [VectorStore](rag_vectorstore.md) - Vector storage and search
+- [SqliteVectorStore](rag_vectorstore.md) - Vector storage and search
 - [Text Processing](rag_text_processing.md) - Document splitting and loading
 - [RAG Pipeline](rag_pipeline.md) - RAG pipeline configuration
 - [Advanced RAG Features](rag_advanced.md) - Async, hybrid search, agent integration
