@@ -30,7 +30,7 @@ from pathlib import Path
 
 import pytest
 
-from cyllama.rag import IndexResult, VectorStore
+from cyllama.rag import IndexResult, SqliteVectorStore
 from cyllama.rag.rag import RAG, _content_hash
 from cyllama.rag.splitter import TextSplitter
 
@@ -76,7 +76,7 @@ def rag_with_stub_embedder(tmp_path):
     rag._closed = False
     rag.embedder = _StubEmbedder()
     rag.splitter = TextSplitter(chunk_size=512, chunk_overlap=50)
-    rag.store = VectorStore(dimension=3, db_path=":memory:")
+    rag.store = SqliteVectorStore(dimension=3, db_path=":memory:")
     yield rag
     rag.store.close()
 
@@ -226,7 +226,7 @@ class TestAddDocumentsDedup:
         rag1._closed = False
         rag1.embedder = _StubEmbedder()
         rag1.splitter = TextSplitter(chunk_size=512, chunk_overlap=50)
-        rag1.store = VectorStore(dimension=3, db_path=db_path)
+        rag1.store = SqliteVectorStore(dimension=3, db_path=db_path)
         rag1.add_documents([f1])
         rag1.store.close()
 
@@ -235,7 +235,7 @@ class TestAddDocumentsDedup:
         rag2._closed = False
         rag2.embedder = _StubEmbedder()
         rag2.splitter = TextSplitter(chunk_size=512, chunk_overlap=50)
-        rag2.store = VectorStore(dimension=3, db_path=db_path)
+        rag2.store = SqliteVectorStore(dimension=3, db_path=db_path)
         result = rag2.add_documents([f1])
         assert len(result) == 0
         assert result.skipped_labels == ["a.txt"]

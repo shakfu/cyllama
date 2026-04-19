@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from cyllama.rag import VectorStore, VectorStoreError, SearchResult
+from cyllama.rag import SqliteVectorStore, VectorStoreError, SearchResult
 
 
 # Check if sqlite-vector extension is available
@@ -36,7 +36,7 @@ pytestmark = pytest.mark.skipif(
 @pytest.fixture
 def store():
     """Create an in-memory VectorStore for testing."""
-    with VectorStore(dimension=4) as s:
+    with SqliteVectorStore(dimension=4) as s:
         yield s
 
 
@@ -69,7 +69,7 @@ class TestVectorStoreInit:
 
     def test_init_default(self):
         """Test default initialization."""
-        with VectorStore(dimension=384) as store:
+        with SqliteVectorStore(dimension=384) as store:
             assert store.dimension == 384
             assert store.db_path == ":memory:"
             assert store.table_name == "embeddings"
@@ -78,7 +78,7 @@ class TestVectorStoreInit:
 
     def test_init_custom_params(self):
         """Test initialization with custom parameters."""
-        with VectorStore(
+        with SqliteVectorStore(
             dimension=768,
             db_path=":memory:",
             table_name="vectors",
@@ -93,30 +93,30 @@ class TestVectorStoreInit:
     def test_init_invalid_dimension(self):
         """Test that invalid dimension raises error."""
         with pytest.raises(ValueError, match="dimension must be positive"):
-            VectorStore(dimension=0)
+            SqliteVectorStore(dimension=0)
         with pytest.raises(ValueError, match="dimension must be positive"):
-            VectorStore(dimension=-1)
+            SqliteVectorStore(dimension=-1)
 
     def test_init_invalid_metric(self):
         """Test that invalid metric raises error."""
         with pytest.raises(ValueError, match="Invalid metric"):
-            VectorStore(dimension=4, metric="invalid")
+            SqliteVectorStore(dimension=4, metric="invalid")
 
     def test_init_invalid_vector_type(self):
         """Test that invalid vector type raises error."""
         with pytest.raises(ValueError, match="Invalid vector_type"):
-            VectorStore(dimension=4, vector_type="float64")
+            SqliteVectorStore(dimension=4, vector_type="float64")
 
     def test_init_all_metrics(self):
         """Test initialization with all valid metrics."""
         for metric in ["cosine", "l2", "dot", "l1", "squared_l2"]:
-            with VectorStore(dimension=4, metric=metric) as store:
+            with SqliteVectorStore(dimension=4, metric=metric) as store:
                 assert store.metric == metric
 
     def test_init_all_vector_types(self):
         """Test initialization with all valid vector types."""
         for vtype in ["float32", "float16", "int8", "uint8"]:
-            with VectorStore(dimension=4, vector_type=vtype) as store:
+            with SqliteVectorStore(dimension=4, vector_type=vtype) as store:
                 assert store.vector_type == vtype
 
 
@@ -366,12 +366,12 @@ class TestVectorStorePersistence:
 
         try:
             # Create and populate
-            with VectorStore(dimension=4, db_path=db_path) as store:
+            with SqliteVectorStore(dimension=4, db_path=db_path) as store:
                 store.add([[1.0, 0.0, 0.0, 0.0]], ["persistent text"])
                 assert len(store) == 1
 
             # Reopen and verify
-            with VectorStore.open(db_path) as store:
+            with SqliteVectorStore.open(db_path) as store:
                 assert len(store) == 1
                 result = store.search([1.0, 0.0, 0.0, 0.0], k=1)
                 assert result[0].text == "persistent text"
@@ -381,7 +381,7 @@ class TestVectorStorePersistence:
     def test_open_nonexistent(self):
         """Test opening nonexistent database."""
         with pytest.raises(VectorStoreError, match="Database not found"):
-            VectorStore.open("/nonexistent/path.db")
+            SqliteVectorStore.open("/nonexistent/path.db")
 
     def test_open_empty_table(self):
         """Test opening database with empty table succeeds via stored metadata."""
@@ -390,11 +390,11 @@ class TestVectorStorePersistence:
 
         try:
             # Create empty store
-            with VectorStore(dimension=4, db_path=db_path) as store:
+            with SqliteVectorStore(dimension=4, db_path=db_path) as store:
                 pass  # Don't add anything
 
             # Should succeed — dimension/metric/vector_type are in metadata table
-            with VectorStore.open(db_path) as store:
+            with SqliteVectorStore.open(db_path) as store:
                 assert store.dimension == 4
                 assert store.metric == "cosine"
                 assert store.vector_type == "float32"
@@ -422,7 +422,7 @@ class TestVectorStoreMetadataCompatibility:
         db_path = str(tmp_path / "store.db")
         defaults = dict(dimension=4, db_path=db_path)
         defaults.update(kwargs)
-        with VectorStore(**defaults) as store:
+        with SqliteVectorStore(**defaults) as store:
             store.add([[1.0, 0.0, 0.0, 0.0]], ["sample"])
         return db_path
 
@@ -431,24 +431,24 @@ class TestVectorStoreMetadataCompatibility:
     def test_reopen_with_different_dimension_raises(self, tmp_path):
         db_path = self._make_db(tmp_path)
         with pytest.raises(VectorStoreError, match="dimension"):
-            VectorStore(dimension=8, db_path=db_path)
+            SqliteVectorStore(dimension=8, db_path=db_path)
 
     def test_reopen_with_different_metric_raises(self, tmp_path):
         db_path = self._make_db(tmp_path, metric="cosine")
         with pytest.raises(VectorStoreError, match="metric"):
-            VectorStore(dimension=4, db_path=db_path, metric="l2")
+            SqliteVectorStore(dimension=4, db_path=db_path, metric="l2")
 
     def test_reopen_with_different_vector_type_raises(self, tmp_path):
         db_path = self._make_db(tmp_path, vector_type="float32")
         with pytest.raises(VectorStoreError, match="vector_type"):
-            VectorStore(dimension=4, db_path=db_path, vector_type="int8")
+            SqliteVectorStore(dimension=4, db_path=db_path, vector_type="int8")
 
     # ---- soft mismatches: only fire when the caller provides the field ----
 
     def test_reopen_with_different_embedding_model_basename_raises(self, tmp_path):
         db_path = self._make_db(tmp_path, embedding_model_path="/fake/embedder-a.gguf")
         with pytest.raises(VectorStoreError, match="embedding model"):
-            VectorStore(
+            SqliteVectorStore(
                 dimension=4,
                 db_path=db_path,
                 embedding_model_path="/fake/embedder-b.gguf",
@@ -466,17 +466,17 @@ class TestVectorStoreMetadataCompatibility:
         # Now grow the file to a different size and try to reopen
         fake_embedder.write_bytes(b"x" * 2000)
         with pytest.raises(VectorStoreError, match="bytes"):
-            VectorStore(dimension=4, db_path=db_path, embedding_model_path=str(fake_embedder))
+            SqliteVectorStore(dimension=4, db_path=db_path, embedding_model_path=str(fake_embedder))
 
     def test_reopen_with_different_chunk_size_raises(self, tmp_path):
         db_path = self._make_db(tmp_path, chunk_size=512)
         with pytest.raises(VectorStoreError, match="chunk_size"):
-            VectorStore(dimension=4, db_path=db_path, chunk_size=1024)
+            SqliteVectorStore(dimension=4, db_path=db_path, chunk_size=1024)
 
     def test_reopen_with_different_chunk_overlap_raises(self, tmp_path):
         db_path = self._make_db(tmp_path, chunk_overlap=50)
         with pytest.raises(VectorStoreError, match="chunk_overlap"):
-            VectorStore(dimension=4, db_path=db_path, chunk_overlap=100)
+            SqliteVectorStore(dimension=4, db_path=db_path, chunk_overlap=100)
 
     # ---- soft mismatches OPT-OUT: caller doesn't pass the field ----
 
@@ -493,7 +493,7 @@ class TestVectorStoreMetadataCompatibility:
             chunk_overlap=50,
         )
         # Reopen with no soft fields -- should succeed
-        with VectorStore(dimension=4, db_path=db_path) as store:
+        with SqliteVectorStore(dimension=4, db_path=db_path) as store:
             assert len(store) == 1
 
     # ---- happy path: matching config reopens cleanly ----
@@ -508,7 +508,7 @@ class TestVectorStoreMetadataCompatibility:
             chunk_size=512,
             chunk_overlap=50,
         )
-        with VectorStore(
+        with SqliteVectorStore(
             dimension=4,
             db_path=db_path,
             metric="cosine",
@@ -526,7 +526,7 @@ class TestVectorStoreMetadataCompatibility:
         db_path = str(tmp_path / "store.db")
 
         # First init: writes metadata
-        with VectorStore(
+        with SqliteVectorStore(
             dimension=4,
             db_path=db_path,
             embedding_model_path="/fake/e.gguf",
@@ -536,7 +536,7 @@ class TestVectorStoreMetadataCompatibility:
             store.add([[1.0, 0.0, 0.0, 0.0]], ["one"])
 
         # Reopen 1: matches, adds another row
-        with VectorStore(
+        with SqliteVectorStore(
             dimension=4,
             db_path=db_path,
             embedding_model_path="/fake/e.gguf",
@@ -548,7 +548,7 @@ class TestVectorStoreMetadataCompatibility:
 
         # Reopen 2: still matches (the metadata wasn't corrupted by
         # the second open)
-        with VectorStore(
+        with SqliteVectorStore(
             dimension=4,
             db_path=db_path,
             embedding_model_path="/fake/e.gguf",
@@ -564,13 +564,13 @@ class TestVectorStoreMetadataCompatibility:
         accessed."""
         db_path = str(tmp_path / "store.db")
 
-        with VectorStore(dimension=4, db_path=db_path) as store:
+        with SqliteVectorStore(dimension=4, db_path=db_path) as store:
             cursor = store.conn.execute(f"SELECT value FROM {store.table_name}_meta WHERE key='created_at'")
             row = cursor.fetchone()
             assert row is not None, "created_at should be written on first init"
             first_created = row[0]
 
-        with VectorStore(dimension=4, db_path=db_path) as store:
+        with SqliteVectorStore(dimension=4, db_path=db_path) as store:
             cursor = store.conn.execute(f"SELECT value FROM {store.table_name}_meta WHERE key='created_at'")
             second_created = cursor.fetchone()[0]
 
@@ -604,7 +604,7 @@ class TestVectorStoreSourceDedup:
         store that has never had a source recorded. Otherwise the
         first `is_source_indexed` query would raise."""
         db_path = str(tmp_path / "store.db")
-        with VectorStore(dimension=4, db_path=db_path) as store:
+        with SqliteVectorStore(dimension=4, db_path=db_path) as store:
             # Should not raise
             assert store.is_source_indexed("nonexistent") is False
             assert store.list_sources() == []
@@ -614,12 +614,12 @@ class TestVectorStoreSourceDedup:
         sources table empty. Pinned so a future refactor can't
         accidentally start recording every add() as an anonymous
         source."""
-        with VectorStore(dimension=3) as store:
+        with SqliteVectorStore(dimension=3) as store:
             store.add([[1.0, 0.0, 0.0]], ["chunk"])
             assert store.list_sources() == []
 
     def test_add_with_source_hash_records_one_row(self):
-        with VectorStore(dimension=3) as store:
+        with SqliteVectorStore(dimension=3) as store:
             store.add(
                 [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
                 ["chunk a", "chunk b"],
@@ -634,7 +634,7 @@ class TestVectorStoreSourceDedup:
             assert "indexed_at" in sources[0]
 
     def test_is_source_indexed_returns_true_after_add(self):
-        with VectorStore(dimension=3) as store:
+        with SqliteVectorStore(dimension=3) as store:
             assert not store.is_source_indexed("hash1")
             store.add(
                 [[1.0, 0.0, 0.0]],
@@ -647,7 +647,7 @@ class TestVectorStoreSourceDedup:
             assert not store.is_source_indexed("hash2")
 
     def test_get_source_by_label_returns_row_or_none(self):
-        with VectorStore(dimension=3) as store:
+        with SqliteVectorStore(dimension=3) as store:
             assert store.get_source_by_label("missing") is None
             store.add(
                 [[1.0, 0.0, 0.0]],
@@ -662,7 +662,7 @@ class TestVectorStoreSourceDedup:
             assert row["chunk_count"] == 1
 
     def test_add_requires_label_when_hash_provided(self):
-        with VectorStore(dimension=3) as store:
+        with SqliteVectorStore(dimension=3) as store:
             with pytest.raises(ValueError, match="source_label"):
                 store.add(
                     [[1.0, 0.0, 0.0]],
@@ -676,7 +676,7 @@ class TestVectorStoreSourceDedup:
         process invocations."""
         db_path = str(tmp_path / "store.db")
 
-        with VectorStore(dimension=3, db_path=db_path) as store:
+        with SqliteVectorStore(dimension=3, db_path=db_path) as store:
             store.add(
                 [[1.0, 0.0, 0.0]],
                 ["chunk"],
@@ -685,7 +685,7 @@ class TestVectorStoreSourceDedup:
             )
 
         # Reopen and verify the source is still there
-        with VectorStore(dimension=3, db_path=db_path) as store:
+        with SqliteVectorStore(dimension=3, db_path=db_path) as store:
             assert store.is_source_indexed("persistent_hash")
             sources = store.list_sources()
             assert len(sources) == 1
@@ -697,7 +697,7 @@ class TestVectorStoreSourceDedup:
         key), the chunks should be rolled back so the dedup table is
         never out of sync with the data table.
         """
-        with VectorStore(dimension=3) as store:
+        with SqliteVectorStore(dimension=3) as store:
             # First add succeeds
             store.add(
                 [[1.0, 0.0, 0.0]],
@@ -722,7 +722,7 @@ class TestVectorStoreSourceDedup:
             assert len(store) == 1
 
     def test_multiple_sources_recorded_independently(self):
-        with VectorStore(dimension=3) as store:
+        with SqliteVectorStore(dimension=3) as store:
             store.add([[1.0, 0.0, 0.0]], ["a"], source_hash="h1", source_label="a.txt")
             store.add([[0.0, 1.0, 0.0]], ["b"], source_hash="h2", source_label="b.txt")
             store.add([[0.0, 0.0, 1.0]], ["c"], source_hash="h3", source_label="c.txt")
@@ -738,7 +738,7 @@ class TestVectorStoreContextManager:
 
     def test_context_manager_closes(self):
         """Test that context manager closes connection."""
-        store = VectorStore(dimension=4)
+        store = SqliteVectorStore(dimension=4)
         with store:
             store.add([[1.0, 0.0, 0.0, 0.0]], ["test"])
         # Should be closed after context
@@ -747,7 +747,7 @@ class TestVectorStoreContextManager:
 
     def test_close_idempotent(self):
         """Test that close can be called multiple times."""
-        store = VectorStore(dimension=4)
+        store = SqliteVectorStore(dimension=4)
         store.close()
         store.close()  # Should not raise on second call
         # After close, any data operation must raise with a "closed" marker.
@@ -767,7 +767,7 @@ class TestVectorStoreRepr:
 
     def test_repr_closed(self):
         """Test repr for closed store."""
-        store = VectorStore(dimension=4)
+        store = SqliteVectorStore(dimension=4)
         store.close()
         repr_str = repr(store)
         assert "closed" in repr_str
@@ -778,7 +778,7 @@ class TestVectorStoreMetrics:
 
     def test_cosine_metric(self):
         """Test cosine similarity metric."""
-        with VectorStore(dimension=4, metric="cosine") as store:
+        with SqliteVectorStore(dimension=4, metric="cosine") as store:
             # Normalized vectors
             store.add(
                 [
@@ -793,7 +793,7 @@ class TestVectorStoreMetrics:
 
     def test_l2_metric(self):
         """Test L2 distance metric."""
-        with VectorStore(dimension=4, metric="l2") as store:
+        with SqliteVectorStore(dimension=4, metric="l2") as store:
             store.add(
                 [
                     [0.0, 0.0, 0.0, 0.0],
@@ -807,7 +807,7 @@ class TestVectorStoreMetrics:
 
     def test_dot_metric(self):
         """Test dot product metric."""
-        with VectorStore(dimension=4, metric="dot") as store:
+        with SqliteVectorStore(dimension=4, metric="dot") as store:
             store.add(
                 [
                     [1.0, 1.0, 1.0, 1.0],
@@ -854,7 +854,7 @@ class TestConcurrentAccess:
         import sqlite3
         import threading
 
-        with VectorStore(dimension=4) as store:
+        with SqliteVectorStore(dimension=4) as store:
             store.add([[1.0, 0.0, 0.0, 0.0]], ["seed"])
             error_holder: list[Exception] = []
 
@@ -884,14 +884,14 @@ class TestConcurrentAccess:
 
         try:
             # Create the store and seed schema
-            with VectorStore(dimension=4, db_path=db_path) as store:
+            with SqliteVectorStore(dimension=4, db_path=db_path) as store:
                 store.add([[0.0, 0.0, 0.0, 0.0]], ["seed"])
 
             errors: list[Exception] = []
 
             def writer(thread_idx: int):
                 try:
-                    with VectorStore.open(db_path) as s:
+                    with SqliteVectorStore.open(db_path) as s:
                         for i in range(10):
                             emb = [float(thread_idx), float(i), 0.0, 0.0]
                             s.add([emb], [f"t{thread_idx}-{i}"])
@@ -906,7 +906,7 @@ class TestConcurrentAccess:
 
             assert errors == [], f"Concurrent writes failed: {errors}"
 
-            with VectorStore.open(db_path) as s:
+            with SqliteVectorStore.open(db_path) as s:
                 # 1 seed + 4 threads * 10 docs = 41
                 assert len(s) == 41
         finally:
@@ -920,7 +920,7 @@ class TestConcurrentAccess:
             db_path = f.name
 
         try:
-            with VectorStore(dimension=4, db_path=db_path) as store:
+            with SqliteVectorStore(dimension=4, db_path=db_path) as store:
                 embeddings = [[float(i), 0.0, 0.0, 0.0] for i in range(20)]
                 texts = [f"doc-{i}" for i in range(20)]
                 store.add(embeddings, texts)
@@ -929,7 +929,7 @@ class TestConcurrentAccess:
 
             def reader(query: list[float]):
                 try:
-                    with VectorStore.open(db_path) as s:
+                    with SqliteVectorStore.open(db_path) as s:
                         for _ in range(20):
                             results = s.search(query, k=5)
                             assert len(results) <= 5
