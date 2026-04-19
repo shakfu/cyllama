@@ -1,0 +1,852 @@
+name: build-gpu-wheels2
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+    inputs:
+      link_mode:
+        description: 'Linking mode'
+        required: true
+        default: 'dynamic'
+        type: choice
+        options:
+          - dynamic
+          - static
+      cuda:
+        description: 'Build CUDA wheels'
+        required: false
+        default: false
+        type: boolean
+      rocm:
+        description: 'Build ROCm wheels'
+        required: false
+        default: false
+        type: boolean
+      sycl:
+        description: 'Build SYCL wheels'
+        required: false
+        default: false
+        type: boolean
+      vulkan:
+        description: 'Build Vulkan wheels'
+        required: false
+        default: false
+        type: boolean
+      upload_release:
+        description: 'Upload wheels to GitHub Release'
+        required: false
+        default: false
+        type: boolean
+      publish_index:
+        description: 'Publish to GitHub Pages wheel index'
+        required: false
+        default: false
+        type: boolean
+
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.link_mode }}
+  cancel-in-progress: true
+
+env:
+  CIBW_BUILD_VERBOSITY: 1
+  CIBW_BUILD: "cp310-* cp311-* cp312-* cp313-* cp314-*"
+  CIBW_SKIP: "*-musllinux_* *-win32 *-manylinux_i686"
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # CUDA wheels (Linux only, CUDA 12.4)
+  # ---------------------------------------------------------------------------
+  build_cuda:
+    name: CUDA 12.4 - Linux x86_64 (${{ inputs.link_mode }})
+    if: inputs.cuda
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
+          df -h
+
+      - name: Cache thirdparty deps
+        id: cache-deps
+        uses: actions/cache@v5
+        with:
+          path: thirdparty/
+          key: deps-cuda-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage.py', '.github/workflows/build-gpu-wheels.yml') }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Install cibuildwheel
+        run: pip install cibuildwheel==3.4.0
+
+      - name: Set CCACHE_DIR to workspace
+        run: echo "CCACHE_DIR=${{ github.workspace }}/.ccache" >> "$GITHUB_ENV"
+
+      - name: ccache
+        uses: ggml-org/ccache-action@v1.2.16
+        with:
+          key: ccache-cuda-${{ inputs.link_mode }}
+          evict-old-files: 1d
+
+      - name: Build CUDA wheels
+        run: python -m cibuildwheel --output-dir wheelhouse
+        env:
+          CIBW_ARCHS_LINUX: x86_64
+          CIBW_MANYLINUX_X86_64_IMAGE: manylinux2014
+          CIBW_BEFORE_ALL_LINUX: >
+            yum install -y git yum-utils epel-release &&
+            yum install -y ccache &&
+            yum-config-manager --add-repo https://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/cuda-rhel7.repo &&
+            yum install -y cuda-nvcc-12-4 cuda-cudart-devel-12-4 cuda-driver-devel-12-4 libcublas-devel-12-4 &&
+            ln -s /usr/local/cuda-12.4 /usr/local/cuda &&
+            if [ -f /project/thirdparty/.deps-complete ]; then echo "=== Deps cached, skipping build ==="; exit 0; fi &&
+            CI_PYTHON=$(ls -d /opt/python/cp3*/bin | head -1) &&
+            $CI_PYTHON/pip install cmake ninja &&
+            PATH=/usr/local/cuda/bin:$CI_PYTHON:$PATH
+            CCACHE_DIR=/project/.ccache
+            CMAKE_C_COMPILER_LAUNCHER=ccache
+            CMAKE_CXX_COMPILER_LAUNCHER=ccache
+            CMAKE_CUDA_COMPILER_LAUNCHER=ccache
+            CMAKE_CUDA_ARCHITECTURES="75"
+            GGML_NATIVE=OFF GGML_CUDA=1 GGML_METAL=0
+            SD_USE_VENDORED_GGML=${{ inputs.link_mode == 'dynamic' && '0' || '1' }}
+            $CI_PYTHON/python scripts/manage.py build --all --deps-only --no-sd-examples
+            ${{ inputs.link_mode == 'dynamic' && '--dynamic' || '' }} &&
+            touch /project/thirdparty/.deps-complete
+          CIBW_BEFORE_BUILD_LINUX: >
+            sed -i 's/^name = "cyllama"/name = "cyllama-cuda12"/' {project}/pyproject.toml &&
+            grep -q '^name = "cyllama-cuda12"' {project}/pyproject.toml || { echo "ERROR: sed rename to cyllama-cuda12 failed"; exit 1; } &&
+            cd {project} && python scripts/manage.py write_build_config
+          CIBW_ENVIRONMENT_LINUX: >
+            GGML_CUDA=1
+            GGML_METAL=0
+            CUDA_PATH=/usr/local/cuda
+            CMAKE_CUDA_ARCHITECTURES="75"
+            GGML_NATIVE=OFF
+            PATH=/usr/local/cuda/bin:$PATH
+            LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
+            CFLAGS=-s
+            CXXFLAGS=-s
+            CCACHE_DIR=/project/.ccache
+            CMAKE_C_COMPILER_LAUNCHER=ccache
+            CMAKE_CXX_COMPILER_LAUNCHER=ccache
+            CMAKE_CUDA_COMPILER_LAUNCHER=ccache
+            WITH_DYLIB=${{ inputs.link_mode == 'dynamic' && '1' || '0' }}
+            SD_USE_VENDORED_GGML=${{ inputs.link_mode == 'dynamic' && '0' || '1' }}
+          CIBW_TEST_COMMAND: ""
+          CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
+            test -d {project}/thirdparty/llama.cpp/dynamic || { echo "ERROR: dynamic lib dir missing: {project}/thirdparty/llama.cpp/dynamic"; exit 1; } &&
+            LD_LIBRARY_PATH={project}/thirdparty/llama.cpp/dynamic:$LD_LIBRARY_PATH
+            auditwheel repair -w {dest_dir} {wheel}
+            --plat manylinux_2_35_x86_64
+            --exclude libcuda.so.1
+            --exclude libcudart.so.12
+            --exclude libcublas.so.12
+            --exclude libcublasLt.so.12
+            --exclude libgomp.so.1
+            --exclude libllama.so.0
+            --exclude libggml-cuda.so
+            --exclude libggml.so.0
+            --exclude libggml-base.so.0
+            --exclude libggml-cpu.so
+            --exclude libmtmd.so.0
+
+      - name: List built wheels
+        run: ls -lah wheelhouse/
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v7
+        with:
+          name: wheels-cuda-linux-x86_64
+          path: ./wheelhouse/*.whl
+
+  # ---------------------------------------------------------------------------
+  # ROCm wheels (Linux only, ROCm 6.3)
+  # ---------------------------------------------------------------------------
+  build_rocm:
+    name: ROCm 6.3 - Linux x86_64 (${{ inputs.link_mode }})
+    if: inputs.rocm
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
+          df -h
+
+      - name: Cache thirdparty deps
+        id: cache-deps
+        uses: actions/cache@v5
+        with:
+          path: thirdparty/
+          key: deps-rocm-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage.py', '.github/workflows/build-gpu-wheels.yml') }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Install cibuildwheel
+        run: pip install cibuildwheel==3.4.0
+
+      - name: Set CCACHE_DIR to workspace
+        run: echo "CCACHE_DIR=${{ github.workspace }}/.ccache" >> "$GITHUB_ENV"
+
+      - name: ccache
+        uses: ggml-org/ccache-action@v1.2.16
+        with:
+          key: ccache-rocm-${{ inputs.link_mode }}
+          evict-old-files: 1d
+
+      - name: Build ROCm wheels
+        run: python -m cibuildwheel --output-dir wheelhouse
+        env:
+          CIBW_ARCHS_LINUX: x86_64
+          CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
+          CIBW_BEFORE_ALL_LINUX: >
+            dnf install -y git epel-release &&
+            dnf install -y ccache &&
+            dnf install -y https://repo.radeon.com/amdgpu-install/6.3.3/rhel/8.10/amdgpu-install-6.3.60303-1.el8.noarch.rpm &&
+            dnf install -y rocm-hip-runtime-devel hipblas-devel rocblas-devel libstdc++-static &&
+            ls -d /opt/rocm-* | head -1 | xargs -I{} ln -sf {} /opt/rocm &&
+            ln -sf /usr/lib/gcc/x86_64-redhat-linux/8/libstdc++.a /opt/rocm/lib/libstdc++.a &&
+            if [ -f /project/thirdparty/.deps-complete ]; then echo "=== Deps cached, skipping build ==="; exit 0; fi &&
+            CI_PYTHON=$(ls -d /opt/python/cp3*/bin | head -1) &&
+            $CI_PYTHON/pip install cmake ninja &&
+            PATH=/opt/rocm/bin:$CI_PYTHON:$PATH
+            LIBRARY_PATH=/usr/lib/gcc/x86_64-redhat-linux/8:$LIBRARY_PATH
+            CCACHE_DIR=/project/.ccache
+            CMAKE_C_COMPILER_LAUNCHER=ccache
+            CMAKE_CXX_COMPILER_LAUNCHER=ccache
+            CMAKE_HIP_COMPILER_LAUNCHER=ccache
+            CMAKE_HIP_ARCHITECTURES="gfx90a;gfx942;gfx1100"
+            HIP_PATH=/opt/rocm
+            GGML_NATIVE=OFF GGML_HIP=1 GGML_METAL=0
+            SD_USE_VENDORED_GGML=${{ inputs.link_mode == 'dynamic' && '0' || '1' }}
+            $CI_PYTHON/python scripts/manage.py build --all --deps-only --no-sd-examples
+            ${{ inputs.link_mode == 'dynamic' && '--dynamic' || '' }} &&
+            touch /project/thirdparty/.deps-complete
+          CIBW_BEFORE_BUILD_LINUX: >
+            sed -i 's/^name = "cyllama"/name = "cyllama-rocm"/' {project}/pyproject.toml &&
+            grep -q '^name = "cyllama-rocm"' {project}/pyproject.toml || { echo "ERROR: sed rename to cyllama-rocm failed"; exit 1; } &&
+            cd {project} && python scripts/manage.py write_build_config
+          CIBW_ENVIRONMENT_LINUX: >
+            GGML_NATIVE=OFF
+            GGML_HIP=1
+            GGML_METAL=0
+            HIP_PATH=/opt/rocm
+            CMAKE_HIP_ARCHITECTURES="gfx90a;gfx942;gfx1100"
+            PATH=/opt/rocm/bin:$PATH
+            LD_LIBRARY_PATH=/opt/rocm/lib:$LD_LIBRARY_PATH
+            LIBRARY_PATH=/usr/lib/gcc/x86_64-redhat-linux/8:$LIBRARY_PATH
+            CFLAGS=-s
+            CXXFLAGS=-s
+            CCACHE_DIR=/project/.ccache
+            CMAKE_C_COMPILER_LAUNCHER=ccache
+            CMAKE_CXX_COMPILER_LAUNCHER=ccache
+            CMAKE_HIP_COMPILER_LAUNCHER=ccache
+            WITH_DYLIB=${{ inputs.link_mode == 'dynamic' && '1' || '0' }}
+            SD_USE_VENDORED_GGML=${{ inputs.link_mode == 'dynamic' && '0' || '1' }}
+          CIBW_TEST_COMMAND: ""
+          CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
+            test -d {project}/thirdparty/llama.cpp/dynamic || { echo "ERROR: dynamic lib dir missing: {project}/thirdparty/llama.cpp/dynamic"; exit 1; } &&
+            LD_LIBRARY_PATH={project}/thirdparty/llama.cpp/dynamic:$LD_LIBRARY_PATH
+            auditwheel repair -w {dest_dir} {wheel}
+            --plat manylinux_2_35_x86_64
+            --exclude libamdhip64.so.6
+            --exclude libhipblas.so.2
+            --exclude librocblas.so.4
+            --exclude libhsa-runtime64.so.1
+            --exclude librocsolver.so.0
+            --exclude libhipblaslt.so.0
+            --exclude libamd_comgr.so.2
+            --exclude librocprofiler-register.so.0
+            --exclude libgomp.so.1
+            --exclude libllama.so.0
+            --exclude libggml-hip.so
+            --exclude libggml.so.0
+            --exclude libggml-base.so.0
+            --exclude libggml-cpu.so
+            --exclude libmtmd.so.0
+
+      - name: List built wheels
+        run: ls -lah wheelhouse/
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v7
+        with:
+          name: wheels-rocm-linux-x86_64
+          path: ./wheelhouse/*.whl
+
+  # ---------------------------------------------------------------------------
+  # SYCL wheels (Linux only, Intel oneAPI)
+  # ---------------------------------------------------------------------------
+  build_sycl:
+    name: SYCL - Linux x86_64 (${{ inputs.link_mode }})
+    if: inputs.sycl
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Cache thirdparty deps
+        id: cache-deps
+        uses: actions/cache@v5
+        with:
+          path: thirdparty/
+          key: deps-sycl-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage.py', '.github/workflows/build-gpu-wheels.yml') }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Install cibuildwheel
+        run: pip install cibuildwheel==3.4.0
+
+      - name: Set CCACHE_DIR to workspace
+        run: echo "CCACHE_DIR=${{ github.workspace }}/.ccache" >> "$GITHUB_ENV"
+
+      - name: ccache
+        uses: ggml-org/ccache-action@v1.2.16
+        with:
+          key: ccache-sycl-${{ inputs.link_mode }}
+          evict-old-files: 1d
+
+      - name: Build SYCL wheels
+        run: python -m cibuildwheel --output-dir wheelhouse
+        env:
+          CIBW_ARCHS_LINUX: x86_64
+          CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
+          CIBW_BEFORE_ALL_LINUX: >
+            dnf install -y git epel-release &&
+            dnf install -y ccache &&
+            rpm --import https://yum.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB &&
+            dnf config-manager --add-repo https://yum.repos.intel.com/oneapi &&
+            dnf install -y intel-oneapi-dpcpp-cpp-2025.3 intel-oneapi-mkl-devel-2025.3 &&
+            if [ -f /project/thirdparty/.deps-complete ]; then echo "=== Deps cached, skipping build ==="; exit 0; fi &&
+            CI_PYTHON=$(ls -d /opt/python/cp3*/bin | head -1) &&
+            $CI_PYTHON/pip install cmake ninja &&
+            source /opt/intel/oneapi/setvars.sh &&
+            export CC=icx CXX=icpx &&
+            PATH=$CI_PYTHON:$PATH
+            CCACHE_DIR=/project/.ccache
+            CMAKE_C_COMPILER_LAUNCHER=ccache
+            CMAKE_CXX_COMPILER_LAUNCHER=ccache
+            GGML_NATIVE=OFF GGML_SYCL=1 GGML_METAL=0
+            SD_USE_VENDORED_GGML=${{ inputs.link_mode == 'dynamic' && '0' || '1' }}
+            $CI_PYTHON/python scripts/manage.py build --all --deps-only --no-sd-examples
+            ${{ inputs.link_mode == 'dynamic' && '--dynamic' || '' }} &&
+            touch /project/thirdparty/.deps-complete
+          CIBW_BEFORE_BUILD_LINUX: >
+            sed -i 's/^name = "cyllama"/name = "cyllama-sycl"/' {project}/pyproject.toml &&
+            grep -q '^name = "cyllama-sycl"' {project}/pyproject.toml || { echo "ERROR: sed rename to cyllama-sycl failed"; exit 1; } &&
+            cd {project} && python scripts/manage.py write_build_config
+          CIBW_ENVIRONMENT_LINUX: >
+            GGML_NATIVE=OFF
+            GGML_SYCL=1
+            GGML_METAL=0
+            CC=icx
+            CXX=icpx
+            PATH=/opt/intel/oneapi/compiler/latest/bin:$PATH
+            LD_LIBRARY_PATH=/opt/intel/oneapi/compiler/latest/lib:/opt/intel/oneapi/mkl/latest/lib:$LD_LIBRARY_PATH
+            CFLAGS=-s
+            CXXFLAGS=-s
+            CCACHE_DIR=/project/.ccache
+            CMAKE_C_COMPILER_LAUNCHER=ccache
+            CMAKE_CXX_COMPILER_LAUNCHER=ccache
+            WITH_DYLIB=${{ inputs.link_mode == 'dynamic' && '1' || '0' }}
+            SD_USE_VENDORED_GGML=${{ inputs.link_mode == 'dynamic' && '0' || '1' }}
+          CIBW_TEST_COMMAND: ""
+          CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
+            test -d {project}/thirdparty/llama.cpp/dynamic || { echo "ERROR: dynamic lib dir missing: {project}/thirdparty/llama.cpp/dynamic"; exit 1; } &&
+            LD_LIBRARY_PATH={project}/thirdparty/llama.cpp/dynamic:$LD_LIBRARY_PATH
+            auditwheel repair -w {dest_dir} {wheel}
+            --plat manylinux_2_35_x86_64
+            --exclude libsycl.so.8
+            --exclude libOpenCL.so.1
+            --exclude libsvml.so
+            --exclude libimf.so
+            --exclude libintlc.so.5
+            --exclude libtbb.so.12
+            --exclude libgomp.so.1
+            --exclude libllama.so.0
+            --exclude libggml-sycl.so
+            --exclude libggml.so.0
+            --exclude libggml-base.so.0
+            --exclude libggml-cpu.so
+            --exclude libmtmd.so.0
+
+      - name: List built wheels
+        run: ls -lah wheelhouse/
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v7
+        with:
+          name: wheels-sycl-linux-x86_64
+          path: ./wheelhouse/*.whl
+
+  # ---------------------------------------------------------------------------
+  # Vulkan wheels (Linux)
+  # ---------------------------------------------------------------------------
+  build_vulkan:
+    name: Vulkan - Linux x86_64 (${{ inputs.link_mode }})
+    if: inputs.vulkan
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          clean: true
+
+      - name: Cache thirdparty deps
+        id: cache-deps
+        uses: actions/cache@v5
+        with:
+          path: thirdparty/
+          key: deps-vulkan-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage.py', '.github/workflows/build-gpu-wheels.yml') }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Install cibuildwheel
+        run: pip install cibuildwheel==3.4.0
+
+      - name: Set CCACHE_DIR to workspace
+        run: echo "CCACHE_DIR=${{ github.workspace }}/.ccache" >> "$GITHUB_ENV"
+
+      - name: ccache
+        uses: ggml-org/ccache-action@v1.2.16
+        with:
+          key: ccache-vulkan-${{ inputs.link_mode }}
+          evict-old-files: 1d
+
+      - name: Build Vulkan wheels
+        run: python -m cibuildwheel --output-dir wheelhouse
+        env:
+          CIBW_ARCHS_LINUX: x86_64
+          CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
+          CIBW_BEFORE_ALL_LINUX: >
+            dnf install -y git epel-release &&
+            dnf install -y ccache &&
+            dnf install -y vulkan-headers vulkan-loader-devel &&
+            if [ -f /project/thirdparty/.deps-complete ]; then echo "=== Deps cached, skipping build ==="; exit 0; fi &&
+            git clone --depth 1 https://github.com/google/shaderc.git /tmp/shaderc &&
+            cd /tmp/shaderc && python3 utils/git-sync-deps &&
+            cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DSHADERC_SKIP_TESTS=ON -DSHADERC_SKIP_EXAMPLES=ON -DSHADERC_SKIP_COPYRIGHT_CHECK=ON &&
+            cmake --build build --target glslc_exe --parallel 4 &&
+            cp build/glslc/glslc /usr/local/bin/glslc &&
+            cmake -S /tmp/shaderc/third_party/spirv-headers -B /tmp/spirv-headers-build -DCMAKE_INSTALL_PREFIX=/usr/local -DSPIRV_HEADERS_SKIP_EXAMPLES=ON -DSPIRV_HEADERS_SKIP_INSTALL=OFF &&
+            cmake --install /tmp/spirv-headers-build &&
+            cd /project && rm -rf /tmp/shaderc /tmp/spirv-headers-build &&
+            CI_PYTHON=$(ls -d /opt/python/cp3*/bin | head -1) &&
+            $CI_PYTHON/pip install cmake ninja &&
+            PATH=$CI_PYTHON:$PATH
+            CCACHE_DIR=/project/.ccache
+            CMAKE_C_COMPILER_LAUNCHER=ccache
+            CMAKE_CXX_COMPILER_LAUNCHER=ccache
+            GGML_NATIVE=OFF GGML_VULKAN=1 GGML_METAL=0
+            SD_USE_VENDORED_GGML=${{ inputs.link_mode == 'dynamic' && '0' || '1' }}
+            $CI_PYTHON/python scripts/manage.py build --all --deps-only --no-sd-examples
+            ${{ inputs.link_mode == 'dynamic' && '--dynamic' || '' }} &&
+            touch /project/thirdparty/.deps-complete
+          CIBW_BEFORE_BUILD_LINUX: >
+            sed -i 's/^name = "cyllama"/name = "cyllama-vulkan"/' {project}/pyproject.toml &&
+            grep -q '^name = "cyllama-vulkan"' {project}/pyproject.toml || { echo "ERROR: sed rename to cyllama-vulkan failed"; exit 1; } &&
+            cd {project} && python scripts/manage.py write_build_config
+          CIBW_ENVIRONMENT_LINUX: >
+            GGML_NATIVE=OFF
+            GGML_VULKAN=1
+            GGML_METAL=0
+            CFLAGS=-s
+            CXXFLAGS=-s
+            CCACHE_DIR=/project/.ccache
+            CMAKE_C_COMPILER_LAUNCHER=ccache
+            CMAKE_CXX_COMPILER_LAUNCHER=ccache
+            WITH_DYLIB=${{ inputs.link_mode == 'dynamic' && '1' || '0' }}
+            SD_USE_VENDORED_GGML=${{ inputs.link_mode == 'dynamic' && '0' || '1' }}
+          CIBW_TEST_COMMAND: ""
+          CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
+            test -d {project}/thirdparty/llama.cpp/dynamic || { echo "ERROR: dynamic lib dir missing: {project}/thirdparty/llama.cpp/dynamic"; exit 1; } &&
+            LD_LIBRARY_PATH={project}/thirdparty/llama.cpp/dynamic:$LD_LIBRARY_PATH
+            auditwheel repair -w {dest_dir} {wheel}
+            --plat manylinux_2_35_x86_64
+            --exclude libvulkan.so.1
+            --exclude libgomp.so.1
+            --exclude libllama.so.0
+            --exclude libggml-vulkan.so
+            --exclude libggml.so.0
+            --exclude libggml-base.so.0
+            --exclude libggml-cpu.so
+            --exclude libmtmd.so.0
+
+      - name: List built wheels
+        run: ls -lah wheelhouse/
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v7
+        with:
+          name: wheels-vulkan-linux-x86_64
+          path: ./wheelhouse/*.whl
+
+  # ---------------------------------------------------------------------------
+  # Import smoke tests (no GPU required)
+  # ---------------------------------------------------------------------------
+  smoke_test:
+    name: Smoke test - ${{ matrix.backend }}
+    needs: [build_cuda, build_rocm, build_sycl, build_vulkan]
+    if: always() && !cancelled() && (needs.build_cuda.result == 'success' || needs.build_rocm.result == 'success' || needs.build_sycl.result == 'success' || needs.build_vulkan.result == 'success')
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - backend: cuda
+            artifact: wheels-cuda-linux-x86_64
+            condition: inputs.cuda
+          - backend: rocm
+            artifact: wheels-rocm-linux-x86_64
+            condition: inputs.rocm
+          - backend: sycl
+            artifact: wheels-sycl-linux-x86_64
+            condition: inputs.sycl
+          - backend: vulkan
+            artifact: wheels-vulkan-linux-x86_64
+            condition: inputs.vulkan
+
+    steps:
+      - name: Check if backend was built
+        id: check
+        run: |
+          if [ "${{ matrix.condition }}" != "true" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-python@v6
+        if: steps.check.outputs.skip != 'true'
+        with:
+          python-version: "3.12"
+
+      - name: Download wheel artifacts
+        if: steps.check.outputs.skip != 'true'
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ matrix.artifact }}
+          path: wheels
+
+      - name: Find matching wheel
+        if: steps.check.outputs.skip != 'true'
+        id: find-wheel
+        run: |
+          WHEEL=$(find wheels -name "*cp312*" | head -1)
+          if [ -z "$WHEEL" ]; then
+            WHEEL=$(find wheels -name "*.whl" | head -1)
+          fi
+          echo "wheel=$WHEEL" >> "$GITHUB_OUTPUT"
+          echo "Found wheel: $WHEEL"
+
+      - name: Install wheel in clean venv
+        if: steps.check.outputs.skip != 'true'
+        run: |
+          python -m venv smoke-venv
+          source smoke-venv/bin/activate
+          pip install "${{ steps.find-wheel.outputs.wheel }}"
+
+      - name: Smoke test - imports
+        if: steps.check.outputs.skip != 'true'
+        run: |
+          source smoke-venv/bin/activate
+          python -c "
+          import cyllama
+          print(f'cyllama {cyllama.__version__} imported successfully')
+
+          # Core API imports
+          from cyllama import LLM, complete, chat, AsyncLLM
+          from cyllama import batch_generate, BatchGenerator
+          from cyllama import estimate_gpu_layers, estimate_memory_usage
+          from cyllama import GenerationConfig, Response
+
+          # Cython extension imports
+          from cyllama.llama import llama_cpp
+          print('llama_cpp extension loaded')
+
+          # Agent framework
+          from cyllama.agents import ReActAgent, ConstrainedAgent, ContractAgent, tool
+          print('agents loaded')
+
+          # Integrations
+          from cyllama.integrations.openai_compat import OpenAICompatibleClient
+          print('integrations loaded')
+
+          # Optional extensions
+          try:
+              from cyllama.whisper import whisper_cpp
+              print('whisper_cpp extension loaded')
+          except ImportError as e:
+              print(f'whisper_cpp not available: {e}')
+
+          try:
+              from cyllama.sd import stable_diffusion
+              print('stable_diffusion extension loaded')
+          except ImportError as e:
+              print(f'stable_diffusion not available: {e}')
+
+          # Backend info
+          try:
+              from cyllama import _backend
+              print(f'Backend: cuda={getattr(_backend, \"cuda\", False)}, '
+                    f'vulkan={getattr(_backend, \"vulkan\", False)}, '
+                    f'hip={getattr(_backend, \"hip\", False)}, '
+                    f'sycl={getattr(_backend, \"sycl\", False)}')
+          except ImportError:
+              print('No _backend module')
+
+          print('All imports passed (${{ matrix.backend }})')
+          "
+
+      # -------------------------------------------------------------------
+      # cyllama info -- validates build_config.json is present in the wheel
+      # and reports which backend flags it was built with. Catches the
+      # class of bug behind "build_config.json missing from wheels" (0.2.10)
+      # and "build_config.json shipped with empty versions" (0.2.10).
+      # -------------------------------------------------------------------
+      - name: Smoke test - cyllama info
+        if: steps.check.outputs.skip != 'true'
+        run: |
+          source smoke-venv/bin/activate
+          python -m cyllama info
+
+      # -------------------------------------------------------------------
+      # SYCL-only: install Intel's OpenCL CPU runtime so the SYCL dispatch
+      # stack has a compliant device on a GPU-less runner, then run a
+      # 1-token decode. Exercises the full pipeline (Cython wrappers ->
+      # libllama -> libggml-sycl -> SYCL runtime -> OpenCL CPU device ->
+      # sampler -> teardown) on free hardware. Catches ABI/symbol/teardown
+      # regressions that bare imports miss. Best-effort: if the Intel
+      # runtime install fails (repo mirror issue, etc.) we log and move on
+      # rather than breaking the whole GPU-wheels workflow.
+      # -------------------------------------------------------------------
+      - name: Install Intel OpenCL CPU runtime
+        if: steps.check.outputs.skip != 'true' && matrix.backend == 'sycl'
+        continue-on-error: true
+        run: |
+          wget -qO - https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB \
+            | sudo gpg --dearmor -o /usr/share/keyrings/oneapi-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" \
+            | sudo tee /etc/apt/sources.list.d/oneAPI.list
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            intel-oneapi-runtime-opencl \
+            intel-oneapi-runtime-dpcpp-cpp
+
+      - name: Cache test model (SYCL)
+        if: steps.check.outputs.skip != 'true' && matrix.backend == 'sycl'
+        id: cache-model-sycl
+        uses: actions/cache@v5
+        with:
+          path: models/Llama-3.2-1B-Instruct-Q8_0.gguf
+          key: test-model-llama-3.2-1b-q8
+
+      - name: Download test model (SYCL)
+        if: steps.check.outputs.skip != 'true' && matrix.backend == 'sycl' && steps.cache-model-sycl.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p models
+          curl -sL https://huggingface.co/unsloth/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q8_0.gguf \
+            -o models/Llama-3.2-1B-Instruct-Q8_0.gguf
+
+      - name: Smoke test - SYCL 1-token CPU inference
+        if: steps.check.outputs.skip != 'true' && matrix.backend == 'sycl'
+        continue-on-error: true
+        env:
+          # Force the SYCL runtime onto the OpenCL CPU device the Intel
+          # runtime just installed (no GPU on ubuntu-latest).
+          ONEAPI_DEVICE_SELECTOR: opencl:cpu
+        run: |
+          source smoke-venv/bin/activate
+          python -c "
+          from cyllama import complete
+          response = complete(
+              'Hi',
+              model_path='models/Llama-3.2-1B-Instruct-Q8_0.gguf',
+              n_ctx=128,
+              max_tokens=1,
+          )
+          print(f'SYCL CPU decode response: {response!r}')
+          assert len(str(response).strip()) > 0, 'Empty response'
+          print('SYCL CPU inference smoke test passed')
+          "
+
+  # ---------------------------------------------------------------------------
+  # Collect and optionally publish to GitHub Pages wheel index
+  # ---------------------------------------------------------------------------
+  collect:
+    name: Collect GPU wheels
+    needs: [build_cuda, build_rocm, build_sycl, build_vulkan]
+    if: always() && !cancelled()
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download all wheel artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+          pattern: wheels-*
+
+      - name: Organize wheels by backend
+        run: |
+          shopt -s nullglob
+          mkdir -p index
+
+          # CUDA
+          wheels=(artifacts/wheels-cuda-*/*.whl)
+          if [ ${#wheels[@]} -gt 0 ]; then
+            mkdir -p index/cuda
+            cp "${wheels[@]}" index/cuda/
+          fi
+
+          # ROCm
+          wheels=(artifacts/wheels-rocm-*/*.whl)
+          if [ ${#wheels[@]} -gt 0 ]; then
+            mkdir -p index/rocm
+            cp "${wheels[@]}" index/rocm/
+          fi
+
+          # SYCL
+          wheels=(artifacts/wheels-sycl-*/*.whl)
+          if [ ${#wheels[@]} -gt 0 ]; then
+            mkdir -p index/sycl
+            cp "${wheels[@]}" index/sycl/
+          fi
+
+          # Vulkan
+          wheels=(artifacts/wheels-vulkan-*/*.whl)
+          if [ ${#wheels[@]} -gt 0 ]; then
+            mkdir -p index/vulkan
+            cp "${wheels[@]}" index/vulkan/
+          fi
+
+          echo "=== Wheel index ==="
+          find index -name "*.whl" | sort
+
+      - name: Generate PEP 503 index pages
+        run: |
+          shopt -s nullglob
+          for backend_dir in index/*/; do
+            [ -d "$backend_dir" ] || continue
+            backend=$(basename "$backend_dir")
+            mkdir -p "index/${backend}/cyllama"
+
+            # Build file list with hashes
+            echo "<!DOCTYPE html><html><body>" > "index/${backend}/cyllama/index.html"
+            for whl in "index/${backend}"/*.whl; do
+              [ -f "$whl" ] || continue
+              filename=$(basename "$whl")
+              sha256=$(sha256sum "$whl" | cut -d' ' -f1)
+              mv "$whl" "index/${backend}/cyllama/${filename}"
+              echo "<a href=\"${filename}#sha256=${sha256}\">${filename}</a><br>" >> "index/${backend}/cyllama/index.html"
+            done
+            echo "</body></html>" >> "index/${backend}/cyllama/index.html"
+
+            # Root index for this backend
+            echo "<!DOCTYPE html><html><body><a href=\"cyllama/\">cyllama</a></body></html>" > "index/${backend}/index.html"
+          done
+
+          echo "=== Generated index ==="
+          find index -name "*.html" -exec echo {} \; -exec cat {} \; -exec echo \;
+
+      - name: Upload index artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: gpu-wheel-index
+          path: index/
+
+  # ---------------------------------------------------------------------------
+  # Upload wheels to GitHub pre-release
+  # ---------------------------------------------------------------------------
+  upload_release:
+    name: Upload wheels to GitHub Release
+    needs: [collect, smoke_test]
+    if: inputs.upload_release && always() && !cancelled() && needs.collect.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Download all wheel artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+          pattern: wheels-*
+
+      - name: Upload to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=$(python3 -c "
+          import re
+          text = open('pyproject.toml').read()
+          print(re.search(r'^version\s*=\s*\"([^\"]+)\"', text, re.M).group(1))
+          ")
+          TAG="${VERSION}"
+          echo "Version: ${VERSION}, Tag: ${TAG}"
+          mkdir -p dist
+          find artifacts -name "*.whl" -exec cp {} dist/ \;
+          echo "=== Wheels to upload ==="
+          ls -lh dist/
+          gh release create "${TAG}" --prerelease --title "cyllama ${TAG}" 2>/dev/null || true
+          gh release upload "${TAG}" dist/*.whl --clobber
+
+  # ---------------------------------------------------------------------------
+  # Publish wheel index to GitHub Pages
+  # ---------------------------------------------------------------------------
+  publish_index:
+    name: Publish to GitHub Pages
+    needs: collect
+    if: inputs.publish_index
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+
+    steps:
+      - name: Download index
+        uses: actions/download-artifact@v8
+        with:
+          name: gpu-wheel-index
+          path: wheel-index
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: wheel-index
+
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4
