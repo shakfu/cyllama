@@ -1175,6 +1175,16 @@ class LlamaCppBuilder(Builder):
             extra["CMAKE_C_FLAGS"] = _def
             extra["CMAKE_CXX_FLAGS"] = _def
 
+        # macOS x86_64 + Vulkan: ggml backends are CMake MODULE libs, which
+        # default to .so on Apple. Force .dylib so the build_shared() glob
+        # and downstream CMake _find_dylib() locate them.
+        if (
+            PLATFORM == "Darwin"
+            and ARCH == "x86_64"
+            and backend_options.get("GGML_VULKAN") == "ON"
+        ):
+            extra["CMAKE_SHARED_MODULE_SUFFIX"] = ".dylib"
+
         self.cmake_config(
             src_dir=self.src_dir,
             build_dir=self.build_dir,
