@@ -82,7 +82,8 @@ with RAG(
 from cyllama.rag import RAG, SqliteVectorStore
 
 rag = RAG(
-    model_path="models/Llama-3.2-1B-Instruct-Q8_0.gguf",
+    embedding_model="",  # ignored when embedder= is supplied
+    generation_model="models/Llama-3.2-1B-Instruct-Q8_0.gguf",
     embedder=my_embedder,                                  # any EmbedderProtocol
     store=SqliteVectorStore(dimension=1536, db_path="x.db"),  # any VectorStoreProtocol
 )

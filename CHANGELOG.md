@@ -17,6 +17,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+## [0.2.11]
+
 ### Changed
 
 - **stable-diffusion.cpp upstream sync** -- Tracked additions to `stable-diffusion.h`: new `ER_SDE_SAMPLE_METHOD` sampler (exposed as `SampleMethod.ER_SDE`; CLI picks it up automatically), and capability-query APIs `sd_ctx_supports_image_generation` / `sd_ctx_supports_video_generation` (exposed as `SDContext.supports_image_generation` / `.supports_video_generation` properties so callers can branch on model capability rather than catching a failure -- standard SD/SDXL/FLUX vs WAN-style video models).

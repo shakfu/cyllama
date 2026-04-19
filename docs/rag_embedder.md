@@ -266,7 +266,8 @@ class MyEmbedder:
     def close(self): ...
 
 rag = RAG(
-    model_path="models/Llama-3.2-1B-Instruct-Q8_0.gguf",
+    embedding_model="",  # ignored when embedder= is supplied
+    generation_model="models/Llama-3.2-1B-Instruct-Q8_0.gguf",
     embedder=MyEmbedder(),
     store=SqliteVectorStore(dimension=1536, db_path="docs.db"),
 )

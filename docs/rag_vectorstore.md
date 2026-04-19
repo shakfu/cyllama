@@ -347,7 +347,8 @@ class QdrantStoreAdapter:
     # ... remaining protocol methods
 
 rag = RAG(
-    model_path="models/Llama-3.2-1B-Instruct-Q8_0.gguf",
+    embedding_model="models/bge-small-en-v1.5-q8_0.gguf",
+    generation_model="models/Llama-3.2-1B-Instruct-Q8_0.gguf",
     store=QdrantStoreAdapter(...),
 )
 ```

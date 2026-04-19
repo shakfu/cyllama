@@ -15,7 +15,7 @@ It combines the performance of compiled Cython wrappers with a simple, high-leve
 - High-level API -- `complete()`, `chat()`, `LLM` class for quick prototyping / text generation.
 - Streaming -- token-by-token output with callbacks
 - Batch processing -- process multiple prompts 3-10x faster
-- GPU acceleration -- Metal (macOS), CUDA (NVIDIA), ROCm (AMD), Vulkan (cross-platform)
+- GPU acceleration -- Metal (macOS), CUDA (NVIDIA), ROCm (AMD), Vulkan (cross-platform), SYCL (Intel)
 - Speculative decoding -- 2-3x speedup with draft models
 - Agent framework -- ReActAgent, ConstrainedAgent, ContractAgent with tool calling
 - RAG -- retrieval-augmented generation with local embeddings and [sqlite-vector](https://github.com/sqliteai/sqlite-vector)
@@ -343,20 +343,20 @@ image.save("output.png")
 **Advanced Generation** - Full control with SDContext:
 
 ```python
-from cyllama.sd import SDContext, SDContextParams, SampleMethod, Scheduler
+from cyllama.sd import SDContext, SDContextParams
 
 params = SDContextParams()
 params.model_path = "models/sd_xl_turbo_1.0.q8_0.gguf"
 params.n_threads = 4
 
 ctx = SDContext(params)
+# sample_method / scheduler / eta / wtype default to auto-resolve
+# sentinels (SD C-library defaults) -- pass explicitly only to override.
 images = ctx.generate(
     prompt="a beautiful mountain landscape",
     negative_prompt="blurry, ugly",
     width=512,
     height=512,
-    sample_method=SampleMethod.EULER,
-    scheduler=Scheduler.DISCRETE
 )
 ```
 
@@ -563,7 +563,7 @@ models = list_cached_models()
 ### Image & Video Generation (stable-diffusion.cpp)
 
 - [x] **Full stable-diffusion.cpp API** - Complete Cython wrapper
-- [x] **Text-to-Image** - SD 1.x/2.x, SDXL, SD3, FLUX, FLUX2
+- [x] **Text-to-Image** - SD 1.x/2.x, SDXL, SD3, FLUX, FLUX2, Z-Image
 - [x] **Image-to-Image** - Transform existing images
 - [x] **Inpainting** - Mask-based editing
 - [x] **ControlNet** - Guided generation with edge/pose/depth
@@ -572,7 +572,7 @@ models = list_cached_models()
 
 ### Cross-Cutting Features
 
-- [x] **GPU Acceleration** - Metal, CUDA, Vulkan backends
+- [x] **GPU Acceleration** - Metal, CUDA, ROCm, Vulkan, SYCL backends
 - [x] **Memory Optimization** - Smart GPU layer allocation
 - [x] **Agent Framework** - ReActAgent, ConstrainedAgent, ContractAgent
 - [x] **Framework Integration** - OpenAI API, LangChain, FastAPI
@@ -607,7 +607,7 @@ models = list_cached_models()
 
 ## Status
 
-**Current Version**: 0.2.10 (Apr 2026)
+**Current Version**: 0.2.11 (Apr 2026)
 **llama.cpp Version**: b8833
 **Build System**: scikit-build-core + CMake
 **Test Coverage**: 1460+ tests passing
@@ -645,19 +645,23 @@ All source builds support both static (`make build-<backend>`) and dynamic (`mak
 
 ### Recent Releases
 
-- **v0.2.9** (Apr 2026) - Fixed CUDA image generation crash (SD now statically links its own vendored ggml by default), `--stats` works in streaming mode, exposed `LlamaContext.get_perf_data()` / `LlamaSampler.get_perf_data()`, `MtmdContextParams.warmup` property, replaced deprecated `mtmd_image_tokens_get_nx/ny` with `mtmd_decoder_pos` API, llama.cpp b8802, stable-diffusion.cpp master-567-ee5bf95
-- **v0.2.8** (Apr 2026) - Expanded Cython bindings for `LlamaContextParams` (`flash_attn_type`, `embeddings`, `op_offload`, `swa_full`, `kv_unified`), ~30 new `WhisperFullParams` properties, `SDSampleParams`/`SDImageGenParams` additions (skip-layer guidance, custom sigmas, LoRA, IP-Adapter, Photo Maker, step-cache surface), `whisper_cpp.disable_logging()`, `cyllama transcribe -v` flag, centralized defaults in `cyllama._defaults` aligned with llama.cpp C library, Gemma 4 interactive chat fix, Qwen3 reasoning-block truncation fix, CUDA wheel double-free fix
-- **v0.2.7** (Apr 2026) - SD defaults aligned with C library: `wtype` auto-detect (fixes blank images on CUDA), `sample_method`/`scheduler` auto-resolve, `eta` changed from 0.0 to infinity sentinel
-- **v0.2.6** (Apr 2026) - Removed accidental `pytest-review` runtime dependency from 0.2.5
-- **v0.2.5** (Apr 2026) - Typed loader exceptions, concurrent-use guard on `LLM`/`Embedder`/`WhisperContext`/`SDContext`, persistent RAG vector store (`cyllama rag --db`), corpus deduplication, vendored jinja2 chat templates (fixes Gemma 4 and other non-substring-detectable templates), Qwen3 `<think>`-block stripping + n-gram repetition guard, readline history for REPLs, memory-leak regression tests, llama.cpp b8757
-- **v0.2.4** (Apr 2026) - Unified CLI (`cyllama gen`, `chat`, `embed`, `rag`, ...), `cyllama rag` command-line RAG, Ctrl+C during inference, embeddings endpoint, Embedder logging fix, interactive chat token limit fix
-- **v0.2.3** (Apr 2026) - SD flow_shift black-image fix, GPU OOM validation, dynamic Linux install fixes, wheel backend discovery after auditwheel/delvewheel rename, CLI entry point, wheel smoke tests, OpenCL targets, CUDA tuning flags
-- **v0.2.2** (Apr 2026) - CUDA wheel size stability (PTX-only sm_75), portability flags moved from manage.py to CI workflows
-- **v0.2.1** (Mar 2026) - Code quality hardening: GIL release for whisper/encode, async stream fixes, memory-aware embedding cache, CI robustness, 30+ bug fixes, 1150+ tests
-- **v0.2.0** (Mar 2026) - Dynamic-linked GPU wheels (CUDA, ROCm, SYCL, Vulkan) on PyPI, unified ggml, sqlite-vector vendored
+See [CHANGELOG.md](CHANGELOG.md) for full release notes.
+
+- **v0.2.11** (Apr 2026) - Pluggable RAG backends (`VectorStoreProtocol` / `EmbedderProtocol`) and MCP client API on `LLM`
+- **v0.2.10** (Apr 2026) - GPU wheel size halved; packaging fixes (`build_config.json`, auditwheel SONAME, Vulkan ABI)
+- **v0.2.9** (Apr 2026) - CUDA + SD stability fixes; `get_perf_data()` telemetry APIs
+- **v0.2.8** (Apr 2026) - Expanded Cython bindings across llama / whisper / SD; interactive-chat streaming & sampling
+- **v0.2.7** (Apr 2026) - SD defaults aligned with C library (fixes blank CUDA images)
+- **v0.2.6** (Apr 2026) - Hotfix: remove accidental test-only runtime dependency
+- **v0.2.5** (Apr 2026) - RAG hardening: persistent store, corpus dedup, vendored jinja2 chat templates
+- **v0.2.4** (Apr 2026) - Unified `cyllama` CLI (`gen`, `chat`, `embed`, `rag`, …)
+- **v0.2.3** (Apr 2026) - Wheel packaging and GPU portability fixes
+- **v0.2.2** (Apr 2026) - CUDA wheel size stability
+- **v0.2.1** (Mar 2026) - Code-quality hardening, GIL release, async fixes
+- **v0.2.0** (Mar 2026) - Dynamic-linked GPU wheels on PyPI (CUDA, ROCm, SYCL, Vulkan)
 - **v0.1.21** (Mar 2026) - GPU wheel builds: CUDA + ROCm, sqlite-vector bundled
 - **v0.1.20** (Feb 2026) - Update llama.cpp + stable-diffusion.cpp
-- **v0.1.19** (Dev 2025) - Metal fix for stable-diffusion.cpp
+- **v0.1.19** (Dec 2025) - Metal fix for stable-diffusion.cpp
 - **v0.1.18** (Dec 2025) - Remaining stable-diffusion.cpp wrapped
 - **v0.1.16** (Dec 2025) - Response class, Async API, Chat templates
 - **v0.1.12** (Nov 2025) - Initial wrapper of stable-diffusion.cpp
