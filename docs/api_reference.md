@@ -1842,7 +1842,7 @@ for chunk in complete("Write a long essay", model_path="model.gguf",
 ## Version Compatibility
 
 - **Python**: >=3.10 (tested on 3.13)
-- **llama.cpp**: b8429
+- **llama.cpp**: b8833
 - **Platform**: macOS, Linux, Windows
 
 ---

@@ -167,7 +167,7 @@ embedder = Embedder("model.gguf", normalize=False)
 ## Example: Semantic Search
 
 ```python
-from cyllama.rag import Embedder, VectorStore
+from cyllama.rag import Embedder, SqliteVectorStore
 
 # Initialize
 embedder = Embedder("models/bge-small.gguf")
@@ -183,7 +183,7 @@ documents = [
 # Generate embeddings and store
 embeddings = embedder.embed_batch(documents)
 
-with VectorStore(dimension=embedder.dimension) as store:
+with SqliteVectorStore(dimension=embedder.dimension) as store:
     store.add(embeddings, documents)
 
     # Search
@@ -237,6 +237,42 @@ print(result["data"][0]["embedding"][:5])
 ```
 
 All Embedder options (pooling strategy, normalization, context size, GPU layers) are configurable via the `ServerConfig` `embedding_*` parameters. See [Server Usage](server_usage_examples.md) for the full configuration reference.
+
+## Pluggable Backends — `EmbedderProtocol`
+
+`Embedder` is the default, llama.cpp-backed embedding backend, but `RAG` and `RAGPipeline` accept *any* object satisfying the structural contract `EmbedderProtocol` (declared in `cyllama.rag.types`). The contract is intentionally narrow — it covers only the members the RAG layer actually calls:
+
+```python
+from typing import Protocol, runtime_checkable
+
+@runtime_checkable
+class EmbedderProtocol(Protocol):
+    @property
+    def dimension(self) -> int: ...
+    def embed(self, text: str) -> list[float]: ...
+    def embed_batch(self, texts: list[str]) -> list[list[float]]: ...
+    def close(self) -> None: ...
+```
+
+Anything honouring these four members — an OpenAI-embeddings wrapper, a `sentence-transformers` adapter, a remote HTTP service client — can be passed via `RAG(embedder=...)`:
+
+```python
+from cyllama.rag import RAG, SqliteVectorStore
+
+class MyEmbedder:
+    dimension = 1536
+    def embed(self, text): ...
+    def embed_batch(self, texts): ...
+    def close(self): ...
+
+rag = RAG(
+    model_path="models/Llama-3.2-1B-Instruct-Q8_0.gguf",
+    embedder=MyEmbedder(),
+    store=SqliteVectorStore(dimension=1536, db_path="docs.db"),
+)
+```
+
+Passing `embedder=` skips the default `Embedder` construction entirely, so callers using a remote embedding API don't need a local GGUF embedding model. The RAG layer never calls backend-specific extensions (caching introspection, `embed_with_info`, async APIs) — those remain on the concrete `Embedder` and aren't part of the contract.
 
 ## Performance Tips
 

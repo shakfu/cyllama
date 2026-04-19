@@ -171,6 +171,8 @@ if ctx.is_valid:
 | `get_default_sample_method()` | Get model's default sampler |
 | `get_default_scheduler()` | Get model's default scheduler |
 | `is_valid` | Check if context is valid |
+| `supports_image_generation` | `bool` — model can run `generate()` / txt2img (false for WAN-style video-only models) |
+| `supports_video_generation` | `bool` — model can run `generate_video()` |
 
 ### SDContextParams
 
@@ -378,6 +380,8 @@ Sampling methods for diffusion:
 | `LCM` | Latent Consistency Model |
 | `DDIM_TRAILING` | DDIM trailing |
 | `TCD` | TCD |
+| `ER_SDE` | ER-SDE |
+| `COUNT` | Sentinel — auto-resolve per model (default) |
 
 ### Scheduler
 

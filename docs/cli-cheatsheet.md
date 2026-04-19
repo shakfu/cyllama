@@ -453,7 +453,7 @@ All generation subcommands (`txt2img`, `img2img`, `inpaint`, `controlnet`) share
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
-| `--sampler` | string | | Method: `euler`, `euler_a`, `heun`, `dpm2`, `dpm++2s_a`, `dpm++2m`, `dpm++2mv2`, `ipndm`, `ipndm_v`, `lcm`, `tcd` |
+| `--sampler` | string | | Method: `euler`, `euler_a`, `heun`, `dpm2`, `dpm++2s_a`, `dpm++2m`, `dpm++2mv2`, `ipndm`, `ipndm_v`, `lcm`, `tcd`, `er_sde` |
 | `--scheduler` | string | | Schedule: `discrete`, `karras`, `exponential`, `ays`, `gits` |
 | `--eta` | float | inf | Eta for samplers (inf = auto-resolve per method) |
 | `--rng` | choice | | RNG type: `std_default`, `cuda`, `cpu` |

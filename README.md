@@ -607,8 +607,8 @@ models = list_cached_models()
 
 ## Status
 
-**Current Version**: 0.2.8 (Apr 2026)
-**llama.cpp Version**: b8757
+**Current Version**: 0.2.10 (Apr 2026)
+**llama.cpp Version**: b8833
 **Build System**: scikit-build-core + CMake
 **Test Coverage**: 1460+ tests passing
 

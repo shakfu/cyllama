@@ -1,17 +1,19 @@
-# VectorStore
+# SqliteVectorStore
 
-The `VectorStore` class provides SQLite-based vector storage using the sqlite-vector extension for high-performance similarity search.
+The `SqliteVectorStore` class provides SQLite-based vector storage using the sqlite-vector extension for high-performance similarity search. It is the default backend behind `RAG.store` and implements `VectorStoreProtocol`, so drop-in replacements (Qdrant, Chroma, pgvector, …) can be passed via `RAG(store=...)`.
+
+> **Note:** the old name `VectorStore` is kept as a deprecated alias and will be removed in a future release. New code should import `SqliteVectorStore` directly.
 
 ## Basic Usage
 
 ```python
-from cyllama.rag import VectorStore, Embedder
+from cyllama.rag import SqliteVectorStore, Embedder
 
 # Create embedder
 embedder = Embedder("models/bge-small.gguf")
 
 # Create vector store (in-memory)
-store = VectorStore(dimension=embedder.dimension)
+store = SqliteVectorStore(dimension=embedder.dimension)
 
 # Add embeddings
 texts = ["Document 1", "Document 2", "Document 3"]
@@ -33,7 +35,7 @@ embedder.close()
 ## Constructor Options
 
 ```python
-store = VectorStore(
+store = SqliteVectorStore(
     dimension=384,                       # Embedding dimension (required)
     db_path=":memory:",                  # Database path (":memory:" or file path)
     table_name="embeddings",             # Table name for vectors
@@ -161,7 +163,7 @@ print(f"Cleared {count} items")
 
 ```python
 # Create persistent store
-store = VectorStore(
+store = SqliteVectorStore(
     dimension=384,
     db_path="vectors.db"  # Will create this file
 )
@@ -175,14 +177,14 @@ store.close()
 
 ```python
 # Re-open existing database
-store = VectorStore.open("vectors.db")
+store = SqliteVectorStore.open("vectors.db")
 results = store.search(query_embedding, k=5)
 store.close()
 ```
 
 ## Metadata Validation
 
-A persistent `VectorStore` records its configuration in a `{table_name}_meta` SQLite table on first creation:
+A persistent `SqliteVectorStore` records its configuration in a `{table_name}_meta` SQLite table on first creation:
 
 - **Hard fields** (always validated on reopen): `dimension`, `metric`, `vector_type`
 - **Soft fields** (validated only when the caller passes the matching kwarg): `embedding_model_basename`, `embedding_model_size_bytes`, `chunk_size`, `chunk_overlap`
@@ -191,10 +193,10 @@ A persistent `VectorStore` records its configuration in a `{table_name}_meta` SQ
 On reopen, any mismatch between a stored hard field and the caller's value raises `VectorStoreError` with a message naming the stored value, the attempted value, and the fix. Soft fields only fire when the caller actually passes the corresponding constructor argument, so callers that don't care about embedding-model fingerprinting can opt out by simply not passing it.
 
 ```python
-from cyllama.rag import VectorStore, VectorStoreError
+from cyllama.rag import SqliteVectorStore, VectorStoreError
 
 # First run: creates the DB with metadata
-store = VectorStore(
+store = SqliteVectorStore(
     dimension=384,
     db_path="vectors.db",
     embedding_model_path="models/bge-small.gguf",
@@ -205,7 +207,7 @@ store.close()
 
 # Later: reopening with a different chunk size raises immediately
 try:
-    store = VectorStore(
+    store = SqliteVectorStore(
         dimension=384,
         db_path="vectors.db",
         embedding_model_path="models/bge-small.gguf",
@@ -223,7 +225,7 @@ This catches the silent-corruption case where mixing two embedding models or two
 
 ## Source Deduplication
 
-A `VectorStore` also tracks per-source content hashes in a `{table_name}_sources` table — `(content_hash, source_label, chunk_count, indexed_at)`. The `add()` method accepts optional `source_hash` and `source_label` kwargs, written atomically with the chunk inserts in a single SQLite transaction so a process death between writes can't leave the store with orphaned chunks.
+A `SqliteVectorStore` also tracks per-source content hashes in a `{table_name}_sources` table — `(content_hash, source_label, chunk_count, indexed_at)`. The `add()` method accepts optional `source_hash` and `source_label` kwargs, written atomically with the chunk inserts in a single SQLite transaction so a process death between writes can't leave the store with orphaned chunks.
 
 Three read methods are available:
 
@@ -257,7 +259,7 @@ results = store.search(query, k=10)
 ## Context Manager
 
 ```python
-with VectorStore(dimension=384, db_path="data.db") as store:
+with SqliteVectorStore(dimension=384, db_path="data.db") as store:
     store.add(embeddings, texts)
     results = store.search(query)
 # Automatically closed
@@ -276,7 +278,7 @@ print(f"Count: {store.count}")
 ## Example: Document Search System
 
 ```python
-from cyllama.rag import Embedder, VectorStore
+from cyllama.rag import Embedder, SqliteVectorStore
 
 # Initialize
 embedder = Embedder("models/bge-small.gguf")
@@ -290,7 +292,7 @@ documents = [
 ]
 
 # Create persistent store
-with VectorStore(dimension=embedder.dimension, db_path="docs.db") as store:
+with SqliteVectorStore(dimension=embedder.dimension, db_path="docs.db") as store:
     # Index documents
     for doc in documents:
         embedding = embedder.embed(doc["text"])
@@ -312,6 +314,45 @@ with VectorStore(dimension=embedder.dimension, db_path="docs.db") as store:
 
 embedder.close()
 ```
+
+## Pluggable Backends — `VectorStoreProtocol`
+
+`SqliteVectorStore` is the default backend, but `RAG` and `RAGPipeline` accept *any* object satisfying the structural contract `VectorStoreProtocol` (declared in `cyllama.rag.types`). The contract covers only what the RAG layer actually calls:
+
+```python
+from typing import Protocol, runtime_checkable
+from cyllama.rag import SearchResult
+
+@runtime_checkable
+class VectorStoreProtocol(Protocol):
+    def search(self, query_embedding, k=5, threshold=None) -> list[SearchResult]: ...
+    def add(self, embeddings, texts, metadata=None,
+            source_hash=None, source_label=None) -> list[int]: ...
+    def is_source_indexed(self, content_hash: str) -> bool: ...
+    def get_source_by_label(self, source_label: str) -> dict | None: ...
+    def clear(self) -> int: ...
+    def close(self) -> None: ...
+    def __len__(self) -> int: ...
+```
+
+This makes the RAG stack open to Qdrant, Chroma, LanceDB, pgvector, or any in-house vector service without forking `cyllama`:
+
+```python
+from cyllama.rag import RAG
+
+class QdrantStoreAdapter:
+    def search(self, query_embedding, k=5, threshold=None): ...
+    def add(self, embeddings, texts, metadata=None,
+            source_hash=None, source_label=None): ...
+    # ... remaining protocol methods
+
+rag = RAG(
+    model_path="models/Llama-3.2-1B-Instruct-Q8_0.gguf",
+    store=QdrantStoreAdapter(...),
+)
+```
+
+Sqlite-specific features (quantization, FTS5 `HybridStore`, raw `store.conn` access) stay on `SqliteVectorStore` and aren't part of the contract. Backends without a natural dedup mechanism may return `False` / `None` from `is_source_indexed` / `get_source_by_label` — the RAG layer treats that as "always re-index" and still behaves correctly, just less efficiently on repeated `add_documents` calls.
 
 ## Performance Characteristics
 

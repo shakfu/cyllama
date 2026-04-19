@@ -58,10 +58,11 @@ nav:
     - Stable Diffusion Integration: stable_diffusion.md
   - Agents:
     - Agent Framework: agents_overview.md
+    - MCP Client: mcp.md
   - RAG:
     - Overview: rag_overview.md
     - Embedder: rag_embedder.md
-    - VectorStore: rag_vectorstore.md
+    - SqliteVectorStore: rag_vectorstore.md
     - Text Processing: rag_text_processing.md
     - RAG Pipeline: rag_pipeline.md
     - Advanced Features: rag_advanced.md

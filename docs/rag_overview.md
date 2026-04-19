@@ -74,6 +74,27 @@ with RAG(
 # Resources automatically cleaned up
 ```
 
+## Pluggable Backends
+
+`RAG` and `RAGPipeline` accept an injected embedder and vector store via the `embedder=` and `store=` constructor parameters:
+
+```python
+from cyllama.rag import RAG, SqliteVectorStore
+
+rag = RAG(
+    model_path="models/Llama-3.2-1B-Instruct-Q8_0.gguf",
+    embedder=my_embedder,                                  # any EmbedderProtocol
+    store=SqliteVectorStore(dimension=1536, db_path="x.db"),  # any VectorStoreProtocol
+)
+```
+
+Both slots are typed as structural protocols (`EmbedderProtocol`, `VectorStoreProtocol` in `cyllama.rag.types`). Alternative backends — OpenAI embeddings, Qdrant, Chroma, pgvector, an in-house service — only need to implement the handful of methods the RAG layer actually calls to become drop-in replacements. See:
+
+- [Embedder — Pluggable Backends](rag_embedder.md#pluggable-backends--embedderprotocol)
+- [SqliteVectorStore — Pluggable Backends](rag_vectorstore.md#pluggable-backends--vectorstoreprotocol)
+
+Omit the argument to fall back to the defaults (`Embedder` over a local GGUF embedding model and `SqliteVectorStore`).
+
 ## Components Overview
 
 ### Core Components
@@ -90,7 +111,7 @@ with RAG(
 | Component | Description |
 |-----------|-------------|
 | `Embedder` | Generate vector embeddings from text |
-| `VectorStore` | SQLite-based vector storage with sqlite-vector |
+| `SqliteVectorStore` | SQLite-based vector storage with sqlite-vector (default backend; implements `VectorStoreProtocol`). `VectorStore` remains as a deprecated alias. |
 | `HybridStore` | Combined FTS5 + vector search |
 
 ### Text Processing
