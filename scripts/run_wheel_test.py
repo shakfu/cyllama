@@ -43,11 +43,11 @@ ROOT = Path(__file__).resolve().parent.parent
 MODELS_DIR = Path(os.environ.get("CYLLAMA_MODELS_DIR", ROOT / "models"))
 
 BACKENDS: dict[str, str] = {
-    "cpu":    "cyllama",
-    "cuda":   "cyllama-cuda12",
+    "cpu": "cyllama",
+    "cuda": "cyllama-cuda12",
     "vulkan": "cyllama-vulkan",
-    "rocm":   "cyllama-rocm",
-    "sycl":   "cyllama-sycl",
+    "rocm": "cyllama-rocm",
+    "sycl": "cyllama-sycl",
 }
 
 # Default env for a given backend. Existing values in os.environ take
@@ -64,6 +64,7 @@ BACKEND_ENV_DEFAULTS: dict[str, dict[str, str]] = {
 # exceptions
 # ---------------------------------------------------------------------------
 
+
 class ModelSourceUnavailable(RuntimeError):
     """Raised when a model has no configured source and isn't on disk."""
 
@@ -71,6 +72,7 @@ class ModelSourceUnavailable(RuntimeError):
 # ---------------------------------------------------------------------------
 # model registry
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class ModelSource:
@@ -140,6 +142,7 @@ def _apply_env_overrides() -> None:
 # subprocess helpers
 # ---------------------------------------------------------------------------
 
+
 def run(
     cmd: list[str],
     env: dict[str, str] | None = None,
@@ -184,6 +187,7 @@ def cyllama_module(
 # backend detection / install
 # ---------------------------------------------------------------------------
 
+
 def detect_backend() -> str | None:
     for backend, dist in BACKENDS.items():
         try:
@@ -211,8 +215,7 @@ def require_backend(requested: str | None) -> str:
     backend = requested or detected
     if not backend:
         print(
-            "error: no cyllama backend installed. Run: "
-            f"{Path(__file__).name} install {{{','.join(BACKENDS)}}}",
+            f"error: no cyllama backend installed. Run: {Path(__file__).name} install {{{','.join(BACKENDS)}}}",
             file=sys.stderr,
         )
         sys.exit(2)
@@ -222,6 +225,7 @@ def require_backend(requested: str | None) -> str:
 # ---------------------------------------------------------------------------
 # model download
 # ---------------------------------------------------------------------------
+
 
 def _download_urllib(url: str, dest: Path) -> None:
     print(f"downloading {url} -> {dest}")
@@ -258,8 +262,7 @@ def _download_hf(repo_id: str, filename: str, dest: Path) -> None:
         from huggingface_hub import hf_hub_download
     except ImportError:
         print(
-            "error: huggingface_hub not installed. "
-            "Install with: pip install huggingface_hub",
+            "error: huggingface_hub not installed. Install with: pip install huggingface_hub",
             file=sys.stderr,
         )
         sys.exit(2)
@@ -294,9 +297,7 @@ def ensure_model(key: str) -> Path:
     elif src.repo_id:
         _download_hf(src.repo_id, src.hub_filename(), dest)
     else:
-        raise ModelSourceUnavailable(
-            f"no source configured for model '{key}' ({src.filename}). {src.notes}"
-        )
+        raise ModelSourceUnavailable(f"no source configured for model '{key}' ({src.filename}). {src.notes}")
     return dest
 
 
@@ -308,58 +309,96 @@ def ensure_models(keys: list[str]) -> dict[str, Path]:
 # tests (inlined from the shell scripts in ~/projects/demo/scripts)
 # ---------------------------------------------------------------------------
 
+
 def test_sd_1(backend: str, timeout: float | None) -> int:
     """z_turbo basic."""
     paths = ensure_models(SD_REQUIREMENTS)
-    return cyllama_module("cyllama.sd", [
-        "txt2img",
-        "--diffusion-model", str(paths["z-image-turbo"]),
-        "--vae",             str(paths["ae"]),
-        "--llm",             str(paths["qwen3-4b"]),
-        "-H", "1024", "-W", "512",
-        "-p", "a lovely cat",
-    ], env=env_for(backend), timeout=timeout)
+    return cyllama_module(
+        "cyllama.sd",
+        [
+            "txt2img",
+            "--diffusion-model",
+            str(paths["z-image-turbo"]),
+            "--vae",
+            str(paths["ae"]),
+            "--llm",
+            str(paths["qwen3-4b"]),
+            "-H",
+            "1024",
+            "-W",
+            "512",
+            "-p",
+            "a lovely cat",
+        ],
+        env=env_for(backend),
+        timeout=timeout,
+    )
 
 
 def test_sd_2(backend: str, timeout: float | None) -> int:
     """z_turbo cpu-offload."""
     paths = ensure_models(SD_REQUIREMENTS)
-    return cyllama_module("cyllama.sd", [
-        "txt2img",
-        "--diffusion-model", str(paths["z-image-turbo"]),
-        "--vae",             str(paths["ae"]),
-        "--llm",             str(paths["qwen3-4b"]),
-        "--offload-to-cpu",
-        "--vae-on-cpu",
-        "-H", "1024", "-W", "512",
-        "-p", "a lovely cat",
-    ], env=env_for(backend), timeout=timeout)
+    return cyllama_module(
+        "cyllama.sd",
+        [
+            "txt2img",
+            "--diffusion-model",
+            str(paths["z-image-turbo"]),
+            "--vae",
+            str(paths["ae"]),
+            "--llm",
+            str(paths["qwen3-4b"]),
+            "--offload-to-cpu",
+            "--vae-on-cpu",
+            "-H",
+            "1024",
+            "-W",
+            "512",
+            "-p",
+            "a lovely cat",
+        ],
+        env=env_for(backend),
+        timeout=timeout,
+    )
 
 
 def test_sd_3(backend: str, timeout: float | None) -> int:
     """z_turbo cpu-offload + flash-attn."""
     paths = ensure_models(SD_REQUIREMENTS)
-    return cyllama_module("cyllama.sd", [
-        "txt2img",
-        "--diffusion-model", str(paths["z-image-turbo"]),
-        "--vae",             str(paths["ae"]),
-        "--llm",             str(paths["qwen3-4b"]),
-        "--cfg-scale", "1.0", "-v",
-        "--offload-to-cpu",
-        "--diffusion-fa",
-        "-H", "1024", "-W", "512",
-        "-p", "a lovely plump blue-eyed cat",
-    ], env=env_for(backend), timeout=timeout)
+    return cyllama_module(
+        "cyllama.sd",
+        [
+            "txt2img",
+            "--diffusion-model",
+            str(paths["z-image-turbo"]),
+            "--vae",
+            str(paths["ae"]),
+            "--llm",
+            str(paths["qwen3-4b"]),
+            "--cfg-scale",
+            "1.0",
+            "-v",
+            "--offload-to-cpu",
+            "--diffusion-fa",
+            "-H",
+            "1024",
+            "-W",
+            "512",
+            "-p",
+            "a lovely plump blue-eyed cat",
+        ],
+        env=env_for(backend),
+        timeout=timeout,
+    )
 
 
 def test_gen_1(backend: str, timeout: float | None) -> int:
     """Llama-3.2-1B short prompt."""
     model = ensure_model("llama-3.2-1b")
     return cyllama(
-        ["gen", "-m", str(model),
-         "-p", "Explain quantum entanglement in one paragraph.",
-         "-n", "256", "--stats"],
-        env=env_for(backend), timeout=timeout,
+        ["gen", "-m", str(model), "-p", "Explain quantum entanglement in one paragraph.", "-n", "256", "--stats"],
+        env=env_for(backend),
+        timeout=timeout,
     )
 
 
@@ -367,10 +406,9 @@ def test_gen_2(backend: str, timeout: float | None) -> int:
     """Qwen3-4B streamed."""
     model = ensure_model("qwen3-4b")
     return cyllama(
-        ["gen", "-m", str(model),
-         "-p", "Write a haiku about GPUs.",
-         "-n", "256", "--stream", "--stats"],
-        env=env_for(backend), timeout=timeout,
+        ["gen", "-m", str(model), "-p", "Write a haiku about GPUs.", "-n", "256", "--stream", "--stats"],
+        env=env_for(backend),
+        timeout=timeout,
     )
 
 
@@ -378,10 +416,21 @@ def test_gen_3(backend: str, timeout: float | None) -> int:
     """Gemma-4-E4B streamed."""
     model = ensure_model("gemma-e4b")
     return cyllama(
-        ["gen", "-m", str(model),
-         "-p", "List three interesting facts about octopuses.",
-         "-n", "512", "--temperature", "0.7", "--stream", "--stats"],
-        env=env_for(backend), timeout=timeout,
+        [
+            "gen",
+            "-m",
+            str(model),
+            "-p",
+            "List three interesting facts about octopuses.",
+            "-n",
+            "512",
+            "--temperature",
+            "0.7",
+            "--stream",
+            "--stats",
+        ],
+        env=env_for(backend),
+        timeout=timeout,
     )
 
 
@@ -392,6 +441,7 @@ GEN_TESTS = {"1": test_gen_1, "2": test_gen_2, "3": test_gen_3}
 # ---------------------------------------------------------------------------
 # commands
 # ---------------------------------------------------------------------------
+
 
 def cmd_info(_args: argparse.Namespace) -> int:
     backend = detect_backend()
@@ -427,11 +477,7 @@ def cmd_download(args: argparse.Namespace) -> int:
 
 def cmd_list_models(_args: argparse.Namespace) -> int:
     for key, src in MODELS.items():
-        source = (
-            f"hf:{src.repo_id}:{src.hub_filename()}"
-            if src.repo_id
-            else (src.url or "(no source configured)")
-        )
+        source = f"hf:{src.repo_id}:{src.hub_filename()}" if src.repo_id else (src.url or "(no source configured)")
         on_disk = "YES" if (MODELS_DIR / src.filename).exists() else "no"
         print(f"{key:<16} file={src.filename:<40} on_disk={on_disk:<3} source={source}")
         if src.notes and not src.repo_id and not src.url:
@@ -495,6 +541,7 @@ def cmd_test(args: argparse.Namespace) -> int:
 # ---------------------------------------------------------------------------
 # argparse
 # ---------------------------------------------------------------------------
+
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="cyllama wheel tester")

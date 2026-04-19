@@ -122,13 +122,13 @@ leaks: $(MODEL)
 .PHONY: lint format typecheck qa
 
 lint:
-	@uv run ruff check --fix src/cyllama tests
+	@uv run ruff check --fix src/ tests/ scripts/
 
 format:
-	@uv run ruff format src/cyllama tests
+	@uv run ruff format src/ tests/ scripts/
 
 typecheck:
-	@uv run mypy src/ --follow-imports=skip
+	@uv run mypy src/ scripts/ --follow-imports=skip
 
 qa: lint typecheck format
 

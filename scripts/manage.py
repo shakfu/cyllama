@@ -66,6 +66,7 @@ Environment variables:
 """
 
 import argparse
+import cProfile
 import logging
 import os
 import platform
@@ -80,7 +81,7 @@ import zipfile
 from fnmatch import fnmatch
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Union, Callable, NoReturn
+from typing import Any, List, Optional, TypeVar, Union, Callable, NoReturn
 from urllib.request import urlretrieve
 
 __version__ = "0.1.1"
@@ -277,7 +278,7 @@ class ShellCmd:
         """
         tofolder_resolved = Path(tofolder).resolve()
 
-        def safe_extract_tar(members, dest):
+        def safe_extract_tar(members: list[tarfile.TarInfo], dest: Path) -> list[tarfile.TarInfo]:
             """Validate tar members before extraction"""
             for member in members:
                 member_path = (dest / member.name).resolve()
@@ -374,7 +375,7 @@ class ShellCmd:
         """Remove file or folder."""
 
         # handle windows error on read-only files
-        def remove_readonly(func, path, exc_info):
+        def remove_readonly(func: Any, path: Any, exc_info: Any) -> None:
             "Clear the readonly bit and reattempt the removal"
             if PY_VER_MINOR < 11:
                 if func not in (os.unlink, os.rmdir) or exc_info[1].winerror != 5:
@@ -454,7 +455,7 @@ class ShellCmd:
             # return any(fnmatch(entry, p) for p in patterns)
             return any(fnmatch(entry.name, p) for p in patterns)
 
-        def remove(entry: Path):
+        def remove(entry: Path) -> None:
             self.remove(entry)
 
         self.walk(root, match_func=_match, action_func=remove, skip_patterns=skip_dirs)
@@ -515,12 +516,12 @@ class ShellCmd:
             _cmds.append(" ".join(f"-C {path}" for path in scripts))
         if options:
             # Convert Python bools to CMake ON/OFF
-            def cmake_value(v):
+            def cmake_value(v: Union[str, bool, int]) -> Union[str, int]:
                 if isinstance(v, bool):
                     return "ON" if v else "OFF"
                 return v
 
-            def cmake_flag(k, v):
+            def cmake_flag(k: str, v: Union[str, bool, int]) -> str:
                 val = cmake_value(v)
                 # Quote values containing semicolons (e.g. architecture lists)
                 if isinstance(val, str) and ";" in val:
@@ -620,7 +621,7 @@ class AbstractBuilder(ShellCmd):
         self.project = project or Project()
         self.log = logging.getLogger(self.__class__.__name__)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<{self.__class__.__name__} '{self.name}-{self.version}'>"
 
     # def __iter__(self):
@@ -917,7 +918,7 @@ class LlamaCppBuilder(Builder):
         "libmtmd.a",
     ]
 
-    def get_backend_cmake_options(self) -> dict:
+    def get_backend_cmake_options(self) -> dict[str, Any]:
         """Get CMake options based on backend environment variables.
 
         All backends are explicitly set ON/OFF to prevent stale CMake cache
@@ -1390,7 +1391,7 @@ class WhisperCppBuilder(Builder):
         "libggml.a",
     ]
 
-    def get_backend_cmake_options(self) -> dict:
+    def get_backend_cmake_options(self) -> dict[str, Any]:
         """Get CMake options based on backend environment variables.
 
         whisper.cpp uses GGML_* flags (same as llama.cpp).
@@ -1516,7 +1517,7 @@ class StableDiffusionCppBuilder(Builder):
         "libstable-diffusion.a",
     ]
 
-    def get_backend_cmake_options(self) -> dict:
+    def get_backend_cmake_options(self) -> dict[str, Any]:
         """Get CMake options based on backend environment variables.
 
         stable-diffusion.cpp uses SD_* CMake flags internally, but we read
@@ -1966,21 +1967,24 @@ class WheelBuilder(ShellCmd):
 # argdeclare
 
 
+_F = TypeVar("_F", bound=Callable[..., Any])
+
+
 # option decorator
-def option(*args, **kwds):
-    def _decorator(func):
+def option(*args: Any, **kwds: Any) -> Callable[[_F], _F]:
+    def _decorator(func: _F) -> _F:
         _option = (args, kwds)
         if hasattr(func, "options"):
             func.options.append(_option)
         else:
-            func.options = [_option]
+            func.options = [_option]  # type: ignore[attr-defined]
         return func
 
     return _decorator
 
 
 # bool option decorator
-def opt(long, short, desc, **kwargs):
+def opt(long: str, short: str, desc: str, **kwargs: Any) -> Callable[[_F], _F]:
     return option(long, short, help=desc, action="store_true", **kwargs)
 
 
@@ -1989,8 +1993,8 @@ arg = option
 
 
 # combines option decorators
-def option_group(*options):
-    def _decorator(func):
+def option_group(*options: Callable[[_F], _F]) -> Callable[[_F], _F]:
+    def _decorator(func: _F) -> _F:
         for option in options:
             func = option(func)
         return func
@@ -1999,13 +2003,13 @@ def option_group(*options):
 
 
 class MetaCommander(type):
-    def __new__(cls, classname, bases, classdict):
+    def __new__(cls, classname: str, bases: tuple[type, ...], classdict: dict[str, Any]) -> "MetaCommander":
         classdict = dict(classdict)
-        subcmds = {}
+        subcmds: dict[str, dict[str, Any]] = {}
         for name, func in list(classdict.items()):
             if name.startswith("do_"):
                 name = name[3:]
-                subcmd = {"name": name, "func": func, "options": []}
+                subcmd: dict[str, Any] = {"name": name, "func": func, "options": []}
                 if hasattr(func, "options"):
                     subcmd["options"] = func.options
                 subcmds[name] = subcmd
@@ -2022,7 +2026,7 @@ class Application(ShellCmd, metaclass=MetaCommander):
     project: Project
     parser: argparse.ArgumentParser
     options: argparse.Namespace
-    _argparse_subcmds: dict  # Added by metaclass
+    _argparse_subcmds: dict[str, Any]  # Added by metaclass
 
     def __init__(self) -> None:
         self.project = Project()
@@ -2230,12 +2234,12 @@ class Application(ShellCmd, metaclass=MetaCommander):
             _cmd = "uv sync --reinstall-package cyllama"
             self.cmd(_cmd)
 
-    def _write_build_config(self, builder_versions: dict) -> None:
+    def _write_build_config(self, builder_versions: dict[type["Builder"], str]) -> None:
         """Write build info to src/cyllama/_build_info.py."""
         import re
 
         build_dir = Path("build")
-        info = {}
+        info: dict[str, Any] = {}
 
         def _read_ggml_version(cmake_path: Path) -> str | None:
             if not cmake_path.exists():
@@ -2847,7 +2851,6 @@ class Application(ShellCmd, metaclass=MetaCommander):
     @option("--output", "-o", default=None, help="output directory for profile data")
     def do_profile(self, args: argparse.Namespace) -> None:
         """profile cyllama operations using cProfile"""
-        import cProfile
         import time
 
         model_path = Path(args.model)
@@ -2858,13 +2861,20 @@ class Application(ShellCmd, metaclass=MetaCommander):
         # Import cyllama
         try:
             sys.path.insert(0, str(self.project.cwd / "src"))
-            import cyllama
-            from cyllama import llama_batch_get_one
+            from cyllama.llama.llama_cpp import (
+                LlamaContext,
+                LlamaContextParams,
+                LlamaModel,
+                LlamaModelParams,
+                LlamaSampler,
+                LlamaSamplerChainParams,
+                llama_batch_get_one,
+            )
         except ImportError as e:
             self.log.error(f"Failed to import cyllama: {e}")
             return
 
-        profiles = {}
+        profiles: dict[str, cProfile.Profile] = {}
         iterations = args.iterations
 
         # Determine what to profile
@@ -2872,8 +2882,8 @@ class Application(ShellCmd, metaclass=MetaCommander):
 
         # Load model once for all tests
         self.log.info(f"Loading model: {model_path}")
-        model_params = cyllama.LlamaModelParams()
-        model = cyllama.LlamaModel(str(model_path), model_params)
+        model_params = LlamaModelParams()
+        model = LlamaModel(str(model_path), model_params)
         vocab = model.get_vocab()
 
         # Profile tokenization
@@ -2885,7 +2895,7 @@ class Application(ShellCmd, metaclass=MetaCommander):
                 "Machine learning and AI " * 5,
             ]
 
-            def tokenize_benchmark():
+            def tokenize_benchmark() -> int:
                 total = 0
                 for text in test_texts:
                     for _ in range(iterations):
@@ -2908,18 +2918,18 @@ class Application(ShellCmd, metaclass=MetaCommander):
         if profile_all or args.inference:
             print("\n=== Profiling Inference ===")
 
-            ctx_params = cyllama.LlamaContextParams()
+            ctx_params = LlamaContextParams()
             ctx_params.n_ctx = 256
             ctx_params.n_batch = 512
-            ctx = cyllama.LlamaContext(model, ctx_params)
+            ctx = LlamaContext(model, ctx_params)
 
-            sampler_params = cyllama.LlamaSamplerChainParams()
-            sampler = cyllama.LlamaSampler(sampler_params)
+            sampler_params = LlamaSamplerChainParams()
+            sampler = LlamaSampler(sampler_params)
             sampler.add_greedy()
 
             prompt_tokens = vocab.tokenize("The future of AI is", add_special=True, parse_special=False)
 
-            def inference_benchmark():
+            def inference_benchmark() -> int:
                 generated = 0
                 for _ in range(min(iterations // 10, 10)):  # Fewer iterations, inference is slow
                     ctx.kv_cache_clear()
@@ -2950,15 +2960,15 @@ class Application(ShellCmd, metaclass=MetaCommander):
         if profile_all or args.logits:
             print("\n=== Profiling Logits Retrieval ===")
 
-            ctx_params = cyllama.LlamaContextParams()
+            ctx_params = LlamaContextParams()
             ctx_params.n_ctx = 128
-            ctx = cyllama.LlamaContext(model, ctx_params)
+            ctx = LlamaContext(model, ctx_params)
 
             tokens = vocab.tokenize("Test", add_special=True, parse_special=False)
             batch = llama_batch_get_one(tokens)
             ctx.decode(batch)
 
-            def logits_benchmark():
+            def logits_benchmark() -> int:
                 total = 0
                 for _ in range(iterations):
                     logits = ctx.get_logits()
@@ -2982,7 +2992,7 @@ class Application(ShellCmd, metaclass=MetaCommander):
 
             test_tokens = list(range(100))
 
-            def batch_benchmark():
+            def batch_benchmark() -> int:
                 total = 0
                 for _ in range(iterations * 10):
                     batch = llama_batch_get_one(test_tokens)
@@ -3004,7 +3014,7 @@ class Application(ShellCmd, metaclass=MetaCommander):
         if profile_all or args.properties:
             print("\n=== Profiling Property Access ===")
 
-            def properties_benchmark():
+            def properties_benchmark() -> int:
                 total = 0
                 for _ in range(iterations * 10):
                     total += model.n_embd
@@ -3039,7 +3049,7 @@ class Application(ShellCmd, metaclass=MetaCommander):
         print("- tottime: Time spent in function only (excluding callees)")
         print("- ncalls: Number of times the function was called")
 
-    def _print_profile_stats(self, pr, n: int = 10):
+    def _print_profile_stats(self, pr: cProfile.Profile, n: int = 10) -> None:
         """Print top N functions from profile."""
         import pstats
         import io

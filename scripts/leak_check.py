@@ -33,7 +33,7 @@ def get_rss_mb() -> float:
 
 def run_inference_cycle(model_path: str) -> None:
     """Load model, run inference, tear down -- one full cycle."""
-    from cyllama import GenerationConfig, LLM
+    from cyllama.api import LLM, GenerationConfig
 
     config = GenerationConfig(max_tokens=16)
     with LLM(model_path, n_gpu_layers=0, n_ctx=256, n_batch=256) as llm:
@@ -63,7 +63,7 @@ def run_context_cycle(model_path: str) -> None:
     del model
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="RSS-growth leak detector")
     parser.add_argument("--cycles", type=int, default=10, help="Number of load/unload cycles (default: 10)")
     parser.add_argument(
