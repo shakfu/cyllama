@@ -47,7 +47,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: thirdparty/
-          key: deps-cibw2-${{ matrix.os }}-${{ hashFiles('scripts/manage.py', 'pyproject.toml', '.github/workflows/build-cibw.yaml') }}
+          key: deps-cibw2-${{ matrix.os }}-${{ hashFiles('scripts/manage.py', 'pyproject.toml', '.github/workflows/build-cibw.yml') }}
 
       - name: Set CCACHE_DIR to workspace (mounted into manylinux container at /project/.ccache)
         shell: bash
@@ -76,6 +76,22 @@ jobs:
           CIBW_ENVIRONMENT_MACOS: >
             CMAKE_C_COMPILER_LAUNCHER=ccache
             CMAKE_CXX_COMPILER_LAUNCHER=ccache
+          # Populate thirdparty/ static libs before building the wheel.
+          # cibuildwheel runs in a clean container/env, so the host-side
+          # actions/cache restore only helps when the cache hits; on miss
+          # we must build deps here inside the build environment.
+          CIBW_BEFORE_BUILD_LINUX: >
+            cd {project} &&
+            python scripts/manage.py build --all --deps-only --no-sd-examples &&
+            python scripts/manage.py write_build_config
+          CIBW_BEFORE_BUILD_MACOS: >
+            cd {project} &&
+            python scripts/manage.py build --all --deps-only --no-sd-examples &&
+            python scripts/manage.py write_build_config
+          CIBW_BEFORE_BUILD_WINDOWS: >
+            cd {project} &&
+            python scripts/manage.py build --all --deps-only --no-sd-examples &&
+            python scripts/manage.py write_build_config
 
       - uses: actions/upload-artifact@v7
         with:
