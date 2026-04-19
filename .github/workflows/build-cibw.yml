@@ -74,6 +74,7 @@ jobs:
             CMAKE_C_COMPILER_LAUNCHER=ccache
             CMAKE_CXX_COMPILER_LAUNCHER=ccache
           CIBW_ENVIRONMENT_MACOS: >
+            MACOSX_DEPLOYMENT_TARGET=11.0
             CMAKE_C_COMPILER_LAUNCHER=ccache
             CMAKE_CXX_COMPILER_LAUNCHER=ccache
           # Populate thirdparty/ static libs before building the wheel.
