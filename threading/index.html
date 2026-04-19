@@ -928,6 +928,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP Client
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1059,7 +1087,7 @@
   <span class="md-ellipsis">
     
   
-    VectorStore
+    SqliteVectorStore
   
 
     
@@ -1430,10 +1458,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#vectorstore-a-different-rule-same-outcome" class="md-nav__link">
+  <a href="#sqlitevectorstore-a-different-rule-same-outcome" class="md-nav__link">
     <span class="md-ellipsis">
       
-        VectorStore: a different rule, same outcome
+        SqliteVectorStore: a different rule, same outcome
       
     </span>
   </a>
@@ -1531,9 +1559,9 @@
 <td>Wraps an <code>LLM</code> plus an internal <code>asyncio.Lock</code> that serializes concurrent <code>await llm(...)</code> calls cleanly.</td>
 </tr>
 <tr>
-<td><code>VectorStore</code></td>
+<td><code>SqliteVectorStore</code></td>
 <td><strong>No</strong> — rejects cross-thread use</td>
-<td>Backed by stdlib <code>sqlite3</code> with <code>check_same_thread=True</code>. The rejection is automatic and surfaces as <code>sqlite3.ProgrammingError</code>. For concurrent access, open a separate <code>VectorStore</code> instance per thread on the same DB file (SQLite handles the cross-process locking).</td>
+<td>Backed by stdlib <code>sqlite3</code> with <code>check_same_thread=True</code>. The rejection is automatic and surfaces as <code>sqlite3.ProgrammingError</code>. For concurrent access, open a separate <code>SqliteVectorStore</code> instance per thread on the same DB file (SQLite handles the cross-process locking).</td>
 </tr>
 <tr>
 <td><code>GenerationConfig</code></td>
@@ -1702,12 +1730,12 @@
 <a id="__codelineno-8-17" name="__codelineno-8-17" href="#__codelineno-8-17"></a>        <span class="n">results</span> <span class="o">=</span> <span class="n">p</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">worker</span><span class="p">,</span> <span class="n">prompts</span><span class="p">)</span>
 </code></pre></div>
 <p>Tradeoffs vs. thread-per-LLM: higher memory (each process has its own copy of model weights — can be mitigated with <code>mmap</code>), higher startup cost, but bypasses the GIL entirely and isolates crashes.</p>
-<h2 id="vectorstore-a-different-rule-same-outcome">VectorStore: a different rule, same outcome<a class="headerlink" href="#vectorstore-a-different-rule-same-outcome" title="Permanent link">&para;</a></h2>
-<p><code>VectorStore</code> is the one cyllama type with cross-thread protection that does NOT come from cyllama itself — it's inherited from stdlib <code>sqlite3</code>, which defaults to <code>check_same_thread=True</code>:</p>
+<h2 id="sqlitevectorstore-a-different-rule-same-outcome">SqliteVectorStore: a different rule, same outcome<a class="headerlink" href="#sqlitevectorstore-a-different-rule-same-outcome" title="Permanent link">&para;</a></h2>
+<p><code>SqliteVectorStore</code> is the one cyllama type with cross-thread protection that does NOT come from cyllama itself — it's inherited from stdlib <code>sqlite3</code>, which defaults to <code>check_same_thread=True</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1"># ❌ Don&#39;t do this</span>
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.rag</span><span class="w"> </span><span class="kn">import</span> <span class="n">VectorStore</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.rag</span><span class="w"> </span><span class="kn">import</span> <span class="n">SqliteVectorStore</span>
 <a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>
-<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="n">store</span> <span class="o">=</span> <span class="n">VectorStore</span><span class="p">(</span><span class="n">dimension</span><span class="o">=</span><span class="mi">384</span><span class="p">,</span> <span class="n">db_path</span><span class="o">=</span><span class="s2">&quot;vectors.db&quot;</span><span class="p">)</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="n">store</span> <span class="o">=</span> <span class="n">SqliteVectorStore</span><span class="p">(</span><span class="n">dimension</span><span class="o">=</span><span class="mi">384</span><span class="p">,</span> <span class="n">db_path</span><span class="o">=</span><span class="s2">&quot;vectors.db&quot;</span><span class="p">)</span>
 <a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>
 <a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="k">def</span><span class="w"> </span><span class="nf">worker</span><span class="p">():</span>
 <a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>    <span class="n">store</span><span class="o">.</span><span class="n">search</span><span class="p">([</span><span class="mf">0.1</span><span class="p">]</span> <span class="o">*</span> <span class="mi">384</span><span class="p">,</span> <span class="n">k</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>  <span class="c1"># raises sqlite3.ProgrammingError</span>
@@ -1718,20 +1746,20 @@
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>sqlite3.ProgrammingError: SQLite objects created in a thread can only
 <a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>be used in that same thread.
 </code></pre></div>
-<p><strong>Fix:</strong> open a separate <code>VectorStore</code> instance per thread on the same DB file. SQLite handles the cross-process file locking for you:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="c1"># ✅ One VectorStore instance per thread on the same DB file</span>
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.rag</span><span class="w"> </span><span class="kn">import</span> <span class="n">VectorStore</span>
+<p><strong>Fix:</strong> open a separate <code>SqliteVectorStore</code> instance per thread on the same DB file. SQLite handles the cross-process file locking for you:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="c1"># ✅ One SqliteVectorStore instance per thread on the same DB file</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.rag</span><span class="w"> </span><span class="kn">import</span> <span class="n">SqliteVectorStore</span>
 <a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>
 <a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="n">DB</span> <span class="o">=</span> <span class="s2">&quot;vectors.db&quot;</span>
 <a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>
 <a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="k">def</span><span class="w"> </span><span class="nf">worker</span><span class="p">():</span>
-<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>    <span class="k">with</span> <span class="n">VectorStore</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">DB</span><span class="p">)</span> <span class="k">as</span> <span class="n">store</span><span class="p">:</span>
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>    <span class="k">with</span> <span class="n">SqliteVectorStore</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">DB</span><span class="p">)</span> <span class="k">as</span> <span class="n">store</span><span class="p">:</span>
 <a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a>        <span class="n">results</span> <span class="o">=</span> <span class="n">store</span><span class="o">.</span><span class="n">search</span><span class="p">([</span><span class="mf">0.1</span><span class="p">]</span> <span class="o">*</span> <span class="mi">384</span><span class="p">,</span> <span class="n">k</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
 <a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a>        <span class="c1"># ...</span>
 <a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a>
 <a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a><span class="n">threading</span><span class="o">.</span><span class="n">Thread</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">worker</span><span class="p">)</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
 </code></pre></div>
-<p>Or, if all your workers are reading and you want a thread-pool pattern, give each worker its own long-lived <code>VectorStore</code> instance (analogous to the LLM <code>threading.local()</code> pattern above).</p>
+<p>Or, if all your workers are reading and you want a thread-pool pattern, give each worker its own long-lived <code>SqliteVectorStore</code> instance (analogous to the LLM <code>threading.local()</code> pattern above).</p>
 <h2 id="backend-specific-caveats">Backend-specific caveats<a class="headerlink" href="#backend-specific-caveats" title="Permanent link">&para;</a></h2>
 <p>Per the upstream llama.cpp maintainers (see <a href="../dev/runtime-guard/"><code>docs/dev/runtime-guard.md</code></a> for the citations), thread safety across <em>separate</em> contexts varies by backend:</p>
 <ul>

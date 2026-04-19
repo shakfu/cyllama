@@ -23,7 +23,7 @@
     
     
       
-        <title>ONNX Integration Layer -- Design Proposal - cyllama</title>
+        <title>MCP Integration Proposal - cyllama</title>
       
     
     
@@ -74,7 +74,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#onnx-integration-layer-design-proposal" class="md-skip">
+        <a href="#mcp-integration-proposal" class="md-skip">
           Skip to content
         </a>
       
@@ -110,7 +110,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              ONNX Integration Layer -- Design Proposal
+              MCP Integration Proposal
             
           </span>
         </div>
@@ -1336,65 +1336,160 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#motivation" class="md-nav__link">
+  <a href="#1-mcp-client-at-the-top-level-llm-chat-api" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Motivation
+        1. MCP client at the top-level LLM / chat() API
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1. MCP client at the top-level LLM / chat() API">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#internals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Internals
       
     </span>
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#proposed-location" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Proposed Location
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#sketch-api" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Sketch API
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#key-design-decisions" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Key Design Decisions
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#what-to-defer" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        What To Defer
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
+        
+          <li class="md-nav__item">
   <a href="#open-questions" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Open Questions
+        Open questions
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-cyllama-as-mcp-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Cyllama as MCP server
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. Cyllama as MCP server">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tool-surface" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tool surface
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#resources" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Resources
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#server-entry-points" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Server entry points
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#wire-level" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Wire-level
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#open-questions_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Open questions
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#merits-and-counterweights" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Merits and counterweights
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Merits and counterweights">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#server-direction-merits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Server-direction merits
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#counterweights" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Counterweights
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#recommendation-and-build-order" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Recommendation and build order
       
     </span>
   </a>
@@ -1421,54 +1516,241 @@
   
 
 
-<h1 id="onnx-integration-layer-design-proposal">ONNX Integration Layer -- Design Proposal<a class="headerlink" href="#onnx-integration-layer-design-proposal" title="Permanent link">&para;</a></h1>
-<p>Status: sketch / parked until concrete model and data format exist</p>
-<h2 id="motivation">Motivation<a class="headerlink" href="#motivation" title="Permanent link">&para;</a></h2>
-<p>Lab test pipeline: physical samples are tested, results are classified/interpreted by an ONNX model, then an LLM performs trend analysis and writes reports from the classified outputs.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>ONNX model (classify) --&gt; structured results --&gt; LLM (analyze/report)
-</code></pre></div>
-<p>The integration layer's job is narrow: run an ONNX model, capture its outputs, and format them as LLM input.</p>
-<h2 id="proposed-location">Proposed Location<a class="headerlink" href="#proposed-location" title="Permanent link">&para;</a></h2>
-<p><code>cyllama/integrations/onnx.py</code> -- thin Python wrapper, no Cython or C++ bundling. <code>onnxruntime</code> is an optional dependency, imported only when the integration is used (same pattern as the LangChain integration).</p>
-<h2 id="sketch-api">Sketch API<a class="headerlink" href="#sketch-api" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.integrations.onnx</span><span class="w"> </span><span class="kn">import</span> <span class="n">ONNXModel</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama</span><span class="w"> </span><span class="kn">import</span> <span class="n">LLM</span><span class="p">,</span> <span class="n">complete</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="c1"># Stage 1: classify</span>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="n">model</span> <span class="o">=</span> <span class="n">ONNXModel</span><span class="p">(</span><span class="s2">&quot;lab_classifier.onnx&quot;</span><span class="p">)</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="n">results</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">sample_data</span><span class="p">)</span>
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="c1"># Stage 2: analyze + report</span>
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="n">response</span> <span class="o">=</span> <span class="n">complete</span><span class="p">(</span>
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>    <span class="sa">f</span><span class="s2">&quot;Analyze these lab results and write a report:</span><span class="se">\n</span><span class="si">{</span><span class="n">results</span><span class="o">.</span><span class="n">to_prompt</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
-<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>    <span class="n">model_path</span><span class="o">=</span><span class="s2">&quot;model.gguf&quot;</span>
-<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="p">)</span>
-</code></pre></div>
-<h2 id="key-design-decisions">Key Design Decisions<a class="headerlink" href="#key-design-decisions" title="Permanent link">&para;</a></h2>
+<h1 id="mcp-integration-proposal">MCP Integration Proposal<a class="headerlink" href="#mcp-integration-proposal" title="Permanent link">&para;</a></h1>
+<p>Status: design draft. Tracks the <code>MCP integration</code> entry in <code>TODO.md</code>.</p>
+<p>Cyllama's relationship to the Model Context Protocol (MCP) splits into two
+independent directions, both of which are cyllama-layer concerns -- llama.cpp
+upstream has no server-side MCP support; only the Svelte webui ships a
+TypeScript client (<code>build/llama.cpp/tools/server/webui/src/lib/utils/mcp.ts</code>).</p>
 <ol>
-<li>
-<p><strong>How much to wrap</strong> -- thin wrapper around <code>onnxruntime.InferenceSession</code> with a consistent API, or just a helper that handles the ONNX-to-prompt formatting. Leaning toward thin wrapper plus formatting helpers.</p>
-</li>
-<li>
-<p><strong>Data handoff format</strong> -- how structured ONNX outputs (class labels, probabilities, feature vectors) get serialized into LLM-consumable text. Needs to be driven by actual data shapes from the lab classifier.</p>
-</li>
-<li>
-<p><strong>Optional dependency</strong> -- <code>onnxruntime</code> only imported when <code>cyllama.integrations.onnx</code> is used. Import error should give a clear message pointing to <code>pip install onnxruntime</code>.</p>
-</li>
+<li><strong>Client direction</strong> -- a local LLM consumes external MCP servers' tools
+   during a tool-calling loop. Already partially implemented in
+   <code>src/cyllama/agents/mcp.py</code> (stdio + HTTP transports, wired into the
+   agent <code>Tool</code> abstraction). Needs to be lifted onto the top-level
+   <code>LLM</code>/<code>chat()</code> API so non-agent callers benefit too.</li>
+<li><strong>Server direction</strong> -- cyllama exposes its inference capabilities as MCP
+   tools and its model catalog as resources, so MCP clients (Claude Code,
+   Claude Desktop, etc.) can drive local GGUF models. New package
+   <code>src/cyllama/mcp/</code>, served via stdio and via Streamable-HTTP routes
+   mounted on the existing <code>EmbeddedServer</code>.</li>
 </ol>
-<h2 id="what-to-defer">What To Defer<a class="headerlink" href="#what-to-defer" title="Permanent link">&para;</a></h2>
+<p>Both sides reuse <code>src/cyllama/agents/jsonrpc.py</code> for framing and the
+high-level API in <code>src/cyllama/api.py</code> for execution. No new heavy deps.</p>
+<h2 id="1-mcp-client-at-the-top-level-llm-chat-api">1. MCP client at the top-level <code>LLM</code> / <code>chat()</code> API<a class="headerlink" href="#1-mcp-client-at-the-top-level-llm-chat-api" title="Permanent link">&para;</a></h2>
+<p>The transports in <code>agents/mcp.py</code> (<code>McpClient</code>, <code>McpServerConfig</code>,
+<code>McpTransportType</code>, <code>get_tools_for_agent()</code>) stay as-is. New surface in
+<code>cyllama/api.py</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.agents.mcp</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">McpClient</span><span class="p">,</span> <span class="n">McpServerConfig</span><span class="p">,</span> <span class="n">McpTransportType</span><span class="p">,</span> <span class="n">McpTool</span><span class="p">,</span> <span class="n">McpResource</span><span class="p">,</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">)</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="k">class</span><span class="w"> </span><span class="nc">LLM</span><span class="p">:</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">add_mcp_server</span><span class="p">(</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>        <span class="bp">self</span><span class="p">,</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>        <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>        <span class="o">*</span><span class="p">,</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>        <span class="c1"># stdio transport</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>        <span class="n">command</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>        <span class="n">args</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>        <span class="n">env</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>        <span class="c1"># http transport</span>
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>        <span class="n">url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>        <span class="n">headers</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>        <span class="c1"># inferred from which kwargs are set if omitted</span>
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>        <span class="n">transport</span><span class="p">:</span> <span class="n">McpTransportType</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span> <span class="o">...</span>
+<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>
+<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">remove_mcp_server</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span> <span class="o">...</span>
+<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">list_mcp_tools</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">McpTool</span><span class="p">]:</span> <span class="o">...</span>
+<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">list_mcp_resources</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">McpResource</span><span class="p">]:</span> <span class="o">...</span>
+<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>
+<a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">chat</span><span class="p">(</span>
+<a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a>        <span class="bp">self</span><span class="p">,</span>
+<a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a>        <span class="n">messages</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">],</span>
+<a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a>        <span class="o">*</span><span class="p">,</span>
+<a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a>        <span class="n">tools</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Tool</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a>        <span class="n">use_mcp</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>             <span class="c1"># auto-include attached servers&#39; tools</span>
+<a id="__codelineno-0-31" name="__codelineno-0-31" href="#__codelineno-0-31"></a>        <span class="n">max_tool_iterations</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">8</span><span class="p">,</span>
+<a id="__codelineno-0-32" name="__codelineno-0-32" href="#__codelineno-0-32"></a>        <span class="o">...</span>
+<a id="__codelineno-0-33" name="__codelineno-0-33" href="#__codelineno-0-33"></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ChatResponse</span><span class="p">:</span> <span class="o">...</span>
+</code></pre></div>
+<p>Module-level convenience mirrors:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">chat</span><span class="p">(</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    <span class="n">messages</span><span class="p">,</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="o">*</span><span class="p">,</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    <span class="n">model_path</span><span class="p">,</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    <span class="n">mcp_servers</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">McpServerConfig</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    <span class="o">...</span><span class="p">,</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="p">):</span> <span class="o">...</span>
+</code></pre></div>
+<h3 id="internals">Internals<a class="headerlink" href="#internals" title="Permanent link">&para;</a></h3>
 <ul>
-<li>Do not build until a concrete ONNX model and input data format exist to design against.</li>
-<li>The risk of building speculatively is designing an API that does not fit the actual data shapes when they materialize.</li>
-<li>The integration itself is small enough to implement quickly once requirements are concrete.</li>
+<li><code>LLM</code> lazily owns a single <code>McpClient</code>.</li>
+<li><code>chat()</code> pulls <code>client.get_tools_for_agent()</code>, merges with caller-supplied
+  <code>tools</code>, runs the existing tool-call loop, and dispatches MCP tool calls
+  via <code>client.call_tool(name, args)</code>.</li>
+<li>Connect on first use; disconnect on <code>LLM.close()</code> / <code>__exit__</code>.</li>
 </ul>
-<h2 id="open-questions">Open Questions<a class="headerlink" href="#open-questions" title="Permanent link">&para;</a></h2>
+<h3 id="open-questions">Open questions<a class="headerlink" href="#open-questions" title="Permanent link">&para;</a></h3>
 <ul>
-<li>What are the input data shapes? (tabular, time-series, spectral, images of samples?)</li>
-<li>Single classification model or an ensemble/pipeline of ONNX models?</li>
-<li>Does the LLM stage need raw probabilities or just top-k class labels?</li>
-<li>Batch processing (many samples -&gt; one report) vs. single-sample workflows?</li>
+<li>Sync-only (matches current <code>agents/mcp.py</code>) vs. add async path. Recommend
+  sync first; revisit when an async caller appears.</li>
+<li>Resource handling: surface <code>mcp://</code> URIs through an explicit
+  <code>read_resource()</code> helper rather than auto-injecting into the system
+  prompt. Auto-injection is hard to undo and easy to abuse.</li>
 </ul>
+<h2 id="2-cyllama-as-mcp-server">2. Cyllama as MCP server<a class="headerlink" href="#2-cyllama-as-mcp-server" title="Permanent link">&para;</a></h2>
+<p>New package layout:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>src/cyllama/mcp/
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>  __init__.py
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>  protocol.py      # MCP method dispatch over JSON-RPC (uses agents/jsonrpc.py)
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>  tools.py         # registry: name -&gt; (input_schema, handler)
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>  resources.py     # model listing, gguf metadata
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>  stdio.py         # `python -m cyllama.mcp` stdio transport
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>  http.py          # Streamable-HTTP route handlers (mounted on EmbeddedServer)
+</code></pre></div>
+<h3 id="tool-surface">Tool surface<a class="headerlink" href="#tool-surface" title="Permanent link">&para;</a></h3>
+<p>One MCP tool per high-level capability; all are thin wrappers over the
+existing <code>cyllama</code> API.</p>
+<table>
+<thead>
+<tr>
+<th>MCP tool</th>
+<th>Backed by</th>
+<th>Inputs (subset)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>complete</code></td>
+<td><code>cyllama.complete</code></td>
+<td><code>prompt</code>, <code>model</code>, <code>max_tokens</code>, <code>temperature</code></td>
+</tr>
+<tr>
+<td><code>chat</code></td>
+<td><code>cyllama.chat</code></td>
+<td><code>messages</code>, <code>model</code>, <code>tools</code></td>
+</tr>
+<tr>
+<td><code>embed</code></td>
+<td><code>LLM.embed</code></td>
+<td><code>input</code> (str or list), <code>model</code></td>
+</tr>
+<tr>
+<td><code>transcribe</code></td>
+<td><code>whisper</code> high-level</td>
+<td><code>audio_path</code> or base64, <code>language</code></td>
+</tr>
+<tr>
+<td><code>generate_image</code></td>
+<td><code>cyllama.sd.text_to_image</code></td>
+<td><code>prompt</code>, <code>width</code>, <code>height</code>, <code>steps</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="resources">Resources<a class="headerlink" href="#resources" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>models://local</code> -- list of GGUF files discovered under configured roots.</li>
+<li><code>model://&lt;name&gt;</code> -- JSON metadata (arch, params, ctx, quant) via existing
+  model-introspection helpers.</li>
+</ul>
+<h3 id="server-entry-points">Server entry points<a class="headerlink" href="#server-entry-points" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># stdio transport (Claude Desktop config: command=python, args=[&quot;-m&quot;, &quot;cyllama.mcp&quot;])</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">serve_stdio</span><span class="p">(</span><span class="n">options</span><span class="p">:</span> <span class="n">McpServerOptions</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span> <span class="o">...</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># Embedded HTTP transport (mounted into the existing mongoose server)</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="k">class</span><span class="w"> </span><span class="nc">EmbeddedServer</span><span class="p">:</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">enable_mcp</span><span class="p">(</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>        <span class="bp">self</span><span class="p">,</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>        <span class="o">*</span><span class="p">,</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>        <span class="n">path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;/mcp&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>        <span class="n">options</span><span class="p">:</span> <span class="n">McpServerOptions</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span> <span class="o">...</span>
+</code></pre></div>
+<p><code>McpServerOptions</code> carries:</p>
+<ul>
+<li>Allowed model roots (filesystem allowlist).</li>
+<li>Default model.</li>
+<li>Tool subset to expose (a deployment can expose <code>embed</code> only, etc.).</li>
+<li>Auth hook for the HTTP route.</li>
+</ul>
+<h3 id="wire-level">Wire-level<a class="headerlink" href="#wire-level" title="Permanent link">&para;</a></h3>
+<p>Implement only the subset MCP requires today:</p>
+<ul>
+<li><code>initialize</code></li>
+<li><code>tools/list</code>, <code>tools/call</code></li>
+<li><code>resources/list</code>, <code>resources/read</code></li>
+<li><code>ping</code></li>
+<li><code>notifications/initialized</code></li>
+</ul>
+<p>On stdio, reuse <code>agents/jsonrpc.py</code> framing. On HTTP, follow the
+Streamable-HTTP spec: single <code>POST /mcp</code> for requests, <code>GET /mcp</code> upgrading
+to SSE for server-initiated messages.</p>
+<h3 id="open-questions_1">Open questions<a class="headerlink" href="#open-questions_1" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Streaming <code>tools/call</code> partial results via SSE: defer until a real client
+  consumes it.</li>
+<li>Concurrency: <code>EmbeddedServer</code> is single-threaded; long-running
+  <code>generate_image</code> calls will block other routes. Either gate behind a
+  worker thread or document the limitation in the route handler.</li>
+</ul>
+<h2 id="merits-and-counterweights">Merits and counterweights<a class="headerlink" href="#merits-and-counterweights" title="Permanent link">&para;</a></h2>
+<h3 id="server-direction-merits">Server-direction merits<a class="headerlink" href="#server-direction-merits" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Single endpoint, multiple modalities.</strong> Claude Desktop / Claude Code can
+  reach <code>complete</code>, <code>embed</code>, <code>transcribe</code>, <code>generate_image</code> through one
+  configured server. Upstream llama.cpp ships only an OpenAI-compat HTTP API
+  -- nothing for whisper or SD.</li>
+<li><strong>Local, offline, private.</strong> GGUF inference stays on the host but is
+  reachable from a frontier-model agent loop. Useful for cheap bulk
+  embedding, transcription of sensitive audio, or fast small-model drafts.</li>
+<li><strong>Capability-gated surface.</strong> <code>McpServerOptions</code> lets a deployment expose
+  <code>embed</code> only (or <code>transcribe</code> only). Embedding-as-a-service over MCP is a
+  clean fit.</li>
+<li><strong>Resource surface fits naturally.</strong> <code>models://local</code> + <code>model://&lt;name&gt;</code>
+  is exactly what MCP resources are for; the introspection helpers exist.</li>
+<li><strong>Reuses existing infra.</strong> <code>agents/jsonrpc.py</code> framing plus mongoose
+  routes mean small marginal code.</li>
+</ul>
+<h3 id="counterweights">Counterweights<a class="headerlink" href="#counterweights" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Llama.cpp's HTTP server already covers <code>complete</code>/<code>chat</code>/<code>embed</code></strong> via
+  OpenAI-compat. The MCP server's incremental value over <code>llama-server</code> is
+  mostly <code>transcribe</code> + <code>generate_image</code> + the resource catalog.</li>
+<li><strong>Asymmetric value.</strong> The client direction (local LLM consuming MCP
+  tools) is more clearly useful -- it gives small local models real reach.
+  The server direction mostly benefits frontier-model users who want a
+  local fallback, a smaller audience.</li>
+<li><strong>Concurrency mismatch.</strong> <code>EmbeddedServer</code> is single-threaded;
+  <code>generate_image</code> blocks for tens of seconds. Either add worker threads
+  (non-trivial) or the server is functionally single-user.</li>
+<li><strong>Protocol churn.</strong> MCP transport spec moved twice in 2025 (stdio -&gt;
+  HTTP+SSE -&gt; Streamable HTTP). Building now means tracking spec changes.</li>
+<li><strong>Better-served by an off-the-shelf wrapper for stdio.</strong> A ~200-line
+  script using the <code>mcp</code> Python SDK that imports cyllama would deliver most
+  of the stdio value without touching <code>EmbeddedServer</code>. The HTTP-mounted
+  variant is the part that justifies in-tree code.</li>
+</ul>
+<h2 id="recommendation-and-build-order">Recommendation and build order<a class="headerlink" href="#recommendation-and-build-order" title="Permanent link">&para;</a></h2>
+<p>Build the <strong>client direction</strong> now -- clear win, code mostly exists. Defer
+the <strong>server direction</strong> until either (a) a concrete user wants
+<code>transcribe</code> / <code>generate_image</code> over MCP, or (b) the resource catalog
+unlocks a specific workflow. When the server direction is built, start with
+the HTTP transport on <code>EmbeddedServer</code> (no off-the-shelf substitute) and
+skip stdio unless a concrete client needs it.</p>
+<ol>
+<li><strong>Now.</strong> Lift <code>agents/mcp.py</code> onto <code>LLM</code> / <code>chat()</code> (client surface).
+   Lowest risk; transports and tests already exist (<code>tests/test_mcp.py</code>).</li>
+<li><strong>Deferred, when triggered.</strong> Stand up <code>src/cyllama/mcp/</code> with the
+   Streamable-HTTP transport mounted on <code>EmbeddedServer.enable_mcp()</code>.
+   Start with <code>embed</code> + the resource surface (the parts llama-server can't
+   already do well over OpenAI-compat).</li>
+<li><strong>Deferred further.</strong> Add <code>transcribe</code> and <code>generate_image</code> tools, and
+   address the single-threaded <code>EmbeddedServer</code> concurrency limitation
+   before exposing them.</li>
+<li><strong>Only on demand.</strong> Add the stdio entrypoint. Until then, document the
+   off-the-shelf SDK-wrapper pattern for users who need stdio today.</li>
+</ol>
 
 
 

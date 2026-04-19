@@ -13,7 +13,7 @@
       
       
       
-        <link rel="prev" href="../agents_overview/">
+        <link rel="prev" href="../mcp/">
       
       
         <link rel="next" href="../rag_embedder/">
@@ -932,6 +932,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP Client
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1086,6 +1114,17 @@
     <span class="md-ellipsis">
       
         Using Context Managers
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pluggable-backends" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pluggable Backends
       
     </span>
   </a>
@@ -1315,7 +1354,7 @@
   <span class="md-ellipsis">
     
   
-    VectorStore
+    SqliteVectorStore
   
 
     
@@ -1597,6 +1636,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#pluggable-backends" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pluggable Backends
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#components-overview" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1803,7 +1853,7 @@
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>         +-------------------+-------------------+
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>         |                   |                   |
 <a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>+--------v--------+ +--------v--------+ +--------v--------+
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>|    Embedder     | |  VectorStore    | |   Generator     |
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>|    Embedder     | |SqliteVectorStore| |   Generator     |
 <a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>| (embedding LLM) | | (retrieval)     | | (generation LLM)|
 <a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>+-----------------+ +-----------------+ +-----------------+
 </code></pre></div>
@@ -1852,6 +1902,23 @@
 <a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">text</span><span class="p">)</span>
 <a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="c1"># Resources automatically cleaned up</span>
 </code></pre></div>
+<h2 id="pluggable-backends">Pluggable Backends<a class="headerlink" href="#pluggable-backends" title="Permanent link">&para;</a></h2>
+<p><code>RAG</code> and <code>RAGPipeline</code> accept an injected embedder and vector store via the <code>embedder=</code> and <code>store=</code> constructor parameters:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.rag</span><span class="w"> </span><span class="kn">import</span> <span class="n">RAG</span><span class="p">,</span> <span class="n">SqliteVectorStore</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="n">rag</span> <span class="o">=</span> <span class="n">RAG</span><span class="p">(</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="n">embedding_model</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span>  <span class="c1"># ignored when embedder= is supplied</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="n">generation_model</span><span class="o">=</span><span class="s2">&quot;models/Llama-3.2-1B-Instruct-Q8_0.gguf&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    <span class="n">embedder</span><span class="o">=</span><span class="n">my_embedder</span><span class="p">,</span>                                  <span class="c1"># any EmbedderProtocol</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    <span class="n">store</span><span class="o">=</span><span class="n">SqliteVectorStore</span><span class="p">(</span><span class="n">dimension</span><span class="o">=</span><span class="mi">1536</span><span class="p">,</span> <span class="n">db_path</span><span class="o">=</span><span class="s2">&quot;x.db&quot;</span><span class="p">),</span>  <span class="c1"># any VectorStoreProtocol</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="p">)</span>
+</code></pre></div>
+<p>Both slots are typed as structural protocols (<code>EmbedderProtocol</code>, <code>VectorStoreProtocol</code> in <code>cyllama.rag.types</code>). Alternative backends — OpenAI embeddings, Qdrant, Chroma, pgvector, an in-house service — only need to implement the handful of methods the RAG layer actually calls to become drop-in replacements. See:</p>
+<ul>
+<li><a href="../rag_embedder/#pluggable-backends--embedderprotocol">Embedder — Pluggable Backends</a></li>
+<li><a href="../rag_vectorstore/#pluggable-backends--vectorstoreprotocol">SqliteVectorStore — Pluggable Backends</a></li>
+</ul>
+<p>Omit the argument to fall back to the defaults (<code>Embedder</code> over a local GGUF embedding model and <code>SqliteVectorStore</code>).</p>
 <h2 id="components-overview">Components Overview<a class="headerlink" href="#components-overview" title="Permanent link">&para;</a></h2>
 <h3 id="core-components">Core Components<a class="headerlink" href="#core-components" title="Permanent link">&para;</a></h3>
 <table>
@@ -1894,8 +1961,8 @@
 <td>Generate vector embeddings from text</td>
 </tr>
 <tr>
-<td><code>VectorStore</code></td>
-<td>SQLite-based vector storage with sqlite-vector</td>
+<td><code>SqliteVectorStore</code></td>
+<td>SQLite-based vector storage with sqlite-vector (default backend; implements <code>VectorStoreProtocol</code>). <code>VectorStore</code> remains as a deprecated alias.</td>
 </tr>
 <tr>
 <td><code>HybridStore</code></td>
@@ -2029,50 +2096,50 @@
 </tbody>
 </table>
 <h3 id="downloading-models">Downloading Models<a class="headerlink" href="#downloading-models" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Using huggingface-cli</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>huggingface-cli<span class="w"> </span>download<span class="w"> </span>BAAI/bge-small-en-v1.5-gguf<span class="w"> </span>bge-small-en-v1.5-q8_0.gguf
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># Or directly with wget</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>wget<span class="w"> </span>https://huggingface.co/BAAI/bge-small-en-v1.5-gguf/resolve/main/bge-small-en-v1.5-q8_0.gguf
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Using huggingface-cli</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>huggingface-cli<span class="w"> </span>download<span class="w"> </span>BAAI/bge-small-en-v1.5-gguf<span class="w"> </span>bge-small-en-v1.5-q8_0.gguf
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="c1"># Or directly with wget</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>wget<span class="w"> </span>https://huggingface.co/BAAI/bge-small-en-v1.5-gguf/resolve/main/bge-small-en-v1.5-q8_0.gguf
 </code></pre></div>
 <h2 id="serving-embeddings-over-http">Serving Embeddings over HTTP<a class="headerlink" href="#serving-embeddings-over-http" title="Permanent link">&para;</a></h2>
 <p>The Embedder can also be served via the built-in OpenAI-compatible server (<code>PythonServer</code> or <code>EmbeddedServer</code>). This lets lightweight clients generate embeddings over HTTP without installing cyllama or having GPU access locally:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.llama.server.python</span><span class="w"> </span><span class="kn">import</span> <span class="n">ServerConfig</span><span class="p">,</span> <span class="n">PythonServer</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="n">config</span> <span class="o">=</span> <span class="n">ServerConfig</span><span class="p">(</span>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>    <span class="n">model_path</span><span class="o">=</span><span class="s2">&quot;models/Llama-3.2-1B-Instruct-Q8_0.gguf&quot;</span><span class="p">,</span>
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>    <span class="n">embedding</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>    <span class="n">embedding_model_path</span><span class="o">=</span><span class="s2">&quot;models/bge-small-en-v1.5-q8_0.gguf&quot;</span><span class="p">,</span>
-<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="p">)</span>
-<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>
-<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="k">with</span> <span class="n">PythonServer</span><span class="p">(</span><span class="n">config</span><span class="p">)</span> <span class="k">as</span> <span class="n">server</span><span class="p">:</span>
-<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>    <span class="c1"># Serves /v1/chat/completions and /v1/embeddings</span>
-<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>    <span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
-<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>    <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
-<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>        <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.llama.server.python</span><span class="w"> </span><span class="kn">import</span> <span class="n">ServerConfig</span><span class="p">,</span> <span class="n">PythonServer</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="n">config</span> <span class="o">=</span> <span class="n">ServerConfig</span><span class="p">(</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    <span class="n">model_path</span><span class="o">=</span><span class="s2">&quot;models/Llama-3.2-1B-Instruct-Q8_0.gguf&quot;</span><span class="p">,</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>    <span class="n">embedding</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>    <span class="n">embedding_model_path</span><span class="o">=</span><span class="s2">&quot;models/bge-small-en-v1.5-q8_0.gguf&quot;</span><span class="p">,</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="p">)</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="k">with</span> <span class="n">PythonServer</span><span class="p">(</span><span class="n">config</span><span class="p">)</span> <span class="k">as</span> <span class="n">server</span><span class="p">:</span>
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>    <span class="c1"># Serves /v1/chat/completions and /v1/embeddings</span>
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>    <span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a>    <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a>        <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://localhost:8080/v1/embeddings<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;Content-Type: application/json&quot;</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span>-d<span class="w"> </span><span class="s1">&#39;{&quot;input&quot;: &quot;hello world&quot;}&#39;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://localhost:8080/v1/embeddings<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;Content-Type: application/json&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span>-d<span class="w"> </span><span class="s1">&#39;{&quot;input&quot;: &quot;hello world&quot;}&#39;</span>
 </code></pre></div>
 <p>See <a href="../rag_embedder/#serving-embeddings-over-http">Embedder docs</a> and <a href="../server_usage_examples/">Server Usage</a> for configuration details.</p>
 <h2 id="command-line-interface">Command-Line Interface<a class="headerlink" href="#command-line-interface" title="Permanent link">&para;</a></h2>
 <p>The <code>cyllama rag</code> command provides command-line RAG without writing any Python:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># Single query against a directory</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>cyllama<span class="w"> </span>rag<span class="w"> </span>-m<span class="w"> </span>models/llama.gguf<span class="w"> </span>-e<span class="w"> </span>models/bge-small.gguf<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">    </span>-d<span class="w"> </span>docs/<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;How do I configure the system?&quot;</span>
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>
-<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="c1"># Index specific files and enter interactive mode (omit -p)</span>
-<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>cyllama<span class="w"> </span>rag<span class="w"> </span>-m<span class="w"> </span>models/llama.gguf<span class="w"> </span>-e<span class="w"> </span>models/bge-small.gguf<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="w">    </span>-f<span class="w"> </span>guide.md<span class="w"> </span>-f<span class="w"> </span>faq.md
-<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>
-<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="c1"># Stream output and show source chunks</span>
-<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>cyllama<span class="w"> </span>rag<span class="w"> </span>-m<span class="w"> </span>models/llama.gguf<span class="w"> </span>-e<span class="w"> </span>models/bge-small.gguf<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="w">    </span>-d<span class="w"> </span>docs/<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;Summarize the architecture&quot;</span><span class="w"> </span>--stream<span class="w"> </span>--sources
-<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>
-<a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a><span class="c1"># Custom system instruction and retrieval settings</span>
-<a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a>cyllama<span class="w"> </span>rag<span class="w"> </span>-m<span class="w"> </span>models/llama.gguf<span class="w"> </span>-e<span class="w"> </span>models/bge-small.gguf<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a><span class="w">    </span>-d<span class="w"> </span>docs/<span class="w"> </span>-s<span class="w"> </span><span class="s2">&quot;Answer in one paragraph&quot;</span><span class="w"> </span>-k<span class="w"> </span><span class="m">3</span><span class="w"> </span>--threshold<span class="w"> </span><span class="m">0</span>.4
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># Single query against a directory</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>cyllama<span class="w"> </span>rag<span class="w"> </span>-m<span class="w"> </span>models/llama.gguf<span class="w"> </span>-e<span class="w"> </span>models/bge-small.gguf<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">    </span>-d<span class="w"> </span>docs/<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;How do I configure the system?&quot;</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="c1"># Index specific files and enter interactive mode (omit -p)</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>cyllama<span class="w"> </span>rag<span class="w"> </span>-m<span class="w"> </span>models/llama.gguf<span class="w"> </span>-e<span class="w"> </span>models/bge-small.gguf<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="w">    </span>-f<span class="w"> </span>guide.md<span class="w"> </span>-f<span class="w"> </span>faq.md
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="c1"># Stream output and show source chunks</span>
+<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a>cyllama<span class="w"> </span>rag<span class="w"> </span>-m<span class="w"> </span>models/llama.gguf<span class="w"> </span>-e<span class="w"> </span>models/bge-small.gguf<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a><span class="w">    </span>-d<span class="w"> </span>docs/<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;Summarize the architecture&quot;</span><span class="w"> </span>--stream<span class="w"> </span>--sources
+<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a>
+<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a><span class="c1"># Custom system instruction and retrieval settings</span>
+<a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a>cyllama<span class="w"> </span>rag<span class="w"> </span>-m<span class="w"> </span>models/llama.gguf<span class="w"> </span>-e<span class="w"> </span>models/bge-small.gguf<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a><span class="w">    </span>-d<span class="w"> </span>docs/<span class="w"> </span>-s<span class="w"> </span><span class="s2">&quot;Answer in one paragraph&quot;</span><span class="w"> </span>-k<span class="w"> </span><span class="m">3</span><span class="w"> </span>--threshold<span class="w"> </span><span class="m">0</span>.4
 </code></pre></div>
 <h3 id="options">Options<a class="headerlink" href="#options" title="Permanent link">&para;</a></h3>
 <table>
@@ -2195,23 +2262,23 @@
 <p>In interactive mode, type your questions at the <code>&gt;</code> prompt. Press Ctrl+C or EOF to exit.</p>
 <h3 id="persistent-vector-store-cli">Persistent Vector Store (CLI)<a class="headerlink" href="#persistent-vector-store-cli" title="Permanent link">&para;</a></h3>
 <p>By default <code>cyllama rag</code> builds the index in memory and rebuilds it on every invocation. With <code>--db PATH</code>, the index is persisted to a SQLite file and reused on subsequent runs, so the corpus is embedded only once:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># First run: index the corpus and persist it</span>
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>cyllama<span class="w"> </span>rag<span class="w"> </span>-m<span class="w"> </span>models/llama.gguf<span class="w"> </span>-e<span class="w"> </span>models/bge-small.gguf<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">    </span>--db<span class="w"> </span>rag.db<span class="w"> </span>-f<span class="w"> </span>corpus.txt<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;What is in the corpus?&quot;</span>
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>
-<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="c1"># Subsequent runs: reuse the persisted index without re-embedding</span>
-<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>cyllama<span class="w"> </span>rag<span class="w"> </span>-m<span class="w"> </span>models/llama.gguf<span class="w"> </span>-e<span class="w"> </span>models/bge-small.gguf<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="w">    </span>--db<span class="w"> </span>rag.db<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;Another question?&quot;</span>
-<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>
-<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="c1"># Re-running with the same -f is a true no-op on indexing — the</span>
-<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="c1"># file&#39;s content hash is already in the dedup table:</span>
-<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a>cyllama<span class="w"> </span>rag<span class="w"> </span>-m<span class="w"> </span>models/llama.gguf<span class="w"> </span>-e<span class="w"> </span>models/bge-small.gguf<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a><span class="w">    </span>--db<span class="w"> </span>rag.db<span class="w"> </span>-f<span class="w"> </span>corpus.txt<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;...&quot;</span>
-<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a><span class="c1"># &gt; reusing N chunks from rag.db (1 unchanged)</span>
-<a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a>
-<a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a><span class="c1"># Switched embedding models or chunking? Use --rebuild:</span>
-<a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a>cyllama<span class="w"> </span>rag<span class="w"> </span>-m<span class="w"> </span>models/llama.gguf<span class="w"> </span>-e<span class="w"> </span>models/bge-base.gguf<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-7-17" name="__codelineno-7-17" href="#__codelineno-7-17"></a><span class="w">    </span>--db<span class="w"> </span>rag.db<span class="w"> </span>--rebuild<span class="w"> </span>-f<span class="w"> </span>corpus.txt<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;...&quot;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># First run: index the corpus and persist it</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>cyllama<span class="w"> </span>rag<span class="w"> </span>-m<span class="w"> </span>models/llama.gguf<span class="w"> </span>-e<span class="w"> </span>models/bge-small.gguf<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="w">    </span>--db<span class="w"> </span>rag.db<span class="w"> </span>-f<span class="w"> </span>corpus.txt<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;What is in the corpus?&quot;</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="c1"># Subsequent runs: reuse the persisted index without re-embedding</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>cyllama<span class="w"> </span>rag<span class="w"> </span>-m<span class="w"> </span>models/llama.gguf<span class="w"> </span>-e<span class="w"> </span>models/bge-small.gguf<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="w">    </span>--db<span class="w"> </span>rag.db<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;Another question?&quot;</span>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="c1"># Re-running with the same -f is a true no-op on indexing — the</span>
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="c1"># file&#39;s content hash is already in the dedup table:</span>
+<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a>cyllama<span class="w"> </span>rag<span class="w"> </span>-m<span class="w"> </span>models/llama.gguf<span class="w"> </span>-e<span class="w"> </span>models/bge-small.gguf<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a><span class="w">    </span>--db<span class="w"> </span>rag.db<span class="w"> </span>-f<span class="w"> </span>corpus.txt<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;...&quot;</span>
+<a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a><span class="c1"># &gt; reusing N chunks from rag.db (1 unchanged)</span>
+<a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a>
+<a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a><span class="c1"># Switched embedding models or chunking? Use --rebuild:</span>
+<a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a>cyllama<span class="w"> </span>rag<span class="w"> </span>-m<span class="w"> </span>models/llama.gguf<span class="w"> </span>-e<span class="w"> </span>models/bge-base.gguf<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-8-17" name="__codelineno-8-17" href="#__codelineno-8-17"></a><span class="w">    </span>--db<span class="w"> </span>rag.db<span class="w"> </span>--rebuild<span class="w"> </span>-f<span class="w"> </span>corpus.txt<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;...&quot;</span>
 </code></pre></div>
 <p>Decision matrix:</p>
 <table>
@@ -2248,7 +2315,7 @@
 </tr>
 </tbody>
 </table>
-<p>If the embedding model basename, chunk size, or chunk overlap on a reopen does not match what's stored in the DB's metadata table, <code>cyllama rag</code> exits with a clear error pointing at <code>--rebuild</code>. See <a href="../rag_vectorstore/#metadata-validation">VectorStore — Metadata Validation</a> for details.</p>
+<p>If the embedding model basename, chunk size, or chunk overlap on a reopen does not match what's stored in the DB's metadata table, <code>cyllama rag</code> exits with a clear error pointing at <code>--rebuild</code>. See <a href="../rag_vectorstore/#metadata-validation">SqliteVectorStore — Metadata Validation</a> for details.</p>
 <h3 id="generation-defaults-worth-knowing">Generation Defaults Worth Knowing<a class="headerlink" href="#generation-defaults-worth-knowing" title="Permanent link">&para;</a></h3>
 <p>The CLI flips three <code>RAGConfig</code> fields from their library defaults because they fix common failure modes for chat-tuned and reasoning-tuned models. See <a href="../rag_pipeline/#ragconfig">RAG Pipeline — RAGConfig</a> for the underlying fields.</p>
 <table>
@@ -2280,7 +2347,7 @@
 <h2 id="next-steps">Next Steps<a class="headerlink" href="#next-steps" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../rag_embedder/">Embedder</a> - Generating embeddings</li>
-<li><a href="../rag_vectorstore/">VectorStore</a> - Vector storage and search</li>
+<li><a href="../rag_vectorstore/">SqliteVectorStore</a> - Vector storage and search</li>
 <li><a href="../rag_text_processing/">Text Processing</a> - Document splitting and loading</li>
 <li><a href="../rag_pipeline/">RAG Pipeline</a> - RAG pipeline configuration</li>
 <li><a href="../rag_advanced/">Advanced RAG Features</a> - Async, hybrid search, agent integration</li>

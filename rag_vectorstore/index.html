@@ -27,7 +27,7 @@
     
     
       
-        <title>VectorStore - cyllama</title>
+        <title>SqliteVectorStore - cyllama</title>
       
     
     
@@ -78,7 +78,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#vectorstore" class="md-skip">
+        <a href="#sqlitevectorstore" class="md-skip">
           Skip to content
         </a>
       
@@ -114,7 +114,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              VectorStore
+              SqliteVectorStore
             
           </span>
         </div>
@@ -932,6 +932,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP Client
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1072,7 +1100,7 @@
   <span class="md-ellipsis">
     
   
-    VectorStore
+    SqliteVectorStore
   
 
     
@@ -1090,7 +1118,7 @@
   <span class="md-ellipsis">
     
   
-    VectorStore
+    SqliteVectorStore
   
 
     
@@ -1409,6 +1437,17 @@
     <span class="md-ellipsis">
       
         Example: Document Search System
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pluggable-backends-vectorstoreprotocol" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pluggable Backends — VectorStoreProtocol
       
     </span>
   </a>
@@ -1970,6 +2009,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#pluggable-backends-vectorstoreprotocol" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pluggable Backends — VectorStoreProtocol
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#performance-characteristics" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2000,16 +2050,19 @@
   
 
 
-<h1 id="vectorstore">VectorStore<a class="headerlink" href="#vectorstore" title="Permanent link">&para;</a></h1>
-<p>The <code>VectorStore</code> class provides SQLite-based vector storage using the sqlite-vector extension for high-performance similarity search.</p>
+<h1 id="sqlitevectorstore">SqliteVectorStore<a class="headerlink" href="#sqlitevectorstore" title="Permanent link">&para;</a></h1>
+<p>The <code>SqliteVectorStore</code> class provides SQLite-based vector storage using the sqlite-vector extension for high-performance similarity search. It is the default backend behind <code>RAG.store</code> and implements <code>VectorStoreProtocol</code>, so drop-in replacements (Qdrant, Chroma, pgvector, …) can be passed via <code>RAG(store=...)</code>.</p>
+<blockquote>
+<p><strong>Note:</strong> the old name <code>VectorStore</code> is kept as a deprecated alias and will be removed in a future release. New code should import <code>SqliteVectorStore</code> directly.</p>
+</blockquote>
 <h2 id="basic-usage">Basic Usage<a class="headerlink" href="#basic-usage" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.rag</span><span class="w"> </span><span class="kn">import</span> <span class="n">VectorStore</span><span class="p">,</span> <span class="n">Embedder</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.rag</span><span class="w"> </span><span class="kn">import</span> <span class="n">SqliteVectorStore</span><span class="p">,</span> <span class="n">Embedder</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="c1"># Create embedder</span>
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="n">embedder</span> <span class="o">=</span> <span class="n">Embedder</span><span class="p">(</span><span class="s2">&quot;models/bge-small.gguf&quot;</span><span class="p">)</span>
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="c1"># Create vector store (in-memory)</span>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="n">store</span> <span class="o">=</span> <span class="n">VectorStore</span><span class="p">(</span><span class="n">dimension</span><span class="o">=</span><span class="n">embedder</span><span class="o">.</span><span class="n">dimension</span><span class="p">)</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="n">store</span> <span class="o">=</span> <span class="n">SqliteVectorStore</span><span class="p">(</span><span class="n">dimension</span><span class="o">=</span><span class="n">embedder</span><span class="o">.</span><span class="n">dimension</span><span class="p">)</span>
 <a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>
 <a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="c1"># Add embeddings</span>
 <a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="n">texts</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;Document 1&quot;</span><span class="p">,</span> <span class="s2">&quot;Document 2&quot;</span><span class="p">,</span> <span class="s2">&quot;Document 3&quot;</span><span class="p">]</span>
@@ -2028,7 +2081,7 @@
 <a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a><span class="n">embedder</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
 </code></pre></div>
 <h2 id="constructor-options">Constructor Options<a class="headerlink" href="#constructor-options" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">store</span> <span class="o">=</span> <span class="n">VectorStore</span><span class="p">(</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">store</span> <span class="o">=</span> <span class="n">SqliteVectorStore</span><span class="p">(</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    <span class="n">dimension</span><span class="o">=</span><span class="mi">384</span><span class="p">,</span>                       <span class="c1"># Embedding dimension (required)</span>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="n">db_path</span><span class="o">=</span><span class="s2">&quot;:memory:&quot;</span><span class="p">,</span>                  <span class="c1"># Database path (&quot;:memory:&quot; or file path)</span>
 <a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    <span class="n">table_name</span><span class="o">=</span><span class="s2">&quot;embeddings&quot;</span><span class="p">,</span>             <span class="c1"># Table name for vectors</span>
@@ -2158,7 +2211,7 @@
 <h2 id="persistence">Persistence<a class="headerlink" href="#persistence" title="Permanent link">&para;</a></h2>
 <h3 id="file-based-storage">File-based Storage<a class="headerlink" href="#file-based-storage" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1"># Create persistent store</span>
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="n">store</span> <span class="o">=</span> <span class="n">VectorStore</span><span class="p">(</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="n">store</span> <span class="o">=</span> <span class="n">SqliteVectorStore</span><span class="p">(</span>
 <a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>    <span class="n">dimension</span><span class="o">=</span><span class="mi">384</span><span class="p">,</span>
 <a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>    <span class="n">db_path</span><span class="o">=</span><span class="s2">&quot;vectors.db&quot;</span>  <span class="c1"># Will create this file</span>
 <a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="p">)</span>
@@ -2169,22 +2222,22 @@
 </code></pre></div>
 <h3 id="opening-existing-store">Opening Existing Store<a class="headerlink" href="#opening-existing-store" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="c1"># Re-open existing database</span>
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="n">store</span> <span class="o">=</span> <span class="n">VectorStore</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="s2">&quot;vectors.db&quot;</span><span class="p">)</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="n">store</span> <span class="o">=</span> <span class="n">SqliteVectorStore</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="s2">&quot;vectors.db&quot;</span><span class="p">)</span>
 <a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="n">results</span> <span class="o">=</span> <span class="n">store</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">query_embedding</span><span class="p">,</span> <span class="n">k</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
 <a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="n">store</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
 </code></pre></div>
 <h2 id="metadata-validation">Metadata Validation<a class="headerlink" href="#metadata-validation" title="Permanent link">&para;</a></h2>
-<p>A persistent <code>VectorStore</code> records its configuration in a <code>{table_name}_meta</code> SQLite table on first creation:</p>
+<p>A persistent <code>SqliteVectorStore</code> records its configuration in a <code>{table_name}_meta</code> SQLite table on first creation:</p>
 <ul>
 <li><strong>Hard fields</strong> (always validated on reopen): <code>dimension</code>, <code>metric</code>, <code>vector_type</code></li>
 <li><strong>Soft fields</strong> (validated only when the caller passes the matching kwarg): <code>embedding_model_basename</code>, <code>embedding_model_size_bytes</code>, <code>chunk_size</code>, <code>chunk_overlap</code></li>
 <li><strong>Informational</strong>: <code>cyllama_version</code>, <code>created_at</code></li>
 </ul>
 <p>On reopen, any mismatch between a stored hard field and the caller's value raises <code>VectorStoreError</code> with a message naming the stored value, the attempted value, and the fix. Soft fields only fire when the caller actually passes the corresponding constructor argument, so callers that don't care about embedding-model fingerprinting can opt out by simply not passing it.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.rag</span><span class="w"> </span><span class="kn">import</span> <span class="n">VectorStore</span><span class="p">,</span> <span class="n">VectorStoreError</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.rag</span><span class="w"> </span><span class="kn">import</span> <span class="n">SqliteVectorStore</span><span class="p">,</span> <span class="n">VectorStoreError</span>
 <a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>
 <a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="c1"># First run: creates the DB with metadata</span>
-<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="n">store</span> <span class="o">=</span> <span class="n">VectorStore</span><span class="p">(</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="n">store</span> <span class="o">=</span> <span class="n">SqliteVectorStore</span><span class="p">(</span>
 <a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>    <span class="n">dimension</span><span class="o">=</span><span class="mi">384</span><span class="p">,</span>
 <a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>    <span class="n">db_path</span><span class="o">=</span><span class="s2">&quot;vectors.db&quot;</span><span class="p">,</span>
 <a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>    <span class="n">embedding_model_path</span><span class="o">=</span><span class="s2">&quot;models/bge-small.gguf&quot;</span><span class="p">,</span>
@@ -2195,7 +2248,7 @@
 <a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a>
 <a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a><span class="c1"># Later: reopening with a different chunk size raises immediately</span>
 <a id="__codelineno-11-14" name="__codelineno-11-14" href="#__codelineno-11-14"></a><span class="k">try</span><span class="p">:</span>
-<a id="__codelineno-11-15" name="__codelineno-11-15" href="#__codelineno-11-15"></a>    <span class="n">store</span> <span class="o">=</span> <span class="n">VectorStore</span><span class="p">(</span>
+<a id="__codelineno-11-15" name="__codelineno-11-15" href="#__codelineno-11-15"></a>    <span class="n">store</span> <span class="o">=</span> <span class="n">SqliteVectorStore</span><span class="p">(</span>
 <a id="__codelineno-11-16" name="__codelineno-11-16" href="#__codelineno-11-16"></a>        <span class="n">dimension</span><span class="o">=</span><span class="mi">384</span><span class="p">,</span>
 <a id="__codelineno-11-17" name="__codelineno-11-17" href="#__codelineno-11-17"></a>        <span class="n">db_path</span><span class="o">=</span><span class="s2">&quot;vectors.db&quot;</span><span class="p">,</span>
 <a id="__codelineno-11-18" name="__codelineno-11-18" href="#__codelineno-11-18"></a>        <span class="n">embedding_model_path</span><span class="o">=</span><span class="s2">&quot;models/bge-small.gguf&quot;</span><span class="p">,</span>
@@ -2210,7 +2263,7 @@
 </code></pre></div>
 <p>This catches the silent-corruption case where mixing two embedding models or two chunk configurations into a single index would produce garbage retrieval. It is the mechanism behind the <code>cyllama rag --rebuild</code> flag (see <a href="../rag_overview/#persistent-vector-store-cli">RAG Overview — Persistent Vector Store</a>).</p>
 <h2 id="source-deduplication">Source Deduplication<a class="headerlink" href="#source-deduplication" title="Permanent link">&para;</a></h2>
-<p>A <code>VectorStore</code> also tracks per-source content hashes in a <code>{table_name}_sources</code> table — <code>(content_hash, source_label, chunk_count, indexed_at)</code>. The <code>add()</code> method accepts optional <code>source_hash</code> and <code>source_label</code> kwargs, written atomically with the chunk inserts in a single SQLite transaction so a process death between writes can't leave the store with orphaned chunks.</p>
+<p>A <code>SqliteVectorStore</code> also tracks per-source content hashes in a <code>{table_name}_sources</code> table — <code>(content_hash, source_label, chunk_count, indexed_at)</code>. The <code>add()</code> method accepts optional <code>source_hash</code> and <code>source_label</code> kwargs, written atomically with the chunk inserts in a single SQLite transaction so a process death between writes can't leave the store with orphaned chunks.</p>
 <p>Three read methods are available:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="n">store</span><span class="o">.</span><span class="n">is_source_indexed</span><span class="p">(</span><span class="n">content_hash</span><span class="p">)</span>   <span class="c1"># bool: has this hash been added?</span>
 <a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="n">store</span><span class="o">.</span><span class="n">get_source_by_label</span><span class="p">(</span><span class="n">source_label</span><span class="p">)</span> <span class="c1"># row dict or None</span>
@@ -2233,7 +2286,7 @@
 <a id="__codelineno-13-12" name="__codelineno-13-12" href="#__codelineno-13-12"></a><span class="n">results</span> <span class="o">=</span> <span class="n">store</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">k</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
 </code></pre></div>
 <h2 id="context-manager">Context Manager<a class="headerlink" href="#context-manager" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="k">with</span> <span class="n">VectorStore</span><span class="p">(</span><span class="n">dimension</span><span class="o">=</span><span class="mi">384</span><span class="p">,</span> <span class="n">db_path</span><span class="o">=</span><span class="s2">&quot;data.db&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">store</span><span class="p">:</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="k">with</span> <span class="n">SqliteVectorStore</span><span class="p">(</span><span class="n">dimension</span><span class="o">=</span><span class="mi">384</span><span class="p">,</span> <span class="n">db_path</span><span class="o">=</span><span class="s2">&quot;data.db&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">store</span><span class="p">:</span>
 <a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>    <span class="n">store</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">embeddings</span><span class="p">,</span> <span class="n">texts</span><span class="p">)</span>
 <a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>    <span class="n">results</span> <span class="o">=</span> <span class="n">store</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">query</span><span class="p">)</span>
 <a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="c1"># Automatically closed</span>
@@ -2246,7 +2299,7 @@
 <a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Count: </span><span class="si">{</span><span class="n">store</span><span class="o">.</span><span class="n">count</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 </code></pre></div>
 <h2 id="example-document-search-system">Example: Document Search System<a class="headerlink" href="#example-document-search-system" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.rag</span><span class="w"> </span><span class="kn">import</span> <span class="n">Embedder</span><span class="p">,</span> <span class="n">VectorStore</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.rag</span><span class="w"> </span><span class="kn">import</span> <span class="n">Embedder</span><span class="p">,</span> <span class="n">SqliteVectorStore</span>
 <a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>
 <a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="c1"># Initialize</span>
 <a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="n">embedder</span> <span class="o">=</span> <span class="n">Embedder</span><span class="p">(</span><span class="s2">&quot;models/bge-small.gguf&quot;</span><span class="p">)</span>
@@ -2260,7 +2313,7 @@
 <a id="__codelineno-16-12" name="__codelineno-16-12" href="#__codelineno-16-12"></a><span class="p">]</span>
 <a id="__codelineno-16-13" name="__codelineno-16-13" href="#__codelineno-16-13"></a>
 <a id="__codelineno-16-14" name="__codelineno-16-14" href="#__codelineno-16-14"></a><span class="c1"># Create persistent store</span>
-<a id="__codelineno-16-15" name="__codelineno-16-15" href="#__codelineno-16-15"></a><span class="k">with</span> <span class="n">VectorStore</span><span class="p">(</span><span class="n">dimension</span><span class="o">=</span><span class="n">embedder</span><span class="o">.</span><span class="n">dimension</span><span class="p">,</span> <span class="n">db_path</span><span class="o">=</span><span class="s2">&quot;docs.db&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">store</span><span class="p">:</span>
+<a id="__codelineno-16-15" name="__codelineno-16-15" href="#__codelineno-16-15"></a><span class="k">with</span> <span class="n">SqliteVectorStore</span><span class="p">(</span><span class="n">dimension</span><span class="o">=</span><span class="n">embedder</span><span class="o">.</span><span class="n">dimension</span><span class="p">,</span> <span class="n">db_path</span><span class="o">=</span><span class="s2">&quot;docs.db&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">store</span><span class="p">:</span>
 <a id="__codelineno-16-16" name="__codelineno-16-16" href="#__codelineno-16-16"></a>    <span class="c1"># Index documents</span>
 <a id="__codelineno-16-17" name="__codelineno-16-17" href="#__codelineno-16-17"></a>    <span class="k">for</span> <span class="n">doc</span> <span class="ow">in</span> <span class="n">documents</span><span class="p">:</span>
 <a id="__codelineno-16-18" name="__codelineno-16-18" href="#__codelineno-16-18"></a>        <span class="n">embedding</span> <span class="o">=</span> <span class="n">embedder</span><span class="o">.</span><span class="n">embed</span><span class="p">(</span><span class="n">doc</span><span class="p">[</span><span class="s2">&quot;text&quot;</span><span class="p">])</span>
@@ -2282,6 +2335,38 @@
 <a id="__codelineno-16-34" name="__codelineno-16-34" href="#__codelineno-16-34"></a>
 <a id="__codelineno-16-35" name="__codelineno-16-35" href="#__codelineno-16-35"></a><span class="n">embedder</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
 </code></pre></div>
+<h2 id="pluggable-backends-vectorstoreprotocol">Pluggable Backends — <code>VectorStoreProtocol</code><a class="headerlink" href="#pluggable-backends-vectorstoreprotocol" title="Permanent link">&para;</a></h2>
+<p><code>SqliteVectorStore</code> is the default backend, but <code>RAG</code> and <code>RAGPipeline</code> accept <em>any</em> object satisfying the structural contract <code>VectorStoreProtocol</code> (declared in <code>cyllama.rag.types</code>). The contract covers only what the RAG layer actually calls:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Protocol</span><span class="p">,</span> <span class="n">runtime_checkable</span>
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.rag</span><span class="w"> </span><span class="kn">import</span> <span class="n">SearchResult</span>
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>
+<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="nd">@runtime_checkable</span>
+<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a><span class="k">class</span><span class="w"> </span><span class="nc">VectorStoreProtocol</span><span class="p">(</span><span class="n">Protocol</span><span class="p">):</span>
+<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">search</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query_embedding</span><span class="p">,</span> <span class="n">k</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">threshold</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">SearchResult</span><span class="p">]:</span> <span class="o">...</span>
+<a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">add</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">embeddings</span><span class="p">,</span> <span class="n">texts</span><span class="p">,</span> <span class="n">metadata</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a>            <span class="n">source_hash</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">source_label</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]:</span> <span class="o">...</span>
+<a id="__codelineno-17-9" name="__codelineno-17-9" href="#__codelineno-17-9"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">is_source_indexed</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">content_hash</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span> <span class="o">...</span>
+<a id="__codelineno-17-10" name="__codelineno-17-10" href="#__codelineno-17-10"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">get_source_by_label</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">source_label</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span> <span class="o">...</span>
+<a id="__codelineno-17-11" name="__codelineno-17-11" href="#__codelineno-17-11"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">clear</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span> <span class="o">...</span>
+<a id="__codelineno-17-12" name="__codelineno-17-12" href="#__codelineno-17-12"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">close</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span> <span class="o">...</span>
+<a id="__codelineno-17-13" name="__codelineno-17-13" href="#__codelineno-17-13"></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span> <span class="o">...</span>
+</code></pre></div>
+<p>This makes the RAG stack open to Qdrant, Chroma, LanceDB, pgvector, or any in-house vector service without forking <code>cyllama</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.rag</span><span class="w"> </span><span class="kn">import</span> <span class="n">RAG</span>
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a><span class="k">class</span><span class="w"> </span><span class="nc">QdrantStoreAdapter</span><span class="p">:</span>
+<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">search</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query_embedding</span><span class="p">,</span> <span class="n">k</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">threshold</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span> <span class="o">...</span>
+<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">add</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">embeddings</span><span class="p">,</span> <span class="n">texts</span><span class="p">,</span> <span class="n">metadata</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a>            <span class="n">source_hash</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">source_label</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span> <span class="o">...</span>
+<a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a>    <span class="c1"># ... remaining protocol methods</span>
+<a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a>
+<a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a><span class="n">rag</span> <span class="o">=</span> <span class="n">RAG</span><span class="p">(</span>
+<a id="__codelineno-18-10" name="__codelineno-18-10" href="#__codelineno-18-10"></a>    <span class="n">embedding_model</span><span class="o">=</span><span class="s2">&quot;models/bge-small-en-v1.5-q8_0.gguf&quot;</span><span class="p">,</span>
+<a id="__codelineno-18-11" name="__codelineno-18-11" href="#__codelineno-18-11"></a>    <span class="n">generation_model</span><span class="o">=</span><span class="s2">&quot;models/Llama-3.2-1B-Instruct-Q8_0.gguf&quot;</span><span class="p">,</span>
+<a id="__codelineno-18-12" name="__codelineno-18-12" href="#__codelineno-18-12"></a>    <span class="n">store</span><span class="o">=</span><span class="n">QdrantStoreAdapter</span><span class="p">(</span><span class="o">...</span><span class="p">),</span>
+<a id="__codelineno-18-13" name="__codelineno-18-13" href="#__codelineno-18-13"></a><span class="p">)</span>
+</code></pre></div>
+<p>Sqlite-specific features (quantization, FTS5 <code>HybridStore</code>, raw <code>store.conn</code> access) stay on <code>SqliteVectorStore</code> and aren't part of the contract. Backends without a natural dedup mechanism may return <code>False</code> / <code>None</code> from <code>is_source_indexed</code> / <code>get_source_by_label</code> — the RAG layer treats that as "always re-index" and still behaves correctly, just less efficiently on repeated <code>add_documents</code> calls.</p>
 <h2 id="performance-characteristics">Performance Characteristics<a class="headerlink" href="#performance-characteristics" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong>1M vectors, 768 dimensions</strong>: Few milliseconds query time</li>

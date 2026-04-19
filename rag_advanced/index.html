@@ -932,6 +932,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP Client
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1063,7 +1091,7 @@
   <span class="md-ellipsis">
     
   
-    VectorStore
+    SqliteVectorStore
   
 
     
@@ -1918,11 +1946,11 @@
 </ul>
 <h2 id="reranker">Reranker<a class="headerlink" href="#reranker" title="Permanent link">&para;</a></h2>
 <p>Cross-encoder reranking for improved result quality:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.rag</span><span class="w"> </span><span class="kn">import</span> <span class="n">Reranker</span><span class="p">,</span> <span class="n">VectorStore</span><span class="p">,</span> <span class="n">Embedder</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.rag</span><span class="w"> </span><span class="kn">import</span> <span class="n">Reranker</span><span class="p">,</span> <span class="n">SqliteVectorStore</span><span class="p">,</span> <span class="n">Embedder</span>
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
 <a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="c1"># Initial retrieval (fast but less precise)</span>
 <a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="n">embedder</span> <span class="o">=</span> <span class="n">Embedder</span><span class="p">(</span><span class="s2">&quot;models/bge-small.gguf&quot;</span><span class="p">)</span>
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="n">store</span> <span class="o">=</span> <span class="n">VectorStore</span><span class="p">(</span><span class="n">dimension</span><span class="o">=</span><span class="n">embedder</span><span class="o">.</span><span class="n">dimension</span><span class="p">)</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="n">store</span> <span class="o">=</span> <span class="n">SqliteVectorStore</span><span class="p">(</span><span class="n">dimension</span><span class="o">=</span><span class="n">embedder</span><span class="o">.</span><span class="n">dimension</span><span class="p">)</span>
 <a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="c1"># ... add documents ...</span>
 <a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>
 <a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="c1"># Get initial results (retrieve more than needed)</span>

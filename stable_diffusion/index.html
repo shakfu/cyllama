@@ -1488,6 +1488,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP Client
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1619,7 +1647,7 @@
   <span class="md-ellipsis">
     
   
-    VectorStore
+    SqliteVectorStore
   
 
     
@@ -2661,6 +2689,14 @@
 <td><code>is_valid</code></td>
 <td>Check if context is valid</td>
 </tr>
+<tr>
+<td><code>supports_image_generation</code></td>
+<td><code>bool</code> — model can run <code>generate()</code> / txt2img (false for WAN-style video-only models)</td>
+</tr>
+<tr>
+<td><code>supports_video_generation</code></td>
+<td><code>bool</code> — model can run <code>generate_video()</code></td>
+</tr>
 </tbody>
 </table>
 <h3 id="sdcontextparams">SDContextParams<a class="headerlink" href="#sdcontextparams" title="Permanent link">&para;</a></h3>
@@ -2887,6 +2923,14 @@
 <tr>
 <td><code>TCD</code></td>
 <td>TCD</td>
+</tr>
+<tr>
+<td><code>ER_SDE</code></td>
+<td>ER-SDE</td>
+</tr>
+<tr>
+<td><code>COUNT</code></td>
+<td>Sentinel — auto-resolve per model (default)</td>
 </tr>
 </tbody>
 </table>

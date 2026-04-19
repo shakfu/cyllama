@@ -932,6 +932,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP Client
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1254,6 +1282,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#pluggable-backends-embedderprotocol" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pluggable Backends — EmbedderProtocol
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#performance-tips" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1287,7 +1326,7 @@
   <span class="md-ellipsis">
     
   
-    VectorStore
+    SqliteVectorStore
   
 
     
@@ -1702,6 +1741,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#pluggable-backends-embedderprotocol" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pluggable Backends — EmbedderProtocol
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#performance-tips" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1872,7 +1922,7 @@
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="n">embedder</span> <span class="o">=</span> <span class="n">Embedder</span><span class="p">(</span><span class="s2">&quot;model.gguf&quot;</span><span class="p">,</span> <span class="n">normalize</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 </code></pre></div>
 <h2 id="example-semantic-search">Example: Semantic Search<a class="headerlink" href="#example-semantic-search" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.rag</span><span class="w"> </span><span class="kn">import</span> <span class="n">Embedder</span><span class="p">,</span> <span class="n">VectorStore</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.rag</span><span class="w"> </span><span class="kn">import</span> <span class="n">Embedder</span><span class="p">,</span> <span class="n">SqliteVectorStore</span>
 <a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>
 <a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="c1"># Initialize</span>
 <a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="n">embedder</span> <span class="o">=</span> <span class="n">Embedder</span><span class="p">(</span><span class="s2">&quot;models/bge-small.gguf&quot;</span><span class="p">)</span>
@@ -1888,7 +1938,7 @@
 <a id="__codelineno-12-14" name="__codelineno-12-14" href="#__codelineno-12-14"></a><span class="c1"># Generate embeddings and store</span>
 <a id="__codelineno-12-15" name="__codelineno-12-15" href="#__codelineno-12-15"></a><span class="n">embeddings</span> <span class="o">=</span> <span class="n">embedder</span><span class="o">.</span><span class="n">embed_batch</span><span class="p">(</span><span class="n">documents</span><span class="p">)</span>
 <a id="__codelineno-12-16" name="__codelineno-12-16" href="#__codelineno-12-16"></a>
-<a id="__codelineno-12-17" name="__codelineno-12-17" href="#__codelineno-12-17"></a><span class="k">with</span> <span class="n">VectorStore</span><span class="p">(</span><span class="n">dimension</span><span class="o">=</span><span class="n">embedder</span><span class="o">.</span><span class="n">dimension</span><span class="p">)</span> <span class="k">as</span> <span class="n">store</span><span class="p">:</span>
+<a id="__codelineno-12-17" name="__codelineno-12-17" href="#__codelineno-12-17"></a><span class="k">with</span> <span class="n">SqliteVectorStore</span><span class="p">(</span><span class="n">dimension</span><span class="o">=</span><span class="n">embedder</span><span class="o">.</span><span class="n">dimension</span><span class="p">)</span> <span class="k">as</span> <span class="n">store</span><span class="p">:</span>
 <a id="__codelineno-12-18" name="__codelineno-12-18" href="#__codelineno-12-18"></a>    <span class="n">store</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">embeddings</span><span class="p">,</span> <span class="n">documents</span><span class="p">)</span>
 <a id="__codelineno-12-19" name="__codelineno-12-19" href="#__codelineno-12-19"></a>
 <a id="__codelineno-12-20" name="__codelineno-12-20" href="#__codelineno-12-20"></a>    <span class="c1"># Search</span>
@@ -1931,6 +1981,35 @@
 <a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">&quot;data&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">][</span><span class="s2">&quot;embedding&quot;</span><span class="p">][:</span><span class="mi">5</span><span class="p">])</span>
 </code></pre></div>
 <p>All Embedder options (pooling strategy, normalization, context size, GPU layers) are configurable via the <code>ServerConfig</code> <code>embedding_*</code> parameters. See <a href="../server_usage_examples/">Server Usage</a> for the full configuration reference.</p>
+<h2 id="pluggable-backends-embedderprotocol">Pluggable Backends — <code>EmbedderProtocol</code><a class="headerlink" href="#pluggable-backends-embedderprotocol" title="Permanent link">&para;</a></h2>
+<p><code>Embedder</code> is the default, llama.cpp-backed embedding backend, but <code>RAG</code> and <code>RAGPipeline</code> accept <em>any</em> object satisfying the structural contract <code>EmbedderProtocol</code> (declared in <code>cyllama.rag.types</code>). The contract is intentionally narrow — it covers only the members the RAG layer actually calls:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Protocol</span><span class="p">,</span> <span class="n">runtime_checkable</span>
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="nd">@runtime_checkable</span>
+<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">EmbedderProtocol</span><span class="p">(</span><span class="n">Protocol</span><span class="p">):</span>
+<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>    <span class="nd">@property</span>
+<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">dimension</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span> <span class="o">...</span>
+<a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">embed</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">text</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]:</span> <span class="o">...</span>
+<a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">embed_batch</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">texts</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]]:</span> <span class="o">...</span>
+<a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">close</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span> <span class="o">...</span>
+</code></pre></div>
+<p>Anything honouring these four members — an OpenAI-embeddings wrapper, a <code>sentence-transformers</code> adapter, a remote HTTP service client — can be passed via <code>RAG(embedder=...)</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.rag</span><span class="w"> </span><span class="kn">import</span> <span class="n">RAG</span><span class="p">,</span> <span class="n">SqliteVectorStore</span>
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="k">class</span><span class="w"> </span><span class="nc">MyEmbedder</span><span class="p">:</span>
+<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a>    <span class="n">dimension</span> <span class="o">=</span> <span class="mi">1536</span>
+<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">embed</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">text</span><span class="p">):</span> <span class="o">...</span>
+<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">embed_batch</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">texts</span><span class="p">):</span> <span class="o">...</span>
+<a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">close</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span> <span class="o">...</span>
+<a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a>
+<a id="__codelineno-17-9" name="__codelineno-17-9" href="#__codelineno-17-9"></a><span class="n">rag</span> <span class="o">=</span> <span class="n">RAG</span><span class="p">(</span>
+<a id="__codelineno-17-10" name="__codelineno-17-10" href="#__codelineno-17-10"></a>    <span class="n">embedding_model</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span>  <span class="c1"># ignored when embedder= is supplied</span>
+<a id="__codelineno-17-11" name="__codelineno-17-11" href="#__codelineno-17-11"></a>    <span class="n">generation_model</span><span class="o">=</span><span class="s2">&quot;models/Llama-3.2-1B-Instruct-Q8_0.gguf&quot;</span><span class="p">,</span>
+<a id="__codelineno-17-12" name="__codelineno-17-12" href="#__codelineno-17-12"></a>    <span class="n">embedder</span><span class="o">=</span><span class="n">MyEmbedder</span><span class="p">(),</span>
+<a id="__codelineno-17-13" name="__codelineno-17-13" href="#__codelineno-17-13"></a>    <span class="n">store</span><span class="o">=</span><span class="n">SqliteVectorStore</span><span class="p">(</span><span class="n">dimension</span><span class="o">=</span><span class="mi">1536</span><span class="p">,</span> <span class="n">db_path</span><span class="o">=</span><span class="s2">&quot;docs.db&quot;</span><span class="p">),</span>
+<a id="__codelineno-17-14" name="__codelineno-17-14" href="#__codelineno-17-14"></a><span class="p">)</span>
+</code></pre></div>
+<p>Passing <code>embedder=</code> skips the default <code>Embedder</code> construction entirely, so callers using a remote embedding API don't need a local GGUF embedding model. The RAG layer never calls backend-specific extensions (caching introspection, <code>embed_with_info</code>, async APIs) — those remain on the concrete <code>Embedder</code> and aren't part of the contract.</p>
 <h2 id="performance-tips">Performance Tips<a class="headerlink" href="#performance-tips" title="Permanent link">&para;</a></h2>
 <ol>
 <li><strong>Batch Processing</strong>: Use <code>embed_batch()</code> instead of multiple <code>embed()</code> calls</li>
