@@ -90,6 +90,7 @@ jobs:
             python scripts/manage.py build --all --deps-only --no-sd-examples &&
             python scripts/manage.py write_build_config
           CIBW_BEFORE_BUILD_WINDOWS: >
+            pip install delvewheel &&
             cd {project} &&
             python scripts/manage.py build --all --deps-only --no-sd-examples &&
             python scripts/manage.py write_build_config
