@@ -4,6 +4,7 @@ Tests for async API module.
 Tests the async/await support for cyllama text generation.
 """
 
+import gc
 import pytest
 import asyncio
 from unittest.mock import patch
@@ -50,6 +51,10 @@ class TestAsyncLLM:
     @pytest.mark.asyncio
     async def test_context_manager(self):
         """Test async context manager."""
+        # Flush any LLM instances leaked by prior tests so their __del__ does
+        # not call close() inside the patched window below. Platform-specific
+        # GC timing (x86_64 vs ARM) made this test flaky without this.
+        gc.collect()
         with patch.object(LLM, "__init__", return_value=None):
             with patch.object(LLM, "close", return_value=None) as mock_close:
                 async with AsyncLLM("model.gguf") as llm:
@@ -59,6 +64,7 @@ class TestAsyncLLM:
     @pytest.mark.asyncio
     async def test_close(self):
         """Test explicit close."""
+        gc.collect()
         with patch.object(LLM, "__init__", return_value=None):
             with patch.object(LLM, "close", return_value=None) as mock_close:
                 llm = AsyncLLM("model.gguf")

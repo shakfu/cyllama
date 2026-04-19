@@ -12,9 +12,7 @@ on:
         default: false
         type: boolean
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+
 
 jobs:
   build_wheels:
@@ -49,33 +47,11 @@ jobs:
           path: thirdparty/
           key: deps-cibw2-${{ matrix.os }}-${{ hashFiles('scripts/manage.py', 'pyproject.toml', '.github/workflows/build-cibw.yaml') }}
 
-      - name: Set CCACHE_DIR to workspace (mounted into manylinux container at /project/.ccache)
-        shell: bash
-        run: echo "CCACHE_DIR=${{ github.workspace }}/.ccache" >> "$GITHUB_ENV"
-
-      - name: ccache
-        uses: ggml-org/ccache-action@v1.2.16
-        with:
-          key: ccache-cibw-${{ matrix.os }}
-          evict-old-files: 1d
-
       - name: Build wheels
         uses: pypa/cibuildwheel@v3.4.0
         env:
           CIBW_PLATFORM: ${{ matrix.platform || 'auto' }}
           CIBW_ARCHS: ${{ matrix.archs || 'auto' }}
-          # Install ccache inside the manylinux container; CCACHE_DIR points at
-          # /project/.ccache which cibuildwheel auto-mounts from the workspace.
-          CIBW_BEFORE_ALL_LINUX: >
-            (yum install -y epel-release && yum install -y ccache) ||
-            (dnf install -y epel-release && dnf install -y ccache) || true
-          CIBW_ENVIRONMENT_LINUX: >
-            CCACHE_DIR=/project/.ccache
-            CMAKE_C_COMPILER_LAUNCHER=ccache
-            CMAKE_CXX_COMPILER_LAUNCHER=ccache
-          CIBW_ENVIRONMENT_MACOS: >
-            CMAKE_C_COMPILER_LAUNCHER=ccache
-            CMAKE_CXX_COMPILER_LAUNCHER=ccache
 
       - uses: actions/upload-artifact@v7
         with:
