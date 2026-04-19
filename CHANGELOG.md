@@ -21,7 +21,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Changed
 
-- **stable-diffusion.cpp upstream sync** -- Tracked additions to `stable-diffusion.h`: new `ER_SDE_SAMPLE_METHOD` sampler (exposed as `SampleMethod.ER_SDE`; CLI picks it up automatically), and capability-query APIs `sd_ctx_supports_image_generation` / `sd_ctx_supports_video_generation` (exposed as `SDContext.supports_image_generation` / `.supports_video_generation` properties so callers can branch on model capability rather than catching a failure -- standard SD/SDXL/FLUX vs WAN-style video models).
+- **stable-diffusion.cpp bumped to master-580-7d33d4b** -- Tracked additions to `stable-diffusion.h`: new `ER_SDE_SAMPLE_METHOD` sampler (exposed as `SampleMethod.ER_SDE`; CLI picks it up automatically), and capability-query APIs `sd_ctx_supports_image_generation` / `sd_ctx_supports_video_generation` (exposed as `SDContext.supports_image_generation` / `.supports_video_generation` properties so callers can branch on model capability rather than catching a failure -- standard SD/SDXL/FLUX vs WAN-style video models).
 
 - **llama.cpp bumped to `b8833`** -- Upstream renamed the `common` CMake target (and its static archive `libcommon.a`) to `llama-common` / `libllama-common.a`. Updated `scripts/manage.py` (`LlamaCppBuilder.libs_static`, static and shared `cmake_build_targets` lists, and the `copy_lib` call) and `Makefile` (`LLAMACPP_LIBS` on macOS) accordingly.
 

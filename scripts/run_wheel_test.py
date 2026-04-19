@@ -97,25 +97,30 @@ MODELS: dict[str, ModelSource] = {
     "llama-3.2-1b": ModelSource(
         filename="Llama-3.2-1B-Instruct-Q8_0.gguf",
         repo_id="bartowski/Llama-3.2-1B-Instruct-GGUF",
+        url="https://huggingface.co/hugging-quants/Llama-3.2-1B-Instruct-Q8_0-GGUF/resolve/main/llama-3.2-1b-instruct-q8_0.gguf",
     ),
     "qwen3-4b": ModelSource(
         filename="Qwen3-4B-Q8_0.gguf",
         repo_id="Qwen/Qwen3-4B-GGUF",
+        url="https://huggingface.co/Qwen/Qwen3-4B-GGUF/resolve/main/Qwen3-4B-Q8_0.gguf",
     ),
     "gemma-e4b": ModelSource(
         filename="gemma-4-E4B-it-Q5_K_M.gguf",
         repo_id="",  # override via env if/when available
         notes="set CYLLAMA_MODEL_GEMMA_E4B=<repo_id>:<hf_filename> to enable download",
+        url="https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF/resolve/main/gemma-4-E4B-it-Q5_K_M.gguf",
     ),
     "z-image-turbo": ModelSource(
         filename="z_image_turbo-Q6_K.gguf",
         repo_id="",
         notes="set CYLLAMA_MODEL_Z_IMAGE_TURBO=<repo_id>:<hf_filename> to enable download",
+        url="https://huggingface.co/unsloth/Z-Image-Turbo-GGUF/resolve/main/z-image-turbo-Q6_K.gguf"
     ),
     "ae": ModelSource(
         filename="ae.safetensors",
         repo_id="black-forest-labs/FLUX.1-schnell",
         hf_filename="ae.safetensors",
+        url="https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/vae/ae.safetensors",
     ),
 }
 
