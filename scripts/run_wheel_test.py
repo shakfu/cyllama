@@ -1,29 +1,35 @@
 #!/usr/bin/env python3
 """Self-contained smoke-test runner for built cyllama wheels.
 
+Designed to be run inside a uv-managed environment. Invoke via
+``uv run run_wheel_test.py ...`` (or any other entrypoint that
+activates the project's uv venv). The install command uses ``uv pip``
+and subprocess invocations of python/module entry points are routed
+through ``uv run`` so they always execute inside the active venv.
+
 Supports cpu / cuda / vulkan / rocm / sycl backends, can download the
 required models from the Hugging Face Hub, and runs stable-diffusion and
 text-generation tests as inline Python functions (no shell scripts
 required).
 
 Examples:
-    # install a wheel into the current environment
-    ./run_wheel_test.py install vulkan
+    # install a wheel into the current uv environment
+    uv run run_wheel_test.py install vulkan
 
     # download everything this script needs
-    ./run_wheel_test.py download all
+    uv run run_wheel_test.py download all
 
     # run a single test, backend auto-detected from installed distribution
-    ./run_wheel_test.py test gen 1
+    uv run run_wheel_test.py test gen 1
 
     # run every sd + gen test (continues on failure, prints summary)
-    ./run_wheel_test.py test all all
+    uv run run_wheel_test.py test all all
 
     # stop at the first failing test
-    ./run_wheel_test.py test all all --fail-fast
+    uv run run_wheel_test.py test all all --fail-fast
 
     # per-invocation timeout
-    ./run_wheel_test.py test sd 1 --timeout 600
+    uv run run_wheel_test.py test sd 1 --timeout 600
 """
 
 from __future__ import annotations
@@ -41,6 +47,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 MODELS_DIR = Path(os.environ.get("CYLLAMA_MODELS_DIR", ROOT / "models"))
+
+# Resolve `uv` once. Everything this script shells out to Python for is
+# routed through `uv run` so it executes inside the project's uv venv
+# regardless of how the script itself was launched.
+UV = shutil.which("uv") or "uv"
 
 BACKENDS: dict[str, str] = {
     "cpu": "cyllama",
@@ -176,7 +187,7 @@ def run(
 
 
 def cyllama(argv: list[str], env: dict[str, str] | None = None, timeout: float | None = None) -> int:
-    return run([sys.executable, "-m", "cyllama", *argv], env=env, timeout=timeout)
+    return run([UV, "run", "python", "-m", "cyllama", *argv], env=env, timeout=timeout)
 
 
 def cyllama_module(
@@ -185,7 +196,7 @@ def cyllama_module(
     env: dict[str, str] | None = None,
     timeout: float | None = None,
 ) -> int:
-    return run([sys.executable, "-m", module, *argv], env=env, timeout=timeout)
+    return run([UV, "run", "python", "-m", module, *argv], env=env, timeout=timeout)
 
 
 # ---------------------------------------------------------------------------
@@ -460,7 +471,7 @@ def cmd_info(_args: argparse.Namespace) -> int:
 
 def cmd_install(args: argparse.Namespace) -> int:
     dist = BACKENDS[args.backend]
-    cmd = [sys.executable, "-m", "pip", "install"]
+    cmd = [UV, "pip", "install"]
     if args.upgrade:
         cmd.append("--upgrade")
     cmd.append(dist)
