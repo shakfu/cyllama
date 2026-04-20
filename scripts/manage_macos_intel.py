@@ -1175,21 +1175,24 @@ class LlamaCppBuilder(Builder):
             extra["CMAKE_C_FLAGS"] = _def
             extra["CMAKE_CXX_FLAGS"] = _def
 
-        # macOS x86_64 + Vulkan: ggml backends are CMake MODULE libs, which
-        # default to .so on Apple. Force .dylib so the build_shared() glob
-        # and downstream CMake _find_dylib() locate them.
+        # macOS x86_64 + Vulkan: with GGML_BACKEND_DL=ON, ggml backends are
+        # built as CMake MODULE libs (MH_BUNDLE on Apple) which cannot be
+        # linked against at build time — the downstream cyllama extensions
+        # link the backend dylibs directly, so we need MH_DYLIB output.
+        # Disable BACKEND_DL on this path to get proper SHARED dylibs.
+        use_backend_dl = True
         if (
             PLATFORM == "Darwin"
             and ARCH == "x86_64"
             and backend_options.get("GGML_VULKAN") == "ON"
         ):
-            extra["CMAKE_SHARED_MODULE_SUFFIX"] = ".dylib"
+            use_backend_dl = False
 
         self.cmake_config(
             src_dir=self.src_dir,
             build_dir=self.build_dir,
             BUILD_SHARED_LIBS=True,
-            GGML_BACKEND_DL=True,
+            GGML_BACKEND_DL=use_backend_dl,
             CMAKE_POSITION_INDEPENDENT_CODE=True,
             LLAMA_CURL=False,
             LLAMA_OPENSSL=True,
