@@ -1259,6 +1259,53 @@ class LlamaCppBuilder(Builder):
                 self.log.info(f"  {item.name} -> dynamic/{dest_name}")
         self.log.info(f"Installed {copied} shared libs to {self.dynamic_lib}")
 
+        # macOS x86_64 + Vulkan: rewrite sibling @rpath/libX.dylib load
+        # commands to @loader_path/libX.dylib so delocate-wheel sees every
+        # dep already satisfied in cyllama/llama/ and does not copy
+        # duplicates into cyllama/.dylibs/ (which would cause dyld to load
+        # two copies of libggml et al. with distinct install names).
+        if (
+            PLATFORM == "Darwin"
+            and ARCH == "x86_64"
+            and backend_options.get("GGML_VULKAN") == "ON"
+        ):
+            self._rewrite_dynamic_install_names()
+
+    def _rewrite_dynamic_install_names(self) -> None:
+        """Rewrite install names in self.dynamic_lib so sibling refs use
+        @loader_path/. macOS-only; requires install_name_tool + otool."""
+        import subprocess
+        dylibs = sorted(self.dynamic_lib.glob("*.dylib"))
+        basenames = {d.name for d in dylibs}
+        for dylib in dylibs:
+            # Normalize LC_ID_DYLIB to @rpath/<basename>
+            subprocess.run(
+                ["install_name_tool", "-id", f"@rpath/{dylib.name}", str(dylib)],
+                check=True,
+            )
+            out = subprocess.run(
+                ["otool", "-L", str(dylib)],
+                check=True, capture_output=True, text=True,
+            ).stdout
+            # otool output: first line is file path, subsequent lines are
+            # "\t<install_name> (compatibility ...)"
+            for line in out.splitlines()[1:]:
+                line = line.strip()
+                if not line:
+                    continue
+                ref = line.split(" (", 1)[0].strip()
+                ref_base = Path(ref).name
+                if ref_base == dylib.name or ref_base not in basenames:
+                    continue
+                new_ref = f"@loader_path/{ref_base}"
+                if ref == new_ref:
+                    continue
+                subprocess.run(
+                    ["install_name_tool", "-change", ref, new_ref, str(dylib)],
+                    check=True,
+                )
+                self.log.info(f"  {dylib.name}: {ref} -> {new_ref}")
+
     # -----------------------------------------------------------------
     # Dynamic linking: download pre-built release
     # -----------------------------------------------------------------
