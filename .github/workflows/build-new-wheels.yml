@@ -61,7 +61,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: thirdparty/
-          key: deps-vulkan-macos-intel-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage.py', '.github/workflows/build-new-wheels.yml') }}
+          key: deps-vulkan-macos-intel-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage_macos_intel.py', '.github/workflows/build-new-wheels.yml') }}
 
       - name: Install Vulkan SDK
         run: |
@@ -103,11 +103,11 @@ jobs:
             grep -q '^name = "cyllama-vulkan"' {project}/pyproject.toml || { echo "ERROR: sed rename to cyllama-vulkan failed"; exit 1; } &&
             echo "=== Env check: GGML_VULKAN=$GGML_VULKAN GGML_METAL=$GGML_METAL VULKAN_SDK=$VULKAN_SDK ===" &&
             cd {project} &&
-            python scripts/manage.py build --all --deps-only --no-sd-examples
+            python scripts/manage_macos_intel.py build --all --deps-only --no-sd-examples
             ${{ inputs.link_mode == 'dynamic' && '--dynamic' || '' }} &&
             echo "=== Dynamic libs ===" && ls -la thirdparty/llama.cpp/dynamic/ 2>/dev/null || echo "No dynamic dir" &&
             echo "=== Static libs ===" && ls -la thirdparty/llama.cpp/lib/ 2>/dev/null || echo "No lib dir" &&
-            python scripts/manage.py write_build_config
+            python scripts/manage_macos_intel.py write_build_config
           CIBW_ENVIRONMENT_MACOS: >
             MACOSX_DEPLOYMENT_TARGET=11.0
             GGML_VULKAN=1

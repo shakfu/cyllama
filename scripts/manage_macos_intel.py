@@ -1175,6 +1175,16 @@ class LlamaCppBuilder(Builder):
             extra["CMAKE_C_FLAGS"] = _def
             extra["CMAKE_CXX_FLAGS"] = _def
 
+        # macOS x86_64 + Vulkan: ggml backends are CMake MODULE libs, which
+        # default to .so on Apple. Force .dylib so the build_shared() glob
+        # and downstream CMake _find_dylib() locate them.
+        if (
+            PLATFORM == "Darwin"
+            and ARCH == "x86_64"
+            and backend_options.get("GGML_VULKAN") == "ON"
+        ):
+            extra["CMAKE_SHARED_MODULE_SUFFIX"] = ".dylib"
+
         self.cmake_config(
             src_dir=self.src_dir,
             build_dir=self.build_dir,
@@ -1210,7 +1220,10 @@ class LlamaCppBuilder(Builder):
         # Collect all shared libs from the build tree into dynamic/
         self.dynamic_lib.mkdir(parents=True, exist_ok=True)
         if PLATFORM == "Darwin":
-            patterns = ["**/*.dylib"]
+            # On Apple, CMake MODULE libraries (ggml backend plugins under
+            # GGML_BACKEND_DL=ON) default to .so. Pick those up too and
+            # rename to .dylib so CMakeLists' dylib glob finds them.
+            patterns = ["**/*.dylib", "**/*.so"]
         elif PLATFORM == "Windows":
             patterns = ["**/*.dll"]
         else:
@@ -1220,10 +1233,13 @@ class LlamaCppBuilder(Builder):
         seen = set()
         for pattern in patterns:
             for item in self.build_dir.glob(pattern):
-                if item.name in seen:
+                dest_name = item.name
+                if PLATFORM == "Darwin" and item.suffix == ".so":
+                    dest_name = item.stem + ".dylib"
+                if dest_name in seen:
                     continue
-                seen.add(item.name)
-                dest = self.dynamic_lib / item.name
+                seen.add(dest_name)
+                dest = self.dynamic_lib / dest_name
                 if dest.exists() or dest.is_symlink():
                     dest.unlink()
                 # Dereference symlinks so wheels get real files
@@ -1237,7 +1253,7 @@ class LlamaCppBuilder(Builder):
                 else:
                     shutil.copy2(str(item), str(dest))
                 copied += 1
-                self.log.info(f"  {item.name} -> dynamic/")
+                self.log.info(f"  {item.name} -> dynamic/{dest_name}")
         self.log.info(f"Installed {copied} shared libs to {self.dynamic_lib}")
 
     # -----------------------------------------------------------------
