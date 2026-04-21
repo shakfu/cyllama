@@ -7,6 +7,7 @@ Dynamic-linked CUDA wheels (`WITH_DYLIB=1`) crash with `double free or corruptio
 This issue is **Linux-specific**. The entire chain -- `auditwheel repair`, `patchelf` SONAME rewriting, glibc `dlclose` unload ordering -- only exists on Linux. macOS and Windows are not affected:
 
 - **macOS** uses `delocate` for wheel repair, which rewrites Mach-O load commands via `install_name_tool` rather than ELF SONAME headers. `delocate` does not alter the dyld unload order in the way that triggers this crash. macOS wheels have their own issues (e.g. duplicate OpenMP runtimes causing segfaults when co-installed with PyTorch -- see [LightGBM#6595](https://github.com/lightgbm-org/LightGBM/issues/6595)), but those are a different problem with different root causes.
+
 - **Windows** uses no wheel repair tool. DLLs are bundled as-is with no SONAME equivalent to rewrite, and the Windows loader does not have the same unload-ordering sensitivity as glibc's `dlclose`.
 
 First observed against commit `36db368`. The initial fix attempted Python-level cleanup before shutdown, but this caused instability on the Metal backend as well. Reverted in `fb522c8`.
@@ -96,9 +97,13 @@ If the loaded version differs from the linked version, the mismatch is confirmed
 Several factors vary between runs:
 
 - **ASLR** randomizes library mapping addresses, which affects whether a double-free hits unmapped memory (segfault) vs. still-valid memory (silent or no error)
+
 - **`dlclose` ordering** depends on the full set of loaded shared objects, which varies with installed packages (numpy, etc.) and load timing
+
 - **CUDA runtime state** depends on what GPU operations actually ran. Import-only tests may exit cleanly because CUDA never fully initialized its teardown hooks
+
 - **Python GC timing** determines whether Cython destructors run before or during interpreter shutdown. If contexts are freed before shutdown starts, the `dlclose` race is avoided
+
 - **Multiple CUDA versions** on the same system change which `libcudart.so` the linker resolves, varying the atexit handler behavior depending on environment variable ordering and ldconfig state
 
 ### Reproduction matrix
@@ -124,12 +129,15 @@ Set `CIBW_REPAIR_WHEEL_COMMAND_LINUX: ""` so cibuildwheel skips the repair step.
 **Pros:**
 
 - Eliminates the entire class of SONAME-rewriting bugs
+
 - No exclude list to maintain
+
 - One-line change
 
 **Cons:**
 
 - The wheel gets a `linux_x86_64` tag instead of `manylinux`, which pip may refuse to install on some systems and PyPI will reject for upload
+
 - Only viable for self-hosted wheel indexes or direct installation
 
 **Status:** Validated. The test workflow at `.github/workflows/test-cuda-wheel.yml` includes a no-repair strategy that produces an identical wheel (in content) to the `--exclude` strategy, differing only in the platform tag.
@@ -160,18 +168,23 @@ CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
 The exclude list has two categories:
 
 - **GPU runtime system libs** (`libcuda*`, `libcublas*`): Prevents auditwheel from bundling system-installed CUDA libraries. The user's own CUDA installation is used at runtime. Excluding these alone does not fix the double-free.
+
 - **Bundled project libs** (`libllama*`, `libggml*`, `libmtmd*`) and **`libgomp.so.1`**: Prevents auditwheel from relocating and SONAME-rewriting libraries that the build system already placed in `cyllama/llama/` with correct `$ORIGIN` RPATHs. This is where the double-free fix lies. All bundled project libs must be excluded -- auditwheel refuses to produce a wheel if any non-excluded libs contain glibc symbols too recent for the target manylinux policy (see [why all bundled project libs must be excluded](#why-all-bundled-project-libs-must-be-excluded)).
 
 **Pros:**
 
 - Directly addresses the root cause (SONAME rewriting of bundled project libs)
+
 - Produces a manylinux-tagged wheel that pip and PyPI accept
+
 - Validated in the reproduction matrix and on hardware (RTX 4060)
+
 - Zero runtime cost
 
 **Cons:**
 
 - Maintenance burden: every new upstream `.so` (new ggml backend, new library) requires a new `--exclude` line. Missing one will cause auditwheel to fail (too-recent glibc symbols) or, if the symbols happen to pass the policy check, reintroduce the SONAME rewriting
+
 - Weaker manylinux compliance: trusts the build's RPATHs rather than auditwheel's relocation guarantees
 
 **Status:** Validated. Applied to all GPU variants in `.github/workflows/build-gpu-wheels2.yml`. Test workflow at `.github/workflows/test-cuda-wheel.yml`.
@@ -190,13 +203,17 @@ The build already places libraries under `cyllama/llama/` with correct RPATHs, s
 **Pros:**
 
 - Eliminates the entire class of SONAME-rewriting bugs
+
 - No exclude list to maintain
+
 - One-line change
 
 **Cons:**
 
 - `addtag` refuses if the wheel doesn't already meet the target manylinux policy; verify with `auditwheel show` first
+
 - If any non-bundled system libs genuinely need vendoring (unlikely for this project), they won't be
+
 - Requires auditwheel >= 6.0. Stock manylinux2014 and manylinux_2_28 images ship older versions that do not include `addtag` (available commands: `show`, `repair`, `lddtree`). Must upgrade auditwheel in the container first (e.g. `pip install 'auditwheel>=6.0'` in `CIBW_BEFORE_BUILD`)
 
 **Status:** Not viable with current CI images. The manylinux containers used in CI do not ship auditwheel >= 6.0, and the `addtag` subcommand is not available. Upgrading auditwheel in-container is possible but adds complexity for no benefit over `--exclude`.
@@ -213,14 +230,19 @@ CIBW_ENVIRONMENT_LINUX: >
 **Pros:**
 
 - Simplest possible fix -- no auditwheel complexity at all
+
 - Single `.so` extension file with no dependency graph
+
 - Already validated: static builds exit cleanly in the reproduction matrix
 
 **Cons:**
 
 - Larger wheel size: each Cython extension (llama, whisper, sd) embeds its own copy of ggml
+
 - Cannot share loaded libraries across extensions at runtime
+
 - May break if CUDA expects to `dlopen` ggml backends dynamically at runtime
+
 - The project already offers both link modes; this would mean abandoning dynamic linking for CUDA
 
 **Status:** Known to work. Already the default for non-GPU wheels.
@@ -244,13 +266,17 @@ atexit.register(_cuda_cleanup)
 **Pros:**
 
 - Doesn't touch the build system at all
+
 - Works with unmodified auditwheel
 
 **Cons:**
 
 - Fragile. Python's `atexit` execution order is not guaranteed relative to extension module `__del__` methods or module `__del__` cleanup
+
 - Races against the same non-determinism that causes the bug -- may reduce crash frequency without eliminating it
+
 - Requires that all native contexts are freed during the `gc.collect()` call, which depends on no circular references holding them alive
+
 - Does not fix the underlying `dlclose` ordering problem
 
 **Status:** Untested. Not recommended as a primary fix due to inherent fragility.
@@ -275,14 +301,19 @@ ctypes.CDLL("libggml-cuda.so", mode=ctypes.RTLD_GLOBAL | 0x1000)  # RTLD_NODELET
 **Pros:**
 
 - Surgically prevents the specific unload-ordering bug
+
 - The library stays mapped until process exit, so CUDA's atexit handlers always find valid memory
+
 - No build system changes required
 
 **Cons:**
 
 - Library memory is never reclaimed (minor, since the process is exiting anyway)
+
 - Requires knowing the exact `.so` path, which differs after auditwheel renames it
+
 - Platform-specific: `RTLD_NODELETE` is a Linux/glibc feature
+
 - Obscure: future maintainers won't immediately understand why a manual `dlopen` with unusual flags exists
 
 **Status:** Untested. Viable as a targeted fix if build-system changes are undesirable.
@@ -298,7 +329,9 @@ Ship the wheel as-is and document the crash as a known issue.
 **Cons:**
 
 - The crash manifests as a segfault or glibc abort on interpreter exit with no actionable error message
+
 - Users cannot reasonably diagnose or work around it
+
 - Undermines confidence in the CUDA wheel
 
 **Status:** Not recommended.
@@ -320,7 +353,9 @@ However, CUDA system libraries (`libcudart.so.12`, `libcublas.so.12`, `libcublas
 This is the same model used by PyTorch (`torch`), CuPy, and other CUDA wheels -- CUDA runtime libraries are a system dependency because:
 
 - The user must have a compatible GPU driver installed regardless (a system-level dependency)
+
 - CUDA's forward-compatibility model ties the runtime to the driver version
+
 - Bundling CUDA libs causes version conflicts when other packages (PyTorch, etc.) bundle different versions
 
 ### User-side mitigation for multi-version CUDA systems
@@ -438,6 +473,9 @@ Trigger it manually from the Actions tab. Note that tests run on CPU-only runner
 ## References
 
 - Reproduction report: colleague's analysis of commit `2755d96`
+
 - Revert: `fb522c8` (reverted `36db368`)
+
 - auditwheel SONAME rewriting: [pypa/auditwheel#289](https://github.com/pypa/auditwheel/issues/289)
+
 - patchelf SONAME behavior: [NixOS/patchelf#275](https://github.com/NixOS/patchelf/issues/275)

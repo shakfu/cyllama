@@ -30,6 +30,7 @@ The current pipeline has four stages that interact subtly:
 Upstream CMake produces, for each shared lib:
 
 - `libllama.0.dylib` — real file, `LC_ID_DYLIB = @rpath/libllama.0.dylib`
+
 - `libllama.dylib`   — symlink to `libllama.0.dylib`
 
 Sibling load commands use `@rpath/libX.0.dylib` (versioned).
@@ -47,6 +48,7 @@ files** per library:
 
 - `dynamic/libllama.dylib`   — real file, `LC_ID = @rpath/libllama.0.dylib`
   (inherited from the symlink target, not the filename)
+
 - `dynamic/libllama.0.dylib` — real file, `LC_ID = @rpath/libllama.0.dylib`
 
 Byte-identical, same install name. Harmless on its own.
@@ -185,6 +187,7 @@ end-to-end before committing to this change.
 1. Edit `scripts/manage_macos_intel.py`:
    - Replace `_rewrite_dynamic_install_names` body with an `otool -l`
      check + `install_name_tool -add_rpath @loader_path` per dylib.
+
    - Drop the `install_name_tool -id ...` call entirely.
 2. Edit `CMakeLists.txt` line ~305:
    - Add `if(APPLE) list(APPEND _OPTIONAL_DYLIB_NAMES ggml-blas) endif()`
@@ -203,26 +206,37 @@ After applying:
 
 - [ ] `otool -D dynamic/libllama.0.dylib` prints
       `@rpath/libllama.0.dylib`.
+
 - [ ] `otool -l dynamic/libllama.0.dylib | grep -A2 LC_RPATH` includes
       `@loader_path`.
+
 - [ ] `otool -L dynamic/libllama.0.dylib` still shows upstream
       `@rpath/libggml.0.dylib` (unmodified).
+
 - [ ] Built extensions reference `@rpath/libllama.0.dylib` (versioned).
+
 - [ ] `cyllama/llama/` contains `libggml-blas.0.dylib`.
+
 - [ ] `delocate-wheel` completes without errors and **does not** copy
       any `libggml*` or `libllama*` into `cyllama/.dylibs/`.
+
 - [ ] `unzip -l <repaired wheel>` shows exactly one copy of each
       versioned dylib.
+
 - [ ] Installed wheel imports and runs a basic `complete()` call.
 
 ## References
 
 - Commit `6d1511a` — introduced `_rewrite_dynamic_install_names`.
+
 - `scripts/manage_macos_intel.py` — build / dylib-staging logic.
+
 - `CMakeLists.txt` lines 215–380, 994–1005 — `_find_dylib` macro and
   dylib install rules.
+
 - `.github/workflows/build-new-wheels.yml` lines 48–142 — Vulkan macOS
   Intel job.
+
 - `delocate` docs on rpath resolution:
   https://github.com/matthew-brett/delocate
 
@@ -238,12 +252,15 @@ Four workflows in `.github/workflows/`:
 
 - `build-wheel.yaml` — CPU wheels for Linux (x86_64 + aarch64), macOS
   (x86_64 + arm64), Windows (AMD64). Publishes to PyPI on `v*` tags.
+
 - `build-wheel-cuda-hip.yaml` — GPU wheels: HIP Linux (two ROCm
   versions), Vulkan (Linux/macOS-Intel/Windows), CUDA Linux
   (x86_64+aarch64, two CUDA versions), CUDA Windows. Publishes to
   GitHub Releases with backend-tagged tags.
+
 - `ci.yaml` — lint (black + clang-format) + pytest matrix
   (Linux/macOS/Windows, Python 3.10 + 3.13).
+
 - `release-github-pypi.yaml` — release plumbing.
 
 ### Architectural differences vs. cyllama
@@ -305,12 +322,14 @@ Three compounding reasons:
   **Decision: keep per-Python-version wheels as default. Optionally
   offer an abi3 build variant as a separate wheel for users who prefer
   a single-wheel install and accept the perf cost.**
+
 - **GitHub Releases with backend-tagged tag suffixes** (xllamacpp style:
   `v1.2.3-cu128`, `v1.2.3-rocm-6.4.1`).
   **Decision: not needed.** cyllama already publishes GitHub Releases
   of regular wheels, using package-name variants (`cyllama`,
   `cyllama-<gpu-variant>`) rather than tag suffixes. Same outcome,
   different naming convention.
+
 - **llama.cpp as a git submodule.** Would simplify caching but
   sacrifices the flexibility of the current
   download-and-checkout-into-`thirdparty/build` system (swapping llama
@@ -324,8 +343,10 @@ Three compounding reasons:
   `cibuildwheel`. Their HIP/CUDA jobs need `docker run` because the
   base images are ROCm/CUDA-specific, but the plain CPU Linux job has
   no such constraint.
+
 - `mamba install cuda==X.Y.Z` on a bare runner is clever but adds
   ~10 minutes per build. `Jimver/cuda-toolkit` is faster.
+
 - Multi-line `docker exec bash -c '...'` blocks with embedded
   heredocs are hard to debug in CI logs. Prefer short shell stages
   with explicit inputs.

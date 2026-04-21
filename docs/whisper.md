@@ -7,10 +7,15 @@ Cyllama wraps [whisper.cpp](https://github.com/ggerganov/whisper.cpp) to provide
 The whisper module provides Python bindings to whisper.cpp, enabling:
 
 - Speech-to-text transcription
+
 - Multi-language support (100+ languages)
+
 - Translation to English
+
 - Word-level timestamps
+
 - Voice activity detection (VAD)
+
 - GPU acceleration (Metal, CUDA)
 
 ## Quick Start
@@ -243,6 +248,7 @@ info = print_system_info()
 Whisper requires:
 
 - **Sample rate**: 16000 Hz (mono)
+
 - **Format**: Float32 normalized to [-1.0, 1.0]
 
 ### Using scipy
@@ -411,8 +417,11 @@ def transcribe_stream(audio_stream, model_path: str, chunk_seconds: float = 30.0
 **English-only models** (`.en` suffix) are faster and more accurate for English:
 
 - `ggml-tiny.en.bin`
+
 - `ggml-base.en.bin`
+
 - `ggml-small.en.bin`
+
 - `ggml-medium.en.bin`
 
 Download models from [Hugging Face](https://huggingface.co/ggerganov/whisper.cpp).
@@ -466,4 +475,5 @@ params.use_gpu = False
 ## See Also
 
 - [whisper.cpp repository](https://github.com/ggerganov/whisper.cpp)
+
 - [Whisper model card](https://huggingface.co/openai/whisper-large-v3)

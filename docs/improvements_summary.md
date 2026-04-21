@@ -20,10 +20,15 @@ Following the completion of all high-priority llama.cpp API wrappers (GGUF, JSON
 **Key Features**:
 
 - `complete()` - One-line text generation
+
 - `chat()` - Multi-turn conversation interface
+
 - `LLM` class - Reusable generator with model caching
+
 - `GenerationConfig` - Comprehensive configuration dataclass
+
 - Streaming support with token callbacks
+
 - Automatic context and sampler management
 
 **Example**:
@@ -50,8 +55,11 @@ response = complete(
 **Key Features**:
 
 - `OpenAICompatibleClient` - Drop-in replacement for OpenAI client
+
 - Chat completions with streaming
+
 - Compatible message format
+
 - Usage statistics (token counts)
 
 **Example**:
@@ -74,8 +82,11 @@ response = client.chat.completions.create(
 **Key Features**:
 
 - `CyllamaLLM` - LangChain LLM interface
+
 - Works with chains, agents, tools
+
 - Streaming support with callbacks
+
 - Proper error handling when LangChain not installed
 
 **Example**:
@@ -119,12 +130,19 @@ from cyllama import (
 Comprehensive 450+ line guide covering:
 
 - Getting Started
+
 - High-Level API usage
+
 - Streaming generation
+
 - Framework integrations
+
 - Advanced features (speculative decoding, memory estimation)
+
 - Performance optimization
+
 - Troubleshooting
+
 - Best practices
 
 ### 2. Cookbook (`docs/COOKBOOK.md`)
@@ -132,10 +150,15 @@ Comprehensive 450+ line guide covering:
 Practical recipes for common tasks:
 
 - **Text Generation Patterns**: Q&A, creative writing, code generation, summarization
+
 - **Chat Applications**: Simple chatbot, streaming chatbot
+
 - **Structured Output**: JSON generation, list generation
+
 - **Performance Patterns**: Batch processing with progress, parallel generation
+
 - **Integration Patterns**: FastAPI server, Flask streaming, Gradio interface
+
 - **Error Handling**: Retries, timeouts, validation
 
 ### 3. This Summary Document
@@ -148,15 +171,22 @@ Complete overview of all improvements with examples and migration guidance.
 
 1. **`tests/test_generate.py` (tests for LLM, complete, chat)** - 60+ tests for high-level generation API
    - Configuration management
+
    - Simple and streaming generation
+
    - Token callbacks
+
    - Statistics collection
+
    - Edge cases
 
 2. **`tests/test_integrations.py`** - 10+ tests for framework integrations
    - OpenAI-compatible client
+
    - Streaming responses
+
    - Multi-message conversations
+
    - Error handling
 
 ### Test Results
@@ -238,6 +268,7 @@ for prompt in prompts:
 **LLM class** caches model between generations:
 
 - **Before**: 5-10 seconds per generation (including load time)
+
 - **After**: <1 second per generation (after first load)
 
 ### 2. Batch Processing
@@ -245,8 +276,11 @@ for prompt in prompts:
 **BatchGenerator and batch_generate()** for parallel prompt processing:
 
 - **Before**: N prompts × generation time (sequential)
+
 - **After**: ~generation time (all prompts processed in parallel)
+
 - **Speedup**: 3-10x depending on batch size
+
 - **Note**: Batch processing was initially broken (incorrect API usage) and has been fixed with proper implementation of `LlamaBatch.add()` and `clear()` methods
 
 ### 3. Context Management
@@ -254,6 +288,7 @@ for prompt in prompts:
 Automatic context sizing based on prompt + max_tokens:
 
 - Prevents over-allocation of memory
+
 - Optimizes batch sizes automatically
 
 ## API Design Principles
@@ -272,16 +307,23 @@ All new APIs follow these principles:
 ### Lines of Code Added
 
 - **Production Code**: ~1,200 lines
+
   - `api.py`: ~350 lines
+
   - `integrations/`: ~400 lines
+
   - Updates to `__init__.py`: ~30 lines
 
 - **Tests**: ~350 lines
+
   - `test_generate.py`: ~250 lines
+
   - `test_integrations.py`: ~100 lines
 
 - **Documentation**: ~800 lines
+
   - `USER_GUIDE.md`: ~450 lines
+
   - `COOKBOOK.md`: ~350 lines
 
 **Total**: ~2,350 lines of new code and documentation
@@ -326,9 +368,13 @@ These improvements transform cyllama from a thin C++ wrapper into a comprehensiv
 ### Impact
 
 - **Ease of Use**: From 50+ lines to 1 line for basic generation
+
 - **Performance**: Up to 10x speedup with batch processing
+
 - **Integration**: Drop-in compatibility with popular frameworks
+
 - **Documentation**: From sparse to comprehensive
+
 - **Testing**: From basic to extensive coverage
 
 The library is now ready for both quick prototyping and production deployment!
@@ -338,19 +384,29 @@ The library is now ready for both quick prototyping and production deployment!
 ### New Files
 
 - `src/cyllama/generate.py`
+
 - `src/cyllama/integrations/__init__.py`
+
 - `src/cyllama/integrations/langchain.py`
+
 - `src/cyllama/integrations/openai_compat.py`
+
 - `tests/test_generate.py` (tests for LLM, complete, chat)
+
 - `tests/test_integrations.py`
+
 - `docs/USER_GUIDE.md`
+
 - `docs/COOKBOOK.md`
+
 - `docs/IMPROVEMENTS_SUMMARY.md`
 
 ### Modified Files
 
 - `src/cyllama/__init__.py` - Added new exports
+
 - `RECOMMENDED_TO_WRAP.md` - Updated status (already done)
+
 - `CHANGELOG.md` - Added v0.1.8 entry (speculative decoding)
 
 ## Recommended Next Steps
@@ -364,8 +420,11 @@ The library is now ready for both quick prototyping and production deployment!
 ## Support
 
 - Questions: GitHub Issues
+
 - Documentation: `docs/` directory
+
 - Examples: `tests/examples/` directory
+
 - Tests: `tests/` directory
 
 ---

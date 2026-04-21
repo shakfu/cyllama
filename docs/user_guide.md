@@ -557,6 +557,7 @@ Understanding how generation works helps you optimize performance.
 ### Prefill vs Decode
 
 - **Prefill**: Process all prompt tokens in parallel (batch operation, very fast)
+
 - **Decode**: Generate output tokens one-by-one (autoregressive, slower)
 
 | Phase   | Speed      | Notes                          |
@@ -567,7 +568,9 @@ Understanding how generation works helps you optimize performance.
 ### Performance Implications
 
 - **Time to First Token (TTFT)**: Dominated by prefill time. Longer prompts = longer TTFT.
+
 - **Generation Speed**: Limited by decode speed, regardless of hardware.
+
 - **Optimization Strategies**: KV caching, speculative decoding, and batching help mitigate the bottleneck.
 
 ## Performance Optimization
@@ -675,16 +678,21 @@ python -c "import cyllama; print(cyllama.__file__)"
 See the `tests/examples/` directory for complete working examples:
 
 - `generate_example.py` - Basic generation
+
 - `speculative_example.py` - Speculative decoding
+
 - `integration_example.py` - Framework integrations
 
 ## Next Steps
 
 - Read the [Cookbook](cookbook.md) for common patterns
+
 - Check [API Reference](api_reference.md) for detailed documentation
+
 - See [Examples](https://github.com/shakfu/cyllama/tree/main/tests/examples) for complete code
 
 ## Support
 
 - GitHub Issues: <https://github.com/shakfu/cyllama/issues>
+
 - Documentation: <https://github.com/shakfu/cyllama>

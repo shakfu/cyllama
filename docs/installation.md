@@ -5,8 +5,11 @@ This guide covers installing cyllama on different platforms.
 ## Requirements
 
 - Python 3.10 or later
+
 - C++ compiler (clang or gcc)
+
 - CMake 3.21+
+
 - Git
 
 ### Platform-Specific Requirements
@@ -79,6 +82,7 @@ python -c "from cyllama import complete; print('OK')"
 The default build enables GPU acceleration appropriate for your platform:
 
 - **macOS**: Metal (Apple GPU)
+
 - **Linux**: CPU-only (GPU backends optional)
 
 ```bash
@@ -276,5 +280,7 @@ uv pip install -e .
 ## Next Steps
 
 - [User Guide](user_guide.md) - Learn the API
+
 - [Cookbook](cookbook.md) - Common patterns and recipes
+
 - [Building with Different Backends](build_backends.md) - GPU setup details

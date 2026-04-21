@@ -126,7 +126,9 @@ These flags apply uniformly to all components (llama.cpp, whisper.cpp, stable-di
 **Requirements:**
 
 - NVIDIA GPU with compute capability 6.0+
+
 - CUDA Toolkit 11.0+ installed
+
 - `nvcc` compiler in PATH
 
 **Install CUDA:**
@@ -154,7 +156,9 @@ make build
 **Requirements:**
 
 - Vulkan-capable GPU (NVIDIA, AMD, Intel, or Apple)
+
 - Vulkan SDK installed
+
 - Vulkan headers in system include path
 
 **Install Vulkan SDK:**
@@ -182,7 +186,9 @@ make build
 **Requirements:**
 
 - macOS 11.0+ (Big Sur or later)
+
 - Apple Silicon (M1/M2/M3) or Intel Mac with AMD GPU
+
 - Xcode Command Line Tools
 
 **Build (enabled by default on macOS):**
@@ -199,6 +205,7 @@ make build
 **Requirements:**
 
 - Intel GPU (Iris Xe, Arc, or Flex)
+
 - Intel oneAPI Base Toolkit installed
 
 **Install Intel oneAPI:**
@@ -227,6 +234,7 @@ make build
 **Requirements:**
 
 - AMD GPU with ROCm support (gfx90a, gfx942, gfx1100, or newer)
+
 - ROCm 6.3+ installed
 
 **Install ROCm:**
@@ -431,8 +439,13 @@ CMAKE_ARGS="-DGGML_METAL=ON" uv build --wheel
 ## References
 
 - [llama.cpp Build Documentation](https://github.com/ggml-org/llama.cpp/blob/master/docs/build.md)
+
 - [llama.cpp GPU Acceleration Guide](https://www.ywian.com/blog/llama-cpp-gpu-acceleration-complete-guide)
+
 - [CUDA Installation Guide](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/)
+
 - [Vulkan SDK](https://www.lunarg.com/vulkan-sdk/)
+
 - [Intel oneAPI](https://www.intel.com/content/www/us/en/developer/tools/oneapi/overview.html)
+
 - [ROCm Documentation](https://rocm.docs.amd.com/)

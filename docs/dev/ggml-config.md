@@ -57,8 +57,11 @@ Seven architectures.  Each one roughly multiplies the compiled kernel code.
 A local `make build-cuda-dynamic` with no env vars:
 
 - Does not optimize for the local CPU (no `GGML_NATIVE`)
+
 - Builds CUDA kernels for 7+ SM architectures instead of the one installed GPU
+
 - `libggml-cuda.so` is ~509 MB (vs ~137 MB with `native`)
+
 - Compilation is slow due to redundant architecture codegen
 
 ### CI builds
@@ -165,9 +168,15 @@ if (backend_options.get("GGML_CUDA") == "ON"
 ## References
 
 - `scripts/manage.py:964-966` -- `CMAKE_CUDA_ARCHITECTURES` passthrough
+
 - `scripts/manage.py:1036-1041` -- `GGML_NATIVE` handling
+
 - `scripts/manage.py:1187-1190` -- `GGML_NATIVE` forced OFF in `build_shared()`
+
 - `build/llama.cpp/ggml/src/ggml-cuda/CMakeLists.txt:8-55` -- ggml-cuda default arch logic
+
 - `build/llama.cpp/ggml/src/ggml-cpu/CMakeLists.txt:382` -- NATIVE vs BACKEND_DL incompatibility
+
 - `.github/workflows/build-gpu-wheels.yml:103,116` -- CI arch settings
+
 - `.github/workflows/build-new-wheels.yml:280` -- CI arch settings

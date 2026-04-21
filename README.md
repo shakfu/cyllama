@@ -3,7 +3,9 @@
 cyllama is a comprehensive no-dependencies Python library for local AI inference built on the state-of-the-art `.cpp` ecosystem:
 
 - **[llama.cpp](https://github.com/ggml-org/llama.cpp)** - Text generation, chat, embeddings, and text-to-speech
+
 - **[whisper.cpp](https://github.com/ggerganov/whisper.cpp)** - Speech-to-text transcription and translation
+
 - **[stable-diffusion.cpp](https://github.com/leejet/stable-diffusion.cpp)** - Image and video generation
 
 It combines the performance of compiled Cython wrappers with a simple, high-level Python API for cross-modal AI inference.
@@ -13,15 +15,25 @@ It combines the performance of compiled Cython wrappers with a simple, high-leve
 ## Features
 
 - High-level API -- `complete()`, `chat()`, `LLM` class for quick prototyping / text generation.
+
 - Streaming -- token-by-token output with callbacks
+
 - Batch processing -- process multiple prompts 3-10x faster
+
 - GPU acceleration -- Metal (macOS), CUDA (NVIDIA), ROCm (AMD), Vulkan (cross-platform), SYCL (Intel)
+
 - Speculative decoding -- 2-3x speedup with draft models
+
 - Agent framework -- ReActAgent, ConstrainedAgent, ContractAgent with tool calling
+
 - RAG -- retrieval-augmented generation with local embeddings and [sqlite-vector](https://github.com/sqliteai/sqlite-vector)
+
 - Speech recognition -- whisper.cpp transcription and translation
+
 - Image/Video generation -- stable-diffusion.cpp handles image, image-edit and video models.
+
 - OpenAI-compatible servers -- EmbeddedServer (C/Mongoose) and PythonServer with chat completions and embeddings endpoints
+
 - Framework integrations -- OpenAI API client, LangChain LLM interface
 
 ## Installation
@@ -546,35 +558,53 @@ models = list_cached_models()
 ### Text Generation (llama.cpp)
 
 - [x] **Full llama.cpp API** - Complete Cython wrapper with strong typing
+
 - [x] **High-Level API** - Simple, Pythonic interface (`LLM`, `complete`, `chat`)
+
 - [x] **Streaming Support** - Token-by-token generation with callbacks
+
 - [x] **Batch Processing** - Efficient parallel inference
+
 - [x] **Multimodal** - LLAVA and vision-language models
+
 - [x] **Speculative Decoding** - 2-3x inference speedup with draft models
 
 ### Speech Recognition (whisper.cpp)
 
 - [x] **Full whisper.cpp API** - Complete Cython wrapper
+
 - [x] **High-Level API** - Simple `transcribe()` function
+
 - [x] **Multiple Formats** - WAV, MP3, FLAC, and more
+
 - [x] **Language Detection** - Automatic or specified language
+
 - [x] **Timestamps** - Word and segment-level timing
 
 ### Image & Video Generation (stable-diffusion.cpp)
 
 - [x] **Full stable-diffusion.cpp API** - Complete Cython wrapper
+
 - [x] **Text-to-Image** - SD 1.x/2.x, SDXL, SD3, FLUX, FLUX2, Z-Image
+
 - [x] **Image-to-Image** - Transform existing images
+
 - [x] **Inpainting** - Mask-based editing
+
 - [x] **ControlNet** - Guided generation with edge/pose/depth
+
 - [x] **Video Generation** - Wan, CogVideoX models
+
 - [x] **Upscaling** - ESRGAN 4x upscaling
 
 ### Cross-Cutting Features
 
 - [x] **GPU Acceleration** - Metal, CUDA, ROCm, Vulkan, SYCL backends
+
 - [x] **Memory Optimization** - Smart GPU layer allocation
+
 - [x] **Agent Framework** - ReActAgent, ConstrainedAgent, ContractAgent
+
 - [x] **Framework Integration** - OpenAI API, LangChain, FastAPI
 
 ## Why Cyllama?
@@ -582,27 +612,37 @@ models = list_cached_models()
 **Performance**: Compiled Cython wrappers with minimal overhead
 
 - Strong type checking at compile time
+
 - Zero-copy data passing where possible
+
 - Efficient memory management
+
 - Native integration with llama.cpp optimizations
 
 **Simplicity**: From 50 lines to 1 line for basic generation
 
 - Intuitive, Pythonic API design
+
 - Automatic resource management
+
 - Sensible defaults, full control when needed
 
 **Production-Ready**: Battle-tested and comprehensive
 
 - 1460+ passing tests with extensive coverage
+
 - Comprehensive documentation and examples
+
 - Proper error handling and logging
+
 - Framework integration for real applications
 
 **Up-to-Date**: Tracks bleeding-edge llama.cpp
 
 - Regular updates with latest features
+
 - All high-priority APIs wrapped
+
 - Performance optimizations included
 
 ## Status
@@ -648,30 +688,55 @@ All source builds support both static (`make build-<backend>`) and dynamic (`mak
 See [CHANGELOG.md](CHANGELOG.md) for full release notes.
 
 - **v0.2.11** (Apr 2026) - Pluggable RAG backends (`VectorStoreProtocol` / `EmbedderProtocol`) and MCP client API on `LLM`
+
 - **v0.2.10** (Apr 2026) - GPU wheel size halved; packaging fixes (`build_config.json`, auditwheel SONAME, Vulkan ABI)
+
 - **v0.2.9** (Apr 2026) - CUDA + SD stability fixes; `get_perf_data()` telemetry APIs
+
 - **v0.2.8** (Apr 2026) - Expanded Cython bindings across llama / whisper / SD; interactive-chat streaming & sampling
+
 - **v0.2.7** (Apr 2026) - SD defaults aligned with C library (fixes blank CUDA images)
+
 - **v0.2.6** (Apr 2026) - Hotfix: remove accidental test-only runtime dependency
+
 - **v0.2.5** (Apr 2026) - RAG hardening: persistent store, corpus dedup, vendored jinja2 chat templates
+
 - **v0.2.4** (Apr 2026) - Unified `cyllama` CLI (`gen`, `chat`, `embed`, `rag`, …)
+
 - **v0.2.3** (Apr 2026) - Wheel packaging and GPU portability fixes
+
 - **v0.2.2** (Apr 2026) - CUDA wheel size stability
+
 - **v0.2.1** (Mar 2026) - Code-quality hardening, GIL release, async fixes
+
 - **v0.2.0** (Mar 2026) - Dynamic-linked GPU wheels on PyPI (CUDA, ROCm, SYCL, Vulkan)
+
 - **v0.1.21** (Mar 2026) - GPU wheel builds: CUDA + ROCm, sqlite-vector bundled
+
 - **v0.1.20** (Feb 2026) - Update llama.cpp + stable-diffusion.cpp
+
 - **v0.1.19** (Dec 2025) - Metal fix for stable-diffusion.cpp
+
 - **v0.1.18** (Dec 2025) - Remaining stable-diffusion.cpp wrapped
+
 - **v0.1.16** (Dec 2025) - Response class, Async API, Chat templates
+
 - **v0.1.12** (Nov 2025) - Initial wrapper of stable-diffusion.cpp
+
 - **v0.1.11** (Nov 2025) - ACP support, build improvements
+
 - **v0.1.10** (Nov 2025) - Agent Framework, bug fixes
+
 - **v0.1.9** (Nov 2025) - High-level APIs, integrations, batch processing, comprehensive documentation
+
 - **v0.1.8** (Nov 2025) - Speculative decoding API
+
 - **v0.1.7** (Nov 2025) - GGUF, JSON Schema, Downloads, N-gram Cache
+
 - **v0.1.6** (Nov 2025) - Multimodal test fixes
+
 - **v0.1.5** (Oct 2025) - Mongoose server, embedded server
+
 - **v0.1.4** (Oct 2025) - Memory estimation, performance optimizations
 
 See [CHANGELOG.md](CHANGELOG.md) for complete release history.
@@ -812,7 +877,9 @@ llm = LLM("model.gguf", config=config)
 **Split Modes:**
 
 - `0` (NONE): Single GPU only, uses `main_gpu`
+
 - `1` (LAYER): Split layers and KV cache across GPUs (default)
+
 - `2` (ROW): Tensor parallelism - split layers with row-wise distribution
 
 ## Testing
@@ -863,11 +930,17 @@ Full documentation is available at [https://shakfu.github.io/cyllama/](https://s
 To serve docs locally: `make docs-serve`
 
 - **[User Guide](docs/user_guide.md)** - Comprehensive guide covering all features
+
 - **[CLI Cheatsheet](docs/cli-cheatsheet.md)** - Complete CLI reference for all commands
+
 - **[API Reference](docs/api_reference.md)** - Complete API documentation
+
 - **[RAG Overview](docs/rag_overview.md)** - Retrieval-augmented generation guide
+
 - **[Cookbook](docs/cookbook.md)** - Practical recipes and patterns
+
 - **[Changelog](CHANGELOG.md)** - Complete release history
+
 - **Examples** - See `tests/examples/` for working code samples
 
 ## Roadmap
@@ -875,24 +948,43 @@ To serve docs locally: `make docs-serve`
 ### Completed
 
 - [x] Full llama.cpp API wrapper with Cython
+
 - [x] High-level API (`LLM`, `complete`, `chat`)
+
 - [x] Async API support (`AsyncLLM`, `complete_async`, `chat_async`)
+
 - [x] Response class with stats and serialization
+
 - [x] Built-in chat template system (llama.cpp templates)
+
 - [x] Batch processing utilities
+
 - [x] OpenAI-compatible API client
+
 - [x] LangChain integration
+
 - [x] Speculative decoding
+
 - [x] GGUF file manipulation
+
 - [x] JSON schema to grammar conversion
+
 - [x] Model download helper
+
 - [x] N-gram cache
+
 - [x] OpenAI-compatible servers (PythonServer, EmbeddedServer, LlamaServer) with chat and embeddings
+
 - [x] Whisper.cpp integration
+
 - [x] Multimodal support (LLAVA)
+
 - [x] Memory estimation utilities
+
 - [x] Agent Framework (ReActAgent, ConstrainedAgent, ContractAgent)
+
 - [x] Stable Diffusion (stable-diffusion.cpp) - image/video generation
+
 - [x] RAG utilities (text chunking, document processing)
 
 ### Future

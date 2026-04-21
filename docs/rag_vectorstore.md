@@ -187,7 +187,9 @@ store.close()
 A persistent `SqliteVectorStore` records its configuration in a `{table_name}_meta` SQLite table on first creation:
 
 - **Hard fields** (always validated on reopen): `dimension`, `metric`, `vector_type`
+
 - **Soft fields** (validated only when the caller passes the matching kwarg): `embedding_model_basename`, `embedding_model_size_bytes`, `chunk_size`, `chunk_overlap`
+
 - **Informational**: `cyllama_version`, `created_at`
 
 On reopen, any mismatch between a stored hard field and the caller's value raises `VectorStoreError` with a message naming the stored value, the attempted value, and the fix. Soft fields only fire when the caller actually passes the corresponding constructor argument, so callers that don't care about embedding-model fingerprinting can opt out by simply not passing it.
@@ -358,6 +360,9 @@ Sqlite-specific features (quantization, FTS5 `HybridStore`, raw `store.conn` acc
 ## Performance Characteristics
 
 - **1M vectors, 768 dimensions**: Few milliseconds query time
+
 - **Memory footprint**: 30-50MB regardless of dataset size
+
 - **No preindexing required**: Works immediately with your data
+
 - **SIMD acceleration**: SSE2, AVX2, NEON support

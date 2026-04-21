@@ -7,10 +7,15 @@
 This document is a maintainer guide. It explains:
 
 - The symptom (what goes wrong)
+
 - The root cause (why pytest's default scoping is not enough)
+
 - The fix (what every SD test needs)
+
 - The evidence (5-cycle reproducer)
+
 - Scope (SD is proven, LLM/Whisper are precautionary)
+
 - Related mechanisms and precedent
 
 The design analysis at the end records *why* we chose Python-side forced cleanup over alternatives like pytest-forked or upstream fixes, so future maintainers can decide whether this is still the right tradeoff.
@@ -167,7 +172,9 @@ Each SD test runs in its own subprocess. No cross-test state possible. Zero risk
 **Rejected because:**
 
 - Adds a plugin dependency for one class of tests.
+
 - Subprocess startup is ~1 second per test; `tests/test_sd.py` has 8 tests that touch `SDContext`, so ~8 seconds of overhead on every run.
+
 - Masks the problem rather than addressing it — a future test that needs to create 5 contexts *within* one process would still crash.
 
 ### Alternative 2: Skip the affected tests (the short-lived first fix)
@@ -177,6 +184,7 @@ Mark `TestSDContextIntegration` and `TestSDContextConcurrencyGuard` with `@pytes
 **Rejected because:**
 
 - Loses coverage for the v0.2.5 `SDContext` concurrent-use guard — the feature whose whole purpose is to prevent silent state corruption on shared contexts. Shipping the guard without its regression tests is worse than the crash.
+
 - Loses the only end-to-end generation smoke test (`test_generate_image`).
 
 ### Alternative 3: Reorder tests to put integration tests before the guard tests
@@ -186,7 +194,9 @@ Move `TestConvenienceFunctionsIntegration` earlier in source order. The guard te
 **Rejected because:**
 
 - Fragile: any future test added between them silently re-breaks the ordering.
+
 - Obscures intent: source-order dependencies are invisible in PR review.
+
 - Doesn't actually fix the bug — it just hides it behind a precarious sequence.
 
 ### Alternative 4: Fix SD.cpp's destructor ordering upstream
@@ -196,7 +206,9 @@ File an issue on `leejet/stable-diffusion.cpp` explaining the 5-cycle leak and t
 **Rejected because:**
 
 - Not verified to be the root cause — the fix might land and not help.
+
 - Uncertain timeline. Multiple SD.cpp Metal bugs have already taken multiple releases to resolve (see v0.2.3 and v0.2.4 CHANGELOG entries).
+
 - Doesn't unblock the current test suite regardless of outcome.
 
 We should still file the upstream issue as follow-up, but not as the primary fix.
@@ -237,9 +249,13 @@ Not implemented yet. If this pattern keeps biting, the fixture is the next step.
 ## Citable upstream references
 
 - [stable-diffusion.cpp source](https://github.com/leejet/stable-diffusion.cpp/blob/master/stable-diffusion.cpp) — `free_sd_ctx` and `~StableDiffusionGGML`
+
 - [ggml-metal.m](https://github.com/ggml-org/llama.cpp/blob/master/ggml/src/ggml-metal/ggml-metal.m) — `ggml_backend_metal_free` and Metal buffer lifetime
+
 - cyllama CHANGELOG v0.2.3: "Stable Diffusion generation silently continued on GPU OOM" — the v0.2.3 validation guardrail that turned silent garbage into the `RuntimeError` we now see
+
 - cyllama CHANGELOG v0.2.4: "Metal backend was previously buggy on stable-diffusion.cpp" — the acknowledgment that SD.cpp Metal is historically fragile
+
 - cyllama CHANGELOG v0.2.5: "Memory-leak regression tests" — the `test_memory_leaks.py` file this document cites as precedent
 
 ## Revision history

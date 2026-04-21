@@ -183,13 +183,17 @@ embedder.close()
 The `alpha` parameter controls the balance:
 
 - `alpha=1.0`: Pure vector search
+
 - `alpha=0.5`: Equal weight (default)
+
 - `alpha=0.0`: Pure keyword search
 
 ### When to Use Hybrid Search
 
 - Exact keyword matches are important (product codes, names)
+
 - Users search with specific technical terms
+
 - Semantic search misses important lexical matches
 
 ## Reranker

@@ -93,6 +93,7 @@ for event in agent.stream("Your task here"):
 **Key Differences**:
 
 - **ReActAgent**: Parses freeform text, flexible but may fail with small models
+
 - **ConstrainedAgent**: Grammar-enforced JSON, 100% reliable, works with smaller models
 
 ## Creating Tools
@@ -126,8 +127,11 @@ def my_search_function(query: str) -> list:
 ### Tool Features
 
 - **Automatic schema generation**: Tools automatically generate JSON schemas from function signatures
+
 - **Type hints**: Use Python type hints for parameter types
+
 - **Docstring parsing**: Parameter descriptions are extracted from docstrings
+
 - **Flexible arguments**: Tools support required and optional parameters
 
 ## Tool Registry
@@ -230,8 +234,11 @@ print(result.steps)         # List of AgentEvents
 ### 1. Tool Design
 
 - Keep tools focused and single-purpose
+
 - Use descriptive names and docstrings
+
 - Handle errors gracefully
+
 - Return string representations for complex objects
 
 ```python
@@ -256,7 +263,9 @@ def read_file(filepath: str) -> str:
 ### 2. Agent Prompting
 
 - Use clear, specific task descriptions
+
 - Provide context when needed
+
 - Set appropriate max_iterations for complex tasks
 
 ```python
@@ -270,7 +279,9 @@ result = agent.run("factorial 5")
 ### 3. Model Selection
 
 - Larger models (13B+) generally perform better at following agent patterns
+
 - Instruct-tuned models work best
+
 - Consider quantization levels for speed/quality tradeoff
 
 ```python
@@ -382,6 +393,7 @@ clear_grammar_cache()
 ## Examples
 
 - `tests/examples/agent_example.py` - ReAct agent with calculator tools
+
 - `tests/examples/constrained_agent_example.py` - Constrained agent with grammar enforcement
 
 ## Architecture
@@ -389,15 +401,21 @@ clear_grammar_cache()
 The agent implementation follows cyllama's core principles:
 
 - **Zero dependencies**: No external libraries required
+
 - **Performance-first**: Direct integration with cyllama's LLM class
+
 - **Pythonic simplicity**: Clean, straightforward API
+
 - **Framework-agnostic**: No opinionated abstractions
 
 ## Implementation Status
 
 - **Phase 1 (Complete)**: ReAct agent with tool calling
+
 - **Phase 2 (Complete)**: Grammar-constrained agents for reliability
+
 - **Phase 3 (Planned)**: Framework integrations (LangChain, AutoGPT, CrewAI)
+
 - **Phase 4 (Planned)**: Multi-agent orchestration and advanced planning
 
 See `AGENT_ANALYSIS.md` for detailed architecture analysis and roadmap.
@@ -420,6 +438,7 @@ make test
 **Test Coverage**:
 
 - 82 tests for agent functionality (29 tools, 31 ReAct, 22 grammar, 33 constrained)
+
 - All 353 tests pass (278 existing + 75 new agent tests)
 
 ## Contributing

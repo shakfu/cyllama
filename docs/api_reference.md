@@ -41,14 +41,19 @@ def complete(
 **Parameters:**
 
 - `prompt` (str): Input text prompt
+
 - `model_path` (str): Path to GGUF model file
+
 - `config` (GenerationConfig, optional): Generation configuration object
+
 - `stream` (bool): If True, return iterator of text chunks
+
 - `**kwargs`: Override config parameters (temperature, max_tokens, etc.)
 
 **Returns:**
 
 - `Response`: Response object with text and stats (if stream=False)
+
 - `Iterator[str]`: Iterator of text chunks (if stream=True)
 
 **Example:**
@@ -88,15 +93,21 @@ def chat(
 **Parameters:**
 
 - `messages` (List[Dict]): List of message dicts with 'role' and 'content' keys
+
 - `model_path` (str): Path to GGUF model file
+
 - `config` (GenerationConfig, optional): Generation configuration
+
 - `stream` (bool): Enable streaming output
+
 - `template` (str, optional): Chat template name to use. If None, uses model's default.
+
 - `**kwargs`: Override config parameters
 
 **Returns:**
 
 - `Response`: Response object with text and stats (if stream=False)
+
 - `Iterator[str]`: Iterator of text chunks (if stream=True)
 
 **Example:**
@@ -134,9 +145,13 @@ def apply_chat_template(
 **Parameters:**
 
 - `messages` (List[Dict]): List of message dicts with 'role' and 'content' keys
+
 - `model_path` (str): Path to GGUF model file
+
 - `template` (str, optional): Template name or string. If None, uses model's default.
+
 - `add_generation_prompt` (bool): Add assistant prompt prefix (default: True)
+
 - `verbose` (bool): Enable detailed logging
 
 **Returns:**
@@ -146,10 +161,15 @@ def apply_chat_template(
 **Supported Templates:**
 
 - llama2, llama3, llama4
+
 - chatml (Qwen, Yi, etc.)
+
 - mistral-v1, mistral-v3, mistral-v7
+
 - phi3, phi4
+
 - deepseek, deepseek2, deepseek3
+
 - gemma, falcon3, command-r, vicuna, zephyr, and more
 
 **Example:**
@@ -185,6 +205,7 @@ def get_chat_template(
 **Parameters:**
 
 - `model_path` (str): Path to GGUF model file
+
 - `template_name` (str, optional): Specific template name to retrieve
 
 **Returns:**
@@ -218,8 +239,11 @@ class Response:
 **Attributes:**
 
 - `text` (str): The generated text content
+
 - `stats` (GenerationStats, optional): Statistics including timing and token counts
+
 - `finish_reason` (str): Reason for completion ("stop", "length", etc.)
+
 - `model` (str): Path to the model used
 
 **String Compatibility:**
@@ -227,10 +251,15 @@ class Response:
 `Response` implements the string protocol for backward compatibility:
 
 - `str(response)` returns `response.text`
+
 - `response == "string"` compares with text
+
 - `len(response)` returns text length
+
 - `for char in response:` iterates over text characters
+
 - `"substring" in response` checks text containment
+
 - `response + " more"` concatenates text
 
 **Methods:**
@@ -309,7 +338,9 @@ class LLM:
 **Parameters:**
 
 - `model_path` (str): Path to GGUF model file
+
 - `config` (GenerationConfig, optional): Default generation configuration
+
 - `verbose` (bool): Print detailed information during generation
 
 **Methods:**
@@ -331,13 +362,17 @@ def __call__(
 **Parameters:**
 
 - `prompt` (str): Input text
+
 - `config` (GenerationConfig, optional): Override instance config
+
 - `stream` (bool): Enable streaming
+
 - `on_token` (Callable, optional): Callback for each token
 
 **Returns:**
 
 - `Response`: Response object with text and stats (if stream=False)
+
 - `Iterator[str]`: Iterator of text chunks (if stream=True)
 
 #### `chat()`
@@ -357,8 +392,11 @@ def chat(
 **Parameters:**
 
 - `messages` (List[Dict]): List of message dicts with 'role' and 'content' keys
+
 - `config` (GenerationConfig, optional): Override instance config
+
 - `stream` (bool): Enable streaming
+
 - `template` (str, optional): Chat template name to use
 
 #### `get_chat_template()`
@@ -465,17 +503,29 @@ class GenerationConfig:
 **Attributes:**
 
 - `max_tokens`: Maximum tokens to generate (default: 512)
+
 - `temperature`: Sampling temperature, 0.0 = greedy (default: 0.8)
+
 - `top_k`: Top-k sampling parameter (default: 40)
+
 - `top_p`: Top-p (nucleus) sampling (default: 0.95)
+
 - `min_p`: Minimum probability threshold (default: 0.05)
+
 - `repeat_penalty`: Penalty for repeating tokens (default: 1.0, disabled)
+
 - `n_gpu_layers`: GPU layers to offload (default: -1 = all)
+
 - `n_ctx`: Context window size, None = auto (default: None)
+
 - `n_batch`: Batch size for processing (default: 512)
+
 - `seed`: Random seed, -1 = random (default: -1)
+
 - `stop_sequences`: Strings that stop generation (default: [])
+
 - `add_bos`: Add beginning-of-sequence token (default: True)
+
 - `parse_special`: Parse special tokens in prompt (default: True)
 
 ---
@@ -519,8 +569,11 @@ class AsyncLLM:
 **Parameters:**
 
 - `model_path` (str): Path to GGUF model file
+
 - `config` (GenerationConfig, optional): Generation configuration
+
 - `verbose` (bool): Print detailed information during generation
+
 - `**kwargs`: Generation parameters (temperature, max_tokens, etc.)
 
 **Methods:**
@@ -787,8 +840,11 @@ def estimate_gpu_layers(
 **Parameters:**
 
 - `model_path` (str): Path to GGUF model file
+
 - `available_vram_mb` (int): Available VRAM in megabytes
+
 - `n_ctx` (int): Context window size
+
 - `n_batch` (int): Batch size
 
 **Returns:**
@@ -1175,7 +1231,9 @@ if spec.is_compat():
 **Parameters:**
 
 - `n_max`: Maximum number of tokens to draft (default: 16)
+
 - `n_reuse`: Number of tokens to reuse from previous draft (default: 8)
+
 - `p_min`: Minimum acceptance probability (default: 0.75)
 
 **Methods:**
@@ -1352,7 +1410,9 @@ for i in range(ctx.full_n_segments()):
 ### Audio Requirements
 
 - **Sample rate**: 16000 Hz
+
 - **Channels**: Mono
+
 - **Format**: Float32 normalized to [-1.0, 1.0]
 
 ---
@@ -1407,17 +1467,29 @@ def text_to_image(
 **Parameters:**
 
 - `model_path` (str): Path to model file (.gguf, .safetensors, or .ckpt)
+
 - `prompt` (str): Text prompt for generation
+
 - `negative_prompt` (str): Negative prompt (what to avoid)
+
 - `width` (int): Output image width (default: 512)
+
 - `height` (int): Output image height (default: 512)
+
 - `seed` (int): Random seed (-1 for random)
+
 - `batch_count` (int): Number of images to generate
+
 - `sample_steps` (int): Sampling steps (use 1-4 for turbo models, 20+ for others)
+
 - `cfg_scale` (float): CFG scale (use 1.0 for turbo, 7.0 for others)
+
 - `sample_method` (SampleMethod): Sampling method (EULER, EULER_A, DPM2, etc.)
+
 - `scheduler` (Scheduler): Scheduler (DISCRETE, KARRAS, EXPONENTIAL, etc.)
+
 - `clip_skip` (int): CLIP skip layers (-1 for default)
+
 - `n_threads` (int): Number of threads (-1 for auto)
 
 **Returns:**
@@ -1448,7 +1520,9 @@ def image_to_image(
 **Parameters:**
 
 - `init_image` (SDImage): Initial image to transform
+
 - `strength` (float): Transformation strength (0.0-1.0)
+
 - Other parameters same as `text_to_image()`
 
 ### `SDContext`
@@ -1484,7 +1558,9 @@ print(ctx.is_valid)
 **Methods:**
 
 - `generate(...)`: Generate images from text prompt
+
 - `generate_with_params(params: SDImageGenParams)`: Low-level generation
+
 - `generate_video(...)`: Generate video frames (requires video-capable model)
 
 ### `SDContextParams`
@@ -1683,17 +1759,21 @@ set_preview_callback(None)
 **`SampleMethod`**: Sampling methods
 
 - `EULER`, `EULER_A`, `HEUN`, `DPM2`, `DPMPP2S_A`, `DPMPP2M`, `DPMPP2Mv2`
+
 - `IPNDM`, `IPNDM_V`, `LCM`, `DDIM_TRAILING`, `TCD`
 
 **`Scheduler`**: Schedulers
 
 - `DISCRETE`, `KARRAS`, `EXPONENTIAL`, `AYS`, `GITS`
+
 - `SGM_UNIFORM`, `SIMPLE`, `SMOOTHSTEP`, `LCM`
 
 **`SDType`**: Data types for quantization
 
 - `F32`, `F16`, `BF16`
+
 - `Q4_0`, `Q4_1`, `Q5_0`, `Q5_1`, `Q8_0`, `Q8_1`
+
 - `Q2_K`, `Q3_K`, `Q4_K`, `Q5_K`, `Q6_K`, `Q8_K`
 
 **`RngType`**: Random number generators
@@ -1756,12 +1836,19 @@ python -m cyllama.stablediffusion info
 ### Supported Models
 
 - **SD 1.x/2.x**: Standard Stable Diffusion models
+
 - **SDXL/SDXL Turbo**: Stable Diffusion XL (use cfg_scale=1.0, steps=1-4 for Turbo)
+
 - **SD3/SD3.5**: Stable Diffusion 3.x
+
 - **FLUX**: FLUX.1 models (dev, schnell)
+
 - **Wan/CogVideoX**: Video generation models (use `generate_video()`)
+
 - **LoRA**: Low-rank adaptation files
+
 - **ControlNet**: Conditional generation with control images
+
 - **ESRGAN**: Image upscaling models
 
 ---
@@ -1881,7 +1968,9 @@ for chunk in complete("Write a long essay", model_path="model.gguf",
 ## Version Compatibility
 
 - **Python**: >=3.10 (tested on 3.13)
+
 - **llama.cpp**: b8833
+
 - **Platform**: macOS, Linux, Windows
 
 ---
@@ -1889,8 +1978,11 @@ for chunk in complete("Write a long essay", model_path="model.gguf",
 ## See Also
 
 - [User Guide](user_guide.md) - Comprehensive usage guide
+
 - [Cookbook](cookbook.md) - Practical recipes and patterns
+
 - [Changelog](https://github.com/shakfu/cyllama/blob/main/CHANGELOG.md) - Release history
+
 - [llama.cpp Documentation](https://github.com/ggml-org/llama.cpp)
 
 ---

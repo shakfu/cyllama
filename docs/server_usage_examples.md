@@ -7,13 +7,17 @@ Cyllama provides two server implementations, both offering the same OpenAI-compa
 ### 1. Mongoose C Server (EmbeddedServer)
 
 - Native C networking via the Mongoose web server library
+
 - High concurrency and low overhead
+
 - Compiled as part of the standard `make build`
 
 ### 2. Python HTTP Server (PythonServer)
 
 - Pure Python HTTP server (stdlib `http.server`)
+
 - No compiled dependencies beyond the core Cython extensions
+
 - Subject to Python GIL limitations
 
 ## Basic Usage
@@ -185,13 +189,19 @@ with EmbeddedServer(config) as server:
 ### Use EmbeddedServer (Mongoose) When
 
 - Production deployments
+
 - Multiple concurrent users
+
 - High-throughput requirements
+
 - Performance is critical
 
 ### Use PythonServer When
 
 - Developing or testing
+
 - Single-user applications
+
 - Simplicity is preferred
+
 - No special performance requirements

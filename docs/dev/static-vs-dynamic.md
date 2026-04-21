@@ -11,7 +11,9 @@ llama.cpp is built from source via `manage.py`, producing `.a` archives that are
 3. Libraries and ~56 headers are copied to `thirdparty/llama.cpp/{lib,include}/`
 4. scikit-build-core runs the root `CMakeLists.txt`, which:
    - Transpiles `.pyx` to `.cxx` via Cython
+
    - Compiles `.cxx` to `.o`
+
    - Links `.o` + all `.a` archives into final `.so` extension modules
 
 ## Alternative Strategy: Dynamic Linking Against Pre-built Releases
@@ -23,13 +25,17 @@ Link Cython extensions against pre-built `.dylib`/`.so` files from llama.cpp Git
 The release tarball (e.g., `llama-b8522-bin-macos-arm64.tar.gz`) ships:
 
 - **Dynamic libraries**: `libllama.dylib`, `libggml.dylib`, `libggml-base.dylib`, `libggml-cpu.dylib`, `libggml-metal.dylib`, `libggml-blas.dylib`, `libggml-rpc.dylib`, `libmtmd.dylib`
+
 - **CLI tools**: `llama-cli`, `llama-server`, `llama-quantize`, etc.
+
 - **No headers** (`include/` directory is absent)
+
 - **No `libcommon`** or `libcpp-httplib`
 
 ### Exported Symbols
 
 - **233 stable C API symbols** (`_llama_*`) -- these are the public API from `llama.h`
+
 - **C++ mangled symbols** (`__Z*`) -- internal, compiler-specific, not ABI-stable
 
 ---
@@ -69,7 +75,9 @@ Test against pre-built release artifacts rather than building llama.cpp per-plat
 The pre-built tarballs have no `include/` directory. The current build depends on ~56 headers. Options:
 
 - Still clone the repo to get headers (partially defeats the purpose)
+
 - Vendor the headers separately and pin them to the release version
+
 - Use only the public C API headers fetched from the GitHub tag
 
 ### 2. `libcommon` Not in Release
@@ -77,6 +85,7 @@ The pre-built tarballs have no `include/` directory. The current build depends o
 The pre-built release exports `libllama`, `libggml*`, and `libmtmd`, but **not** `libcommon` or `libcpp-httplib`. The Cython wrappers (`common.pxd`) bind directly to `common.h` symbols (arg parsing, chat templates, sampling params). These are C++ internal symbols, not part of the stable C API. Options:
 
 - Rewrite bindings to only use the 233 public `_llama_*` C symbols
+
 - Still build `libcommon` from source (partially defeats the purpose)
 
 > **Resolved**: All `libcommon` dependencies have been eliminated. Sampling, download, n-gram cache, speculative decoding, and batch helpers were rewritten to use public C APIs or pure Python. JSON schema-to-grammar conversion was replaced with a vendored pure Python implementation. `libcommon.a` is no longer linked in either static or dynamic builds.
@@ -90,7 +99,9 @@ Pre-built dylibs export C++ mangled symbols (`__Z*` names) that are compiler-spe
 Dylibs are needed at runtime, not just build time:
 
 - `@rpath` resolution requires correct `install_name_tool` fixup or environment variables
+
 - `pip install cyllama` would need to either bundle the dylibs (back to large wheels) or require the user to install llama.cpp separately
+
 - Platform-specific dylib discovery (`DYLD_LIBRARY_PATH` on macOS, `LD_LIBRARY_PATH` on Linux, `PATH` on Windows)
 
 ### 5. ABI Compatibility Risk
@@ -120,7 +131,9 @@ The Cython wrappers bind **both** the public C API (`llama.h` -- 233 stable symb
 ## Possible Hybrid Approach
 
 - **Dynamic link against `libllama.dylib` + `libggml*.dylib`** for the core inference C API
+
 - **Still build `libcommon.a` from source** (small, fast to compile) for C++ utility bindings
+
 - **Vendor just the public headers** from the release tag
 
 This buys less than it initially appears, because the common/sampling layer is where most of the Cython binding complexity lives.
@@ -156,6 +169,7 @@ gguf.h          |   40    |    0   | 0%   - declared but unused
 Three `.pxd` files declare symbols that are **never called** in any `.pyx`/`.pxi`:
 
 - **chat.pxd** (202 lines): 12 structs, 13 functions -- zero usage
+
 - **log.pxd** (60 lines): 10+ functions -- zero usage
 
 **Note**: `gguf.pxd` was initially thought to be dead code but is actively used by the `GgufContext` class. It wraps the public `gguf.h` API (part of libggml), not an internal C++ API, so it does not block dynamic linking.
@@ -203,11 +217,17 @@ llama_sampler_chain_add(chain, llama_sampler_init_grammar(vocab, grammar_str, ro
 The public API now has **15+ sampler init functions** covering all sampler types:
 
 - `llama_sampler_init_top_k`, `_top_p`, `_min_p`, `_temp`, `_temp_ext`
+
 - `llama_sampler_init_xtc`, `_typical`, `_top_n_sigma`
+
 - `llama_sampler_init_mirostat`, `_mirostat_v2`
+
 - `llama_sampler_init_grammar`, `_grammar_lazy_patterns`
+
 - `llama_sampler_init_penalties` (repetition/frequency/presence)
+
 - `llama_sampler_init_dry` (DRY sampler -- actually NEW, not in common_sampler)
+
 - `llama_sampler_init_adaptive_p`, `_logit_bias`, `_infill`
 
 **Effort**: Medium. The chain construction logic is ~100 lines of C++ that becomes ~100 lines of Python. The debug/print utilities are trivial. `common_params_sampling` struct (30+ fields) needs a Python dataclass replacement.
@@ -319,43 +339,61 @@ The TTS helper functions (`save_wav16`, `fill_hann_window`, `irfft`, `fold`, `pr
 #### Phase 1: Dead Code Removal (Immediate, ~0.5 day)
 
 - Delete `chat.pxd` (or keep only struct declarations if needed for future)
+
 - Delete `log.pxd`
+
 - Delete `gguf.pxd`
+
 - Remove corresponding unused declarations from `common.pxd`
+
 - **Result**: ~400 fewer lines of C++ declarations to maintain
 
 #### Phase 2: Trivial Replacements (Easy, ~1 day)
 
 - Inline `common_batch_clear()` / `common_batch_add()` into `LlamaBatch` (~10 lines of Cython)
+
 - Replace `common_context_params_to_llama()` with direct field assignment
+
 - **Result**: `common.h` dependency drops to zero active functions
 
 #### Phase 3: Sampling Refactor (Medium, ~3 days)
 
 - Create Python `SamplingParams` dataclass replacing `common_params_sampling` struct
+
 - Rewrite `CommonSampler.__init__()` to build `llama_sampler` chains via public API
+
 - Replace `common_sampler_sample/accept/reset/clone` with direct `llama_sampler_*` calls
+
 - Reimplement debug utilities (`print`, `prev_str`, `type_to_str`) in Python
+
 - **Result**: `sampling.h` dependency eliminated entirely
 
 #### Phase 4: Download/Cache in Python (Medium, ~2 days)
 
 - Reimplement HuggingFace file resolution using `huggingface_hub` or raw HTTP
+
 - Reimplement model download with progress reporting
+
 - Reimplement cache listing as directory scan
+
 - Reimplement Docker registry resolution
+
 - **Result**: `download.h` dependency eliminated
 
 #### Phase 5: N-gram Cache in Python (Medium-low, ~1 day)
 
 - Reimplement n-gram cache as Python `dict[tuple[int, ...], list[int]]`
+
 - Reimplement save/load as JSON or pickle
+
 - **Result**: `ngram_cache.h` dependency eliminated
 
 #### Phase 6: Speculative Decoding (Hard, ~5 days)
 
 - Reimplement draft-verify loop using public `llama_decode()` + `llama_memory_seq_*()` APIs
+
 - Careful testing required for KV cache state management correctness
+
 - **Result**: `speculative.h` dependency eliminated
 
 **OR**: Keep speculative decoding as an optional feature requiring from-source build.
@@ -430,49 +468,73 @@ All phases implemented and verified (full test suite passing).
 ### Phase 1: Dead Code Removal
 
 - Deleted `chat.pxd` (202 lines) and `log.pxd` (60 lines) -- cimported but never referenced
+
 - Removed `cimport chat` and `cimport log` from `llama_cpp.pyx`
+
 - **Kept** `gguf.pxd` (actively used by `GgufContext` class; wraps public `gguf.h` API)
 
 ### Phase 2: Inlined Batch Helpers
 
 - Replaced `common.common_batch_add()` with direct array assignment in `LlamaBatch.add()`
+
 - Replaced `common.common_batch_clear()` with `self.p.n_tokens = 0` in `LlamaBatch.clear()`
 
 ### Phase 3: Sampling Refactor
 
 - Deleted `sampling.pxd` (117 lines) and removed `cimport sampling` from `llama_cpp.pyx`
+
 - Rewrote `CommonSampler` in `sampling.pxi` to use only public `llama_sampler_*` API:
+
   - Chain construction via `llama_sampler_chain_init()` + `llama_sampler_init_*()` for each sampler type
+
   - Grammar as separate sampler with rejection sampling (fast path: sample then check; slow path: constrain then resample)
+
   - Token history tracked in Python `collections.deque` (replacing C++ `ring_buffer`)
+
 - Reimplemented all sampler helper functions in Python:
+
   - `type_to_chr()`, `type_to_str()` via Python dicts
+
   - `types_from_names()`, `types_from_chars()` via Python lookups
+
   - `CommonSampler.print()` via `llama_sampler_chain_n/get/name`
+
   - `CommonSampler.prev_str()` via `llama_token_to_piece` public API
 
 ### Phase 4: Download Functions in Python
 
 - Deleted `download.pxd` (55 lines) and removed `cimport download` from `llama_cpp.pyx`
+
 - Rewrote all 4 download functions using Python `urllib.request` (stdlib, no external deps):
+
   - `get_hf_file()`: HF manifest API + JSON caching
+
   - `download_model()`: HTTP download with ETag caching, resume, retry
+
   - `list_cached_models()`: Filesystem scan of `manifest=*.json` files
+
   - `resolve_docker_model()`: Docker Hub auth + manifest + blob download
 
 ### Phase 5: N-gram Cache in Python
 
 - Deleted `ngram_cache.pxd` (74 lines) and removed `cimport ngram_cache` from `llama_cpp.pyx`
+
 - Rewrote `NgramCache` as a pure Python class:
+
   - Cache stored as `dict[tuple, dict[int, int]]` (ngram -> {next_token: count})
+
   - Three-tier draft algorithm (context/dynamic/static) with confidence thresholds
+
   - Binary save/load format compatible with C++ implementation via `struct` module
 
 ### Field Mismatch Fix + Param Conversion Inline
 
 - Fixed `common.pxd`: `flash_attn` (bint) -> `flash_attn_type` (llama_flash_attn_type enum)
+
 - Fixed `llama.pxd`: Added missing `embeddings` bool field to `llama_context_params`
+
 - Inlined `common_context_params_to_llama()` as direct field assignment in `LlamaContextParams.from_common_params()`
+
 - **Zero `common.h` function calls remain** -- only struct/enum type declarations
 
 ### Remaining Internal C++ Dependencies
@@ -494,21 +556,29 @@ WITH_DYLIB=1 LLAMACPP_DYLIB_DIR=/path/to/llama-b8522 make build
 **CMake options**:
 
 - `WITH_DYLIB=ON` -- link against shared `.dylib`/`.so` files instead of static `.a` archives
+
 - `LLAMACPP_DYLIB_DIR=/path/to/release` -- directory containing pre-built shared libraries
+
 - `SD_USE_VENDORED_GGML=ON` (default) -- link stable-diffusion against its own vendored ggml; set to `OFF` to share llama.cpp's ggml (not recommended for GPU backends)
 
 **How it works**:
 
 - Core llama.cpp libraries (`libllama`, `libggml*`, `libmtmd`) linked as shared libraries
+
 - `libcpp-httplib.a` still built from source (not in releases, needed for embedded server)
+
 - `libcommon.a` is no longer linked -- JSON schema-to-grammar conversion is now pure Python, and all other `common.h` dependencies have been eliminated
+
 - Shared libraries copied alongside extension modules (`cyllama/llama/`) so `@loader_path`/`$ORIGIN` RPATH resolves correctly
+
 - Whisper and Stable Diffusion remain statically linked (no pre-built releases available). Stable Diffusion uses its own vendored ggml by default; set `SD_USE_VENDORED_GGML=0` to share llama.cpp's ggml (not recommended for GPU backends due to ggml version incompatibilities)
 
 **Validated results** (macOS arm64, b8522 release):
 
 - Extension size: 1.6 MB (vs ~15 MB with static linking)
+
 - All tests passing (120+ tests verified including generation, batching, chat, context)
+
 - Pre-built dylibs installed alongside extension: `libllama.dylib` (2.3MB), `libggml*.dylib`, `libmtmd.dylib`
 
 ---
@@ -528,13 +598,17 @@ The branch removes all `common.h`/`libcommon` dependencies (~4200 lines deleted 
 **3. Build system consistency**
 
 - Unified ggml across all three backends (was 0.9.5 for SD, 0.9.8 for the rest)
+
 - Unified GPU backend flags (`GGML_*` applies to all components, no more separate `SD_METAL`)
+
 - sqlite-vector vendored and built from CMake (no more `.gitignore` hacks for pre-built binaries)
 
 **4. Correctness fixes**
 
 - `flash_attn` / `flash_attn_type` struct mismatch (potential silent memory corruption)
+
 - Missing `embeddings` field in `llama_context_params` (struct layout mismatch)
+
 - `_build_info.py` reporting wrong ggml version for SD
 
 **5. Cleaner test suite**

@@ -89,7 +89,9 @@ llm.close()  # Free GPU memory used by context
 ```
 
 - Safe to call multiple times
+
 - The model remains loaded for potential reuse
+
 - After `close()`, the instance can still be used (a new context will be created)
 
 #### `reset_context()`
@@ -143,7 +145,9 @@ Parameters:
 Use `reset_context()` when:
 
 - Starting a completely new conversation with no relation to previous ones
+
 - Debugging generation issues
+
 - Switching between very different prompt lengths (though automatic recreation handles this)
 
 ### Memory Management Tips

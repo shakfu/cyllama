@@ -74,6 +74,7 @@ import from the top-level `jinja2.runtime` module, which means:
   rendered output instead of being converted to `Undefined`, because
   the cross-module identity check `if rv is missing:` fails between
   the two `missing` sentinels.
+
 * If the user has no `jinja2` installed, the import fails entirely
   and template rendering raises `ImportError`.
 

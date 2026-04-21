@@ -87,7 +87,9 @@ upstream pre-built `llama-bXXXX-bin-ubuntu-vulkan-x64.tar.gz`. Upstream
 binaries are compiled with the default `GGML_MAX_NAME=64`. So:
 
 - `libstable-diffusion.a` (SD): `char name[128]`
+
 - `libggml-base.so` (downloaded): `char name[64]`
+
 - `libggml-vulkan.so` (downloaded): `char name[64]`
 
 `sizeof(ggml_tensor)` diverges by 64 bytes between the two sides, and
@@ -209,12 +211,21 @@ returns `False` when `SD_USE_VENDORED_GGML` is unset, so
 ## References
 
 - `scripts/manage.py:905-914` — `_SD_GGML_MAX_NAME`, `_sd_uses_shared_ggml()`
+
 - `scripts/manage.py:1140-1145`, `1215-1219` — `CMAKE_C_FLAGS` injection
+
 - `scripts/manage.py:1300` — `_release_asset_name()`
+
 - `scripts/manage.py:1346` — `download_release()`
+
 - `scripts/manage.py:2252` — the fix site
+
 - `CMakeLists.txt:16-18`, `:105-111` — root-level ordering bug (separate)
+
 - `build/stable-diffusion.cpp/CMakeLists.txt:233` — SD's own `-DGGML_MAX_NAME=128`
+
 - `build/llama.cpp/ggml/include/ggml.h:228` — llama.cpp's `#define GGML_MAX_NAME 64` default
+
 - `CHANGELOG.md` — Unreleased "GPU wheel size reduced ~50%"
+
 - `docs/dev/ggml-unification.md` — broader unification plan

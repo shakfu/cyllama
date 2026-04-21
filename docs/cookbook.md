@@ -621,4 +621,5 @@ def clean_response(response: str) -> str:
 ## See Also
 
 - [User Guide](user_guide.md) - Complete API documentation
+
 - [API Reference](api_reference.md) - Detailed API docs

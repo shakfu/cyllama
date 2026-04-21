@@ -9,8 +9,11 @@ Currently, the underlying C++ libraries are statically linked, with each library
 ### Current Build Characteristics
 
 - **Static linking without hidden visibility**: All symbols from the static libraries are exported
+
 - **`--whole-archive` on Linux**: Used to ensure function-pointer symbols (like `ggml_repeat_4d`) are included, but this exports all symbols
+
 - **Separate ggml per project**: stable-diffusion.cpp links against its own ggml libraries, while llama.cpp and whisper.cpp share theirs
+
 - **No symbol isolation**: Symbols from all ggml copies are exported, which could cause conflicts if multiple extensions are loaded in the same process (works now because extensions are typically loaded separately)
 
 ## The Shared Library Question
@@ -20,7 +23,9 @@ Currently, the underlying C++ libraries are statically linked, with each library
 **Answer**: If you compile ggml as a single shared library and link all three projects against it, they would all need to use the **same ggml version**. This is problematic because:
 
 - llama.cpp, whisper.cpp, and stable-diffusion.cpp often pin to different ggml commits
+
 - ggml's API/ABI is not stable between versions
+
 - You'd be forced to synchronize updates across all three upstream projects
 
 ## Options to Consider
@@ -56,13 +61,17 @@ endif()
 **Benefits:**
 
 - Allows different ggml versions per library (no symbol conflicts)
+
 - Smaller binaries (linker can discard unused hidden symbols)
+
 - Avoids symbol conflicts at runtime
+
 - Removes need for `--whole-archive` (only public API symbols are exported)
 
 **Challenges:**
 
 - Requires patching upstream projects or maintaining forks
+
 - Need to ensure all necessary symbols are marked as visible in upstream
 
 ### Option 2: Shared libs with ggml statically linked (symbol visibility hidden)
@@ -70,8 +79,11 @@ endif()
 Each of llama.cpp, whisper.cpp, and stable-diffusion.cpp becomes a shared library (`.so`/`.dylib`) with ggml statically linked inside, but with internal symbols hidden. This:
 
 - Allows different ggml versions per library
+
 - Reduces some duplication (shared C++ runtime, etc.)
+
 - Avoids symbol conflicts at runtime
+
 - Similar to Option 1 but produces shared libraries instead of static
 
 ### Option 3: Split into separate Python packages
@@ -79,7 +91,9 @@ Each of llama.cpp, whisper.cpp, and stable-diffusion.cpp becomes a shared librar
 Instead of one monolithic `cyllama`, ship three separate packages:
 
 - `cyllama` (llama.cpp wrapper)
+
 - `cywhisper` (whisper.cpp wrapper)
+
 - `cystable-diffusion` (stable-diffusion.cpp wrapper)
 
 Users install only what they need. Doesn't reduce individual build size but reduces what users download.
@@ -89,7 +103,9 @@ Users install only what they need. Doesn't reduce individual build size but redu
 The real size bloat comes from CUDA. Consider:
 
 - Building CUDA kernels as a separate shared library
+
 - ggml already has some support for this pattern
+
 - One shared CUDA backend could potentially serve all three (if ggml versions align)
 
 ### Option 5: Runtime loading / plugin architecture
@@ -118,5 +134,7 @@ A hybrid approach:
 ### Notes on Symbol Safety
 
 - **Poor**: Multiple ggml symbol sets exported; potential conflicts if multiple extensions loaded
+
 - **Good**: Symbols properly isolated; safe to load multiple extensions
+
 - **Depends**: Inherits from underlying approach chosen

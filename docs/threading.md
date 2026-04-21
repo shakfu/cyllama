@@ -7,9 +7,13 @@
 This page is for users writing multi-threaded or async code with cyllama. It covers:
 
 - What's safe to share between threads and what isn't
+
 - Patterns that work, with copy-pasteable examples
+
 - Patterns to avoid, and the error you'll see if you trip them
+
 - Async-specific guidance (`AsyncLLM`, `asyncio.to_thread`)
+
 - Where to look if you want the design rationale (spoiler: [`docs/dev/runtime-guard.md`](dev/runtime-guard.md))
 
 ## What's safe to share
@@ -165,8 +169,11 @@ async def shutdown():
 Key properties:
 
 - One LLM, shared across all request coroutines.
+
 - Concurrent `await llm(...)` calls **serialize** (run one after the other), they don't raise. The internal `asyncio.Lock` is what makes this safe.
+
 - Total throughput is single-LLM throughput. If you need real parallelism, run multiple `AsyncLLM` instances (one per worker process, or one per GPU).
+
 - Inference still runs on a thread pool internally (via `asyncio.to_thread`), so the event loop stays responsive.
 
 ### Pattern 3: `asyncio.to_thread` with sequential ownership transfer
@@ -263,6 +270,7 @@ Or, if all your workers are reading and you want a thread-pool pattern, give eac
 Per the upstream llama.cpp maintainers (see [`docs/dev/runtime-guard.md`](dev/runtime-guard.md) for the citations), thread safety across *separate* contexts varies by backend:
 
 - **CPU, Metal, CUDA**: thread-safe across separate contexts. The "one LLM per worker" pattern works as expected.
+
 - **Vulkan, SYCL, HIP, OpenCL**: "probably not" thread-safe even across separate contexts, per the upstream maintainers. If you're running multiple LLMs in parallel on these backends, you may need additional process-level isolation. The cyllama runtime guard prevents the most common mistake (sharing one context) but doesn't help with the rarer mistake (multiple contexts on a backend that can't handle them).
 
 ## Want the rationale?

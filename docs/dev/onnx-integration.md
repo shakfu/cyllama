@@ -44,12 +44,17 @@ response = complete(
 ## What To Defer
 
 - Do not build until a concrete ONNX model and input data format exist to design against.
+
 - The risk of building speculatively is designing an API that does not fit the actual data shapes when they materialize.
+
 - The integration itself is small enough to implement quickly once requirements are concrete.
 
 ## Open Questions
 
 - What are the input data shapes? (tabular, time-series, spectral, images of samples?)
+
 - Single classification model or an ensemble/pipeline of ONNX models?
+
 - Does the LLM stage need raw probabilities or just top-k class labels?
+
 - Batch processing (many samples -> one report) vs. single-sample workflows?

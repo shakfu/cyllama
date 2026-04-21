@@ -9,11 +9,17 @@ A historical-context section at the end preserves the design analysis that led t
 When you call `LLM.chat(messages)` (or its CLI equivalents `cyllama chat -p ...` and `cyllama rag`), cyllama needs to convert the list of `{"role": ..., "content": ...}` dicts into a single prompt string in the exact format the model was instruction-tuned on. Different model families use different formats:
 
 - **Llama-3-Instruct**: `<|start_header_id|>system<|end_header_id|>\n\n...<|eot_id|>...`
+
 - **Qwen2.5/3-Chat**: ChatML-style `<|im_start|>system\n...\n<|im_end|>...`
+
 - **Mistral-Instruct**: `[INST] ... [/INST]`
+
 - **Gemma 2/3**: `<start_of_turn>user\n...\n<end_of_turn>`
+
 - **Gemma 4**: `<|turn>user\n...\n<turn|>` (different from Gemma 2/3, this caused a real bug)
+
 - **Phi-3/4-Instruct**: `<|user|>\n...<|end|>`
+
 - and many others, each with their own quirks
 
 Each GGUF file embeds its own chat template as a Jinja string in its metadata (this is the same template the model's HuggingFace tokenizer config ships with). cyllama's job is to evaluate that template against the user's messages and produce the prompt the model expects.
@@ -70,9 +76,13 @@ When you call `LLM.chat()`, the rendering goes through up to four code paths in 
 2. Resolves the model's `bos_token` and `eos_token` strings via `vocab.token_to_piece(vocab.token_bos(), special=True)` and the same for EOS.
 3. Constructs an `ImmutableSandboxedEnvironment` from the vendored `cyllama._vendor.jinja2`, with the same configuration HuggingFace's `transformers.PreTrainedTokenizerBase.apply_chat_template` uses:
    - `trim_blocks=True`, `lstrip_blocks=True`
+
    - `loopcontrols` extension enabled (some templates use `{% break %}`)
+
    - `tojson` filter (used by tool-calling templates)
+
    - `raise_exception` global (used by templates that abort on bad input)
+
    - `strftime_now` global (used by Llama-3's `Today Date:` line and similar)
 4. Renders the template with `messages`, `bos_token`, `eos_token`, and `add_generation_prompt` in scope.
 5. Returns the rendered string.
@@ -220,6 +230,7 @@ This one is more subtle and is the rewrite that took longest to discover.
 Without the rewrite, every compiled template tries to import from the top-level `jinja2.runtime` module:
 
 - **If the user has `jinja2` installed in their environment**, compiled templates from the vendored jinja2 silently pull runtime symbols from the *user's* jinja2, mixing two versions in undefined ways. The observable failure mode is `_MissingType` sentinels leaking into rendered output as the literal string `"missing"` instead of being converted to `Undefined` — because the cross-module identity check `if rv is missing:` between the two `missing` sentinels fails, and the sentinel propagates as a string.
+
 - **If the user has no jinja2 installed**, the import fails entirely and template rendering raises `ImportError`.
 
 The rewrite changes the emit string to `from cyllama._vendor.jinja2.runtime import ...` so compiled templates always pull from the vendored runtime. The patch lives in `src/cyllama/_vendor/jinja2/compiler.py` at the line that calls `self.writeline(...)` to emit the import block.
@@ -380,6 +391,7 @@ print(f"chat template unusable: {pipeline._chat_template_unusable}")
 
 1. **`RuntimeError: Failed to apply chat template`** at the binding level (`llama_cpp.pyx:1948`). This means the legacy substring-heuristic path was reached and llama.cpp's `llama_chat_apply_template` returned -1. Either:
    - The Jinja path raised first and the wrapper fell through (look for the cause in the Jinja path)
+
    - The caller passed a `template=` parameter that doesn't match anything in `LLM_CHAT_TEMPLATES` and isn't a recognisable Jinja string
 
 2. **`TemplateError: Model has no embedded chat template`** from `_apply_jinja_template`. The GGUF metadata doesn't contain a chat template at all. This is normal for embedding-only models; for chat-tuned models it usually means the GGUF was built without preserving the tokenizer config. The wrapper will fall through to the legacy path, which has its own `_format_messages_simple` fallback.
@@ -485,8 +497,11 @@ The obvious fix would be to call `common_chat_templates_apply` from cyllama's Cy
 The reason we don't is that **`libcommon.a` is not part of llama.cpp's stable API**. It's the example/utility library that backs `llama-server`, `llama-cli`, etc. Function signatures, struct layouts (especially `common_chat_templates_inputs` and `common_chat_params`, which gain fields per release), and even header file paths change between llama.cpp versions without notice. Linking against it would mean:
 
 - The cyllama build breaks on most llama.cpp upgrades
+
 - Cython `.pxd` declarations have to be re-audited against `chat.h` after every upgrade
+
 - Subtle ABI mismatches could produce silent corruption: Cython trusts the declaration, so if a struct field has shifted, reads return garbage without a compile error
+
 - The Cython binding work has to be redone whenever upstream restructures `chat.cpp`
 
 This is a large recurring maintenance burden for a behaviour we can get a different way.
@@ -496,14 +511,19 @@ This is a large recurring maintenance burden for a behaviour we can get a differ
 Once `libcommon.a` was off the table, the next question was how to evaluate Jinja templates in a way that works regardless of llama.cpp's hardcoded substring detection. The options were:
 
 - **Add `jinja2` as a runtime dependency** (Option D in the original analysis): standard Python idiom, smallest implementation, but introduces a transitive dep that conflicts with the self-contained-wheel philosophy and weakens reproducibility (different `jinja2` versions can render the same template differently).
+
 - **Vendor a C++ Jinja interpreter** (Option E): copy `minja` or llama.cpp's `common/jinja/` into cyllama's source tree and compile it as part of the extension. Eliminates the dependency, gives byte-for-byte parity with `llama-server`, but requires substantial Cython binding work plus a build matrix that has to compile vendored C++ across macOS, Linux, and Windows with multiple GPU backends. Estimated 4-8 hours of focused work plus per-iteration build cycles.
+
 - **Vendor `jinja2` itself as pure Python** (Option F, what we shipped): copy `jinja2 3.1.6` and `markupsafe 3.0.3` under `cyllama._vendor.*`. ~616 KB pure Python, no Cython binding, no build matrix risk, no transitive deps. Same Jinja semantics as HuggingFace's `apply_chat_template` because it IS the same library. ~1.5 hours of focused work.
 
 Option F won because the cost-benefit profile dominated the alternatives for cyllama specifically:
 
 - cyllama already distributes binary wheels with bundled native libraries (50+ MB), so adding 600 KB of vendored Python is a rounding error
+
 - Reproducibility matters more for chat-template rendering than for typical Python deps — the entire job of this code path is "produce a deterministic prompt string from a model's metadata"
+
 - jinja2 is mature, BSD-3-licensed, and ships 2-3 minor releases per year, so the manual re-vendoring burden is small
+
 - The security exposure is low because we evaluate trusted GGUF metadata inside `ImmutableSandboxedEnvironment`
 
 ### Why we kept the legacy substring path as a fallback
@@ -526,6 +546,7 @@ The three pipeline-level fallback layers (`_chat_with_fallback` for system-role 
 With the vendored jinja2 path in place, paths 3 and 4 fire much less often:
 
 - **Path 3 (system-into-user merge)** still fires on Gemma 2/3 templates that explicitly call `raise_exception('System role not supported')` at the Jinja level. Both the legacy path AND the vendored Jinja path correctly propagate this exception, so the merge fallback is still load-bearing for those models.
+
 - **Path 4 (raw-completion degradation)** fires only if BOTH chat shapes (system+user, merged user) raise template errors. With the vendored Jinja path correctly evaluating any well-formed Jinja template, this should now only fire on truly malformed embedded templates or corrupted GGUFs.
 
 Both paths are preserved as defense-in-depth. The maintenance cost is low (a handful of lines of Python plus the cached state on `RAGPipeline`) and the correctness benefit is real for the long tail of models we don't have in our test fixtures.

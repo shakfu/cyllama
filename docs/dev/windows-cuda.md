@@ -69,10 +69,12 @@ the `download_release()` fast path.
 
 - Much faster CI: no `nvcc` compile of ggml-cuda from source — the
   longest single step in today's Linux CUDA job is eliminated on Windows
+
 - Smaller runner footprint: arguably no need for the full CUDA toolkit
   install, just the runtime DLLs that the prebuilt zip already contains
   (verify before relying on this — nvcc may still be needed for Cython
   bindings that touch CUDA headers)
+
 - Matches the upstream llama.cpp binary exactly, which simplifies bug
   reports
 
@@ -81,6 +83,7 @@ the `download_release()` fast path.
 - SD statically links its own ggml, so the wheel carries two ggml copies
   (llama.cpp's in the DLLs + SD's embedded in `libstable-diffusion.a`).
   Slightly larger than the shared-ggml Linux CUDA wheel
+
 - Locked to the CUDA version upstream ships (currently 12.4). Users on
   older drivers may have compatibility issues. `LLAMACPP_CUDA_RELEASE`
   lets you pick a different release variant if upstream publishes more
@@ -92,9 +95,13 @@ When `WITH_DYLIB=1`, the following DLLs will need to land in the wheel
 from `thirdparty/llama.cpp/dynamic/`:
 
 - `llama.dll`
+
 - `ggml.dll`
+
 - `ggml-base.dll`
+
 - `ggml-cpu.dll`
+
 - `ggml-cuda.dll`
 
 Verify that `delvewheel repair` picks them up via the build artifact path

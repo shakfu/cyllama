@@ -12,9 +12,13 @@ This document outlines the design for an optional SQLite-based storage system fo
 ## Design Principles
 
 - **Opt-in by default** - Zero overhead unless explicitly enabled
+
 - **Single file** - All data in one SQLite database file
+
 - **Thread-safe** - WAL mode for concurrent read/write
+
 - **Zero dependencies** - Uses Python's built-in `sqlite3` module
+
 - **Graceful degradation** - Works without DB (in-memory fallback)
 
 ## Database Location
@@ -30,7 +34,9 @@ Default location follows XDG Base Directory Specification:
 Can be overridden via:
 
 - Environment variable: `CYLLAMA_DB_PATH`
+
 - Constructor argument: `CyllamaDB(path="/custom/path.db")`
+
 - Disable entirely: `CyllamaDB(enabled=False)` or `CYLLAMA_DB_ENABLED=0`
 
 ## Schema Design
@@ -490,8 +496,11 @@ configure_db(
 ### Excluded from Cache Key
 
 - `seed` - Different seeds should return cached result
+
 - `n_gpu_layers` - Infrastructure detail, doesn't affect output
+
 - `n_ctx` - Context size doesn't affect generation content
+
 - `verbose` - Logging flag
 
 ### Cache Invalidation
@@ -540,8 +549,11 @@ df.groupby('model_name')['tokens_per_second'].mean()
 ## Thread Safety
 
 - Uses WAL (Write-Ahead Logging) mode for better concurrency
+
 - Connection per-thread with `check_same_thread=False`
+
 - Write operations use transactions
+
 - Read operations don't block writes
 
 ```python
@@ -606,54 +618,71 @@ src/cyllama/
 ### Phase 1: Core Infrastructure
 
 - [ ] `CyllamaDB` class with connection management
+
 - [ ] Schema creation and migrations
+
 - [ ] Basic configuration get/set
 
 ### Phase 2: Response Caching
 
 - [ ] Cache key generation
+
 - [ ] `get_cached_response()` / `cache_response()`
+
 - [ ] TTL and size-based cleanup
+
 - [ ] Integration with `complete()` and `LLM()`
 
 ### Phase 3: Statistics
 
 - [ ] `record_generation()`
+
 - [ ] `get_stats_summary()` with aggregations
+
 - [ ] `get_generation_history()`
 
 ### Phase 4: Logging
 
 - [ ] Database logging handler
+
 - [ ] Log query API
+
 - [ ] Integration with Python logging
 
 ### Phase 5: Polish
 
 - [ ] CLI commands for DB management
+
 - [ ] Export/import functionality
+
 - [ ] Performance optimization
 
 ## Open Questions
 
 1. **Should caching be on by default?**
    - Pro: Immediate performance benefit
+
    - Con: Unexpected behavior if prompts have side effects
 
 2. **How to handle model path normalization?**
    - Same model at different paths should share cache?
+
    - Use model hash from GGUF metadata?
 
 3. **Should we support multiple databases?**
    - Per-project databases for isolation?
+
    - Global + project overlay?
 
 4. **Integration with async API?**
    - aiosqlite for true async?
+
    - Or thread pool for DB operations?
 
 ## References
 
 - [SQLite WAL Mode](https://www.sqlite.org/wal.html)
+
 - [Python sqlite3 Documentation](https://docs.python.org/3/library/sqlite3.html)
+
 - [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html)

@@ -3,7 +3,9 @@
 Retrieval-Augmented Generation (RAG) enhances LLM responses by retrieving relevant context from a knowledge base before generation. cyllama provides a complete RAG solution using:
 
 - **llama.cpp** for both embedding generation and text generation
+
 - **sqlite-vector** for high-performance vector similarity search
+
 - **SQLite FTS5** for hybrid keyword + semantic search
 
 ## Architecture
@@ -92,6 +94,7 @@ rag = RAG(
 Both slots are typed as structural protocols (`EmbedderProtocol`, `VectorStoreProtocol` in `cyllama.rag.types`). Alternative backends — OpenAI embeddings, Qdrant, Chroma, pgvector, an in-house service — only need to implement the handful of methods the RAG layer actually calls to become drop-in replacements. See:
 
 - [Embedder — Pluggable Backends](rag_embedder.md#pluggable-backends--embedderprotocol)
+
 - [SqliteVectorStore — Pluggable Backends](rag_vectorstore.md#pluggable-backends--vectorstoreprotocol)
 
 Omit the argument to fall back to the defaults (`Embedder` over a local GGUF embedding model and `SqliteVectorStore`).
@@ -294,7 +297,11 @@ The CLI flips three `RAGConfig` fields from their library defaults because they 
 ## Next Steps
 
 - [Embedder](rag_embedder.md) - Generating embeddings
+
 - [SqliteVectorStore](rag_vectorstore.md) - Vector storage and search
+
 - [Text Processing](rag_text_processing.md) - Document splitting and loading
+
 - [RAG Pipeline](rag_pipeline.md) - RAG pipeline configuration
+
 - [Advanced RAG Features](rag_advanced.md) - Async, hybrid search, agent integration

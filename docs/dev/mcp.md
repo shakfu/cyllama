@@ -78,15 +78,18 @@ def chat(
 ### Internals
 
 - `LLM` lazily owns a single `McpClient`.
+
 - `chat()` pulls `client.get_tools_for_agent()`, merges with caller-supplied
   `tools`, runs the existing tool-call loop, and dispatches MCP tool calls
   via `client.call_tool(name, args)`.
+
 - Connect on first use; disconnect on `LLM.close()` / `__exit__`.
 
 ### Open questions
 
 - Sync-only (matches current `agents/mcp.py`) vs. add async path. Recommend
   sync first; revisit when an async caller appears.
+
 - Resource handling: surface `mcp://` URIs through an explicit
   `read_resource()` helper rather than auto-injecting into the system
   prompt. Auto-injection is hard to undo and easy to abuse.
@@ -121,6 +124,7 @@ existing `cyllama` API.
 ### Resources
 
 - `models://local` -- list of GGUF files discovered under configured roots.
+
 - `model://<name>` -- JSON metadata (arch, params, ctx, quant) via existing
   model-introspection helpers.
 
@@ -143,8 +147,11 @@ class EmbeddedServer:
 `McpServerOptions` carries:
 
 - Allowed model roots (filesystem allowlist).
+
 - Default model.
+
 - Tool subset to expose (a deployment can expose `embed` only, etc.).
+
 - Auth hook for the HTTP route.
 
 ### Wire-level
@@ -152,9 +159,13 @@ class EmbeddedServer:
 Implement only the subset MCP requires today:
 
 - `initialize`
+
 - `tools/list`, `tools/call`
+
 - `resources/list`, `resources/read`
+
 - `ping`
+
 - `notifications/initialized`
 
 On stdio, reuse `agents/jsonrpc.py` framing. On HTTP, follow the
@@ -165,6 +176,7 @@ to SSE for server-initiated messages.
 
 - Streaming `tools/call` partial results via SSE: defer until a real client
   consumes it.
+
 - Concurrency: `EmbeddedServer` is single-threaded; long-running
   `generate_image` calls will block other routes. Either gate behind a
   worker thread or document the limitation in the route handler.
@@ -177,14 +189,18 @@ to SSE for server-initiated messages.
   reach `complete`, `embed`, `transcribe`, `generate_image` through one
   configured server. Upstream llama.cpp ships only an OpenAI-compat HTTP API
   -- nothing for whisper or SD.
+
 - **Local, offline, private.** GGUF inference stays on the host but is
   reachable from a frontier-model agent loop. Useful for cheap bulk
   embedding, transcription of sensitive audio, or fast small-model drafts.
+
 - **Capability-gated surface.** `McpServerOptions` lets a deployment expose
   `embed` only (or `transcribe` only). Embedding-as-a-service over MCP is a
   clean fit.
+
 - **Resource surface fits naturally.** `models://local` + `model://<name>`
   is exactly what MCP resources are for; the introspection helpers exist.
+
 - **Reuses existing infra.** `agents/jsonrpc.py` framing plus mongoose
   routes mean small marginal code.
 
@@ -193,15 +209,19 @@ to SSE for server-initiated messages.
 - **Llama.cpp's HTTP server already covers `complete`/`chat`/`embed`** via
   OpenAI-compat. The MCP server's incremental value over `llama-server` is
   mostly `transcribe` + `generate_image` + the resource catalog.
+
 - **Asymmetric value.** The client direction (local LLM consuming MCP
   tools) is more clearly useful -- it gives small local models real reach.
   The server direction mostly benefits frontier-model users who want a
   local fallback, a smaller audience.
+
 - **Concurrency mismatch.** `EmbeddedServer` is single-threaded;
   `generate_image` blocks for tens of seconds. Either add worker threads
   (non-trivial) or the server is functionally single-user.
+
 - **Protocol churn.** MCP transport spec moved twice in 2025 (stdio ->
   HTTP+SSE -> Streamable HTTP). Building now means tracking spec changes.
+
 - **Better-served by an off-the-shelf wrapper for stdio.** A ~200-line
   script using the `mcp` Python SDK that imports cyllama would deliver most
   of the stdio value without touching `EmbeddedServer`. The HTTP-mounted

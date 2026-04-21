@@ -19,8 +19,11 @@ Unlike other Python LLM libraries that require PyTorch, TensorFlow, or other hea
 By wrapping optimized C++ code with Cython (not Python bindings), cyllama achieves near-native performance:
 
 - GPU acceleration via Metal (macOS), CUDA (NVIDIA), Vulkan (cross-platform)
+
 - Efficient memory management with KV caching
+
 - Batch processing for 3-10x throughput improvements
+
 - Speculative decoding for 2-3x faster generation
 
 ### Pythonic API
@@ -55,7 +58,9 @@ This documentation is organized into several parts:
 cyllama uses [uv](https://github.com/astral-sh/uv) for fast, reliable Python package management. uv is a modern Python package manager written in Rust that provides:
 
 - **Speed**: 10-100x faster than pip for dependency resolution and installation
+
 - **Reliability**: Deterministic builds with lockfile support
+
 - **Simplicity**: Single tool for virtual environments, packages, and Python version management
 
 ### Quick Start

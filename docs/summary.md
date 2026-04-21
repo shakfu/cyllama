@@ -7,9 +7,13 @@ Key takeaways from each section of the cyllama documentation.
 The llama.cpp integration provides multiple layers of API access:
 
 - **High-Level API**: `complete()`, `chat()`, and `LLM` class for quick prototyping
+
 - **Streaming**: Token-by-token output with callbacks for real-time applications
+
 - **Batch Processing**: 3-10x throughput improvements for bulk workloads
+
 - **Server Implementations**: OpenAI-compatible REST APIs via EmbeddedServer or PythonServer
+
 - **Advanced Features**: Speculative decoding (2-3x speedup), context caching, GGUF manipulation
 
 Key configuration options include `temperature`, `top_p`, `top_k` for sampling control, and `n_gpu_layers`, `n_ctx`, `n_batch` for performance tuning.
@@ -19,8 +23,11 @@ Key configuration options include `temperature`, `top_p`, `top_k` for sampling c
 Speech recognition capabilities include:
 
 - **Transcription**: Convert audio to text with segment-level timestamps
+
 - **Translation**: Automatic translation to English from 100+ languages
+
 - **Word Timestamps**: Token-level timing via DTW alignment
+
 - **Voice Activity Detection**: Filter silence and detect speech segments
 
 Audio must be 16kHz mono float32 format. Model selection trades off speed vs. accuracy (tiny to large-v3).
@@ -30,8 +37,11 @@ Audio must be 16kHz mono float32 format. Model selection trades off speed vs. ac
 Image generation supports multiple model architectures:
 
 - **Text-to-Image**: Generate images from text prompts
+
 - **Image-to-Image**: Transform existing images with text guidance
+
 - **Video Generation**: Frame sequences with Wan/CogVideoX models
+
 - **Upscaling**: ESRGAN-based resolution enhancement
 
 Key parameters include `sample_steps`, `cfg_scale`, `sample_method`, and `scheduler`.
@@ -59,5 +69,7 @@ Tools are defined with the `@tool` decorator. Contracts use `@pre`, `@post`, and
 ## Next Steps
 
 - Explore the [API Reference](api_reference.md) for detailed function signatures
+
 - Try the [Cookbook](cookbook.md) for practical patterns and recipes
+
 - Check the [GitHub repository](https://github.com/shakfu/cyllama) for examples and updates

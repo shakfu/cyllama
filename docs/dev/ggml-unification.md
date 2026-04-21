@@ -161,6 +161,7 @@ mismatch:
 
 - **SD's compiled code** sees `sizeof(ggml_tensor)` with a 128-byte `name`
   field.
+
 - **llama.cpp's shared libs** see `sizeof(ggml_tensor)` with a 64-byte
   `name` field.
 
@@ -300,10 +301,14 @@ via env var).
 ### scripts/manage.py
 
 - Module-level `_SD_GGML_MAX_NAME = 128` and `_sd_uses_shared_ggml()` helper.
+
 - `LlamaCppBuilder.build()`: passes `-DGGML_MAX_NAME=128` via CMAKE_C/CXX_FLAGS
   when SD shares ggml.
+
 - `LlamaCppBuilder.build_shared()`: same.
+
 - `StableDiffusionCppBuilder._sync_ggml_abi()`: unchanged (source sync).
+
 - `Application.do_build()` (0.2.10): when `SD_USE_VENDORED_GGML=0`, force
   `build_shared()` regardless of whether a pre-built release asset exists,
   so Vulkan dynamic wheels pick up the `GGML_MAX_NAME=128` define too.
@@ -330,14 +335,18 @@ double-free crash documented in `docs/dev/cuda-double-free.md`.
 
 - **Flip the CMake default** (Option 4b). After a release cycle of
   real-world coverage, change `SD_USE_VENDORED_GGML` default to `OFF`.
+
 - **Extend unification to Metal / HIP / SYCL / OpenCL** wheels. Same
   mechanism applies; each backend needs its own validation on matching
   hardware. Vulkan landed in 0.2.10 (`docs/dev/ggml_max_name.md`).
+
 - **Default `GGML_NATIVE=ON` for local static builds** and
   `CMAKE_CUDA_ARCHITECTURES=native` for local dynamic builds. See
   `docs/dev/ggml-config.md` for the analysis and recommendation.
+
 - **Audit whisper** for the same pattern. Whisper also wraps ggml; if its
   static path whole-archives ggml backends, the same unification can apply.
+
 - **Propose the sync mechanism upstream**. `_sync_ggml_abi()` is a
   cyllama-specific workaround. An upstream fix -- either
   stable-diffusion.cpp tracking ggml's HEAD more closely, or ggml itself
@@ -350,22 +359,34 @@ double-free crash documented in `docs/dev/cuda-double-free.md`.
 
 - `CHANGELOG.md` -- 0.2.9 entry documenting the workaround this plan
   reverses.
+
 - `CMakeLists.txt:11` -- `SD_USE_VENDORED_GGML` option default.
+
 - `CMakeLists.txt:15-19` -- `GGML_MAX_NAME=128` propagation.
+
 - `CMakeLists.txt:849-869` -- dynamic-link branch.
+
 - `CMakeLists.txt:891-894`, `CMakeLists.txt:913-917` -- the whole-archive
   link whose bloat we eliminated.
+
 - `scripts/manage.py` -- `_SD_GGML_MAX_NAME`, `_sd_uses_shared_ggml()`,
   `_sync_ggml_abi()`, and the CMAKE_C/CXX_FLAGS injection in both
   `LlamaCppBuilder.build()` and `LlamaCppBuilder.build_shared()`.
+
 - `build/stable-diffusion.cpp/CMakeLists.txt:233` --
   `-DGGML_MAX_NAME=128` that SD applies.
+
 - `build/stable-diffusion.cpp/src/ggml_extend.hpp:94` --
   `static_assert(GGML_MAX_NAME >= 128)`.
+
 - `build/llama.cpp/ggml/include/ggml.h` -- `#ifndef GGML_MAX_NAME` /
   `#define GGML_MAX_NAME 64` guard.
+
 - `Makefile` -- `build-*-dynamic` and `wheel-*-dynamic` targets.
+
 - `.github/workflows/build-gpu-wheels.yml` -- auditwheel exclude sets.
+
 - `docs/dev/cuda-double-free.md` -- auditwheel `--exclude` rationale.
+
 - `docs/dev/ggml-config.md` -- `GGML_NATIVE` and `CMAKE_CUDA_ARCHITECTURES`
   analysis.

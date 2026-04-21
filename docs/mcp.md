@@ -43,9 +43,13 @@ All methods live on `LLM`. `McpTool`, `McpResource`, `McpServerConfig`, and `Mcp
 Attach an MCP server and connect immediately (fail-fast on a bad config or unreachable endpoint).
 
 - `name` — logical name. Tools discovered on this server are exposed as `"<name>/<tool>"` to avoid collisions when multiple servers expose identically named tools.
+
 - **stdio transport**: set `command` (required), and optionally `args`, `env`, `cwd`.
+
 - **HTTP transport**: set `url` (required), and optionally `headers`.
+
 - Transport is inferred from which kwargs are present; pass `transport=McpTransportType.STDIO|HTTP` explicitly to disambiguate.
+
 - `request_timeout` / `shutdown_timeout` override per-server timeouts (defaults defined in `cyllama.agents.mcp`).
 
 ### `remove_mcp_server(name)`
@@ -77,8 +81,11 @@ Fetch a resource's contents by URI.
 Run a tool-calling ReAct loop over chat messages. The last user message is the agent task; a leading system message becomes the agent's system prompt unless `system_prompt` is given explicitly.
 
 - `tools` — additional cyllama `Tool` instances merged with the MCP tools.
+
 - `use_mcp=False` — drop MCP tools and use only the caller-supplied `tools`.
+
 - `max_iterations` — cap on thought/action cycles.
+
 - Returns the agent's final answer string.
 
 Multi-turn conversation history beyond a single user turn is not yet plumbed through — the ReAct loop operates one task at a time.
@@ -129,5 +136,7 @@ Set `use_mcp=False` to run the loop against local `tools` only, even when MCP se
 ## See Also
 
 - [Agents Overview](agents_overview.md) — `ReActAgent` and the `Tool` abstraction
+
 - [`docs/dev/mcp.md`](dev/mcp.md) — design draft, including the deferred server direction
+
 - `cyllama.agents.mcp` — `McpClient`, `McpServerConfig`, `McpTransportType`, `McpConnectionProtocol`

@@ -9,7 +9,9 @@ Cyllama includes a zero-dependency agent framework for building tool-using LLM a
 3. [Tools](#tools)
 4. [Agents](#agents)
    - [ReActAgent](#reactagent)
+
    - [ConstrainedAgent](#constrainedagent)
+
    - [ContractAgent](#contractagent)
 5. [Events and Results](#events-and-results)
 6. [Configuration](#configuration)
@@ -184,12 +186,15 @@ result = agent.run("Search for Python tutorials")
 **Strengths:**
 
 - Natural reasoning trace for debugging
+
 - Works well with most instruction-tuned models
+
 - Flexible action format
 
 **Weaknesses:**
 
 - Parsing can fail on malformed output
+
 - Requires larger models for reliable tool calling
 
 ---
@@ -248,12 +253,15 @@ or
 **Strengths:**
 
 - 100% valid JSON output (grammar-enforced)
+
 - Works with smaller models
+
 - Eliminates parsing failures
 
 **Weaknesses:**
 
 - Less natural output format
+
 - Grammar compilation overhead (mitigated by caching)
 
 ---
@@ -350,12 +358,15 @@ agent = ContractAgent(
 **Strengths:**
 
 - Runtime verification of tool behavior
+
 - Configurable violation handling
+
 - Agent-level invariants
 
 **Weaknesses:**
 
 - Additional overhead for contract checking
+
 - Requires explicit contract definitions
 
 ## Events and Results
@@ -653,5 +664,7 @@ async def parallel_agents():
 ## References
 
 - [ReAct: Synergizing Reasoning and Acting in Language Models](https://arxiv.org/abs/2210.03629)
+
 - [C++26 Contract Assertions](https://en.cppreference.com/w/cpp/language/contracts.html)
+
 - [Contracts for C++ P2900R14](https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2025/p2900r14.pdf)

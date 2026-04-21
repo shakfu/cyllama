@@ -345,12 +345,19 @@ Stable Diffusion image and video generation.
 ### Subcommands
 
 - `txt2img` (alias: `generate`) -- Text to image
+
 - `img2img` -- Image to image
+
 - `inpaint` -- Inpainting with mask
+
 - `controlnet` -- ControlNet guided generation
+
 - `video` -- Video generation (Wan, CogVideoX)
+
 - `upscale` -- ESRGAN upscaling
+
 - `convert` -- Model format conversion
+
 - `info` -- System info
 
 ### txt2img / generate

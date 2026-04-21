@@ -9,11 +9,17 @@ Cyllama wraps [stable-diffusion.cpp](https://github.com/leejet/stable-diffusion.
 The stable diffusion module provides Python bindings to stable-diffusion.cpp, enabling:
 
 - Text-to-image generation
+
 - Image-to-image transformation
+
 - Inpainting with masks
+
 - ControlNet guided generation
+
 - Video generation (with compatible models like Wan, CogVideoX)
+
 - ESRGAN image upscaling
+
 - Model format conversion
 
 ## Quick Start
@@ -418,9 +424,13 @@ Prediction types:
 Data types for quantization:
 
 - Float: `F32`, `F16`, `BF16`
+
 - 4-bit: `Q4_0`, `Q4_1`, `Q4_K`
+
 - 5-bit: `Q5_0`, `Q5_1`, `Q5_K`
+
 - 8-bit: `Q8_0`, `Q8_1`, `Q8_K`
+
 - K-quants: `Q2_K`, `Q3_K`, `Q6_K`
 
 ### LoraApplyMode
@@ -796,27 +806,39 @@ if not os.path.exists(model_path):
 ### Out of Memory
 
 - Use smaller model (SD 1.5 vs SDXL)
+
 - Use quantized model (Q4_0 vs F16)
+
 - Reduce image dimensions
+
 - Reduce batch_count
+
 - Enable `--offload-to-cpu`
+
 - Enable `--vae-tiling` for large images
 
 ### Slow Generation
 
 - Use turbo/LCM models with fewer steps
+
 - Enable flash attention (`--diffusion-fa`)
+
 - Increase n_threads
+
 - Use direct convolution (`--diffusion-conv-direct`)
 
 ### FLUX/SD3 Models Not Working
 
 - Ensure you have the required encoders (clip_l, t5xxl)
+
 - For FLUX2, use `--llm` instead of `--t5xxl`
+
 - Check prediction type matches model
 
 ## See Also
 
 - [stable-diffusion.cpp repository](https://github.com/leejet/stable-diffusion.cpp)
+
 - [SDXL Turbo](https://huggingface.co/stabilityai/sdxl-turbo) - Fast generation model
+
 - [API Reference](api_reference.md) - Detailed API documentation

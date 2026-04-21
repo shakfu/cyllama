@@ -305,7 +305,9 @@ response = chat(messages, model_path="model.gguf")
 Cyllama automatically discovers CUDA DLL paths when built with `GGML_CUDA=1`, but the discovery may fail if:
 
 - CUDA toolkit is installed in a non-standard location
+
 - Neither `CUDA_PATH` nor `CUDA_HOME` is set
+
 - `nvcc` is not on `PATH`
 
 **Solutions:**
@@ -339,6 +341,7 @@ Cyllama automatically discovers CUDA DLL paths when built with `GGML_CUDA=1`, bu
 
 1. **Install Vulkan SDK:**
    - Linux: `sudo apt install vulkan-tools libvulkan-dev`
+
    - macOS: Install from [LunarG](https://vulkan.lunarg.com/)
 
 2. **Verify Vulkan:**

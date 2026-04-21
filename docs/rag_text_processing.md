@@ -91,6 +91,7 @@ code_block = "preserved"
 ```
 
 - List item 1
+
 - List item 2
 """
 
@@ -103,8 +104,11 @@ chunks = splitter.split(markdown_text)
 The MarkdownSplitter:
 
 - Preserves code blocks (```)
+
 - Respects header hierarchy (#, ##, ###)
+
 - Keeps list items together
+
 - Maintains frontmatter
 
 ## Document Loaders

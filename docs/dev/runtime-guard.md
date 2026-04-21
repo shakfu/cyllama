@@ -7,9 +7,13 @@
 This document is a maintainer guide. It covers:
 
 - The underlying hazard and why it exists
+
 - The current implementation
+
 - The alternative designs that were considered and rejected
+
 - Known weaknesses of the current design
+
 - When and how to extend the guard if a new native-touching method is added
 
 The design analysis at the end is preserved so future maintainers can decide whether to keep, replace, or extend the guard based on first principles, not by reading the code and guessing.
@@ -49,6 +53,7 @@ So for whisper, the rule is stated in the header: do not call `whisper_full`/`wh
 **llama.cpp** is **not** explicit about `llama_context` thread safety in the C header. `thirdparty/llama.cpp/include/llama.h` has thread-safety annotations only on two scoped subsystems:
 
 - The Tokenization section (line 1120) is marked safe: `// The API is thread-safe.` — but the comment is positioned just above the `llama_tokenize` family and applies only to that section, not to the whole API.
+
 - Global logger state is marked unsafe at lines 521 and 1511: `// this function is NOT thread safe because it modifies the global llama logger state` and similar.
 
 The actually-dangerous functions — `llama_decode`, `llama_encode`, `llama_sampler_sample`, `llama_set_*` — have **no thread-safety annotation either way**. Their docstrings document return codes and memory-state behaviour but not thread safety. The `ggml.h` "Multi-threading" section that you'd hope would clarify things is literally `// TODO`:
@@ -71,7 +76,9 @@ The headers are silent, but the upstream issue tracker is **explicit** about the
    Three things to note about this quote, because it is the closest thing to an explicit, citable upstream statement of the rule:
 
    - The unit of parallelism is **"multiple llama contexts"** (plural). The supported pattern is one context per worker, never one context shared between workers.
+
    - Backend safety varies. **CPU and Metal** are thread-safe (across contexts). **CUDA** is thread-safe in the multi-GPU/multi-context case. **"Other backends probably not"** — Vulkan, SYCL, HIP, OpenCL are explicitly *not* claimed to be thread-safe, even across contexts. cyllama users on those backends should treat the runtime guard as the only safety net.
+
    - The hedge ("should now be possible", "probably not") is the maintainer's own. Even within the supported pattern, upstream is not making a strong guarantee.
 
 3. **[ggml-org/llama.cpp#6170](https://github.com/ggml-org/llama.cpp/pull/6170)** — *"cuda : refactor to remove global resources"* (slaren, merged March 2024). This is the PR that closed #3960. Its scope is narrower than the issue title implies: it fixes the CUDA backend singletons that prevented even the per-context case from working. The PR description: *"Pools and other resources are tied to the `ggml_backend` instance and are freed along with it. It should also be thread-safe."* Note the hedge ("should") and the scope (CUDA backend resources, not `llama_context` state).
@@ -275,6 +282,7 @@ def test_concurrent_generate_raises(self):
 This pattern is intentional for two reasons:
 
 - **It exercises the real public-API entry points.** The worker calls `ctx.generate()` (or `llm()`, or `ctx.full()`), proving the guard is wired up to the user-visible method, not just to some internal helper.
+
 - **The worker never reaches native code.** It hits `_try_acquire_busy()` and raises before any native call runs. This is critical for `SDContext` because `test_deterministic_seed` is currently skipped with the comment *"Multiple generations on same context causes segfault — needs investigation"*. By ensuring the worker never reaches native code, our test avoids that unrelated bug.
 
 The `LLM` test (`tests/test_comprehensive.py::TestLLMConcurrencyGuard::test_concurrent_calls_from_two_threads_raises`) uses a slightly different pattern because `LLM` exposes an `on_token` callback that gives us a deterministic way to pause inside a real call: thread A starts a real generation, the `on_token` callback blocks on a `threading.Event`, thread B then attempts a concurrent call and is rejected. This is a stronger end-to-end test than the lock-holding shortcut because it actually runs native code in thread A. Use whichever pattern makes sense for the API surface being tested.
@@ -306,8 +314,11 @@ Checklist for a new guarded method:
 Methods that **don't** need the guard:
 
 - Pure Python helpers that don't touch C++ state (cache management, config validation, message-list parsing).
+
 - Read-only metadata accessors that go through llama.cpp's thread-safe `llama_model_*` family (model name, n_params, vocab queries) — these are documented as safe.
+
 - `close()`, `__del__`, `__exit__`, `__dealloc__` — see the rationale above.
+
 - Methods that already delegate to a guarded method.
 
 When in doubt: read the upstream comment for the underlying C function. llama.cpp documents thread safety per-function in `llama.h`.
@@ -345,13 +356,17 @@ Use `acquire(blocking=True)` so concurrent callers wait their turn instead of ra
 **Pros:**
 
 - Code that worked accidentally (relying on GIL serialization or coincidental timing) keeps working.
+
 - No surprise behavior change for existing users.
+
 - Matches Python ecosystem norms.
 
 **Cons:**
 
 - **Hides architectural mistakes.** A user who accidentally shares one `LLM` across 8 worker threads gets 1/8th the throughput they expected, with no signal telling them why. They discover the problem months later staring at a flame graph.
+
 - **Unbounded latency in async contexts.** A blocking acquire inside an `asyncio.to_thread` call can deadlock the event loop or stall it for arbitrary periods if the lock-holder is slow.
+
 - **Loses the "fail loud" signal.** cyllama generally takes the position that bad inputs and unsafe usage should raise immediately, not degrade silently. Other parts of the codebase do the same: `validate_gguf_file`, `VectorStoreError` on metadata mismatch, the typed exceptions on model loaders.
 
 **When to revisit this:** If cyllama's positioning ever shifts toward "high-level convenience library where users don't think about threading," serialize would become the right call. The conversion is a one-line change (`blocking=False` → `blocking=True`) — the lock infrastructure stays the same, so this decision isn't permanently locked in.
@@ -367,7 +382,9 @@ Maintain a pool of contexts inside each `LLM`, allocate one per thread on first 
 **Cons:**
 
 - **Memory blowup.** A `llama_context` with default `n_ctx=2048` consumes hundreds of MB to a few GB depending on the model. Allocating one per worker thread is prohibitive — most production setups can barely fit *one* context per GPU.
+
 - **Wrong layer.** If a user wants concurrent inference, they should make that decision explicitly by creating multiple `LLM` instances (or by using multiple GPUs). Hiding the cost inside the wrapper makes it look free when it isn't.
+
 - **Doesn't help the asyncio.to_thread case.** That pattern uses one context shared across many short calls, which works fine without a pool — adding pooling would just waste memory.
 
 #### Alternative 4: Documentation only, no runtime check
@@ -377,12 +394,15 @@ Just say "don't share `LLM` across threads" in the docs and rely on users readin
 **Pros:**
 
 - Zero overhead.
+
 - No false positives.
 
 **Cons:**
 
 - **Silent UB when the rule is violated.** The failure mode is corrupt KV cache → garbage tokens → user blames the model and files a confused bug report. Extremely hard to debug.
+
 - **Contradicts cyllama's "fail loud" philosophy.** We have typed exceptions on model loaders, validation errors on `VectorStore` metadata, friendly errors on missing files, etc. Letting this one class of bug fall through silently would be inconsistent.
+
 - **The runtime check is cheap.** One atomic int compare per call, which is negligible compared to a token generation step.
 
 #### Alternative 5: Fix it upstream
@@ -418,4 +438,5 @@ If cyllama were positioned higher up the stack — "give me an LLM, I don't care
 ### Open follow-ups
 
 - **`docs/` user-facing threading model page.** Tracked in `TODO.md` under High Priority. Should describe the "one in-flight call per instance" rule, the `asyncio.to_thread` pattern that's safe, the recommendation to create one `LLM` per worker, and the `RuntimeError` users will see if they get it wrong. This document is for maintainers; a separate user-facing one is still needed.
+
 - **Static check for missing guards.** No good story here — Cython doesn't lend itself to lint-time analysis, and the discipline is per-method. Could be done at code-review time via a checklist, or via a runtime check that wraps every public method on the class with an assertion that `_busy_lock` was touched. Both feel overengineered.

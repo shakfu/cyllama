@@ -19,9 +19,13 @@ This document analyzes the current RAG implementation's scalability characterist
 cyllama uses the [sqlite-vec](https://github.com/asg017/sqlite-vec) extension for vector operations. This provides:
 
 - **`vector_init()`** - Initialize vector search on a table/column
+
 - **`vector_full_scan()`** - Brute-force exact search
+
 - **`vector_quantize()`** - Build quantized index for approximate search
+
 - **`vector_quantize_scan()`** - Fast approximate search using quantization
+
 - **`vector_quantize_preload()`** - Preload quantized data into memory
 
 ### Data Flow
@@ -85,8 +89,11 @@ store.preload_quantization()        # Load into memory for 4-5x speedup
 **sqlite-vec Quantization Details**:
 
 - Uses scalar quantization (float32 -> int8)
+
 - Maintains >0.95 recall for typical workloads
+
 - Memory-mapped for efficient I/O
+
 - Configurable memory budget
 
 ### 2. Embedding Generation
@@ -101,13 +108,17 @@ def embed_batch(self, texts: list[str], ...) -> list[list[float]]:
 **Issues**:
 
 - Sequential processing (no true batching at llama.cpp level)
+
 - No async support for I/O-bound scenarios
+
 - GPU utilization may be suboptimal for small texts
 
 **Realistic Throughput** (GTE-small on M1 Mac):
 
 - ~50-100 embeddings/second for short texts
+
 - 10,000 documents with 5 chunks each = 50,000 embeddings
+
 - Indexing time: ~8-15 minutes
 
 ### 3. HybridStore FTS5
@@ -131,13 +142,17 @@ def _fts_search(self, query: str, k: int = 10) -> list[SearchResult]:
 **Current Implementation** (`pipeline.py`):
 
 - Single query at a time
+
 - No result caching
+
 - Synchronous LLM calls
 
 **Issues**:
 
 - No query batching
+
 - Repeated identical queries hit full search path
+
 - No streaming for intermediate results
 
 ### 5. Document Loading
@@ -145,11 +160,13 @@ def _fts_search(self, query: str, k: int = 10) -> list[SearchResult]:
 **Current Implementation**: Generally good
 
 - `JSONLLoader.load_lazy()` provides streaming
+
 - `DirectoryLoader` processes files sequentially
 
 **Issues**:
 
 - No parallel file loading
+
 - Large files loaded entirely into memory before chunking
 
 ## Scaling Recommendations
@@ -175,7 +192,9 @@ results = store.search(query_embedding, k=10)
 **Guidelines**:
 
 - < 5,000 vectors: Full scan is fine
+
 - 5,000 - 50,000 vectors: Quantize with 30-50MB memory
+
 - 50,000+ vectors: Quantize with 100MB+ memory
 
 ### Phase 2: Quick Wins (Minor Code Changes)
@@ -393,34 +412,47 @@ class VectorStore:
 ### For 100s of Documents (Current)
 
 - Current implementation is sufficient
+
 - No quantization needed
+
 - Full scan search is fast enough
 
 ### For 1,000s of Documents
 
 - Enable quantization after bulk insert
+
 - Add embedding cache for repeated queries
+
 - Expected: <20ms search
 
 ### For 10,000s of Documents
 
 - Quantization required
+
 - Preload quantized data for best performance
+
 - Consider auto-quantization threshold
+
 - Expected: <30ms search
 
 ### For 100,000+ Documents
 
 - Quantization with larger memory budget (100MB+)
+
 - Add metadata pre-filtering to reduce candidate set
+
 - Implement async embedding for ingestion
+
 - Expected: <50ms search with filtering
 
 ### For 1,000,000+ Documents
 
 - Consider sharding across multiple database files
+
 - Use metadata filtering aggressively
+
 - Periodic re-quantization for optimal performance
+
 - Expected: <100ms search with sharding
 
 ## sqlite-vec Configuration
@@ -452,7 +484,9 @@ store = VectorStore(
 **Recommendations**:
 
 - `cosine`: Best for normalized embeddings (most embedding models)
+
 - `l2`: When absolute distances matter
+
 - `dot`: For maximum inner product search
 
 ### Vector Types
@@ -471,7 +505,9 @@ store = VectorStore(
 **Trade-offs**:
 
 - `float32`: Full precision, largest storage
+
 - `float16`: 2x smaller, minimal quality loss
+
 - `int8`: 4x smaller, ~1-2% recall reduction
 
 ## Benchmarking
@@ -538,8 +574,11 @@ The cyllama RAG implementation leverages `sqlite-vec` for efficient vector opera
 **Already Available**:
 
 - Quantized approximate search via `vector_quantize_scan()`
+
 - Configurable memory budgets
+
 - Multiple distance metrics
+
 - Storage-efficient vector types
 
 **Key Insight**: The most important optimization is **enabling quantization** for datasets >5,000 vectors. This is already implemented and provides 4-5x speedup with >95% recall.
