@@ -1,4 +1,4 @@
-name: build-abi3 (experimental)
+name: build-cibw-abi3
 
 # Experimental abi3 wheel build. Produces one wheel per platform tagged
 # cp312-abi3-<plat>, which by spec is importable on CPython 3.12+.

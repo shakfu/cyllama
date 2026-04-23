@@ -1,4 +1,4 @@
-name: build-gpu-wheels-abi3 (experimental)
+name: build-gpu-wheels-abi3
 
 # Experimental abi3 variant of build-gpu-wheels2.yml. Produces one wheel
 # per (backend x platform) tagged cp312-abi3, importable on CPython 3.12+.
