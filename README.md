@@ -687,6 +687,8 @@ All source builds support both static (`make build-<backend>`) and dynamic (`mak
 
 See [CHANGELOG.md](CHANGELOG.md) for full release notes.
 
+- **v0.2.12** - Windows-CUDA, Windows-Vulkan, and macOS-Intel Vulkan GPU wheels; canonical delocate/auditwheel/delvewheel packaging. Experimental abi3 wheels (cp312+)
+
 - **v0.2.11** (Apr 2026) - Pluggable RAG backends (`VectorStoreProtocol` / `EmbedderProtocol`) and MCP client API on `LLM`
 
 - **v0.2.10** (Apr 2026) - GPU wheel size halved; packaging fixes (`build_config.json`, auditwheel SONAME, Vulkan ABI)
