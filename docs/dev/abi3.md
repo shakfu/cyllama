@@ -5,15 +5,19 @@
 cyllama currently builds a separate wheel for each supported Python version
 (3.10, 3.11, 3.12, 3.13, 3.14) x each platform x each GPU backend.
 Converting the extensions to use the CPython stable ABI (abi3 / limited API)
-collapses the Python-version axis: one wheel tagged `cp310-abi3-<plat>`
-works on CPython 3.10 and every newer version.
+collapses the Python-version axis: one wheel tagged `cp311-abi3-<plat>`
+works on CPython 3.11 and every newer version. (Floor is 3.11, not
+3.10, because `Py_buffer` and `PyBUF_*` entered the stable ABI only in
+3.11. Cython's auto-generated memoryview boilerplate references them,
+so a 3.10 floor fails to compile `whisper_cpp` and `stable_diffusion`.)
 
-Effective reduction is ~5x (only the Python-version axis collapses; the
-platform and GPU-backend axes are unaffected).
+Effective reduction is ~4x against the current 3.10-3.14 matrix (5 -> 1
+per platform/backend, minus 3.10 which falls back to the per-version
+build).
 
 Cython does not expose a `limited_api` compiler directive. Its
 limited-API codegen is driven entirely by the `Py_LIMITED_API` C
-preprocessor macro, which CMake's `USE_SABI 3.10` defines
+preprocessor macro, which CMake's `USE_SABI 3.11` defines
 automatically. The existing `.pyx` files do not use any features that
 block abi3 (no direct `PyObject_HEAD` manipulation, no buffer-protocol
 internals, exceptions handled implicitly by Cython), so flipping the
@@ -32,7 +36,7 @@ Two ways to enable:
 1. Local build: `cmake -DCYLLAMA_ABI3=ON ...` (or via scikit-build-core
    config settings: `pip install . --config-settings=cmake.define.CYLLAMA_ABI3=ON`).
 2. CI abi3 job: environment variable `SKBUILD_CMAKE_DEFINE=CYLLAMA_ABI3=ON`
-   plus `SKBUILD_WHEEL_PY_API=cp310` to tag the wheel correctly.
+   plus `SKBUILD_WHEEL_PY_API=cp311` to tag the wheel correctly.
 
 ## 1. CMakeLists.txt changes
 
@@ -67,7 +71,7 @@ using a helper variable near the top of the extensions section:
 
 ```cmake
 if(CYLLAMA_ABI3)
-    set(_SABI_ARGS USE_SABI 3.10)
+    set(_SABI_ARGS USE_SABI 3.11)
 else()
     set(_SABI_ARGS "")
 endif()
@@ -82,8 +86,8 @@ python_add_library(${target_name} MODULE WITH_SOABI ${_SABI_ARGS}
 )
 ```
 
-`USE_SABI 3.10` (CMake 3.26+) links `Python::SABIModule`, defines
-`Py_LIMITED_API=0x030a0000`, and uses the `.abi3.so` / `.pyd` suffix.
+`USE_SABI 3.11` (CMake 3.26+) links `Python::SABIModule`, defines
+`Py_LIMITED_API=0x030b0000`, and uses the `.abi3.so` / `.pyd` suffix.
 
 ## 2. pyproject.toml changes
 
@@ -92,7 +96,7 @@ would force every wheel to be tagged abi3 regardless of how the code was
 compiled. Instead, the abi3 CI job sets it via environment variable:
 
 ```
-SKBUILD_WHEEL_PY_API=cp310
+SKBUILD_WHEEL_PY_API=cp311
 SKBUILD_CMAKE_DEFINE=CYLLAMA_ABI3=ON
 ```
 
@@ -100,7 +104,7 @@ The default build reads neither and produces per-version wheels as today.
 
 In `[tool.cibuildwheel]` the default `build = "cp310-* cp311-* cp312-*
 cp313-* cp314-*"` remains untouched. The abi3 CI workflow overrides with
-`CIBW_BUILD=cp310-*` and the two `SKBUILD_*` variables above.
+`CIBW_BUILD=cp311-*` and the two `SKBUILD_*` variables above.
 
 ## 3. Cython source changes
 
@@ -122,10 +126,10 @@ the limited-API directive is passed at build time.
 2. Verify opt-in path: `pip install . --config-settings=cmake.define.CYLLAMA_ABI3=ON`
    on 3.12, confirm `.abi3.so` suffix on the installed modules, run
    `make test`.
-3. Add a parallel CI job building `cp310-abi3` wheels alongside the
+3. Add a parallel CI job building `cp311-abi3` wheels alongside the
    existing matrix for one release.
 4. Add a post-build verification job: download the abi3 wheel,
-   `pip install` + `pytest` on 3.10, 3.13, and 3.14.
+   `pip install` + `pytest` on 3.11, 3.13, and 3.14.
 5. After one clean release with no regressions, consider whether to
    switch the default (or keep both paths indefinitely).
 
@@ -138,13 +142,16 @@ the limited-API directive is passed at build time.
 - Any `.pxd` in dependencies that `cimport`s from `cpython.*` submodules
   may reach non-limited APIs. If the abi3 build fails, grep for `from
   cpython` and inspect.
-- Wheel tag `cp310-abi3-<plat>.whl` is handled correctly by pip >= 20.3;
+- Wheel tag `cp311-abi3-<plat>.whl` is handled correctly by pip >= 20.3;
   very old pip versions will not resolve it.
 - Free-threaded builds (`cp313t`, `cp314t`) are not covered by abi3 and
   still need their own wheels if supported.
-- The minimum-Python floor (3.10) is locked in for the lifetime of the
-  abi3 wheel: C API additions from 3.11+ cannot be used without either
-  raising the floor (e.g. `cp311`) or dropping abi3 on that code path.
+- The minimum-Python floor (3.11) is locked in for the lifetime of the
+  abi3 wheel: C API additions from 3.12+ cannot be used without either
+  raising the floor or dropping abi3 on that code path.
+- 3.10 users fall back to the per-version build (which remains the
+  default). When 3.10 EOLs (Oct 2026), the abi3 wheel can become the
+  sole distribution.
 
 ## 7. Benefit estimate
 

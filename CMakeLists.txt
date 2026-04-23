@@ -589,7 +589,11 @@ endforeach()
 # Cython-level flag is required (Cython has no `limited_api` compiler
 # directive; the mechanism is purely C-preprocessor driven).
 if(CYLLAMA_ABI3)
-    set(_SABI_ARGS USE_SABI 3.10)
+    # Floor is 3.11, not 3.10: Py_buffer and PyBUF_* constants entered
+    # the stable ABI in 3.11 (PEP 688). Cython auto-emits memoryview
+    # support code that references these, so 3.10 abi3 fails to compile
+    # whisper_cpp and stable_diffusion. 3.11+ is fine.
+    set(_SABI_ARGS USE_SABI 3.11)
 else()
     set(_SABI_ARGS "")
 endif()

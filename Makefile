@@ -45,7 +45,7 @@ endif
 # =============================================================================
 # Primary targets
 # =============================================================================
-.PHONY: all build build-dynamic setup sync dev lean reset remake
+.PHONY: all build build-dynamic setup sync dev dev-abi3 lean reset remake
 
 all: build
 
@@ -61,6 +61,11 @@ sync: $(LIBLAMMA)
 dev: sync
 	@uv pip install -e .
 
+dev-abi3: sync
+	@uv pip install -e . \
+		--config-settings=cmake.define.CYLLAMA_ABI3=ON \
+		--config-settings=wheel.py-api=cp311
+
 build: $(LIBLAMMA)
 	@uv sync --reinstall-package cyllama
 
@@ -72,10 +77,15 @@ remake: reset build test
 # =============================================================================
 # Wheel and distribution
 # =============================================================================
-.PHONY: wheel wheel-check dist build-wheel publish publish-test check
+.PHONY: wheel wheel-abi3 wheel-check dist build-wheel publish publish-test check
 
 wheel: $(LIBLAMMA)
 	@uv build --wheel
+
+wheel-abi3: $(LIBLAMMA)
+	@uv build --wheel \
+		--config-setting=cmake.define.CYLLAMA_ABI3=ON \
+		--config-setting=wheel.py-api=cp311
 
 wheel-dynamic: $(LLAMACPP)/dynamic/libllama.dylib
 	@WITH_DYLIB=1 uv build --wheel

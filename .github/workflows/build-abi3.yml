@@ -1,7 +1,7 @@
 name: build-abi3 (experimental)
 
 # Experimental abi3 wheel build. Produces one wheel per platform tagged
-# cp310-abi3-<plat>, which by spec is importable on CPython 3.10+.
+# cp311-abi3-<plat>, which by spec is importable on CPython 3.11+.
 #
 # This workflow is gated behind CYLLAMA_ABI3=ON (see docs/dev/abi3.md).
 # It runs in parallel to build-cibw.yml and does NOT replace it.
@@ -46,8 +46,9 @@ jobs:
           CIBW_PLATFORM: ${{ matrix.platform || 'auto' }}
           CIBW_ARCHS: ${{ matrix.archs || 'auto' }}
           # Single build per platform - the resulting wheel is tagged
-          # cp310-abi3 and is valid on 3.10+.
-          CIBW_BUILD: "cp310-*"
+          # cp311-abi3 and is valid on 3.11+. Floor is 3.11 (not 3.10)
+          # because Py_buffer entered the stable ABI only in 3.11.
+          CIBW_BUILD: "cp311-*"
           # Per-platform environment. cibuildwheel resolves
           # CIBW_ENVIRONMENT_<PLAT> independently of pyproject.toml's
           # [tool.cibuildwheel.<plat>] environment table, so each
@@ -59,18 +60,18 @@ jobs:
           # in macOS 10.15).
           CIBW_ENVIRONMENT_LINUX: >-
             SKBUILD_CMAKE_DEFINE="CYLLAMA_ABI3=ON"
-            SKBUILD_WHEEL_PY_API=cp310
+            SKBUILD_WHEEL_PY_API=cp311
             GGML_METAL=0
             GGML_NATIVE=0
           CIBW_ENVIRONMENT_MACOS: >-
             SKBUILD_CMAKE_DEFINE="CYLLAMA_ABI3=ON"
-            SKBUILD_WHEEL_PY_API=cp310
+            SKBUILD_WHEEL_PY_API=cp311
             MACOSX_DEPLOYMENT_TARGET=11.0
             GGML_METAL=1
             GGML_NATIVE=0
           CIBW_ENVIRONMENT_WINDOWS: >-
             SKBUILD_CMAKE_DEFINE="CYLLAMA_ABI3=ON"
-            SKBUILD_WHEEL_PY_API=cp310
+            SKBUILD_WHEEL_PY_API=cp311
             GGML_METAL=0
             GGML_NATIVE=0
 
@@ -80,7 +81,7 @@ jobs:
           path: ./wheelhouse/*.whl
 
   # Verify the abi3 wheel actually imports and runs on every Python
-  # version in the support range. cibuildwheel only tests on cp310
+  # version in the support range. cibuildwheel only tests on cp311
   # during build, so this cross-version matrix is the real validation.
   cross_version_smoke_test:
     name: Smoke test py${{ matrix.python }} on ${{ matrix.os }}
@@ -90,7 +91,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [linux-intel, macos-arm, windows-intel]
-        python: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+        python: ["3.11", "3.12", "3.13", "3.14"]
         include:
           - os: linux-intel
             runs-on: ubuntu-latest
@@ -130,7 +131,7 @@ jobs:
         id: find-wheel
         shell: bash
         run: |
-          # Single abi3 wheel per platform - tagged cp310-abi3-<plat>.
+          # Single abi3 wheel per platform - tagged cp311-abi3-<plat>.
           WHEEL=$(find wheels -name "*abi3*.whl" | head -1)
           if [ -z "$WHEEL" ]; then
             echo "ERROR: no abi3 wheel found in wheels/"

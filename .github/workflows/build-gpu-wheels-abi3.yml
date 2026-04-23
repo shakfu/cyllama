@@ -1,7 +1,7 @@
 name: build-gpu-wheels-abi3 (experimental)
 
 # Experimental abi3 variant of build-gpu-wheels2.yml. Produces one wheel
-# per (backend x platform) tagged cp310-abi3, importable on CPython 3.10+.
+# per (backend x platform) tagged cp311-abi3, importable on CPython 3.11+.
 # Opt-in via the CYLLAMA_ABI3 CMake option (see docs/dev/abi3.md).
 # Runs in parallel to build-gpu-wheels2.yml; does NOT replace it.
 
@@ -72,9 +72,9 @@ concurrency:
 
 env:
   CIBW_BUILD_VERBOSITY: 1
-  # abi3: a single build per platform produces a cp310-abi3 wheel
-  # valid for CPython 3.10+.
-  CIBW_BUILD: "cp310-*"
+  # abi3: a single build per platform produces a cp311-abi3 wheel
+  # valid for CPython 3.11+.
+  CIBW_BUILD: "cp311-*"
   CIBW_SKIP: "*-musllinux_* *-win32 *-manylinux_i686"
 
 jobs:
@@ -169,7 +169,7 @@ jobs:
             WITH_DYLIB=${{ inputs.link_mode == 'dynamic' && '1' || '0' }}
             SD_USE_VENDORED_GGML=${{ inputs.link_mode == 'dynamic' && '0' || '1' }}
             SKBUILD_CMAKE_DEFINE="CYLLAMA_ABI3=ON"
-            SKBUILD_WHEEL_PY_API=cp310
+            SKBUILD_WHEEL_PY_API=cp311
           CIBW_TEST_COMMAND: ""
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
             test -d {project}/thirdparty/llama.cpp/dynamic || { echo "ERROR: dynamic lib dir missing: {project}/thirdparty/llama.cpp/dynamic"; exit 1; } &&
@@ -286,7 +286,7 @@ jobs:
             WITH_DYLIB=${{ inputs.link_mode == 'dynamic' && '1' || '0' }}
             SD_USE_VENDORED_GGML=${{ inputs.link_mode == 'dynamic' && '0' || '1' }}
             SKBUILD_CMAKE_DEFINE="CYLLAMA_ABI3=ON"
-            SKBUILD_WHEEL_PY_API=cp310
+            SKBUILD_WHEEL_PY_API=cp311
           CIBW_TEST_COMMAND: ""
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
             test -d {project}/thirdparty/llama.cpp/dynamic || { echo "ERROR: dynamic lib dir missing: {project}/thirdparty/llama.cpp/dynamic"; exit 1; } &&
@@ -395,7 +395,7 @@ jobs:
             WITH_DYLIB=${{ inputs.link_mode == 'dynamic' && '1' || '0' }}
             SD_USE_VENDORED_GGML=${{ inputs.link_mode == 'dynamic' && '0' || '1' }}
             SKBUILD_CMAKE_DEFINE="CYLLAMA_ABI3=ON"
-            SKBUILD_WHEEL_PY_API=cp310
+            SKBUILD_WHEEL_PY_API=cp311
           CIBW_TEST_COMMAND: ""
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
             test -d {project}/thirdparty/llama.cpp/dynamic || { echo "ERROR: dynamic lib dir missing: {project}/thirdparty/llama.cpp/dynamic"; exit 1; } &&
@@ -503,7 +503,7 @@ jobs:
             WITH_DYLIB=${{ inputs.link_mode == 'dynamic' && '1' || '0' }}
             SD_USE_VENDORED_GGML=${{ inputs.link_mode == 'dynamic' && '0' || '1' }}
             SKBUILD_CMAKE_DEFINE="CYLLAMA_ABI3=ON"
-            SKBUILD_WHEEL_PY_API=cp310
+            SKBUILD_WHEEL_PY_API=cp311
           CIBW_TEST_COMMAND: ""
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
             test -d {project}/thirdparty/llama.cpp/dynamic || { echo "ERROR: dynamic lib dir missing: {project}/thirdparty/llama.cpp/dynamic"; exit 1; } &&
@@ -586,7 +586,7 @@ jobs:
             WITH_DYLIB=${{ inputs.link_mode == 'dynamic' && '1' || '0' }}
             SD_USE_VENDORED_GGML=${{ inputs.link_mode == 'dynamic' && '0' || '1' }}
             SKBUILD_CMAKE_DEFINE="CYLLAMA_ABI3=ON"
-            SKBUILD_WHEEL_PY_API=cp310
+            SKBUILD_WHEEL_PY_API=cp311
           CIBW_TEST_COMMAND: ""
           CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: >
             delvewheel repair -w {dest_dir} {wheel}
@@ -673,7 +673,7 @@ jobs:
             WITH_DYLIB=${{ inputs.link_mode == 'dynamic' && '1' || '0' }}
             SD_USE_VENDORED_GGML=${{ inputs.link_mode == 'dynamic' && '0' || '1' }}
             SKBUILD_CMAKE_DEFINE="CYLLAMA_ABI3=ON"
-            SKBUILD_WHEEL_PY_API=cp310
+            SKBUILD_WHEEL_PY_API=cp311
           CIBW_TEST_COMMAND: ""
           CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: >
             delvewheel repair -w {dest_dir} {wheel}
@@ -759,7 +759,7 @@ jobs:
             WITH_DYLIB=${{ inputs.link_mode == 'dynamic' && '1' || '0' }}
             SD_USE_VENDORED_GGML=${{ inputs.link_mode == 'dynamic' && '0' || '1' }}
             SKBUILD_CMAKE_DEFINE="CYLLAMA_ABI3=ON"
-            SKBUILD_WHEEL_PY_API=cp310
+            SKBUILD_WHEEL_PY_API=cp311
           CIBW_TEST_COMMAND: ""
           CIBW_REPAIR_WHEEL_COMMAND_MACOS: >
             delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel}
