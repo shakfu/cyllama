@@ -48,13 +48,31 @@ jobs:
           # Single build per platform - the resulting wheel is tagged
           # cp310-abi3 and is valid on 3.10+.
           CIBW_BUILD: "cp310-*"
-          # Activate the abi3 code path and tell scikit-build-core to
-          # tag the wheel accordingly. These two env vars are the entire
-          # opt-in: they override pyproject.toml defaults without
-          # modifying any checked-in config.
-          CIBW_ENVIRONMENT: >-
+          # Per-platform environment. cibuildwheel resolves
+          # CIBW_ENVIRONMENT_<PLAT> independently of pyproject.toml's
+          # [tool.cibuildwheel.<plat>] environment table, so each
+          # platform must carry its own copy of the relevant defaults
+          # from pyproject.toml AND the two abi3 opt-in vars. The
+          # macOS entry is critical: without MACOSX_DEPLOYMENT_TARGET
+          # the deployment target defaults to 10.9 and llama.cpp's
+          # std::filesystem::path usage fails to compile (introduced
+          # in macOS 10.15).
+          CIBW_ENVIRONMENT_LINUX: >-
             SKBUILD_CMAKE_DEFINE="CYLLAMA_ABI3=ON"
             SKBUILD_WHEEL_PY_API=cp310
+            GGML_METAL=0
+            GGML_NATIVE=0
+          CIBW_ENVIRONMENT_MACOS: >-
+            SKBUILD_CMAKE_DEFINE="CYLLAMA_ABI3=ON"
+            SKBUILD_WHEEL_PY_API=cp310
+            MACOSX_DEPLOYMENT_TARGET=11.0
+            GGML_METAL=1
+            GGML_NATIVE=0
+          CIBW_ENVIRONMENT_WINDOWS: >-
+            SKBUILD_CMAKE_DEFINE="CYLLAMA_ABI3=ON"
+            SKBUILD_WHEEL_PY_API=cp310
+            GGML_METAL=0
+            GGML_NATIVE=0
 
       - uses: actions/upload-artifact@v7
         with:
