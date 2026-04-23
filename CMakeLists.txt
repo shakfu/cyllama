@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.21...3.30)
+cmake_minimum_required(VERSION 3.26...3.30)
 project(cyllama LANGUAGES C CXX)
 
 # -----------------------------------------------------------------------------
@@ -9,6 +9,7 @@ option(WITH_WHISPER "Build whisper.cpp wrapper" ON)
 option(WITH_STABLEDIFFUSION "Build stable-diffusion.cpp wrapper" ON)
 option(WITH_DYLIB "Use dynamic libraries instead of static" OFF)
 option(SD_USE_VENDORED_GGML "Link stable-diffusion against its own vendored ggml" ON)
+option(CYLLAMA_ABI3 "Build extensions against the CPython stable ABI (abi3, >= 3.10)" OFF)
 
 # When WITH_DYLIB=ON, point this to a directory containing pre-built dylibs
 # (e.g., from a llama.cpp release tarball). Defaults to thirdparty/llama.cpp/lib.
@@ -131,7 +132,12 @@ if(NOT CMAKE_C_COMPILER_LAUNCHER AND NOT CMAKE_CXX_COMPILER_LAUNCHER)
     endif()
 endif()
 
-find_package(Python COMPONENTS Interpreter Development.Module REQUIRED)
+if(CYLLAMA_ABI3)
+    find_package(Python COMPONENTS Interpreter Development.Module Development.SABIModule REQUIRED)
+    message(STATUS "CYLLAMA_ABI3: ON (targeting CPython stable ABI >= 3.10)")
+else()
+    find_package(Python COMPONENTS Interpreter Development.Module REQUIRED)
+endif()
 
 # Add cmake module path for cython-cmake
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/scripts/cmake")
@@ -576,6 +582,18 @@ foreach(dir ${CYTHON_INCLUDE_DIRS})
     list(APPEND CYTHON_INCLUDE_ARGS "-I${dir}")
 endforeach()
 
+# When CYLLAMA_ABI3=ON, pass the limited-api directive to Cython via
+# CYTHON_ARGS (equivalent to `# cython: limited_api=True` at the top of
+# every .pyx) and add USE_SABI to every python_add_library call. Both
+# are gated on the option so the default per-version build path is
+# unchanged.
+if(CYLLAMA_ABI3)
+    list(APPEND CYTHON_INCLUDE_ARGS "-X" "limited_api=True")
+    set(_SABI_ARGS USE_SABI 3.10)
+else()
+    set(_SABI_ARGS "")
+endif()
+
 # -----------------------------------------------------------------------------
 # Helper function to create Cython extension
 # -----------------------------------------------------------------------------
@@ -589,7 +607,7 @@ function(add_cython_extension target_name pyx_file)
     )
 
     # Create the module
-    python_add_library(${target_name} MODULE WITH_SOABI
+    python_add_library(${target_name} MODULE WITH_SOABI ${_SABI_ARGS}
         ${cython_cpp}
         ${ARG_SOURCES}
     )
@@ -722,7 +740,7 @@ cython_transpile("${CMAKE_SOURCE_DIR}/src/cyllama/llama/server/embedded.pyx"
     CYTHON_ARGS ${CYTHON_INCLUDE_ARGS}
 )
 
-python_add_library(embedded MODULE WITH_SOABI
+python_add_library(embedded MODULE WITH_SOABI ${_SABI_ARGS}
     ${embedded_cpp}
     "${CMAKE_SOURCE_DIR}/src/cyllama/llama/server/mongoose.c"
     "${CMAKE_SOURCE_DIR}/src/cyllama/llama/server/mongoose_wrapper.c"
@@ -795,7 +813,7 @@ if(WITH_WHISPER)
             CYTHON_ARGS ${CYTHON_INCLUDE_ARGS}
         )
 
-        python_add_library(whisper_cpp MODULE WITH_SOABI ${whisper_cpp_src})
+        python_add_library(whisper_cpp MODULE WITH_SOABI ${_SABI_ARGS} ${whisper_cpp_src})
 
         # Whisper needs its own include dir + llama.cpp's (for shared ggml headers).
         # Do NOT add sd include dirs — their duplicate ggml headers conflict
@@ -845,7 +863,7 @@ if(WITH_STABLEDIFFUSION)
         CYTHON_ARGS ${CYTHON_INCLUDE_ARGS}
     )
 
-    python_add_library(stable_diffusion MODULE WITH_SOABI
+    python_add_library(stable_diffusion MODULE WITH_SOABI ${_SABI_ARGS}
         ${sd_cpp}
         "${CMAKE_SOURCE_DIR}/src/cyllama/sd/stb_impl.cpp"
     )
