@@ -168,7 +168,7 @@ jobs:
             CMAKE_CUDA_COMPILER_LAUNCHER=ccache
             WITH_DYLIB=${{ inputs.link_mode == 'dynamic' && '1' || '0' }}
             SD_USE_VENDORED_GGML=${{ inputs.link_mode == 'dynamic' && '0' || '1' }}
-            SKBUILD_CMAKE_DEFINE=CYLLAMA_ABI3=ON
+            SKBUILD_CMAKE_DEFINE="CYLLAMA_ABI3=ON"
             SKBUILD_WHEEL_PY_API=cp310
           CIBW_TEST_COMMAND: ""
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
@@ -285,7 +285,7 @@ jobs:
             CMAKE_HIP_COMPILER_LAUNCHER=ccache
             WITH_DYLIB=${{ inputs.link_mode == 'dynamic' && '1' || '0' }}
             SD_USE_VENDORED_GGML=${{ inputs.link_mode == 'dynamic' && '0' || '1' }}
-            SKBUILD_CMAKE_DEFINE=CYLLAMA_ABI3=ON
+            SKBUILD_CMAKE_DEFINE="CYLLAMA_ABI3=ON"
             SKBUILD_WHEEL_PY_API=cp310
           CIBW_TEST_COMMAND: ""
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
@@ -394,7 +394,7 @@ jobs:
             CMAKE_CXX_COMPILER_LAUNCHER=ccache
             WITH_DYLIB=${{ inputs.link_mode == 'dynamic' && '1' || '0' }}
             SD_USE_VENDORED_GGML=${{ inputs.link_mode == 'dynamic' && '0' || '1' }}
-            SKBUILD_CMAKE_DEFINE=CYLLAMA_ABI3=ON
+            SKBUILD_CMAKE_DEFINE="CYLLAMA_ABI3=ON"
             SKBUILD_WHEEL_PY_API=cp310
           CIBW_TEST_COMMAND: ""
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
@@ -502,7 +502,7 @@ jobs:
             CMAKE_CXX_COMPILER_LAUNCHER=ccache
             WITH_DYLIB=${{ inputs.link_mode == 'dynamic' && '1' || '0' }}
             SD_USE_VENDORED_GGML=${{ inputs.link_mode == 'dynamic' && '0' || '1' }}
-            SKBUILD_CMAKE_DEFINE=CYLLAMA_ABI3=ON
+            SKBUILD_CMAKE_DEFINE="CYLLAMA_ABI3=ON"
             SKBUILD_WHEEL_PY_API=cp310
           CIBW_TEST_COMMAND: ""
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
@@ -585,7 +585,7 @@ jobs:
             CMAKE_CUDA_ARCHITECTURES="75"
             WITH_DYLIB=${{ inputs.link_mode == 'dynamic' && '1' || '0' }}
             SD_USE_VENDORED_GGML=${{ inputs.link_mode == 'dynamic' && '0' || '1' }}
-            SKBUILD_CMAKE_DEFINE=CYLLAMA_ABI3=ON
+            SKBUILD_CMAKE_DEFINE="CYLLAMA_ABI3=ON"
             SKBUILD_WHEEL_PY_API=cp310
           CIBW_TEST_COMMAND: ""
           CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: >
@@ -672,7 +672,7 @@ jobs:
             GGML_NATIVE=OFF
             WITH_DYLIB=${{ inputs.link_mode == 'dynamic' && '1' || '0' }}
             SD_USE_VENDORED_GGML=${{ inputs.link_mode == 'dynamic' && '0' || '1' }}
-            SKBUILD_CMAKE_DEFINE=CYLLAMA_ABI3=ON
+            SKBUILD_CMAKE_DEFINE="CYLLAMA_ABI3=ON"
             SKBUILD_WHEEL_PY_API=cp310
           CIBW_TEST_COMMAND: ""
           CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: >
@@ -758,7 +758,7 @@ jobs:
             CMAKE_CXX_COMPILER_LAUNCHER=ccache
             WITH_DYLIB=${{ inputs.link_mode == 'dynamic' && '1' || '0' }}
             SD_USE_VENDORED_GGML=${{ inputs.link_mode == 'dynamic' && '0' || '1' }}
-            SKBUILD_CMAKE_DEFINE=CYLLAMA_ABI3=ON
+            SKBUILD_CMAKE_DEFINE="CYLLAMA_ABI3=ON"
             SKBUILD_WHEEL_PY_API=cp310
           CIBW_TEST_COMMAND: ""
           CIBW_REPAIR_WHEEL_COMMAND_MACOS: >

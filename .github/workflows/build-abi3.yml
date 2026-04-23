@@ -53,7 +53,7 @@ jobs:
           # opt-in: they override pyproject.toml defaults without
           # modifying any checked-in config.
           CIBW_ENVIRONMENT: >-
-            SKBUILD_CMAKE_DEFINE=CYLLAMA_ABI3=ON
+            SKBUILD_CMAKE_DEFINE="CYLLAMA_ABI3=ON"
             SKBUILD_WHEEL_PY_API=cp310
 
       - uses: actions/upload-artifact@v7
