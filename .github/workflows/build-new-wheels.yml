@@ -60,7 +60,7 @@ jobs:
           key: deps-cuda13-windows-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage.py', '.github/workflows/build-new-wheels.yml') }}
 
       - name: Install CUDA Toolkit 13.1
-        uses: Jimver/cuda-toolkit@v0.2.21
+        uses: Jimver/cuda-toolkit@v0.2.35
         id: cuda-toolkit
         with:
           cuda: '13.1.0'
