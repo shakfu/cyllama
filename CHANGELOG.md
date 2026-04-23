@@ -50,6 +50,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 - **Stale workflow cache-key reference** -- `build-new-wheels.yml`'s `build_vulkan_macos_intel` cache key now hashes `scripts/manage.py` (formerly `scripts/manage_macos_intel.py`). `hashFiles()` was silently resolving the missing path to empty, so edits to `manage.py` did not invalidate the `thirdparty/` cache.
 
+- **Node.js 20 deprecation warning in GPU wheel builds** -- `build-gpu-wheels2.yml` pinned `ggml-org/ccache-action@v1.2.16`, a fork roughly 10 commits behind upstream that still runs on Node.js 20. GitHub is forcing JS actions onto Node.js 24 on 2026-06-02 and removing Node.js 20 from runners on 2026-09-16. Swapped all five invocations to `hendrikmuhs/ccache-action@v1.2`, which already ships with Node.js 24 support and floats to the latest v1.2.x.
+
 ## [0.2.11]
 
 ### Changed
