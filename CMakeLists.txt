@@ -120,11 +120,15 @@ endif()
 # Find dependencies
 # -----------------------------------------------------------------------------
 
-# use ccache if available
-find_program(CCACHE_PROGRAM ccache)
-if(CCACHE_PROGRAM)
-    message(STATUS "Found ccache in ${CCACHE_PROGRAM}")
-    set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE "${CCACHE_PROGRAM}")
+# use ccache if available (skip if a compiler launcher is already configured,
+# e.g. via CMAKE_C_COMPILER_LAUNCHER in CI — otherwise ccache gets invoked
+# recursively: `ccache ccache gcc`).
+if(NOT CMAKE_C_COMPILER_LAUNCHER AND NOT CMAKE_CXX_COMPILER_LAUNCHER)
+    find_program(CCACHE_PROGRAM ccache)
+    if(CCACHE_PROGRAM)
+        message(STATUS "Found ccache in ${CCACHE_PROGRAM}")
+        set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE "${CCACHE_PROGRAM}")
+    endif()
 endif()
 
 find_package(Python COMPONENTS Interpreter Development.Module REQUIRED)
@@ -241,17 +245,31 @@ if(WITH_DYLIB)
     message(STATUS "WITH_DYLIB: ON (dylib dir: ${LLAMACPP_DYLIB_DIR})")
 
     # Find shared libraries in the dylib directory
-    # On macOS: .dylib, on Linux: .so
+    # macOS: libfoo.dylib, Linux: libfoo.so, Windows: foo.dll (+ foo.lib import)
     if(APPLE)
         set(_dylib_ext "dylib")
+        set(_dylib_prefix "lib")
+    elseif(WIN32)
+        set(_dylib_ext "dll")
+        set(_dylib_prefix "")
     else()
         set(_dylib_ext "so")
+        set(_dylib_prefix "lib")
     endif()
 
     # Core llama.cpp shared libraries (available in release tarballs)
     set(_DYLIB_NAMES llama ggml ggml-base mtmd)
     # Optional core libraries (not always present in release tarballs or self-builds)
     set(_OPTIONAL_DYLIB_NAMES ggml-rpc)
+    # On macOS, GGML auto-links Accelerate and emits libggml-blas regardless
+    # of the primary backend, so libllama/libggml/libmtmd carry a runtime
+    # dep on @rpath/libggml-blas.0.dylib. It must ship in the wheel even on
+    # non-Metal backends (e.g. Vulkan). Accelerate itself is system-provided.
+    # Skip when GGML_METAL is ON — it's already listed as a required
+    # backend dylib below.
+    if(APPLE AND NOT GGML_METAL)
+        list(APPEND _OPTIONAL_DYLIB_NAMES ggml-blas)
+    endif()
 
     # ggml-cpu: with GGML_BACKEND_DL=ON and GGML_NATIVE=OFF, llama.cpp
     # may produce arch-specific variants (e.g. libggml-cpu-haswell.so,
@@ -259,7 +277,7 @@ if(WITH_DYLIB)
     # on both Linux (release tarballs) and macOS (Vulkan/non-Metal builds).
     # All variants are installed for ggml's runtime dispatch, but we must
     # link against the most portable one for symbol resolution.
-    file(GLOB _cpu_variants "${LLAMACPP_DYLIB_DIR}/libggml-cpu-*.${_dylib_ext}")
+    file(GLOB _cpu_variants "${LLAMACPP_DYLIB_DIR}/${_dylib_prefix}ggml-cpu-*.${_dylib_ext}")
     if(_cpu_variants)
         # Install all CPU variants for runtime dispatch
         list(APPEND DYLIB_FILES ${_cpu_variants})
@@ -332,9 +350,11 @@ if(WITH_DYLIB)
             # Install the soname file -- that's what @rpath / $ORIGIN references at runtime
             # macOS soname format: libllama.0.dylib
             # Linux soname format: libllama.so.0
+            # Windows: no soname scheme -- DLLs aren't versioned this way
+            set(_soname "")
             if(APPLE)
                 file(GLOB _soname "${LLAMACPP_DYLIB_DIR}/lib${_name}.[0-9].${_dylib_ext}")
-            else()
+            elseif(NOT WIN32)
                 file(GLOB _soname "${LLAMACPP_DYLIB_DIR}/lib${_name}.${_dylib_ext}.[0-9]")
             endif()
             if(_soname)
@@ -345,9 +365,9 @@ if(WITH_DYLIB)
             message(STATUS "  Found shared lib: ${_found_${_name}}")
         else()
             if(${_is_required})
-                message(FATAL_ERROR "  Required shared lib not found: lib${_name}.${_dylib_ext} in ${LLAMACPP_DYLIB_DIR}")
+                message(FATAL_ERROR "  Required shared lib not found: ${_dylib_prefix}${_name}.${_dylib_ext} in ${LLAMACPP_DYLIB_DIR}")
             else()
-                message(WARNING "  Optional shared lib not found: lib${_name}.${_dylib_ext} in ${LLAMACPP_DYLIB_DIR}")
+                message(WARNING "  Optional shared lib not found: ${_dylib_prefix}${_name}.${_dylib_ext} in ${LLAMACPP_DYLIB_DIR}")
             endif()
         endif()
     endmacro()
@@ -655,17 +675,19 @@ function(add_cython_extension target_name pyx_file)
         set(_build_rpath "${LLAMACPP_DYLIB_DIR};${_build_rpath}")
     endif()
 
-    if(APPLE)
-        set_target_properties(${target_name} PROPERTIES
-            BUILD_RPATH "${_build_rpath}"
-            INSTALL_RPATH "@loader_path"
-        )
-    elseif(UNIX)
-        set_target_properties(${target_name} PROPERTIES
-            BUILD_RPATH "${_build_rpath}"
-            INSTALL_RPATH "$ORIGIN"
-        )
-    endif()
+    # BUILD_RPATH and INSTALL_RPATH both point at the absolute build-tree
+    # lib dirs. This lets delocate (macOS) / auditwheel (Linux) resolve
+    # @rpath/libllama.0.dylib during wheel repair via the extension's
+    # LC_RPATH; the repair tool then copies the libs into cyllama/.dylibs/
+    # (macOS) or cyllama.libs/ (Linux), rewrites the extension's
+    # LC_LOAD_DYLIB to @loader_path/../.dylibs/... or
+    # $ORIGIN/../cyllama.libs/..., and sanitises the absolute paths
+    # out of the final wheel. Editable installs also work because the
+    # build-tree paths are valid on the dev host.
+    set_target_properties(${target_name} PROPERTIES
+        BUILD_RPATH "${_build_rpath}"
+        INSTALL_RPATH "${_build_rpath}"
+    )
 
     # Install
     if(ARG_DESTINATION)
@@ -752,17 +774,14 @@ set_target_properties(embedded PROPERTIES
     CXX_STANDARD_REQUIRED ON
 )
 
-if(APPLE)
-    set_target_properties(embedded PROPERTIES
-        BUILD_RPATH "${LLAMACPP_LIB};${WHISPERCPP_LIB};${SDCPP_LIB}"
-        INSTALL_RPATH "@loader_path"
-    )
-elseif(UNIX)
-    set_target_properties(embedded PROPERTIES
-        BUILD_RPATH "${LLAMACPP_LIB};${WHISPERCPP_LIB};${SDCPP_LIB}"
-        INSTALL_RPATH "$ORIGIN"
-    )
+set(_embedded_rpath "${LLAMACPP_LIB};${WHISPERCPP_LIB};${SDCPP_LIB}")
+if(WITH_DYLIB AND LLAMACPP_DYLIB_DIR)
+    set(_embedded_rpath "${LLAMACPP_DYLIB_DIR};${_embedded_rpath}")
 endif()
+set_target_properties(embedded PROPERTIES
+    BUILD_RPATH "${_embedded_rpath}"
+    INSTALL_RPATH "${_embedded_rpath}"
+)
 
 install(TARGETS embedded DESTINATION "cyllama/llama/server")
 
@@ -803,18 +822,10 @@ if(WITH_WHISPER)
             CXX_STANDARD_REQUIRED ON
         )
 
-        # Dylibs live in cyllama/llama/, whisper installs to cyllama/whisper/
-        if(APPLE)
-            set_target_properties(whisper_cpp PROPERTIES
-                BUILD_RPATH "${LLAMACPP_DYLIB_DIR};${WHISPERCPP_LIB}"
-                INSTALL_RPATH "@loader_path/../llama"
-            )
-        elseif(UNIX)
-            set_target_properties(whisper_cpp PROPERTIES
-                BUILD_RPATH "${LLAMACPP_DYLIB_DIR};${WHISPERCPP_LIB}"
-                INSTALL_RPATH "$ORIGIN/../llama"
-            )
-        endif()
+        set_target_properties(whisper_cpp PROPERTIES
+            BUILD_RPATH "${LLAMACPP_DYLIB_DIR};${WHISPERCPP_LIB}"
+            INSTALL_RPATH "${LLAMACPP_DYLIB_DIR};${WHISPERCPP_LIB}"
+        )
 
         install(TARGETS whisper_cpp DESTINATION "cyllama/whisper")
     else()
@@ -865,18 +876,10 @@ if(WITH_STABLEDIFFUSION)
             ${SYSTEM_LIBS}
         )
 
-        # Dylibs live in cyllama/llama/, SD installs to cyllama/sd/
-        if(APPLE)
-            set_target_properties(stable_diffusion PROPERTIES
-                BUILD_RPATH "${LLAMACPP_DYLIB_DIR};${SDCPP_LIB}"
-                INSTALL_RPATH "@loader_path/../llama"
-            )
-        elseif(UNIX)
-            set_target_properties(stable_diffusion PROPERTIES
-                BUILD_RPATH "${LLAMACPP_DYLIB_DIR};${SDCPP_LIB}"
-                INSTALL_RPATH "$ORIGIN/../llama"
-            )
-        endif()
+        set_target_properties(stable_diffusion PROPERTIES
+            BUILD_RPATH "${LLAMACPP_DYLIB_DIR};${SDCPP_LIB}"
+            INSTALL_RPATH "${LLAMACPP_DYLIB_DIR};${SDCPP_LIB}"
+        )
     else()
         # Static (or dynamic + SD_USE_VENDORED_GGML): choose ggml source
         target_link_directories(stable_diffusion PRIVATE "${SDCPP_LIB}" ${COMMON_LINK_DIRS})
@@ -931,17 +934,10 @@ if(WITH_STABLEDIFFUSION)
             )
         endif()
 
-        if(APPLE)
-            set_target_properties(stable_diffusion PROPERTIES
-                BUILD_RPATH "${SD_GGML_LIB_DIR};${SDCPP_LIB}"
-                INSTALL_RPATH "@loader_path"
-            )
-        elseif(UNIX)
-            set_target_properties(stable_diffusion PROPERTIES
-                BUILD_RPATH "${SD_GGML_LIB_DIR};${SDCPP_LIB}"
-                INSTALL_RPATH "$ORIGIN"
-            )
-        endif()
+        set_target_properties(stable_diffusion PROPERTIES
+            BUILD_RPATH "${SD_GGML_LIB_DIR};${SDCPP_LIB}"
+            INSTALL_RPATH "${SD_GGML_LIB_DIR};${SDCPP_LIB}"
+        )
     endif()
 
     install(TARGETS stable_diffusion DESTINATION "cyllama/sd")
@@ -988,21 +984,6 @@ else()
 endif()
 
 install(TARGETS vector DESTINATION "cyllama/rag")
-
-# -----------------------------------------------------------------------------
-# Install shared libraries (WITH_DYLIB mode)
-# -----------------------------------------------------------------------------
-
-if(WITH_DYLIB AND DYLIB_FILES)
-    # Install dylibs alongside the extension so $ORIGIN / @loader_path resolves.
-    # For wheel builds on Linux, auditwheel will later vendor and patch these
-    # into <pkg>.libs/, but editable installs need them in place.
-    install(FILES ${DYLIB_FILES} DESTINATION "cyllama/llama")
-    foreach(_f ${DYLIB_FILES})
-        get_filename_component(_n "${_f}" NAME)
-        message(STATUS "  dylib: ${_n}")
-    endforeach()
-endif()
 
 # -----------------------------------------------------------------------------
 # Install build_config.json

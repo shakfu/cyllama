@@ -51,14 +51,14 @@ def _is_hex(s: str) -> bool:
     return len(s) >= 8 and all(c in "0123456789abcdef" for c in s)
 
 
-def _is_backend_candidate(fname: str) -> bool:
+def _is_backend_candidate(fname: str, siblings: frozenset[str] = frozenset()) -> bool:
     """Return True if *fname* looks like a ggml backend library.
 
     Filters out support libraries that lack ``ggml_backend_init``::
 
         libggml-<hash>.so          → core ggml (skip)
         libggml-base-<hash>.so     → support lib (skip)
-        libggml-cpu-<hash>.so      → non-variant CPU shim (skip)
+        libggml-cpu-<hash>.so      → CPU dispatch shim if variants exist, else the CPU backend itself
         libggml-cpu-x64-<hash>.so  → CPU variant (keep)
         libggml-vulkan-<hash>.so   → GPU backend (keep)
     """
@@ -75,10 +75,20 @@ def _is_backend_candidate(fname: str) -> bool:
     # Skip known non-backend support libs
     if parts[0] in _NON_BACKENDS:
         return False
-    # Skip non-variant CPU shim: libggml-cpu-<hash>.so (2 parts, last is hex)
-    # but keep variants like libggml-cpu-x64-<hash>.so (3+ parts)
+    # libggml-cpu-<hash>.so is a dispatch shim *only* when CPU variants
+    # (libggml-cpu-<arch>-<hash>.so) are present as siblings. When no
+    # variants exist — as in most GPU wheels — this file IS the CPU
+    # backend and must be loaded, otherwise llama.cpp fails with
+    # "make_cpu_buft_list: no CPU backend found".
     if parts[0] == "cpu" and len(parts) == 2 and _is_hex(parts[-1]):
-        return False
+        for sib in siblings:
+            if sib == fname:
+                continue
+            if not sib.startswith(_PREFIX + "cpu-") or not sib.endswith(_EXT):
+                continue
+            sib_parts = sib[len(_PREFIX) : -len(_EXT)].split("-")
+            if len(sib_parts) >= 3:
+                return False
     return True
 
 
@@ -88,8 +98,9 @@ def _scan_dir(dirpath: str, results: list[bytes]) -> None:
         entries = os.listdir(dirpath)
     except OSError:
         return
+    siblings = frozenset(entries)
     for fname in entries:
-        if _is_backend_candidate(fname):
+        if _is_backend_candidate(fname, siblings):
             results.append(os.path.join(dirpath, fname).encode())
 
 

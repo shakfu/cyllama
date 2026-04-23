@@ -1175,11 +1175,24 @@ class LlamaCppBuilder(Builder):
             extra["CMAKE_C_FLAGS"] = _def
             extra["CMAKE_CXX_FLAGS"] = _def
 
+        # macOS x86_64 + Vulkan: with GGML_BACKEND_DL=ON, ggml backends are
+        # built as CMake MODULE libs (MH_BUNDLE on Apple) which cannot be
+        # linked against at build time — the downstream cyllama extensions
+        # link the backend dylibs directly, so we need MH_DYLIB output.
+        # Disable BACKEND_DL on this path to get proper SHARED dylibs.
+        use_backend_dl = True
+        if (
+            PLATFORM == "Darwin"
+            and ARCH == "x86_64"
+            and backend_options.get("GGML_VULKAN") == "ON"
+        ):
+            use_backend_dl = False
+
         self.cmake_config(
             src_dir=self.src_dir,
             build_dir=self.build_dir,
             BUILD_SHARED_LIBS=True,
-            GGML_BACKEND_DL=True,
+            GGML_BACKEND_DL=use_backend_dl,
             CMAKE_POSITION_INDEPENDENT_CODE=True,
             LLAMA_CURL=False,
             LLAMA_OPENSSL=True,
@@ -1207,38 +1220,124 @@ class LlamaCppBuilder(Builder):
             targets.append("ggml-opencl")
         self.cmake_build_targets(build_dir=self.build_dir, targets=targets, release=True)
 
-        # Collect all shared libs from the build tree into dynamic/
+        # Collect all shared libs from the build tree into dynamic/.
         self.dynamic_lib.mkdir(parents=True, exist_ok=True)
         if PLATFORM == "Darwin":
-            patterns = ["**/*.dylib"]
+            # On Apple, CMake MODULE libraries (ggml backend plugins under
+            # GGML_BACKEND_DL=ON) default to .so. Pick those up too and
+            # rename to .dylib so CMakeLists' dylib glob finds them.
+            patterns = ["**/*.dylib", "**/*.so"]
         elif PLATFORM == "Windows":
-            patterns = ["**/*.dll"]
+            patterns = ["**/*.dll", "**/*.lib"]
         else:
             patterns = ["**/*.so", "**/*.so.*"]
+
+        # On Windows, MSVC places each shared lib's DLL (RUNTIME) in
+        # build/bin/Release/ and its import .lib (ARCHIVE) in a sibling
+        # <target>/Release/ directory — different parents, so a same-dir
+        # sibling check doesn't work. Build the set of DLL stems first and
+        # accept only .lib files whose stem matches a shared lib (skipping
+        # static-lib intermediates such as ggml-cpu-feats.lib).
+        dll_stems: set[str] = set()
+        if PLATFORM == "Windows":
+            for _dll in self.build_dir.glob("**/*.dll"):
+                dll_stems.add(_dll.stem)
 
         copied = 0
         seen = set()
         for pattern in patterns:
             for item in self.build_dir.glob(pattern):
-                if item.name in seen:
+                if PLATFORM == "Windows" and item.suffix == ".lib":
+                    if item.stem not in dll_stems:
+                        continue
+                dest_name = item.name
+                if PLATFORM == "Darwin" and item.suffix == ".so":
+                    dest_name = item.stem + ".dylib"
+                if dest_name in seen:
                     continue
-                seen.add(item.name)
-                dest = self.dynamic_lib / item.name
+                seen.add(dest_name)
+                dest = self.dynamic_lib / dest_name
                 if dest.exists() or dest.is_symlink():
                     dest.unlink()
-                # Dereference symlinks so wheels get real files
+                # Preserve symlinks (e.g. libllama.dylib -> libllama.0.dylib)
+                # to match upstream's layout and avoid duplicate real files
+                # with inherited install names. scikit-build-core preserves
+                # symlinks when installing into the wheel tree; pip/wheel
+                # may flatten them inside the .whl zip, but the downside is
+                # bounded (two copies of identical bytes, same LC_ID) and
+                # not a correctness regression under the rpath-injection
+                # scheme above.
                 if item.is_symlink():
+                    target = item.readlink()
                     real = item.resolve()
-                    if real.exists():
-                        shutil.copy2(str(real), str(dest))
-                    else:
-                        self.log.warning(f"Broken symlink skipped: {item} -> {item.readlink()} (target does not exist)")
+                    if not real.exists():
+                        self.log.warning(f"Broken symlink skipped: {item} -> {target} (target does not exist)")
                         continue
+                    os.symlink(target, dest)
                 else:
                     shutil.copy2(str(item), str(dest))
                 copied += 1
-                self.log.info(f"  {item.name} -> dynamic/")
+                self.log.info(f"  {item.name} -> dynamic/{dest_name}")
         self.log.info(f"Installed {copied} shared libs to {self.dynamic_lib}")
+
+        if PLATFORM == "Darwin":
+            self._sanitize_macos_dylib_rpaths()
+
+    def _sanitize_macos_dylib_rpaths(self) -> None:
+        """Remove upstream build-tree LC_RPATH entries from copied dylibs
+        and add @loader_path.
+
+        Upstream llama.cpp's CMake bakes its absolute build-tree path
+        (e.g. /Users/runner/work/.../build/llama.cpp/build/bin) into
+        LC_RPATH on every built dylib. After we copy them into
+        thirdparty/llama.cpp/dynamic/, that upstream rpath still points
+        at the build tree. During wheel repair, delocate resolves each
+        dylib's @rpath/libX.0.dylib sibling references using the
+        *dylib's own* rpath — so it finds libggml.0.9.11.dylib at the
+        upstream build path. Meanwhile the extensions' rpath (which
+        scikit-build-core applies at install time from CMakeLists) points
+        at thirdparty/llama.cpp/dynamic/, where the same basename also
+        lives. delocate's dedup rejects the collision with "Already
+        planning to copy library with same basename".
+
+        Fix: strip all existing rpaths from each real dylib and add
+        @loader_path. Then dylib-to-dylib resolution happens inside
+        dynamic/, matching the extensions' resolution; delocate sees one
+        candidate per basename. After delocate runs, the wheel has no
+        rpath at all on these files anyway (delocate sanitises + rewrites
+        load commands), so this is purely a repair-time concern."""
+        import subprocess
+        for dylib in sorted(self.dynamic_lib.glob("*.dylib")):
+            if dylib.is_symlink():
+                continue
+            otool = subprocess.run(
+                ["otool", "-l", str(dylib)],
+                check=True, capture_output=True, text=True,
+            ).stdout
+            existing: list[str] = []
+            lines = otool.splitlines()
+            for i, line in enumerate(lines):
+                if "cmd LC_RPATH" not in line:
+                    continue
+                # Subsequent lines: "cmdsize N", "path <value> (offset M)"
+                for j in range(i + 1, min(i + 4, len(lines))):
+                    if "path " in lines[j]:
+                        segment = lines[j].split("path ", 1)[1]
+                        path = segment.split(" (offset", 1)[0].strip()
+                        existing.append(path)
+                        break
+            for path in existing:
+                subprocess.run(
+                    ["install_name_tool", "-delete_rpath", path, str(dylib)],
+                    check=False, capture_output=True,
+                )
+            subprocess.run(
+                ["install_name_tool", "-add_rpath", "@loader_path", str(dylib)],
+                check=True,
+            )
+            self.log.info(
+                f"  {dylib.name}: rpaths {existing} -> [@loader_path]"
+            )
 
     # -----------------------------------------------------------------
     # Dynamic linking: download pre-built release
@@ -1282,7 +1381,7 @@ class LlamaCppBuilder(Builder):
                 cuda_ver = os.environ.get("LLAMACPP_CUDA_RELEASE", "12.4")
                 return f"llama-{version}-bin-win-cuda-{cuda_ver}-{arch_tag}.zip"
             elif getenv("GGML_VULKAN", default=False):
-                return None  # Pre-built Windows releases don't include Vulkan
+                return f"llama-{version}-bin-win-vulkan-{arch_tag}.zip"
             else:
                 return f"llama-{version}-bin-win-cpu-{arch_tag}.zip"
         else:
@@ -1328,55 +1427,177 @@ class LlamaCppBuilder(Builder):
                 f"No pre-built release available for {PLATFORM}/{ARCH} with the "
                 f"current backend configuration. Build from source instead."
             )
-        self.log.info(f"Downloading pre-built release: {url}")
+        # Copy shared libraries to dynamic/ directory
+        # Dereference symlinks so all files are concrete (wheels can't store symlinks)
+        self.dynamic_lib.mkdir(parents=True, exist_ok=True)
 
-        # Download to a temp location
-        tmp_dir = Path(tempfile.mkdtemp())
-        try:
-            archive_path = self.download(url, tofolder=tmp_dir, max_size=1024 * 1024 * 500)
+        if PLATFORM == "Darwin":
+            lib_exts = (".dylib",)
+        elif PLATFORM == "Windows":
+            # Include .lib import libraries so CMake find_library can resolve
+            # them on MSVC (the .dll is the runtime; the .lib is the linker stub)
+            lib_exts = (".dll", ".lib")
+        else:
+            lib_exts = (".so",)
 
-            # Extract
-            extract_dir = tmp_dir / "extracted"
-            extract_dir.mkdir()
-            self.extract(archive_path, tofolder=extract_dir)
+        def _fetch_and_install(download_url: str) -> int:
+            self.log.info(f"Downloading pre-built release: {download_url}")
+            tmp_dir = Path(tempfile.mkdtemp())
+            try:
+                archive_path = self.download(download_url, tofolder=tmp_dir, max_size=1024 * 1024 * 500)
+                extract_dir = tmp_dir / "extracted"
+                extract_dir.mkdir()
+                self.extract(archive_path, tofolder=extract_dir)
+                # Find the extracted directory (tarball extracts to a subdirectory)
+                extracted_dirs = [d for d in extract_dir.iterdir() if d.is_dir()]
+                if extracted_dirs:
+                    release_dir = extracted_dirs[0]
+                else:
+                    release_dir = extract_dir
+                n = 0
+                for item in release_dir.iterdir():
+                    if not any(ext in item.name for ext in lib_exts):
+                        continue
+                    dest = self.dynamic_lib / item.name
+                    if dest.exists() or dest.is_symlink():
+                        dest.unlink()
+                    shutil.copy2(str(item), str(dest))
+                    n += 1
+                    suffix = ""
+                    if item.is_symlink():
+                        suffix = f" (from symlink -> {os.readlink(str(item))})"
+                    self.log.info(f"  {item.name}{suffix}")
+                self.log.info(f"Installed {n} files to {self.dynamic_lib}")
+                return n
+            finally:
+                shutil.rmtree(tmp_dir, ignore_errors=True)
 
-            # Find the extracted directory (tarball extracts to a subdirectory)
-            extracted_dirs = [d for d in extract_dir.iterdir() if d.is_dir()]
-            if extracted_dirs:
-                release_dir = extracted_dirs[0]
-            else:
-                release_dir = extract_dir
+        _fetch_and_install(url)
 
-            # Copy shared libraries to dynamic/ directory
-            # Dereference symlinks so all files are concrete (wheels can't store symlinks)
-            self.dynamic_lib.mkdir(parents=True, exist_ok=True)
+        # Windows CUDA: also fetch the CUDA runtime DLLs (cudart, cublas, ...)
+        # shipped in a companion archive on the llama.cpp release page. The
+        # cudart archive is not versioned by llama.cpp release -- only by CUDA
+        # version and arch.
+        if PLATFORM == "Windows" and getenv("GGML_CUDA", default=False):
+            arch = ARCH.lower()
+            arch_tag = "arm64" if arch in ("arm64", "aarch64") else "x64"
+            cuda_ver = os.environ.get("LLAMACPP_CUDA_RELEASE", "12.4")
+            cudart_asset = f"cudart-llama-bin-win-cuda-{cuda_ver}-{arch_tag}.zip"
+            cudart_url = (
+                f"https://github.com/ggml-org/llama.cpp/releases/download/"
+                f"{self.version}/{cudart_asset}"
+            )
+            _fetch_and_install(cudart_url)
 
-            if PLATFORM == "Darwin":
-                lib_exts = (".dylib",)
-            elif PLATFORM == "Windows":
-                lib_exts = (".dll",)
-            else:
-                lib_exts = (".so",)
+        # Windows: upstream llama.cpp release zips ship .dll files only, no
+        # .lib import libraries. MSVC's find_library / link step requires
+        # .lib, so we synthesize them from each DLL's export table via the
+        # standard dumpbin + lib /def pipeline (both tools live in the MSVC
+        # dev env that cibuildwheel activates).
+        if PLATFORM == "Windows":
+            self._generate_import_libs()
 
-            copied = 0
-            for item in release_dir.iterdir():
-                if not any(ext in item.name for ext in lib_exts):
+    def _generate_import_libs(self) -> None:
+        """Generate .lib import libraries from .dll files in dynamic_lib/.
+
+        Uses MSVC's dumpbin to read each DLL's export table and lib /def to
+        emit the matching import lib. Skips DLLs that already have a .lib
+        sibling (e.g. if a future upstream release starts shipping them).
+
+        MSVC tools are located via vswhere rather than PATH because
+        cibuildwheel's MSVC environment is activated only for the main
+        build step -- this method runs under CIBW_BEFORE_BUILD where PATH
+        does not include the VS tool directories.
+        """
+        arch = ARCH.lower()
+        machine = "ARM64" if arch in ("arm64", "aarch64") else "X64"
+        host_arch = "Hostarm64" if arch in ("arm64", "aarch64") else "Hostx64"
+        target_arch = "arm64" if arch in ("arm64", "aarch64") else "x64"
+        export_re = re.compile(r"^\s+\d+\s+[0-9A-Fa-f]+\s+[0-9A-Fa-f]+\s+(\S+)")
+
+        # Locate MSVC tools via vswhere (ships with VS Installer at a fixed path)
+        program_files_x86 = os.environ.get(
+            "ProgramFiles(x86)", r"C:\Program Files (x86)"
+        )
+        vswhere = (
+            Path(program_files_x86)
+            / "Microsoft Visual Studio"
+            / "Installer"
+            / "vswhere.exe"
+        )
+        if not vswhere.exists():
+            raise RuntimeError(f"vswhere not found at {vswhere}")
+        vs_install = subprocess.run(
+            [str(vswhere), "-latest", "-products", "*", "-property", "installationPath"],
+            capture_output=True, text=True, check=True,
+        ).stdout.strip()
+        if not vs_install:
+            raise RuntimeError("vswhere did not locate a Visual Studio installation")
+        msvc_root = Path(vs_install) / "VC" / "Tools" / "MSVC"
+        if not msvc_root.exists():
+            raise RuntimeError(f"MSVC toolset directory missing: {msvc_root}")
+        msvc_versions = sorted(
+            [d for d in msvc_root.iterdir() if d.is_dir()],
+            key=lambda p: p.name,
+        )
+        if not msvc_versions:
+            raise RuntimeError(f"No MSVC toolset versions found under {msvc_root}")
+        tool_dir = msvc_versions[-1] / "bin" / host_arch / target_arch
+        dumpbin_exe = tool_dir / "dumpbin.exe"
+        lib_exe = tool_dir / "lib.exe"
+        if not dumpbin_exe.exists() or not lib_exe.exists():
+            raise RuntimeError(
+                f"dumpbin.exe or lib.exe missing under {tool_dir}"
+            )
+        self.log.info(f"Using MSVC tools from {tool_dir}")
+
+        self.log.info(f"Generating MSVC import libs in {self.dynamic_lib}")
+        generated = 0
+        for dll in sorted(self.dynamic_lib.glob("*.dll")):
+            lib_path = dll.with_suffix(".lib")
+            if lib_path.exists():
+                continue
+            dump = subprocess.run(
+                [str(dumpbin_exe), "/exports", str(dll)],
+                capture_output=True, text=True, check=True,
+            )
+            names: list[str] = []
+            in_table = False
+            for line in dump.stdout.splitlines():
+                if "ordinal" in line and "name" in line and "RVA" in line:
+                    in_table = True
                     continue
-                dest = self.dynamic_lib / item.name
-                if dest.exists() or dest.is_symlink():
-                    dest.unlink()
-                # follow_symlinks=True (default) dereferences symlinks into real files
-                shutil.copy2(str(item), str(dest))
-                copied += 1
-                suffix = ""
-                if item.is_symlink():
-                    suffix = f" (from symlink -> {os.readlink(str(item))})"
-                self.log.info(f"  {item.name}{suffix}")
-
-            self.log.info(f"Installed {copied} files to {self.dynamic_lib}")
-
-        finally:
-            shutil.rmtree(tmp_dir, ignore_errors=True)
+                if not in_table:
+                    continue
+                if line.strip().startswith("Summary"):
+                    break
+                m = export_re.match(line)
+                if m:
+                    names.append(m.group(1))
+            if not names:
+                self.log.info(f"  {dll.name}: no exports, skipping")
+                continue
+            def_path = dll.with_suffix(".def")
+            def_path.write_text(
+                f"LIBRARY {dll.name}\nEXPORTS\n" + "\n".join(names) + "\n"
+            )
+            try:
+                subprocess.run(
+                    [
+                        str(lib_exe),
+                        f"/def:{def_path}",
+                        f"/out:{lib_path}",
+                        f"/machine:{machine}",
+                        "/nologo",
+                    ],
+                    capture_output=True, text=True, check=True,
+                )
+                generated += 1
+                self.log.info(f"  {lib_path.name} ({len(names)} exports)")
+            finally:
+                def_path.unlink(missing_ok=True)
+                dll.with_suffix(".exp").unlink(missing_ok=True)
+        self.log.info(f"Generated {generated} import libs")
 
 
 class WhisperCppBuilder(Builder):
@@ -2353,6 +2574,117 @@ class Application(ShellCmd, metaclass=MetaCommander):
                 SqliteVectorBuilder: SQLITEVECTOR_VERSION,
             }
         )
+
+    # ------------------------------------------------------------------------
+    # fix_macos_vulkan_wheel
+
+    @option("wheel", help="path to a repaired wheel, or a directory containing one")
+    def do_fix_macos_vulkan_wheel(self, args: argparse.Namespace) -> None:
+        """Rewrite hardcoded Homebrew libvulkan path in a macOS Vulkan wheel.
+
+        Homebrew's libvulkan.1.dylib has its install id set to its absolute
+        Homebrew-Intel prefix (/usr/local/opt/vulkan-loader/lib/libvulkan.1.dylib).
+        Everything linked against it on the CI runner records that absolute
+        path as LC_LOAD_DYLIB, so the resulting .so/.dylib files in the wheel
+        fail to load on any machine where that exact path doesn't exist
+        (Apple Silicon Homebrew at /opt/homebrew/..., MacPorts, etc.).
+        delocate's --exclude libvulkan leaves the reference untouched, so we
+        post-process the repaired wheel here: rewrite LC_LOAD_DYLIB to
+        @rpath/libvulkan.1.dylib and add LC_RPATH entries for the two common
+        Homebrew prefixes (/opt/homebrew/lib, /usr/local/lib) so the user's
+        brew install vulkan-loader resolves regardless of architecture.
+        """
+        import subprocess
+        import zipfile
+        import tempfile
+
+        OLD = "/usr/local/opt/vulkan-loader/lib/libvulkan.1.dylib"
+        NEW = "@rpath/libvulkan.1.dylib"
+        RPATHS = ["/opt/homebrew/lib", "/usr/local/lib"]
+
+        target = Path(args.wheel).resolve()
+        if target.is_dir():
+            candidates = sorted(
+                target.glob("*.whl"),
+                key=lambda p: p.stat().st_mtime,
+                reverse=True,
+            )
+            if not candidates:
+                self.log.error(f"no *.whl found in {target}")
+                sys.exit(1)
+            wheel_path = candidates[0]
+        elif target.is_file():
+            wheel_path = target
+        else:
+            self.log.error(f"wheel not found: {target}")
+            sys.exit(1)
+
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            with zipfile.ZipFile(wheel_path) as z:
+                z.extractall(tmp)
+
+            patched = 0
+            for f in tmp.rglob("*"):
+                if f.is_symlink() or not f.is_file():
+                    continue
+                if f.suffix not in (".so", ".dylib"):
+                    continue
+                otool = subprocess.run(
+                    ["otool", "-L", str(f)],
+                    capture_output=True, text=True, check=False,
+                )
+                if OLD not in otool.stdout:
+                    continue
+                subprocess.run(
+                    ["install_name_tool", "-change", OLD, NEW, str(f)],
+                    check=True,
+                )
+                rpaths_out = subprocess.run(
+                    ["otool", "-l", str(f)],
+                    capture_output=True, text=True, check=True,
+                ).stdout
+                existing_rpaths: set[str] = set()
+                lines = rpaths_out.splitlines()
+                for i, line in enumerate(lines):
+                    if "cmd LC_RPATH" not in line:
+                        continue
+                    for j in range(i + 1, min(i + 4, len(lines))):
+                        if "path " in lines[j]:
+                            seg = lines[j].split("path ", 1)[1]
+                            existing_rpaths.add(seg.split(" (offset", 1)[0].strip())
+                            break
+                for rp in RPATHS:
+                    if rp not in existing_rpaths:
+                        subprocess.run(
+                            ["install_name_tool", "-add_rpath", rp, str(f)],
+                            check=True,
+                        )
+                subprocess.run(
+                    ["codesign", "--force", "--sign", "-", str(f)],
+                    check=True, capture_output=True,
+                )
+                patched += 1
+                self.log.info(f"patched {f.relative_to(tmp)}")
+
+            if patched == 0:
+                self.log.info(f"no files referenced {OLD}; wheel untouched")
+                return
+
+            # Regenerate RECORD and repack. `wheel pack` does both.
+            dist_info_dirs = list(tmp.glob("*.dist-info"))
+            if len(dist_info_dirs) != 1:
+                self.log.error(
+                    f"expected exactly one *.dist-info dir, got {dist_info_dirs}"
+                )
+                sys.exit(1)
+            out_dir = wheel_path.parent
+            subprocess.run(
+                [sys.executable, "-m", "wheel", "pack", str(tmp),
+                 "--dest-dir", str(out_dir)],
+                check=True,
+            )
+            self.log.info(f"patched {patched} files, repacked wheel in {out_dir}")
 
     # ------------------------------------------------------------------------
     # wheel

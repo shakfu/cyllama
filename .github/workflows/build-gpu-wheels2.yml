@@ -157,12 +157,6 @@ jobs:
             --exclude libcublas.so.12
             --exclude libcublasLt.so.12
             --exclude libgomp.so.1
-            --exclude libllama.so.0
-            --exclude libggml-cuda.so
-            --exclude libggml.so.0
-            --exclude libggml-base.so.0
-            --exclude libggml-cpu.so
-            --exclude libmtmd.so.0
 
       - name: List built wheels
         run: ls -lah wheelhouse/
@@ -282,12 +276,6 @@ jobs:
             --exclude libamd_comgr.so.2
             --exclude librocprofiler-register.so.0
             --exclude libgomp.so.1
-            --exclude libllama.so.0
-            --exclude libggml-hip.so
-            --exclude libggml.so.0
-            --exclude libggml-base.so.0
-            --exclude libggml-cpu.so
-            --exclude libmtmd.so.0
 
       - name: List built wheels
         run: ls -lah wheelhouse/
@@ -393,12 +381,6 @@ jobs:
             --exclude libintlc.so.5
             --exclude libtbb.so.12
             --exclude libgomp.so.1
-            --exclude libllama.so.0
-            --exclude libggml-sycl.so
-            --exclude libggml.so.0
-            --exclude libggml-base.so.0
-            --exclude libggml-cpu.so
-            --exclude libmtmd.so.0
 
       - name: List built wheels
         run: ls -lah wheelhouse/
@@ -500,12 +482,6 @@ jobs:
             --plat manylinux_2_35_x86_64
             --exclude libvulkan.so.1
             --exclude libgomp.so.1
-            --exclude libllama.so.0
-            --exclude libggml-vulkan.so
-            --exclude libggml.so.0
-            --exclude libggml-base.so.0
-            --exclude libggml-cpu.so
-            --exclude libmtmd.so.0
 
       - name: List built wheels
         run: ls -lah wheelhouse/

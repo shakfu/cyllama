@@ -61,7 +61,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: thirdparty/
-          key: deps-vulkan-macos-intel-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage_macos_intel.py', '.github/workflows/build-new-wheels.yml') }}
+          key: deps-vulkan-macos-intel-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage.py', '.github/workflows/build-new-wheels.yml') }}
 
       - name: Install Vulkan SDK
         run: |
@@ -98,16 +98,16 @@ jobs:
         env:
           CIBW_ARCHS_MACOS: x86_64
           CIBW_BEFORE_BUILD_MACOS: >
-            pip install delocate &&
+            pip install delocate wheel &&
             sed -i '' 's/^name = "cyllama"/name = "cyllama-vulkan"/' {project}/pyproject.toml &&
             grep -q '^name = "cyllama-vulkan"' {project}/pyproject.toml || { echo "ERROR: sed rename to cyllama-vulkan failed"; exit 1; } &&
             echo "=== Env check: GGML_VULKAN=$GGML_VULKAN GGML_METAL=$GGML_METAL VULKAN_SDK=$VULKAN_SDK ===" &&
             cd {project} &&
-            python scripts/manage_macos_intel.py build --all --deps-only --no-sd-examples
+            python scripts/manage.py build --all --deps-only --no-sd-examples
             ${{ inputs.link_mode == 'dynamic' && '--dynamic' || '' }} &&
             echo "=== Dynamic libs ===" && ls -la thirdparty/llama.cpp/dynamic/ 2>/dev/null || echo "No dynamic dir" &&
             echo "=== Static libs ===" && ls -la thirdparty/llama.cpp/lib/ 2>/dev/null || echo "No lib dir" &&
-            python scripts/manage_macos_intel.py write_build_config
+            python scripts/manage.py write_build_config
           CIBW_ENVIRONMENT_MACOS: >
             MACOSX_DEPLOYMENT_TARGET=11.0
             GGML_VULKAN=1
@@ -116,11 +116,13 @@ jobs:
             CMAKE_C_COMPILER_LAUNCHER=ccache
             CMAKE_CXX_COMPILER_LAUNCHER=ccache
             WITH_DYLIB=${{ inputs.link_mode == 'dynamic' && '1' || '0' }}
+            SD_USE_VENDORED_GGML=${{ inputs.link_mode == 'dynamic' && '0' || '1' }}
           CIBW_TEST_COMMAND: ""
           CIBW_REPAIR_WHEEL_COMMAND_MACOS: >
             delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel}
             --exclude libvulkan
-            --exclude libMoltenVK
+            --exclude libMoltenVK &&
+            python {project}/scripts/manage.py fix_macos_vulkan_wheel {dest_dir}
 
       - name: List built wheels
         run: ls -lah wheelhouse/
@@ -196,16 +198,22 @@ jobs:
             python -c "import os; t=open('pyproject.toml').read(); open('pyproject.toml','w').write(t.replace('name = \"cyllama\"','name = \"cyllama-vulkan\"',1))" &&
             python -c "t=open('pyproject.toml').read(); assert 'name = \"cyllama-vulkan\"' in t, 'rename failed'" &&
             cd {project} &&
-            python scripts/manage.py build --all --deps-only --no-sd-examples &&
+            python scripts/manage.py build --all --deps-only --no-sd-examples
+            ${{ inputs.link_mode == 'dynamic' && '--dynamic' || '' }} &&
             python scripts/manage.py write_build_config
           CIBW_ENVIRONMENT_WINDOWS: >
             GGML_VULKAN=1
             GGML_METAL=0
             GGML_NATIVE=OFF
-            WITH_DYLIB=0
+            WITH_DYLIB=${{ inputs.link_mode == 'dynamic' && '1' || '0' }}
+            SD_USE_VENDORED_GGML=${{ inputs.link_mode == 'dynamic' && '0' || '1' }}
           CIBW_TEST_COMMAND: ""
           CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: >
             delvewheel repair -w {dest_dir} {wheel}
+            --add-path {project}\thirdparty\llama.cpp\dynamic
+            --add-path {project}\thirdparty\whisper.cpp\dynamic
+            --add-path {project}\thirdparty\stable-diffusion.cpp\dynamic
+            --include ggml-vulkan.dll
 
       - name: List built wheels
         shell: bash
@@ -283,17 +291,23 @@ jobs:
             python -c "import os; t=open('pyproject.toml').read(); open('pyproject.toml','w').write(t.replace('name = \"cyllama\"','name = \"cyllama-cuda12\"',1))" &&
             python -c "t=open('pyproject.toml').read(); assert 'name = \"cyllama-cuda12\"' in t, 'rename failed'" &&
             cd {project} &&
-            python scripts/manage.py build --all --deps-only --no-sd-examples &&
+            python scripts/manage.py build --all --deps-only --no-sd-examples
+            ${{ inputs.link_mode == 'dynamic' && '--dynamic' || '' }} &&
             python scripts/manage.py write_build_config
           CIBW_ENVIRONMENT_WINDOWS: >
             GGML_CUDA=1
             GGML_METAL=0
             GGML_NATIVE=OFF
             CMAKE_CUDA_ARCHITECTURES="75"
-            WITH_DYLIB=0
+            WITH_DYLIB=${{ inputs.link_mode == 'dynamic' && '1' || '0' }}
+            SD_USE_VENDORED_GGML=${{ inputs.link_mode == 'dynamic' && '0' || '1' }}
           CIBW_TEST_COMMAND: ""
           CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: >
             delvewheel repair -w {dest_dir} {wheel}
+            --add-path {project}\thirdparty\llama.cpp\dynamic
+            --add-path {project}\thirdparty\whisper.cpp\dynamic
+            --add-path {project}\thirdparty\stable-diffusion.cpp\dynamic
+            --include ggml-cuda.dll
             --no-dll nvcuda.dll
             --no-dll cudart64_12.dll
             --no-dll cublas64_12.dll
@@ -434,3 +448,14 @@ jobs:
 
           print('All imports passed')
           "
+
+      - name: Smoke test - cyllama info
+        if: steps.check.outputs.skip != 'true'
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            source smoke-venv/Scripts/activate
+          else
+            source smoke-venv/bin/activate
+          fi
+          cyllama info
