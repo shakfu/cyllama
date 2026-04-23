@@ -3,6 +3,10 @@ name: build-new-wheels
 permissions:
   contents: read
 
+# Staging workflow for new GPU wheel variants. Single-Python build (cp312)
+# for fast iteration; variants proven here get promoted to
+# `build-gpu-wheels2.yml` for the full cp310-cp314 matrix.
+
 on:
   workflow_dispatch:
     inputs:
@@ -14,18 +18,8 @@ on:
         options:
           - dynamic
           - static
-      vulkan_macos_intel:
-        description: 'Build Vulkan macOS Intel (x86_64)'
-        required: false
-        default: true
-        type: boolean
-      vulkan_windows:
-        description: 'Build Vulkan Windows (x86_64)'
-        required: false
-        default: true
-        type: boolean
-      cuda_windows:
-        description: 'Build CUDA 12 Windows (x86_64)'
+      cuda13_windows:
+        description: 'Build CUDA 13.1 Windows (x86_64)'
         required: false
         default: true
         type: boolean
@@ -41,115 +35,15 @@ env:
 
 jobs:
   # ---------------------------------------------------------------------------
-  # Vulkan - macOS Intel (x86_64)
-  # Uses MoltenVK (Vulkan over Metal). The Vulkan SDK provides the loader,
-  # headers, and glslc. delocate handles wheel repair (no auditwheel issues).
+  # CUDA 13.1 - Windows (x86_64)
+  # Uses NVIDIA CUDA Toolkit 13.1. delvewheel handles wheel repair.
+  # Upstream llama.cpp ships `llama-*-bin-win-cuda-13.1-x64.zip` alongside the
+  # 12.4 variant. This variant targets Blackwell/Ada users; CUDA 12.4 is
+  # handled by `build-gpu-wheels2.yml`.
   # ---------------------------------------------------------------------------
-  build_vulkan_macos_intel:
-    name: Vulkan - macOS Intel (${{ inputs.link_mode }})
-    if: inputs.vulkan_macos_intel
-    runs-on: macos-15-intel
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-
-      - name: Cache thirdparty deps
-        id: cache-deps
-        uses: actions/cache@v5
-        with:
-          path: thirdparty/
-          key: deps-vulkan-macos-intel-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage.py', '.github/workflows/build-new-wheels.yml') }}
-
-      - name: Install Vulkan SDK
-        run: |
-          brew install vulkan-headers vulkan-loader molten-vk shaderc spirv-headers
-          echo "Vulkan SDK installed via Homebrew"
-          SHADERC_BIN="$(brew --prefix shaderc)/bin"
-          VULKAN_PREFIX="$(brew --prefix vulkan-loader)"
-          echo "PATH=${SHADERC_BIN}:${PATH}" >> "$GITHUB_ENV"
-          echo "VULKAN_SDK=${VULKAN_PREFIX}" >> "$GITHUB_ENV"
-          echo "CMAKE_PREFIX_PATH=$(brew --prefix vulkan-headers):$(brew --prefix vulkan-loader):$(brew --prefix molten-vk):$(brew --prefix spirv-headers)" >> "$GITHUB_ENV"
-          echo "--- Vulkan paths ---"
-          echo "VULKAN_SDK=${VULKAN_PREFIX}"
-          echo "glslc: ${SHADERC_BIN}/glslc"
-          ${SHADERC_BIN}/glslc --version
-          ls -la "${VULKAN_PREFIX}/lib/" 2>/dev/null || echo "No lib dir in vulkan-loader prefix"
-          ls -la "$(brew --prefix vulkan-headers)/include/vulkan/" 2>/dev/null | head -5
-
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: '3.11'
-
-      - name: Install cibuildwheel
-        run: pip install cibuildwheel==3.4.0
-
-      - name: ccache
-        uses: ggml-org/ccache-action@v1.2.16
-        with:
-          key: ccache-vulkan-macos-intel-${{ inputs.link_mode }}
-          evict-old-files: 1d
-
-      - name: Build Vulkan wheels
-        run: python -m cibuildwheel --output-dir wheelhouse
-        env:
-          CIBW_ARCHS_MACOS: x86_64
-          CIBW_BEFORE_BUILD_MACOS: >
-            pip install delocate wheel &&
-            sed -i '' 's/^name = "cyllama"/name = "cyllama-vulkan"/' {project}/pyproject.toml &&
-            grep -q '^name = "cyllama-vulkan"' {project}/pyproject.toml || { echo "ERROR: sed rename to cyllama-vulkan failed"; exit 1; } &&
-            echo "=== Env check: GGML_VULKAN=$GGML_VULKAN GGML_METAL=$GGML_METAL VULKAN_SDK=$VULKAN_SDK ===" &&
-            cd {project} &&
-            python scripts/manage.py build --all --deps-only --no-sd-examples
-            ${{ inputs.link_mode == 'dynamic' && '--dynamic' || '' }} &&
-            echo "=== Dynamic libs ===" && ls -la thirdparty/llama.cpp/dynamic/ 2>/dev/null || echo "No dynamic dir" &&
-            echo "=== Static libs ===" && ls -la thirdparty/llama.cpp/lib/ 2>/dev/null || echo "No lib dir" &&
-            python scripts/manage.py write_build_config
-          CIBW_ENVIRONMENT_MACOS: >
-            MACOSX_DEPLOYMENT_TARGET=11.0
-            GGML_VULKAN=1
-            GGML_METAL=0
-            GGML_NATIVE=OFF
-            CMAKE_C_COMPILER_LAUNCHER=ccache
-            CMAKE_CXX_COMPILER_LAUNCHER=ccache
-            WITH_DYLIB=${{ inputs.link_mode == 'dynamic' && '1' || '0' }}
-            SD_USE_VENDORED_GGML=${{ inputs.link_mode == 'dynamic' && '0' || '1' }}
-          CIBW_TEST_COMMAND: ""
-          CIBW_REPAIR_WHEEL_COMMAND_MACOS: >
-            delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel}
-            --exclude libvulkan
-            --exclude libMoltenVK &&
-            python {project}/scripts/manage.py fix_macos_vulkan_wheel {dest_dir}
-
-      - name: List built wheels
-        run: ls -lah wheelhouse/
-
-      - name: Inspect wheel contents
-        run: |
-          pip install wheel-inspect 2>/dev/null || pip install pkginfo
-          for whl in wheelhouse/*.whl; do
-            echo "=== $whl ==="
-            python -m zipfile -l "$whl"
-            echo ""
-          done
-
-      - name: Upload wheels
-        uses: actions/upload-artifact@v7
-        with:
-          name: wheels-vulkan-macos-intel
-          path: ./wheelhouse/*.whl
-          retention-days: 14
-
-  # ---------------------------------------------------------------------------
-  # Vulkan - Windows (x86_64)
-  # Uses the LunarG Vulkan SDK. delvewheel handles wheel repair.
-  # ---------------------------------------------------------------------------
-  build_vulkan_windows:
-    name: Vulkan - Windows (${{ inputs.link_mode }})
-    if: inputs.vulkan_windows
+  build_cuda13_windows:
+    name: CUDA 13.1 - Windows (${{ inputs.link_mode }})
+    if: inputs.cuda13_windows
     runs-on: windows-latest
 
     steps:
@@ -163,107 +57,13 @@ jobs:
         uses: actions/cache@v5
         with:
           path: thirdparty/
-          key: deps-vulkan-windows-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage.py', '.github/workflows/build-new-wheels.yml') }}
+          key: deps-cuda13-windows-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage.py', '.github/workflows/build-new-wheels.yml') }}
 
-      - name: Install Vulkan SDK
-        shell: pwsh
-        run: |
-          $VK_LATEST = (Invoke-RestMethod -Uri "https://vulkan.lunarg.com/sdk/latest/windows.json").windows
-          Write-Host "Latest Vulkan SDK: ${VK_LATEST}"
-          $VK_URL = "https://sdk.lunarg.com/sdk/download/${VK_LATEST}/windows/vulkan-sdk.exe"
-          Write-Host "Downloading Vulkan SDK from ${VK_URL}..."
-          Invoke-WebRequest -Uri $VK_URL -OutFile vulkan-sdk.exe
-          Write-Host "Installing Vulkan SDK..."
-          Start-Process -FilePath .\vulkan-sdk.exe -ArgumentList "--accept-licenses --default-answer --confirm-command install" -Wait -NoNewWindow
-          $VK_PATH = "C:\VulkanSDK\${VK_LATEST}"
-          Write-Host "VULKAN_SDK=${VK_PATH}"
-          echo "VULKAN_SDK=${VK_PATH}" >> $env:GITHUB_ENV
-          echo "${VK_PATH}\Bin" >> $env:GITHUB_PATH
-          & "${VK_PATH}\Bin\glslc.exe" --version
-
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: '3.11'
-
-      - name: Install cibuildwheel
-        run: pip install cibuildwheel==3.4.0
-
-      - name: Build Vulkan wheels
-        run: python -m cibuildwheel --output-dir wheelhouse
-        env:
-          CIBW_ARCHS_WINDOWS: AMD64
-          CIBW_BEFORE_BUILD_WINDOWS: >
-            pip install delvewheel &&
-            python -c "import os; t=open('pyproject.toml').read(); open('pyproject.toml','w').write(t.replace('name = \"cyllama\"','name = \"cyllama-vulkan\"',1))" &&
-            python -c "t=open('pyproject.toml').read(); assert 'name = \"cyllama-vulkan\"' in t, 'rename failed'" &&
-            cd {project} &&
-            python scripts/manage.py build --all --deps-only --no-sd-examples
-            ${{ inputs.link_mode == 'dynamic' && '--dynamic' || '' }} &&
-            python scripts/manage.py write_build_config
-          CIBW_ENVIRONMENT_WINDOWS: >
-            GGML_VULKAN=1
-            GGML_METAL=0
-            GGML_NATIVE=OFF
-            WITH_DYLIB=${{ inputs.link_mode == 'dynamic' && '1' || '0' }}
-            SD_USE_VENDORED_GGML=${{ inputs.link_mode == 'dynamic' && '0' || '1' }}
-          CIBW_TEST_COMMAND: ""
-          CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: >
-            delvewheel repair -w {dest_dir} {wheel}
-            --add-path {project}\thirdparty\llama.cpp\dynamic
-            --add-path {project}\thirdparty\whisper.cpp\dynamic
-            --add-path {project}\thirdparty\stable-diffusion.cpp\dynamic
-            --include ggml-vulkan.dll
-
-      - name: List built wheels
-        shell: bash
-        run: ls -lah wheelhouse/
-
-      - name: Inspect wheel contents
-        shell: bash
-        run: |
-          pip install wheel-inspect 2>/dev/null || pip install pkginfo
-          for whl in wheelhouse/*.whl; do
-            echo "=== $whl ==="
-            python -m zipfile -l "$whl"
-            echo ""
-          done
-
-      - name: Upload wheels
-        uses: actions/upload-artifact@v7
-        with:
-          name: wheels-vulkan-windows
-          path: ./wheelhouse/*.whl
-          retention-days: 14
-
-  # ---------------------------------------------------------------------------
-  # CUDA 12 - Windows (x86_64)
-  # Uses NVIDIA CUDA Toolkit 12.4. delvewheel handles wheel repair.
-  # The windows-latest runner has ~14 GB free; CUDA toolkit install needs ~5 GB.
-  # ---------------------------------------------------------------------------
-  build_cuda_windows:
-    name: CUDA 12.4 - Windows (${{ inputs.link_mode }})
-    if: inputs.cuda_windows
-    runs-on: windows-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-
-      - name: Cache thirdparty deps
-        id: cache-deps
-        uses: actions/cache@v5
-        with:
-          path: thirdparty/
-          key: deps-cuda-windows-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage.py', '.github/workflows/build-new-wheels.yml') }}
-
-      - name: Install CUDA Toolkit 12.4
+      - name: Install CUDA Toolkit 13.1
         uses: Jimver/cuda-toolkit@v0.2.21
         id: cuda-toolkit
         with:
-          cuda: '12.4.0'
+          cuda: '13.1.0'
           method: 'network'
           sub-packages: '["nvcc", "cudart", "cublas", "cublas_dev", "visual_studio_integration"]'
 
@@ -288,9 +88,10 @@ jobs:
           CIBW_ARCHS_WINDOWS: AMD64
           CIBW_BEFORE_BUILD_WINDOWS: >
             pip install delvewheel &&
-            python -c "import os; t=open('pyproject.toml').read(); open('pyproject.toml','w').write(t.replace('name = \"cyllama\"','name = \"cyllama-cuda12\"',1))" &&
-            python -c "t=open('pyproject.toml').read(); assert 'name = \"cyllama-cuda12\"' in t, 'rename failed'" &&
+            python -c "import os; t=open('pyproject.toml').read(); open('pyproject.toml','w').write(t.replace('name = \"cyllama\"','name = \"cyllama-cuda13\"',1))" &&
+            python -c "t=open('pyproject.toml').read(); assert 'name = \"cyllama-cuda13\"' in t, 'rename failed'" &&
             cd {project} &&
+            set LLAMACPP_CUDA_RELEASE=13.1 &&
             python scripts/manage.py build --all --deps-only --no-sd-examples
             ${{ inputs.link_mode == 'dynamic' && '--dynamic' || '' }} &&
             python scripts/manage.py write_build_config
@@ -298,7 +99,8 @@ jobs:
             GGML_CUDA=1
             GGML_METAL=0
             GGML_NATIVE=OFF
-            CMAKE_CUDA_ARCHITECTURES="75"
+            CMAKE_CUDA_ARCHITECTURES="75;89;120"
+            LLAMACPP_CUDA_RELEASE=13.1
             WITH_DYLIB=${{ inputs.link_mode == 'dynamic' && '1' || '0' }}
             SD_USE_VENDORED_GGML=${{ inputs.link_mode == 'dynamic' && '0' || '1' }}
           CIBW_TEST_COMMAND: ""
@@ -309,9 +111,9 @@ jobs:
             --add-path {project}\thirdparty\stable-diffusion.cpp\dynamic
             --include ggml-cuda.dll
             --no-dll nvcuda.dll
-            --no-dll cudart64_12.dll
-            --no-dll cublas64_12.dll
-            --no-dll cublasLt64_12.dll
+            --no-dll cudart64_13.dll
+            --no-dll cublas64_13.dll
+            --no-dll cublasLt64_13.dll
 
       - name: List built wheels
         shell: bash
@@ -320,7 +122,6 @@ jobs:
       - name: Inspect wheel contents
         shell: bash
         run: |
-          pip install wheel-inspect 2>/dev/null || pip install pkginfo
           for whl in wheelhouse/*.whl; do
             echo "=== $whl ==="
             python -m zipfile -l "$whl"
@@ -330,34 +131,26 @@ jobs:
       - name: Upload wheels
         uses: actions/upload-artifact@v7
         with:
-          name: wheels-cuda-windows
+          name: wheels-cuda13-windows
           path: ./wheelhouse/*.whl
           retention-days: 14
 
   # ---------------------------------------------------------------------------
-  # Import smoke tests (no GPU required)
+  # Import smoke test (no GPU required)
   # ---------------------------------------------------------------------------
   smoke_test:
     name: Smoke test - ${{ matrix.platform }}
-    needs: [build_vulkan_macos_intel, build_vulkan_windows, build_cuda_windows]
-    if: always() && !cancelled() && (needs.build_vulkan_macos_intel.result == 'success' || needs.build_vulkan_windows.result == 'success' || needs.build_cuda_windows.result == 'success')
+    needs: [build_cuda13_windows]
+    if: always() && !cancelled() && needs.build_cuda13_windows.result == 'success'
     runs-on: ${{ matrix.runs-on }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - platform: vulkan-macos-intel
-            runs-on: macos-15-intel
-            artifact: wheels-vulkan-macos-intel
-            condition: inputs.vulkan_macos_intel
-          - platform: vulkan-windows
+          - platform: cuda13-windows
             runs-on: windows-latest
-            artifact: wheels-vulkan-windows
-            condition: inputs.vulkan_windows
-          - platform: cuda-windows
-            runs-on: windows-latest
-            artifact: wheels-cuda-windows
-            condition: inputs.cuda_windows
+            artifact: wheels-cuda13-windows
+            condition: inputs.cuda13_windows
 
     steps:
       - name: Check if platform was built
@@ -437,14 +230,6 @@ jobs:
               print('stable_diffusion extension loaded')
           except ImportError as e:
               print(f'stable_diffusion not available: {e}')
-
-          try:
-              from cyllama import _backend
-              print(f'Backend: cuda={getattr(_backend, \"cuda\", False)}, '
-                    f'vulkan={getattr(_backend, \"vulkan\", False)}, '
-                    f'metal={getattr(_backend, \"metal\", False)}')
-          except ImportError:
-              print('No _backend module')
 
           print('All imports passed')
           "
