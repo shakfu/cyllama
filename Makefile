@@ -64,7 +64,7 @@ dev: sync
 dev-abi3: sync
 	@uv pip install -e . \
 		--config-settings=cmake.define.CYLLAMA_ABI3=ON \
-		--config-settings=wheel.py-api=cp311
+		--config-settings=wheel.py-api=cp312
 
 build: $(LIBLAMMA)
 	@uv sync --reinstall-package cyllama
@@ -85,7 +85,7 @@ wheel: $(LIBLAMMA)
 wheel-abi3: $(LIBLAMMA)
 	@uv build --wheel \
 		--config-setting=cmake.define.CYLLAMA_ABI3=ON \
-		--config-setting=wheel.py-api=cp311
+		--config-setting=wheel.py-api=cp312
 
 wheel-dynamic: $(LLAMACPP)/dynamic/libllama.dylib
 	@WITH_DYLIB=1 uv build --wheel

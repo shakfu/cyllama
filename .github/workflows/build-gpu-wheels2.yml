@@ -69,7 +69,7 @@ env:
   CIBW_BUILD_VERBOSITY: 1
   CIBW_BUILD: "cp310-* cp311-* cp312-* cp313-* cp314-*"
   CIBW_SKIP: "*-musllinux_* *-win32 *-manylinux_i686"
-  # FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
   # ---------------------------------------------------------------------------
