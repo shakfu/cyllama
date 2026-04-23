@@ -1,4 +1,4 @@
-name: build-gpu-wheels2
+name: build-gpu-wheels
 
 permissions:
   contents: read
