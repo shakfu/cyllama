@@ -11,11 +11,13 @@ works on CPython 3.10 and every newer version.
 Effective reduction is ~5x (only the Python-version axis collapses; the
 platform and GPU-backend axes are unaffected).
 
-Cython 3.1+ supports `limited_api=True`, which generates code that avoids
-non-stable CPython internals (no `PyTypeObject` field access; types via
-`PyType_FromSpec`; etc.). The existing `.pyx` files do not use any features
-that block abi3 (no direct `PyObject_HEAD` manipulation, no buffer-protocol
-internals, exceptions handled implicitly by Cython).
+Cython does not expose a `limited_api` compiler directive. Its
+limited-API codegen is driven entirely by the `Py_LIMITED_API` C
+preprocessor macro, which CMake's `USE_SABI 3.10` defines
+automatically. The existing `.pyx` files do not use any features that
+block abi3 (no direct `PyObject_HEAD` manipulation, no buffer-protocol
+internals, exceptions handled implicitly by Cython), so flipping the
+CMake option is sufficient.
 
 ## Design: abi3 as an opt-in build mode
 
@@ -57,19 +59,6 @@ else()
     find_package(Python COMPONENTS Interpreter Development.Module REQUIRED)
 endif()
 ```
-
-**Around the `CYTHON_INCLUDE_ARGS` block (line 574)** - append the
-limited-api directive when opted in:
-
-```cmake
-if(CYLLAMA_ABI3)
-    list(APPEND CYTHON_INCLUDE_ARGS "-X" "limited_api=True")
-endif()
-```
-
-`cython_transpile` forwards `CYTHON_ARGS` to the Cython compiler, so `-X
-limited_api=True` has the same effect as a `# cython: limited_api=True`
-pragma without touching the source files.
 
 **In `add_cython_extension` (line 592) and the three inline
 `python_add_library` calls** (embedded ~725, whisper ~798,

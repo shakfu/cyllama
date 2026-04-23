@@ -582,13 +582,13 @@ foreach(dir ${CYTHON_INCLUDE_DIRS})
     list(APPEND CYTHON_INCLUDE_ARGS "-I${dir}")
 endforeach()
 
-# When CYLLAMA_ABI3=ON, pass the limited-api directive to Cython via
-# CYTHON_ARGS (equivalent to `# cython: limited_api=True` at the top of
-# every .pyx) and add USE_SABI to every python_add_library call. Both
-# are gated on the option so the default per-version build path is
-# unchanged.
+# When CYLLAMA_ABI3=ON, add USE_SABI to every python_add_library call.
+# USE_SABI 3.10 defines Py_LIMITED_API=0x030a0000 at C compile time,
+# links Python::SABIModule, and uses the .abi3.so / .pyd suffix. Cython
+# adapts its generated code based on the Py_LIMITED_API macro — no
+# Cython-level flag is required (Cython has no `limited_api` compiler
+# directive; the mechanism is purely C-preprocessor driven).
 if(CYLLAMA_ABI3)
-    list(APPEND CYTHON_INCLUDE_ARGS "-X" "limited_api=True")
     set(_SABI_ARGS USE_SABI 3.10)
 else()
     set(_SABI_ARGS "")
