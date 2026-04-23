@@ -877,19 +877,30 @@ jobs:
             source smoke-venv/bin/activate
           fi
           python -c "
-          import pathlib, cyllama
+          import pathlib, re, cyllama
           root = pathlib.Path(cyllama.__file__).parent
           bad = []
-          for ext in ('*.so', '*.pyd'):
+          # cyllama/rag/vector.* is sqlite-vector (plain C, loaded by
+          # SQLite), not a CPython extension — skip.
+          # Linux/macOS: abi3 wheels tag extensions as foo.abi3.so.
+          # Windows: abi3 wheels produce plain foo.pyd (no soabi tag);
+          # version-specific wheels produce foo.cp311-win_amd64.pyd.
+          for ext in ('*.so', '*.pyd', '*.dylib'):
               for p in root.rglob(ext):
-                  if '.abi3.' not in p.name:
-                      bad.append(str(p))
+                  if p.parent.name == 'rag' and p.stem.split('.')[0] == 'vector':
+                      continue
+                  if p.suffix == '.pyd':
+                      if re.search(r'\.cp\d+-', p.name):
+                          bad.append(str(p))
+                  else:
+                      if '.abi3.' not in p.name:
+                          bad.append(str(p))
           if bad:
               print('Non-abi3 extensions found:')
               for b in bad:
                   print(f'  {b}')
               raise SystemExit(1)
-          print('All compiled extensions are abi3-tagged')
+          print('All compiled Python extensions are abi3-tagged')
           "
 
       - name: Smoke test - imports

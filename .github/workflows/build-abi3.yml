@@ -161,25 +161,39 @@ jobs:
           else
             source abi3-venv/bin/activate
           fi
-          # Every compiled extension module should land with an .abi3
-          # suffix; anything ending in cp3XX-<tag>.so would indicate the
-          # abi3 build did not take effect.
+          # Verify every Cython extension was built against the stable
+          # ABI. Naming conventions differ by platform:
+          #   Linux/macOS: abi3 -> foo.abi3.so; version-specific ->
+          #                foo.cpython-311-<plat>.so
+          #   Windows:     abi3 -> foo.pyd (no tag); version-specific ->
+          #                foo.cp311-win_amd64.pyd
+          # cyllama/rag/vector.* is excluded: it is a plain C shared
+          # library (sqlite-vector) loaded by SQLite, not a CPython
+          # extension, so it has no Python ABI to check.
           python -c "
-          import pathlib, cyllama
+          import pathlib, re, cyllama
           root = pathlib.Path(cyllama.__file__).parent
           bad = []
-          for p in root.rglob('*.so'):
-              if '.abi3.' not in p.name:
-                  bad.append(str(p))
-          for p in root.rglob('*.pyd'):
-              if '.abi3.' not in p.name:
-                  bad.append(str(p))
+          for ext in ('*.so', '*.pyd', '*.dylib'):
+              for p in root.rglob(ext):
+                  if p.parent.name == 'rag' and p.stem.split('.')[0] == 'vector':
+                      continue
+                  if p.suffix == '.pyd':
+                      # Windows: abi3 wheels produce plain name.pyd (no
+                      # soabi tag). Reject anything carrying a
+                      # cp3XX-<plat> tag.
+                      if re.search(r'\.cp\d+-', p.name):
+                          bad.append(str(p))
+                  else:
+                      # Linux/macOS: abi3 wheels produce name.abi3.so
+                      if '.abi3.' not in p.name:
+                          bad.append(str(p))
           if bad:
               print('Non-abi3 extensions found:')
               for b in bad:
                   print(f'  {b}')
               raise SystemExit(1)
-          print('All compiled extensions are abi3-tagged')
+          print('All compiled Python extensions are abi3-tagged')
           "
 
       - name: Smoke test - imports
