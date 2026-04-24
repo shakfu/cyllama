@@ -5,7 +5,7 @@ permissions:
 
 # Staging workflow for new GPU wheel variants. Single-Python build (cp312)
 # for fast iteration; variants proven here get promoted to
-# `build-gpu-wheels2.yml` for the full cp310-cp314 matrix.
+# `build-gpu-wheels.yml` for the full cp310-cp314 matrix.
 
 on:
   workflow_dispatch:
@@ -39,7 +39,7 @@ jobs:
   # Uses NVIDIA CUDA Toolkit 13.1. delvewheel handles wheel repair.
   # Upstream llama.cpp ships `llama-*-bin-win-cuda-13.1-x64.zip` alongside the
   # 12.4 variant. This variant targets Blackwell/Ada users; CUDA 12.4 is
-  # handled by `build-gpu-wheels2.yml`.
+  # handled by `build-gpu-wheels.yml`.
   # ---------------------------------------------------------------------------
   build_cuda13_windows:
     name: CUDA 13.1 - Windows (${{ inputs.link_mode }})

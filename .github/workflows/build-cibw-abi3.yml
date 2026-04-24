@@ -13,6 +13,10 @@ permissions:
 on:
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build_wheels:
     name: Build abi3 wheels for ${{ matrix.os }}
@@ -38,7 +42,19 @@ jobs:
         uses: actions/cache@v5
         with:
           path: thirdparty/
-          key: deps-abi3-${{ matrix.os }}-${{ hashFiles('scripts/manage.py', 'pyproject.toml', '.github/workflows/build-abi3.yml') }}
+          key: deps-abi3-${{ matrix.os }}-${{ hashFiles('scripts/manage.py', 'pyproject.toml', '.github/workflows/build-cibw-abi3.yml') }}
+
+      - name: Set CCACHE_DIR to workspace
+        if: runner.os != 'Windows'
+        shell: bash
+        run: echo "CCACHE_DIR=${{ github.workspace }}/.ccache" >> "$GITHUB_ENV"
+
+      - name: ccache
+        if: runner.os != 'Windows'
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ccache-abi3-${{ matrix.os }}
+          evict-old-files: 1d
 
       - name: Build abi3 wheels
         uses: pypa/cibuildwheel@v3.4.0
@@ -65,12 +81,20 @@ jobs:
             SKBUILD_WHEEL_PY_API=cp312
             GGML_METAL=0
             GGML_NATIVE=0
+            CCACHE_DIR=/project/.ccache
+            CCACHE_DEPEND=1
+            CMAKE_C_COMPILER_LAUNCHER=ccache
+            CMAKE_CXX_COMPILER_LAUNCHER=ccache
           CIBW_ENVIRONMENT_MACOS: >-
             SKBUILD_CMAKE_DEFINE="CYLLAMA_ABI3=ON"
             SKBUILD_WHEEL_PY_API=cp312
             MACOSX_DEPLOYMENT_TARGET=11.0
             GGML_METAL=1
             GGML_NATIVE=0
+            CCACHE_DIR=${{ github.workspace }}/.ccache
+            CCACHE_DEPEND=1
+            CMAKE_C_COMPILER_LAUNCHER=ccache
+            CMAKE_CXX_COMPILER_LAUNCHER=ccache
           CIBW_ENVIRONMENT_WINDOWS: >-
             SKBUILD_CMAKE_DEFINE="CYLLAMA_ABI3=ON"
             SKBUILD_WHEEL_PY_API=cp312

@@ -12,7 +12,9 @@ on:
         default: false
         type: boolean
 
-
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build_wheels:
@@ -45,13 +47,48 @@ jobs:
         uses: actions/cache@v5
         with:
           path: thirdparty/
-          key: deps-cibw2-${{ matrix.os }}-${{ hashFiles('scripts/manage.py', 'pyproject.toml', '.github/workflows/build-cibw.yaml') }}
+          key: deps-cibw2-${{ matrix.os }}-${{ hashFiles('scripts/manage.py', 'pyproject.toml', '.github/workflows/build-cibw.yml') }}
+
+      - name: Set CCACHE_DIR to workspace
+        if: runner.os != 'Windows'
+        shell: bash
+        run: echo "CCACHE_DIR=${{ github.workspace }}/.ccache" >> "$GITHUB_ENV"
+
+      - name: ccache
+        if: runner.os != 'Windows'
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ccache-cibw-${{ matrix.os }}
+          evict-old-files: 1d
 
       - name: Build wheels
         uses: pypa/cibuildwheel@v3.4.0
         env:
           CIBW_PLATFORM: ${{ matrix.platform || 'auto' }}
           CIBW_ARCHS: ${{ matrix.archs || 'auto' }}
+          # Workflow-level CIBW_ENVIRONMENT_<PLAT> replaces (not merges
+          # with) pyproject.toml's [tool.cibuildwheel.<plat>].environment,
+          # so the pyproject defaults (GGML_*, MACOSX_DEPLOYMENT_TARGET)
+          # must be re-declared here alongside the ccache launcher vars.
+          # On Linux the workspace is bind-mounted to /project inside the
+          # manylinux container, so CCACHE_DIR=/project/.ccache sees the
+          # host ccache-action's cache. ccache itself is installed in
+          # the container via pyproject.toml's before-all (yum install).
+          CIBW_ENVIRONMENT_LINUX: >-
+            GGML_METAL=0
+            GGML_NATIVE=0
+            CCACHE_DIR=/project/.ccache
+            CCACHE_DEPEND=1
+            CMAKE_C_COMPILER_LAUNCHER=ccache
+            CMAKE_CXX_COMPILER_LAUNCHER=ccache
+          CIBW_ENVIRONMENT_MACOS: >-
+            MACOSX_DEPLOYMENT_TARGET=11.0
+            GGML_METAL=1
+            GGML_NATIVE=0
+            CCACHE_DIR=${{ github.workspace }}/.ccache
+            CCACHE_DEPEND=1
+            CMAKE_C_COMPILER_LAUNCHER=ccache
+            CMAKE_CXX_COMPILER_LAUNCHER=ccache
 
       - uses: actions/upload-artifact@v7
         with:

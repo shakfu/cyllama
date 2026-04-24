@@ -20,11 +20,11 @@
 
 ### High Priority
 
-- [ ] **Add `concurrency:` groups to remaining workflows** -- applied to `build-gpu-wheels.yml:64`, `build-gpu-wheels-abi3.yml:69`, `build-new-wheels.yml:27`, `check-vendor.yml:28`. Still missing on `build-cibw.yml` and `build-cibw-abi3.yml` -- 2-line change per file, immediate savings
+- [x] **Add `concurrency:` groups to all workflows** -- applied across `build-gpu-wheels.yml`, `build-gpu-wheels-abi3.yml`, `build-new-wheels.yml`, `check-vendor.yml`, `build-cibw.yml`, `build-cibw-abi3.yml`
 
 - [x] **Vendor-drift guard workflow (`check-vendor.yml` pattern)** -- llama.cpp's `check-vendor.yml` re-runs `scripts/sync_vendor.py` in CI and fails if the tree differs. cyllama's `git status` currently shows modified vendored headers (`mtmd.h`, `log.h`, `ggml-backend.h`, `common.h`) -- exactly the class of silent drift that caused the `GGML_MAX_NAME=128` ABI-match incident. Add `.github/workflows/check-thirdparty.yml` that runs the vendor sync step and diffs. Implemented as `manage.py check_vendor` subcommand + `.github/workflows/check-vendor.yml`
 
-- [ ] **Extend ccache to CPU cibw workflows** -- `hendrikmuhs/ccache-action@v1.2` already wired into `build-gpu-wheels.yml` (CUDA + ROCm jobs) and `build-gpu-wheels-abi3.yml` (CUDA + ROCm + SYCL), keyed per backend/link-mode with `CMAKE_{C,CXX,CUDA,HIP}_COMPILER_LAUNCHER=ccache` passed through `CIBW_ENVIRONMENT`. Still to cover: Linux/macOS jobs in `build-cibw.yml` + `build-cibw-abi3.yml`. Windows (MSVC) ccache remains skipped pending debug-format / cmake-integration investigation
+- [x] **Extend ccache to CPU cibw workflows** -- `hendrikmuhs/ccache-action@v1.2` now wired into `build-cibw.yml` + `build-cibw-abi3.yml` for Linux and macOS, keyed per-matrix-OS, with `CMAKE_{C,CXX}_COMPILER_LAUNCHER=ccache` passed through `CIBW_ENVIRONMENT_{LINUX,MACOS}`. Linux manylinux container installs ccache via `pyproject.toml`'s `before-all`. Windows (MSVC) ccache remains skipped pending debug-format / cmake-integration investigation
 
 ### Medium Priority
 

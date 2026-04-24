@@ -1,9 +1,9 @@
 name: build-gpu-wheels-abi3
 
-# Experimental abi3 variant of build-gpu-wheels2.yml. Produces one wheel
+# Experimental abi3 variant of build-gpu-wheels.yml. Produces one wheel
 # per (backend x platform) tagged cp312-abi3, importable on CPython 3.12+.
 # Opt-in via the CYLLAMA_ABI3 CMake option (see docs/dev/abi3.md).
-# Runs in parallel to build-gpu-wheels2.yml; does NOT replace it.
+# Runs in parallel to build-gpu-wheels.yml; does NOT replace it.
 
 permissions:
   contents: read
@@ -999,7 +999,7 @@ jobs:
           python -m cyllama info
 
       # -------------------------------------------------------------------
-      # SYCL-only CPU decode smoke test. See build-gpu-wheels2.yml for the
+      # SYCL-only CPU decode smoke test. See build-gpu-wheels.yml for the
       # full rationale.
       # -------------------------------------------------------------------
       - name: Install Intel OpenCL CPU runtime
