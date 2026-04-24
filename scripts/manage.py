@@ -15,15 +15,16 @@ It only uses python stdlib modules to do the following:
 models:
     CustomFormatter(logging.Formatter)
     MetaCommander(type)
-    WheelFile(dataclass)
+    WheelFilename(dataclass)
     ShellCmd
         Project
         AbstractBuilder
             Builder
-                LlamaCppBuilder
-                LlamaCppPythonBuilder
-                WhisperCppBuilder
-                StableDiffusionCppBuilder
+                GgmlBuilder            # shared ggml-backend helpers
+                    LlamaCppBuilder
+                    WhisperCppBuilder
+                    StableDiffusionCppBuilder
+                SqliteVectorBuilder
         WheelBuilder
         Application(meta=MetaCommander)
 
@@ -81,7 +82,7 @@ import zipfile
 from fnmatch import fnmatch
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, List, Optional, TypeVar, Union, Callable, NoReturn
+from typing import Any, Iterable, List, Optional, TypeVar, Union, Callable, NoReturn
 from urllib.request import urlretrieve
 
 __version__ = "0.1.1"
@@ -901,7 +902,74 @@ class Builder(AbstractBuilder):
             self.git_clone(self.repo_url, recurse=True, cwd=self.project.src)
 
 
-class LlamaCppBuilder(Builder):
+class GgmlBuilder(Builder):
+    """Builder base for ggml-backed projects (llama.cpp / whisper.cpp / sd.cpp).
+
+    Provides shared helpers for mapping GGML_* env flags onto CMake options
+    and forwarding the usual tuning variables. Concrete subclasses must
+    implement `get_backend_cmake_options`.
+    """
+
+    def get_backend_cmake_options(self) -> dict[str, Any]:
+        """Each subclass defines its own backend CMake options."""
+        raise NotImplementedError
+
+    CUDA_TUNING_ENV_FLAGS: tuple[str, ...] = (
+        "GGML_CUDA_FORCE_MMQ",
+        "GGML_CUDA_FORCE_CUBLAS",
+        "GGML_CUDA_PEER_MAX_BATCH_SIZE",
+        "GGML_CUDA_FA_ALL_QUANTS",
+    )
+
+    def _forward_env_flags(self, options: dict[str, Any], names: Iterable[str]) -> None:
+        """Copy any listed env vars (if set) verbatim into options."""
+        for name in names:
+            val = os.environ.get(name)
+            if val is not None:
+                options[name] = val
+                self.log.info(f"  {name}={val}")
+
+    def _set_backend(
+        self,
+        options: dict[str, Any],
+        cmake_name: str,
+        enabled: bool,
+        label: str,
+        suffix: str = "",
+    ) -> None:
+        """Set a backend ON/OFF and log when enabled."""
+        options[cmake_name] = "ON" if enabled else "OFF"
+        if enabled:
+            self.log.info(f"Enabling {label} backend{suffix}")
+
+    def _apply_cuda_extras(self, options: dict[str, Any]) -> None:
+        """Forward CUDA architectures, compiler, and tuning flags."""
+        cuda_archs = os.environ.get("CMAKE_CUDA_ARCHITECTURES")
+        if cuda_archs:
+            options["CMAKE_CUDA_ARCHITECTURES"] = cuda_archs
+            self.log.info(f"  CUDA architectures: {cuda_archs}")
+        cuda_compiler = os.environ.get("CMAKE_CUDA_COMPILER")
+        if cuda_compiler:
+            options["CMAKE_CUDA_COMPILER"] = cuda_compiler
+            self.log.info(f"  CUDA compiler: {cuda_compiler}")
+        self._forward_env_flags(options, self.CUDA_TUNING_ENV_FLAGS)
+
+    def _apply_hip_archs(self, options: dict[str, Any]) -> None:
+        """Forward HIP architectures."""
+        hip_archs = os.environ.get("CMAKE_HIP_ARCHITECTURES")
+        if hip_archs:
+            options["CMAKE_HIP_ARCHITECTURES"] = hip_archs
+            self.log.info(f"  HIP architectures: {hip_archs}")
+
+    def _apply_openmp(self, options: dict[str, Any]) -> None:
+        """Honour GGML_OPENMP override (upstream default is ON)."""
+        openmp = os.environ.get("GGML_OPENMP")
+        if openmp is not None:
+            options["GGML_OPENMP"] = "ON" if openmp == "1" else "OFF"
+            self.log.info(f"  GGML_OPENMP={options['GGML_OPENMP']}")
+
+
+class LlamaCppBuilder(GgmlBuilder):
     """build llama.cpp"""
 
     name: str = "llama.cpp"
@@ -919,103 +987,42 @@ class LlamaCppBuilder(Builder):
     ]
 
     def get_backend_cmake_options(self) -> dict[str, Any]:
-        """Get CMake options based on backend environment variables.
+        """CMake options for llama.cpp (GGML_* flag names)."""
+        options: dict[str, Any] = {}
 
-        All backends are explicitly set ON/OFF to prevent stale CMake cache
-        entries from a prior build from enabling the wrong backend.
-        """
-        options = {}
+        metal = getenv("GGML_METAL", default=(PLATFORM == "Darwin"))
+        cuda = getenv("GGML_CUDA", default=False)
+        vulkan = getenv("GGML_VULKAN", default=False)
+        sycl = getenv("GGML_SYCL", default=False)
+        hip = getenv("GGML_HIP", default=False)
+        opencl = getenv("GGML_OPENCL", default=False)
 
-        # Read backend flags from environment (default Metal=1 on macOS, others=0)
-        ggml_metal = getenv("GGML_METAL", default=(True if PLATFORM == "Darwin" else False))
-        ggml_cuda = getenv("GGML_CUDA", default=False)
-        ggml_vulkan = getenv("GGML_VULKAN", default=False)
-        ggml_sycl = getenv("GGML_SYCL", default=False)
-        ggml_hip = getenv("GGML_HIP", default=False)
-        ggml_opencl = getenv("GGML_OPENCL", default=False)
-
-        # Add CMake options for enabled backends
-        if ggml_metal:
-            options["GGML_METAL"] = "ON"
-            self.log.info("Enabling Metal backend")
-        else:
-            options["GGML_METAL"] = "OFF"
-
-        if ggml_cuda:
-            options["GGML_CUDA"] = "ON"
-            cuda_archs = os.environ.get("CMAKE_CUDA_ARCHITECTURES")
-            if cuda_archs:
-                options["CMAKE_CUDA_ARCHITECTURES"] = cuda_archs
-                self.log.info(f"Enabling CUDA backend (architectures: {cuda_archs})")
-            else:
-                self.log.info("Enabling CUDA backend (using llama.cpp default architectures)")
-            # Forward CUDA performance tuning flags
-            cuda_compiler = os.environ.get("CMAKE_CUDA_COMPILER")
-            if cuda_compiler:
-                options["CMAKE_CUDA_COMPILER"] = cuda_compiler
-                self.log.info(f"  CUDA compiler: {cuda_compiler}")
-            for flag in (
-                "GGML_CUDA_FORCE_MMQ",
-                "GGML_CUDA_FORCE_CUBLAS",
-                "GGML_CUDA_PEER_MAX_BATCH_SIZE",
-                "GGML_CUDA_FA_ALL_QUANTS",
-            ):
-                val = os.environ.get(flag)
-                if val is not None:
-                    options[flag] = val
-                    self.log.info(f"  {flag}={val}")
-        else:
-            options["GGML_CUDA"] = "OFF"
-
-        if ggml_vulkan:
-            options["GGML_VULKAN"] = "ON"
-            self.log.info("Enabling Vulkan backend")
-        else:
-            options["GGML_VULKAN"] = "OFF"
-
-        if ggml_sycl:
-            options["GGML_SYCL"] = "ON"
-            self.log.info("Enabling SYCL backend")
-        else:
-            options["GGML_SYCL"] = "OFF"
-
-        if ggml_hip:
-            options["GGML_HIP"] = "ON"
-            hip_archs = os.environ.get("CMAKE_HIP_ARCHITECTURES")
-            if hip_archs:
-                options["CMAKE_HIP_ARCHITECTURES"] = hip_archs
-                self.log.info(f"Enabling HIP/ROCm backend (architectures: {hip_archs})")
-            else:
-                self.log.info("Enabling HIP/ROCm backend")
+        self._set_backend(options, "GGML_METAL", metal, "Metal")
+        self._set_backend(options, "GGML_CUDA", cuda, "CUDA")
+        if cuda:
+            self._apply_cuda_extras(options)
+        self._set_backend(options, "GGML_VULKAN", vulkan, "Vulkan")
+        self._set_backend(options, "GGML_SYCL", sycl, "SYCL")
+        self._set_backend(options, "GGML_HIP", hip, "HIP/ROCm")
+        if hip:
+            self._apply_hip_archs(options)
             if getenv("GGML_HIP_ROCWMMA_FATTN", default=False):
                 options["GGML_HIP_ROCWMMA_FATTN"] = "ON"
                 self.log.info("  rocWMMA flash attention enabled")
-        else:
-            options["GGML_HIP"] = "OFF"
+        self._set_backend(options, "GGML_OPENCL", opencl, "OpenCL")
 
-        if ggml_opencl:
-            options["GGML_OPENCL"] = "ON"
-            self.log.info("Enabling OpenCL backend")
-        else:
-            options["GGML_OPENCL"] = "OFF"
-
-        # BLAS backend (explicit selection for Linux/Windows)
         if getenv("GGML_BLAS", default=False):
             options["GGML_BLAS"] = "ON"
             blas_vendor = os.environ.get("GGML_BLAS_VENDOR")
             if blas_vendor:
                 options["GGML_BLAS_VENDOR"] = blas_vendor
-                self.log.info(f"✓ Enabling BLAS backend (vendor: {blas_vendor})")
+                self.log.info(f"Enabling BLAS backend (vendor: {blas_vendor})")
             else:
-                self.log.info("✓ Enabling BLAS backend")
+                self.log.info("Enabling BLAS backend")
 
-        # OpenMP control (default ON in llama.cpp)
-        openmp = os.environ.get("GGML_OPENMP")
-        if openmp is not None:
-            options["GGML_OPENMP"] = "ON" if openmp == "1" else "OFF"
-            self.log.info(f"  GGML_OPENMP={options['GGML_OPENMP']}")
+        self._apply_openmp(options)
 
-        # GGML_NATIVE: optimize for the build machine's CPU.  Must be OFF
+        # GGML_NATIVE: optimize for the build machine's CPU. Must be OFF
         # for portable/CI wheels and when GGML_CPU_ALL_VARIANTS is used.
         ggml_native = os.environ.get("GGML_NATIVE")
         if ggml_native is not None:
@@ -1023,7 +1030,7 @@ class LlamaCppBuilder(Builder):
             self.log.info(f"  GGML_NATIVE={options['GGML_NATIVE']}")
 
         # CPU all-variants: build ggml-cpu for multiple x86 ISAs (AVX, AVX2,
-        # AVX512, etc.) so the optimal one is selected at runtime.  Requires
+        # AVX512, etc.) so the optimal one is selected at runtime. Requires
         # GGML_BACKEND_DL (set automatically by build_shared).
         if getenv("GGML_CPU_ALL_VARIANTS", default=False):
             options["GGML_CPU_ALL_VARIANTS"] = "ON"
@@ -1591,7 +1598,7 @@ class LlamaCppBuilder(Builder):
         self.log.info(f"Generated {generated} import libs")
 
 
-class WhisperCppBuilder(Builder):
+class WhisperCppBuilder(GgmlBuilder):
     """build whisper.cpp"""
 
     name: str = "whisper.cpp"
@@ -1604,90 +1611,38 @@ class WhisperCppBuilder(Builder):
     ]
 
     def get_backend_cmake_options(self) -> dict[str, Any]:
-        """Get CMake options based on backend environment variables.
+        """CMake options for whisper.cpp (GGML_* flag names, Darwin-gated Metal)."""
+        options: dict[str, Any] = {}
+        sfx = " for whisper.cpp"
 
-        whisper.cpp uses GGML_* flags (same as llama.cpp).
+        metal = getenv("GGML_METAL", default=(PLATFORM == "Darwin")) and PLATFORM == "Darwin"
+        cuda = getenv("GGML_CUDA", default=False)
+        vulkan = getenv("GGML_VULKAN", default=False)
+        sycl = getenv("GGML_SYCL", default=False)
+        hip = getenv("GGML_HIP", default=False)
+        opencl = getenv("GGML_OPENCL", default=False)
 
-        All backends are explicitly set ON/OFF to prevent stale CMake cache
-        entries from a prior build from enabling the wrong backend.
-        """
-        options = {}
-
-        # Read backend flags from environment (default Metal=1 on macOS, others=0)
-        ggml_metal = getenv("GGML_METAL", default=(True if PLATFORM == "Darwin" else False))
-        ggml_cuda = getenv("GGML_CUDA", default=False)
-        ggml_vulkan = getenv("GGML_VULKAN", default=False)
-        ggml_sycl = getenv("GGML_SYCL", default=False)
-        ggml_hip = getenv("GGML_HIP", default=False)
-        ggml_opencl = getenv("GGML_OPENCL", default=False)
-
-        if ggml_metal and PLATFORM == "Darwin":
-            options["GGML_METAL"] = "ON"
-            self.log.info("Enabling Metal backend for whisper.cpp")
-        else:
-            options["GGML_METAL"] = "OFF"
-
-        if ggml_cuda:
-            options["GGML_CUDA"] = "ON"
-            cuda_archs = os.environ.get("CMAKE_CUDA_ARCHITECTURES")
-            if cuda_archs:
-                options["CMAKE_CUDA_ARCHITECTURES"] = cuda_archs
-            cuda_compiler = os.environ.get("CMAKE_CUDA_COMPILER")
-            if cuda_compiler:
-                options["CMAKE_CUDA_COMPILER"] = cuda_compiler
-            for flag in (
-                "GGML_CUDA_FORCE_MMQ",
-                "GGML_CUDA_FORCE_CUBLAS",
-                "GGML_CUDA_PEER_MAX_BATCH_SIZE",
-                "GGML_CUDA_FA_ALL_QUANTS",
-            ):
-                val = os.environ.get(flag)
-                if val is not None:
-                    options[flag] = val
-            self.log.info("Enabling CUDA backend for whisper.cpp")
-        else:
-            options["GGML_CUDA"] = "OFF"
-
-        if ggml_vulkan:
-            options["GGML_VULKAN"] = "ON"
-            self.log.info("Enabling Vulkan backend for whisper.cpp")
-        else:
-            options["GGML_VULKAN"] = "OFF"
-
-        if ggml_sycl:
-            options["GGML_SYCL"] = "ON"
-            self.log.info("Enabling SYCL backend for whisper.cpp")
-        else:
-            options["GGML_SYCL"] = "OFF"
-
-        if ggml_hip:
-            options["GGML_HIP"] = "ON"
-            hip_archs = os.environ.get("CMAKE_HIP_ARCHITECTURES")
-            if hip_archs:
-                options["CMAKE_HIP_ARCHITECTURES"] = hip_archs
+        self._set_backend(options, "GGML_METAL", metal, "Metal", sfx)
+        self._set_backend(options, "GGML_CUDA", cuda, "CUDA", sfx)
+        if cuda:
+            self._apply_cuda_extras(options)
+        self._set_backend(options, "GGML_VULKAN", vulkan, "Vulkan", sfx)
+        self._set_backend(options, "GGML_SYCL", sycl, "SYCL", sfx)
+        self._set_backend(options, "GGML_HIP", hip, "HIP/ROCm", sfx)
+        if hip:
+            self._apply_hip_archs(options)
             if getenv("GGML_HIP_ROCWMMA_FATTN", default=False):
                 options["GGML_HIP_ROCWMMA_FATTN"] = "ON"
-            self.log.info("Enabling HIP/ROCm backend for whisper.cpp")
-        else:
-            options["GGML_HIP"] = "OFF"
-
-        if ggml_opencl:
-            options["GGML_OPENCL"] = "ON"
-            self.log.info("Enabling OpenCL backend for whisper.cpp")
-        else:
-            options["GGML_OPENCL"] = "OFF"
+        self._set_backend(options, "GGML_OPENCL", opencl, "OpenCL", sfx)
 
         if getenv("GGML_BLAS", default=False):
             options["GGML_BLAS"] = "ON"
             blas_vendor = os.environ.get("GGML_BLAS_VENDOR")
             if blas_vendor:
                 options["GGML_BLAS_VENDOR"] = blas_vendor
-            self.log.info("Enabling BLAS backend for whisper.cpp")
+            self.log.info(f"Enabling BLAS backend{sfx}")
 
-        openmp = os.environ.get("GGML_OPENMP")
-        if openmp is not None:
-            options["GGML_OPENMP"] = "ON" if openmp == "1" else "OFF"
-
+        self._apply_openmp(options)
         return options
 
     def build(self, shared: bool = False) -> None:
@@ -1719,7 +1674,7 @@ class WhisperCppBuilder(Builder):
         # self.glob_copy(self.build_dir / "bin", self.bin, patterns=["*"])
 
 
-class StableDiffusionCppBuilder(Builder):
+class StableDiffusionCppBuilder(GgmlBuilder):
     """build stable-diffusion.cpp"""
 
     name: str = "stable-diffusion.cpp"
@@ -1730,83 +1685,29 @@ class StableDiffusionCppBuilder(Builder):
     ]
 
     def get_backend_cmake_options(self) -> dict[str, Any]:
-        """Get CMake options based on backend environment variables.
+        """CMake options for stable-diffusion.cpp (SD_* flag names, no BLAS)."""
+        options: dict[str, Any] = {}
+        sfx = " for stable-diffusion.cpp"
 
-        stable-diffusion.cpp uses SD_* CMake flags internally, but we read
-        the same GGML_* env vars as llama.cpp and whisper.cpp to ensure all
-        components use a consistent backend.
+        metal = getenv("GGML_METAL", default=(PLATFORM == "Darwin")) and PLATFORM == "Darwin"
+        cuda = getenv("GGML_CUDA", default=False)
+        vulkan = getenv("GGML_VULKAN", default=False)
+        sycl = getenv("GGML_SYCL", default=False)
+        hip = getenv("GGML_HIP", default=False)
+        opencl = getenv("GGML_OPENCL", default=False)
 
-        All backends are explicitly set ON/OFF to prevent stale CMake cache
-        entries from a prior build from enabling the wrong backend.
-        """
-        options = {}
+        self._set_backend(options, "SD_METAL", metal, "Metal", sfx)
+        self._set_backend(options, "SD_CUDA", cuda, "CUDA", sfx)
+        if cuda:
+            self._apply_cuda_extras(options)
+        self._set_backend(options, "SD_VULKAN", vulkan, "Vulkan", sfx)
+        self._set_backend(options, "SD_SYCL", sycl, "SYCL", sfx)
+        self._set_backend(options, "SD_HIPBLAS", hip, "HIP/ROCm", sfx)
+        if hip:
+            self._apply_hip_archs(options)
+        self._set_backend(options, "SD_OPENCL", opencl, "OpenCL", sfx)
 
-        # Read backend flags from environment (same GGML_* vars as other components)
-        ggml_metal = getenv("GGML_METAL", default=(True if PLATFORM == "Darwin" else False))
-        ggml_cuda = getenv("GGML_CUDA", default=False)
-        ggml_vulkan = getenv("GGML_VULKAN", default=False)
-        ggml_sycl = getenv("GGML_SYCL", default=False)
-        ggml_hip = getenv("GGML_HIP", default=False)
-        ggml_opencl = getenv("GGML_OPENCL", default=False)
-
-        if ggml_metal and PLATFORM == "Darwin":
-            options["SD_METAL"] = "ON"
-            self.log.info("Enabling Metal backend for stable-diffusion.cpp")
-        else:
-            options["SD_METAL"] = "OFF"
-
-        if ggml_cuda:
-            options["SD_CUDA"] = "ON"
-            cuda_archs = os.environ.get("CMAKE_CUDA_ARCHITECTURES")
-            if cuda_archs:
-                options["CMAKE_CUDA_ARCHITECTURES"] = cuda_archs
-            cuda_compiler = os.environ.get("CMAKE_CUDA_COMPILER")
-            if cuda_compiler:
-                options["CMAKE_CUDA_COMPILER"] = cuda_compiler
-            for flag in (
-                "GGML_CUDA_FORCE_MMQ",
-                "GGML_CUDA_FORCE_CUBLAS",
-                "GGML_CUDA_PEER_MAX_BATCH_SIZE",
-                "GGML_CUDA_FA_ALL_QUANTS",
-            ):
-                val = os.environ.get(flag)
-                if val is not None:
-                    options[flag] = val
-            self.log.info("Enabling CUDA backend for stable-diffusion.cpp")
-        else:
-            options["SD_CUDA"] = "OFF"
-
-        if ggml_vulkan:
-            options["SD_VULKAN"] = "ON"
-            self.log.info("Enabling Vulkan backend for stable-diffusion.cpp")
-        else:
-            options["SD_VULKAN"] = "OFF"
-
-        if ggml_sycl:
-            options["SD_SYCL"] = "ON"
-            self.log.info("Enabling SYCL backend for stable-diffusion.cpp")
-        else:
-            options["SD_SYCL"] = "OFF"
-
-        if ggml_hip:
-            options["SD_HIPBLAS"] = "ON"
-            hip_archs = os.environ.get("CMAKE_HIP_ARCHITECTURES")
-            if hip_archs:
-                options["CMAKE_HIP_ARCHITECTURES"] = hip_archs
-            self.log.info("Enabling HIP/ROCm backend for stable-diffusion.cpp")
-        else:
-            options["SD_HIPBLAS"] = "OFF"
-
-        if ggml_opencl:
-            options["SD_OPENCL"] = "ON"
-            self.log.info("Enabling OpenCL backend for stable-diffusion.cpp")
-        else:
-            options["SD_OPENCL"] = "OFF"
-
-        openmp = os.environ.get("GGML_OPENMP")
-        if openmp is not None:
-            options["GGML_OPENMP"] = "ON" if openmp == "1" else "OFF"
-
+        self._apply_openmp(options)
         return options
 
     def _sync_ggml_abi(self) -> None:
