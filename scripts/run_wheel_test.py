@@ -125,7 +125,7 @@ MODELS: dict[str, ModelSource] = {
         filename="z_image_turbo-Q6_K.gguf",
         repo_id="",
         notes="set CYLLAMA_MODEL_Z_IMAGE_TURBO=<repo_id>:<hf_filename> to enable download",
-        url="https://huggingface.co/unsloth/Z-Image-Turbo-GGUF/resolve/main/z-image-turbo-Q6_K.gguf"
+        url="https://huggingface.co/unsloth/Z-Image-Turbo-GGUF/resolve/main/z-image-turbo-Q6_K.gguf",
     ),
     "ae": ModelSource(
         filename="ae.safetensors",

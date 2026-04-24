@@ -1181,11 +1181,7 @@ class LlamaCppBuilder(Builder):
         # link the backend dylibs directly, so we need MH_DYLIB output.
         # Disable BACKEND_DL on this path to get proper SHARED dylibs.
         use_backend_dl = True
-        if (
-            PLATFORM == "Darwin"
-            and ARCH == "x86_64"
-            and backend_options.get("GGML_VULKAN") == "ON"
-        ):
+        if PLATFORM == "Darwin" and ARCH == "x86_64" and backend_options.get("GGML_VULKAN") == "ON":
             use_backend_dl = False
 
         self.cmake_config(
@@ -1307,12 +1303,15 @@ class LlamaCppBuilder(Builder):
         rpath at all on these files anyway (delocate sanitises + rewrites
         load commands), so this is purely a repair-time concern."""
         import subprocess
+
         for dylib in sorted(self.dynamic_lib.glob("*.dylib")):
             if dylib.is_symlink():
                 continue
             otool = subprocess.run(
                 ["otool", "-l", str(dylib)],
-                check=True, capture_output=True, text=True,
+                check=True,
+                capture_output=True,
+                text=True,
             ).stdout
             existing: list[str] = []
             lines = otool.splitlines()
@@ -1329,15 +1328,14 @@ class LlamaCppBuilder(Builder):
             for path in existing:
                 subprocess.run(
                     ["install_name_tool", "-delete_rpath", path, str(dylib)],
-                    check=False, capture_output=True,
+                    check=False,
+                    capture_output=True,
                 )
             subprocess.run(
                 ["install_name_tool", "-add_rpath", "@loader_path", str(dylib)],
                 check=True,
             )
-            self.log.info(
-                f"  {dylib.name}: rpaths {existing} -> [@loader_path]"
-            )
+            self.log.info(f"  {dylib.name}: rpaths {existing} -> [@loader_path]")
 
     # -----------------------------------------------------------------
     # Dynamic linking: download pre-built release
@@ -1431,6 +1429,7 @@ class LlamaCppBuilder(Builder):
         # Dereference symlinks so all files are concrete (wheels can't store symlinks)
         self.dynamic_lib.mkdir(parents=True, exist_ok=True)
 
+        lib_exts: tuple[str, ...]
         if PLATFORM == "Darwin":
             lib_exts = (".dylib",)
         elif PLATFORM == "Windows":
@@ -1483,10 +1482,7 @@ class LlamaCppBuilder(Builder):
             arch_tag = "arm64" if arch in ("arm64", "aarch64") else "x64"
             cuda_ver = os.environ.get("LLAMACPP_CUDA_RELEASE", "12.4")
             cudart_asset = f"cudart-llama-bin-win-cuda-{cuda_ver}-{arch_tag}.zip"
-            cudart_url = (
-                f"https://github.com/ggml-org/llama.cpp/releases/download/"
-                f"{self.version}/{cudart_asset}"
-            )
+            cudart_url = f"https://github.com/ggml-org/llama.cpp/releases/download/{self.version}/{cudart_asset}"
             _fetch_and_install(cudart_url)
 
         # Windows: upstream llama.cpp release zips ship .dll files only, no
@@ -1516,20 +1512,15 @@ class LlamaCppBuilder(Builder):
         export_re = re.compile(r"^\s+\d+\s+[0-9A-Fa-f]+\s+[0-9A-Fa-f]+\s+(\S+)")
 
         # Locate MSVC tools via vswhere (ships with VS Installer at a fixed path)
-        program_files_x86 = os.environ.get(
-            "ProgramFiles(x86)", r"C:\Program Files (x86)"
-        )
-        vswhere = (
-            Path(program_files_x86)
-            / "Microsoft Visual Studio"
-            / "Installer"
-            / "vswhere.exe"
-        )
+        program_files_x86 = os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)")
+        vswhere = Path(program_files_x86) / "Microsoft Visual Studio" / "Installer" / "vswhere.exe"
         if not vswhere.exists():
             raise RuntimeError(f"vswhere not found at {vswhere}")
         vs_install = subprocess.run(
             [str(vswhere), "-latest", "-products", "*", "-property", "installationPath"],
-            capture_output=True, text=True, check=True,
+            capture_output=True,
+            text=True,
+            check=True,
         ).stdout.strip()
         if not vs_install:
             raise RuntimeError("vswhere did not locate a Visual Studio installation")
@@ -1546,9 +1537,7 @@ class LlamaCppBuilder(Builder):
         dumpbin_exe = tool_dir / "dumpbin.exe"
         lib_exe = tool_dir / "lib.exe"
         if not dumpbin_exe.exists() or not lib_exe.exists():
-            raise RuntimeError(
-                f"dumpbin.exe or lib.exe missing under {tool_dir}"
-            )
+            raise RuntimeError(f"dumpbin.exe or lib.exe missing under {tool_dir}")
         self.log.info(f"Using MSVC tools from {tool_dir}")
 
         self.log.info(f"Generating MSVC import libs in {self.dynamic_lib}")
@@ -1559,7 +1548,9 @@ class LlamaCppBuilder(Builder):
                 continue
             dump = subprocess.run(
                 [str(dumpbin_exe), "/exports", str(dll)],
-                capture_output=True, text=True, check=True,
+                capture_output=True,
+                text=True,
+                check=True,
             )
             names: list[str] = []
             in_table = False
@@ -1578,9 +1569,7 @@ class LlamaCppBuilder(Builder):
                 self.log.info(f"  {dll.name}: no exports, skipping")
                 continue
             def_path = dll.with_suffix(".def")
-            def_path.write_text(
-                f"LIBRARY {dll.name}\nEXPORTS\n" + "\n".join(names) + "\n"
-            )
+            def_path.write_text(f"LIBRARY {dll.name}\nEXPORTS\n" + "\n".join(names) + "\n")
             try:
                 subprocess.run(
                     [
@@ -1590,7 +1579,9 @@ class LlamaCppBuilder(Builder):
                         f"/machine:{machine}",
                         "/nologo",
                     ],
-                    capture_output=True, text=True, check=True,
+                    capture_output=True,
+                    text=True,
+                    check=True,
                 )
                 generated += 1
                 self.log.info(f"  {lib_path.name} ({len(names)} exports)")
@@ -2632,7 +2623,9 @@ class Application(ShellCmd, metaclass=MetaCommander):
                     continue
                 otool = subprocess.run(
                     ["otool", "-L", str(f)],
-                    capture_output=True, text=True, check=False,
+                    capture_output=True,
+                    text=True,
+                    check=False,
                 )
                 if OLD not in otool.stdout:
                     continue
@@ -2642,7 +2635,9 @@ class Application(ShellCmd, metaclass=MetaCommander):
                 )
                 rpaths_out = subprocess.run(
                     ["otool", "-l", str(f)],
-                    capture_output=True, text=True, check=True,
+                    capture_output=True,
+                    text=True,
+                    check=True,
                 ).stdout
                 existing_rpaths: set[str] = set()
                 lines = rpaths_out.splitlines()
@@ -2662,7 +2657,8 @@ class Application(ShellCmd, metaclass=MetaCommander):
                         )
                 subprocess.run(
                     ["codesign", "--force", "--sign", "-", str(f)],
-                    check=True, capture_output=True,
+                    check=True,
+                    capture_output=True,
                 )
                 patched += 1
                 self.log.info(f"patched {f.relative_to(tmp)}")
@@ -2674,14 +2670,11 @@ class Application(ShellCmd, metaclass=MetaCommander):
             # Regenerate RECORD and repack. `wheel pack` does both.
             dist_info_dirs = list(tmp.glob("*.dist-info"))
             if len(dist_info_dirs) != 1:
-                self.log.error(
-                    f"expected exactly one *.dist-info dir, got {dist_info_dirs}"
-                )
+                self.log.error(f"expected exactly one *.dist-info dir, got {dist_info_dirs}")
                 sys.exit(1)
             out_dir = wheel_path.parent
             subprocess.run(
-                [sys.executable, "-m", "wheel", "pack", str(tmp),
-                 "--dest-dir", str(out_dir)],
+                [sys.executable, "-m", "wheel", "pack", str(tmp), "--dest-dir", str(out_dir)],
                 check=True,
             )
             self.log.info(f"patched {patched} files, repacked wheel in {out_dir}")
