@@ -868,6 +868,38 @@ jobs:
           fi
           pip install "${{ steps.find-wheel.outputs.wheel }}"
 
+      # -------------------------------------------------------------------
+      # Windows-only: link-test every bundled ggml-*.dll using the same
+      # LoadLibraryW(path, NULL, 0) semantics that ggml_backend_load()
+      # uses in C. Catches the class of bug where delvewheel-bundled
+      # siblings (e.g. vulkan-1-<hash>.dll) are unreachable because the
+      # libs dir is not on PATH — a failure mode invisible to GPU-less
+      # runners since `cyllama info` still exits 0 when a backend DLL
+      # fails to load. Independent of GPU/ICD presence.
+      # -------------------------------------------------------------------
+      - name: Smoke test - DLL link (Windows)
+        if: steps.check.outputs.skip != 'true' && runner.os == 'Windows'
+        shell: bash
+        run: |
+          source smoke-venv/Scripts/activate
+          python -c "
+          import ctypes, glob, os, site, sys
+          failed = []
+          for sp in site.getsitepackages():
+              for libs in glob.glob(os.path.join(sp, 'cyllama*.libs')):
+                  for dll in sorted(glob.glob(os.path.join(libs, 'ggml-*.dll'))):
+                      try:
+                          ctypes.WinDLL(dll)
+                      except OSError as e:
+                          failed.append((dll, str(e)))
+                      else:
+                          print(f'OK   {dll}')
+          if failed:
+              for d, e in failed:
+                  print(f'FAIL {d}: {e}', file=sys.stderr)
+              sys.exit(1)
+          "
+
       - name: Verify extension suffix is .abi3
         if: steps.check.outputs.skip != 'true'
         shell: bash

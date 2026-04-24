@@ -127,6 +127,17 @@ def libs_to_load(site_dir: str) -> list[bytes]:
     # auditwheel (Linux) / delvewheel (Windows)
     for libs_dir in glob.glob(os.path.join(site_dir, "cyllama*.libs")):
         _scan_dir(libs_dir, results)
+        # Windows: ggml's ggml_backend_load() calls LoadLibraryW(path, NULL, 0),
+        # which uses the standard search order and does NOT include the
+        # directory of the DLL being loaded. Bundled siblings (ggml-base-*,
+        # vulkan-1-*, etc.) are only resolvable if the libs dir is on PATH.
+        # os.add_dll_directory() (set by delvewheel's __init__ patch) does
+        # not help here — that only affects LoadLibraryEx callers passing
+        # LOAD_LIBRARY_SEARCH_USER_DIRS.
+        if sys.platform == "win32":
+            path = os.environ.get("PATH", "")
+            if libs_dir not in path.split(os.pathsep):
+                os.environ["PATH"] = libs_dir + os.pathsep + path
     # delocate (macOS) — libs inside the package with original names
     dylibs_dir = os.path.join(site_dir, "cyllama", ".dylibs")
     _scan_dir(dylibs_dir, results)

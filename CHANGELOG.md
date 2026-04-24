@@ -17,6 +17,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+### Fixed
+
+- **Windows GPU wheels failed to load any non-CPU ggml backend at runtime** -- `cyllama_vulkan` (and by the same mechanism `cyllama-cuda12`) shipped a working `cyllama_<variant>.libs/` directory but `cyllama info` reported `load_backend: failed to load …\ggml-vulkan-<hash>.dll:` and silently fell back to CPU-only, with `registries:` showing `CPU` instead of `CPU, Vulkan`. Root cause: `ggml_backend_load()` calls `LoadLibraryW(path, NULL, 0)` in C, which uses the standard Windows DLL search order and does **not** include the directory of the DLL being loaded. Windows resolved `ggml-vulkan-<hash>.dll` itself (full path was passed), but its delvewheel-bundled siblings (`ggml-base-<hash>.dll`, `vulkan-1-<hash>.dll`, `msvcp140-<hash>.dll`) were searched in `PATH` + system dirs and not found. The CPU backend escaped the bug because its only non-system import (`msvcp140`) is in `System32`. delvewheel's standard `__init__.py` patch calls `os.add_dll_directory(libs_dir)`, which only feeds `LoadLibraryEx` callers passing `LOAD_LIBRARY_SEARCH_USER_DIRS` — `ggml_backend_load()` does not. `src/cyllama/_internal/backend_dl.py` now prepends each discovered `cyllama*.libs/` to `os.environ["PATH"]` once on Windows, before the first `ggml_backend_load()` call, so all subsequent `LoadLibraryW` calls resolve bundled deps. No-op on Linux/macOS (auditwheel's `$ORIGIN` and delocate's `@loader_path/../.dylibs/` already handle sibling resolution).
+
+### Added
+
+- **CI link-test guardrail for Windows GPU wheels** -- `.github/workflows/build-gpu-wheels.yml` and `build-gpu-wheels-abi3.yml` now include a `Smoke test - DLL link (Windows)` step in the `smoke_test` job that walks every `cyllama*.libs/ggml-*.dll` and calls `ctypes.WinDLL(path)` (no flags) — exactly the `LoadLibraryW(path, NULL, 0)` semantics ggml uses in C. Catches delvewheel/PATH regressions of the class above on GPU-less GitHub-hosted Windows runners, where neither `cyllama info` (exits 0 even when a backend DLL fails) nor a `registries: Vulkan` assertion is reliable (no Vulkan ICD on the runner).
+
 ## [0.2.12]
 
 ### Added
