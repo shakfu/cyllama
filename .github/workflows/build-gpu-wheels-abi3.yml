@@ -19,22 +19,22 @@ on:
         options:
           - dynamic
           - static
-      cuda:
+      cuda_linux:
         description: 'Build CUDA wheels'
         required: false
         default: false
         type: boolean
-      rocm:
+      rocm_linux:
         description: 'Build ROCm wheels'
         required: false
         default: false
         type: boolean
-      sycl:
+      sycl_linux:
         description: 'Build SYCL wheels'
         required: false
         default: false
         type: boolean
-      vulkan:
+      vulkan_linux:
         description: 'Build Vulkan wheels (Linux x86_64)'
         required: false
         default: false
@@ -84,7 +84,7 @@ jobs:
   # ---------------------------------------------------------------------------
   build_cuda:
     name: CUDA 12.4 abi3 - Linux x86_64 (${{ inputs.link_mode }})
-    if: inputs.cuda
+    if: inputs.cuda_linux
     runs-on: ubuntu-22.04
 
     steps:
@@ -197,7 +197,7 @@ jobs:
   # ---------------------------------------------------------------------------
   build_rocm:
     name: ROCm 6.3 abi3 - Linux x86_64 (${{ inputs.link_mode }})
-    if: inputs.rocm
+    if: inputs.rocm_linux
     runs-on: ubuntu-22.04
 
     steps:
@@ -318,7 +318,7 @@ jobs:
   # ---------------------------------------------------------------------------
   build_sycl:
     name: SYCL abi3 - Linux x86_64 (${{ inputs.link_mode }})
-    if: inputs.sycl
+    if: inputs.sycl_linux
     runs-on: ubuntu-22.04
 
     steps:
@@ -425,7 +425,7 @@ jobs:
   # ---------------------------------------------------------------------------
   build_vulkan:
     name: Vulkan abi3 - Linux x86_64 (${{ inputs.link_mode }})
-    if: inputs.vulkan
+    if: inputs.vulkan_linux
     runs-on: ubuntu-22.04
 
     steps:
@@ -793,19 +793,19 @@ jobs:
           - backend: cuda
             runs-on: ubuntu-latest
             artifact: wheels-abi3-cuda-linux-x86_64
-            condition: inputs.cuda
+            condition: inputs.cuda_linux
           - backend: rocm
             runs-on: ubuntu-latest
             artifact: wheels-abi3-rocm-linux-x86_64
-            condition: inputs.rocm
+            condition: inputs.rocm_linux
           - backend: sycl
             runs-on: ubuntu-latest
             artifact: wheels-abi3-sycl-linux-x86_64
-            condition: inputs.sycl
+            condition: inputs.sycl_linux
           - backend: vulkan
             runs-on: ubuntu-latest
             artifact: wheels-abi3-vulkan-linux-x86_64
-            condition: inputs.vulkan
+            condition: inputs.vulkan_linux
           - backend: cuda-windows
             runs-on: windows-latest
             artifact: wheels-abi3-cuda-windows-x86_64

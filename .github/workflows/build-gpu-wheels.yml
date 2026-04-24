@@ -14,38 +14,38 @@ on:
         options:
           - dynamic
           - static
-      cuda:
-        description: 'Build CUDA wheels'
+      cuda_linux:
+        description: 'Build CUDA 12 wheels (Linux x86_64)'
         required: false
         default: false
         type: boolean
-      rocm:
-        description: 'Build ROCm wheels'
+      rocm_linux:
+        description: 'Build ROCm wheels (Linux x86_64)'
         required: false
         default: false
         type: boolean
-      sycl:
-        description: 'Build SYCL wheels'
+      sycl_linux:
+        description: 'Build SYCL wheels (Linux x86_64)'
         required: false
         default: false
         type: boolean
-      vulkan:
+      vulkan_linux:
         description: 'Build Vulkan wheels (Linux x86_64)'
         required: false
         default: false
         type: boolean
       cuda_windows:
-        description: 'Build CUDA 12.4 Windows (x86_64)'
+        description: 'Build CUDA 12 wheels (Windows x86_64)'
         required: false
         default: false
         type: boolean
       vulkan_windows:
-        description: 'Build Vulkan Windows (x86_64)'
+        description: 'Build Vulkan wheels (Windows x86_64)'
         required: false
         default: false
         type: boolean
       vulkan_macos_intel:
-        description: 'Build Vulkan macOS Intel (x86_64)'
+        description: 'Build Vulkan wheels (MacOS Intel)'
         required: false
         default: false
         type: boolean
@@ -77,7 +77,7 @@ jobs:
   # ---------------------------------------------------------------------------
   build_cuda:
     name: CUDA 12.4 - Linux x86_64 (${{ inputs.link_mode }})
-    if: inputs.cuda
+    if: inputs.cuda_linux
     runs-on: ubuntu-22.04
 
     steps:
@@ -188,7 +188,7 @@ jobs:
   # ---------------------------------------------------------------------------
   build_rocm:
     name: ROCm 6.3 - Linux x86_64 (${{ inputs.link_mode }})
-    if: inputs.rocm
+    if: inputs.rocm_linux
     runs-on: ubuntu-22.04
 
     steps:
@@ -307,7 +307,7 @@ jobs:
   # ---------------------------------------------------------------------------
   build_sycl:
     name: SYCL - Linux x86_64 (${{ inputs.link_mode }})
-    if: inputs.sycl
+    if: inputs.sycl_linux
     runs-on: ubuntu-22.04
 
     steps:
@@ -412,7 +412,7 @@ jobs:
   # ---------------------------------------------------------------------------
   build_vulkan:
     name: Vulkan - Linux x86_64 (${{ inputs.link_mode }})
-    if: inputs.vulkan
+    if: inputs.vulkan_linux
     runs-on: ubuntu-22.04
 
     steps:
@@ -775,19 +775,19 @@ jobs:
           - backend: cuda
             runs-on: ubuntu-latest
             artifact: wheels-cuda-linux-x86_64
-            condition: inputs.cuda
+            condition: inputs.cuda_linux
           - backend: rocm
             runs-on: ubuntu-latest
             artifact: wheels-rocm-linux-x86_64
-            condition: inputs.rocm
+            condition: inputs.rocm_linux
           - backend: sycl
             runs-on: ubuntu-latest
             artifact: wheels-sycl-linux-x86_64
-            condition: inputs.sycl
+            condition: inputs.sycl_linux
           - backend: vulkan
             runs-on: ubuntu-latest
             artifact: wheels-vulkan-linux-x86_64
-            condition: inputs.vulkan
+            condition: inputs.vulkan_linux
           - backend: cuda-windows
             runs-on: windows-latest
             artifact: wheels-cuda-windows-x86_64

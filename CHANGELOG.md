@@ -17,6 +17,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+### Changed
+
+- **GPU-wheel `workflow_dispatch` inputs renamed for platform consistency** -- Linux backend inputs in `build-gpu-wheels.yml` and `build-gpu-wheels-abi3.yml` previously had bare names (`cuda`, `rocm`, `sycl`, `vulkan`) while Windows and macOS variants already carried a platform suffix. Linux inputs are now `cuda_linux`, `rocm_linux`, `sycl_linux`, `vulkan_linux`, so every backend input follows the `<backend>_<platform>` convention. **Breaking** for anyone triggering the workflow via `gh workflow run ... -f cuda=true` (use `-f cuda_linux=true`) or with bookmarked "Run workflow" UI presets (re-tick the Linux boxes once).
+
 ## [0.2.13]
 
 ### Added
