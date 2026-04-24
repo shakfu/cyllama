@@ -631,7 +631,11 @@ class AbstractBuilder(ShellCmd):
     version: str
     repo_url: str
     download_url_template: str
-    libs_static: list[str]
+    libs: list[str]
+    # Whether this builder produces a static/dynamic form at all. Most
+    # builders do both; sqlite-vector, for example, is dynamic-only.
+    produces_static: bool = True
+    produces_dynamic: bool = True
     depends_on: list[type["Builder"]]
 
     def __init__(self, version: Optional[str] = None, project: Optional[Project] = None):
@@ -858,9 +862,62 @@ class AbstractBuilder(ShellCmd):
             self.log.warning(f"Optional library not found: {lib_path}")
             return False
 
-    def libs_static_exist(self) -> bool:
-        """check if all built stati libs already exist"""
-        return all((self.lib / lib).exists() for lib in self.libs_static)
+    @property
+    def dynamic_lib(self) -> Path:
+        """Directory holding the dynamic-build (shared) lib variants."""
+        return self.prefix / "dynamic"
+
+    @staticmethod
+    def _static_lib_filename(name: str) -> str:
+        """Translate a bare lib name (e.g. 'ggml-base') to the host-platform static filename."""
+        return f"{name}.lib" if PLATFORM == "Windows" else f"lib{name}.a"
+
+    @staticmethod
+    def _dynamic_lib_filename(name: str) -> str:
+        """Translate a bare lib name to the host-platform shared-lib filename."""
+        if PLATFORM == "Windows":
+            return f"{name}.dll"
+        if PLATFORM == "Darwin":
+            return f"lib{name}.dylib"
+        return f"lib{name}.so"
+
+    def static_lib_path(self, name: str) -> Path:
+        """Path to one static lib by bare name."""
+        return self.lib / self._static_lib_filename(name)
+
+    def dynamic_lib_path(self, name: str) -> Path:
+        """Path to one dynamic lib by bare name."""
+        return self.dynamic_lib / self._dynamic_lib_filename(name)
+
+    @property
+    def static_libs(self) -> list[Path]:
+        """Platform-resolved paths to the static-lib forms of `self.libs`."""
+        if not self.produces_static:
+            return []
+        return [self.static_lib_path(n) for n in self.libs]
+
+    @property
+    def dynamic_libs(self) -> list[Path]:
+        """Platform-resolved paths to the dynamic-lib forms of `self.libs`."""
+        if not self.produces_dynamic:
+            return []
+        return [self.dynamic_lib_path(n) for n in self.libs]
+
+    def static_libs_exist(self) -> bool:
+        """Return True iff every static lib for this builder is on disk."""
+        return all(p.exists() for p in self.static_libs)
+
+    def dynamic_libs_exist(self) -> bool:
+        """Return True iff every dynamic lib for this builder is on disk."""
+        return all(p.exists() for p in self.dynamic_libs)
+
+    def missing_static_libs(self) -> list[Path]:
+        """Static lib paths that are absent from `self.lib`."""
+        return [p for p in self.static_libs if not p.exists()]
+
+    def missing_dynamic_libs(self) -> list[Path]:
+        """Dynamic lib paths that are absent from `self.dynamic_lib`."""
+        return [p for p in self.dynamic_libs if not p.exists()]
 
     def pre_process(self) -> None:
         """override by subclass if needed"""
@@ -914,6 +971,21 @@ class GgmlBuilder(Builder):
     and forwarding the usual tuning variables. Concrete subclasses must
     implement `get_backend_cmake_options`.
     """
+
+    # Bare lib names that always ship in a ggml-backed build (either linked
+    # into the Cython extension for static builds, or bundled into the
+    # wheel for dynamic builds). Subclasses extend via `extra_libs`.
+    # Backend plugin libs (`ggml-metal`, `ggml-cuda`, ...) are NOT tracked
+    # here: they are conditional on the build-time env, and whether they
+    # end up in the wheel depends on what was actually linked. Inspect the
+    # install dir directly if you need to audit per-backend artifacts.
+    base_libs: list[str] = ["ggml"]
+    extra_libs: list[str] = []
+
+    @property
+    def libs(self) -> list[str]:  # type: ignore[override]
+        """Bare names of core libs shipped/linked by a successful build."""
+        return list(self.base_libs) + list(self.extra_libs)
 
     def get_backend_cmake_options(self) -> dict[str, Any]:
         """Each subclass defines its own backend CMake options."""
@@ -1009,16 +1081,10 @@ class LlamaCppBuilder(GgmlBuilder):
     name: str = "llama.cpp"
     version: str = LLAMACPP_VERSION
     repo_url: str = "https://github.com/ggml-org/llama.cpp.git"
-    libs_static: list[str] = [
-        "libllama-common.a",
-        "libggml-base.a",
-        "libggml-blas.a",
-        "libggml-cpu.a",
-        "libggml-metal.a",
-        "libggml.a",
-        "libllama.a",
-        "libmtmd.a",
-    ]
+    # llama.cpp installs ggml as a split build: the unified `ggml` plus
+    # the `ggml-base` / `ggml-cpu` partials.
+    base_libs: list[str] = ["ggml", "ggml-base", "ggml-cpu"]
+    extra_libs: list[str] = ["llama", "llama-common", "mtmd"]
 
     def get_backend_cmake_options(self) -> dict[str, Any]:
         """CMake options for llama.cpp (GGML_* flag names)."""
@@ -1335,11 +1401,6 @@ class LlamaCppBuilder(GgmlBuilder):
     # Dynamic linking: download pre-built release
     # -----------------------------------------------------------------
 
-    @property
-    def dynamic_lib(self) -> Path:
-        """Directory for pre-built shared libraries."""
-        return self.prefix / "dynamic"
-
     def _release_asset_name(self) -> str | None:
         """Get the expected release asset filename for the current platform."""
         version = self.version
@@ -1585,11 +1646,9 @@ class WhisperCppBuilder(GgmlBuilder):
     name: str = "whisper.cpp"
     version: str = WHISPERCPP_VERSION
     repo_url: str = "https://github.com/ggml-org/whisper.cpp"
-    libs_static: list[str] = [
-        "libcommon.a",
-        "libwhisper.a",
-        "libggml.a",
-    ]
+    # whisper.cpp ships a single combined `ggml` lib (no split partials).
+    base_libs: list[str] = ["ggml"]
+    extra_libs: list[str] = ["whisper", "common"]
 
     def get_backend_cmake_options(self) -> dict[str, Any]:
         """CMake options for whisper.cpp (GGML_* flag names, Darwin-gated Metal)."""
@@ -1661,9 +1720,10 @@ class StableDiffusionCppBuilder(GgmlBuilder):
     name: str = "stable-diffusion.cpp"
     version: str = SDCPP_VERSION
     repo_url: str = "https://github.com/leejet/stable-diffusion.cpp.git"
-    libs_static: list[str] = [
-        "libstable-diffusion.a",
-    ]
+    # SD installs only its own lib; ggml comes from llama.cpp when
+    # SD_USE_VENDORED_GGML=0, otherwise from SD's vendored copy.
+    base_libs: list[str] = ["stable-diffusion"]
+    extra_libs: list[str] = []
 
     # stable-diffusion.cpp requires GGML_MAX_NAME=128 (see its CMakeLists.txt:233
     # and ggml_extend.hpp:94). llama.cpp defaults to 64. When SD shares
@@ -1778,17 +1838,28 @@ class SqliteVectorBuilder(Builder):
     name: str = "sqlite-vector"
     version: str = SQLITEVECTOR_VERSION
     repo_url: str = "https://github.com/sqliteai/sqlite-vector.git"
-    libs_static: list[str] = []  # sqlite-vector produces a dynamic library
+    libs: list[str] = ["vector"]
+    # SQLite loadable extensions have no static form.
+    produces_static: bool = False
+
+    @staticmethod
+    def _dynamic_lib_filename(name: str) -> str:
+        """SQLite extensions use a bare `<name>.<ext>` filename (no `lib` prefix)."""
+        if PLATFORM == "Darwin":
+            return f"{name}.dylib"
+        if PLATFORM == "Windows":
+            return f"{name}.dll"
+        return f"{name}.so"
+
+    @property
+    def dynamic_lib(self) -> Path:
+        """The extension is installed directly into the package's rag/ subdir."""
+        return self.package_dest
 
     @property
     def extension_name(self) -> str:
         """Get platform-specific extension name"""
-        if PLATFORM == "Darwin":
-            return "vector.dylib"
-        elif PLATFORM == "Windows":
-            return "vector.dll"
-        else:
-            return "vector.so"
+        return self._dynamic_lib_filename("vector")
 
     @property
     def package_dest(self) -> Path:
@@ -2912,6 +2983,51 @@ class Application(ShellCmd, metaclass=MetaCommander):
             return
 
         self.log.info(f"Version bump complete: {current_version} -> {new_version}")
+
+    # ------------------------------------------------------------------------
+    # status
+
+    def do_status(self, args: argparse.Namespace) -> None:
+        """report which dependency libs are built (static + dynamic forms)"""
+
+        def paint(text: str, code: str) -> str:
+            return f"\033[{code}m{text}\033[0m" if COLOR and sys.stdout.isatty() else text
+
+        state_color = {"OK": "32", "PARTIAL": "33", "MISSING": "31", "N/A": "90"}
+
+        builders = [
+            LlamaCppBuilder(),
+            WhisperCppBuilder(),
+            StableDiffusionCppBuilder(),
+            SqliteVectorBuilder(),
+        ]
+        for b in builders:
+            if not b.libs:
+                print(f"{b.name}: no libs declared")
+                continue
+            for kind, produces, expected_paths, missing_paths, root in [
+                ("static", b.produces_static, b.static_libs, b.missing_static_libs(), b.lib),
+                ("dynamic", b.produces_dynamic, b.dynamic_libs, b.missing_dynamic_libs(), b.dynamic_lib),
+            ]:
+                if not produces:
+                    na = paint("N/A", state_color["N/A"])
+                    print(f"{b.name} [{kind}]: {na}  ({kind} form not produced by this builder)")
+                    continue
+                present_count = len(expected_paths) - len(missing_paths)
+                if not missing_paths:
+                    state = "OK"
+                elif present_count == 0:
+                    state = "MISSING"
+                else:
+                    state = "PARTIAL"
+                painted_state = paint(state, state_color[state])
+                print(f"{b.name} [{kind}]: {painted_state}  ({present_count}/{len(expected_paths)} libs in {root})")
+                for p in expected_paths:
+                    if p in missing_paths:
+                        line = paint(f"  X {p.name}", state_color["MISSING"])
+                    else:
+                        line = paint(f"    {p.name}", state_color["OK"])
+                    print(line)
 
     # ------------------------------------------------------------------------
     # download
