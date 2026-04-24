@@ -156,6 +156,23 @@ if PLATFORM == "Darwin":
 DEBUG = getenv("DEBUG", default=True)
 COLOR = getenv("COLOR", default=True)
 
+# Shared-lib file extensions for the host platform. Used when dropping
+# pre-built release archives into `dynamic/`.
+SHARED_LIB_EXTS: tuple[str, ...] = (
+    (".dylib",) if PLATFORM == "Darwin" else (".dll", ".lib") if PLATFORM == "Windows" else (".so",)
+)
+
+# rglob patterns for locating built shared libs in a cmake build tree.
+# Darwin picks up MODULE libs (.so from GGML_BACKEND_DL=ON plugins) too;
+# Linux needs versioned sonames (".so.*") alongside the unversioned file.
+SHARED_LIB_GLOBS: tuple[str, ...] = (
+    ("**/*.dylib", "**/*.so")
+    if PLATFORM == "Darwin"
+    else ("**/*.dll", "**/*.lib")
+    if PLATFORM == "Windows"
+    else ("**/*.so", "**/*.so.*")
+)
+
 # ----------------------------------------------------------------------------
 # logging config
 
@@ -877,18 +894,6 @@ class AbstractBuilder(ShellCmd):
         self.post_process()
 
 
-# stable-diffusion.cpp requires GGML_MAX_NAME=128 (see its CMakeLists.txt:233
-# and ggml_extend.hpp:94).  llama.cpp defaults to 64.  When SD shares
-# llama.cpp's ggml dylibs (SD_USE_VENDORED_GGML=0), both sides must agree on
-# this value or the ggml_tensor struct layout diverges and tensor copies crash.
-_SD_GGML_MAX_NAME = 128
-
-
-def _sd_uses_shared_ggml() -> bool:
-    """Return True when SD is configured to share llama.cpp's ggml."""
-    return os.environ.get("SD_USE_VENDORED_GGML") == "0"
-
-
 class Builder(AbstractBuilder):
     """concrete builder class"""
 
@@ -920,6 +925,35 @@ class GgmlBuilder(Builder):
         "GGML_CUDA_PEER_MAX_BATCH_SIZE",
         "GGML_CUDA_FA_ALL_QUANTS",
     )
+
+    # GGML_* env flag -> short backend name (matches the ggml subdir and
+    # cmake target suffix: ggml/src/ggml-<short>, target ggml-<short>).
+    BACKEND_SHORT_NAMES: dict[str, str] = {
+        "GGML_METAL": "metal",
+        "GGML_CUDA": "cuda",
+        "GGML_VULKAN": "vulkan",
+        "GGML_SYCL": "sycl",
+        "GGML_HIP": "hip",
+        "GGML_OPENCL": "opencl",
+    }
+
+    def enabled_backends_from_env(self) -> list[str]:
+        """Short names of GGML_* backends enabled via env vars."""
+        result = []
+        for env_name, short in self.BACKEND_SHORT_NAMES.items():
+            default = env_name == "GGML_METAL" and PLATFORM == "Darwin"
+            if getenv(env_name, default=default):
+                result.append(short)
+        return result
+
+    def enabled_backends_from_options(self, options: dict[str, Any]) -> list[str]:
+        """Short names of GGML_* backends set to ON in an options dict.
+
+        Reads GGML_* keys; use only with options dicts from builders that
+        keep the GGML_* prefix (Llama, Whisper). SD's SD_*-prefixed dicts
+        will always yield an empty list.
+        """
+        return [short for env_name, short in self.BACKEND_SHORT_NAMES.items() if options.get(env_name) == "ON"]
 
     def _forward_env_flags(self, options: dict[str, Any], names: Iterable[str]) -> None:
         """Copy any listed env vars (if set) verbatim into options."""
@@ -1041,38 +1075,29 @@ class LlamaCppBuilder(GgmlBuilder):
 
     def copy_backend_libs(self) -> None:
         """Copy backend-specific libraries based on enabled backends."""
-        # Read backend flags from environment
-        ggml_metal = getenv("GGML_METAL", default=(True if PLATFORM == "Darwin" else False))
-        ggml_cuda = getenv("GGML_CUDA", default=False)
-        ggml_vulkan = getenv("GGML_VULKAN", default=False)
-        ggml_sycl = getenv("GGML_SYCL", default=False)
-        ggml_hip = getenv("GGML_HIP", default=False)
-        ggml_opencl = getenv("GGML_OPENCL", default=False)
-
-        # Copy Metal backend libraries (macOS only)
-        if ggml_metal:
+        enabled = self.enabled_backends_from_env()
+        # Metal builds also need the BLAS backend lib alongside ggml-metal.
+        if "metal" in enabled:
             self.copy_lib(self.build_dir, "ggml/src/ggml-blas", "ggml-blas", self.lib)
-            self.copy_lib(self.build_dir, "ggml/src/ggml-metal", "ggml-metal", self.lib)
+        for short in enabled:
+            self.copy_lib(self.build_dir, f"ggml/src/ggml-{short}", f"ggml-{short}", self.lib)
 
-        # Copy CUDA backend library
-        if ggml_cuda:
-            self.copy_lib(self.build_dir, "ggml/src/ggml-cuda", "ggml-cuda", self.lib)
-
-        # Copy Vulkan backend library
-        if ggml_vulkan:
-            self.copy_lib(self.build_dir, "ggml/src/ggml-vulkan", "ggml-vulkan", self.lib)
-
-        # Copy SYCL backend library
-        if ggml_sycl:
-            self.copy_lib(self.build_dir, "ggml/src/ggml-sycl", "ggml-sycl", self.lib)
-
-        # Copy HIP backend library
-        if ggml_hip:
-            self.copy_lib(self.build_dir, "ggml/src/ggml-hip", "ggml-hip", self.lib)
-
-        # Copy OpenCL backend library
-        if ggml_opencl:
-            self.copy_lib(self.build_dir, "ggml/src/ggml-opencl", "ggml-opencl", self.lib)
+    def _copy_headers(self) -> None:
+        """Copy llama.cpp public headers into the prefix include dir."""
+        self.glob_copy(self.src_dir / "common", self.include, patterns=["*.h", "*.hpp"])
+        self.glob_copy(self.src_dir / "ggml" / "include", self.include, patterns=["*.h"])
+        # Main llama.h header.
+        self.glob_copy(self.src_dir / "include", self.include, patterns=["*.h"])
+        # jinja headers (required by chat.h).
+        jinja_include = self.include / "jinja"
+        jinja_include.mkdir(exist_ok=True)
+        self.glob_copy(self.src_dir / "common" / "jinja", jinja_include, patterns=["*.h", "*.hpp"])
+        # nlohmann JSON headers (required by json-partial.h).
+        nlohmann_include = self.include / "nlohmann"
+        nlohmann_include.mkdir(exist_ok=True)
+        self.glob_copy(self.src_dir / "vendor" / "nlohmann", nlohmann_include, patterns=["*.hpp"])
+        # mtmd (multimodal) headers.
+        self.glob_copy(self.src_dir / "tools" / "mtmd", self.include, patterns=["*.h"])
 
     def build(self, shared: bool = False) -> None:
         """main build function"""
@@ -1081,20 +1106,7 @@ class LlamaCppBuilder(GgmlBuilder):
         self.log.info(f"building {self.name}")
         self.prefix.mkdir(exist_ok=True)
         self.include.mkdir(exist_ok=True)
-        self.glob_copy(self.src_dir / "common", self.include, patterns=["*.h", "*.hpp"])
-        self.glob_copy(self.src_dir / "ggml" / "include", self.include, patterns=["*.h"])
-        # Copy main llama.h header from include/ directory
-        self.glob_copy(self.src_dir / "include", self.include, patterns=["*.h"])
-        # Copy jinja headers (required by chat.h)
-        jinja_include = self.include / "jinja"
-        jinja_include.mkdir(exist_ok=True)
-        self.glob_copy(self.src_dir / "common" / "jinja", jinja_include, patterns=["*.h", "*.hpp"])
-        # Copy nlohmann JSON headers (required by json-partial.h)
-        nlohmann_include = self.include / "nlohmann"
-        nlohmann_include.mkdir(exist_ok=True)
-        self.glob_copy(self.src_dir / "vendor" / "nlohmann", nlohmann_include, patterns=["*.hpp"])
-        # Copy mtmd (multimodal) headers
-        self.glob_copy(self.src_dir / "tools" / "mtmd", self.include, patterns=["*.h"])
+        self._copy_headers()
 
         # Get backend-specific CMake options
         backend_options = self.get_backend_cmake_options()
@@ -1103,8 +1115,8 @@ class LlamaCppBuilder(GgmlBuilder):
         # layout must match.  SD requires GGML_MAX_NAME=128; propagate it
         # to the llama.cpp build so both sides agree.
         extra = {}
-        if _sd_uses_shared_ggml():
-            _def = f"-DGGML_MAX_NAME={_SD_GGML_MAX_NAME}"
+        if StableDiffusionCppBuilder.uses_shared_ggml():
+            _def = f"-DGGML_MAX_NAME={StableDiffusionCppBuilder.GGML_MAX_NAME}"
             extra["CMAKE_C_FLAGS"] = _def
             extra["CMAKE_CXX_FLAGS"] = _def
 
@@ -1158,16 +1170,7 @@ class LlamaCppBuilder(GgmlBuilder):
         self.log.info(f"building {self.name} (shared)")
         self.prefix.mkdir(exist_ok=True)
         self.include.mkdir(exist_ok=True)
-        self.glob_copy(self.src_dir / "common", self.include, patterns=["*.h", "*.hpp"])
-        self.glob_copy(self.src_dir / "ggml" / "include", self.include, patterns=["*.h"])
-        self.glob_copy(self.src_dir / "include", self.include, patterns=["*.h"])
-        jinja_include = self.include / "jinja"
-        jinja_include.mkdir(exist_ok=True)
-        self.glob_copy(self.src_dir / "common" / "jinja", jinja_include, patterns=["*.h", "*.hpp"])
-        nlohmann_include = self.include / "nlohmann"
-        nlohmann_include.mkdir(exist_ok=True)
-        self.glob_copy(self.src_dir / "vendor" / "nlohmann", nlohmann_include, patterns=["*.hpp"])
-        self.glob_copy(self.src_dir / "tools" / "mtmd", self.include, patterns=["*.h"])
+        self._copy_headers()
 
         backend_options = self.get_backend_cmake_options()
         # GGML_NATIVE is incompatible with GGML_BACKEND_DL; disable it
@@ -1177,8 +1180,8 @@ class LlamaCppBuilder(GgmlBuilder):
 
         # Match SD's GGML_MAX_NAME so ggml_tensor struct layout is identical
         extra = {}
-        if _sd_uses_shared_ggml():
-            _def = f"-DGGML_MAX_NAME={_SD_GGML_MAX_NAME}"
+        if StableDiffusionCppBuilder.uses_shared_ggml():
+            _def = f"-DGGML_MAX_NAME={StableDiffusionCppBuilder.GGML_MAX_NAME}"
             extra["CMAKE_C_FLAGS"] = _def
             extra["CMAKE_CXX_FLAGS"] = _def
 
@@ -1209,31 +1212,15 @@ class LlamaCppBuilder(GgmlBuilder):
         # that are not transitive dependencies of llama.  Build them explicitly.
         # ggml-cpu is always needed; GPU backends are conditional.
         targets = ["llama", "llama-common", "mtmd", "ggml-cpu"]
-        if backend_options.get("GGML_VULKAN") == "ON":
-            targets.append("ggml-vulkan")
-        if backend_options.get("GGML_CUDA") == "ON":
-            targets.append("ggml-cuda")
-        if backend_options.get("GGML_METAL") == "ON":
-            targets.append("ggml-metal")
-        if backend_options.get("GGML_HIP") == "ON":
-            targets.append("ggml-hip")
-        if backend_options.get("GGML_SYCL") == "ON":
-            targets.append("ggml-sycl")
-        if backend_options.get("GGML_OPENCL") == "ON":
-            targets.append("ggml-opencl")
+        targets.extend(f"ggml-{short}" for short in self.enabled_backends_from_options(backend_options))
         self.cmake_build_targets(build_dir=self.build_dir, targets=targets, release=True)
 
         # Collect all shared libs from the build tree into dynamic/.
+        # On Darwin, SHARED_LIB_GLOBS includes "**/*.so" to pick up CMake
+        # MODULE libs (ggml backend plugins under GGML_BACKEND_DL=ON) which
+        # get renamed to .dylib below so CMakeLists' dylib glob finds them.
         self.dynamic_lib.mkdir(parents=True, exist_ok=True)
-        if PLATFORM == "Darwin":
-            # On Apple, CMake MODULE libraries (ggml backend plugins under
-            # GGML_BACKEND_DL=ON) default to .so. Pick those up too and
-            # rename to .dylib so CMakeLists' dylib glob finds them.
-            patterns = ["**/*.dylib", "**/*.so"]
-        elif PLATFORM == "Windows":
-            patterns = ["**/*.dll", "**/*.lib"]
-        else:
-            patterns = ["**/*.so", "**/*.so.*"]
+        patterns = SHARED_LIB_GLOBS
 
         # On Windows, MSVC places each shared lib's DLL (RUNTIME) in
         # build/bin/Release/ and its import .lib (ARCHIVE) in a sibling
@@ -1434,17 +1421,11 @@ class LlamaCppBuilder(GgmlBuilder):
             )
         # Copy shared libraries to dynamic/ directory
         # Dereference symlinks so all files are concrete (wheels can't store symlinks)
+        # On Windows, SHARED_LIB_EXTS includes ".lib" import libraries so
+        # CMake find_library can resolve them on MSVC (the .dll is the
+        # runtime; the .lib is the linker stub).
         self.dynamic_lib.mkdir(parents=True, exist_ok=True)
-
-        lib_exts: tuple[str, ...]
-        if PLATFORM == "Darwin":
-            lib_exts = (".dylib",)
-        elif PLATFORM == "Windows":
-            # Include .lib import libraries so CMake find_library can resolve
-            # them on MSVC (the .dll is the runtime; the .lib is the linker stub)
-            lib_exts = (".dll", ".lib")
-        else:
-            lib_exts = (".so",)
+        lib_exts = SHARED_LIB_EXTS
 
         def _fetch_and_install(download_url: str) -> int:
             self.log.info(f"Downloading pre-built release: {download_url}")
@@ -1683,6 +1664,17 @@ class StableDiffusionCppBuilder(GgmlBuilder):
     libs_static: list[str] = [
         "libstable-diffusion.a",
     ]
+
+    # stable-diffusion.cpp requires GGML_MAX_NAME=128 (see its CMakeLists.txt:233
+    # and ggml_extend.hpp:94). llama.cpp defaults to 64. When SD shares
+    # llama.cpp's ggml dylibs (SD_USE_VENDORED_GGML=0), both sides must agree on
+    # this value or the ggml_tensor struct layout diverges and tensor copies crash.
+    GGML_MAX_NAME: int = 128
+
+    @staticmethod
+    def uses_shared_ggml() -> bool:
+        """Return True when SD is configured to share llama.cpp's ggml."""
+        return os.environ.get("SD_USE_VENDORED_GGML") == "0"
 
     def get_backend_cmake_options(self) -> dict[str, Any]:
         """CMake options for stable-diffusion.cpp (SD_* flag names, no BLAS)."""
@@ -2080,6 +2072,9 @@ class WheelBuilder(ShellCmd):
 # argdeclare
 
 
+# TypeVar representing "any callable", used to type the decorators below so
+# they preserve the wrapped function's concrete signature. Returning
+# `Callable[[_F], _F]` tells type-checkers "takes an F, returns the same F"
 _F = TypeVar("_F", bound=Callable[..., Any])
 
 
@@ -2315,7 +2310,7 @@ class Application(ShellCmd, metaclass=MetaCommander):
                 # what SD was compiled with. Upstream pre-built releases use
                 # the default GGML_MAX_NAME=64, so skip them and build from
                 # source to propagate the define.
-                if asset is None or _sd_uses_shared_ggml():
+                if asset is None or StableDiffusionCppBuilder.uses_shared_ggml():
                     if asset is not None:
                         self.log.info(
                             "SD_USE_VENDORED_GGML=0: building llama.cpp from "
