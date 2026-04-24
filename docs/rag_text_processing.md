@@ -184,7 +184,7 @@ for doc in loader.load_lazy("large.jsonl"):
 Load PDF files (requires `docling` package):
 
 ```python
-# Install: pip install cyllama[pdf]
+# Install: uv sync --group pdf  (or: pip install docling)
 
 from cyllama.rag import PDFLoader
 

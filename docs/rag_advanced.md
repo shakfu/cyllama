@@ -245,6 +245,34 @@ reranked = reranker.rerank(
 )
 ```
 
+### Pipeline-integrated reranking
+
+`RAG` / `RAGPipeline` can invoke a reranker automatically on every `query`, `stream`, and `retrieve` call — set `rerank=True` on `RAGConfig` and pass a `RerankerProtocol`-conforming instance:
+
+```python
+from cyllama.rag import RAG, RAGConfig, Reranker
+
+reranker = Reranker("models/bge-reranker.gguf")
+
+rag = RAG(
+    embedding_model="models/bge-small.gguf",
+    generation_model="models/llama.gguf",
+)
+rag.add_texts([...])
+
+response = rag.query(
+    "machine learning algorithms",
+    config=RAGConfig(
+        top_k=5,          # final results returned to the generator
+        rerank=True,
+        rerank_top_k=20,  # candidates fetched from the store before reranking (must be >= top_k)
+        reranker=reranker,
+    ),
+)
+```
+
+`rerank=False` (the default) preserves the legacy single-pass retrieval. The same `RerankerProtocol` contract (`score`, `rerank`, `close`) lets you plug in external rerank APIs or sentence-transformers cross-encoders as drop-in replacements for the built-in llama.cpp `Reranker`.
+
 ## Complete Advanced Example
 
 ```python

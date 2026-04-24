@@ -100,6 +100,7 @@ __all__ = [
     "VectorStore",  # backwards-compat alias for SqliteVectorStore
     "VectorStoreError",
     "VectorStoreProtocol",
+    "QdrantVectorStore",  # lazy-imported; requires cyllama[qdrant]
     # Text Splitters
     "TextSplitter",
     "TokenTextSplitter",
@@ -124,14 +125,15 @@ __all__ = [
 
 
 def __getattr__(name: str) -> object:
-    """Lazy attribute access for the deprecated ``VectorStore`` alias.
+    """Lazy attribute access for the deprecated ``VectorStore`` alias
+    and for optional-dep adapters like :class:`QdrantVectorStore`.
 
     Implemented via PEP 562 module ``__getattr__`` so the
     ``DeprecationWarning`` fires only when the legacy name is actually
-    used, not on every ``import cyllama.rag``. The warning is emitted
-    here (rather than delegating to ``cyllama.rag.store.__getattr__``)
-    so ``stacklevel=2`` points at the user's import site instead of
-    cyllama's internal re-export line.
+    used, not on every ``import cyllama.rag``. For optional-dep
+    adapters this keeps ``import cyllama.rag`` working even when the
+    backing client library isn't installed -- the ImportError only
+    surfaces when the user actually references the adapter.
     """
     if name == "VectorStore":
         import warnings
@@ -143,4 +145,8 @@ def __getattr__(name: str) -> object:
             stacklevel=2,
         )
         return SqliteVectorStore
+    if name == "QdrantVectorStore":
+        from .stores.qdrant import QdrantVectorStore
+
+        return QdrantVectorStore
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

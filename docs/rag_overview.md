@@ -116,6 +116,7 @@ Omit the argument to fall back to the defaults (`Embedder` over a local GGUF emb
 |-----------|-------------|
 | `Embedder` | Generate vector embeddings from text |
 | `SqliteVectorStore` | SQLite-based vector storage with sqlite-vector (default backend; implements `VectorStoreProtocol`). `VectorStore` remains as a deprecated alias. |
+| `QdrantVectorStore` | Qdrant adapter for `VectorStoreProtocol` (optional: `uv sync --group qdrant`). Reference example for multi-backend support. |
 | `HybridStore` | Combined FTS5 + vector search |
 
 ### Text Processing

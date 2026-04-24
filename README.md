@@ -629,7 +629,7 @@ models = list_cached_models()
 
 **Production-Ready**: Battle-tested and comprehensive
 
-- 1460+ passing tests with extensive coverage
+- 1489+ passing tests with extensive coverage
 
 - Comprehensive documentation and examples
 
@@ -647,10 +647,10 @@ models = list_cached_models()
 
 ## Status
 
-**Current Version**: 0.2.11 (Apr 2026)
+**Current Version**: 0.2.13 (Apr 2026)
 **llama.cpp Version**: b8833
 **Build System**: scikit-build-core + CMake
-**Test Coverage**: 1460+ tests passing
+**Test Coverage**: 1489+ tests passing
 
 ### Platform & GPU Availability
 
@@ -686,6 +686,8 @@ All source builds support both static (`make build-<backend>`) and dynamic (`mak
 ### Recent Releases
 
 See [CHANGELOG.md](CHANGELOG.md) for full release notes.
+
+- **v0.2.13** (Apr 2026) - `QdrantVectorStore` reference adapter for `VectorStoreProtocol`; pipeline-integrated reranking (`RAGConfig.rerank`) with `RerankerProtocol`; ccache + concurrency groups on CPU cibw workflows; Windows GPU-wheel `LoadLibraryW` PATH fix
 
 - **v0.2.12** - Windows-CUDA, Windows-Vulkan, and macOS-Intel Vulkan GPU wheels; canonical delocate/auditwheel/delvewheel packaging. Experimental abi3 wheels (cp312+)
 
@@ -909,7 +911,7 @@ bin/llama-cli -c 512 -n 32 -m models/Llama-3.2-1B-Instruct-Q8_0.gguf \
  -p "Is mathematics discovered or invented?"
 ```
 
-With 1460+ passing tests, the library is ready for both quick prototyping and production use:
+With 1489+ passing tests, the library is ready for both quick prototyping and production use:
 
 ```sh
 make test  # Run full test suite

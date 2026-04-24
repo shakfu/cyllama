@@ -337,23 +337,30 @@ class VectorStoreProtocol(Protocol):
     def __len__(self) -> int: ...
 ```
 
-This makes the RAG stack open to Qdrant, Chroma, LanceDB, pgvector, or any in-house vector service without forking `cyllama`:
+This makes the RAG stack open to Qdrant, Chroma, LanceDB, pgvector, or any in-house vector service without forking `cyllama`.
+
+### Qdrant (reference adapter)
+
+`QdrantVectorStore` ships in `cyllama.rag.stores.qdrant` as the first worked example of the protocol. Install the optional dependency group (`uv sync --group qdrant`, or `pip install qdrant-client`) and pass it to `RAG`:
 
 ```python
 from cyllama.rag import RAG
+from cyllama.rag.stores import QdrantVectorStore
 
-class QdrantStoreAdapter:
-    def search(self, query_embedding, k=5, threshold=None): ...
-    def add(self, embeddings, texts, metadata=None,
-            source_hash=None, source_label=None): ...
-    # ... remaining protocol methods
+store = QdrantVectorStore(
+    dimension=384,
+    collection_name="cyllama_docs",
+    url="http://localhost:6333",  # or path=..., location=":memory:", client=<pre-built>
+)
 
 rag = RAG(
     embedding_model="models/bge-small-en-v1.5-q8_0.gguf",
     generation_model="models/Llama-3.2-1B-Instruct-Q8_0.gguf",
-    store=QdrantStoreAdapter(...),
+    store=store,
 )
 ```
+
+Source dedup is implemented via per-point payload fields (`content_hash`, `source_label`, `indexed_at`) so `RAG.add_documents` skips unchanged files just like on the sqlite backend. See `src/cyllama/rag/stores/qdrant.py` for the full implementation — Chroma / LanceDB / pgvector adapters can follow the same template.
 
 Sqlite-specific features (quantization, FTS5 `HybridStore`, raw `store.conn` access) stay on `SqliteVectorStore` and aren't part of the contract. Backends without a natural dedup mechanism may return `False` / `None` from `is_source_indexed` / `get_source_by_label` — the RAG layer treats that as "always re-index" and still behaves correctly, just less efficiently on repeated `add_documents` calls.
 
