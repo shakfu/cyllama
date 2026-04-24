@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, AsyncIterator
 
 from .pipeline import RAGConfig, RAGResponse
-from .types import SearchResult
+from .types import RerankerProtocol, SearchResult
 
 if TYPE_CHECKING:
     from ..agents.tools import Tool
@@ -340,8 +340,13 @@ def create_rag_tool(
 
 
 @dataclass
-class Reranker:
+class Reranker(RerankerProtocol):
     """Cross-encoder reranker for improved retrieval quality.
+
+    Inherits from :class:`~cyllama.rag.types.RerankerProtocol` so mypy
+    enforces the cross-backend contract and alternative rerankers can
+    be substituted via the forthcoming ``RAGConfig(reranker=...)``
+    hook.
 
     Reranking uses a cross-encoder model to score query-document pairs
     more accurately than bi-encoder similarity. This is slower but

@@ -2,10 +2,11 @@
 
 Holds the dataclasses (`SearchResult`, `EmbeddingResult`, `Document`,
 `Chunk`) and the structural contracts (`EmbedderProtocol`,
-`VectorStoreProtocol`) that backends and consumers share. Lives in
-its own module so concrete implementations (`embedder.py`,
-`store.py`) and consumers (`rag.py`, `pipeline.py`) can import the
-shared vocabulary without depending on any specific implementation.
+`VectorStoreProtocol`, `RerankerProtocol`) that backends and
+consumers share. Lives in its own module so concrete implementations
+(`embedder.py`, `store.py`, `advanced.py`) and consumers (`rag.py`,
+`pipeline.py`) can import the shared vocabulary without depending on
+any specific implementation.
 """
 
 from dataclasses import dataclass, field
@@ -162,4 +163,47 @@ class VectorStoreProtocol(Protocol):
 
     def __len__(self) -> int:
         """Return the number of stored embeddings."""
+        ...
+
+
+@runtime_checkable
+class RerankerProtocol(Protocol):
+    """Structural contract for cross-encoder rerankers.
+
+    The default :class:`~cyllama.rag.advanced.Reranker` (llama.cpp
+    cross-encoder GGUF) satisfies this protocol; alternative backends
+    (external rerank APIs, sentence-transformers cross-encoders) only
+    need to implement these members to be drop-in replacements.
+
+    Exists so the forthcoming ``RAGPipeline`` rerank hook
+    (``RAGConfig(rerank=True, reranker=...)``) has a real cross-backend
+    contract to call against, mirroring the
+    :class:`EmbedderProtocol` / :class:`VectorStoreProtocol` pattern.
+    """
+
+    def score(self, query: str, document: str) -> float:
+        """Return a relevance score for a single query-document pair.
+
+        Higher is more relevant. The absolute scale is
+        backend-dependent -- only intra-query ordering is contractual.
+        """
+        ...
+
+    def rerank(
+        self,
+        query: str,
+        results: list[SearchResult],
+        top_k: int | None = None,
+    ) -> list[SearchResult]:
+        """Reorder ``results`` by relevance to ``query``.
+
+        Returns new :class:`SearchResult` instances whose ``score``
+        reflects the reranker's output (not the upstream retrieval
+        score). ``top_k=None`` returns all inputs reordered; an integer
+        truncates to that many top results.
+        """
+        ...
+
+    def close(self) -> None:
+        """Release any resources (model handles, network sessions)."""
         ...

@@ -14,21 +14,17 @@
 
 ## Explore
 
-- [ ] MCP integration (two directions):
-
-  - **Server** (`cyllama/mcp/`): expose local inference (`complete`, `chat`, `embed`, `transcribe`, `generate_image`) as MCP tools and model listing as resources. Two transports: stdio entrypoint for subprocess clients (Claude Desktop), and Streamable-HTTP routes mounted on `EmbeddedServer` (`src/cyllama/llama/server/embedded.pyx`) for Claude Code / remote clients. Reuse `agents/jsonrpc.py` framing and the high-level API in `src/cyllama/api.py` -- no new heavy deps.
-
-  - **Client (high-level surface)**: stdio + HTTP client transports already exist in `src/cyllama/agents/mcp.py` and are wired into the agent `Tool` abstraction. Lift that onto the top-level `LLM`/`chat()` API (`LLM.add_mcp_server(...)`) so non-agent callers can attach MCP servers and have tools dispatched inside tool-calling loops. Llama.cpp upstream has no server-side MCP -- only the Svelte webui ships a TS client (`build/llama.cpp/tools/server/webui/src/lib/utils/mcp.ts`) -- so this stays a cyllama-layer concern.
+- [ ] MCP server (`cyllama/mcp/`): expose local inference (`complete`, `chat`, `embed`, `transcribe`, `generate_image`) as MCP tools and model listing as resources. Two transports: stdio entrypoint for subprocess clients (Claude Desktop), and Streamable-HTTP routes mounted on `EmbeddedServer` (`src/cyllama/llama/server/embedded.pyx`) for Claude Code / remote clients. Reuse `agents/jsonrpc.py` framing and the high-level API in `src/cyllama/api.py` -- no new heavy deps. (Client side already shipped: `LLM.add_mcp_server()` in `src/cyllama/api.py:1378` wraps `agents/mcp.py` for non-agent callers.)
 
 ## CI / Workflows
 
 ### High Priority
 
-- [ ] **Add `concurrency:` groups to all workflows** -- every llama.cpp workflow has `concurrency: { group: ${{ github.workflow }}-${{ github.head_ref && github.ref || github.run_id }}, cancel-in-progress: true }` (e.g. `release.yml:30-32`, `build-vulkan.yml:28-30`). Currently a second push while a cyllama GPU matrix is running wastes ~2h of runtime. 2-line change per file, immediate savings. Apply to `build-cibw.yml`, `build-gpu-wheels.yml`, `build-new-wheels.yml`
+- [ ] **Add `concurrency:` groups to remaining workflows** -- applied to `build-gpu-wheels.yml:64`, `build-gpu-wheels-abi3.yml:69`, `build-new-wheels.yml:27`, `check-vendor.yml:28`. Still missing on `build-cibw.yml` and `build-cibw-abi3.yml` -- 2-line change per file, immediate savings
 
 - [x] **Vendor-drift guard workflow (`check-vendor.yml` pattern)** -- llama.cpp's `check-vendor.yml` re-runs `scripts/sync_vendor.py` in CI and fails if the tree differs. cyllama's `git status` currently shows modified vendored headers (`mtmd.h`, `log.h`, `ggml-backend.h`, `common.h`) -- exactly the class of silent drift that caused the `GGML_MAX_NAME=128` ABI-match incident. Add `.github/workflows/check-thirdparty.yml` that runs the vendor sync step and diffs. Implemented as `manage.py check_vendor` subcommand + `.github/workflows/check-vendor.yml`
 
-- [ ] **`ggml-org/ccache-action` for C/C++ compile caching** -- used in every native build job in `release.yml` (e.g. lines 67-71, 122-127, 189-193, 252-256, 403-408), keyed per `os-arch-backend`, with `evict-old-files: 1d` and `save: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}`. Biggest win on CUDA/ROCm where compile dominates and the `thirdparty/` cache key busts often. Wire into `CIBW_ENVIRONMENT` via `CMAKE_C_COMPILER_LAUNCHER=ccache CMAKE_CXX_COMPILER_LAUNCHER=ccache` and `CIBW_ENVIRONMENT_PASS_LINUX: CCACHE_DIR`. Note: Windows (MSVC) ccache skipped -- debug-format / cmake-integration caveats need a separate investigation
+- [ ] **Extend ccache to CPU cibw workflows** -- `hendrikmuhs/ccache-action@v1.2` already wired into `build-gpu-wheels.yml` (CUDA + ROCm jobs) and `build-gpu-wheels-abi3.yml` (CUDA + ROCm + SYCL), keyed per backend/link-mode with `CMAKE_{C,CXX,CUDA,HIP}_COMPILER_LAUNCHER=ccache` passed through `CIBW_ENVIRONMENT`. Still to cover: Linux/macOS jobs in `build-cibw.yml` + `build-cibw-abi3.yml`. Windows (MSVC) ccache remains skipped pending debug-format / cmake-integration investigation
 
 ### Medium Priority
 
@@ -44,9 +40,9 @@
 
 Gap analysis vs. llama.cpp b8893 release assets. Ordered by effort/payoff.
 
-- [ ] **Windows CUDA 13.1** -- upstream ships `llama-*-bin-win-cuda-13.1-x64.zip` alongside the 12.4 variant. Trivial addition: second job in `build-gpu-wheels2.yml` mirroring `build_cuda_windows`, Jimver/cuda-toolkit supports 13.1, wheel name `cyllama-cuda13`. Pays off for Blackwell/Ada users. `manage.py download_release()` already fetches the companion `cudart-llama-bin-win-cuda-{cuda_ver}-x64.zip` asset, so only `cuda_ver` changes
+- [x] **Windows CUDA 13.1** -- shipped as `build_cuda13_windows` job in `build-new-wheels.yml:44` (wheel name `cyllama-cuda13`, Jimver/cuda-toolkit@13.1.0)
 
-- [ ] **Windows SYCL (Intel Arc + Xe)** -- upstream ships `llama-b8893-bin-win-sycl-x64.zip`. Follows the same pattern as windows-cuda/vulkan: download prebuilt, synthesize `.lib` via existing `_generate_import_libs()`, `delvewheel --include ggml-sycl.dll` with `--no-dll` for `sycl[78].dll`, `pi_level_zero.dll`, `pi_opencl.dll`, `svml_dispmd.dll`, `libmmd.dll`, `libiomp5md.dll` (user-installed Intel oneAPI runtime). Build-time dep: Intel oneAPI DPC++ on the Windows runner for SD's own SYCL kernels -- use `oneapi-src/setup-oneapi` or similar. Needs `_release_asset_name()` + `_dylib_names` extended to recognize SYCL
+- [ ] **Windows SYCL (Intel Arc + Xe)** -- Linux SYCL is shipped (`build_sycl` in `build-gpu-wheels-abi3.yml:319`, wheel name `cyllama-sycl`). Windows SYCL still pending: follows the same pattern as windows-cuda/vulkan -- download prebuilt, synthesize `.lib` via existing `_generate_import_libs()`, `delvewheel --include ggml-sycl.dll` with `--no-dll` for `sycl[78].dll`, `pi_level_zero.dll`, `pi_opencl.dll`, `svml_dispmd.dll`, `libmmd.dll`, `libiomp5md.dll` (user-installed Intel oneAPI runtime). Build-time dep: Intel oneAPI DPC++ on the Windows runner -- use `oneapi-src/setup-oneapi` or similar. Needs `_release_asset_name()` + `_dylib_names` extended to recognize Windows SYCL assets
 
 - [ ] **Windows HIP Radeon (AMD GPUs)** -- upstream ships `llama-b8893-bin-win-hip-radeon-x64.zip`. Same download+synthesize+delvewheel pattern; `--include ggml-hip.dll`, `--no-dll` for `amdhip64_6.dll`, `hipblas.dll`, `rocblas.dll`, `amd_comgr_*.dll` (user-installed AMD HIP SDK / Adrenalin runtime). Main obstacle: AMD HIP SDK Windows install on CI has no compact GitHub Action -- needs manual `Invoke-WebRequest` of AMD's installer (~2-3 GB) plus silent-install args, or a `choco install` package if one exists. Highest effort of the three Windows GPU gaps
 
@@ -78,7 +74,7 @@ Gap analysis vs. llama.cpp b8893 release assets. Ordered by effort/payoff.
 
 ## RAG Pipeline Integration
 
-- [ ] **Pipeline-integrated reranking + `RerankerProtocol`** -- Plumb `Reranker` (currently user-facing only in `src/cyllama/rag/advanced.py`) into `RAGPipeline` so callers can turn on reranking via config instead of stitching retrieval + rerank together by hand. Proposed surface: `RAGConfig(rerank=True, rerank_top_k=20, reranker=<instance>)` where `top_k` is the pre-rerank retrieval depth and the final result count falls back to `cfg.top_k`. `RAGPipeline._retrieve` (currently `self.store.search(query_embedding, k=cfg.top_k, ...)`) becomes: retrieve `rerank_top_k` candidates, call `reranker.rerank(query, candidates, top_k=cfg.top_k)`, return the reranked head. Introduce `RerankerProtocol` (`score`, `rerank`, `close`) in `src/cyllama/rag/types.py` in the same PR so the pipeline's call site has a real consumer to contract against -- shipping the protocol without the pipeline hook is speculative abstraction (see the reasoning in CHANGELOG's "Embedder/Store/Agent protocols" entry). Existing `Reranker` class inherits from the protocol explicitly, same pattern as `Embedder` → `EmbedderProtocol`. Keep the concrete reranker optional -- `RAGConfig.rerank=False` stays the default so unchanged code paths pay nothing.
+- [x] **Pipeline-integrated reranking + `RerankerProtocol`** -- `RerankerProtocol` shipped in `src/cyllama/rag/types.py`; `Reranker` inherits from it. `RAGConfig(rerank=True, rerank_top_k=20, reranker=<instance>)` wired into `RAGPipeline._retrieve` (used by `query`, `stream`, `retrieve`). Default `rerank=False` preserves the legacy path.
 
 ## Alternative vector-store backends
 

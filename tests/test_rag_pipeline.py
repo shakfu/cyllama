@@ -385,6 +385,114 @@ def _streaming_generator(chunks):
     return MagicMock(side_effect=_call)
 
 
+class TestRAGConfigRerankValidation:
+    """Validation rules for the rerank fields."""
+
+    def test_rerank_requires_reranker(self):
+        with pytest.raises(ValueError, match="rerank=True requires a reranker"):
+            RAGConfig(rerank=True)
+
+    def test_rerank_top_k_must_be_ge_top_k(self):
+        reranker = MagicMock()
+        with pytest.raises(ValueError, match="rerank_top_k .* must be >= top_k"):
+            RAGConfig(rerank=True, top_k=10, rerank_top_k=5, reranker=reranker)
+
+    def test_rerank_top_k_equal_top_k_allowed(self):
+        reranker = MagicMock()
+        cfg = RAGConfig(rerank=True, top_k=5, rerank_top_k=5, reranker=reranker)
+        assert cfg.rerank_top_k == 5
+
+    def test_disabled_skips_reranker_checks(self):
+        # With rerank=False, reranker=None and geometry violations are fine
+        cfg = RAGConfig(rerank=False, top_k=10, rerank_top_k=1)
+        assert cfg.rerank is False
+
+
+class TestRAGPipelineRerank:
+    """Reranking hook in _retrieve."""
+
+    def _fake_reranker(self):
+        reranker = MagicMock()
+        # Return top_k by score-descending; here we reverse input order
+        # so tests can distinguish "reranked" from "raw" results.
+        def _rerank(query, results, top_k=None):
+            reordered = list(reversed(results))
+            return reordered[:top_k] if top_k is not None else reordered
+        reranker.rerank.side_effect = _rerank
+        return reranker
+
+    def _make(self, candidates):
+        embedder = MagicMock()
+        embedder.embed.return_value = [0.1, 0.2, 0.3]
+        store = MagicMock()
+        store.search.return_value = candidates
+        generator = MagicMock()
+        return RAGPipeline(embedder=embedder, store=store, generator=generator)
+
+    def test_retrieve_fetches_rerank_top_k_candidates(self):
+        candidates = [
+            SearchResult(id=str(i), text=f"Doc {i}", score=0.9 - i * 0.01, metadata={})
+            for i in range(20)
+        ]
+        pipeline = self._make(candidates)
+        reranker = self._fake_reranker()
+        cfg = RAGConfig(rerank=True, top_k=5, rerank_top_k=20, reranker=reranker)
+
+        sources = pipeline.retrieve("Q?", config=cfg)
+
+        # Store was asked for 20 candidates (the pre-rerank depth)
+        pipeline.store.search.assert_called_once()
+        assert pipeline.store.search.call_args.kwargs.get("k") == 20
+        # Reranker narrowed to top_k=5
+        reranker.rerank.assert_called_once()
+        assert reranker.rerank.call_args.kwargs.get("top_k") == 5
+        assert len(sources) == 5
+        # Our fake reverses, so ids should be 19,18,17,16,15
+        assert [s.id for s in sources] == ["19", "18", "17", "16", "15"]
+
+    def test_rerank_disabled_retains_legacy_path(self):
+        candidates = [
+            SearchResult(id="1", text="Doc 1", score=0.9, metadata={}),
+            SearchResult(id="2", text="Doc 2", score=0.8, metadata={}),
+        ]
+        pipeline = self._make(candidates)
+        sources = pipeline.retrieve("Q?")
+
+        # Default config: store called with cfg.top_k=5, no rerank
+        assert pipeline.store.search.call_args.kwargs.get("k") == 5
+        assert [s.id for s in sources] == ["1", "2"]
+
+    def test_rerank_skipped_on_empty_candidates(self):
+        pipeline = self._make([])
+        reranker = self._fake_reranker()
+        cfg = RAGConfig(rerank=True, top_k=5, rerank_top_k=20, reranker=reranker)
+
+        sources = pipeline.retrieve("Q?", config=cfg)
+
+        reranker.rerank.assert_not_called()
+        assert sources == []
+
+    def test_query_routes_through_reranker(self):
+        candidates = [
+            SearchResult(id=str(i), text=f"Doc {i}", score=0.9 - i * 0.01, metadata={})
+            for i in range(10)
+        ]
+        pipeline = self._make(candidates)
+        resp = MagicMock()
+        resp.__str__ = MagicMock(return_value="answer")
+        resp.stats = None
+        pipeline.generator.return_value = resp
+
+        reranker = self._fake_reranker()
+        cfg = RAGConfig(rerank=True, top_k=3, rerank_top_k=10, reranker=reranker)
+
+        result = pipeline.query("Q?", config=cfg)
+
+        reranker.rerank.assert_called_once()
+        assert len(result.sources) == 3
+        assert [s.id for s in result.sources] == ["9", "8", "7"]
+
+
 class TestRAGConfigRepetitionValidation:
     """Validation rules for the new RAGConfig fields."""
 

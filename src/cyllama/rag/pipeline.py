@@ -12,6 +12,7 @@ from .types import SearchResult
 if TYPE_CHECKING:
     from ..api import LLM
     from .types import EmbedderProtocol
+    from .types import RerankerProtocol
     from .types import VectorStoreProtocol
 
 
@@ -113,6 +114,16 @@ class RAGConfig:
     use_chat_template: bool = False
     system_prompt: str | None = None
 
+    # Reranking. Defaults OFF for backwards-compat. When ``rerank`` is
+    # True, ``_retrieve`` fetches ``rerank_top_k`` candidates from the
+    # store and passes them through ``reranker.rerank(...)``, truncating
+    # the result to ``top_k``. ``reranker`` must conform to
+    # :class:`RerankerProtocol`; see ``rag.advanced.Reranker`` for the
+    # default llama.cpp cross-encoder implementation.
+    rerank: bool = False
+    rerank_top_k: int = 20
+    reranker: "RerankerProtocol | None" = None
+
     # Reasoning-block stripping. Defaults OFF for the same backwards-
     # compat reason as the other streaming-path features: enabling it
     # forces the pipeline through the streaming code path (since the
@@ -136,6 +147,14 @@ class RAGConfig:
             raise ValueError(f"temperature must be >= 0, got {self.temperature}")
         if self.repetition_threshold < 0:
             raise ValueError(f"repetition_threshold must be >= 0 (0 = disabled), got {self.repetition_threshold}")
+        if self.rerank:
+            if self.reranker is None:
+                raise ValueError("rerank=True requires a reranker conforming to RerankerProtocol")
+            if self.rerank_top_k < self.top_k:
+                raise ValueError(
+                    f"rerank_top_k ({self.rerank_top_k}) must be >= top_k ({self.top_k}); "
+                    "it is the pre-rerank retrieval depth"
+                )
         if self.repetition_threshold > 0:
             # Only validate the other repetition fields when the detector
             # is actually enabled, so a config that leaves them at zero
@@ -297,15 +316,8 @@ class RAGPipeline:
         """
         cfg = config or self.config
 
-        # 1. Embed the question
-        query_embedding = self.embedder.embed(question)
-
-        # 2. Retrieve relevant documents
-        sources = self.store.search(
-            query_embedding,
-            k=cfg.top_k,
-            threshold=cfg.similarity_threshold,
-        )
+        # 1. Embed + retrieve (reranks if cfg.rerank)
+        sources = self._retrieve(question, cfg)
 
         gen_config = self._build_gen_config(cfg)
 
@@ -351,15 +363,7 @@ class RAGPipeline:
         """
         cfg = config or self.config
 
-        # 1. Embed the question
-        query_embedding = self.embedder.embed(question)
-
-        # 2. Retrieve relevant documents
-        sources = self.store.search(
-            query_embedding,
-            k=cfg.top_k,
-            threshold=cfg.similarity_threshold,
-        )
+        sources = self._retrieve(question, cfg)
 
         gen_config = self._build_gen_config(cfg)
         yield from self._generate_chunks(question, sources, cfg, gen_config)
@@ -623,12 +627,30 @@ class RAGPipeline:
             List of relevant SearchResults
         """
         cfg = config or self.config
+        return self._retrieve(question, cfg)
+
+    def _retrieve(
+        self,
+        question: str,
+        cfg: RAGConfig,
+    ) -> list[SearchResult]:
+        """Embed the question, fetch candidates, and optionally rerank.
+
+        When ``cfg.rerank`` is False this is just
+        ``store.search(embed(question), k=cfg.top_k, threshold=...)``.
+        When enabled, the store is queried for ``cfg.rerank_top_k``
+        candidates and the reranker narrows them down to ``cfg.top_k``.
+        """
         query_embedding = self.embedder.embed(question)
-        return self.store.search(
+        k = cfg.rerank_top_k if cfg.rerank else cfg.top_k
+        candidates = self.store.search(
             query_embedding,
-            k=cfg.top_k,
+            k=k,
             threshold=cfg.similarity_threshold,
         )
+        if cfg.rerank and cfg.reranker is not None and candidates:
+            return cfg.reranker.rerank(question, candidates, top_k=cfg.top_k)
+        return candidates
 
     def _format_context(
         self,

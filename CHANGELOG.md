@@ -27,6 +27,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Added
 
+- **`RerankerProtocol` + pipeline-integrated reranking** -- `RerankerProtocol` (`score`, `rerank`, `close`) added to `src/cyllama/rag/types.py`, mirroring the `EmbedderProtocol` / `VectorStoreProtocol` pattern; `Reranker` in `rag/advanced.py` now inherits from it explicitly so mypy enforces the cross-backend contract. `RAGConfig` gains `rerank: bool = False`, `rerank_top_k: int = 20`, `reranker: RerankerProtocol | None = None`, validated in `__post_init__` (rerank=True requires a reranker; rerank_top_k must be >= top_k because it is the pre-rerank retrieval depth). `RAGPipeline._retrieve` is the single retrieval site: when `rerank=False` it is the legacy `store.search(k=cfg.top_k, ...)` call; when enabled, it fetches `rerank_top_k` candidates and calls `reranker.rerank(query, candidates, top_k=cfg.top_k)`. `RAGPipeline.query`, `stream`, and `retrieve` all route through `_retrieve`; `RAG.query/stream/retrieve` inherit the hook via delegation. Default `rerank=False` preserves the previous behaviour so existing callers pay nothing.
+
 - **CI link-test guardrail for Windows GPU wheels** -- `.github/workflows/build-gpu-wheels.yml` and `build-gpu-wheels-abi3.yml` now include a `Smoke test - DLL link (Windows)` step in the `smoke_test` job that walks every `cyllama*.libs/ggml-*.dll` and calls `ctypes.WinDLL(path)` (no flags) — exactly the `LoadLibraryW(path, NULL, 0)` semantics ggml uses in C. Catches delvewheel/PATH regressions of the class above on GPU-less GitHub-hosted Windows runners, where neither `cyllama info` (exits 0 even when a backend DLL fails) nor a `registries: Vulkan` assertion is reliable (no Vulkan ICD on the runner).
 
 ## [0.2.12]
