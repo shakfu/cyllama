@@ -2987,11 +2987,13 @@ class Application(ShellCmd, metaclass=MetaCommander):
     # ------------------------------------------------------------------------
     # status
 
+    @opt("--no-color", "-n", "disable colored output")
     def do_status(self, args: argparse.Namespace) -> None:
         """report which dependency libs are built (static + dynamic forms)"""
+        use_color = COLOR and sys.stdout.isatty() and not args.no_color
 
         def paint(text: str, code: str) -> str:
-            return f"\033[{code}m{text}\033[0m" if COLOR and sys.stdout.isatty() else text
+            return f"\033[{code}m{text}\033[0m" if use_color else text
 
         state_color = {"OK": "32", "PARTIAL": "33", "MISSING": "31", "N/A": "90"}
 
