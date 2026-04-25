@@ -45,9 +45,7 @@ class TestCancellation:
             # an uncancelled run on any reasonable model takes >>1s; cancelled
             # runs bail in well under that. Use a generous bound to stay
             # robust on slow CI hardware.
-            assert elapsed < 5.0, (
-                f"cancel did not interrupt generation in time (took {elapsed:.2f}s)"
-            )
+            assert elapsed < 5.0, f"cancel did not interrupt generation in time (took {elapsed:.2f}s)"
             # We should have produced *some* tokens (cancel arrived after start).
             joined = "".join(chunks)
             assert len(joined) >= 0  # may be 0 on very fast cancel; not asserting non-empty
@@ -68,9 +66,7 @@ class TestCancellation:
             list(llm("First prompt.", config=config, stream=True))
             # After the call, cancel should be cleared at entry, so the next
             # generation must run normally.
-            assert llm.cancel_requested is False, (
-                "cancel flag should be cleared at the start of _generate_stream"
-            )
+            assert llm.cancel_requested is False, "cancel flag should be cleared at the start of _generate_stream"
 
             # Second run, no cancel: must produce non-empty output.
             chunks = list(llm("Say hello.", config=config, stream=True))

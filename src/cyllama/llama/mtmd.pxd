@@ -63,11 +63,11 @@ cdef extern from "mtmd.h":
     cdef void mtmd_free(mtmd_context * ctx)
 
     # Context queries
-    cdef bint mtmd_decode_use_non_causal(mtmd_context * ctx, const mtmd_input_chunk * chunk)
-    cdef bint mtmd_decode_use_mrope(mtmd_context * ctx)
-    cdef bint mtmd_support_vision(mtmd_context * ctx)
-    cdef bint mtmd_support_audio(mtmd_context * ctx)
-    cdef int mtmd_get_audio_sample_rate(mtmd_context * ctx)
+    cdef bint mtmd_decode_use_non_causal(const mtmd_context * ctx, const mtmd_input_chunk * chunk)
+    cdef bint mtmd_decode_use_mrope(const mtmd_context * ctx)
+    cdef bint mtmd_support_vision(const mtmd_context * ctx)
+    cdef bint mtmd_support_audio(const mtmd_context * ctx)
+    cdef int mtmd_get_audio_sample_rate(const mtmd_context * ctx)
 
     # Bitmap management
     cdef mtmd_bitmap * mtmd_bitmap_init(uint32_t nx, uint32_t ny, const unsigned char * data)
@@ -109,9 +109,11 @@ cdef extern from "mtmd.h":
         uint32_t t
         uint32_t x
         uint32_t y
+        uint32_t z  # unused for now, reserved for future use
 
     # i is the index of the embedding token, ranging from 0 to mtmd_image_tokens_get_n_tokens() - 1
-    cdef mtmd_decoder_pos mtmd_image_tokens_get_decoder_pos(const mtmd_image_tokens * image_tokens, size_t i)
+    # pos_0 is the absolute position of the first token
+    cdef mtmd_decoder_pos mtmd_image_tokens_get_decoder_pos(const mtmd_image_tokens * image_tokens, llama_pos pos_0, size_t i)
 
     # Core processing
     cdef int32_t mtmd_tokenize(mtmd_context * ctx,

@@ -2738,10 +2738,6 @@ cdef class LlamaContext:
         """reset performance data"""
         llama.llama_perf_context_reset(self.ptr)
 
-    def print_memory_breakdown(self):
-        """print a breakdown of per-device memory use via LLAMA_LOG"""
-        llama.llama_memory_breakdown_print(self.ptr)
-
 
 cdef class LlamaSampler:
     """cython wrapper for llama.llama_sampler."""
