@@ -42,6 +42,7 @@ Async Example:
 
 import asyncio
 import hashlib
+import signal
 import threading
 from collections import OrderedDict
 from typing import (
@@ -465,6 +466,40 @@ class _ResponseLRUCache:
         )
 
 
+class _SigintHandle:
+    """Restorer returned by ``LLM.install_sigint_handler()``.
+
+    Acts as a context manager (``__exit__`` restores the prior handler) and
+    as an imperative handle (call ``.restore()`` directly). Idempotent --
+    a second restore is a no-op.
+
+    Standard last-installed-first-restored caveat applies: if multiple
+    handlers are stacked, restore them in reverse order.
+    """
+
+    __slots__ = ("_previous", "_restored")
+
+    def __init__(self, previous: object) -> None:
+        self._previous = previous
+        self._restored = False
+
+    def restore(self) -> None:
+        if self._restored:
+            return
+        try:
+            signal.signal(signal.SIGINT, self._previous)  # type: ignore[arg-type]
+        except (ValueError, TypeError):
+            # Off-main-thread or unrestorable handler; best-effort.
+            pass
+        self._restored = True
+
+    def __enter__(self) -> "_SigintHandle":
+        return self
+
+    def __exit__(self, exc_type: object, exc_val: object, exc_tb: object) -> None:
+        self.restore()
+
+
 class LLM:
     """
     High-level LLM interface with model caching and convenient API.
@@ -552,6 +587,14 @@ class LLM:
         # close()/__del__ are intentionally NOT guarded because the
         # garbage collector may run them on any thread.
         self._busy_lock = threading.Lock()
+
+        # Cancellation signal for in-flight generations. ``cancel()`` sets
+        # this; ``_generate_stream`` polls it between tokens and breaks out.
+        # The same signal is mirrored to the underlying LlamaContext as a
+        # C-level bint so ggml's abort callback can short-circuit a
+        # long-running ``llama_decode`` (e.g. during prompt prefill on a
+        # large context) without waiting for the next token boundary.
+        self._cancel_event = threading.Event()
 
         # Initialize response cache
         self._cache: Optional[_ResponseLRUCache] = None
@@ -676,6 +719,81 @@ class LLM:
             self._mcp_client = None
 
         self._closed = True
+
+    def cancel(self) -> None:
+        """
+        Request cancellation of an in-flight generation.
+
+        Safe to call from any thread. Has effect at two layers:
+
+        - Between tokens: ``_generate_stream`` polls a ``threading.Event``
+          each iteration and exits cleanly when set. This stops generation
+          within ~1 token of latency (typically a few milliseconds).
+        - Mid-decode: the underlying llama_context has a nogil
+          ggml_abort_callback installed that reads a C-level flag. Setting
+          it causes ``llama_decode`` to abort the current batch -- this
+          matters when prefilling a long prompt, where one ``decode`` call
+          can take seconds before the next token-boundary check fires.
+
+        The flag is automatically cleared at the start of the next
+        generation, so it is safe to call ``cancel()`` even when no
+        generation is currently running -- the request will not "carry
+        over" to the next call.
+
+        No-op if no context exists yet (cancellation only matters during
+        generation, and generation always creates a context first).
+        """
+        self._cancel_event.set()
+        ctx = getattr(self, "_ctx", None)
+        if ctx is not None:
+            ctx.cancel = True
+
+    @property
+    def cancel_requested(self) -> bool:
+        """Whether ``cancel()`` has been called and not yet cleared."""
+        return self._cancel_event.is_set()
+
+    def install_sigint_handler(self) -> _SigintHandle:
+        """
+        Install a SIGINT (Ctrl-C) handler that calls ``self.cancel()``.
+
+        Useful for CLI scripts: Ctrl-C will interrupt generation cleanly
+        — including during a long ``llama_decode`` (prompt prefill) where
+        the default ``KeyboardInterrupt`` mechanism would otherwise be
+        delayed until the C call returns. The generator exits via the
+        normal cancellation path and returns whatever was produced so
+        far; no exception propagates from the handler itself.
+
+        Must be called from the main Python thread (``signal.signal``
+        restriction). The previous SIGINT handler is saved and can be
+        restored by calling ``.restore()`` on the returned object, or by
+        using it as a context manager.
+
+        Note: this library normally avoids touching signal handlers --
+        installing one is opt-in for callers who explicitly want this
+        behavior. Multiple installations stack; restore them in reverse
+        order (last-installed-first-restored).
+
+        Example (context manager)::
+
+            with llm.install_sigint_handler():
+                for chunk in llm("Long prompt", stream=True):
+                    print(chunk, end="", flush=True)
+
+        Example (imperative)::
+
+            handle = llm.install_sigint_handler()
+            try:
+                response = llm("Prompt")
+            finally:
+                handle.restore()
+
+        Returns:
+            A ``_SigintHandle`` that restores the previous handler on
+            ``__exit__`` or ``.restore()``.
+        """
+        previous = signal.signal(signal.SIGINT, lambda *_: self.cancel())
+        return _SigintHandle(previous)
 
     def _try_acquire_busy(self) -> None:
         """Acquire the busy-lock or raise on contention.
@@ -837,6 +955,10 @@ class LLM:
 
         # Note: Seed is set in sampler, not context
         ctx = LlamaContext(self.model, ctx_params)
+        # Wire mid-decode cancellation: a nogil ggml_abort_callback that
+        # reads a C bint owned by the context. ``cancel()`` flips that
+        # bint and the next ggml op poll aborts the in-progress batch.
+        ctx.install_cancel_callback()
         self._ctx = ctx
         self._ctx_size = required_ctx
         return ctx
@@ -967,6 +1089,10 @@ class LLM:
         # Use provided config or fall back to instance config
         config = config or self.config
 
+        # Reset cancellation state at the start of each generation. A stale
+        # ``cancel()`` from before this call does not carry over.
+        self._cancel_event.clear()
+
         start_time = time.time()
 
         # Tokenize prompt
@@ -980,10 +1106,18 @@ class LLM:
         # Always recreate sampler to ensure fresh state
         ctx = self._ensure_context(n_prompt, config)
         sampler = self._ensure_sampler(config)
+        # Mirror the Python-side cancel flag onto the C-level flag for the
+        # active context. Cleared here; ``cancel()`` sets both layers.
+        ctx.cancel = False
 
-        # Process prompt in batches to avoid exceeding n_batch limit
+        # Process prompt in batches to avoid exceeding n_batch limit. If
+        # the caller has already issued ``cancel()`` (or does so during a
+        # long prefill), the abort callback aborts the in-progress decode
+        # and we bail before generation begins.
         n_batch = config.n_batch
         for i in range(0, n_prompt, n_batch):
+            if self._cancel_event.is_set():
+                return
             batch_tokens = prompt_tokens[i : i + n_batch]
             batch = llama_batch_get_one(batch_tokens, i)  # Pass position offset
             ctx.decode(batch)
@@ -998,6 +1132,13 @@ class LLM:
         max_stop_len = max(len(s) for s in config.stop_sequences) if config.stop_sequences else 0
 
         for _ in range(config.max_tokens):
+            # Cooperative cancellation check between tokens. The mid-decode
+            # ggml abort callback handles cancellation during long
+            # ``llama_decode`` calls; this handles the steady-state
+            # token-by-token loop with sub-millisecond latency.
+            if self._cancel_event.is_set():
+                break
+
             # Sample next token
             new_token_id = sampler.sample(ctx, -1)
 

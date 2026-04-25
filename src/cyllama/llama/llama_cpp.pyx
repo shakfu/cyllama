@@ -98,6 +98,17 @@ cdef bint abort_callback(void * py_abort_callback) noexcept:
     return (<object>py_abort_callback)()
 
 
+cdef bint _cancel_flag_callback(void * data) noexcept nogil:
+    """Pure-C nogil ggml_abort_callback that reads a bint flag by pointer.
+
+    Designed to be polled from worker threads inside ggml's compute graph
+    without acquiring the GIL on every poll. ``data`` is the address of a
+    ``bint`` field embedded in a LlamaContext instance; non-zero means
+    "abort the current llama_decode batch".
+    """
+    return (<bint*>data)[0]
+
+
 cdef cppbool sched_eval_callback(ggml.ggml_tensor * t, cppbool ask, void * py_sched_eval_callback) noexcept:
     """ggml_backend_sched_eval_callback wrapper enabling python callbacks to be used"""
     cdef GgmlTensor tensor = GgmlTensor.from_ptr(t)
@@ -2076,11 +2087,19 @@ cdef class LlamaContext:
     cdef public bint verbose
     cdef public int n_tokens
     cdef bint owner
+    # Cancellation flag polled by a nogil ggml_abort_callback. Plain bint
+    # rather than a C11 atomic: aligned word writes are atomic on every
+    # CPU we target, and a transient stale read just delays cancellation
+    # by one ggml op poll -- not a correctness problem for a one-shot
+    # "abort now" signal that is only ever set, never raced against
+    # multiple concurrent setters.
+    cdef bint _cancel_flag
 
     def __cinit__(self):
         self.ptr = NULL
         self.owner = True
         self.n_tokens = 0
+        self._cancel_flag = 0
 
     def __init__(self, model: LlamaModel, params: Optional[LlamaContextParams] = None, verbose: bool = True):
         if model is None:
@@ -2499,6 +2518,33 @@ cdef class LlamaContext:
         """Set abort callback"""
         llama.llama_set_abort_callback(self.ptr,
             <ggml.ggml_abort_callback>&abort_callback, <void*>py_abort_callback)
+
+    def install_cancel_callback(self):
+        """Install a nogil C-level abort callback driven by ``_cancel_flag``.
+
+        After this is called, setting ``cancel = True`` on the context
+        causes the next ggml op poll (typically inside ``llama_decode``)
+        to abort the current batch. This complements between-token
+        cancellation in higher-level loops by also covering long
+        prompt-prefill decodes.
+
+        Calling this overrides any prior ``set_abort_callback()``. If you
+        need to combine user logic with cancellation, write a Python
+        callback that consults whatever state you want and pass it to
+        ``set_abort_callback()`` instead.
+        """
+        llama.llama_set_abort_callback(self.ptr,
+            <ggml.ggml_abort_callback>&_cancel_flag_callback,
+            <void*>&self._cancel_flag)
+
+    @property
+    def cancel(self) -> bool:
+        """Whether mid-decode cancellation has been requested."""
+        return bool(self._cancel_flag)
+
+    @cancel.setter
+    def cancel(self, value: bool) -> None:
+        self._cancel_flag = 1 if value else 0
 
     def synchronize(self):
         """Wait until all computations are finished
