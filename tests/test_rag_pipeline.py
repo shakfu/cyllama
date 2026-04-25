@@ -413,11 +413,13 @@ class TestRAGPipelineRerank:
 
     def _fake_reranker(self):
         reranker = MagicMock()
+
         # Return top_k by score-descending; here we reverse input order
         # so tests can distinguish "reranked" from "raw" results.
         def _rerank(query, results, top_k=None):
             reordered = list(reversed(results))
             return reordered[:top_k] if top_k is not None else reordered
+
         reranker.rerank.side_effect = _rerank
         return reranker
 
@@ -430,10 +432,7 @@ class TestRAGPipelineRerank:
         return RAGPipeline(embedder=embedder, store=store, generator=generator)
 
     def test_retrieve_fetches_rerank_top_k_candidates(self):
-        candidates = [
-            SearchResult(id=str(i), text=f"Doc {i}", score=0.9 - i * 0.01, metadata={})
-            for i in range(20)
-        ]
+        candidates = [SearchResult(id=str(i), text=f"Doc {i}", score=0.9 - i * 0.01, metadata={}) for i in range(20)]
         pipeline = self._make(candidates)
         reranker = self._fake_reranker()
         cfg = RAGConfig(rerank=True, top_k=5, rerank_top_k=20, reranker=reranker)
@@ -473,10 +472,7 @@ class TestRAGPipelineRerank:
         assert sources == []
 
     def test_query_routes_through_reranker(self):
-        candidates = [
-            SearchResult(id=str(i), text=f"Doc {i}", score=0.9 - i * 0.01, metadata={})
-            for i in range(10)
-        ]
+        candidates = [SearchResult(id=str(i), text=f"Doc {i}", score=0.9 - i * 0.01, metadata={}) for i in range(10)]
         pipeline = self._make(candidates)
         resp = MagicMock()
         resp.__str__ = MagicMock(return_value="answer")

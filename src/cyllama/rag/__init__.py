@@ -70,7 +70,15 @@ from .rag import RAG, IndexResult
 from .repetition import NGramRepetitionDetector
 from .splitter import MarkdownSplitter, TextSplitter, TokenTextSplitter
 from .store import SqliteVectorStore, VectorStoreError
-from .types import Chunk, Document, EmbedderProtocol, EmbeddingResult, RerankerProtocol, SearchResult, VectorStoreProtocol
+from .types import (
+    Chunk,
+    Document,
+    EmbedderProtocol,
+    EmbeddingResult,
+    RerankerProtocol,
+    SearchResult,
+    VectorStoreProtocol,
+)
 
 __all__ = [
     # High-level RAG Interface

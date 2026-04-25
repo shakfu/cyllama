@@ -38,8 +38,7 @@ def _require_qdrant() -> tuple[Any, Any]:
         from qdrant_client.http import models as qmodels
     except ImportError as e:  # pragma: no cover - exercised only when dep missing
         raise ImportError(
-            "qdrant-client is required for QdrantVectorStore. "
-            "Install with: pip install cyllama[qdrant]"
+            "qdrant-client is required for QdrantVectorStore. Install with: pip install cyllama[qdrant]"
         ) from e
     return QdrantClient, qmodels
 
@@ -87,9 +86,7 @@ class QdrantVectorStore(VectorStoreProtocol):
             raise ValueError(f"dimension must be positive, got {dimension}")
         metric_lower = metric.lower()
         if metric_lower not in self.VALID_METRICS:
-            raise ValueError(
-                f"Invalid metric: {metric!r}. Must be one of: {sorted(self.VALID_METRICS)}"
-            )
+            raise ValueError(f"Invalid metric: {metric!r}. Must be one of: {sorted(self.VALID_METRICS)}")
 
         QdrantClient, qmodels = _require_qdrant()
         self._qmodels = qmodels
@@ -135,9 +132,7 @@ class QdrantVectorStore(VectorStoreProtocol):
         )
 
     def _count_exact(self) -> int:
-        return int(
-            self.client.count(collection_name=self.collection_name, exact=True).count
-        )
+        return int(self.client.count(collection_name=self.collection_name, exact=True).count)
 
     def _check_closed(self) -> None:
         if self._closed:
@@ -153,22 +148,16 @@ class QdrantVectorStore(VectorStoreProtocol):
     ) -> list[int]:
         self._check_closed()
         if len(embeddings) != len(texts):
-            raise ValueError(
-                f"embeddings and texts must have same length: {len(embeddings)} vs {len(texts)}"
-            )
+            raise ValueError(f"embeddings and texts must have same length: {len(embeddings)} vs {len(texts)}")
         if source_hash is not None and source_label is None:
             raise ValueError("source_hash requires source_label")
         if metadata is None:
             metadata = [{} for _ in embeddings]
         elif len(metadata) != len(embeddings):
-            raise ValueError(
-                f"metadata must have same length as embeddings: {len(metadata)} vs {len(embeddings)}"
-            )
+            raise ValueError(f"metadata must have same length as embeddings: {len(metadata)} vs {len(embeddings)}")
         for emb in embeddings:
             if len(emb) != self.dimension:
-                raise ValueError(
-                    f"Vector dimension mismatch: expected {self.dimension}, got {len(emb)}"
-                )
+                raise ValueError(f"Vector dimension mismatch: expected {self.dimension}, got {len(emb)}")
 
         qmodels = self._qmodels
         indexed_at = datetime.now(timezone.utc).isoformat()
@@ -196,9 +185,7 @@ class QdrantVectorStore(VectorStoreProtocol):
     ) -> list[SearchResult]:
         self._check_closed()
         if len(query_embedding) != self.dimension:
-            raise ValueError(
-                f"Vector dimension mismatch: expected {self.dimension}, got {len(query_embedding)}"
-            )
+            raise ValueError(f"Vector dimension mismatch: expected {self.dimension}, got {len(query_embedding)}")
 
         # query_points() is the modern Qdrant API; .search() was
         # deprecated and removed. Returns a QueryResponse whose

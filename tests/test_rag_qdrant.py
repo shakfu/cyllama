@@ -9,9 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-qdrant_client = pytest.importorskip(
-    "qdrant_client", reason="qdrant-client not installed (pip install cyllama[qdrant])"
-)
+qdrant_client = pytest.importorskip("qdrant_client", reason="qdrant-client not installed (pip install cyllama[qdrant])")
 
 from cyllama.rag import SearchResult  # noqa: E402
 from cyllama.rag.stores import QdrantVectorStore  # noqa: E402
