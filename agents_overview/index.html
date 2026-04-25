@@ -2212,9 +2212,15 @@
 <li><a href="#architecture">Architecture</a></li>
 <li><a href="#tools">Tools</a></li>
 <li><a href="#agents">Agents</a></li>
-<li><a href="#reactagent">ReActAgent</a></li>
-<li><a href="#constrainedagent">ConstrainedAgent</a></li>
-<li><a href="#contractagent">ContractAgent</a></li>
+<li>
+<p><a href="#reactagent">ReActAgent</a></p>
+</li>
+<li>
+<p><a href="#constrainedagent">ConstrainedAgent</a></p>
+</li>
+<li>
+<p><a href="#contractagent">ContractAgent</a></p>
+</li>
 <li><a href="#events-and-results">Events and Results</a></li>
 <li><a href="#configuration">Configuration</a></li>
 <li><a href="#best-practices">Best Practices</a></li>
@@ -2442,14 +2448,24 @@
 </table>
 <p><strong>Strengths:</strong></p>
 <ul>
-<li>Natural reasoning trace for debugging</li>
-<li>Works well with most instruction-tuned models</li>
-<li>Flexible action format</li>
+<li>
+<p>Natural reasoning trace for debugging</p>
+</li>
+<li>
+<p>Works well with most instruction-tuned models</p>
+</li>
+<li>
+<p>Flexible action format</p>
+</li>
 </ul>
 <p><strong>Weaknesses:</strong></p>
 <ul>
-<li>Parsing can fail on malformed output</li>
-<li>Requires larger models for reliable tool calling</li>
+<li>
+<p>Parsing can fail on malformed output</p>
+</li>
+<li>
+<p>Requires larger models for reliable tool calling</p>
+</li>
 </ul>
 <hr />
 <h3 id="constrainedagent">ConstrainedAgent<a class="headerlink" href="#constrainedagent" title="Permanent link">&para;</a></h3>
@@ -2552,14 +2568,24 @@
 </code></pre></div>
 <p><strong>Strengths:</strong></p>
 <ul>
-<li>100% valid JSON output (grammar-enforced)</li>
-<li>Works with smaller models</li>
-<li>Eliminates parsing failures</li>
+<li>
+<p>100% valid JSON output (grammar-enforced)</p>
+</li>
+<li>
+<p>Works with smaller models</p>
+</li>
+<li>
+<p>Eliminates parsing failures</p>
+</li>
 </ul>
 <p><strong>Weaknesses:</strong></p>
 <ul>
-<li>Less natural output format</li>
-<li>Grammar compilation overhead (mitigated by caching)</li>
+<li>
+<p>Less natural output format</p>
+</li>
+<li>
+<p>Grammar compilation overhead (mitigated by caching)</p>
+</li>
 </ul>
 <hr />
 <h3 id="contractagent">ContractAgent<a class="headerlink" href="#contractagent" title="Permanent link">&para;</a></h3>
@@ -2669,14 +2695,24 @@
 </code></pre></div>
 <p><strong>Strengths:</strong></p>
 <ul>
-<li>Runtime verification of tool behavior</li>
-<li>Configurable violation handling</li>
-<li>Agent-level invariants</li>
+<li>
+<p>Runtime verification of tool behavior</p>
+</li>
+<li>
+<p>Configurable violation handling</p>
+</li>
+<li>
+<p>Agent-level invariants</p>
+</li>
 </ul>
 <p><strong>Weaknesses:</strong></p>
 <ul>
-<li>Additional overhead for contract checking</li>
-<li>Requires explicit contract definitions</li>
+<li>
+<p>Additional overhead for contract checking</p>
+</li>
+<li>
+<p>Requires explicit contract definitions</p>
+</li>
 </ul>
 <h2 id="events-and-results">Events and Results<a class="headerlink" href="#events-and-results" title="Permanent link">&para;</a></h2>
 <h3 id="event-types">Event Types<a class="headerlink" href="#event-types" title="Permanent link">&para;</a></h3>
@@ -2972,9 +3008,15 @@
 </code></pre></div>
 <h2 id="references">References<a class="headerlink" href="#references" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="https://arxiv.org/abs/2210.03629">ReAct: Synergizing Reasoning and Acting in Language Models</a></li>
-<li><a href="https://en.cppreference.com/w/cpp/language/contracts.html">C++26 Contract Assertions</a></li>
-<li><a href="https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2025/p2900r14.pdf">Contracts for C++ P2900R14</a></li>
+<li>
+<p><a href="https://arxiv.org/abs/2210.03629">ReAct: Synergizing Reasoning and Acting in Language Models</a></p>
+</li>
+<li>
+<p><a href="https://en.cppreference.com/w/cpp/language/contracts.html">C++26 Contract Assertions</a></p>
+</li>
+<li>
+<p><a href="https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2025/p2900r14.pdf">Contracts for C++ P2900R14</a></p>
+</li>
 </ul>
 
 

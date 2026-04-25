@@ -1566,10 +1566,18 @@ and <code>GGML_NATIVE</code> unset, this produces:</p>
 <h3 id="net-effect-on-local-builds">Net effect on local builds<a class="headerlink" href="#net-effect-on-local-builds" title="Permanent link">&para;</a></h3>
 <p>A local <code>make build-cuda-dynamic</code> with no env vars:</p>
 <ul>
-<li>Does not optimize for the local CPU (no <code>GGML_NATIVE</code>)</li>
-<li>Builds CUDA kernels for 7+ SM architectures instead of the one installed GPU</li>
-<li><code>libggml-cuda.so</code> is ~509 MB (vs ~137 MB with <code>native</code>)</li>
-<li>Compilation is slow due to redundant architecture codegen</li>
+<li>
+<p>Does not optimize for the local CPU (no <code>GGML_NATIVE</code>)</p>
+</li>
+<li>
+<p>Builds CUDA kernels for 7+ SM architectures instead of the one installed GPU</p>
+</li>
+<li>
+<p><code>libggml-cuda.so</code> is ~509 MB (vs ~137 MB with <code>native</code>)</p>
+</li>
+<li>
+<p>Compilation is slow due to redundant architecture codegen</p>
+</li>
 </ul>
 <h3 id="ci-builds">CI builds<a class="headerlink" href="#ci-builds" title="Permanent link">&para;</a></h3>
 <p>CI workflows already set both variables explicitly:</p>
@@ -1706,13 +1714,27 @@ builds.</p>
 <hr />
 <h2 id="references">References<a class="headerlink" href="#references" title="Permanent link">&para;</a></h2>
 <ul>
-<li><code>scripts/manage.py:964-966</code> -- <code>CMAKE_CUDA_ARCHITECTURES</code> passthrough</li>
-<li><code>scripts/manage.py:1036-1041</code> -- <code>GGML_NATIVE</code> handling</li>
-<li><code>scripts/manage.py:1187-1190</code> -- <code>GGML_NATIVE</code> forced OFF in <code>build_shared()</code></li>
-<li><code>build/llama.cpp/ggml/src/ggml-cuda/CMakeLists.txt:8-55</code> -- ggml-cuda default arch logic</li>
-<li><code>build/llama.cpp/ggml/src/ggml-cpu/CMakeLists.txt:382</code> -- NATIVE vs BACKEND_DL incompatibility</li>
-<li><code>.github/workflows/build-gpu-wheels.yml:103,116</code> -- CI arch settings</li>
-<li><code>.github/workflows/build-new-wheels.yml:280</code> -- CI arch settings</li>
+<li>
+<p><code>scripts/manage.py:964-966</code> -- <code>CMAKE_CUDA_ARCHITECTURES</code> passthrough</p>
+</li>
+<li>
+<p><code>scripts/manage.py:1036-1041</code> -- <code>GGML_NATIVE</code> handling</p>
+</li>
+<li>
+<p><code>scripts/manage.py:1187-1190</code> -- <code>GGML_NATIVE</code> forced OFF in <code>build_shared()</code></p>
+</li>
+<li>
+<p><code>build/llama.cpp/ggml/src/ggml-cuda/CMakeLists.txt:8-55</code> -- ggml-cuda default arch logic</p>
+</li>
+<li>
+<p><code>build/llama.cpp/ggml/src/ggml-cpu/CMakeLists.txt:382</code> -- NATIVE vs BACKEND_DL incompatibility</p>
+</li>
+<li>
+<p><code>.github/workflows/build-gpu-wheels.yml:103,116</code> -- CI arch settings</p>
+</li>
+<li>
+<p><code>.github/workflows/build-new-wheels.yml:280</code> -- CI arch settings</p>
+</li>
 </ul>
 
 

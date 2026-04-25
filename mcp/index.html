@@ -1741,11 +1741,21 @@
 <h3 id="add_mcp_servername-command-args-url-headers"><code>add_mcp_server(name, *, command=…, args=…, url=…, headers=…, …)</code><a class="headerlink" href="#add_mcp_servername-command-args-url-headers" title="Permanent link">&para;</a></h3>
 <p>Attach an MCP server and connect immediately (fail-fast on a bad config or unreachable endpoint).</p>
 <ul>
-<li><code>name</code> — logical name. Tools discovered on this server are exposed as <code>"&lt;name&gt;/&lt;tool&gt;"</code> to avoid collisions when multiple servers expose identically named tools.</li>
-<li><strong>stdio transport</strong>: set <code>command</code> (required), and optionally <code>args</code>, <code>env</code>, <code>cwd</code>.</li>
-<li><strong>HTTP transport</strong>: set <code>url</code> (required), and optionally <code>headers</code>.</li>
-<li>Transport is inferred from which kwargs are present; pass <code>transport=McpTransportType.STDIO|HTTP</code> explicitly to disambiguate.</li>
-<li><code>request_timeout</code> / <code>shutdown_timeout</code> override per-server timeouts (defaults defined in <code>cyllama.agents.mcp</code>).</li>
+<li>
+<p><code>name</code> — logical name. Tools discovered on this server are exposed as <code>"&lt;name&gt;/&lt;tool&gt;"</code> to avoid collisions when multiple servers expose identically named tools.</p>
+</li>
+<li>
+<p><strong>stdio transport</strong>: set <code>command</code> (required), and optionally <code>args</code>, <code>env</code>, <code>cwd</code>.</p>
+</li>
+<li>
+<p><strong>HTTP transport</strong>: set <code>url</code> (required), and optionally <code>headers</code>.</p>
+</li>
+<li>
+<p>Transport is inferred from which kwargs are present; pass <code>transport=McpTransportType.STDIO|HTTP</code> explicitly to disambiguate.</p>
+</li>
+<li>
+<p><code>request_timeout</code> / <code>shutdown_timeout</code> override per-server timeouts (defaults defined in <code>cyllama.agents.mcp</code>).</p>
+</li>
 </ul>
 <h3 id="remove_mcp_servername"><code>remove_mcp_server(name)</code><a class="headerlink" href="#remove_mcp_servername" title="Permanent link">&para;</a></h3>
 <p>Disconnect and forget a server by name. Tools and resources it contributed are removed from the client's catalog. Safe to call if no servers are attached.</p>
@@ -1762,10 +1772,18 @@
 <h3 id="chat_with_toolsmessages-toolsnone-use_mcptrue-max_iterations8-verbosefalse-system_promptnone-generation_confignone-str"><code>chat_with_tools(messages, *, tools=None, use_mcp=True, max_iterations=8, verbose=False, system_prompt=None, generation_config=None) -&gt; str</code><a class="headerlink" href="#chat_with_toolsmessages-toolsnone-use_mcptrue-max_iterations8-verbosefalse-system_promptnone-generation_confignone-str" title="Permanent link">&para;</a></h3>
 <p>Run a tool-calling ReAct loop over chat messages. The last user message is the agent task; a leading system message becomes the agent's system prompt unless <code>system_prompt</code> is given explicitly.</p>
 <ul>
-<li><code>tools</code> — additional cyllama <code>Tool</code> instances merged with the MCP tools.</li>
-<li><code>use_mcp=False</code> — drop MCP tools and use only the caller-supplied <code>tools</code>.</li>
-<li><code>max_iterations</code> — cap on thought/action cycles.</li>
-<li>Returns the agent's final answer string.</li>
+<li>
+<p><code>tools</code> — additional cyllama <code>Tool</code> instances merged with the MCP tools.</p>
+</li>
+<li>
+<p><code>use_mcp=False</code> — drop MCP tools and use only the caller-supplied <code>tools</code>.</p>
+</li>
+<li>
+<p><code>max_iterations</code> — cap on thought/action cycles.</p>
+</li>
+<li>
+<p>Returns the agent's final answer string.</p>
+</li>
 </ul>
 <p>Multi-turn conversation history beyond a single user turn is not yet plumbed through — the ReAct loop operates one task at a time.</p>
 <h2 id="direct-tool-invocation-example">Direct Tool Invocation Example<a class="headerlink" href="#direct-tool-invocation-example" title="Permanent link">&para;</a></h2>
@@ -1804,9 +1822,15 @@
 <p><code>LLM.close()</code> disconnects every attached server best-effort. Prefer the context-manager form shown above — it closes the LLM and all MCP transports on exit even if the loop raises.</p>
 <h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="../agents_overview/">Agents Overview</a> — <code>ReActAgent</code> and the <code>Tool</code> abstraction</li>
-<li><a href="../dev/mcp/"><code>docs/dev/mcp.md</code></a> — design draft, including the deferred server direction</li>
-<li><code>cyllama.agents.mcp</code> — <code>McpClient</code>, <code>McpServerConfig</code>, <code>McpTransportType</code>, <code>McpConnectionProtocol</code></li>
+<li>
+<p><a href="../agents_overview/">Agents Overview</a> — <code>ReActAgent</code> and the <code>Tool</code> abstraction</p>
+</li>
+<li>
+<p><a href="../dev/mcp/"><code>docs/dev/mcp.md</code></a> — design draft, including the deferred server direction</p>
+</li>
+<li>
+<p><code>cyllama.agents.mcp</code> — <code>McpClient</code>, <code>McpServerConfig</code>, <code>McpTransportType</code>, <code>McpConnectionProtocol</code></p>
+</li>
 </ul>
 
 

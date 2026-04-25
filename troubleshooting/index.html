@@ -2515,9 +2515,15 @@
 <p><strong>Cause:</strong> CUDA toolkit DLLs (e.g. <code>cublas64_13.dll</code>) are not on the DLL search path.</p>
 <p>Cyllama automatically discovers CUDA DLL paths when built with <code>GGML_CUDA=1</code>, but the discovery may fail if:</p>
 <ul>
-<li>CUDA toolkit is installed in a non-standard location</li>
-<li>Neither <code>CUDA_PATH</code> nor <code>CUDA_HOME</code> is set</li>
-<li><code>nvcc</code> is not on <code>PATH</code></li>
+<li>
+<p>CUDA toolkit is installed in a non-standard location</p>
+</li>
+<li>
+<p>Neither <code>CUDA_PATH</code> nor <code>CUDA_HOME</code> is set</p>
+</li>
+<li>
+<p><code>nvcc</code> is not on <code>PATH</code></p>
+</li>
 </ul>
 <p><strong>Solutions:</strong></p>
 <ol>
@@ -2542,7 +2548,9 @@
 <p><strong>Solutions:</strong></p>
 <ol>
 <li><strong>Install Vulkan SDK:</strong></li>
-<li>Linux: <code>sudo apt install vulkan-tools libvulkan-dev</code></li>
+<li>
+<p>Linux: <code>sudo apt install vulkan-tools libvulkan-dev</code></p>
+</li>
 <li>
 <p>macOS: Install from <a href="https://vulkan.lunarg.com/">LunarG</a></p>
 </li>

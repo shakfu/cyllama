@@ -1590,9 +1590,15 @@
 <p>The fix in commit <code>3557d29</code> adds the <code>CMAKE_CUDA_ARCHITECTURES</code> environment variable passthrough to all three <code>get_backend_cmake_options()</code> methods in <code>scripts/manage.py</code> (for llama.cpp, whisper.cpp, and stable-diffusion.cpp), matching the existing pattern for <code>CMAKE_HIP_ARCHITECTURES</code>.</p>
 <p>With the CI's <code>CMAKE_CUDA_ARCHITECTURES="70-real;75-real;80-real;86-real;89-real;90"</code> actually reaching CMake:</p>
 <ul>
-<li><code>-real</code> suffix = SASS only, no PTX (for sm_70, 75, 80, 86, 89)</li>
-<li><code>90</code> without <code>-real</code> = PTX only for sm_90 (forward compatibility for future GPUs)</li>
-<li>Expected result: ~6 SASS + 1 PTX per kernel instead of 2 SASS + 5 PTX per kernel</li>
+<li>
+<p><code>-real</code> suffix = SASS only, no PTX (for sm_70, 75, 80, 86, 89)</p>
+</li>
+<li>
+<p><code>90</code> without <code>-real</code> = PTX only for sm_90 (forward compatibility for future GPUs)</p>
+</li>
+<li>
+<p>Expected result: ~6 SASS + 1 PTX per kernel instead of 2 SASS + 5 PTX per kernel</p>
+</li>
 </ul>
 <p>Expected wheel size should be comparable to or smaller than v0.2.1's 99 MB uncompressed / ~45 MB compressed.</p>
 <h2 id="verification">Verification<a class="headerlink" href="#verification" title="Permanent link">&para;</a></h2>

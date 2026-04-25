@@ -2084,24 +2084,42 @@
 <li>CMake builds static libraries (<code>libllama.a</code>, <code>libggml*.a</code>, <code>libcommon.a</code>, etc.)</li>
 <li>Libraries and ~56 headers are copied to <code>thirdparty/llama.cpp/{lib,include}/</code></li>
 <li>scikit-build-core runs the root <code>CMakeLists.txt</code>, which:</li>
-<li>Transpiles <code>.pyx</code> to <code>.cxx</code> via Cython</li>
-<li>Compiles <code>.cxx</code> to <code>.o</code></li>
-<li>Links <code>.o</code> + all <code>.a</code> archives into final <code>.so</code> extension modules</li>
+<li>
+<p>Transpiles <code>.pyx</code> to <code>.cxx</code> via Cython</p>
+</li>
+<li>
+<p>Compiles <code>.cxx</code> to <code>.o</code></p>
+</li>
+<li>
+<p>Links <code>.o</code> + all <code>.a</code> archives into final <code>.so</code> extension modules</p>
+</li>
 </ol>
 <h2 id="alternative-strategy-dynamic-linking-against-pre-built-releases">Alternative Strategy: Dynamic Linking Against Pre-built Releases<a class="headerlink" href="#alternative-strategy-dynamic-linking-against-pre-built-releases" title="Permanent link">&para;</a></h2>
 <p>Link Cython extensions against pre-built <code>.dylib</code>/<code>.so</code> files from llama.cpp GitHub releases (e.g., <code>llama-b8522</code> tarball from <a href="https://github.com/ggml-org/llama.cpp/releases">https://github.com/ggml-org/llama.cpp/releases</a>).</p>
 <h3 id="what-the-pre-built-releases-contain">What the Pre-built Releases Contain<a class="headerlink" href="#what-the-pre-built-releases-contain" title="Permanent link">&para;</a></h3>
 <p>The release tarball (e.g., <code>llama-b8522-bin-macos-arm64.tar.gz</code>) ships:</p>
 <ul>
-<li><strong>Dynamic libraries</strong>: <code>libllama.dylib</code>, <code>libggml.dylib</code>, <code>libggml-base.dylib</code>, <code>libggml-cpu.dylib</code>, <code>libggml-metal.dylib</code>, <code>libggml-blas.dylib</code>, <code>libggml-rpc.dylib</code>, <code>libmtmd.dylib</code></li>
-<li><strong>CLI tools</strong>: <code>llama-cli</code>, <code>llama-server</code>, <code>llama-quantize</code>, etc.</li>
-<li><strong>No headers</strong> (<code>include/</code> directory is absent)</li>
-<li><strong>No <code>libcommon</code></strong> or <code>libcpp-httplib</code></li>
+<li>
+<p><strong>Dynamic libraries</strong>: <code>libllama.dylib</code>, <code>libggml.dylib</code>, <code>libggml-base.dylib</code>, <code>libggml-cpu.dylib</code>, <code>libggml-metal.dylib</code>, <code>libggml-blas.dylib</code>, <code>libggml-rpc.dylib</code>, <code>libmtmd.dylib</code></p>
+</li>
+<li>
+<p><strong>CLI tools</strong>: <code>llama-cli</code>, <code>llama-server</code>, <code>llama-quantize</code>, etc.</p>
+</li>
+<li>
+<p><strong>No headers</strong> (<code>include/</code> directory is absent)</p>
+</li>
+<li>
+<p><strong>No <code>libcommon</code></strong> or <code>libcpp-httplib</code></p>
+</li>
 </ul>
 <h3 id="exported-symbols">Exported Symbols<a class="headerlink" href="#exported-symbols" title="Permanent link">&para;</a></h3>
 <ul>
-<li><strong>233 stable C API symbols</strong> (<code>_llama_*</code>) -- these are the public API from <code>llama.h</code></li>
-<li><strong>C++ mangled symbols</strong> (<code>__Z*</code>) -- internal, compiler-specific, not ABI-stable</li>
+<li>
+<p><strong>233 stable C API symbols</strong> (<code>_llama_*</code>) -- these are the public API from <code>llama.h</code></p>
+</li>
+<li>
+<p><strong>C++ mangled symbols</strong> (<code>__Z*</code>) -- internal, compiler-specific, not ABI-stable</p>
+</li>
 </ul>
 <hr />
 <h2 id="pros-of-dynamic-linking">Pros of Dynamic Linking<a class="headerlink" href="#pros-of-dynamic-linking" title="Permanent link">&para;</a></h2>
@@ -2122,15 +2140,25 @@
 <h3 id="1-no-headers-shipped-in-releases">1. No Headers Shipped in Releases<a class="headerlink" href="#1-no-headers-shipped-in-releases" title="Permanent link">&para;</a></h3>
 <p>The pre-built tarballs have no <code>include/</code> directory. The current build depends on ~56 headers. Options:</p>
 <ul>
-<li>Still clone the repo to get headers (partially defeats the purpose)</li>
-<li>Vendor the headers separately and pin them to the release version</li>
-<li>Use only the public C API headers fetched from the GitHub tag</li>
+<li>
+<p>Still clone the repo to get headers (partially defeats the purpose)</p>
+</li>
+<li>
+<p>Vendor the headers separately and pin them to the release version</p>
+</li>
+<li>
+<p>Use only the public C API headers fetched from the GitHub tag</p>
+</li>
 </ul>
 <h3 id="2-libcommon-not-in-release">2. <code>libcommon</code> Not in Release<a class="headerlink" href="#2-libcommon-not-in-release" title="Permanent link">&para;</a></h3>
 <p>The pre-built release exports <code>libllama</code>, <code>libggml*</code>, and <code>libmtmd</code>, but <strong>not</strong> <code>libcommon</code> or <code>libcpp-httplib</code>. The Cython wrappers (<code>common.pxd</code>) bind directly to <code>common.h</code> symbols (arg parsing, chat templates, sampling params). These are C++ internal symbols, not part of the stable C API. Options:</p>
 <ul>
-<li>Rewrite bindings to only use the 233 public <code>_llama_*</code> C symbols</li>
-<li>Still build <code>libcommon</code> from source (partially defeats the purpose)</li>
+<li>
+<p>Rewrite bindings to only use the 233 public <code>_llama_*</code> C symbols</p>
+</li>
+<li>
+<p>Still build <code>libcommon</code> from source (partially defeats the purpose)</p>
+</li>
 </ul>
 <blockquote>
 <p><strong>Resolved</strong>: All <code>libcommon</code> dependencies have been eliminated. Sampling, download, n-gram cache, speculative decoding, and batch helpers were rewritten to use public C APIs or pure Python. JSON schema-to-grammar conversion was replaced with a vendored pure Python implementation. <code>libcommon.a</code> is no longer linked in either static or dynamic builds.</p>
@@ -2140,9 +2168,15 @@
 <h3 id="4-runtime-dependency-management">4. Runtime Dependency Management<a class="headerlink" href="#4-runtime-dependency-management" title="Permanent link">&para;</a></h3>
 <p>Dylibs are needed at runtime, not just build time:</p>
 <ul>
-<li><code>@rpath</code> resolution requires correct <code>install_name_tool</code> fixup or environment variables</li>
-<li><code>pip install cyllama</code> would need to either bundle the dylibs (back to large wheels) or require the user to install llama.cpp separately</li>
-<li>Platform-specific dylib discovery (<code>DYLD_LIBRARY_PATH</code> on macOS, <code>LD_LIBRARY_PATH</code> on Linux, <code>PATH</code> on Windows)</li>
+<li>
+<p><code>@rpath</code> resolution requires correct <code>install_name_tool</code> fixup or environment variables</p>
+</li>
+<li>
+<p><code>pip install cyllama</code> would need to either bundle the dylibs (back to large wheels) or require the user to install llama.cpp separately</p>
+</li>
+<li>
+<p>Platform-specific dylib discovery (<code>DYLD_LIBRARY_PATH</code> on macOS, <code>LD_LIBRARY_PATH</code> on Linux, <code>PATH</code> on Windows)</p>
+</li>
 </ul>
 <h3 id="5-abi-compatibility-risk">5. ABI Compatibility Risk<a class="headerlink" href="#5-abi-compatibility-risk" title="Permanent link">&para;</a></h3>
 <p>llama.cpp has no ABI stability guarantee. Even the C API can change between releases (functions added/removed/signatures changed). With static linking you pin to an exact commit. With dynamic linking, a user swapping in a newer dylib could silently break things or segfault.</p>
@@ -2158,9 +2192,15 @@
 <hr />
 <h2 id="possible-hybrid-approach">Possible Hybrid Approach<a class="headerlink" href="#possible-hybrid-approach" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>Dynamic link against <code>libllama.dylib</code> + <code>libggml*.dylib</code></strong> for the core inference C API</li>
-<li><strong>Still build <code>libcommon.a</code> from source</strong> (small, fast to compile) for C++ utility bindings</li>
-<li><strong>Vendor just the public headers</strong> from the release tag</li>
+<li>
+<p><strong>Dynamic link against <code>libllama.dylib</code> + <code>libggml*.dylib</code></strong> for the core inference C API</p>
+</li>
+<li>
+<p><strong>Still build <code>libcommon.a</code> from source</strong> (small, fast to compile) for C++ utility bindings</p>
+</li>
+<li>
+<p><strong>Vendor just the public headers</strong> from the release tag</p>
+</li>
 </ul>
 <p>This buys less than it initially appears, because the common/sampling layer is where most of the Cython binding complexity lives.</p>
 <blockquote>
@@ -2188,8 +2228,12 @@
 <h3 id="dead-code-immediate-cleanup">Dead Code: Immediate Cleanup<a class="headerlink" href="#dead-code-immediate-cleanup" title="Permanent link">&para;</a></h3>
 <p>Three <code>.pxd</code> files declare symbols that are <strong>never called</strong> in any <code>.pyx</code>/<code>.pxi</code>:</p>
 <ul>
-<li><strong>chat.pxd</strong> (202 lines): 12 structs, 13 functions -- zero usage</li>
-<li><strong>log.pxd</strong> (60 lines): 10+ functions -- zero usage</li>
+<li>
+<p><strong>chat.pxd</strong> (202 lines): 12 structs, 13 functions -- zero usage</p>
+</li>
+<li>
+<p><strong>log.pxd</strong> (60 lines): 10+ functions -- zero usage</p>
+</li>
 </ul>
 <p><strong>Note</strong>: <code>gguf.pxd</code> was initially thought to be dead code but is actively used by the <code>GgufContext</code> class. It wraps the public <code>gguf.h</code> API (part of libggml), not an internal C++ API, so it does not block dynamic linking.</p>
 <p>These can be removed immediately with no behavioral change, reducing the declared surface by ~260 lines.</p>
@@ -2290,13 +2334,27 @@
 </code></pre></div>
 <p>The public API now has <strong>15+ sampler init functions</strong> covering all sampler types:</p>
 <ul>
-<li><code>llama_sampler_init_top_k</code>, <code>_top_p</code>, <code>_min_p</code>, <code>_temp</code>, <code>_temp_ext</code></li>
-<li><code>llama_sampler_init_xtc</code>, <code>_typical</code>, <code>_top_n_sigma</code></li>
-<li><code>llama_sampler_init_mirostat</code>, <code>_mirostat_v2</code></li>
-<li><code>llama_sampler_init_grammar</code>, <code>_grammar_lazy_patterns</code></li>
-<li><code>llama_sampler_init_penalties</code> (repetition/frequency/presence)</li>
-<li><code>llama_sampler_init_dry</code> (DRY sampler -- actually NEW, not in common_sampler)</li>
-<li><code>llama_sampler_init_adaptive_p</code>, <code>_logit_bias</code>, <code>_infill</code></li>
+<li>
+<p><code>llama_sampler_init_top_k</code>, <code>_top_p</code>, <code>_min_p</code>, <code>_temp</code>, <code>_temp_ext</code></p>
+</li>
+<li>
+<p><code>llama_sampler_init_xtc</code>, <code>_typical</code>, <code>_top_n_sigma</code></p>
+</li>
+<li>
+<p><code>llama_sampler_init_mirostat</code>, <code>_mirostat_v2</code></p>
+</li>
+<li>
+<p><code>llama_sampler_init_grammar</code>, <code>_grammar_lazy_patterns</code></p>
+</li>
+<li>
+<p><code>llama_sampler_init_penalties</code> (repetition/frequency/presence)</p>
+</li>
+<li>
+<p><code>llama_sampler_init_dry</code> (DRY sampler -- actually NEW, not in common_sampler)</p>
+</li>
+<li>
+<p><code>llama_sampler_init_adaptive_p</code>, <code>_logit_bias</code>, <code>_infill</code></p>
+</li>
 </ul>
 <p><strong>Effort</strong>: Medium. The chain construction logic is ~100 lines of C++ that becomes ~100 lines of Python. The debug/print utilities are trivial. <code>common_params_sampling</code> struct (30+ fields) needs a Python dataclass replacement.</p>
 <p><strong>Risk</strong>: Low. This is straightforward mapping.</p>
@@ -2489,45 +2547,93 @@
 <h3 id="summary-what-the-refactor-looks-like">Summary: What the Refactor Looks Like<a class="headerlink" href="#summary-what-the-refactor-looks-like" title="Permanent link">&para;</a></h3>
 <h4 id="phase-1-dead-code-removal-immediate-05-day">Phase 1: Dead Code Removal (Immediate, ~0.5 day)<a class="headerlink" href="#phase-1-dead-code-removal-immediate-05-day" title="Permanent link">&para;</a></h4>
 <ul>
-<li>Delete <code>chat.pxd</code> (or keep only struct declarations if needed for future)</li>
-<li>Delete <code>log.pxd</code></li>
-<li>Delete <code>gguf.pxd</code></li>
-<li>Remove corresponding unused declarations from <code>common.pxd</code></li>
-<li><strong>Result</strong>: ~400 fewer lines of C++ declarations to maintain</li>
+<li>
+<p>Delete <code>chat.pxd</code> (or keep only struct declarations if needed for future)</p>
+</li>
+<li>
+<p>Delete <code>log.pxd</code></p>
+</li>
+<li>
+<p>Delete <code>gguf.pxd</code></p>
+</li>
+<li>
+<p>Remove corresponding unused declarations from <code>common.pxd</code></p>
+</li>
+<li>
+<p><strong>Result</strong>: ~400 fewer lines of C++ declarations to maintain</p>
+</li>
 </ul>
 <h4 id="phase-2-trivial-replacements-easy-1-day">Phase 2: Trivial Replacements (Easy, ~1 day)<a class="headerlink" href="#phase-2-trivial-replacements-easy-1-day" title="Permanent link">&para;</a></h4>
 <ul>
-<li>Inline <code>common_batch_clear()</code> / <code>common_batch_add()</code> into <code>LlamaBatch</code> (~10 lines of Cython)</li>
-<li>Replace <code>common_context_params_to_llama()</code> with direct field assignment</li>
-<li><strong>Result</strong>: <code>common.h</code> dependency drops to zero active functions</li>
+<li>
+<p>Inline <code>common_batch_clear()</code> / <code>common_batch_add()</code> into <code>LlamaBatch</code> (~10 lines of Cython)</p>
+</li>
+<li>
+<p>Replace <code>common_context_params_to_llama()</code> with direct field assignment</p>
+</li>
+<li>
+<p><strong>Result</strong>: <code>common.h</code> dependency drops to zero active functions</p>
+</li>
 </ul>
 <h4 id="phase-3-sampling-refactor-medium-3-days">Phase 3: Sampling Refactor (Medium, ~3 days)<a class="headerlink" href="#phase-3-sampling-refactor-medium-3-days" title="Permanent link">&para;</a></h4>
 <ul>
-<li>Create Python <code>SamplingParams</code> dataclass replacing <code>common_params_sampling</code> struct</li>
-<li>Rewrite <code>CommonSampler.__init__()</code> to build <code>llama_sampler</code> chains via public API</li>
-<li>Replace <code>common_sampler_sample/accept/reset/clone</code> with direct <code>llama_sampler_*</code> calls</li>
-<li>Reimplement debug utilities (<code>print</code>, <code>prev_str</code>, <code>type_to_str</code>) in Python</li>
-<li><strong>Result</strong>: <code>sampling.h</code> dependency eliminated entirely</li>
+<li>
+<p>Create Python <code>SamplingParams</code> dataclass replacing <code>common_params_sampling</code> struct</p>
+</li>
+<li>
+<p>Rewrite <code>CommonSampler.__init__()</code> to build <code>llama_sampler</code> chains via public API</p>
+</li>
+<li>
+<p>Replace <code>common_sampler_sample/accept/reset/clone</code> with direct <code>llama_sampler_*</code> calls</p>
+</li>
+<li>
+<p>Reimplement debug utilities (<code>print</code>, <code>prev_str</code>, <code>type_to_str</code>) in Python</p>
+</li>
+<li>
+<p><strong>Result</strong>: <code>sampling.h</code> dependency eliminated entirely</p>
+</li>
 </ul>
 <h4 id="phase-4-downloadcache-in-python-medium-2-days">Phase 4: Download/Cache in Python (Medium, ~2 days)<a class="headerlink" href="#phase-4-downloadcache-in-python-medium-2-days" title="Permanent link">&para;</a></h4>
 <ul>
-<li>Reimplement HuggingFace file resolution using <code>huggingface_hub</code> or raw HTTP</li>
-<li>Reimplement model download with progress reporting</li>
-<li>Reimplement cache listing as directory scan</li>
-<li>Reimplement Docker registry resolution</li>
-<li><strong>Result</strong>: <code>download.h</code> dependency eliminated</li>
+<li>
+<p>Reimplement HuggingFace file resolution using <code>huggingface_hub</code> or raw HTTP</p>
+</li>
+<li>
+<p>Reimplement model download with progress reporting</p>
+</li>
+<li>
+<p>Reimplement cache listing as directory scan</p>
+</li>
+<li>
+<p>Reimplement Docker registry resolution</p>
+</li>
+<li>
+<p><strong>Result</strong>: <code>download.h</code> dependency eliminated</p>
+</li>
 </ul>
 <h4 id="phase-5-n-gram-cache-in-python-medium-low-1-day">Phase 5: N-gram Cache in Python (Medium-low, ~1 day)<a class="headerlink" href="#phase-5-n-gram-cache-in-python-medium-low-1-day" title="Permanent link">&para;</a></h4>
 <ul>
-<li>Reimplement n-gram cache as Python <code>dict[tuple[int, ...], list[int]]</code></li>
-<li>Reimplement save/load as JSON or pickle</li>
-<li><strong>Result</strong>: <code>ngram_cache.h</code> dependency eliminated</li>
+<li>
+<p>Reimplement n-gram cache as Python <code>dict[tuple[int, ...], list[int]]</code></p>
+</li>
+<li>
+<p>Reimplement save/load as JSON or pickle</p>
+</li>
+<li>
+<p><strong>Result</strong>: <code>ngram_cache.h</code> dependency eliminated</p>
+</li>
 </ul>
 <h4 id="phase-6-speculative-decoding-hard-5-days">Phase 6: Speculative Decoding (Hard, ~5 days)<a class="headerlink" href="#phase-6-speculative-decoding-hard-5-days" title="Permanent link">&para;</a></h4>
 <ul>
-<li>Reimplement draft-verify loop using public <code>llama_decode()</code> + <code>llama_memory_seq_*()</code> APIs</li>
-<li>Careful testing required for KV cache state management correctness</li>
-<li><strong>Result</strong>: <code>speculative.h</code> dependency eliminated</li>
+<li>
+<p>Reimplement draft-verify loop using public <code>llama_decode()</code> + <code>llama_memory_seq_*()</code> APIs</p>
+</li>
+<li>
+<p>Careful testing required for KV cache state management correctness</p>
+</li>
+<li>
+<p><strong>Result</strong>: <code>speculative.h</code> dependency eliminated</p>
+</li>
 </ul>
 <p><strong>OR</strong>: Keep speculative decoding as an optional feature requiring from-source build.</p>
 <h3 id="post-refactor-state">Post-Refactor State<a class="headerlink" href="#post-refactor-state" title="Permanent link">&para;</a></h3>
@@ -2672,51 +2778,111 @@
 <p>All phases implemented and verified (full test suite passing).</p>
 <h3 id="phase-1-dead-code-removal">Phase 1: Dead Code Removal<a class="headerlink" href="#phase-1-dead-code-removal" title="Permanent link">&para;</a></h3>
 <ul>
-<li>Deleted <code>chat.pxd</code> (202 lines) and <code>log.pxd</code> (60 lines) -- cimported but never referenced</li>
-<li>Removed <code>cimport chat</code> and <code>cimport log</code> from <code>llama_cpp.pyx</code></li>
-<li><strong>Kept</strong> <code>gguf.pxd</code> (actively used by <code>GgufContext</code> class; wraps public <code>gguf.h</code> API)</li>
+<li>
+<p>Deleted <code>chat.pxd</code> (202 lines) and <code>log.pxd</code> (60 lines) -- cimported but never referenced</p>
+</li>
+<li>
+<p>Removed <code>cimport chat</code> and <code>cimport log</code> from <code>llama_cpp.pyx</code></p>
+</li>
+<li>
+<p><strong>Kept</strong> <code>gguf.pxd</code> (actively used by <code>GgufContext</code> class; wraps public <code>gguf.h</code> API)</p>
+</li>
 </ul>
 <h3 id="phase-2-inlined-batch-helpers">Phase 2: Inlined Batch Helpers<a class="headerlink" href="#phase-2-inlined-batch-helpers" title="Permanent link">&para;</a></h3>
 <ul>
-<li>Replaced <code>common.common_batch_add()</code> with direct array assignment in <code>LlamaBatch.add()</code></li>
-<li>Replaced <code>common.common_batch_clear()</code> with <code>self.p.n_tokens = 0</code> in <code>LlamaBatch.clear()</code></li>
+<li>
+<p>Replaced <code>common.common_batch_add()</code> with direct array assignment in <code>LlamaBatch.add()</code></p>
+</li>
+<li>
+<p>Replaced <code>common.common_batch_clear()</code> with <code>self.p.n_tokens = 0</code> in <code>LlamaBatch.clear()</code></p>
+</li>
 </ul>
 <h3 id="phase-3-sampling-refactor">Phase 3: Sampling Refactor<a class="headerlink" href="#phase-3-sampling-refactor" title="Permanent link">&para;</a></h3>
 <ul>
-<li>Deleted <code>sampling.pxd</code> (117 lines) and removed <code>cimport sampling</code> from <code>llama_cpp.pyx</code></li>
-<li>Rewrote <code>CommonSampler</code> in <code>sampling.pxi</code> to use only public <code>llama_sampler_*</code> API:</li>
-<li>Chain construction via <code>llama_sampler_chain_init()</code> + <code>llama_sampler_init_*()</code> for each sampler type</li>
-<li>Grammar as separate sampler with rejection sampling (fast path: sample then check; slow path: constrain then resample)</li>
-<li>Token history tracked in Python <code>collections.deque</code> (replacing C++ <code>ring_buffer</code>)</li>
-<li>Reimplemented all sampler helper functions in Python:</li>
-<li><code>type_to_chr()</code>, <code>type_to_str()</code> via Python dicts</li>
-<li><code>types_from_names()</code>, <code>types_from_chars()</code> via Python lookups</li>
-<li><code>CommonSampler.print()</code> via <code>llama_sampler_chain_n/get/name</code></li>
-<li><code>CommonSampler.prev_str()</code> via <code>llama_token_to_piece</code> public API</li>
+<li>
+<p>Deleted <code>sampling.pxd</code> (117 lines) and removed <code>cimport sampling</code> from <code>llama_cpp.pyx</code></p>
+</li>
+<li>
+<p>Rewrote <code>CommonSampler</code> in <code>sampling.pxi</code> to use only public <code>llama_sampler_*</code> API:</p>
+</li>
+<li>
+<p>Chain construction via <code>llama_sampler_chain_init()</code> + <code>llama_sampler_init_*()</code> for each sampler type</p>
+</li>
+<li>
+<p>Grammar as separate sampler with rejection sampling (fast path: sample then check; slow path: constrain then resample)</p>
+</li>
+<li>
+<p>Token history tracked in Python <code>collections.deque</code> (replacing C++ <code>ring_buffer</code>)</p>
+</li>
+<li>
+<p>Reimplemented all sampler helper functions in Python:</p>
+</li>
+<li>
+<p><code>type_to_chr()</code>, <code>type_to_str()</code> via Python dicts</p>
+</li>
+<li>
+<p><code>types_from_names()</code>, <code>types_from_chars()</code> via Python lookups</p>
+</li>
+<li>
+<p><code>CommonSampler.print()</code> via <code>llama_sampler_chain_n/get/name</code></p>
+</li>
+<li>
+<p><code>CommonSampler.prev_str()</code> via <code>llama_token_to_piece</code> public API</p>
+</li>
 </ul>
 <h3 id="phase-4-download-functions-in-python">Phase 4: Download Functions in Python<a class="headerlink" href="#phase-4-download-functions-in-python" title="Permanent link">&para;</a></h3>
 <ul>
-<li>Deleted <code>download.pxd</code> (55 lines) and removed <code>cimport download</code> from <code>llama_cpp.pyx</code></li>
-<li>Rewrote all 4 download functions using Python <code>urllib.request</code> (stdlib, no external deps):</li>
-<li><code>get_hf_file()</code>: HF manifest API + JSON caching</li>
-<li><code>download_model()</code>: HTTP download with ETag caching, resume, retry</li>
-<li><code>list_cached_models()</code>: Filesystem scan of <code>manifest=*.json</code> files</li>
-<li><code>resolve_docker_model()</code>: Docker Hub auth + manifest + blob download</li>
+<li>
+<p>Deleted <code>download.pxd</code> (55 lines) and removed <code>cimport download</code> from <code>llama_cpp.pyx</code></p>
+</li>
+<li>
+<p>Rewrote all 4 download functions using Python <code>urllib.request</code> (stdlib, no external deps):</p>
+</li>
+<li>
+<p><code>get_hf_file()</code>: HF manifest API + JSON caching</p>
+</li>
+<li>
+<p><code>download_model()</code>: HTTP download with ETag caching, resume, retry</p>
+</li>
+<li>
+<p><code>list_cached_models()</code>: Filesystem scan of <code>manifest=*.json</code> files</p>
+</li>
+<li>
+<p><code>resolve_docker_model()</code>: Docker Hub auth + manifest + blob download</p>
+</li>
 </ul>
 <h3 id="phase-5-n-gram-cache-in-python">Phase 5: N-gram Cache in Python<a class="headerlink" href="#phase-5-n-gram-cache-in-python" title="Permanent link">&para;</a></h3>
 <ul>
-<li>Deleted <code>ngram_cache.pxd</code> (74 lines) and removed <code>cimport ngram_cache</code> from <code>llama_cpp.pyx</code></li>
-<li>Rewrote <code>NgramCache</code> as a pure Python class:</li>
-<li>Cache stored as <code>dict[tuple, dict[int, int]]</code> (ngram -&gt; {next_token: count})</li>
-<li>Three-tier draft algorithm (context/dynamic/static) with confidence thresholds</li>
-<li>Binary save/load format compatible with C++ implementation via <code>struct</code> module</li>
+<li>
+<p>Deleted <code>ngram_cache.pxd</code> (74 lines) and removed <code>cimport ngram_cache</code> from <code>llama_cpp.pyx</code></p>
+</li>
+<li>
+<p>Rewrote <code>NgramCache</code> as a pure Python class:</p>
+</li>
+<li>
+<p>Cache stored as <code>dict[tuple, dict[int, int]]</code> (ngram -&gt; {next_token: count})</p>
+</li>
+<li>
+<p>Three-tier draft algorithm (context/dynamic/static) with confidence thresholds</p>
+</li>
+<li>
+<p>Binary save/load format compatible with C++ implementation via <code>struct</code> module</p>
+</li>
 </ul>
 <h3 id="field-mismatch-fix-param-conversion-inline">Field Mismatch Fix + Param Conversion Inline<a class="headerlink" href="#field-mismatch-fix-param-conversion-inline" title="Permanent link">&para;</a></h3>
 <ul>
-<li>Fixed <code>common.pxd</code>: <code>flash_attn</code> (bint) -&gt; <code>flash_attn_type</code> (llama_flash_attn_type enum)</li>
-<li>Fixed <code>llama.pxd</code>: Added missing <code>embeddings</code> bool field to <code>llama_context_params</code></li>
-<li>Inlined <code>common_context_params_to_llama()</code> as direct field assignment in <code>LlamaContextParams.from_common_params()</code></li>
-<li><strong>Zero <code>common.h</code> function calls remain</strong> -- only struct/enum type declarations</li>
+<li>
+<p>Fixed <code>common.pxd</code>: <code>flash_attn</code> (bint) -&gt; <code>flash_attn_type</code> (llama_flash_attn_type enum)</p>
+</li>
+<li>
+<p>Fixed <code>llama.pxd</code>: Added missing <code>embeddings</code> bool field to <code>llama_context_params</code></p>
+</li>
+<li>
+<p>Inlined <code>common_context_params_to_llama()</code> as direct field assignment in <code>LlamaContextParams.from_common_params()</code></p>
+</li>
+<li>
+<p><strong>Zero <code>common.h</code> function calls remain</strong> -- only struct/enum type declarations</p>
+</li>
 </ul>
 <h3 id="remaining-internal-c-dependencies">Remaining Internal C++ Dependencies<a class="headerlink" href="#remaining-internal-c-dependencies" title="Permanent link">&para;</a></h3>
 <table>
@@ -2747,23 +2913,45 @@
 </code></pre></div>
 <p><strong>CMake options</strong>:</p>
 <ul>
-<li><code>WITH_DYLIB=ON</code> -- link against shared <code>.dylib</code>/<code>.so</code> files instead of static <code>.a</code> archives</li>
-<li><code>LLAMACPP_DYLIB_DIR=/path/to/release</code> -- directory containing pre-built shared libraries</li>
-<li><code>SD_USE_VENDORED_GGML=ON</code> (default) -- link stable-diffusion against its own vendored ggml; set to <code>OFF</code> to share llama.cpp's ggml (not recommended for GPU backends)</li>
+<li>
+<p><code>WITH_DYLIB=ON</code> -- link against shared <code>.dylib</code>/<code>.so</code> files instead of static <code>.a</code> archives</p>
+</li>
+<li>
+<p><code>LLAMACPP_DYLIB_DIR=/path/to/release</code> -- directory containing pre-built shared libraries</p>
+</li>
+<li>
+<p><code>SD_USE_VENDORED_GGML=ON</code> (default) -- link stable-diffusion against its own vendored ggml; set to <code>OFF</code> to share llama.cpp's ggml (not recommended for GPU backends)</p>
+</li>
 </ul>
 <p><strong>How it works</strong>:</p>
 <ul>
-<li>Core llama.cpp libraries (<code>libllama</code>, <code>libggml*</code>, <code>libmtmd</code>) linked as shared libraries</li>
-<li><code>libcpp-httplib.a</code> still built from source (not in releases, needed for embedded server)</li>
-<li><code>libcommon.a</code> is no longer linked -- JSON schema-to-grammar conversion is now pure Python, and all other <code>common.h</code> dependencies have been eliminated</li>
-<li>Shared libraries copied alongside extension modules (<code>cyllama/llama/</code>) so <code>@loader_path</code>/<code>$ORIGIN</code> RPATH resolves correctly</li>
-<li>Whisper and Stable Diffusion remain statically linked (no pre-built releases available). Stable Diffusion uses its own vendored ggml by default; set <code>SD_USE_VENDORED_GGML=0</code> to share llama.cpp's ggml (not recommended for GPU backends due to ggml version incompatibilities)</li>
+<li>
+<p>Core llama.cpp libraries (<code>libllama</code>, <code>libggml*</code>, <code>libmtmd</code>) linked as shared libraries</p>
+</li>
+<li>
+<p><code>libcpp-httplib.a</code> still built from source (not in releases, needed for embedded server)</p>
+</li>
+<li>
+<p><code>libcommon.a</code> is no longer linked -- JSON schema-to-grammar conversion is now pure Python, and all other <code>common.h</code> dependencies have been eliminated</p>
+</li>
+<li>
+<p>Shared libraries copied alongside extension modules (<code>cyllama/llama/</code>) so <code>@loader_path</code>/<code>$ORIGIN</code> RPATH resolves correctly</p>
+</li>
+<li>
+<p>Whisper and Stable Diffusion remain statically linked (no pre-built releases available). Stable Diffusion uses its own vendored ggml by default; set <code>SD_USE_VENDORED_GGML=0</code> to share llama.cpp's ggml (not recommended for GPU backends due to ggml version incompatibilities)</p>
+</li>
 </ul>
 <p><strong>Validated results</strong> (macOS arm64, b8522 release):</p>
 <ul>
-<li>Extension size: 1.6 MB (vs ~15 MB with static linking)</li>
-<li>All tests passing (120+ tests verified including generation, batching, chat, context)</li>
-<li>Pre-built dylibs installed alongside extension: <code>libllama.dylib</code> (2.3MB), <code>libggml*.dylib</code>, <code>libmtmd.dylib</code></li>
+<li>
+<p>Extension size: 1.6 MB (vs ~15 MB with static linking)</p>
+</li>
+<li>
+<p>All tests passing (120+ tests verified including generation, batching, chat, context)</p>
+</li>
+<li>
+<p>Pre-built dylibs installed alongside extension: <code>libllama.dylib</code> (2.3MB), <code>libggml*.dylib</code>, <code>libmtmd.dylib</code></p>
+</li>
 </ul>
 <hr />
 <h2 id="dev-branch-merge-analysis-2026-03-28">Dev Branch Merge Analysis (2026-03-28)<a class="headerlink" href="#dev-branch-merge-analysis-2026-03-28" title="Permanent link">&para;</a></h2>
@@ -2775,15 +2963,27 @@ The branch removes all <code>common.h</code>/<code>libcommon</code> dependencies
 <code>WITH_DYLIB=1</code> is a new build mode that links against pre-built llama.cpp releases instead of compiling from source. Extension size drops from ~15 MB to ~1.6 MB, build time goes from minutes to seconds. This unblocks faster iteration and simpler CI.</p>
 <p><strong>3. Build system consistency</strong></p>
 <ul>
-<li>Unified ggml across all three backends (was 0.9.5 for SD, 0.9.8 for the rest)</li>
-<li>Unified GPU backend flags (<code>GGML_*</code> applies to all components, no more separate <code>SD_METAL</code>)</li>
-<li>sqlite-vector vendored and built from CMake (no more <code>.gitignore</code> hacks for pre-built binaries)</li>
+<li>
+<p>Unified ggml across all three backends (was 0.9.5 for SD, 0.9.8 for the rest)</p>
+</li>
+<li>
+<p>Unified GPU backend flags (<code>GGML_*</code> applies to all components, no more separate <code>SD_METAL</code>)</p>
+</li>
+<li>
+<p>sqlite-vector vendored and built from CMake (no more <code>.gitignore</code> hacks for pre-built binaries)</p>
+</li>
 </ul>
 <p><strong>4. Correctness fixes</strong></p>
 <ul>
-<li><code>flash_attn</code> / <code>flash_attn_type</code> struct mismatch (potential silent memory corruption)</li>
-<li>Missing <code>embeddings</code> field in <code>llama_context_params</code> (struct layout mismatch)</li>
-<li><code>_build_info.py</code> reporting wrong ggml version for SD</li>
+<li>
+<p><code>flash_attn</code> / <code>flash_attn_type</code> struct mismatch (potential silent memory corruption)</p>
+</li>
+<li>
+<p>Missing <code>embeddings</code> field in <code>llama_context_params</code> (struct layout mismatch)</p>
+</li>
+<li>
+<p><code>_build_info.py</code> reporting wrong ggml version for SD</p>
+</li>
 </ul>
 <p><strong>5. Cleaner test suite</strong>
 Removed ~220 lines of tests for <code>CommonParams</code>/<code>CommonParamsSampling</code> that tested deleted wrapper classes. The remaining tests cover the actual public API.</p>

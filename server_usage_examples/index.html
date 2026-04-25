@@ -1945,15 +1945,27 @@
 <h2 id="server-types">Server Types<a class="headerlink" href="#server-types" title="Permanent link">&para;</a></h2>
 <h3 id="1-mongoose-c-server-embeddedserver">1. Mongoose C Server (EmbeddedServer)<a class="headerlink" href="#1-mongoose-c-server-embeddedserver" title="Permanent link">&para;</a></h3>
 <ul>
-<li>Native C networking via the Mongoose web server library</li>
-<li>High concurrency and low overhead</li>
-<li>Compiled as part of the standard <code>make build</code></li>
+<li>
+<p>Native C networking via the Mongoose web server library</p>
+</li>
+<li>
+<p>High concurrency and low overhead</p>
+</li>
+<li>
+<p>Compiled as part of the standard <code>make build</code></p>
+</li>
 </ul>
 <h3 id="2-python-http-server-pythonserver">2. Python HTTP Server (PythonServer)<a class="headerlink" href="#2-python-http-server-pythonserver" title="Permanent link">&para;</a></h3>
 <ul>
-<li>Pure Python HTTP server (stdlib <code>http.server</code>)</li>
-<li>No compiled dependencies beyond the core Cython extensions</li>
-<li>Subject to Python GIL limitations</li>
+<li>
+<p>Pure Python HTTP server (stdlib <code>http.server</code>)</p>
+</li>
+<li>
+<p>No compiled dependencies beyond the core Cython extensions</p>
+</li>
+<li>
+<p>Subject to Python GIL limitations</p>
+</li>
 </ul>
 <h2 id="basic-usage">Basic Usage<a class="headerlink" href="#basic-usage" title="Permanent link">&para;</a></h2>
 <h3 id="start-default-embedded-server">Start Default Embedded Server<a class="headerlink" href="#start-default-embedded-server" title="Permanent link">&para;</a></h3>
@@ -2142,17 +2154,33 @@
 <h2 id="when-to-use-each">When to Use Each<a class="headerlink" href="#when-to-use-each" title="Permanent link">&para;</a></h2>
 <h3 id="use-embeddedserver-mongoose-when">Use EmbeddedServer (Mongoose) When<a class="headerlink" href="#use-embeddedserver-mongoose-when" title="Permanent link">&para;</a></h3>
 <ul>
-<li>Production deployments</li>
-<li>Multiple concurrent users</li>
-<li>High-throughput requirements</li>
-<li>Performance is critical</li>
+<li>
+<p>Production deployments</p>
+</li>
+<li>
+<p>Multiple concurrent users</p>
+</li>
+<li>
+<p>High-throughput requirements</p>
+</li>
+<li>
+<p>Performance is critical</p>
+</li>
 </ul>
 <h3 id="use-pythonserver-when">Use PythonServer When<a class="headerlink" href="#use-pythonserver-when" title="Permanent link">&para;</a></h3>
 <ul>
-<li>Developing or testing</li>
-<li>Single-user applications</li>
-<li>Simplicity is preferred</li>
-<li>No special performance requirements</li>
+<li>
+<p>Developing or testing</p>
+</li>
+<li>
+<p>Single-user applications</p>
+</li>
+<li>
+<p>Simplicity is preferred</p>
+</li>
+<li>
+<p>No special performance requirements</p>
+</li>
 </ul>
 
 

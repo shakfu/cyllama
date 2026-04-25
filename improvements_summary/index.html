@@ -1834,12 +1834,24 @@
 <p><strong>Solution</strong>: Created a simple, Pythonic API for text generation.</p>
 <p><strong>Key Features</strong>:</p>
 <ul>
-<li><code>complete()</code> - One-line text generation</li>
-<li><code>chat()</code> - Multi-turn conversation interface</li>
-<li><code>LLM</code> class - Reusable generator with model caching</li>
-<li><code>GenerationConfig</code> - Comprehensive configuration dataclass</li>
-<li>Streaming support with token callbacks</li>
-<li>Automatic context and sampler management</li>
+<li>
+<p><code>complete()</code> - One-line text generation</p>
+</li>
+<li>
+<p><code>chat()</code> - Multi-turn conversation interface</p>
+</li>
+<li>
+<p><code>LLM</code> class - Reusable generator with model caching</p>
+</li>
+<li>
+<p><code>GenerationConfig</code> - Comprehensive configuration dataclass</p>
+</li>
+<li>
+<p>Streaming support with token callbacks</p>
+</li>
+<li>
+<p>Automatic context and sampler management</p>
+</li>
 </ul>
 <p><strong>Example</strong>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama</span><span class="w"> </span><span class="kn">import</span> <span class="n">complete</span>
@@ -1857,10 +1869,18 @@
 <p><strong>Solution</strong>: Created OpenAI-API-compatible interface.</p>
 <p><strong>Key Features</strong>:</p>
 <ul>
-<li><code>OpenAICompatibleClient</code> - Drop-in replacement for OpenAI client</li>
-<li>Chat completions with streaming</li>
-<li>Compatible message format</li>
-<li>Usage statistics (token counts)</li>
+<li>
+<p><code>OpenAICompatibleClient</code> - Drop-in replacement for OpenAI client</p>
+</li>
+<li>
+<p>Chat completions with streaming</p>
+</li>
+<li>
+<p>Compatible message format</p>
+</li>
+<li>
+<p>Usage statistics (token counts)</p>
+</li>
 </ul>
 <p><strong>Example</strong>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.integrations.openai_compat</span><span class="w"> </span><span class="kn">import</span> <span class="n">OpenAICompatibleClient</span>
@@ -1875,10 +1895,18 @@
 <p><strong>Solution</strong>: Created LangChain-compatible LLM wrapper.</p>
 <p><strong>Key Features</strong>:</p>
 <ul>
-<li><code>CyllamaLLM</code> - LangChain LLM interface</li>
-<li>Works with chains, agents, tools</li>
-<li>Streaming support with callbacks</li>
-<li>Proper error handling when LangChain not installed</li>
+<li>
+<p><code>CyllamaLLM</code> - LangChain LLM interface</p>
+</li>
+<li>
+<p>Works with chains, agents, tools</p>
+</li>
+<li>
+<p>Streaming support with callbacks</p>
+</li>
+<li>
+<p>Proper error handling when LangChain not installed</p>
+</li>
 </ul>
 <p><strong>Example</strong>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.integrations</span><span class="w"> </span><span class="kn">import</span> <span class="n">CyllamaLLM</span>
@@ -1909,24 +1937,52 @@
 <h3 id="1-user-guide-docsuser_guidemd">1. User Guide (<code>docs/USER_GUIDE.md</code>)<a class="headerlink" href="#1-user-guide-docsuser_guidemd" title="Permanent link">&para;</a></h3>
 <p>Comprehensive 450+ line guide covering:</p>
 <ul>
-<li>Getting Started</li>
-<li>High-Level API usage</li>
-<li>Streaming generation</li>
-<li>Framework integrations</li>
-<li>Advanced features (speculative decoding, memory estimation)</li>
-<li>Performance optimization</li>
-<li>Troubleshooting</li>
-<li>Best practices</li>
+<li>
+<p>Getting Started</p>
+</li>
+<li>
+<p>High-Level API usage</p>
+</li>
+<li>
+<p>Streaming generation</p>
+</li>
+<li>
+<p>Framework integrations</p>
+</li>
+<li>
+<p>Advanced features (speculative decoding, memory estimation)</p>
+</li>
+<li>
+<p>Performance optimization</p>
+</li>
+<li>
+<p>Troubleshooting</p>
+</li>
+<li>
+<p>Best practices</p>
+</li>
 </ul>
 <h3 id="2-cookbook-docscookbookmd">2. Cookbook (<code>docs/COOKBOOK.md</code>)<a class="headerlink" href="#2-cookbook-docscookbookmd" title="Permanent link">&para;</a></h3>
 <p>Practical recipes for common tasks:</p>
 <ul>
-<li><strong>Text Generation Patterns</strong>: Q&amp;A, creative writing, code generation, summarization</li>
-<li><strong>Chat Applications</strong>: Simple chatbot, streaming chatbot</li>
-<li><strong>Structured Output</strong>: JSON generation, list generation</li>
-<li><strong>Performance Patterns</strong>: Batch processing with progress, parallel generation</li>
-<li><strong>Integration Patterns</strong>: FastAPI server, Flask streaming, Gradio interface</li>
-<li><strong>Error Handling</strong>: Retries, timeouts, validation</li>
+<li>
+<p><strong>Text Generation Patterns</strong>: Q&amp;A, creative writing, code generation, summarization</p>
+</li>
+<li>
+<p><strong>Chat Applications</strong>: Simple chatbot, streaming chatbot</p>
+</li>
+<li>
+<p><strong>Structured Output</strong>: JSON generation, list generation</p>
+</li>
+<li>
+<p><strong>Performance Patterns</strong>: Batch processing with progress, parallel generation</p>
+</li>
+<li>
+<p><strong>Integration Patterns</strong>: FastAPI server, Flask streaming, Gradio interface</p>
+</li>
+<li>
+<p><strong>Error Handling</strong>: Retries, timeouts, validation</p>
+</li>
 </ul>
 <h3 id="3-this-summary-document">3. This Summary Document<a class="headerlink" href="#3-this-summary-document" title="Permanent link">&para;</a></h3>
 <p>Complete overview of all improvements with examples and migration guidance.</p>
@@ -1934,20 +1990,36 @@
 <h3 id="new-test-files">New Test Files<a class="headerlink" href="#new-test-files" title="Permanent link">&para;</a></h3>
 <ol>
 <li><strong><code>tests/test_generate.py</code> (tests for LLM, complete, chat)</strong> - 60+ tests for high-level generation API</li>
-<li>Configuration management</li>
-<li>Simple and streaming generation</li>
-<li>Token callbacks</li>
-<li>Statistics collection</li>
+<li>
+<p>Configuration management</p>
+</li>
+<li>
+<p>Simple and streaming generation</p>
+</li>
+<li>
+<p>Token callbacks</p>
+</li>
+<li>
+<p>Statistics collection</p>
+</li>
 <li>
 <p>Edge cases</p>
 </li>
 <li>
 <p><strong><code>tests/test_integrations.py</code></strong> - 10+ tests for framework integrations</p>
 </li>
-<li>OpenAI-compatible client</li>
-<li>Streaming responses</li>
-<li>Multi-message conversations</li>
-<li>Error handling</li>
+<li>
+<p>OpenAI-compatible client</p>
+</li>
+<li>
+<p>Streaming responses</p>
+</li>
+<li>
+<p>Multi-message conversations</p>
+</li>
+<li>
+<p>Error handling</p>
+</li>
 </ol>
 <h3 id="test-results">Test Results<a class="headerlink" href="#test-results" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>276 tests passing
@@ -2003,22 +2075,38 @@
 <h3 id="1-model-reuse">1. Model Reuse<a class="headerlink" href="#1-model-reuse" title="Permanent link">&para;</a></h3>
 <p><strong>LLM class</strong> caches model between generations:</p>
 <ul>
-<li><strong>Before</strong>: 5-10 seconds per generation (including load time)</li>
-<li><strong>After</strong>: &lt;1 second per generation (after first load)</li>
+<li>
+<p><strong>Before</strong>: 5-10 seconds per generation (including load time)</p>
+</li>
+<li>
+<p><strong>After</strong>: &lt;1 second per generation (after first load)</p>
+</li>
 </ul>
 <h3 id="2-batch-processing">2. Batch Processing<a class="headerlink" href="#2-batch-processing" title="Permanent link">&para;</a></h3>
 <p><strong>BatchGenerator and batch_generate()</strong> for parallel prompt processing:</p>
 <ul>
-<li><strong>Before</strong>: N prompts × generation time (sequential)</li>
-<li><strong>After</strong>: ~generation time (all prompts processed in parallel)</li>
-<li><strong>Speedup</strong>: 3-10x depending on batch size</li>
-<li><strong>Note</strong>: Batch processing was initially broken (incorrect API usage) and has been fixed with proper implementation of <code>LlamaBatch.add()</code> and <code>clear()</code> methods</li>
+<li>
+<p><strong>Before</strong>: N prompts × generation time (sequential)</p>
+</li>
+<li>
+<p><strong>After</strong>: ~generation time (all prompts processed in parallel)</p>
+</li>
+<li>
+<p><strong>Speedup</strong>: 3-10x depending on batch size</p>
+</li>
+<li>
+<p><strong>Note</strong>: Batch processing was initially broken (incorrect API usage) and has been fixed with proper implementation of <code>LlamaBatch.add()</code> and <code>clear()</code> methods</p>
+</li>
 </ul>
 <h3 id="3-context-management">3. Context Management<a class="headerlink" href="#3-context-management" title="Permanent link">&para;</a></h3>
 <p>Automatic context sizing based on prompt + max_tokens:</p>
 <ul>
-<li>Prevents over-allocation of memory</li>
-<li>Optimizes batch sizes automatically</li>
+<li>
+<p>Prevents over-allocation of memory</p>
+</li>
+<li>
+<p>Optimizes batch sizes automatically</p>
+</li>
 </ul>
 <h2 id="api-design-principles">API Design Principles<a class="headerlink" href="#api-design-principles" title="Permanent link">&para;</a></h2>
 <p>All new APIs follow these principles:</p>
@@ -2033,24 +2121,36 @@
 <h2 id="usage-statistics">Usage Statistics<a class="headerlink" href="#usage-statistics" title="Permanent link">&para;</a></h2>
 <h3 id="lines-of-code-added">Lines of Code Added<a class="headerlink" href="#lines-of-code-added" title="Permanent link">&para;</a></h3>
 <ul>
-<li><strong>Production Code</strong>: ~1,200 lines</li>
-<li><code>api.py</code>: ~350 lines</li>
-<li><code>integrations/</code>: ~400 lines</li>
+<li>
+<p><strong>Production Code</strong>: ~1,200 lines</p>
+</li>
+<li>
+<p><code>api.py</code>: ~350 lines</p>
+</li>
+<li>
+<p><code>integrations/</code>: ~400 lines</p>
+</li>
 <li>
 <p>Updates to <code>__init__.py</code>: ~30 lines</p>
 </li>
 <li>
 <p><strong>Tests</strong>: ~350 lines</p>
 </li>
-<li><code>test_generate.py</code>: ~250 lines</li>
+<li>
+<p><code>test_generate.py</code>: ~250 lines</p>
+</li>
 <li>
 <p><code>test_integrations.py</code>: ~100 lines</p>
 </li>
 <li>
 <p><strong>Documentation</strong>: ~800 lines</p>
 </li>
-<li><code>USER_GUIDE.md</code>: ~450 lines</li>
-<li><code>COOKBOOK.md</code>: ~350 lines</li>
+<li>
+<p><code>USER_GUIDE.md</code>: ~450 lines</p>
+</li>
+<li>
+<p><code>COOKBOOK.md</code>: ~350 lines</p>
+</li>
 </ul>
 <p><strong>Total</strong>: ~2,350 lines of new code and documentation</p>
 <h2 id="future-enhancements">Future Enhancements<a class="headerlink" href="#future-enhancements" title="Permanent link">&para;</a></h2>
@@ -2086,31 +2186,65 @@
 [x] Zero breaking changes (backward compatible)</p>
 <h3 id="impact">Impact<a class="headerlink" href="#impact" title="Permanent link">&para;</a></h3>
 <ul>
-<li><strong>Ease of Use</strong>: From 50+ lines to 1 line for basic generation</li>
-<li><strong>Performance</strong>: Up to 10x speedup with batch processing</li>
-<li><strong>Integration</strong>: Drop-in compatibility with popular frameworks</li>
-<li><strong>Documentation</strong>: From sparse to comprehensive</li>
-<li><strong>Testing</strong>: From basic to extensive coverage</li>
+<li>
+<p><strong>Ease of Use</strong>: From 50+ lines to 1 line for basic generation</p>
+</li>
+<li>
+<p><strong>Performance</strong>: Up to 10x speedup with batch processing</p>
+</li>
+<li>
+<p><strong>Integration</strong>: Drop-in compatibility with popular frameworks</p>
+</li>
+<li>
+<p><strong>Documentation</strong>: From sparse to comprehensive</p>
+</li>
+<li>
+<p><strong>Testing</strong>: From basic to extensive coverage</p>
+</li>
 </ul>
 <p>The library is now ready for both quick prototyping and production deployment!</p>
 <h2 id="files-changedadded">Files Changed/Added<a class="headerlink" href="#files-changedadded" title="Permanent link">&para;</a></h2>
 <h3 id="new-files">New Files<a class="headerlink" href="#new-files" title="Permanent link">&para;</a></h3>
 <ul>
-<li><code>src/cyllama/generate.py</code></li>
-<li><code>src/cyllama/integrations/__init__.py</code></li>
-<li><code>src/cyllama/integrations/langchain.py</code></li>
-<li><code>src/cyllama/integrations/openai_compat.py</code></li>
-<li><code>tests/test_generate.py</code> (tests for LLM, complete, chat)</li>
-<li><code>tests/test_integrations.py</code></li>
-<li><code>docs/USER_GUIDE.md</code></li>
-<li><code>docs/COOKBOOK.md</code></li>
-<li><code>docs/IMPROVEMENTS_SUMMARY.md</code></li>
+<li>
+<p><code>src/cyllama/generate.py</code></p>
+</li>
+<li>
+<p><code>src/cyllama/integrations/__init__.py</code></p>
+</li>
+<li>
+<p><code>src/cyllama/integrations/langchain.py</code></p>
+</li>
+<li>
+<p><code>src/cyllama/integrations/openai_compat.py</code></p>
+</li>
+<li>
+<p><code>tests/test_generate.py</code> (tests for LLM, complete, chat)</p>
+</li>
+<li>
+<p><code>tests/test_integrations.py</code></p>
+</li>
+<li>
+<p><code>docs/USER_GUIDE.md</code></p>
+</li>
+<li>
+<p><code>docs/COOKBOOK.md</code></p>
+</li>
+<li>
+<p><code>docs/IMPROVEMENTS_SUMMARY.md</code></p>
+</li>
 </ul>
 <h3 id="modified-files">Modified Files<a class="headerlink" href="#modified-files" title="Permanent link">&para;</a></h3>
 <ul>
-<li><code>src/cyllama/__init__.py</code> - Added new exports</li>
-<li><code>RECOMMENDED_TO_WRAP.md</code> - Updated status (already done)</li>
-<li><code>CHANGELOG.md</code> - Added v0.1.8 entry (speculative decoding)</li>
+<li>
+<p><code>src/cyllama/__init__.py</code> - Added new exports</p>
+</li>
+<li>
+<p><code>RECOMMENDED_TO_WRAP.md</code> - Updated status (already done)</p>
+</li>
+<li>
+<p><code>CHANGELOG.md</code> - Added v0.1.8 entry (speculative decoding)</p>
+</li>
 </ul>
 <h2 id="recommended-next-steps">Recommended Next Steps<a class="headerlink" href="#recommended-next-steps" title="Permanent link">&para;</a></h2>
 <ol>
@@ -2122,10 +2256,18 @@
 </ol>
 <h2 id="support">Support<a class="headerlink" href="#support" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Questions: GitHub Issues</li>
-<li>Documentation: <code>docs/</code> directory</li>
-<li>Examples: <code>tests/examples/</code> directory</li>
-<li>Tests: <code>tests/</code> directory</li>
+<li>
+<p>Questions: GitHub Issues</p>
+</li>
+<li>
+<p>Documentation: <code>docs/</code> directory</p>
+</li>
+<li>
+<p>Examples: <code>tests/examples/</code> directory</p>
+</li>
+<li>
+<p>Tests: <code>tests/</code> directory</p>
+</li>
 </ul>
 <hr />
 <p><strong>Contributors</strong>: This comprehensive update demonstrates the project's commitment to both low-level performance and high-level usability.</p>

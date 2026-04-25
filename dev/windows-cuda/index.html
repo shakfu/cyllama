@@ -1482,34 +1482,54 @@ the <code>download_release()</code> fast path.</p>
 <h2 id="tradeoffs">Tradeoffs<a class="headerlink" href="#tradeoffs" title="Permanent link">&para;</a></h2>
 <p><strong>Wins:</strong></p>
 <ul>
-<li>Much faster CI: no <code>nvcc</code> compile of ggml-cuda from source — the
-  longest single step in today's Linux CUDA job is eliminated on Windows</li>
-<li>Smaller runner footprint: arguably no need for the full CUDA toolkit
+<li>
+<p>Much faster CI: no <code>nvcc</code> compile of ggml-cuda from source — the
+  longest single step in today's Linux CUDA job is eliminated on Windows</p>
+</li>
+<li>
+<p>Smaller runner footprint: arguably no need for the full CUDA toolkit
   install, just the runtime DLLs that the prebuilt zip already contains
   (verify before relying on this — nvcc may still be needed for Cython
-  bindings that touch CUDA headers)</li>
-<li>Matches the upstream llama.cpp binary exactly, which simplifies bug
-  reports</li>
+  bindings that touch CUDA headers)</p>
+</li>
+<li>
+<p>Matches the upstream llama.cpp binary exactly, which simplifies bug
+  reports</p>
+</li>
 </ul>
 <p><strong>Costs:</strong></p>
 <ul>
-<li>SD statically links its own ggml, so the wheel carries two ggml copies
+<li>
+<p>SD statically links its own ggml, so the wheel carries two ggml copies
   (llama.cpp's in the DLLs + SD's embedded in <code>libstable-diffusion.a</code>).
-  Slightly larger than the shared-ggml Linux CUDA wheel</li>
-<li>Locked to the CUDA version upstream ships (currently 12.4). Users on
+  Slightly larger than the shared-ggml Linux CUDA wheel</p>
+</li>
+<li>
+<p>Locked to the CUDA version upstream ships (currently 12.4). Users on
   older drivers may have compatibility issues. <code>LLAMACPP_CUDA_RELEASE</code>
   lets you pick a different release variant if upstream publishes more
-  than one</li>
+  than one</p>
+</li>
 </ul>
 <h2 id="delvewheel-repair">delvewheel repair<a class="headerlink" href="#delvewheel-repair" title="Permanent link">&para;</a></h2>
 <p>When <code>WITH_DYLIB=1</code>, the following DLLs will need to land in the wheel
 from <code>thirdparty/llama.cpp/dynamic/</code>:</p>
 <ul>
-<li><code>llama.dll</code></li>
-<li><code>ggml.dll</code></li>
-<li><code>ggml-base.dll</code></li>
-<li><code>ggml-cpu.dll</code></li>
-<li><code>ggml-cuda.dll</code></li>
+<li>
+<p><code>llama.dll</code></p>
+</li>
+<li>
+<p><code>ggml.dll</code></p>
+</li>
+<li>
+<p><code>ggml-base.dll</code></p>
+</li>
+<li>
+<p><code>ggml-cpu.dll</code></p>
+</li>
+<li>
+<p><code>ggml-cuda.dll</code></p>
+</li>
 </ul>
 <p>Verify that <code>delvewheel repair</code> picks them up via the build artifact path
 after scikit-build-core installs them into the wheel tree. The current

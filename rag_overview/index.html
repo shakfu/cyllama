@@ -1841,9 +1841,15 @@
 <h1 id="rag-support">RAG Support<a class="headerlink" href="#rag-support" title="Permanent link">&para;</a></h1>
 <p>Retrieval-Augmented Generation (RAG) enhances LLM responses by retrieving relevant context from a knowledge base before generation. cyllama provides a complete RAG solution using:</p>
 <ul>
-<li><strong>llama.cpp</strong> for both embedding generation and text generation</li>
-<li><strong>sqlite-vector</strong> for high-performance vector similarity search</li>
-<li><strong>SQLite FTS5</strong> for hybrid keyword + semantic search</li>
+<li>
+<p><strong>llama.cpp</strong> for both embedding generation and text generation</p>
+</li>
+<li>
+<p><strong>sqlite-vector</strong> for high-performance vector similarity search</p>
+</li>
+<li>
+<p><strong>SQLite FTS5</strong> for hybrid keyword + semantic search</p>
+</li>
 </ul>
 <h2 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>                    +-----------------+
@@ -1915,8 +1921,12 @@
 </code></pre></div>
 <p>Both slots are typed as structural protocols (<code>EmbedderProtocol</code>, <code>VectorStoreProtocol</code> in <code>cyllama.rag.types</code>). Alternative backends — OpenAI embeddings, Qdrant, Chroma, pgvector, an in-house service — only need to implement the handful of methods the RAG layer actually calls to become drop-in replacements. See:</p>
 <ul>
-<li><a href="../rag_embedder/#pluggable-backends--embedderprotocol">Embedder — Pluggable Backends</a></li>
-<li><a href="../rag_vectorstore/#pluggable-backends--vectorstoreprotocol">SqliteVectorStore — Pluggable Backends</a></li>
+<li>
+<p><a href="../rag_embedder/#pluggable-backends--embedderprotocol">Embedder — Pluggable Backends</a></p>
+</li>
+<li>
+<p><a href="../rag_vectorstore/#pluggable-backends--vectorstoreprotocol">SqliteVectorStore — Pluggable Backends</a></p>
+</li>
 </ul>
 <p>Omit the argument to fall back to the defaults (<code>Embedder</code> over a local GGUF embedding model and <code>SqliteVectorStore</code>).</p>
 <h2 id="components-overview">Components Overview<a class="headerlink" href="#components-overview" title="Permanent link">&para;</a></h2>
@@ -1963,6 +1973,10 @@
 <tr>
 <td><code>SqliteVectorStore</code></td>
 <td>SQLite-based vector storage with sqlite-vector (default backend; implements <code>VectorStoreProtocol</code>). <code>VectorStore</code> remains as a deprecated alias.</td>
+</tr>
+<tr>
+<td><code>QdrantVectorStore</code></td>
+<td>Qdrant adapter for <code>VectorStoreProtocol</code> (optional: <code>uv sync --group qdrant</code>). Reference example for multi-backend support.</td>
 </tr>
 <tr>
 <td><code>HybridStore</code></td>
@@ -2346,11 +2360,21 @@
 </table>
 <h2 id="next-steps">Next Steps<a class="headerlink" href="#next-steps" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="../rag_embedder/">Embedder</a> - Generating embeddings</li>
-<li><a href="../rag_vectorstore/">SqliteVectorStore</a> - Vector storage and search</li>
-<li><a href="../rag_text_processing/">Text Processing</a> - Document splitting and loading</li>
-<li><a href="../rag_pipeline/">RAG Pipeline</a> - RAG pipeline configuration</li>
-<li><a href="../rag_advanced/">Advanced RAG Features</a> - Async, hybrid search, agent integration</li>
+<li>
+<p><a href="../rag_embedder/">Embedder</a> - Generating embeddings</p>
+</li>
+<li>
+<p><a href="../rag_vectorstore/">SqliteVectorStore</a> - Vector storage and search</p>
+</li>
+<li>
+<p><a href="../rag_text_processing/">Text Processing</a> - Document splitting and loading</p>
+</li>
+<li>
+<p><a href="../rag_pipeline/">RAG Pipeline</a> - RAG pipeline configuration</p>
+</li>
+<li>
+<p><a href="../rag_advanced/">Advanced RAG Features</a> - Async, hybrid search, agent integration</p>
+</li>
 </ul>
 
 

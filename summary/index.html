@@ -1543,29 +1543,55 @@
 <h2 id="llamacpp-integration">Llama.cpp Integration<a class="headerlink" href="#llamacpp-integration" title="Permanent link">&para;</a></h2>
 <p>The llama.cpp integration provides multiple layers of API access:</p>
 <ul>
-<li><strong>High-Level API</strong>: <code>complete()</code>, <code>chat()</code>, and <code>LLM</code> class for quick prototyping</li>
-<li><strong>Streaming</strong>: Token-by-token output with callbacks for real-time applications</li>
-<li><strong>Batch Processing</strong>: 3-10x throughput improvements for bulk workloads</li>
-<li><strong>Server Implementations</strong>: OpenAI-compatible REST APIs via EmbeddedServer or PythonServer</li>
-<li><strong>Advanced Features</strong>: Speculative decoding (2-3x speedup), context caching, GGUF manipulation</li>
+<li>
+<p><strong>High-Level API</strong>: <code>complete()</code>, <code>chat()</code>, and <code>LLM</code> class for quick prototyping</p>
+</li>
+<li>
+<p><strong>Streaming</strong>: Token-by-token output with callbacks for real-time applications</p>
+</li>
+<li>
+<p><strong>Batch Processing</strong>: 3-10x throughput improvements for bulk workloads</p>
+</li>
+<li>
+<p><strong>Server Implementations</strong>: OpenAI-compatible REST APIs via EmbeddedServer or PythonServer</p>
+</li>
+<li>
+<p><strong>Advanced Features</strong>: Speculative decoding (2-3x speedup), context caching, GGUF manipulation</p>
+</li>
 </ul>
 <p>Key configuration options include <code>temperature</code>, <code>top_p</code>, <code>top_k</code> for sampling control, and <code>n_gpu_layers</code>, <code>n_ctx</code>, <code>n_batch</code> for performance tuning.</p>
 <h2 id="whispercpp-integration">Whisper.cpp Integration<a class="headerlink" href="#whispercpp-integration" title="Permanent link">&para;</a></h2>
 <p>Speech recognition capabilities include:</p>
 <ul>
-<li><strong>Transcription</strong>: Convert audio to text with segment-level timestamps</li>
-<li><strong>Translation</strong>: Automatic translation to English from 100+ languages</li>
-<li><strong>Word Timestamps</strong>: Token-level timing via DTW alignment</li>
-<li><strong>Voice Activity Detection</strong>: Filter silence and detect speech segments</li>
+<li>
+<p><strong>Transcription</strong>: Convert audio to text with segment-level timestamps</p>
+</li>
+<li>
+<p><strong>Translation</strong>: Automatic translation to English from 100+ languages</p>
+</li>
+<li>
+<p><strong>Word Timestamps</strong>: Token-level timing via DTW alignment</p>
+</li>
+<li>
+<p><strong>Voice Activity Detection</strong>: Filter silence and detect speech segments</p>
+</li>
 </ul>
 <p>Audio must be 16kHz mono float32 format. Model selection trades off speed vs. accuracy (tiny to large-v3).</p>
 <h2 id="stable-diffusion-integration">Stable Diffusion Integration<a class="headerlink" href="#stable-diffusion-integration" title="Permanent link">&para;</a></h2>
 <p>Image generation supports multiple model architectures:</p>
 <ul>
-<li><strong>Text-to-Image</strong>: Generate images from text prompts</li>
-<li><strong>Image-to-Image</strong>: Transform existing images with text guidance</li>
-<li><strong>Video Generation</strong>: Frame sequences with Wan/CogVideoX models</li>
-<li><strong>Upscaling</strong>: ESRGAN-based resolution enhancement</li>
+<li>
+<p><strong>Text-to-Image</strong>: Generate images from text prompts</p>
+</li>
+<li>
+<p><strong>Image-to-Image</strong>: Transform existing images with text guidance</p>
+</li>
+<li>
+<p><strong>Video Generation</strong>: Frame sequences with Wan/CogVideoX models</p>
+</li>
+<li>
+<p><strong>Upscaling</strong>: ESRGAN-based resolution enhancement</p>
+</li>
 </ul>
 <p>Key parameters include <code>sample_steps</code>, <code>cfg_scale</code>, <code>sample_method</code>, and <code>scheduler</code>.</p>
 <h2 id="agent-framework">Agent Framework<a class="headerlink" href="#agent-framework" title="Permanent link">&para;</a></h2>
@@ -1607,9 +1633,15 @@
 </ol>
 <h2 id="next-steps">Next Steps<a class="headerlink" href="#next-steps" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Explore the <a href="../api_reference/">API Reference</a> for detailed function signatures</li>
-<li>Try the <a href="../cookbook/">Cookbook</a> for practical patterns and recipes</li>
-<li>Check the <a href="https://github.com/shakfu/cyllama">GitHub repository</a> for examples and updates</li>
+<li>
+<p>Explore the <a href="../api_reference/">API Reference</a> for detailed function signatures</p>
+</li>
+<li>
+<p>Try the <a href="../cookbook/">Cookbook</a> for practical patterns and recipes</p>
+</li>
+<li>
+<p>Check the <a href="https://github.com/shakfu/cyllama">GitHub repository</a> for examples and updates</p>
+</li>
 </ul>
 
 

@@ -1517,11 +1517,21 @@
 </blockquote>
 <p>This page is for users writing multi-threaded or async code with cyllama. It covers:</p>
 <ul>
-<li>What's safe to share between threads and what isn't</li>
-<li>Patterns that work, with copy-pasteable examples</li>
-<li>Patterns to avoid, and the error you'll see if you trip them</li>
-<li>Async-specific guidance (<code>AsyncLLM</code>, <code>asyncio.to_thread</code>)</li>
-<li>Where to look if you want the design rationale (spoiler: <a href="../dev/runtime-guard/"><code>docs/dev/runtime-guard.md</code></a>)</li>
+<li>
+<p>What's safe to share between threads and what isn't</p>
+</li>
+<li>
+<p>Patterns that work, with copy-pasteable examples</p>
+</li>
+<li>
+<p>Patterns to avoid, and the error you'll see if you trip them</p>
+</li>
+<li>
+<p>Async-specific guidance (<code>AsyncLLM</code>, <code>asyncio.to_thread</code>)</p>
+</li>
+<li>
+<p>Where to look if you want the design rationale (spoiler: <a href="../dev/runtime-guard/"><code>docs/dev/runtime-guard.md</code></a>)</p>
+</li>
 </ul>
 <h2 id="whats-safe-to-share">What's safe to share<a class="headerlink" href="#whats-safe-to-share" title="Permanent link">&para;</a></h2>
 <table>
@@ -1689,10 +1699,18 @@
 </code></pre></div>
 <p>Key properties:</p>
 <ul>
-<li>One LLM, shared across all request coroutines.</li>
-<li>Concurrent <code>await llm(...)</code> calls <strong>serialize</strong> (run one after the other), they don't raise. The internal <code>asyncio.Lock</code> is what makes this safe.</li>
-<li>Total throughput is single-LLM throughput. If you need real parallelism, run multiple <code>AsyncLLM</code> instances (one per worker process, or one per GPU).</li>
-<li>Inference still runs on a thread pool internally (via <code>asyncio.to_thread</code>), so the event loop stays responsive.</li>
+<li>
+<p>One LLM, shared across all request coroutines.</p>
+</li>
+<li>
+<p>Concurrent <code>await llm(...)</code> calls <strong>serialize</strong> (run one after the other), they don't raise. The internal <code>asyncio.Lock</code> is what makes this safe.</p>
+</li>
+<li>
+<p>Total throughput is single-LLM throughput. If you need real parallelism, run multiple <code>AsyncLLM</code> instances (one per worker process, or one per GPU).</p>
+</li>
+<li>
+<p>Inference still runs on a thread pool internally (via <code>asyncio.to_thread</code>), so the event loop stays responsive.</p>
+</li>
 </ul>
 <h3 id="pattern-3-asyncioto_thread-with-sequential-ownership-transfer">Pattern 3: <code>asyncio.to_thread</code> with sequential ownership transfer<a class="headerlink" href="#pattern-3-asyncioto_thread-with-sequential-ownership-transfer" title="Permanent link">&para;</a></h3>
 <p>If you have a synchronous LLM and want to call it from an async function without blocking the event loop, <code>asyncio.to_thread</code> is the right tool:</p>
@@ -1763,8 +1781,12 @@
 <h2 id="backend-specific-caveats">Backend-specific caveats<a class="headerlink" href="#backend-specific-caveats" title="Permanent link">&para;</a></h2>
 <p>Per the upstream llama.cpp maintainers (see <a href="../dev/runtime-guard/"><code>docs/dev/runtime-guard.md</code></a> for the citations), thread safety across <em>separate</em> contexts varies by backend:</p>
 <ul>
-<li><strong>CPU, Metal, CUDA</strong>: thread-safe across separate contexts. The "one LLM per worker" pattern works as expected.</li>
-<li><strong>Vulkan, SYCL, HIP, OpenCL</strong>: "probably not" thread-safe even across separate contexts, per the upstream maintainers. If you're running multiple LLMs in parallel on these backends, you may need additional process-level isolation. The cyllama runtime guard prevents the most common mistake (sharing one context) but doesn't help with the rarer mistake (multiple contexts on a backend that can't handle them).</li>
+<li>
+<p><strong>CPU, Metal, CUDA</strong>: thread-safe across separate contexts. The "one LLM per worker" pattern works as expected.</p>
+</li>
+<li>
+<p><strong>Vulkan, SYCL, HIP, OpenCL</strong>: "probably not" thread-safe even across separate contexts, per the upstream maintainers. If you're running multiple LLMs in parallel on these backends, you may need additional process-level isolation. The cyllama runtime guard prevents the most common mistake (sharing one context) but doesn't help with the rarer mistake (multiple contexts on a backend that can't handle them).</p>
+</li>
 </ul>
 <h2 id="want-the-rationale">Want the rationale?<a class="headerlink" href="#want-the-rationale" title="Permanent link">&para;</a></h2>
 <p>This page is "what to do." For "why we did it this way" — the design analysis, the alternatives we rejected (strict thread-id matching, blocking lock / serialize, per-thread context pool, docs-only, fix-upstream), the upstream issue references that establish the contract, and the implementation details — see <a href="../dev/runtime-guard/"><code>docs/dev/runtime-guard.md</code></a>.</p>

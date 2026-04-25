@@ -1458,16 +1458,30 @@
 </ol>
 <h2 id="what-to-defer">What To Defer<a class="headerlink" href="#what-to-defer" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Do not build until a concrete ONNX model and input data format exist to design against.</li>
-<li>The risk of building speculatively is designing an API that does not fit the actual data shapes when they materialize.</li>
-<li>The integration itself is small enough to implement quickly once requirements are concrete.</li>
+<li>
+<p>Do not build until a concrete ONNX model and input data format exist to design against.</p>
+</li>
+<li>
+<p>The risk of building speculatively is designing an API that does not fit the actual data shapes when they materialize.</p>
+</li>
+<li>
+<p>The integration itself is small enough to implement quickly once requirements are concrete.</p>
+</li>
 </ul>
 <h2 id="open-questions">Open Questions<a class="headerlink" href="#open-questions" title="Permanent link">&para;</a></h2>
 <ul>
-<li>What are the input data shapes? (tabular, time-series, spectral, images of samples?)</li>
-<li>Single classification model or an ensemble/pipeline of ONNX models?</li>
-<li>Does the LLM stage need raw probabilities or just top-k class labels?</li>
-<li>Batch processing (many samples -&gt; one report) vs. single-sample workflows?</li>
+<li>
+<p>What are the input data shapes? (tabular, time-series, spectral, images of samples?)</p>
+</li>
+<li>
+<p>Single classification model or an ensemble/pipeline of ONNX models?</p>
+</li>
+<li>
+<p>Does the LLM stage need raw probabilities or just top-k class labels?</p>
+</li>
+<li>
+<p>Batch processing (many samples -&gt; one report) vs. single-sample workflows?</p>
+</li>
 </ul>
 
 

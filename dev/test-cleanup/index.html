@@ -1572,12 +1572,24 @@
 </blockquote>
 <p>This document is a maintainer guide. It explains:</p>
 <ul>
-<li>The symptom (what goes wrong)</li>
-<li>The root cause (why pytest's default scoping is not enough)</li>
-<li>The fix (what every SD test needs)</li>
-<li>The evidence (5-cycle reproducer)</li>
-<li>Scope (SD is proven, LLM/Whisper are precautionary)</li>
-<li>Related mechanisms and precedent</li>
+<li>
+<p>The symptom (what goes wrong)</p>
+</li>
+<li>
+<p>The root cause (why pytest's default scoping is not enough)</p>
+</li>
+<li>
+<p>The fix (what every SD test needs)</p>
+</li>
+<li>
+<p>The evidence (5-cycle reproducer)</p>
+</li>
+<li>
+<p>Scope (SD is proven, LLM/Whisper are precautionary)</p>
+</li>
+<li>
+<p>Related mechanisms and precedent</p>
+</li>
 </ul>
 <p>The design analysis at the end records <em>why</em> we chose Python-side forced cleanup over alternatives like pytest-forked or upstream fixes, so future maintainers can decide whether this is still the right tradeoff.</p>
 <h2 id="the-symptom">The symptom<a class="headerlink" href="#the-symptom" title="Permanent link">&para;</a></h2>
@@ -1691,32 +1703,54 @@
 <p>Each SD test runs in its own subprocess. No cross-test state possible. Zero risk of recurrence.</p>
 <p><strong>Rejected because:</strong></p>
 <ul>
-<li>Adds a plugin dependency for one class of tests.</li>
-<li>Subprocess startup is ~1 second per test; <code>tests/test_sd.py</code> has 8 tests that touch <code>SDContext</code>, so ~8 seconds of overhead on every run.</li>
-<li>Masks the problem rather than addressing it — a future test that needs to create 5 contexts <em>within</em> one process would still crash.</li>
+<li>
+<p>Adds a plugin dependency for one class of tests.</p>
+</li>
+<li>
+<p>Subprocess startup is ~1 second per test; <code>tests/test_sd.py</code> has 8 tests that touch <code>SDContext</code>, so ~8 seconds of overhead on every run.</p>
+</li>
+<li>
+<p>Masks the problem rather than addressing it — a future test that needs to create 5 contexts <em>within</em> one process would still crash.</p>
+</li>
 </ul>
 <h3 id="alternative-2-skip-the-affected-tests-the-short-lived-first-fix">Alternative 2: Skip the affected tests (the short-lived first fix)<a class="headerlink" href="#alternative-2-skip-the-affected-tests-the-short-lived-first-fix" title="Permanent link">&para;</a></h3>
 <p>Mark <code>TestSDContextIntegration</code> and <code>TestSDContextConcurrencyGuard</code> with <code>@pytest.mark.skip</code>, matching the existing precedent for <code>test_deterministic_seed:512</code>.</p>
 <p><strong>Rejected because:</strong></p>
 <ul>
-<li>Loses coverage for the v0.2.5 <code>SDContext</code> concurrent-use guard — the feature whose whole purpose is to prevent silent state corruption on shared contexts. Shipping the guard without its regression tests is worse than the crash.</li>
-<li>Loses the only end-to-end generation smoke test (<code>test_generate_image</code>).</li>
+<li>
+<p>Loses coverage for the v0.2.5 <code>SDContext</code> concurrent-use guard — the feature whose whole purpose is to prevent silent state corruption on shared contexts. Shipping the guard without its regression tests is worse than the crash.</p>
+</li>
+<li>
+<p>Loses the only end-to-end generation smoke test (<code>test_generate_image</code>).</p>
+</li>
 </ul>
 <h3 id="alternative-3-reorder-tests-to-put-integration-tests-before-the-guard-tests">Alternative 3: Reorder tests to put integration tests before the guard tests<a class="headerlink" href="#alternative-3-reorder-tests-to-put-integration-tests-before-the-guard-tests" title="Permanent link">&para;</a></h3>
 <p>Move <code>TestConvenienceFunctionsIntegration</code> earlier in source order. The guard tests then run <em>after</em> the integration tests and only crash things that don't exist yet.</p>
 <p><strong>Rejected because:</strong></p>
 <ul>
-<li>Fragile: any future test added between them silently re-breaks the ordering.</li>
-<li>Obscures intent: source-order dependencies are invisible in PR review.</li>
-<li>Doesn't actually fix the bug — it just hides it behind a precarious sequence.</li>
+<li>
+<p>Fragile: any future test added between them silently re-breaks the ordering.</p>
+</li>
+<li>
+<p>Obscures intent: source-order dependencies are invisible in PR review.</p>
+</li>
+<li>
+<p>Doesn't actually fix the bug — it just hides it behind a precarious sequence.</p>
+</li>
 </ul>
 <h3 id="alternative-4-fix-sdcpps-destructor-ordering-upstream">Alternative 4: Fix SD.cpp's destructor ordering upstream<a class="headerlink" href="#alternative-4-fix-sdcpps-destructor-ordering-upstream" title="Permanent link">&para;</a></h3>
 <p>File an issue on <code>leejet/stable-diffusion.cpp</code> explaining the 5-cycle leak and the member-destructor ordering suspicion. Wait for upstream to fix.</p>
 <p><strong>Rejected because:</strong></p>
 <ul>
-<li>Not verified to be the root cause — the fix might land and not help.</li>
-<li>Uncertain timeline. Multiple SD.cpp Metal bugs have already taken multiple releases to resolve (see v0.2.3 and v0.2.4 CHANGELOG entries).</li>
-<li>Doesn't unblock the current test suite regardless of outcome.</li>
+<li>
+<p>Not verified to be the root cause — the fix might land and not help.</p>
+</li>
+<li>
+<p>Uncertain timeline. Multiple SD.cpp Metal bugs have already taken multiple releases to resolve (see v0.2.3 and v0.2.4 CHANGELOG entries).</p>
+</li>
+<li>
+<p>Doesn't unblock the current test suite regardless of outcome.</p>
+</li>
 </ul>
 <p>We should still file the upstream issue as follow-up, but not as the primary fix.</p>
 <h3 id="alternative-5-chosen-python-side-forced-cleanup">Alternative 5 (chosen): Python-side forced cleanup<a class="headerlink" href="#alternative-5-chosen-python-side-forced-cleanup" title="Permanent link">&para;</a></h3>
@@ -1752,11 +1786,21 @@
 </ol>
 <h2 id="citable-upstream-references">Citable upstream references<a class="headerlink" href="#citable-upstream-references" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="https://github.com/leejet/stable-diffusion.cpp/blob/master/stable-diffusion.cpp">stable-diffusion.cpp source</a> — <code>free_sd_ctx</code> and <code>~StableDiffusionGGML</code></li>
-<li><a href="https://github.com/ggml-org/llama.cpp/blob/master/ggml/src/ggml-metal/ggml-metal.m">ggml-metal.m</a> — <code>ggml_backend_metal_free</code> and Metal buffer lifetime</li>
-<li>cyllama CHANGELOG v0.2.3: "Stable Diffusion generation silently continued on GPU OOM" — the v0.2.3 validation guardrail that turned silent garbage into the <code>RuntimeError</code> we now see</li>
-<li>cyllama CHANGELOG v0.2.4: "Metal backend was previously buggy on stable-diffusion.cpp" — the acknowledgment that SD.cpp Metal is historically fragile</li>
-<li>cyllama CHANGELOG v0.2.5: "Memory-leak regression tests" — the <code>test_memory_leaks.py</code> file this document cites as precedent</li>
+<li>
+<p><a href="https://github.com/leejet/stable-diffusion.cpp/blob/master/stable-diffusion.cpp">stable-diffusion.cpp source</a> — <code>free_sd_ctx</code> and <code>~StableDiffusionGGML</code></p>
+</li>
+<li>
+<p><a href="https://github.com/ggml-org/llama.cpp/blob/master/ggml/src/ggml-metal/ggml-metal.m">ggml-metal.m</a> — <code>ggml_backend_metal_free</code> and Metal buffer lifetime</p>
+</li>
+<li>
+<p>cyllama CHANGELOG v0.2.3: "Stable Diffusion generation silently continued on GPU OOM" — the v0.2.3 validation guardrail that turned silent garbage into the <code>RuntimeError</code> we now see</p>
+</li>
+<li>
+<p>cyllama CHANGELOG v0.2.4: "Metal backend was previously buggy on stable-diffusion.cpp" — the acknowledgment that SD.cpp Metal is historically fragile</p>
+</li>
+<li>
+<p>cyllama CHANGELOG v0.2.5: "Memory-leak regression tests" — the <code>test_memory_leaks.py</code> file this document cites as precedent</p>
+</li>
 </ul>
 <h2 id="revision-history">Revision history<a class="headerlink" href="#revision-history" title="Permanent link">&para;</a></h2>
 <ul>

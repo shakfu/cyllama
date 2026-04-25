@@ -13,28 +13,24 @@
       
       
       
-        <link rel="prev" href="..">
-      
-      
-        <link rel="next" href="../quickstart/">
       
       
         
       
       
-      <link rel="icon" href="../assets/images/favicon.png">
+      <link rel="icon" href="../../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
     
     
       
-        <title>Introduction - cyllama</title>
+        <title>Wheel packaging: dylibs and rpaths - cyllama</title>
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
       
         
-        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
       
       
 
@@ -53,7 +49,7 @@
       
     
     
-    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -78,7 +74,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#introduction" class="md-skip">
+        <a href="#wheel-packaging-dylibs-and-rpaths" class="md-skip">
           Skip to content
         </a>
       
@@ -94,7 +90,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href=".." title="cyllama" class="md-header__button md-logo" aria-label="cyllama" data-md-component="logo">
+    <a href="../.." title="cyllama" class="md-header__button md-logo" aria-label="cyllama" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -114,7 +110,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Introduction
+              Wheel packaging: dylibs and rpaths
             
           </span>
         </div>
@@ -230,7 +226,7 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href=".." title="cyllama" class="md-nav__button md-logo" aria-label="cyllama" data-md-component="logo">
+    <a href="../.." title="cyllama" class="md-nav__button md-logo" aria-label="cyllama" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -260,7 +256,7 @@
   
   
     <li class="md-nav__item">
-      <a href=".." class="md-nav__link">
+      <a href="../.." class="md-nav__link">
         
   
   
@@ -284,37 +280,10 @@
       
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Introduction
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../intro/" class="md-nav__link">
         
   
   
@@ -330,137 +299,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#why-cyllama" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Why cyllama?
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Why cyllama?">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#zero-dependencies" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Zero Dependencies
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#high-performance" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        High Performance
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#pythonic-api" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Pythonic API
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#whats-covered" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        What's Covered
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#getting-started" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Getting Started
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Getting Started">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#quick-start" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Quick Start
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#running-tests" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Running Tests
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#using-uv-commands" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Using uv Commands
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -472,7 +310,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../quickstart/" class="md-nav__link">
+      <a href="../../quickstart/" class="md-nav__link">
         
   
   
@@ -499,7 +337,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../installation/" class="md-nav__link">
+      <a href="../../installation/" class="md-nav__link">
         
   
   
@@ -526,7 +364,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../overview/" class="md-nav__link">
+      <a href="../../overview/" class="md-nav__link">
         
   
   
@@ -553,7 +391,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../summary/" class="md-nav__link">
+      <a href="../../summary/" class="md-nav__link">
         
   
   
@@ -634,7 +472,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../user_guide/" class="md-nav__link">
+      <a href="../../user_guide/" class="md-nav__link">
         
   
   
@@ -662,7 +500,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../cookbook/" class="md-nav__link">
+      <a href="../../cookbook/" class="md-nav__link">
         
   
   
@@ -690,7 +528,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../examples/" class="md-nav__link">
+      <a href="../../examples/" class="md-nav__link">
         
   
   
@@ -718,7 +556,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../build_backends/" class="md-nav__link">
+      <a href="../../build_backends/" class="md-nav__link">
         
   
   
@@ -746,7 +584,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../build_options/" class="md-nav__link">
+      <a href="../../build_options/" class="md-nav__link">
         
   
   
@@ -774,7 +612,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../context_caching/" class="md-nav__link">
+      <a href="../../context_caching/" class="md-nav__link">
         
   
   
@@ -802,7 +640,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../server_usage_examples/" class="md-nav__link">
+      <a href="../../server_usage_examples/" class="md-nav__link">
         
   
   
@@ -891,7 +729,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../whisper/" class="md-nav__link">
+      <a href="../../whisper/" class="md-nav__link">
         
   
   
@@ -980,7 +818,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../stable_diffusion/" class="md-nav__link">
+      <a href="../../stable_diffusion/" class="md-nav__link">
         
   
   
@@ -1069,7 +907,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../agents_overview/" class="md-nav__link">
+      <a href="../../agents_overview/" class="md-nav__link">
         
   
   
@@ -1097,7 +935,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../mcp/" class="md-nav__link">
+      <a href="../../mcp/" class="md-nav__link">
         
   
   
@@ -1186,7 +1024,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../rag_overview/" class="md-nav__link">
+      <a href="../../rag_overview/" class="md-nav__link">
         
   
   
@@ -1214,7 +1052,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../rag_embedder/" class="md-nav__link">
+      <a href="../../rag_embedder/" class="md-nav__link">
         
   
   
@@ -1242,7 +1080,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../rag_vectorstore/" class="md-nav__link">
+      <a href="../../rag_vectorstore/" class="md-nav__link">
         
   
   
@@ -1270,7 +1108,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../rag_text_processing/" class="md-nav__link">
+      <a href="../../rag_text_processing/" class="md-nav__link">
         
   
   
@@ -1298,7 +1136,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../rag_pipeline/" class="md-nav__link">
+      <a href="../../rag_pipeline/" class="md-nav__link">
         
   
   
@@ -1326,7 +1164,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../rag_advanced/" class="md-nav__link">
+      <a href="../../rag_advanced/" class="md-nav__link">
         
   
   
@@ -1415,7 +1253,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../api_reference/" class="md-nav__link">
+      <a href="../../api_reference/" class="md-nav__link">
         
   
   
@@ -1443,7 +1281,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../troubleshooting/" class="md-nav__link">
+      <a href="../../troubleshooting/" class="md-nav__link">
         
   
   
@@ -1498,60 +1336,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#why-cyllama" class="md-nav__link">
+  <a href="#current-approach-canonical-delocate-auditwheel-pattern" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Why cyllama?
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Why cyllama?">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#zero-dependencies" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Zero Dependencies
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#high-performance" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        High Performance
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#pythonic-api" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Pythonic API
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#whats-covered" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        What's Covered
+        Current approach (canonical delocate / auditwheel pattern)
       
     </span>
   </a>
@@ -1559,52 +1347,90 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#getting-started" class="md-nav__link">
+  <a href="#why-this-over-shipping-libs-in-cyllamallama" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Getting Started
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Getting Started">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#quick-start" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Quick Start
+        Why this over shipping libs in cyllama/llama/
       
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
-  <a href="#running-tests" class="md-nav__link">
+      
+        <li class="md-nav__item">
+  <a href="#macos-specific-libggml-blas-on-non-metal-backends" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Running Tests
+        macOS-specific: libggml-blas on non-Metal backends
       
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
-  <a href="#using-uv-commands" class="md-nav__link">
+      
+        <li class="md-nav__item">
+  <a href="#libllama-common" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Using uv Commands
+        libllama-common
       
     </span>
   </a>
   
 </li>
-        
-      </ul>
-    </nav>
+      
+        <li class="md-nav__item">
+  <a href="#wheel-repair-command" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Wheel repair command
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#windows-delvewheel-and-ggml_backend_dl-plugins" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Windows: delvewheel and GGML_BACKEND_DL plugins
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sd_use_vendored_ggml-sharing-ggml-with-stable-diffusioncpp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SD_USE_VENDORED_GGML — sharing ggml with stable-diffusion.cpp
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#installing-from-sdist-non-cibuildwheel-on-macos-linux" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Installing from sdist (non-cibuildwheel) on macOS / Linux
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#references" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        References
+      
+    </span>
+  </a>
   
 </li>
       
@@ -1628,108 +1454,148 @@
   
 
 
-<h1 id="introduction">Introduction<a class="headerlink" href="#introduction" title="Permanent link">&para;</a></h1>
-<p>cyllama is a zero-dependency Python library for local AI inference. It provides high-performance Cython bindings to three powerful C++ inference engines:</p>
+<h1 id="wheel-packaging-dylibs-and-rpaths">Wheel packaging: dylibs and rpaths<a class="headerlink" href="#wheel-packaging-dylibs-and-rpaths" title="Permanent link">&para;</a></h1>
+<h2 id="current-approach-canonical-delocate-auditwheel-pattern">Current approach (canonical delocate / auditwheel pattern)<a class="headerlink" href="#current-approach-canonical-delocate-auditwheel-pattern" title="Permanent link">&para;</a></h2>
+<p>cyllama does not install dynamic libs into <code>cyllama/llama/</code> inside the wheel.
+The repair tool (<code>delocate</code> on macOS, <code>auditwheel</code> on Linux) is the single
+authority for bundling and rewiring runtime libs.</p>
+<p>Flow:</p>
+<ol>
+<li><code>manage.py build --all --dynamic</code> builds llama.cpp as shared libs into
+   <code>thirdparty/llama.cpp/dynamic/</code>. Upstream install names are preserved
+   (<code>LC_ID_DYLIB = @rpath/libllama.0.dylib</code>, etc.).</li>
+<li>CMake builds the Cython extensions (<code>llama_cpp.*.so</code>, <code>whisper_cpp.*.so</code>,
+   <code>embedded.*.so</code>, <code>stable_diffusion.*.so</code>) linking against those shared
+   libs. Each extension gets:</li>
+<li><code>BUILD_RPATH = &lt;build-tree lib dirs&gt;</code> so editable / in-tree use works.</li>
+<li><code>INSTALL_RPATH = &lt;same build-tree lib dirs&gt;</code> so the repair tool can
+     resolve <code>@rpath/libX.0.dylib</code> during wheel repair.</li>
+<li>scikit-build-core produces the wheel. Extensions are inside, dylibs are
+   not.</li>
+<li>Under cibuildwheel, <code>delocate-wheel</code> walks the extension rpaths, resolves
+   each <code>@rpath/libX.0.dylib</code> to the build-tree real file, copies it into
+   <code>cyllama/.dylibs/</code>, rewrites every <code>LC_LOAD_DYLIB</code> to
+   <code>@loader_path/../.dylibs/libX.0.dylib</code>, and sanitises the absolute
+   build-tree paths out of the final wheel. Linux <code>auditwheel</code> does the
+   equivalent with <code>cyllama.libs/</code> and <code>$ORIGIN</code>.</li>
+<li>Final wheel contains one copy per lib in <code>cyllama/.dylibs/</code>, and
+   extensions with relative load commands that don't depend on any
+   external paths.</li>
+</ol>
+<h2 id="why-this-over-shipping-libs-in-cyllamallama">Why this over shipping libs in <code>cyllama/llama/</code><a class="headerlink" href="#why-this-over-shipping-libs-in-cyllamallama" title="Permanent link">&para;</a></h2>
+<p>An earlier scheme installed dylibs into <code>cyllama/llama/</code> <em>and</em> let
+<code>delocate</code> process them, producing duplicated copies (one in
+<code>cyllama/llama/</code>, one in <code>cyllama/.dylibs/</code>, plus Python's zipfile
+flattened each SONAME symlink chain into three identical real files
+per lib — ~4x bloat). The canonical pattern removes the package-dir
+install, so there's a single source of truth.</p>
+<h2 id="macos-specific-libggml-blas-on-non-metal-backends">macOS-specific: <code>libggml-blas</code> on non-Metal backends<a class="headerlink" href="#macos-specific-libggml-blas-on-non-metal-backends" title="Permanent link">&para;</a></h2>
+<p>GGML auto-links the Accelerate framework on macOS regardless of the
+primary backend, so <code>libllama</code>/<code>libggml</code>/<code>libmtmd</code> carry a runtime
+dep on <code>@rpath/libggml-blas.0.dylib</code> even on Vulkan builds. The dylib
+must exist on the filesystem so <code>delocate</code> can resolve the chain.
+<code>CMakeLists.txt</code> appends <code>ggml-blas</code> to <code>_OPTIONAL_DYLIB_NAMES</code> on
+APPLE when <code>GGML_METAL=OFF</code> (Metal already requires it).</p>
+<p>Accelerate itself is system-provided and not bundled.</p>
+<h2 id="libllama-common"><code>libllama-common</code><a class="headerlink" href="#libllama-common" title="Permanent link">&para;</a></h2>
+<p>Upstream's <code>libllama-common</code> links against Homebrew's OpenSSL. On
+<code>macos-15-intel</code> runners the Homebrew OpenSSL is built for min macOS
+15.0, which clashes with our <code>MACOSX_DEPLOYMENT_TARGET=11.0</code>. No
+cyllama extension references <code>libllama-common</code>, so it's not a concern
+unless it ends up on the filesystem in a location <code>delocate</code> walks
+into. Under the current canonical pattern nothing pulls it in, so no
+exclusion is needed — the extension's rpath drives what gets bundled.</p>
+<h2 id="wheel-repair-command">Wheel repair command<a class="headerlink" href="#wheel-repair-command" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>delocate-wheel --require-archs &lt;arch&gt; -w &lt;out-dir&gt; -v &lt;wheel.whl&gt;
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>               --exclude libvulkan
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>               --exclude libMoltenVK
+</code></pre></div>
+<p><code>libvulkan</code> and <code>libMoltenVK</code> are excluded because we expect users to
+have the Vulkan loader / MoltenVK installed system-wide (typically via
+Homebrew or the LunarG SDK). Bundling them would add ~100 MB and
+constrain the MoltenVK version. Revisit if this becomes a user-facing
+friction point.</p>
+<h2 id="windows-delvewheel-and-ggml_backend_dl-plugins">Windows: <code>delvewheel</code> and <code>GGML_BACKEND_DL</code> plugins<a class="headerlink" href="#windows-delvewheel-and-ggml_backend_dl-plugins" title="Permanent link">&para;</a></h2>
+<p>Builds use <code>GGML_BACKEND_DL=ON</code>, so GPU backends (<code>ggml-cuda</code>, <code>ggml-vulkan</code>)
+are compiled as <strong>plugin DLLs loaded at runtime via <code>LoadLibrary</code></strong>, not
+linked into <code>llama.dll</code>. <code>scripts/manage.py</code> builds them explicitly as
+separate targets and copies them into <code>thirdparty/llama.cpp/dynamic/</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">targets</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;llama&quot;</span><span class="p">,</span> <span class="s2">&quot;llama-common&quot;</span><span class="p">,</span> <span class="s2">&quot;mtmd&quot;</span><span class="p">,</span> <span class="s2">&quot;ggml-cpu&quot;</span><span class="p">]</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="k">if</span> <span class="n">backend_options</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;GGML_VULKAN&quot;</span><span class="p">)</span> <span class="o">==</span> <span class="s2">&quot;ON&quot;</span><span class="p">:</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="n">targets</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;ggml-vulkan&quot;</span><span class="p">)</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="k">if</span> <span class="n">backend_options</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;GGML_CUDA&quot;</span><span class="p">)</span> <span class="o">==</span> <span class="s2">&quot;ON&quot;</span><span class="p">:</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    <span class="n">targets</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;ggml-cuda&quot;</span><span class="p">)</span>
+</code></pre></div>
+<p><code>delvewheel</code> only vendors DLLs that are <strong>transitively referenced by a PE
+import table</strong> in the wheel's <code>.pyd</code> / <code>.dll</code> files. Because the backend
+plugins are loaded via <code>LoadLibrary</code> and nothing in the wheel imports
+them by name, delvewheel skips them unless told otherwise. The result:
+<code>build_config.json</code> reports <code>cuda.enabled: true</code> / <code>vulkan.enabled: true</code>,
+but at runtime <code>ggml_backend_load_all_from_path()</code> finds no GPU backend
+and llama/whisper fall back to CPU silently.</p>
+<p>(<code>auditwheel</code> on Linux and <code>delocate</code> on macOS pick up the plugin libs
+via build-tree layout / rpath resolution, so the same source setup
+produces correct wheels there without extra flags.)</p>
+<p>Fix: extend <code>CIBW_REPAIR_WHEEL_COMMAND_WINDOWS</code> with <code>--include</code> for each
+plugin:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nt">CIBW_REPAIR_WHEEL_COMMAND_WINDOWS</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">&gt;</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="no">delvewheel repair -w {dest_dir} {wheel}</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span><span class="no">--add-path {project}\thirdparty\llama.cpp\dynamic</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">  </span><span class="no">--add-path {project}\thirdparty\whisper.cpp\dynamic</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">  </span><span class="no">--add-path {project}\thirdparty\stable-diffusion.cpp\dynamic</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">  </span><span class="no">--include ggml-vulkan.dll        # vulkan job</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">  </span><span class="no"># --include ggml-cuda.dll        # cuda job</span>
+</code></pre></div>
+<p>For the CUDA job, <code>ggml-cuda.dll</code>'s transitive CUDA runtime deps
+(<code>cudart64_12.dll</code>, <code>cublas64_12.dll</code>, <code>cublasLt64_12.dll</code>) must remain
+<code>--no-dll</code>-excluded — users install the CUDA runtime themselves.
+delvewheel will see those deps once <code>ggml-cuda.dll</code> is included, so the
+existing exclusions stay necessary.</p>
+<p>Verification after repair:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>unzip<span class="w"> </span>-l<span class="w"> </span>cyllama_cuda12-*-win_*.whl<span class="w">  </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-i<span class="w"> </span>ggml-cuda<span class="w">     </span><span class="c1"># must show ggml-cuda-*.dll</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>unzip<span class="w"> </span>-l<span class="w"> </span>cyllama_vulkan-*-win_*.whl<span class="w">  </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-i<span class="w"> </span>ggml-vulkan<span class="w">   </span><span class="c1"># must show ggml-vulkan-*.dll</span>
+</code></pre></div>
+<p>Note: smoke tests that only check <code>import cyllama</code> pass even when the GPU
+backend plugin is missing. To catch this class of bug, assert the
+expected backend is actually registered (e.g. via <code>ggml_backend_reg_names</code>
+or <code>llama_supports_gpu_offload</code>).</p>
+<h2 id="sd_use_vendored_ggml-sharing-ggml-with-stable-diffusioncpp"><code>SD_USE_VENDORED_GGML</code> — sharing ggml with stable-diffusion.cpp<a class="headerlink" href="#sd_use_vendored_ggml-sharing-ggml-with-stable-diffusioncpp" title="Permanent link">&para;</a></h2>
+<p>Under <code>link_mode=dynamic</code>, stable-diffusion.cpp should link against
+llama.cpp's shared ggml instead of vendoring its own. <code>manage.py</code> exposes
+this via the <code>SD_USE_VENDORED_GGML</code> env var (or <code>--sd-shared-ggml</code> flag).
+It must be set in <code>CIBW_ENVIRONMENT_*</code> for every job:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="l l-Scalar l-Scalar-Plain">SD_USE_VENDORED_GGML=${{ inputs.link_mode == &#39;dynamic&#39; &amp;&amp; &#39;0&#39; || &#39;1&#39; }}</span>
+</code></pre></div>
+<p>Without it, <code>manage.py</code> defaults to vendored ggml and SD statically
+embeds its own ggml with GPU kernels baked in. Observed impact on a
+Windows CUDA wheel with the flag missing: <code>stable_diffusion.pyd</code> was
+216 MB (vendored ggml + CUDA kernels) vs. ~23 MB on Linux where SD
+shares the single <code>libggml-cuda-*.so</code> with llama/whisper.</p>
+<p>This also causes <code>build_config.json</code> to omit <code>llama_cpp_ggml_version</code>:
+with vendored ggml, <code>write_build_config</code> records only per-project
+vendored versions, not a single shared llama.cpp ggml version — a useful
+signal for auditing whether ggml is actually being shared.</p>
+<p>Reference workflows with the pattern already applied:
+<code>build-gpu-wheels.yml</code>, <code>build-gpu-wheels2.yml</code>.</p>
+<h2 id="installing-from-sdist-non-cibuildwheel-on-macos-linux">Installing from sdist (non-cibuildwheel) on macOS / Linux<a class="headerlink" href="#installing-from-sdist-non-cibuildwheel-on-macos-linux" title="Permanent link">&para;</a></h2>
+<p>Not directly supported under the current pattern: CMake does not
+install any dylibs into the package, and without <code>delocate</code> /
+<code>auditwheel</code> the extensions' <code>INSTALL_RPATH</code> points at a build-tree
+path that won't survive <code>pip install .</code>. Use the published wheels or
+an editable install.</p>
+<h2 id="references">References<a class="headerlink" href="#references" title="Permanent link">&para;</a></h2>
 <ul>
-<li>
-<p><strong>llama.cpp</strong> - Large language model inference for text generation, chat, and embeddings</p>
-</li>
-<li>
-<p><strong>whisper.cpp</strong> - Automatic speech recognition (ASR) supporting 100+ languages</p>
-</li>
-<li>
-<p><strong>stable-diffusion.cpp</strong> - Image and video generation from text prompts</p>
-</li>
+<li><a href="https://github.com/matthew-brett/delocate">delocate docs</a></li>
+<li><a href="https://github.com/pypa/auditwheel">auditwheel docs</a></li>
+<li><code>CMakeLists.txt</code> — extension rpath setup (<code>add_cython_extension</code>
+  function and per-extension overrides for <code>embedded</code>, <code>whisper_cpp</code>,
+  <code>stable_diffusion</code>).</li>
+<li><code>scripts/manage.py</code> — <code>LlamaCppBuilder.install_shared_libs</code> copies
+  upstream dylibs into <code>thirdparty/llama.cpp/dynamic/</code> with symlinks
+  preserved.</li>
+<li><code>.github/workflows/build-new-wheels.yml</code> — <code>build_vulkan_macos_intel</code>
+  job.</li>
 </ul>
-<h2 id="why-cyllama">Why cyllama?<a class="headerlink" href="#why-cyllama" title="Permanent link">&para;</a></h2>
-<h3 id="zero-dependencies">Zero Dependencies<a class="headerlink" href="#zero-dependencies" title="Permanent link">&para;</a></h3>
-<p>Unlike other Python LLM libraries that require PyTorch, TensorFlow, or other heavy frameworks, cyllama compiles directly against the C++ libraries. The only requirement is a GGUF model file.</p>
-<h3 id="high-performance">High Performance<a class="headerlink" href="#high-performance" title="Permanent link">&para;</a></h3>
-<p>By wrapping optimized C++ code with Cython (not Python bindings), cyllama achieves near-native performance:</p>
-<ul>
-<li>
-<p>GPU acceleration via Metal (macOS), CUDA (NVIDIA), Vulkan (cross-platform)</p>
-</li>
-<li>
-<p>Efficient memory management with KV caching</p>
-</li>
-<li>
-<p>Batch processing for 3-10x throughput improvements</p>
-</li>
-<li>
-<p>Speculative decoding for 2-3x faster generation</p>
-</li>
-</ul>
-<h3 id="pythonic-api">Pythonic API<a class="headerlink" href="#pythonic-api" title="Permanent link">&para;</a></h3>
-<p>Despite the low-level foundations, cyllama provides a clean, Pythonic interface:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama</span><span class="w"> </span><span class="kn">import</span> <span class="n">complete</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">response</span> <span class="o">=</span> <span class="n">complete</span><span class="p">(</span>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="s2">&quot;Explain quantum computing in simple terms&quot;</span><span class="p">,</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">model_path</span><span class="o">=</span><span class="s2">&quot;models/llama.gguf&quot;</span><span class="p">,</span>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">temperature</span><span class="o">=</span><span class="mf">0.7</span>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">)</span>
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="nb">print</span><span class="p">(</span><span class="n">response</span><span class="p">)</span>
-</code></pre></div>
-<h2 id="whats-covered">What's Covered<a class="headerlink" href="#whats-covered" title="Permanent link">&para;</a></h2>
-<p>This documentation is organized into several parts:</p>
-<p><strong>Llama.cpp</strong> - Text generation with large language models, including the high-level API, streaming, batch processing, server implementations, and advanced features like speculative decoding and context caching.</p>
-<p><strong>Whisper.cpp</strong> - Speech-to-text transcription with support for timestamps, translation, and voice activity detection.</p>
-<p><strong>Stable-Diffusion.cpp</strong> - Image generation from text prompts, supporting SD 1.x/2.x, SDXL, SD3, FLUX, and video generation models.</p>
-<p><strong>Agents</strong> - A zero-dependency agent framework with three architectures: <code>ReActAgent</code> for general-purpose tasks, <code>ConstrainedAgent</code> for grammar-enforced tool calls, and <code>ContractAgent</code> for runtime verification.</p>
-<h2 id="getting-started">Getting Started<a class="headerlink" href="#getting-started" title="Permanent link">&para;</a></h2>
-<p>cyllama uses <a href="https://github.com/astral-sh/uv">uv</a> for fast, reliable Python package management. uv is a modern Python package manager written in Rust that provides:</p>
-<ul>
-<li>
-<p><strong>Speed</strong>: 10-100x faster than pip for dependency resolution and installation</p>
-</li>
-<li>
-<p><strong>Reliability</strong>: Deterministic builds with lockfile support</p>
-</li>
-<li>
-<p><strong>Simplicity</strong>: Single tool for virtual environments, packages, and Python version management</p>
-</li>
-</ul>
-<h3 id="quick-start">Quick Start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Install uv (if you don&#39;t have it)</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>curl<span class="w"> </span>-LsSf<span class="w"> </span>https://astral.sh/uv/install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>sh
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="c1"># Clone and build</span>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/shakfu/cyllama.git
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="nb">cd</span><span class="w"> </span>cyllama
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="c1"># Sync dependencies (uv creates the virtual environment automatically)</span>
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>uv<span class="w"> </span>sync
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>
-<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="c1"># Build cyllama</span>
-<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>make
-<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>
-<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="c1"># Download a test model</span>
-<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>make<span class="w"> </span>download
-<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a>
-<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="c1"># Try it out in a python terminal</span>
-<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a>uv<span class="w"> </span>run<span class="w"> </span>python
-</code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="o">&gt;&gt;&gt;</span> <span class="kn">from</span><span class="w"> </span><span class="nn">cyllama</span><span class="w"> </span><span class="kn">import</span> <span class="n">complete</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="o">&gt;&gt;&gt;</span> <span class="n">response</span> <span class="o">=</span> <span class="n">complete</span><span class="p">(</span><span class="s1">&#39;Hello!&#39;</span><span class="p">,</span> <span class="n">model_path</span><span class="o">=</span><span class="s1">&#39;models/Llama-3.2-1B-Instruct-Q8_0.gguf&#39;</span><span class="p">)</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="o">&gt;&gt;&gt;</span> <span class="nb">print</span><span class="p">(</span><span class="n">response</span><span class="p">)</span>
-</code></pre></div>
-<h3 id="running-tests">Running Tests<a class="headerlink" href="#running-tests" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Run the full test suite</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>make<span class="w"> </span><span class="nb">test</span>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># Or use uv directly</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>uv<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>tests/
-</code></pre></div>
-<h3 id="using-uv-commands">Using uv Commands<a class="headerlink" href="#using-uv-commands" title="Permanent link">&para;</a></h3>
-<p>Common uv commands for development:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>uv<span class="w"> </span>sync<span class="w">              </span><span class="c1"># Install/sync all dependencies</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>uv<span class="w"> </span>add<span class="w"> </span>package<span class="w">       </span><span class="c1"># Add a new dependency</span>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>...<span class="w">    </span><span class="c1"># Run Python in the virtual environment</span>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>uv<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>...<span class="w">    </span><span class="c1"># Run pytest</span>
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>uv<span class="w"> </span>pip<span class="w"> </span>list<span class="w">          </span><span class="c1"># List installed packages</span>
-</code></pre></div>
-<p>For detailed installation instructions, see the <a href="../installation/">Installation Guide</a>.</p>
 
 
 
@@ -1785,10 +1651,10 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.expand", "navigation.top", "search.highlight", "content.code.copy"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.expand", "navigation.top", "search.highlight", "content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
       
     
   </body>

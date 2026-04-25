@@ -1760,13 +1760,27 @@
 <h2 id="what-this-is-for">What this is for<a class="headerlink" href="#what-this-is-for" title="Permanent link">&para;</a></h2>
 <p>When you call <code>LLM.chat(messages)</code> (or its CLI equivalents <code>cyllama chat -p ...</code> and <code>cyllama rag</code>), cyllama needs to convert the list of <code>{"role": ..., "content": ...}</code> dicts into a single prompt string in the exact format the model was instruction-tuned on. Different model families use different formats:</p>
 <ul>
-<li><strong>Llama-3-Instruct</strong>: <code>&lt;|start_header_id|&gt;system&lt;|end_header_id|&gt;\n\n...&lt;|eot_id|&gt;...</code></li>
-<li><strong>Qwen2.5/3-Chat</strong>: ChatML-style <code>&lt;|im_start|&gt;system\n...\n&lt;|im_end|&gt;...</code></li>
-<li><strong>Mistral-Instruct</strong>: <code>[INST] ... [/INST]</code></li>
-<li><strong>Gemma 2/3</strong>: <code>&lt;start_of_turn&gt;user\n...\n&lt;end_of_turn&gt;</code></li>
-<li><strong>Gemma 4</strong>: <code>&lt;|turn&gt;user\n...\n&lt;turn|&gt;</code> (different from Gemma 2/3, this caused a real bug)</li>
-<li><strong>Phi-3/4-Instruct</strong>: <code>&lt;|user|&gt;\n...&lt;|end|&gt;</code></li>
-<li>and many others, each with their own quirks</li>
+<li>
+<p><strong>Llama-3-Instruct</strong>: <code>&lt;|start_header_id|&gt;system&lt;|end_header_id|&gt;\n\n...&lt;|eot_id|&gt;...</code></p>
+</li>
+<li>
+<p><strong>Qwen2.5/3-Chat</strong>: ChatML-style <code>&lt;|im_start|&gt;system\n...\n&lt;|im_end|&gt;...</code></p>
+</li>
+<li>
+<p><strong>Mistral-Instruct</strong>: <code>[INST] ... [/INST]</code></p>
+</li>
+<li>
+<p><strong>Gemma 2/3</strong>: <code>&lt;start_of_turn&gt;user\n...\n&lt;end_of_turn&gt;</code></p>
+</li>
+<li>
+<p><strong>Gemma 4</strong>: <code>&lt;|turn&gt;user\n...\n&lt;turn|&gt;</code> (different from Gemma 2/3, this caused a real bug)</p>
+</li>
+<li>
+<p><strong>Phi-3/4-Instruct</strong>: <code>&lt;|user|&gt;\n...&lt;|end|&gt;</code></p>
+</li>
+<li>
+<p>and many others, each with their own quirks</p>
+</li>
 </ul>
 <p>Each GGUF file embeds its own chat template as a Jinja string in its metadata (this is the same template the model's HuggingFace tokenizer config ships with). cyllama's job is to evaluate that template against the user's messages and produce the prompt the model expects.</p>
 <h2 id="quick-reference-how-to-use-it">Quick reference: how to use it<a class="headerlink" href="#quick-reference-how-to-use-it" title="Permanent link">&para;</a></h2>
@@ -1804,11 +1818,21 @@
 <li>Pulls the embedded chat template string from the GGUF metadata via <code>LlamaModel.get_default_chat_template()</code> (a one-line wrapper around llama.cpp's stable public C API <code>llama_model_chat_template</code>).</li>
 <li>Resolves the model's <code>bos_token</code> and <code>eos_token</code> strings via <code>vocab.token_to_piece(vocab.token_bos(), special=True)</code> and the same for EOS.</li>
 <li>Constructs an <code>ImmutableSandboxedEnvironment</code> from the vendored <code>cyllama._vendor.jinja2</code>, with the same configuration HuggingFace's <code>transformers.PreTrainedTokenizerBase.apply_chat_template</code> uses:</li>
-<li><code>trim_blocks=True</code>, <code>lstrip_blocks=True</code></li>
-<li><code>loopcontrols</code> extension enabled (some templates use <code>{% break %}</code>)</li>
-<li><code>tojson</code> filter (used by tool-calling templates)</li>
-<li><code>raise_exception</code> global (used by templates that abort on bad input)</li>
-<li><code>strftime_now</code> global (used by Llama-3's <code>Today Date:</code> line and similar)</li>
+<li>
+<p><code>trim_blocks=True</code>, <code>lstrip_blocks=True</code></p>
+</li>
+<li>
+<p><code>loopcontrols</code> extension enabled (some templates use <code>{% break %}</code>)</p>
+</li>
+<li>
+<p><code>tojson</code> filter (used by tool-calling templates)</p>
+</li>
+<li>
+<p><code>raise_exception</code> global (used by templates that abort on bad input)</p>
+</li>
+<li>
+<p><code>strftime_now</code> global (used by Llama-3's <code>Today Date:</code> line and similar)</p>
+</li>
 <li>Renders the template with <code>messages</code>, <code>bos_token</code>, <code>eos_token</code>, and <code>add_generation_prompt</code> in scope.</li>
 <li>Returns the rendered string.</li>
 </ol>
@@ -1923,8 +1947,12 @@
 <p><code>jinja2</code>'s <code>compiler.py</code> emits a literal <code>from jinja2.runtime import ...</code> line into the Python source of every <em>compiled template</em>. This is not at module load time — it's at template-compile time, written into the compiled bytecode. Every template the vendored jinja2 compiles contains this line.</p>
 <p>Without the rewrite, every compiled template tries to import from the top-level <code>jinja2.runtime</code> module:</p>
 <ul>
-<li><strong>If the user has <code>jinja2</code> installed in their environment</strong>, compiled templates from the vendored jinja2 silently pull runtime symbols from the <em>user's</em> jinja2, mixing two versions in undefined ways. The observable failure mode is <code>_MissingType</code> sentinels leaking into rendered output as the literal string <code>"missing"</code> instead of being converted to <code>Undefined</code> — because the cross-module identity check <code>if rv is missing:</code> between the two <code>missing</code> sentinels fails, and the sentinel propagates as a string.</li>
-<li><strong>If the user has no jinja2 installed</strong>, the import fails entirely and template rendering raises <code>ImportError</code>.</li>
+<li>
+<p><strong>If the user has <code>jinja2</code> installed in their environment</strong>, compiled templates from the vendored jinja2 silently pull runtime symbols from the <em>user's</em> jinja2, mixing two versions in undefined ways. The observable failure mode is <code>_MissingType</code> sentinels leaking into rendered output as the literal string <code>"missing"</code> instead of being converted to <code>Undefined</code> — because the cross-module identity check <code>if rv is missing:</code> between the two <code>missing</code> sentinels fails, and the sentinel propagates as a string.</p>
+</li>
+<li>
+<p><strong>If the user has no jinja2 installed</strong>, the import fails entirely and template rendering raises <code>ImportError</code>.</p>
+</li>
 </ul>
 <p>The rewrite changes the emit string to <code>from cyllama._vendor.jinja2.runtime import ...</code> so compiled templates always pull from the vendored runtime. The patch lives in <code>src/cyllama/_vendor/jinja2/compiler.py</code> at the line that calls <code>self.writeline(...)</code> to emit the import block.</p>
 <p>Both rewrites are scripted in <code>scripts/vendor_jinja2.sh</code> and applied automatically on every re-vendor. The script also verifies that no stray non-rewritten imports remain after sed runs, and fails loudly if it finds any. See "Re-vendoring" below for the full procedure.</p>
@@ -2038,7 +2066,9 @@
 <h3 id="common-failure-modes">Common failure modes<a class="headerlink" href="#common-failure-modes" title="Permanent link">&para;</a></h3>
 <ol>
 <li><strong><code>RuntimeError: Failed to apply chat template</code></strong> at the binding level (<code>llama_cpp.pyx:1948</code>). This means the legacy substring-heuristic path was reached and llama.cpp's <code>llama_chat_apply_template</code> returned -1. Either:</li>
-<li>The Jinja path raised first and the wrapper fell through (look for the cause in the Jinja path)</li>
+<li>
+<p>The Jinja path raised first and the wrapper fell through (look for the cause in the Jinja path)</p>
+</li>
 <li>
 <p>The caller passed a <code>template=</code> parameter that doesn't match anything in <code>LLM_CHAT_TEMPLATES</code> and isn't a recognisable Jinja string</p>
 </li>
@@ -2210,25 +2240,47 @@
 <p>The obvious fix would be to call <code>common_chat_templates_apply</code> from cyllama's Cython binding. The headers and the static library are already installed by <code>manage.py</code> at build time. Linking would be a few lines of CMake.</p>
 <p>The reason we don't is that <strong><code>libcommon.a</code> is not part of llama.cpp's stable API</strong>. It's the example/utility library that backs <code>llama-server</code>, <code>llama-cli</code>, etc. Function signatures, struct layouts (especially <code>common_chat_templates_inputs</code> and <code>common_chat_params</code>, which gain fields per release), and even header file paths change between llama.cpp versions without notice. Linking against it would mean:</p>
 <ul>
-<li>The cyllama build breaks on most llama.cpp upgrades</li>
-<li>Cython <code>.pxd</code> declarations have to be re-audited against <code>chat.h</code> after every upgrade</li>
-<li>Subtle ABI mismatches could produce silent corruption: Cython trusts the declaration, so if a struct field has shifted, reads return garbage without a compile error</li>
-<li>The Cython binding work has to be redone whenever upstream restructures <code>chat.cpp</code></li>
+<li>
+<p>The cyllama build breaks on most llama.cpp upgrades</p>
+</li>
+<li>
+<p>Cython <code>.pxd</code> declarations have to be re-audited against <code>chat.h</code> after every upgrade</p>
+</li>
+<li>
+<p>Subtle ABI mismatches could produce silent corruption: Cython trusts the declaration, so if a struct field has shifted, reads return garbage without a compile error</p>
+</li>
+<li>
+<p>The Cython binding work has to be redone whenever upstream restructures <code>chat.cpp</code></p>
+</li>
 </ul>
 <p>This is a large recurring maintenance burden for a behaviour we can get a different way.</p>
 <h3 id="why-we-vendor-jinja2-instead">Why we vendor jinja2 instead<a class="headerlink" href="#why-we-vendor-jinja2-instead" title="Permanent link">&para;</a></h3>
 <p>Once <code>libcommon.a</code> was off the table, the next question was how to evaluate Jinja templates in a way that works regardless of llama.cpp's hardcoded substring detection. The options were:</p>
 <ul>
-<li><strong>Add <code>jinja2</code> as a runtime dependency</strong> (Option D in the original analysis): standard Python idiom, smallest implementation, but introduces a transitive dep that conflicts with the self-contained-wheel philosophy and weakens reproducibility (different <code>jinja2</code> versions can render the same template differently).</li>
-<li><strong>Vendor a C++ Jinja interpreter</strong> (Option E): copy <code>minja</code> or llama.cpp's <code>common/jinja/</code> into cyllama's source tree and compile it as part of the extension. Eliminates the dependency, gives byte-for-byte parity with <code>llama-server</code>, but requires substantial Cython binding work plus a build matrix that has to compile vendored C++ across macOS, Linux, and Windows with multiple GPU backends. Estimated 4-8 hours of focused work plus per-iteration build cycles.</li>
-<li><strong>Vendor <code>jinja2</code> itself as pure Python</strong> (Option F, what we shipped): copy <code>jinja2 3.1.6</code> and <code>markupsafe 3.0.3</code> under <code>cyllama._vendor.*</code>. ~616 KB pure Python, no Cython binding, no build matrix risk, no transitive deps. Same Jinja semantics as HuggingFace's <code>apply_chat_template</code> because it IS the same library. ~1.5 hours of focused work.</li>
+<li>
+<p><strong>Add <code>jinja2</code> as a runtime dependency</strong> (Option D in the original analysis): standard Python idiom, smallest implementation, but introduces a transitive dep that conflicts with the self-contained-wheel philosophy and weakens reproducibility (different <code>jinja2</code> versions can render the same template differently).</p>
+</li>
+<li>
+<p><strong>Vendor a C++ Jinja interpreter</strong> (Option E): copy <code>minja</code> or llama.cpp's <code>common/jinja/</code> into cyllama's source tree and compile it as part of the extension. Eliminates the dependency, gives byte-for-byte parity with <code>llama-server</code>, but requires substantial Cython binding work plus a build matrix that has to compile vendored C++ across macOS, Linux, and Windows with multiple GPU backends. Estimated 4-8 hours of focused work plus per-iteration build cycles.</p>
+</li>
+<li>
+<p><strong>Vendor <code>jinja2</code> itself as pure Python</strong> (Option F, what we shipped): copy <code>jinja2 3.1.6</code> and <code>markupsafe 3.0.3</code> under <code>cyllama._vendor.*</code>. ~616 KB pure Python, no Cython binding, no build matrix risk, no transitive deps. Same Jinja semantics as HuggingFace's <code>apply_chat_template</code> because it IS the same library. ~1.5 hours of focused work.</p>
+</li>
 </ul>
 <p>Option F won because the cost-benefit profile dominated the alternatives for cyllama specifically:</p>
 <ul>
-<li>cyllama already distributes binary wheels with bundled native libraries (50+ MB), so adding 600 KB of vendored Python is a rounding error</li>
-<li>Reproducibility matters more for chat-template rendering than for typical Python deps — the entire job of this code path is "produce a deterministic prompt string from a model's metadata"</li>
-<li>jinja2 is mature, BSD-3-licensed, and ships 2-3 minor releases per year, so the manual re-vendoring burden is small</li>
-<li>The security exposure is low because we evaluate trusted GGUF metadata inside <code>ImmutableSandboxedEnvironment</code></li>
+<li>
+<p>cyllama already distributes binary wheels with bundled native libraries (50+ MB), so adding 600 KB of vendored Python is a rounding error</p>
+</li>
+<li>
+<p>Reproducibility matters more for chat-template rendering than for typical Python deps — the entire job of this code path is "produce a deterministic prompt string from a model's metadata"</p>
+</li>
+<li>
+<p>jinja2 is mature, BSD-3-licensed, and ships 2-3 minor releases per year, so the manual re-vendoring burden is small</p>
+</li>
+<li>
+<p>The security exposure is low because we evaluate trusted GGUF metadata inside <code>ImmutableSandboxedEnvironment</code></p>
+</li>
 </ul>
 <h3 id="why-we-kept-the-legacy-substring-path-as-a-fallback">Why we kept the legacy substring path as a fallback<a class="headerlink" href="#why-we-kept-the-legacy-substring-path-as-a-fallback" title="Permanent link">&para;</a></h3>
 <p>After Option F shipped, the legacy <code>chat_apply_template</code> Cython binding became mostly dead code — it only fires now if <code>_apply_jinja_template</code> raises (<code>TemplateError</code>, malformed template, no embedded template) or if the caller explicitly requests a named template via <code>LLM.chat(messages, template="llama3")</code>.</p>
@@ -2244,8 +2296,12 @@
 <p>The three pipeline-level fallback layers (<code>_chat_with_fallback</code> for system-role merging, <code>_generate_chunks</code> for raw-completion degradation) were added before the vendored-jinja2 path existed, when Gemma 4 was crashing the RAG pipeline immediately on the first query. They were the user-facing fix that shipped first; the vendored-jinja2 path is the proper underlying fix that came later.</p>
 <p>With the vendored jinja2 path in place, paths 3 and 4 fire much less often:</p>
 <ul>
-<li><strong>Path 3 (system-into-user merge)</strong> still fires on Gemma 2/3 templates that explicitly call <code>raise_exception('System role not supported')</code> at the Jinja level. Both the legacy path AND the vendored Jinja path correctly propagate this exception, so the merge fallback is still load-bearing for those models.</li>
-<li><strong>Path 4 (raw-completion degradation)</strong> fires only if BOTH chat shapes (system+user, merged user) raise template errors. With the vendored Jinja path correctly evaluating any well-formed Jinja template, this should now only fire on truly malformed embedded templates or corrupted GGUFs.</li>
+<li>
+<p><strong>Path 3 (system-into-user merge)</strong> still fires on Gemma 2/3 templates that explicitly call <code>raise_exception('System role not supported')</code> at the Jinja level. Both the legacy path AND the vendored Jinja path correctly propagate this exception, so the merge fallback is still load-bearing for those models.</p>
+</li>
+<li>
+<p><strong>Path 4 (raw-completion degradation)</strong> fires only if BOTH chat shapes (system+user, merged user) raise template errors. With the vendored Jinja path correctly evaluating any well-formed Jinja template, this should now only fire on truly malformed embedded templates or corrupted GGUFs.</p>
+</li>
 </ul>
 <p>Both paths are preserved as defense-in-depth. The maintenance cost is low (a handful of lines of Python plus the cached state on <code>RAGPipeline</code>) and the correctness benefit is real for the long tail of models we don't have in our test fixtures.</p>
 <h3 id="open-follow-ups">Open follow-ups<a class="headerlink" href="#open-follow-ups" title="Permanent link">&para;</a></h3>

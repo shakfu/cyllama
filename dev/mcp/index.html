@@ -1585,19 +1585,29 @@ high-level API in <code>src/cyllama/api.py</code> for execution. No new heavy de
 </code></pre></div>
 <h3 id="internals">Internals<a class="headerlink" href="#internals" title="Permanent link">&para;</a></h3>
 <ul>
-<li><code>LLM</code> lazily owns a single <code>McpClient</code>.</li>
-<li><code>chat()</code> pulls <code>client.get_tools_for_agent()</code>, merges with caller-supplied
+<li>
+<p><code>LLM</code> lazily owns a single <code>McpClient</code>.</p>
+</li>
+<li>
+<p><code>chat()</code> pulls <code>client.get_tools_for_agent()</code>, merges with caller-supplied
   <code>tools</code>, runs the existing tool-call loop, and dispatches MCP tool calls
-  via <code>client.call_tool(name, args)</code>.</li>
-<li>Connect on first use; disconnect on <code>LLM.close()</code> / <code>__exit__</code>.</li>
+  via <code>client.call_tool(name, args)</code>.</p>
+</li>
+<li>
+<p>Connect on first use; disconnect on <code>LLM.close()</code> / <code>__exit__</code>.</p>
+</li>
 </ul>
 <h3 id="open-questions">Open questions<a class="headerlink" href="#open-questions" title="Permanent link">&para;</a></h3>
 <ul>
-<li>Sync-only (matches current <code>agents/mcp.py</code>) vs. add async path. Recommend
-  sync first; revisit when an async caller appears.</li>
-<li>Resource handling: surface <code>mcp://</code> URIs through an explicit
+<li>
+<p>Sync-only (matches current <code>agents/mcp.py</code>) vs. add async path. Recommend
+  sync first; revisit when an async caller appears.</p>
+</li>
+<li>
+<p>Resource handling: surface <code>mcp://</code> URIs through an explicit
   <code>read_resource()</code> helper rather than auto-injecting into the system
-  prompt. Auto-injection is hard to undo and easy to abuse.</li>
+  prompt. Auto-injection is hard to undo and easy to abuse.</p>
+</li>
 </ul>
 <h2 id="2-cyllama-as-mcp-server">2. Cyllama as MCP server<a class="headerlink" href="#2-cyllama-as-mcp-server" title="Permanent link">&para;</a></h2>
 <p>New package layout:</p>
@@ -1650,9 +1660,13 @@ existing <code>cyllama</code> API.</p>
 </table>
 <h3 id="resources">Resources<a class="headerlink" href="#resources" title="Permanent link">&para;</a></h3>
 <ul>
-<li><code>models://local</code> -- list of GGUF files discovered under configured roots.</li>
-<li><code>model://&lt;name&gt;</code> -- JSON metadata (arch, params, ctx, quant) via existing
-  model-introspection helpers.</li>
+<li>
+<p><code>models://local</code> -- list of GGUF files discovered under configured roots.</p>
+</li>
+<li>
+<p><code>model://&lt;name&gt;</code> -- JSON metadata (arch, params, ctx, quant) via existing
+  model-introspection helpers.</p>
+</li>
 </ul>
 <h3 id="server-entry-points">Server entry points<a class="headerlink" href="#server-entry-points" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># stdio transport (Claude Desktop config: command=python, args=[&quot;-m&quot;, &quot;cyllama.mcp&quot;])</span>
@@ -1669,67 +1683,109 @@ existing <code>cyllama</code> API.</p>
 </code></pre></div>
 <p><code>McpServerOptions</code> carries:</p>
 <ul>
-<li>Allowed model roots (filesystem allowlist).</li>
-<li>Default model.</li>
-<li>Tool subset to expose (a deployment can expose <code>embed</code> only, etc.).</li>
-<li>Auth hook for the HTTP route.</li>
+<li>
+<p>Allowed model roots (filesystem allowlist).</p>
+</li>
+<li>
+<p>Default model.</p>
+</li>
+<li>
+<p>Tool subset to expose (a deployment can expose <code>embed</code> only, etc.).</p>
+</li>
+<li>
+<p>Auth hook for the HTTP route.</p>
+</li>
 </ul>
 <h3 id="wire-level">Wire-level<a class="headerlink" href="#wire-level" title="Permanent link">&para;</a></h3>
 <p>Implement only the subset MCP requires today:</p>
 <ul>
-<li><code>initialize</code></li>
-<li><code>tools/list</code>, <code>tools/call</code></li>
-<li><code>resources/list</code>, <code>resources/read</code></li>
-<li><code>ping</code></li>
-<li><code>notifications/initialized</code></li>
+<li>
+<p><code>initialize</code></p>
+</li>
+<li>
+<p><code>tools/list</code>, <code>tools/call</code></p>
+</li>
+<li>
+<p><code>resources/list</code>, <code>resources/read</code></p>
+</li>
+<li>
+<p><code>ping</code></p>
+</li>
+<li>
+<p><code>notifications/initialized</code></p>
+</li>
 </ul>
 <p>On stdio, reuse <code>agents/jsonrpc.py</code> framing. On HTTP, follow the
 Streamable-HTTP spec: single <code>POST /mcp</code> for requests, <code>GET /mcp</code> upgrading
 to SSE for server-initiated messages.</p>
 <h3 id="open-questions_1">Open questions<a class="headerlink" href="#open-questions_1" title="Permanent link">&para;</a></h3>
 <ul>
-<li>Streaming <code>tools/call</code> partial results via SSE: defer until a real client
-  consumes it.</li>
-<li>Concurrency: <code>EmbeddedServer</code> is single-threaded; long-running
+<li>
+<p>Streaming <code>tools/call</code> partial results via SSE: defer until a real client
+  consumes it.</p>
+</li>
+<li>
+<p>Concurrency: <code>EmbeddedServer</code> is single-threaded; long-running
   <code>generate_image</code> calls will block other routes. Either gate behind a
-  worker thread or document the limitation in the route handler.</li>
+  worker thread or document the limitation in the route handler.</p>
+</li>
 </ul>
 <h2 id="merits-and-counterweights">Merits and counterweights<a class="headerlink" href="#merits-and-counterweights" title="Permanent link">&para;</a></h2>
 <h3 id="server-direction-merits">Server-direction merits<a class="headerlink" href="#server-direction-merits" title="Permanent link">&para;</a></h3>
 <ul>
-<li><strong>Single endpoint, multiple modalities.</strong> Claude Desktop / Claude Code can
+<li>
+<p><strong>Single endpoint, multiple modalities.</strong> Claude Desktop / Claude Code can
   reach <code>complete</code>, <code>embed</code>, <code>transcribe</code>, <code>generate_image</code> through one
   configured server. Upstream llama.cpp ships only an OpenAI-compat HTTP API
-  -- nothing for whisper or SD.</li>
-<li><strong>Local, offline, private.</strong> GGUF inference stays on the host but is
+  -- nothing for whisper or SD.</p>
+</li>
+<li>
+<p><strong>Local, offline, private.</strong> GGUF inference stays on the host but is
   reachable from a frontier-model agent loop. Useful for cheap bulk
-  embedding, transcription of sensitive audio, or fast small-model drafts.</li>
-<li><strong>Capability-gated surface.</strong> <code>McpServerOptions</code> lets a deployment expose
+  embedding, transcription of sensitive audio, or fast small-model drafts.</p>
+</li>
+<li>
+<p><strong>Capability-gated surface.</strong> <code>McpServerOptions</code> lets a deployment expose
   <code>embed</code> only (or <code>transcribe</code> only). Embedding-as-a-service over MCP is a
-  clean fit.</li>
-<li><strong>Resource surface fits naturally.</strong> <code>models://local</code> + <code>model://&lt;name&gt;</code>
-  is exactly what MCP resources are for; the introspection helpers exist.</li>
-<li><strong>Reuses existing infra.</strong> <code>agents/jsonrpc.py</code> framing plus mongoose
-  routes mean small marginal code.</li>
+  clean fit.</p>
+</li>
+<li>
+<p><strong>Resource surface fits naturally.</strong> <code>models://local</code> + <code>model://&lt;name&gt;</code>
+  is exactly what MCP resources are for; the introspection helpers exist.</p>
+</li>
+<li>
+<p><strong>Reuses existing infra.</strong> <code>agents/jsonrpc.py</code> framing plus mongoose
+  routes mean small marginal code.</p>
+</li>
 </ul>
 <h3 id="counterweights">Counterweights<a class="headerlink" href="#counterweights" title="Permanent link">&para;</a></h3>
 <ul>
-<li><strong>Llama.cpp's HTTP server already covers <code>complete</code>/<code>chat</code>/<code>embed</code></strong> via
+<li>
+<p><strong>Llama.cpp's HTTP server already covers <code>complete</code>/<code>chat</code>/<code>embed</code></strong> via
   OpenAI-compat. The MCP server's incremental value over <code>llama-server</code> is
-  mostly <code>transcribe</code> + <code>generate_image</code> + the resource catalog.</li>
-<li><strong>Asymmetric value.</strong> The client direction (local LLM consuming MCP
+  mostly <code>transcribe</code> + <code>generate_image</code> + the resource catalog.</p>
+</li>
+<li>
+<p><strong>Asymmetric value.</strong> The client direction (local LLM consuming MCP
   tools) is more clearly useful -- it gives small local models real reach.
   The server direction mostly benefits frontier-model users who want a
-  local fallback, a smaller audience.</li>
-<li><strong>Concurrency mismatch.</strong> <code>EmbeddedServer</code> is single-threaded;
+  local fallback, a smaller audience.</p>
+</li>
+<li>
+<p><strong>Concurrency mismatch.</strong> <code>EmbeddedServer</code> is single-threaded;
   <code>generate_image</code> blocks for tens of seconds. Either add worker threads
-  (non-trivial) or the server is functionally single-user.</li>
-<li><strong>Protocol churn.</strong> MCP transport spec moved twice in 2025 (stdio -&gt;
-  HTTP+SSE -&gt; Streamable HTTP). Building now means tracking spec changes.</li>
-<li><strong>Better-served by an off-the-shelf wrapper for stdio.</strong> A ~200-line
+  (non-trivial) or the server is functionally single-user.</p>
+</li>
+<li>
+<p><strong>Protocol churn.</strong> MCP transport spec moved twice in 2025 (stdio -&gt;
+  HTTP+SSE -&gt; Streamable HTTP). Building now means tracking spec changes.</p>
+</li>
+<li>
+<p><strong>Better-served by an off-the-shelf wrapper for stdio.</strong> A ~200-line
   script using the <code>mcp</code> Python SDK that imports cyllama would deliver most
   of the stdio value without touching <code>EmbeddedServer</code>. The HTTP-mounted
-  variant is the part that justifies in-tree code.</li>
+  variant is the part that justifies in-tree code.</p>
+</li>
 </ul>
 <h2 id="recommendation-and-build-order">Recommendation and build order<a class="headerlink" href="#recommendation-and-build-order" title="Permanent link">&para;</a></h2>
 <p>Build the <strong>client direction</strong> now -- clear win, code mostly exists. Defer

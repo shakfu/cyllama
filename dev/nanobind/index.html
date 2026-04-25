@@ -13,28 +13,24 @@
       
       
       
-        <link rel="prev" href="..">
-      
-      
-        <link rel="next" href="../quickstart/">
       
       
         
       
       
-      <link rel="icon" href="../assets/images/favicon.png">
+      <link rel="icon" href="../../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
     
     
       
-        <title>Introduction - cyllama</title>
+        <title>Cython → nanobind: analysis and advice - cyllama</title>
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
       
         
-        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
       
       
 
@@ -53,7 +49,7 @@
       
     
     
-    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -78,7 +74,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#introduction" class="md-skip">
+        <a href="#cython-nanobind-analysis-and-advice" class="md-skip">
           Skip to content
         </a>
       
@@ -94,7 +90,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href=".." title="cyllama" class="md-header__button md-logo" aria-label="cyllama" data-md-component="logo">
+    <a href="../.." title="cyllama" class="md-header__button md-logo" aria-label="cyllama" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -114,7 +110,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Introduction
+              Cython → nanobind: analysis and advice
             
           </span>
         </div>
@@ -230,7 +226,7 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href=".." title="cyllama" class="md-nav__button md-logo" aria-label="cyllama" data-md-component="logo">
+    <a href="../.." title="cyllama" class="md-nav__button md-logo" aria-label="cyllama" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -260,7 +256,7 @@
   
   
     <li class="md-nav__item">
-      <a href=".." class="md-nav__link">
+      <a href="../.." class="md-nav__link">
         
   
   
@@ -284,37 +280,10 @@
       
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Introduction
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../intro/" class="md-nav__link">
         
   
   
@@ -330,137 +299,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#why-cyllama" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Why cyllama?
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Why cyllama?">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#zero-dependencies" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Zero Dependencies
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#high-performance" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        High Performance
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#pythonic-api" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Pythonic API
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#whats-covered" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        What's Covered
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#getting-started" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Getting Started
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Getting Started">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#quick-start" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Quick Start
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#running-tests" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Running Tests
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#using-uv-commands" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Using uv Commands
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -472,7 +310,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../quickstart/" class="md-nav__link">
+      <a href="../../quickstart/" class="md-nav__link">
         
   
   
@@ -499,7 +337,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../installation/" class="md-nav__link">
+      <a href="../../installation/" class="md-nav__link">
         
   
   
@@ -526,7 +364,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../overview/" class="md-nav__link">
+      <a href="../../overview/" class="md-nav__link">
         
   
   
@@ -553,7 +391,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../summary/" class="md-nav__link">
+      <a href="../../summary/" class="md-nav__link">
         
   
   
@@ -634,7 +472,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../user_guide/" class="md-nav__link">
+      <a href="../../user_guide/" class="md-nav__link">
         
   
   
@@ -662,7 +500,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../cookbook/" class="md-nav__link">
+      <a href="../../cookbook/" class="md-nav__link">
         
   
   
@@ -690,7 +528,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../examples/" class="md-nav__link">
+      <a href="../../examples/" class="md-nav__link">
         
   
   
@@ -718,7 +556,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../build_backends/" class="md-nav__link">
+      <a href="../../build_backends/" class="md-nav__link">
         
   
   
@@ -746,7 +584,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../build_options/" class="md-nav__link">
+      <a href="../../build_options/" class="md-nav__link">
         
   
   
@@ -774,7 +612,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../context_caching/" class="md-nav__link">
+      <a href="../../context_caching/" class="md-nav__link">
         
   
   
@@ -802,7 +640,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../server_usage_examples/" class="md-nav__link">
+      <a href="../../server_usage_examples/" class="md-nav__link">
         
   
   
@@ -891,7 +729,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../whisper/" class="md-nav__link">
+      <a href="../../whisper/" class="md-nav__link">
         
   
   
@@ -980,7 +818,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../stable_diffusion/" class="md-nav__link">
+      <a href="../../stable_diffusion/" class="md-nav__link">
         
   
   
@@ -1069,7 +907,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../agents_overview/" class="md-nav__link">
+      <a href="../../agents_overview/" class="md-nav__link">
         
   
   
@@ -1097,7 +935,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../mcp/" class="md-nav__link">
+      <a href="../../mcp/" class="md-nav__link">
         
   
   
@@ -1186,7 +1024,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../rag_overview/" class="md-nav__link">
+      <a href="../../rag_overview/" class="md-nav__link">
         
   
   
@@ -1214,7 +1052,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../rag_embedder/" class="md-nav__link">
+      <a href="../../rag_embedder/" class="md-nav__link">
         
   
   
@@ -1242,7 +1080,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../rag_vectorstore/" class="md-nav__link">
+      <a href="../../rag_vectorstore/" class="md-nav__link">
         
   
   
@@ -1270,7 +1108,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../rag_text_processing/" class="md-nav__link">
+      <a href="../../rag_text_processing/" class="md-nav__link">
         
   
   
@@ -1298,7 +1136,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../rag_pipeline/" class="md-nav__link">
+      <a href="../../rag_pipeline/" class="md-nav__link">
         
   
   
@@ -1326,7 +1164,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../rag_advanced/" class="md-nav__link">
+      <a href="../../rag_advanced/" class="md-nav__link">
         
   
   
@@ -1415,7 +1253,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../api_reference/" class="md-nav__link">
+      <a href="../../api_reference/" class="md-nav__link">
         
   
   
@@ -1443,7 +1281,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../troubleshooting/" class="md-nav__link">
+      <a href="../../troubleshooting/" class="md-nav__link">
         
   
   
@@ -1498,22 +1336,44 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#why-cyllama" class="md-nav__link">
+  <a href="#current-state" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Why cyllama?
+        Current state
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Why cyllama?">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#two-independent-questions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Two independent questions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#question-1-cython-nanobind" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Question 1: Cython → nanobind
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Question 1: Cython → nanobind">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#zero-dependencies" class="md-nav__link">
+  <a href="#pros" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Zero Dependencies
+        Pros
       
     </span>
   </a>
@@ -1521,10 +1381,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#high-performance" class="md-nav__link">
+  <a href="#cons-risks" class="md-nav__link">
     <span class="md-ellipsis">
       
-        High Performance
+        Cons / risks
       
     </span>
   </a>
@@ -1532,10 +1392,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#pythonic-api" class="md-nav__link">
+  <a href="#effort-estimate" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Pythonic API
+        Effort estimate
       
     </span>
   </a>
@@ -1548,33 +1408,22 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#whats-covered" class="md-nav__link">
+  <a href="#question-2-one-statically-linked-binary" class="md-nav__link">
     <span class="md-ellipsis">
       
-        What's Covered
+        Question 2: One statically linked binary
       
     </span>
   </a>
   
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#getting-started" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Getting Started
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Getting Started">
+    <nav class="md-nav" aria-label="Question 2: One statically linked binary">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#quick-start" class="md-nav__link">
+  <a href="#what-this-gains" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Quick Start
+        What this gains
       
     </span>
   </a>
@@ -1582,10 +1431,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#running-tests" class="md-nav__link">
+  <a href="#what-this-does-not-gain" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Running Tests
+        What this does not gain
       
     </span>
   </a>
@@ -1593,10 +1442,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#using-uv-commands" class="md-nav__link">
+  <a href="#costs" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Using uv Commands
+        Costs
       
     </span>
   </a>
@@ -1605,6 +1454,67 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#recommendation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Recommendation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Recommendation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#step-1-consolidate-to-one-binary-static-ggml-in-cython-1-week" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 1 — Consolidate to one binary + static ggml in Cython (1 week)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-2-live-with-it-for-a-release-cycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 2 — Live with it for a release cycle
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-3-port-to-nanobind-only-if-step-2-hurts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 3 — Port to nanobind only if Step 2 hurts
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#summary-table" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Summary table
+      
+    </span>
+  </a>
   
 </li>
       
@@ -1628,108 +1538,244 @@
   
 
 
-<h1 id="introduction">Introduction<a class="headerlink" href="#introduction" title="Permanent link">&para;</a></h1>
-<p>cyllama is a zero-dependency Python library for local AI inference. It provides high-performance Cython bindings to three powerful C++ inference engines:</p>
+<h1 id="cython-nanobind-analysis-and-advice">Cython → nanobind: analysis and advice<a class="headerlink" href="#cython-nanobind-analysis-and-advice" title="Permanent link">&para;</a></h1>
+<p>This document analyses whether to migrate cyllama's bindings from Cython to
+<a href="https://github.com/wjakko/nanobind">nanobind</a>, and the related question of
+whether to consolidate the three extension modules into a single statically
+linked binary.</p>
+<h2 id="current-state">Current state<a class="headerlink" href="#current-state" title="Permanent link">&para;</a></h2>
+<p>cyllama wraps three upstreams via Cython:</p>
+<table>
+<thead>
+<tr>
+<th>Module</th>
+<th><code>.pyx</code> LOC</th>
+<th><code>.pxd</code> LOC</th>
+<th><code>cdef class</code>es</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>cyllama.llama</code> (+ pxi)</td>
+<td>~5,600</td>
+<td>~2,500</td>
+<td>25</td>
+</tr>
+<tr>
+<td><code>cyllama.sd</code></td>
+<td>3,168</td>
+<td>433</td>
+<td>14</td>
+</tr>
+<tr>
+<td><code>cyllama.whisper</code></td>
+<td>990</td>
+<td>385</td>
+<td>10</td>
+</tr>
+<tr>
+<td><code>cyllama.llama.server</code></td>
+<td>594</td>
+<td>107</td>
+<td>(mongoose)</td>
+</tr>
+<tr>
+<td><strong>Total</strong></td>
+<td><strong>~12.4K</strong></td>
+<td><strong>~3.4K</strong></td>
+<td><strong>~50</strong></td>
+</tr>
+</tbody>
+</table>
+<p>All three upstreams (llama.cpp, whisper.cpp, stable-diffusion.cpp) are pinned
+to the <strong>same ggml commit</strong> and currently link dynamically against a single
+<code>libggml.so</code>. ggml's global state (backend registry, log callback, Vulkan/Metal
+device tables) therefore lives exactly once in the process today.</p>
+<h2 id="two-independent-questions">Two independent questions<a class="headerlink" href="#two-independent-questions" title="Permanent link">&para;</a></h2>
+<p>The two ideas often discussed together are actually orthogonal:</p>
+<ol>
+<li><strong>Binding-tool choice</strong> — Cython vs nanobind.</li>
+<li><strong>Binary layout</strong> — three extensions + shared <code>libggml.so</code> vs one
+   extension with statically linked ggml.</li>
+</ol>
+<p>Each can be done without the other.</p>
+<hr />
+<h2 id="question-1-cython-nanobind">Question 1: Cython → nanobind<a class="headerlink" href="#question-1-cython-nanobind" title="Permanent link">&para;</a></h2>
+<h3 id="pros">Pros<a class="headerlink" href="#pros" title="Permanent link">&para;</a></h3>
 <ul>
-<li>
-<p><strong>llama.cpp</strong> - Large language model inference for text generation, chat, and embeddings</p>
-</li>
-<li>
-<p><strong>whisper.cpp</strong> - Automatic speech recognition (ASR) supporting 100+ languages</p>
-</li>
-<li>
-<p><strong>stable-diffusion.cpp</strong> - Image and video generation from text prompts</p>
-</li>
+<li><strong>Delete the <code>.pxd</code> files (~3.4K LOC).</strong> nanobind reads upstream C/C++
+  headers directly. No more re-declaring llama.cpp/whisper.cpp/sd.cpp APIs in
+  parallel — no more silent drift when upstream changes a struct.</li>
+<li><strong>Real C++ ergonomics.</strong> <code>std::vector</code>, <code>std::function</code>, smart pointers,
+  templates, overloads work natively. Today's Cython needs <code>libcpp.*</code> shims
+  and awkward casts for function pointers.</li>
+<li><strong>Smaller binaries, faster compiles.</strong> nanobind is the leanest of the C++
+  binding libraries; often 2–3× faster compile and smaller <code>.so</code> than
+  Cython-generated C++.</li>
+<li><strong>Better callback story.</strong> The
+  <code>(&lt;object&gt;py_callback)(...)</code> pattern (see <code>log_callback</code>, <code>abort_callback</code>)
+  becomes idiomatic <code>std::function&lt;...&gt;</code> with <code>nb::cpp_function</code>.</li>
+<li><strong>Modern toolchain.</strong> CMake-native (cyllama already uses CMake), good
+  stub generation (<code>nanobind-stubgen</code>), better IDE/typing support.</li>
+<li><strong>One language: C++.</strong> No more pyx/pxi/pxd file zoo, no <code># distutils:</code>
+  pragmas.</li>
 </ul>
-<h2 id="why-cyllama">Why cyllama?<a class="headerlink" href="#why-cyllama" title="Permanent link">&para;</a></h2>
-<h3 id="zero-dependencies">Zero Dependencies<a class="headerlink" href="#zero-dependencies" title="Permanent link">&para;</a></h3>
-<p>Unlike other Python LLM libraries that require PyTorch, TensorFlow, or other heavy frameworks, cyllama compiles directly against the C++ libraries. The only requirement is a GGUF model file.</p>
-<h3 id="high-performance">High Performance<a class="headerlink" href="#high-performance" title="Permanent link">&para;</a></h3>
-<p>By wrapping optimized C++ code with Cython (not Python bindings), cyllama achieves near-native performance:</p>
+<h3 id="cons-risks">Cons / risks<a class="headerlink" href="#cons-risks" title="Permanent link">&para;</a></h3>
 <ul>
-<li>
-<p>GPU acceleration via Metal (macOS), CUDA (NVIDIA), Vulkan (cross-platform)</p>
-</li>
-<li>
-<p>Efficient memory management with KV caching</p>
-</li>
-<li>
-<p>Batch processing for 3-10x throughput improvements</p>
-</li>
-<li>
-<p>Speculative decoding for 2-3x faster generation</p>
-</li>
+<li><strong>Pure-Python-flavoured glue gets harder.</strong> Much of the <code>.pyx</code> is
+  Python-style code (default args, optional kwargs, string decoding,
+  list↔vector conversions). In Cython that's free; in nanobind it's C++.
+  Some of it migrates better to a thin Python layer on top of a minimal C++
+  binding.</li>
+<li><strong><code>cpdef enum</code> blocks</strong> become <code>nb::enum_&lt;&gt;</code> — straightforward but tedious
+  given how many there are.</li>
+<li><strong><code>include "*.pxi"</code></strong> (textual inclusion sharing C-level state across
+  translation units — <code>mtmd.pxi</code>, <code>speculative.pxi</code>, <code>tts_helpers.pxi</code>) has
+  no clean nanobind analogue. Refactor into normal C++ headers + separate
+  binding modules with cross-module type sharing (nanobind supports it, but
+  it's a design step).</li>
+<li><strong>Embedded mongoose server (<code>embedded.pyx</code>, 594 LOC)</strong> — anything relying
+  on Cython <code>nogil</code> semantics needs re-thinking with <code>nb::gil_scoped_release</code>.</li>
+<li><strong>Cython memoryviews → <code>nb::ndarray&lt;&gt;</code>.</strong> Different API, mostly an
+  improvement, but every call site changes.</li>
+<li><strong>Stricter compiler requirement.</strong> C++17 minimum, C++20 preferred. Cython
+  is more forgiving.</li>
+<li><strong>Loss of <code>.pyx</code>-level debugger / line profiling</strong> (minor).</li>
+<li><strong>Stub regeneration</strong> — typed Python API surface needs new stubs.</li>
 </ul>
-<h3 id="pythonic-api">Pythonic API<a class="headerlink" href="#pythonic-api" title="Permanent link">&para;</a></h3>
-<p>Despite the low-level foundations, cyllama provides a clean, Pythonic interface:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama</span><span class="w"> </span><span class="kn">import</span> <span class="n">complete</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">response</span> <span class="o">=</span> <span class="n">complete</span><span class="p">(</span>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="s2">&quot;Explain quantum computing in simple terms&quot;</span><span class="p">,</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">model_path</span><span class="o">=</span><span class="s2">&quot;models/llama.gguf&quot;</span><span class="p">,</span>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">temperature</span><span class="o">=</span><span class="mf">0.7</span>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">)</span>
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="nb">print</span><span class="p">(</span><span class="n">response</span><span class="p">)</span>
-</code></pre></div>
-<h2 id="whats-covered">What's Covered<a class="headerlink" href="#whats-covered" title="Permanent link">&para;</a></h2>
-<p>This documentation is organized into several parts:</p>
-<p><strong>Llama.cpp</strong> - Text generation with large language models, including the high-level API, streaming, batch processing, server implementations, and advanced features like speculative decoding and context caching.</p>
-<p><strong>Whisper.cpp</strong> - Speech-to-text transcription with support for timestamps, translation, and voice activity detection.</p>
-<p><strong>Stable-Diffusion.cpp</strong> - Image generation from text prompts, supporting SD 1.x/2.x, SDXL, SD3, FLUX, and video generation models.</p>
-<p><strong>Agents</strong> - A zero-dependency agent framework with three architectures: <code>ReActAgent</code> for general-purpose tasks, <code>ConstrainedAgent</code> for grammar-enforced tool calls, and <code>ContractAgent</code> for runtime verification.</p>
-<h2 id="getting-started">Getting Started<a class="headerlink" href="#getting-started" title="Permanent link">&para;</a></h2>
-<p>cyllama uses <a href="https://github.com/astral-sh/uv">uv</a> for fast, reliable Python package management. uv is a modern Python package manager written in Rust that provides:</p>
+<h3 id="effort-estimate">Effort estimate<a class="headerlink" href="#effort-estimate" title="Permanent link">&para;</a></h3>
+<p>Treating each <code>cdef class</code> as ~0.5–1 day once a binding template is
+established, plus upfront design work (module layout, ndarray strategy,
+callback strategy, GIL strategy):</p>
+<table>
+<thead>
+<tr>
+<th>Bucket</th>
+<th>Estimate</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Setup + first module skeleton + CMake/nanobind wiring</td>
+<td>2–4 days</td>
+</tr>
+<tr>
+<td>llama bindings (~5.6K LOC, 25 classes, mtmd, speculative)</td>
+<td>3–5 weeks</td>
+</tr>
+<tr>
+<td>stable-diffusion (3.2K LOC, 14 classes)</td>
+<td>1.5–2 weeks</td>
+</tr>
+<tr>
+<td>whisper (~1K LOC, 10 classes)</td>
+<td>3–5 days</td>
+</tr>
+<tr>
+<td>embedded mongoose server (threading/IO)</td>
+<td>3–7 days</td>
+</tr>
+<tr>
+<td>Test parity, stubs, packaging (incl. Vulkan wheels), docs</td>
+<td>1–2 weeks</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Total: ~6–10 weeks of full-time work</strong>, single developer, assuming the
+public Python API stays roughly compatible. Add 2–3 weeks if redesigning
+the Python surface as part of the port.</p>
+<hr />
+<h2 id="question-2-one-statically-linked-binary">Question 2: One statically linked binary<a class="headerlink" href="#question-2-one-statically-linked-binary" title="Permanent link">&para;</a></h2>
+<p>Since cyllama already pins one ggml across all three upstreams, the hardest
+part of consolidation is already done. Remaining work is mostly mechanical:</p>
+<ol>
+<li><strong>Flip ggml from SHARED to STATIC</strong> in CMake (<code>BUILD_SHARED_LIBS=OFF</code> for
+   the ggml subtree, or a dedicated <code>ggml_static</code> target). Ensure
+   llama/whisper/sd all link the same static target.</li>
+<li><strong>Merge the three Python extensions into one <code>.so</code></strong> with three
+   submodules. In Cython: one top-level package init, three <code>.pyx</code> compiled
+   and linked together against the single static ggml + static
+   llama/whisper/sd. In nanobind: natural <code>NB_MODULE</code> + <code>def_submodule</code>.</li>
+<li><strong>Drop <code>libggml.so</code> from the wheel</strong> and remove the RPATH / loader
+   plumbing.</li>
+</ol>
+<p><strong>Estimated effort: 3–7 days</strong> of CMake + packaging work. No binding rewrite
+required.</p>
+<h3 id="what-this-gains">What this gains<a class="headerlink" href="#what-this-gains" title="Permanent link">&para;</a></h3>
 <ul>
-<li>
-<p><strong>Speed</strong>: 10-100x faster than pip for dependency resolution and installation</p>
-</li>
-<li>
-<p><strong>Reliability</strong>: Deterministic builds with lockfile support</p>
-</li>
-<li>
-<p><strong>Simplicity</strong>: Single tool for virtual environments, packages, and Python version management</p>
-</li>
+<li><strong>No dynamic loader fragility.</strong> No RPATH, no <code>DT_NEEDED</code>, no auditwheel /
+  delocate / delvewheel having to repair <code>libggml.so</code> paths. Static linking
+  removes a category of bugs.</li>
+<li><strong>Smaller wheel.</strong> Modest — saves per-<code>.so</code> ELF/Mach-O overhead and some
+  PLT/GOT churn, not ggml duplication. Probably single-digit MB.</li>
+<li><strong>Flat dependency graph.</strong> One <code>.so</code>, no transitive shared-lib loading.</li>
+<li><strong>Cross-module C++ type sharing becomes trivial.</strong> Relevant if a
+  <code>ggml_backend_t</code> ever needs to flow between <code>cyllama.llama</code> and
+  <code>cyllama.sd</code> without round-tripping through opaque pointers.</li>
+<li><strong>LTO across the boundary.</strong> With LTO on, the compiler can inline ggml
+  calls into llama/whisper/sd call sites. Small perf win, free once static.</li>
 </ul>
-<h3 id="quick-start">Quick Start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Install uv (if you don&#39;t have it)</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>curl<span class="w"> </span>-LsSf<span class="w"> </span>https://astral.sh/uv/install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>sh
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="c1"># Clone and build</span>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/shakfu/cyllama.git
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="nb">cd</span><span class="w"> </span>cyllama
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="c1"># Sync dependencies (uv creates the virtual environment automatically)</span>
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>uv<span class="w"> </span>sync
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>
-<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="c1"># Build cyllama</span>
-<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>make
-<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>
-<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="c1"># Download a test model</span>
-<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>make<span class="w"> </span>download
-<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a>
-<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="c1"># Try it out in a python terminal</span>
-<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a>uv<span class="w"> </span>run<span class="w"> </span>python
-</code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="o">&gt;&gt;&gt;</span> <span class="kn">from</span><span class="w"> </span><span class="nn">cyllama</span><span class="w"> </span><span class="kn">import</span> <span class="n">complete</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="o">&gt;&gt;&gt;</span> <span class="n">response</span> <span class="o">=</span> <span class="n">complete</span><span class="p">(</span><span class="s1">&#39;Hello!&#39;</span><span class="p">,</span> <span class="n">model_path</span><span class="o">=</span><span class="s1">&#39;models/Llama-3.2-1B-Instruct-Q8_0.gguf&#39;</span><span class="p">)</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="o">&gt;&gt;&gt;</span> <span class="nb">print</span><span class="p">(</span><span class="n">response</span><span class="p">)</span>
-</code></pre></div>
-<h3 id="running-tests">Running Tests<a class="headerlink" href="#running-tests" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Run the full test suite</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>make<span class="w"> </span><span class="nb">test</span>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># Or use uv directly</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>uv<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>tests/
-</code></pre></div>
-<h3 id="using-uv-commands">Using uv Commands<a class="headerlink" href="#using-uv-commands" title="Permanent link">&para;</a></h3>
-<p>Common uv commands for development:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>uv<span class="w"> </span>sync<span class="w">              </span><span class="c1"># Install/sync all dependencies</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>uv<span class="w"> </span>add<span class="w"> </span>package<span class="w">       </span><span class="c1"># Add a new dependency</span>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>...<span class="w">    </span><span class="c1"># Run Python in the virtual environment</span>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>uv<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>...<span class="w">    </span><span class="c1"># Run pytest</span>
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>uv<span class="w"> </span>pip<span class="w"> </span>list<span class="w">          </span><span class="c1"># List installed packages</span>
-</code></pre></div>
-<p>For detailed installation instructions, see the <a href="../installation/">Installation Guide</a>.</p>
+<h3 id="what-this-does-not-gain">What this does <em>not</em> gain<a class="headerlink" href="#what-this-does-not-gain" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Backend-registry correctness</strong> — already correct via shared
+  <code>libggml.so</code>.</li>
+<li><strong>ggml version coherence</strong> — already pinned.</li>
+<li><strong>"No ggml duplication"</strong> — there is no duplication today.</li>
+</ul>
+<h3 id="costs">Costs<a class="headerlink" href="#costs" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Bigger single <code>.so</code></strong> — no lazy loading; importing <code>cyllama.whisper</code>
+  pulls in llama+sd code too. Probably not material.</li>
+<li><strong>Chunkier CUDA/Vulkan build matrix.</strong> One failing backend fails the whole
+  wheel instead of one submodule.</li>
+<li><strong>Loses the option to ship <code>cyllama-llama</code> / <code>cyllama-whisper</code> /
+  <code>cyllama-sd</code> as separable PyPI packages.</strong></li>
+</ul>
+<hr />
+<h2 id="recommendation">Recommendation<a class="headerlink" href="#recommendation" title="Permanent link">&para;</a></h2>
+<p>Treat these as two independent decisions and sequence them.</p>
+<h3 id="step-1-consolidate-to-one-binary-static-ggml-in-cython-1-week">Step 1 — Consolidate to one binary + static ggml in Cython (1 week)<a class="headerlink" href="#step-1-consolidate-to-one-binary-static-ggml-in-cython-1-week" title="Permanent link">&para;</a></h3>
+<p>Captures the loader/wheel wins immediately. Doesn't require touching binding
+code. De-risks any future nanobind port by establishing the single-<code>.so</code>
+structure first.</p>
+<h3 id="step-2-live-with-it-for-a-release-cycle">Step 2 — Live with it for a release cycle<a class="headerlink" href="#step-2-live-with-it-for-a-release-cycle" title="Permanent link">&para;</a></h3>
+<p>The strongest argument for nanobind is <strong>eliminating <code>.pxd</code> drift against
+upstream headers</strong>. Whether that's actually painful is something you'll feel
+in practice over a release or two. If <code>.pxd</code> maintenance is rarely a problem,
+nanobind is mostly lateral motion.</p>
+<h3 id="step-3-port-to-nanobind-only-if-step-2-hurts">Step 3 — Port to nanobind only if Step 2 hurts<a class="headerlink" href="#step-3-port-to-nanobind-only-if-step-2-hurts" title="Permanent link">&para;</a></h3>
+<p>And even then, do it one submodule at a time. A nanobind submodule and a
+Cython submodule can coexist in the same package during migration — there's
+no need for a flag-day rewrite. Whisper is the cheapest first target
+(~1 week) and a good spike to validate the approach before committing to
+llama (3–5 weeks).</p>
+<h2 id="summary-table">Summary table<a class="headerlink" href="#summary-table" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Action</th>
+<th>Effort</th>
+<th>Primary win</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Static ggml + single <code>.so</code> (Cython)</td>
+<td>3–7 days</td>
+<td>Loader robustness, simpler wheels</td>
+</tr>
+<tr>
+<td>Whisper module → nanobind (spike)</td>
+<td>~1 week</td>
+<td>Validate ergonomics on a small surface</td>
+</tr>
+<tr>
+<td>Full Cython → nanobind port</td>
+<td>6–10 weeks</td>
+<td>Delete <code>.pxd</code>s, modern C++ ergonomics</td>
+</tr>
+</tbody>
+</table>
 
 
 
@@ -1785,10 +1831,10 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.expand", "navigation.top", "search.highlight", "content.code.copy"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.expand", "navigation.top", "search.highlight", "content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
       
     
   </body>

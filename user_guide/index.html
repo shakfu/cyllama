@@ -2928,8 +2928,12 @@
 </ol>
 <h3 id="prefill-vs-decode">Prefill vs Decode<a class="headerlink" href="#prefill-vs-decode" title="Permanent link">&para;</a></h3>
 <ul>
-<li><strong>Prefill</strong>: Process all prompt tokens in parallel (batch operation, very fast)</li>
-<li><strong>Decode</strong>: Generate output tokens one-by-one (autoregressive, slower)</li>
+<li>
+<p><strong>Prefill</strong>: Process all prompt tokens in parallel (batch operation, very fast)</p>
+</li>
+<li>
+<p><strong>Decode</strong>: Generate output tokens one-by-one (autoregressive, slower)</p>
+</li>
 </ul>
 <table>
 <thead>
@@ -2954,9 +2958,15 @@
 </table>
 <h3 id="performance-implications">Performance Implications<a class="headerlink" href="#performance-implications" title="Permanent link">&para;</a></h3>
 <ul>
-<li><strong>Time to First Token (TTFT)</strong>: Dominated by prefill time. Longer prompts = longer TTFT.</li>
-<li><strong>Generation Speed</strong>: Limited by decode speed, regardless of hardware.</li>
-<li><strong>Optimization Strategies</strong>: KV caching, speculative decoding, and batching help mitigate the bottleneck.</li>
+<li>
+<p><strong>Time to First Token (TTFT)</strong>: Dominated by prefill time. Longer prompts = longer TTFT.</p>
+</li>
+<li>
+<p><strong>Generation Speed</strong>: Limited by decode speed, regardless of hardware.</p>
+</li>
+<li>
+<p><strong>Optimization Strategies</strong>: KV caching, speculative decoding, and batching help mitigate the bottleneck.</p>
+</li>
 </ul>
 <h2 id="performance-optimization">Performance Optimization<a class="headerlink" href="#performance-optimization" title="Permanent link">&para;</a></h2>
 <h3 id="gpu-acceleration">GPU Acceleration<a class="headerlink" href="#gpu-acceleration" title="Permanent link">&para;</a></h3>
@@ -3038,20 +3048,36 @@
 <h2 id="examples">Examples<a class="headerlink" href="#examples" title="Permanent link">&para;</a></h2>
 <p>See the <code>tests/examples/</code> directory for complete working examples:</p>
 <ul>
-<li><code>generate_example.py</code> - Basic generation</li>
-<li><code>speculative_example.py</code> - Speculative decoding</li>
-<li><code>integration_example.py</code> - Framework integrations</li>
+<li>
+<p><code>generate_example.py</code> - Basic generation</p>
+</li>
+<li>
+<p><code>speculative_example.py</code> - Speculative decoding</p>
+</li>
+<li>
+<p><code>integration_example.py</code> - Framework integrations</p>
+</li>
 </ul>
 <h2 id="next-steps">Next Steps<a class="headerlink" href="#next-steps" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Read the <a href="../cookbook/">Cookbook</a> for common patterns</li>
-<li>Check <a href="../api_reference/">API Reference</a> for detailed documentation</li>
-<li>See <a href="https://github.com/shakfu/cyllama/tree/main/tests/examples">Examples</a> for complete code</li>
+<li>
+<p>Read the <a href="../cookbook/">Cookbook</a> for common patterns</p>
+</li>
+<li>
+<p>Check <a href="../api_reference/">API Reference</a> for detailed documentation</p>
+</li>
+<li>
+<p>See <a href="https://github.com/shakfu/cyllama/tree/main/tests/examples">Examples</a> for complete code</p>
+</li>
 </ul>
 <h2 id="support">Support<a class="headerlink" href="#support" title="Permanent link">&para;</a></h2>
 <ul>
-<li>GitHub Issues: <a href="https://github.com/shakfu/cyllama/issues">https://github.com/shakfu/cyllama/issues</a></li>
-<li>Documentation: <a href="https://github.com/shakfu/cyllama">https://github.com/shakfu/cyllama</a></li>
+<li>
+<p>GitHub Issues: <a href="https://github.com/shakfu/cyllama/issues">https://github.com/shakfu/cyllama/issues</a></p>
+</li>
+<li>
+<p>Documentation: <a href="https://github.com/shakfu/cyllama">https://github.com/shakfu/cyllama</a></p>
+</li>
 </ul>
 
 

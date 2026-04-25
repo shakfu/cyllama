@@ -1793,11 +1793,21 @@
 </ol>
 <h2 id="design-principles">Design Principles<a class="headerlink" href="#design-principles" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>Opt-in by default</strong> - Zero overhead unless explicitly enabled</li>
-<li><strong>Single file</strong> - All data in one SQLite database file</li>
-<li><strong>Thread-safe</strong> - WAL mode for concurrent read/write</li>
-<li><strong>Zero dependencies</strong> - Uses Python's built-in <code>sqlite3</code> module</li>
-<li><strong>Graceful degradation</strong> - Works without DB (in-memory fallback)</li>
+<li>
+<p><strong>Opt-in by default</strong> - Zero overhead unless explicitly enabled</p>
+</li>
+<li>
+<p><strong>Single file</strong> - All data in one SQLite database file</p>
+</li>
+<li>
+<p><strong>Thread-safe</strong> - WAL mode for concurrent read/write</p>
+</li>
+<li>
+<p><strong>Zero dependencies</strong> - Uses Python's built-in <code>sqlite3</code> module</p>
+</li>
+<li>
+<p><strong>Graceful degradation</strong> - Works without DB (in-memory fallback)</p>
+</li>
 </ul>
 <h2 id="database-location">Database Location<a class="headerlink" href="#database-location" title="Permanent link">&para;</a></h2>
 <p>Default location follows XDG Base Directory Specification:</p>
@@ -1807,9 +1817,15 @@
 </code></pre></div>
 <p>Can be overridden via:</p>
 <ul>
-<li>Environment variable: <code>CYLLAMA_DB_PATH</code></li>
-<li>Constructor argument: <code>CyllamaDB(path="/custom/path.db")</code></li>
-<li>Disable entirely: <code>CyllamaDB(enabled=False)</code> or <code>CYLLAMA_DB_ENABLED=0</code></li>
+<li>
+<p>Environment variable: <code>CYLLAMA_DB_PATH</code></p>
+</li>
+<li>
+<p>Constructor argument: <code>CyllamaDB(path="/custom/path.db")</code></p>
+</li>
+<li>
+<p>Disable entirely: <code>CyllamaDB(enabled=False)</code> or <code>CYLLAMA_DB_ENABLED=0</code></p>
+</li>
 </ul>
 <h2 id="schema-design">Schema Design<a class="headerlink" href="#schema-design" title="Permanent link">&para;</a></h2>
 <h3 id="1-configuration-table">1. Configuration Table<a class="headerlink" href="#1-configuration-table" title="Permanent link">&para;</a></h3>
@@ -2244,10 +2260,18 @@
 </ol>
 <h3 id="excluded-from-cache-key">Excluded from Cache Key<a class="headerlink" href="#excluded-from-cache-key" title="Permanent link">&para;</a></h3>
 <ul>
-<li><code>seed</code> - Different seeds should return cached result</li>
-<li><code>n_gpu_layers</code> - Infrastructure detail, doesn't affect output</li>
-<li><code>n_ctx</code> - Context size doesn't affect generation content</li>
-<li><code>verbose</code> - Logging flag</li>
+<li>
+<p><code>seed</code> - Different seeds should return cached result</p>
+</li>
+<li>
+<p><code>n_gpu_layers</code> - Infrastructure detail, doesn't affect output</p>
+</li>
+<li>
+<p><code>n_ctx</code> - Context size doesn't affect generation content</p>
+</li>
+<li>
+<p><code>verbose</code> - Logging flag</p>
+</li>
 </ul>
 <h3 id="cache-invalidation">Cache Invalidation<a class="headerlink" href="#cache-invalidation" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="c1"># Invalidate all cache</span>
@@ -2287,10 +2311,18 @@
 </code></pre></div>
 <h2 id="thread-safety">Thread Safety<a class="headerlink" href="#thread-safety" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Uses WAL (Write-Ahead Logging) mode for better concurrency</li>
-<li>Connection per-thread with <code>check_same_thread=False</code></li>
-<li>Write operations use transactions</li>
-<li>Read operations don't block writes</li>
+<li>
+<p>Uses WAL (Write-Ahead Logging) mode for better concurrency</p>
+</li>
+<li>
+<p>Connection per-thread with <code>check_same_thread=False</code></p>
+</li>
+<li>
+<p>Write operations use transactions</p>
+</li>
+<li>
+<p>Read operations don't block writes</p>
+</li>
 </ul>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="c1"># Thread-safe initialization</span>
 <a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="n">db</span> <span class="o">=</span> <span class="n">CyllamaDB</span><span class="p">()</span>  <span class="c1"># Configures WAL mode automatically</span>
@@ -2341,67 +2373,115 @@
 <h2 id="implementation-phases">Implementation Phases<a class="headerlink" href="#implementation-phases" title="Permanent link">&para;</a></h2>
 <h3 id="phase-1-core-infrastructure">Phase 1: Core Infrastructure<a class="headerlink" href="#phase-1-core-infrastructure" title="Permanent link">&para;</a></h3>
 <ul>
-<li>[ ] <code>CyllamaDB</code> class with connection management</li>
-<li>[ ] Schema creation and migrations</li>
-<li>[ ] Basic configuration get/set</li>
+<li>
+<p>[ ] <code>CyllamaDB</code> class with connection management</p>
+</li>
+<li>
+<p>[ ] Schema creation and migrations</p>
+</li>
+<li>
+<p>[ ] Basic configuration get/set</p>
+</li>
 </ul>
 <h3 id="phase-2-response-caching">Phase 2: Response Caching<a class="headerlink" href="#phase-2-response-caching" title="Permanent link">&para;</a></h3>
 <ul>
-<li>[ ] Cache key generation</li>
-<li>[ ] <code>get_cached_response()</code> / <code>cache_response()</code></li>
-<li>[ ] TTL and size-based cleanup</li>
-<li>[ ] Integration with <code>complete()</code> and <code>LLM()</code></li>
+<li>
+<p>[ ] Cache key generation</p>
+</li>
+<li>
+<p>[ ] <code>get_cached_response()</code> / <code>cache_response()</code></p>
+</li>
+<li>
+<p>[ ] TTL and size-based cleanup</p>
+</li>
+<li>
+<p>[ ] Integration with <code>complete()</code> and <code>LLM()</code></p>
+</li>
 </ul>
 <h3 id="phase-3-statistics">Phase 3: Statistics<a class="headerlink" href="#phase-3-statistics" title="Permanent link">&para;</a></h3>
 <ul>
-<li>[ ] <code>record_generation()</code></li>
-<li>[ ] <code>get_stats_summary()</code> with aggregations</li>
-<li>[ ] <code>get_generation_history()</code></li>
+<li>
+<p>[ ] <code>record_generation()</code></p>
+</li>
+<li>
+<p>[ ] <code>get_stats_summary()</code> with aggregations</p>
+</li>
+<li>
+<p>[ ] <code>get_generation_history()</code></p>
+</li>
 </ul>
 <h3 id="phase-4-logging">Phase 4: Logging<a class="headerlink" href="#phase-4-logging" title="Permanent link">&para;</a></h3>
 <ul>
-<li>[ ] Database logging handler</li>
-<li>[ ] Log query API</li>
-<li>[ ] Integration with Python logging</li>
+<li>
+<p>[ ] Database logging handler</p>
+</li>
+<li>
+<p>[ ] Log query API</p>
+</li>
+<li>
+<p>[ ] Integration with Python logging</p>
+</li>
 </ul>
 <h3 id="phase-5-polish">Phase 5: Polish<a class="headerlink" href="#phase-5-polish" title="Permanent link">&para;</a></h3>
 <ul>
-<li>[ ] CLI commands for DB management</li>
-<li>[ ] Export/import functionality</li>
-<li>[ ] Performance optimization</li>
+<li>
+<p>[ ] CLI commands for DB management</p>
+</li>
+<li>
+<p>[ ] Export/import functionality</p>
+</li>
+<li>
+<p>[ ] Performance optimization</p>
+</li>
 </ul>
 <h2 id="open-questions">Open Questions<a class="headerlink" href="#open-questions" title="Permanent link">&para;</a></h2>
 <ol>
 <li><strong>Should caching be on by default?</strong></li>
-<li>Pro: Immediate performance benefit</li>
+<li>
+<p>Pro: Immediate performance benefit</p>
+</li>
 <li>
 <p>Con: Unexpected behavior if prompts have side effects</p>
 </li>
 <li>
 <p><strong>How to handle model path normalization?</strong></p>
 </li>
-<li>Same model at different paths should share cache?</li>
+<li>
+<p>Same model at different paths should share cache?</p>
+</li>
 <li>
 <p>Use model hash from GGUF metadata?</p>
 </li>
 <li>
 <p><strong>Should we support multiple databases?</strong></p>
 </li>
-<li>Per-project databases for isolation?</li>
+<li>
+<p>Per-project databases for isolation?</p>
+</li>
 <li>
 <p>Global + project overlay?</p>
 </li>
 <li>
 <p><strong>Integration with async API?</strong></p>
 </li>
-<li>aiosqlite for true async?</li>
-<li>Or thread pool for DB operations?</li>
+<li>
+<p>aiosqlite for true async?</p>
+</li>
+<li>
+<p>Or thread pool for DB operations?</p>
+</li>
 </ol>
 <h2 id="references">References<a class="headerlink" href="#references" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="https://www.sqlite.org/wal.html">SQLite WAL Mode</a></li>
-<li><a href="https://docs.python.org/3/library/sqlite3.html">Python sqlite3 Documentation</a></li>
-<li><a href="https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html">XDG Base Directory Specification</a></li>
+<li>
+<p><a href="https://www.sqlite.org/wal.html">SQLite WAL Mode</a></p>
+</li>
+<li>
+<p><a href="https://docs.python.org/3/library/sqlite3.html">Python sqlite3 Documentation</a></p>
+</li>
+<li>
+<p><a href="https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html">XDG Base Directory Specification</a></p>
+</li>
 </ul>
 
 

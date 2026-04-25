@@ -2430,13 +2430,27 @@
 <h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
 <p>The stable diffusion module provides Python bindings to stable-diffusion.cpp, enabling:</p>
 <ul>
-<li>Text-to-image generation</li>
-<li>Image-to-image transformation</li>
-<li>Inpainting with masks</li>
-<li>ControlNet guided generation</li>
-<li>Video generation (with compatible models like Wan, CogVideoX)</li>
-<li>ESRGAN image upscaling</li>
-<li>Model format conversion</li>
+<li>
+<p>Text-to-image generation</p>
+</li>
+<li>
+<p>Image-to-image transformation</p>
+</li>
+<li>
+<p>Inpainting with masks</p>
+</li>
+<li>
+<p>ControlNet guided generation</p>
+</li>
+<li>
+<p>Video generation (with compatible models like Wan, CogVideoX)</p>
+</li>
+<li>
+<p>ESRGAN image upscaling</p>
+</li>
+<li>
+<p>Model format conversion</p>
+</li>
 </ul>
 <h2 id="quick-start">Quick Start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h2>
 <h3 id="text-to-image">Text-to-Image<a class="headerlink" href="#text-to-image" title="Permanent link">&para;</a></h3>
@@ -3025,11 +3039,21 @@
 <h3 id="sdtype">SDType<a class="headerlink" href="#sdtype" title="Permanent link">&para;</a></h3>
 <p>Data types for quantization:</p>
 <ul>
-<li>Float: <code>F32</code>, <code>F16</code>, <code>BF16</code></li>
-<li>4-bit: <code>Q4_0</code>, <code>Q4_1</code>, <code>Q4_K</code></li>
-<li>5-bit: <code>Q5_0</code>, <code>Q5_1</code>, <code>Q5_K</code></li>
-<li>8-bit: <code>Q8_0</code>, <code>Q8_1</code>, <code>Q8_K</code></li>
-<li>K-quants: <code>Q2_K</code>, <code>Q3_K</code>, <code>Q6_K</code></li>
+<li>
+<p>Float: <code>F32</code>, <code>F16</code>, <code>BF16</code></p>
+</li>
+<li>
+<p>4-bit: <code>Q4_0</code>, <code>Q4_1</code>, <code>Q4_K</code></p>
+</li>
+<li>
+<p>5-bit: <code>Q5_0</code>, <code>Q5_1</code>, <code>Q5_K</code></p>
+</li>
+<li>
+<p>8-bit: <code>Q8_0</code>, <code>Q8_1</code>, <code>Q8_K</code></p>
+</li>
+<li>
+<p>K-quants: <code>Q2_K</code>, <code>Q3_K</code>, <code>Q6_K</code></p>
+</li>
 </ul>
 <h3 id="loraapplymode">LoraApplyMode<a class="headerlink" href="#loraapplymode" title="Permanent link">&para;</a></h3>
 <p>LoRA application modes:</p>
@@ -3596,31 +3620,63 @@
 </code></pre></div>
 <h3 id="out-of-memory">Out of Memory<a class="headerlink" href="#out-of-memory" title="Permanent link">&para;</a></h3>
 <ul>
-<li>Use smaller model (SD 1.5 vs SDXL)</li>
-<li>Use quantized model (Q4_0 vs F16)</li>
-<li>Reduce image dimensions</li>
-<li>Reduce batch_count</li>
-<li>Enable <code>--offload-to-cpu</code></li>
-<li>Enable <code>--vae-tiling</code> for large images</li>
+<li>
+<p>Use smaller model (SD 1.5 vs SDXL)</p>
+</li>
+<li>
+<p>Use quantized model (Q4_0 vs F16)</p>
+</li>
+<li>
+<p>Reduce image dimensions</p>
+</li>
+<li>
+<p>Reduce batch_count</p>
+</li>
+<li>
+<p>Enable <code>--offload-to-cpu</code></p>
+</li>
+<li>
+<p>Enable <code>--vae-tiling</code> for large images</p>
+</li>
 </ul>
 <h3 id="slow-generation">Slow Generation<a class="headerlink" href="#slow-generation" title="Permanent link">&para;</a></h3>
 <ul>
-<li>Use turbo/LCM models with fewer steps</li>
-<li>Enable flash attention (<code>--diffusion-fa</code>)</li>
-<li>Increase n_threads</li>
-<li>Use direct convolution (<code>--diffusion-conv-direct</code>)</li>
+<li>
+<p>Use turbo/LCM models with fewer steps</p>
+</li>
+<li>
+<p>Enable flash attention (<code>--diffusion-fa</code>)</p>
+</li>
+<li>
+<p>Increase n_threads</p>
+</li>
+<li>
+<p>Use direct convolution (<code>--diffusion-conv-direct</code>)</p>
+</li>
 </ul>
 <h3 id="fluxsd3-models-not-working">FLUX/SD3 Models Not Working<a class="headerlink" href="#fluxsd3-models-not-working" title="Permanent link">&para;</a></h3>
 <ul>
-<li>Ensure you have the required encoders (clip_l, t5xxl)</li>
-<li>For FLUX2, use <code>--llm</code> instead of <code>--t5xxl</code></li>
-<li>Check prediction type matches model</li>
+<li>
+<p>Ensure you have the required encoders (clip_l, t5xxl)</p>
+</li>
+<li>
+<p>For FLUX2, use <code>--llm</code> instead of <code>--t5xxl</code></p>
+</li>
+<li>
+<p>Check prediction type matches model</p>
+</li>
 </ul>
 <h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="https://github.com/leejet/stable-diffusion.cpp">stable-diffusion.cpp repository</a></li>
-<li><a href="https://huggingface.co/stabilityai/sdxl-turbo">SDXL Turbo</a> - Fast generation model</li>
-<li><a href="../api_reference/">API Reference</a> - Detailed API documentation</li>
+<li>
+<p><a href="https://github.com/leejet/stable-diffusion.cpp">stable-diffusion.cpp repository</a></p>
+</li>
+<li>
+<p><a href="https://huggingface.co/stabilityai/sdxl-turbo">SDXL Turbo</a> - Fast generation model</p>
+</li>
+<li>
+<p><a href="../api_reference/">API Reference</a> - Detailed API documentation</p>
+</li>
 </ul>
 
 

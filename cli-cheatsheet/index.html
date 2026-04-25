@@ -2852,14 +2852,30 @@ strings don't have a meaningful name.</p>
 <p><strong>Also</strong>: <code>python -m cyllama.sd</code></p>
 <h3 id="subcommands">Subcommands<a class="headerlink" href="#subcommands" title="Permanent link">&para;</a></h3>
 <ul>
-<li><code>txt2img</code> (alias: <code>generate</code>) -- Text to image</li>
-<li><code>img2img</code> -- Image to image</li>
-<li><code>inpaint</code> -- Inpainting with mask</li>
-<li><code>controlnet</code> -- ControlNet guided generation</li>
-<li><code>video</code> -- Video generation (Wan, CogVideoX)</li>
-<li><code>upscale</code> -- ESRGAN upscaling</li>
-<li><code>convert</code> -- Model format conversion</li>
-<li><code>info</code> -- System info</li>
+<li>
+<p><code>txt2img</code> (alias: <code>generate</code>) -- Text to image</p>
+</li>
+<li>
+<p><code>img2img</code> -- Image to image</p>
+</li>
+<li>
+<p><code>inpaint</code> -- Inpainting with mask</p>
+</li>
+<li>
+<p><code>controlnet</code> -- ControlNet guided generation</p>
+</li>
+<li>
+<p><code>video</code> -- Video generation (Wan, CogVideoX)</p>
+</li>
+<li>
+<p><code>upscale</code> -- ESRGAN upscaling</p>
+</li>
+<li>
+<p><code>convert</code> -- Model format conversion</p>
+</li>
+<li>
+<p><code>info</code> -- System info</p>
+</li>
 </ul>
 <h3 id="txt2img-generate">txt2img / generate<a class="headerlink" href="#txt2img-generate" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>cyllama<span class="w"> </span>sd<span class="w"> </span>txt2img<span class="w"> </span>-m<span class="w"> </span>models/sd.gguf<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;a sunset&quot;</span><span class="w"> </span>-o<span class="w"> </span>sunset.png

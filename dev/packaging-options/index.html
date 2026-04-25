@@ -1511,18 +1511,32 @@
 <p>Currently, the underlying C++ libraries are statically linked, with each library potentially using a different version of ggml. This creates massive builds, especially for CUDA backends.</p>
 <h3 id="current-build-characteristics">Current Build Characteristics<a class="headerlink" href="#current-build-characteristics" title="Permanent link">&para;</a></h3>
 <ul>
-<li><strong>Static linking without hidden visibility</strong>: All symbols from the static libraries are exported</li>
-<li><strong><code>--whole-archive</code> on Linux</strong>: Used to ensure function-pointer symbols (like <code>ggml_repeat_4d</code>) are included, but this exports all symbols</li>
-<li><strong>Separate ggml per project</strong>: stable-diffusion.cpp links against its own ggml libraries, while llama.cpp and whisper.cpp share theirs</li>
-<li><strong>No symbol isolation</strong>: Symbols from all ggml copies are exported, which could cause conflicts if multiple extensions are loaded in the same process (works now because extensions are typically loaded separately)</li>
+<li>
+<p><strong>Static linking without hidden visibility</strong>: All symbols from the static libraries are exported</p>
+</li>
+<li>
+<p><strong><code>--whole-archive</code> on Linux</strong>: Used to ensure function-pointer symbols (like <code>ggml_repeat_4d</code>) are included, but this exports all symbols</p>
+</li>
+<li>
+<p><strong>Separate ggml per project</strong>: stable-diffusion.cpp links against its own ggml libraries, while llama.cpp and whisper.cpp share theirs</p>
+</li>
+<li>
+<p><strong>No symbol isolation</strong>: Symbols from all ggml copies are exported, which could cause conflicts if multiple extensions are loaded in the same process (works now because extensions are typically loaded separately)</p>
+</li>
 </ul>
 <h2 id="the-shared-library-question">The Shared Library Question<a class="headerlink" href="#the-shared-library-question" title="Permanent link">&para;</a></h2>
 <p><strong>Question</strong>: What about compiling the dependencies as shared libraries and then linking them to the extensions?</p>
 <p><strong>Answer</strong>: If you compile ggml as a single shared library and link all three projects against it, they would all need to use the <strong>same ggml version</strong>. This is problematic because:</p>
 <ul>
-<li>llama.cpp, whisper.cpp, and stable-diffusion.cpp often pin to different ggml commits</li>
-<li>ggml's API/ABI is not stable between versions</li>
-<li>You'd be forced to synchronize updates across all three upstream projects</li>
+<li>
+<p>llama.cpp, whisper.cpp, and stable-diffusion.cpp often pin to different ggml commits</p>
+</li>
+<li>
+<p>ggml's API/ABI is not stable between versions</p>
+</li>
+<li>
+<p>You'd be forced to synchronize updates across all three upstream projects</p>
+</li>
 </ul>
 <h2 id="options-to-consider">Options to Consider<a class="headerlink" href="#options-to-consider" title="Permanent link">&para;</a></h2>
 <h3 id="option-1-static-linking-with-hidden-visibility-optimized-current-approach">Option 1: Static linking with hidden visibility (optimized current approach)<a class="headerlink" href="#option-1-static-linking-with-hidden-visibility-optimized-current-approach" title="Permanent link">&para;</a></h3>
@@ -1543,38 +1557,70 @@
 </code></pre></div>
 <p><strong>Benefits:</strong></p>
 <ul>
-<li>Allows different ggml versions per library (no symbol conflicts)</li>
-<li>Smaller binaries (linker can discard unused hidden symbols)</li>
-<li>Avoids symbol conflicts at runtime</li>
-<li>Removes need for <code>--whole-archive</code> (only public API symbols are exported)</li>
+<li>
+<p>Allows different ggml versions per library (no symbol conflicts)</p>
+</li>
+<li>
+<p>Smaller binaries (linker can discard unused hidden symbols)</p>
+</li>
+<li>
+<p>Avoids symbol conflicts at runtime</p>
+</li>
+<li>
+<p>Removes need for <code>--whole-archive</code> (only public API symbols are exported)</p>
+</li>
 </ul>
 <p><strong>Challenges:</strong></p>
 <ul>
-<li>Requires patching upstream projects or maintaining forks</li>
-<li>Need to ensure all necessary symbols are marked as visible in upstream</li>
+<li>
+<p>Requires patching upstream projects or maintaining forks</p>
+</li>
+<li>
+<p>Need to ensure all necessary symbols are marked as visible in upstream</p>
+</li>
 </ul>
 <h3 id="option-2-shared-libs-with-ggml-statically-linked-symbol-visibility-hidden">Option 2: Shared libs with ggml statically linked (symbol visibility hidden)<a class="headerlink" href="#option-2-shared-libs-with-ggml-statically-linked-symbol-visibility-hidden" title="Permanent link">&para;</a></h3>
 <p>Each of llama.cpp, whisper.cpp, and stable-diffusion.cpp becomes a shared library (<code>.so</code>/<code>.dylib</code>) with ggml statically linked inside, but with internal symbols hidden. This:</p>
 <ul>
-<li>Allows different ggml versions per library</li>
-<li>Reduces some duplication (shared C++ runtime, etc.)</li>
-<li>Avoids symbol conflicts at runtime</li>
-<li>Similar to Option 1 but produces shared libraries instead of static</li>
+<li>
+<p>Allows different ggml versions per library</p>
+</li>
+<li>
+<p>Reduces some duplication (shared C++ runtime, etc.)</p>
+</li>
+<li>
+<p>Avoids symbol conflicts at runtime</p>
+</li>
+<li>
+<p>Similar to Option 1 but produces shared libraries instead of static</p>
+</li>
 </ul>
 <h3 id="option-3-split-into-separate-python-packages">Option 3: Split into separate Python packages<a class="headerlink" href="#option-3-split-into-separate-python-packages" title="Permanent link">&para;</a></h3>
 <p>Instead of one monolithic <code>cyllama</code>, ship three separate packages:</p>
 <ul>
-<li><code>cyllama</code> (llama.cpp wrapper)</li>
-<li><code>cywhisper</code> (whisper.cpp wrapper)</li>
-<li><code>cystable-diffusion</code> (stable-diffusion.cpp wrapper)</li>
+<li>
+<p><code>cyllama</code> (llama.cpp wrapper)</p>
+</li>
+<li>
+<p><code>cywhisper</code> (whisper.cpp wrapper)</p>
+</li>
+<li>
+<p><code>cystable-diffusion</code> (stable-diffusion.cpp wrapper)</p>
+</li>
 </ul>
 <p>Users install only what they need. Doesn't reduce individual build size but reduces what users download.</p>
 <h3 id="option-4-modular-cuda-backend">Option 4: Modular CUDA backend<a class="headerlink" href="#option-4-modular-cuda-backend" title="Permanent link">&para;</a></h3>
 <p>The real size bloat comes from CUDA. Consider:</p>
 <ul>
-<li>Building CUDA kernels as a separate shared library</li>
-<li>ggml already has some support for this pattern</li>
-<li>One shared CUDA backend could potentially serve all three (if ggml versions align)</li>
+<li>
+<p>Building CUDA kernels as a separate shared library</p>
+</li>
+<li>
+<p>ggml already has some support for this pattern</p>
+</li>
+<li>
+<p>One shared CUDA backend could potentially serve all three (if ggml versions align)</p>
+</li>
 </ul>
 <h3 id="option-5-runtime-loading-plugin-architecture">Option 5: Runtime loading / plugin architecture<a class="headerlink" href="#option-5-runtime-loading-plugin-architecture" title="Permanent link">&para;</a></h3>
 <p>Ship CPU-only by default, with CUDA as an optional runtime-loadable plugin. This is how PyTorch and others handle it.</p>
@@ -1650,9 +1696,15 @@
 </table>
 <h3 id="notes-on-symbol-safety">Notes on Symbol Safety<a class="headerlink" href="#notes-on-symbol-safety" title="Permanent link">&para;</a></h3>
 <ul>
-<li><strong>Poor</strong>: Multiple ggml symbol sets exported; potential conflicts if multiple extensions loaded</li>
-<li><strong>Good</strong>: Symbols properly isolated; safe to load multiple extensions</li>
-<li><strong>Depends</strong>: Inherits from underlying approach chosen</li>
+<li>
+<p><strong>Poor</strong>: Multiple ggml symbol sets exported; potential conflicts if multiple extensions loaded</p>
+</li>
+<li>
+<p><strong>Good</strong>: Symbols properly isolated; safe to load multiple extensions</p>
+</li>
+<li>
+<p><strong>Depends</strong>: Inherits from underlying approach chosen</p>
+</li>
 </ul>
 
 

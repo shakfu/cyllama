@@ -2124,9 +2124,15 @@
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="n">llm</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>  <span class="c1"># Free GPU memory used by context</span>
 </code></pre></div>
 <ul>
-<li>Safe to call multiple times</li>
-<li>The model remains loaded for potential reuse</li>
-<li>After <code>close()</code>, the instance can still be used (a new context will be created)</li>
+<li>
+<p>Safe to call multiple times</p>
+</li>
+<li>
+<p>The model remains loaded for potential reuse</p>
+</li>
+<li>
+<p>After <code>close()</code>, the instance can still be used (a new context will be created)</p>
+</li>
 </ul>
 <h4 id="reset_context"><code>reset_context()</code><a class="headerlink" href="#reset_context" title="Permanent link">&para;</a></h4>
 <p>Force recreation of the context on the next generation.</p>
@@ -2166,9 +2172,15 @@
 <h3 id="when-to-force-recreation">When to Force Recreation<a class="headerlink" href="#when-to-force-recreation" title="Permanent link">&para;</a></h3>
 <p>Use <code>reset_context()</code> when:</p>
 <ul>
-<li>Starting a completely new conversation with no relation to previous ones</li>
-<li>Debugging generation issues</li>
-<li>Switching between very different prompt lengths (though automatic recreation handles this)</li>
+<li>
+<p>Starting a completely new conversation with no relation to previous ones</p>
+</li>
+<li>
+<p>Debugging generation issues</p>
+</li>
+<li>
+<p>Switching between very different prompt lengths (though automatic recreation handles this)</p>
+</li>
 </ul>
 <h3 id="memory-management-tips">Memory Management Tips<a class="headerlink" href="#memory-management-tips" title="Permanent link">&para;</a></h3>
 <ol>

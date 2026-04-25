@@ -2109,12 +2109,24 @@
 <h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
 <p>The whisper module provides Python bindings to whisper.cpp, enabling:</p>
 <ul>
-<li>Speech-to-text transcription</li>
-<li>Multi-language support (100+ languages)</li>
-<li>Translation to English</li>
-<li>Word-level timestamps</li>
-<li>Voice activity detection (VAD)</li>
-<li>GPU acceleration (Metal, CUDA)</li>
+<li>
+<p>Speech-to-text transcription</p>
+</li>
+<li>
+<p>Multi-language support (100+ languages)</p>
+</li>
+<li>
+<p>Translation to English</p>
+</li>
+<li>
+<p>Word-level timestamps</p>
+</li>
+<li>
+<p>Voice activity detection (VAD)</p>
+</li>
+<li>
+<p>GPU acceleration (Metal, CUDA)</p>
+</li>
 </ul>
 <h2 id="quick-start">Quick Start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h2>
 <h3 id="basic-transcription">Basic Transcription<a class="headerlink" href="#basic-transcription" title="Permanent link">&para;</a></h3>
@@ -2377,8 +2389,12 @@
 <h2 id="audio-preparation">Audio Preparation<a class="headerlink" href="#audio-preparation" title="Permanent link">&para;</a></h2>
 <p>Whisper requires:</p>
 <ul>
-<li><strong>Sample rate</strong>: 16000 Hz (mono)</li>
-<li><strong>Format</strong>: Float32 normalized to [-1.0, 1.0]</li>
+<li>
+<p><strong>Sample rate</strong>: 16000 Hz (mono)</p>
+</li>
+<li>
+<p><strong>Format</strong>: Float32 normalized to [-1.0, 1.0]</p>
+</li>
 </ul>
 <h3 id="using-scipy">Using scipy<a class="headerlink" href="#using-scipy" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">scipy.io</span><span class="w"> </span><span class="kn">import</span> <span class="n">wavfile</span>
@@ -2570,10 +2586,18 @@
 </table>
 <p><strong>English-only models</strong> (<code>.en</code> suffix) are faster and more accurate for English:</p>
 <ul>
-<li><code>ggml-tiny.en.bin</code></li>
-<li><code>ggml-base.en.bin</code></li>
-<li><code>ggml-small.en.bin</code></li>
-<li><code>ggml-medium.en.bin</code></li>
+<li>
+<p><code>ggml-tiny.en.bin</code></p>
+</li>
+<li>
+<p><code>ggml-base.en.bin</code></p>
+</li>
+<li>
+<p><code>ggml-small.en.bin</code></p>
+</li>
+<li>
+<p><code>ggml-medium.en.bin</code></p>
+</li>
 </ul>
 <p>Download models from <a href="https://huggingface.co/ggerganov/whisper.cpp">Hugging Face</a>.</p>
 <h2 id="performance-tips">Performance Tips<a class="headerlink" href="#performance-tips" title="Permanent link">&para;</a></h2>
@@ -2614,8 +2638,12 @@
 </code></pre></div>
 <h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="https://github.com/ggerganov/whisper.cpp">whisper.cpp repository</a></li>
-<li><a href="https://huggingface.co/openai/whisper-large-v3">Whisper model card</a></li>
+<li>
+<p><a href="https://github.com/ggerganov/whisper.cpp">whisper.cpp repository</a></p>
+</li>
+<li>
+<p><a href="https://huggingface.co/openai/whisper-large-v3">Whisper model card</a></p>
+</li>
 </ul>
 
 

@@ -1973,34 +1973,41 @@
 <a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a><span class="s2">code_block = &quot;preserved&quot;</span>
 </code></pre></div>
 <ul>
-<li>List item 1</li>
-<li>List item 2
-"""</li>
+<li>
+<p>List item 1</p>
+</li>
+<li>
+<p>List item 2
+"""</p>
+</li>
 </ul>
 <p>chunks = splitter.split(markdown_text)</p>
 <h2 id="headers-code-blocks-and-lists-are-preserved-where-possible">Headers, code blocks, and lists are preserved where possible<a class="headerlink" href="#headers-code-blocks-and-lists-are-preserved-where-possible" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>The MarkdownSplitter:
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>- Preserves code blocks (```)
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>- Respects header hierarchy (#, ##, ###)
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>- Keeps list items together
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>- Maintains frontmatter
-<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>
-<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>## Document Loaders
-<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>
-<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>### TextLoader
-<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>
-<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>Load plain text files:
-<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>
-<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>```python
-<a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a>from cyllama.rag import TextLoader
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>- Respects header hierarchy (#, ##, ###)
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>- Keeps list items together
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>- Maintains frontmatter
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>## Document Loaders
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>
+<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>### TextLoader
+<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>
+<a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a>Load plain text files:
 <a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a>
-<a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a>loader = TextLoader()
-<a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a>documents = loader.load(&quot;document.txt&quot;)
+<a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a>```python
+<a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a>from cyllama.rag import TextLoader
 <a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a>
-<a id="__codelineno-3-20" name="__codelineno-3-20" href="#__codelineno-3-20"></a>for doc in documents:
-<a id="__codelineno-3-21" name="__codelineno-3-21" href="#__codelineno-3-21"></a>    print(f&quot;Text: {doc.text[:100]}...&quot;)
-<a id="__codelineno-3-22" name="__codelineno-3-22" href="#__codelineno-3-22"></a>    print(f&quot;Metadata: {doc.metadata}&quot;)
+<a id="__codelineno-3-20" name="__codelineno-3-20" href="#__codelineno-3-20"></a>loader = TextLoader()
+<a id="__codelineno-3-21" name="__codelineno-3-21" href="#__codelineno-3-21"></a>documents = loader.load(&quot;document.txt&quot;)
+<a id="__codelineno-3-22" name="__codelineno-3-22" href="#__codelineno-3-22"></a>
+<a id="__codelineno-3-23" name="__codelineno-3-23" href="#__codelineno-3-23"></a>for doc in documents:
+<a id="__codelineno-3-24" name="__codelineno-3-24" href="#__codelineno-3-24"></a>    print(f&quot;Text: {doc.text[:100]}...&quot;)
+<a id="__codelineno-3-25" name="__codelineno-3-25" href="#__codelineno-3-25"></a>    print(f&quot;Metadata: {doc.metadata}&quot;)
 </code></pre></div>
 <h3 id="markdownloader">MarkdownLoader<a class="headerlink" href="#markdownloader" title="Permanent link">&para;</a></h3>
 <p>Load Markdown files with optional frontmatter parsing:</p>
@@ -2043,7 +2050,7 @@
 </code></pre></div>
 <h4 id="pdfloader">PDFLoader<a class="headerlink" href="#pdfloader" title="Permanent link">&para;</a></h4>
 <p>Load PDF files (requires <code>docling</code> package):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># Install: pip install cyllama[pdf]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># Install: uv sync --group pdf  (or: pip install docling)</span>
 <a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>
 <a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.rag</span><span class="w"> </span><span class="kn">import</span> <span class="n">PDFLoader</span>
 <a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>

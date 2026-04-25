@@ -1452,6 +1452,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Pluggable Backends — VectorStoreProtocol">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#qdrant-reference-adapter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Qdrant (reference adapter)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -2017,6 +2034,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Pluggable Backends — VectorStoreProtocol">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#qdrant-reference-adapter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Qdrant (reference adapter)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -2229,9 +2263,15 @@
 <h2 id="metadata-validation">Metadata Validation<a class="headerlink" href="#metadata-validation" title="Permanent link">&para;</a></h2>
 <p>A persistent <code>SqliteVectorStore</code> records its configuration in a <code>{table_name}_meta</code> SQLite table on first creation:</p>
 <ul>
-<li><strong>Hard fields</strong> (always validated on reopen): <code>dimension</code>, <code>metric</code>, <code>vector_type</code></li>
-<li><strong>Soft fields</strong> (validated only when the caller passes the matching kwarg): <code>embedding_model_basename</code>, <code>embedding_model_size_bytes</code>, <code>chunk_size</code>, <code>chunk_overlap</code></li>
-<li><strong>Informational</strong>: <code>cyllama_version</code>, <code>created_at</code></li>
+<li>
+<p><strong>Hard fields</strong> (always validated on reopen): <code>dimension</code>, <code>metric</code>, <code>vector_type</code></p>
+</li>
+<li>
+<p><strong>Soft fields</strong> (validated only when the caller passes the matching kwarg): <code>embedding_model_basename</code>, <code>embedding_model_size_bytes</code>, <code>chunk_size</code>, <code>chunk_overlap</code></p>
+</li>
+<li>
+<p><strong>Informational</strong>: <code>cyllama_version</code>, <code>created_at</code></p>
+</li>
 </ul>
 <p>On reopen, any mismatch between a stored hard field and the caller's value raises <code>VectorStoreError</code> with a message naming the stored value, the attempted value, and the fix. Soft fields only fire when the caller actually passes the corresponding constructor argument, so callers that don't care about embedding-model fingerprinting can opt out by simply not passing it.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.rag</span><span class="w"> </span><span class="kn">import</span> <span class="n">SqliteVectorStore</span><span class="p">,</span> <span class="n">VectorStoreError</span>
@@ -2351,28 +2391,40 @@
 <a id="__codelineno-17-12" name="__codelineno-17-12" href="#__codelineno-17-12"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">close</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span> <span class="o">...</span>
 <a id="__codelineno-17-13" name="__codelineno-17-13" href="#__codelineno-17-13"></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span> <span class="o">...</span>
 </code></pre></div>
-<p>This makes the RAG stack open to Qdrant, Chroma, LanceDB, pgvector, or any in-house vector service without forking <code>cyllama</code>:</p>
+<p>This makes the RAG stack open to Qdrant, Chroma, LanceDB, pgvector, or any in-house vector service without forking <code>cyllama</code>.</p>
+<h3 id="qdrant-reference-adapter">Qdrant (reference adapter)<a class="headerlink" href="#qdrant-reference-adapter" title="Permanent link">&para;</a></h3>
+<p><code>QdrantVectorStore</code> ships in <code>cyllama.rag.stores.qdrant</code> as the first worked example of the protocol. Install the optional dependency group (<code>uv sync --group qdrant</code>, or <code>pip install qdrant-client</code>) and pass it to <code>RAG</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.rag</span><span class="w"> </span><span class="kn">import</span> <span class="n">RAG</span>
-<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>
-<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a><span class="k">class</span><span class="w"> </span><span class="nc">QdrantStoreAdapter</span><span class="p">:</span>
-<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">search</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query_embedding</span><span class="p">,</span> <span class="n">k</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">threshold</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span> <span class="o">...</span>
-<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">add</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">embeddings</span><span class="p">,</span> <span class="n">texts</span><span class="p">,</span> <span class="n">metadata</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a>            <span class="n">source_hash</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">source_label</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span> <span class="o">...</span>
-<a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a>    <span class="c1"># ... remaining protocol methods</span>
-<a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a>
-<a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a><span class="n">rag</span> <span class="o">=</span> <span class="n">RAG</span><span class="p">(</span>
-<a id="__codelineno-18-10" name="__codelineno-18-10" href="#__codelineno-18-10"></a>    <span class="n">embedding_model</span><span class="o">=</span><span class="s2">&quot;models/bge-small-en-v1.5-q8_0.gguf&quot;</span><span class="p">,</span>
-<a id="__codelineno-18-11" name="__codelineno-18-11" href="#__codelineno-18-11"></a>    <span class="n">generation_model</span><span class="o">=</span><span class="s2">&quot;models/Llama-3.2-1B-Instruct-Q8_0.gguf&quot;</span><span class="p">,</span>
-<a id="__codelineno-18-12" name="__codelineno-18-12" href="#__codelineno-18-12"></a>    <span class="n">store</span><span class="o">=</span><span class="n">QdrantStoreAdapter</span><span class="p">(</span><span class="o">...</span><span class="p">),</span>
-<a id="__codelineno-18-13" name="__codelineno-18-13" href="#__codelineno-18-13"></a><span class="p">)</span>
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.rag.stores</span><span class="w"> </span><span class="kn">import</span> <span class="n">QdrantVectorStore</span>
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>
+<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a><span class="n">store</span> <span class="o">=</span> <span class="n">QdrantVectorStore</span><span class="p">(</span>
+<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a>    <span class="n">dimension</span><span class="o">=</span><span class="mi">384</span><span class="p">,</span>
+<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a>    <span class="n">collection_name</span><span class="o">=</span><span class="s2">&quot;cyllama_docs&quot;</span><span class="p">,</span>
+<a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a>    <span class="n">url</span><span class="o">=</span><span class="s2">&quot;http://localhost:6333&quot;</span><span class="p">,</span>  <span class="c1"># or path=..., location=&quot;:memory:&quot;, client=&lt;pre-built&gt;</span>
+<a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a><span class="p">)</span>
+<a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a>
+<a id="__codelineno-18-10" name="__codelineno-18-10" href="#__codelineno-18-10"></a><span class="n">rag</span> <span class="o">=</span> <span class="n">RAG</span><span class="p">(</span>
+<a id="__codelineno-18-11" name="__codelineno-18-11" href="#__codelineno-18-11"></a>    <span class="n">embedding_model</span><span class="o">=</span><span class="s2">&quot;models/bge-small-en-v1.5-q8_0.gguf&quot;</span><span class="p">,</span>
+<a id="__codelineno-18-12" name="__codelineno-18-12" href="#__codelineno-18-12"></a>    <span class="n">generation_model</span><span class="o">=</span><span class="s2">&quot;models/Llama-3.2-1B-Instruct-Q8_0.gguf&quot;</span><span class="p">,</span>
+<a id="__codelineno-18-13" name="__codelineno-18-13" href="#__codelineno-18-13"></a>    <span class="n">store</span><span class="o">=</span><span class="n">store</span><span class="p">,</span>
+<a id="__codelineno-18-14" name="__codelineno-18-14" href="#__codelineno-18-14"></a><span class="p">)</span>
 </code></pre></div>
+<p>Source dedup is implemented via per-point payload fields (<code>content_hash</code>, <code>source_label</code>, <code>indexed_at</code>) so <code>RAG.add_documents</code> skips unchanged files just like on the sqlite backend. See <code>src/cyllama/rag/stores/qdrant.py</code> for the full implementation — Chroma / LanceDB / pgvector adapters can follow the same template.</p>
 <p>Sqlite-specific features (quantization, FTS5 <code>HybridStore</code>, raw <code>store.conn</code> access) stay on <code>SqliteVectorStore</code> and aren't part of the contract. Backends without a natural dedup mechanism may return <code>False</code> / <code>None</code> from <code>is_source_indexed</code> / <code>get_source_by_label</code> — the RAG layer treats that as "always re-index" and still behaves correctly, just less efficiently on repeated <code>add_documents</code> calls.</p>
 <h2 id="performance-characteristics">Performance Characteristics<a class="headerlink" href="#performance-characteristics" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>1M vectors, 768 dimensions</strong>: Few milliseconds query time</li>
-<li><strong>Memory footprint</strong>: 30-50MB regardless of dataset size</li>
-<li><strong>No preindexing required</strong>: Works immediately with your data</li>
-<li><strong>SIMD acceleration</strong>: SSE2, AVX2, NEON support</li>
+<li>
+<p><strong>1M vectors, 768 dimensions</strong>: Few milliseconds query time</p>
+</li>
+<li>
+<p><strong>Memory footprint</strong>: 30-50MB regardless of dataset size</p>
+</li>
+<li>
+<p><strong>No preindexing required</strong>: Works immediately with your data</p>
+</li>
+<li>
+<p><strong>SIMD acceleration</strong>: SSE2, AVX2, NEON support</p>
+</li>
 </ul>
 
 

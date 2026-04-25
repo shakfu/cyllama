@@ -1676,8 +1676,12 @@
 <p>Dynamic-linked CUDA wheels (<code>WITH_DYLIB=1</code>) crash with <code>double free or corruption (!prev)</code> during Python interpreter shutdown. The crash is non-deterministic and only affects wheels processed by <code>auditwheel repair</code>.</p>
 <p>This issue is <strong>Linux-specific</strong>. The entire chain -- <code>auditwheel repair</code>, <code>patchelf</code> SONAME rewriting, glibc <code>dlclose</code> unload ordering -- only exists on Linux. macOS and Windows are not affected:</p>
 <ul>
-<li><strong>macOS</strong> uses <code>delocate</code> for wheel repair, which rewrites Mach-O load commands via <code>install_name_tool</code> rather than ELF SONAME headers. <code>delocate</code> does not alter the dyld unload order in the way that triggers this crash. macOS wheels have their own issues (e.g. duplicate OpenMP runtimes causing segfaults when co-installed with PyTorch -- see <a href="https://github.com/lightgbm-org/LightGBM/issues/6595">LightGBM#6595</a>), but those are a different problem with different root causes.</li>
-<li><strong>Windows</strong> uses no wheel repair tool. DLLs are bundled as-is with no SONAME equivalent to rewrite, and the Windows loader does not have the same unload-ordering sensitivity as glibc's <code>dlclose</code>.</li>
+<li>
+<p><strong>macOS</strong> uses <code>delocate</code> for wheel repair, which rewrites Mach-O load commands via <code>install_name_tool</code> rather than ELF SONAME headers. <code>delocate</code> does not alter the dyld unload order in the way that triggers this crash. macOS wheels have their own issues (e.g. duplicate OpenMP runtimes causing segfaults when co-installed with PyTorch -- see <a href="https://github.com/lightgbm-org/LightGBM/issues/6595">LightGBM#6595</a>), but those are a different problem with different root causes.</p>
+</li>
+<li>
+<p><strong>Windows</strong> uses no wheel repair tool. DLLs are bundled as-is with no SONAME equivalent to rewrite, and the Windows loader does not have the same unload-ordering sensitivity as glibc's <code>dlclose</code>.</p>
+</li>
 </ul>
 <p>First observed against commit <code>36db368</code>. The initial fix attempted Python-level cleanup before shutdown, but this caused instability on the Metal backend as well. Reverted in <code>fb522c8</code>.</p>
 <h2 id="root-cause">Root cause<a class="headerlink" href="#root-cause" title="Permanent link">&para;</a></h2>
@@ -1737,11 +1741,21 @@
 <h3 id="why-it-is-non-deterministic">Why it is non-deterministic<a class="headerlink" href="#why-it-is-non-deterministic" title="Permanent link">&para;</a></h3>
 <p>Several factors vary between runs:</p>
 <ul>
-<li><strong>ASLR</strong> randomizes library mapping addresses, which affects whether a double-free hits unmapped memory (segfault) vs. still-valid memory (silent or no error)</li>
-<li><strong><code>dlclose</code> ordering</strong> depends on the full set of loaded shared objects, which varies with installed packages (numpy, etc.) and load timing</li>
-<li><strong>CUDA runtime state</strong> depends on what GPU operations actually ran. Import-only tests may exit cleanly because CUDA never fully initialized its teardown hooks</li>
-<li><strong>Python GC timing</strong> determines whether Cython destructors run before or during interpreter shutdown. If contexts are freed before shutdown starts, the <code>dlclose</code> race is avoided</li>
-<li><strong>Multiple CUDA versions</strong> on the same system change which <code>libcudart.so</code> the linker resolves, varying the atexit handler behavior depending on environment variable ordering and ldconfig state</li>
+<li>
+<p><strong>ASLR</strong> randomizes library mapping addresses, which affects whether a double-free hits unmapped memory (segfault) vs. still-valid memory (silent or no error)</p>
+</li>
+<li>
+<p><strong><code>dlclose</code> ordering</strong> depends on the full set of loaded shared objects, which varies with installed packages (numpy, etc.) and load timing</p>
+</li>
+<li>
+<p><strong>CUDA runtime state</strong> depends on what GPU operations actually ran. Import-only tests may exit cleanly because CUDA never fully initialized its teardown hooks</p>
+</li>
+<li>
+<p><strong>Python GC timing</strong> determines whether Cython destructors run before or during interpreter shutdown. If contexts are freed before shutdown starts, the <code>dlclose</code> race is avoided</p>
+</li>
+<li>
+<p><strong>Multiple CUDA versions</strong> on the same system change which <code>libcudart.so</code> the linker resolves, varying the atexit handler behavior depending on environment variable ordering and ldconfig state</p>
+</li>
 </ul>
 <h3 id="reproduction-matrix">Reproduction matrix<a class="headerlink" href="#reproduction-matrix" title="Permanent link">&para;</a></h3>
 <table>
@@ -1804,14 +1818,24 @@
 <p>Set <code>CIBW_REPAIR_WHEEL_COMMAND_LINUX: ""</code> so cibuildwheel skips the repair step. The wheel keeps its <code>linux_x86_64</code> platform tag. No SONAME rewriting, no library relocation, no <code>dlclose</code> ordering changes.</p>
 <p><strong>Pros:</strong></p>
 <ul>
-<li>Eliminates the entire class of SONAME-rewriting bugs</li>
-<li>No exclude list to maintain</li>
-<li>One-line change</li>
+<li>
+<p>Eliminates the entire class of SONAME-rewriting bugs</p>
+</li>
+<li>
+<p>No exclude list to maintain</p>
+</li>
+<li>
+<p>One-line change</p>
+</li>
 </ul>
 <p><strong>Cons:</strong></p>
 <ul>
-<li>The wheel gets a <code>linux_x86_64</code> tag instead of <code>manylinux</code>, which pip may refuse to install on some systems and PyPI will reject for upload</li>
-<li>Only viable for self-hosted wheel indexes or direct installation</li>
+<li>
+<p>The wheel gets a <code>linux_x86_64</code> tag instead of <code>manylinux</code>, which pip may refuse to install on some systems and PyPI will reject for upload</p>
+</li>
+<li>
+<p>Only viable for self-hosted wheel indexes or direct installation</p>
+</li>
 </ul>
 <p><strong>Status:</strong> Validated. The test workflow at <code>.github/workflows/test-cuda-wheel.yml</code> includes a no-repair strategy that produces an identical wheel (in content) to the <code>--exclude</code> strategy, differing only in the platform tag.</p>
 <h3 id="2-exclude-bundled-libraries-from-auditwheel-repair">2. <code>--exclude</code> bundled libraries from auditwheel repair<a class="headerlink" href="#2-exclude-bundled-libraries-from-auditwheel-repair" title="Permanent link">&para;</a></h3>
@@ -1835,20 +1859,36 @@
 </code></pre></div>
 <p>The exclude list has two categories:</p>
 <ul>
-<li><strong>GPU runtime system libs</strong> (<code>libcuda*</code>, <code>libcublas*</code>): Prevents auditwheel from bundling system-installed CUDA libraries. The user's own CUDA installation is used at runtime. Excluding these alone does not fix the double-free.</li>
-<li><strong>Bundled project libs</strong> (<code>libllama*</code>, <code>libggml*</code>, <code>libmtmd*</code>) and <strong><code>libgomp.so.1</code></strong>: Prevents auditwheel from relocating and SONAME-rewriting libraries that the build system already placed in <code>cyllama/llama/</code> with correct <code>$ORIGIN</code> RPATHs. This is where the double-free fix lies. All bundled project libs must be excluded -- auditwheel refuses to produce a wheel if any non-excluded libs contain glibc symbols too recent for the target manylinux policy (see <a href="#why-all-bundled-project-libs-must-be-excluded">why all bundled project libs must be excluded</a>).</li>
+<li>
+<p><strong>GPU runtime system libs</strong> (<code>libcuda*</code>, <code>libcublas*</code>): Prevents auditwheel from bundling system-installed CUDA libraries. The user's own CUDA installation is used at runtime. Excluding these alone does not fix the double-free.</p>
+</li>
+<li>
+<p><strong>Bundled project libs</strong> (<code>libllama*</code>, <code>libggml*</code>, <code>libmtmd*</code>) and <strong><code>libgomp.so.1</code></strong>: Prevents auditwheel from relocating and SONAME-rewriting libraries that the build system already placed in <code>cyllama/llama/</code> with correct <code>$ORIGIN</code> RPATHs. This is where the double-free fix lies. All bundled project libs must be excluded -- auditwheel refuses to produce a wheel if any non-excluded libs contain glibc symbols too recent for the target manylinux policy (see <a href="#why-all-bundled-project-libs-must-be-excluded">why all bundled project libs must be excluded</a>).</p>
+</li>
 </ul>
 <p><strong>Pros:</strong></p>
 <ul>
-<li>Directly addresses the root cause (SONAME rewriting of bundled project libs)</li>
-<li>Produces a manylinux-tagged wheel that pip and PyPI accept</li>
-<li>Validated in the reproduction matrix and on hardware (RTX 4060)</li>
-<li>Zero runtime cost</li>
+<li>
+<p>Directly addresses the root cause (SONAME rewriting of bundled project libs)</p>
+</li>
+<li>
+<p>Produces a manylinux-tagged wheel that pip and PyPI accept</p>
+</li>
+<li>
+<p>Validated in the reproduction matrix and on hardware (RTX 4060)</p>
+</li>
+<li>
+<p>Zero runtime cost</p>
+</li>
 </ul>
 <p><strong>Cons:</strong></p>
 <ul>
-<li>Maintenance burden: every new upstream <code>.so</code> (new ggml backend, new library) requires a new <code>--exclude</code> line. Missing one will cause auditwheel to fail (too-recent glibc symbols) or, if the symbols happen to pass the policy check, reintroduce the SONAME rewriting</li>
-<li>Weaker manylinux compliance: trusts the build's RPATHs rather than auditwheel's relocation guarantees</li>
+<li>
+<p>Maintenance burden: every new upstream <code>.so</code> (new ggml backend, new library) requires a new <code>--exclude</code> line. Missing one will cause auditwheel to fail (too-recent glibc symbols) or, if the symbols happen to pass the policy check, reintroduce the SONAME rewriting</p>
+</li>
+<li>
+<p>Weaker manylinux compliance: trusts the build's RPATHs rather than auditwheel's relocation guarantees</p>
+</li>
 </ul>
 <p><strong>Status:</strong> Validated. Applied to all GPU variants in <code>.github/workflows/build-gpu-wheels2.yml</code>. Test workflow at <code>.github/workflows/test-cuda-wheel.yml</code>.</p>
 <h3 id="3-auditwheel-addtag-instead-of-auditwheel-repair">3. <code>auditwheel addtag</code> instead of <code>auditwheel repair</code><a class="headerlink" href="#3-auditwheel-addtag-instead-of-auditwheel-repair" title="Permanent link">&para;</a></h3>
@@ -1859,15 +1899,27 @@
 <p>The build already places libraries under <code>cyllama/llama/</code> with correct RPATHs, so auditwheel's relocation is unnecessary.</p>
 <p><strong>Pros:</strong></p>
 <ul>
-<li>Eliminates the entire class of SONAME-rewriting bugs</li>
-<li>No exclude list to maintain</li>
-<li>One-line change</li>
+<li>
+<p>Eliminates the entire class of SONAME-rewriting bugs</p>
+</li>
+<li>
+<p>No exclude list to maintain</p>
+</li>
+<li>
+<p>One-line change</p>
+</li>
 </ul>
 <p><strong>Cons:</strong></p>
 <ul>
-<li><code>addtag</code> refuses if the wheel doesn't already meet the target manylinux policy; verify with <code>auditwheel show</code> first</li>
-<li>If any non-bundled system libs genuinely need vendoring (unlikely for this project), they won't be</li>
-<li>Requires auditwheel &gt;= 6.0. Stock manylinux2014 and manylinux_2_28 images ship older versions that do not include <code>addtag</code> (available commands: <code>show</code>, <code>repair</code>, <code>lddtree</code>). Must upgrade auditwheel in the container first (e.g. <code>pip install 'auditwheel&gt;=6.0'</code> in <code>CIBW_BEFORE_BUILD</code>)</li>
+<li>
+<p><code>addtag</code> refuses if the wheel doesn't already meet the target manylinux policy; verify with <code>auditwheel show</code> first</p>
+</li>
+<li>
+<p>If any non-bundled system libs genuinely need vendoring (unlikely for this project), they won't be</p>
+</li>
+<li>
+<p>Requires auditwheel &gt;= 6.0. Stock manylinux2014 and manylinux_2_28 images ship older versions that do not include <code>addtag</code> (available commands: <code>show</code>, <code>repair</code>, <code>lddtree</code>). Must upgrade auditwheel in the container first (e.g. <code>pip install 'auditwheel&gt;=6.0'</code> in <code>CIBW_BEFORE_BUILD</code>)</p>
+</li>
 </ul>
 <p><strong>Status:</strong> Not viable with current CI images. The manylinux containers used in CI do not ship auditwheel &gt;= 6.0, and the <code>addtag</code> subcommand is not available. Upgrading auditwheel in-container is possible but adds complexity for no benefit over <code>--exclude</code>.</p>
 <h3 id="4-static-linking">4. Static linking<a class="headerlink" href="#4-static-linking" title="Permanent link">&para;</a></h3>
@@ -1877,16 +1929,30 @@
 </code></pre></div>
 <p><strong>Pros:</strong></p>
 <ul>
-<li>Simplest possible fix -- no auditwheel complexity at all</li>
-<li>Single <code>.so</code> extension file with no dependency graph</li>
-<li>Already validated: static builds exit cleanly in the reproduction matrix</li>
+<li>
+<p>Simplest possible fix -- no auditwheel complexity at all</p>
+</li>
+<li>
+<p>Single <code>.so</code> extension file with no dependency graph</p>
+</li>
+<li>
+<p>Already validated: static builds exit cleanly in the reproduction matrix</p>
+</li>
 </ul>
 <p><strong>Cons:</strong></p>
 <ul>
-<li>Larger wheel size: each Cython extension (llama, whisper, sd) embeds its own copy of ggml</li>
-<li>Cannot share loaded libraries across extensions at runtime</li>
-<li>May break if CUDA expects to <code>dlopen</code> ggml backends dynamically at runtime</li>
-<li>The project already offers both link modes; this would mean abandoning dynamic linking for CUDA</li>
+<li>
+<p>Larger wheel size: each Cython extension (llama, whisper, sd) embeds its own copy of ggml</p>
+</li>
+<li>
+<p>Cannot share loaded libraries across extensions at runtime</p>
+</li>
+<li>
+<p>May break if CUDA expects to <code>dlopen</code> ggml backends dynamically at runtime</p>
+</li>
+<li>
+<p>The project already offers both link modes; this would mean abandoning dynamic linking for CUDA</p>
+</li>
 </ul>
 <p><strong>Status:</strong> Known to work. Already the default for non-GPU wheels.</p>
 <h3 id="5-explicit-python-level-cleanup-before-shutdown">5. Explicit Python-level cleanup before shutdown<a class="headerlink" href="#5-explicit-python-level-cleanup-before-shutdown" title="Permanent link">&para;</a></h3>
@@ -1903,15 +1969,27 @@
 </code></pre></div>
 <p><strong>Pros:</strong></p>
 <ul>
-<li>Doesn't touch the build system at all</li>
-<li>Works with unmodified auditwheel</li>
+<li>
+<p>Doesn't touch the build system at all</p>
+</li>
+<li>
+<p>Works with unmodified auditwheel</p>
+</li>
 </ul>
 <p><strong>Cons:</strong></p>
 <ul>
-<li>Fragile. Python's <code>atexit</code> execution order is not guaranteed relative to extension module <code>__del__</code> methods or module <code>__del__</code> cleanup</li>
-<li>Races against the same non-determinism that causes the bug -- may reduce crash frequency without eliminating it</li>
-<li>Requires that all native contexts are freed during the <code>gc.collect()</code> call, which depends on no circular references holding them alive</li>
-<li>Does not fix the underlying <code>dlclose</code> ordering problem</li>
+<li>
+<p>Fragile. Python's <code>atexit</code> execution order is not guaranteed relative to extension module <code>__del__</code> methods or module <code>__del__</code> cleanup</p>
+</li>
+<li>
+<p>Races against the same non-determinism that causes the bug -- may reduce crash frequency without eliminating it</p>
+</li>
+<li>
+<p>Requires that all native contexts are freed during the <code>gc.collect()</code> call, which depends on no circular references holding them alive</p>
+</li>
+<li>
+<p>Does not fix the underlying <code>dlclose</code> ordering problem</p>
+</li>
 </ul>
 <p><strong>Status:</strong> Untested. Not recommended as a primary fix due to inherent fragility.</p>
 <h3 id="6-rtld_nodelete-on-the-cuda-linked-library">6. <code>RTLD_NODELETE</code> on the CUDA-linked library<a class="headerlink" href="#6-rtld_nodelete-on-the-cuda-linked-library" title="Permanent link">&para;</a></h3>
@@ -1925,16 +2003,30 @@
 </code></pre></div>
 <p><strong>Pros:</strong></p>
 <ul>
-<li>Surgically prevents the specific unload-ordering bug</li>
-<li>The library stays mapped until process exit, so CUDA's atexit handlers always find valid memory</li>
-<li>No build system changes required</li>
+<li>
+<p>Surgically prevents the specific unload-ordering bug</p>
+</li>
+<li>
+<p>The library stays mapped until process exit, so CUDA's atexit handlers always find valid memory</p>
+</li>
+<li>
+<p>No build system changes required</p>
+</li>
 </ul>
 <p><strong>Cons:</strong></p>
 <ul>
-<li>Library memory is never reclaimed (minor, since the process is exiting anyway)</li>
-<li>Requires knowing the exact <code>.so</code> path, which differs after auditwheel renames it</li>
-<li>Platform-specific: <code>RTLD_NODELETE</code> is a Linux/glibc feature</li>
-<li>Obscure: future maintainers won't immediately understand why a manual <code>dlopen</code> with unusual flags exists</li>
+<li>
+<p>Library memory is never reclaimed (minor, since the process is exiting anyway)</p>
+</li>
+<li>
+<p>Requires knowing the exact <code>.so</code> path, which differs after auditwheel renames it</p>
+</li>
+<li>
+<p>Platform-specific: <code>RTLD_NODELETE</code> is a Linux/glibc feature</p>
+</li>
+<li>
+<p>Obscure: future maintainers won't immediately understand why a manual <code>dlopen</code> with unusual flags exists</p>
+</li>
 </ul>
 <p><strong>Status:</strong> Untested. Viable as a targeted fix if build-system changes are undesirable.</p>
 <h3 id="7-do-nothing-document-the-issue">7. Do nothing, document the issue<a class="headerlink" href="#7-do-nothing-document-the-issue" title="Permanent link">&para;</a></h3>
@@ -1945,9 +2037,15 @@
 </ul>
 <p><strong>Cons:</strong></p>
 <ul>
-<li>The crash manifests as a segfault or glibc abort on interpreter exit with no actionable error message</li>
-<li>Users cannot reasonably diagnose or work around it</li>
-<li>Undermines confidence in the CUDA wheel</li>
+<li>
+<p>The crash manifests as a segfault or glibc abort on interpreter exit with no actionable error message</p>
+</li>
+<li>
+<p>Users cannot reasonably diagnose or work around it</p>
+</li>
+<li>
+<p>Undermines confidence in the CUDA wheel</p>
+</li>
 </ul>
 <p><strong>Status:</strong> Not recommended.</p>
 <h2 id="rpath-hardening">RPATH hardening<a class="headerlink" href="#rpath-hardening" title="Permanent link">&para;</a></h2>
@@ -1982,9 +2080,15 @@
 <p>However, CUDA system libraries (<code>libcudart.so.12</code>, <code>libcublas.so.12</code>, <code>libcublasLt.so.12</code>) are <strong>not bundled</strong> in the wheel (excluded via <code>--exclude</code>). They are resolved entirely by the system dynamic linker's default search order: <code>LD_LIBRARY_PATH</code>, then <code>RUNPATH</code>/<code>RPATH</code>, then <code>/etc/ld.so.conf</code>, then <code>/lib</code> and <code>/usr/lib</code>. There is no way to harden RPATH for libraries the wheel does not ship.</p>
 <p>This is the same model used by PyTorch (<code>torch</code>), CuPy, and other CUDA wheels -- CUDA runtime libraries are a system dependency because:</p>
 <ul>
-<li>The user must have a compatible GPU driver installed regardless (a system-level dependency)</li>
-<li>CUDA's forward-compatibility model ties the runtime to the driver version</li>
-<li>Bundling CUDA libs causes version conflicts when other packages (PyTorch, etc.) bundle different versions</li>
+<li>
+<p>The user must have a compatible GPU driver installed regardless (a system-level dependency)</p>
+</li>
+<li>
+<p>CUDA's forward-compatibility model ties the runtime to the driver version</p>
+</li>
+<li>
+<p>Bundling CUDA libs causes version conflicts when other packages (PyTorch, etc.) bundle different versions</p>
+</li>
 </ul>
 <h3 id="user-side-mitigation-for-multi-version-cuda-systems">User-side mitigation for multi-version CUDA systems<a class="headerlink" href="#user-side-mitigation-for-multi-version-cuda-systems" title="Permanent link">&para;</a></h3>
 <p>When multiple CUDA toolkit versions are installed, users must ensure the correct version is found first:</p>
@@ -2096,10 +2200,18 @@
 <p>Trigger it manually from the Actions tab. Note that tests run on CPU-only runners (no GPU available), so they validate clean <code>dlclose</code> ordering but cannot exercise the full CUDA atexit path. A passing test gives moderate confidence; a failing test is definitive.</p>
 <h2 id="references">References<a class="headerlink" href="#references" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Reproduction report: colleague's analysis of commit <code>2755d96</code></li>
-<li>Revert: <code>fb522c8</code> (reverted <code>36db368</code>)</li>
-<li>auditwheel SONAME rewriting: <a href="https://github.com/pypa/auditwheel/issues/289">pypa/auditwheel#289</a></li>
-<li>patchelf SONAME behavior: <a href="https://github.com/NixOS/patchelf/issues/275">NixOS/patchelf#275</a></li>
+<li>
+<p>Reproduction report: colleague's analysis of commit <code>2755d96</code></p>
+</li>
+<li>
+<p>Revert: <code>fb522c8</code> (reverted <code>36db368</code>)</p>
+</li>
+<li>
+<p>auditwheel SONAME rewriting: <a href="https://github.com/pypa/auditwheel/issues/289">pypa/auditwheel#289</a></p>
+</li>
+<li>
+<p>patchelf SONAME behavior: <a href="https://github.com/NixOS/patchelf/issues/275">NixOS/patchelf#275</a></p>
+</li>
 </ul>
 
 

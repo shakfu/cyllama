@@ -1851,10 +1851,14 @@ classic struct layout corruption.</p>
 <p>The <code>ggml_tensor</code> struct contains <code>char name[GGML_MAX_NAME]</code>. With the
 mismatch:</p>
 <ul>
-<li><strong>SD's compiled code</strong> sees <code>sizeof(ggml_tensor)</code> with a 128-byte <code>name</code>
-  field.</li>
-<li><strong>llama.cpp's shared libs</strong> see <code>sizeof(ggml_tensor)</code> with a 64-byte
-  <code>name</code> field.</li>
+<li>
+<p><strong>SD's compiled code</strong> sees <code>sizeof(ggml_tensor)</code> with a 128-byte <code>name</code>
+  field.</p>
+</li>
+<li>
+<p><strong>llama.cpp's shared libs</strong> see <code>sizeof(ggml_tensor)</code> with a 64-byte
+  <code>name</code> field.</p>
+</li>
 </ul>
 <p>Every field after <code>name</code> in the struct (<code>extra</code>, <code>padding</code>) is at a
 different byte offset. When SD writes to a tensor's <code>ne[0]</code> through what it
@@ -1993,14 +1997,24 @@ CUDA targets default <code>CMAKE_CUDA_ARCHITECTURES</code> to <code>native</code
 via env var).</p>
 <h3 id="scriptsmanagepy">scripts/manage.py<a class="headerlink" href="#scriptsmanagepy" title="Permanent link">&para;</a></h3>
 <ul>
-<li>Module-level <code>_SD_GGML_MAX_NAME = 128</code> and <code>_sd_uses_shared_ggml()</code> helper.</li>
-<li><code>LlamaCppBuilder.build()</code>: passes <code>-DGGML_MAX_NAME=128</code> via CMAKE_C/CXX_FLAGS
-  when SD shares ggml.</li>
-<li><code>LlamaCppBuilder.build_shared()</code>: same.</li>
-<li><code>StableDiffusionCppBuilder._sync_ggml_abi()</code>: unchanged (source sync).</li>
-<li><code>Application.do_build()</code> (0.2.10): when <code>SD_USE_VENDORED_GGML=0</code>, force
+<li>
+<p>Module-level <code>_SD_GGML_MAX_NAME = 128</code> and <code>_sd_uses_shared_ggml()</code> helper.</p>
+</li>
+<li>
+<p><code>LlamaCppBuilder.build()</code>: passes <code>-DGGML_MAX_NAME=128</code> via CMAKE_C/CXX_FLAGS
+  when SD shares ggml.</p>
+</li>
+<li>
+<p><code>LlamaCppBuilder.build_shared()</code>: same.</p>
+</li>
+<li>
+<p><code>StableDiffusionCppBuilder._sync_ggml_abi()</code>: unchanged (source sync).</p>
+</li>
+<li>
+<p><code>Application.do_build()</code> (0.2.10): when <code>SD_USE_VENDORED_GGML=0</code>, force
   <code>build_shared()</code> regardless of whether a pre-built release asset exists,
-  so Vulkan dynamic wheels pick up the <code>GGML_MAX_NAME=128</code> define too.</li>
+  so Vulkan dynamic wheels pick up the <code>GGML_MAX_NAME=128</code> define too.</p>
+</li>
 </ul>
 <h3 id="cmakeliststxt">CMakeLists.txt<a class="headerlink" href="#cmakeliststxt" title="Permanent link">&para;</a></h3>
 <ul>
@@ -2019,46 +2033,82 @@ double-free crash documented in <code>docs/dev/cuda-double-free.md</code>.</p>
 <hr />
 <h2 id="follow-up-work-out-of-scope-for-the-first-landing">Follow-up work (out of scope for the first landing)<a class="headerlink" href="#follow-up-work-out-of-scope-for-the-first-landing" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>Flip the CMake default</strong> (Option 4b). After a release cycle of
-  real-world coverage, change <code>SD_USE_VENDORED_GGML</code> default to <code>OFF</code>.</li>
-<li><strong>Extend unification to Metal / HIP / SYCL / OpenCL</strong> wheels. Same
+<li>
+<p><strong>Flip the CMake default</strong> (Option 4b). After a release cycle of
+  real-world coverage, change <code>SD_USE_VENDORED_GGML</code> default to <code>OFF</code>.</p>
+</li>
+<li>
+<p><strong>Extend unification to Metal / HIP / SYCL / OpenCL</strong> wheels. Same
   mechanism applies; each backend needs its own validation on matching
-  hardware. Vulkan landed in 0.2.10 (<code>docs/dev/ggml_max_name.md</code>).</li>
-<li><strong>Default <code>GGML_NATIVE=ON</code> for local static builds</strong> and
+  hardware. Vulkan landed in 0.2.10 (<code>docs/dev/ggml_max_name.md</code>).</p>
+</li>
+<li>
+<p><strong>Default <code>GGML_NATIVE=ON</code> for local static builds</strong> and
   <code>CMAKE_CUDA_ARCHITECTURES=native</code> for local dynamic builds. See
-  <code>docs/dev/ggml-config.md</code> for the analysis and recommendation.</li>
-<li><strong>Audit whisper</strong> for the same pattern. Whisper also wraps ggml; if its
-  static path whole-archives ggml backends, the same unification can apply.</li>
-<li><strong>Propose the sync mechanism upstream</strong>. <code>_sync_ggml_abi()</code> is a
+  <code>docs/dev/ggml-config.md</code> for the analysis and recommendation.</p>
+</li>
+<li>
+<p><strong>Audit whisper</strong> for the same pattern. Whisper also wraps ggml; if its
+  static path whole-archives ggml backends, the same unification can apply.</p>
+</li>
+<li>
+<p><strong>Propose the sync mechanism upstream</strong>. <code>_sync_ggml_abi()</code> is a
   cyllama-specific workaround. An upstream fix -- either
   stable-diffusion.cpp tracking ggml's HEAD more closely, or ggml itself
   committing to stable ABI guarantees -- would remove the need for the sync
-  entirely.</li>
+  entirely.</p>
+</li>
 </ul>
 <hr />
 <h2 id="references">References<a class="headerlink" href="#references" title="Permanent link">&para;</a></h2>
 <ul>
-<li><code>CHANGELOG.md</code> -- 0.2.9 entry documenting the workaround this plan
-  reverses.</li>
-<li><code>CMakeLists.txt:11</code> -- <code>SD_USE_VENDORED_GGML</code> option default.</li>
-<li><code>CMakeLists.txt:15-19</code> -- <code>GGML_MAX_NAME=128</code> propagation.</li>
-<li><code>CMakeLists.txt:849-869</code> -- dynamic-link branch.</li>
-<li><code>CMakeLists.txt:891-894</code>, <code>CMakeLists.txt:913-917</code> -- the whole-archive
-  link whose bloat we eliminated.</li>
-<li><code>scripts/manage.py</code> -- <code>_SD_GGML_MAX_NAME</code>, <code>_sd_uses_shared_ggml()</code>,
+<li>
+<p><code>CHANGELOG.md</code> -- 0.2.9 entry documenting the workaround this plan
+  reverses.</p>
+</li>
+<li>
+<p><code>CMakeLists.txt:11</code> -- <code>SD_USE_VENDORED_GGML</code> option default.</p>
+</li>
+<li>
+<p><code>CMakeLists.txt:15-19</code> -- <code>GGML_MAX_NAME=128</code> propagation.</p>
+</li>
+<li>
+<p><code>CMakeLists.txt:849-869</code> -- dynamic-link branch.</p>
+</li>
+<li>
+<p><code>CMakeLists.txt:891-894</code>, <code>CMakeLists.txt:913-917</code> -- the whole-archive
+  link whose bloat we eliminated.</p>
+</li>
+<li>
+<p><code>scripts/manage.py</code> -- <code>_SD_GGML_MAX_NAME</code>, <code>_sd_uses_shared_ggml()</code>,
   <code>_sync_ggml_abi()</code>, and the CMAKE_C/CXX_FLAGS injection in both
-  <code>LlamaCppBuilder.build()</code> and <code>LlamaCppBuilder.build_shared()</code>.</li>
-<li><code>build/stable-diffusion.cpp/CMakeLists.txt:233</code> --
-  <code>-DGGML_MAX_NAME=128</code> that SD applies.</li>
-<li><code>build/stable-diffusion.cpp/src/ggml_extend.hpp:94</code> --
-  <code>static_assert(GGML_MAX_NAME &gt;= 128)</code>.</li>
-<li><code>build/llama.cpp/ggml/include/ggml.h</code> -- <code>#ifndef GGML_MAX_NAME</code> /
-  <code>#define GGML_MAX_NAME 64</code> guard.</li>
-<li><code>Makefile</code> -- <code>build-*-dynamic</code> and <code>wheel-*-dynamic</code> targets.</li>
-<li><code>.github/workflows/build-gpu-wheels.yml</code> -- auditwheel exclude sets.</li>
-<li><code>docs/dev/cuda-double-free.md</code> -- auditwheel <code>--exclude</code> rationale.</li>
-<li><code>docs/dev/ggml-config.md</code> -- <code>GGML_NATIVE</code> and <code>CMAKE_CUDA_ARCHITECTURES</code>
-  analysis.</li>
+  <code>LlamaCppBuilder.build()</code> and <code>LlamaCppBuilder.build_shared()</code>.</p>
+</li>
+<li>
+<p><code>build/stable-diffusion.cpp/CMakeLists.txt:233</code> --
+  <code>-DGGML_MAX_NAME=128</code> that SD applies.</p>
+</li>
+<li>
+<p><code>build/stable-diffusion.cpp/src/ggml_extend.hpp:94</code> --
+  <code>static_assert(GGML_MAX_NAME &gt;= 128)</code>.</p>
+</li>
+<li>
+<p><code>build/llama.cpp/ggml/include/ggml.h</code> -- <code>#ifndef GGML_MAX_NAME</code> /
+  <code>#define GGML_MAX_NAME 64</code> guard.</p>
+</li>
+<li>
+<p><code>Makefile</code> -- <code>build-*-dynamic</code> and <code>wheel-*-dynamic</code> targets.</p>
+</li>
+<li>
+<p><code>.github/workflows/build-gpu-wheels.yml</code> -- auditwheel exclude sets.</p>
+</li>
+<li>
+<p><code>docs/dev/cuda-double-free.md</code> -- auditwheel <code>--exclude</code> rationale.</p>
+</li>
+<li>
+<p><code>docs/dev/ggml-config.md</code> -- <code>GGML_NATIVE</code> and <code>CMAKE_CUDA_ARCHITECTURES</code>
+  analysis.</p>
+</li>
 </ul>
 
 

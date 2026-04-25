@@ -3534,16 +3534,30 @@
 </code></pre></div>
 <p><strong>Parameters:</strong></p>
 <ul>
-<li><code>prompt</code> (str): Input text prompt</li>
-<li><code>model_path</code> (str): Path to GGUF model file</li>
-<li><code>config</code> (GenerationConfig, optional): Generation configuration object</li>
-<li><code>stream</code> (bool): If True, return iterator of text chunks</li>
-<li><code>**kwargs</code>: Override config parameters (temperature, max_tokens, etc.)</li>
+<li>
+<p><code>prompt</code> (str): Input text prompt</p>
+</li>
+<li>
+<p><code>model_path</code> (str): Path to GGUF model file</p>
+</li>
+<li>
+<p><code>config</code> (GenerationConfig, optional): Generation configuration object</p>
+</li>
+<li>
+<p><code>stream</code> (bool): If True, return iterator of text chunks</p>
+</li>
+<li>
+<p><code>**kwargs</code>: Override config parameters (temperature, max_tokens, etc.)</p>
+</li>
 </ul>
 <p><strong>Returns:</strong></p>
 <ul>
-<li><code>Response</code>: Response object with text and stats (if stream=False)</li>
-<li><code>Iterator[str]</code>: Iterator of text chunks (if stream=True)</li>
+<li>
+<p><code>Response</code>: Response object with text and stats (if stream=False)</p>
+</li>
+<li>
+<p><code>Iterator[str]</code>: Iterator of text chunks (if stream=True)</p>
+</li>
 </ul>
 <p><strong>Example:</strong></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama</span><span class="w"> </span><span class="kn">import</span> <span class="n">complete</span>
@@ -3573,17 +3587,33 @@
 </code></pre></div>
 <p><strong>Parameters:</strong></p>
 <ul>
-<li><code>messages</code> (List[Dict]): List of message dicts with 'role' and 'content' keys</li>
-<li><code>model_path</code> (str): Path to GGUF model file</li>
-<li><code>config</code> (GenerationConfig, optional): Generation configuration</li>
-<li><code>stream</code> (bool): Enable streaming output</li>
-<li><code>template</code> (str, optional): Chat template name to use. If None, uses model's default.</li>
-<li><code>**kwargs</code>: Override config parameters</li>
+<li>
+<p><code>messages</code> (List[Dict]): List of message dicts with 'role' and 'content' keys</p>
+</li>
+<li>
+<p><code>model_path</code> (str): Path to GGUF model file</p>
+</li>
+<li>
+<p><code>config</code> (GenerationConfig, optional): Generation configuration</p>
+</li>
+<li>
+<p><code>stream</code> (bool): Enable streaming output</p>
+</li>
+<li>
+<p><code>template</code> (str, optional): Chat template name to use. If None, uses model's default.</p>
+</li>
+<li>
+<p><code>**kwargs</code>: Override config parameters</p>
+</li>
 </ul>
 <p><strong>Returns:</strong></p>
 <ul>
-<li><code>Response</code>: Response object with text and stats (if stream=False)</li>
-<li><code>Iterator[str]</code>: Iterator of text chunks (if stream=True)</li>
+<li>
+<p><code>Response</code>: Response object with text and stats (if stream=False)</p>
+</li>
+<li>
+<p><code>Iterator[str]</code>: Iterator of text chunks (if stream=True)</p>
+</li>
 </ul>
 <p><strong>Example:</strong></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama</span><span class="w"> </span><span class="kn">import</span> <span class="n">chat</span>
@@ -3611,11 +3641,21 @@
 </code></pre></div>
 <p><strong>Parameters:</strong></p>
 <ul>
-<li><code>messages</code> (List[Dict]): List of message dicts with 'role' and 'content' keys</li>
-<li><code>model_path</code> (str): Path to GGUF model file</li>
-<li><code>template</code> (str, optional): Template name or string. If None, uses model's default.</li>
-<li><code>add_generation_prompt</code> (bool): Add assistant prompt prefix (default: True)</li>
-<li><code>verbose</code> (bool): Enable detailed logging</li>
+<li>
+<p><code>messages</code> (List[Dict]): List of message dicts with 'role' and 'content' keys</p>
+</li>
+<li>
+<p><code>model_path</code> (str): Path to GGUF model file</p>
+</li>
+<li>
+<p><code>template</code> (str, optional): Template name or string. If None, uses model's default.</p>
+</li>
+<li>
+<p><code>add_generation_prompt</code> (bool): Add assistant prompt prefix (default: True)</p>
+</li>
+<li>
+<p><code>verbose</code> (bool): Enable detailed logging</p>
+</li>
 </ul>
 <p><strong>Returns:</strong></p>
 <ul>
@@ -3623,12 +3663,24 @@
 </ul>
 <p><strong>Supported Templates:</strong></p>
 <ul>
-<li>llama2, llama3, llama4</li>
-<li>chatml (Qwen, Yi, etc.)</li>
-<li>mistral-v1, mistral-v3, mistral-v7</li>
-<li>phi3, phi4</li>
-<li>deepseek, deepseek2, deepseek3</li>
-<li>gemma, falcon3, command-r, vicuna, zephyr, and more</li>
+<li>
+<p>llama2, llama3, llama4</p>
+</li>
+<li>
+<p>chatml (Qwen, Yi, etc.)</p>
+</li>
+<li>
+<p>mistral-v1, mistral-v3, mistral-v7</p>
+</li>
+<li>
+<p>phi3, phi4</p>
+</li>
+<li>
+<p>deepseek, deepseek2, deepseek3</p>
+</li>
+<li>
+<p>gemma, falcon3, command-r, vicuna, zephyr, and more</p>
+</li>
 </ul>
 <p><strong>Example:</strong></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.api</span><span class="w"> </span><span class="kn">import</span> <span class="n">apply_chat_template</span>
@@ -3654,8 +3706,12 @@
 </code></pre></div>
 <p><strong>Parameters:</strong></p>
 <ul>
-<li><code>model_path</code> (str): Path to GGUF model file</li>
-<li><code>template_name</code> (str, optional): Specific template name to retrieve</li>
+<li>
+<p><code>model_path</code> (str): Path to GGUF model file</p>
+</li>
+<li>
+<p><code>template_name</code> (str, optional): Specific template name to retrieve</p>
+</li>
 </ul>
 <p><strong>Returns:</strong></p>
 <ul>
@@ -3679,20 +3735,40 @@
 </code></pre></div>
 <p><strong>Attributes:</strong></p>
 <ul>
-<li><code>text</code> (str): The generated text content</li>
-<li><code>stats</code> (GenerationStats, optional): Statistics including timing and token counts</li>
-<li><code>finish_reason</code> (str): Reason for completion ("stop", "length", etc.)</li>
-<li><code>model</code> (str): Path to the model used</li>
+<li>
+<p><code>text</code> (str): The generated text content</p>
+</li>
+<li>
+<p><code>stats</code> (GenerationStats, optional): Statistics including timing and token counts</p>
+</li>
+<li>
+<p><code>finish_reason</code> (str): Reason for completion ("stop", "length", etc.)</p>
+</li>
+<li>
+<p><code>model</code> (str): Path to the model used</p>
+</li>
 </ul>
 <p><strong>String Compatibility:</strong></p>
 <p><code>Response</code> implements the string protocol for backward compatibility:</p>
 <ul>
-<li><code>str(response)</code> returns <code>response.text</code></li>
-<li><code>response == "string"</code> compares with text</li>
-<li><code>len(response)</code> returns text length</li>
-<li><code>for char in response:</code> iterates over text characters</li>
-<li><code>"substring" in response</code> checks text containment</li>
-<li><code>response + " more"</code> concatenates text</li>
+<li>
+<p><code>str(response)</code> returns <code>response.text</code></p>
+</li>
+<li>
+<p><code>response == "string"</code> compares with text</p>
+</li>
+<li>
+<p><code>len(response)</code> returns text length</p>
+</li>
+<li>
+<p><code>for char in response:</code> iterates over text characters</p>
+</li>
+<li>
+<p><code>"substring" in response</code> checks text containment</p>
+</li>
+<li>
+<p><code>response + " more"</code> concatenates text</p>
+</li>
 </ul>
 <p><strong>Methods:</strong></p>
 <h4 id="to_dict"><code>to_dict()</code><a class="headerlink" href="#to_dict" title="Permanent link">&para;</a></h4>
@@ -3747,9 +3823,15 @@
 </code></pre></div>
 <p><strong>Parameters:</strong></p>
 <ul>
-<li><code>model_path</code> (str): Path to GGUF model file</li>
-<li><code>config</code> (GenerationConfig, optional): Default generation configuration</li>
-<li><code>verbose</code> (bool): Print detailed information during generation</li>
+<li>
+<p><code>model_path</code> (str): Path to GGUF model file</p>
+</li>
+<li>
+<p><code>config</code> (GenerationConfig, optional): Default generation configuration</p>
+</li>
+<li>
+<p><code>verbose</code> (bool): Print detailed information during generation</p>
+</li>
 </ul>
 <p><strong>Methods:</strong></p>
 <h4 id="__call__"><code>__call__()</code><a class="headerlink" href="#__call__" title="Permanent link">&para;</a></h4>
@@ -3764,15 +3846,27 @@
 </code></pre></div>
 <p><strong>Parameters:</strong></p>
 <ul>
-<li><code>prompt</code> (str): Input text</li>
-<li><code>config</code> (GenerationConfig, optional): Override instance config</li>
-<li><code>stream</code> (bool): Enable streaming</li>
-<li><code>on_token</code> (Callable, optional): Callback for each token</li>
+<li>
+<p><code>prompt</code> (str): Input text</p>
+</li>
+<li>
+<p><code>config</code> (GenerationConfig, optional): Override instance config</p>
+</li>
+<li>
+<p><code>stream</code> (bool): Enable streaming</p>
+</li>
+<li>
+<p><code>on_token</code> (Callable, optional): Callback for each token</p>
+</li>
 </ul>
 <p><strong>Returns:</strong></p>
 <ul>
-<li><code>Response</code>: Response object with text and stats (if stream=False)</li>
-<li><code>Iterator[str]</code>: Iterator of text chunks (if stream=True)</li>
+<li>
+<p><code>Response</code>: Response object with text and stats (if stream=False)</p>
+</li>
+<li>
+<p><code>Iterator[str]</code>: Iterator of text chunks (if stream=True)</p>
+</li>
 </ul>
 <h4 id="chat_1"><code>chat()</code><a class="headerlink" href="#chat_1" title="Permanent link">&para;</a></h4>
 <p>Generate a response from chat messages using the model's chat template.</p>
@@ -3786,10 +3880,18 @@
 </code></pre></div>
 <p><strong>Parameters:</strong></p>
 <ul>
-<li><code>messages</code> (List[Dict]): List of message dicts with 'role' and 'content' keys</li>
-<li><code>config</code> (GenerationConfig, optional): Override instance config</li>
-<li><code>stream</code> (bool): Enable streaming</li>
-<li><code>template</code> (str, optional): Chat template name to use</li>
+<li>
+<p><code>messages</code> (List[Dict]): List of message dicts with 'role' and 'content' keys</p>
+</li>
+<li>
+<p><code>config</code> (GenerationConfig, optional): Override instance config</p>
+</li>
+<li>
+<p><code>stream</code> (bool): Enable streaming</p>
+</li>
+<li>
+<p><code>template</code> (str, optional): Chat template name to use</p>
+</li>
 </ul>
 <h4 id="get_chat_template_1"><code>get_chat_template()</code><a class="headerlink" href="#get_chat_template_1" title="Permanent link">&para;</a></h4>
 <p>Get the chat template string from the loaded model.</p>
@@ -3877,19 +3979,45 @@
 </code></pre></div>
 <p><strong>Attributes:</strong></p>
 <ul>
-<li><code>max_tokens</code>: Maximum tokens to generate (default: 512)</li>
-<li><code>temperature</code>: Sampling temperature, 0.0 = greedy (default: 0.8)</li>
-<li><code>top_k</code>: Top-k sampling parameter (default: 40)</li>
-<li><code>top_p</code>: Top-p (nucleus) sampling (default: 0.95)</li>
-<li><code>min_p</code>: Minimum probability threshold (default: 0.05)</li>
-<li><code>repeat_penalty</code>: Penalty for repeating tokens (default: 1.0, disabled)</li>
-<li><code>n_gpu_layers</code>: GPU layers to offload (default: -1 = all)</li>
-<li><code>n_ctx</code>: Context window size, None = auto (default: None)</li>
-<li><code>n_batch</code>: Batch size for processing (default: 512)</li>
-<li><code>seed</code>: Random seed, -1 = random (default: -1)</li>
-<li><code>stop_sequences</code>: Strings that stop generation (default: [])</li>
-<li><code>add_bos</code>: Add beginning-of-sequence token (default: True)</li>
-<li><code>parse_special</code>: Parse special tokens in prompt (default: True)</li>
+<li>
+<p><code>max_tokens</code>: Maximum tokens to generate (default: 512)</p>
+</li>
+<li>
+<p><code>temperature</code>: Sampling temperature, 0.0 = greedy (default: 0.8)</p>
+</li>
+<li>
+<p><code>top_k</code>: Top-k sampling parameter (default: 40)</p>
+</li>
+<li>
+<p><code>top_p</code>: Top-p (nucleus) sampling (default: 0.95)</p>
+</li>
+<li>
+<p><code>min_p</code>: Minimum probability threshold (default: 0.05)</p>
+</li>
+<li>
+<p><code>repeat_penalty</code>: Penalty for repeating tokens (default: 1.0, disabled)</p>
+</li>
+<li>
+<p><code>n_gpu_layers</code>: GPU layers to offload (default: -1 = all)</p>
+</li>
+<li>
+<p><code>n_ctx</code>: Context window size, None = auto (default: None)</p>
+</li>
+<li>
+<p><code>n_batch</code>: Batch size for processing (default: 512)</p>
+</li>
+<li>
+<p><code>seed</code>: Random seed, -1 = random (default: -1)</p>
+</li>
+<li>
+<p><code>stop_sequences</code>: Strings that stop generation (default: [])</p>
+</li>
+<li>
+<p><code>add_bos</code>: Add beginning-of-sequence token (default: True)</p>
+</li>
+<li>
+<p><code>parse_special</code>: Parse special tokens in prompt (default: True)</p>
+</li>
 </ul>
 <hr />
 <h3 id="generationstats-dataclass"><code>GenerationStats</code> Dataclass<a class="headerlink" href="#generationstats-dataclass" title="Permanent link">&para;</a></h3>
@@ -3919,10 +4047,18 @@
 </code></pre></div>
 <p><strong>Parameters:</strong></p>
 <ul>
-<li><code>model_path</code> (str): Path to GGUF model file</li>
-<li><code>config</code> (GenerationConfig, optional): Generation configuration</li>
-<li><code>verbose</code> (bool): Print detailed information during generation</li>
-<li><code>**kwargs</code>: Generation parameters (temperature, max_tokens, etc.)</li>
+<li>
+<p><code>model_path</code> (str): Path to GGUF model file</p>
+</li>
+<li>
+<p><code>config</code> (GenerationConfig, optional): Generation configuration</p>
+</li>
+<li>
+<p><code>verbose</code> (bool): Print detailed information during generation</p>
+</li>
+<li>
+<p><code>**kwargs</code>: Generation parameters (temperature, max_tokens, etc.)</p>
+</li>
 </ul>
 <p><strong>Methods:</strong></p>
 <h4 id="__call__-generate"><code>__call__()</code> / <code>generate()</code><a class="headerlink" href="#__call__-generate" title="Permanent link">&para;</a></h4>
@@ -4121,10 +4257,18 @@
 </code></pre></div>
 <p><strong>Parameters:</strong></p>
 <ul>
-<li><code>model_path</code> (str): Path to GGUF model file</li>
-<li><code>available_vram_mb</code> (int): Available VRAM in megabytes</li>
-<li><code>n_ctx</code> (int): Context window size</li>
-<li><code>n_batch</code> (int): Batch size</li>
+<li>
+<p><code>model_path</code> (str): Path to GGUF model file</p>
+</li>
+<li>
+<p><code>available_vram_mb</code> (int): Available VRAM in megabytes</p>
+</li>
+<li>
+<p><code>n_ctx</code> (int): Context window size</p>
+</li>
+<li>
+<p><code>n_batch</code> (int): Batch size</p>
+</li>
 </ul>
 <p><strong>Returns:</strong></p>
 <ul>
@@ -4437,9 +4581,15 @@
 </code></pre></div>
 <p><strong>Parameters:</strong></p>
 <ul>
-<li><code>n_max</code>: Maximum number of tokens to draft (default: 16)</li>
-<li><code>n_reuse</code>: Number of tokens to reuse from previous draft (default: 8)</li>
-<li><code>p_min</code>: Minimum acceptance probability (default: 0.75)</li>
+<li>
+<p><code>n_max</code>: Maximum number of tokens to draft (default: 16)</p>
+</li>
+<li>
+<p><code>n_reuse</code>: Number of tokens to reuse from previous draft (default: 8)</p>
+</li>
+<li>
+<p><code>p_min</code>: Minimum acceptance probability (default: 0.75)</p>
+</li>
 </ul>
 <p><strong>Methods:</strong></p>
 <table>
@@ -4652,9 +4802,15 @@
 </table>
 <h3 id="audio-requirements">Audio Requirements<a class="headerlink" href="#audio-requirements" title="Permanent link">&para;</a></h3>
 <ul>
-<li><strong>Sample rate</strong>: 16000 Hz</li>
-<li><strong>Channels</strong>: Mono</li>
-<li><strong>Format</strong>: Float32 normalized to [-1.0, 1.0]</li>
+<li>
+<p><strong>Sample rate</strong>: 16000 Hz</p>
+</li>
+<li>
+<p><strong>Channels</strong>: Mono</p>
+</li>
+<li>
+<p><strong>Format</strong>: Float32 normalized to [-1.0, 1.0]</p>
+</li>
 </ul>
 <hr />
 <h2 id="stable-diffusion-integration">Stable Diffusion Integration<a class="headerlink" href="#stable-diffusion-integration" title="Permanent link">&para;</a></h2>
@@ -4696,19 +4852,45 @@
 </code></pre></div>
 <p><strong>Parameters:</strong></p>
 <ul>
-<li><code>model_path</code> (str): Path to model file (.gguf, .safetensors, or .ckpt)</li>
-<li><code>prompt</code> (str): Text prompt for generation</li>
-<li><code>negative_prompt</code> (str): Negative prompt (what to avoid)</li>
-<li><code>width</code> (int): Output image width (default: 512)</li>
-<li><code>height</code> (int): Output image height (default: 512)</li>
-<li><code>seed</code> (int): Random seed (-1 for random)</li>
-<li><code>batch_count</code> (int): Number of images to generate</li>
-<li><code>sample_steps</code> (int): Sampling steps (use 1-4 for turbo models, 20+ for others)</li>
-<li><code>cfg_scale</code> (float): CFG scale (use 1.0 for turbo, 7.0 for others)</li>
-<li><code>sample_method</code> (SampleMethod): Sampling method (EULER, EULER_A, DPM2, etc.)</li>
-<li><code>scheduler</code> (Scheduler): Scheduler (DISCRETE, KARRAS, EXPONENTIAL, etc.)</li>
-<li><code>clip_skip</code> (int): CLIP skip layers (-1 for default)</li>
-<li><code>n_threads</code> (int): Number of threads (-1 for auto)</li>
+<li>
+<p><code>model_path</code> (str): Path to model file (.gguf, .safetensors, or .ckpt)</p>
+</li>
+<li>
+<p><code>prompt</code> (str): Text prompt for generation</p>
+</li>
+<li>
+<p><code>negative_prompt</code> (str): Negative prompt (what to avoid)</p>
+</li>
+<li>
+<p><code>width</code> (int): Output image width (default: 512)</p>
+</li>
+<li>
+<p><code>height</code> (int): Output image height (default: 512)</p>
+</li>
+<li>
+<p><code>seed</code> (int): Random seed (-1 for random)</p>
+</li>
+<li>
+<p><code>batch_count</code> (int): Number of images to generate</p>
+</li>
+<li>
+<p><code>sample_steps</code> (int): Sampling steps (use 1-4 for turbo models, 20+ for others)</p>
+</li>
+<li>
+<p><code>cfg_scale</code> (float): CFG scale (use 1.0 for turbo, 7.0 for others)</p>
+</li>
+<li>
+<p><code>sample_method</code> (SampleMethod): Sampling method (EULER, EULER_A, DPM2, etc.)</p>
+</li>
+<li>
+<p><code>scheduler</code> (Scheduler): Scheduler (DISCRETE, KARRAS, EXPONENTIAL, etc.)</p>
+</li>
+<li>
+<p><code>clip_skip</code> (int): CLIP skip layers (-1 for default)</p>
+</li>
+<li>
+<p><code>n_threads</code> (int): Number of threads (-1 for auto)</p>
+</li>
 </ul>
 <p><strong>Returns:</strong></p>
 <ul>
@@ -4733,9 +4915,15 @@
 </code></pre></div>
 <p><strong>Parameters:</strong></p>
 <ul>
-<li><code>init_image</code> (SDImage): Initial image to transform</li>
-<li><code>strength</code> (float): Transformation strength (0.0-1.0)</li>
-<li>Other parameters same as <code>text_to_image()</code></li>
+<li>
+<p><code>init_image</code> (SDImage): Initial image to transform</p>
+</li>
+<li>
+<p><code>strength</code> (float): Transformation strength (0.0-1.0)</p>
+</li>
+<li>
+<p>Other parameters same as <code>text_to_image()</code></p>
+</li>
 </ul>
 <h3 id="sdcontext"><code>SDContext</code><a class="headerlink" href="#sdcontext" title="Permanent link">&para;</a></h3>
 <p>Main context class for model reuse and advanced generation.</p>
@@ -4765,9 +4953,15 @@
 </code></pre></div>
 <p><strong>Methods:</strong></p>
 <ul>
-<li><code>generate(...)</code>: Generate images from text prompt</li>
-<li><code>generate_with_params(params: SDImageGenParams)</code>: Low-level generation</li>
-<li><code>generate_video(...)</code>: Generate video frames (requires video-capable model)</li>
+<li>
+<p><code>generate(...)</code>: Generate images from text prompt</p>
+</li>
+<li>
+<p><code>generate_with_params(params: SDImageGenParams)</code>: Low-level generation</p>
+</li>
+<li>
+<p><code>generate_video(...)</code>: Generate video frames (requires video-capable model)</p>
+</li>
 </ul>
 <h3 id="sdcontextparams"><code>SDContextParams</code><a class="headerlink" href="#sdcontextparams" title="Permanent link">&para;</a></h3>
 <p>Configuration for model loading.</p>
@@ -4931,19 +5125,33 @@
 <h3 id="enums">Enums<a class="headerlink" href="#enums" title="Permanent link">&para;</a></h3>
 <p><strong><code>SampleMethod</code></strong>: Sampling methods</p>
 <ul>
-<li><code>EULER</code>, <code>EULER_A</code>, <code>HEUN</code>, <code>DPM2</code>, <code>DPMPP2S_A</code>, <code>DPMPP2M</code>, <code>DPMPP2Mv2</code></li>
-<li><code>IPNDM</code>, <code>IPNDM_V</code>, <code>LCM</code>, <code>DDIM_TRAILING</code>, <code>TCD</code></li>
+<li>
+<p><code>EULER</code>, <code>EULER_A</code>, <code>HEUN</code>, <code>DPM2</code>, <code>DPMPP2S_A</code>, <code>DPMPP2M</code>, <code>DPMPP2Mv2</code></p>
+</li>
+<li>
+<p><code>IPNDM</code>, <code>IPNDM_V</code>, <code>LCM</code>, <code>DDIM_TRAILING</code>, <code>TCD</code></p>
+</li>
 </ul>
 <p><strong><code>Scheduler</code></strong>: Schedulers</p>
 <ul>
-<li><code>DISCRETE</code>, <code>KARRAS</code>, <code>EXPONENTIAL</code>, <code>AYS</code>, <code>GITS</code></li>
-<li><code>SGM_UNIFORM</code>, <code>SIMPLE</code>, <code>SMOOTHSTEP</code>, <code>LCM</code></li>
+<li>
+<p><code>DISCRETE</code>, <code>KARRAS</code>, <code>EXPONENTIAL</code>, <code>AYS</code>, <code>GITS</code></p>
+</li>
+<li>
+<p><code>SGM_UNIFORM</code>, <code>SIMPLE</code>, <code>SMOOTHSTEP</code>, <code>LCM</code></p>
+</li>
 </ul>
 <p><strong><code>SDType</code></strong>: Data types for quantization</p>
 <ul>
-<li><code>F32</code>, <code>F16</code>, <code>BF16</code></li>
-<li><code>Q4_0</code>, <code>Q4_1</code>, <code>Q5_0</code>, <code>Q5_1</code>, <code>Q8_0</code>, <code>Q8_1</code></li>
-<li><code>Q2_K</code>, <code>Q3_K</code>, <code>Q4_K</code>, <code>Q5_K</code>, <code>Q6_K</code>, <code>Q8_K</code></li>
+<li>
+<p><code>F32</code>, <code>F16</code>, <code>BF16</code></p>
+</li>
+<li>
+<p><code>Q4_0</code>, <code>Q4_1</code>, <code>Q5_0</code>, <code>Q5_1</code>, <code>Q8_0</code>, <code>Q8_1</code></p>
+</li>
+<li>
+<p><code>Q2_K</code>, <code>Q3_K</code>, <code>Q4_K</code>, <code>Q5_K</code>, <code>Q6_K</code>, <code>Q8_K</code></p>
+</li>
 </ul>
 <p><strong><code>RngType</code></strong>: Random number generators</p>
 <ul>
@@ -4997,14 +5205,30 @@
 </code></pre></div>
 <h3 id="supported-models">Supported Models<a class="headerlink" href="#supported-models" title="Permanent link">&para;</a></h3>
 <ul>
-<li><strong>SD 1.x/2.x</strong>: Standard Stable Diffusion models</li>
-<li><strong>SDXL/SDXL Turbo</strong>: Stable Diffusion XL (use cfg_scale=1.0, steps=1-4 for Turbo)</li>
-<li><strong>SD3/SD3.5</strong>: Stable Diffusion 3.x</li>
-<li><strong>FLUX</strong>: FLUX.1 models (dev, schnell)</li>
-<li><strong>Wan/CogVideoX</strong>: Video generation models (use <code>generate_video()</code>)</li>
-<li><strong>LoRA</strong>: Low-rank adaptation files</li>
-<li><strong>ControlNet</strong>: Conditional generation with control images</li>
-<li><strong>ESRGAN</strong>: Image upscaling models</li>
+<li>
+<p><strong>SD 1.x/2.x</strong>: Standard Stable Diffusion models</p>
+</li>
+<li>
+<p><strong>SDXL/SDXL Turbo</strong>: Stable Diffusion XL (use cfg_scale=1.0, steps=1-4 for Turbo)</p>
+</li>
+<li>
+<p><strong>SD3/SD3.5</strong>: Stable Diffusion 3.x</p>
+</li>
+<li>
+<p><strong>FLUX</strong>: FLUX.1 models (dev, schnell)</p>
+</li>
+<li>
+<p><strong>Wan/CogVideoX</strong>: Video generation models (use <code>generate_video()</code>)</p>
+</li>
+<li>
+<p><strong>LoRA</strong>: Low-rank adaptation files</p>
+</li>
+<li>
+<p><strong>ControlNet</strong>: Conditional generation with control images</p>
+</li>
+<li>
+<p><strong>ESRGAN</strong>: Image upscaling models</p>
+</li>
 </ul>
 <hr />
 <h2 id="error-handling">Error Handling<a class="headerlink" href="#error-handling" title="Permanent link">&para;</a></h2>
@@ -5094,17 +5318,31 @@
 <hr />
 <h2 id="version-compatibility">Version Compatibility<a class="headerlink" href="#version-compatibility" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>Python</strong>: &gt;=3.10 (tested on 3.13)</li>
-<li><strong>llama.cpp</strong>: b8833</li>
-<li><strong>Platform</strong>: macOS, Linux, Windows</li>
+<li>
+<p><strong>Python</strong>: &gt;=3.10 (tested on 3.13)</p>
+</li>
+<li>
+<p><strong>llama.cpp</strong>: b8833</p>
+</li>
+<li>
+<p><strong>Platform</strong>: macOS, Linux, Windows</p>
+</li>
 </ul>
 <hr />
 <h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="../user_guide/">User Guide</a> - Comprehensive usage guide</li>
-<li><a href="../cookbook/">Cookbook</a> - Practical recipes and patterns</li>
-<li><a href="https://github.com/shakfu/cyllama/blob/main/CHANGELOG.md">Changelog</a> - Release history</li>
-<li><a href="https://github.com/ggml-org/llama.cpp">llama.cpp Documentation</a></li>
+<li>
+<p><a href="../user_guide/">User Guide</a> - Comprehensive usage guide</p>
+</li>
+<li>
+<p><a href="../cookbook/">Cookbook</a> - Practical recipes and patterns</p>
+</li>
+<li>
+<p><a href="https://github.com/shakfu/cyllama/blob/main/CHANGELOG.md">Changelog</a> - Release history</p>
+</li>
+<li>
+<p><a href="https://github.com/ggml-org/llama.cpp">llama.cpp Documentation</a></p>
+</li>
 </ul>
 <hr />
 <p><strong>Last Updated</strong>: April 2026

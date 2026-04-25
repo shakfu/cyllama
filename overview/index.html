@@ -1641,37 +1641,75 @@
 <h1 id="cyllama-overview">cyllama overview<a class="headerlink" href="#cyllama-overview" title="Permanent link">&para;</a></h1>
 <p><a href="https://github.com/shakfu/cyllama">cyllama</a> is a zero-dependency Python library for local LLM inference which uses cython to wrap the following high-performance inference engines:</p>
 <ul>
-<li>llama.cpp: text-to-text, text-to-speech and multimodel</li>
-<li>whisper.cpp: automatic speech recognition</li>
-<li>stable-diffusion.cpp: text-to-image and text-to-video</li>
+<li>
+<p>llama.cpp: text-to-text, text-to-speech and multimodel</p>
+</li>
+<li>
+<p>whisper.cpp: automatic speech recognition</p>
+</li>
+<li>
+<p>stable-diffusion.cpp: text-to-image and text-to-video</p>
+</li>
 </ul>
 <h2 id="core-features">Core Features<a class="headerlink" href="#core-features" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>High-level API</strong> - <code>complete()</code>, <code>chat()</code>, <code>LLM</code> class for quick prototyping</li>
-<li><strong>Low-level API</strong> - Direct access to llama.cpp, whisper.cpp, and stable-diffusion.cpp internals</li>
-<li><strong>Streaming</strong> - Token-by-token output with callbacks</li>
-<li><strong>Batch processing</strong> - Process multiple prompts 3-10x faster</li>
-<li><strong>GPU acceleration</strong> - Metal (macOS), CUDA (NVIDIA), ROCm (AMD), Vulkan (cross-platform) backends</li>
-<li><strong>Memory tools</strong> - Estimate GPU layers and VRAM usage</li>
-<li><strong>OpenAI-compatible servers</strong> - <code>EmbeddedServer</code> (C/Mongoose) and <code>PythonServer</code> implementations</li>
+<li>
+<p><strong>High-level API</strong> - <code>complete()</code>, <code>chat()</code>, <code>LLM</code> class for quick prototyping</p>
+</li>
+<li>
+<p><strong>Low-level API</strong> - Direct access to llama.cpp, whisper.cpp, and stable-diffusion.cpp internals</p>
+</li>
+<li>
+<p><strong>Streaming</strong> - Token-by-token output with callbacks</p>
+</li>
+<li>
+<p><strong>Batch processing</strong> - Process multiple prompts 3-10x faster</p>
+</li>
+<li>
+<p><strong>GPU acceleration</strong> - Metal (macOS), CUDA (NVIDIA), ROCm (AMD), Vulkan (cross-platform) backends</p>
+</li>
+<li>
+<p><strong>Memory tools</strong> - Estimate GPU layers and VRAM usage</p>
+</li>
+<li>
+<p><strong>OpenAI-compatible servers</strong> - <code>EmbeddedServer</code> (C/Mongoose) and <code>PythonServer</code> implementations</p>
+</li>
 </ul>
 <h2 id="agent-framework">Agent Framework<a class="headerlink" href="#agent-framework" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>ReActAgent</strong> - Reasoning + Acting with tool calling</li>
-<li><strong>ConstrainedAgent</strong> - Grammar-enforced tool calls (100% valid output)</li>
-<li><strong>ContractAgent</strong> - Pre/post conditions on tools (C++26-inspired contracts)</li>
+<li>
+<p><strong>ReActAgent</strong> - Reasoning + Acting with tool calling</p>
+</li>
+<li>
+<p><strong>ConstrainedAgent</strong> - Grammar-enforced tool calls (100% valid output)</p>
+</li>
+<li>
+<p><strong>ContractAgent</strong> - Pre/post conditions on tools (C++26-inspired contracts)</p>
+</li>
 </ul>
 <h2 id="additional-capabilities">Additional Capabilities<a class="headerlink" href="#additional-capabilities" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>Speculative decoding</strong> - 2-3x speedup with draft models</li>
-<li><strong>GGUF utilities</strong> - Read/write model metadata</li>
-<li><strong>JSON schema grammars</strong> - Structured output generation</li>
+<li>
+<p><strong>Speculative decoding</strong> - 2-3x speedup with draft models</p>
+</li>
+<li>
+<p><strong>GGUF utilities</strong> - Read/write model metadata</p>
+</li>
+<li>
+<p><strong>JSON schema grammars</strong> - Structured output generation</p>
+</li>
 </ul>
 <h2 id="integrations">Integrations<a class="headerlink" href="#integrations" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>OpenAI-compatible API</strong> - Drop-in client replacement</li>
-<li><strong>LangChain</strong> - Full LLM interface implementation</li>
-<li><strong>ACP/MCP support</strong> - Agent and Model Context Protocols</li>
+<li>
+<p><strong>OpenAI-compatible API</strong> - Drop-in client replacement</p>
+</li>
+<li>
+<p><strong>LangChain</strong> - Full LLM interface implementation</p>
+</li>
+<li>
+<p><strong>ACP/MCP support</strong> - Agent and Model Context Protocols</p>
+</li>
 </ul>
 <h2 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Permanent link">&para;</a></h2>
 <p>Cyllama is structured as a layered stack. At the bottom, three C/C++ inference engines handle the heavy computation. Cython bindings (<code>.pyx</code> files) expose these engines to Python with minimal overhead. On top of the bindings, a high-level API provides simple functions like <code>complete()</code> and <code>chat()</code>, while framework modules (agents, RAG, servers, integrations) compose these primitives into higher-level capabilities.</p>
@@ -1722,9 +1760,15 @@
 </ol>
 <h3 id="key-design-decisions">Key Design Decisions<a class="headerlink" href="#key-design-decisions" title="Permanent link">&para;</a></h3>
 <ul>
-<li><strong>Cython over ctypes/pybind11</strong>: Cython provides near-zero overhead bindings while keeping build complexity manageable. The <code>.pxd</code> declaration files mirror C++ headers, and <code>.pxi</code> includes allow modular extension (speculative decoding, TTS, multimodal) without monolithic files.</li>
-<li><strong>Zero Python dependencies</strong>: The core library has no runtime dependencies beyond Python itself. Optional integrations (LangChain, OpenAI compat) import lazily.</li>
-<li><strong>Dual server strategy</strong>: <code>EmbeddedServer</code> wraps llama.cpp's built-in Mongoose-based HTTP server for maximum performance; <code>PythonServer</code> offers a pure-Python alternative for flexibility and debugging.</li>
+<li>
+<p><strong>Cython over ctypes/pybind11</strong>: Cython provides near-zero overhead bindings while keeping build complexity manageable. The <code>.pxd</code> declaration files mirror C++ headers, and <code>.pxi</code> includes allow modular extension (speculative decoding, TTS, multimodal) without monolithic files.</p>
+</li>
+<li>
+<p><strong>Zero Python dependencies</strong>: The core library has no runtime dependencies beyond Python itself. Optional integrations (LangChain, OpenAI compat) import lazily.</p>
+</li>
+<li>
+<p><strong>Dual server strategy</strong>: <code>EmbeddedServer</code> wraps llama.cpp's built-in Mongoose-based HTTP server for maximum performance; <code>PythonServer</code> offers a pure-Python alternative for flexibility and debugging.</p>
+</li>
 </ul>
 <h2 id="quick-example">Quick Example<a class="headerlink" href="#quick-example" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama</span><span class="w"> </span><span class="kn">import</span> <span class="n">complete</span>
@@ -1738,9 +1782,15 @@
 </code></pre></div>
 <h2 id="requirements">Requirements<a class="headerlink" href="#requirements" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Python 3.10+</li>
-<li>macOS, Linux, or Windows</li>
-<li>GGUF model files (download from HuggingFace)</li>
+<li>
+<p>Python 3.10+</p>
+</li>
+<li>
+<p>macOS, Linux, or Windows</p>
+</li>
+<li>
+<p>GGUF model files (download from HuggingFace)</p>
+</li>
 </ul>
 <p>repo: <a href="https://github.com/shakfu/cyllama">https://github.com/shakfu/cyllama</a></p>
 
