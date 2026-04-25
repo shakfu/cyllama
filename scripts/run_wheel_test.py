@@ -45,7 +45,7 @@ import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parent
 MODELS_DIR = Path(os.environ.get("CYLLAMA_MODELS_DIR", ROOT / "models"))
 
 # Resolve `uv` once. Everything this script shells out to Python for is
@@ -469,6 +469,25 @@ def cmd_info(_args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_sync(_args: argparse.Namespace) -> int:
+    return run([UV, "sync"])
+
+
+def cmd_clean(_args: argparse.Namespace) -> int:
+    venv = ROOT / ".venv"
+    if venv.exists():
+        print(f"removing {venv}")
+        shutil.rmtree(venv)
+    return 0
+
+
+def cmd_reset(args: argparse.Namespace) -> int:
+    rc = cmd_clean(args)
+    if rc != 0:
+        return rc
+    return cmd_sync(args)
+
+
 def cmd_install(args: argparse.Namespace) -> int:
     dist = BACKENDS[args.backend]
     cmd = [UV, "pip", "install"]
@@ -501,6 +520,105 @@ def cmd_list_models(_args: argparse.Namespace) -> int:
     return 0
 
 
+def _render_makefile() -> str:
+    py_var = "uv run ./run.py"
+    backends = list(BACKENDS)
+    sd_keys = sorted(SD_TESTS)
+    gen_keys = sorted(GEN_TESTS)
+
+    sd_targets = [f"test-sd-{n}" for n in sd_keys] + ["test-sd-all"]
+    gen_targets = [f"test-gen-{n}" for n in gen_keys] + ["test-gen-all"]
+    phony = (
+        ["help", "sync", "info", "clean", "reset"]
+        + backends
+        + ["list-models", "list-tests", "download"]
+        + sd_targets
+        + gen_targets
+        + ["test-all"]
+    )
+    # Group .PHONY into readable lines
+    groups = [
+        ["help", "sync", "info", "clean", "reset"],
+        backends,
+        ["list-models", "list-tests", "download"],
+        sd_targets,
+        gen_targets,
+        ["test-all"],
+    ]
+    phony_lines = " \\\n\t\t".join(" ".join(g) for g in groups if g)
+
+    lines: list[str] = []
+    lines.append("")
+    lines.append(f"PY := {py_var}")
+    lines.append("")
+    lines.append(f".PHONY: {phony_lines}")
+    lines.append("")
+    lines.append("help:")
+    lines.append('\t@echo "Available targets (frontend for $(PY)):"')
+    lines.append('\t@echo ""')
+    lines.append('\t@echo "  Setup:"')
+    lines.append('\t@echo "    sync         - uv sync dependencies"')
+    lines.append('\t@echo "    info         - show cyllama backend info"')
+    lines.append('\t@echo "    clean        - remove .venv"')
+    lines.append('\t@echo "    reset        - clean + sync"')
+    for b in backends:
+        dist = BACKENDS[b]
+        lines.append(f'\t@echo "    {b:<12} - install {dist}"')
+    lines.append('\t@echo ""')
+    lines.append('\t@echo "  Models:"')
+    lines.append('\t@echo "    list-models  - list known models and whether they are on disk"')
+    lines.append('\t@echo "    download     - download all known models (use $(PY) download <key> for one)"')
+    lines.append('\t@echo ""')
+    lines.append('\t@echo "  Stable Diffusion tests (backend auto-detected):"')
+    for n in sd_keys:
+        doc = (SD_TESTS[n].__doc__ or "").strip().rstrip(".")
+        lines.append(f'\t@echo "    test-sd-{n}    - {doc}"')
+    lines.append('\t@echo "    test-sd-all  - run all sd tests"')
+    lines.append('\t@echo ""')
+    lines.append('\t@echo "  Generation tests (backend auto-detected):"')
+    for n in gen_keys:
+        doc = (GEN_TESTS[n].__doc__ or "").strip().rstrip(".")
+        lines.append(f'\t@echo "    test-gen-{n}   - {doc}"')
+    lines.append('\t@echo "    test-gen-all - run all gen tests"')
+    lines.append('\t@echo ""')
+    lines.append('\t@echo "    list-tests   - list available smoke tests"')
+    lines.append('\t@echo "    test-all     - run all sd + gen tests"')
+
+    def rule(target: str, args: str) -> None:
+        lines.append("")
+        lines.append(f"{target}:")
+        lines.append(f"\t@$(PY) {args}")
+
+    rule("sync", "sync")
+    rule("info", "info")
+    rule("clean", "clean")
+    rule("reset", "reset")
+    for b in backends:
+        rule(b, f"install {b}")
+    rule("list-models", "list-models")
+    rule("list-tests", "list-tests")
+    rule("download", "download all")
+    for n in sd_keys:
+        rule(f"test-sd-{n}", f"test sd {n}")
+    rule("test-sd-all", "test sd all")
+    for n in gen_keys:
+        rule(f"test-gen-{n}", f"test gen {n}")
+    rule("test-gen-all", "test gen all")
+    rule("test-all", "test all all")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def cmd_gen_makefile(args: argparse.Namespace) -> int:
+    content = _render_makefile()
+    if args.output:
+        Path(args.output).write_text(content)
+        print(f"wrote {args.output}")
+    else:
+        sys.stdout.write(content)
+    return 0
+
+
 def cmd_list_tests(_args: argparse.Namespace) -> int:
     for kind, mapping in (("sd", SD_TESTS), ("gen", GEN_TESTS)):
         for n, fn in sorted(mapping.items()):
@@ -521,6 +639,12 @@ def _collect_runs(kind: str, n: str) -> list[tuple[str, str]]:
     return runs
 
 
+def _use_color(no_color: bool) -> bool:
+    if no_color or os.environ.get("NO_COLOR"):
+        return False
+    return sys.stdout.isatty()
+
+
 def cmd_test(args: argparse.Namespace) -> int:
     backend = require_backend(args.backend)
     runs = _collect_runs(args.kind, args.n)
@@ -528,6 +652,11 @@ def cmd_test(args: argparse.Namespace) -> int:
         for k, n in runs:
             print(f"would run: {k} {n} (backend={backend})")
         return 0
+
+    color = _use_color(args.no_color)
+    green = "\033[32m" if color else ""
+    red = "\033[31m" if color else ""
+    reset = "\033[0m" if color else ""
 
     results: list[tuple[str, str, int]] = []
     for k, n in runs:
@@ -546,7 +675,7 @@ def cmd_test(args: argparse.Namespace) -> int:
     print("\n=== summary ===")
     worst = 0
     for k, n, rc in results:
-        status = "PASS" if rc == 0 else f"FAIL (rc={rc})"
+        status = f"{green}PASS{reset}" if rc == 0 else f"{red}FAIL (rc={rc}){reset}"
         print(f"  {k} {n}: {status}")
         worst = max(worst, rc)
     passed = sum(1 for _, _, rc in results if rc == 0)
@@ -564,6 +693,9 @@ def build_parser() -> argparse.ArgumentParser:
     sub = p.add_subparsers(dest="cmd", required=True)
 
     sub.add_parser("info", help="show python/backend/models info").set_defaults(func=cmd_info)
+    sub.add_parser("sync", help="uv sync project dependencies").set_defaults(func=cmd_sync)
+    sub.add_parser("clean", help="remove the .venv directory").set_defaults(func=cmd_clean)
+    sub.add_parser("reset", help="clean + sync").set_defaults(func=cmd_reset)
 
     inst = sub.add_parser("install", help="pip install a cyllama backend wheel")
     inst.add_argument("backend", choices=list(BACKENDS))
@@ -584,6 +716,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="list available smoke tests",
     ).set_defaults(func=cmd_list_tests)
 
+    gm = sub.add_parser("gen-makefile", help="generate the Makefile from this script's registries")
+    gm.add_argument("-o", "--output", help="write to file instead of stdout (e.g. -o Makefile)")
+    gm.set_defaults(func=cmd_gen_makefile)
+
     test = sub.add_parser("test", help="run one or more smoke tests")
     test.add_argument("kind", choices=["sd", "gen", "all"])
     test.add_argument("n", choices=["1", "2", "3", "all"])
@@ -603,6 +739,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--dry-run",
         action="store_true",
         help="print the test matrix without downloading or invoking anything",
+    )
+    test.add_argument(
+        "--no-color",
+        action="store_true",
+        help="disable colored PASS/FAIL output in the summary",
     )
     test.set_defaults(func=cmd_test)
 
