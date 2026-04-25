@@ -23,6 +23,7 @@ from cyllama.sd import (
     LogLevel,
     PreviewMode,
     LoraApplyMode,
+    HiresUpscaler,
     text_to_image,
     text_to_images,
     image_to_image,
@@ -1039,6 +1040,67 @@ class TestSDImageGenParamsExtended:
         params = SDImageGenParams()
         params.auto_resize_ref_image = True
         assert params.auto_resize_ref_image is True
+
+    def test_hires_defaults(self):
+        params = SDImageGenParams()
+        assert params.hires_enabled is False
+        assert params.hires_upscaler == HiresUpscaler.LATENT
+        assert abs(params.hires_scale - 2.0) < 1e-6
+        assert params.hires_target_size == (0, 0)
+        assert params.hires_steps == 0
+        assert abs(params.hires_denoising_strength - 0.7) < 1e-6
+        assert params.hires_tile_size == 128
+        assert params.hires_model_path is None
+
+    def test_hires_setters(self):
+        params = SDImageGenParams()
+        params.hires_enabled = True
+        params.hires_upscaler = HiresUpscaler.LANCZOS
+        params.hires_scale = 1.5
+        params.hires_target_size = (1024, 768)
+        params.hires_steps = 15
+        params.hires_denoising_strength = 0.55
+        params.hires_tile_size = 256
+        params.hires_model_path = "/tmp/upscaler.gguf"
+        assert params.hires_enabled is True
+        assert params.hires_upscaler == HiresUpscaler.LANCZOS
+        assert abs(params.hires_scale - 1.5) < 1e-6
+        assert params.hires_target_size == (1024, 768)
+        assert params.hires_steps == 15
+        assert abs(params.hires_denoising_strength - 0.55) < 1e-6
+        assert params.hires_tile_size == 256
+        assert params.hires_model_path == "/tmp/upscaler.gguf"
+        # clearing the path
+        params.hires_model_path = None
+        assert params.hires_model_path is None
+
+    def test_hires_set_hires_fix(self):
+        params = SDImageGenParams()
+        params.set_hires_fix(
+            enabled=True,
+            upscaler=HiresUpscaler.LATENT_BICUBIC,
+            scale=1.75,
+            target_width=512,
+            target_height=512,
+            steps=10,
+            denoising_strength=0.6,
+            tile_size=192,
+        )
+        assert params.hires_enabled is True
+        assert params.hires_upscaler == HiresUpscaler.LATENT_BICUBIC
+        assert abs(params.hires_scale - 1.75) < 1e-6
+        assert params.hires_target_size == (512, 512)
+        assert params.hires_steps == 10
+        assert abs(params.hires_denoising_strength - 0.6) < 1e-6
+        assert params.hires_tile_size == 192
+
+    def test_hires_upscaler_enum_values(self):
+        # The enum must mirror the C-side ordering exactly: NONE first, then
+        # LATENT, ..., MODEL last. Drift here means the C struct field will
+        # be set to the wrong upscaler.
+        assert HiresUpscaler.NONE == 0
+        assert HiresUpscaler.LATENT == 1
+        assert HiresUpscaler.MODEL == 9
 
     def test_set_mask_image(self):
         """Test setting mask image for inpainting."""

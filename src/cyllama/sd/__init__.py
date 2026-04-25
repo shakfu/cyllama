@@ -75,6 +75,7 @@ from .stable_diffusion import (
     LogLevel,
     PreviewMode,
     LoraApplyMode,
+    HiresUpscaler,
     # Convenience functions
     text_to_image,
     text_to_images,
@@ -113,6 +114,7 @@ __all__ = [
     "LogLevel",
     "PreviewMode",
     "LoraApplyMode",
+    "HiresUpscaler",
     # Convenience functions
     "text_to_image",
     "text_to_images",

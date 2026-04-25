@@ -323,12 +323,12 @@ if __name__ == "__main__":
 #!/usr/bin/env python3
 """Generate an image from text prompt."""
 
-from cyllama.stablediffusion import text_to_image
+from cyllama.sd import text_to_image
 
 MODEL = "models/sd_xl_turbo_1.0.q8_0.gguf"
 
 if __name__ == "__main__":
-    images = text_to_image(
+    image = text_to_image(
         model_path=MODEL,
         prompt="a photo of a cat wearing a hat",
         negative_prompt="blurry, ugly",
@@ -339,7 +339,7 @@ if __name__ == "__main__":
         seed=42
     )
 
-    images[0].save("cat_with_hat.png")
+    image.save("cat_with_hat.png")
     print("Saved: cat_with_hat.png")
 ```
 
@@ -349,7 +349,7 @@ if __name__ == "__main__":
 #!/usr/bin/env python3
 """Generate multiple images with model reuse."""
 
-from cyllama.stablediffusion import SDContext, SDContextParams
+from cyllama.sd import SDContext, SDContextParams
 
 MODEL = "models/sd_xl_turbo_1.0.q8_0.gguf"
 

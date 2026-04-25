@@ -148,6 +148,20 @@ class LoraApplyMode(IntEnum):
     AT_RUNTIME = LORA_APPLY_AT_RUNTIME
 
 
+class HiresUpscaler(IntEnum):
+    """Hires-fix upscaler modes."""
+    NONE = SD_HIRES_UPSCALER_NONE
+    LATENT = SD_HIRES_UPSCALER_LATENT
+    LATENT_NEAREST = SD_HIRES_UPSCALER_LATENT_NEAREST
+    LATENT_NEAREST_EXACT = SD_HIRES_UPSCALER_LATENT_NEAREST_EXACT
+    LATENT_ANTIALIASED = SD_HIRES_UPSCALER_LATENT_ANTIALIASED
+    LATENT_BICUBIC = SD_HIRES_UPSCALER_LATENT_BICUBIC
+    LATENT_BICUBIC_ANTIALIASED = SD_HIRES_UPSCALER_LATENT_BICUBIC_ANTIALIASED
+    LANCZOS = SD_HIRES_UPSCALER_LANCZOS
+    NEAREST = SD_HIRES_UPSCALER_NEAREST
+    MODEL = SD_HIRES_UPSCALER_MODEL
+
+
 # =============================================================================
 # Utility functions
 # =============================================================================
@@ -1589,6 +1603,7 @@ cdef class SDImageGenParams:
     cdef bytes _negative_prompt_bytes
     cdef bytes _pm_id_embed_path_bytes
     cdef bytes _scm_mask_bytes
+    cdef bytes _hires_model_path_bytes
     cdef SDSampleParams _sample_params
     cdef SDImage _init_image
     cdef SDImage _mask_image
@@ -1611,6 +1626,7 @@ cdef class SDImageGenParams:
         self._pm_id_images_buf = NULL
         self._pm_id_embed_path_bytes = None
         self._scm_mask_bytes = None
+        self._hires_model_path_bytes = None
 
     def __dealloc__(self):
         if self._ref_images_buf != NULL:
@@ -2177,6 +2193,122 @@ cdef class SDImageGenParams:
     def cache_spectrum_stop_percent(self, value: float):
         self._params.cache.spectrum_stop_percent = value
 
+    # --- Hires-fix parameters ---
+
+    @property
+    def hires_enabled(self) -> bool:
+        """Enable hires-fix two-pass generation."""
+        return self._params.hires.enabled
+
+    @hires_enabled.setter
+    def hires_enabled(self, value: bool):
+        self._params.hires.enabled = value
+
+    @property
+    def hires_upscaler(self) -> int:
+        """Hires-fix upscaler mode (see HiresUpscaler)."""
+        return <int>self._params.hires.upscaler
+
+    @hires_upscaler.setter
+    def hires_upscaler(self, value):
+        cdef int v = int(value)
+        self._params.hires.upscaler = <sd_hires_upscaler_t>v
+
+    @property
+    def hires_model_path(self) -> Optional[str]:
+        """Path to upscaler model (used when upscaler == MODEL)."""
+        if self._params.hires.model_path == NULL:
+            return None
+        return self._params.hires.model_path.decode('utf-8')
+
+    @hires_model_path.setter
+    def hires_model_path(self, value):
+        if value is None:
+            self._params.hires.model_path = NULL
+            self._hires_model_path_bytes = None
+        else:
+            self._hires_model_path_bytes = value.encode('utf-8')
+            self._params.hires.model_path = <const char*>self._hires_model_path_bytes
+
+    @property
+    def hires_scale(self) -> float:
+        """Hires-fix upscale factor (ignored if target_width/height are set)."""
+        return self._params.hires.scale
+
+    @hires_scale.setter
+    def hires_scale(self, value: float):
+        self._params.hires.scale = value
+
+    @property
+    def hires_target_size(self) -> tuple:
+        """Hires-fix target (width, height); 0 means derive from scale."""
+        return (self._params.hires.target_width,
+                self._params.hires.target_height)
+
+    @hires_target_size.setter
+    def hires_target_size(self, value: tuple):
+        self._params.hires.target_width = value[0]
+        self._params.hires.target_height = value[1]
+
+    @property
+    def hires_steps(self) -> int:
+        """Hires-fix second-pass step count (0 = use base sample_steps)."""
+        return self._params.hires.steps
+
+    @hires_steps.setter
+    def hires_steps(self, value: int):
+        self._params.hires.steps = value
+
+    @property
+    def hires_denoising_strength(self) -> float:
+        """Hires-fix second-pass denoising strength (0.0-1.0)."""
+        return self._params.hires.denoising_strength
+
+    @hires_denoising_strength.setter
+    def hires_denoising_strength(self, value: float):
+        self._params.hires.denoising_strength = value
+
+    @property
+    def hires_tile_size(self) -> int:
+        """Hires-fix upscaler tile size (used by model upscalers)."""
+        return self._params.hires.upscale_tile_size
+
+    @hires_tile_size.setter
+    def hires_tile_size(self, value: int):
+        self._params.hires.upscale_tile_size = value
+
+    def set_hires_fix(self,
+                     enabled: bool = True,
+                     upscaler: Optional[int] = None,
+                     scale: float = 2.0,
+                     model_path: Optional[str] = None,
+                     target_width: int = 0,
+                     target_height: int = 0,
+                     steps: int = 0,
+                     denoising_strength: float = 0.7,
+                     tile_size: int = 128):
+        """Configure hires-fix two-pass generation in one call.
+
+        Args:
+            enabled: Enable hires-fix.
+            upscaler: HiresUpscaler value (default LATENT). MODEL requires model_path.
+            scale: Upscale factor (ignored if target_width/height > 0).
+            model_path: Path to upscaler model (used when upscaler == MODEL).
+            target_width: Absolute target width (0 = derive from scale).
+            target_height: Absolute target height (0 = derive from scale).
+            steps: Second-pass step count (0 = use base sample_steps).
+            denoising_strength: Second-pass denoising strength (0.0-1.0).
+            tile_size: Upscaler tile size (used by model upscalers).
+        """
+        self.hires_enabled = enabled
+        self.hires_upscaler = int(upscaler) if upscaler is not None else SD_HIRES_UPSCALER_LATENT
+        self.hires_scale = scale
+        self.hires_model_path = model_path
+        self.hires_target_size = (target_width, target_height)
+        self.hires_steps = steps
+        self.hires_denoising_strength = denoising_strength
+        self.hires_tile_size = tile_size
+
     def __str__(self) -> str:
         """Get string representation."""
         cdef char* s = sd_img_gen_params_to_str(&self._params)
@@ -2355,7 +2487,9 @@ cdef class SDContext:
                  eta: float = float('inf'),
                  slg_scale: float = 0.0,
                  flow_shift: float = float('inf'),
-                 vae_tiling: bool = False) -> List[SDImage]:
+                 vae_tiling: bool = False,
+                 hires_fix: bool = False,
+                 hires_scale: float = 2.0) -> List[SDImage]:
         """
         Generate images from a text prompt.
 
@@ -2380,6 +2514,8 @@ cdef class SDContext:
             slg_scale: Skip layer guidance scale (0 = disabled)
             flow_shift: Flow shift for SD3.x/Wan models
             vae_tiling: Enable VAE tiling for large images
+            hires_fix: Enable hires-fix two-pass generation (latent upscale)
+            hires_scale: Hires-fix upscale factor (default 2.0)
 
         Returns:
             List of generated SDImage objects
@@ -2417,6 +2553,8 @@ cdef class SDContext:
         gen_params.sample_params.slg_scale = slg_scale
         gen_params.sample_params.flow_shift = flow_shift
         gen_params.vae_tiling_enabled = vae_tiling
+        if hires_fix:
+            gen_params.set_hires_fix(enabled=True, scale=hires_scale)
 
         # Set init image for img2img
         if init_image is not None:
@@ -2929,6 +3067,8 @@ def text_to_images(
     eta: float = float('inf'),
     slg_scale: float = 0.0,
     vae_tiling: bool = False,
+    hires_fix: bool = False,
+    hires_scale: float = 2.0,
     offload_to_cpu: bool = False,
     keep_clip_on_cpu: bool = False,
     keep_vae_on_cpu: bool = False,
@@ -2965,6 +3105,8 @@ def text_to_images(
         eta: Eta for DDIM-like samplers
         slg_scale: Skip layer guidance scale (0 = disabled)
         vae_tiling: Enable VAE tiling for large images
+        hires_fix: Enable hires-fix two-pass generation (latent upscale)
+        hires_scale: Hires-fix upscale factor (default 2.0)
         offload_to_cpu: Offload model to CPU (low VRAM)
         keep_clip_on_cpu: Keep CLIP on CPU
         keep_vae_on_cpu: Keep VAE on CPU
@@ -3007,6 +3149,8 @@ def text_to_images(
             eta=eta,
             slg_scale=slg_scale,
             vae_tiling=vae_tiling,
+            hires_fix=hires_fix,
+            hires_scale=hires_scale,
             clip_skip=clip_skip
         )
 
@@ -3033,6 +3177,8 @@ def text_to_image(
     eta: float = float('inf'),
     slg_scale: float = 0.0,
     vae_tiling: bool = False,
+    hires_fix: bool = False,
+    hires_scale: float = 2.0,
     offload_to_cpu: bool = False,
     keep_clip_on_cpu: bool = False,
     keep_vae_on_cpu: bool = False,
@@ -3066,6 +3212,8 @@ def text_to_image(
         eta: Eta for DDIM-like samplers
         slg_scale: Skip layer guidance scale (0 = disabled)
         vae_tiling: Enable VAE tiling for large images
+        hires_fix: Enable hires-fix two-pass generation (latent upscale)
+        hires_scale: Hires-fix upscale factor (default 2.0)
         offload_to_cpu: Offload model to CPU (low VRAM)
         keep_clip_on_cpu: Keep CLIP on CPU
         keep_vae_on_cpu: Keep VAE on CPU
@@ -3097,6 +3245,8 @@ def text_to_image(
         eta=eta,
         slg_scale=slg_scale,
         vae_tiling=vae_tiling,
+        hires_fix=hires_fix,
+        hires_scale=hires_scale,
         offload_to_cpu=offload_to_cpu,
         keep_clip_on_cpu=keep_clip_on_cpu,
         keep_vae_on_cpu=keep_vae_on_cpu,

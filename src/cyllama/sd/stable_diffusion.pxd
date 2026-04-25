@@ -250,6 +250,30 @@ cdef extern from "stable-diffusion.h":
         int spectrum_warmup_steps
         float spectrum_stop_percent
 
+    ctypedef enum sd_hires_upscaler_t:
+        SD_HIRES_UPSCALER_NONE
+        SD_HIRES_UPSCALER_LATENT
+        SD_HIRES_UPSCALER_LATENT_NEAREST
+        SD_HIRES_UPSCALER_LATENT_NEAREST_EXACT
+        SD_HIRES_UPSCALER_LATENT_ANTIALIASED
+        SD_HIRES_UPSCALER_LATENT_BICUBIC
+        SD_HIRES_UPSCALER_LATENT_BICUBIC_ANTIALIASED
+        SD_HIRES_UPSCALER_LANCZOS
+        SD_HIRES_UPSCALER_NEAREST
+        SD_HIRES_UPSCALER_MODEL
+        SD_HIRES_UPSCALER_COUNT
+
+    ctypedef struct sd_hires_params_t:
+        bint enabled
+        sd_hires_upscaler_t upscaler
+        const char* model_path
+        float scale
+        int target_width
+        int target_height
+        int steps
+        float denoising_strength
+        int upscale_tile_size
+
     ctypedef struct sd_img_gen_params_t:
         const sd_lora_t* loras
         uint32_t lora_count
@@ -273,6 +297,7 @@ cdef extern from "stable-diffusion.h":
         sd_pm_params_t pm_params
         sd_tiling_params_t vae_tiling_params
         sd_cache_params_t cache
+        sd_hires_params_t hires
 
     ctypedef struct sd_vid_gen_params_t:
         const sd_lora_t* loras
@@ -346,12 +371,15 @@ cdef extern from "stable-diffusion.h":
     preview_t str_to_preview(const char* str)
     const char* sd_lora_apply_mode_name(lora_apply_mode_t mode)
     lora_apply_mode_t str_to_lora_apply_mode(const char* str)
+    const char* sd_hires_upscaler_name(sd_hires_upscaler_t upscaler)
+    sd_hires_upscaler_t str_to_sd_hires_upscaler(const char* str)
 
     # =========================================================================
     # Functions - Parameter initialization
     # =========================================================================
 
     void sd_cache_params_init(sd_cache_params_t* cache_params)
+    void sd_hires_params_init(sd_hires_params_t* hires_params)
     void sd_ctx_params_init(sd_ctx_params_t* sd_ctx_params)
     char* sd_ctx_params_to_str(const sd_ctx_params_t* sd_ctx_params)
     void sd_sample_params_init(sd_sample_params_t* sample_params)

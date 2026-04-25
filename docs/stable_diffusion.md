@@ -94,6 +94,8 @@ def text_to_image(
     eta: float = float('inf'),
     slg_scale: float = 0.0,
     vae_tiling: bool = False,
+    hires_fix: bool = False,
+    hires_scale: float = 2.0,
     offload_to_cpu: bool = False,
     keep_clip_on_cpu: bool = False,
     keep_vae_on_cpu: bool = False,
@@ -119,6 +121,8 @@ def text_to_image(
 | `eta` | float | inf | Eta for samplers (inf = auto-resolve per method) |
 | `slg_scale` | float | 0.0 | Skip layer guidance scale |
 | `vae_tiling` | bool | False | Enable VAE tiling for large images |
+| `hires_fix` | bool | False | Enable hires-fix two-pass generation (latent upscale) |
+| `hires_scale` | float | 2.0 | Hires-fix upscale factor |
 | `offload_to_cpu` | bool | False | Offload weights to CPU (low VRAM) |
 | `diffusion_flash_attn` | bool | False | Use flash attention |
 
@@ -291,6 +295,21 @@ params.easycache_enabled = True
 params.easycache_threshold = 0.1
 params.easycache_range = (0.0, 1.0)
 
+# Hires-fix two-pass generation (one-shot helper)
+from cyllama.sd import HiresUpscaler
+params.set_hires_fix(
+    enabled=True,
+    upscaler=HiresUpscaler.LATENT,   # or LANCZOS, NEAREST, MODEL, ...
+    scale=2.0,                        # ignored if target_width/height > 0
+    denoising_strength=0.7,
+    steps=0,                          # 0 = use base sample_steps
+)
+# ...or set fields individually:
+# params.hires_enabled = True
+# params.hires_upscaler = HiresUpscaler.LATENT_BICUBIC
+# params.hires_target_size = (1024, 1024)
+# params.hires_model_path = "/path/to/upscaler.gguf"  # required for HiresUpscaler.MODEL
+
 # Set init image for img2img
 init_img = SDImage.load("input.png")
 params.set_init_image(init_img)
@@ -442,6 +461,23 @@ LoRA application modes:
 | `AUTO` | Auto-detect best mode |
 | `IMMEDIATELY` | Apply at load time |
 | `AT_RUNTIME` | Apply during generation |
+
+### HiresUpscaler
+
+Upscaler modes for hires-fix two-pass generation. Set via `SDImageGenParams.hires_upscaler` or `set_hires_fix(upscaler=...)`.
+
+| Value | Description |
+|-------|-------------|
+| `NONE` | Disabled |
+| `LATENT` | Latent-space bilinear (default) |
+| `LATENT_NEAREST` | Latent-space nearest |
+| `LATENT_NEAREST_EXACT` | Latent-space nearest, exact |
+| `LATENT_ANTIALIASED` | Latent-space bilinear, antialiased |
+| `LATENT_BICUBIC` | Latent-space bicubic |
+| `LATENT_BICUBIC_ANTIALIASED` | Latent-space bicubic, antialiased |
+| `LANCZOS` | Pixel-space Lanczos |
+| `NEAREST` | Pixel-space nearest |
+| `MODEL` | External upscaler model (set `hires_model_path`) |
 
 ### PreviewMode
 
