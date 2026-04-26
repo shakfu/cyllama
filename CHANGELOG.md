@@ -17,6 +17,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+## [0.2.14]
+
 ### Added
 
 - **stable-diffusion.cpp hires-fix two-pass generation exposed** -- Mirrors the upstream `sd_hires_params_t` struct (added in stable-diffusion.cpp release master-587-b8bdffc) onto `SDImageGenParams`. New `HiresUpscaler` IntEnum (10 modes: `NONE`, `LATENT`, `LATENT_NEAREST`, `LATENT_NEAREST_EXACT`, `LATENT_ANTIALIASED`, `LATENT_BICUBIC`, `LATENT_BICUBIC_ANTIALIASED`, `LANCZOS`, `NEAREST`, `MODEL`). Eight new properties on `SDImageGenParams`: `hires_enabled`, `hires_upscaler`, `hires_model_path`, `hires_scale`, `hires_target_size` (tuple), `hires_steps`, `hires_denoising_strength`, `hires_tile_size`. New `set_hires_fix(enabled=True, upscaler=None, scale=2.0, model_path=None, target_width=0, target_height=0, steps=0, denoising_strength=0.7, tile_size=128)` convenience method matching the upstream defaults. `SDContext.generate()`, `text_to_images()`, and `text_to_image()` gain two minimal kwargs (`hires_fix: bool = False`, `hires_scale: float = 2.0`) for the common case; full configuration remains available via `SDImageGenParams` directly. `HiresUpscaler` re-exported from `cyllama.sd`. 4 new tests in `tests/test_sd.py::TestSDImageGenParamsExtended` cover defaults, individual setters, the `set_hires_fix()` bundle, and enum-value pinning to detect future C-side enum reordering.

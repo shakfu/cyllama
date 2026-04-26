@@ -1,8 +1,5 @@
 # Cyllama API Reference
 
-**Version**: 0.2.11
-**Date**: April 2026
-
 Complete API reference for cyllama, a high-performance Python library for LLM inference built on llama.cpp.
 
 ## Table of Contents
@@ -2004,7 +2001,7 @@ for chunk in complete("Write a long essay", model_path="model.gguf",
 
 - **Python**: >=3.10 (tested on 3.13)
 
-- **llama.cpp**: b8833
+- **llama.cpp**: see `CHANGELOG.md` for the pinned revision
 
 - **Platform**: macOS, Linux, Windows
 
@@ -2022,5 +2019,4 @@ for chunk in complete("Write a long essay", model_path="model.gguf",
 
 ---
 
-**Last Updated**: April 2026
-**Cyllama Version**: 0.2.11
+See `pyproject.toml` for the current cyllama version.

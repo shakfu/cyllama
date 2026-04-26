@@ -629,7 +629,7 @@ models = list_cached_models()
 
 **Production-Ready**: Battle-tested and comprehensive
 
-- 1489+ passing tests with extensive coverage
+- Extensive test coverage across the API surface
 
 - Comprehensive documentation and examples
 
@@ -647,10 +647,9 @@ models = list_cached_models()
 
 ## Status
 
-**Current Version**: 0.2.13 (Apr 2026)
-**llama.cpp Version**: b8833
 **Build System**: scikit-build-core + CMake
-**Test Coverage**: 1489+ tests passing
+
+See `pyproject.toml` for the current cyllama version and `CHANGELOG.md` for the pinned llama.cpp / whisper.cpp / stable-diffusion.cpp revisions.
 
 ### Platform & GPU Availability
 
@@ -911,7 +910,7 @@ bin/llama-cli -c 512 -n 32 -m models/Llama-3.2-1B-Instruct-Q8_0.gguf \
  -p "Is mathematics discovered or invented?"
 ```
 
-With 1489+ passing tests, the library is ready for both quick prototyping and production use:
+With extensive test coverage, the library is ready for both quick prototyping and production use:
 
 ```sh
 make test  # Run full test suite
