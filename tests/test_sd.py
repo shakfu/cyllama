@@ -1044,12 +1044,12 @@ class TestSDImageGenParamsExtended:
     def test_hires_defaults(self):
         params = SDImageGenParams()
         assert params.hires_enabled is False
-        assert params.hires_upscaler == HiresUpscaler.NONE
-        assert abs(params.hires_scale - 0.0) < 1e-6
+        assert params.hires_upscaler == HiresUpscaler.LATENT
+        assert abs(params.hires_scale - 2.0) < 1e-6
         assert params.hires_target_size == (0, 0)
         assert params.hires_steps == 0
-        assert abs(params.hires_denoising_strength - 0.0) < 1e-6
-        assert params.hires_tile_size == 0
+        assert abs(params.hires_denoising_strength - 0.7) < 1e-6
+        assert params.hires_tile_size == 128
         assert params.hires_model_path is None
 
     def test_hires_setters(self):
