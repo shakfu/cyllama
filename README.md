@@ -1,6 +1,6 @@
 # cyllama - Fast, Pythonic AI Inference
 
-cyllama is a comprehensive no-dependencies Python library for local AI inference built on the state-of-the-art `.cpp` ecosystem:
+cyllama is a no-dependencies Python library for local AI inference built on the `.cpp` inference stack:
 
 - **[llama.cpp](https://github.com/ggml-org/llama.cpp)** - Text generation, chat, embeddings, and text-to-speech
 
@@ -18,7 +18,7 @@ It combines the performance of compiled Cython wrappers with a simple, high-leve
 
 - Streaming -- token-by-token output with callbacks
 
-- Batch processing -- process multiple prompts 3-10x faster
+- Batch processing -- process multiple prompts in parallel
 
 - GPU acceleration -- Metal (macOS), CUDA (NVIDIA), ROCm (AMD), Vulkan (cross-platform), SYCL (Intel)
 
@@ -132,7 +132,7 @@ print(response)
 
 ## Key Features
 
-### Simple by Default, Powerful When Needed
+### Simple by Default, Configurable When Needed
 
 **High-Level API** - Get started in seconds:
 
@@ -241,7 +241,7 @@ response = client.chat.completions.create(
 print(response.choices[0].message.content)
 ```
 
-**LangChain Integration** - Seamless ecosystem access:
+**LangChain Integration**:
 
 ```python
 from cyllama.integrations import CyllamaLLM
@@ -557,7 +557,7 @@ models = list_cached_models()
 
 ### Text Generation (llama.cpp)
 
-- [x] **Full llama.cpp API** - Complete Cython wrapper with strong typing
+- [x] **Full llama.cpp API** - Cython wrapper with strong typing
 
 - [x] **High-Level API** - Simple, Pythonic interface (`LLM`, `complete`, `chat`)
 
@@ -571,7 +571,7 @@ models = list_cached_models()
 
 ### Speech Recognition (whisper.cpp)
 
-- [x] **Full whisper.cpp API** - Complete Cython wrapper
+- [x] **Full whisper.cpp API** - Cython wrapper
 
 - [x] **High-Level API** - Simple `transcribe()` function
 
@@ -583,7 +583,7 @@ models = list_cached_models()
 
 ### Image & Video Generation (stable-diffusion.cpp)
 
-- [x] **Full stable-diffusion.cpp API** - Complete Cython wrapper
+- [x] **Full stable-diffusion.cpp API** - Cython wrapper
 
 - [x] **Text-to-Image** - SD 1.x/2.x, SDXL, SD3, FLUX, FLUX2, Z-Image
 
@@ -621,17 +621,17 @@ models = list_cached_models()
 
 **Simplicity**: From 50 lines to 1 line for basic generation
 
-- Intuitive, Pythonic API design
+- Pythonic API
 
 - Automatic resource management
 
 - Sensible defaults, full control when needed
 
-**Production-Ready**: Battle-tested and comprehensive
+**Well-tested** with broad api coverage
 
 - Extensive test coverage across the API surface
 
-- Comprehensive documentation and examples
+- Documentation and examples fir each module
 
 - Proper error handling and logging
 
@@ -910,7 +910,7 @@ bin/llama-cli -c 512 -n 32 -m models/Llama-3.2-1B-Instruct-Q8_0.gguf \
  -p "Is mathematics discovered or invented?"
 ```
 
-With extensive test coverage, the library is ready for both quick prototyping and production use:
+The library covers both quick prototyping and longer-running deployments:
 
 ```sh
 make test  # Run full test suite
@@ -934,15 +934,15 @@ To serve docs locally: `make docs-serve`
 
 - **[User Guide](docs/user_guide.md)** - Comprehensive guide covering all features
 
-- **[CLI Cheatsheet](docs/cli-cheatsheet.md)** - Complete CLI reference for all commands
+- **[CLI Cheatsheet](docs/cli-cheatsheet.md)** - CLI reference for all commands
 
-- **[API Reference](docs/api_reference.md)** - Complete API documentation
+- **[API Reference](docs/api_reference.md)** - API documentation
 
 - **[RAG Overview](docs/rag_overview.md)** - Retrieval-augmented generation guide
 
 - **[Cookbook](docs/cookbook.md)** - Practical recipes and patterns
 
-- **[Changelog](CHANGELOG.md)** - Complete release history
+- **[Changelog](CHANGELOG.md)** - Release history
 
 - **Examples** - See `tests/examples/` for working code samples
 
