@@ -45,7 +45,7 @@ endif
 # =============================================================================
 # Primary targets
 # =============================================================================
-.PHONY: all build build-dynamic setup sync dev dev-abi3 lean reset remake
+.PHONY: all build build-dynamic xcframework setup sync dev dev-abi3 lean reset remake
 
 all: build
 
@@ -71,6 +71,9 @@ build: $(LIBLAMMA)
 
 build-dynamic:
 	@$(SYSTEM_PYTHON) scripts/manage.py build --all --dynamic
+
+xcframework:
+	@$(SYSTEM_PYTHON) scripts/make_xcframework.py
 
 remake: reset build test
 
