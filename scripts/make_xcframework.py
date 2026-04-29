@@ -578,6 +578,39 @@ def create_xcframework(framework: Path, name: str) -> Path:
 
 # ---------------------------------------------------------------------------
 
+def _read_cyllama_version() -> str:
+    """Pull the cyllama version from pyproject.toml (single source of truth)."""
+    import tomllib
+    with (ROOT / "pyproject.toml").open("rb") as f:
+        return tomllib.load(f)["project"]["version"]
+
+
+def package_zip(xcframeworks: list[Path]) -> Path:
+    """Bundle the four xcframeworks into a versioned directory and zip it.
+
+    Uses `ditto` instead of `zipfile`/`shutil.make_archive` because
+    xcframeworks contain symlinks (Versions/Current -> A, top-level
+    Headers -> Versions/Current/Headers, etc.) that the standard zip
+    encoders flatten or duplicate. `ditto -c -k` preserves symlinks,
+    extended attributes, and the structure macOS framework consumers
+    expect.
+    """
+    version = _read_cyllama_version()
+    bundle_name = f"ggml-cpp-stack-xcframework-arm64-{version}"
+    bundle_dir = DIST / bundle_name
+    if bundle_dir.exists():
+        shutil.rmtree(bundle_dir)
+    bundle_dir.mkdir()
+    for fw in xcframeworks:
+        shutil.copytree(fw, bundle_dir / fw.name, symlinks=True)
+
+    zip_path = DIST / f"{bundle_name}.zip"
+    if zip_path.exists():
+        zip_path.unlink()
+    run(["ditto", "-c", "-k", "--keepParent", str(bundle_dir), str(zip_path)])
+    return zip_path
+
+
 def main():
     if sys.platform != "darwin":
         fail("xcframework target is macOS-only")
@@ -593,9 +626,13 @@ def main():
         print(f"\n=== creating {component.name}.xcframework ===")
         built.append(create_xcframework(fw, component.name))
 
+    print("\n=== packaging zip ===")
+    zip_path = package_zip(built)
+
     print("\nbuilt:")
     for p in built:
         print(f"  {p}")
+    print(f"\npackaged:\n  {zip_path}")
 
 
 if __name__ == "__main__":
