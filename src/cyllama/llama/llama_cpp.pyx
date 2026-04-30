@@ -76,8 +76,20 @@ cpdef enum:
 # -----------------------------------------------------------------------------
 
 cdef void log_callback(ggml.ggml_log_level level, const char * text, void * py_log_callback) noexcept:
-    """ggml_log_callback wrapper to enabling python callbacks to be used"""
-    (<object>py_log_callback)(level, text.decode())
+    """ggml_log_callback wrapper to enabling python callbacks to be used.
+
+    Errors from the user-supplied callback (or from decoding non-UTF-8 log
+    text) are caught here. Without this, ``noexcept`` would still swallow
+    the exception, but only after Cython printed it via the default
+    handler -- and crucially, the Python error indicator can be left set
+    on entry to a ``noexcept`` function, with undefined behavior at the
+    next interpreter checkpoint. We catch + traceback-print explicitly.
+    """
+    try:
+        (<object>py_log_callback)(level, text.decode("utf-8", errors="replace"))
+    except BaseException:
+        import traceback
+        traceback.print_exc()
 
 # Hold a reference to the active log callback to prevent garbage collection
 # while the C code still holds a pointer to it.
@@ -94,8 +106,18 @@ def set_log_callback(object py_log_callback):
 
 
 cdef bint abort_callback(void * py_abort_callback) noexcept:
-    """ggml_abort_callback wrapper enabling python callbacks to be used"""
-    return (<object>py_abort_callback)()
+    """ggml_abort_callback wrapper enabling python callbacks to be used.
+
+    On error from the user callback we return False (don't abort), print
+    the traceback, and let computation continue -- safer default than
+    silently aborting whatever decode is in flight.
+    """
+    try:
+        return (<object>py_abort_callback)()
+    except BaseException:
+        import traceback
+        traceback.print_exc()
+        return False
 
 
 cdef bint _cancel_flag_callback(void * data) noexcept nogil:
@@ -110,14 +132,34 @@ cdef bint _cancel_flag_callback(void * data) noexcept nogil:
 
 
 cdef cppbool sched_eval_callback(ggml.ggml_tensor * t, cppbool ask, void * py_sched_eval_callback) noexcept:
-    """ggml_backend_sched_eval_callback wrapper enabling python callbacks to be used"""
-    cdef GgmlTensor tensor = GgmlTensor.from_ptr(t)
-    return (<object>py_sched_eval_callback)(tensor, ask)
+    """ggml_backend_sched_eval_callback wrapper enabling python callbacks to be used.
+
+    Returns False on error so the scheduler does not request tensor
+    observation it cannot deliver.
+    """
+    cdef GgmlTensor tensor
+    try:
+        tensor = GgmlTensor.from_ptr(t)
+        return (<object>py_sched_eval_callback)(tensor, ask)
+    except BaseException:
+        import traceback
+        traceback.print_exc()
+        return False
 
 
 cdef cppbool progress_callback(float progress, void * py_progress_callback) noexcept:
-    """llama_progress_callback callback wrapper enabling python callbacks to be used"""
-    return (<object>py_progress_callback)(progress)
+    """llama_progress_callback callback wrapper enabling python callbacks to be used.
+
+    Returns True on error so model loading is not aborted by a buggy
+    user-supplied progress UI -- the load itself is independent of the
+    callback's success.
+    """
+    try:
+        return (<object>py_progress_callback)(progress)
+    except BaseException:
+        import traceback
+        traceback.print_exc()
+        return True
 
 
 # Memory Pool System for Performance Optimization
