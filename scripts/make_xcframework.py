@@ -22,6 +22,7 @@ inter-framework references resolve.
 
 Run:  make xcframework      (or)  python scripts/make_xcframework.py
 """
+
 from __future__ import annotations
 
 import os
@@ -30,6 +31,7 @@ import re
 import shutil
 import subprocess
 import sys
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -61,12 +63,13 @@ SD_SRC = ROOT / "build" / "stable-diffusion.cpp"
 # ---------------------------------------------------------------------------
 # Component model
 
+
 @dataclass
 class Component:
-    name: str                       # bundle name, e.g. "LlamaCpp"
+    name: str  # bundle name, e.g. "LlamaCpp"
     bundle_id: str
-    src_dyn_dir: Path               # where to pick the dylibs from
-    lib_stems: list[str]            # bare names without ".dylib"
+    src_dyn_dir: Path  # where to pick the dylibs from
+    lib_stems: list[str]  # bare names without ".dylib"
     header_sources: list[tuple[Path, list[str]]]  # (include_dir, [filenames])
     deps: list[str] = field(default_factory=list)  # other Component.name strings
 
@@ -76,22 +79,40 @@ COMPONENTS: list[Component] = [
         name="Ggml",
         bundle_id="com.cyllama.ggml",
         src_dyn_dir=LLAMA_DYN,  # canonical ggml from llama.cpp
-        lib_stems=["libggml", "libggml-base", "libggml-cpu",
-                   "libggml-metal", "libggml-blas"],
-        header_sources=[(LLAMA_DIR / "include", [
-            "ggml.h", "ggml-alloc.h", "ggml-backend.h", "ggml-blas.h",
-            "ggml-cpp.h", "ggml-cpu.h", "ggml-metal.h", "ggml-opt.h",
-            "gguf.h",
-        ])],
+        lib_stems=["libggml", "libggml-base", "libggml-cpu", "libggml-metal", "libggml-blas"],
+        header_sources=[
+            (
+                LLAMA_DIR / "include",
+                [
+                    "ggml.h",
+                    "ggml-alloc.h",
+                    "ggml-backend.h",
+                    "ggml-blas.h",
+                    "ggml-cpp.h",
+                    "ggml-cpu.h",
+                    "ggml-metal.h",
+                    "ggml-opt.h",
+                    "gguf.h",
+                ],
+            )
+        ],
     ),
     Component(
         name="LlamaCpp",
         bundle_id="com.cyllama.llamacpp",
         src_dyn_dir=LLAMA_DYN,
         lib_stems=["libllama", "libmtmd"],
-        header_sources=[(LLAMA_DIR / "include", [
-            "llama.h", "llama-cpp.h", "mtmd.h", "mtmd-helper.h",
-        ])],
+        header_sources=[
+            (
+                LLAMA_DIR / "include",
+                [
+                    "llama.h",
+                    "llama-cpp.h",
+                    "mtmd.h",
+                    "mtmd-helper.h",
+                ],
+            )
+        ],
         deps=["Ggml"],
     ),
     Component(
@@ -128,18 +149,21 @@ def _owner_map() -> dict[str, Component]:
 # ---------------------------------------------------------------------------
 # Shell helpers
 
-def run(cmd, cwd=None, env=None):
+
+def run(
+    cmd: Sequence[str | Path],
+    cwd: Path | str | None = None,
+    env: dict[str, str] | None = None,
+) -> None:
     print(f"+ {' '.join(str(c) for c in cmd)}")
     subprocess.run([str(c) for c in cmd], check=True, cwd=cwd, env=env)
 
 
-def run_capture(cmd) -> str:
-    return subprocess.run(
-        [str(c) for c in cmd], check=True, capture_output=True, text=True
-    ).stdout
+def run_capture(cmd: Sequence[str | Path]) -> str:
+    return subprocess.run([str(c) for c in cmd], check=True, capture_output=True, text=True).stdout
 
 
-def fail(msg):
+def fail(msg: str) -> None:
     print(f"error: {msg}", file=sys.stderr)
     sys.exit(1)
 
@@ -147,7 +171,8 @@ def fail(msg):
 # ---------------------------------------------------------------------------
 # Step 1: ensure shared dylibs exist for all three projects
 
-def ensure_dylibs():
+
+def ensure_dylibs() -> None:
     """Build llama/whisper/SD as shared libs sharing llama.cpp's ggml.
 
     Idempotent: skips any project whose dylib is already present.
@@ -157,15 +182,23 @@ def ensure_dylibs():
     # Ensure source trees are cloned. manage.py's --deps-only path runs
     # the static build but more importantly clones the repos.
     if not LLAMA_SRC.exists():
-        run([sys.executable, "scripts/manage.py", "build",
-             "--llama-cpp", "--deps-only"], cwd=ROOT, env=env)
+        run([sys.executable, "scripts/manage.py", "build", "--llama-cpp", "--deps-only"], cwd=ROOT, env=env)
     if not WHISPER_SRC.exists():
-        run([sys.executable, "scripts/manage.py", "build",
-             "--whisper-cpp", "--deps-only"], cwd=ROOT, env=env)
+        run([sys.executable, "scripts/manage.py", "build", "--whisper-cpp", "--deps-only"], cwd=ROOT, env=env)
     if not SD_SRC.exists():
-        run([sys.executable, "scripts/manage.py", "build",
-             "--stable-diffusion", "--deps-only", "--sd-shared-ggml",
-             "--no-sd-examples"], cwd=ROOT, env=env)
+        run(
+            [
+                sys.executable,
+                "scripts/manage.py",
+                "build",
+                "--stable-diffusion",
+                "--deps-only",
+                "--sd-shared-ggml",
+                "--no-sd-examples",
+            ],
+            cwd=ROOT,
+            env=env,
+        )
 
     # Build llama.cpp shared with GGML_BACKEND_DL=OFF so every ggml backend
     # is a real MH_DYLIB (not MH_BUNDLE), which is required for the umbrella
@@ -173,8 +206,7 @@ def ensure_dylibs():
     if not (LLAMA_DYN / "libllama.dylib").exists():
         _build_shared_cmake(
             src=LLAMA_SRC,
-            targets=["llama", "mtmd", "ggml", "ggml-base",
-                     "ggml-cpu", "ggml-metal", "ggml-blas"],
+            targets=["llama", "mtmd", "ggml", "ggml-base", "ggml-cpu", "ggml-metal", "ggml-blas"],
             dst=LLAMA_DYN,
             extra_cmake=[
                 "-DGGML_METAL=ON",
@@ -187,12 +219,16 @@ def ensure_dylibs():
                 "-DLLAMA_BUILD_EXAMPLES=OFF",
             ],
             sync_ggml_from=None,
-            collect_globs=["**/libllama*.dylib", "**/libmtmd*.dylib",
-                           "**/libggml*.dylib"],
-            require=["libllama.dylib", "libmtmd.dylib",
-                     "libggml.dylib", "libggml-base.dylib",
-                     "libggml-cpu.dylib", "libggml-metal.dylib",
-                     "libggml-blas.dylib"],
+            collect_globs=["**/libllama*.dylib", "**/libmtmd*.dylib", "**/libggml*.dylib"],
+            require=[
+                "libllama.dylib",
+                "libmtmd.dylib",
+                "libggml.dylib",
+                "libggml-base.dylib",
+                "libggml-cpu.dylib",
+                "libggml-metal.dylib",
+                "libggml-blas.dylib",
+            ],
         )
 
     if not (WHISPER_DYN / "libwhisper.dylib").exists():
@@ -231,8 +267,15 @@ def ensure_dylibs():
         )
 
 
-def _build_shared_cmake(src, targets, dst, extra_cmake, sync_ggml_from,
-                        collect_globs, require):
+def _build_shared_cmake(
+    src: Path,
+    targets: list[str],
+    dst: Path,
+    extra_cmake: list[str],
+    sync_ggml_from: Path | None,
+    collect_globs: list[str],
+    require: list[str],
+) -> None:
     """Run a fresh cmake build with BUILD_SHARED_LIBS=ON and collect dylibs.
 
     `targets` is a list of cmake target names to build.
@@ -240,7 +283,7 @@ def _build_shared_cmake(src, targets, dst, extra_cmake, sync_ggml_from,
     the function fails loudly otherwise (catches silent static-lib builds).
     """
     if sync_ggml_from and sync_ggml_from.exists() and (src / "ggml").exists():
-        print(f"syncing ggml: {sync_ggml_from} -> {src/'ggml'}")
+        print(f"syncing ggml: {sync_ggml_from} -> {src / 'ggml'}")
         shutil.rmtree(src / "ggml")
         shutil.copytree(sync_ggml_from, src / "ggml")
 
@@ -249,8 +292,12 @@ def _build_shared_cmake(src, targets, dst, extra_cmake, sync_ggml_from,
         shutil.rmtree(bld)
     bld.mkdir(parents=True)
 
-    cmake_cmd = [
-        "cmake", "-S", src, "-B", bld,
+    cmake_cmd: list[str | Path] = [
+        "cmake",
+        "-S",
+        src,
+        "-B",
+        bld,
         "-DCMAKE_BUILD_TYPE=Release",
         "-DBUILD_SHARED_LIBS=ON",
         "-DCMAKE_POSITION_INDEPENDENT_CODE=ON",
@@ -261,7 +308,7 @@ def _build_shared_cmake(src, targets, dst, extra_cmake, sync_ggml_from,
         *extra_cmake,
     ]
     run(cmake_cmd)
-    build_cmd = ["cmake", "--build", bld, "--config", "Release", "-j"]
+    build_cmd: list[str | Path] = ["cmake", "--build", bld, "--config", "Release", "-j"]
     for t in targets:
         build_cmd += ["--target", t]
     run(build_cmd)
@@ -284,26 +331,20 @@ def _build_shared_cmake(src, targets, dst, extra_cmake, sync_ggml_from,
 
     missing = [n for n in require if n not in collected]
     if missing:
-        fail(f"shared build of {src.name} failed to produce: {missing}. "
-             f"Built artifacts in {bld}.")
+        fail(f"shared build of {src.name} failed to produce: {missing}. Built artifacts in {bld}.")
 
 
 # ---------------------------------------------------------------------------
 # Step 2: stage one Cyllama-internal framework per component
 
+
 def install_name_for(component: Component, basename: str) -> str:
     """Canonical @rpath path for a library inside its owning framework."""
-    return (
-        f"@rpath/{component.name}.framework/Versions/{FRAMEWORK_VERSION}/"
-        f"Libraries/{basename}"
-    )
+    return f"@rpath/{component.name}.framework/Versions/{FRAMEWORK_VERSION}/Libraries/{basename}"
 
 
 def umbrella_install_name(component: Component) -> str:
-    return (
-        f"@rpath/{component.name}.framework/Versions/{FRAMEWORK_VERSION}/"
-        f"{component.name}"
-    )
+    return f"@rpath/{component.name}.framework/Versions/{FRAMEWORK_VERSION}/{component.name}"
 
 
 def stage_framework(component: Component, owners: dict[str, Component]) -> Path:
@@ -333,7 +374,7 @@ def stage_framework(component: Component, owners: dict[str, Component]) -> Path:
     return fw
 
 
-def _copy_resolved(src_dir: Path, stems: list[str], dst_dir: Path):
+def _copy_resolved(src_dir: Path, stems: list[str], dst_dir: Path) -> None:
     """Copy each <stem>.dylib from src_dir to dst_dir, resolving symlinks
     so we get a single real file per name (no versioned soname duplicates)."""
     for stem in stems:
@@ -355,16 +396,14 @@ def component_short(p: Path) -> str:
         return str(p)
 
 
-def _normalize_libs(component: Component, libs_dir: Path,
-                    owners: dict[str, Component]):
+def _normalize_libs(component: Component, libs_dir: Path, owners: dict[str, Component]) -> None:
     """Set install names + rewrite LC_LOAD_DYLIB so every reference uses
     the canonical @rpath/<Owner>.framework/Versions/A/Libraries/<name> form,
     and replace rpaths with @loader_path/../../../.. so @rpath/<Owner>...
     resolves at the directory holding all .framework bundles."""
     for f in sorted(libs_dir.glob("*.dylib")):
         # 1) install id
-        run(["install_name_tool", "-id",
-             install_name_for(component, f.name), str(f)])
+        run(["install_name_tool", "-id", install_name_for(component, f.name), str(f)])
 
         # 2) rewrite each LC_LOAD_DYLIB whose basename we own
         otool = run_capture(["otool", "-L", str(f)])
@@ -387,10 +426,10 @@ def _normalize_libs(component: Component, libs_dir: Path,
         for rp in _existing_rpaths(f):
             subprocess.run(
                 ["install_name_tool", "-delete_rpath", rp, str(f)],
-                check=False, capture_output=True,
+                check=False,
+                capture_output=True,
             )
-        run(["install_name_tool", "-add_rpath",
-             "@loader_path/../../../..", str(f)])
+        run(["install_name_tool", "-add_rpath", "@loader_path/../../../..", str(f)])
 
 
 def _strip_soname(name: str) -> str:
@@ -419,7 +458,7 @@ def _existing_rpaths(dylib: Path) -> list[str]:
     return rpaths
 
 
-def _copy_headers(component: Component, dst: Path):
+def _copy_headers(component: Component, dst: Path) -> None:
     for inc, names in component.header_sources:
         for name in names:
             src = inc / name
@@ -443,7 +482,7 @@ def _header_owner_map() -> dict[str, Component]:
 _INCLUDE_RE = re.compile(r'^(\s*#\s*include\s*)"([^"]+)"', re.MULTILINE)
 
 
-def _patch_cross_framework_includes(component: Component, headers_dir: Path):
+def _patch_cross_framework_includes(component: Component, headers_dir: Path) -> None:
     """Rewrite quoted #include directives that reference headers owned by
     another component, into Apple framework form `<Owner/header.h>`.
 
@@ -457,7 +496,7 @@ def _patch_cross_framework_includes(component: Component, headers_dir: Path):
         text = hdr.read_text()
         changed = False
 
-        def repl(match):
+        def repl(match: re.Match[str]) -> str:
             nonlocal changed
             prefix, included = match.group(1), match.group(2)
             base = Path(included).name
@@ -473,23 +512,24 @@ def _patch_cross_framework_includes(component: Component, headers_dir: Path):
             print(f"  patched cross-framework includes in {component.name}/{hdr.name}")
 
 
-def _build_umbrella(component: Component, out: Path, libs_dir: Path):
+def _build_umbrella(component: Component, out: Path, libs_dir: Path) -> None:
     """Build a thin dylib that re-exports the component's public libraries.
 
     Re-export is recorded against each dependency's *current* install name,
     so we run this AFTER _normalize_libs has set the canonical @rpath ids.
     """
     stub_c = STAGE / f"_{component.name.lower()}_umbrella.c"
-    stub_c.write_text(
-        f"void {component.name.lower()}_umbrella_anchor(void) {{}}\n"
-    )
+    stub_c.write_text(f"void {component.name.lower()}_umbrella_anchor(void) {{}}\n")
 
     cmd = [
-        "clang", "-dynamiclib",
+        "clang",
+        "-dynamiclib",
         f"-mmacosx-version-min={MIN_MACOS}",
-        "-o", str(out),
+        "-o",
+        str(out),
         str(stub_c),
-        "-install_name", umbrella_install_name(component),
+        "-install_name",
+        umbrella_install_name(component),
     ]
     for stem in component.lib_stems:
         cmd += ["-Wl,-reexport_library," + str(libs_dir / f"{stem}.dylib")]
@@ -500,7 +540,7 @@ def _build_umbrella(component: Component, out: Path, libs_dir: Path):
     os.chmod(out, 0o755)
 
 
-def _write_info_plist(path: Path, component: Component):
+def _write_info_plist(path: Path, component: Component) -> None:
     plist = {
         "CFBundleDevelopmentRegion": "en",
         "CFBundleExecutable": component.name,
@@ -517,36 +557,36 @@ def _write_info_plist(path: Path, component: Component):
         plistlib.dump(plist, f)
 
 
-def _write_module_map(path: Path, component: Component, headers_dir: Path):
+def _write_module_map(path: Path, component: Component, headers_dir: Path) -> None:
     c_headers: list[str] = []
     cpp_headers: list[str] = []
-    for h in sorted(headers_dir.glob("*.h")):
+    for hdr in sorted(headers_dir.glob("*.h")):
         # Headers ending in -cpp.h (e.g. llama-cpp.h, ggml-cpp.h) gate
         # themselves with `#error "This header is for C++ only"`. Put them
         # behind `requires cplusplus` so C consumers don't pull them in.
-        if h.stem.endswith("-cpp"):
-            cpp_headers.append(h.name)
+        if hdr.stem.endswith("-cpp"):
+            cpp_headers.append(hdr.name)
         else:
-            c_headers.append(h.name)
+            c_headers.append(hdr.name)
 
     lines = [f"framework module {component.name} {{"]
-    for h in c_headers:
-        lines.append(f'    header "{h}"')
+    for name in c_headers:
+        lines.append(f'    header "{name}"')
     lines.append("    export *")
     for dep in component.deps:
         lines.append(f"    use {dep}")
     if cpp_headers:
-        lines.append(f"    explicit module Cpp {{")
+        lines.append("    explicit module Cpp {")
         lines.append("        requires cplusplus")
-        for h in cpp_headers:
-            lines.append(f'        header "{h}"')
+        for name in cpp_headers:
+            lines.append(f'        header "{name}"')
         lines.append("        export *")
         lines.append("    }")
     lines.append("}")
     path.write_text("\n".join(lines) + "\n")
 
 
-def _make_version_symlinks(fw: Path, component: Component):
+def _make_version_symlinks(fw: Path, component: Component) -> None:
     versions = fw / "Versions"
     current = versions / "Current"
     if current.exists() or current.is_symlink():
@@ -563,26 +603,34 @@ def _make_version_symlinks(fw: Path, component: Component):
 # ---------------------------------------------------------------------------
 # Step 3: xcodebuild -create-xcframework
 
+
 def create_xcframework(framework: Path, name: str) -> Path:
     DIST.mkdir(parents=True, exist_ok=True)
     out = DIST / f"{name}.xcframework"
     if out.exists():
         shutil.rmtree(out)
-    run([
-        "xcodebuild", "-create-xcframework",
-        "-framework", str(framework),
-        "-output", str(out),
-    ])
+    run(
+        [
+            "xcodebuild",
+            "-create-xcframework",
+            "-framework",
+            str(framework),
+            "-output",
+            str(out),
+        ]
+    )
     return out
 
 
 # ---------------------------------------------------------------------------
 
+
 def _read_cyllama_version() -> str:
     """Pull the cyllama version from pyproject.toml (single source of truth)."""
     import tomllib
+
     with (ROOT / "pyproject.toml").open("rb") as f:
-        return tomllib.load(f)["project"]["version"]
+        return str(tomllib.load(f)["project"]["version"])
 
 
 def package_zip(xcframeworks: list[Path]) -> Path:
@@ -611,7 +659,7 @@ def package_zip(xcframeworks: list[Path]) -> Path:
     return zip_path
 
 
-def main():
+def main() -> None:
     if sys.platform != "darwin":
         fail("xcframework target is macOS-only")
 

@@ -194,7 +194,20 @@ class AsyncRAG:
                         raise item
                     yield item
             finally:
-                await producer_task
+                # Consumer may exit early; cancel the producer so the lock
+                # releases promptly. The underlying retrieval/generation
+                # thread cannot be cancelled and will run to completion.
+                if not producer_task.done():
+                    producer_task.cancel()
+                    try:
+                        await producer_task
+                    except asyncio.CancelledError:
+                        pass
+                else:
+                    try:
+                        producer_task.result()
+                    except Exception:
+                        pass
 
     async def retrieve(
         self,

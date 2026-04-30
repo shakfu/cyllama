@@ -297,61 +297,66 @@ class BatchGenerator:
         active_sequences = set(range(len(prompts)))
         seq_positions = {i: 0 for i in range(len(prompts))}
 
-        # Add all prompt tokens to batch, tracking batch index for each sequence's logits
-        seq_logits_idx = {}
-        batch_idx = 0
-        for seq_id, tokens in enumerate(tokenized_prompts):
-            for i, token in enumerate(tokens):
-                is_last = i == len(tokens) - 1
-                batch.add(token, i, [seq_id], is_last)  # Use add() with positional args
-                if is_last:
-                    # Remember the batch index where this sequence's logits will be
-                    seq_logits_idx[seq_id] = batch_idx
-                batch_idx += 1
-            seq_positions[seq_id] = len(tokens)
-
-        # Decode initial batch
-        self.ctx.decode(batch)
-
-        # Generate tokens for each sequence
-        for _ in range(config.max_tokens):
-            if not active_sequences:
-                break
-
-            batch.clear()
-
-            # Sample next token for each active sequence using previous logits
+        try:
+            # Add all prompt tokens to batch, tracking batch index for each sequence's logits
+            seq_logits_idx = {}
             batch_idx = 0
-            for seq_id in list(active_sequences):
-                # Sample token using the batch index from last decode
-                logits_idx = seq_logits_idx[seq_id]
-                new_token = sampler.sample(self.ctx, logits_idx)
+            for seq_id, tokens in enumerate(tokenized_prompts):
+                for i, token in enumerate(tokens):
+                    is_last = i == len(tokens) - 1
+                    batch.add(token, i, [seq_id], is_last)  # Use add() with positional args
+                    if is_last:
+                        # Remember the batch index where this sequence's logits will be
+                        seq_logits_idx[seq_id] = batch_idx
+                    batch_idx += 1
+                seq_positions[seq_id] = len(tokens)
 
-                # Check for end of generation
-                if self.vocab.is_eog(new_token):
-                    active_sequences.remove(seq_id)
-                    continue
+            # Decode initial batch
+            self.ctx.decode(batch)
 
-                # Decode token
-                try:
-                    piece = self.vocab.token_to_piece(new_token, special=True)
-                    responses[seq_id] += piece
-                except UnicodeDecodeError:
-                    logger.warning("Failed to decode token %d in sequence %d: UnicodeDecodeError", new_token, seq_id)
+            # Generate tokens for each sequence
+            for _ in range(config.max_tokens):
+                if not active_sequences:
+                    break
 
-                # Add to batch for next iteration and remember new logits index
-                batch.add(new_token, seq_positions[seq_id], [seq_id], True)
-                seq_logits_idx[seq_id] = batch_idx
-                batch_idx += 1
-                seq_positions[seq_id] += 1
+                batch.clear()
 
-            # Decode batch if not empty
-            if batch.n_tokens > 0:
-                self.ctx.decode(batch)
+                # Sample next token for each active sequence using previous logits
+                batch_idx = 0
+                for seq_id in list(active_sequences):
+                    # Sample token using the batch index from last decode
+                    logits_idx = seq_logits_idx[seq_id]
+                    new_token = sampler.sample(self.ctx, logits_idx)
 
-        # Return batch to pool if pooling is enabled
-        if self.use_pooling:
-            return_batch_to_pool(batch)
+                    # Check for end of generation
+                    if self.vocab.is_eog(new_token):
+                        active_sequences.remove(seq_id)
+                        continue
+
+                    # Decode token
+                    try:
+                        piece = self.vocab.token_to_piece(new_token, special=True)
+                        responses[seq_id] += piece
+                    except UnicodeDecodeError:
+                        logger.warning(
+                            "Failed to decode token %d in sequence %d: UnicodeDecodeError", new_token, seq_id
+                        )
+
+                    # Add to batch for next iteration and remember new logits index
+                    batch.add(new_token, seq_positions[seq_id], [seq_id], True)
+                    seq_logits_idx[seq_id] = batch_idx
+                    batch_idx += 1
+                    seq_positions[seq_id] += 1
+
+                # Decode batch if not empty
+                if batch.n_tokens > 0:
+                    self.ctx.decode(batch)
+        finally:
+            # Always return the batch to the pool, including on exceptions
+            # raised by decode/sample mid-loop. Otherwise the pool slot leaks
+            # and pooled callers eventually fall back to fresh allocations.
+            if self.use_pooling:
+                return_batch_to_pool(batch)
 
         end_time = time.time()
         total_time = end_time - start_time

@@ -195,7 +195,22 @@ class AsyncReActAgent:
                         raise item
                     yield item
             finally:
-                await producer_task
+                # Consumer may exit early (break, exception, or async-generator
+                # close). Cancel the producer so the lock is released for the
+                # next caller; the underlying thread cannot be cancelled, so
+                # any in-flight LLM work in the agent will continue until it
+                # naturally yields, but it no longer blocks this coroutine.
+                if not producer_task.done():
+                    producer_task.cancel()
+                    try:
+                        await producer_task
+                    except asyncio.CancelledError:
+                        pass
+                else:
+                    try:
+                        producer_task.result()
+                    except Exception:
+                        pass
 
 
 class AsyncConstrainedAgent:
@@ -319,7 +334,18 @@ class AsyncConstrainedAgent:
                         raise item
                     yield item
             finally:
-                await producer_task
+                # See note in AsyncReActAgent.stream: consumer-early-exit path.
+                if not producer_task.done():
+                    producer_task.cancel()
+                    try:
+                        await producer_task
+                    except asyncio.CancelledError:
+                        pass
+                else:
+                    try:
+                        producer_task.result()
+                    except Exception:
+                        pass
 
 
 async def run_agent_async(agent: Union[ReActAgent, ConstrainedAgent], task: str) -> AgentResult:
