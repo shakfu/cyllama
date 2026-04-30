@@ -549,19 +549,31 @@ class LLM:
             verbose: Print detailed information during generation
             cache_size: Maximum number of responses to cache (0 = disabled)
             cache_ttl: Cache time-to-live in seconds (None = no expiration)
-            **kwargs: Generation parameters (temperature, max_tokens, etc.)
-                      These override values in config if both are provided.
+            **kwargs: Per-field overrides on top of ``config``.
+                Merge semantics are a **shallow per-field override**:
+                kwargs replace matching fields on a copy of ``config``,
+                fields not named in kwargs keep their value from
+                ``config``. The original ``config`` instance is not
+                mutated. If ``config`` is ``None`` and kwargs are
+                provided, kwargs initialize a fresh ``GenerationConfig``
+                directly (so kwargs alone work as a config shorthand).
+                Each kwarg name must be a valid ``GenerationConfig``
+                field; unknown names raise ``TypeError`` from the
+                dataclass constructor.
 
         Example:
-            >>> # Direct parameters (recommended for simple cases)
+            >>> # Direct parameters (recommended for simple cases) --
+            >>> # kwargs alone construct a GenerationConfig.
             >>> llm = LLM("model.gguf", temperature=0.9, max_tokens=100)
             >>>
-            >>> # Explicit config
-            >>> config = GenerationConfig(temperature=0.9)
+            >>> # Explicit config, no overrides.
+            >>> config = GenerationConfig(temperature=0.9, top_p=0.95)
             >>> llm = LLM("model.gguf", config=config)
             >>>
-            >>> # Config with overrides
+            >>> # Partial override: temperature gets replaced, top_p
+            >>> # is preserved from config (shallow per-field merge).
             >>> llm = LLM("model.gguf", config=config, temperature=0.5)
+            >>> # llm.config.temperature == 0.5 and llm.config.top_p == 0.95
             >>>
             >>> # With response caching
             >>> llm = LLM("model.gguf", cache_size=100, cache_ttl=3600)

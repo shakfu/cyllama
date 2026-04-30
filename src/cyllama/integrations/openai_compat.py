@@ -250,13 +250,24 @@ class OpenAICompatibleClient:
     This client mimics the OpenAI Python client API, allowing drop-in
     replacement in existing code.
 
-    Example:
-        >>> client = OpenAICompatibleClient(model_path="models/llama.gguf")
-        >>>
-        >>> response = client.chat.completions.create(
-        >>>     messages=[{"role": "user", "content": "Hello!"}]
-        >>> )
-        >>> print(response.choices[0].message.content)
+    Supports both sync and async context-manager protocols, which release
+    the underlying LLM (and its GPU resources) at scope exit::
+
+        # Sync
+        with OpenAICompatibleClient(model_path="models/llama.gguf") as client:
+            response = client.chat.completions.create(
+                messages=[{"role": "user", "content": "Hello!"}]
+            )
+            print(response.choices[0].message.content)
+
+        # Async (note: completions.create is still sync; only resource
+        # cleanup runs under `async with`)
+        async with OpenAICompatibleClient(model_path="...") as client:
+            response = client.chat.completions.create(...)
+
+    Without a context manager, call ``client.close()`` explicitly when
+    done to release GPU memory; otherwise resources persist until the
+    instance is garbage-collected.
     """
 
     def __init__(
@@ -284,6 +295,27 @@ class OpenAICompatibleClient:
     def generator(self) -> LLM:
         """Access underlying LLM."""
         return self._generator
+
+    def close(self) -> None:
+        """Release the underlying LLM's native resources. Idempotent."""
+        gen = getattr(self, "_generator", None)
+        if gen is not None:
+            gen.close()
+
+    def __enter__(self) -> "OpenAICompatibleClient":
+        return self
+
+    def __exit__(self, exc_type: object, exc_val: object, exc_tb: object) -> None:
+        self.close()
+
+    async def __aenter__(self) -> "OpenAICompatibleClient":
+        return self
+
+    async def __aexit__(self, exc_type: object, exc_val: object, exc_tb: object) -> None:
+        # `LLM.close()` is synchronous (no I/O, just frees the C
+        # context and sampler), so calling it directly from an async
+        # exit is safe and avoids the cost of an event-loop trampoline.
+        self.close()
 
 
 # Convenience function
