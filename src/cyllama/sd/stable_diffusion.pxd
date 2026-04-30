@@ -402,13 +402,13 @@ cdef extern from "stable-diffusion.h":
     # Functions - Image generation
     # =========================================================================
 
-    sd_image_t* generate_image(sd_ctx_t* sd_ctx, const sd_img_gen_params_t* sd_img_gen_params)
+    sd_image_t* generate_image(sd_ctx_t* sd_ctx, const sd_img_gen_params_t* sd_img_gen_params) nogil
 
     # =========================================================================
     # Functions - Video generation
     # =========================================================================
 
-    sd_image_t* generate_video(sd_ctx_t* sd_ctx, const sd_vid_gen_params_t* sd_vid_gen_params, int* num_frames_out)
+    sd_image_t* generate_video(sd_ctx_t* sd_ctx, const sd_vid_gen_params_t* sd_vid_gen_params, int* num_frames_out) nogil
 
     # =========================================================================
     # Functions - Upscaling

@@ -2590,9 +2590,12 @@ cdef class SDContext:
         params._params.sample_params = params._sample_params._params
 
         cdef sd_image_t* result
+        cdef sd_ctx_t* ctx_ptr = self._ctx
+        cdef sd_img_gen_params_t* params_ptr = &params._params
         self._try_acquire_busy()
         try:
-            result = generate_image(self._ctx, &params._params)
+            with nogil:
+                result = generate_image(ctx_ptr, params_ptr)
         finally:
             self._busy_lock.release()
         if result == NULL:
@@ -2729,9 +2732,12 @@ cdef class SDContext:
         # Generate video
         cdef int num_frames_out = 0
         cdef sd_image_t* result
+        cdef sd_ctx_t* ctx_ptr = self._ctx
+        cdef sd_vid_gen_params_t* vid_params_ptr = &vid_params
         self._try_acquire_busy()
         try:
-            result = generate_video(self._ctx, &vid_params, &num_frames_out)
+            with nogil:
+                result = generate_video(ctx_ptr, vid_params_ptr, &num_frames_out)
         finally:
             self._busy_lock.release()
 

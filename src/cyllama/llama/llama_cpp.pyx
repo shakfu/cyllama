@@ -2512,13 +2512,14 @@ cdef class LlamaContext:
           1 - could not find a KV slot for the batch (try reducing the size of the batch or increase the context)
         < 0 - error
         """
-        # Optimized decode operation with minimal Python overhead
-        cdef int32_t res = llama.llama_decode(self.ptr, batch.p)
-        cdef int32_t batch_tokens = batch.n_tokens
+        cdef llama.llama_context * ctx_ptr = self.ptr
+        cdef llama.llama_batch c_batch = batch.p
+        cdef int32_t res
+        with nogil:
+            res = llama.llama_decode(ctx_ptr, c_batch)
 
-        self.n_tokens = batch_tokens
+        self.n_tokens = batch.n_tokens
 
-        # Fast error checking with pre-computed conditions
         if res == 1:
             raise ValueError("could not find a KV slot for the batch (try reducing the size of the batch or increase the context)")
         elif res < 0:
