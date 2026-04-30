@@ -672,9 +672,20 @@ cdef class LlamaBatch:
         """The batch has to be freed with `llama_batch_free()`"""
         if self.owner is True:
             llama.llama_batch_free(self.p)
+            self.owner = False
 
     def close(self):
-        self.__dealloc__()
+        """Release the underlying batch immediately. Idempotent."""
+        if self.owner is True:
+            llama.llama_batch_free(self.p)
+            self.owner = False
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+        return False
 
     @staticmethod
     cdef LlamaBatch from_instance(llama.llama_batch batch):
@@ -1812,6 +1823,19 @@ cdef class LlamaModel:
             llama.llama_model_free(self.ptr)
             self.ptr = NULL
 
+    def close(self):
+        """Release the underlying model immediately. Idempotent."""
+        if self.ptr is not NULL and self.owner is True:
+            llama.llama_model_free(self.ptr)
+            self.ptr = NULL
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+        return False
+
     @staticmethod
     cdef LlamaModel from_ptr(llama.llama_model *ptr, bint owner=False):
         cdef LlamaModel wrapper = LlamaModel.__new__(LlamaModel)
@@ -2210,7 +2234,17 @@ cdef class LlamaContext:
         return wrapper
 
     def close(self):
-        self.__dealloc__()
+        """Release the underlying context immediately. Idempotent."""
+        if self.ptr is not NULL and self.owner is True:
+            llama.llama_free(self.ptr)
+            self.ptr = NULL
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+        return False
 
     @property
     def n_ctx(self) -> int:
@@ -2850,6 +2884,19 @@ cdef class LlamaSampler:
         if self.ptr is not NULL and self.owner is True:
             llama.llama_sampler_free(self.ptr)
             self.ptr = NULL
+
+    def close(self):
+        """Release the underlying sampler immediately. Idempotent."""
+        if self.ptr is not NULL and self.owner is True:
+            llama.llama_sampler_free(self.ptr)
+            self.ptr = NULL
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+        return False
 
     def name(self) -> str:
         """Get sampler name"""

@@ -686,6 +686,19 @@ cdef class WhisperContext:
             wh.whisper_free(self._c_ctx)
             self._c_ctx = NULL
 
+    def close(self):
+        """Release the underlying whisper context immediately. Idempotent."""
+        if self._c_ctx != NULL:
+            wh.whisper_free(self._c_ctx)
+            self._c_ctx = NULL
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+        return False
+
     def version(self):
         return wh.whisper_version().decode('utf-8')
 
@@ -840,6 +853,20 @@ cdef class WhisperContext:
             raise RuntimeError(f"Encoding failed with error {result}")
 
     def full(self, samples, WhisperFullParams params=None):
+        """Run whisper transcription on PCM audio samples.
+
+        Args:
+            samples: 1-D C-contiguous float32 buffer of mono PCM samples
+                at 16 kHz (typically a numpy array, but any object
+                supporting the buffer protocol with the right layout
+                works). Length must be > 0.
+            params: Decoding parameters; uses defaults if None.
+
+        Raises:
+            TypeError: samples is not a numpy float32 array (when numpy
+                is the input type) or fails the buffer-protocol bind.
+            ValueError: samples is not 1-D, not C-contiguous, or empty.
+        """
         cdef const float * c_samples = NULL
         cdef int n_samples = 0
         cdef int result = 0
@@ -849,6 +876,34 @@ cdef class WhisperContext:
 
         if params is None:
             params = WhisperFullParams()
+
+        # Validate up front so the error message names the actual problem.
+        # Without this check, mistyped numpy inputs raise a generic
+        # "Buffer dtype mismatch" from the memoryview cast below, and a
+        # Python list raises "a bytes-like object is required" -- neither
+        # of which makes the audio-format requirement obvious.
+        try:
+            import numpy as _np
+        except ImportError:
+            _np = None
+        if _np is not None and isinstance(samples, _np.ndarray):
+            if samples.dtype != _np.float32:
+                raise TypeError(
+                    f"samples must be a float32 array, got dtype={samples.dtype}. "
+                    "Cast with samples.astype(np.float32) before calling."
+                )
+            if samples.ndim != 1:
+                raise ValueError(
+                    f"samples must be 1-D mono PCM, got {samples.ndim}-D shape "
+                    f"{samples.shape}. For stereo input, mix down to mono first."
+                )
+            if not samples.flags["C_CONTIGUOUS"]:
+                raise ValueError(
+                    "samples must be C-contiguous; "
+                    "use np.ascontiguousarray(samples) to fix."
+                )
+        if len(samples) == 0:
+            raise ValueError("samples is empty; pass at least one PCM sample")
 
         samples_view = samples
         c_samples = &samples_view[0]
