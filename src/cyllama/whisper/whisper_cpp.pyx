@@ -1,6 +1,7 @@
 # distutils: language = c++
 
 from libc.stdlib cimport malloc, calloc, realloc, free
+from libcpp cimport bool as cppbool  # required for func pointer sigs
 
 from . cimport whisper as wh
 
@@ -138,12 +139,88 @@ cdef class WhisperVadParams:
         self._c_params.samples_overlap = value
 
 
+# =============================================================================
+# Streaming-callback trampolines for WhisperFullParams.
+#
+# whisper.cpp invokes these from inside whisper_full() while the GIL is
+# released. Each trampoline:
+#   1. reacquires the GIL (`with gil`)
+#   2. retrieves the WhisperFullParams instance from user_data
+#   3. invokes the stored Python callable
+#   4. catches any user-callback exception (raising across the C boundary
+#      is undefined behaviour even with `noexcept with gil`) and prints
+#      the traceback so failures surface for debugging
+#
+# The Python callable is stored on the params instance, and the params
+# instance itself is the user_data pointer. Lifetime invariant: the
+# params object must outlive the whisper_full() call -- which is the
+# normal case, since `WhisperContext.full(samples, params)` holds a
+# reference to `params` in its local frame for the duration of the call.
+# =============================================================================
+
+cdef void _whisper_new_segment_trampoline(
+    wh.whisper_context * ctx, wh.whisper_state * state, int n_new, void * user_data
+) noexcept with gil:
+    cdef WhisperFullParams params = <WhisperFullParams>user_data
+    cb = params._new_segment_callback
+    if cb is None:
+        return
+    try:
+        cb(n_new)
+    except BaseException:
+        import traceback
+        traceback.print_exc()
+
+
+cdef void _whisper_progress_trampoline(
+    wh.whisper_context * ctx, wh.whisper_state * state, int progress, void * user_data
+) noexcept with gil:
+    cdef WhisperFullParams params = <WhisperFullParams>user_data
+    cb = params._progress_callback
+    if cb is None:
+        return
+    try:
+        cb(progress)
+    except BaseException:
+        import traceback
+        traceback.print_exc()
+
+
+cdef cppbool _whisper_encoder_begin_trampoline(
+    wh.whisper_context * ctx, wh.whisper_state * state, void * user_data
+) noexcept with gil:
+    cdef WhisperFullParams params = <WhisperFullParams>user_data
+    cb = params._encoder_begin_callback
+    if cb is None:
+        # No callback set: proceed with encoding (the C-side default).
+        return True
+    try:
+        result = cb()
+        # Treat any non-False return as "proceed". This matches the
+        # idiomatic Python use of bool() on user-returned values.
+        return bool(result)
+    except BaseException:
+        import traceback
+        traceback.print_exc()
+        # Fail-safe: proceed with encoding rather than aborting on a
+        # buggy filter -- consistent with progress_callback in the llama
+        # side, which returns True on exception so model loading
+        # continues.
+        return True
+
+
 cdef class WhisperFullParams:
     cdef wh.whisper_full_params _c_params
     cdef bytes _language_bytes  # Keep bytes object alive for language parameter
     cdef bytes _initial_prompt_bytes
     cdef bytes _suppress_regex_bytes
     cdef bytes _vad_model_path_bytes
+    # Python callables for streaming callbacks. None when no callback
+    # is registered. Held on the params instance so they outlive the
+    # whisper_full() call as long as the params instance does.
+    cdef object _new_segment_callback
+    cdef object _progress_callback
+    cdef object _encoder_begin_callback
 
     def __init__(self, strategy=wh.WHISPER_SAMPLING_GREEDY):
         self._c_params = wh.whisper_full_default_params(strategy)
@@ -151,6 +228,9 @@ cdef class WhisperFullParams:
         self._initial_prompt_bytes = None
         self._suppress_regex_bytes = None
         self._vad_model_path_bytes = None
+        self._new_segment_callback = None
+        self._progress_callback = None
+        self._encoder_begin_callback = None
 
     @property
     def strategy(self):
@@ -577,6 +657,94 @@ cdef class WhisperFullParams:
         else:
             self._vad_model_path_bytes = value.encode('utf-8')
             self._c_params.vad_model_path = <const char*>self._vad_model_path_bytes
+
+    # ------------------------------------------------------------------
+    # Streaming callbacks
+    #
+    # Register a Python callable to be invoked from inside whisper_full().
+    # Pass None to clear. Each callback runs while the GIL has been
+    # reacquired by the trampoline, so the callable can do any normal
+    # Python work -- but it executes in the middle of a transcription,
+    # so keep the body short. A long callback blocks the decoder.
+    #
+    # The params instance itself is the user_data pointer passed to
+    # whisper.cpp, so it must outlive the full() call. That's already
+    # the natural case (callers hold a reference for the duration of
+    # `ctx.full(samples, params)`), but if you stash params in a place
+    # that gets GC'd mid-call, the callback fires on a freed object.
+    # ------------------------------------------------------------------
+
+    def set_new_segment_callback(self, callback):
+        """Register a callback fired after each new segment is produced.
+
+        Args:
+            callback: ``Callable[[int], None]`` where the int is the
+                number of *new* segments since the last invocation.
+                Use it as an offset into :meth:`WhisperContext.full_n_segments`
+                to read just the new segments::
+
+                    def on_new_segments(n_new):
+                        n_total = ctx.full_n_segments()
+                        for i in range(n_total - n_new, n_total):
+                            print(ctx.full_get_segment_text(i))
+
+                    params.set_new_segment_callback(on_new_segments)
+                    ctx.full(samples, params)
+
+                Pass ``None`` to clear a previously-registered callback.
+
+        Exceptions raised by the callback are caught and traceback-printed
+        but otherwise swallowed -- raising into the C decoder is undefined
+        behaviour. The callback runs while the busy-lock is held, so
+        result accessors (``full_n_segments``, ``full_get_segment_text``,
+        etc.) work but a re-entrant ``full()`` call would deadlock.
+        """
+        self._new_segment_callback = callback
+        if callback is None:
+            self._c_params.new_segment_callback = NULL
+            self._c_params.new_segment_callback_user_data = NULL
+        else:
+            self._c_params.new_segment_callback = _whisper_new_segment_trampoline
+            self._c_params.new_segment_callback_user_data = <void*>self
+
+    def set_progress_callback(self, callback):
+        """Register a callback fired periodically with progress percent.
+
+        Args:
+            callback: ``Callable[[int], None]`` where the int is in
+                ``[0, 100]``. Pass ``None`` to clear.
+
+        Same exception-handling and reentrancy notes as
+        :meth:`set_new_segment_callback`.
+        """
+        self._progress_callback = callback
+        if callback is None:
+            self._c_params.progress_callback = NULL
+            self._c_params.progress_callback_user_data = NULL
+        else:
+            self._c_params.progress_callback = _whisper_progress_trampoline
+            self._c_params.progress_callback_user_data = <void*>self
+
+    def set_encoder_begin_callback(self, callback):
+        """Register a callback fired before encoder runs; return False to abort.
+
+        Args:
+            callback: ``Callable[[], bool]`` returning True to proceed
+                with encoding or False to abort the current chunk.
+                Pass ``None`` to clear.
+
+        Useful for cooperative cancellation (e.g. checking a stop flag
+        between chunks). Exceptions raised by the callback are caught,
+        traceback-printed, and treated as ``True`` (proceed) -- aborting
+        on a buggy filter would be more destructive than continuing.
+        """
+        self._encoder_begin_callback = callback
+        if callback is None:
+            self._c_params.encoder_begin_callback = NULL
+            self._c_params.encoder_begin_callback_user_data = NULL
+        else:
+            self._c_params.encoder_begin_callback = _whisper_encoder_begin_trampoline
+            self._c_params.encoder_begin_callback_user_data = <void*>self
 
 
 cdef class WhisperTokenData:
