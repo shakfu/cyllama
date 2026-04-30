@@ -680,7 +680,16 @@ class LLM:
             try:
                 self.close()
             except Exception:
-                pass
+                # `__del__` may run during interpreter shutdown when even
+                # `logger` may have been torn down -- guard the report
+                # itself so cleanup never crashes the process. Failures
+                # in close() are still surfaced when shutdown is normal.
+                try:
+                    import traceback
+
+                    traceback.print_exc()
+                except Exception:
+                    pass
 
     def close(self) -> None:
         """
@@ -715,7 +724,10 @@ class LLM:
             try:
                 client.disconnect_all()
             except Exception:
-                pass
+                # Catch broadly because cleanup must not raise out of
+                # close(); but log so a remote-server bug or transport
+                # failure doesn't disappear silently.
+                logger.warning("MCP disconnect_all failed during close()", exc_info=True)
             self._mcp_client = None
 
         self._closed = True
@@ -1343,16 +1355,23 @@ class LLM:
                 # raise_exception). Fall through to the legacy path,
                 # which has its own per-template-name handling. The
                 # pipeline-level fallback above us catches anything
-                # that fails on both paths.
+                # that fails on both paths. This is the *expected*
+                # fallback trigger so we don't log it.
                 pass
             except Exception:
                 # Any other failure inside the vendored jinja2 path
                 # (TemplateSyntaxError on a malformed template, missing
                 # bos_token retrieval, etc.) -- fall back to the legacy
-                # path. We catch broadly here because we'd rather
-                # degrade to the older code path than crash the
-                # caller; the legacy path is well-understood.
-                pass
+                # path. We catch broadly because we'd rather degrade to
+                # the older code path than crash the caller. Log at
+                # debug so users can opt in to the diagnostic without
+                # noise, but the silent-fall-through behaviour is gone:
+                # an upstream wrapper bug that surfaces here can be
+                # found by enabling debug logging on this module.
+                logger.debug(
+                    "Vendored jinja2 chat-template path failed; falling back to legacy template handling",
+                    exc_info=True,
+                )
 
         # Get template - use provided or model's default. The provided
         # `template` argument can be (a) a Jinja template string, (b) the
@@ -1593,7 +1612,17 @@ class LLM:
             try:
                 conn.disconnect()
             except Exception:
-                pass
+                # Best-effort: drop the registration even if the
+                # remote disconnect fails (transport already gone,
+                # remote process died, etc.) -- the alternative is
+                # leaving a stale entry the user cannot remove. Log
+                # so a deeper transport bug doesn't disappear.
+                logger.warning(
+                    "Failed to disconnect MCP server %r during remove_mcp_server; "
+                    "removing the local registration anyway",
+                    name,
+                    exc_info=True,
+                )
         client._servers = [s for s in client._servers if s.name != name]
         # Drop tools and resources owned by this server.
         client._tools = {k: v for k, v in client._tools.items() if v.server_name != name}
@@ -1893,9 +1922,17 @@ def apply_chat_template(
             prompt = _apply_jinja_template_standalone(model, tmpl, messages, add_generation_prompt)
             return prompt
         except _JinjaTemplateError:
+            # Expected fallback trigger -- silent.
             pass
         except Exception:
-            pass
+            # Anything non-jinja (NameError/AttributeError from a wrapper
+            # bug, KeyError on missing model metadata, etc.) -- fall
+            # through to Tier 2 rather than crash, but log at debug so
+            # the diagnostic is reachable for upstream bug reports.
+            logger.debug(
+                "Standalone jinja2 chat-template path failed; falling back to C API tier",
+                exc_info=True,
+            )
 
     # Tier 2: C API (substring heuristic)
     if tmpl:
@@ -2334,6 +2371,11 @@ class AsyncLLM:
 
                 await asyncio.to_thread(generate_sync)
             except Exception as e:
+                # Route any exception (from generation, tokenization,
+                # the user's on_token callback, etc.) through the queue
+                # so the consumer's `raise item` re-raises it on the
+                # awaiting task. Narrowing this catch would orphan
+                # exceptions and hang the consumer on `queue.get()`.
                 await queue.put(e)
 
         # Start producer task
@@ -2363,6 +2405,9 @@ class AsyncLLM:
                 else:
                     # Retrieve (and discard) the result so any exception
                     # doesn't become an unhandled task exception.
+                    # Anything raised by the producer was already
+                    # routed via `queue.put(e)` above and re-raised on
+                    # the consumer side, so swallowing here is correct.
                     try:
                         producer_task.result()
                     except Exception:

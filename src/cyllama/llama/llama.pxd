@@ -905,7 +905,7 @@ cdef extern from "llama.h":
                      llama_token * tokens,
                          int32_t   n_tokens_max,
                             bint   add_special,
-                            bint   parse_special)
+                            bint   parse_special) nogil
 
     # Token Id -> Piece.
     # Uses the vocabulary in the provided context.
@@ -934,7 +934,7 @@ cdef extern from "llama.h":
                             char * text,
                          int32_t   text_len_max,
                             bint   remove_special,
-                            bint   unparse_special)
+                            bint   unparse_special) nogil
 
 
     # -------------------------------------------------------------------------
@@ -1023,8 +1023,8 @@ cdef extern from "llama.h":
     # mirror of llama_sampler_i:
     cdef llama_sampler *        llama_sampler_init  (      llama_sampler_i * iface, llama_sampler_context_t ctx)
     cdef const char *           llama_sampler_name  (const llama_sampler * smpl)
-    cdef void                   llama_sampler_accept(      llama_sampler * smpl, llama_token token)
-    cdef void                   llama_sampler_apply (      llama_sampler * smpl, llama_token_data_array * cur_p)
+    cdef void                   llama_sampler_accept(      llama_sampler * smpl, llama_token token) nogil
+    cdef void                   llama_sampler_apply (      llama_sampler * smpl, llama_token_data_array * cur_p) nogil
     cdef void                   llama_sampler_reset (      llama_sampler * smpl)
     cdef llama_sampler *        llama_sampler_clone (const llama_sampler * smpl)
     # important: do not free if the sampler has been added to a llama_sampler_chain (via llama_sampler_chain_add)
@@ -1193,7 +1193,7 @@ cdef extern from "llama.h":
     #
     # At this point, this is mostly a convenience function.
 
-    cdef llama_token llama_sampler_sample(llama_sampler * smpl, llama_context * ctx, int32_t idx)
+    cdef llama_token llama_sampler_sample(llama_sampler * smpl, llama_context * ctx, int32_t idx) nogil
 
     # TODO: extend in the future
     # void llama_decode_with_sampler(llama_context * ctx, llama_sampler * smpl, llama_batch batch, ...)

@@ -118,7 +118,7 @@ publish-test: check
 .PHONY: test coverage memray leaks
 
 test:
-	@uv run pytest -s
+	@uv run pytest
 
 coverage:
 	@uv run pytest --cov=cyllama --cov-report html

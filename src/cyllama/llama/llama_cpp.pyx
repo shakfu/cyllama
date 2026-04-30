@@ -1675,11 +1675,15 @@ cdef class LlamaVocab:
         cdef const char* text_ptr = <const char*>text_bytes
         cdef int n_tokens
         cdef int i
+        cdef const llama.llama_vocab * vocab_ptr = self.ptr
+        cdef bint add_special_c = add_special
+        cdef bint parse_special_c = parse_special
 
-        # Call llama_tokenize - optimization: reduced memory allocation overhead
-        n_tokens = llama.llama_tokenize(
-            self.ptr, text_ptr, text_len, tokens, max_tokens, add_special, parse_special
-        )
+        with nogil:
+            n_tokens = llama.llama_tokenize(
+                vocab_ptr, text_ptr, text_len, tokens, max_tokens,
+                add_special_c, parse_special_c
+            )
 
         if n_tokens < 0:
             free(tokens)
@@ -1735,14 +1739,22 @@ cdef class LlamaVocab:
         for i in tokens:
             vec.push_back(i)
 
-        cdef int32_t res = llama.llama_detokenize(
-            self.ptr,
-            <const llama.llama_token *>vec.data(),
-            vec.size(),
-            buf,
-            text_len_max,
-            remove_special,
-            unparse_special)
+        cdef const llama.llama_vocab * vocab_ptr = self.ptr
+        cdef const llama.llama_token * tokens_ptr = <const llama.llama_token *>vec.data()
+        cdef int32_t n_tokens_in = <int32_t>vec.size()
+        cdef int32_t text_len_max_c = text_len_max
+        cdef bint remove_special_c = remove_special
+        cdef bint unparse_special_c = unparse_special
+        cdef int32_t res
+        with nogil:
+            res = llama.llama_detokenize(
+                vocab_ptr,
+                tokens_ptr,
+                n_tokens_in,
+                buf,
+                text_len_max_c,
+                remove_special_c,
+                unparse_special_c)
 
         if res < 0:
             raise RuntimeError(
@@ -2904,7 +2916,10 @@ cdef class LlamaSampler:
 
     def accept(self, llama.llama_token token):
         """Accept llama token"""
-        llama.llama_sampler_accept(self.ptr, token)
+        cdef llama.llama_sampler * smpl_ptr = self.ptr
+        cdef llama.llama_token tok = token
+        with nogil:
+            llama.llama_sampler_accept(smpl_ptr, tok)
 
     # cdef void llama_sampler_apply (llama_sampler * smpl, llama_token_data_array * cur_p)
 
@@ -3128,8 +3143,12 @@ cdef class LlamaSampler:
 
         At this point, this is mostly a convenience function.
         """
-        # Optimized sampling with minimal Python overhead
-        cdef llama.llama_token result = llama.llama_sampler_sample(self.ptr, ctx.ptr, idx)
+        cdef llama.llama_sampler * smpl_ptr = self.ptr
+        cdef llama.llama_context * ctx_ptr = ctx.ptr
+        cdef int32_t idx_c = idx
+        cdef llama.llama_token result
+        with nogil:
+            result = llama.llama_sampler_sample(smpl_ptr, ctx_ptr, idx_c)
         return result
 
 

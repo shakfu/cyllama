@@ -2299,7 +2299,65 @@ cdef class SDImageGenParams:
             steps: Second-pass step count (0 = use base sample_steps).
             denoising_strength: Second-pass denoising strength (0.0-1.0).
             tile_size: Upscaler tile size (used by model upscalers).
+
+        Raises:
+            ValueError: invalid upscaler value, model upscaler without
+                ``model_path``, negative dimensions, denoising strength
+                outside [0.0, 1.0], non-positive scale when no absolute
+                target is given, or negative steps/tile_size.
+            FileNotFoundError: ``model_path`` is set but the file does not exist.
         """
+        # Validate up-front so a misconfiguration fails here rather than
+        # crashing the C library mid-generation. Only enforce when the
+        # feature is enabled -- a disabled hires-fix block may carry
+        # placeholder values the user plans to flip on later.
+        if enabled:
+            resolved_upscaler = (
+                int(upscaler) if upscaler is not None
+                else SD_HIRES_UPSCALER_LATENT
+            )
+
+            valid_upscalers = {int(v) for v in HiresUpscaler}
+            if resolved_upscaler not in valid_upscalers:
+                raise ValueError(
+                    f"upscaler={resolved_upscaler} is not a valid HiresUpscaler "
+                    f"value. Use one of: {sorted(valid_upscalers)}"
+                )
+
+            if resolved_upscaler == SD_HIRES_UPSCALER_MODEL:
+                if not model_path:
+                    raise ValueError(
+                        "upscaler=HiresUpscaler.MODEL requires a non-empty "
+                        "model_path. Either pass model_path=<path-to-upscaler> "
+                        "or pick a built-in upscaler (e.g. HiresUpscaler.LATENT)."
+                    )
+                import os
+                if not os.path.isfile(model_path):
+                    raise FileNotFoundError(
+                        f"hires-fix model_path does not exist: {model_path!r}"
+                    )
+
+            if target_width < 0 or target_height < 0:
+                raise ValueError(
+                    f"target_width/target_height must be >= 0, got "
+                    f"({target_width}, {target_height}). Use 0 to derive "
+                    f"from scale."
+                )
+            if target_width == 0 and target_height == 0 and scale <= 0:
+                raise ValueError(
+                    f"scale must be > 0 when no absolute target_width/"
+                    f"target_height is set, got scale={scale}."
+                )
+            if not (0.0 <= denoising_strength <= 1.0):
+                raise ValueError(
+                    f"denoising_strength must be in [0.0, 1.0], "
+                    f"got {denoising_strength}."
+                )
+            if steps < 0:
+                raise ValueError(f"steps must be >= 0, got {steps}.")
+            if tile_size < 0:
+                raise ValueError(f"tile_size must be >= 0, got {tile_size}.")
+
         self.hires_enabled = enabled
         self.hires_upscaler = int(upscaler) if upscaler is not None else SD_HIRES_UPSCALER_LATENT
         self.hires_scale = scale
@@ -2586,7 +2644,25 @@ cdef class SDContext:
         if self._ctx == NULL:
             raise RuntimeError("Context not initialized")
 
-        # Ensure sample params are synced
+        # Ensure sample params are synced.
+        #
+        # CAUTION (lifetime invariant): this is a struct copy-by-value, but
+        # `sd_sample_params_t` carries pointer fields that DO NOT get
+        # deep-copied: `guidance.slg.layers` (int*), `guidance.slg.layer_count`,
+        # and `custom_sigmas` (float*) all reference heap memory owned by
+        # the `params._sample_params` Python object (its `_slg_layers` /
+        # `_custom_sigmas` ctypes-style buffers). After this assignment,
+        # `params._params.sample_params` aliases those buffers without
+        # holding a reference of its own.
+        #
+        # The outer `params` (SDImageGenParams) keeps `_sample_params` alive
+        # via attribute reference (set in __init__ and not rebound here), so
+        # the buffers stay valid for the duration of `generate_image()` below.
+        # If you ever change `_sample_params` to be a transient/local value,
+        # or change this method to keep `params._params` alive past the
+        # `_sample_params` Python object, the C call will read freed memory.
+        # Don't break that chain without also deep-copying the pointer
+        # fields onto `params` itself.
         params._params.sample_params = params._sample_params._params
 
         cdef sd_image_t* result
@@ -2992,15 +3068,38 @@ def canny_preprocess(
 cdef object _preview_callback = None
 
 cdef void _preview_callback_wrapper(int step, int frame_count, sd_image_t* frames, cpp_bool is_noisy, void* data) noexcept with gil:
-    """Internal wrapper for preview callback."""
+    """Internal wrapper for preview callback.
+
+    LIFETIME WARNING (do not retain): the `frames` pointer and every byte it
+    references are owned by stable-diffusion.cpp's preview path and remain
+    valid ONLY for the duration of this callback invocation. The next
+    diffusion step reuses the same buffer; a later invocation after
+    generation completes frees it. The `SDImage` wrappers built below are
+    constructed with `owns_data=False` and alias the buffer directly --
+    they read fine inside the user callback but become use-after-free the
+    moment this function returns.
+
+    Consequence for downstream callers: if the user callback stores a
+    reference (e.g. `self._last_frame = frames[0]`, or appends to a list
+    that outlives the callback), any subsequent attribute access on that
+    SDImage reads freed/recycled memory. The user-callback contract is:
+    consume immediately, or copy via `np.array(img.data, copy=True)` /
+    `img.save(path)` before returning.
+
+    Exceptions from the user callback are swallowed (passed silently)
+    because raising across the C boundary is undefined behaviour even
+    under `noexcept with gil`.
+    """
     global _preview_callback
     cdef int i
     if _preview_callback is not None:
         try:
-            # Convert frames to Python list
+            # Convert frames to Python list. owns_data=False is critical:
+            # see the lifetime warning above. We do NOT copy the bytes here
+            # because the typical preview workflow (display, save) is
+            # synchronous within the callback body.
             frame_list = []
             for i in range(frame_count):
-                # Create SDImage without owning data (preview only)
                 img = SDImage._from_c_image(frames[i], owns_data=False)
                 frame_list.append(img)
             _preview_callback(step, frame_list, bool(is_noisy))
@@ -3029,6 +3128,17 @@ def set_preview_callback(
         interval: How often to call the callback (every N steps)
         denoised: Include denoised previews
         noisy: Include noisy previews
+
+    .. warning::
+        The ``SDImage`` instances passed in ``frames`` alias buffers owned
+        by stable-diffusion.cpp and are valid **only for the duration of
+        this callback**. The next diffusion step reuses the same buffer.
+        Do not retain ``SDImage`` references past the callback return: any
+        later attribute access (``.data``, ``.save()``, etc.) reads freed
+        or recycled memory. If you need to keep a frame, copy it inside
+        the callback (``img.save(path)`` or ``np.array(img.data,
+        copy=True)``). Exceptions raised inside the callback are silently
+        swallowed.
     """
     global _preview_callback
     _preview_callback = callback
