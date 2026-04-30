@@ -17,6 +17,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+### Fixed
+
+- **`LlamaContext` state serialization methods were silently broken** -- Three exported methods on `LlamaContext` (`src/cyllama/llama/llama_cpp.pyx`) violated the size-then-buffer pattern that `llama.h` requires, making them unusable: `get_state_data()` passed `dst=NULL, size=0` to `llama_state_get_data` so it copied zero bytes and the surrounding loop returned `[]` with no error -- callers thought they had a state snapshot but had nothing. `load_state_file()` and `load_state_seq_file()` passed `tokens_out=NULL` and `n_token_count_out=NULL` (a pointer-to-pointer typed as `size_t *` rather than the address of a real `size_t`) into C functions that dereference both, a NULL-deref segfault waiting for any non-empty session file; in the zero-token case the bool/size return was discarded and the empty list looked indistinguishable from success. All three now follow the same pattern already used correctly by `get_state_seq_data` in the same file: query the size (or accept a capacity), `malloc` a buffer of that size, pass it to the C call, copy out the actual number of bytes/tokens written, `free` the buffer in `finally`. The load methods now raise `RuntimeError` on C-side failure instead of silently returning `[]`, validate `max_n_tokens > 0`, and raise `MemoryError` on allocation failure. Verified end-to-end: a `get_state_data` -> `set_state_data` byte round-trip and a `save_state_file` -> `load_state_file` token round-trip both succeed against the default test model. No public API signature change. No existing tests covered these methods, which is why the bugs went undetected; full suite (1367 tests) still passes.
+
 ## [0.2.14]
 
 ### Added

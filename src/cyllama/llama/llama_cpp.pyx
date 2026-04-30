@@ -2215,18 +2215,30 @@ cdef class LlamaContext:
         return llama.llama_state_get_size(self.ptr)
 
     def get_state_data(self) -> list[int]:
-        """Copies the state to the specified destination address.
+        """Copy the full context state into a freshly allocated buffer.
 
-        Destination needs to have allocated enough memory.
-        Returns the number of bytes copied
+        Returns the state as a list of bytes (length == bytes copied).
+        Raises MemoryError if allocation fails.
         """
+        cdef size_t required_size = llama.llama_state_get_size(self.ptr)
         cdef uint8_t * dst = NULL
-        cdef size_t size = 0
+        cdef size_t copied = 0
         cdef std_vector[uint8_t] result
-        cdef size_t copied = llama.llama_state_get_data(self.ptr, dst, size)
-        for i in range(size):
-            result.push_back(dst[i])
-        return result
+
+        if required_size == 0:
+            return []
+
+        dst = <uint8_t *>malloc(required_size)
+        if dst is NULL:
+            raise MemoryError("Failed to allocate buffer for state data")
+
+        try:
+            copied = llama.llama_state_get_data(self.ptr, dst, required_size)
+            for i in range(copied):
+                result.push_back(dst[i])
+            return result
+        finally:
+            free(dst)
 
     def set_state_data(self, data: list[int]) -> int:
         """Set the state reading from the specified address
@@ -2253,19 +2265,34 @@ cdef class LlamaContext:
         if not os.path.exists(path_session):
             raise FileNotFoundError(f"Session state file not found: {path_session}")
 
+        if max_n_tokens <= 0:
+            raise ValueError(f"max_n_tokens must be > 0, got {max_n_tokens}")
+
         cdef llama.llama_token * tokens_out = NULL
-        cdef size_t * n_token_count_out = NULL
-        cdef bint loaded = llama.llama_state_load_file(
-            self.ptr,
-            path_session.encode(),
-            tokens_out,
-            max_n_tokens,
-            n_token_count_out)
+        cdef size_t n_token_count_out = 0
         cdef std_vector[int] result
-        if loaded:
-            for i in range(n_token_count_out[0]):
+        cdef bint loaded
+
+        tokens_out = <llama.llama_token *>malloc(
+            max_n_tokens * sizeof(llama.llama_token))
+        if tokens_out is NULL:
+            raise MemoryError("Failed to allocate token buffer for session load")
+
+        try:
+            loaded = llama.llama_state_load_file(
+                self.ptr,
+                path_session.encode(),
+                tokens_out,
+                max_n_tokens,
+                &n_token_count_out)
+            if not loaded:
+                raise RuntimeError(
+                    f"llama_state_load_file failed for {path_session!r}")
+            for i in range(n_token_count_out):
                 result.push_back(tokens_out[i])
-        return result
+            return result
+        finally:
+            free(tokens_out)
 
     def save_state_file(self, path_session: str, tokens: list[int]) -> bool:
         """Save session file.
@@ -2387,20 +2414,35 @@ cdef class LlamaContext:
         if not os.path.exists(filepath):
             raise FileNotFoundError(f"Sequence state file not found: {filepath}")
 
+        if max_n_tokens <= 0:
+            raise ValueError(f"max_n_tokens must be > 0, got {max_n_tokens}")
+
         cdef llama.llama_token * tokens_out = NULL
-        cdef size_t * n_token_count_out = NULL
-        cdef size_t loaded = llama.llama_state_seq_load_file(
-            self.ptr,
-            filepath.encode(),
-            dest_seq_id,
-            tokens_out,
-            max_n_tokens,
-            n_token_count_out)
+        cdef size_t n_token_count_out = 0
         cdef std_vector[int] result
-        if loaded:
-            for i in range(n_token_count_out[0]):
+        cdef size_t loaded
+
+        tokens_out = <llama.llama_token *>malloc(
+            max_n_tokens * sizeof(llama.llama_token))
+        if tokens_out is NULL:
+            raise MemoryError("Failed to allocate token buffer for sequence load")
+
+        try:
+            loaded = llama.llama_state_seq_load_file(
+                self.ptr,
+                filepath.encode(),
+                dest_seq_id,
+                tokens_out,
+                max_n_tokens,
+                &n_token_count_out)
+            if loaded == 0:
+                raise RuntimeError(
+                    f"llama_state_seq_load_file failed for {filepath!r}")
+            for i in range(n_token_count_out):
                 result.push_back(tokens_out[i])
-        return result
+            return result
+        finally:
+            free(tokens_out)
 
     def get_state_seq_size_with_flags(self, int seq_id, int flags) -> int:
         """get state sequence size from seq_id and flags"""
