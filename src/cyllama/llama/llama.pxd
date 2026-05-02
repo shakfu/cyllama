@@ -252,8 +252,8 @@ cdef extern from "llama.h":
         uint32_t n_batch           # logical maximum batch size that can be submitted to llama_decode
         uint32_t n_ubatch          # physical maximum batch size
         uint32_t n_seq_max         # max number of sequences (i.e. distinct states for recurrent models)
-        uint32_t n_threads         # number of threads to use for generation
-        uint32_t n_threads_batch   # number of threads to use for batch processing
+        int32_t n_threads          # number of threads to use for generation
+        int32_t n_threads_batch    # number of threads to use for batch processing
 
         llama_rope_scaling_type rope_scaling_type # RoPE scaling type
         llama_pooling_type      pooling_type      # whether to pool (sum) embedding results by sequence id
@@ -788,13 +788,13 @@ cdef extern from "llama.h":
     # Set the number of threads used for decoding
     # n_threads is the number of threads used for generation (single token)
     # n_threads_batch is the number of threads used for prompt and batch processing (multiple tokens)
-    cdef void llama_set_n_threads( llama_context * ctx, uint32_t n_threads, uint32_t n_threads_batch)
+    cdef void llama_set_n_threads( llama_context * ctx, int32_t n_threads, int32_t n_threads_batch)
 
     # Get the number of threads used for generation of a single token.
-    cdef uint32_t llama_n_threads( llama_context * ctx)
+    cdef int32_t llama_n_threads( llama_context * ctx)
 
     # Get the number of threads used for prompt and batch processing (multiple token).
-    cdef uint32_t llama_n_threads_batch( llama_context * ctx)
+    cdef int32_t llama_n_threads_batch( llama_context * ctx)
 
     # Set whether the context outputs embeddings or not
     # TODO: rename to avoid confusion with llama_get_embeddings()

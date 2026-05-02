@@ -92,42 +92,74 @@ cdef class Speculative:
 
     @staticmethod
     def is_compat(LlamaContext ctx_target) -> bool:
-        """Check if the target context supports speculative decoding.
+        """Check if the target context's model supports speculative decoding.
 
-        Tests that the context supports partial KV cache removal, which is
-        required for the draft-verify loop.
+        Tests that a context built from the same model supports partial KV
+        cache removal, which is required for the draft-verify loop.
+
+        The probe runs on a small scratch context built from the same model,
+        not on `ctx_target` itself, so any KV state the caller has built up
+        in `ctx_target` is preserved. Whether partial KV removal is supported
+        is a property of the model architecture (recurrent vs. attention) and
+        memory backend defaults, not of the caller's specific params, so a
+        scratch context with default params gives the right answer.
         """
-        cdef llama.llama_memory_t mem = llama.llama_get_memory(ctx_target.ptr)
-        if mem is NULL:
+        if ctx_target is None or ctx_target.model is None:
+            return False
+        if ctx_target.model.ptr is NULL:
             return False
 
-        # Test: decode 2 dummy tokens, then try partial removal
-        cdef llama.llama_batch batch = llama.llama_batch_init(2, 0, 1)
-        batch.n_tokens = 2
-        batch.token[0] = 0
-        batch.token[1] = 0
-        batch.pos[0] = 0
-        batch.pos[1] = 1
-        batch.n_seq_id[0] = 1
-        batch.n_seq_id[1] = 1
-        batch.seq_id[0][0] = 0
-        batch.seq_id[1][0] = 0
-        batch.logits[0] = False
-        batch.logits[1] = False
+        # Build a minimal scratch context from the same model. Keep n_ctx /
+        # n_batch / n_ubatch / n_seq_max small so the probe is cheap.
+        cdef llama.llama_context_params scratch_params = (
+            llama.llama_context_default_params()
+        )
+        scratch_params.n_ctx = 4
+        scratch_params.n_batch = 4
+        scratch_params.n_ubatch = 4
+        scratch_params.n_seq_max = 1
 
-        cdef int rc = llama.llama_decode(ctx_target.ptr, batch)
-        llama.llama_batch_free(batch)
-
-        if rc != 0:
-            llama.llama_memory_clear(mem, True)
+        cdef llama.llama_context * scratch = llama.llama_init_from_model(
+            ctx_target.model.ptr, scratch_params
+        )
+        if scratch is NULL:
             return False
 
-        # Test partial removal (position 1 to end)
-        cdef bint can_rm = llama.llama_memory_seq_rm(mem, 0, 1, -1)
-        llama.llama_memory_clear(mem, True)
-        llama.llama_synchronize(ctx_target.ptr)
+        cdef llama.llama_memory_t mem
+        cdef llama.llama_batch batch
+        cdef int rc
+        cdef bint can_rm = False
+        try:
+            mem = llama.llama_get_memory(scratch)
+            if mem is NULL:
+                return False
 
-        return can_rm
+            # Test: decode 2 dummy tokens, then try partial removal
+            batch = llama.llama_batch_init(2, 0, 1)
+            batch.n_tokens = 2
+            batch.token[0] = 0
+            batch.token[1] = 0
+            batch.pos[0] = 0
+            batch.pos[1] = 1
+            batch.n_seq_id[0] = 1
+            batch.n_seq_id[1] = 1
+            batch.seq_id[0][0] = 0
+            batch.seq_id[1][0] = 0
+            batch.logits[0] = False
+            batch.logits[1] = False
+
+            rc = llama.llama_decode(scratch, batch)
+            llama.llama_batch_free(batch)
+
+            if rc != 0:
+                return False
+
+            # Test partial removal (position 1 to end)
+            can_rm = llama.llama_memory_seq_rm(mem, 0, 1, -1)
+            llama.llama_synchronize(scratch)
+            return can_rm
+        finally:
+            llama.llama_free(scratch)
 
     def begin(self, list prompt_tokens):
         """Optionally call at the beginning of a new generation to reset draft state.
@@ -161,6 +193,7 @@ cdef class Speculative:
         cdef llama.llama_token sampled
         cdef int32_t rc
         cdef list result = []
+        cdef llama.llama_context * ctx_ptr = self.ctx_dft.ptr
 
         if n_ctx <= 0:
             return []
@@ -200,7 +233,8 @@ cdef class Speculative:
                 batch.n_seq_id[i] = 1
                 batch.seq_id[i][0] = 0
                 batch.logits[i] = (i == n_new - 1)
-            rc = llama.llama_decode(self.ctx_dft.ptr, batch)
+            with nogil:
+                rc = llama.llama_decode(ctx_ptr, batch)
             llama.llama_batch_free(batch)
             if rc != 0:
                 raise RuntimeError(
@@ -229,7 +263,8 @@ cdef class Speculative:
             batch.n_seq_id[0] = 1
             batch.seq_id[0][0] = 0
             batch.logits[0] = True
-            rc = llama.llama_decode(self.ctx_dft.ptr, batch)
+            with nogil:
+                rc = llama.llama_decode(ctx_ptr, batch)
             llama.llama_batch_free(batch)
             if rc != 0:
                 # Surface failure rather than continuing with stale logits

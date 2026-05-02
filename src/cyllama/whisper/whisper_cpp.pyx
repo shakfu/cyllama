@@ -1333,6 +1333,19 @@ cdef class WhisperState:
             wh.whisper_free_state(self._c_state)
             self._c_state = NULL
 
+    def close(self):
+        """Release the underlying whisper state immediately. Idempotent."""
+        if self._c_state != NULL:
+            wh.whisper_free_state(self._c_state)
+            self._c_state = NULL
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+        return False
+
 # Module-level functions
 def ggml_backend_load_all():
     """Load all available ggml backends (CUDA, Metal, Vulkan, etc.).

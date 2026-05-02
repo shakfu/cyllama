@@ -121,9 +121,13 @@ class TestMtmdBitmap:
         assert bitmap.id == test_id
 
     def test_invalid_image_data(self):
-        """Test error handling for invalid image data."""
-        with pytest.raises(OverflowError):
-            # Negative dimensions should raise OverflowError
+        """Test error handling for invalid image data.
+
+        The wrapper now validates dimensions and buffer length up front
+        before passing to the C side, so non-positive dimensions raise
+        ValueError (not OverflowError from the uint32_t cast).
+        """
+        with pytest.raises(ValueError, match="must be positive"):
             MtmdBitmap.create_image(-1, 5, b"\x00" * 15)
 
     def test_empty_audio_samples(self):

@@ -152,6 +152,20 @@ cdef class MtmdBitmap:
         Returns:
             MtmdBitmap instance
         """
+        if width <= 0 or height <= 0:
+            raise ValueError(
+                f"width and height must be positive (got width={width}, height={height})"
+            )
+        # mtmd_bitmap_init takes a raw unsigned char* with no length and reads
+        # width * height * 3 bytes (RGB, 1 byte/channel). Validate up front so
+        # short buffers raise a clean Python error instead of letting the C
+        # side read past the bytes object.
+        cdef Py_ssize_t expected = <Py_ssize_t>width * <Py_ssize_t>height * 3
+        if len(data) < expected:
+            raise ValueError(
+                f"data buffer too small for {width}x{height} RGB image: "
+                f"need {expected} bytes, got {len(data)}"
+            )
         cdef MtmdBitmap bitmap = MtmdBitmap()
         cdef bytes _data = <bytes>data
         cdef const unsigned char* data_ptr = <const unsigned char*>_data
@@ -447,6 +461,20 @@ cdef class MtmdContext:
     def __dealloc__(self):
         if self._ctx is not NULL:
             mtmd_free(self._ctx)
+            self._ctx = NULL
+
+    def close(self):
+        """Release the underlying mtmd context immediately. Idempotent."""
+        if self._ctx is not NULL:
+            mtmd_free(self._ctx)
+            self._ctx = NULL
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+        return False
 
     @property
     def supports_vision(self) -> bool:

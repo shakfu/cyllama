@@ -2916,6 +2916,12 @@ cdef class Upscaler:
             free_upscaler_ctx(self._ctx)
             self._ctx = NULL
 
+    def close(self):
+        """Release the underlying upscaler context immediately. Idempotent."""
+        if self._ctx != NULL:
+            free_upscaler_ctx(self._ctx)
+            self._ctx = NULL
+
     def __init__(self,
                  model_path: str,
                  n_threads: int = -1,
@@ -2983,7 +2989,12 @@ cdef class Upscaler:
         if factor == 0:
             factor = self.upscale_factor
 
-        cdef sd_image_t result = upscale(self._ctx, image._image, factor)
+        cdef upscaler_ctx_t* ctx_ptr = self._ctx
+        cdef sd_image_t input_img = image._image
+        cdef uint32_t factor_c = <uint32_t>factor
+        cdef sd_image_t result
+        with nogil:
+            result = upscale(ctx_ptr, input_img, factor_c)
 
         if result.data == NULL:
             raise RuntimeError("Upscaling failed")
@@ -2996,9 +3007,8 @@ cdef class Upscaler:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Context manager exit."""
-        if self._ctx != NULL:
-            free_upscaler_ctx(self._ctx)
-            self._ctx = NULL
+        self.close()
+        return False
 
 
 # =============================================================================

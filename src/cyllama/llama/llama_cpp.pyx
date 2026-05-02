@@ -401,17 +401,9 @@ def get_pooled_batch(int n_tokens, int embd = 0, int n_seq_max = 1) -> LlamaBatc
 
 cdef class GgmlBackendDevice:
     cdef ggml.ggml_backend_dev_t ptr
-    cdef bint owner
 
     def __cinit__(self):
         self.ptr = NULL
-        self.owner = False
-
-    def __dealloc__(self):
-        # De-allocate if not null and flag is set
-        if self.ptr is not NULL and self.owner is True:
-            free(self.ptr)
-            self.ptr = NULL
 
     def __init__(self):
         # Prevent accidental instantiation from normal Python code
@@ -419,10 +411,9 @@ cdef class GgmlBackendDevice:
         raise TypeError("This class cannot be instantiated directly.")
 
     @staticmethod
-    cdef GgmlBackendDevice from_ptr(ggml.ggml_backend_dev_t ptr, bint owner=False):
+    cdef GgmlBackendDevice from_ptr(ggml.ggml_backend_dev_t ptr):
         cdef GgmlBackendDevice wrapper = GgmlBackendDevice.__new__(GgmlBackendDevice)
         wrapper.ptr = ptr
-        wrapper.owner = owner
         return wrapper
 
 
@@ -439,27 +430,13 @@ cdef class GgmlBackend:
             ggml.ggml_backend_free(self.ptr)
             self.ptr = NULL
 
-    @staticmethod
-    cdef GgmlBackendDevice from_ptr(ggml.ggml_backend_dev_t ptr, bint owner=False):
-        cdef GgmlBackendDevice wrapper = GgmlBackendDevice.__new__(GgmlBackendDevice)
-        wrapper.ptr = ptr
-        wrapper.owner = owner
-        return wrapper
-
 
 cdef class GgmlTensor:
+    # Tensors are always owned by a ggml_context; this wrapper is a non-owning view.
     cdef ggml.ggml_tensor * ptr
-    cdef bint owner
 
     def __cinit__(self):
         self.ptr = NULL
-        self.owner = False
-
-    def __dealloc__(self):
-        # De-allocate if not null and flag is set
-        if self.ptr is not NULL and self.owner is True:
-            free(self.ptr)
-            self.ptr = NULL
 
     def __init__(self):
         # Prevent accidental instantiation from normal Python code
@@ -467,21 +444,11 @@ cdef class GgmlTensor:
         raise TypeError("This class cannot be instantiated directly.")
 
     @staticmethod
-    cdef GgmlTensor from_ptr(ggml.ggml_tensor *ptr, bint owner=False):
+    cdef GgmlTensor from_ptr(ggml.ggml_tensor *ptr):
         # Fast call to __new__() that bypasses the __init__() constructor.
         cdef GgmlTensor wrapper = GgmlTensor.__new__(GgmlTensor)
         wrapper.ptr = ptr
-        wrapper.owner = owner
         return wrapper
-
-    @staticmethod
-    cdef GgmlTensor create():
-        cdef ggml.ggml_tensor *ptr = <ggml.ggml_tensor *>malloc(sizeof(ggml.ggml_tensor))
-        if ptr is NULL:
-            raise MemoryError
-        # ptr.a = 0
-        # ptr.b = 0
-        return GgmlTensor.from_ptr(ptr, owner=True)
 
 
 cdef class GgmlThreadPoolParams:
@@ -773,7 +740,8 @@ cdef class LlamaBatch:
             self.p.token[i] = batch[i]
 
         # Ensure last token generates logits
-        self.p.logits[n_tokens - 1] = True
+        if n_tokens > 0:
+            self.p.logits[n_tokens - 1] = True
 
     def add_sequence(self, batch: Sequence[int], seq_id: int, logits_all: bool):
         cdef int n_tokens = len(batch)
@@ -805,9 +773,12 @@ cdef class LlamaBatch:
             self.p.token[j] = batch[i]
 
         # Ensure last token generates logits
-        self.p.logits[n_tokens0 + n_tokens - 1] = True
+        if n_tokens0 + n_tokens > 0:
+            self.p.logits[n_tokens0 + n_tokens - 1] = True
 
     def set_last_logits_to_true(self):
+        if self.p.n_tokens <= 0:
+            return
         # Simple operation can run without GIL
         with nogil:
             self.p.logits[self.p.n_tokens - 1] = True
@@ -1710,6 +1681,8 @@ cdef class LlamaVocab:
         cdef bint parse_special_c = parse_special
 
         cdef list[int] _tokens
+        cdef int needed
+        cdef llama.llama_token * grown
         try:
             with nogil:
                 n_tokens = llama.llama_tokenize(
@@ -1717,10 +1690,26 @@ cdef class LlamaVocab:
                     add_special_c, parse_special_c
                 )
 
+            # The C ABI returns -needed when the buffer is too small; retry once
+            # with the size it asked for.
             if n_tokens < 0:
-                raise RuntimeError(
-                    f'Failed to tokenize: text="{text}" n_tokens={n_tokens}'
+                needed = -n_tokens
+                grown = <llama.llama_token *>realloc(
+                    tokens, sizeof(llama.llama_token) * needed
                 )
+                if grown is NULL:
+                    raise MemoryError("Failed to grow token buffer")
+                tokens = grown
+                max_tokens = needed
+                with nogil:
+                    n_tokens = llama.llama_tokenize(
+                        vocab_ptr, text_ptr, text_len, tokens, max_tokens,
+                        add_special_c, parse_special_c
+                    )
+                if n_tokens < 0:
+                    raise RuntimeError(
+                        f'Failed to tokenize after retry: text="{text}" n_tokens={n_tokens}'
+                    )
 
             # Get token list from memory pool for better performance
             _tokens = _global_token_pool.get_token_list(n_tokens)
@@ -1741,11 +1730,31 @@ cdef class LlamaVocab:
         User can skip up to 'lstrip' leading spaces before copying
         (useful when encoding/decoding multiple tokens with 'add_space_prefix')
         """
-        cdef char buf[128]
-        cdef int32_t length = llama.llama_token_to_piece(self.ptr, token, buf, 128, lstrip, special)
-        if length < 0:
-            raise ValueError(f"Failed to convert token {token} to piece")
-        return buf[:length].decode("utf-8", errors="replace")
+        cdef char stackbuf[128]
+        cdef int32_t length = llama.llama_token_to_piece(
+            self.ptr, token, stackbuf, 128, lstrip, special
+        )
+        if length >= 0:
+            return stackbuf[:length].decode("utf-8", errors="replace")
+
+        # The C ABI returns -needed when the buffer is too small; retry on heap.
+        cdef int32_t needed = -length
+        cdef char * heapbuf = <char *>malloc(<size_t>needed)
+        if heapbuf is NULL:
+            raise MemoryError("Failed to allocate token-piece buffer")
+        cdef bytes payload
+        try:
+            length = llama.llama_token_to_piece(
+                self.ptr, token, heapbuf, needed, lstrip, special
+            )
+            if length < 0:
+                raise ValueError(
+                    f"Failed to convert token {token} to piece after retry"
+                )
+            payload = heapbuf[:length]
+        finally:
+            free(heapbuf)
+        return payload.decode("utf-8", errors="replace")
 
     def detokenize(self, tokens: list[int], text_len_max: int = 1024, remove_special: bool = False, unparse_special: bool = False) -> str:
         """Convert the provided tokens into text (inverse of llama_tokenize()).
@@ -1769,6 +1778,8 @@ cdef class LlamaVocab:
         cdef bint remove_special_c
         cdef bint unparse_special_c
         cdef int32_t res
+        cdef int32_t needed
+        cdef char * grown
 
         try:
             for i in tokens:
@@ -1790,10 +1801,27 @@ cdef class LlamaVocab:
                     remove_special_c,
                     unparse_special_c)
 
+            # The C ABI returns -needed when the buffer is too small; retry once.
             if res < 0:
-                raise RuntimeError(
-                    f'Failed to detokenize: text="{res}" n_tokens={vec.size()}'
-                )
+                needed = -res
+                grown = <char *>realloc(buf, sizeof(char) * needed)
+                if grown is NULL:
+                    raise MemoryError("Failed to grow detokenize buffer")
+                buf = grown
+                text_len_max_c = needed
+                with nogil:
+                    res = llama.llama_detokenize(
+                        vocab_ptr,
+                        tokens_ptr,
+                        n_tokens_in,
+                        buf,
+                        text_len_max_c,
+                        remove_special_c,
+                        unparse_special_c)
+                if res < 0:
+                    raise RuntimeError(
+                        f'Failed to detokenize after retry: rc={res} n_tokens={vec.size()}'
+                    )
             result = buf[:res].decode("utf-8", errors="replace")
         finally:
             free(buf)
@@ -3094,8 +3122,11 @@ cdef class LlamaSampler:
     def clone(self) -> LlamaSampler:
         """clone sampler"""
         cdef llama.llama_sampler * smplr = llama.llama_sampler_clone(self.ptr)
+        if smplr is NULL:
+            raise RuntimeError("llama_sampler_clone returned NULL")
         cdef LlamaSampler wrapper = LlamaSampler.__new__(LlamaSampler)
         wrapper.ptr = smplr
+        wrapper.owner = True
         return wrapper
 
     def get_seed(self) -> int:
@@ -3365,6 +3396,20 @@ cdef class LlamaAdapterLora:
             llama.llama_adapter_lora_free(self.ptr)
             self.ptr = NULL
 
+    def close(self):
+        """Release the underlying adapter immediately. Idempotent. No-op for
+        non-owning instances (which are freed by the owning model)."""
+        if self.ptr is not NULL and self.owner is True:
+            llama.llama_adapter_lora_free(self.ptr)
+            self.ptr = NULL
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+        return False
+
     def __init__(self):
         # Prevent accidental instantiation from normal Python code
         # since we cannot pass a struct pointer into a Python constructor.
@@ -3623,7 +3668,8 @@ def llama_batch_get_one(list[int] tokens, int n_past = 0) -> LlamaBatch:
             batch.p.n_seq_id[i] = 1
             batch.p.logits[i] = False  # Default to False for all tokens
         # Last token should generate logits
-        batch.p.logits[n_tokens - 1] = True
+        if n_tokens > 0:
+            batch.p.logits[n_tokens - 1] = True
 
     # Set tokens (requires GIL for Python list access)
     for i in range(n_tokens):
@@ -3677,6 +3723,19 @@ cdef class GGUFContext:
         if self.ptr != NULL and self.owner:
             gguf.gguf_free(self.ptr)
             self.ptr = NULL
+
+    def close(self):
+        """Release the underlying GGUF context immediately. Idempotent."""
+        if self.ptr != NULL and self.owner:
+            gguf.gguf_free(self.ptr)
+            self.ptr = NULL
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+        return False
 
     @staticmethod
     def empty():

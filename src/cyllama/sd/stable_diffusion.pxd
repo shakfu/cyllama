@@ -420,7 +420,7 @@ cdef extern from "stable-diffusion.h":
                                       int n_threads,
                                       int tile_size)
     void free_upscaler_ctx(upscaler_ctx_t* upscaler_ctx)
-    sd_image_t upscale(upscaler_ctx_t* upscaler_ctx, sd_image_t input_image, uint32_t upscale_factor)
+    sd_image_t upscale(upscaler_ctx_t* upscaler_ctx, sd_image_t input_image, uint32_t upscale_factor) nogil
     int get_upscale_factor(upscaler_ctx_t* upscaler_ctx)
 
     # =========================================================================
