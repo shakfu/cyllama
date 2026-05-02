@@ -75,15 +75,13 @@ cpdef enum:
 # callbacks
 # -----------------------------------------------------------------------------
 
-cdef void log_callback(ggml.ggml_log_level level, const char * text, void * py_log_callback) noexcept:
+cdef void log_callback(ggml.ggml_log_level level, const char * text, void * py_log_callback) noexcept with gil:
     """ggml_log_callback wrapper to enabling python callbacks to be used.
 
-    Errors from the user-supplied callback (or from decoding non-UTF-8 log
-    text) are caught here. Without this, ``noexcept`` would still swallow
-    the exception, but only after Cython printed it via the default
-    handler -- and crucially, the Python error indicator can be left set
-    on entry to a ``noexcept`` function, with undefined behavior at the
-    next interpreter checkpoint. We catch + traceback-print explicitly.
+    Acquires the GIL because llama.cpp may invoke this from background
+    ggml worker threads that do not hold it. Errors from the user-supplied
+    callback (or from decoding non-UTF-8 log text) are caught and
+    traceback-printed so they cannot leak across the C boundary.
     """
     try:
         (<object>py_log_callback)(level, text.decode("utf-8", errors="replace"))
@@ -105,12 +103,13 @@ def set_log_callback(object py_log_callback):
     llama.llama_log_set(<ggml.ggml_log_callback>&log_callback, <void*>py_log_callback)
 
 
-cdef bint abort_callback(void * py_abort_callback) noexcept:
+cdef bint abort_callback(void * py_abort_callback) noexcept with gil:
     """ggml_abort_callback wrapper enabling python callbacks to be used.
 
-    On error from the user callback we return False (don't abort), print
-    the traceback, and let computation continue -- safer default than
-    silently aborting whatever decode is in flight.
+    Acquires the GIL because ggml polls this from compute threads that
+    do not hold it. On error from the user callback we return False
+    (don't abort), print the traceback, and let computation continue --
+    safer default than silently aborting whatever decode is in flight.
     """
     try:
         return (<object>py_abort_callback)()
@@ -131,7 +130,7 @@ cdef bint _cancel_flag_callback(void * data) noexcept nogil:
     return (<bint*>data)[0]
 
 
-cdef cppbool sched_eval_callback(ggml.ggml_tensor * t, cppbool ask, void * py_sched_eval_callback) noexcept:
+cdef cppbool sched_eval_callback(ggml.ggml_tensor * t, cppbool ask, void * py_sched_eval_callback) noexcept with gil:
     """ggml_backend_sched_eval_callback wrapper enabling python callbacks to be used.
 
     Returns False on error so the scheduler does not request tensor
@@ -147,7 +146,7 @@ cdef cppbool sched_eval_callback(ggml.ggml_tensor * t, cppbool ask, void * py_sc
         return False
 
 
-cdef cppbool progress_callback(float progress, void * py_progress_callback) noexcept:
+cdef cppbool progress_callback(float progress, void * py_progress_callback) noexcept with gil:
     """llama_progress_callback callback wrapper enabling python callbacks to be used.
 
     Returns True on error so model loading is not aborted by a buggy
@@ -439,9 +438,8 @@ cdef class GgmlBackend:
         self.owner = True
 
     def __dealloc__(self):
-        # De-allocate if not null and flag is set
         if self.ptr is not NULL and self.owner is True:
-            free(self.ptr)
+            ggml.ggml_backend_free(self.ptr)
             self.ptr = NULL
 
     @staticmethod
@@ -1555,13 +1553,17 @@ cdef class LlamaChatMessage:
 
 
 cdef class LlamaVocab:
-    """cython wrapper for llama.llama_vocab"""
+    """cython wrapper for llama.llama_vocab.
+
+    The vocab is always borrowed from a parent llama_model and freed via
+    llama_model_free; this wrapper never owns the pointer.
+    """
     cdef llama.llama_vocab * ptr
     cdef bint owner
 
     def __cinit__(self):
         self.ptr = NULL
-        self.owner = True
+        self.owner = False
 
     @staticmethod
     cdef LlamaVocab from_ptr(llama.llama_vocab *ptr, bint owner=False):

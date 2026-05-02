@@ -22,7 +22,7 @@ from .defaults import (
 
 
 @contextlib.contextmanager
-def _silence_stderr():
+def _silence_stderr() -> Iterator[None]:
     """Redirect fd 2 to /dev/null for native libs that bypass log callbacks."""
     sys.stderr.flush()
     saved = os.dup(2)
@@ -35,6 +35,7 @@ def _silence_stderr():
         sys.stderr.flush()
         os.dup2(saved, 2)
         os.close(saved)
+
 
 def _print_stats_table(stats: Any) -> None:
     """Print a formatted table of generation statistics to stderr."""
@@ -216,9 +217,9 @@ def cmd_info() -> int:
         from .sd import (
             get_system_info,
             ggml_backend_load_all as sd_load_backends,
-            set_log_callback as sd_set_log_callback
+            set_log_callback as sd_set_log_callback,
         )
-        
+
         sd_set_log_callback(lambda level, text: None)
         # Load backends so sd sees GPU registries
         with _silence_stderr():

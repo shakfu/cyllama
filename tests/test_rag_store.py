@@ -11,19 +11,20 @@ from cyllama.rag import SqliteVectorStore, VectorStoreError, SearchResult
 
 # Check if sqlite-vector extension is available
 def extension_available() -> bool:
-    """Check if sqlite-vector extension exists and can be loaded."""
+    """Check if sqlite-vector extension exists and can be loaded.
+
+    Defers to the runtime resolution in :mod:`cyllama.rag.store` so the
+    skip decision and the actual load look at the same path -- under
+    scikit-build-core's editable install, the built ``vector.<ext>``
+    lives in the wheel-build directory rather than the source tree.
+    """
     import sqlite3
-    import sys
 
     if not hasattr(sqlite3.Connection, "enable_load_extension"):
         return False
-    ext_path = Path(__file__).parent.parent / "src" / "cyllama" / "rag" / "vector"
-    if sys.platform == "darwin":
-        return ext_path.with_suffix(".dylib").exists()
-    elif sys.platform == "win32":
-        return ext_path.with_suffix(".dll").exists()
-    else:
-        return ext_path.with_suffix(".so").exists()
+    from cyllama.rag.store import SqliteVectorStore, _extension_suffix
+
+    return SqliteVectorStore.EXTENSION_PATH.with_suffix(_extension_suffix()).exists()
 
 
 # Skip all tests if extension not available

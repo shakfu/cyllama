@@ -19,6 +19,42 @@ from typing import Any
 
 from .types import SearchResult, VectorStoreProtocol
 
+
+def _extension_suffix() -> str:
+    if sys.platform == "darwin":
+        return ".dylib"
+    if sys.platform == "win32":
+        return ".dll"
+    return ".so"
+
+
+def _resolve_extension_path() -> Path:
+    """Locate ``vector{.dylib,.so,.dll}`` across every ``cyllama.rag`` root.
+
+    Under scikit-build-core's editable install ``cyllama.rag.__path__`` has
+    two entries: the source tree (which holds the ``.py`` files) and the
+    wheel-build directory under site-packages (which holds the built
+    ``vector.<ext>``). Search both, and fall back to the source-tree
+    location so the not-found error message still points somewhere
+    actionable.
+    """
+    suffix = _extension_suffix()
+    # Read __path__ off the partially-initialized parent package via
+    # sys.modules -- ``import cyllama.rag`` would deadlock here because
+    # this module is itself being imported as part of cyllama.rag's
+    # __init__. Python sets __path__ before executing __init__.py, so
+    # this is safe during partial init.
+    import sys as _sys
+
+    pkg = _sys.modules.get(__package__)
+    roots = list(pkg.__path__) if pkg is not None else []
+    for root in roots:
+        candidate = Path(root) / f"vector{suffix}"
+        if candidate.exists():
+            return candidate.with_suffix("")
+    return Path(__file__).parent / "vector"
+
+
 _VALID_TABLE_NAME = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 
 
@@ -75,9 +111,11 @@ class SqliteVectorStore(VectorStoreProtocol):
         >>> store = VectorStore.open("vectors.db")
     """
 
-    # Path to sqlite-vector extension (without file extension)
-    # The extension is built to: src/cyllama/rag/vector.{dylib,so,dll}
-    EXTENSION_PATH = Path(__file__).parent / "vector"
+    # Path to sqlite-vector extension (without file extension). Resolved
+    # across every cyllama.rag namespace root so editable installs (where
+    # the .py files and the built .dylib live in different directories)
+    # find the artifact regardless of which root holds it.
+    EXTENSION_PATH = _resolve_extension_path()
 
     # Valid distance metrics
     VALID_METRICS = {"cosine", "l2", "dot", "l1", "squared_l2"}

@@ -17,6 +17,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+### Fixed
+
+- **`SqliteVectorStore` now finds its built extension under editable installs** -- `EXTENSION_PATH` was hardcoded to `Path(__file__).parent / "vector"`, which under scikit-build-core's editable install resolves to the source tree (`src/cyllama/rag/`) where the `.py` files live but `vector.dylib` does not. The built artifact lives in the wheel-build root (`.venv/.../cyllama/rag/`), the second entry in the namespace package's `__path__`. As a result, `SqliteVectorStore(...)` raised `VectorStoreError("sqlite-vector extension not found at ...")` at runtime and `tests/test_rag_store.py` (72 tests) skipped wholesale. Replaced the static path with `_resolve_extension_path()` in `src/cyllama/rag/store.py`, which iterates every entry of `cyllama.rag.__path__` (read via `sys.modules[__package__]` to dodge a circular import during partial init) and returns the first root that contains `vector.<dylib|so|dll>`. Updated the test's `extension_available()` to defer to the same `SqliteVectorStore.EXTENSION_PATH` so the skip decision and the actual load look at one path. Net: 1367 -> 1439 passed, 136 -> 64 skipped.
+
+- **GIL acquired in llama callback trampolines** -- `log_callback`, `abort_callback`, `sched_eval_callback`, and `progress_callback` in `src/cyllama/llama/llama_cpp.pyx` were declared `noexcept` without `with gil`, but llama.cpp may invoke them from background ggml worker threads that do not hold the GIL. Touching Python objects (decoding the log text, calling the user callable, importing `traceback`) from a no-GIL context is undefined behaviour and would eventually crash under load. All four now use `noexcept with gil`, matching the SD and whisper trampolines. The pure-C `_cancel_flag_callback` is unchanged -- it correctly stays `noexcept nogil` because it only reads a `bint*`.
+
+- **`GgmlBackend.__dealloc__` calls the correct free routine** -- The wrapper at `src/cyllama/llama/llama_cpp.pyx:441` previously called `free()` on a `ggml_backend_t` handle obtained from `ggml_backend_dev_init`. That handle is not `malloc`-allocated by the wrapper and must be released via `ggml_backend_free`. Added the missing `cdef` declaration to `src/cyllama/llama/ggml.pxd` and switched the dealloc to use it.
+
+- **`LlamaVocab` ownership flag corrected** -- `LlamaVocab.__cinit__` set `self.owner = True`, which was misleading because the vocab pointer is always borrowed from the parent `llama_model` (freed by `llama_model_free`) and `LlamaVocab` has no `__dealloc__`. Now defaults to `False` with a class-level comment documenting the borrowed-pointer invariant. No behavioural change today, but removes a foot-gun for any future `__dealloc__`.
+
+- **`_silence_stderr` typecheck** -- Added the missing `Iterator[None]` return annotation on the contextmanager helper in `src/cyllama/__main__.py` so `make qa` passes mypy strict.
+
 ### Changed
 
 - **`cyllama info` silences native-library log chatter** -- `cmd_info()` in `src/cyllama/__main__.py` installs no-op log callbacks (`llama_cpp.disable_logging()`, `whisper_cpp.disable_logging()`, `sd.set_log_callback(lambda l, t: None)` -- passing `None` to sd restores the default stderr logger, so a no-op lambda is required) and wraps `ggml_backend_load_all()` in a new `_silence_stderr()` fd-2 redirect helper to catch the early Metal device-init prints that fire before the log callback takes effect.

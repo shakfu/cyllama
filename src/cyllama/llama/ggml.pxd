@@ -382,6 +382,7 @@ cdef extern from "ggml-backend.h":
     cdef void                       ggml_backend_dev_get_props(ggml_backend_dev_t device, ggml_backend_dev_props * props)
     cdef ggml_backend_reg_t         ggml_backend_dev_backend_reg(ggml_backend_dev_t device)
     cdef ggml_backend_t             ggml_backend_dev_init(ggml_backend_dev_t device, const char * params)
+    cdef void                       ggml_backend_free(ggml_backend_t backend)
     cdef ggml_backend_buffer_type_t ggml_backend_dev_buffer_type(ggml_backend_dev_t device)
     cdef ggml_backend_buffer_type_t ggml_backend_dev_host_buffer_type(ggml_backend_dev_t device)
     cdef ggml_backend_buffer_t      ggml_backend_dev_buffer_from_host_ptr(ggml_backend_dev_t device, void * ptr, size_t size, size_t max_tensor_size)
