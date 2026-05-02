@@ -17,6 +17,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+## [0.2.15]
+
 ### Added
 
 - **`cyllama.model_save_to_file()`** -- New top-level wrapper around `llama_model_save_to_file`. Takes a loaded `LlamaModel` and a destination path; releases the GIL during the write (added `nogil` to the pxd declaration). Useful after applying LoRA adapters or other in-memory transformations that should be persisted.
