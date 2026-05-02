@@ -16,6 +16,7 @@ cimport gguf
 
 
 import os
+import traceback
 # from enum import Enum
 from typing import Optional, Sequence, Callable
 
@@ -86,7 +87,6 @@ cdef void log_callback(ggml.ggml_log_level level, const char * text, void * py_l
     try:
         (<object>py_log_callback)(level, text.decode("utf-8", errors="replace"))
     except BaseException:
-        import traceback
         traceback.print_exc()
 
 # Hold a reference to the active log callback to prevent garbage collection
@@ -114,7 +114,6 @@ cdef bint abort_callback(void * py_abort_callback) noexcept with gil:
     try:
         return (<object>py_abort_callback)()
     except BaseException:
-        import traceback
         traceback.print_exc()
         return False
 
@@ -141,7 +140,6 @@ cdef cppbool sched_eval_callback(ggml.ggml_tensor * t, cppbool ask, void * py_sc
         tensor = GgmlTensor.from_ptr(t)
         return (<object>py_sched_eval_callback)(tensor, ask)
     except BaseException:
-        import traceback
         traceback.print_exc()
         return False
 
@@ -156,7 +154,6 @@ cdef cppbool progress_callback(float progress, void * py_progress_callback) noex
     try:
         return (<object>py_progress_callback)(progress)
     except BaseException:
-        import traceback
         traceback.print_exc()
         return True
 
@@ -642,8 +639,13 @@ cdef class LlamaBatch:
     """
     cdef llama.llama_batch p
     cdef int _n_tokens
-    cdef public int embd
-    cdef public int n_seq_max
+    # `_embd` and `_n_seq_max` reflect the values passed to
+    # llama_batch_init at allocation time; the wrapper exposes them
+    # read-only via @property because mutating them from Python would
+    # desynchronize cached pool keys (see BatchMemoryPool.return_batch)
+    # and lie about the actual array sizes.
+    cdef int _embd
+    cdef int _n_seq_max
     cdef public bint verbose
     cdef bint owner
 
@@ -657,13 +659,13 @@ cdef class LlamaBatch:
         The rest of the llama_batch members are allocated with size `n_tokens`
         """
         self._n_tokens = n_tokens
-        self.embd = embd
-        self.n_seq_max = n_seq_max
+        self._embd = embd
+        self._n_seq_max = n_seq_max
         self.verbose = verbose
         self.owner = True
 
         self.p = llama.llama_batch_init(
-            self._n_tokens, self.embd, self.n_seq_max
+            self._n_tokens, self._embd, self._n_seq_max
         )
 
     def __dealloc__(self):
@@ -690,8 +692,8 @@ cdef class LlamaBatch:
         cdef LlamaBatch wrapper = LlamaBatch.__new__(LlamaBatch)
         wrapper.p = batch
         wrapper._n_tokens = batch.n_tokens
-        wrapper.embd = 0 if batch.embd == NULL else 1
-        wrapper.n_seq_max = 1  # Default for llama_batch_get_one
+        wrapper._embd = 0 if batch.embd == NULL else 1
+        wrapper._n_seq_max = 1  # Default for llama_batch_get_one
         wrapper.verbose = True
         wrapper.owner = False  # Important: we don't own this batch, so don't free it
         return wrapper
@@ -699,6 +701,16 @@ cdef class LlamaBatch:
     @property
     def n_tokens(self) -> int:
         return self.p.n_tokens
+
+    @property
+    def embd(self) -> int:
+        """Embedding-dim allocated for this batch. Read-only; set at construction."""
+        return self._embd
+
+    @property
+    def n_seq_max(self) -> int:
+        """Max sequences per token allocated for this batch. Read-only; set at construction."""
+        return self._n_seq_max
 
     def reset(self):
         self.p.n_tokens = 0
@@ -1406,7 +1418,7 @@ cdef class LlamaModelQuantizeParams:
 
     @property
     def token_embedding_type(self) -> int:
-        """itoken embeddings tensor type"""
+        """token embeddings tensor type"""
         return self.p.token_embedding_type
 
     @token_embedding_type.setter
@@ -2004,31 +2016,91 @@ cdef class LlamaModel:
     # metadata
 
     def meta_val_str(self, str key) -> str:
-        """Get metadata value as a string by key name"""
-        cdef char buf[128]
-        cdef int res = llama.llama_model_meta_val_str(self.ptr, key.encode(), buf, 128)
-        if res == -1:
-            raise ValueError(F"could not get metadata value from {key}")
-        cdef str value = buf.decode('UTF-8')
-        return value
+        """Get metadata value as a string by key name.
+
+        Grows the buffer on demand so values longer than the initial
+        128 bytes (common for ``tokenizer.ggml.tokens`` etc.) are
+        returned in full rather than silently truncated. Raises
+        ``ValueError`` if the key is not present in the model.
+        """
+        cdef bytes key_bytes = key.encode("utf-8")
+        cdef const char * key_c = key_bytes
+        cdef size_t cap = 128
+        cdef char * buf = <char *>malloc(cap)
+        cdef char * tmp
+        cdef int res
+        if buf is NULL:
+            raise MemoryError("Failed to allocate meta_val_str buffer")
+        try:
+            res = llama.llama_model_meta_val_str(self.ptr, key_c, buf, cap)
+            if res == -1:
+                raise ValueError(f"could not get metadata value from {key}")
+            if res >= <int>cap:
+                cap = res + 1
+                tmp = <char *>realloc(buf, cap)
+                if tmp is NULL:
+                    raise MemoryError("Failed to grow meta_val_str buffer")
+                buf = tmp
+                res = llama.llama_model_meta_val_str(self.ptr, key_c, buf, cap)
+                if res == -1:
+                    raise ValueError(f"could not get metadata value from {key}")
+            return buf[:res].decode("utf-8", errors="replace")
+        finally:
+            free(buf)
 
     def meta_count(self):
         """Get the number of metadata key/value pairs"""
         return llama.llama_model_meta_count(self.ptr)
 
     def meta_key_by_index(self, int index) -> str:
-        """Get metadata key name by index"""
-        cdef char buf[128]
-        cdef int res = llama.llama_model_meta_key_by_index(self.ptr, index, buf, 128)
-        cdef str key = buf.decode('UTF-8')
-        return key
+        """Get metadata key name by index. Grows the buffer on demand."""
+        cdef size_t cap = 128
+        cdef char * buf = <char *>malloc(cap)
+        cdef char * tmp
+        cdef int res
+        if buf is NULL:
+            raise MemoryError("Failed to allocate meta_key buffer")
+        try:
+            res = llama.llama_model_meta_key_by_index(self.ptr, index, buf, cap)
+            if res == -1:
+                raise IndexError(f"metadata index {index} out of range")
+            if res >= <int>cap:
+                cap = res + 1
+                tmp = <char *>realloc(buf, cap)
+                if tmp is NULL:
+                    raise MemoryError("Failed to grow meta_key buffer")
+                buf = tmp
+                res = llama.llama_model_meta_key_by_index(self.ptr, index, buf, cap)
+                if res == -1:
+                    raise IndexError(f"metadata index {index} out of range")
+            return buf[:res].decode("utf-8", errors="replace")
+        finally:
+            free(buf)
 
     def meta_val_str_by_index(self, int index) -> str:
-        """Get metadata key name by index"""
-        cdef char buf[128]
-        cdef int res = llama.llama_model_meta_val_str_by_index(self.ptr, index, buf, 128)
-        cdef str value = buf.decode('UTF-8')
-        return value
+        """Get metadata value (as string) by index. Grows the buffer on demand."""
+        cdef size_t cap = 128
+        cdef char * buf = <char *>malloc(cap)
+        cdef char * tmp
+        cdef int res
+        if buf is NULL:
+            raise MemoryError("Failed to allocate meta_val buffer")
+        try:
+            res = llama.llama_model_meta_val_str_by_index(self.ptr, index, buf, cap)
+            if res == -1:
+                raise IndexError(f"metadata index {index} out of range")
+            if res >= <int>cap:
+                cap = res + 1
+                tmp = <char *>realloc(buf, cap)
+                if tmp is NULL:
+                    raise MemoryError("Failed to grow meta_val buffer")
+                buf = tmp
+                res = llama.llama_model_meta_val_str_by_index(self.ptr, index, buf, cap)
+                if res == -1:
+                    raise IndexError(f"metadata index {index} out of range")
+            return buf[:res].decode("utf-8", errors="replace")
+        finally:
+            free(buf)
 
     # encode / decode
 
@@ -2037,7 +2109,7 @@ cdef class LlamaModel:
         return llama.llama_model_has_encoder(self.ptr)
 
     def has_decoder(self) -> bool:
-        """Returns true if the model contains a decoder that requires llama_decode() callD"""
+        """Returns true if the model contains a decoder that requires llama_decode() call."""
         return llama.llama_model_has_decoder(self.ptr)
 
     def decoder_start_token(self) -> int:
@@ -2354,19 +2426,26 @@ cdef class LlamaContext:
         """
         return llama.llama_state_get_size(self.ptr)
 
-    def get_state_data(self) -> list[int]:
+    def get_state_data(self) -> bytes:
         """Copy the full context state into a freshly allocated buffer.
 
-        Returns the state as a list of bytes (length == bytes copied).
-        Raises MemoryError if allocation fails.
+        Returns the serialized state as a ``bytes`` object whose length
+        equals the number of bytes the C library copied. The previous
+        ``list[int]`` shape was both slow (Python-loop push into a
+        vector, then auto-conversion back to a list of ints) and
+        memory-heavy (each ``int`` is a full PyObject); returning
+        ``bytes`` is one allocation and round-trips cleanly through
+        ``set_state_data``.
+
+        Raises ``MemoryError`` if the temporary buffer cannot be
+        allocated.
         """
         cdef size_t required_size = llama.llama_state_get_size(self.ptr)
         cdef uint8_t * dst = NULL
         cdef size_t copied = 0
-        cdef std_vector[uint8_t] result
 
         if required_size == 0:
-            return []
+            return b""
 
         dst = <uint8_t *>malloc(required_size)
         if dst is NULL:
@@ -2374,20 +2453,29 @@ cdef class LlamaContext:
 
         try:
             copied = llama.llama_state_get_data(self.ptr, dst, required_size)
-            for i in range(copied):
-                result.push_back(dst[i])
-            return result
+            return (<char *>dst)[:copied]
         finally:
             free(dst)
 
-    def set_state_data(self, data: list[int]) -> int:
-        """Set the state reading from the specified address
+    def set_state_data(self, data) -> int:
+        """Set the state reading from the specified buffer.
 
-        Returns the number of bytes read
+        ``data`` must be a ``bytes`` object (or any object supporting
+        the buffer protocol that decays to ``const uint8_t *``).
+        Returns the number of bytes read by the C library.
         """
-        cdef std_vector[uint8_t] result = data
-        cdef size_t read = llama.llama_state_set_data(self.ptr, result.data(), result.size())
-        return read
+        cdef const uint8_t * src
+        cdef Py_ssize_t n
+        cdef bytes data_bytes
+        if isinstance(data, (bytes, bytearray)):
+            data_bytes = bytes(data)
+        else:
+            # Backwards-compat: accept Sequence[int] (the legacy shape)
+            # but coerce up front so the C call sees a flat byte buffer.
+            data_bytes = bytes(data)
+        n = len(data_bytes)
+        src = <const uint8_t *><const char *>data_bytes
+        return llama.llama_state_set_data(self.ptr, src, n)
 
     def load_state_file(self, path_session: str, max_n_tokens: int = 256) -> list[int]:
         """Load session file.
@@ -2464,21 +2552,19 @@ cdef class LlamaContext:
         """Get the exact size needed to copy the KV cache of a single sequence"""
         return llama.llama_state_seq_get_size(self.ptr, seq_id)
 
-    def get_state_seq_data(self, int seq_id) -> list[int]:
-        """Copy the KV cache of a single sequence into a dynamically allocated buffer.
+    def get_state_seq_data(self, int seq_id) -> bytes:
+        """Copy the KV cache of a single sequence into a freshly allocated buffer.
 
-        Returns the sequence data as a list of bytes.
+        Returns the sequence state as ``bytes`` (single allocation,
+        round-trips cleanly through ``set_state_seq_data``).
         """
-        # Get the required size first to avoid buffer overflow
         cdef size_t required_size = llama.llama_state_seq_get_size(self.ptr, seq_id)
         cdef uint8_t * dst = NULL
         cdef size_t copied = 0
-        cdef std_vector[uint8_t] result
 
         if required_size == 0:
-            return []
+            return b""
 
-        # Dynamically allocate buffer of exact size needed
         dst = <uint8_t *>malloc(required_size)
         if dst is NULL:
             raise MemoryError("Failed to allocate buffer for state sequence data")
@@ -2486,25 +2572,25 @@ cdef class LlamaContext:
         try:
             copied = llama.llama_state_seq_get_data(
                 self.ptr, dst, required_size, seq_id)
-            for i in range(copied):
-                result.push_back(dst[i])
-            return result
+            return (<char *>dst)[:copied]
         finally:
             free(dst)
 
-    def set_state_seq_data(self, src: list[int], dest_seq_id: int):
-        """Copy the sequence data (originally copied with `llama_state_seq_get_data`) into the specified sequence
+    def set_state_seq_data(self, src, dest_seq_id: int):
+        """Copy the sequence data (originally produced by ``get_state_seq_data``)
+        into the specified sequence.
 
-        Returns:
-         - Positive: Ok
-         - Zero: Failed to load
+        ``src`` must be a ``bytes`` object (or any object that ``bytes(src)``
+        accepts).
+
+        Raises ``ValueError`` if the C library returns 0 (per its
+        documented contract: "Zero: Failed to load").
         """
-        cdef std_vector[uint8_t] vec
-        cdef size_t res = 0
-        for i in src:
-            vec.push_back(i)
-        res = llama.llama_state_seq_set_data(
-            self.ptr, vec.data(), vec.size(), dest_seq_id)
+        cdef bytes data_bytes = bytes(src)
+        cdef size_t n = len(data_bytes)
+        cdef const uint8_t * src_ptr = <const uint8_t *><const char *>data_bytes
+        cdef size_t res = llama.llama_state_seq_set_data(
+            self.ptr, src_ptr, n, dest_seq_id)
         if res == 0:
             raise ValueError("Failed to load sequence data")
 
@@ -2588,41 +2674,40 @@ cdef class LlamaContext:
         """get state sequence size from seq_id and flags"""
         return llama.llama_state_seq_get_size_ext(self.ptr, seq_id, flags)
 
-    def get_state_seq_data_with_flags(self, int seq_id, int flags) -> list[int]:
-        """Get state sequence data from seq_id and flags using dynamically allocated buffer.
+    def get_state_seq_data_with_flags(self, int seq_id, int flags) -> bytes:
+        """Get state sequence data for ``seq_id`` and ``flags``.
 
-        Returns the sequence data as a list of bytes.
+        Returns the sequence state as ``bytes`` (single allocation,
+        round-trips cleanly through ``set_state_seq_data_with_flags``).
         """
-        # Get the required size first to avoid buffer overflow
         cdef size_t required_size = llama.llama_state_seq_get_size_ext(self.ptr, seq_id, flags)
         cdef uint8_t * dst = NULL
         cdef size_t size = 0
-        cdef std_vector[uint8_t] result
 
         if required_size == 0:
-            return []
+            return b""
 
-        # Dynamically allocate buffer of exact size needed
         dst = <uint8_t *>malloc(required_size)
         if dst is NULL:
             raise MemoryError("Failed to allocate buffer for state sequence data")
 
         try:
             size = llama.llama_state_seq_get_data_ext(self.ptr, dst, required_size, seq_id, flags)
-            for i in range(size):
-                result.push_back(dst[i])
-            return result
+            return (<char *>dst)[:size]
         finally:
             free(dst)
 
-    def set_state_seq_data_with_flags(self, src: list[int], dest_seq_id: int,  flags: int):
-        """set state seq data with flags"""
-        cdef std_vector[uint8_t] vec
-        cdef size_t res = 0
-        for i in src:
-            vec.push_back(i)
-        res = llama.llama_state_seq_set_data_ext(
-            self.ptr, vec.data(), vec.size(), dest_seq_id, flags)
+    def set_state_seq_data_with_flags(self, src, dest_seq_id: int, flags: int):
+        """Set state sequence data with flags.
+
+        ``src`` must be a ``bytes`` object (or anything ``bytes(src)``
+        accepts).
+        """
+        cdef bytes data_bytes = bytes(src)
+        cdef size_t n = len(data_bytes)
+        cdef const uint8_t * src_ptr = <const uint8_t *><const char *>data_bytes
+        cdef size_t res = llama.llama_state_seq_set_data_ext(
+            self.ptr, src_ptr, n, dest_seq_id, flags)
         if res == 0:
             raise ValueError("Failed to set sequence data")
 
@@ -2646,11 +2731,18 @@ cdef class LlamaContext:
             raise RuntimeError("error encoding batch")
 
     def decode(self, LlamaBatch batch) -> int:
-        """Positive return values does not mean a fatal error, but rather a warning.
+        """Run llama_decode on a batch.
 
+        Return codes mirror the upstream contract (see llama.h):
           0 - success
-          1 - could not find a KV slot for the batch (try reducing the size of the batch or increase the context)
-        < 0 - error
+          1 - could not find a KV slot for the batch -- raised as ValueError
+          2 - aborted by abort_callback / cancel flag -- raised as InterruptedError
+         -1 - invalid input batch -- raised as ValueError
+        < -1 - fatal error -- raised as RuntimeError
+
+        Positive non-zero returns leave processed ubatches in the
+        context's memory state; the caller can probe them via
+        ``llama_memory_seq_pos_min/max`` if needed.
         """
         cdef llama.llama_context * ctx_ptr = self.ptr
         cdef llama.llama_batch c_batch = batch.p
@@ -2661,9 +2753,16 @@ cdef class LlamaContext:
         self.n_tokens = batch.n_tokens
 
         if res == 1:
-            raise ValueError("could not find a KV slot for the batch (try reducing the size of the batch or increase the context)")
-        elif res < 0:
-            raise RuntimeError("llama_decode failed")
+            raise ValueError(
+                "could not find a KV slot for the batch "
+                "(try reducing the size of the batch or increase the context)"
+            )
+        if res == 2:
+            raise InterruptedError("llama_decode aborted by abort_callback")
+        if res == -1:
+            raise ValueError("llama_decode rejected invalid input batch")
+        if res < 0:
+            raise RuntimeError(f"llama_decode failed with code {res}")
 
         return res
 
@@ -2813,20 +2912,22 @@ cdef class LlamaContext:
     # def n_outputs(self) -> int:
     #     return llama.llama_n_outputs(self.ptr)
 
-    def get_logits(self) -> list[float]:
-        """Token logits obtained from the last call to llama_decode()
+    def get_logits(self) -> Optional[list[float]]:
+        """Token logits obtained from the last call to llama_decode().
 
-        The logits for which llama_batch.logits[i] != 0 are stored contiguously
-        in the order they have appeared in the batch.
+        Returns ``None`` when the last decode did not request logits
+        (e.g. all ``llama_batch.logits[i] == 0``); this is an expected
+        condition rather than an error, so callers can branch on the
+        return value directly.
 
-        Rows: number of tokens for which llama_batch.logits[i] != 0
-        Cols: n_vocab
+        On success returns the first ``n_vocab`` floats from the
+        underlying buffer (row 0 of the ``[n_outputs, n_vocab]``
+        matrix). For multi-output batches use ``get_logits_ith``.
         """
         cdef int n_vocab = self.model.n_vocab
         cdef float * logits = llama.llama_get_logits(self.ptr)
         if logits is NULL:
-            # TODO: should one just return [] here?
-            raise ValueError('no logits available')
+            return None
         cdef std_vector[float] vec
         for i in range(n_vocab):
             vec.push_back(logits[i])
@@ -2849,21 +2950,23 @@ cdef class LlamaContext:
             vec.push_back(logits[i])
         return vec
 
-    def get_embeddings(self):
-        """Get all output token embeddings.
+    def get_embeddings(self) -> Optional[list[float]]:
+        """Get output token embeddings.
 
-        when pooling_type == LLAMA_POOLING_TYPE_NONE or when using a generative model,
-        the embeddings for which llama_batch.logits[i] != 0 are stored contiguously
-        in the order they have appeared in the batch.
-        shape: [n_outputs * n_embd]
-        Otherwise, returns NULL.
+        When ``pooling_type == LLAMA_POOLING_TYPE_NONE`` or for generative
+        models, the embeddings for which ``llama_batch.logits[i] != 0``
+        are stored contiguously in batch order; the underlying shape is
+        ``[n_outputs, n_embd]``. Returns ``None`` when no embeddings are
+        available (no decode requested logits, or the model returned a
+        NULL pointer for the current pooling configuration) -- callers
+        should branch on the return value rather than catching an
+        exception.
         """
         cdef int n_embd = self.model.n_embd
         cdef float * embds = llama.llama_get_embeddings(self.ptr)
-        cdef std_vector[float] vec
         if embds is NULL:
-            # TODO: should one just return [] here?
-            raise ValueError('no embeddings available')
+            return None
+        cdef std_vector[float] vec
         for i in range(n_embd):
             vec.push_back(embds[i])
         return vec
@@ -3442,6 +3545,54 @@ def llama_supports_gpu_offload() -> bool:
 
 def llama_supports_rpc() -> bool:
     return llama.llama_supports_rpc()
+
+
+def model_save_to_file(LlamaModel model, path: str) -> None:
+    """Save a loaded ``LlamaModel`` back to a GGUF file at ``path``.
+
+    Wraps :c:func:`llama_model_save_to_file`. Useful after applying LoRA
+    adapters or other in-memory transformations that should be
+    persisted. The model is not modified.
+
+    Releases the GIL during the write.
+    """
+    if model is None or model.ptr is NULL:
+        raise ValueError("model has been freed or is NULL")
+    cdef bytes path_bytes = path.encode("utf-8")
+    cdef const char * path_c = path_bytes
+    cdef const llama.llama_model * model_ptr = model.ptr
+    with nogil:
+        llama.llama_model_save_to_file(model_ptr, path_c)
+
+
+def model_quantize(fname_inp: str, fname_out: str,
+                   params: Optional[LlamaModelQuantizeParams] = None) -> None:
+    """Quantize a GGUF model file in-place to a smaller ftype.
+
+    Wraps :c:func:`llama_model_quantize`. ``fname_inp`` and ``fname_out``
+    are filesystem paths to the input GGUF and the destination file
+    respectively; ``params`` controls the target ftype, threading, and
+    tensor-type overrides (defaults to
+    :c:func:`llama_model_quantize_default_params`).
+
+    Raises ``RuntimeError`` if the underlying call returns non-zero
+    (the upstream symbol returns 0 on success and a non-zero error code
+    otherwise; the specific code is included in the message).
+    """
+    cdef LlamaModelQuantizeParams _params = params if params is not None else LlamaModelQuantizeParams()
+    cdef bytes inp_bytes = fname_inp.encode("utf-8")
+    cdef bytes out_bytes = fname_out.encode("utf-8")
+    cdef const char * inp_c = inp_bytes
+    cdef const char * out_c = out_bytes
+    cdef llama.llama_model_quantize_params c_params = _params.p
+    cdef uint32_t rc
+    with nogil:
+        rc = llama.llama_model_quantize(inp_c, out_c, &c_params)
+    if rc != 0:
+        raise RuntimeError(
+            f"llama_model_quantize failed with code {rc} "
+            f"(input={fname_inp!r}, output={fname_out!r})"
+        )
 
 def llama_attach_threadpool(LlamaContext ctx, GgmlThreadPool threadpool, GgmlThreadPool threadpool_batch):
     llama.llama_attach_threadpool(ctx.ptr, threadpool.ptr, threadpool_batch.ptr)

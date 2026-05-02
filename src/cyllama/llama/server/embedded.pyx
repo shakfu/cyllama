@@ -112,6 +112,7 @@ cdef class EmbeddedServer:
         self._logger.info("Context manager __exit__ called - starting graceful shutdown")
         self.stop()
         self._logger.info("Context manager __exit__ completed")
+        return False
 
     def __init__(self, config: ServerConfig):
         self._config = config

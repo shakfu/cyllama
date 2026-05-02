@@ -159,6 +159,7 @@ cdef class Speculative:
         cdef int i_start, n_new, n_past, i
         cdef llama.llama_batch batch
         cdef llama.llama_token sampled
+        cdef int32_t rc
         cdef list result = []
 
         if n_ctx <= 0:
@@ -199,8 +200,12 @@ cdef class Speculative:
                 batch.n_seq_id[i] = 1
                 batch.seq_id[i][0] = 0
                 batch.logits[i] = (i == n_new - 1)
-            llama.llama_decode(self.ctx_dft.ptr, batch)
+            rc = llama.llama_decode(self.ctx_dft.ptr, batch)
             llama.llama_batch_free(batch)
+            if rc != 0:
+                raise RuntimeError(
+                    f"speculative draft prompt decode failed (llama_decode rc={rc})"
+                )
 
         self._draft_prompt = list(prompt)
 
@@ -224,8 +229,14 @@ cdef class Speculative:
             batch.n_seq_id[0] = 1
             batch.seq_id[0][0] = 0
             batch.logits[0] = True
-            llama.llama_decode(self.ctx_dft.ptr, batch)
+            rc = llama.llama_decode(self.ctx_dft.ptr, batch)
             llama.llama_batch_free(batch)
+            if rc != 0:
+                # Surface failure rather than continuing with stale logits
+                # in the next sampler iteration.
+                raise RuntimeError(
+                    f"speculative draft step decode failed (llama_decode rc={rc})"
+                )
 
             self._draft_prompt.append(<int>sampled)
 

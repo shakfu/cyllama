@@ -1144,7 +1144,12 @@ class LLM:
                 return
             batch_tokens = prompt_tokens[i : i + n_batch]
             batch = llama_batch_get_one(batch_tokens, i)  # Pass position offset
-            ctx.decode(batch)
+            try:
+                ctx.decode(batch)
+            except InterruptedError:
+                # Mid-decode abort_callback fired (cancel() was called
+                # during prefill). Bail cleanly rather than propagating.
+                return
 
         # Generate tokens
         n_pos = n_prompt
@@ -1215,7 +1220,13 @@ class LLM:
 
             # Prepare next batch
             batch = llama_batch_get_one([new_token_id], n_pos)
-            ctx.decode(batch)
+            try:
+                ctx.decode(batch)
+            except InterruptedError:
+                # Mid-decode cancellation; the next-token batch did not
+                # complete. Stop the stream cleanly with whatever we
+                # already yielded.
+                break
 
             n_pos += 1
             n_generated += 1

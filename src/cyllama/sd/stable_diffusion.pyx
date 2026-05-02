@@ -9,6 +9,7 @@ Provides Python bindings for image generation using Stable Diffusion models.
 
 import os
 import logging
+import traceback
 from typing import Optional, List, Callable, Union
 from enum import IntEnum
 
@@ -229,24 +230,31 @@ cdef object _progress_callback = None
 
 
 cdef void _c_log_callback(sd_log_level_t level, const char* text, void* data) noexcept with gil:
-    """C callback that forwards to Python log callback."""
+    """C callback that forwards to Python log callback.
+
+    Catches BaseException so KeyboardInterrupt / SystemExit can't leak
+    across the C boundary, matching the llama and whisper trampolines.
+    """
     global _log_callback
     if _log_callback is not None:
         try:
             py_text = text.decode('utf-8') if text else ""
             _log_callback(LogLevel(level), py_text)
-        except Exception as e:
-            _logger.warning("Exception in sd log callback: %s", e)
+        except BaseException:
+            traceback.print_exc()
 
 
 cdef void _c_progress_callback(int step, int steps, float time, void* data) noexcept with gil:
-    """C callback that forwards to Python progress callback."""
+    """C callback that forwards to Python progress callback.
+
+    Catches BaseException; see ``_c_log_callback`` for rationale.
+    """
     global _progress_callback
     if _progress_callback is not None:
         try:
             _progress_callback(step, steps, time)
-        except Exception as e:
-            _logger.warning("Exception in sd progress callback: %s", e)
+        except BaseException:
+            traceback.print_exc()
 
 
 def set_log_callback(callback: Optional[Callable[[LogLevel, str], None]]):
@@ -2677,18 +2685,33 @@ cdef class SDContext:
         if result == NULL:
             raise RuntimeError("Image generation failed")
 
-        # Convert results to Python list, validating each image
+        # Convert results to Python list, validating each image. The
+        # outer ``result`` array is malloc'd by the C library and must
+        # be freed even if the per-image wrapping raises mid-iteration;
+        # any C-allocated images we have NOT yet wrapped would otherwise
+        # leak.
         images = []
         cdef int i
         cdef int n_invalid = 0
-        for i in range(params.batch_count):
-            img = SDImage._from_c_image(result[i], owns_data=True)
-            if not img.is_valid:
-                n_invalid += 1
-            images.append(img)
-
-        # Free the array (but not individual image data, now owned by SDImage objects)
-        free(result)
+        cdef int wrapped = 0
+        try:
+            for i in range(params.batch_count):
+                img = SDImage._from_c_image(result[i], owns_data=True)
+                wrapped = i + 1
+                if not img.is_valid:
+                    n_invalid += 1
+                images.append(img)
+        except BaseException:
+            # Free unwrapped C image data so they don't leak; wrapped
+            # ones are owned by SDImage and freed via their __dealloc__.
+            for i in range(wrapped, params.batch_count):
+                if result[i].data != NULL:
+                    free(result[i].data)
+            raise
+        finally:
+            # Always free the outer array (individual image data, when
+            # wrapped successfully, is now owned by the SDImage objects).
+            free(result)
 
         if n_invalid == params.batch_count:
             raise RuntimeError(
@@ -2707,15 +2730,25 @@ cdef class SDContext:
 
         return images
 
+    def close(self):
+        """Release the underlying ``sd_ctx_t`` immediately. Idempotent.
+
+        Equivalent to ``__exit__``: lets test code deterministically
+        release Metal/CUDA working-set pressure between contexts without
+        relying on GC timing (see ``docs/dev/test-cleanup.md``).
+        """
+        if self._ctx != NULL:
+            free_sd_ctx(self._ctx)
+            self._ctx = NULL
+
     def __enter__(self):
         """Context manager entry."""
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Context manager exit - cleanup."""
-        if self._ctx != NULL:
-            free_sd_ctx(self._ctx)
-            self._ctx = NULL
+        self.close()
+        return False
 
     def generate_video(self,
                        prompt: str,
@@ -2820,18 +2853,27 @@ cdef class SDContext:
         if result == NULL:
             raise RuntimeError("Video generation failed")
 
-        # Convert results to Python list, validating each frame
+        # Convert results to Python list, validating each frame. See
+        # ``generate`` for the same try/finally rationale: keep the
+        # outer free correct even if per-frame wrapping raises.
         frames = []
         cdef int i
         cdef int n_invalid = 0
-        for i in range(num_frames_out):
-            frame = SDImage._from_c_image(result[i], owns_data=True)
-            if not frame.is_valid:
-                n_invalid += 1
-            frames.append(frame)
-
-        # Free the array
-        free(result)
+        cdef int wrapped = 0
+        try:
+            for i in range(num_frames_out):
+                frame = SDImage._from_c_image(result[i], owns_data=True)
+                wrapped = i + 1
+                if not frame.is_valid:
+                    n_invalid += 1
+                frames.append(frame)
+        except BaseException:
+            for i in range(wrapped, num_frames_out):
+                if result[i].data != NULL:
+                    free(result[i].data)
+            raise
+        finally:
+            free(result)
 
         if n_invalid == num_frames_out:
             raise RuntimeError(
@@ -3103,8 +3145,8 @@ cdef void _preview_callback_wrapper(int step, int frame_count, sd_image_t* frame
                 img = SDImage._from_c_image(frames[i], owns_data=False)
                 frame_list.append(img)
             _preview_callback(step, frame_list, bool(is_noisy))
-        except Exception:
-            pass  # Ignore exceptions in callback
+        except BaseException:
+            traceback.print_exc()
 
 
 def set_preview_callback(

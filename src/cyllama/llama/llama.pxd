@@ -372,7 +372,7 @@ cdef extern from "llama.h":
 
     cdef void llama_model_save_to_file(
             const llama_model * model,
-                const char * path_model);
+                const char * path_model) nogil
 
     cdef void llama_model_free(llama_model * model)
 
@@ -491,7 +491,7 @@ cdef extern from "llama.h":
     cdef uint32_t llama_model_quantize(
             const char * fname_inp,
             const char * fname_out,
-            const llama_model_quantize_params * params)
+            const llama_model_quantize_params * params) nogil
 
     #
     # Adapters

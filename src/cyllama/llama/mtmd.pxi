@@ -14,7 +14,7 @@ cimport cython
 from cython cimport view
 from libc.stdlib cimport malloc, free
 from libc.string cimport memcpy
-from libc.stdint cimport uint32_t, int32_t, uintptr_t
+from libc.stdint cimport uint32_t, int32_t
 from libc.stddef cimport size_t
 
 from .mtmd cimport *
@@ -437,11 +437,7 @@ cdef class MtmdContext:
 
         self._model_ref = llama_model
         cdef bytes path_bytes = mmproj_path.encode('utf-8')
-
-        # Get the underlying llama_model pointer
-        # Use Python object attribute access to get the pointer value
-        cdef uintptr_t model_ptr_value = <uintptr_t>llama_model.ptr
-        cdef llama.llama_model* model_ptr = <llama.llama_model*>model_ptr_value
+        cdef llama.llama_model* model_ptr = llama_model.ptr
 
         self._ctx = mtmd_init_from_file(path_bytes, model_ptr, params._params)
 
@@ -589,7 +585,7 @@ cdef class MtmdContext:
 
         return embeddings
 
-    def eval_chunks(self, llama_ctx, chunks: MtmdInputChunks, n_past: int = 0,
+    def eval_chunks(self, LlamaContext llama_ctx, MtmdInputChunks chunks, n_past: int = 0,
                     seq_id: int = 0, n_batch: int = 32, logits_last: bool = True) -> int:
         """Evaluate chunks using helper function.
 
@@ -607,10 +603,7 @@ cdef class MtmdContext:
         if self._ctx is NULL:
             raise RuntimeError("Context not initialized")
 
-        # Get the underlying llama_context pointer
-        # Use Python object attribute access to get the pointer value
-        cdef uintptr_t ctx_ptr_value = <uintptr_t>llama_ctx.ptr
-        cdef llama_context* ctx_ptr = <llama_context*>ctx_ptr_value
+        cdef llama_context* ctx_ptr = llama_ctx.ptr
 
         cdef llama_pos new_n_past
         cdef int32_t result = mtmd_helper_eval_chunks(

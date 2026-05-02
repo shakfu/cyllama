@@ -17,7 +17,37 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+### Added
+
+- **`cyllama.model_save_to_file()`** -- New top-level wrapper around `llama_model_save_to_file`. Takes a loaded `LlamaModel` and a destination path; releases the GIL during the write (added `nogil` to the pxd declaration). Useful after applying LoRA adapters or other in-memory transformations that should be persisted.
+
+- **`SDContext.close()`** -- Idempotent explicit-release method matching the pattern on `LlamaContext` / `LlamaSampler` / `WhisperContext`. Lets test code (and the `del ctx; gc.collect()` discipline documented in `docs/dev/test-cleanup.md`) deterministically release Metal/CUDA working-set pressure without relying on `__exit__` only being reachable via `with`. `__exit__` now delegates to `close()` and explicitly returns `False`.
+
+- **`cyllama.model_quantize()`** -- New top-level wrapper around `llama_model_quantize`. Takes `fname_inp`, `fname_out`, and an optional `LlamaModelQuantizeParams` (defaults applied if omitted), runs the call with the GIL released (added `nogil` to the pxd declaration since this is a heavy I/O-bound operation), and raises `RuntimeError` with the upstream error code on non-zero return.
+
+### Changed
+
+- **State serialization switched from `list[int]` to `bytes`** -- `LlamaContext.get_state_data`, `get_state_seq_data`, `get_state_seq_data_with_flags` now return `bytes`; the matching `set_*` setters accept `bytes` (or anything `bytes(src)` accepts). The previous `list[int]` shape was both slow (Python-level loop pushing into a `std::vector<uint8_t>`, then auto-conversion back to a list of int boxes) and memory-heavy. Round-trips are now a single allocation in each direction. No external Python consumers, so this is a clean break.
+
+- **`LlamaBatch.embd` and `n_seq_max` are read-only** -- Both were `cdef public int` and writable from Python; mutation desynchronized cached `BatchMemoryPool` keys (`pool.return_batch` keys on the tuple). Backed by private `_embd` / `_n_seq_max` fields with read-only `@property` accessors that match the construction-time values.
+
+- **`LlamaContext.decode` raises `InterruptedError` on aborted decodes** -- Upstream documents `llama_decode` returning `2` for cancellation via `abort_callback` (`llama.h: Positive return values does not mean a fatal error...`). The wrapper previously special-cased only `1` (no KV slot) and silently returned `2`, leaving callers no clean way to distinguish cancellation from success-with-warning. Now: `1 -> ValueError`, `2 -> InterruptedError`, `-1 -> ValueError`, `< -1 -> RuntimeError(f"...code {res}")`. Updated `LLM._generate_stream` (`api.py:1147,1218`) to catch `InterruptedError` from prefill and per-token decodes and bail cleanly -- the stream returns whatever was already yielded, matching the prior semantics that the `test_cancel_between_tokens_stops_streaming` test asserts. Other `ctx.decode` call sites (batching, RAG, agents) don't install the cancel callback, so they cannot trigger this path.
+
+- **`LlamaContext.get_logits` and `get_embeddings` return `None` when unavailable** -- Both previously raised `ValueError("no logits available")` when `llama_get_logits` / `llama_get_embeddings` returned NULL. That is the *expected* outcome when the last decode didn't request logits (or when pooling configuration produces no per-token output) -- not an exceptional condition. Forced callers to `try/except` around a normal branch. Now both return `Optional[list[float]]`. The `_ith` variants still raise on invalid `i` (genuine programming errors). Updated docstrings note the new contract.
+
 ### Fixed
+
+- **`mtmd` direct pointer casts; `traceback` hoisted; docstring typos** -- Several minor cleanup items grouped together: dropped the `<llama_model*><uintptr_t>llama_model.ptr` round-trip in `MtmdContext.__init__` and the matching one in `eval_chunks` (typed `llama_ctx` as `LlamaContext` so direct `.ptr` access works); hoisted the `import traceback` calls from inside the four llama callback trampolines to module scope (the imports compounded on every error, however rare); fixed two docstring typos (`itoken` -> `token`, `callD` -> `call.`).
+
+- **SD `generate` / `generate_video` free unwrapped C images on error** -- After `generate_image`/`generate_video` returned an array of `sd_image_t`, the wrapper iterated over them constructing `SDImage(owns_data=True)` views. If construction raised mid-iteration (e.g. memory error in `_from_c_image`), the unwrapped tail was leaked: those C-allocated `data` buffers had no Python owner and the outer `result` array was never freed. Wrapped both paths in `try/except BaseException + finally`, freeing `data` for any image past the wrapped index and always freeing the outer array (`src/cyllama/sd/stable_diffusion.pyx`).
+
+- **`EmbeddedServer.__exit__` returns False explicitly** -- Other context managers in this codebase explicitly return `False`; `EmbeddedServer.__exit__` previously returned `None` implicitly. Same falsy semantics, consistent surface.
+
+- **`LlamaModel.meta_val_str` / `meta_key_by_index` / `meta_val_str_by_index` grow on truncation** -- All three used a fixed 128-byte stack buffer and silently truncated longer strings (common for entries like `tokenizer.ggml.tokens`). They now allocate on the heap, retry with `realloc` if the C call returns a length larger than the current capacity, decode with `errors="replace"` to survive non-UTF-8 bytes (matching `LlamaVocab.token_to_piece`), and `try/finally: free(buf)` so the heap allocation can't leak. The two by-index variants now also raise `IndexError` on `-1` (out-of-range index) rather than returning whatever happened to be in the (uninitialized) stack buffer.
+
+- **`Speculative.draft` checks `llama_decode` return codes** -- Two `llama_decode` call sites in `src/cyllama/llama/speculative.pxi` (prompt-prefill at `:202`, per-step at `:227`) ignored their return values. A failure (no KV slot, cancellation, fatal) silently left the draft model with stale logits, then `llama_sampler_sample` would draw from whatever the previous decode left in the buffer. Both now capture `rc` and raise `RuntimeError(f"... rc={rc}")` on non-zero, surfacing the failure rather than producing nonsense draft tokens.
+
+- **SD callback trampolines catch `BaseException`** -- `_c_log_callback`, `_c_progress_callback`, and `_preview_callback_wrapper` in `src/cyllama/sd/stable_diffusion.pyx` previously caught `Exception`, which lets `KeyboardInterrupt` and `SystemExit` leak across the C boundary (undefined behaviour, as the matching whisper trampoline already documents). All three now catch `BaseException` and `traceback.print_exc()`, matching the llama and whisper conventions. The preview callback's previous `pass # ignore` swallow is also gone -- exceptions in user callbacks now print a traceback so they're debuggable instead of silent.
 
 - **`tokenize`/`detokenize` malloc paths leak-free under exceptions** -- `LlamaVocab.tokenize` (`src/cyllama/llama/llama_cpp.pyx:1670`) and `LlamaVocab.detokenize` (`:1734`) malloc'd a buffer and freed it only on the success branch; if the Python-side path raised (memory pool OOM, `vec.push_back` failure, decode error in the success branch) the buffer leaked. Both now wrap the work in `try/finally: free(buf)`. Also tightened the `detokenize` decode to `buf[:res].decode("utf-8", errors="replace")` -- the previous `buf.decode()` relied on a NUL-terminated buffer that `malloc` never guarantees, so it could read past the end into uninitialized memory.
 
@@ -1810,7 +1840,6 @@ The following scripts are now superseded by `manage.py` subcommands:
   - All security improvements are type-safe with full mypy compliance (0 errors)
   - All 260 tests passing with no regressions
   - Production readiness score upgraded from 8.5/10 to 9.5/10
-  - See `docs/MANAGE_REVIEW.md` and `docs/MANAGE_SECURITY_IMPROVEMENTS.md` for details
 
 ## [0.1.9] - 2025-11-21
 
