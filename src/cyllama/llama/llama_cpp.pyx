@@ -716,12 +716,17 @@ cdef class LlamaBatch:
             IndexError: If batch is full
         """
         cdef int n = self.p.n_tokens
+        cdef int n_seq = len(seq_ids)
         if n >= self._n_tokens:
             raise IndexError(f"Batch is full (capacity={self._n_tokens})")
+        if n_seq > self.n_seq_max:
+            raise ValueError(
+                f"len(seq_ids)={n_seq} exceeds n_seq_max={self.n_seq_max}"
+            )
         self.p.token[n] = id
         self.p.pos[n] = pos
-        self.p.n_seq_id[n] = <int32_t>len(seq_ids)
-        for i in range(len(seq_ids)):
+        self.p.n_seq_id[n] = <int32_t>n_seq
+        for i in range(n_seq):
             self.p.seq_id[n][i] = <llama.llama_seq_id>seq_ids[i]
         self.p.logits[n] = logits
         self.p.n_tokens += 1
@@ -735,6 +740,11 @@ cdef class LlamaBatch:
         cdef int i
         cdef int past_pos = n_past
         cdef bint logits_flag = logits_all
+
+        if n_tokens > self._n_tokens:
+            raise IndexError(
+                f"len(batch)={n_tokens} exceeds capacity={self._n_tokens}"
+            )
 
         self.p.n_tokens = n_tokens
 
@@ -759,6 +769,12 @@ cdef class LlamaBatch:
         cdef int i, j
         cdef int seq_id_val = seq_id
         cdef bint logits_flag = logits_all
+
+        if n_tokens0 + n_tokens > self._n_tokens:
+            raise IndexError(
+                f"add_sequence overflow: n_tokens0={n_tokens0} + len(batch)={n_tokens} "
+                f"exceeds capacity={self._n_tokens}"
+            )
 
         self.p.n_tokens += n_tokens
 
@@ -1641,10 +1657,10 @@ cdef class LlamaVocab:
         return llama.llama_vocab_fim_pre(self.ptr)
 
     def fim_middle(self) -> int:
-        return llama.llama_vocab_fim_suf(self.ptr)
+        return llama.llama_vocab_fim_mid(self.ptr)
 
     def fim_suffix(self) -> int:
-        return llama.llama_vocab_fim_mid(self.ptr)
+        return llama.llama_vocab_fim_suf(self.ptr)
 
     def fim_pad(self) -> int:
         return llama.llama_vocab_fim_pad(self.ptr)
@@ -1681,30 +1697,27 @@ cdef class LlamaVocab:
         cdef bint add_special_c = add_special
         cdef bint parse_special_c = parse_special
 
-        with nogil:
-            n_tokens = llama.llama_tokenize(
-                vocab_ptr, text_ptr, text_len, tokens, max_tokens,
-                add_special_c, parse_special_c
-            )
+        cdef list[int] _tokens
+        try:
+            with nogil:
+                n_tokens = llama.llama_tokenize(
+                    vocab_ptr, text_ptr, text_len, tokens, max_tokens,
+                    add_special_c, parse_special_c
+                )
 
-        if n_tokens < 0:
+            if n_tokens < 0:
+                raise RuntimeError(
+                    f'Failed to tokenize: text="{text}" n_tokens={n_tokens}'
+                )
+
+            # Get token list from memory pool for better performance
+            _tokens = _global_token_pool.get_token_list(n_tokens)
+
+            # Optimized token copying loop - direct assignment instead of append
+            for i in range(n_tokens):
+                _tokens[i] = tokens[i]
+        finally:
             free(tokens)
-            raise RuntimeError(
-                f'Failed to tokenize: text="{text}" n_tokens={n_tokens}'
-            )
-
-        # OLD WAY
-        # Pre-allocate result list with known size for better performance
-        # cdef list[int] _tokens = [0] * n_tokens  # Pre-allocate with correct size
-
-        # Get token list from memory pool for better performance
-        cdef list[int] _tokens = _global_token_pool.get_token_list(n_tokens)
-
-        # Optimized token copying loop - direct assignment instead of append
-        for i in range(n_tokens):
-            _tokens[i] = tokens[i]
-
-        free(tokens)
         return _tokens
 
     def token_to_piece(self, token: int, lstrip: int = 0, special: bool = False) -> str:
@@ -1737,33 +1750,41 @@ cdef class LlamaVocab:
         if buf is NULL:
             raise MemoryError("Failed to allocate detokenize buffer")
         cdef std_vector[int] vec
-
-        for i in tokens:
-            vec.push_back(i)
-
-        cdef const llama.llama_vocab * vocab_ptr = self.ptr
-        cdef const llama.llama_token * tokens_ptr = <const llama.llama_token *>vec.data()
-        cdef int32_t n_tokens_in = <int32_t>vec.size()
-        cdef int32_t text_len_max_c = text_len_max
-        cdef bint remove_special_c = remove_special
-        cdef bint unparse_special_c = unparse_special
+        cdef const llama.llama_vocab * vocab_ptr
+        cdef const llama.llama_token * tokens_ptr
+        cdef int32_t n_tokens_in
+        cdef int32_t text_len_max_c
+        cdef bint remove_special_c
+        cdef bint unparse_special_c
         cdef int32_t res
-        with nogil:
-            res = llama.llama_detokenize(
-                vocab_ptr,
-                tokens_ptr,
-                n_tokens_in,
-                buf,
-                text_len_max_c,
-                remove_special_c,
-                unparse_special_c)
 
-        if res < 0:
-            raise RuntimeError(
-                f'Failed to detokenize: text="{res}" n_tokens={vec.size()}'
-            )
-        result = buf.decode()
-        free(buf)
+        try:
+            for i in tokens:
+                vec.push_back(i)
+
+            vocab_ptr = self.ptr
+            tokens_ptr = <const llama.llama_token *>vec.data()
+            n_tokens_in = <int32_t>vec.size()
+            text_len_max_c = text_len_max
+            remove_special_c = remove_special
+            unparse_special_c = unparse_special
+            with nogil:
+                res = llama.llama_detokenize(
+                    vocab_ptr,
+                    tokens_ptr,
+                    n_tokens_in,
+                    buf,
+                    text_len_max_c,
+                    remove_special_c,
+                    unparse_special_c)
+
+            if res < 0:
+                raise RuntimeError(
+                    f'Failed to detokenize: text="{res}" n_tokens={vec.size()}'
+                )
+            result = buf[:res].decode("utf-8", errors="replace")
+        finally:
+            free(buf)
         return result.lstrip()
 
 
@@ -2122,34 +2143,46 @@ cdef class LlamaModel:
 
     def metadata(self) -> dict[str, str]:
         metadata: dict[str, str] = {}
-        buffer_size = 1024
+        cdef size_t buffer_size = 1024
         cdef int nbytes
+        cdef char * tmp
         cdef char * buffer = <char*>calloc(buffer_size, sizeof(char))
+        if buffer is NULL:
+            raise MemoryError("Failed to allocate metadata buffer")
         assert self.ptr is not NULL
-        # iterate over model keys
-        for i in range(llama.llama_model_meta_count(self.ptr)):
-            nbytes = llama.llama_model_meta_key_by_index(
-                self.ptr, i, buffer, buffer_size
-            )
-            if nbytes > buffer_size:
-                buffer_size = nbytes + 1
-                buffer = <char*>realloc(buffer, buffer_size * sizeof(char));
+        try:
+            for i in range(llama.llama_model_meta_count(self.ptr)):
                 nbytes = llama.llama_model_meta_key_by_index(
                     self.ptr, i, buffer, buffer_size
                 )
-            key = buffer.decode("utf-8")
-            nbytes = llama.llama_model_meta_val_str_by_index(
-                self.ptr, i, buffer, buffer_size
-            )
-            if nbytes > buffer_size:
-                buffer_size = nbytes + 1
-                buffer = <char*>realloc(buffer, buffer_size * sizeof(char));
+                if nbytes > <int>buffer_size:
+                    buffer_size = nbytes + 1
+                    tmp = <char*>realloc(buffer, buffer_size * sizeof(char))
+                    if tmp is NULL:
+                        # realloc returned NULL; original buffer is still valid
+                        # and freed by the finally block. Raise rather than orphan.
+                        raise MemoryError("Failed to grow metadata buffer")
+                    buffer = tmp
+                    nbytes = llama.llama_model_meta_key_by_index(
+                        self.ptr, i, buffer, buffer_size
+                    )
+                key = buffer[:nbytes].decode("utf-8", errors="replace")
                 nbytes = llama.llama_model_meta_val_str_by_index(
                     self.ptr, i, buffer, buffer_size
                 )
-            value = buffer.decode("utf-8")
-            metadata[key] = value
-        free(buffer)
+                if nbytes > <int>buffer_size:
+                    buffer_size = nbytes + 1
+                    tmp = <char*>realloc(buffer, buffer_size * sizeof(char))
+                    if tmp is NULL:
+                        raise MemoryError("Failed to grow metadata buffer")
+                    buffer = tmp
+                    nbytes = llama.llama_model_meta_val_str_by_index(
+                        self.ptr, i, buffer, buffer_size
+                    )
+                value = buffer[:nbytes].decode("utf-8", errors="replace")
+                metadata[key] = value
+        finally:
+            free(buffer)
         return metadata
 
     @staticmethod
@@ -2174,12 +2207,22 @@ cdef class LlamaContext:
     # "abort now" signal that is only ever set, never raced against
     # multiple concurrent setters.
     cdef bint _cancel_flag
+    # Retain Python references to objects whose lifetime is implicitly
+    # tied to native context state. The C side stores raw `void*` /
+    # `ggml_threadpool*` pointers into these; if Python collects them
+    # the next callback poll dereferences a dangling pointer.
+    cdef object _abort_callback
+    cdef object _threadpool
+    cdef object _threadpool_batch
 
     def __cinit__(self):
         self.ptr = NULL
         self.owner = True
         self.n_tokens = 0
         self._cancel_flag = 0
+        self._abort_callback = None
+        self._threadpool = None
+        self._threadpool_batch = None
 
     def __init__(self, model: LlamaModel, params: Optional[LlamaContextParams] = None, verbose: bool = True):
         if model is None:
@@ -2288,10 +2331,17 @@ cdef class LlamaContext:
     # -------------------------------------------------------------------------
 
     def attach_threadpool(self, GgmlThreadPool threadpool, GgmlThreadPool threadpool_batch):
+        # Retain Python references so the underlying ggml_threadpool*
+        # pointers passed to the C side stay valid for the life of the
+        # context (or until detach_threadpool replaces them).
+        self._threadpool = threadpool
+        self._threadpool_batch = threadpool_batch
         llama.llama_attach_threadpool(self.ptr, threadpool.ptr, threadpool_batch.ptr)
 
     def detach_threadpool(self):
         llama.llama_detach_threadpool(self.ptr)
+        self._threadpool = None
+        self._threadpool_batch = None
 
     # State / sessions
     # -------------------------------------------------------------------------
@@ -2648,7 +2698,13 @@ cdef class LlamaContext:
         llama.llama_set_causal_attn(self.ptr, causal_attn)
 
     def set_abort_callback(self, object py_abort_callback):
-        """Set abort callback"""
+        """Set abort callback.
+
+        The C side stores a raw ``void*`` to ``py_abort_callback``; we
+        retain a Python reference here so the callable cannot be
+        collected while the context still polls it.
+        """
+        self._abort_callback = py_abort_callback
         llama.llama_set_abort_callback(self.ptr,
             <ggml.ggml_abort_callback>&abort_callback, <void*>py_abort_callback)
 
@@ -2666,6 +2722,9 @@ cdef class LlamaContext:
         callback that consults whatever state you want and pass it to
         ``set_abort_callback()`` instead.
         """
+        # Drop any prior user-supplied abort callback ref since the C
+        # side no longer references it.
+        self._abort_callback = None
         llama.llama_set_abort_callback(self.ptr,
             <ggml.ggml_abort_callback>&_cancel_flag_callback,
             <void*>&self._cancel_flag)

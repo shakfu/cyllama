@@ -33,6 +33,11 @@ cdef class MtmdContextParams:
     """Parameters for creating an mtmd context."""
 
     cdef mtmd_context_params _params
+    # Retains the encoded media_marker so the const char* stored in
+    # _params.media_marker stays valid for the lifetime of the params
+    # object. Without this, the bytes object is collected as soon as the
+    # __init__ frame returns and the C pointer dangles.
+    cdef bytes _media_marker_bytes
 
     def __init__(self, use_gpu: bool = True, print_timings: bool = False,
                  n_threads: int = 1, media_marker: str = None,
@@ -60,9 +65,8 @@ cdef class MtmdContextParams:
         self._params.warmup = warmup
 
         if media_marker is not None:
-            # Store the marker (Note: this requires careful memory management)
-            marker_bytes = media_marker.encode('utf-8')
-            self._params.media_marker = marker_bytes
+            self._media_marker_bytes = media_marker.encode('utf-8')
+            self._params.media_marker = self._media_marker_bytes
 
     @property
     def use_gpu(self) -> bool:

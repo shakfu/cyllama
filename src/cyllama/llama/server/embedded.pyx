@@ -530,8 +530,14 @@ cdef class EmbeddedServer:
 
 
 # C callback function for HTTP events
-cdef void _http_event_handler(mg_connection *c, int ev, void *ev_data) noexcept:
-    """C callback for Mongoose HTTP events."""
+cdef void _http_event_handler(mg_connection *c, int ev, void *ev_data) noexcept with gil:
+    """C callback for Mongoose HTTP events.
+
+    Acquires the GIL because the surrounding `_poll_nogil` releases it
+    before calling `mg_mgr_poll`. This callback dispatches into Python
+    handlers (decoding request fields, building dicts, calling
+    `EmbeddedServer.handle_http_request`), all of which require the GIL.
+    """
     cdef mg_http_message *hm
     cdef EmbeddedServer server
     cdef MongooseConnection conn_wrapper
