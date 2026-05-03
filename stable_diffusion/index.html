@@ -1121,6 +1121,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#hiresupscaler" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        HiresUpscaler
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#previewmode" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2135,6 +2146,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#hiresupscaler" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        HiresUpscaler
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#previewmode" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2511,11 +2533,13 @@
 <a id="__codelineno-2-22" name="__codelineno-2-22" href="#__codelineno-2-22"></a>    <span class="n">eta</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="s1">&#39;inf&#39;</span><span class="p">),</span>
 <a id="__codelineno-2-23" name="__codelineno-2-23" href="#__codelineno-2-23"></a>    <span class="n">slg_scale</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
 <a id="__codelineno-2-24" name="__codelineno-2-24" href="#__codelineno-2-24"></a>    <span class="n">vae_tiling</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
-<a id="__codelineno-2-25" name="__codelineno-2-25" href="#__codelineno-2-25"></a>    <span class="n">offload_to_cpu</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
-<a id="__codelineno-2-26" name="__codelineno-2-26" href="#__codelineno-2-26"></a>    <span class="n">keep_clip_on_cpu</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
-<a id="__codelineno-2-27" name="__codelineno-2-27" href="#__codelineno-2-27"></a>    <span class="n">keep_vae_on_cpu</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
-<a id="__codelineno-2-28" name="__codelineno-2-28" href="#__codelineno-2-28"></a>    <span class="n">diffusion_flash_attn</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
-<a id="__codelineno-2-29" name="__codelineno-2-29" href="#__codelineno-2-29"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">SDImage</span><span class="p">]</span>
+<a id="__codelineno-2-25" name="__codelineno-2-25" href="#__codelineno-2-25"></a>    <span class="n">hires_fix</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<a id="__codelineno-2-26" name="__codelineno-2-26" href="#__codelineno-2-26"></a>    <span class="n">hires_scale</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">2.0</span><span class="p">,</span>
+<a id="__codelineno-2-27" name="__codelineno-2-27" href="#__codelineno-2-27"></a>    <span class="n">offload_to_cpu</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<a id="__codelineno-2-28" name="__codelineno-2-28" href="#__codelineno-2-28"></a>    <span class="n">keep_clip_on_cpu</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<a id="__codelineno-2-29" name="__codelineno-2-29" href="#__codelineno-2-29"></a>    <span class="n">keep_vae_on_cpu</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<a id="__codelineno-2-30" name="__codelineno-2-30" href="#__codelineno-2-30"></a>    <span class="n">diffusion_flash_attn</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<a id="__codelineno-2-31" name="__codelineno-2-31" href="#__codelineno-2-31"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">SDImage</span><span class="p">]</span>
 </code></pre></div>
 <table>
 <thead>
@@ -2622,6 +2646,18 @@
 <td>bool</td>
 <td>False</td>
 <td>Enable VAE tiling for large images</td>
+</tr>
+<tr>
+<td><code>hires_fix</code></td>
+<td>bool</td>
+<td>False</td>
+<td>Enable hires-fix two-pass generation (latent upscale)</td>
+</tr>
+<tr>
+<td><code>hires_scale</code></td>
+<td>float</td>
+<td>2.0</td>
+<td>Hires-fix upscale factor</td>
 </tr>
 <tr>
 <td><code>offload_to_cpu</code></td>
@@ -2813,29 +2849,44 @@
 <a id="__codelineno-7-21" name="__codelineno-7-21" href="#__codelineno-7-21"></a><span class="n">params</span><span class="o">.</span><span class="n">easycache_threshold</span> <span class="o">=</span> <span class="mf">0.1</span>
 <a id="__codelineno-7-22" name="__codelineno-7-22" href="#__codelineno-7-22"></a><span class="n">params</span><span class="o">.</span><span class="n">easycache_range</span> <span class="o">=</span> <span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)</span>
 <a id="__codelineno-7-23" name="__codelineno-7-23" href="#__codelineno-7-23"></a>
-<a id="__codelineno-7-24" name="__codelineno-7-24" href="#__codelineno-7-24"></a><span class="c1"># Set init image for img2img</span>
-<a id="__codelineno-7-25" name="__codelineno-7-25" href="#__codelineno-7-25"></a><span class="n">init_img</span> <span class="o">=</span> <span class="n">SDImage</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">&quot;input.png&quot;</span><span class="p">)</span>
-<a id="__codelineno-7-26" name="__codelineno-7-26" href="#__codelineno-7-26"></a><span class="n">params</span><span class="o">.</span><span class="n">set_init_image</span><span class="p">(</span><span class="n">init_img</span><span class="p">)</span>
-<a id="__codelineno-7-27" name="__codelineno-7-27" href="#__codelineno-7-27"></a>
-<a id="__codelineno-7-28" name="__codelineno-7-28" href="#__codelineno-7-28"></a><span class="c1"># Set mask for inpainting</span>
-<a id="__codelineno-7-29" name="__codelineno-7-29" href="#__codelineno-7-29"></a><span class="n">mask_img</span> <span class="o">=</span> <span class="n">SDImage</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">&quot;mask.png&quot;</span><span class="p">)</span>
-<a id="__codelineno-7-30" name="__codelineno-7-30" href="#__codelineno-7-30"></a><span class="n">params</span><span class="o">.</span><span class="n">set_mask_image</span><span class="p">(</span><span class="n">mask_img</span><span class="p">)</span>
-<a id="__codelineno-7-31" name="__codelineno-7-31" href="#__codelineno-7-31"></a>
-<a id="__codelineno-7-32" name="__codelineno-7-32" href="#__codelineno-7-32"></a><span class="c1"># Set control image for ControlNet</span>
-<a id="__codelineno-7-33" name="__codelineno-7-33" href="#__codelineno-7-33"></a><span class="n">params</span><span class="o">.</span><span class="n">set_control_image</span><span class="p">(</span><span class="n">control_img</span><span class="p">,</span> <span class="n">strength</span><span class="o">=</span><span class="mf">0.8</span><span class="p">)</span>
-<a id="__codelineno-7-34" name="__codelineno-7-34" href="#__codelineno-7-34"></a>
-<a id="__codelineno-7-35" name="__codelineno-7-35" href="#__codelineno-7-35"></a><span class="c1"># Access sample parameters</span>
-<a id="__codelineno-7-36" name="__codelineno-7-36" href="#__codelineno-7-36"></a><span class="n">sample</span> <span class="o">=</span> <span class="n">params</span><span class="o">.</span><span class="n">sample_params</span>
-<a id="__codelineno-7-37" name="__codelineno-7-37" href="#__codelineno-7-37"></a><span class="n">sample</span><span class="o">.</span><span class="n">sample_steps</span> <span class="o">=</span> <span class="mi">20</span>
-<a id="__codelineno-7-38" name="__codelineno-7-38" href="#__codelineno-7-38"></a><span class="n">sample</span><span class="o">.</span><span class="n">cfg_scale</span> <span class="o">=</span> <span class="mf">7.0</span>
-<a id="__codelineno-7-39" name="__codelineno-7-39" href="#__codelineno-7-39"></a><span class="n">sample</span><span class="o">.</span><span class="n">sample_method</span> <span class="o">=</span> <span class="n">SampleMethod</span><span class="o">.</span><span class="n">COUNT</span>  <span class="c1"># COUNT = auto-detect from model</span>
-<a id="__codelineno-7-40" name="__codelineno-7-40" href="#__codelineno-7-40"></a><span class="n">sample</span><span class="o">.</span><span class="n">scheduler</span> <span class="o">=</span> <span class="n">Scheduler</span><span class="o">.</span><span class="n">KARRAS</span>
-<a id="__codelineno-7-41" name="__codelineno-7-41" href="#__codelineno-7-41"></a><span class="n">sample</span><span class="o">.</span><span class="n">eta</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="s1">&#39;inf&#39;</span><span class="p">)</span>                  <span class="c1"># inf = auto-resolve per method</span>
-<a id="__codelineno-7-42" name="__codelineno-7-42" href="#__codelineno-7-42"></a><span class="n">sample</span><span class="o">.</span><span class="n">slg_scale</span> <span class="o">=</span> <span class="mf">2.5</span>           <span class="c1"># Skip layer guidance</span>
-<a id="__codelineno-7-43" name="__codelineno-7-43" href="#__codelineno-7-43"></a><span class="n">sample</span><span class="o">.</span><span class="n">slg_layer_start</span> <span class="o">=</span> <span class="mf">0.01</span>
-<a id="__codelineno-7-44" name="__codelineno-7-44" href="#__codelineno-7-44"></a><span class="n">sample</span><span class="o">.</span><span class="n">slg_layer_end</span> <span class="o">=</span> <span class="mf">0.2</span>
-<a id="__codelineno-7-45" name="__codelineno-7-45" href="#__codelineno-7-45"></a><span class="n">sample</span><span class="o">.</span><span class="n">img_cfg_scale</span> <span class="o">=</span> <span class="mf">1.5</span>       <span class="c1"># Image CFG (inpaint)</span>
-<a id="__codelineno-7-46" name="__codelineno-7-46" href="#__codelineno-7-46"></a><span class="n">sample</span><span class="o">.</span><span class="n">distilled_guidance</span> <span class="o">=</span> <span class="mf">3.5</span>  <span class="c1"># For FLUX</span>
+<a id="__codelineno-7-24" name="__codelineno-7-24" href="#__codelineno-7-24"></a><span class="c1"># Hires-fix two-pass generation (one-shot helper)</span>
+<a id="__codelineno-7-25" name="__codelineno-7-25" href="#__codelineno-7-25"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.sd</span><span class="w"> </span><span class="kn">import</span> <span class="n">HiresUpscaler</span>
+<a id="__codelineno-7-26" name="__codelineno-7-26" href="#__codelineno-7-26"></a><span class="n">params</span><span class="o">.</span><span class="n">set_hires_fix</span><span class="p">(</span>
+<a id="__codelineno-7-27" name="__codelineno-7-27" href="#__codelineno-7-27"></a>    <span class="n">enabled</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<a id="__codelineno-7-28" name="__codelineno-7-28" href="#__codelineno-7-28"></a>    <span class="n">upscaler</span><span class="o">=</span><span class="n">HiresUpscaler</span><span class="o">.</span><span class="n">LATENT</span><span class="p">,</span>   <span class="c1"># or LANCZOS, NEAREST, MODEL, ...</span>
+<a id="__codelineno-7-29" name="__codelineno-7-29" href="#__codelineno-7-29"></a>    <span class="n">scale</span><span class="o">=</span><span class="mf">2.0</span><span class="p">,</span>                        <span class="c1"># ignored if target_width/height &gt; 0</span>
+<a id="__codelineno-7-30" name="__codelineno-7-30" href="#__codelineno-7-30"></a>    <span class="n">denoising_strength</span><span class="o">=</span><span class="mf">0.7</span><span class="p">,</span>
+<a id="__codelineno-7-31" name="__codelineno-7-31" href="#__codelineno-7-31"></a>    <span class="n">steps</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>                          <span class="c1"># 0 = use base sample_steps</span>
+<a id="__codelineno-7-32" name="__codelineno-7-32" href="#__codelineno-7-32"></a><span class="p">)</span>
+<a id="__codelineno-7-33" name="__codelineno-7-33" href="#__codelineno-7-33"></a><span class="c1"># ...or set fields individually:</span>
+<a id="__codelineno-7-34" name="__codelineno-7-34" href="#__codelineno-7-34"></a><span class="c1"># params.hires_enabled = True</span>
+<a id="__codelineno-7-35" name="__codelineno-7-35" href="#__codelineno-7-35"></a><span class="c1"># params.hires_upscaler = HiresUpscaler.LATENT_BICUBIC</span>
+<a id="__codelineno-7-36" name="__codelineno-7-36" href="#__codelineno-7-36"></a><span class="c1"># params.hires_target_size = (1024, 1024)</span>
+<a id="__codelineno-7-37" name="__codelineno-7-37" href="#__codelineno-7-37"></a><span class="c1"># params.hires_model_path = &quot;/path/to/upscaler.gguf&quot;  # required for HiresUpscaler.MODEL</span>
+<a id="__codelineno-7-38" name="__codelineno-7-38" href="#__codelineno-7-38"></a>
+<a id="__codelineno-7-39" name="__codelineno-7-39" href="#__codelineno-7-39"></a><span class="c1"># Set init image for img2img</span>
+<a id="__codelineno-7-40" name="__codelineno-7-40" href="#__codelineno-7-40"></a><span class="n">init_img</span> <span class="o">=</span> <span class="n">SDImage</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">&quot;input.png&quot;</span><span class="p">)</span>
+<a id="__codelineno-7-41" name="__codelineno-7-41" href="#__codelineno-7-41"></a><span class="n">params</span><span class="o">.</span><span class="n">set_init_image</span><span class="p">(</span><span class="n">init_img</span><span class="p">)</span>
+<a id="__codelineno-7-42" name="__codelineno-7-42" href="#__codelineno-7-42"></a>
+<a id="__codelineno-7-43" name="__codelineno-7-43" href="#__codelineno-7-43"></a><span class="c1"># Set mask for inpainting</span>
+<a id="__codelineno-7-44" name="__codelineno-7-44" href="#__codelineno-7-44"></a><span class="n">mask_img</span> <span class="o">=</span> <span class="n">SDImage</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">&quot;mask.png&quot;</span><span class="p">)</span>
+<a id="__codelineno-7-45" name="__codelineno-7-45" href="#__codelineno-7-45"></a><span class="n">params</span><span class="o">.</span><span class="n">set_mask_image</span><span class="p">(</span><span class="n">mask_img</span><span class="p">)</span>
+<a id="__codelineno-7-46" name="__codelineno-7-46" href="#__codelineno-7-46"></a>
+<a id="__codelineno-7-47" name="__codelineno-7-47" href="#__codelineno-7-47"></a><span class="c1"># Set control image for ControlNet</span>
+<a id="__codelineno-7-48" name="__codelineno-7-48" href="#__codelineno-7-48"></a><span class="n">params</span><span class="o">.</span><span class="n">set_control_image</span><span class="p">(</span><span class="n">control_img</span><span class="p">,</span> <span class="n">strength</span><span class="o">=</span><span class="mf">0.8</span><span class="p">)</span>
+<a id="__codelineno-7-49" name="__codelineno-7-49" href="#__codelineno-7-49"></a>
+<a id="__codelineno-7-50" name="__codelineno-7-50" href="#__codelineno-7-50"></a><span class="c1"># Access sample parameters</span>
+<a id="__codelineno-7-51" name="__codelineno-7-51" href="#__codelineno-7-51"></a><span class="n">sample</span> <span class="o">=</span> <span class="n">params</span><span class="o">.</span><span class="n">sample_params</span>
+<a id="__codelineno-7-52" name="__codelineno-7-52" href="#__codelineno-7-52"></a><span class="n">sample</span><span class="o">.</span><span class="n">sample_steps</span> <span class="o">=</span> <span class="mi">20</span>
+<a id="__codelineno-7-53" name="__codelineno-7-53" href="#__codelineno-7-53"></a><span class="n">sample</span><span class="o">.</span><span class="n">cfg_scale</span> <span class="o">=</span> <span class="mf">7.0</span>
+<a id="__codelineno-7-54" name="__codelineno-7-54" href="#__codelineno-7-54"></a><span class="n">sample</span><span class="o">.</span><span class="n">sample_method</span> <span class="o">=</span> <span class="n">SampleMethod</span><span class="o">.</span><span class="n">COUNT</span>  <span class="c1"># COUNT = auto-detect from model</span>
+<a id="__codelineno-7-55" name="__codelineno-7-55" href="#__codelineno-7-55"></a><span class="n">sample</span><span class="o">.</span><span class="n">scheduler</span> <span class="o">=</span> <span class="n">Scheduler</span><span class="o">.</span><span class="n">KARRAS</span>
+<a id="__codelineno-7-56" name="__codelineno-7-56" href="#__codelineno-7-56"></a><span class="n">sample</span><span class="o">.</span><span class="n">eta</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="s1">&#39;inf&#39;</span><span class="p">)</span>                  <span class="c1"># inf = auto-resolve per method</span>
+<a id="__codelineno-7-57" name="__codelineno-7-57" href="#__codelineno-7-57"></a><span class="n">sample</span><span class="o">.</span><span class="n">slg_scale</span> <span class="o">=</span> <span class="mf">2.5</span>           <span class="c1"># Skip layer guidance</span>
+<a id="__codelineno-7-58" name="__codelineno-7-58" href="#__codelineno-7-58"></a><span class="n">sample</span><span class="o">.</span><span class="n">slg_layer_start</span> <span class="o">=</span> <span class="mf">0.01</span>
+<a id="__codelineno-7-59" name="__codelineno-7-59" href="#__codelineno-7-59"></a><span class="n">sample</span><span class="o">.</span><span class="n">slg_layer_end</span> <span class="o">=</span> <span class="mf">0.2</span>
+<a id="__codelineno-7-60" name="__codelineno-7-60" href="#__codelineno-7-60"></a><span class="n">sample</span><span class="o">.</span><span class="n">img_cfg_scale</span> <span class="o">=</span> <span class="mf">1.5</span>       <span class="c1"># Image CFG (inpaint)</span>
+<a id="__codelineno-7-61" name="__codelineno-7-61" href="#__codelineno-7-61"></a><span class="n">sample</span><span class="o">.</span><span class="n">distilled_guidance</span> <span class="o">=</span> <span class="mf">3.5</span>  <span class="c1"># For FLUX</span>
 </code></pre></div>
 <h3 id="sdsampleparams">SDSampleParams<a class="headerlink" href="#sdsampleparams" title="Permanent link">&para;</a></h3>
 <p>Sampling configuration.</p>
@@ -3076,6 +3127,58 @@
 <tr>
 <td><code>AT_RUNTIME</code></td>
 <td>Apply during generation</td>
+</tr>
+</tbody>
+</table>
+<h3 id="hiresupscaler">HiresUpscaler<a class="headerlink" href="#hiresupscaler" title="Permanent link">&para;</a></h3>
+<p>Upscaler modes for hires-fix two-pass generation. Set via <code>SDImageGenParams.hires_upscaler</code> or <code>set_hires_fix(upscaler=...)</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>NONE</code></td>
+<td>Disabled</td>
+</tr>
+<tr>
+<td><code>LATENT</code></td>
+<td>Latent-space bilinear (default)</td>
+</tr>
+<tr>
+<td><code>LATENT_NEAREST</code></td>
+<td>Latent-space nearest</td>
+</tr>
+<tr>
+<td><code>LATENT_NEAREST_EXACT</code></td>
+<td>Latent-space nearest, exact</td>
+</tr>
+<tr>
+<td><code>LATENT_ANTIALIASED</code></td>
+<td>Latent-space bilinear, antialiased</td>
+</tr>
+<tr>
+<td><code>LATENT_BICUBIC</code></td>
+<td>Latent-space bicubic</td>
+</tr>
+<tr>
+<td><code>LATENT_BICUBIC_ANTIALIASED</code></td>
+<td>Latent-space bicubic, antialiased</td>
+</tr>
+<tr>
+<td><code>LANCZOS</code></td>
+<td>Pixel-space Lanczos</td>
+</tr>
+<tr>
+<td><code>NEAREST</code></td>
+<td>Pixel-space nearest</td>
+</tr>
+<tr>
+<td><code>MODEL</code></td>
+<td>External upscaler model (set <code>hires_model_path</code>)</td>
 </tr>
 </tbody>
 </table>
