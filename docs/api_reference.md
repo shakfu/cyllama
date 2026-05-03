@@ -1199,27 +1199,30 @@ ctx_target = LlamaContext(model_target, ctx_params)
 # Configure speculative parameters
 params = SpeculativeParams(
     n_max=16,        # Maximum number of draft tokens
-    n_reuse=8,       # Tokens to reuse
+    n_min=0,         # Minimum number of draft tokens
+    p_split=0.1,     # Speculative decoding split probability
     p_min=0.75       # Minimum acceptance probability
 )
 
-# Create speculative decoding instance
-spec = Speculative(params, ctx_target)
+# Check target-context compatibility (static method)
+if Speculative.is_compat(ctx_target):
+    print("Target context is compatible for speculative decoding")
 
-# Check compatibility
-if spec.is_compat():
-    print("Models are compatible for speculative decoding")
+    ctx_draft = LlamaContext(model_draft, ctx_params)
+
+    # Create speculative decoding instance
+    spec = Speculative(params, ctx_target, ctx_draft)
 
     # Begin a speculative decoding round
-    spec.begin()
+    prompt_tokens = [1, 2, 3]
+    spec.begin(prompt_tokens)
 
     # Generate draft tokens
-    prompt_tokens = [1, 2, 3]
     last_token = prompt_tokens[-1]
-    draft_tokens = spec.draft(prompt_tokens, last_token)
+    draft_tokens = spec.draft(params, prompt_tokens, last_token)
 
-    # Accept verified tokens
-    spec.accept()
+    # Accept verified tokens (n_accepted from target verification)
+    spec.accept(n_accepted=len(draft_tokens))
 
     # Print performance statistics
     spec.print_stats()
@@ -1229,7 +1232,9 @@ if spec.is_compat():
 
 - `n_max`: Maximum number of tokens to draft (default: 16)
 
-- `n_reuse`: Number of tokens to reuse from previous draft (default: 8)
+- `n_min`: Minimum number of draft tokens (default: 0)
+
+- `p_split`: Speculative decoding split probability (default: 0.1)
 
 - `p_min`: Minimum acceptance probability (default: 0.75)
 
@@ -1237,10 +1242,10 @@ if spec.is_compat():
 
 | Method | Description |
 |--------|-------------|
-| `is_compat()` | Check if target and draft models are compatible |
-| `begin()` | Begin a speculative decoding round |
-| `draft(...)` | Generate draft tokens from the draft model |
-| `accept()` | Accept verified tokens after evaluation |
+| `Speculative.is_compat(ctx_target)` | Static: check if target context supports speculative decoding |
+| `begin(prompt_tokens)` | Begin a speculative decoding round |
+| `draft(params, prompt_tokens, last_token_id)` | Generate draft tokens from the draft model |
+| `accept(n_accepted)` | Accept the first `n_accepted` verified draft tokens |
 | `print_stats()` | Print speculative decoding performance statistics |
 
 ---

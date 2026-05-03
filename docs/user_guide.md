@@ -486,7 +486,7 @@ config = GenerationConfig(
 2-3x speedup with compatible models:
 
 ```python
-from cyllama import (
+from cyllama.llama.llama_cpp import (
     LlamaModel, LlamaContext, LlamaModelParams, LlamaContextParams,
     Speculative, SpeculativeParams
 )

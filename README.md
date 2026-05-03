@@ -686,6 +686,10 @@ All source builds support both static (`make build-<backend>`) and dynamic (`mak
 
 See [CHANGELOG.md](CHANGELOG.md) for full release notes.
 
+- **v0.2.15** (May 2026) - Context-manager protocol (`with`/`close()`) across llama/whisper/SD resource classes; whisper streaming callbacks (`set_progress_callback`, `set_new_segment_callback`, `set_encoder_begin_callback`); GIL released on per-token hot paths (`tokenize`/`detokenize`/sampler) and across long native calls (`llama_decode`, SD `generate_image`/`generate_video`, `Upscaler.upscale`, `Speculative.draft`); new `model_save_to_file` / `model_quantize` top-level wrappers; `LlamaContext` state serialization switched to `bytes`; `SqliteVectorStore` editable-install path resolution unlocks 72 previously-skipped RAG tests; broad correctness sweep (KV-preserving `Speculative.is_compat`, `LlamaBatch` overflow guards, callback-GIL fixes, FIM `middle`/`suffix` symbol swap, `tokenize`/`detokenize` needed-size retry, leak-free realloc paths)
+
+- **v0.2.14** (Apr 2026) - macOS arm64 xcframeworks (`Ggml`, `LlamaCpp`, `Whisper`, `StableDiffusion`) via `make xcframework` for Swift/ObjC consumers; stable-diffusion.cpp hires-fix two-pass generation (`HiresUpscaler`, `SDImageGenParams.set_hires_fix()`, `hires_fix=`/`hires_scale=` kwargs on `generate`/`text_to_image[s]`); two-layer generation cancellation on `LLM` (Python `threading.Event` between tokens + C-level `nogil` ggml abort callback mid-decode), opt-in `LLM.install_sigint_handler()`; llama.cpp upgraded b8833 -> b8931
+
 - **v0.2.13** (Apr 2026) - `QdrantVectorStore` reference adapter for `VectorStoreProtocol`; pipeline-integrated reranking (`RAGConfig.rerank`) with `RerankerProtocol`; ccache + concurrency groups on CPU cibw workflows; Windows GPU-wheel `LoadLibraryW` PATH fix
 
 - **v0.2.12** - Windows-CUDA, Windows-Vulkan, and macOS-Intel Vulkan GPU wheels; canonical delocate/auditwheel/delvewheel packaging. Experimental abi3 wheels (cp312+)
