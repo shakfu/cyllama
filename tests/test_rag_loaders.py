@@ -1,10 +1,25 @@
 """Tests for the RAG document loaders."""
 
 import json
+import os
 import tempfile
 from pathlib import Path
 
 import pytest
+
+
+def _can_create_symlinks() -> bool:
+    with tempfile.TemporaryDirectory() as tmp:
+        target = Path(tmp) / "target"
+        target.write_text("x")
+        try:
+            os.symlink(target, Path(tmp) / "link")
+        except (OSError, NotImplementedError):
+            return False
+        return True
+
+
+_SYMLINKS_SUPPORTED = _can_create_symlinks()
 
 from cyllama.rag.loaders import (
     TextLoader,
@@ -398,6 +413,10 @@ class TestDirectoryLoader:
         assert docs[0].text == "Custom"
 
 
+@pytest.mark.skipif(
+    not _SYMLINKS_SUPPORTED,
+    reason="symlink creation not permitted (Windows requires admin or Developer Mode)",
+)
 class TestDirectoryLoaderSymlinks:
     """Test DirectoryLoader symlink handling."""
 

@@ -17,6 +17,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+### Changed
+
+- **`.gitignore` now excludes `*.dll`** -- Added alongside the existing `*.so` and `*.dylib` entries in the C-extensions block. The RAG sqlite-vector build copies `vector.dll` into `src/cyllama/rag/` on Windows (logged as `SqliteVectorBuilder.build - Copied vector.dll to ...`); without this rule it would show up as untracked and risk being committed.
+
+### Fixed
+
+- **`Makefile` Python detection works under cmd.exe on Windows** -- `SYSTEM_PYTHON := $(shell command -v python3 || command -v python)` returned an empty string when GNU Make fell back to cmd.exe as its shell (cmd has no `command` builtin), so recipes ran as bare `scripts/manage.py ...`. Windows then routed the `.py` extension to the Microsoft Store python launcher stub, which printed "Python was not found..." and exited 9009, breaking `make` / `make build` from the first target. Added an `ifeq ($(OS),Windows_NT)` branch that sets `SYSTEM_PYTHON := python` directly; non-Windows platforms keep the existing POSIX detection unchanged. `$(OS)` is set by GNU Make itself regardless of the underlying shell, so the branch is reliable.
+
+- **`TestDirectoryLoaderSymlinks` skips when the OS forbids symlink creation** -- The four symlink tests in `tests/test_rag_loaders.py` called `Path.symlink_to()` unconditionally, which raises `OSError [WinError 1314] A required privilege is not held by the client` on Windows without admin or Developer Mode (the `SeCreateSymbolicLinkPrivilege` is required to create symlinks). Added a module-level `_can_create_symlinks()` probe that attempts a real `os.symlink` in a temp dir and a class-level `@pytest.mark.skipif(not _SYMLINKS_SUPPORTED, ...)` guard. Probing rather than blanket-skipping on `sys.platform == "win32"` means Developer-Mode users still get coverage. Tests continue to run normally on Linux/macOS.
+
 ## [0.2.15]
 
 ### Added

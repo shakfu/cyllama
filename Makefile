@@ -4,7 +4,11 @@ VERSION := 0.1.20
 export MACOSX_DEPLOYMENT_TARGET := 14.7
 
 # Find system Python (python3 or python) - manage.py only uses stdlib
-SYSTEM_PYTHON := $(shell command -v python3 2>/dev/null || command -v python 2>/dev/null)
+ifeq ($(OS),Windows_NT)
+    SYSTEM_PYTHON := python
+else
+    SYSTEM_PYTHON := $(shell command -v python3 2>/dev/null || command -v python 2>/dev/null)
+endif
 
 # Backend flags (can be overridden via environment variables)
 # Default: Metal enabled on macOS only, all others disabled
