@@ -75,6 +75,12 @@ from .defaults import (
     DEFAULT_TOP_P,
     DEFAULT_MIN_P,
     DEFAULT_REPEAT_PENALTY,
+    DEFAULT_PENALTY_LAST_N,
+    DEFAULT_PENALTY_FREQ,
+    DEFAULT_PENALTY_PRESENT,
+    DEFAULT_MIROSTAT,
+    DEFAULT_MIROSTAT_TAU,
+    DEFAULT_MIROSTAT_ETA,
     DEFAULT_MAX_TOKENS,
     DEFAULT_N_GPU_LAYERS,
     DEFAULT_N_BATCH,
@@ -118,7 +124,18 @@ class GenerationConfig:
         top_k: Top-k sampling parameter (see defaults.py)
         top_p: Top-p (nucleus) sampling parameter (see defaults.py)
         min_p: Minimum probability threshold (see defaults.py)
-        repeat_penalty: Penalty for repeating tokens (see defaults.py)
+        repeat_penalty: Penalty for repeating tokens, 1.0 = disabled (see defaults.py)
+        penalty_last_n: Number of recent tokens considered for penalties,
+            0 = disabled, -1 = full context (see defaults.py)
+        frequency_penalty: Penalize tokens by frequency in recent window,
+            0.0 = disabled (see defaults.py)
+        presence_penalty: Penalize tokens already present in recent window,
+            0.0 = disabled (see defaults.py)
+        mirostat: Mirostat sampling mode (0 = off, 1 = v1, 2 = v2). When
+            enabled, replaces top_k / top_p / min_p / temp / dist with the
+            mirostat sampler (see defaults.py).
+        mirostat_tau: Mirostat target entropy (see defaults.py)
+        mirostat_eta: Mirostat learning rate (see defaults.py)
         n_gpu_layers: Number of layers to offload to GPU (see defaults.py)
         main_gpu: Primary GPU device index for inference (see defaults.py)
         split_mode: How to split model across GPUs (see defaults.py)
@@ -158,6 +175,12 @@ class GenerationConfig:
     top_p: float = DEFAULT_TOP_P
     min_p: float = DEFAULT_MIN_P
     repeat_penalty: float = DEFAULT_REPEAT_PENALTY
+    penalty_last_n: int = DEFAULT_PENALTY_LAST_N
+    frequency_penalty: float = DEFAULT_PENALTY_FREQ
+    presence_penalty: float = DEFAULT_PENALTY_PRESENT
+    mirostat: int = DEFAULT_MIROSTAT
+    mirostat_tau: float = DEFAULT_MIROSTAT_TAU
+    mirostat_eta: float = DEFAULT_MIROSTAT_ETA
     n_gpu_layers: int = DEFAULT_N_GPU_LAYERS
     main_gpu: int = DEFAULT_MAIN_GPU
     split_mode: int = DEFAULT_SPLIT_MODE
@@ -178,6 +201,12 @@ class GenerationConfig:
             "top_p": self.top_p,
             "min_p": self.min_p,
             "repeat_penalty": self.repeat_penalty,
+            "penalty_last_n": self.penalty_last_n,
+            "frequency_penalty": self.frequency_penalty,
+            "presence_penalty": self.presence_penalty,
+            "mirostat": self.mirostat,
+            "mirostat_tau": self.mirostat_tau,
+            "mirostat_eta": self.mirostat_eta,
             "n_gpu_layers": self.n_gpu_layers,
             "main_gpu": self.main_gpu,
             "split_mode": self.split_mode,
@@ -211,6 +240,26 @@ class GenerationConfig:
 
         if self.repeat_penalty < 0.0:
             errors.append(f"repeat_penalty must be >= 0.0, got {self.repeat_penalty}")
+
+        if self.penalty_last_n < -1:
+            errors.append(
+                f"penalty_last_n must be >= -1 (-1 = full context, 0 = disabled), got {self.penalty_last_n}"
+            )
+
+        if self.frequency_penalty < 0.0:
+            errors.append(f"frequency_penalty must be >= 0.0, got {self.frequency_penalty}")
+
+        if self.presence_penalty < 0.0:
+            errors.append(f"presence_penalty must be >= 0.0, got {self.presence_penalty}")
+
+        if self.mirostat not in (0, 1, 2):
+            errors.append(f"mirostat must be 0, 1, or 2, got {self.mirostat}")
+
+        if self.mirostat_tau <= 0.0:
+            errors.append(f"mirostat_tau must be > 0.0, got {self.mirostat_tau}")
+
+        if self.mirostat_eta <= 0.0:
+            errors.append(f"mirostat_eta must be > 0.0, got {self.mirostat_eta}")
 
         if self.n_gpu_layers < -1:
             errors.append(f"n_gpu_layers must be >= -1 (-1 = offload all), got {self.n_gpu_layers}")
@@ -922,6 +971,12 @@ class LLM:
             str(config.top_p),
             str(config.min_p),
             str(config.repeat_penalty),
+            str(config.penalty_last_n),
+            str(config.frequency_penalty),
+            str(config.presence_penalty),
+            str(config.mirostat),
+            str(config.mirostat_tau),
+            str(config.mirostat_eta),
             str(config.max_tokens),
             str(sorted(config.stop_sequences)),
             str(config.seed),
@@ -999,10 +1054,44 @@ class LLM:
 
         sampler = LlamaSampler(sampler_params)
 
+        # Penalties chain link is added first so it shapes logits before
+        # truncation samplers (top_k/top_p/min_p) and the final selector.
+        # Skipped entirely when all knobs are at their disabled values to
+        # avoid an unnecessary chain node.
+        if (
+            config.repeat_penalty != 1.0
+            or config.frequency_penalty != 0.0
+            or config.presence_penalty != 0.0
+        ) and config.penalty_last_n != 0:
+            sampler.add_penalties(
+                config.penalty_last_n,
+                config.repeat_penalty,
+                config.frequency_penalty,
+                config.presence_penalty,
+            )
+
         # Add sampling methods based on config
         if config.temperature == 0.0:
             # Greedy sampling
             sampler.add_greedy()
+        elif config.mirostat == 1:
+            # Mirostat v1 owns temperature + selection; truncation
+            # samplers are skipped per upstream guidance.
+            sampler.add_temp(config.temperature)
+            sampler.add_mirostat(
+                self.vocab.n_vocab,
+                config.seed,
+                config.mirostat_tau,
+                config.mirostat_eta,
+                100,  # m: rolling-window size, llama.cpp default
+            )
+        elif config.mirostat == 2:
+            sampler.add_temp(config.temperature)
+            sampler.add_mirostat_v2(
+                config.seed,
+                config.mirostat_tau,
+                config.mirostat_eta,
+            )
         else:
             # Probabilistic sampling
             sampler.add_min_p(config.min_p, 1)
