@@ -25,6 +25,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 - **`GenerationConfig.repeat_penalty` is now actually applied to the sampler** -- The field existed and was validated since the high-level API was introduced, but `_ensure_sampler` never added a penalties chain link, so the value was silently ignored at generation time (it only affected the cache key). The new penalties branch in `_ensure_sampler` now wires it through alongside the new `frequency_penalty` / `presence_penalty` knobs.
 
+### Documentation
+
+- **`docs/api_reference.md` `GenerationConfig` section synced with the new fields** -- Added `penalty_last_n`, `frequency_penalty`, `presence_penalty`, `mirostat`, `mirostat_tau`, `mirostat_eta` to both the dataclass signature block and the attribute bullet list, with defaults and disabled-value semantics matching `src/cyllama/defaults.py` and the docstrings in `src/cyllama/api.py`.
+
 ### Changed
 
 - **`.gitignore` now excludes `*.dll`** -- Added alongside the existing `*.so` and `*.dylib` entries in the C-extensions block. The RAG sqlite-vector build copies `vector.dll` into `src/cyllama/rag/` on Windows (logged as `SqliteVectorBuilder.build - Copied vector.dll to ...`); without this rule it would show up as untracked and risk being committed.
