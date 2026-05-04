@@ -488,6 +488,12 @@ class GenerationConfig:
     top_p: float = 0.95
     min_p: float = 0.05
     repeat_penalty: float = 1.0
+    penalty_last_n: int = 64
+    frequency_penalty: float = 0.0
+    presence_penalty: float = 0.0
+    mirostat: int = 0
+    mirostat_tau: float = 5.0
+    mirostat_eta: float = 0.1
     n_gpu_layers: int = -1
     n_ctx: Optional[int] = None
     n_batch: int = 512
@@ -510,6 +516,18 @@ class GenerationConfig:
 - `min_p`: Minimum probability threshold (default: 0.05)
 
 - `repeat_penalty`: Penalty for repeating tokens (default: 1.0, disabled)
+
+- `penalty_last_n`: Number of recent tokens considered for penalties; 0 = disabled, -1 = full context (default: 64)
+
+- `frequency_penalty`: Penalize tokens by frequency in the recent window, 0.0 = disabled (default: 0.0)
+
+- `presence_penalty`: Penalize tokens already present in the recent window, 0.0 = disabled (default: 0.0)
+
+- `mirostat`: Mirostat sampling mode -- 0 = off, 1 = v1, 2 = v2. When enabled, replaces top_k / top_p / min_p with the mirostat sampler (default: 0)
+
+- `mirostat_tau`: Mirostat target entropy (default: 5.0)
+
+- `mirostat_eta`: Mirostat learning rate (default: 0.1)
 
 - `n_gpu_layers`: GPU layers to offload (default: -1 = all)
 

@@ -242,9 +242,7 @@ class GenerationConfig:
             errors.append(f"repeat_penalty must be >= 0.0, got {self.repeat_penalty}")
 
         if self.penalty_last_n < -1:
-            errors.append(
-                f"penalty_last_n must be >= -1 (-1 = full context, 0 = disabled), got {self.penalty_last_n}"
-            )
+            errors.append(f"penalty_last_n must be >= -1 (-1 = full context, 0 = disabled), got {self.penalty_last_n}")
 
         if self.frequency_penalty < 0.0:
             errors.append(f"frequency_penalty must be >= 0.0, got {self.frequency_penalty}")
@@ -1059,9 +1057,7 @@ class LLM:
         # Skipped entirely when all knobs are at their disabled values to
         # avoid an unnecessary chain node.
         if (
-            config.repeat_penalty != 1.0
-            or config.frequency_penalty != 0.0
-            or config.presence_penalty != 0.0
+            config.repeat_penalty != 1.0 or config.frequency_penalty != 0.0 or config.presence_penalty != 0.0
         ) and config.penalty_last_n != 0:
             sampler.add_penalties(
                 config.penalty_last_n,
