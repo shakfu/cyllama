@@ -141,7 +141,7 @@ PY_VER_MINOR = sys.version_info.minor
 STABLE_BUILD = getenv("STABLE_BUILD", True)
 if STABLE_BUILD:
     # known to build and work without errors, 100% tests pass
-     LLAMACPP_VERSION = "b9025"
+    LLAMACPP_VERSION = "b9025"
     WHISPERCPP_VERSION = "v1.8.4"
     SDCPP_VERSION = "master-593-3d6064b"
     SQLITEVECTOR_VERSION = "0.9.93"
