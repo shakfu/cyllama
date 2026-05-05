@@ -21,6 +21,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 - **Bumped bleeding-edge `LLAMACPP_VERSION` from `b8931` to `b9025`**
 
+- **Bumped bleeding-edge `SDCPP_VERSION` from `master-587-b8bdffc` to `master-593-3d6064b`**.
+
 ### Added
 
 - **`GenerationConfig` exposes `frequency_penalty`, `presence_penalty`, `penalty_last_n`, `mirostat`, `mirostat_tau`, `mirostat_eta`** -- The underlying `LlamaSampler.add_penalties` and `add_mirostat` / `add_mirostat_v2` chain links were already wrapped at the Cython layer but were not reachable from the high-level API. `_ensure_sampler` now adds an `add_penalties(...)` link whenever any of `repeat_penalty != 1.0`, `frequency_penalty != 0.0`, or `presence_penalty != 0.0` is set (gated on `penalty_last_n != 0`), and switches to a mirostat selector (`add_temp` + `add_mirostat[_v2]`) when `mirostat in (1, 2)`. New defaults live in `defaults.py` (`DEFAULT_PENALTY_LAST_N=64`, `DEFAULT_PENALTY_FREQ=0.0`, `DEFAULT_PENALTY_PRESENT=0.0`, `DEFAULT_MIROSTAT=0`, `DEFAULT_MIROSTAT_TAU=5.0`, `DEFAULT_MIROSTAT_ETA=0.1`) so the out-of-the-box behavior is unchanged. `to_dict()`, `_make_cache_key()`, and `__post_init__` validation cover the new fields. `temperature == 0.0` continues to short-circuit to greedy sampling regardless of `mirostat`, matching the upstream llama.cpp CLI.
