@@ -482,6 +482,113 @@ def test_llama_server_rerank(model_path):
     assert len(result["results"]) == 3
 
 
+def test_llama_server_speculative(model_path):
+    """Demonstrate draft-model speculative decoding.
+
+    Speculative decoding pairs a small, fast "draft" model with a larger "target"
+    model. The draft model proposes several tokens at once; the target model then
+    verifies them in a single forward pass and accepts the longest matching prefix.
+    With a well-aligned tokenizer/vocabulary, the produced text is *bit-exact* to
+    running the target model alone, but throughput improves because multiple
+    tokens are validated per target-model decode step.
+
+    A real-world example would be pairing a large dense model with a smaller
+    same-family checkpoint, e.g.:
+
+        params.model.path                 = ".../Qwen3-4B-Instruct-Q8_0.gguf"
+        params.speculative.mparams_dft.path = ".../Qwen3-0.6B-Instruct-Q4_0.gguf"
+        params.speculative.n_min = 4
+        params.speculative.n_max = 8
+
+    This is especially helpful for AMD Strix Halo (and other unified-memory
+    APU/iGPU) users who want to run larger dense models: the draft model fits
+    easily alongside the target and trades a small amount of memory for a
+    meaningful tokens/sec speedup on memory-bandwidth-bound hardware.
+
+    For CI we mirror the upstream llama.cpp speculative test
+    (thirdparty/llama.cpp/tools/server/tests/unit/test_speculative.py) and use
+    the tiny stories15M MOE F16 model as the target with stories15M Q4_0 as
+    the draft. Both share the LLaMA tokenizer, so speculation is valid.
+
+    Two equivalent ways to enable draft-model speculative decoding:
+
+    1. Server-level (this test): set ``params.speculative.mparams_dft.path``.
+       The draft model is loaded once at server startup and reused for every
+       request.
+    2. Per-request: pass ``"speculative.n_max"``, ``"speculative.n_min"``,
+       ``"speculative.p_min"`` etc. in the JSON body of /completions or
+       /chat/completions to override the server defaults for a single request.
+
+    Setting ``speculative.type`` is *not* required when a draft model path is
+    provided — ``has_dft()`` triggers the draft-model path automatically. The
+    ``type`` field only matters for n-gram / self-speculative variants which
+    have no separate draft model.
+    """
+    draft_path = os.path.join(model_path, "stories15M-q4_0.gguf")
+    if not os.path.exists(draft_path):
+        pytest.skip(
+            f"draft model not found: {draft_path} "
+            "(run `make download` to fetch it)"
+        )
+
+    params = xlc.CommonParams()
+
+    # Target (main) model.
+    params.model.path = os.path.join(model_path, "stories15M_MOE-F16.gguf")
+
+    # Draft model used to speculate tokens for the target model.
+    params.speculative.mparams_dft.path = draft_path
+    # Draft N-tokens window: propose between n_min and n_max tokens per step.
+    # Mirrors the upstream test defaults; tune per model pair in production.
+    params.speculative.n_min = 4
+    params.speculative.n_max = 8
+
+    params.warmup = False
+    params.n_predict = 32
+    params.n_ctx = 256
+    params.n_parallel = 1
+    params.cpuparams.n_threads = 2
+    params.cpuparams_batch.n_threads = 2
+    # Speculative decoding requires deterministic sampling for the equivalence
+    # property below to hold.
+    params.sampling.seed = 42
+    params.sampling.temp = 0.0
+    params.sampling.top_k = 1
+    # Disable flash-attention to match the upstream speculative test setup;
+    # remove this line on hardware where FA is supported and beneficial.
+    params.flash_attn_type = xlc.llama_flash_attn_type.LLAMA_FLASH_ATTN_TYPE_DISABLED
+
+    server = xlc.Server(params)
+
+    complete_prompt = {
+        "max_tokens": 16,
+        "prompt": "I believe the meaning of life is",
+        "temperature": 0.0,
+        "top_k": 1,
+        "seed": 42,
+    }
+
+    result = server.handle_completions(complete_prompt)
+    assert isinstance(result, dict)
+    assert "code" not in result
+    assert "choices" in result
+    content = result["choices"][0]["text"]
+    print(f"Speculative completion result: {content}")
+    assert len(content) > 0
+
+    # Per-request override: tighten the draft window for a single completion.
+    # These keys are documented in
+    # thirdparty/llama.cpp/tools/server/tests/unit/test_speculative.py.
+    per_request = dict(complete_prompt)
+    per_request["speculative.n_min"] = 1
+    per_request["speculative.n_max"] = 4
+    per_request["speculative.p_min"] = 0.0
+    result2 = server.handle_completions(per_request)
+    assert isinstance(result2, dict)
+    assert "code" not in result2
+    assert len(result2["choices"][0]["text"]) > 0
+
+
 def test_llama_server_lora(model_path):
     """Test loading and using a LoRA adapter.
 

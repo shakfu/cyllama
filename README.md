@@ -638,7 +638,72 @@ params.sampling.reasoning_budget_tokens = 500
 
 ### Speculative Decoding
 
-Speculative decoding uses a smaller draft model to speed up generation. Configure it via `params.speculative`:
+Speculative decoding pairs a small, fast "draft" model with a larger "target" model to speed up generation. The draft model proposes several tokens at once; the target model verifies them in a single forward pass and accepts the longest matching prefix. With a well-aligned tokenizer/vocabulary, the produced text is **bit-exact** to running the target model alone, but throughput improves because multiple tokens are validated per target-model decode step.
+
+This is especially helpful for unified-memory APU/iGPU users (e.g., AMD Strix Halo, Apple Silicon) who want to run larger dense models: the draft model fits easily alongside the target and trades a small amount of memory for a meaningful tokens/sec speedup on memory-bandwidth-bound hardware.
+
+#### Draft-Model Speculative Decoding
+
+A real-world example pairing a large model with a smaller same-family checkpoint:
+
+```python
+import xllamacpp as xlc
+
+params = xlc.CommonParams()
+
+# Target (main) model — the large, high-quality model.
+params.model.path = "models/Qwen3-4B-Instruct-Q8_0.gguf"
+
+# Draft model — a smaller, faster model from the same family.
+# Both models must share the same tokenizer/vocabulary.
+params.speculative.mparams_dft.path = "models/Qwen3-0.6B-Instruct-Q4_0.gguf"
+
+# Draft N-tokens window: propose between n_min and n_max tokens per step.
+params.speculative.n_min = 4   # Min tokens to draft before verification
+params.speculative.n_max = 8   # Max tokens to draft per step
+
+params.n_predict = 128
+params.n_ctx = 512
+params.cpuparams.n_threads = 4
+
+# Deterministic sampling (recommended for verifying equivalence with non-speculative)
+params.sampling.seed = 42
+params.sampling.temp = 0.0
+params.sampling.top_k = 1
+
+server = xlc.Server(params)
+
+# Use exactly like a normal server — speculative decoding is transparent.
+result = server.handle_completions({
+    "max_tokens": 128,
+    "prompt": "I believe the meaning of life is",
+    "temperature": 0.0,
+})
+print(result["choices"][0]["text"])
+```
+
+> **Note:** Setting `speculative.type` is *not* required when a draft model path is provided — the draft-model path automatically triggers the draft-model speculative decoding path.
+
+#### Per-Request Speculative Overrides
+
+You can override the speculative decoding parameters on a per-request basis:
+
+```python
+# Tighten the draft window for a single request.
+result = server.handle_completions({
+    "max_tokens": 64,
+    "prompt": "Once upon a time,",
+    "temperature": 0.0,
+    "speculative.n_min": 1,
+    "speculative.n_max": 4,
+    "speculative.p_min": 0.0,
+})
+print(result["choices"][0]["text"])
+```
+
+#### N-gram Based Speculative Decoding (No Draft Model)
+
+For self-speculative decoding without a separate draft model, use n-gram lookup:
 
 ```python
 import xllamacpp as xlc
@@ -648,19 +713,21 @@ params.model.path = "models/Llama-3.2-1B-Instruct-Q8_0.gguf"
 params.n_predict = 128
 params.n_ctx = 512
 
-# Draft model for speculative decoding
-params.speculative.type = xlc.common_speculative_type.COMMON_SPECULATIVE_TYPE_DRAFT
-params.speculative.mparams_dft.path = "models/small-draft-model.gguf"
-params.speculative.n_max = 16     # Max tokens to draft
-params.speculative.n_min = 5      # Min tokens to draft
-params.speculative.p_min = 0.75   # Min probability threshold
-
-# Or use n-gram based speculative decoding (no draft model needed)
-params.speculative.type = xlc.common_speculative_type.COMMON_SPECULATIVE_TYPE_LOOKUP
-params.speculative.lookup_cache_static = "cache.bin"
+# N-gram speculative decoding — no draft model needed.
+params.speculative.type = xlc.common_speculative_type.COMMON_SPECULATIVE_TYPE_NGRAM_SIMPLE
+params.speculative.n_max = 16      # Max tokens to draft
+params.speculative.n_min = 5       # Min tokens to draft
 params.speculative.ngram_size_n = 12
 params.speculative.ngram_size_m = 48
 params.speculative.ngram_min_hits = 1
+
+server = xlc.Server(params)
+
+result = server.handle_completions({
+    "max_tokens": 128,
+    "prompt": "The quick brown fox",
+})
+print(result["choices"][0]["text"])
 ```
 
 ### Request-Level Options
