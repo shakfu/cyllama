@@ -175,10 +175,19 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: ["ubuntu-22.04", "macos-15-intel", "windows-2022"]
-        # Build only with Python 3.10 for abi3 wheel (compatible with all Python 3.10+)
+        os: ["ubuntu-22.04", "macos-15-intel", "windows-2022", "windows-11-arm"]
+        # Build with Python 3.10 for abi3 wheel (compatible with all Python 3.10+)
         pyver: ["3.10"]
         vulkan: ["1.4.313.2"]
+        exclude:
+          # Python 3.10 is not available for Windows ARM64
+          - os: "windows-11-arm"
+            pyver: "3.10"
+        include:
+          # Windows ARM64 requires Python 3.14+ (earliest ARM64 build available)
+          - os: "windows-11-arm"
+            pyver: "3.14"
+            vulkan: "1.4.313.2"
     env:
       VULKAN_VERSION: ${{ matrix.vulkan }}
     steps:
@@ -204,14 +213,38 @@ jobs:
 
       - name: System Dependencies (Windows)
         if: runner.os == 'Windows'
+        shell: bash
+        env:
+          RUNNER_ARCH: ${{ runner.arch }}
         run: |
-           curl -L https://github.com/skeeto/w64devkit/releases/download/v1.22.0/w64devkit-1.22.0.zip --output w64devkit.zip
-           unzip -q w64devkit.zip -d .
-           echo "$(pwd)/w64devkit/bin" >> $GITHUB_PATH
-           curl.exe -o $env:RUNNER_TEMP/VulkanSDK-Installer.exe -L "https://sdk.lunarg.com/sdk/download/${env:VULKAN_VERSION}/windows/vulkansdk-windows-X64-${env:VULKAN_VERSION}.exe"
-           & "$env:RUNNER_TEMP\VulkanSDK-Installer.exe" --accept-licenses --default-answer --confirm-command install
-           Add-Content $env:GITHUB_ENV "VULKAN_SDK=C:\VulkanSDK\${env:VULKAN_VERSION}"
-           Add-Content $env:GITHUB_PATH "C:\VulkanSDK\${env:VULKAN_VERSION}\bin"
+           # Install w64devkit for x64 (MinGW toolchain, not available for ARM64)
+           if [ "$RUNNER_ARCH" = "X64" ]; then
+             curl -L https://github.com/skeeto/w64devkit/releases/download/v1.22.0/w64devkit-1.22.0.zip --output w64devkit.zip
+             unzip -q w64devkit.zip -d .
+             echo "$(pwd)/w64devkit/bin" >> $GITHUB_PATH
+           fi
+
+           # Determine Vulkan SDK platform code based on runner architecture
+           # runner.arch is "X64" or "ARM64"; LunarG uses "windows" for X64, "warm" for ARM64
+           if [ "$RUNNER_ARCH" = "ARM64" ]; then
+             VULKAN_PLATFORM="warm"
+           else
+             VULKAN_PLATFORM="windows"
+           fi
+
+           # Download and install Vulkan SDK
+           SDK_URL="https://sdk.lunarg.com/sdk/download/${VULKAN_VERSION}/${VULKAN_PLATFORM}/vulkan_sdk.exe"
+           echo "Downloading Vulkan SDK from: $SDK_URL"
+           curl.exe -o "$RUNNER_TEMP/VulkanSDK-Installer.exe" -L "$SDK_URL"
+           "$RUNNER_TEMP/VulkanSDK-Installer.exe" --accept-licenses --default-answer --confirm-command install
+           echo "VULKAN_SDK=C:\VulkanSDK\\${VULKAN_VERSION}" >> $GITHUB_ENV
+           echo "C:\VulkanSDK\\${VULKAN_VERSION}\bin" >> $GITHUB_PATH
+
+           # Install Rust ARM64 target if needed
+           if [ "$RUNNER_ARCH" = "ARM64" ]; then
+             rustup target add aarch64-pc-windows-msvc
+             rustup show
+           fi
 
       - name: System Dependencies (macOS)
         if: runner.os == 'macOS'
@@ -255,6 +288,7 @@ jobs:
           XLLAMACPP_BUILD_VULKAN: "1"
           VERSIONEER_CLOSEST_TAG_ONLY: "1"
           VERBOSE: "1"
+          CMAKE_ARGS: ${{ runner.arch == 'ARM64' && '-G Ninja -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Release' || '' }}
         run: |
           python --version
           printenv
