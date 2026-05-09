@@ -139,8 +139,18 @@ build_llamacpp() {
   echo "Running CMake with arguments: ${cmake_args[*]}"
   echo "Building targets: ${targets[*]}"
 
-  cmake .. "${cmake_args[@]}" && \
+  cmake .. "${cmake_args[@]}"
+  if [ $? -ne 0 ]; then
+    echo "ERROR: CMake configure failed. Aborting build."
+    exit 1
+  fi
+
   cmake --build . --config Release -j ${NPROC} --target "${targets[@]}"
+  if [ $? -ne 0 ]; then
+    echo "ERROR: CMake build failed. Aborting build."
+    exit 1
+  fi
+
   rm -rf ${PREFIX}
   python ${CWD}/scripts/copy_libs.py
   cd ${CWD}
