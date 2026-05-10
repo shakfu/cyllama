@@ -557,11 +557,11 @@ cdef class CommonParamsSampling:
 
 
 cdef class CpuParams:
-    cdef xllamacpp.cpu_params *p
+    cdef xllamacpp.common_cpu_params *p
     cdef object owner
 
     @staticmethod
-    cdef CpuParams from_ptr(xllamacpp.cpu_params *params, object owner):
+    cdef CpuParams from_ptr(xllamacpp.common_cpu_params *params, object owner):
         cdef CpuParams wrapper = CpuParams.__new__(CpuParams)
         wrapper.p = params
         wrapper.owner = owner
@@ -702,28 +702,19 @@ cdef class CommonParamsModel:
         self.p.name = value
 
 
-cdef class CommonParamsSpeculative:
-    cdef xllamacpp.common_params_speculative *p
+cdef class CommonParamsSpeculativeDraft:
+    cdef xllamacpp.common_params_speculative_draft *p
     cdef object owner
 
     @staticmethod
-    cdef CommonParamsSpeculative from_ptr(xllamacpp.common_params_speculative *params, object owner):
-        cdef CommonParamsSpeculative wrapper = CommonParamsSpeculative.__new__(CommonParamsSpeculative)
+    cdef CommonParamsSpeculativeDraft from_ptr(xllamacpp.common_params_speculative_draft *params, object owner):
+        cdef CommonParamsSpeculativeDraft wrapper = CommonParamsSpeculativeDraft.__new__(CommonParamsSpeculativeDraft)
         wrapper.p = params
         wrapper.owner = owner
         return wrapper
 
     def __init__(self):
         raise Exception(f"Can't construct an instance of {type(self).__name__}")
-
-    @property
-    def type(self) -> xllamacpp.common_speculative_type:
-        """type of speculative decoding."""
-        return self.p.type
-
-    @type.setter
-    def type(self, value: xllamacpp.common_speculative_type):
-        self.p.type = value
 
     @property
     def n_max(self) -> int:
@@ -762,58 +753,13 @@ cdef class CommonParamsSpeculative:
         self.p.p_min = value
 
     @property
-    def ngram_size_n(self) -> int:
-        """ngram size for lookup."""
-        return self.p.ngram_size_n
-
-    @ngram_size_n.setter
-    def ngram_size_n(self, value: int):
-        self.p.ngram_size_n = value
-
-    @property
-    def ngram_size_m(self) -> int:
-        """mgram size for speculative tokens."""
-        return self.p.ngram_size_m
-
-    @ngram_size_m.setter
-    def ngram_size_m(self, value: int):
-        self.p.ngram_size_m = value
-
-    @property
-    def ngram_min_hits(self) -> int:
-        """minimum hits at ngram/mgram lookup for mgram to be proposed."""
-        return self.p.ngram_min_hits
-
-    @ngram_min_hits.setter
-    def ngram_min_hits(self, value: int):
-        self.p.ngram_min_hits = value
-
-    @property
-    def lookup_cache_static(self) -> str:
-        """path of static ngram cache file for lookup decoding"""
-        return self.p.lookup_cache_static
-
-    @lookup_cache_static.setter
-    def lookup_cache_static(self, value: str):
-        self.p.lookup_cache_static = value
-
-    @property
-    def lookup_cache_dynamic(self) -> str:
-        """path of dynamic ngram cache file for lookup decoding"""
-        return self.p.lookup_cache_dynamic
-
-    @lookup_cache_dynamic.setter
-    def lookup_cache_dynamic(self, value: str):
-        self.p.lookup_cache_dynamic = value
-
-    @property
-    def mparams_dft(self) -> CommonParamsModel:
+    def mparams(self) -> CommonParamsModel:
         """draft model parameters."""
-        return CommonParamsModel.from_ptr(&self.p.mparams_dft, self)
+        return CommonParamsModel.from_ptr(&self.p.mparams, self)
 
-    @mparams_dft.setter
-    def mparams_dft(self, value: CommonParamsModel):
-        self.p.mparams_dft = deref(value.p)
+    @mparams.setter
+    def mparams(self, value: CommonParamsModel):
+        self.p.mparams = deref(value.p)
 
     @property
     def n_ctx(self) -> int:
@@ -898,6 +844,178 @@ cdef class CommonParamsSpeculative:
     @tensor_buft_overrides.setter
     def tensor_buft_overrides(self, value: str):
         c_parse_tensor_buffer_overrides(value, self.p.tensor_buft_overrides)
+
+
+cdef class CommonParamsSpeculativeNgramMod:
+    cdef xllamacpp.common_params_speculative_ngram_mod *p
+    cdef object owner
+
+    @staticmethod
+    cdef CommonParamsSpeculativeNgramMod from_ptr(xllamacpp.common_params_speculative_ngram_mod *params, object owner):
+        cdef CommonParamsSpeculativeNgramMod wrapper = CommonParamsSpeculativeNgramMod.__new__(CommonParamsSpeculativeNgramMod)
+        wrapper.p = params
+        wrapper.owner = owner
+        return wrapper
+
+    def __init__(self):
+        raise Exception(f"Can't construct an instance of {type(self).__name__}")
+
+    @property
+    def n_match(self) -> int:
+        """ngram mod: number of matches."""
+        return self.p.n_match
+
+    @n_match.setter
+    def n_match(self, value: int):
+        self.p.n_match = value
+
+    @property
+    def n_max(self) -> int:
+        """ngram mod: maximum number of tokens."""
+        return self.p.n_max
+
+    @n_max.setter
+    def n_max(self, value: int):
+        self.p.n_max = value
+
+    @property
+    def n_min(self) -> int:
+        """ngram mod: minimum number of tokens."""
+        return self.p.n_min
+
+    @n_min.setter
+    def n_min(self, value: int):
+        self.p.n_min = value
+
+
+cdef class CommonParamsSpeculativeNgramMap:
+    cdef xllamacpp.common_params_speculative_ngram_map *p
+    cdef object owner
+
+    @staticmethod
+    cdef CommonParamsSpeculativeNgramMap from_ptr(xllamacpp.common_params_speculative_ngram_map *params, object owner):
+        cdef CommonParamsSpeculativeNgramMap wrapper = CommonParamsSpeculativeNgramMap.__new__(CommonParamsSpeculativeNgramMap)
+        wrapper.p = params
+        wrapper.owner = owner
+        return wrapper
+
+    def __init__(self):
+        raise Exception(f"Can't construct an instance of {type(self).__name__}")
+
+    @property
+    def size_n(self) -> int:
+        """ngram size for lookup."""
+        return self.p.size_n
+
+    @size_n.setter
+    def size_n(self, value: int):
+        self.p.size_n = value
+
+    @property
+    def size_m(self) -> int:
+        """mgram size for speculative tokens."""
+        return self.p.size_m
+
+    @size_m.setter
+    def size_m(self, value: int):
+        self.p.size_m = value
+
+    @property
+    def min_hits(self) -> int:
+        """minimum hits at ngram/mgram lookup for mgram to be proposed."""
+        return self.p.min_hits
+
+    @min_hits.setter
+    def min_hits(self, value: int):
+        self.p.min_hits = value
+
+
+cdef class CommonParamsSpeculativeNgramCache:
+    cdef xllamacpp.common_params_speculative_ngram_cache *p
+    cdef object owner
+
+    @staticmethod
+    cdef CommonParamsSpeculativeNgramCache from_ptr(xllamacpp.common_params_speculative_ngram_cache *params, object owner):
+        cdef CommonParamsSpeculativeNgramCache wrapper = CommonParamsSpeculativeNgramCache.__new__(CommonParamsSpeculativeNgramCache)
+        wrapper.p = params
+        wrapper.owner = owner
+        return wrapper
+
+    def __init__(self):
+        raise Exception(f"Can't construct an instance of {type(self).__name__}")
+
+    @property
+    def lookup_cache_static(self) -> str:
+        """path of static ngram cache file for lookup decoding"""
+        return self.p.lookup_cache_static
+
+    @lookup_cache_static.setter
+    def lookup_cache_static(self, value: str):
+        self.p.lookup_cache_static = value
+
+    @property
+    def lookup_cache_dynamic(self) -> str:
+        """path of dynamic ngram cache file for lookup decoding"""
+        return self.p.lookup_cache_dynamic
+
+    @lookup_cache_dynamic.setter
+    def lookup_cache_dynamic(self, value: str):
+        self.p.lookup_cache_dynamic = value
+
+
+cdef class CommonParamsSpeculative:
+    cdef xllamacpp.common_params_speculative *p
+    cdef object owner
+
+    @staticmethod
+    cdef CommonParamsSpeculative from_ptr(xllamacpp.common_params_speculative *params, object owner):
+        cdef CommonParamsSpeculative wrapper = CommonParamsSpeculative.__new__(CommonParamsSpeculative)
+        wrapper.p = params
+        wrapper.owner = owner
+        return wrapper
+
+    def __init__(self):
+        raise Exception(f"Can't construct an instance of {type(self).__name__}")
+
+    @property
+    def type(self) -> xllamacpp.common_speculative_type:
+        """type of speculative decoding."""
+        return self.p.type
+
+    @type.setter
+    def type(self, value: xllamacpp.common_speculative_type):
+        self.p.type = value
+
+    @property
+    def draft(self) -> CommonParamsSpeculativeDraft:
+        """draft-model-based speculative decoding parameters."""
+        return CommonParamsSpeculativeDraft.from_ptr(&self.p.draft, self)
+
+    @property
+    def ngram_mod(self) -> CommonParamsSpeculativeNgramMod:
+        """ngram mod parameters."""
+        return CommonParamsSpeculativeNgramMod.from_ptr(&self.p.ngram_mod, self)
+
+    @property
+    def ngram_simple(self) -> CommonParamsSpeculativeNgramMap:
+        """ngram simple map parameters."""
+        return CommonParamsSpeculativeNgramMap.from_ptr(&self.p.ngram_simple, self)
+
+    @property
+    def ngram_map_k(self) -> CommonParamsSpeculativeNgramMap:
+        """ngram map k parameters."""
+        return CommonParamsSpeculativeNgramMap.from_ptr(&self.p.ngram_map_k, self)
+
+    @property
+    def ngram_map_k4v(self) -> CommonParamsSpeculativeNgramMap:
+        """ngram map k4v parameters."""
+        return CommonParamsSpeculativeNgramMap.from_ptr(&self.p.ngram_map_k4v, self)
+
+    @property
+    def ngram_cache(self) -> CommonParamsSpeculativeNgramCache:
+        """ngram cache parameters."""
+        return CommonParamsSpeculativeNgramCache.from_ptr(&self.p.ngram_cache, self)
+
 
 
 cdef class CommonParamsVocoder:

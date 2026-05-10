@@ -170,8 +170,8 @@ def test_common_params():
     assert params.path_prompt_cache == ""
     assert params.input_prefix == ""
     assert params.input_suffix == ""
-    assert params.speculative.lookup_cache_static == ""
-    assert params.speculative.lookup_cache_dynamic == ""
+    assert params.speculative.ngram_cache.lookup_cache_static == ""
+    assert params.speculative.ngram_cache.lookup_cache_dynamic == ""
     assert params.logits_file == ""
 
     # Test new debug properties
@@ -396,11 +396,11 @@ def test_common_params():
     assert params.sampling.samplers == sp
     params.sampling.samplers = "top_k;top_p;min_p;temperature;dry;typ_p;xtc"
     assert params.sampling.samplers == "top_k;top_p;min_p;temperature;dry;typ_p;xtc"
-    assert params.speculative.cache_type_k == xlc.ggml_type.GGML_TYPE_F16
-    assert params.speculative.cache_type_v == xlc.ggml_type.GGML_TYPE_F16
-    assert params.speculative.replacements == []
-    params.speculative.replacements = [("a", "b")]
-    assert params.speculative.replacements == [("a", "b")]
+    assert params.speculative.draft.cache_type_k == xlc.ggml_type.GGML_TYPE_F16
+    assert params.speculative.draft.cache_type_v == xlc.ggml_type.GGML_TYPE_F16
+    assert params.speculative.draft.replacements == []
+    params.speculative.draft.replacements = [("a", "b")]
+    assert params.speculative.draft.replacements == [("a", "b")]
 
     # Test new speculative type field
     assert (
@@ -413,32 +413,119 @@ def test_common_params():
         == xlc.common_speculative_type.COMMON_SPECULATIVE_TYPE_DRAFT
     )
 
-    # Test new ngram-based speculative decoding fields
-    assert params.speculative.ngram_size_n == 12
-    params.speculative.ngram_size_n = 8
-    assert params.speculative.ngram_size_n == 8
+    # Test new ngram-based speculative decoding fields (ngram_simple)
+    assert params.speculative.ngram_simple.size_n == 12
+    params.speculative.ngram_simple.size_n = 8
+    assert params.speculative.ngram_simple.size_n == 8
 
-    assert params.speculative.ngram_size_m == 48
-    params.speculative.ngram_size_m = 32
-    assert params.speculative.ngram_size_m == 32
+    assert params.speculative.ngram_simple.size_m == 48
+    params.speculative.ngram_simple.size_m = 32
+    assert params.speculative.ngram_simple.size_m == 32
 
-    assert params.speculative.ngram_min_hits == 1
-    params.speculative.ngram_min_hits = 3
-    assert params.speculative.ngram_min_hits == 3
+    assert params.speculative.ngram_simple.min_hits == 1
+    params.speculative.ngram_simple.min_hits = 3
+    assert params.speculative.ngram_simple.min_hits == 3
+
+    # Test ngram_mod fields
+    assert params.speculative.ngram_mod.n_match == 24
+    params.speculative.ngram_mod.n_match = 10
+    assert params.speculative.ngram_mod.n_match == 10
+
+    assert params.speculative.ngram_mod.n_max == 64
+    params.speculative.ngram_mod.n_max = 32
+    assert params.speculative.ngram_mod.n_max == 32
+
+    assert params.speculative.ngram_mod.n_min == 48
+    params.speculative.ngram_mod.n_min = 16
+    assert params.speculative.ngram_mod.n_min == 16
+
+    # Test ngram_map_k fields
+    assert params.speculative.ngram_map_k.size_n == 12
+    params.speculative.ngram_map_k.size_n = 8
+    assert params.speculative.ngram_map_k.size_n == 8
+
+    assert params.speculative.ngram_map_k.size_m == 48
+    params.speculative.ngram_map_k.size_m = 32
+    assert params.speculative.ngram_map_k.size_m == 32
+
+    assert params.speculative.ngram_map_k.min_hits == 1
+    params.speculative.ngram_map_k.min_hits = 2
+    assert params.speculative.ngram_map_k.min_hits == 2
+
+    # Test ngram_map_k4v fields
+    assert params.speculative.ngram_map_k4v.size_n == 12
+    params.speculative.ngram_map_k4v.size_n = 8
+    assert params.speculative.ngram_map_k4v.size_n == 8
+
+    assert params.speculative.ngram_map_k4v.size_m == 48
+    params.speculative.ngram_map_k4v.size_m = 32
+    assert params.speculative.ngram_map_k4v.size_m == 32
+
+    assert params.speculative.ngram_map_k4v.min_hits == 1
+    params.speculative.ngram_map_k4v.min_hits = 2
+    assert params.speculative.ngram_map_k4v.min_hits == 2
 
     # Test new p_split and p_min fields
-    assert params.speculative.p_split == approx(0.1)
-    params.speculative.p_split = 0.2
-    assert params.speculative.p_split == approx(0.2)
+    assert params.speculative.draft.p_split == approx(0.1)
+    params.speculative.draft.p_split = 0.2
+    assert params.speculative.draft.p_split == approx(0.2)
 
-    assert params.speculative.p_min == approx(0.75)
-    params.speculative.p_min = 0.8
-    assert params.speculative.p_min == approx(0.8)
+    assert params.speculative.draft.p_min == approx(0.75)
+    params.speculative.draft.p_min = 0.8
+    assert params.speculative.draft.p_min == approx(0.8)
 
-    # Test mparams_dft (draft model params)
-    assert params.speculative.mparams_dft.path == ""
-    assert params.speculative.mparams_dft.hf_repo == ""
-    assert params.speculative.mparams_dft.hf_file == ""
+    # Test draft model params
+    assert params.speculative.draft.mparams.path == ""
+    assert params.speculative.draft.mparams.hf_repo == ""
+    assert params.speculative.draft.mparams.hf_file == ""
+
+    # Test sub-struct wrapper properties
+    draft = params.speculative.draft
+    assert draft.n_max == params.speculative.draft.n_max
+    assert draft.n_min == params.speculative.draft.n_min
+    assert draft.p_split == approx(params.speculative.draft.p_split)
+    assert draft.p_min == approx(params.speculative.draft.p_min)
+    assert draft.mparams.path == ""
+    assert draft.n_ctx == params.speculative.draft.n_ctx
+    assert draft.n_gpu_layers == params.speculative.draft.n_gpu_layers
+    assert draft.cache_type_k == params.speculative.draft.cache_type_k
+    assert draft.cache_type_v == params.speculative.draft.cache_type_v
+
+    ngram_mod = params.speculative.ngram_mod
+    assert ngram_mod.n_match == params.speculative.ngram_mod.n_match
+    assert ngram_mod.n_max == params.speculative.ngram_mod.n_max
+    assert ngram_mod.n_min == params.speculative.ngram_mod.n_min
+    ngram_mod.n_match = 5
+    assert params.speculative.ngram_mod.n_match == 5
+
+    ngram_simple = params.speculative.ngram_simple
+    assert ngram_simple.size_n == params.speculative.ngram_simple.size_n
+    assert ngram_simple.size_m == params.speculative.ngram_simple.size_m
+    assert ngram_simple.min_hits == params.speculative.ngram_simple.min_hits
+    ngram_simple.size_n = 7
+    assert params.speculative.ngram_simple.size_n == 7
+
+    ngram_map_k = params.speculative.ngram_map_k
+    assert ngram_map_k.size_n == params.speculative.ngram_map_k.size_n
+    assert ngram_map_k.size_m == params.speculative.ngram_map_k.size_m
+    assert ngram_map_k.min_hits == params.speculative.ngram_map_k.min_hits
+
+    ngram_map_k4v = params.speculative.ngram_map_k4v
+    assert ngram_map_k4v.size_n == params.speculative.ngram_map_k4v.size_n
+    assert ngram_map_k4v.size_m == params.speculative.ngram_map_k4v.size_m
+    assert ngram_map_k4v.min_hits == params.speculative.ngram_map_k4v.min_hits
+
+    ngram_cache = params.speculative.ngram_cache
+    assert (
+        ngram_cache.lookup_cache_static
+        == params.speculative.ngram_cache.lookup_cache_static
+    )
+    assert (
+        ngram_cache.lookup_cache_dynamic
+        == params.speculative.ngram_cache.lookup_cache_dynamic
+    )
+    ngram_cache.lookup_cache_static = "/tmp/static.bin"
+    assert params.speculative.ngram_cache.lookup_cache_static == "/tmp/static.bin"
 
     assert params.cls_sep == "\t"
     assert params.offline is False
@@ -653,10 +740,12 @@ server = xlc.Server(params)
             capture_output=True,
             text=True,
             cwd=os.getcwd(),
-            env={**base_env, "LLAMA_ATTN_ROT_DISABLE": "1"}
+            env={**base_env, "LLAMA_ATTN_ROT_DISABLE": "1"},
         )
-        assert "attention rotation force disabled (LLAMA_ATTN_ROT_DISABLE)" in result.stderr, \
-            f"Expected warning not found in stderr: {result.stderr}"
+        assert (
+            "attention rotation force disabled (LLAMA_ATTN_ROT_DISABLE)"
+            in result.stderr
+        ), f"Expected warning not found in stderr: {result.stderr}"
 
         # Test setting to 0 (enable rotation, default behavior) - should not log the warning
         result = subprocess.run(
@@ -664,22 +753,28 @@ server = xlc.Server(params)
             capture_output=True,
             text=True,
             cwd=os.getcwd(),
-            env={**base_env, "LLAMA_ATTN_ROT_DISABLE": "0"}
+            env={**base_env, "LLAMA_ATTN_ROT_DISABLE": "0"},
         )
-        assert "attention rotation force disabled (LLAMA_ATTN_ROT_DISABLE)" not in result.stderr, \
-            f"Unexpected warning found in stderr: {result.stderr}"
+        assert (
+            "attention rotation force disabled (LLAMA_ATTN_ROT_DISABLE)"
+            not in result.stderr
+        ), f"Unexpected warning found in stderr: {result.stderr}"
 
         # Test unsetting the variable (default behavior) - should not log the warning
-        env_without = {k: v for k, v in base_env.items() if k != "LLAMA_ATTN_ROT_DISABLE"}
+        env_without = {
+            k: v for k, v in base_env.items() if k != "LLAMA_ATTN_ROT_DISABLE"
+        }
         result = subprocess.run(
             [sys.executable, "-c", test_script, model_file],
             capture_output=True,
             text=True,
             cwd=os.getcwd(),
-            env=env_without
+            env=env_without,
         )
-        assert "attention rotation force disabled (LLAMA_ATTN_ROT_DISABLE)" not in result.stderr, \
-            f"Unexpected warning found in stderr: {result.stderr}"
+        assert (
+            "attention rotation force disabled (LLAMA_ATTN_ROT_DISABLE)"
+            not in result.stderr
+        ), f"Unexpected warning found in stderr: {result.stderr}"
 
     finally:
         # Restore original value

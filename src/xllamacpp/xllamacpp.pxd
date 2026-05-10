@@ -157,6 +157,8 @@ cdef extern from "ggml-backend.h":
 
     ctypedef bint (*ggml_backend_sched_eval_callback)(ggml_tensor * t, bint ask, void * user_data)
 
+    ctypedef bint (*ggml_abort_callback)(void *)
+
     ctypedef struct ggml_backend_device: pass
 
     ctypedef ggml_backend_device * ggml_backend_dev_t
@@ -225,6 +227,10 @@ cdef extern from "llama.h":
 
     ctypedef bint (*llama_progress_callback)(float progress, void * user_data);
 
+    ctypedef struct llama_sampler_seq_config: pass
+
+    ctypedef struct llama_context_params: pass
+
 
 #------------------------------------------------------------------------------
 # build-info.h
@@ -256,7 +262,7 @@ cdef extern from "common.h":
     # -------------------------------------------------------------------------
     # CPU utils
 
-    ctypedef struct cpu_params:
+    ctypedef struct common_cpu_params:
         int      n_threads
         bint     cpumask[GGML_MAX_N_THREADS] # CPU affinity mask.
         bint     mask_valid             # Default: any CPU
@@ -406,37 +412,60 @@ cdef extern from "common.h":
     ctypedef struct common_ngram_mod
     ctypedef struct llama_model
 
-    ctypedef struct common_params_speculative:
-        common_speculative_type type    # type of speculative decoding
-        
-        # general-purpose speculative decoding parameters
+    # draft-model-based speculative decoding parameters
+    ctypedef struct common_params_speculative_draft:
         int32_t n_max   # maximum number of tokens to draft during speculative decoding
         int32_t n_min   # minimum number of draft tokens to use for speculative decoding
-        float   p_split # speculative decoding split probability
-        float   p_min   # minimum speculative decoding probability (greedy)
-        
-        # ngram-based speculative decoding
-        uint16_t ngram_size_n     # ngram size for lookup
-        uint16_t ngram_size_m     # mgram size for speculative tokens
-        uint16_t ngram_min_hits   # minimum hits at ngram/mgram lookup for mgram to be proposed
-        # common_ngram_mod * ngram_mod  # ngram modification (runtime only, filled according to ngram_size_n, not exposed to Python)
-        
-        std_string lookup_cache_static   # path of static ngram cache file for lookup decoding
-        std_string lookup_cache_dynamic  # path of dynamic ngram cache file for lookup decoding
-        
-        # draft-model speculative decoding
-        common_params_model mparams_dft  # draft model parameters
-        # llama_model * model_dft         # a llama_model that can be shared by multiple speculative contexts (runtime only, not exposed to Python)
-        # llama_context_params cparams_dft  # parameters for the draft llama_context (runtime only, not exposed to Python)
+
+        float p_split   # speculative decoding split probability
+        float p_min     # minimum speculative decoding probability (greedy)
+
+        common_params_model mparams  # draft model parameters
+
+        llama_model * model  # a llama_model that can be shared by multiple speculative contexts (runtime only)
+
+        llama_context_params cparams  # parameters for the draft llama_context (runtime only)
+
         int32_t n_ctx         # draft context size
         int32_t n_gpu_layers  # number of layers to store in VRAM for the draft model (-1 - use default)
+
         ggml_type cache_type_k  # KV cache data type for the K
         ggml_type cache_type_v  # KV cache data type for the V
-        cpu_params cpuparams
-        cpu_params cpuparams_batch
+
+        common_cpu_params cpuparams
+        common_cpu_params cpuparams_batch
+
         std_vector[ggml_backend_dev_t] devices  # devices to use for offloading
+
         std_vector[std_pair[std_string, std_string]] replacements  # main to speculative model replacements
         std_vector[llama_model_tensor_buft_override] tensor_buft_overrides
+
+    ctypedef struct common_params_speculative_ngram_mod:
+        int32_t n_match
+        int32_t n_max
+        int32_t n_min
+        # std::shared_ptr<common_ngram_mod> obj  # runtime only, not exposed to Python
+
+    ctypedef struct common_params_speculative_ngram_map:
+        uint16_t size_n    # ngram size for lookup
+        uint16_t size_m    # mgram size for speculative tokens
+        uint16_t min_hits  # minimum hits at ngram/mgram lookup for mgram to be proposed
+
+    ctypedef struct common_params_speculative_ngram_cache:
+        std_string lookup_cache_static   # path of static ngram cache file for lookup decoding
+        std_string lookup_cache_dynamic  # path of dynamic ngram cache file for lookup decoding
+
+    ctypedef struct common_params_speculative:
+        common_speculative_type type    # type of speculative decoding
+
+        common_params_speculative_draft draft
+
+        common_params_speculative_ngram_mod ngram_mod
+        common_params_speculative_ngram_map ngram_simple
+        common_params_speculative_ngram_map ngram_map_k
+        common_params_speculative_ngram_map ngram_map_k4v
+
+        common_params_speculative_ngram_cache ngram_cache
 
 
     ctypedef struct common_params_vocoder:
@@ -503,8 +532,8 @@ cdef extern from "common.h":
 
         llama_split_mode        split_mode         # how to split the model across GPUs
 
-        cpu_params cpuparams
-        cpu_params cpuparams_batch
+        common_cpu_params cpuparams
+        common_cpu_params cpuparams_batch
 
         ggml_backend_sched_eval_callback cb_eval
         void * cb_eval_user_data

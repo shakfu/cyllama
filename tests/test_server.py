@@ -496,9 +496,9 @@ def test_llama_server_speculative(model_path):
     same-family checkpoint, e.g.:
 
         params.model.path                 = ".../Qwen3-4B-Instruct-Q8_0.gguf"
-        params.speculative.mparams_dft.path = ".../Qwen3-0.6B-Instruct-Q4_0.gguf"
-        params.speculative.n_min = 4
-        params.speculative.n_max = 8
+        params.speculative.draft.mparams.path = ".../Qwen3-0.6B-Instruct-Q4_0.gguf"
+        params.speculative.draft.n_min = 4
+        params.speculative.draft.n_max = 8
 
     This is especially helpful for AMD Strix Halo (and other unified-memory
     APU/iGPU) users who want to run larger dense models: the draft model fits
@@ -512,7 +512,7 @@ def test_llama_server_speculative(model_path):
 
     Two equivalent ways to enable draft-model speculative decoding:
 
-    1. Server-level (this test): set ``params.speculative.mparams_dft.path``.
+    1. Server-level (this test): set ``params.speculative.draft.mparams.path``.
        The draft model is loaded once at server startup and reused for every
        request.
     2. Per-request: pass ``"speculative.n_max"``, ``"speculative.n_min"``,
@@ -527,8 +527,7 @@ def test_llama_server_speculative(model_path):
     draft_path = os.path.join(model_path, "stories15M-q4_0.gguf")
     if not os.path.exists(draft_path):
         pytest.skip(
-            f"draft model not found: {draft_path} "
-            "(run `make download` to fetch it)"
+            f"draft model not found: {draft_path} " "(run `make download` to fetch it)"
         )
 
     params = xlc.CommonParams()
@@ -537,11 +536,11 @@ def test_llama_server_speculative(model_path):
     params.model.path = os.path.join(model_path, "stories15M_MOE-F16.gguf")
 
     # Draft model used to speculate tokens for the target model.
-    params.speculative.mparams_dft.path = draft_path
+    params.speculative.draft.mparams.path = draft_path
     # Draft N-tokens window: propose between n_min and n_max tokens per step.
     # Mirrors the upstream test defaults; tune per model pair in production.
-    params.speculative.n_min = 4
-    params.speculative.n_max = 8
+    params.speculative.draft.n_min = 4
+    params.speculative.draft.n_max = 8
 
     params.warmup = False
     params.n_predict = 32
