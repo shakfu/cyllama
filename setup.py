@@ -34,7 +34,7 @@ DEFINE_MACROS = [("Py_LIMITED_API", PY_LIMITED_API_VERSION)]
 if PLATFORM == "Windows":
     EXTRA_COMPILE_ARGS = ["/std:c++17"]
 else:
-    EXTRA_COMPILE_ARGS = ["-std=c++17"]
+    EXTRA_COMPILE_ARGS = ["-std=c++17", "-fvisibility=hidden", "-fvisibility-inlines-hidden"]
     if PLATFORM == "Darwin":
         EXTRA_COMPILE_ARGS.append("-mmacosx-version-min=12.0")
 EXTRA_LINK_ARGS = []

@@ -483,11 +483,64 @@ jobs:
           export XLLAMACPP_BUILD_CUDA=1
           export VERSIONEER_CLOSEST_TAG_ONLY=1
           export VERBOSE=1
+
+          # CRITICAL: Use the SYSTEM compiler (GCC 11/12 on Ubuntu 22.04) instead
+          # of conda's GCC 14.3 for both CMake and wheel builds. Conda installs
+          # GCC 14.3 as a dependency of the CUDA toolkit, but its libstdc++ provides
+          # CXXABI_1.3.15 symbols that are NOT available on most deployment targets
+          # (which typically only have CXXABI_1.3.13). System GCC 11/12 uses only
+          # CXXABI_1.3.13 symbols, ensuring broad runtime compatibility.
+          # The system GCC fully supports C++17 which is all that's needed.
+          export CC=/usr/bin/gcc
+          export CXX=/usr/bin/g++
+          # CMAKE_ARGS is picked up by scripts/setup.sh to pass to CMake
+          # -DCMAKE_CUDA_HOST_COMPILER ensures nvcc also uses system g++ for
+          # host-side compilation, preventing CXXABI_1.3.15 from CUDA objects.
+          export CMAKE_ARGS="-DCMAKE_C_COMPILER=/usr/bin/gcc -DCMAKE_CXX_COMPILER=/usr/bin/g++ -DCMAKE_CUDA_HOST_COMPILER=/usr/bin/g++"
+          echo "=== Forcing system compiler to avoid CXXABI_1.3.15 dependency ==="
+          echo "CC=$CC"
+          echo "CXX=$CXX"
+          echo "CMAKE_ARGS=$CMAKE_ARGS"
+          $CXX --version
           
           make
           python -m build --wheel
           
           echo "CUDA_VERSION=$cuda_version" >> $GITHUB_ENV
+
+      - name: Verify no CXXABI_1.3.15 dependency
+        run: |
+          echo "=== Checking wheel for CXXABI_1.3.15 dependency ==="
+          # Unpack the wheel and inspect all shared libraries
+          mkdir -p /tmp/wheel_check
+          unzip -o dist/*.whl -d /tmp/wheel_check
+
+          FOUND_CXXABI_1_3_15=0
+          for so in $(find /tmp/wheel_check -name "*.so"); do
+            echo "--- Checking: $so ---"
+            # List all CXXABI version requirements
+            objdump -T "$so" 2>/dev/null | grep -i "CXXABI" | sort -u || true
+            # Check specifically for CXXABI_1.3.15
+            if objdump -T "$so" 2>/dev/null | grep -q "CXXABI_1.3.15"; then
+              echo "❌ ERROR: $so depends on CXXABI_1.3.15!"
+              FOUND_CXXABI_1_3_15=1
+            fi
+          done
+
+          rm -rf /tmp/wheel_check
+
+          if [ "$FOUND_CXXABI_1_3_15" -eq 1 ]; then
+            echo ""
+            echo "❌ FAILURE: Wheel contains shared libraries that depend on CXXABI_1.3.15."
+            echo "This symbol is only available in libstdc++ from GCC 14+, which is not"
+            echo "present on most deployment targets (e.g. Ubuntu 22.04 ships CXXABI_1.3.13)."
+            echo ""
+            echo "Ensure the build uses the SYSTEM compiler (/usr/bin/g++) instead of"
+            echo "conda's GCC 14.x by setting CC=/usr/bin/gcc and CXX=/usr/bin/g++."
+            exit 1
+          fi
+
+          echo "✅ No CXXABI_1.3.15 dependency found. Wheel is compatible."
 
       # - uses: actions/upload-artifact@v4
       #   with:
