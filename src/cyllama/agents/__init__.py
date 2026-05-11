@@ -79,12 +79,19 @@ from .jsonrpc import (
     StdioTransport,
 )
 
-# Multi-agent composition primitives
+# Multi-agent composition primitives + pattern helpers
 from .composition import (
     agent_as_tool,
     AgentRole,
     TieredAgentTeam,
+    ReflectionLoop,
+    plan_and_execute,
+    mcp_agent_tool,
+    rag_as_tool,
 )
+
+# Semantic (long-term, RAG-backed) memory
+from .memory import MemoryRecord, SemanticMemory
 
 # Async agent wrappers
 from .async_agent import (
@@ -164,10 +171,17 @@ __all__ = [
     "JsonRpcError",
     "StdioTransport",
     # Async agents
-    # Multi-agent composition
+    # Multi-agent composition + pattern helpers
     "agent_as_tool",
     "AgentRole",
     "TieredAgentTeam",
+    "ReflectionLoop",
+    "plan_and_execute",
+    "mcp_agent_tool",
+    "rag_as_tool",
+    # Semantic memory
+    "MemoryRecord",
+    "SemanticMemory",
     # Async wrappers
     "AsyncReActAgent",
     "AsyncConstrainedAgent",

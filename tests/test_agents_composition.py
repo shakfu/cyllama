@@ -288,3 +288,513 @@ def test_team_forward_events_propagates_to_each_worker_tool():
     # 1 thought + 1 answer from stub.stream() => 2 events forwarded.
     assert len(captured) == 2
     assert all(ev.source == "worker" for ev in captured)
+
+
+# ===========================================================================
+# Gap #1 -- ReflectionLoop (Reflexion pattern)
+# ===========================================================================
+
+
+class _ScriptedAgent:
+    """Stub agent that yields a scripted sequence of answers across calls."""
+
+    def __init__(self, answers: List[str]) -> None:
+        self._answers = list(answers)
+        self._call = 0
+        self._metrics: Optional[AgentMetrics] = None
+
+    @property
+    def metrics(self) -> Optional[AgentMetrics]:
+        return self._metrics
+
+    def _next(self) -> str:
+        if self._call >= len(self._answers):
+            return self._answers[-1] if self._answers else ""
+        a = self._answers[self._call]
+        self._call += 1
+        return a
+
+    def run(self, task: str) -> AgentResult:
+        ans = self._next()
+        return AgentResult(answer=ans, steps=[], iterations=1, success=True)
+
+    def stream(self, task: str) -> Iterator[AgentEvent]:
+        ans = self._next()
+        yield AgentEvent(type=EventType.ANSWER, content=ans)
+
+
+def test_reflection_loop_returns_on_critic_acceptance():
+    """First-pass acceptance -- worker draft becomes the final answer."""
+    from cyllama.agents import ReflectionLoop
+
+    worker = _ScriptedAgent(["draft v1"])
+    critic = _ScriptedAgent(["ACCEPT"])
+
+    loop = ReflectionLoop(worker, critic, max_attempts=3)
+    result = loop.run("any task")
+    assert result.answer == "draft v1"
+    assert result.success is True
+
+
+def test_reflection_loop_iterates_until_critic_accepts():
+    """Critic rejects v1, accepts v2 -- v2 is returned."""
+    from cyllama.agents import ReflectionLoop
+
+    worker = _ScriptedAgent(["draft v1", "draft v2"])
+    critic = _ScriptedAgent(["please revise: more detail", "ACCEPT"])
+
+    loop = ReflectionLoop(worker, critic, max_attempts=3)
+    result = loop.run("any task")
+    assert result.answer == "draft v2"
+
+
+def test_reflection_loop_returns_last_draft_when_max_attempts_exhausted():
+    """All critic responses are revisions -- the final draft is returned."""
+    from cyllama.agents import ReflectionLoop
+
+    worker = _ScriptedAgent(["draft 1", "draft 2", "draft 3"])
+    critic = _ScriptedAgent(["needs work", "still wrong", "almost there"])
+
+    loop = ReflectionLoop(worker, critic, max_attempts=3)
+    result = loop.run("any task")
+    assert result.answer == "draft 3"
+    # Critic never accepted -> loop_detected stays True (using the existing
+    # metrics field as a marker for "no acceptance signal").
+    assert loop.metrics is not None
+    assert loop.metrics.loop_detected is True
+
+
+def test_reflection_loop_stream_annotates_source():
+    """Streaming surfaces worker + critic events with source labels."""
+    from cyllama.agents import ReflectionLoop
+
+    worker = _ScriptedAgent(["draft v1"])
+    critic = _ScriptedAgent(["ACCEPT"])
+    loop = ReflectionLoop(worker, critic, max_attempts=2)
+
+    events = list(loop.stream("any task"))
+    worker_events = [e for e in events if e.source == "worker"]
+    critic_events = [e for e in events if e.source == "critic"]
+    assert len(worker_events) >= 1
+    assert len(critic_events) >= 1
+    # Final ANSWER event has no source (it's the loop's own event, not
+    # forwarded from worker/critic).
+    final = events[-1]
+    assert final.type == EventType.ANSWER
+    assert final.content == "draft v1"
+
+
+def test_reflection_loop_custom_acceptance_marker():
+    """Custom acceptance string is honoured."""
+    from cyllama.agents import ReflectionLoop
+
+    worker = _ScriptedAgent(["draft"])
+    critic = _ScriptedAgent(["LOOKS GOOD"])
+
+    loop = ReflectionLoop(worker, critic, max_attempts=3, acceptance_marker="LOOKS GOOD")
+    result = loop.run("any task")
+    assert result.answer == "draft"
+
+
+def test_reflection_loop_custom_revision_template():
+    """Custom revision template controls the next-iteration task."""
+    from cyllama.agents import ReflectionLoop
+
+    captured: List[str] = []
+
+    class _Capture:
+        @property
+        def metrics(self):
+            return None
+
+        def run(self, task: str) -> AgentResult:
+            captured.append(task)
+            return AgentResult(answer="ok", steps=[], iterations=1, success=True)
+
+        def stream(self, task: str):
+            captured.append(task)
+            yield AgentEvent(type=EventType.ANSWER, content="ok")
+
+    worker = _Capture()
+    critic = _ScriptedAgent(["revise pls", "ACCEPT"])
+
+    def template(orig: str, draft: str, critique: str) -> str:
+        return f"REVISE: {orig} | DRAFT: {draft} | CRIT: {critique}"
+
+    loop = ReflectionLoop(
+        worker,  # type: ignore[arg-type]
+        critic,
+        max_attempts=2,
+        revision_template=template,
+    )
+    loop.run("the task")
+    # First call uses original task; second uses the template.
+    assert captured[0] == "the task"
+    assert "REVISE: the task" in captured[1]
+    assert "DRAFT: ok" in captured[1]
+    assert "CRIT: revise pls" in captured[1]
+
+
+# ===========================================================================
+# Gap #2 -- rag_as_tool
+# ===========================================================================
+
+
+class _StubRAGHit:
+    """Mimics rag.types.SearchResult shape."""
+
+    def __init__(self, text: str, score: float, metadata: Optional[Dict[str, Any]] = None):
+        self.text = text
+        self.score = score
+        self.metadata = metadata or {}
+
+
+class _StubRAG:
+    """Minimal RAG-like stub for composition tests."""
+
+    def __init__(self, hits: List[_StubRAGHit]) -> None:
+        self._hits = hits
+        self.search_calls: List[tuple] = []
+
+    def search(self, query: str, k: int = 5) -> List[_StubRAGHit]:
+        self.search_calls.append((query, k))
+        return self._hits[:k]
+
+
+def test_rag_as_tool_returns_callable_tool():
+    from cyllama.agents import rag_as_tool
+
+    rag = _StubRAG([_StubRAGHit("alpha", 0.9), _StubRAGHit("beta", 0.7)])
+    t = rag_as_tool(rag, description="Search project docs.")
+    assert t.name == "search_kb"
+    assert t.description == "Search project docs."
+    assert t.parameters["required"] == ["query"]
+    # coerce=False because we build typed kwargs ourselves.
+    assert t.coerce is False
+
+
+def test_rag_as_tool_renders_hits_with_scores():
+    from cyllama.agents import rag_as_tool
+
+    rag = _StubRAG([_StubRAGHit("alpha", 0.9), _StubRAGHit("beta", 0.7)])
+    t = rag_as_tool(rag, top_k=2)
+    out = t(query="anything")
+    assert "[0.900] alpha" in out
+    assert "[0.700] beta" in out
+
+
+def test_rag_as_tool_deduplicates_repeated_text():
+    """Default formatter drops repeated text fragments."""
+    from cyllama.agents import rag_as_tool
+
+    rag = _StubRAG(
+        [
+            _StubRAGHit("same content", 0.9),
+            _StubRAGHit("same content", 0.85),
+            _StubRAGHit("unique content", 0.7),
+        ]
+    )
+    t = rag_as_tool(rag, top_k=3)
+    out = t(query="x")
+    # "same content" appears once even though the store has two copies.
+    assert out.count("same content") == 1
+    assert "unique content" in out
+
+
+def test_rag_as_tool_empty_result():
+    from cyllama.agents import rag_as_tool
+
+    rag = _StubRAG([])
+    t = rag_as_tool(rag)
+    assert t(query="anything") == "(no results)"
+
+
+def test_rag_as_tool_passes_top_k_to_search():
+    from cyllama.agents import rag_as_tool
+
+    rag = _StubRAG([_StubRAGHit(f"hit-{i}", 0.5) for i in range(20)])
+    t = rag_as_tool(rag, top_k=3)
+    t(query="anything")
+    assert rag.search_calls[-1] == ("anything", 3)
+
+
+def test_rag_as_tool_missing_query_raises():
+    from cyllama.agents import rag_as_tool
+
+    rag = _StubRAG([])
+    t = rag_as_tool(rag)
+    with pytest.raises(ValueError, match="query"):
+        t()
+
+
+def test_rag_as_tool_custom_formatter():
+    from cyllama.agents import rag_as_tool
+
+    rag = _StubRAG([_StubRAGHit("foo", 0.5), _StubRAGHit("bar", 0.4)])
+    t = rag_as_tool(rag, formatter=lambda hits: " | ".join(h.text for h in hits))
+    assert t(query="x") == "foo | bar"
+
+
+def test_rag_as_tool_rejects_object_without_method():
+    from cyllama.agents import rag_as_tool
+
+    class _NoSearch:
+        pass
+
+    t = rag_as_tool(_NoSearch(), description="x")
+    with pytest.raises(AttributeError, match="no callable"):
+        t(query="anything")
+
+
+# ===========================================================================
+# Gap #4 -- plan_and_execute
+# ===========================================================================
+
+
+def test_plan_and_execute_runs_steps_sequentially():
+    from cyllama.agents import plan_and_execute
+
+    planner = _ScriptedAgent(['["step A", "step B", "step C"]'])
+    executed: List[str] = []
+
+    class _Executor:
+        @property
+        def metrics(self):
+            return None
+
+        def run(self, task: str) -> AgentResult:
+            executed.append(task)
+            return AgentResult(answer=f"done({task})", steps=[], iterations=1, success=True)
+
+        def stream(self, task):
+            yield AgentEvent(type=EventType.ANSWER, content=f"done({task})")
+
+    results = plan_and_execute(planner, _Executor(), "do the thing")
+    assert executed == ["step A", "step B", "step C"]
+    assert [r.answer for r in results] == ["done(step A)", "done(step B)", "done(step C)"]
+
+
+def test_plan_and_execute_parses_steps_key():
+    from cyllama.agents import plan_and_execute
+
+    planner = _ScriptedAgent(['{"steps": ["one", "two"]}'])
+    seen: List[str] = []
+
+    class _Exec:
+        @property
+        def metrics(self):
+            return None
+
+        def run(self, task: str) -> AgentResult:
+            seen.append(task)
+            return AgentResult(answer="ok", steps=[], iterations=1, success=True)
+
+        def stream(self, task):
+            yield AgentEvent(type=EventType.ANSWER, content="ok")
+
+    plan_and_execute(planner, _Exec(), "x")
+    assert seen == ["one", "two"]
+
+
+def test_plan_and_execute_falls_back_to_newline_split():
+    """Non-JSON planner output is split on newlines."""
+    from cyllama.agents import plan_and_execute
+
+    planner = _ScriptedAgent(["1. first step\n2. second step\n* third step"])
+
+    seen: List[str] = []
+
+    class _Exec:
+        @property
+        def metrics(self):
+            return None
+
+        def run(self, task: str) -> AgentResult:
+            seen.append(task)
+            return AgentResult(answer="ok", steps=[], iterations=1, success=True)
+
+        def stream(self, task):
+            yield AgentEvent(type=EventType.ANSWER, content="ok")
+
+    plan_and_execute(planner, _Exec(), "x")
+    # Numbering and bullet prefixes are stripped.
+    assert seen == ["first step", "second step", "third step"]
+
+
+def test_plan_and_execute_stops_on_error_by_default():
+    from cyllama.agents import plan_and_execute
+
+    planner = _ScriptedAgent(['["a", "b", "c"]'])
+
+    class _Exec:
+        def __init__(self):
+            self.n = 0
+
+        @property
+        def metrics(self):
+            return None
+
+        def run(self, task: str) -> AgentResult:
+            self.n += 1
+            if self.n == 2:
+                return AgentResult(answer="", steps=[], iterations=1, success=False, error="boom")
+            return AgentResult(answer="ok", steps=[], iterations=1, success=True)
+
+        def stream(self, task):
+            yield AgentEvent(type=EventType.ANSWER, content="ok")
+
+    e = _Exec()
+    results = plan_and_execute(planner, e, "x")
+    # First step succeeds, second fails -> stop.
+    assert len(results) == 2
+    assert results[0].success
+    assert not results[1].success
+
+
+def test_plan_and_execute_continues_on_error_when_disabled():
+    from cyllama.agents import plan_and_execute
+
+    planner = _ScriptedAgent(['["a", "b", "c"]'])
+
+    class _Exec:
+        def __init__(self):
+            self.n = 0
+
+        @property
+        def metrics(self):
+            return None
+
+        def run(self, task: str) -> AgentResult:
+            self.n += 1
+            ok = self.n != 2
+            return AgentResult(answer="x", steps=[], iterations=1, success=ok)
+
+        def stream(self, task):
+            yield AgentEvent(type=EventType.ANSWER, content="x")
+
+    results = plan_and_execute(planner, _Exec(), "x", stop_on_error=False)
+    assert len(results) == 3
+
+
+def test_plan_and_execute_failed_planner_returns_planner_result():
+    """If the planner itself fails, the failure is returned as-is."""
+    from cyllama.agents import plan_and_execute
+
+    class _BadPlanner:
+        @property
+        def metrics(self):
+            return None
+
+        def run(self, task):
+            return AgentResult(answer="", steps=[], iterations=0, success=False, error="planner crashed")
+
+        def stream(self, task):
+            yield AgentEvent(type=EventType.ERROR, content="planner crashed")
+
+    class _Exec:
+        @property
+        def metrics(self):
+            return None
+
+        def run(self, task):
+            return AgentResult(answer="x", steps=[], iterations=1, success=True)
+
+        def stream(self, task):
+            yield AgentEvent(type=EventType.ANSWER, content="x")
+
+    results = plan_and_execute(_BadPlanner(), _Exec(), "x")
+    assert len(results) == 1
+    assert not results[0].success
+
+
+def test_plan_and_execute_custom_parser():
+    from cyllama.agents import plan_and_execute
+
+    planner = _ScriptedAgent(["step1;step2;step3"])
+    seen: List[str] = []
+
+    class _Exec:
+        @property
+        def metrics(self):
+            return None
+
+        def run(self, task):
+            seen.append(task)
+            return AgentResult(answer="ok", steps=[], iterations=1, success=True)
+
+        def stream(self, task):
+            yield AgentEvent(type=EventType.ANSWER, content="ok")
+
+    plan_and_execute(planner, _Exec(), "x", plan_parser=lambda s: s.split(";"))
+    assert seen == ["step1", "step2", "step3"]
+
+
+# ===========================================================================
+# Gap #5 -- mcp_agent_tool
+# ===========================================================================
+
+
+class _StubMcpClient:
+    """Minimal McpClient-like stub for composition tests."""
+
+    def __init__(self, results: Optional[Dict[str, Any]] = None) -> None:
+        self.results = results or {}
+        self.calls: List[tuple] = []
+
+    def call_tool(self, name: str, arguments: Dict[str, Any]) -> Any:
+        self.calls.append((name, arguments))
+        if name in self.results:
+            return self.results[name]
+        return f"mcp result for {name}: {arguments}"
+
+
+def test_mcp_agent_tool_builds_namespaced_tool():
+    from cyllama.agents import mcp_agent_tool
+
+    client = _StubMcpClient()
+    t = mcp_agent_tool(client, server_name="srv", agent_name="ag", description="d")
+    assert t.name == "srv/ag"
+    assert t.coerce is False
+    assert t.parameters["required"] == ["task"]
+
+
+def test_mcp_agent_tool_dispatches_via_client():
+    from cyllama.agents import mcp_agent_tool
+
+    client = _StubMcpClient(results={"srv/ag": "remote answer"})
+    t = mcp_agent_tool(client, "srv", "ag", "d")
+    out = t(task="do it")
+    assert out == "remote answer"
+    assert client.calls == [("srv/ag", {"task": "do it"})]
+
+
+def test_mcp_agent_tool_missing_task_raises():
+    from cyllama.agents import mcp_agent_tool
+
+    t = mcp_agent_tool(_StubMcpClient(), "srv", "ag", "d")
+    with pytest.raises(ValueError, match="task"):
+        t()
+
+
+def test_mcp_agent_tool_respects_custom_task_param():
+    from cyllama.agents import mcp_agent_tool
+
+    client = _StubMcpClient()
+    t = mcp_agent_tool(client, "srv", "ag", "d", task_param="question")
+    t(question="why?")
+    assert client.calls[0][1] == {"question": "why?"}
+
+
+def test_mcp_agent_tool_none_result_becomes_empty_string():
+    from cyllama.agents import mcp_agent_tool
+
+    client = _StubMcpClient(results={"srv/ag": None})
+    t = mcp_agent_tool(client, "srv", "ag", "d")
+    assert t(task="x") == ""
+
+
+def test_mcp_agent_tool_timeout_propagates_to_Tool_field():
+    from cyllama.agents import mcp_agent_tool
+
+    t = mcp_agent_tool(_StubMcpClient(), "srv", "ag", "d", timeout=5.0)
+    assert t.timeout == 5.0

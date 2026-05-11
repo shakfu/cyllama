@@ -547,19 +547,130 @@ The team registers each worker as a tool on the supervisor's registry; rejects e
 
 **GPU-budgeting note:** loading multiple 7B+ models is rarely viable on consumer hardware. Typical configurations are *one large + N small* (a 7B planner with 1B workers) or *model swapping* (one LLM in VRAM at a time, sequential dispatch). See `src/cyllama/memory.py` for sizing utilities.
 
-### Recipes
+### Pattern helpers built on the primitives
 
-Patterns built from these two primitives:
+Beyond `agent_as_tool` + `TieredAgentTeam`, four canned helpers cover the
+most-used multi-agent patterns. All live in
+`src/cyllama/agents/composition.py` and re-export from
+`cyllama.agents`. Each is ~50 LoC over the primitives; see
+[`patterns.md`](agents/patterns.md) for the full pattern catalog plus
+the ones the framework intentionally doesn't support.
 
-| Pattern | Composition |
+#### `ReflectionLoop` -- worker / critic loop (Reflexion pattern)
+
+```python
+from cyllama.agents import ReActAgent, ReflectionLoop
+
+worker = ReActAgent(llm=llm, tools=tools, system_prompt=WORKER_PROMPT)
+critic = ReActAgent(
+    llm=llm, tools=[],
+    system_prompt="Respond with 'ACCEPT' if correct, otherwise list issues.",
+)
+
+loop = ReflectionLoop(worker, critic, max_attempts=3)
+result = loop.run("Implement quicksort with a 3-way partition.")
+```
+
+The critic's answer is checked for `acceptance_marker` (default
+`"ACCEPT"`, case-insensitive substring match); on a miss, the worker is
+re-invoked with the prior draft and the critic's feedback folded in via
+an overridable `revision_template`. Streamed events from each pass carry
+`source="worker"` and `source="critic"` annotations.
+
+#### `plan_and_execute` -- Plan-and-Execute pattern
+
+```python
+from cyllama.agents import ConstrainedAgent, ReActAgent, plan_and_execute
+
+planner = ConstrainedAgent(llm=planner_llm, tools=[],
+                           system_prompt="Emit a JSON list of step strings.")
+executor = ReActAgent(llm=worker_llm, tools=[read_file, edit_file])
+
+results = plan_and_execute(planner, executor, "Refactor module X.")
+```
+
+Default plan parser handles `[...]` lists, `{"steps"|"plan"|"tasks": [...]}`
+dicts, and newline-split with bullet/number-prefix stripping. Pass
+`plan_parser=...` for custom formats. `stop_on_error=True` (default)
+halts after the first failing step.
+
+#### `mcp_agent_tool` -- cross-process sub-agents
+
+```python
+from cyllama.agents import McpClient, McpServerConfig, mcp_agent_tool, ReActAgent
+
+client = McpClient([McpServerConfig(name="research", ...)])
+client.connect_all()
+
+remote = mcp_agent_tool(
+    client,
+    server_name="research",
+    agent_name="web_search",
+    description="Search the web and return findings.",
+)
+supervisor = ReActAgent(llm=llm, tools=[remote])
+```
+
+Symmetric to `agent_as_tool` but dispatches via `McpClient.call_tool`.
+The returned `Tool` is named `"{server_name}/{agent_name}"` (the
+namespaced format the action parser supports). Network failures surface
+as `RuntimeError` from MCP; the agent's generic exception handler
+catches them.
+
+#### `rag_as_tool` -- knowledge-base search as a tool
+
+```python
+from cyllama.rag import RAG
+from cyllama.agents import ReActAgent, rag_as_tool
+
+kb = RAG(...)  # load or build
+search = rag_as_tool(kb, description="Search project docs.", top_k=5)
+agent = ReActAgent(llm=llm, tools=[search])
+```
+
+Default formatter emits one `[score] text` line per hit, deduplicated by
+text. Pass `method="retrieve"` to use the higher-level
+`RAG.retrieve` path (applies the RAG pipeline config), or a custom
+`formatter` callable for non-default observation shapes.
+
+### Long-term semantic memory
+
+`SemanticMemory` (in `src/cyllama/agents/memory.py`) bridges the
+`cyllama.rag` subsystem to the agent layer as a namespace-aware
+long-term memory primitive. Use it for cross-session continuity
+("remember the user's preferences") that the in-process `Session`
+stores can't provide:
+
+```python
+from cyllama.rag import RAG
+from cyllama.agents import SemanticMemory
+
+rag = RAG(...)
+memory = SemanticMemory(rag)
+
+memory.remember("The user prefers concise answers.", namespace="user:alice")
+hits = memory.retrieve("response style", namespace="user:alice")
+for hit in hits:
+    print(f"[{hit.score:.2f}] {hit.text}")
+```
+
+Namespaces are stored as metadata on the underlying RAG records and
+filtered at retrieval time, so one `RAG` instance can back many logical
+memory buckets. Pair with `rag_as_tool` if you also want the agent to
+search the memory store directly.
+
+### Remaining recipes (still pure composition)
+
+Some patterns remain user-side compositions rather than canned helpers:
+
+| Pattern | How to compose |
 |---|---|
-| Supervisor / worker | `TieredAgentTeam` directly |
-| Plan-and-execute | Planner emits subtask list (ConstrainedAgent); supervisor dispatches each to a worker (`agent_as_tool`); aggregator combines results |
-| Reflection / critic | Worker emits answer; critic agent (different prompt, same or different LLM) emits acceptance/revision; loop |
-| Debate | Two workers with opposing prompts; judge agent (third role) selects |
-| Parallel fan-out | Supervisor splits task; `asyncio.gather` over `AsyncReActAgent` workers; reducer combines |
+| Debate | Two workers with opposing prompts; judge agent (third role) selects. Two `ReflectionLoop` instances + a chooser. |
+| Parallel fan-out | Supervisor splits task; `asyncio.gather` over `AsyncReActAgent` workers; reducer agent or plain Python aggregates. |
 
-Ship the recipe when you write the first real one -- the primitives are documented; preemptive helpers risk locking in shapes before they've been exercised.
+Ship the recipe when you write the first real one -- the primitives are
+documented; preemptive helpers risk locking in shapes before they've
+been exercised against real tasks.
 
 ## Events and Results
 

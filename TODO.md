@@ -30,17 +30,29 @@ These three items are the residue of `AGENT_TOOL_REVIEW.md` after every concrete
 
 ### Pattern gaps (from `docs/agents/patterns.md`)
 
-Coverage of common agent patterns -- what's missing in priority order. Each gap maps to a row in the patterns doc.
+The five pattern gaps identified in the original audit have all landed.
+See [`docs/agents/patterns.md`](docs/agents/patterns.md) for the full
+catalog plus the patterns intentionally not supported.
 
-- [ ] **#1 -- `ReflectionLoop` helper** (high value, low cost; ~50 LoC). Reflection / Reflexion pattern -- worker emits draft, critic agent (different prompt) emits acceptance/revision, loop up to N times. Currently a documented recipe in `docs/agents/patterns.md` §3 but no canned helper. Common production pattern for accuracy-critical tasks (coding, factual lookup, scientific reasoning). Sketch: `ReflectionLoop(worker: AgentProtocol, critic: AgentProtocol, max_attempts: int = 3, acceptance_marker: str = "ACCEPT")` in `composition.py`; reuses `agent_as_tool` mechanics and the existing `forward_events` callback shape so the critic's reasoning surfaces in the parent stream. Trigger: any user who'd benefit from coding-assistant-style self-review.
+- [x] **#1 -- `ReflectionLoop` helper** -- landed in `src/cyllama/agents/composition.py`. Worker + critic loop with configurable acceptance marker, custom revision template, and per-pass `source`/`parent_event_id` annotations on streamed events. 6 tests in `tests/test_agents_composition.py::TestReflection*`.
 
-- [ ] **#2 -- `rag_as_tool` helper** (high value, low cost; ~20 LoC). RAG agents pattern -- bridge the existing `cyllama.rag` subsystem to the agent layer as a canned tool. Today users hand-wrap `RAGPipeline.query()` in a `@tool`, which works but invites mistakes (forgetting to deduplicate, wrong return shape, no result-limit). Sketch: `rag_as_tool(rag: RAGPipeline, name: str = "search_kb", description: str, top_k: int = 5) -> Tool` in `composition.py`. Crystallizes the recipe and gives users a one-liner. Pairs naturally with `TieredAgentTeam` where the RAG-backed worker is one role among several. Trigger: anyone building a knowledge-grounded agent.
+- [x] **#2 -- `rag_as_tool` helper** -- landed in `composition.py`. Wraps any `RAG`-shaped object (`search` / `retrieve`) as a `Tool`; default formatter emits one `[score] text` line per hit, deduplicated by text. 8 tests.
 
-- [ ] **#3 -- Long-term semantic memory primitive** (high value, medium cost). Memory-augmented agents pattern -- cross-session "remember the user's preferences / past tasks" via embeddings. Today `session.py` handles short-term + episodic memory (`MemorySessionStore`, `FileSessionStore`, `SqliteSessionStore`), but there's no semantic-memory primitive bridging RAG into agent state. Sketch: `SemanticMemory(rag_pipeline)` with `remember(text, *, namespace, metadata)` and `retrieve(query, top_k, namespace)` methods; backed by RAG's vector store. Integrates with the existing session store via a `Session.memory: SemanticMemory` slot. Trigger: production chatbots that need cross-session continuity (the existing in-memory `Session` is short-lived).
+- [x] **#3 -- `SemanticMemory` primitive** -- landed in new `src/cyllama/agents/memory.py`. Namespace-aware facade over any RAG instance; `remember(text, namespace, metadata)` and `retrieve(query, namespace, top_k)`. Over-fetches from the underlying search so the namespace filter has room to find enough hits. `forget()` raises `NotImplementedError` pending a RAG-side filtered-delete API (documented). 14 tests in `tests/test_agents_memory.py`.
 
-- [ ] **#4 -- `plan_and_execute` helper** (medium value, low cost; ~50 LoC). Plan-and-Execute pattern -- planner emits structured task list, executor runs each step. Currently a documented recipe in `docs/agents/patterns.md` §2 but no canned helper. Sketch: `plan_and_execute(planner: ConstrainedAgent, executor: AgentProtocol, task: str, plan_schema: Type[BaseModel]) -> List[AgentResult]` in `composition.py`; the schema parameter pins the planner's output shape via the existing grammar-constrained generation. Trigger: workflow-automation use cases where the plan structure matters.
+- [x] **#4 -- `plan_and_execute` helper** -- landed in `composition.py`. Default plan parser handles `[...]`, `{"steps"|"plan"|"tasks": [...]}`, and newline-split with bullet/number-prefix stripping; pluggable via `plan_parser=`. `stop_on_error=True` (default) halts after the first failing step. 7 tests.
 
-- [ ] **#5 -- Cross-process `mcp_agent_tool` helper** (medium value, medium cost). Multi-agent systems extension -- in-process `agent_as_tool` works today; cross-process via MCP doesn't yet. The MCP HTTP transport (`mcp.py:300-356`) carries the call; the orchestration adapter is missing. Sketch: `mcp_agent_tool(client: McpClient, server_name: str, agent_name: str, description: str) -> Tool` -- symmetric to in-process `agent_as_tool` but the dispatch crosses a process boundary. Failure modes (network, timeout, remote crash) need to map onto the existing `ToolTimeoutError` / `ActionParseError` taxonomy. Trigger: a concrete need for heterogeneous agent fleets (different language, different host, separate process for isolation). Previously listed at the top of the TODO as a multi-agent residue; restated here for completeness.
+- [x] **#5 -- `mcp_agent_tool` helper** -- landed in `composition.py`. Cross-process analog of `agent_as_tool`; wraps a remote MCP-exposed agent as a local `Tool` named `"{server_name}/{agent_name}"`. Optional local `timeout=` separate from MCP transport timeouts. 6 tests.
+
+### Pattern-coverage refinements (future, no urgency)
+
+These are residual refinements documented under each pattern's "Gap" line in `docs/agents/patterns.md`. None block the pattern; each is a possible extension when a use case appears.
+
+- [ ] **Streaming sub-agent events across MCP** -- `mcp_agent_tool` returns a single value per call; streaming would require the MCP server-streaming RFC to stabilize.
+- [ ] **Streaming RAG results to the agent** -- `rag_as_tool` returns a single concatenated observation today.
+- [ ] **Filtered deletion in `SemanticMemory`** -- `forget()` raises `NotImplementedError` pending a RAG-side metadata-filtered delete API.
+- [ ] **Parallel critic ensembles in `ReflectionLoop`** -- multiple critics voting, reward-model-based acceptance.
+- [ ] **Unified streaming for `plan_and_execute` steps** -- one iterator surfacing events from all steps in sequence.
 
 ### Pattern gaps -- explicitly **not on the roadmap**
 
