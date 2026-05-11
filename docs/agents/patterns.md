@@ -67,7 +67,7 @@ results = [executor.run(step) for step in steps]
 
 **Gap**: no canned helper. A `plan_and_execute(planner, executor, task,
 plan_schema)` function in `composition.py` (~50 LoC) would crystallize
-this. See gap-list priority #4.
+this. See [Gap summary](#gap-summary) -- rank #4.
 
 ---
 
@@ -97,7 +97,7 @@ for attempt in range(max_attempts):
 
 **Gap**: no canned `ReflectionLoop(worker, critic, max_attempts)`
 helper. Common production pattern for accuracy-critical tasks — coding
-agents, scientific reasoning, factual lookup. See gap-list priority #1.
+agents, scientific reasoning, factual lookup. See [Gap summary](#gap-summary) -- rank #1.
 
 ---
 
@@ -119,8 +119,8 @@ Implementing ToT would require: (a) public `LlamaContext.snapshot()` /
 maintains a frontier of candidate states with scoring. Significant new
 machinery; non-trivial value for cyllama's typical user.
 
-**Gap**: structurally hard. See gap-list — explicitly **not on the
-roadmap** unless a use case forces it.
+**Gap**: structurally hard. See [Gap summary](#gap-summary) -- explicitly
+**not on the roadmap** unless a use case forces it.
 
 ---
 
@@ -156,7 +156,7 @@ Sub-agent events surface in the supervisor's stream with `source` and
 for the full reference.
 
 **Gap**: cross-process / cross-host agents (sub-agent running behind
-MCP). The primitives are in-process only. See gap-list priority #5.
+MCP). The primitives are in-process only. See [Gap summary](#gap-summary) -- rank #5.
 
 ---
 
@@ -180,10 +180,10 @@ Each stores `Message` records, `ToolCallRecord` records, and
 1. **No semantic memory wiring.** Cyllama has a full RAG subsystem
    (`src/cyllama/rag/`) but it isn't integrated into agents as a
    memory layer. Users have to manually wrap a RAG retriever as a
-   `@tool`. See gap-list priority #2.
+   `@tool`. See [Gap summary](#gap-summary) -- rank #2.
 2. **No long-term profile primitive.** Cross-session
    "remember the user's preferences" semantics — common in production
-   chatbots — has no canned API. See gap-list priority #3.
+   chatbots — has no canned API. See [Gap summary](#gap-summary) -- rank #3.
 
 ---
 
@@ -217,7 +217,7 @@ agent = ReActAgent(llm=llm, tools=[search_kb])
 **Gap**: a `rag_as_tool(rag_pipeline, name, description, top_k)`
 helper in `composition.py` (~20 LoC) would crystallize the recipe and
 avoid a class of user mistakes (forgetting to deduplicate, wrong
-return type, no result-limit). See gap-list priority #2.
+return type, no result-limit). See [Gap summary](#gap-summary) -- rank #2.
 
 ---
 
@@ -285,6 +285,57 @@ case demands it.
 | 7. RAG Agents | Partial | RAG subsystem exists; agent bridge is user-side |
 | 8. Autonomous / AutoGPT | Intentionally not supported | counter to bounded-loop design stance |
 | 9. Workflow / State-Machine | Not supported | linear-loop framework; no DAG orchestration |
+
+## Gap summary
+
+Each gap above maps to a tractable improvement. The list is ordered by
+**value-to-cost ratio for cyllama's typical user**, not by literature
+completeness. Engineering detail (sketches, file references, triggers)
+lives in [`TODO.md`](../../TODO.md) under "Pattern gaps".
+
+| Rank | Gap | Pattern | Value | Cost |
+|---|---|---|---|---|
+| **1** | `ReflectionLoop(worker, critic, max_attempts)` helper | §3 Reflection | High -- coding assistants, factual review | ~50 LoC |
+| **2** | `rag_as_tool(rag, name, description)` helper | §7 RAG | High -- bridges two healthy subsystems | ~20 LoC |
+| **3** | `SemanticMemory` primitive (RAG-backed long-term memory) | §6 Memory | High -- table-stakes for chatbots | Medium -- new class + Session integration |
+| **4** | `plan_and_execute(planner, executor, task, schema)` helper | §2 Plan-and-Execute | Medium -- the recipe is fine for most | ~50 LoC |
+| **5** | `mcp_agent_tool(client, server, agent)` cross-process helper | §5 Multi-Agent | Medium -- niche but a real capability | Medium -- failure-mode mapping |
+
+### Explicitly **not on the roadmap**
+
+These appear in the table above but won't be addressed without a
+forcing use case. Listed here to make the position explicit.
+
+- **Tree of Thoughts (§4)** -- requires public `LlamaContext.snapshot()` /
+  `restore()` (currently absent) plus a branching agent loop with a
+  scored candidate frontier. Significant new machinery; non-trivial
+  value for cyllama's typical user.
+
+- **Autonomous / AutoGPT (§8)** -- structurally opposed to cyllama's
+  design stance (bounded loops, loop detection, max_iterations,
+  contracts for budget invariants). Unbounded goal-decomposition is
+  what the framework actively prevents.
+
+- **Workflow / State-Machine (§9)** -- big design conversation. Three
+  options (ship a DSL, depend on an external library, stay linear-only),
+  each with costs the project currently isn't paying. Defer until a
+  concrete need forces the choice.
+
+### Positioning consequence
+
+Reading down the "Value" column reveals the pattern: every "high value"
+gap closes a **reliability or composition** gap (reflection loops, RAG
+bridging, persistent memory, plan-then-execute). Every "not on
+roadmap" item belongs to the **autonomy or graph-orchestration** half
+of the agent space.
+
+This isn't accidental. cyllama leans into bounded, observable,
+schema-constrained behavior (loop detection, `max_iterations`,
+`Annotated[]` markers, ContractAgent invariants); it explicitly
+declines unbounded autonomy and graph orchestration. Users who want
+those should reach for an autonomy-first framework. Users who want
+debuggable, schema-grounded, locally-runnable agents are in the right
+place.
 
 ## Further reading
 
