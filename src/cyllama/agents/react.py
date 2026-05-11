@@ -10,15 +10,38 @@ Implements the ReAct pattern where the agent alternates between:
 Reference: https://arxiv.org/abs/2210.03629
 """
 
+import json
 import logging
 import re
 import time
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
+
+def render_observation(raw: Any) -> str:
+    """Render a tool's raw return value as a string for the LLM.
+
+    Dicts and lists are JSON-serialised so the model sees something it
+    can re-parse rather than Python's ``repr()`` form (single-quoted
+    keys, ``None`` instead of ``null``, ``True``/``False`` instead of
+    ``true``/``false``). Everything else falls back to ``str()``.
+
+    The string render is what lands on ``OBSERVATION`` event ``content``;
+    the typed value is preserved separately in event metadata as
+    ``raw_result`` so contracts can see the actual type. See
+    ``docs/agents/contracts.md`` recipe 3.
+    """
+    if isinstance(raw, (dict, list)):
+        try:
+            return json.dumps(raw, ensure_ascii=False, default=str)
+        except (TypeError, ValueError):
+            return str(raw)
+    return str(raw)
+
+
 from ..defaults import DEFAULT_MAX_TOKENS, DEFAULT_TEMPERATURE
 from ..api import LLM, GenerationConfig
 from ._loop_detection import detect_loop, format_loop_error
-from .tools import Tool, ToolRegistry, coerce_args
+from .tools import Tool, ToolRegistry, ToolTimeoutError, coerce_args
 from .types import AgentEvent, AgentMetrics, AgentProtocol, AgentResult, EventType
 
 # Module logger
@@ -400,7 +423,7 @@ Begin!"""
                         tool_name, tool_args = self._parse_action(action_str)
                     tool_start = time.perf_counter()
                     raw_result = self._execute_tool_raw(tool_name, tool_args)
-                    observation = str(raw_result)
+                    observation = render_observation(raw_result)
                     tool_time = (time.perf_counter() - tool_start) * 1000
                     self._metrics.tool_time_ms += tool_time
                     logger.debug("Tool %s executed in %.1fms", tool_name, tool_time)
@@ -668,13 +691,15 @@ Begin!"""
         args_str = match.group(2).strip()
 
         # Validate tool name: each `.`/`/`/`-` separated segment must be a
-        # valid identifier. Permits namespaced names (e.g. `server/tool`,
-        # `module.helper`) while still rejecting garbage like `123abc` or `()`.
-        if not tool_name or not all(seg.isidentifier() for seg in re.split(r"[./\-]", tool_name) if seg):
+        # non-empty valid identifier. Permits namespaced names (e.g.
+        # `server/tool`, `module.helper`) while rejecting garbage like
+        # `123abc`, `()`, or `server//tool` (empty middle segment).
+        segments = re.split(r"[./\-]", tool_name)
+        if not tool_name or not all(seg.isidentifier() for seg in segments):
             raise ActionParseError(
                 f"Invalid tool name: '{tool_name}'",
                 action_str,
-                suggestion="Tool name segments must be valid identifiers (letters, numbers, underscores); separators `.`, `/`, `-` allowed",
+                suggestion="Tool name segments must be non-empty valid identifiers (letters, numbers, underscores); separators `.`, `/`, `-` allowed",
             )
 
         if not args_str:
@@ -965,7 +990,36 @@ Begin!"""
 
         if tool.coerce:
             args = coerce_args(tool, args)
-        return tool(**args)
+
+        if tool.timeout is None:
+            return tool(**args)
+
+        # Run on a daemon thread so the interpreter can exit even if the
+        # tool hangs. We use a raw daemon Thread rather than a pooled
+        # executor because ThreadPoolExecutor.__exit__ blocks on worker
+        # completion -- which would re-introduce the hang we're trying to
+        # avoid. concurrent.futures cannot kill the worker thread either
+        # way; we just stop waiting on it.
+        import threading as _threading
+
+        result_box: List[Any] = [None]
+        exc_box: List[Optional[BaseException]] = [None]
+
+        def _runner() -> None:
+            try:
+                result_box[0] = tool(**args)
+            except BaseException as e:  # noqa: BLE001 — re-raised in caller
+                exc_box[0] = e
+
+        worker = _threading.Thread(target=_runner, name=f"tool-{tool_name}", daemon=True)
+        worker.start()
+        worker.join(timeout=tool.timeout)
+        if worker.is_alive():
+            # Worker keeps running on a daemon thread; the agent moves on.
+            raise ToolTimeoutError(tool_name, tool.timeout)
+        if exc_box[0] is not None:
+            raise exc_box[0]
+        return result_box[0]
 
     def _execute_tool(self, tool_name: str, args: Dict[str, Any]) -> str:
         """
@@ -988,7 +1042,7 @@ Begin!"""
 
         try:
             result = self._execute_tool_raw(tool_name, args)
-            return str(result)
+            return render_observation(result)
         except Exception as e:
             return f"Tool execution error: {str(e)}"
 

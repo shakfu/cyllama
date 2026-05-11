@@ -363,3 +363,139 @@ def test_max_items_violation() -> None:
 def test_array_constraints_all_pass() -> None:
     out = coerce_args(tag_set, {"tags": ["a", "b"]})
     assert out == {"tags": ["a", "b"]}
+
+
+# =============================================================================
+# Tool timeouts (Proposal #8)
+# =============================================================================
+
+
+def test_tool_default_timeout_is_none():
+    """Tools created without timeout= have timeout=None (no enforcement)."""
+
+    @tool
+    def noop() -> str:
+        """Noop."""
+        return "ok"
+
+    assert noop.timeout is None
+
+
+def test_tool_timeout_field_set_via_decorator():
+    @tool(timeout=0.05)
+    def quick() -> str:
+        """Returns fast."""
+        return "ok"
+
+    assert quick.timeout == 0.05
+
+
+def test_tool_completes_within_timeout():
+    """Normal tools complete and timeout is invisible to caller."""
+
+    @tool(timeout=1.0)
+    def quick() -> str:
+        """Returns fast."""
+        return "ok"
+
+    agent = ReActAgent(llm=_StubLLM(), tools=[quick])  # type: ignore[arg-type]
+    assert agent._execute_tool_raw("quick", {}) == "ok"
+
+
+def test_tool_timeout_fires_for_hanging_tool():
+    """A tool exceeding its timeout raises ToolTimeoutError."""
+    import time
+    from cyllama.agents import ToolTimeoutError
+
+    @tool(timeout=0.05)
+    def slow() -> str:
+        """Sleeps longer than the timeout."""
+        time.sleep(0.5)
+        return "should not see this"
+
+    agent = ReActAgent(llm=_StubLLM(), tools=[slow])  # type: ignore[arg-type]
+    with pytest.raises(ToolTimeoutError) as exc:
+        agent._execute_tool_raw("slow", {})
+    assert exc.value.tool_name == "slow"
+    assert exc.value.timeout == 0.05
+
+
+def test_tool_timeout_does_not_block_after_raising():
+    """After ToolTimeoutError, the caller returns immediately; the worker
+    thread continues but is a daemon, so the test process can exit cleanly.
+    This test verifies the no-block contract end-to-end."""
+    import time
+    from cyllama.agents import ToolTimeoutError
+
+    @tool(timeout=0.05)
+    def slow() -> str:
+        """Slow tool."""
+        time.sleep(0.5)
+        return "x"
+
+    agent = ReActAgent(llm=_StubLLM(), tools=[slow])  # type: ignore[arg-type]
+    started = time.perf_counter()
+    with pytest.raises(ToolTimeoutError):
+        agent._execute_tool_raw("slow", {})
+    elapsed = time.perf_counter() - started
+    # Should return within ~2x the timeout. Generous: timeout=0.05 -> <0.5s.
+    assert elapsed < 0.5, f"timeout enforcement took {elapsed:.2f}s (expected <0.5s)"
+
+
+def test_tool_exception_propagates_through_timeout_wrapper():
+    """If a timed tool raises before the timeout, the original exception propagates."""
+
+    @tool(timeout=1.0)
+    def bad() -> str:
+        """Raises immediately."""
+        raise RuntimeError("tool said no")
+
+    agent = ReActAgent(llm=_StubLLM(), tools=[bad])  # type: ignore[arg-type]
+    with pytest.raises(RuntimeError, match="tool said no"):
+        agent._execute_tool_raw("bad", {})
+
+
+# =============================================================================
+# Typed observation rendering (Proposal #9)
+# =============================================================================
+
+
+def test_render_observation_dict_is_json():
+    from cyllama.agents.react import render_observation
+
+    out = render_observation({"k": 1, "v": "two"})
+    # Re-parseable as JSON (single-quoted Python repr would not be).
+    import json
+
+    parsed = json.loads(out)
+    assert parsed == {"k": 1, "v": "two"}
+
+
+def test_render_observation_list_is_json():
+    from cyllama.agents.react import render_observation
+
+    out = render_observation([1, 2, 3])
+    import json
+
+    assert json.loads(out) == [1, 2, 3]
+
+
+def test_render_observation_scalar_falls_through_to_str():
+    from cyllama.agents.react import render_observation
+
+    assert render_observation(42) == "42"
+    assert render_observation("hello") == "hello"
+    assert render_observation(None) == "None"
+
+
+def test_render_observation_unserialisable_falls_through_to_str():
+    """Objects json.dumps can't handle still produce something readable."""
+    from cyllama.agents.react import render_observation
+
+    class Opaque:
+        def __repr__(self) -> str:
+            return "<opaque>"
+
+    out = render_observation({"obj": Opaque()})
+    # Default=str path lets json handle it.
+    assert "opaque" in out

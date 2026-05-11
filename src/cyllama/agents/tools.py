@@ -29,6 +29,22 @@ class ToolArgumentError(ValueError):
         super().__init__(f"{tool_name}: {message}")
 
 
+class ToolTimeoutError(RuntimeError):
+    """Raised when a tool exceeds its declared ``Tool.timeout`` budget.
+
+    The underlying worker thread is *not* killed -- Python provides no safe
+    way to do that. The agent abandons the result but the tool continues
+    running in the background until it returns or the interpreter exits.
+    For hard resource limits (memory, file descriptors, network state),
+    use out-of-process tools and let the OS enforce the budget.
+    """
+
+    def __init__(self, tool_name: str, timeout: float):
+        self.tool_name = tool_name
+        self.timeout = timeout
+        super().__init__(f"{tool_name}: exceeded {timeout}s timeout")
+
+
 # ---------------------------------------------------------------------------
 # Annotated[] constraint markers
 #
@@ -146,6 +162,11 @@ class Tool:
             dispatch — string ints become ints, missing required args raise
             ``ToolArgumentError``, unknown args are rejected. Set False on
             tools that intentionally accept loose typing or **kwargs.
+        timeout: Optional per-call timeout in seconds. When set, agents run
+            the tool on a daemon thread and raise ``ToolTimeoutError`` if it
+            exceeds the budget. The worker thread keeps running -- Python
+            cannot safely kill threads -- but the agent abandons the result.
+            Default ``None`` (no timeout); set via ``@tool(timeout=10.0)``.
     """
 
     name: str
@@ -153,6 +174,7 @@ class Tool:
     func: Callable[..., Any]
     parameters: Dict[str, Any] = field(default_factory=dict)
     coerce: bool = True
+    timeout: Optional[float] = None
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
         """Execute the tool with given arguments."""
@@ -906,6 +928,17 @@ def _enforce_constraints(tool_name: str, key: str, value: Any, spec: Dict[str, A
     schema_type = spec.get("type")
 
     if schema_type in ("integer", "number") and isinstance(value, (int, float)) and not isinstance(value, bool):
+        # NaN and infinity slip past every comparison (NaN comparisons
+        # always return False; inf > any finite is trivially True but
+        # callers usually don't want it). Reject them outright if any
+        # bound was declared — they're never what the model meant to emit.
+        import math as _math
+
+        has_bound = any(k in spec for k in ("minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "multipleOf"))
+        if has_bound and isinstance(value, float) and not _math.isfinite(value):
+            raise ToolArgumentError(
+                tool_name, f"argument {key!r}: non-finite value {value!r} rejected by numeric bounds"
+            )
         if "minimum" in spec and value < spec["minimum"]:
             raise ToolArgumentError(tool_name, f"argument {key!r}: {value} < minimum {spec['minimum']}")
         if "exclusiveMinimum" in spec and value <= spec["exclusiveMinimum"]:
@@ -969,6 +1002,7 @@ def tool(
     name: Optional[str] = None,
     description: Optional[str] = None,
     coerce: bool = True,
+    timeout: Optional[float] = None,
 ) -> Any:
     """
     Decorator to register a function as an agent tool.
@@ -990,6 +1024,13 @@ def tool(
             dispatch — strings like ``"5"`` get coerced to ``int``, unknown
             kwargs are rejected. Set False for tools accepting **kwargs or
             intentionally loose typing.
+        timeout: Optional per-call timeout in seconds. When set, the agent
+            runs the tool on a daemon thread and raises ``ToolTimeoutError``
+            if it exceeds the budget. The worker continues running until it
+            returns or the interpreter exits (Python cannot safely kill
+            threads), but the agent abandons the result and moves on.
+            Useful for runaway network calls, infinite loops, etc. For hard
+            resource limits, use out-of-process tools.
 
     Returns:
         Tool instance that wraps the function
@@ -1012,7 +1053,14 @@ def tool(
         schema = _generate_schema_from_function(f)
 
         # Create Tool instance
-        tool_instance = Tool(name=tool_name, description=tool_desc, func=f, parameters=schema, coerce=coerce)
+        tool_instance = Tool(
+            name=tool_name,
+            description=tool_desc,
+            func=f,
+            parameters=schema,
+            coerce=coerce,
+            timeout=timeout,
+        )
 
         return tool_instance
 

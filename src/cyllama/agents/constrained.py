@@ -21,6 +21,7 @@ from ..llama.llama_cpp import (
     llama_batch_get_one,
 )
 from ._loop_detection import detect_loop, format_loop_error
+from .react import render_observation
 from .tools import Tool, ToolArgumentError, ToolRegistry, coerce_args
 from .grammar import (
     GrammarFormat,
@@ -713,7 +714,7 @@ Use tools when needed, then provide a helpful final answer based on the results.
             if tool.coerce:
                 args = coerce_args(tool, args)
             result = tool(**args)
-            return str(result)
+            return render_observation(result)
         except ToolArgumentError as e:
             # Surface schema-violation details verbatim so the LLM can fix
             # the call on the next iteration.

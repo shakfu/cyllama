@@ -25,6 +25,7 @@ from .tools import (
     Pattern,
     Tool,
     ToolArgumentError,
+    ToolTimeoutError,
     ToolRegistry,
     coerce_args,
     tool,
@@ -75,6 +76,13 @@ from .jsonrpc import (
     StdioTransport,
 )
 
+# Multi-agent composition primitives
+from .composition import (
+    agent_as_tool,
+    AgentRole,
+    TieredAgentTeam,
+)
+
 # Async agent wrappers
 from .async_agent import (
     AsyncReActAgent,
@@ -88,6 +96,7 @@ __all__ = [
     "tool",
     "ToolRegistry",
     "ToolArgumentError",
+    "ToolTimeoutError",
     "coerce_args",
     # Annotated[] constraint markers
     "Ge",
@@ -152,6 +161,11 @@ __all__ = [
     "JsonRpcError",
     "StdioTransport",
     # Async agents
+    # Multi-agent composition
+    "agent_as_tool",
+    "AgentRole",
+    "TieredAgentTeam",
+    # Async wrappers
     "AsyncReActAgent",
     "AsyncConstrainedAgent",
     "run_agent_async",
