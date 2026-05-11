@@ -6,17 +6,20 @@ Cyllama includes a zero-dependency agent framework for building tool-using LLM a
 
 1. [Quick Start](#quick-start)
 2. [Architecture](#architecture)
-3. [Tools](#tools)
+3. [Tools](#tools) -- including `Annotated[]` constraints, coercion, timeouts
 4. [Agents](#agents)
    - [ReActAgent](#reactagent)
 
    - [ConstrainedAgent](#constrainedagent)
 
    - [ContractAgent](#contractagent)
-5. [Events and Results](#events-and-results)
-6. [Configuration](#configuration)
-7. [Best Practices](#best-practices)
-8. [Async Agents](#async-agents)
+5. [Multi-Agent Composition](#multi-agent-composition) -- `agent_as_tool`, `TieredAgentTeam`
+6. [Events and Results](#events-and-results)
+7. [Configuration](#configuration)
+8. [Best Practices](#best-practices)
+9. [Async Agents](#async-agents)
+10. [Further Reading](#further-reading) -- recipes + design docs
+11. [Experimental: ACPAgent](#experimental-acpagent)
 
 ## Quick Start
 
@@ -128,6 +131,72 @@ prompt = registry.to_prompt_string()
 # Generate JSON schemas (OpenAI format)
 schemas = registry.to_json_schema()
 ```
+
+### Schema Constraints with `Annotated[]`
+
+Type hints alone capture *kind* (int, str, list); for *constraints* — range, length, pattern, enum — annotate the type with stdlib-style markers exported from `cyllama.agents`. The marker values land in the generated JSON Schema and are also enforced by the dispatch-time validator (next subsection).
+
+```python
+from typing import Annotated, Literal
+from cyllama.agents import tool, Ge, Le, Gt, Lt, MultipleOf, MinLen, MaxLen, Pattern
+
+@tool
+def fetch_rows(
+    table: Annotated[str, MinLen(1), MaxLen(64), Pattern(r"^[a-z_][a-z0-9_]*$")],
+    limit: Annotated[int, Ge(1), Le(1000)],
+    chunk_size: Annotated[int, Gt(0), Lt(500), MultipleOf(10)] = 100,
+    mode: Literal["preview", "full"] = "preview",
+) -> list[dict]:
+    """Fetch rows from a table with bounded paging."""
+    ...
+```
+
+Marker -> JSON Schema keyword mapping:
+
+| Marker | Schema keyword | Applies to |
+|---|---|---|
+| `Ge(n)` | `minimum` | integer, number |
+| `Gt(n)` | `exclusiveMinimum` | integer, number |
+| `Le(n)` | `maximum` | integer, number |
+| `Lt(n)` | `exclusiveMaximum` | integer, number |
+| `MultipleOf(n)` | `multipleOf` | integer, number |
+| `MinLen(n)` | `minLength` / `minItems` | string / array |
+| `MaxLen(n)` | `maxLength` / `maxItems` | string / array |
+| `Pattern(s)` | `pattern` | string |
+
+`Literal["a", "b"]` continues to produce `{"type": "string", "enum": [...]}` via the existing path. Zero runtime dependency -- no `annotated_types` or `pydantic`.
+
+### Tool-Argument Coercion and Validation
+
+LLMs frequently emit string-typed JSON values for numeric fields ("5" instead of 5). The dispatch layer runs `coerce_args(tool, args)` before invoking the tool function when `tool.coerce` is True (the default; opt out via `@tool(coerce=False)` for tools that genuinely want loose typing or `**kwargs`). Coercion is narrow on purpose -- it fixes shape mismatches an LLM is likely to emit, not arbitrary type juggling:
+
+- `"5"` -> `int(5)` for `integer` fields; `"1.5"` -> `float(1.5)` for `number` fields
+- `"true"` / `"false"` (any case, plus `"1"`/`"0"`, `"yes"`/`"no"`) -> `bool`
+- Missing required args -> `ToolArgumentError`
+- Unknown args (not declared in the schema) -> `ToolArgumentError`
+- `Literal[...]` enum violations -> `ToolArgumentError`
+- `bool` passed for an `int` field -> rejected (Python's int-subclass trap)
+- `Annotated[]` bounds violated (out of range, wrong pattern, too long) -> `ToolArgumentError`
+- NaN / infinity values for bounded numeric fields -> rejected (NaN comparisons silently pass otherwise)
+
+`ToolArgumentError` is a `ValueError` subclass, so existing agent exception handlers catch it; the precise message gets fed back to the LLM as the observation so it can self-correct on the next iteration.
+
+### Tool Timeouts
+
+Set `Tool.timeout` (in seconds) on tools that may hang -- network calls, recursive operations, anything that could miss a deadline:
+
+```python
+@tool(timeout=10.0)
+def fetch_url(url: str) -> str:
+    """Fetch a URL; abandoned after 10 seconds."""
+    ...
+```
+
+The agent runs the tool on a daemon thread, joins for the declared budget, and raises `ToolTimeoutError(tool_name, timeout)` if it exceeds. Default is `None` (no enforcement). The worker thread *keeps running* after the timeout -- Python cannot safely kill threads -- but the agent abandons the result and continues. For hard resource limits (memory, file descriptors), use out-of-process tools and let the OS enforce.
+
+### Observation Rendering
+
+The dispatch layer converts a tool's raw return value to the string that lands on the `OBSERVATION` event `content` via `render_observation()`. Dicts and lists become JSON (so the LLM sees something re-parseable, not Python's `repr` form with single quotes and `None` instead of `null`); scalars and objects that can't be JSON-encoded fall back to `str()`. The raw value is preserved on event metadata as `raw_result`, so `@post` contracts see the actual typed return value, not its string render.
 
 ## Agents
 
@@ -268,7 +337,9 @@ or
 
 ### ContractAgent
 
-Contract-based agent inspired by C++26 contracts (P2900). Adds preconditions, postconditions, and runtime assertions to tool calls.
+Contract-based agent inspired by C++26 contracts (P2900). Adds preconditions, postconditions, and runtime assertions to tool calls -- specifically the *non-schema* checks that `Annotated[]` markers cannot express.
+
+> **When to use `@pre` vs `Annotated[]`:** Reserve `@pre` for cross-field rules (`end > start`), state-dependent rules (`db.is_connected()`), and value-dependency rules. For simple argument constraints (type, range, enum, pattern, length), use `Annotated[int, Ge(1)]` / `Literal["a","b"]` in the type hint -- schema-side constraints reach the model in the prompt and grammar; contracts do not. See [`docs/agents/contracts.md`](agents/contracts.md) for nine worked recipes plus the anti-patterns to avoid, and [`docs/dev/contract-agent.md`](dev/contract-agent.md) for the design rationale.
 
 **Usage:**
 
@@ -277,30 +348,39 @@ from cyllama import LLM
 from cyllama.agents import ContractAgent, tool, pre, post, ContractPolicy
 
 @tool
-@pre(lambda args: args['x'] != 0, "cannot divide by zero")
-@post(lambda r: r is not None, "result must not be None")
-def divide(a: float, x: float) -> float:
-    """Divide a by x."""
-    return a / x
+@pre(lambda args: args['end'] > args['start'], "end must follow start")  # cross-field
+def fetch_range(start: int, end: int) -> list[int]:
+    """Cross-field rule: relationship between two args."""
+    ...
+
+@tool
+@post(lambda r: r == sorted(r), "must return sorted output")  # behavioural postcondition
+def fetch_ordered(table: str) -> list[int]:
+    """Behavioural rule: schema cannot express 'sorted'."""
+    ...
 
 agent = ContractAgent(
     llm=LLM("model.gguf"),
-    tools=[divide],
+    tools=[fetch_range, fetch_ordered],
     policy=ContractPolicy.ENFORCE,
-    task_precondition=lambda task: len(task) > 10,
-    answer_postcondition=lambda ans: len(ans) > 0,
+    task_preconditions=[lambda task: len(task) >= 10],
+    answer_postconditions=[lambda ans: "error" not in ans.lower()],
+    iteration_invariants=[
+        lambda s: s.errors < 3,
+        lambda s: s.elapsed_ms < 30_000,
+    ],
 )
 
-result = agent.run("What is 100 divided by 4?")
+result = agent.run("Fetch the first 10 sorted records from `users`.")
 ```
 
 **Contract Decorators:**
 
 ```python
-# Precondition - checked before tool execution
-@pre(lambda args: args['count'] > 0, "count must be positive")
+# Precondition - cross-field or state-dependent only (use Annotated[] for arg validation)
+@pre(lambda args: args['end'] > args['start'], "end must follow start")
 
-# Postcondition - checked after tool execution
+# Postcondition - receives raw typed return value
 @post(lambda result: len(result) > 0, "must return non-empty result")
 
 # Postcondition with access to original arguments
@@ -330,15 +410,46 @@ def process_data(data: str) -> str:
 
 **Agent-Level Contracts:**
 
+The plural-form kwargs (`task_preconditions=`, `answer_postconditions=`, `iteration_invariants=`) accept lists so you can stack independent invariants without writing one AND-composed mega-lambda. The singular forms are still accepted for back-compat; passing both forms for the same hook raises `ValueError`.
+
 ```python
 agent = ContractAgent(
     llm=llm,
     tools=[...],
-    task_precondition=lambda task: len(task) >= 10,
-    answer_postcondition=lambda ans: "error" not in ans.lower(),
-    iteration_invariant=lambda state: state.iterations < 20,
+    task_preconditions=[
+        lambda task: len(task) >= 10,
+        lambda task: not task.startswith("ignore previous"),
+    ],
+    answer_postconditions=[
+        lambda ans: "error" not in ans.lower(),
+        lambda ans: len(ans) < 4000,
+    ],
+    iteration_invariants=[
+        lambda s: s.errors < 3,
+        lambda s: s.elapsed_ms < 30_000,
+        lambda s: s.tool_calls < 20,
+        lambda s: s.consecutive_same_observation < 3,
+    ],
 )
 ```
+
+Under OBSERVE policy each failing predicate surfaces its own `CONTRACT_VIOLATION` event with `metadata["index"]` pointing back to its list position, so a monitoring UI can attribute failures to specific rules. Under ENFORCE the first failure terminates.
+
+**`IterationState` fields available to `iteration_invariants`:**
+
+| Field | Type | Description |
+|---|---|---|
+| `iterations` | `int` | THOUGHT events seen so far |
+| `tool_calls` | `int` | ACTION events seen so far |
+| `errors` | `int` | ERROR events seen so far |
+| `elapsed_ms` | `float` | Wall-clock since first event |
+| `last_tool_name` | `Optional[str]` | Most recent ACTION's tool name |
+| `last_observation` | `Optional[str]` | Most recent OBSERVATION content |
+| `observations_so_far` | `List[str]` | Capped to last 10 observations |
+| `estimated_prompt_chars` | `int` | Sum of all event content lengths (cheap proxy for context size) |
+| `consecutive_same_observation` | `int` | Stuck-loop detection beyond the built-in detector |
+
+The new fields enable invariants with no schema substitute: time budgets, prompt-budget caps, and "the agent keeps producing the same observation" detection.
 
 **Violation Handler:**
 
@@ -369,6 +480,87 @@ agent = ContractAgent(
 
 - Requires explicit contract definitions
 
+---
+
+## Multi-Agent Composition
+
+Common multi-agent patterns (supervisor/worker, plan-and-execute, reflection/critic, debate, parallel fan-out) compose from two small primitives in `cyllama.agents.composition` rather than requiring a new orchestration engine.
+
+### `agent_as_tool` -- wrap any agent as a Tool
+
+```python
+from cyllama import LLM
+from cyllama.agents import ReActAgent, agent_as_tool
+
+worker = ReActAgent(llm=LLM("models/fast.gguf"), tools=[search])
+
+worker_tool = agent_as_tool(
+    worker,
+    name="research",
+    description="Investigate a topic and return findings.",
+)
+
+supervisor = ReActAgent(
+    llm=LLM("models/strong.gguf"),
+    tools=[worker_tool],
+)
+
+result = supervisor.run("Compare TLS 1.2 and TLS 1.3 handshakes.")
+```
+
+The wrapped tool fits naturally into the supervisor's registry: dispatch, coercion, timeouts, and contracts all work unchanged.
+
+Pass a `forward_events` callback to surface the inner agent's reasoning in a streaming UI:
+
+```python
+def on_sub_event(ev):
+    print(f"[{ev.source}] {ev.type.name}: {ev.content}")
+
+worker_tool = agent_as_tool(
+    worker, name="research", description="...",
+    forward_events=on_sub_event,
+)
+```
+
+Each forwarded event has `source` set to the inner agent's name and a `parent_event_id` linking it to the supervisor's ACTION event that triggered the sub-run.
+
+### `TieredAgentTeam` -- supervisor + named workers
+
+For supervisor/worker setups where each role may run on a different LLM (capability tiering: strong planner + cheap workers), use the ergonomic container:
+
+```python
+from cyllama.agents import AgentRole, TieredAgentTeam
+
+team = TieredAgentTeam(
+    supervisor=ReActAgent(llm=LLM("models/strong.gguf"), tools=[]),
+    workers=[
+        AgentRole("researcher", researcher_agent, "Investigate facts."),
+        AgentRole("coder", coder_agent, "Write or modify code."),
+        AgentRole("summarizer", summarizer_agent, "Condense findings."),
+    ],
+)
+
+result = team.run("Refactor X using technique Y, then summarize.")
+```
+
+The team registers each worker as a tool on the supervisor's registry; rejects empty worker lists, duplicate names, and supervisors without a `registry` attribute. Both `ReActAgent` and `ConstrainedAgent` satisfy the registry requirement.
+
+**GPU-budgeting note:** loading multiple 7B+ models is rarely viable on consumer hardware. Typical configurations are *one large + N small* (a 7B planner with 1B workers) or *model swapping* (one LLM in VRAM at a time, sequential dispatch). See `src/cyllama/memory.py` for sizing utilities.
+
+### Recipes
+
+Patterns built from these two primitives:
+
+| Pattern | Composition |
+|---|---|
+| Supervisor / worker | `TieredAgentTeam` directly |
+| Plan-and-execute | Planner emits subtask list (ConstrainedAgent); supervisor dispatches each to a worker (`agent_as_tool`); aggregator combines results |
+| Reflection / critic | Worker emits answer; critic agent (different prompt, same or different LLM) emits acceptance/revision; loop |
+| Debate | Two workers with opposing prompts; judge agent (third role) selects |
+| Parallel fan-out | Supervisor splits task; `asyncio.gather` over `AsyncReActAgent` workers; reducer combines |
+
+Ship the recipe when you write the first real one -- the primitives are documented; preemptive helpers risk locking in shapes before they've been exercised.
+
 ## Events and Results
 
 ### Event Types
@@ -387,6 +579,11 @@ class EventType(Enum):
     CONTRACT_CHECK = "contract_check"         # Contract being evaluated
     CONTRACT_VIOLATION = "contract_violation" # Violation detected
 ```
+
+`AgentEvent` carries two optional fields populated by the multi-agent composition layer (default `None` in single-agent code paths, so existing event consumers are unaffected):
+
+- `source: Optional[str]` -- name of the sub-agent that emitted the event when forwarded through `agent_as_tool`'s `forward_events` callback.
+- `parent_event_id: Optional[str]` -- links the sub-event back to the supervisor's ACTION event that triggered the sub-run; used by streaming UIs to render nested execution.
 
 ### Streaming Events
 
@@ -668,3 +865,18 @@ async def parallel_agents():
 - [C++26 Contract Assertions](https://en.cppreference.com/w/cpp/language/contracts.html)
 
 - [Contracts for C++ P2900R14](https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2025/p2900r14.pdf)
+
+## Further Reading
+
+- [`docs/agents/contracts.md`](agents/contracts.md) -- nine worked recipes for the contract patterns (cross-field, state-dependent, behavioural postconditions, cost caps, answer-content checks, PII defence, stuck-loop detection, time budgets) plus three explicit anti-patterns
+- [`docs/dev/contract-agent.md`](dev/contract-agent.md) -- design notes and repositioning rationale for ContractAgent; reads like a maintainer's commentary on why the API looks the way it does
+
+## Experimental: ACPAgent
+
+`ACPAgent` (and `serve_acp`) implement the Agent Client Protocol for editor integration (Zed, Neovim, ...). The module is **experimental**:
+
+- `ACP_PROTOCOL_VERSION` is hardcoded to `"2025-01-01"`; no version negotiation against the client's announced version.
+- No conformance test against a reference ACP client.
+- API surface may change as the protocol stabilizes and real editor integrations exercise the rough edges.
+
+Build on it for prototypes and editor experiments; do not build a production integration on this surface without expecting churn. See the warning in `src/cyllama/agents/acp.py` module docstring for the full statement.
