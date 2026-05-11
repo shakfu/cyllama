@@ -331,24 +331,91 @@ framework's stance.
 
 ## 9. Workflow / State-Machine Agents
 
-**Status: not supported.**
+**Status: first-class.**
 
-Frameworks like LangGraph model agent behavior as an explicit DAG or
-state machine — nodes are tools or LLM calls, edges encode transitions,
-state is threaded through. cyllama's agent loops are linear (single
-THOUGHT/ACTION/OBSERVATION stream); the multi-agent composition is
-hierarchical (supervisor dispatching to workers via tools), not
-graph-based.
+`cyllama.agents.workflow` ships an explicit DAG / state-graph runtime
+with two authoring layers over the same compile + execute model.
+Nodes are typed Python callables (or agents, tools, or other
+workflows); edges are static or conditional; state is a typed dict
+threaded between nodes; independent nodes at the same topological
+level run concurrently.
 
-Building DAG orchestration on top of cyllama is possible
-(`AsyncReActAgent` + your own orchestrator), but no graph DSL is
-shipped.
+```python
+from cyllama.agents.workflow import Workflow
 
-**Gap**: significant. Adding graph orchestration is a big design
-conversation: do we ship a DSL (locks in shape), depend on an
-external library (breaks the zero-dependency charter), or stay
-linear-only? See gap-list — explicitly **deferred** until a real use
-case demands it.
+flow = Workflow()
+
+# Layer C -- decorator sugar; dependencies inferred from parameter names.
+@flow.node
+def classify(query: str) -> dict:
+    confidence = score(query)
+    return {"confidence": confidence, "topic": guess_topic(query)}
+
+@flow.node
+def answer(classify: dict) -> str:
+    return llm.complete(f"Topic={classify['topic']}: {classify}").text
+
+@flow.node
+def escalate(classify: dict) -> str:
+    return queue_human_review(classify)
+
+# Conditional router decides which downstream node runs.
+@flow.route(after="classify")
+def route(classify: dict) -> str:
+    return "answer" if classify["confidence"] > 0.7 else "escalate"
+
+flow.set_entry("classify")
+result = flow.run(query="What is the capital of France?")
+print(result.answer)  # state["answer"] or state["escalate"]
+```
+
+```python
+# Layer B -- explicit StateGraph; the canonical runtime form.
+from cyllama.agents.workflow import Workflow, END
+
+flow = Workflow()
+flow.add_node("classify", classify_fn)
+flow.add_node("answer", answer_fn)
+flow.add_node("escalate", escalate_fn)
+flow.add_conditional_edge(
+    "classify",
+    lambda s: "answer" if s["confidence"] > 0.7 else "escalate",
+    {"answer": "answer", "escalate": "escalate"},
+)
+flow.set_entry("classify")
+result = flow.run(query="...")
+```
+
+A workflow's native API is kwargs-only (`flow.run(**state)`); to
+plug it into the multi-agent layer, call `flow.as_agent()` to get
+an `AgentProtocol`-conformant adapter. `agent_as_tool(flow.as_agent(),
+...)`, `ReflectionLoop(flow.as_agent(), critic.as_agent(), ...)`,
+and `TieredAgentTeam(workers=[AgentRole("research", flow.as_agent(),
+...)])` all work via the same explicit-adapter pattern. Workflows
+nest one inside another via `workflow_node(inner, name="research")`;
+inner events forward into the outer event stream with `source` /
+`parent_event_id` set so streaming UIs can render the tree.
+
+Other capabilities (all landed in the Phase 1-5 rollout):
+
+- Parallel level execution (`asyncio.gather`); sync nodes dispatched
+  on `asyncio.to_thread`.
+- Per-node `timeout=` using `asyncio.wait_for`.
+- `WorkflowInvariant` reusing `ContractPolicy` semantics for
+  workflow-level pre/postconditions.
+- Reducer registry (`reducer.append` / `extend` / `merge_dict` /
+  `add` / `last`) for explicit multi-writer state keys; runtime
+  detects unreduced collisions.
+- `flow.stream(...)` / `flow.astream(...)` event streams with
+  `WORKFLOW_START` / `NODE_START` / `NODE_END` / `ANSWER` /
+  `WORKFLOW_END` / `CONTRACT_VIOLATION`.
+- `flow.to_mermaid()` / `flow.to_dot()` for graph rendering;
+  `flow.dry_run()` for execution-order inspection without running.
+- PEP 484 `Workflow[StateT]` generic for typed state.
+
+**Reference**: `cyllama/agents/workflow.py`; design + per-phase
+notes in [`workflow.md`](workflow.md); 118 tests in
+`tests/test_agents_workflow.py`.
 
 ---
 
@@ -364,11 +431,11 @@ case demands it.
 | 6. Memory-Augmented | First-class | session stores + `SemanticMemory` (`memory.py`) |
 | 7. RAG Agents | First-class helper | `rag_as_tool()` (`composition.py`) |
 | 8. Autonomous / AutoGPT | Intentionally not supported | counter to bounded-loop design stance |
-| 9. Workflow / State-Machine | Not supported | linear-loop framework; no DAG orchestration |
+| 9. Workflow / State-Machine | First-class | `Workflow` / `CompiledWorkflow` (`workflow.py`); decorator sugar (`@flow.node`, `@flow.route`) over explicit StateGraph |
 
 ## Gap summary
 
-All five tractable pattern gaps from the original audit have **landed**.
+All six tractable pattern gaps from the original audit have **landed**.
 The table below records what was added, where it lives, and the
 tests that pin each helper.
 
@@ -379,6 +446,7 @@ tests that pin each helper.
 | **3** | `SemanticMemory` (long-term memory) | **Landed** | `memory.py` | `tests/test_agents_memory.py` |
 | **4** | `plan_and_execute` (Plan-and-Execute) | **Landed** | `composition.py` | `tests/test_agents_composition.py::test_plan_and_execute_*` |
 | **5** | `mcp_agent_tool` (cross-process) | **Landed** | `composition.py` | `tests/test_agents_composition.py::test_mcp_agent_tool_*` |
+| **6** | `Workflow` (DAG / State-Machine, §9) | **Landed** (Phases 1-5) | `workflow.py` | `tests/test_agents_workflow.py` (118 tests) |
 
 Documented gaps that remain (each is a future extension, not a missing
 fundamental):
@@ -412,11 +480,6 @@ forcing use case. Listed here to make the position explicit.
   design stance (bounded loops, loop detection, max_iterations,
   contracts for budget invariants). Unbounded goal-decomposition is
   what the framework actively prevents.
-
-- **Workflow / State-Machine (§9)** -- big design conversation. Three
-  options (ship a DSL, depend on an external library, stay linear-only),
-  each with costs the project currently isn't paying. Defer until a
-  concrete need forces the choice.
 
 ### Positioning consequence
 

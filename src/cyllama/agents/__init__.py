@@ -93,6 +93,24 @@ from .composition import (
 # Semantic (long-term, RAG-backed) memory
 from .memory import MemoryRecord, SemanticMemory
 
+# DAG workflow orchestration (Phases 1-4)
+from .workflow import (
+    Workflow,
+    CompiledWorkflow,
+    WorkflowResult,
+    DryRunPlan,
+    WorkflowDefinitionError,
+    WorkflowExecutionError,
+    WorkflowRoutingError,
+    END,
+    agent_node,
+    tool_node,
+    WorkflowInvariant,
+    WorkflowExecutionState,
+    reducer,
+    workflow_node,
+)
+
 # Async agent wrappers
 from .async_agent import (
     AsyncReActAgent,
@@ -182,6 +200,21 @@ __all__ = [
     # Semantic memory
     "MemoryRecord",
     "SemanticMemory",
+    # DAG workflow orchestration
+    "Workflow",
+    "CompiledWorkflow",
+    "WorkflowResult",
+    "DryRunPlan",
+    "WorkflowDefinitionError",
+    "WorkflowExecutionError",
+    "WorkflowRoutingError",
+    "END",
+    "agent_node",
+    "tool_node",
+    "WorkflowInvariant",
+    "WorkflowExecutionState",
+    "reducer",
+    "workflow_node",
     # Async wrappers
     "AsyncReActAgent",
     "AsyncConstrainedAgent",

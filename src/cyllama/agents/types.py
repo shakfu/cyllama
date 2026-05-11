@@ -26,6 +26,15 @@ class EventType(Enum):
     # Contract-related events
     CONTRACT_CHECK = "contract_check"
     CONTRACT_VIOLATION = "contract_violation"
+    # Workflow-orchestration events (cyllama.agents.workflow).
+    # WORKFLOW_START / WORKFLOW_END bracket a workflow run; NODE_START /
+    # NODE_END bracket each node's execution within the run. Sub-agent
+    # events emitted by an agent wrapped via ``agent_node`` flow through
+    # the workflow stream carrying their own ``source`` / ``parent_event_id``.
+    WORKFLOW_START = "workflow_start"
+    WORKFLOW_END = "workflow_end"
+    NODE_START = "node_start"
+    NODE_END = "node_end"
 
 
 @dataclass

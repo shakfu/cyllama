@@ -666,11 +666,117 @@ Some patterns remain user-side compositions rather than canned helpers:
 | Pattern | How to compose |
 |---|---|
 | Debate | Two workers with opposing prompts; judge agent (third role) selects. Two `ReflectionLoop` instances + a chooser. |
-| Parallel fan-out | Supervisor splits task; `asyncio.gather` over `AsyncReActAgent` workers; reducer agent or plain Python aggregates. |
+| Parallel fan-out | Supervisor splits task; `asyncio.gather` over `AsyncReActAgent` workers; reducer agent or plain Python aggregates. Or build a parallel-DAG `Workflow` and let the runtime fan out. |
 
 Ship the recipe when you write the first real one -- the primitives are
 documented; preemptive helpers risk locking in shapes before they've
 been exercised against real tasks.
+
+## Workflows
+
+DAG-based orchestration on top of the agent primitives. A `Workflow`
+declares typed state, named nodes (Python callables, agents, tools,
+or other workflows), and edges (static or conditional). The runtime
+topologically sorts the graph, runs independent nodes in parallel,
+threads state updates between them, and emits events for every node
+boundary.
+
+Workflows expose their own kwargs-only API (`flow.run(**state)` →
+`WorkflowResult`). To plug a workflow into the multi-agent layer,
+call `flow.as_agent()` — the returned adapter satisfies
+`AgentProtocol` (`run(task: str) → AgentResult`) and binds `task`
+to the workflow's `state[task_param]`. Workflows nested inside
+other workflows forward their events into the outer event stream
+with `source` / `parent_event_id` set so streaming UIs can render
+nested execution.
+
+Two authoring layers, same runtime:
+
+```python
+# Layer C -- decorator sugar; dependencies inferred from parameter names.
+from cyllama.agents.workflow import Workflow
+
+flow = Workflow()
+
+@flow.node
+def fetch(url: str) -> str:
+    return requests.get(url).text
+
+@flow.node
+def extract(fetch: str) -> list[str]:
+    return re.findall(r"pattern", fetch)
+
+@flow.node
+def summarize(extract: list[str]) -> str:
+    return llm(f"Summarize: {extract}").text
+
+flow.set_entry("fetch")
+flow.set_exit("summarize")
+
+result = flow.run(url="https://example.com")
+print(result.answer)  # AgentResult-shape adapter -> state["summarize"]
+```
+
+```python
+# Layer B -- explicit StateGraph; the canonical runtime form.
+from cyllama.agents.workflow import Workflow, END
+
+flow = Workflow()
+flow.add_node("classify", classify_fn)
+flow.add_node("answer", answer_fn)
+flow.add_node("escalate", escalate_fn)
+flow.add_conditional_edge(
+    "classify",
+    lambda s: "answer" if s["confidence"] > 0.7 else "escalate",
+    {"answer": "answer", "escalate": "escalate"},
+)
+flow.set_entry("classify")
+result = flow.run(query="What is the capital of France?")
+```
+
+Capabilities (Phases 1-5, all landed):
+
+- **Layer B + Layer C** -- explicit StateGraph or decorator sugar; the
+  two coexist on the same `Workflow` and interop freely.
+- **Parallel execution** -- nodes at the same topological level run
+  concurrently via `asyncio.gather`; sync bodies dispatched on
+  `asyncio.to_thread`.
+- **Conditional routing** -- router callbacks return either a target
+  node name or the `END` sentinel; supports `edge_map` for explicit
+  enumeration.
+- **Streaming + events** -- `flow.stream(...)` and `flow.astream(...)`
+  yield `WORKFLOW_START`, `NODE_START`, `NODE_END`, `ANSWER`,
+  `WORKFLOW_END`, and `CONTRACT_VIOLATION` events.
+- **Contracts** -- `WorkflowInvariant` predicates check the running
+  state after each node; same `ContractPolicy` semantics as
+  `ContractAgent` (IGNORE / OBSERVE / ENFORCE / QUICK_ENFORCE) with
+  per-invariant policy overrides.
+- **Reducers** -- multi-writer state keys require an explicit reducer
+  registered via `Workflow(reducers={"key": reducer.append})`; the
+  built-in namespace exposes `append`, `extend`, `merge_dict`, `add`,
+  and `last`. Runtime detects unreduced multi-writer collisions and
+  raises `WorkflowExecutionError`.
+- **AgentProtocol compliance via adapter** -- `flow.run(**kwargs)`
+  is the workflow's native API; `flow.as_agent().run("task")` is the
+  `AgentProtocol` shape (binds `task` to `state[task_param]`, returns
+  `AgentResult`). The explicit adapter keeps the native and protocol
+  shapes from colliding. `WorkflowResult` also exposes `answer` /
+  `steps` / `iterations` convenience properties so direct callers
+  can read the projected output without going through the adapter.
+- **Sub-workflows** -- `workflow_node(inner, name="research")` wraps
+  one workflow as a node in another; inner events forwarded with
+  source/parent_event_id rewriting.
+- **Visualization** -- `flow.to_mermaid()` / `flow.to_dot()` render
+  the graph for docs; `flow.dry_run()` returns a `DryRunPlan` showing
+  topological levels without executing.
+- **Typed state** -- `Workflow[State]` is a PEP 484 generic; pass a
+  `TypedDict` to `Workflow(StateSchema)` for static type-checking of
+  state access.
+
+For the full design and per-phase landing notes, see
+[`agents/workflow.md`](agents/workflow.md). The pattern catalog in
+[`agents/patterns.md`](agents/patterns.md) §9 documents the
+workflow / state-machine pattern.
 
 ## Events and Results
 
@@ -685,10 +791,19 @@ class EventType(Enum):
     THOUGHT = "thought"           # Agent reasoning
     ACTION = "action"             # Tool invocation
     OBSERVATION = "observation"   # Tool result
-    ANSWER = "answer"             # Final answer
+    ANSWER = "answer"             # Final answer (also emitted by workflows
+                                  # just before WORKFLOW_END so AgentProtocol
+                                  # consumers see the canonical "done" event)
     ERROR = "error"               # Error occurred
     CONTRACT_CHECK = "contract_check"         # Contract being evaluated
     CONTRACT_VIOLATION = "contract_violation" # Violation detected
+    # Workflow-orchestration events (cyllama.agents.workflow):
+    WORKFLOW_START = "workflow_start"  # Start of a workflow run
+    WORKFLOW_END = "workflow_end"      # End of a workflow run; metadata
+                                       # carries final state + metrics
+    NODE_START = "node_start"          # Workflow node about to execute
+    NODE_END = "node_end"              # Workflow node completed; metadata
+                                       # carries the state update + event_id
 ```
 
 `AgentEvent` carries two optional fields populated by the multi-agent composition layer (default `None` in single-agent code paths, so existing event consumers are unaffected):
