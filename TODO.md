@@ -28,6 +28,30 @@ These three items are the residue of `AGENT_TOOL_REVIEW.md` after every concrete
 
 - [ ] **ACP protocol-version negotiation** -- `src/cyllama/agents/acp.py` hardcodes `ACP_PROTOCOL_VERSION = "2025-01-01"` (line 53) and embeds it directly in initialize responses (line 480). The module is marked experimental for this and other reasons, so the warning currently buys time -- but if ACP graduates from POC to a genuinely-used integration point, parameterize on the client's announced version (negotiate during initialize). Trigger: an ACP client surfaces with a different version. (A reference-client conformance test was also flagged but doesn't belong in a TODO until a harness target exists.)
 
+### Pattern gaps (from `docs/agents/patterns.md`)
+
+Coverage of common agent patterns -- what's missing in priority order. Each gap maps to a row in the patterns doc.
+
+- [ ] **#1 -- `ReflectionLoop` helper** (high value, low cost; ~50 LoC). Reflection / Reflexion pattern -- worker emits draft, critic agent (different prompt) emits acceptance/revision, loop up to N times. Currently a documented recipe in `docs/agents/patterns.md` §3 but no canned helper. Common production pattern for accuracy-critical tasks (coding, factual lookup, scientific reasoning). Sketch: `ReflectionLoop(worker: AgentProtocol, critic: AgentProtocol, max_attempts: int = 3, acceptance_marker: str = "ACCEPT")` in `composition.py`; reuses `agent_as_tool` mechanics and the existing `forward_events` callback shape so the critic's reasoning surfaces in the parent stream. Trigger: any user who'd benefit from coding-assistant-style self-review.
+
+- [ ] **#2 -- `rag_as_tool` helper** (high value, low cost; ~20 LoC). RAG agents pattern -- bridge the existing `cyllama.rag` subsystem to the agent layer as a canned tool. Today users hand-wrap `RAGPipeline.query()` in a `@tool`, which works but invites mistakes (forgetting to deduplicate, wrong return shape, no result-limit). Sketch: `rag_as_tool(rag: RAGPipeline, name: str = "search_kb", description: str, top_k: int = 5) -> Tool` in `composition.py`. Crystallizes the recipe and gives users a one-liner. Pairs naturally with `TieredAgentTeam` where the RAG-backed worker is one role among several. Trigger: anyone building a knowledge-grounded agent.
+
+- [ ] **#3 -- Long-term semantic memory primitive** (high value, medium cost). Memory-augmented agents pattern -- cross-session "remember the user's preferences / past tasks" via embeddings. Today `session.py` handles short-term + episodic memory (`MemorySessionStore`, `FileSessionStore`, `SqliteSessionStore`), but there's no semantic-memory primitive bridging RAG into agent state. Sketch: `SemanticMemory(rag_pipeline)` with `remember(text, *, namespace, metadata)` and `retrieve(query, top_k, namespace)` methods; backed by RAG's vector store. Integrates with the existing session store via a `Session.memory: SemanticMemory` slot. Trigger: production chatbots that need cross-session continuity (the existing in-memory `Session` is short-lived).
+
+- [ ] **#4 -- `plan_and_execute` helper** (medium value, low cost; ~50 LoC). Plan-and-Execute pattern -- planner emits structured task list, executor runs each step. Currently a documented recipe in `docs/agents/patterns.md` §2 but no canned helper. Sketch: `plan_and_execute(planner: ConstrainedAgent, executor: AgentProtocol, task: str, plan_schema: Type[BaseModel]) -> List[AgentResult]` in `composition.py`; the schema parameter pins the planner's output shape via the existing grammar-constrained generation. Trigger: workflow-automation use cases where the plan structure matters.
+
+- [ ] **#5 -- Cross-process `mcp_agent_tool` helper** (medium value, medium cost). Multi-agent systems extension -- in-process `agent_as_tool` works today; cross-process via MCP doesn't yet. The MCP HTTP transport (`mcp.py:300-356`) carries the call; the orchestration adapter is missing. Sketch: `mcp_agent_tool(client: McpClient, server_name: str, agent_name: str, description: str) -> Tool` -- symmetric to in-process `agent_as_tool` but the dispatch crosses a process boundary. Failure modes (network, timeout, remote crash) need to map onto the existing `ToolTimeoutError` / `ActionParseError` taxonomy. Trigger: a concrete need for heterogeneous agent fleets (different language, different host, separate process for isolation). Previously listed at the top of the TODO as a multi-agent residue; restated here for completeness.
+
+### Pattern gaps -- explicitly **not on the roadmap**
+
+These appear in `docs/agents/patterns.md` but won't be addressed without a forcing use case. Listed here to make the position explicit rather than implicit.
+
+- **Tree of Thoughts (ToT)** -- requires public `LlamaContext.snapshot()` / `restore()` (currently absent at the API surface) plus a branching agent loop that maintains a frontier of candidate states with scoring. Significant new machinery; non-trivial value for cyllama's typical user. Skip unless a user with a concrete ToT use case shows up.
+
+- **Autonomous / AutoGPT-style** -- structurally opposed to cyllama's design stance (bounded loops, loop detection, max_iterations, contracts for budget invariants). Unbounded goal-decomposition is what the framework actively prevents. Document the stance, don't accommodate it.
+
+- **Workflow / State-Machine agents** (graph DSL) -- adding DAG orchestration is a big design conversation. Three options exist (ship a DSL, depend on an external library, stay linear-only); each has costs the project currently isn't paying. Defer until a concrete user need forces the choice. Building DAG orchestration on top of `AsyncReActAgent` + user code is possible today.
+
 ## CI / Workflows
 
 ### High Priority
