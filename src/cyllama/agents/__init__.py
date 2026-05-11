@@ -12,6 +12,9 @@ Available agents:
 - ConstrainedAgent: Grammar-enforced tool calling for 100% reliability
 - ContractAgent: Contract-based agent with C++26-inspired pre/post conditions
 - ACPAgent: Agent Client Protocol compliant agent for editor integration
+  (**experimental** -- protocol version is hardcoded, no conformance tests
+  against a reference ACP client; API may change. See acp.py module
+  docstring for details.)
 """
 
 from .tools import (

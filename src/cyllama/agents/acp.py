@@ -3,6 +3,27 @@ Agent Client Protocol (ACP) implementation.
 
 Provides an ACP-compliant agent that can be spawned by editors (Zed, Neovim, etc.)
 and communicates using JSON-RPC over stdio.
+
+.. warning::
+
+    **This module is experimental.** Treat it as a working sketch, not a
+    stable API. Three concrete reasons:
+
+    1. ``ACP_PROTOCOL_VERSION`` is hardcoded to ``"2025-01-01"`` and
+       embedded directly into initialize responses without negotiating
+       against the client's announced version. If/when the spec moves,
+       this module will need version-negotiation logic that does not
+       exist yet.
+    2. There is **no conformance test** against a reference ACP client.
+       The wire shapes here match the spec as the author understood it
+       on the date of writing; real-world clients may surface drift the
+       unit tests cannot.
+    3. The API surface (``ACPAgent``, ``serve_acp``, and the supporting
+       dataclasses) may change as the protocol stabilizes and as actual
+       editor integrations exercise the rough edges.
+
+    Build on it for prototypes and editor experiments; do not build a
+    production integration on this surface without expecting churn.
 """
 
 import logging
