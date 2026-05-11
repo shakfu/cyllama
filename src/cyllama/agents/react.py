@@ -17,7 +17,8 @@ from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 from ..defaults import DEFAULT_MAX_TOKENS, DEFAULT_TEMPERATURE
 from ..api import LLM, GenerationConfig
-from .tools import Tool, ToolRegistry
+from ._loop_detection import detect_loop, format_loop_error
+from .tools import Tool, ToolRegistry, coerce_args
 from .types import AgentEvent, AgentMetrics, AgentProtocol, AgentResult, EventType
 
 # Module logger
@@ -358,56 +359,28 @@ Begin!"""
                         # Track failed parses as a special "tool" to detect parse failure loops
                         recent_tools.append("__PARSE_FAILED__")
 
-                    # Check for exact same action repeated
-                    if len(recent_actions) >= self.max_consecutive_same_action:
-                        last_n = recent_actions[-self.max_consecutive_same_action :]
-                        if all(a == last_n[0] for a in last_n):
-                            self._metrics.loop_detected = True
-                            self._metrics.total_time_ms = (time.perf_counter() - start_time) * 1000
-                            logger.warning(
-                                "Loop detected (same action) after %d iterations: %s", iteration + 1, action_str
-                            )
-
-                            # Generate summary from observations if available
-                            if observations:
-                                summary = self._generate_loop_summary(task, observations)
-                                logger.info("Generated summary from %d observations", len(observations))
-                                yield AgentEvent(type=EventType.ANSWER, content=summary)
-                            else:
-                                error_msg = (
-                                    f"Loop detected: same action repeated "
-                                    f"{self.max_consecutive_same_action} times: {action_str}"
-                                )
-                                yield AgentEvent(type=EventType.ERROR, content=error_msg)
-                            return
-
-                    # Check for same tool called too many times (even with different args)
-                    if len(recent_tools) >= self.max_consecutive_same_tool:
-                        last_n_tools = recent_tools[-self.max_consecutive_same_tool :]
-                        if all(t == last_n_tools[0] for t in last_n_tools):
-                            self._metrics.loop_detected = True
-                            self._metrics.total_time_ms = (time.perf_counter() - start_time) * 1000
-
-                            tool_or_error = tool_name if tool_name else "parse failures"
-                            logger.warning(
-                                "Loop detected (same tool) after %d iterations: %s occurred %d times",
-                                iteration + 1,
-                                tool_or_error,
-                                self.max_consecutive_same_tool,
-                            )
-
-                            # Generate summary from observations if available
-                            if observations:
-                                summary = self._generate_loop_summary(task, observations)
-                                logger.info("Generated summary from %d observations", len(observations))
-                                yield AgentEvent(type=EventType.ANSWER, content=summary)
-                            else:
-                                error_msg = (
-                                    f"Loop detected: {tool_or_error} occurred "
-                                    f"{self.max_consecutive_same_tool} times consecutively"
-                                )
-                                yield AgentEvent(type=EventType.ERROR, content=error_msg)
-                            return
+                    det = detect_loop(
+                        recent_actions,
+                        recent_tools,
+                        self.max_consecutive_same_action,
+                        self.max_consecutive_same_tool,
+                    )
+                    if det is not None:
+                        self._metrics.loop_detected = True
+                        self._metrics.total_time_ms = (time.perf_counter() - start_time) * 1000
+                        logger.warning(
+                            "Loop detected (%s) after %d iterations: %s",
+                            det.kind,
+                            iteration + 1,
+                            det.value,
+                        )
+                        if observations:
+                            summary = self._generate_loop_summary(task, observations)
+                            logger.info("Generated summary from %d observations", len(observations))
+                            yield AgentEvent(type=EventType.ANSWER, content=summary)
+                        else:
+                            yield AgentEvent(type=EventType.ERROR, content=format_loop_error(det))
+                        return
 
                 self._metrics.tool_calls += 1
 
@@ -568,15 +541,20 @@ Begin!"""
         return text
 
     def _extract_thought(self, text: str) -> Optional[str]:
-        """Extract thought from agent response."""
-        match = re.search(r"Thought:\s*(.+?)(?:\n|$)", text, re.IGNORECASE | re.DOTALL)
+        """Extract thought from agent response.
+
+        Captures multi-line Thought blocks up to the next ReAct keyword
+        (Action / Answer / Observation) or end-of-string. The previous
+        single-line regex truncated chain-of-thought reasoning at the first
+        newline.
+        """
+        match = re.search(
+            r"Thought:\s*(.+?)(?=\n\s*(?:Action|Answer|Observation)\s*:|\Z)",
+            text,
+            re.IGNORECASE | re.DOTALL,
+        )
         if match:
-            # Stop at next keyword
-            thought = match.group(1)
-            for keyword in ["Action:", "Answer:", "Observation:"]:
-                if keyword in thought:
-                    thought = thought[: thought.index(keyword)]
-            return thought.strip()
+            return match.group(1).strip()
         return None
 
     def _extract_action(self, text: str) -> Optional[str]:
@@ -665,7 +643,9 @@ Begin!"""
 
         # Try function call format: tool_name(arg1="val", arg2="val")
         # Use DOTALL to handle multi-line arguments
-        match = re.match(r"(\w+)\s*\((.*)\)\s*$", action_str, re.DOTALL)
+        # Tool names allow `_`, `.`, `-`, `/` to support namespaced sources
+        # (e.g. MCP wraps remote tools as `server/tool`).
+        match = re.match(r"([\w./\-]+)\s*\((.*)\)\s*$", action_str, re.DOTALL)
         if not match:
             # Try to provide helpful error for common mistakes
             if "(" not in action_str:
@@ -687,12 +667,14 @@ Begin!"""
         tool_name = match.group(1)
         args_str = match.group(2).strip()
 
-        # Validate tool name
-        if not tool_name.isidentifier():
+        # Validate tool name: each `.`/`/`/`-` separated segment must be a
+        # valid identifier. Permits namespaced names (e.g. `server/tool`,
+        # `module.helper`) while still rejecting garbage like `123abc` or `()`.
+        if not tool_name or not all(seg.isidentifier() for seg in re.split(r"[./\-]", tool_name) if seg):
             raise ActionParseError(
                 f"Invalid tool name: '{tool_name}'",
                 action_str,
-                suggestion="Tool name must be a valid identifier (letters, numbers, underscores)",
+                suggestion="Tool name segments must be valid identifiers (letters, numbers, underscores); separators `.`, `/`, `-` allowed",
             )
 
         if not args_str:
@@ -960,6 +942,11 @@ Begin!"""
         """
         Execute a tool and return the raw result.
 
+        Args are validated and coerced against the tool's JSON-schema before
+        dispatch (when ``tool.coerce`` is True, the default). This catches
+        common LLM mistakes — string ints, unknown kwargs, enum violations
+        — before they reach the tool function. See ``coerce_args``.
+
         Args:
             tool_name: Name of tool to execute
             args: Arguments to pass to tool
@@ -969,12 +956,15 @@ Begin!"""
 
         Raises:
             ValueError: If tool not found
+            ToolArgumentError: If args fail schema validation/coercion
             Exception: If tool execution fails
         """
         tool = self.registry.get(tool_name)
         if not tool:
             raise ValueError(f"Unknown tool: {tool_name}")
 
+        if tool.coerce:
+            args = coerce_args(tool, args)
         return tool(**args)
 
     def _execute_tool(self, tool_name: str, args: Dict[str, Any]) -> str:

@@ -14,7 +14,21 @@ Available agents:
 - ACPAgent: Agent Client Protocol compliant agent for editor integration
 """
 
-from .tools import Tool, tool, ToolRegistry
+from .tools import (
+    Ge,
+    Gt,
+    Le,
+    Lt,
+    MaxLen,
+    MinLen,
+    MultipleOf,
+    Pattern,
+    Tool,
+    ToolArgumentError,
+    ToolRegistry,
+    coerce_args,
+    tool,
+)
 from .react import ReActAgent
 from .types import AgentEvent, AgentMetrics, AgentProtocol, AgentResult, EventType
 from .constrained import ConstrainedAgent, ConstrainedGenerationConfig
@@ -73,6 +87,17 @@ __all__ = [
     "Tool",
     "tool",
     "ToolRegistry",
+    "ToolArgumentError",
+    "coerce_args",
+    # Annotated[] constraint markers
+    "Ge",
+    "Gt",
+    "Le",
+    "Lt",
+    "MultipleOf",
+    "MinLen",
+    "MaxLen",
+    "Pattern",
     # Agents
     "ReActAgent",
     "ConstrainedAgent",

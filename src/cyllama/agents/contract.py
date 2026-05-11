@@ -524,20 +524,27 @@ def post(
 # Contract Assert (Runtime Assertion)
 # =============================================================================
 
-# Thread-local storage for current contract context
-import threading
+# Context-variable storage for current contract context.
+#
+# ContextVar (rather than threading.local) ensures the active contract context
+# follows async tasks and is inherited across `asyncio.to_thread` / `run_in_executor`
+# boundaries via Context.run/copy_context. threading.local would silently lose
+# the context the moment execution hopped to a different thread or coroutine.
+import contextvars
 
-_contract_context = threading.local()
+_contract_context: "contextvars.ContextVar[Optional[ContractContext]]" = contextvars.ContextVar(
+    "_contract_context", default=None
+)
 
 
 def _get_current_context() -> Optional["ContractContext"]:
     """Get the current contract context if any."""
-    return getattr(_contract_context, "current", None)
+    return _contract_context.get()
 
 
 def _set_current_context(ctx: Optional["ContractContext"]) -> None:
     """Set the current contract context."""
-    _contract_context.current = ctx
+    _contract_context.set(ctx)
 
 
 @dataclass

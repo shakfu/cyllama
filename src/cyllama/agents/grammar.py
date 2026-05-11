@@ -5,11 +5,32 @@ Provides utilities to convert tool schemas into GBNF grammars that enforce
 valid tool call syntax, ensuring 100% reliable parsing.
 """
 
+import hashlib
+import json
 from typing import Any, Callable, Dict, List
 from enum import Enum
 
 from ..utils.json_schema_to_grammar import json_schema_to_grammar
 from .tools import Tool
+
+
+def _tools_fingerprint(tools: List[Tool]) -> str:
+    """Stable fingerprint of a tool list including parameter schemas.
+
+    The cache previously keyed on tool names only, so editing a tool's
+    signature (renaming a param, tightening a type) wouldn't invalidate
+    the cached grammar. Hashing the schema closes that gap.
+    """
+    payload = sorted(
+        (
+            t.name,
+            t.description,
+            json.dumps(t.parameters, sort_keys=True, default=str),
+        )
+        for t in tools
+    )
+    blob = json.dumps(payload, sort_keys=True).encode("utf-8")
+    return hashlib.sha1(blob).hexdigest()[:16]
 
 
 class GrammarFormat(Enum):
@@ -313,9 +334,10 @@ def get_cached_tool_grammar(
     Returns:
         Cached or newly generated grammar
     """
-    # Create cache key from tool names and settings
-    tool_names = sorted([t.name for t in tools])
-    key = f"tools:{','.join(tool_names)}:reasoning={allow_reasoning}:format={format.value}"
+    # Cache key includes a fingerprint of tool schemas so changes to a tool's
+    # parameter shape invalidate the cached grammar (names alone are not enough).
+    fp = _tools_fingerprint(tools)
+    key = f"tools:{fp}:reasoning={allow_reasoning}:format={format.value}"
 
     return _grammar_cache.get_or_create(key, lambda: generate_tool_call_grammar(tools, allow_reasoning, format))
 
@@ -331,9 +353,8 @@ def get_cached_answer_or_tool_grammar(tools: List[Tool], allow_reasoning: bool =
     Returns:
         Cached or newly generated grammar
     """
-    # Create cache key from tool names and settings
-    tool_names = sorted([t.name for t in tools])
-    key = f"answer_or_tool:{','.join(tool_names)}:reasoning={allow_reasoning}"
+    fp = _tools_fingerprint(tools)
+    key = f"answer_or_tool:{fp}:reasoning={allow_reasoning}"
 
     return _grammar_cache.get_or_create(key, lambda: generate_answer_or_tool_grammar(tools, allow_reasoning))
 
