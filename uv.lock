@@ -586,7 +586,7 @@ nvtx = [
 
 [[package]]
 name = "cyllama"
-version = "0.2.15"
+version = "0.2.16"
 source = { editable = "." }
 
 [package.dev-dependencies]

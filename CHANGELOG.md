@@ -17,6 +17,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+## [0.2.16]
+
 ### Changed
 
 - **Bumped bleeding-edge `LLAMACPP_VERSION` from `b8931` to `b9025`**
