@@ -48,11 +48,21 @@ catalog plus the patterns intentionally not supported.
 
 These are residual refinements documented under each pattern's "Gap" line in `docs/agents/patterns.md`. None block the pattern; each is a possible extension when a use case appears.
 
+**Note:** every entry in this section should land in `inferna` too. The two projects share the agent layer byte-identical modulo namespace; refinements ported one-way only would drift the surfaces.
+
 - [ ] **Streaming sub-agent events across MCP** -- `mcp_agent_tool` returns a single value per call; streaming would require the MCP server-streaming RFC to stabilize.
 - [ ] **Streaming RAG results to the agent** -- `rag_as_tool` returns a single concatenated observation today.
 - [ ] **Filtered deletion in `SemanticMemory`** -- `forget()` raises `NotImplementedError` pending a RAG-side metadata-filtered delete API.
 - [ ] **Parallel critic ensembles in `ReflectionLoop`** -- multiple critics voting, reward-model-based acceptance.
-- [ ] **Unified streaming for `plan_and_execute` steps** -- one iterator surfacing events from all steps in sequence.
+- [ ] **Unified streaming for `plan_and_execute` steps** -- one iterator surfacing events from all steps in sequence (e.g. an `aplan_and_execute` async-generator variant, or a `stream=True` flag on the existing helper). `cyllama-desktop`'s sidecar bypasses the wrapper today and reimplements the loop with `planner.stream()` / `executor.stream()` precisely to get incremental events flowing into its SSE channel; a streaming variant in cyllama would let that ~100 LoC of reimplementation go away. Trigger: the next consumer (after cyllama-desktop) that needs per-step events.
+
+- [ ] **`ReflectionLoop.stream()` per-attempt `source` labels.** Today `composition.py` sets `event.source = "worker"` / `"critic"` (role only -- see `_reflect_loop` in `composition.py`). Downstream consumers (cyllama-desktop today) want `worker-1` / `critic-1` / `worker-2` / etc. so the trace renderer can distinguish attempts. ~5 LoC change: `f"worker-{attempt + 1}"` in the source-tagging block. Same surface for ReflectionLoop's async variant if/when it lands. Trigger: a consumer wants per-attempt distinction (cyllama-desktop already does -- it currently reimplements the loop in the sidecar for this reason).
+
+- [ ] **Document `SemanticMemory`'s actual RAG-shaped protocol.** The class docstring says it wraps a `cyllama.rag.RAG` instance; in practice the implementation only calls `.add_texts(texts, metadata, split)` and `.search(query, k, threshold)` on the wrapped object. Any duck-typed shape works, but the docstring buries this. `cyllama-desktop`'s sidecar built a ~20 LoC `_MemoryRagShim` around its `Embedder` + `SqliteVectorStore` precisely because a real `RAG` instance requires a `generation_model` it doesn't have. Two changes: (a) docstring rewrite stating the protocol; (b) optional `MemoryRagProtocol` (or similar) type alias under `agents.memory` that consumers can use for type checking. Trigger: a follow-up doc pass.
+
+- [ ] **`ContractPolicy.from_name(s)` classmethod.** Today consumers wanting to map a UI string (`"OBSERVE"`, etc.) to a `ContractPolicy` enum member call `getattr(ContractPolicy, name)` and handle the `AttributeError` themselves. A `from_name` factory + a `Literal["IGNORE", "OBSERVE", "ENFORCE", "QUICK_ENFORCE"]` type alias would tighten the boundary and remove the boilerplate from every consumer. ~10 LoC. Trigger: the next consumer that has to do this dance.
+
+- [ ] **Expose `Workflow.inputs_schema` (typed inputs, not just names).** `compiled.dry_run().inputs_required` is `Tuple[str, ...]` -- names only. Layer-C nodes have parameter annotations the framework already reads (`_extract_param_names`, `typing.get_type_hints`); surfacing those as `{key: type}` would let consumers render typed input forms instead of always-text fields. `cyllama-desktop`'s Workflows pane uses text inputs for everything and the user has to know that `count` is an `int` etc. ~20 LoC to populate `inputs_schema` on the `DryRunPlan` dataclass. Trigger: a consumer with a workflow whose inputs are numeric / boolean / enum.
 
 ### Pattern gaps -- explicitly **not on the roadmap**
 
@@ -62,7 +72,7 @@ These appear in `docs/agents/patterns.md` but won't be addressed without a forci
 
 - **Autonomous / AutoGPT-style** -- structurally opposed to cyllama's design stance (bounded loops, loop detection, max_iterations, contracts for budget invariants). Unbounded goal-decomposition is what the framework actively prevents. Document the stance, don't accommodate it.
 
-- **Workflow / State-Machine agents** (graph DSL) -- adding DAG orchestration is a big design conversation. Three options exist (ship a DSL, depend on an external library, stay linear-only); each has costs the project currently isn't paying. Defer until a concrete user need forces the choice. Building DAG orchestration on top of `AsyncReActAgent` + user code is possible today.
+- ~~**Workflow / State-Machine agents** (graph DSL)~~ -- **landed** as the `cyllama.agents.workflow` runtime (Phases 1-5 of the workflow rollout). `Workflow` (builder) + `CompiledWorkflow` (runnable) with Layer B explicit StateGraph and Layer C `@flow.node` decorator sugar, streaming events (`WORKFLOW_START` / `NODE_START` / `NODE_END` / `ANSWER` / `WORKFLOW_END`), conditional routing + END sentinel, sub-workflow composition via `workflow_node`, agent-as-node via `agent_node`, `ContractPolicy`-flavoured workflow invariants, reducer registry for multi-writer state keys, and `Workflow.as_agent()` for `AgentProtocol` adaptation. 118 tests in `tests/test_agents_workflow.py`. The first real consumer is `cyllama-desktop`'s Workflows pane. See `docs/agents/workflow.md` and `docs/agents/patterns.md` §9.
 
 ## CI / Workflows
 
