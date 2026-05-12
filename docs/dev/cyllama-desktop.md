@@ -1,0 +1,3 @@
+## cyllama-desktop
+
+**[cyllama-desktop](https://github.com/shakfu/cyllama-desktop)** is an experimental Electron app that ships cyllama as a bundled Python sidecar. It exposes most of the library through a UI: chat, RAG over local documents, the agent slash-command family (`/agent`, `/agent-strict`, `/agent-contract`, `/agent-plan`, `/agent-reflect`), a Workflows pane for the DAG runtime, model management, Whisper transcription, Stable Diffusion image generation, and an embedded OpenAI-compatible server. Useful as a working reference for how the cyllama Python api integrates with a real consumer.

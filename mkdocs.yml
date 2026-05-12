@@ -51,6 +51,7 @@ nav:
     - Build Backends: build_backends.md
     - Advanced Build Options: build_options.md
     - Context Caching: context_caching.md
+    - Cancellation: cancelling.md
     - Server Usage: server_usage_examples.md
   - Whisper.cpp:
     - Whisper Integration: whisper.md
@@ -58,6 +59,9 @@ nav:
     - Stable Diffusion Integration: stable_diffusion.md
   - Agents:
     - Agent Framework: agents_overview.md
+    - Agent Patterns: agents/patterns.md
+    - Contracts: agents/contracts.md
+    - Workflow Runtime: agents/workflow.md
     - MCP Client: mcp.md
   - RAG:
     - Overview: rag_overview.md
@@ -68,4 +72,6 @@ nav:
     - Advanced Features: rag_advanced.md
   - Reference:
     - API Reference: api_reference.md
+    - CLI Cheatsheet: cli-cheatsheet.md
+    - Threading & Concurrency: threading.md
     - Troubleshooting: troubleshooting.md
