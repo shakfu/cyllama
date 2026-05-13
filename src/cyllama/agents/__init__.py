@@ -12,9 +12,27 @@ Available agents:
 - ConstrainedAgent: Grammar-enforced tool calling for 100% reliability
 - ContractAgent: Contract-based agent with C++26-inspired pre/post conditions
 - ACPAgent: Agent Client Protocol compliant agent for editor integration
+  (**experimental** -- protocol version is hardcoded, no conformance tests
+  against a reference ACP client; API may change. See acp.py module
+  docstring for details.)
 """
 
-from .tools import Tool, tool, ToolRegistry
+from .tools import (
+    Ge,
+    Gt,
+    Le,
+    Lt,
+    MaxLen,
+    MinLen,
+    MultipleOf,
+    Pattern,
+    Tool,
+    ToolArgumentError,
+    ToolTimeoutError,
+    ToolRegistry,
+    coerce_args,
+    tool,
+)
 from .react import ReActAgent
 from .types import AgentEvent, AgentMetrics, AgentProtocol, AgentResult, EventType
 from .constrained import ConstrainedAgent, ConstrainedGenerationConfig
@@ -61,6 +79,38 @@ from .jsonrpc import (
     StdioTransport,
 )
 
+# Multi-agent composition primitives + pattern helpers
+from .composition import (
+    agent_as_tool,
+    AgentRole,
+    TieredAgentTeam,
+    ReflectionLoop,
+    plan_and_execute,
+    mcp_agent_tool,
+    rag_as_tool,
+)
+
+# Semantic (long-term, RAG-backed) memory
+from .memory import MemoryRecord, SemanticMemory
+
+# DAG workflow orchestration (Phases 1-4)
+from .workflow import (
+    Workflow,
+    CompiledWorkflow,
+    WorkflowResult,
+    DryRunPlan,
+    WorkflowDefinitionError,
+    WorkflowExecutionError,
+    WorkflowRoutingError,
+    END,
+    agent_node,
+    tool_node,
+    WorkflowInvariant,
+    WorkflowExecutionState,
+    reducer,
+    workflow_node,
+)
+
 # Async agent wrappers
 from .async_agent import (
     AsyncReActAgent,
@@ -82,6 +132,18 @@ __all__ = [
     "Tool",
     "tool",
     "ToolRegistry",
+    "ToolArgumentError",
+    "ToolTimeoutError",
+    "coerce_args",
+    # Annotated[] constraint markers
+    "Ge",
+    "Gt",
+    "Le",
+    "Lt",
+    "MultipleOf",
+    "MinLen",
+    "MaxLen",
+    "Pattern",
     # Agents
     "ReActAgent",
     "ConstrainedAgent",
@@ -136,6 +198,33 @@ __all__ = [
     "JsonRpcError",
     "StdioTransport",
     # Async agents
+    # Multi-agent composition + pattern helpers
+    "agent_as_tool",
+    "AgentRole",
+    "TieredAgentTeam",
+    "ReflectionLoop",
+    "plan_and_execute",
+    "mcp_agent_tool",
+    "rag_as_tool",
+    # Semantic memory
+    "MemoryRecord",
+    "SemanticMemory",
+    # DAG workflow orchestration
+    "Workflow",
+    "CompiledWorkflow",
+    "WorkflowResult",
+    "DryRunPlan",
+    "WorkflowDefinitionError",
+    "WorkflowExecutionError",
+    "WorkflowRoutingError",
+    "END",
+    "agent_node",
+    "tool_node",
+    "WorkflowInvariant",
+    "WorkflowExecutionState",
+    "reducer",
+    "workflow_node",
+    # Async wrappers
     "AsyncReActAgent",
     "AsyncConstrainedAgent",
     "run_agent_async",

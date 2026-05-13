@@ -12,11 +12,69 @@
 
 ## Wheel / Packaging
 
-- [ ] stable-diffusion.cpp uses compile-time `#ifdef SD_USE_CUDA` for backend selection instead of dynamic `ggml_backend_load_all()` like llama.cpp and whisper.cpp -- propose dynamic backend discovery upstream or patch locally for consistency
+- [ ] **Centralize ggml backend registration in `ensure_backends_loaded()`** -- the 0.2.17 hotfix calls `ggml_backend_load_all()` from `src/cyllama/sd/__init__.py` to fix the post-`master-592` "No devices found!" regression. The loader logic itself lives inside the sd Cython module (`src/cyllama/sd/stable_diffusion.pyx:170-191`), duplicating path resolution that also exists in `src/cyllama/_internal/backend_dl.py` (`libs_to_load`). The proper fix is to extract a single `ensure_backends_loaded()` helper into `_internal/backend_dl.py` (idempotent, env-var opt-out e.g. `CYLLAMA_DISABLE_GPU=1`) and call it once from `cyllama.utils.platform.ensure_native_deps()` so llama / whisper / sd all share one registration path. Then drop or thin-wrap the sd-local `ggml_backend_load_all` Python shim. Trigger: next time llama.cpp or whisper.cpp upstreams switch to runtime backend discovery (sd.cpp already did in [#1448](https://github.com/leejet/stable-diffusion.cpp/pull/1448)) -- doing this proactively avoids a repeat of the 0.2.16 SD regression.
+
+- [ ] stable-diffusion.cpp uses compile-time `#ifdef SD_USE_CUDA` for backend selection instead of dynamic `ggml_backend_load_all()` like llama.cpp and whisper.cpp -- propose dynamic backend discovery upstream or patch locally for consistency *(NOTE: superseded by sd.cpp `master-592` [#1448](https://github.com/leejet/stable-diffusion.cpp/pull/1448) which made the switch -- verify this item can be closed)*
 
 ## Explore
 
 - [ ] MCP server (`cyllama/mcp/`): expose local inference (`complete`, `chat`, `embed`, `transcribe`, `generate_image`) as MCP tools and model listing as resources. Two transports: stdio entrypoint for subprocess clients (Claude Desktop), and Streamable-HTTP routes mounted on `EmbeddedServer` (`src/cyllama/llama/server/embedded.pyx`) for Claude Code / remote clients. Reuse `agents/jsonrpc.py` framing and the high-level API in `src/cyllama/api.py` -- no new heavy deps. (Client side already shipped: `LLM.add_mcp_server()` in `src/cyllama/api.py:1378` wraps `agents/mcp.py` for non-agent callers.)
+
+## Agent framework
+
+These three items are the residue of `AGENT_TOOL_REVIEW.md` after every concrete proposal landed or was explicitly dropped. Each has a clear trigger; none is urgent.
+
+- [ ] **Stop-pattern migration in `_extract_answer`** -- `src/cyllama/agents/react.py` keeps a hand-maintained list of ~24 hallucination stop-patterns (code blocks, `Note:`, `Let's`, `def `, `class `, etc.) and post-processes generated text against them. The principled fix is to extend `GenerationConfig.stop_sequences` for the answer-extraction generation step instead; the default config already wires `stop_sequences` for `Observation:` patterns (`react.py:200-206`) and `LLM.__call__` honors them (`api.py:1276` runs `_find_stop_sequence`). Sketch: `cfg = replace(self.generation_config, stop_sequences=self.generation_config.stop_sequences + [...])` for the answer turn only; the regex strip becomes a fallback for models that ignore stop sequences. Trigger: refactor the next time the stop-pattern list grows from a new model-specific failure mode -- accreting another regex is the wrong response.
+
+- [ ] **MCP SSE transport** -- `src/cyllama/agents/mcp.py` implements `McpStdioConnection` (line 148) and `McpHttpConnection` (line 271) but `McpTransportType.SSE` (line 38) is reserved-but-unwired. A symmetric `McpSseConnection` would slot in next to the HTTP one, dispatched from `McpClient._connect_server` (line 400). Bulk of the cost is an integration test harness with a real SSE-speaking MCP server; the protocol class itself is small. Trigger: an MCP server you want to use exposes SSE-only. The ecosystem is mostly stdio/HTTP today, so this is unlikely soon.
+
+- [ ] **ACP protocol-version negotiation** -- `src/cyllama/agents/acp.py` hardcodes `ACP_PROTOCOL_VERSION = "2025-01-01"` (line 53) and embeds it directly in initialize responses (line 480). The module is marked experimental for this and other reasons, so the warning currently buys time -- but if ACP graduates from POC to a genuinely-used integration point, parameterize on the client's announced version (negotiate during initialize). Trigger: an ACP client surfaces with a different version. (A reference-client conformance test was also flagged but doesn't belong in a TODO until a harness target exists.)
+
+### Pattern gaps (from `docs/agents/patterns.md`)
+
+The five pattern gaps identified in the original audit have all landed.
+See [`docs/agents/patterns.md`](docs/agents/patterns.md) for the full
+catalog plus the patterns intentionally not supported.
+
+- [x] **#1 -- `ReflectionLoop` helper** -- landed in `src/cyllama/agents/composition.py`. Worker + critic loop with configurable acceptance marker, custom revision template, and per-pass `source`/`parent_event_id` annotations on streamed events. 6 tests in `tests/test_agents_composition.py::TestReflection*`.
+
+- [x] **#2 -- `rag_as_tool` helper** -- landed in `composition.py`. Wraps any `RAG`-shaped object (`search` / `retrieve`) as a `Tool`; default formatter emits one `[score] text` line per hit, deduplicated by text. 8 tests.
+
+- [x] **#3 -- `SemanticMemory` primitive** -- landed in new `src/cyllama/agents/memory.py`. Namespace-aware facade over any RAG instance; `remember(text, namespace, metadata)` and `retrieve(query, namespace, top_k)`. Over-fetches from the underlying search so the namespace filter has room to find enough hits. `forget()` raises `NotImplementedError` pending a RAG-side filtered-delete API (documented). 14 tests in `tests/test_agents_memory.py`.
+
+- [x] **#4 -- `plan_and_execute` helper** -- landed in `composition.py`. Default plan parser handles `[...]`, `{"steps"|"plan"|"tasks": [...]}`, and newline-split with bullet/number-prefix stripping; pluggable via `plan_parser=`. `stop_on_error=True` (default) halts after the first failing step. 7 tests.
+
+- [x] **#5 -- `mcp_agent_tool` helper** -- landed in `composition.py`. Cross-process analog of `agent_as_tool`; wraps a remote MCP-exposed agent as a local `Tool` named `"{server_name}/{agent_name}"`. Optional local `timeout=` separate from MCP transport timeouts. 6 tests.
+
+### Pattern-coverage refinements (future, no urgency)
+
+These are residual refinements documented under each pattern's "Gap" line in `docs/agents/patterns.md`. None block the pattern; each is a possible extension when a use case appears.
+
+**Note:** every entry in this section should land in `inferna` too. The two projects share the agent layer byte-identical modulo namespace; refinements ported one-way only would drift the surfaces.
+
+- [ ] **Streaming sub-agent events across MCP** -- `mcp_agent_tool` returns a single value per call; streaming would require the MCP server-streaming RFC to stabilize.
+- [ ] **Streaming RAG results to the agent** -- `rag_as_tool` returns a single concatenated observation today.
+- [ ] **Filtered deletion in `SemanticMemory`** -- `forget()` raises `NotImplementedError` pending a RAG-side metadata-filtered delete API.
+- [ ] **Parallel critic ensembles in `ReflectionLoop`** -- multiple critics voting, reward-model-based acceptance.
+- [ ] **Unified streaming for `plan_and_execute` steps** -- one iterator surfacing events from all steps in sequence (e.g. an `aplan_and_execute` async-generator variant, or a `stream=True` flag on the existing helper). `cyllama-desktop`'s sidecar bypasses the wrapper today and reimplements the loop with `planner.stream()` / `executor.stream()` precisely to get incremental events flowing into its SSE channel; a streaming variant in cyllama would let that ~100 LoC of reimplementation go away. Trigger: the next consumer (after cyllama-desktop) that needs per-step events.
+
+- [ ] **`ReflectionLoop.stream()` per-attempt `source` labels.** Today `composition.py` sets `event.source = "worker"` / `"critic"` (role only -- see `_reflect_loop` in `composition.py`). Downstream consumers (cyllama-desktop today) want `worker-1` / `critic-1` / `worker-2` / etc. so the trace renderer can distinguish attempts. ~5 LoC change: `f"worker-{attempt + 1}"` in the source-tagging block. Same surface for ReflectionLoop's async variant if/when it lands. Trigger: a consumer wants per-attempt distinction (cyllama-desktop already does -- it currently reimplements the loop in the sidecar for this reason).
+
+- [ ] **Document `SemanticMemory`'s actual RAG-shaped protocol.** The class docstring says it wraps a `cyllama.rag.RAG` instance; in practice the implementation only calls `.add_texts(texts, metadata, split)` and `.search(query, k, threshold)` on the wrapped object. Any duck-typed shape works, but the docstring buries this. `cyllama-desktop`'s sidecar built a ~20 LoC `_MemoryRagShim` around its `Embedder` + `SqliteVectorStore` precisely because a real `RAG` instance requires a `generation_model` it doesn't have. Two changes: (a) docstring rewrite stating the protocol; (b) optional `MemoryRagProtocol` (or similar) type alias under `agents.memory` that consumers can use for type checking. Trigger: a follow-up doc pass.
+
+- [ ] **`ContractPolicy.from_name(s)` classmethod.** Today consumers wanting to map a UI string (`"OBSERVE"`, etc.) to a `ContractPolicy` enum member call `getattr(ContractPolicy, name)` and handle the `AttributeError` themselves. A `from_name` factory + a `Literal["IGNORE", "OBSERVE", "ENFORCE", "QUICK_ENFORCE"]` type alias would tighten the boundary and remove the boilerplate from every consumer. ~10 LoC. Trigger: the next consumer that has to do this dance.
+
+- [ ] **Expose `Workflow.inputs_schema` (typed inputs, not just names).** `compiled.dry_run().inputs_required` is `Tuple[str, ...]` -- names only. Layer-C nodes have parameter annotations the framework already reads (`_extract_param_names`, `typing.get_type_hints`); surfacing those as `{key: type}` would let consumers render typed input forms instead of always-text fields. `cyllama-desktop`'s Workflows pane uses text inputs for everything and the user has to know that `count` is an `int` etc. ~20 LoC to populate `inputs_schema` on the `DryRunPlan` dataclass. Trigger: a consumer with a workflow whose inputs are numeric / boolean / enum.
+
+### Pattern gaps -- explicitly **not on the roadmap**
+
+These appear in `docs/agents/patterns.md` but won't be addressed without a forcing use case. Listed here to make the position explicit rather than implicit.
+
+- **Tree of Thoughts (ToT)** -- requires public `LlamaContext.snapshot()` / `restore()` (currently absent at the API surface) plus a branching agent loop that maintains a frontier of candidate states with scoring. Significant new machinery; non-trivial value for cyllama's typical user. Skip unless a user with a concrete ToT use case shows up.
+
+- **Autonomous / AutoGPT-style** -- structurally opposed to cyllama's design stance (bounded loops, loop detection, max_iterations, contracts for budget invariants). Unbounded goal-decomposition is what the framework actively prevents. Document the stance, don't accommodate it.
+
+- ~~**Workflow / State-Machine agents** (graph DSL)~~ -- **landed** as the `cyllama.agents.workflow` runtime (Phases 1-5 of the workflow rollout). `Workflow` (builder) + `CompiledWorkflow` (runnable) with Layer B explicit StateGraph and Layer C `@flow.node` decorator sugar, streaming events (`WORKFLOW_START` / `NODE_START` / `NODE_END` / `ANSWER` / `WORKFLOW_END`), conditional routing + END sentinel, sub-workflow composition via `workflow_node`, agent-as-node via `agent_node`, `ContractPolicy`-flavoured workflow invariants, reducer registry for multi-writer state keys, and `Workflow.as_agent()` for `AgentProtocol` adaptation. 118 tests in `tests/test_agents_workflow.py`. The first real consumer is `cyllama-desktop`'s Workflows pane. See `docs/agents/workflow.md` and `docs/agents/patterns.md` §9.
 
 ## CI / Workflows
 

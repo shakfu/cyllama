@@ -1,58 +1,92 @@
 """
 Contract-based agent with C++26-inspired contract assertions.
 
-This module provides a Python implementation of contract programming inspired by
-C++26's contract assertions proposal (P2900). It enables preconditions, postconditions,
-and runtime assertions for tools and agents with configurable violation handling.
+This module provides Python contracts for tools and agents, layered on top of
+the regular ReAct loop. Contracts complement -- they do not replace -- the
+JSON-Schema-based argument validation that ``coerce_args`` and ``Annotated[]``
+constraint markers (in ``tools.py``) provide. Use contracts for the things
+schema cannot express.
 
-Key Differences from C++26
---------------------------
-While inspired by C++26, this Python implementation differs in several ways:
+When to reach for schema vs. contracts
+--------------------------------------
+**Use schema (``Annotated[int, Ge(1)]``, etc.) for:** type, range, enum,
+pattern, length, required, multipleOf -- properties of a single argument.
+Schema is declarative, visible to the model in the prompt and grammar,
+survives the MCP/OpenAI wire boundary, and runs *before* dispatch.
 
-1. **Runtime-only checking**: C++26 contracts can be compile-time or runtime. Python
-   contracts are always checked at runtime.
+**Use contracts (``@pre``, ``@post``, agent callbacks) for:**
 
-2. **Dynamic predicate evaluation**: Predicates are Python callables, not expressions
-   evaluated at compile time. This allows more flexibility but less static analysis.
+1. **Cross-field rules** -- "``end > start``", "``payment_type == 'card'``
+   implies ``card_number`` is present". Schema's ``dependentRequired`` /
+   ``if/then/else`` exists but is awkward; predicates are clearer.
+2. **State-dependent rules** -- "the database connection is open",
+   "now < deadline", "the user is authenticated". Schema has zero runtime
+   visibility; predicates see whatever closure captures.
+3. **Behavioral postconditions** -- "the returned list is non-empty",
+   "the output is sorted", "the answer doesn't contain PII". Schema has
+   no way to express behavioral constraints on return values.
+4. **Cross-call / cross-iteration invariants** -- "errors < 3",
+   "total cost < budget", "elapsed < deadline". These span multiple tool
+   dispatches and can only be expressed at the agent level.
 
-3. **No undefined behavior**: C++26's contract violations can result in UB. Python
-   contracts always have well-defined behavior based on the policy.
-
-4. **Agent integration**: This module extends the contract concept to AI agents,
-   adding task preconditions, answer postconditions, and iteration invariants.
+Reaching for ``@pre`` to do argument validation that ``Annotated[]`` could
+do is an anti-pattern: it makes the constraint invisible to the model,
+invisible across the wire, and harder to read. See
+``docs/agents/contracts.md`` for worked recipes.
 
 Contract Policies
 -----------------
-Four policies control how violations are handled (see ContractPolicy enum):
+Four policies control how violations are handled (see ``ContractPolicy``):
 
-- **IGNORE**: Skip all checking. Use for production when contracts are verified.
-- **OBSERVE**: Check and log violations, but continue execution. Useful for monitoring.
-- **ENFORCE** (default): Check, call violation handler, then terminate on violation.
-- **QUICK_ENFORCE**: Check and terminate immediately without calling handler.
+- **IGNORE**: Skip all checking. Use in production once contracts are
+  proven; provides zero runtime overhead.
+- **OBSERVE**: Check and report violations (via the violation handler
+  and via ``EventType.CONTRACT_VIOLATION`` events on the agent stream),
+  but continue execution. Useful for monitoring and gradual adoption.
+- **ENFORCE** (default): Check, call the handler, then terminate by
+  raising ``ContractTermination``. Recommended for development.
+- **QUICK_ENFORCE**: Check and terminate immediately without invoking
+  the handler. For when handler overhead is unacceptable.
 
-Basic Usage
------------
-Apply contracts to tools using decorators::
+Tool-level contracts (``@pre`` / ``@post``)
+-------------------------------------------
+``@pre`` is for **non-schema preconditions** -- cross-field or state-
+dependent checks that can't be expressed in the tool's JSON schema::
 
-    from cyllama.agents import tool, pre, post, ContractAgent
+    from cyllama.agents import tool, pre, post
 
     @tool
-    @pre(lambda args: args['count'] > 0, "count must be positive")
-    @post(lambda r: len(r) > 0, "must return results")
-    def fetch_items(count: int) -> str:
-        '''Fetch items from database.'''
-        return f"Fetched {count} items"
+    @pre(lambda args: args['end'] > args['start'], "end must follow start")
+    def fetch_range(start: int, end: int) -> List[Row]:
+        '''Cross-field rule: relationship between two args.'''
+        ...
 
-    # Create agent with contract checking
-    agent = ContractAgent(
-        llm=my_llm,
-        tools=[fetch_items],
-        policy=ContractPolicy.ENFORCE  # default
-    )
+    @tool
+    @pre(lambda args: db.is_connected(), "db must be open")
+    def fetch_user(user_id: str) -> User:
+        '''State-dependent rule: depends on external resource.'''
+        ...
+
+For simple argument constraints like ``count > 0`` or ``role in {"a","b"}``,
+prefer ``Annotated[int, Ge(1)]`` / ``Literal["a","b"]`` in the type hint --
+schema reaches the model; contracts don't.
+
+``@post`` is for **behavioral postconditions** on the return value.
+Predicates receive the raw return value (not its string render) and may
+optionally also receive the input args via a two-argument signature::
+
+    @tool
+    @post(lambda r: len(r) > 0, "must return at least one row")
+    def fetch_rows(table: str) -> List[Row]: ...
+
+    @tool
+    @post(lambda r, args: len(r) <= args['limit'], "must respect limit")
+    def fetch_with_limit(table: str, limit: int) -> List[Row]: ...
 
 Runtime Assertions
 ------------------
-Use contract_assert() within tool implementations for invariant checking::
+Use ``contract_assert()`` inside a tool body for invariant checks that
+depend on intermediate values::
 
     from cyllama.agents import tool, contract_assert
 
@@ -66,23 +100,41 @@ Use contract_assert() within tool implementations for invariant checking::
 
 Agent-Level Contracts
 ---------------------
-ContractAgent supports contracts on the overall task and answer::
+These are the contracts that have **no schema substitute** and that this
+module exists to provide. They span multiple iterations and see runtime
+state. The plural forms (``iteration_invariants=[...]``, etc.) are
+preferred -- they let you compose independent invariants without writing
+a single mega-lambda. Singular forms are still accepted for back-compat::
 
     agent = ContractAgent(
         llm=my_llm,
         tools=[...],
-        task_precondition=lambda task: len(task) >= 10,  # minimum task length
-        answer_postcondition=lambda answer: "error" not in answer.lower(),
-        iteration_invariant=lambda state: state.errors < 3  # max 2 errors
+        task_preconditions=[
+            lambda t: len(t) >= 10,
+            lambda t: not t.startswith("ignore previous"),
+        ],
+        answer_postconditions=[
+            lambda a: "system_prompt" not in a,
+            lambda a: not contains_pii(a),
+        ],
+        iteration_invariants=[
+            lambda s: s.errors < 3,
+            lambda s: s.elapsed_ms < 30_000,
+            lambda s: s.tool_calls < 20,
+        ],
     )
 
 See Also
 --------
+- ``docs/dev/contract-agent.md``: design notes and repositioning plan
+- ``docs/agents/contracts.md``: worked recipes for each contract kind
+- ``cyllama.agents.tools``: ``Annotated[]`` constraint markers
+  (``Ge``, ``Le``, ``Pattern``, etc.) for the schema side
 - C++26 contract assertions: https://wg21.link/p2900
-- ContractPolicy: Enum defining violation handling policies
-- ContractAgent: Agent class with contract checking
-- pre, post: Decorators for tool contracts
-- contract_assert: Runtime assertion function
+- ``ContractPolicy``: enum defining violation-handling policies
+- ``ContractAgent``: agent class with contract checking
+- ``pre`` / ``post``: decorators for tool-level contracts
+- ``contract_assert``: runtime assertion inside a tool body
 """
 
 from dataclasses import dataclass, field
@@ -435,19 +487,43 @@ def pre(
     """
     Decorator to add a precondition to a tool.
 
-    The predicate receives a dictionary of arguments and should return True
-    if the precondition is satisfied.
+    Reserve ``@pre`` for non-schema preconditions -- cross-field rules and
+    state-dependent rules. For simple per-argument constraints (type, range,
+    enum, pattern, length), use ``Annotated[T, Ge(1), ...]`` in the type
+    hint instead; schema-side constraints reach the model in the prompt
+    and grammar, contracts do not.
+
+    The predicate receives the *post-coercion* arguments dict (after
+    ``coerce_args`` has run, so values match their declared types) and
+    returns True if the precondition holds.
 
     Args:
-        predicate: Function (args: Dict) -> bool
+        predicate: Function ``(args: Dict) -> bool``
         message: Human-readable description of the precondition
         policy: Optional policy override for this specific contract
 
-    Example:
+    Example -- cross-field rule (can't be expressed in schema)::
+
         @tool
-        @pre(lambda args: args['count'] > 0, "count must be positive")
-        def fetch_items(count: int) -> str:
-            ...
+        @pre(lambda args: args['end'] > args['start'], "end after start")
+        def fetch_range(start: int, end: int) -> List[Row]: ...
+
+    Example -- state-dependent rule (depends on closure / external state)::
+
+        @tool
+        @pre(lambda args: db.is_connected(), "db must be open")
+        def fetch_user(user_id: str) -> User: ...
+
+    Anti-pattern -- argument validation that schema already covers::
+
+        # Don't:
+        @tool
+        @pre(lambda args: args['count'] > 0, "count > 0")
+        def fetch(count: int) -> ...: ...
+
+        # Do:
+        @tool
+        def fetch(count: Annotated[int, Ge(1)]) -> ...: ...
     """
 
     def decorator(func_or_tool: Union[Callable[..., Any], Tool]) -> Union[Callable[..., Any], Tool]:
@@ -476,24 +552,37 @@ def post(
     """
     Decorator to add a postcondition to a tool.
 
-    The predicate receives the result, and optionally the original arguments,
-    and should return True if the postcondition is satisfied.
+    Postconditions are the canonical site for **behavioral checks on the
+    tool's return value**. Schema doesn't enforce return shape in cyllama,
+    and even when it does, postconditions tend to be about behavior
+    (sorted, non-empty, no PII, idempotent) rather than structure.
+    ``@post`` is genuinely orthogonal to schema -- there's no anti-pattern
+    here.
+
+    The predicate receives the **raw return value** (not its string
+    render), and optionally the post-coercion args dict via a two-argument
+    signature. It returns True if the postcondition holds.
 
     Args:
-        predicate: Function (result) -> bool or (result, args) -> bool
+        predicate: Function ``(result) -> bool`` or ``(result, args) -> bool``
         message: Human-readable description of the postcondition
         policy: Optional policy override for this specific contract
 
-    Example:
-        @tool
-        @post(lambda r: len(r) > 0, "result must not be empty")
-        def search(query: str) -> str:
-            ...
+    Example -- behavioral check (no schema substitute)::
 
         @tool
-        @post(lambda r, args: len(r) <= args['max_len'], "result too long")
-        def generate(prompt: str, max_len: int) -> str:
-            ...
+        @post(lambda r: len(r) > 0, "must return at least one row")
+        def search(query: str) -> List[Row]: ...
+
+        @tool
+        @post(lambda r: r == sorted(r), "must return sorted output")
+        def fetch_ordered(table: str) -> List[int]: ...
+
+    Example -- two-arg form (validate result against the input)::
+
+        @tool
+        @post(lambda r, args: len(r) <= args['max_len'], "respects max_len")
+        def generate(prompt: str, max_len: int) -> str: ...
     """
 
     def decorator(func_or_tool: Union[Callable[..., Any], Tool]) -> Union[Callable[..., Any], Tool]:
@@ -524,20 +613,27 @@ def post(
 # Contract Assert (Runtime Assertion)
 # =============================================================================
 
-# Thread-local storage for current contract context
-import threading
+# Context-variable storage for current contract context.
+#
+# ContextVar (rather than threading.local) ensures the active contract context
+# follows async tasks and is inherited across `asyncio.to_thread` / `run_in_executor`
+# boundaries via Context.run/copy_context. threading.local would silently lose
+# the context the moment execution hopped to a different thread or coroutine.
+import contextvars
 
-_contract_context = threading.local()
+_contract_context: "contextvars.ContextVar[Optional[ContractContext]]" = contextvars.ContextVar(
+    "_contract_context", default=None
+)
 
 
 def _get_current_context() -> Optional["ContractContext"]:
     """Get the current contract context if any."""
-    return getattr(_contract_context, "current", None)
+    return _contract_context.get()
 
 
 def _set_current_context(ctx: Optional["ContractContext"]) -> None:
     """Set the current contract context."""
-    _contract_context.current = ctx
+    _contract_context.set(ctx)
 
 
 @dataclass
@@ -767,9 +863,16 @@ class ContractAgent(AgentProtocol):
         tools: Optional[List[Tool]] = None,
         policy: ContractPolicy = ContractPolicy.ENFORCE,
         violation_handler: Optional[ViolationHandler] = None,
+        # Singular forms preserved for back-compat; prefer the list-form siblings below.
         task_precondition: Optional[Callable[[str], bool]] = None,
         answer_postcondition: Optional[Callable[[str], bool]] = None,
         iteration_invariant: Optional[Callable[["IterationState"], bool]] = None,
+        # List forms — preferred. Each entry is checked independently; each
+        # violation surfaces as its own ContractViolation rather than being
+        # AND-composed into a single mega-lambda.
+        task_preconditions: Optional[List[Callable[[str], bool]]] = None,
+        answer_postconditions: Optional[List[Callable[[str], bool]]] = None,
+        iteration_invariants: Optional[List[Callable[["IterationState"], bool]]] = None,
         inner_agent: Optional[Union[ReActAgent, Any]] = None,
         agent_type: str = "react",
         system_prompt: Optional[str] = None,
@@ -796,15 +899,27 @@ class ContractAgent(AgentProtocol):
             If None, uses a default handler that logs to the 'cyllama.agents.contract'
             logger at WARNING level.
         task_precondition : Optional[Callable[[str], bool]]
-            Validates the input task before execution begins. Receives the task string,
-            returns True if valid. Checked once at the start of run()/stream().
+            Singular form, preserved for back-compat. Prefer ``task_preconditions=``
+            (plural) for new code. Cannot be combined with the plural form.
         answer_postcondition : Optional[Callable[[str], bool]]
-            Validates the final answer before returning. Receives the answer string,
-            returns True if valid. Checked once after agent produces an answer.
+            Singular form, preserved for back-compat. Prefer ``answer_postconditions=``
+            (plural). Cannot be combined with the plural form.
         iteration_invariant : Optional[Callable[[IterationState], bool]]
-            Checked at each reasoning iteration. Receives an IterationState with
-            counters for iterations, tool_calls, and errors. Return False to
-            trigger a violation (e.g., to limit total iterations).
+            Singular form, preserved for back-compat. Prefer ``iteration_invariants=``
+            (plural). Cannot be combined with the plural form.
+        task_preconditions : Optional[List[Callable[[str], bool]]]
+            Validates the input task before execution begins. Each callable
+            receives the task string and returns True if valid. Checked once
+            at the start of run()/stream(); every failure surfaces as its
+            own ContractViolation.
+        answer_postconditions : Optional[List[Callable[[str], bool]]]
+            Validates the final answer before returning. Each callable
+            receives the answer string and returns True if valid. Checked
+            once after the agent produces an answer.
+        iteration_invariants : Optional[List[Callable[[IterationState], bool]]]
+            Checked at each reasoning iteration. Each callable receives the
+            current IterationState and returns False to trigger a violation
+            (e.g., to limit total iterations or cap elapsed time).
         inner_agent : Optional[Union[ReActAgent, ConstrainedAgent]]
             Pre-configured inner agent. If provided, agent_type is ignored.
         agent_type : str
@@ -833,10 +948,42 @@ class ContractAgent(AgentProtocol):
         self.tools = tools or []
         self.policy = policy
         self.violation_handler = violation_handler or self._default_handler
-        self.task_precondition = task_precondition
-        self.answer_postcondition = answer_postcondition
-        self.iteration_invariant = iteration_invariant
         self.verbose = verbose
+
+        # Normalize singular + plural agent-level callbacks into uniform lists.
+        # The singular forms are preserved for back-compat; passing both the
+        # singular and plural form for the same hook is rejected to avoid
+        # silent ordering ambiguity.
+        def _merge(
+            singular: Optional[Callable[..., Any]],
+            plural: Optional[List[Callable[..., Any]]],
+            field_name: str,
+        ) -> List[Callable[..., Any]]:
+            if singular is not None and plural is not None:
+                raise ValueError(f"ContractAgent: pass either `{field_name}` or `{field_name}s`, not both")
+            if plural is not None:
+                return list(plural)
+            if singular is not None:
+                return [singular]
+            return []
+
+        self.task_preconditions: List[Callable[[str], bool]] = _merge(
+            task_precondition, task_preconditions, "task_precondition"
+        )
+        self.answer_postconditions: List[Callable[[str], bool]] = _merge(
+            answer_postcondition, answer_postconditions, "answer_postcondition"
+        )
+        self.iteration_invariants: List[Callable[["IterationState"], bool]] = _merge(
+            iteration_invariant, iteration_invariants, "iteration_invariant"
+        )
+
+        # Compatibility shims: existing call sites read the singular attributes
+        # as Optional callables. Preserve those reads by exposing the first
+        # entry (or None) — internal code that wants all entries uses the
+        # plural attribute directly.
+        self.task_precondition = self.task_preconditions[0] if self.task_preconditions else None
+        self.answer_postcondition = self.answer_postconditions[0] if self.answer_postconditions else None
+        self.iteration_invariant = self.iteration_invariants[0] if self.iteration_invariants else None
 
         # Extract contracts from tools
         self._tool_contracts: Dict[str, ContractSpec] = {}
@@ -992,37 +1139,41 @@ class ContractAgent(AgentProtocol):
         self._contract_checks = 0
         self._contract_violations = 0
 
-        # Check task precondition
-        if self.task_precondition is not None:
-            self._contract_checks += 1
-            if self.policy != ContractPolicy.IGNORE:
+        # Check task preconditions — every entry in the list runs independently.
+        # A failure under ENFORCE terminates immediately (matches singular-form
+        # semantics); under OBSERVE every failure surfaces its own violation
+        # event and the loop continues.
+        if self.task_preconditions and self.policy != ContractPolicy.IGNORE:
+            for idx, predicate in enumerate(self.task_preconditions):
+                self._contract_checks += 1
                 yield AgentEvent(
                     type=EventType.CONTRACT_CHECK,
-                    content="Checking task precondition",
-                    metadata={"kind": "pre", "location": "agent"},
+                    content=f"Checking task precondition [{idx}]",
+                    metadata={"kind": "pre", "location": "agent", "index": idx},
                 )
 
-                if not self.task_precondition(task):
-                    self._contract_violations += 1
-                    pre_violation = ContractViolation(
-                        kind="pre",
-                        location="agent",
-                        predicate="task_precondition",
-                        message="Task precondition failed",
-                        context={"task": task},
-                        policy=self.policy,
-                    )
+                if predicate(task):
+                    continue
+                self._contract_violations += 1
+                pre_violation = ContractViolation(
+                    kind="pre",
+                    location="agent",
+                    predicate=f"task_precondition[{idx}]",
+                    message=f"Task precondition [{idx}] failed",
+                    context={"task": task},
+                    policy=self.policy,
+                )
+                yield AgentEvent(
+                    type=EventType.CONTRACT_VIOLATION,
+                    content=str(pre_violation),
+                    metadata={"violation": pre_violation, "index": idx},
+                )
+                if not self._handle_violation(pre_violation):
                     yield AgentEvent(
-                        type=EventType.CONTRACT_VIOLATION,
-                        content=str(pre_violation),
-                        metadata={"violation": pre_violation},
+                        type=EventType.ERROR,
+                        content=f"Contract terminated: {pre_violation.message}",
                     )
-                    if not self._handle_violation(pre_violation):
-                        yield AgentEvent(
-                            type=EventType.ERROR,
-                            content=f"Contract terminated: {pre_violation.message}",
-                        )
-                        return
+                    return
 
         # Track iteration state
         iteration_state = IterationState()
@@ -1032,34 +1183,39 @@ class ContractAgent(AgentProtocol):
         for event in self._inner_agent.stream(task):
             iteration_state.update(event)
 
-            # Check iteration invariant
-            if (
-                event.type == EventType.THOUGHT
-                and self.iteration_invariant is not None
-                and self.policy != ContractPolicy.IGNORE
-            ):
-                self._contract_checks += 1
-                if not self.iteration_invariant(iteration_state):
+            # Check iteration invariants — fires on each THOUGHT event, every
+            # invariant in the list runs against the current state. Like the
+            # task preconditions above, ENFORCE terminates on first failure;
+            # OBSERVE emits every failure and continues.
+            if event.type == EventType.THOUGHT and self.iteration_invariants and self.policy != ContractPolicy.IGNORE:
+                terminated = False
+                for idx, invariant in enumerate(self.iteration_invariants):
+                    self._contract_checks += 1
+                    if invariant(iteration_state):
+                        continue
                     self._contract_violations += 1
                     inv_violation = ContractViolation(
                         kind="assert",
                         location="agent",
-                        predicate="iteration_invariant",
-                        message="Iteration invariant failed",
+                        predicate=f"iteration_invariant[{idx}]",
+                        message=f"Iteration invariant [{idx}] failed",
                         context={"state": iteration_state.to_dict()},
                         policy=self.policy,
                     )
                     yield AgentEvent(
                         type=EventType.CONTRACT_VIOLATION,
                         content=str(inv_violation),
-                        metadata={"violation": inv_violation},
+                        metadata={"violation": inv_violation, "index": idx},
                     )
                     if not self._handle_violation(inv_violation):
                         yield AgentEvent(
                             type=EventType.ERROR,
                             content=f"Contract terminated: {inv_violation.message}",
                         )
-                        return
+                        terminated = True
+                        break
+                if terminated:
+                    return
 
             # Intercept tool calls to check contracts
             if event.type == EventType.ACTION:
@@ -1107,30 +1263,37 @@ class ContractAgent(AgentProtocol):
 
             yield event
 
-        # Check answer postcondition
-        if answer is not None and self.answer_postcondition is not None and self.policy != ContractPolicy.IGNORE:
-            self._contract_checks += 1
-            yield AgentEvent(
-                type=EventType.CONTRACT_CHECK,
-                content="Checking answer postcondition",
-                metadata={"kind": "post", "location": "agent"},
-            )
+        # Check answer postconditions — every entry runs against the final
+        # answer. ENFORCE terminates on first failure; OBSERVE emits every
+        # failure and the run completes normally.
+        if answer is not None and self.answer_postconditions and self.policy != ContractPolicy.IGNORE:
+            for idx, predicate in enumerate(self.answer_postconditions):
+                self._contract_checks += 1
+                yield AgentEvent(
+                    type=EventType.CONTRACT_CHECK,
+                    content=f"Checking answer postcondition [{idx}]",
+                    metadata={"kind": "post", "location": "agent", "index": idx},
+                )
 
-            if not self.answer_postcondition(answer):
+                if predicate(answer):
+                    continue
                 self._contract_violations += 1
                 violation = ContractViolation(
                     kind="post",
                     location="agent",
-                    predicate="answer_postcondition",
-                    message="Answer postcondition failed",
+                    predicate=f"answer_postcondition[{idx}]",
+                    message=f"Answer postcondition [{idx}] failed",
                     context={"answer": answer},
                     policy=self.policy,
                 )
                 yield AgentEvent(
-                    type=EventType.CONTRACT_VIOLATION, content=str(violation), metadata={"violation": violation}
+                    type=EventType.CONTRACT_VIOLATION,
+                    content=str(violation),
+                    metadata={"violation": violation, "index": idx},
                 )
                 if not self._handle_violation(violation):
                     yield AgentEvent(type=EventType.ERROR, content=f"Contract terminated: {violation.message}")
+                    return
 
     def run(self, task: str) -> AgentResult:
         """
@@ -1191,23 +1354,82 @@ class ContractAgent(AgentProtocol):
 
 @dataclass
 class IterationState:
-    """State tracked during agent iteration for invariant checking."""
+    """State tracked during agent iteration for invariant checking.
+
+    Passed to every ``iteration_invariant`` callable on every THOUGHT event.
+    The fields below are the runtime signals that justify ContractAgent's
+    existence — invariants over them have no schema substitute.
+
+    Time-budget invariants (``s.elapsed_ms < 30_000``), context-budget
+    invariants (``s.estimated_prompt_chars < 6_000``), and "stuck loop"
+    invariants beyond the built-in detector (``s.consecutive_same_observation < 3``)
+    are the canonical use cases.
+    """
 
     iterations: int = 0
     tool_calls: int = 0
     errors: int = 0
     events: List[AgentEvent] = field(default_factory=list)
 
+    # Step 5 additions — runtime context for stateful invariants.
+    elapsed_ms: float = 0.0
+    last_tool_name: Optional[str] = None
+    last_observation: Optional[str] = None
+    observations_so_far: List[str] = field(default_factory=list)
+    estimated_prompt_chars: int = 0
+    consecutive_same_observation: int = 0
+
+    # Internal: timestamp of the first event so elapsed_ms can be derived
+    # without callers passing a clock in. None until the first event lands.
+    _start_perf: Optional[float] = field(default=None, repr=False)
+    # Cap on observations_so_far to prevent unbounded growth.
+    _max_observations: int = field(default=10, repr=False)
+
     def update(self, event: AgentEvent) -> None:
         """Update state based on event."""
+        # Lazy clock start so elapsed_ms is "since the agent first emitted"
+        # rather than "since the IterationState was constructed".
+        import time as _time
+
+        if self._start_perf is None:
+            self._start_perf = _time.perf_counter()
+        self.elapsed_ms = (_time.perf_counter() - self._start_perf) * 1000.0
+
         self.events.append(event)
+        # Cheap proxy for context size: sum of event content lengths so
+        # invariants can express prompt-budget caps without tokenizing.
+        self.estimated_prompt_chars += len(event.content or "")
+
         if event.type == EventType.THOUGHT:
             self.iterations += 1
         elif event.type == EventType.ACTION:
             self.tool_calls += 1
+            self.last_tool_name = event.metadata.get("tool_name")
         elif event.type == EventType.ERROR:
             self.errors += 1
+        elif event.type == EventType.OBSERVATION:
+            obs = event.content or ""
+            # Update the consecutive-same counter *before* mutating last_observation
+            # so the comparison is meaningful.
+            if self.last_observation is not None and obs == self.last_observation:
+                self.consecutive_same_observation += 1
+            else:
+                self.consecutive_same_observation = 1
+            self.last_observation = obs
+            self.observations_so_far.append(obs)
+            # Cap to last N to bound memory; preserve recency.
+            if len(self.observations_so_far) > self._max_observations:
+                self.observations_so_far = self.observations_so_far[-self._max_observations :]
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for context."""
-        return {"iterations": self.iterations, "tool_calls": self.tool_calls, "errors": self.errors}
+        return {
+            "iterations": self.iterations,
+            "tool_calls": self.tool_calls,
+            "errors": self.errors,
+            "elapsed_ms": self.elapsed_ms,
+            "last_tool_name": self.last_tool_name,
+            "estimated_prompt_chars": self.estimated_prompt_chars,
+            "consecutive_same_observation": self.consecutive_same_observation,
+            "observations_so_far_count": len(self.observations_so_far),
+        }

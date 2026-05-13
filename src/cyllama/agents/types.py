@@ -26,15 +26,48 @@ class EventType(Enum):
     # Contract-related events
     CONTRACT_CHECK = "contract_check"
     CONTRACT_VIOLATION = "contract_violation"
+    # Workflow-orchestration events (cyllama.agents.workflow).
+    # WORKFLOW_START / WORKFLOW_END bracket a workflow run; NODE_START /
+    # NODE_END bracket each node's execution within the run. Sub-agent
+    # events emitted by an agent wrapped via ``agent_node`` flow through
+    # the workflow stream carrying their own ``source`` / ``parent_event_id``.
+    WORKFLOW_START = "workflow_start"
+    WORKFLOW_END = "workflow_end"
+    NODE_START = "node_start"
+    NODE_END = "node_end"
 
 
 @dataclass
 class AgentEvent:
-    """Event emitted during agent execution."""
+    """Event emitted during agent execution.
+
+    The ``source`` and ``parent_event_id`` fields are populated by the
+    multi-agent composition layer (``agents/composition.py``) when one
+    agent invokes another via ``agent_as_tool``: events from the inner
+    agent are re-emitted by the wrapping tool with ``source`` set to the
+    inner agent's name and ``parent_event_id`` pointing at the supervisor's
+    ACTION event that triggered the sub-agent run. Single-agent code paths
+    leave both fields ``None`` (back-compat with all existing consumers).
+
+    Attributes:
+        type: Event kind (THOUGHT / ACTION / OBSERVATION / ANSWER / ERROR /
+            CONTRACT_CHECK / CONTRACT_VIOLATION).
+        content: Human/LLM-readable text payload.
+        metadata: Arbitrary key/value annotations (tool_name, tool_args,
+            raw_result, violation, etc.).
+        source: Optional name of the agent that emitted this event. ``None``
+            for top-level agent events; set to e.g. ``"researcher"`` when a
+            sub-agent emits via ``agent_as_tool``.
+        parent_event_id: Optional id linking back to the supervisor event
+            that spawned the sub-agent. Used by streaming UIs to render
+            nested agent execution.
+    """
 
     type: EventType
     content: str
     metadata: Dict[str, Any] = field(default_factory=dict)
+    source: Optional[str] = None
+    parent_event_id: Optional[str] = None
 
 
 @dataclass

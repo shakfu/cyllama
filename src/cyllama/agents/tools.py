@@ -15,6 +15,136 @@ from dataclasses import dataclass, field
 logger = logging.getLogger(__name__)
 
 
+class ToolArgumentError(ValueError):
+    """Raised when arguments fail schema validation before tool dispatch.
+
+    This is a precondition error, raised by ``coerce_args`` before the tool
+    function is invoked. Agents catch it and feed the message back to the
+    LLM so it can self-correct without the tool actually running.
+    """
+
+    def __init__(self, tool_name: str, message: str):
+        self.tool_name = tool_name
+        self.message = message
+        super().__init__(f"{tool_name}: {message}")
+
+
+class ToolTimeoutError(RuntimeError):
+    """Raised when a tool exceeds its declared ``Tool.timeout`` budget.
+
+    The underlying worker thread is *not* killed -- Python provides no safe
+    way to do that. The agent abandons the result but the tool continues
+    running in the background until it returns or the interpreter exits.
+    For hard resource limits (memory, file descriptors, network state),
+    use out-of-process tools and let the OS enforce the budget.
+    """
+
+    def __init__(self, tool_name: str, timeout: float):
+        self.tool_name = tool_name
+        self.timeout = timeout
+        super().__init__(f"{tool_name}: exceeded {timeout}s timeout")
+
+
+# ---------------------------------------------------------------------------
+# Annotated[] constraint markers
+#
+# Lets callers attach JSON-Schema constraints to type hints without adding
+# a runtime dependency on ``annotated_types`` or ``pydantic``:
+#
+#     def fetch(count: Annotated[int, Ge(1), Le(100)]) -> ...:
+#
+# Schema generation reads these from the type's metadata; coerce_args
+# enforces them at dispatch time. The marker classes are deliberately tiny
+# frozen dataclasses — no inheritance hierarchy, no validation framework.
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Ge:
+    """Inclusive lower bound. Produces JSON-Schema ``minimum``."""
+
+    value: float
+
+
+@dataclass(frozen=True)
+class Gt:
+    """Strict lower bound. Produces JSON-Schema ``exclusiveMinimum``."""
+
+    value: float
+
+
+@dataclass(frozen=True)
+class Le:
+    """Inclusive upper bound. Produces JSON-Schema ``maximum``."""
+
+    value: float
+
+
+@dataclass(frozen=True)
+class Lt:
+    """Strict upper bound. Produces JSON-Schema ``exclusiveMaximum``."""
+
+    value: float
+
+
+@dataclass(frozen=True)
+class MultipleOf:
+    """Divisibility constraint. Produces JSON-Schema ``multipleOf``."""
+
+    value: float
+
+
+@dataclass(frozen=True)
+class MinLen:
+    """Minimum length. ``minLength`` for strings, ``minItems`` for arrays."""
+
+    value: int
+
+
+@dataclass(frozen=True)
+class MaxLen:
+    """Maximum length. ``maxLength`` for strings, ``maxItems`` for arrays."""
+
+    value: int
+
+
+@dataclass(frozen=True)
+class Pattern:
+    """Regex pattern. Produces JSON-Schema ``pattern`` (strings only)."""
+
+    value: str
+
+
+def _apply_constraint_marker(schema: Dict[str, Any], marker: Any) -> None:
+    """Merge one Annotated[] marker into an existing schema dict.
+
+    Unknown markers are silently ignored — callers may layer arbitrary
+    metadata onto Annotated[] for non-schema purposes.
+    """
+    if isinstance(marker, Ge):
+        schema["minimum"] = marker.value
+    elif isinstance(marker, Gt):
+        schema["exclusiveMinimum"] = marker.value
+    elif isinstance(marker, Le):
+        schema["maximum"] = marker.value
+    elif isinstance(marker, Lt):
+        schema["exclusiveMaximum"] = marker.value
+    elif isinstance(marker, MultipleOf):
+        schema["multipleOf"] = marker.value
+    elif isinstance(marker, MinLen):
+        if schema.get("type") == "array":
+            schema["minItems"] = marker.value
+        else:
+            schema["minLength"] = marker.value
+    elif isinstance(marker, MaxLen):
+        if schema.get("type") == "array":
+            schema["maxItems"] = marker.value
+        else:
+            schema["maxLength"] = marker.value
+    elif isinstance(marker, Pattern):
+        schema["pattern"] = marker.value
+
+
 @dataclass
 class Tool:
     """
@@ -28,12 +158,23 @@ class Tool:
         description: Human-readable description of what the tool does
         func: The actual Python function to call
         parameters: JSON schema describing the tool's parameters
+        coerce: When True (default), agents call ``coerce_args`` before
+            dispatch — string ints become ints, missing required args raise
+            ``ToolArgumentError``, unknown args are rejected. Set False on
+            tools that intentionally accept loose typing or **kwargs.
+        timeout: Optional per-call timeout in seconds. When set, agents run
+            the tool on a daemon thread and raise ``ToolTimeoutError`` if it
+            exceeds the budget. The worker thread keeps running -- Python
+            cannot safely kill threads -- but the agent abandons the result.
+            Default ``None`` (no timeout); set via ``@tool(timeout=10.0)``.
     """
 
     name: str
     description: str
     func: Callable[..., Any]
     parameters: Dict[str, Any] = field(default_factory=dict)
+    coerce: bool = True
+    timeout: Optional[float] = None
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
         """Execute the tool with given arguments."""
@@ -159,8 +300,11 @@ def _safe_get_type_hints(func: Callable[..., Any]) -> Dict[str, Any]:
         Dictionary of parameter names to types, empty dict on failure
     """
     try:
-        # Try to get fully resolved type hints
-        return get_type_hints(func)
+        # `include_extras=True` preserves PEP-593 ``Annotated[T, ...]``
+        # metadata; without it, constraint markers (Ge / Le / Pattern /
+        # ...) attached at the call site are silently stripped before
+        # they can reach schema generation.
+        return get_type_hints(func, include_extras=True)
     except NameError as e:
         # Forward reference couldn't be resolved
         logger.warning("Could not resolve type hints for %s: %s. Using raw annotations.", func.__name__, e)
@@ -227,6 +371,23 @@ def _python_type_to_json_schema(py_type: type) -> Dict[str, Any]:
         >>> _python_type_to_json_schema(Dict[str, int])
         {"type": "object", "additionalProperties": {"type": "integer"}}
     """
+    # Handle Annotated[T, ...] — extract base type, merge constraint markers.
+    # Annotated must be unwrapped *before* the Union / generic dispatch
+    # below, otherwise constraints attached to Optional / List would be
+    # silently dropped on the floor.
+    #
+    # The canonical way to detect Annotated is the PEP-593 ``__metadata__``
+    # attribute. We import ``get_args`` lazily to avoid a circular dependency
+    # with the rest of this module's typing imports.
+    if hasattr(py_type, "__metadata__"):
+        from typing import get_args as _get_args
+
+        base_type = _get_args(py_type)[0]
+        inner_schema = _python_type_to_json_schema(base_type)
+        for marker in py_type.__metadata__:
+            _apply_constraint_marker(inner_schema, marker)
+        return inner_schema
+
     # Handle None type
     if py_type is type(None):
         return {"type": "null"}
@@ -632,11 +793,216 @@ def _extract_epytext_style(docstring: str, param_name: str) -> Optional[str]:
     return " ".join(description_lines) if description_lines else None
 
 
+def coerce_args(tool: "Tool", args: Dict[str, Any]) -> Dict[str, Any]:
+    """Validate and coerce tool arguments against the declared JSON schema.
+
+    Runs at the agent's dispatch boundary, *before* ``tool(**args)``. Catches
+    the common LLM mistakes that schema-as-documentation lets through today:
+
+    - String-typed numerics (`"5"` for an `int` field) -> coerced to int/float.
+    - Boolean strings (`"true"` / `"false"`) -> coerced to bool.
+    - Missing required arguments -> ``ToolArgumentError``.
+    - Unknown argument names -> ``ToolArgumentError``.
+    - Enum violations (`Literal[...]` schemas) -> ``ToolArgumentError``.
+
+    Coercion is intentionally narrow: it only fixes shape mismatches that an
+    LLM is likely to emit (strings where scalars were expected). It does not
+    parse JSON-string arrays/objects, does not coerce between numeric types
+    (int <-> float), and does not silently drop unknown args.
+
+    To opt out per-tool, set ``Tool.coerce = False`` (or pass ``coerce=False``
+    to ``@tool``). The agent skips this function entirely in that case.
+
+    Raises:
+        ToolArgumentError: if any required arg is missing, an unknown arg is
+            present, or a value can't be coerced to the declared type.
+    """
+    props: Dict[str, Any] = tool.parameters.get("properties", {})
+    required: set[str] = set(tool.parameters.get("required", []))
+
+    missing = required - args.keys()
+    if missing:
+        raise ToolArgumentError(tool.name, f"missing required arguments: {sorted(missing)}")
+
+    out: Dict[str, Any] = {}
+    for key, raw in args.items():
+        spec = props.get(key)
+        if spec is None:
+            raise ToolArgumentError(
+                tool.name,
+                f"unknown argument {key!r}; declared: {sorted(props.keys())}",
+            )
+        out[key] = _coerce_value(tool.name, key, raw, spec)
+    return out
+
+
+def _coerce_value(tool_name: str, key: str, value: Any, spec: Dict[str, Any]) -> Any:
+    """Coerce one value against its JSON-schema spec.
+
+    See ``coerce_args`` for the policy this implements. Kept private so the
+    public surface is just ``coerce_args`` + ``ToolArgumentError``.
+    """
+    schema_type = spec.get("type")
+    enum = spec.get("enum")
+
+    if enum is not None and value not in enum:
+        raise ToolArgumentError(
+            tool_name,
+            f"argument {key!r}: {value!r} not in allowed values {enum}",
+        )
+
+    # Coerce the type first (str -> int etc.), then enforce range/length
+    # constraints on the *coerced* value via _enforce_constraints below.
+    coerced = _coerce_type(tool_name, key, value, schema_type)
+    _enforce_constraints(tool_name, key, coerced, spec)
+    return coerced
+
+
+def _coerce_type(tool_name: str, key: str, value: Any, schema_type: Optional[str]) -> Any:
+    """Type-only coercion (no constraint enforcement)."""
+
+    if schema_type == "integer":
+        if isinstance(value, bool):  # bool is a subclass of int — reject.
+            raise ToolArgumentError(tool_name, f"argument {key!r}: expected integer, got bool")
+        if isinstance(value, int):
+            return value
+        if isinstance(value, str):
+            try:
+                return int(value)
+            except ValueError:
+                raise ToolArgumentError(tool_name, f"argument {key!r}: cannot coerce {value!r} to integer")
+        raise ToolArgumentError(tool_name, f"argument {key!r}: expected integer, got {type(value).__name__}")
+
+    if schema_type == "number":
+        if isinstance(value, bool):
+            raise ToolArgumentError(tool_name, f"argument {key!r}: expected number, got bool")
+        if isinstance(value, (int, float)):
+            return value
+        if isinstance(value, str):
+            try:
+                return float(value)
+            except ValueError:
+                raise ToolArgumentError(tool_name, f"argument {key!r}: cannot coerce {value!r} to number")
+        raise ToolArgumentError(tool_name, f"argument {key!r}: expected number, got {type(value).__name__}")
+
+    if schema_type == "boolean":
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            low = value.lower()
+            if low in ("true", "1", "yes"):
+                return True
+            if low in ("false", "0", "no"):
+                return False
+            raise ToolArgumentError(tool_name, f"argument {key!r}: cannot coerce {value!r} to boolean")
+        raise ToolArgumentError(tool_name, f"argument {key!r}: expected boolean, got {type(value).__name__}")
+
+    if schema_type == "string":
+        # Enum string already validated above. Accept strings as-is; do not
+        # str()-coerce other types — the LLM is supposed to emit strings.
+        if not isinstance(value, str):
+            raise ToolArgumentError(tool_name, f"argument {key!r}: expected string, got {type(value).__name__}")
+        return value
+
+    if schema_type == "array":
+        if not isinstance(value, list):
+            raise ToolArgumentError(tool_name, f"argument {key!r}: expected array, got {type(value).__name__}")
+        return value
+
+    if schema_type == "object":
+        if not isinstance(value, dict):
+            raise ToolArgumentError(tool_name, f"argument {key!r}: expected object, got {type(value).__name__}")
+        return value
+
+    # Unknown / unspecified schema type — pass through unchanged.
+    return value
+
+
+def _enforce_constraints(tool_name: str, key: str, value: Any, spec: Dict[str, Any]) -> None:
+    """Enforce range/length/pattern constraints from Annotated[] markers.
+
+    Called after type coercion so numeric checks see the coerced value (e.g.
+    a string "5" was already turned into int(5) and is now compared against
+    `minimum`). Raises ``ToolArgumentError`` on violation.
+    """
+    schema_type = spec.get("type")
+
+    if schema_type in ("integer", "number") and isinstance(value, (int, float)) and not isinstance(value, bool):
+        # NaN and infinity slip past every comparison (NaN comparisons
+        # always return False; inf > any finite is trivially True but
+        # callers usually don't want it). Reject them outright if any
+        # bound was declared — they're never what the model meant to emit.
+        import math as _math
+
+        has_bound = any(k in spec for k in ("minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "multipleOf"))
+        if has_bound and isinstance(value, float) and not _math.isfinite(value):
+            raise ToolArgumentError(
+                tool_name, f"argument {key!r}: non-finite value {value!r} rejected by numeric bounds"
+            )
+        if "minimum" in spec and value < spec["minimum"]:
+            raise ToolArgumentError(tool_name, f"argument {key!r}: {value} < minimum {spec['minimum']}")
+        if "exclusiveMinimum" in spec and value <= spec["exclusiveMinimum"]:
+            raise ToolArgumentError(
+                tool_name,
+                f"argument {key!r}: {value} <= exclusiveMinimum {spec['exclusiveMinimum']}",
+            )
+        if "maximum" in spec and value > spec["maximum"]:
+            raise ToolArgumentError(tool_name, f"argument {key!r}: {value} > maximum {spec['maximum']}")
+        if "exclusiveMaximum" in spec and value >= spec["exclusiveMaximum"]:
+            raise ToolArgumentError(
+                tool_name,
+                f"argument {key!r}: {value} >= exclusiveMaximum {spec['exclusiveMaximum']}",
+            )
+        if "multipleOf" in spec:
+            divisor = spec["multipleOf"]
+            # `value % divisor != 0` is wrong for floats; check remainder
+            # within a small epsilon. For ints this is exact.
+            if isinstance(value, int) and isinstance(divisor, int):
+                ok = value % divisor == 0
+            else:
+                rem = value % divisor
+                ok = rem == 0 or abs(rem - divisor) < 1e-9
+            if not ok:
+                raise ToolArgumentError(tool_name, f"argument {key!r}: {value} not a multiple of {divisor}")
+
+    if schema_type == "string" and isinstance(value, str):
+        if "minLength" in spec and len(value) < spec["minLength"]:
+            raise ToolArgumentError(
+                tool_name,
+                f"argument {key!r}: length {len(value)} < minLength {spec['minLength']}",
+            )
+        if "maxLength" in spec and len(value) > spec["maxLength"]:
+            raise ToolArgumentError(
+                tool_name,
+                f"argument {key!r}: length {len(value)} > maxLength {spec['maxLength']}",
+            )
+        if "pattern" in spec:
+            if not re.search(spec["pattern"], value):
+                raise ToolArgumentError(
+                    tool_name,
+                    f"argument {key!r}: {value!r} does not match pattern {spec['pattern']!r}",
+                )
+
+    if schema_type == "array" and isinstance(value, list):
+        if "minItems" in spec and len(value) < spec["minItems"]:
+            raise ToolArgumentError(
+                tool_name,
+                f"argument {key!r}: {len(value)} items < minItems {spec['minItems']}",
+            )
+        if "maxItems" in spec and len(value) > spec["maxItems"]:
+            raise ToolArgumentError(
+                tool_name,
+                f"argument {key!r}: {len(value)} items > maxItems {spec['maxItems']}",
+            )
+
+
 def tool(
     func: Optional[Callable[..., Any]] = None,
     *,
     name: Optional[str] = None,
     description: Optional[str] = None,
+    coerce: bool = True,
+    timeout: Optional[float] = None,
 ) -> Any:
     """
     Decorator to register a function as an agent tool.
@@ -654,6 +1020,17 @@ def tool(
         func: Function to decorate (when used without arguments)
         name: Tool name (defaults to function name)
         description: Tool description (defaults to function docstring)
+        coerce: When True (default), the agent runs ``coerce_args`` before
+            dispatch — strings like ``"5"`` get coerced to ``int``, unknown
+            kwargs are rejected. Set False for tools accepting **kwargs or
+            intentionally loose typing.
+        timeout: Optional per-call timeout in seconds. When set, the agent
+            runs the tool on a daemon thread and raises ``ToolTimeoutError``
+            if it exceeds the budget. The worker continues running until it
+            returns or the interpreter exits (Python cannot safely kill
+            threads), but the agent abandons the result and moves on.
+            Useful for runaway network calls, infinite loops, etc. For hard
+            resource limits, use out-of-process tools.
 
     Returns:
         Tool instance that wraps the function
@@ -676,7 +1053,14 @@ def tool(
         schema = _generate_schema_from_function(f)
 
         # Create Tool instance
-        tool_instance = Tool(name=tool_name, description=tool_desc, func=f, parameters=schema)
+        tool_instance = Tool(
+            name=tool_name,
+            description=tool_desc,
+            func=f,
+            parameters=schema,
+            coerce=coerce,
+            timeout=timeout,
+        )
 
         return tool_instance
 

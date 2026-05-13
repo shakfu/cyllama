@@ -20,7 +20,9 @@ from ..llama.llama_cpp import (
     LlamaSamplerChainParams,
     llama_batch_get_one,
 )
-from .tools import Tool, ToolRegistry
+from ._loop_detection import detect_loop, format_loop_error
+from .react import render_observation
+from .tools import Tool, ToolArgumentError, ToolRegistry, coerce_args
 from .grammar import (
     GrammarFormat,
     generate_answer_or_tool_grammar,
@@ -257,26 +259,37 @@ Use tools when needed, then provide a helpful final answer based on the results.
             max_context_chars: Maximum characters for the prompt context. Older history
                               is truncated to stay within this limit (default: 16000)
         """
-        # Wrap LLM in GrammarConstrainedLLM if needed
+        # Make grammar-constrained generation available on `self.llm`.
+        #
+        # Previously this path used `GrammarConstrainedLLM.__new__(...)` and
+        # hand-copied a fixed list of attributes from the source LLM. That
+        # was fragile: `LLM.__init__` sets ~12 internal attributes (`_closed`,
+        # `_busy_lock`, `_cancel_event`, `_cache`, `_mcp_client`, `_ctx_size`,
+        # ...) which were *not* in the copy list — so the wrapped object
+        # crashed on the first call to `_ensure_context`. The grammar test
+        # caught this when run against a real LLM.
+        #
+        # We instead bind the two grammar-only methods onto the LLM object
+        # directly. They only touch standard LLM attrs (`vocab`, `config`,
+        # `_ensure_context`) plus their own helper, so nothing about the
+        # underlying LLM lifecycle changes.
         self.llm: Any
         if isinstance(llm, GrammarConstrainedLLM):
             self.llm = llm
+        elif hasattr(llm, "model") and hasattr(llm, "vocab"):
+            import types as _types
+
+            llm.generate_with_grammar = _types.MethodType(  # type: ignore[attr-defined]
+                GrammarConstrainedLLM.generate_with_grammar, llm
+            )
+            llm._ensure_sampler_with_grammar = _types.MethodType(  # type: ignore[attr-defined]
+                GrammarConstrainedLLM._ensure_sampler_with_grammar, llm
+            )
+            self.llm = llm
         else:
-            # Check if this is a real LLM with model (not a mock)
-            if hasattr(llm, "model") and hasattr(llm, "vocab"):
-                # Create a GrammarConstrainedLLM using the same model
-                self.llm = GrammarConstrainedLLM.__new__(GrammarConstrainedLLM)
-                # Copy all attributes from the original LLM
-                self.llm.model_path = llm.model_path
-                self.llm.config = llm.config
-                self.llm.verbose = llm.verbose
-                self.llm.model = llm.model
-                self.llm.vocab = llm.vocab
-                self.llm._ctx = llm._ctx
-                self.llm._sampler = llm._sampler
-            else:
-                # For mocks or test LLMs, use as-is
-                self.llm = llm
+            # Mocks / test LLMs use whatever `generate_with_grammar` they
+            # already define (or none — MockLLM only stubs `__call__`).
+            self.llm = llm
 
         self.registry = ToolRegistry()
         self.max_iterations = max_iterations
@@ -434,54 +447,28 @@ Use tools when needed, then provide a helpful final answer based on the results.
                             # Reset error flag - we've given one retry chance
                             last_action_had_error = False
 
-                        # Check for exact same action repeated
-                        if len(recent_actions) >= self.max_consecutive_same_action:
-                            last_n = recent_actions[-self.max_consecutive_same_action :]
-                            if all(a == last_n[0] for a in last_n):
-                                self._metrics.loop_detected = True
-                                self._metrics.total_time_ms = (time.perf_counter() - start_time) * 1000
-                                logger.warning(
-                                    "Loop detected (same action) after %d iterations: %s", iteration + 1, action_str
-                                )
-
-                                # Generate summary from observations if available
-                                if observations:
-                                    summary = self._generate_loop_summary(task, observations)
-                                    logger.info("Generated summary from %d observations", len(observations))
-                                    yield AgentEvent(type=EventType.ANSWER, content=summary)
-                                else:
-                                    error_msg = (
-                                        f"Loop detected: same action repeated "
-                                        f"{self.max_consecutive_same_action} times: {action_str}"
-                                    )
-                                    yield AgentEvent(type=EventType.ERROR, content=error_msg)
-                                return
-
-                        # Check for same tool called too many times (even with different args)
-                        if len(recent_tools) >= self.max_consecutive_same_tool:
-                            last_n_tools = recent_tools[-self.max_consecutive_same_tool :]
-                            if all(t == last_n_tools[0] for t in last_n_tools):
-                                self._metrics.loop_detected = True
-                                self._metrics.total_time_ms = (time.perf_counter() - start_time) * 1000
-                                logger.warning(
-                                    "Loop detected (same tool) after %d iterations: %s called %d times",
-                                    iteration + 1,
-                                    tool_name,
-                                    self.max_consecutive_same_tool,
-                                )
-
-                                # Generate summary from observations if available
-                                if observations:
-                                    summary = self._generate_loop_summary(task, observations)
-                                    logger.info("Generated summary from %d observations", len(observations))
-                                    yield AgentEvent(type=EventType.ANSWER, content=summary)
-                                else:
-                                    error_msg = (
-                                        f"Loop detected: tool '{tool_name}' called "
-                                        f"{self.max_consecutive_same_tool} times consecutively"
-                                    )
-                                    yield AgentEvent(type=EventType.ERROR, content=error_msg)
-                                return
+                        det = detect_loop(
+                            recent_actions,
+                            recent_tools,
+                            self.max_consecutive_same_action,
+                            self.max_consecutive_same_tool,
+                        )
+                        if det is not None:
+                            self._metrics.loop_detected = True
+                            self._metrics.total_time_ms = (time.perf_counter() - start_time) * 1000
+                            logger.warning(
+                                "Loop detected (%s) after %d iterations: %s",
+                                det.kind,
+                                iteration + 1,
+                                det.value,
+                            )
+                            if observations:
+                                summary = self._generate_loop_summary(task, observations)
+                                logger.info("Generated summary from %d observations", len(observations))
+                                yield AgentEvent(type=EventType.ANSWER, content=summary)
+                            else:
+                                yield AgentEvent(type=EventType.ERROR, content=format_loop_error(det))
+                            return
 
                     self._metrics.tool_calls += 1
                     event = AgentEvent(
@@ -669,8 +656,14 @@ Use tools when needed, then provide a helpful final answer based on the results.
             n_ctx=n_ctx,  # Preserve context size from LLM (None is OK)
         )
 
-        # Use grammar-constrained generation if available
-        if isinstance(self.llm, GrammarConstrainedLLM):
+        # Use grammar-constrained generation if available. We test for the
+        # method rather than the class because real-LLM callers don't get an
+        # actual GrammarConstrainedLLM instance — the methods are bound onto
+        # their existing LLM in `__init__`. The previous isinstance check
+        # silently routed every real call through the un-constrained mock
+        # fallback, making the grammar-enforcement claim untrue in
+        # production.
+        if callable(getattr(self.llm, "generate_with_grammar", None)):
             response = self.llm.generate_with_grammar(prompt, grammar=grammar, grammar_root="root", config=config)
         else:
             # Fallback for mock LLMs in tests
@@ -698,12 +691,17 @@ Use tools when needed, then provide a helpful final answer based on the results.
         """
         Execute a tool with given arguments.
 
+        Args are validated and coerced against the tool's JSON-schema before
+        dispatch (when ``tool.coerce`` is True, the default). See
+        ``coerce_args`` for the policy.
+
         Args:
             tool_name: Name of tool to execute
             args: Arguments to pass to tool
 
         Returns:
-            String representation of tool result
+            String representation of tool result, or an error string the
+            agent loop will surface as an observation.
 
         Raises:
             ValueError: If tool not found
@@ -713,8 +711,14 @@ Use tools when needed, then provide a helpful final answer based on the results.
             raise ValueError(f"Unknown tool: {tool_name}")
 
         try:
+            if tool.coerce:
+                args = coerce_args(tool, args)
             result = tool(**args)
-            return str(result)
+            return render_observation(result)
+        except ToolArgumentError as e:
+            # Surface schema-violation details verbatim so the LLM can fix
+            # the call on the next iteration.
+            return f"Tool argument error: {e.message}"
         except Exception as e:
             return f"Tool execution error: {str(e)}"
 
@@ -730,24 +734,3 @@ Use tools when needed, then provide a helpful final answer based on the results.
     def list_tools(self) -> List[Tool]:
         """Get list of available tools."""
         return self.registry.list_tools()
-
-
-class EnhancedConstrainedAgent(ConstrainedAgent):
-    """
-    Agent with true grammar-constrained generation.
-
-    This will use the LlamaSampler.add_grammar() method to enforce
-    grammar constraints during generation, ensuring 100% valid JSON.
-
-    Note:
-        This class is not yet implemented. Instantiating it will raise
-        NotImplementedError. Use ConstrainedAgent instead.
-    """
-
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        """Raise NotImplementedError as this class is not yet implemented."""
-        raise NotImplementedError(
-            "EnhancedConstrainedAgent is not yet implemented. "
-            "Use ConstrainedAgent instead, which provides JSON validation "
-            "through post-processing rather than grammar constraints."
-        )
