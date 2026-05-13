@@ -17,6 +17,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+### Added
+
+- **Tab-completion for slash-commands in `cyllama chat`** -- `src/cyllama/_internal/readline.py` gains `setup_completer(commands, file_arg_commands)`, which installs a readline completer (handling both GNU readline and libedit bind syntax) and returns a restore callable. `src/cyllama/llama/chat.py` registers it on entry to `chat_loop` and restores the previous completer in the `finally` block so the completer doesn't leak into the host process. Tab cycles slash-commands when the buffer starts with `/` and no space has been typed; for `/read` / `/glob` arguments it falls through to filesystem-path completion via `glob.glob`.
+
+- **`/help` slash-command** -- `src/cyllama/llama/chat.py` adds `/help`, which prints the available commands with descriptions in cyan, padded to the longest name. The command list is now a module-level `SLASH_COMMANDS` tuple of `(name, description)` pairs (with a sibling `SLASH_COMMAND_NAMES` for the completer), eliminating the prior duplication between the inline `print_banner` text and the inline handler chain.
+
+### Changed
+
+- **Chat banner no longer dumps the full command list on launch** -- `src/cyllama/llama/chat.py:print_banner` replaces the multi-line command listing with a single hint (`type /help to list available commands, or /exit to quit`). The full list is one Tab or `/help` away, which keeps the startup screen short on small terminals.
+
+- **Bold-green prompt marker in `cyllama chat`** -- `src/cyllama/llama/chat.py:chat_loop` now wraps the `> ` marker in `bold(green(...))` and writes `esc(1, 32)` (bold + foreground green) before reading user input. The corresponding `FG_END` resets become `esc(22, 39)` so both attributes are cleared. Purely visual; behavior unchanged.
+
 ## [0.2.17]
 
 ### Fixed
