@@ -179,6 +179,7 @@ cdef extern from "stable-diffusion.h":
         bint chroma_use_t5_mask
         int chroma_t5_mask_pad
         bint qwen_image_zero_cond_t
+        float max_vram
 
     ctypedef struct sd_image_t:
         uint32_t width

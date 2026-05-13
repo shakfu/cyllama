@@ -306,16 +306,16 @@ def cmd_chat(args: argparse.Namespace) -> int:
     from . import __version__
     import os
 
-    model_name = os.path.basename(args.model)
-    left = f"cyllama v{__version__} chat"
-    right = model_name
-    try:
-        cols = os.get_terminal_size().columns
-    except OSError:
-        cols = 80
-    print(f"{left}{right:>{cols - len(left)}}")
-
     if args.prompt:
+        model_name = os.path.basename(args.model)
+        left = f"cyllama v{__version__} chat"
+        right = model_name
+        try:
+            cols = os.get_terminal_size().columns
+        except OSError:
+            cols = 80
+        print(f"{left}{right:>{cols - len(left)}}")
+
         # Single-turn mode via high-level API
         from .api import GenerationConfig, LLM, chat
 

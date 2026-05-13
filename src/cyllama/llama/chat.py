@@ -5,6 +5,8 @@ Chat implementation equivalent to build/llama.cpp/examples/simple-chat/simple-ch
 This module provides a Python implementation of the chat example using the cyllama wrapper.
 """
 
+import glob as _glob
+import os
 import sys
 import time
 import argparse
@@ -20,7 +22,7 @@ from ..defaults import (
     DEFAULT_TOP_P,
     LLAMA_DEFAULT_SEED,
 )
-from ..utils.color import green, yellow, END, esc, FG_END
+from ..utils.color import green, magenta, END, esc, FG_END
 
 from .llama_cpp import (
     LlamaModel,
@@ -339,6 +341,64 @@ class Chat:
             print(f"  {key:<{key_width}} | {val:>{val_width}}", file=sys.stderr)
         print(line, file=sys.stderr)
 
+    def print_banner(self) -> None:
+        """Print startup banner with model info and available commands."""
+        from .. import __version__
+
+        print(f"build      : cyllama v{__version__}")
+        print(f"model      : {os.path.basename(self.model_path)}")
+        print("modalities : text")
+        print()
+        print("available commands:")
+        print("  /exit or Ctrl+C    stop or exit")
+        print("  /regen             regenerate the last response")
+        print("  /clear             clear the chat history")
+        print("  /read <file>       add a text file")
+        print("  /glob <pattern>    add text files using globbing pattern")
+        print()
+
+    def _run_turn(self, stream: bool) -> Optional[Tuple[str, float, float]]:
+        """Generate a response for the current self.messages.
+
+        Returns (response, prompt_tps, gen_tps) or None on error.
+        """
+        prompt = self._apply_template(self.messages, add_assistant_msg=True)
+
+        prompt_tokens_before = self.total_prompt_tokens
+        gen_tokens_before = self.total_generated_tokens
+        prompt_time_before = self.total_prompt_time
+        gen_time_before = self.total_generation_time
+
+        if stream:
+            response = self.generate(
+                prompt,
+                on_token=lambda piece: print(piece, end="", flush=True),
+            )
+            print()
+        else:
+            response = self.generate(prompt)
+            print(response)
+
+        prompt_tokens = self.total_prompt_tokens - prompt_tokens_before
+        gen_tokens = self.total_generated_tokens - gen_tokens_before
+        prompt_time = self.total_prompt_time - prompt_time_before
+        gen_time = self.total_generation_time - gen_time_before
+
+        prompt_tps = prompt_tokens / prompt_time if prompt_time > 0 else 0.0
+        gen_tps = gen_tokens / gen_time if gen_time > 0 else 0.0
+        return response, prompt_tps, gen_tps
+
+    def _load_files(self, paths: List[str]) -> str:
+        """Read files; return concatenated content with markers. Prints errors to stderr."""
+        chunks: List[str] = []
+        for p in paths:
+            try:
+                with open(p, "r", encoding="utf-8") as f:
+                    chunks.append(f"--- BEGIN FILE: {p} ---\n{f.read()}\n--- END FILE: {p} ---")
+            except OSError as e:
+                print(f"error reading {p}: {e}", file=sys.stderr)
+        return "\n\n".join(chunks)
+
     def chat_loop(self, stream: bool = True, stats: bool = False) -> None:
         """Main chat loop.
 
@@ -357,37 +417,99 @@ class Chat:
 
         setup_history(history_path_for("chat"))
 
+        self.print_banner()
+
+        pending_context: str = ""
+
         try:
             while True:
-                # Get user input
-                print(green("> "), end="")
+                print(green("> ") + esc(32), end="", flush=True)
                 try:
-                    user_input = input().strip()
+                    raw = input()
                 except (EOFError, KeyboardInterrupt):
+                    print(FG_END)
                     break
+                print(FG_END, end="", flush=True)
 
+                user_input = raw.strip()
                 if not user_input:
-                    break
+                    continue
 
-                # Always use dict format for messages (works with both jinja
-                # and C API paths via _apply_template)
-                self.messages.append({"role": "user", "content": user_input})
-                prompt = self._apply_template(self.messages, add_assistant_msg=True)
+                # Slash commands
+                if user_input.startswith("/"):
+                    parts = user_input.split(maxsplit=1)
+                    cmd = parts[0]
+                    arg = parts[1] if len(parts) > 1 else ""
 
-                # Generate response
-                try:
-                    if stream:
-                        print(esc(33), end="", flush=True)  # yellow foreground
-                        response = self.generate(
-                            prompt,
-                            on_token=lambda piece: print(piece, end="", flush=True),
+                    if cmd == "/exit":
+                        break
+                    if cmd == "/clear":
+                        self.messages.clear()
+                        pending_context = ""
+                        print("(history cleared)")
+                        continue
+                    if cmd == "/regen":
+                        # Find the last user message; drop everything after it.
+                        last_user_idx = next(
+                            (i for i in range(len(self.messages) - 1, -1, -1) if self.messages[i]["role"] == "user"),
+                            None,
                         )
-                        print(FG_END)
-                    else:
-                        response = self.generate(prompt)
-                        print(yellow(response))
+                        if last_user_idx is None:
+                            print("(nothing to regenerate)")
+                            continue
+                        del self.messages[last_user_idx + 1 :]
+                        try:
+                            result = self._run_turn(stream)
+                            if result is not None:
+                                response, p_tps, g_tps = result
+                                self.messages.append({"role": "assistant", "content": response})
+                                print(magenta(f"[ Prompt: {p_tps:.1f} t/s | Generation: {g_tps:.1f} t/s ]"))
+                                print()
+                        except KeyboardInterrupt:
+                            print(FG_END)
+                            break
+                        continue
+                    if cmd == "/read":
+                        if not arg:
+                            print("usage: /read <file>")
+                            continue
+                        content = self._load_files([arg])
+                        if content:
+                            pending_context = pending_context + ("\n\n" if pending_context else "") + content
+                            print(f"(queued {arg}; will be prepended to your next message)")
+                        continue
+                    if cmd == "/glob":
+                        if not arg:
+                            print("usage: /glob <pattern>")
+                            continue
+                        matches = sorted(_glob.glob(arg, recursive=True))
+                        if not matches:
+                            print(f"(no files matched: {arg})")
+                            continue
+                        content = self._load_files(matches)
+                        if content:
+                            pending_context = pending_context + ("\n\n" if pending_context else "") + content
+                            print(f"(queued {len(matches)} file(s); will be prepended to your next message)")
+                        continue
+                    print(f"unknown command: {cmd}")
+                    continue
 
-                    self.messages.append({"role": "assistant", "content": response})
+                # Prepend any queued file context to this user message
+                if pending_context:
+                    content = pending_context + "\n\n" + user_input
+                    pending_context = ""
+                else:
+                    content = user_input
+
+                self.messages.append({"role": "user", "content": content})
+
+                try:
+                    result = self._run_turn(stream)
+                    if result is not None:
+                        response, p_tps, g_tps = result
+                        self.messages.append({"role": "assistant", "content": response})
+                        print(magenta(f"[ Prompt: {p_tps:.1f} t/s | Generation: {g_tps:.1f} t/s ]"))
+                        print()
 
                 except KeyboardInterrupt:
                     print(FG_END)

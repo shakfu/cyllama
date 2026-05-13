@@ -1373,6 +1373,15 @@ cdef class SDContextParams:
     def qwen_image_zero_cond_t(self, value: bool):
         self._params.qwen_image_zero_cond_t = value
 
+    @property
+    def max_vram(self) -> float:
+        """Maximum VRAM to use (0 = unlimited)."""
+        return self._params.max_vram
+
+    @max_vram.setter
+    def max_vram(self, value: float):
+        self._params.max_vram = value
+
     def __str__(self) -> str:
         """Get string representation of parameters."""
         cdef char* s = sd_ctx_params_to_str(&self._params)
