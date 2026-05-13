@@ -22,7 +22,7 @@ from ..defaults import (
     DEFAULT_TOP_P,
     LLAMA_DEFAULT_SEED,
 )
-from ..utils.color import green, magenta, grey, cyan, red, END, esc, FG_END
+from ..utils.color import green, magenta, grey, cyan, red, bold, END, esc, FG_END
 
 from .llama_cpp import (
     LlamaModel,
@@ -541,13 +541,13 @@ class Chat:
 
         try:
             while True:
-                print(green("> ") + esc(32), end="", flush=True)
+                print(bold(green("> ")) + esc(1, 32), end="", flush=True)
                 try:
                     raw = input()
                 except (EOFError, KeyboardInterrupt):
-                    print(FG_END)
+                    print(esc(22, 39))
                     break
-                print(FG_END, end="", flush=True)
+                print(esc(22, 39), end="", flush=True)
 
                 user_input = raw.strip()
                 if not user_input:
