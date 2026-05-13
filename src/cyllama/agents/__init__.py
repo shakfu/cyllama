@@ -68,6 +68,15 @@ from .async_agent import (
     run_agent_async,
 )
 
+# Shared dispatcher for both interactive chat and external orchestrators.
+from .runner import (
+    AGENT_KINDS,
+    DEFAULT_CRITIC_PROMPT,
+    DEFAULT_CRITIQUE_PREFIX,
+    DEFAULT_PLANNER_PROMPT,
+    stream_agent,
+)
+
 __all__ = [
     # Tools
     "Tool",
@@ -130,4 +139,10 @@ __all__ = [
     "AsyncReActAgent",
     "AsyncConstrainedAgent",
     "run_agent_async",
+    # Runner / composition
+    "AGENT_KINDS",
+    "stream_agent",
+    "DEFAULT_PLANNER_PROMPT",
+    "DEFAULT_CRITIC_PROMPT",
+    "DEFAULT_CRITIQUE_PREFIX",
 ]

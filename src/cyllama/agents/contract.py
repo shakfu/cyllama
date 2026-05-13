@@ -876,6 +876,23 @@ class ContractAgent(AgentProtocol):
         self._contract_checks = 0
         self._contract_violations = 0
 
+    @property
+    def metrics(self) -> Optional[AgentMetrics]:
+        """Metrics from the most recent ``run``/``stream``, or None.
+
+        For composed agents the inner agent's metrics are surfaced
+        directly so callers can introspect ReAct loop stats without
+        knowing about the wrapping.
+        """
+        if self._metrics is not None:
+            return self._metrics
+        inner = getattr(self, "_inner_agent", None)
+        if inner is not None:
+            inner_metrics = getattr(inner, "_metrics", None)
+            if inner_metrics is not None:
+                return cast(Optional[AgentMetrics], inner_metrics)
+        return None
+
     def _default_handler(self, violation: ContractViolation) -> None:
         """Default violation handler - logs the violation."""
         logger.warning("Contract violation [%s] at %s: %s", violation.kind, violation.location, violation.message)

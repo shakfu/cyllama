@@ -22,7 +22,7 @@ from ..defaults import (
     DEFAULT_TOP_P,
     LLAMA_DEFAULT_SEED,
 )
-from ..utils.color import green, magenta, END, esc, FG_END
+from ..utils.color import green, magenta, grey, cyan, red, END, esc, FG_END
 
 from .llama_cpp import (
     LlamaModel,
@@ -115,6 +115,11 @@ class Chat:
         self.total_generated_tokens = 0
         self.total_prompt_time = 0.0
         self.total_generation_time = 0.0
+
+        # Lazily-constructed high-level LLM for /agent* commands.
+        # Built on first /agent use so users who never invoke agents
+        # don't pay for a second model handle.
+        self._agent_llm: Any = None
 
     def _apply_template(
         self,
@@ -350,12 +355,125 @@ class Chat:
         print("modalities : text")
         print()
         print("available commands:")
-        print("  /exit or Ctrl+C    stop or exit")
-        print("  /regen             regenerate the last response")
-        print("  /clear             clear the chat history")
-        print("  /read <file>       add a text file")
-        print("  /glob <pattern>    add text files using globbing pattern")
+        print("  /exit or Ctrl+C        stop or exit")
+        print("  /regen                 regenerate the last response")
+        print("  /clear                 clear the chat history")
+        print("  /read <file>           add a text file")
+        print("  /glob <pattern>        add text files using globbing pattern")
+        print("  /agent <task>          run the default ReAct agent")
+        print("  /agent-strict          grammar-constrained tool calling")
+        print("  /agent-contract        contract-checked agent")
+        print("  /agent-plan            plan-and-execute (planner + N executors)")
+        print("  /agent-reflect         worker + critic reflection loop")
         print()
+
+    def _get_agent_llm(self) -> Any:
+        """Lazily build a high-level :class:`cyllama.api.LLM` for agent calls.
+
+        Reused across /agent invocations within the same chat session.
+        Constructed with the same model + ctx + ngl the Chat was given.
+        """
+        if self._agent_llm is None:
+            from ..api import GenerationConfig, LLM
+
+            self._agent_llm = LLM(
+                self.model_path,
+                config=GenerationConfig(
+                    n_ctx=self.n_ctx,
+                    n_gpu_layers=self.ngl,
+                    max_tokens=self.max_tokens,
+                ),
+                verbose=False,
+            )
+        return self._agent_llm
+
+    @staticmethod
+    def _render_agent_event(ev: Any) -> None:
+        """Print a single :class:`AgentEvent` to stdout with type-appropriate color.
+
+        ANSWER events print without color (matching normal chat output).
+        Trace events (THOUGHT/ACTION/OBSERVATION/...) print in dim color
+        prefixed with the event type and optional ``source`` tag.
+        """
+        from ..agents.types import EventType
+
+        etype = ev.type
+        content = ev.content or ""
+        source = (ev.metadata or {}).get("source")
+        tag = f"[{etype.value}{' ' + source if source else ''}]"
+
+        if etype == EventType.ANSWER:
+            # Final answer prints uncolored. Composed-agent answers
+            # tag themselves with source="final"; intermediate
+            # planner/worker answers also flow here but are equally
+            # legible without extra styling.
+            if source and source != "final":
+                print(grey(tag), content)
+            else:
+                print(content)
+            return
+
+        if etype == EventType.ERROR:
+            print(red(f"{tag} {content}"), file=sys.stderr)
+            return
+
+        if etype == EventType.THOUGHT:
+            print(cyan(tag), grey(content))
+            return
+        if etype == EventType.ACTION:
+            print(magenta(tag), content)
+            return
+        if etype == EventType.OBSERVATION:
+            print(grey(f"{tag} {content}"))
+            return
+
+        # CONTRACT_CHECK / CONTRACT_VIOLATION / future types: render
+        # as a generic trace line so we never silently drop events.
+        print(grey(f"{tag} {content}"))
+
+    def _run_agent_command(self, kind: str, task: str) -> None:
+        """Execute one /agent* slash command.
+
+        Streams events from :func:`cyllama.agents.stream_agent`,
+        rendering each via :meth:`_render_agent_event`. The final
+        answer is appended to the chat history so subsequent turns
+        can reference it.
+        """
+        from ..agents import stream_agent
+        from ..agents.types import EventType
+
+        if not task.strip():
+            print(f"usage: /agent{('-' + kind) if kind != 'react' else ''} <task>")
+            return
+
+        llm = self._get_agent_llm()
+        # Echo the task as a user message in the transcript so chat
+        # history reflects what the agent was asked to do.
+        self.messages.append({"role": "user", "content": task})
+
+        final_answer = ""
+        try:
+            for ev in stream_agent(kind, llm, task):
+                self._render_agent_event(ev)
+                if ev.type == EventType.ANSWER:
+                    src = (ev.metadata or {}).get("source")
+                    # For composed kinds (plan/reflect) only the
+                    # "final" answer is the canonical reply. For
+                    # simple kinds there's no source tag, so any
+                    # ANSWER is the final.
+                    if src in (None, "final"):
+                        final_answer = ev.content or ""
+        except KeyboardInterrupt:
+            print(FG_END)
+            return
+        except Exception as e:  # noqa: BLE001
+            print(red(f"agent error: {e}"), file=sys.stderr)
+            # Roll back the user echo so a bad command doesn't poison history.
+            self.messages.pop()
+            return
+
+        if final_answer:
+            self.messages.append({"role": "assistant", "content": final_answer})
 
     def _run_turn(self, stream: bool) -> Optional[Tuple[str, float, float]]:
         """Generate a response for the current self.messages.
@@ -491,6 +609,23 @@ class Chat:
                             pending_context = pending_context + ("\n\n" if pending_context else "") + content
                             print(f"(queued {len(matches)} file(s); will be prepended to your next message)")
                         continue
+
+                    # /agent and /agent-* family
+                    if cmd == "/agent" or cmd.startswith("/agent-"):
+                        agent_kind_map = {
+                            "/agent": "react",
+                            "/agent-strict": "constrained",
+                            "/agent-contract": "contract",
+                            "/agent-plan": "plan",
+                            "/agent-reflect": "reflect",
+                        }
+                        agent_kind = agent_kind_map.get(cmd)
+                        if agent_kind is None:
+                            print(f"unknown agent command: {cmd}")
+                            continue
+                        self._run_agent_command(agent_kind, arg)
+                        continue
+
                     print(f"unknown command: {cmd}")
                     continue
 
