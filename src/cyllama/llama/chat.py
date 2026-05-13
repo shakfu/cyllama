@@ -44,6 +44,25 @@ except ImportError:  # pragma: no cover
     _JinjaTemplateError = type("_JinjaTemplateError", (Exception,), {})
 
 
+SLASH_COMMANDS: Tuple[Tuple[str, str], ...] = (
+    ("/help", "show this help message"),
+    ("/exit", "exit the chat"),
+    ("/clear", "clear conversation history"),
+    ("/regen", "regenerate the last assistant reply"),
+    ("/read", "/read <file> - queue a file as context for the next message"),
+    ("/glob", "/glob <pattern> - queue files matching a glob as context"),
+    ("/agent", "/agent <task> - run a ReAct agent"),
+    ("/agent-strict", "/agent-strict <task> - run a constrained agent"),
+    ("/agent-contract", "/agent-contract <task> - run a contract agent"),
+    ("/agent-plan", "/agent-plan <task> - run a plan-then-act agent"),
+    ("/agent-reflect", "/agent-reflect <task> - run a reflect-and-revise agent"),
+)
+
+SLASH_COMMAND_NAMES: Tuple[str, ...] = tuple(name for name, _ in SLASH_COMMANDS)
+
+FILE_ARG_COMMANDS: Tuple[str, ...] = ("/read", "/glob")
+
+
 def print_usage() -> None:
     """Print usage information"""
     print("\nexample usage:")
@@ -354,17 +373,7 @@ class Chat:
         print(f"model      : {os.path.basename(self.model_path)}")
         print("modalities : text")
         print()
-        print("available commands:")
-        print("  /exit or Ctrl+C        stop or exit")
-        print("  /regen                 regenerate the last response")
-        print("  /clear                 clear the chat history")
-        print("  /read <file>           add a text file")
-        print("  /glob <pattern>        add text files using globbing pattern")
-        print("  /agent <task>          run the default ReAct agent")
-        print("  /agent-strict          grammar-constrained tool calling")
-        print("  /agent-contract        contract-checked agent")
-        print("  /agent-plan            plan-and-execute (planner + N executors)")
-        print("  /agent-reflect         worker + critic reflection loop")
+        print(f"type {cyan('/help')} to list available commands, or {cyan('/exit')} to quit")
         print()
 
     def _get_agent_llm(self) -> Any:
@@ -531,9 +540,10 @@ class Chat:
         # search, etc.). Gracefully no-ops on platforms without
         # readline. Uses a separate history file from `cyllama rag` so
         # the two REPLs don't pollute each other.
-        from .._internal.readline import setup_history, history_path_for
+        from .._internal.readline import setup_history, history_path_for, setup_completer
 
         setup_history(history_path_for("chat"))
+        restore_completer = setup_completer(SLASH_COMMAND_NAMES, FILE_ARG_COMMANDS)
 
         self.print_banner()
 
@@ -559,6 +569,12 @@ class Chat:
                     cmd = parts[0]
                     arg = parts[1] if len(parts) > 1 else ""
 
+                    if cmd == "/help":
+                        width = max(len(name) for name, _ in SLASH_COMMANDS)
+                        print("available commands:")
+                        for name, desc in SLASH_COMMANDS:
+                            print(f"  {cyan(name.ljust(width))}  {desc}")
+                        continue
                     if cmd == "/exit":
                         break
                     if cmd == "/clear":
@@ -657,6 +673,8 @@ class Chat:
         finally:
             # Always reset terminal colors on exit
             print(END, end="", flush=True)
+            if restore_completer is not None:
+                restore_completer()
             if stats and self.total_generated_tokens > 0:
                 print(file=sys.stderr)
                 self.print_session_stats()

@@ -22,7 +22,9 @@ the two paths drifting apart.
 from __future__ import annotations
 
 import atexit
+import glob as _glob
 import os
+from typing import Callable, Iterable, Optional, Sequence
 
 
 def setup_history(
@@ -201,4 +203,71 @@ def history_path_for(command: str) -> str:
     return os.path.expanduser(f"~/.cyllama_{command}_history")
 
 
-__all__ = ["setup_history", "save_history", "history_path_for"]
+def setup_completer(
+    commands: Sequence[str],
+    file_arg_commands: Iterable[str] = (),
+) -> Optional[Callable[[], None]]:
+    """Enable tab-completion for a REPL's slash-commands.
+
+    When the line buffer starts with ``/`` and no space has been typed
+    yet, Tab cycles through ``commands``. When the line begins with one
+    of ``file_arg_commands`` followed by a space, Tab completes
+    filesystem paths (via :func:`glob.glob`) for the argument.
+
+    Args:
+        commands: Slash-command tokens to offer as completions, e.g.
+            ``["/exit", "/clear", "/agent"]``. The leading slash is
+            required and used as the trigger.
+        file_arg_commands: Commands whose argument should tab-complete
+            against the filesystem, e.g. ``["/read", "/glob"]``. The
+            comparison is exact-prefix on the first token.
+
+    Returns:
+        A callable that restores the prior completer state, or ``None``
+        if readline is unavailable. Callers should invoke the returned
+        function from a ``finally`` block so the completer doesn't leak
+        into whatever started the REPL.
+    """
+    try:
+        import readline
+    except ImportError:
+        return None
+
+    file_prefixes = tuple(f"{c} " for c in file_arg_commands)
+
+    def _completer(text: str, state: int) -> Optional[str]:
+        line = readline.get_line_buffer()
+        if line.startswith("/") and " " not in line:
+            matches = [c for c in commands if c.startswith(text)]
+            return matches[state] if state < len(matches) else None
+        if line.startswith(file_prefixes):
+            paths = _glob.glob(text + "*")
+            # Append "/" to directory matches so users can keep tabbing in.
+            paths = [p + "/" if os.path.isdir(p) else p for p in paths]
+            return paths[state] if state < len(paths) else None
+        return None
+
+    prev_completer = readline.get_completer()
+    prev_delims = readline.get_completer_delims()
+
+    readline.set_completer(_completer)
+    # Default delims include "/", which would split "/read" into the
+    # empty completion text "" after the slash. Drop "/" so the slash
+    # is part of the completion token.
+    readline.set_completer_delims(" \t\n")
+
+    # libedit (macOS system Python, some uv builds) uses a different
+    # bind syntax than GNU readline.
+    if "libedit" in getattr(readline, "__doc__", "") or getattr(readline, "backend", None) == "editline":
+        readline.parse_and_bind("bind ^I rl_complete")
+    else:
+        readline.parse_and_bind("tab: complete")
+
+    def _restore() -> None:
+        readline.set_completer(prev_completer)
+        readline.set_completer_delims(prev_delims)
+
+    return _restore
+
+
+__all__ = ["setup_history", "save_history", "history_path_for", "setup_completer"]
