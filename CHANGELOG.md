@@ -17,6 +17,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+## [0.2.17]
+
+### Fixed
+
+- **Stable Diffusion "No devices found!" regression on GPU wheels** -- `src/cyllama/sd/__init__.py` now calls `ggml_backend_load_all()` at import time. stable-diffusion.cpp `master-592-b8079e2` ([#1448](https://github.com/leejet/stable-diffusion.cpp/pull/1448)) switched from compile-time to runtime backend discovery; 0.2.16 bumped `SDCPP_VERSION` to `master-593-3d6064b` but the Python wrapper still assumed the old static auto-registration, so on GPU variants (`cyllama-cuda12`, `cyllama-vulkan`, etc.) no backend was registered when `new_sd_ctx` ran -- producing `util.cpp:711 No devices found!`, a CPU fallback, and then `GGML_ASSERT(backend)` failing in `ggml_backend_alloc_ctx_tensors`. The Cython-level `ggml_backend_load_all` helper (`stable_diffusion.pyx:170-191`) was already wired but opt-in; calling it at module import restores pre-0.2.16 behavior. Follow-up to centralize backend registration across `llama` / `whisper` / `sd` is tracked in `TODO.md` under Wheel / Packaging.
+
 ## [0.2.16]
 
 ### Changed

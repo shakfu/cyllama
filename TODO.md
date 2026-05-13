@@ -12,7 +12,9 @@
 
 ## Wheel / Packaging
 
-- [ ] stable-diffusion.cpp uses compile-time `#ifdef SD_USE_CUDA` for backend selection instead of dynamic `ggml_backend_load_all()` like llama.cpp and whisper.cpp -- propose dynamic backend discovery upstream or patch locally for consistency
+- [ ] **Centralize ggml backend registration in `ensure_backends_loaded()`** -- the 0.2.17 hotfix calls `ggml_backend_load_all()` from `src/cyllama/sd/__init__.py` to fix the post-`master-592` "No devices found!" regression. The loader logic itself lives inside the sd Cython module (`src/cyllama/sd/stable_diffusion.pyx:170-191`), duplicating path resolution that also exists in `src/cyllama/_internal/backend_dl.py` (`libs_to_load`). The proper fix is to extract a single `ensure_backends_loaded()` helper into `_internal/backend_dl.py` (idempotent, env-var opt-out e.g. `CYLLAMA_DISABLE_GPU=1`) and call it once from `cyllama.utils.platform.ensure_native_deps()` so llama / whisper / sd all share one registration path. Then drop or thin-wrap the sd-local `ggml_backend_load_all` Python shim. Trigger: next time llama.cpp or whisper.cpp upstreams switch to runtime backend discovery (sd.cpp already did in [#1448](https://github.com/leejet/stable-diffusion.cpp/pull/1448)) -- doing this proactively avoids a repeat of the 0.2.16 SD regression.
+
+- [ ] stable-diffusion.cpp uses compile-time `#ifdef SD_USE_CUDA` for backend selection instead of dynamic `ggml_backend_load_all()` like llama.cpp and whisper.cpp -- propose dynamic backend discovery upstream or patch locally for consistency *(NOTE: superseded by sd.cpp `master-592` [#1448](https://github.com/leejet/stable-diffusion.cpp/pull/1448) which made the switch -- verify this item can be closed)*
 
 ## Explore
 

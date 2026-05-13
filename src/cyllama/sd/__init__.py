@@ -97,6 +97,10 @@ from .stable_diffusion import (
     set_preview_callback,
 )
 
+# sd.cpp master-592 (#1448) switched to runtime backend discovery; register
+# backends at import time so GPU support works without explicit user action.
+ggml_backend_load_all()
+
 __all__ = [
     # Main classes
     "SDContext",
