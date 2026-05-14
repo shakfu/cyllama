@@ -22,7 +22,7 @@ from ..defaults import (
     DEFAULT_TOP_P,
     LLAMA_DEFAULT_SEED,
 )
-from ..utils.color import green, magenta, grey, cyan, red, bold, END, esc, FG_END
+from ..utils.color import white, magenta, grey, cyan, red, bold, END, esc, FG_END
 
 from .llama_cpp import (
     LlamaModel,
@@ -51,6 +51,7 @@ SLASH_COMMANDS: Tuple[Tuple[str, str], ...] = (
     ("/regen", "regenerate the last assistant reply"),
     ("/read", "/read <file> - queue a file as context for the next message"),
     ("/glob", "/glob <pattern> - queue files matching a glob as context"),
+    ("/tools", "list the tools available to /agent"),
     ("/agent", "/agent <task> - run a ReAct agent"),
     ("/agent-strict", "/agent-strict <task> - run a constrained agent"),
     ("/agent-contract", "/agent-contract <task> - run a contract agent"),
@@ -369,12 +370,29 @@ class Chat:
         """Print startup banner with model info and available commands."""
         from .. import __version__
 
-        print(f"build      : cyllama v{__version__}")
-        print(f"model      : {os.path.basename(self.model_path)}")
-        print("modalities : text")
+        model_name = os.path.basename(self.model_path)
+        left = f"{bold(cyan('cyllama'))} v{__version__} chat"
+        right = model_name
+        try:
+            cols = os.get_terminal_size().columns
+        except OSError:
+            cols = 80
+        print(f"{left}{right:>{cols - (len(left) - 19)}}")
+
         print()
         print(f"type {cyan('/help')} to list available commands, or {cyan('/exit')} to quit")
         print()
+
+    # def print_banner(self) -> None:
+    #     """Print startup banner with model info and available commands."""
+    #     from .. import __version__
+
+    #     print(f"build      : cyllama v{__version__}")
+    #     print(f"model      : {os.path.basename(self.model_path)}")
+    #     print("modalities : text")
+    #     print()
+    #     print(f"type {cyan('/help')} to list available commands, or {cyan('/exit')} to quit")
+    #     print()
 
     def _get_agent_llm(self) -> Any:
         """Lazily build a high-level :class:`cyllama.api.LLM` for agent calls.
@@ -552,7 +570,9 @@ class Chat:
 
         try:
             while True:
-                print(bold(green("> ")) + esc(1, 32), end="", flush=True)
+                # print(bold(green("> ")) + esc(1, 32), end="", flush=True)
+                # print(bold(yellow("> ")) + esc(1, 33), end="", flush=True)
+                print(bold(white("> ")) + esc(1, 37), end="", flush=True)
                 try:
                     raw = input()
                 except (EOFError, KeyboardInterrupt):
@@ -625,6 +645,27 @@ class Chat:
                         if content:
                             pending_context = pending_context + ("\n\n" if pending_context else "") + content
                             print(f"(queued {len(matches)} file(s); will be prepended to your next message)")
+                        continue
+
+                    if cmd == "/tools":
+                        # Lazy-import so users who never list/use tools don't
+                        # pay the import cost on chat start.
+                        from ..agents.tools import DEMO_TOOLS
+
+                        if not DEMO_TOOLS:
+                            print("(no tools registered)")
+                            continue
+                        width = max(len(t.name) for t in DEMO_TOOLS)
+                        print("available tools (for /agent*):")
+                        for t in DEMO_TOOLS:
+                            # First non-empty line of the tool's description
+                            # is conventionally the one-line summary. Avoid
+                            # dumping multi-paragraph docstrings here.
+                            summary = next(
+                                (line.strip() for line in t.description.splitlines() if line.strip()),
+                                "",
+                            )
+                            print(f"  {cyan(t.name.ljust(width))}  {summary}")
                         continue
 
                     # /agent and /agent-* family

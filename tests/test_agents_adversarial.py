@@ -90,6 +90,43 @@ class TestActionParserAdversarial:
         with pytest.raises(ActionParseError):
             parser(bad_input)
 
+    def test_parser_accepts_parenthesised_kwarg_value(self, parser):
+        """A small model may echo a multi-line example with redundant parens
+        around the value, e.g. ``content=("---\\ntitle: ...")``. Python
+        evaluates parenthesised strings as just the string; the parser must
+        too, otherwise the kwarg gets silently dropped and the tool sees
+        only the *other* args (the original regex strategies miss this
+        case because the value doesn't start with a quote)."""
+        body = '---\\ntitle: \\"Demo\\"\\nformat: pptx\\n---\\n\\n# Slide\\n'
+        action = f'quarto_render(content=("{body}"), to="pptx")'
+        name, args = parser(action)
+        assert name == "quarto_render"
+        assert set(args.keys()) == {"content", "to"}
+        assert args["to"] == "pptx"
+        assert args["content"].startswith("---\ntitle: ")
+
+    def test_parser_heals_dict_with_trailing_kwarg(self, parser):
+        """Small models sometimes emit ``tool({"a": 1}, "b": 2)`` -- a JSON
+        dict followed by stray kwargs as if the dict had stayed open. The
+        intent is one dict; the parser must heal that shape rather than
+        falling back to ``_parse_quoted_values`` which scrapes random
+        quoted substrings (including the dict keys) and produces garbage
+        like ``arg4="to"``."""
+        body = '---\\ntitle: \\"Demo\\"\\nformat: pptx\\n---\\n\\n# Slide\\n'
+        action = f'quarto_render({{"content": "{body}"}}, "to": "pptx")'
+        name, args = parser(action)
+        assert name == "quarto_render"
+        assert set(args.keys()) == {"content", "to"}
+        assert args["to"] == "pptx"
+        assert args["content"].startswith("---\n")
+
+    def test_parser_unwraps_singleton_tuple_kwarg(self, parser):
+        """``arg=("x",)`` is a 1-tuple in Python; the model almost certainly
+        meant just the string. Unwrap rather than handing a tuple to a tool
+        that expects a string."""
+        name, args = parser('tool(arg=("hello",))')
+        assert args == {"arg": "hello"}
+
     def test_parser_handles_deeply_nested_json(self, parser):
         """Nested dict literals should not crash the parser. The parser's
         argument-parsing fallback may interpret the contents as positional

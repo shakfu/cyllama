@@ -151,7 +151,7 @@ Begin!"""
         detect_loops: bool = True,
         max_consecutive_same_action: int = 2,
         max_consecutive_same_tool: int = 4,
-        max_context_chars: int = 6000,
+        max_context_chars: int = 16000,
     ):
         """
         Initialize ReAct agent.
@@ -169,7 +169,12 @@ Begin!"""
             max_consecutive_same_tool: Number of times the same tool can be called
                                        consecutively (with any args) before loop (default: 4)
             max_context_chars: Maximum characters for the prompt context. Older history
-                              is truncated to stay within this limit (default: 6000)
+                              is truncated to stay within this limit (default: 16000).
+                              ~4k tokens; sized to fit the cyllama-bundled DEMO_TOOLS
+                              (which total ~6.3k chars of tool descriptions on their own)
+                              plus headroom for the system prompt and a few rounds of
+                              history. Earlier 6000 default was too tight once tools
+                              with rich docstrings (e.g. quarto_render) were added.
 
         Loop Detection:
             The agent implements two complementary loop detection mechanisms to prevent
@@ -769,6 +774,21 @@ Begin!"""
                 suggestion='Use escaped newlines: {"code": "line1\\nline2"}',
             )
 
+        # Strategy 0: Python AST parse of the full call expression.
+        # The regex strategies below were designed around simple key="value"
+        # forms and silently drop kwargs whose value starts with anything
+        # other than a quote (e.g. ``content=("...")`` -- a single-element
+        # parenthesised string, which Python evaluates as just the string).
+        # AST handles parens, nested quoting, numeric/bool literals, lists,
+        # dicts, etc. uniformly and rejects non-literal values via
+        # ``ast.literal_eval``, so it's strictly safer than ``eval``.
+        try:
+            args = self._parse_ast_call(original_action)
+            if args:
+                return args
+        except Exception as e:
+            errors.append(f"AST parse: {str(e)}")
+
         # Strategy 1: JSON object format
         if args_str.startswith("{"):
             try:
@@ -841,9 +861,61 @@ Begin!"""
             except json.JSONDecodeError:
                 pass
 
+            # Heal the "dict-followed-by-stray-kwargs" pattern small models
+            # sometimes emit: ``{"a": 1}, "b": 2`` -- meant as one dict but
+            # the model closed it early. Splice the trailing pairs back
+            # inside if the leading ``{...}`` is balanced.
+            healed = self._heal_partial_json(fixed_str)
+            if healed != fixed_str:
+                try:
+                    args = json.loads(healed)
+                    return self._convert_escape_sequences(args)
+                except json.JSONDecodeError:
+                    pass
+
             raise ActionParseError(
                 f"Invalid JSON syntax: {str(e)}", args_str, suggestion='Use valid JSON: {"key": "value"}'
             )
+
+    def _heal_partial_json(self, args_str: str) -> str:
+        """Splice ``{"a": 1}, "b": 2`` -> ``{"a": 1, "b": 2}``.
+
+        Small models occasionally emit a JSON object followed by what
+        looks like additional kwargs, as if the dict had stayed open.
+        This rewrites that into a single well-formed dict so the
+        existing JSON parser can finish the job. Returns ``args_str``
+        unchanged when the input doesn't match the pattern.
+        """
+        if not args_str.startswith("{"):
+            return args_str
+        # Walk to the first balanced closing }, honouring string literals.
+        depth = 0
+        in_string = False
+        escape = False
+        for i, c in enumerate(args_str):
+            if escape:
+                escape = False
+                continue
+            if in_string:
+                if c == "\\":
+                    escape = True
+                elif c == '"':
+                    in_string = False
+                continue
+            if c == '"':
+                in_string = True
+                continue
+            if c == "{":
+                depth += 1
+            elif c == "}":
+                depth -= 1
+                if depth == 0:
+                    rest = args_str[i + 1 :].lstrip()
+                    if rest.startswith(","):
+                        # ``}, "key": ...`` -> ``, "key": ...}``
+                        return args_str[:i] + "," + rest[1:].rstrip() + "}"
+                    return args_str
+        return args_str
 
     def _convert_single_to_double_quotes(self, s: str) -> str:
         """
@@ -885,6 +957,54 @@ Begin!"""
             i += 1
 
         return "".join(result)
+
+    def _parse_ast_call(self, original_action: str) -> Dict[str, Any]:
+        """Parse the action via Python's AST as ``tool_name(<args>)``.
+
+        Uses ``ast.literal_eval`` for each keyword value so only literal
+        constants (str/int/float/bool/None) and literal containers
+        (tuple/list/dict/set) are accepted -- function calls, name lookups
+        and arbitrary expressions are rejected. This handles cases the
+        regex strategies miss, notably parenthesised string values like
+        ``content=("text")`` which a small model may emit when echoing a
+        multi-line example.
+        """
+        import ast as _ast
+
+        tree = _ast.parse(original_action.strip(), mode="eval")
+        if not isinstance(tree.body, _ast.Call):
+            raise ValueError("not a call expression")
+
+        result: Dict[str, Any] = {}
+        for kw in tree.body.keywords:
+            if kw.arg is None:
+                # ``**dict_unpack`` -- not supported, skip
+                continue
+            if kw.arg in result:
+                # Python silently accepts duplicate kwargs at AST level
+                # (the SyntaxError happens at compile time), but tool
+                # dispatch shouldn't paper over the model emitting
+                # ``tool(arg=1, arg=2)``. Raise so the agent surfaces it.
+                raise ValueError(f"duplicate keyword argument: {kw.arg!r}")
+            value = _ast.literal_eval(kw.value)
+            # Unwrap one-element tuples that arose from
+            # ``content=("string",)``; the model meant the string.
+            if isinstance(value, tuple) and len(value) == 1:
+                value = value[0]
+            result[kw.arg] = value
+        # Positional args (rare in tool calls) -- map to the function's
+        # signature only if we have a single one, mirroring the regex
+        # strategy's positional-arg path. Otherwise leave for the caller.
+        if not result and len(tree.body.args) == 1:
+            try:
+                value = _ast.literal_eval(tree.body.args[0])
+                # Caller will key this on the tool's first param name --
+                # but we don't have that here, so signal "no kwargs found"
+                # by returning {} and let later strategies handle it.
+                return {}
+            except Exception:
+                pass
+        return result
 
     def _parse_kwargs(self, args_str: str) -> Dict[str, Any]:
         """Parse key=value pairs with proper quote handling."""

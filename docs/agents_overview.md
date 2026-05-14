@@ -250,7 +250,7 @@ result = agent.run("Search for Python tutorials")
 | `detect_loops` | `bool` | `True` | Enable loop detection |
 | `max_consecutive_same_action` | `int` | `2` | Same action repeat limit |
 | `max_consecutive_same_tool` | `int` | `4` | Same tool repeat limit |
-| `max_context_chars` | `int` | `6000` | Context truncation limit |
+| `max_context_chars` | `int` | `16000` | Context truncation limit |
 
 **Strengths:**
 
@@ -957,7 +957,7 @@ Prevent context overflow with truncation:
 agent = ReActAgent(
     llm=llm,
     tools=tools,
-    max_context_chars=6000,  # Truncate older history
+    max_context_chars=16000,  # Truncate older history
 )
 ```
 

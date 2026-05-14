@@ -236,7 +236,7 @@ Use tools when needed, then provide a helpful final answer based on the results.
         detect_loops: bool = True,
         max_consecutive_same_action: int = 2,
         max_consecutive_same_tool: int = 4,
-        max_context_chars: int = 6000,
+        max_context_chars: int = 16000,
     ):
         """
         Initialize constrained agent.
@@ -257,7 +257,12 @@ Use tools when needed, then provide a helpful final answer based on the results.
             max_consecutive_same_tool: Number of times the same tool can be called
                                        consecutively (with any args) before loop (default: 4)
             max_context_chars: Maximum characters for the prompt context. Older history
-                              is truncated to stay within this limit (default: 16000)
+                              is truncated to stay within this limit (default: 16000).
+                              ~4k tokens; sized to fit the cyllama-bundled DEMO_TOOLS
+                              (which total ~6.3k chars of tool descriptions on their own)
+                              plus headroom for the system prompt and a few rounds of
+                              history. Earlier 6000 default was too tight once tools
+                              with rich docstrings (e.g. quarto_render) were added.
         """
         # Make grammar-constrained generation available on `self.llm`.
         #
