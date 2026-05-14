@@ -1,7 +1,7 @@
 """Document loaders for RAG pipelines.
 
 Provides utilities to load documents from various file formats including
-plain text, Markdown, JSON, and optionally PDF (via docling).
+plain text, Markdown, JSON, and optionally PDF (via a pluggable backend system).
 """
 
 from __future__ import annotations
@@ -9,9 +9,20 @@ from __future__ import annotations
 import json
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any, ClassVar, Iterable, Iterator, NamedTuple
 
 from .types import Document
+
+
+class PageText(NamedTuple):
+    """Single unit of extracted PDF text.
+
+    page_no is 1-indexed when the backend reports per-page output;
+    None means the backend returned the whole document as one blob.
+    """
+
+    page_no: int | None
+    text: str
 
 
 class LoaderError(Exception):
@@ -635,102 +646,368 @@ class DirectoryLoader(BaseLoader):
                 raise LoaderError(f"Failed to load {file_path}: {e}") from e
 
 
-class PDFLoader(BaseLoader):
-    """Load PDF files using docling.
+class PDFBackend(ABC):
+    """Abstract base class for PDF extraction backends.
 
-    Requires docling to be installed: `pip install docling`
+    Implementations lazy-import their underlying library inside extract()
+    so that none of them become hard dependencies of cyllama.
+
+    Public extension contract (stable):
+        Subclass ``PDFBackend`` and set four class-level attributes:
+
+        * ``name`` (str): unique identifier, used as ``PDFLoader(backend=name)``
+        * ``install_hint`` (str): one-line install command shown in error
+          messages when the backend is requested but not available.
+        * ``capabilities`` (frozenset[str]): tags from the open vocabulary
+          ``{"per_page", "ocr", "tables", "images", "layout", "markdown"}``
+          (extras are allowed -- callers filter by string match).
+        * ``_probe_import`` (method): perform the lazy import of the
+          underlying library. Raise any exception on failure;
+          :meth:`is_available` will catch it.
+
+        Implement :meth:`extract` to return ``list[PageText]``. Whole-document
+        backends should return a single entry with ``page_no=None``.
+
+        Register the class with :func:`register_pdf_backend` so it is
+        selectable by name and (optionally) participates in ``"auto"``
+        probing. Do not mutate the module-level ``_PDF_BACKENDS`` /
+        ``_PDF_BACKEND_PRIORITY`` dicts directly -- those are private and
+        their structure may change. ``register_pdf_backend`` is the
+        supported surface.
+    """
+
+    name: str = ""
+    install_hint: str = ""
+    #: Capability tags advertised by the backend. Common values:
+    #: "per_page", "ocr", "tables", "images", "layout", "markdown".
+    capabilities: ClassVar[frozenset[str]] = frozenset()
+
+    @abstractmethod
+    def extract(self, path: Path, **options: Any) -> list[PageText]:
+        """Extract text from a PDF file.
+
+        Returns a list of PageText entries. Whole-document backends should
+        return a single entry with page_no=None.
+        """
+        ...
+
+    @classmethod
+    def is_available(cls) -> bool:
+        """Return True if the backend's underlying library is importable."""
+        try:
+            cls()._probe_import()
+            return True
+        except Exception:
+            return False
+
+    def _probe_import(self) -> None:
+        """Override in subclasses to import the underlying library."""
+        raise NotImplementedError
+
+
+class DoclingBackend(PDFBackend):
+    """PDF backend using docling. Whole-document markdown extraction with
+    layout/table awareness. Heaviest dependency, highest quality."""
+
+    name = "docling"
+    install_hint = "pip install docling"
+    capabilities = frozenset({"ocr", "tables", "images", "layout", "markdown"})
+
+    def _probe_import(self) -> None:
+        import docling  # noqa: F401
+
+    def extract(self, path: Path, **options: Any) -> list[PageText]:
+        from docling.document_converter import DocumentConverter
+
+        converter = DocumentConverter()
+        result = converter.convert(str(path))
+        text = result.document.export_to_markdown()
+        return [PageText(page_no=None, text=text)]
+
+
+class PypdfBackend(PDFBackend):
+    """PDF backend using pypdf. Lightweight, pure-Python, per-page text."""
+
+    name = "pypdf"
+    install_hint = "pip install pypdf"
+    capabilities = frozenset({"per_page"})
+
+    def _probe_import(self) -> None:
+        import pypdf  # noqa: F401
+
+    def extract(self, path: Path, **options: Any) -> list[PageText]:
+        from pypdf import PdfReader
+
+        reader = PdfReader(str(path))
+        return [PageText(page_no=i + 1, text=page.extract_text() or "") for i, page in enumerate(reader.pages)]
+
+
+class PymupdfBackend(PDFBackend):
+    """PDF backend using PyMuPDF (fitz). Fast, per-page text, native deps."""
+
+    name = "pymupdf"
+    install_hint = "pip install pymupdf"
+    capabilities = frozenset({"per_page", "tables", "images"})
+
+    def _probe_import(self) -> None:
+        import fitz  # noqa: F401
+
+    def extract(self, path: Path, **options: Any) -> list[PageText]:
+        import fitz
+
+        doc = fitz.open(str(path))
+        try:
+            return [PageText(page_no=i + 1, text=doc.load_page(i).get_text()) for i in range(doc.page_count)]
+        finally:
+            doc.close()
+
+
+class PdfminerBackend(PDFBackend):
+    """PDF backend using pdfminer.six. Pure-Python, whole-document text."""
+
+    name = "pdfminer"
+    install_hint = "pip install pdfminer.six"
+    capabilities = frozenset({"layout"})
+
+    def _probe_import(self) -> None:
+        import pdfminer.high_level  # noqa: F401
+
+    def extract(self, path: Path, **options: Any) -> list[PageText]:
+        from pdfminer.high_level import extract_text
+
+        return [PageText(page_no=None, text=extract_text(str(path)))]
+
+
+# Backend registry. Order in _PDF_BACKEND_PRIORITY drives "auto" selection:
+# lightest-first, so users who installed only pypdf get pypdf, while users
+# who explicitly installed docling can opt in via backend="docling".
+_PDF_BACKENDS: dict[str, type[PDFBackend]] = {
+    "docling": DoclingBackend,
+    "pypdf": PypdfBackend,
+    "pymupdf": PymupdfBackend,
+    "pdfminer": PdfminerBackend,
+}
+_PDF_BACKEND_PRIORITY: list[str] = ["pypdf", "pymupdf", "pdfminer", "docling"]
+
+
+def register_pdf_backend(name: str, backend_cls: type[PDFBackend], priority: int | None = None) -> None:
+    """Register a custom PDF backend. (Stable public API.)
+
+    This is the sole supported way to extend PDF parsing without modifying
+    cyllama. Downstream applications (e.g., cyllama-desktop) should call
+    this from their own setup code rather than monkey-patching the
+    ``_PDF_BACKENDS`` / ``_PDF_BACKEND_PRIORITY`` module-level dicts, whose
+    structure is not part of the public API.
+
+    Re-registering an existing ``name`` replaces the prior class; this is
+    intentional so applications can override built-in backends (e.g., swap
+    in a customized DoclingBackend with non-default converter options).
+
+    Args:
+        name: Backend identifier. Must be unique within the process; passed
+            as ``PDFLoader(backend=name)``.
+        backend_cls: ``PDFBackend`` subclass. See :class:`PDFBackend` for
+            the required class attributes and methods.
+        priority: Optional 0-based insertion index in the ``"auto"`` probe
+            order. ``priority=0`` makes the backend probed first.
+            If ``None`` (default), the backend is registered but excluded
+            from ``"auto"`` and must be selected explicitly by name -- the
+            right choice for application-specific or experimental backends
+            that shouldn't change ``PDFLoader()``'s default behavior.
 
     Example:
-        >>> loader = PDFLoader()
-        >>> docs = loader.load("document.pdf")
+        >>> class MyBackend(PDFBackend):
+        ...     name = "my-backend"
+        ...     install_hint = "pip install my-lib"
+        ...     capabilities = frozenset({"per_page", "ocr"})
+        ...     def _probe_import(self): import my_lib  # noqa
+        ...     def extract(self, path, **opts):
+        ...         return [PageText(page_no=1, text="...")]
+        >>> register_pdf_backend("my-backend", MyBackend)
+        >>> PDFLoader(backend="my-backend").load("doc.pdf")
+    """
+    _PDF_BACKENDS[name] = backend_cls
+    if priority is not None:
+        # Remove if already present, then insert at requested position.
+        if name in _PDF_BACKEND_PRIORITY:
+            _PDF_BACKEND_PRIORITY.remove(name)
+        _PDF_BACKEND_PRIORITY.insert(priority, name)
 
-        >>> # With OCR enabled
-        >>> loader = PDFLoader(ocr=True)
-        >>> docs = loader.load("scanned.pdf")
+
+def available_pdf_backends(require: Iterable[str] = ()) -> list[str]:
+    """Return names of installed PDF backends.
+
+    Args:
+        require: Optional capability tags the backend must advertise
+            (e.g. {"ocr"}). Backends missing any required capability are
+            excluded.
+    """
+    req = frozenset(require)
+    return [n for n, cls in _PDF_BACKENDS.items() if cls.is_available() and req.issubset(cls.capabilities)]
+
+
+def pdf_backend_info(name: str) -> dict[str, Any]:
+    """Return metadata about a registered PDF backend."""
+    cls = _PDF_BACKENDS.get(name)
+    if cls is None:
+        raise LoaderError(f"Unknown PDF backend: {name!r}")
+    return {
+        "name": cls.name,
+        "install_hint": cls.install_hint,
+        "capabilities": sorted(cls.capabilities),
+        "available": cls.is_available(),
+    }
+
+
+class PDFLoader(BaseLoader):
+    """Load PDF files via a pluggable backend.
+
+    Example:
+        >>> loader = PDFLoader()                       # auto-select backend
+        >>> loader = PDFLoader(backend="pypdf")        # explicit lightweight
+        >>> loader = PDFLoader(backend="docling")      # explicit high-quality
+        >>> loader = PDFLoader(per_page=True)          # one Document per page
     """
 
     def __init__(
         self,
-        ocr: bool = False,
-        extract_images: bool = False,
+        backend: str | PDFBackend = "auto",
+        per_page: bool = False,
+        require: Iterable[str] = (),
+        **backend_options: Any,
     ):
         """Initialize PDF loader.
 
         Args:
-            ocr: Whether to use OCR for scanned documents
-            extract_images: Whether to extract and include image descriptions
+            backend: Backend name ("docling", "pypdf", "pymupdf", "pdfminer"),
+                "auto" to probe installed backends in priority order, or an
+                already-instantiated PDFBackend.
+            per_page: If True, emit one Document per page (when the backend
+                supports it). If False, concatenate into a single Document.
+            require: Capability tags the backend must advertise (e.g. {"ocr"}).
+                With backend="auto", filters the probe list. With an explicit
+                backend, raises if the backend lacks any required capability —
+                preventing silent "you asked for OCR but got a backend that
+                can't do it".
+            **backend_options: Forwarded to the backend's extract() call.
         """
-        self.ocr = ocr
-        self.extract_images = extract_images
-        self._docling = None
+        self.required_caps = frozenset(require)
+        self._backend = self._resolve_backend(backend, self.required_caps)
+        self.per_page = per_page
+        self.backend_options = backend_options
 
-    def _get_docling(self) -> Any:
-        """Lazy import of docling."""
-        if self._docling is None:
-            try:
-                import docling
+    @staticmethod
+    def _resolve_backend(backend: str | PDFBackend, require: frozenset[str]) -> PDFBackend:
+        if isinstance(backend, PDFBackend):
+            missing = require - backend.capabilities
+            if missing:
+                raise LoaderError(f"PDF backend {backend.name!r} lacks required capabilities: {sorted(missing)}")
+            return backend
+        if backend == "auto":
+            for name in _PDF_BACKEND_PRIORITY:
+                cls = _PDF_BACKENDS.get(name)
+                if cls is not None and cls.is_available() and require.issubset(cls.capabilities):
+                    return cls()
+            qualifying = [
+                f"{n} ({_PDF_BACKENDS[n].install_hint})"
+                for n in _PDF_BACKEND_PRIORITY
+                if n in _PDF_BACKENDS and require.issubset(_PDF_BACKENDS[n].capabilities)
+            ]
+            if not qualifying:
+                raise LoaderError(f"No registered PDF backend advertises capabilities {sorted(require)}")
+            raise LoaderError(
+                f"No installed PDF backend satisfies capabilities "
+                f"{sorted(require) or 'PDF parsing'}. "
+                f"Install one of: {', '.join(qualifying)}"
+            )
+        cls = _PDF_BACKENDS.get(backend)
+        if cls is None:
+            raise LoaderError(f"Unknown PDF backend: {backend!r}. Known: {sorted(_PDF_BACKENDS)}")
+        if not cls.is_available():
+            raise LoaderError(f"PDF backend {backend!r} is not installed. Install it with: {cls.install_hint}")
+        missing = require - cls.capabilities
+        if missing:
+            raise LoaderError(f"PDF backend {backend!r} lacks required capabilities: {sorted(missing)}")
+        return cls()
 
-                self._docling = docling
-            except ImportError:
-                raise LoaderError("docling is required for PDF loading. Install it with: pip install docling")
-        return self._docling
+    @property
+    def backend_name(self) -> str:
+        return self._backend.name
 
     def load(self, path: str | Path) -> list[Document]:
-        """Load a PDF file.
-
-        Args:
-            path: Path to PDF file
-
-        Returns:
-            List of Documents (one per page or entire document)
-
-        Raises:
-            LoaderError: If docling not installed or file cannot be parsed
-        """
+        """Load a PDF file using the configured backend."""
         path = self._validate_path(path)
 
         try:
-            docling = self._get_docling()
-            from docling.document_converter import DocumentConverter
+            pages = self._backend.extract(path, **self.backend_options)
+        except LoaderError:
+            raise
+        except Exception as e:
+            raise LoaderError(f"Failed to parse PDF {path} with backend {self._backend.name!r}: {e}") from e
 
-            converter = DocumentConverter()
-            result = converter.convert(str(path))
+        base_meta = {
+            "source": str(path),
+            "filename": path.name,
+            "filetype": "pdf",
+            "backend": self._backend.name,
+        }
 
-            # Get the markdown export of the document
-            text = result.document.export_to_markdown()
-
+        if self.per_page and any(p.page_no is not None for p in pages):
             return [
                 Document(
-                    text=text,
-                    metadata={
-                        "source": str(path),
-                        "filename": path.name,
-                        "filetype": "pdf",
-                    },
-                    id=str(path),
+                    text=p.text,
+                    metadata={**base_meta, "page": p.page_no},
+                    id=f"{path}#p{p.page_no}",
                 )
+                for p in pages
             ]
 
-        except ImportError:
-            raise LoaderError("docling is required for PDF loading. Install it with: pip install docling")
-        except Exception as e:
-            raise LoaderError(f"Failed to parse PDF {path}: {e}") from e
+        text = "\n\n".join(p.text for p in pages if p.text)
+        return [Document(text=text, metadata=base_meta, id=str(path))]
 
 
 def load_document(path: str | Path, **kwargs: Any) -> list[Document]:
     """Load a document using the appropriate loader based on file extension.
 
-    Convenience function that automatically selects the right loader.
+    Convenience function that selects the loader class by extension and
+    forwards ``**kwargs`` to its constructor. Unknown kwargs are NOT
+    silently swallowed -- they are passed to the loader's ``__init__`` and
+    will raise ``TypeError`` if the loader does not accept them. This is
+    intentional: it surfaces format/option mismatches loudly rather than
+    masking them.
+
+    PDF backend selection:
+        For ``.pdf`` files this function does forward ``backend``,
+        ``require``, ``per_page`` and any backend-specific options to
+        :class:`PDFLoader`. Example::
+
+            load_document("doc.pdf", backend="docling", per_page=True)
+
+        However ``load_document`` is format-coupled: passing ``backend=``
+        on a non-PDF path will ``TypeError`` because text/JSON/etc.
+        loaders do not (currently) accept a ``backend`` kwarg. For full
+        control over PDF backend selection -- especially in code that
+        might be called with mixed file types -- instantiate
+        :class:`PDFLoader` directly::
+
+            loader = PDFLoader(backend="docling", require={"ocr"})
+            docs = loader.load(path)
+
+        The signature of ``load_document`` may grow first-class
+        ``backend`` / ``require`` kwargs once a second file format adopts
+        the backend pattern (so the kwargs have a well-defined cross-format
+        meaning). Until then, prefer ``PDFLoader`` for PDF-specific tuning.
 
     Args:
         path: Path to document
-        **kwargs: Additional arguments passed to the loader
+        **kwargs: Forwarded to the loader class selected by extension.
 
     Returns:
         List of Documents
 
     Raises:
         LoaderError: If file type is unsupported or loading fails
+        TypeError: If a kwarg is not accepted by the selected loader
     """
     path = Path(path)
     suffix = path.suffix.lower()

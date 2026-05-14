@@ -358,6 +358,20 @@ Begin!"""
 
             # Execute action if present
             if action_str:
+                # Models sometimes signal "no tool needed" with `Action: None`
+                # (or `Action: none`, `Action: N/A`, bare `Action:`). Treat
+                # these as a graceful stop rather than a parse error so the
+                # loop detector doesn't trap a model that's effectively
+                # already done. If a Thought was emitted this turn, surface
+                # it as the answer; otherwise emit a generic explanation.
+                if self._is_noop_action(action_str):
+                    self._metrics.total_time_ms = (time.perf_counter() - start_time) * 1000
+                    final = thought or (
+                        "I cannot complete this task because no suitable tool is available and I have no direct answer."
+                    )
+                    yield AgentEvent(type=EventType.ANSWER, content=final)
+                    return
+
                 logger.debug("Action: %s", action_str)
 
                 # Parse tool name early for loop detection
@@ -579,6 +593,25 @@ Begin!"""
         if match:
             return match.group(1).strip()
         return None
+
+    _NOOP_ACTION_TOKENS = frozenset({"none", "n/a", "na", "null", "nil", "skip", ""})
+
+    @classmethod
+    def _is_noop_action(cls, action_str: str) -> bool:
+        """Return True if ``action_str`` is the model's way of saying 'no tool'.
+
+        Treats ``None`` / ``none`` / ``N/A`` / empty (and variants without
+        parentheses) as a no-op. A string with parentheses is always
+        treated as a real tool call and routed to the parser, even if the
+        identifier itself is e.g. ``none()`` -- the user may genuinely have
+        a tool named ``none``.
+        """
+        s = action_str.strip()
+        if "(" in s:
+            return False
+        # Strip a trailing period the model sometimes appends.
+        s = s.rstrip(".").strip().lower()
+        return s in cls._NOOP_ACTION_TOKENS
 
     def _extract_action(self, text: str) -> Optional[str]:
         """Extract action from agent response."""

@@ -73,6 +73,27 @@ print(_backend.cuda)   # True if built with CUDA
 print(_backend.metal)  # True if built with Metal
 ```
 
+### Optional integrations
+
+cyllama has zero hard dependencies beyond its compiled core. Features built on third-party libraries discover them lazily at runtime, so you install only what you actually use.
+
+**PDF parsing** (`cyllama.rag.PDFLoader`) supports four pluggable backends. Install whichever fits your needs:
+
+| Backend    | Install                          | Strengths                                      | Capabilities                                  |
+|------------|----------------------------------|------------------------------------------------|-----------------------------------------------|
+| `pypdf`    | `pip install pypdf`              | Pure-Python, lightweight, per-page text        | `per_page`                                    |
+| `pymupdf`  | `pip install pymupdf`            | Fast, per-page text, table/image awareness     | `per_page`, `tables`, `images`                |
+| `pdfminer` | `pip install pdfminer.six`       | Pure-Python, layout-aware extraction           | `layout`                                      |
+| `docling`  | `pip install docling`            | Highest quality; OCR, tables, layout, markdown | `ocr`, `tables`, `images`, `layout`, `markdown` (heavy; pulls in torch + CV stack) |
+
+`PDFLoader(backend="auto")` (the default) picks the first installed backend in the order above (lightest-first). Select explicitly with `PDFLoader(backend="docling")`, or filter by capability with `PDFLoader(require={"ocr"})`. See `cyllama.rag.available_pdf_backends()` and `pdf_backend_info(name)` for runtime introspection.
+
+**Other optional integrations** -- install directly when needed:
+
+| Feature             | Install                          |
+|---------------------|----------------------------------|
+| Qdrant vector store | `pip install qdrant-client`      |
+
 ### Build from source with a specific backend
 
 ```sh

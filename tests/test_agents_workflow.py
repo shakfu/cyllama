@@ -20,7 +20,7 @@ from typing import Any, Dict, TypedDict
 
 import pytest
 
-from cyllama.agents import (
+from cyllama.agents.workflow import (
     Workflow,
     CompiledWorkflow,
     WorkflowResult,
@@ -1672,7 +1672,7 @@ class TestAgentProtocolAdapter:
             flow.run("hello")  # type: ignore[call-arg]
 
     def test_adapter_satisfies_agent_protocol(self):
-        from cyllama.agents import AgentProtocol
+        from cyllama.agents.types import AgentProtocol
 
         flow = Workflow()
         flow.add_node("hello", lambda s: {"hello": "world"})
@@ -1682,7 +1682,7 @@ class TestAgentProtocolAdapter:
         assert isinstance(agent, AgentProtocol)
 
     def test_compiled_workflow_as_agent(self):
-        from cyllama.agents import AgentProtocol
+        from cyllama.agents.types import AgentProtocol
 
         flow = Workflow()
         flow.add_node("hello", lambda s: {"hello": "world"})

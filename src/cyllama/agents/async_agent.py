@@ -7,7 +7,8 @@ blocking the event loop during inference.
 
 Example:
     >>> import asyncio
-    >>> from cyllama.agents import AsyncReActAgent, tool
+    >>> from cyllama.agents import tool
+    >>> from cyllama.agents.async_agent import AsyncReActAgent
     >>>
     >>> @tool
     >>> def search(query: str) -> str:

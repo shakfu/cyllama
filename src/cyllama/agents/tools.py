@@ -1146,3 +1146,276 @@ class ToolRegistry:
     def __iter__(self) -> Any:
         """Iterate over tools."""
         return iter(self._tools.values())
+
+
+# ---------------------------------------------------------------------------
+# Demo tools
+# ---------------------------------------------------------------------------
+#
+# The four tools below ship with cyllama as a *minimal reference set*: they
+# exist to show people what a well-behaved agent tool looks like. They are
+# auto-registered when ``cyllama chat`` invokes any ``/agent*`` command (see
+# ``cyllama.llama.chat._run_agent_command``), and they are exported from
+# ``cyllama.agents`` as ``DEMO_TOOLS`` so library users can pass them to
+# their own agents (or omit them entirely).
+#
+# Each tool was chosen to illustrate one distinct pattern:
+#
+# * ``current_time``    -- zero-arg lookup with an optional, validated string
+#                          parameter. Demonstrates returning a structured
+#                          result (dict) and graceful failure on bad input.
+# * ``calculator``      -- *safe* expression evaluation via an ``ast`` node
+#                          allowlist. Demonstrates how to write a parser
+#                          tool that does **not** call ``eval`` and does
+#                          **not** expose Python's name resolution.
+# * ``word_count``      -- multi-statistic string analyzer. Demonstrates
+#                          docstring-driven schema generation for a single
+#                          ``text`` parameter and a multi-field return.
+# * ``search_wikipedia``-- network IO with a bounded blast radius:
+#                          hardcoded endpoint, short timeout, capped
+#                          response size, URL-encoded query, no follow-up
+#                          requests, no HTML parsing beyond stripping
+#                          ``<span class="searchmatch">`` highlights.
+#
+# Anti-goals (deliberately *not* included):
+#
+# * No filesystem tools. A safe filesystem tool needs a per-instance sandbox
+#   root and resolved-path checks; that doesn't fit a global module-level
+#   helper.
+# * No arbitrary ``http_get``. A general HTTP fetcher needs an allowlist
+#   the agent author chooses; shipping one with an open allowlist would
+#   be unsafe, and shipping one with a closed allowlist would be useless.
+# * No shell, subprocess, or eval. These are the canonical footguns; if a
+#   user wants them they should opt in explicitly.
+
+import ast
+import json as _json
+import operator as _op
+import urllib.parse as _urlparse
+import urllib.request as _urlrequest
+from datetime import datetime as _datetime, timezone as _timezone
+
+
+@tool
+def current_time(timezone: str = "UTC") -> Dict[str, str]:
+    """Return the current date and time.
+
+    Args:
+        timezone: IANA timezone name (e.g. ``"UTC"``, ``"America/New_York"``,
+            ``"Europe/Berlin"``). Defaults to ``"UTC"``. Must be a name the
+            host's tz database recognises; unknown names raise a clear
+            error instead of silently falling back.
+
+    Returns:
+        A dict with ``iso`` (ISO 8601 timestamp including UTC offset),
+        ``timezone`` (the resolved zone name), and ``unix`` (seconds
+        since the epoch, as a string for deterministic JSON encoding).
+    """
+    # zoneinfo is stdlib on 3.9+. We import lazily so the cost is only
+    # paid by users who actually call the tool.
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+    if timezone.upper() == "UTC":
+        tz: Any = _timezone.utc
+        resolved = "UTC"
+    else:
+        try:
+            tz = ZoneInfo(timezone)
+        except ZoneInfoNotFoundError as e:
+            # Re-raise as a value error so the agent's tool-error handling
+            # treats it as a bad argument rather than an internal crash.
+            raise ValueError(f"unknown timezone: {timezone!r}") from e
+        resolved = timezone
+
+    now = _datetime.now(tz)
+    return {
+        "iso": now.isoformat(timespec="seconds"),
+        "timezone": resolved,
+        "unix": str(int(now.timestamp())),
+    }
+
+
+# Operator table for the safe calculator. Anything not in this table is
+# rejected at parse time -- in particular ``Name``, ``Call``, ``Attribute``,
+# ``Subscript``, ``Lambda``, ``IfExp``, comprehensions, walrus, etc.
+_CALC_BINOPS: Dict[type, Callable[[Any, Any], Any]] = {
+    ast.Add: _op.add,
+    ast.Sub: _op.sub,
+    ast.Mult: _op.mul,
+    ast.Div: _op.truediv,
+    ast.FloorDiv: _op.floordiv,
+    ast.Mod: _op.mod,
+    ast.Pow: _op.pow,
+}
+_CALC_UNARYOPS: Dict[type, Callable[[Any], Any]] = {
+    ast.UAdd: _op.pos,
+    ast.USub: _op.neg,
+}
+# Hard cap on the magnitude of the right-hand side of ``**``. ``2**10**10``
+# would otherwise hang the agent thread. 1000 is generous for any
+# legitimate arithmetic question while remaining trivially fast.
+_CALC_MAX_EXPONENT = 1000
+_CALC_MAX_EXPR_LEN = 200
+
+
+def _calc_eval(node: ast.AST) -> Any:
+    """Recursively evaluate an AST node from the calculator's allowlist."""
+    if isinstance(node, ast.Expression):
+        return _calc_eval(node.body)
+    if isinstance(node, ast.Constant):
+        if isinstance(node.value, (int, float)):
+            return node.value
+        raise ValueError(f"constant of disallowed type: {type(node.value).__name__}")
+    if isinstance(node, ast.BinOp):
+        op_fn = _CALC_BINOPS.get(type(node.op))
+        if op_fn is None:
+            raise ValueError(f"disallowed binary operator: {type(node.op).__name__}")
+        left = _calc_eval(node.left)
+        right = _calc_eval(node.right)
+        if isinstance(node.op, ast.Pow) and isinstance(right, (int, float)) and abs(right) > _CALC_MAX_EXPONENT:
+            raise ValueError(f"exponent {right!r} exceeds maximum of {_CALC_MAX_EXPONENT}")
+        return op_fn(left, right)
+    if isinstance(node, ast.UnaryOp):
+        unary_fn = _CALC_UNARYOPS.get(type(node.op))
+        if unary_fn is None:
+            raise ValueError(f"disallowed unary operator: {type(node.op).__name__}")
+        return unary_fn(_calc_eval(node.operand))
+    raise ValueError(f"disallowed expression node: {type(node).__name__}")
+
+
+@tool
+def calculator(expression: str) -> str:
+    """Evaluate a simple arithmetic expression.
+
+    Supports the operators ``+ - * / // % **`` and unary ``+ -`` over
+    integer and float literals, with normal precedence and parentheses.
+    Names, function calls, attribute access, subscripting, comparisons,
+    and every other Python construct are rejected at parse time -- this
+    is **not** ``eval``.
+
+    Args:
+        expression: The arithmetic expression to evaluate, e.g.
+            ``"(2 + 3) * 4"`` or ``"2 ** 10"``. Limited to 200 characters.
+
+    Returns:
+        The result as a string. Integer results render without a decimal
+        point; floats use Python's default ``repr`` formatting.
+    """
+    if len(expression) > _CALC_MAX_EXPR_LEN:
+        raise ValueError(f"expression too long ({len(expression)} > {_CALC_MAX_EXPR_LEN} chars)")
+    try:
+        tree = ast.parse(expression, mode="eval")
+    except SyntaxError as e:
+        raise ValueError(f"invalid arithmetic expression: {e.msg}") from e
+    result = _calc_eval(tree)
+    return str(result)
+
+
+@tool
+def word_count(text: str) -> Dict[str, int]:
+    """Count words, characters, and lines in a piece of text.
+
+    Args:
+        text: The text to analyse. Any string is accepted; an empty
+            string returns zero counts.
+
+    Returns:
+        A dict with ``characters`` (length in code points), ``words``
+        (whitespace-separated tokens), and ``lines`` (number of newline
+        terminators, plus one if the final line is unterminated).
+    """
+    chars = len(text)
+    words = len(text.split())
+    if not text:
+        lines = 0
+    else:
+        lines = text.count("\n") + (0 if text.endswith("\n") else 1)
+    return {"characters": chars, "words": words, "lines": lines}
+
+
+# Wikipedia search constants. Hardcoded so the tool can't be tricked into
+# hitting an arbitrary host -- ``urllib.request.urlopen`` is happy to
+# follow ``file://`` URLs if you let user input reach it.
+_WIKI_API_URL = "https://en.wikipedia.org/w/api.php"
+_WIKI_TIMEOUT_SECONDS = 5.0
+_WIKI_MAX_RESPONSE_BYTES = 64 * 1024  # 64 KiB is plenty for 3 snippets
+_WIKI_USER_AGENT = "cyllama-demo-tools/1.0 (https://github.com/shakfu/cyllama)"
+# Strip the highlight spans Wikipedia injects into ``snippet`` fields.
+# We deliberately don't try to be a general HTML parser -- if the API
+# starts returning richer markup we'd rather show it raw than silently
+# drop information.
+_WIKI_HIGHLIGHT_RE = re.compile(r"</?span[^>]*>")
+
+
+@tool
+def search_wikipedia(query: str, limit: int = 3) -> List[Dict[str, str]]:
+    """Search English Wikipedia and return the top matching pages.
+
+    Uses Wikipedia's official action API (``action=query&list=search``);
+    no HTML scraping, no follow-up page fetches. The endpoint is
+    hardcoded to ``en.wikipedia.org``; the request times out after 5
+    seconds; the response is capped at 64 KiB.
+
+    Args:
+        query: Free-text search query. URL-encoded before transmission.
+        limit: Number of results to return, in 1..10. Defaults to 3.
+
+    Returns:
+        A list of dicts, each with ``title``, ``snippet`` (HTML
+        highlight spans stripped), and ``url`` (a stable wiki link).
+        Empty list when the API returns no matches.
+    """
+    if not query.strip():
+        raise ValueError("query must be non-empty")
+    if not 1 <= limit <= 10:
+        raise ValueError(f"limit must be in 1..10, got {limit}")
+
+    params = {
+        "action": "query",
+        "format": "json",
+        "list": "search",
+        "srsearch": query,
+        "srlimit": str(limit),
+        "srprop": "snippet",
+    }
+    url = f"{_WIKI_API_URL}?{_urlparse.urlencode(params)}"
+    request = _urlrequest.Request(url, headers={"User-Agent": _WIKI_USER_AGENT})
+
+    try:
+        with _urlrequest.urlopen(request, timeout=_WIKI_TIMEOUT_SECONDS) as response:  # noqa: S310 - hardcoded https URL
+            payload = response.read(_WIKI_MAX_RESPONSE_BYTES + 1)
+    except Exception as e:  # noqa: BLE001 - surface any transport failure as a tool error
+        raise RuntimeError(f"wikipedia request failed: {e}") from e
+
+    if len(payload) > _WIKI_MAX_RESPONSE_BYTES:
+        raise RuntimeError(f"wikipedia response exceeded {_WIKI_MAX_RESPONSE_BYTES} bytes; aborting")
+
+    try:
+        data = _json.loads(payload.decode("utf-8"))
+    except (UnicodeDecodeError, _json.JSONDecodeError) as e:
+        raise RuntimeError(f"wikipedia returned non-JSON payload: {e}") from e
+
+    results = data.get("query", {}).get("search", [])
+    out: List[Dict[str, str]] = []
+    for item in results:
+        title = str(item.get("title", ""))
+        snippet = _WIKI_HIGHLIGHT_RE.sub("", str(item.get("snippet", "")))
+        url_title = _urlparse.quote(title.replace(" ", "_"))
+        out.append(
+            {
+                "title": title,
+                "snippet": snippet,
+                "url": f"https://en.wikipedia.org/wiki/{url_title}",
+            }
+        )
+    return out
+
+
+# Public collection. Tuples are used so consumers can't mutate the shared
+# list and accidentally desync different agents in the same process.
+DEMO_TOOLS: Tuple[Tool, ...] = (
+    current_time,
+    calculator,
+    word_count,
+    search_wikipedia,
+)

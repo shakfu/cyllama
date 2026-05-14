@@ -152,13 +152,6 @@ dev = [
     "mkdocs>=1.6.1",
     "mkdocs-material>=9.6.0",
 ]
-pdf = [
-    "docling>=2.92.0",
-]
-qdrant = [
-    "qdrant-client>=1.17.1",
-]
-
 # -----------------------------------------------------------------------------
 # cibuildwheel configuration for cross-platform wheel building
 # -----------------------------------------------------------------------------

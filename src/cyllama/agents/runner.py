@@ -93,6 +93,23 @@ def stream_agent(
     """
     tools = tools or []
 
+    # Tool-using kinds are structurally pointless without a tool registry:
+    # the model will produce `Action: <something>` for an empty tool set
+    # and the run will either parse-error or loop-detect. Fail fast with
+    # a clear message so callers know to register tools (or use plan /
+    # reflect, which are orchestration patterns over the LLM itself and
+    # don't require tools).
+    if not tools and kind in {"react", "constrained", "contract"}:
+        yield AgentEvent(
+            type=EventType.ANSWER,
+            content=(
+                f"No tools are registered for the '{kind}' agent. "
+                "Register tools when constructing the agent, or ask a "
+                "direct question without /agent."
+            ),
+        )
+        return
+
     if kind == "react":
         agent: Any = ReActAgent(
             llm=llm,

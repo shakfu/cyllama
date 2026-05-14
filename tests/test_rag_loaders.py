@@ -27,10 +27,15 @@ from cyllama.rag.loaders import (
     JSONLoader,
     JSONLLoader,
     DirectoryLoader,
+    PageText,
+    PDFBackend,
     PDFLoader,
     LoaderError,
+    available_pdf_backends,
     load_document,
     load_directory,
+    pdf_backend_info,
+    register_pdf_backend,
 )
 
 
@@ -479,22 +484,148 @@ class TestDirectoryLoaderSymlinks:
             assert "External content" in texts
 
 
+class _StubPerPageBackend(PDFBackend):
+    name = "stub-pages"
+    install_hint = "n/a"
+    capabilities = frozenset({"per_page", "ocr"})
+
+    def _probe_import(self) -> None:
+        return None
+
+    def extract(self, path, **options):
+        return [
+            PageText(page_no=1, text="page one"),
+            PageText(page_no=2, text="page two"),
+        ]
+
+
+class _StubWholeDocBackend(PDFBackend):
+    name = "stub-whole"
+    install_hint = "n/a"
+    capabilities = frozenset({"markdown"})
+
+    def _probe_import(self) -> None:
+        return None
+
+    def extract(self, path, **options):
+        return [PageText(page_no=None, text="whole document text")]
+
+
+class _StubBrokenBackend(PDFBackend):
+    name = "stub-broken"
+    install_hint = "n/a"
+    capabilities = frozenset()
+
+    def _probe_import(self) -> None:
+        return None
+
+    def extract(self, path, **options):
+        raise RuntimeError("boom")
+
+
 class TestPDFLoader:
-    """Test PDFLoader class."""
+    """Test PDFLoader pluggable-backend system.
 
-    @pytest.mark.skip(reason="Test assumes docling is not installed, but it is")
-    def test_missing_docling(self, temp_dir):
-        """Test error when docling is not installed."""
-        file_path = temp_dir / "test.pdf"
-        file_path.write_bytes(b"%PDF-1.4 fake pdf")
+    These tests use stub PDFBackend implementations so they don't depend
+    on any optional library (docling, pypdf, etc.) being installed.
+    """
 
-        loader = PDFLoader()
-        # This should raise an error about docling not being installed
-        # (unless docling is actually installed in the test environment)
+    def _make_pdf(self, temp_dir):
+        p = temp_dir / "test.pdf"
+        p.write_bytes(b"%PDF-1.4 fake pdf")
+        return p
+
+    def test_explicit_backend_instance_concatenated(self, temp_dir):
+        path = self._make_pdf(temp_dir)
+        loader = PDFLoader(backend=_StubPerPageBackend())
+        docs = loader.load(path)
+        assert len(docs) == 1
+        assert docs[0].text == "page one\n\npage two"
+        assert docs[0].metadata["backend"] == "stub-pages"
+        assert docs[0].metadata["filetype"] == "pdf"
+
+    def test_explicit_backend_instance_per_page(self, temp_dir):
+        path = self._make_pdf(temp_dir)
+        loader = PDFLoader(backend=_StubPerPageBackend(), per_page=True)
+        docs = loader.load(path)
+        assert [d.text for d in docs] == ["page one", "page two"]
+        assert [d.metadata["page"] for d in docs] == [1, 2]
+        assert all(d.metadata["backend"] == "stub-pages" for d in docs)
+
+    def test_per_page_falls_back_when_backend_lacks_pages(self, temp_dir):
+        path = self._make_pdf(temp_dir)
+        loader = PDFLoader(backend=_StubWholeDocBackend(), per_page=True)
+        docs = loader.load(path)
+        assert len(docs) == 1
+        assert docs[0].text == "whole document text"
+        assert "page" not in docs[0].metadata
+
+    def test_unknown_backend_name(self):
+        with pytest.raises(LoaderError, match="Unknown PDF backend"):
+            PDFLoader(backend="not-a-real-backend")
+
+    def test_require_capability_missing_on_explicit_backend(self, temp_dir):
+        with pytest.raises(LoaderError, match="lacks required capabilities"):
+            PDFLoader(backend=_StubWholeDocBackend(), require={"ocr"})
+
+    def test_require_capability_satisfied(self, temp_dir):
+        path = self._make_pdf(temp_dir)
+        loader = PDFLoader(backend=_StubPerPageBackend(), require={"ocr"})
+        docs = loader.load(path)
+        assert docs[0].metadata["backend"] == "stub-pages"
+
+    def test_backend_extract_error_is_wrapped(self, temp_dir):
+        path = self._make_pdf(temp_dir)
+        loader = PDFLoader(backend=_StubBrokenBackend())
+        with pytest.raises(LoaderError, match="stub-broken") as exc_info:
+            loader.load(path)
+        assert "boom" in str(exc_info.value)
+
+    def test_register_and_resolve_by_name(self, temp_dir):
+        path = self._make_pdf(temp_dir)
         try:
-            loader.load(file_path)
-        except LoaderError as e:
-            assert "docling" in str(e).lower()
+            register_pdf_backend("stub-pages-named", _StubPerPageBackend)
+            loader = PDFLoader(backend="stub-pages-named")
+            docs = loader.load(path)
+            assert docs[0].metadata["backend"] == "stub-pages"
+        finally:
+            from cyllama.rag.loaders import _PDF_BACKENDS
+
+            _PDF_BACKENDS.pop("stub-pages-named", None)
+
+    def test_auto_with_priority_picks_registered_backend(self, temp_dir):
+        path = self._make_pdf(temp_dir)
+        try:
+            register_pdf_backend("stub-pages-pri", _StubPerPageBackend, priority=0)
+            # auto should now find our stub before anything else
+            loader = PDFLoader(backend="auto")
+            docs = loader.load(path)
+            assert docs[0].metadata["backend"] == "stub-pages"
+        finally:
+            from cyllama.rag.loaders import (
+                _PDF_BACKENDS,
+                _PDF_BACKEND_PRIORITY,
+            )
+
+            _PDF_BACKENDS.pop("stub-pages-pri", None)
+            if "stub-pages-pri" in _PDF_BACKEND_PRIORITY:
+                _PDF_BACKEND_PRIORITY.remove("stub-pages-pri")
+
+    def test_pdf_backend_info_unknown(self):
+        with pytest.raises(LoaderError, match="Unknown PDF backend"):
+            pdf_backend_info("not-a-real-backend")
+
+    def test_pdf_backend_info_known(self):
+        info = pdf_backend_info("docling")
+        assert info["name"] == "docling"
+        assert "ocr" in info["capabilities"]
+        assert isinstance(info["available"], bool)
+
+    def test_available_pdf_backends_returns_list(self):
+        # Result depends on what's installed in this env; just check shape.
+        result = available_pdf_backends()
+        assert isinstance(result, list)
+        assert all(isinstance(n, str) for n in result)
 
 
 class TestConvenienceFunctions:

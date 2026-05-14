@@ -1147,8 +1147,8 @@ result = flow.run(query="...")
 
 ```python
 from typing import TypedDict
-from cyllama.agents.workflow import Workflow, reducer
-from cyllama.agents import ReActAgent, agent_node
+from cyllama.agents.workflow import Workflow, agent_node, reducer
+from cyllama.agents import ReActAgent
 
 class State(TypedDict):
     task: str

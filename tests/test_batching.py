@@ -324,19 +324,31 @@ class TestBatchPooling:
 
     def test_batch_generator_pooling_consistency(self, model_path):
         """Test that pooling produces same results as non-pooling."""
-        prompts = ["What is 2+2?"]
-        config = GenerationConfig(max_tokens=10, temperature=0.0)
+        # The batch pool is process-wide module state. If an earlier
+        # test left an entry in it with mismatched dimensions, the
+        # use_pooling=True generator below will pick that entry up and
+        # llama_decode will fail with a negative return code. Reset on
+        # entry and on exit so this test is order-independent (matches
+        # the pattern in test_batch_generator_multiple_generations_with_pooling).
+        from cyllama.llama.llama_cpp import reset_batch_pool
 
-        # Without pooling
-        gen_no_pool = BatchGenerator(model_path=model_path, n_seq_max=1, verbose=False, use_pooling=False)
-        response_no_pool = gen_no_pool.generate_batch(prompts, config)
+        reset_batch_pool()
+        try:
+            prompts = ["What is 2+2?"]
+            config = GenerationConfig(max_tokens=10, temperature=0.0)
 
-        # With pooling
-        gen_pool = BatchGenerator(model_path=model_path, n_seq_max=1, verbose=False, use_pooling=True)
-        response_pool = gen_pool.generate_batch(prompts, config)
+            # Without pooling
+            gen_no_pool = BatchGenerator(model_path=model_path, n_seq_max=1, verbose=False, use_pooling=False)
+            response_no_pool = gen_no_pool.generate_batch(prompts, config)
 
-        # Results should be identical
-        assert response_no_pool == response_pool
+            # With pooling
+            gen_pool = BatchGenerator(model_path=model_path, n_seq_max=1, verbose=False, use_pooling=True)
+            response_pool = gen_pool.generate_batch(prompts, config)
+
+            # Results should be identical
+            assert response_no_pool == response_pool
+        finally:
+            reset_batch_pool()
 
     def test_batch_generator_multiple_generations_with_pooling(self, model_path):
         """Test that pooling works correctly across multiple generations."""

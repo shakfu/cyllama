@@ -381,7 +381,7 @@ grammar = generate_tool_call_grammar(
 Grammars are automatically cached for performance:
 
 ```python
-from cyllama.agents import get_cached_tool_grammar, clear_grammar_cache
+from cyllama.agents.grammar import get_cached_tool_grammar, clear_grammar_cache
 
 # Automatically cached
 grammar = get_cached_tool_grammar(tools=[search])

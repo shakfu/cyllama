@@ -873,7 +873,7 @@ agent = ReActAgent(llm=llm, tools=tools, generation_config=config)
 ### ConstrainedGenerationConfig
 
 ```python
-from cyllama.agents import ConstrainedGenerationConfig
+from cyllama.agents.constrained import ConstrainedGenerationConfig
 
 config = ConstrainedGenerationConfig(
     temperature=0.7,
@@ -985,7 +985,8 @@ Async wrapper for ReActAgent:
 
 ```python
 import asyncio
-from cyllama.agents import AsyncReActAgent, tool
+from cyllama.agents import tool
+from cyllama.agents.async_agent import AsyncReActAgent
 
 @tool
 def search(query: str) -> str:
@@ -1014,7 +1015,8 @@ asyncio.run(main())
 Async wrapper for ConstrainedAgent:
 
 ```python
-from cyllama.agents import AsyncConstrainedAgent, tool
+from cyllama.agents import tool
+from cyllama.agents.async_agent import AsyncConstrainedAgent
 
 @tool
 def calculate(expression: str) -> str:
@@ -1038,7 +1040,8 @@ Helper function to run any synchronous agent asynchronously:
 
 ```python
 from cyllama import LLM
-from cyllama.agents import ReActAgent, run_agent_async, tool
+from cyllama.agents import ReActAgent, tool
+from cyllama.agents.async_agent import run_agent_async
 
 @tool
 def greet(name: str) -> str:

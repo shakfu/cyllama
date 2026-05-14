@@ -50,14 +50,23 @@ from .embedder import CacheInfo, Embedder, PoolingType
 from .loaders import (
     BaseLoader,
     DirectoryLoader,
+    DoclingBackend,
     JSONLoader,
     JSONLLoader,
     LoaderError,
     MarkdownLoader,
+    PageText,
+    PDFBackend,
     PDFLoader,
+    PdfminerBackend,
+    PymupdfBackend,
+    PypdfBackend,
     TextLoader,
+    available_pdf_backends,
     load_directory,
     load_document,
+    pdf_backend_info,
+    register_pdf_backend,
 )
 from .pipeline import (
     DEFAULT_PROMPT_TEMPLATE,
@@ -108,7 +117,7 @@ __all__ = [
     "VectorStore",  # backwards-compat alias for SqliteVectorStore
     "VectorStoreError",
     "VectorStoreProtocol",
-    "QdrantVectorStore",  # lazy-imported; requires cyllama[qdrant]
+    "QdrantVectorStore",  # lazy-imported; requires qdrant-client
     # Text Splitters
     "TextSplitter",
     "TokenTextSplitter",
@@ -121,6 +130,15 @@ __all__ = [
     "JSONLLoader",
     "DirectoryLoader",
     "PDFLoader",
+    "PDFBackend",
+    "PageText",
+    "DoclingBackend",
+    "PypdfBackend",
+    "PymupdfBackend",
+    "PdfminerBackend",
+    "register_pdf_backend",
+    "available_pdf_backends",
+    "pdf_backend_info",
     "LoaderError",
     "load_document",
     "load_directory",

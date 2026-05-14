@@ -8,11 +8,6 @@ from cyllama.agents import (
     ContractAgent,
     ContractPolicy,
     ContractViolation,
-    ContractTermination,
-    ContractSpec,
-    PreCondition,
-    PostCondition,
-    IterationState,
     Tool,
     tool,
     pre,
@@ -25,6 +20,11 @@ from cyllama.agents.contract import (
     _get_current_context,
     _set_current_context,
     ContractContext,
+    ContractSpec,
+    ContractTermination,
+    IterationState,
+    PostCondition,
+    PreCondition,
 )
 
 

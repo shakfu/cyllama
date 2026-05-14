@@ -449,6 +449,7 @@ class Chat:
         can reference it.
         """
         from ..agents import stream_agent
+        from ..agents.tools import DEMO_TOOLS
         from ..agents.types import EventType
 
         if not task.strip():
@@ -462,7 +463,7 @@ class Chat:
 
         final_answer = ""
         try:
-            for ev in stream_agent(kind, llm, task):
+            for ev in stream_agent(kind, llm, task, tools=list(DEMO_TOOLS)):
                 self._render_agent_event(ev)
                 if ev.type == EventType.ANSWER:
                     src = (ev.metadata or {}).get("source")

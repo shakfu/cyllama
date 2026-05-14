@@ -3,7 +3,7 @@
 Reference implementation of an alternative vector-store backend. Ships
 behind the optional ``qdrant`` dep group::
 
-    pip install cyllama[qdrant]
+    pip install qdrant-client
 
 Example:
     >>> from cyllama.rag import RAG
@@ -38,7 +38,7 @@ def _require_qdrant() -> tuple[Any, Any]:
         from qdrant_client.http import models as qmodels
     except ImportError as e:  # pragma: no cover - exercised only when dep missing
         raise ImportError(
-            "qdrant-client is required for QdrantVectorStore. Install with: pip install cyllama[qdrant]"
+            "qdrant-client is required for QdrantVectorStore. Install with: pip install qdrant-client"
         ) from e
     return QdrantClient, qmodels
 
