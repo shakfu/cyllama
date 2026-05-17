@@ -77,10 +77,12 @@ class TestQuartoRenderArgValidation:
     happens to be present, in which case the validation still wins because
     the bad args are rejected before exec."""
 
+    @needs_quarto
     def test_empty_input_and_content_rejected(self):
         with pytest.raises(ValueError, match="input.*content"):
             quarto_render(input="", content="", to="html")
 
+    @needs_quarto
     def test_unsupported_format_rejected(self):
         with pytest.raises(ValueError, match="unsupported format"):
             quarto_render(input="x.qmd", content="", to="rot13")

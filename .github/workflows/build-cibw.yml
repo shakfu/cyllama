@@ -276,5 +276,15 @@ jobs:
           ")
           TAG="${VERSION}"
           echo "Version: ${VERSION}, Tag: ${TAG}"
-          gh release create "${TAG}" --prerelease --title "cyllama ${TAG}" 2>/dev/null || true
+          NOTES_ARGS=()
+          if python3 scripts/release_notes.py "${VERSION}" --output release-notes.md; then
+            NOTES_ARGS=(--notes-file release-notes.md)
+          else
+            echo "No CHANGELOG section for ${VERSION}; creating release without notes."
+          fi
+          if gh release create "${TAG}" --prerelease --title "cyllama ${TAG}" "${NOTES_ARGS[@]}" 2>/dev/null; then
+            echo "Created release ${TAG}"
+          elif [ ${#NOTES_ARGS[@]} -gt 0 ]; then
+            gh release edit "${TAG}" "${NOTES_ARGS[@]}"
+          fi
           gh release upload "${TAG}" dist/*.whl --clobber
