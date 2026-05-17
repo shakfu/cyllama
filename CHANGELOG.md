@@ -17,9 +17,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+## [0.2.18]
+
 ### Added
 
-- **stable-diffusion.cpp updated (new C-surface fields and sample methods)** -- `src/cyllama/sd/stable_diffusion.pxd` and `src/cyllama/sd/stable_diffusion.pyx` mirror the upstream header changes: two new `sample_method_t` values (`EULER_CFG_PP_SAMPLE_METHOD`, `EULER_A_CFG_PP_SAMPLE_METHOD`); `sd_ctx_params_t` gains `backend` / `params_backend` (const char *) fields; `sd_sample_params_t` gains `extra_sample_args` (const char *); `new_upscaler_ctx()` signature extended with trailing `backend` / `params_backend` args. `Upscaler.__init__` adds optional `backend=` and `params_backend=` kwargs (default `None` → NULL passthrough, preserving prior behavior). All other new fields are passthrough bindings; high-level `SDContext` / `SDContextParams` defaults are unchanged.
+- **stable-diffusion.cpp updated (new C-surface fields and sample methods)** -- `src/cyllama/sd/stable_diffusion.pxd` and `src/cyllama/sd/stable_diffusion.pyx` mirror the upstream header changes: two new `sample_method_t` values (`EULER_CFG_PP_SAMPLE_METHOD`, `EULER_A_CFG_PP_SAMPLE_METHOD`); `sd_ctx_params_t` gains `backend` / `params_backend` (`const char *`) fields; `sd_sample_params_t` gains `extra_sample_args` (`const char *`); `new_upscaler_ctx()` signature extended with trailing `backend` / `params_backend` args. `Upscaler.__init__` adds optional `backend=` and `params_backend=` kwargs (default `None` → NULL passthrough, preserving prior behavior). All other new fields are passthrough bindings; high-level `SDContext` / `SDContextParams` defaults are unchanged.
 
 - **sqlite-vector updated to 0.9.95 (from 0.9.93)** -- `scripts/manage.py:SQLITEVECTOR_VERSION` bumped; pulled in via `python scripts/manage.py build --sqlite-vector`. No Python API changes; the extension is loaded by `cyllama.rag.store.SqliteVectorStore`.
 
