@@ -151,6 +151,10 @@ cdef extern from "llama.h":
         LLAMA_SPLIT_MODE_ROW    = 2 # split layers and KV across GPUs, use tensor parallelism if supported
         LLAMA_SPLIT_MODE_TENSOR = 3
 
+    cdef enum llama_context_type:
+        LLAMA_CONTEXT_TYPE_DEFAULT = 0
+        LLAMA_CONTEXT_TYPE_MTP     = 1
+
     ctypedef struct llama_token_data:
         llama_token id  # token id
         float logit     # log-odds of the token
@@ -252,9 +256,11 @@ cdef extern from "llama.h":
         uint32_t n_batch           # logical maximum batch size that can be submitted to llama_decode
         uint32_t n_ubatch          # physical maximum batch size
         uint32_t n_seq_max         # max number of sequences (i.e. distinct states for recurrent models)
+        uint32_t n_rs_seq          # number of recurrent-state snapshots per seq for rollback (0 = no rollback) [EXPERIMENTAL]
         int32_t n_threads          # number of threads to use for generation
         int32_t n_threads_batch    # number of threads to use for batch processing
 
+        llama_context_type      ctx_type          # set the context type (e.g. MTP)
         llama_rope_scaling_type rope_scaling_type # RoPE scaling type
         llama_pooling_type      pooling_type      # whether to pool (sum) embedding results by sequence id
         llama_attention_type    attention_type    # attention type to use for embeddings
@@ -402,6 +408,7 @@ cdef extern from "llama.h":
     cdef uint32_t llama_n_batch    (const llama_context * ctx)
     cdef uint32_t llama_n_ubatch   (const llama_context * ctx)
     cdef uint32_t llama_n_seq_max  (const llama_context * ctx)
+    cdef uint32_t llama_n_rs_seq   (const llama_context * ctx)
 
     cdef const llama_model * llama_get_model(const llama_context * ctx)
     cdef llama_memory_t   llama_get_memory  (const llama_context * ctx)
