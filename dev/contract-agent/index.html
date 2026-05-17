@@ -1,0 +1,2124 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="High-performance Python library for local AI inference">
+      
+      
+        <meta name="author" content="S. Alireza">
+      
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>ContractAgent: design notes and repositioning plan - cyllama</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#contractagent-design-notes-and-repositioning-plan" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="cyllama" class="md-header__button md-logo" aria-label="cyllama" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            cyllama
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              ContractAgent: design notes and repositioning plan
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/shakfu/cyllama" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    shakfu/cyllama
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="cyllama" class="md-nav__button md-logo" aria-label="cyllama" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    cyllama
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/shakfu/cyllama" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    shakfu/cyllama
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../intro/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Introduction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quick Start
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../summary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Summary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Llama.cpp
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Llama.cpp
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user_guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cookbook/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cookbook
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../build_backends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build Backends
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../build_options/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Advanced Build Options
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../context_caching/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context Caching
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cancelling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cancellation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../server_usage_examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Server Usage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Whisper.cpp
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Whisper.cpp
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../whisper/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Whisper Integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stable Diffusion
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Stable Diffusion
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../stable_diffusion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stable Diffusion Integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agents
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Agents
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents_overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agent Framework
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents/patterns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agent Patterns
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents/contracts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contracts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents/workflow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Workflow Runtime
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP Client
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_11" >
+        
+          
+          <label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RAG
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_11">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    RAG
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../rag_overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../rag_embedder/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Embedder
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../rag_vectorstore/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SqliteVectorStore
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../rag_text_processing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Text Processing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../rag_pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RAG Pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../rag_advanced/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Advanced Features
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_12" >
+        
+          
+          <label class="md-nav__link" for="__nav_12" id="__nav_12_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_12">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api_reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cli-cheatsheet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Cheatsheet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../threading/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Threading & Concurrency
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-the-problem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. The problem
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-what-contracts-uniquely-enable" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. What contracts uniquely enable
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-the-repositioning-plan" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. The repositioning plan
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. The repositioning plan">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#step-1-reposition-pre-in-the-module-docs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 1 — Reposition @pre in the module docs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-2-make-post-first-class-value-aware-postconditions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 2 — Make @post first-class (value-aware postconditions)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-3-list-form-agent-level-callbacks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 3 — List-form agent-level callbacks
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-4-surface-contract-violations-as-agentevents" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 4 — Surface contract violations as AgentEvents
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-5-make-iterationstate-actually-useful" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 5 — Make IterationState actually useful
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-6-recipes-doc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 6 — Recipes doc
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-total-scope-and-sequencing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Total scope and sequencing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-success-criteria" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Success criteria
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-non-goals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Non-goals
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-open-questions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Open questions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-relationship-to-other-proposals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Relationship to other proposals
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="contractagent-design-notes-and-repositioning-plan">ContractAgent: design notes and repositioning plan<a class="headerlink" href="#contractagent-design-notes-and-repositioning-plan" title="Permanent link">&para;</a></h1>
+<blockquote>
+<p><strong>The thesis:</strong> ContractAgent's value proposition needs to be re-centered.
+As currently documented, <code>@pre</code> is used for argument validation — which is
+now largely subsumed by <code>coerce_args</code> and <code>Annotated[]</code> constraint markers
+(landed in the second-pass agent work). What's left for contracts is the
+set of things schema cannot express: cross-field rules, state-dependent
+rules, behavioral postconditions, and cross-call invariants. The docs lead
+with the redundant use case and bury the unique one, which makes the agent
+look useless. This document captures the design of how to fix that.</p>
+</blockquote>
+<p>Maintainer audience. The plan is referenced from <code>AGENT_TOOL_REVIEW.md</code>
+proposal #17 and from the contract.py module docstring.</p>
+<h2 id="1-the-problem">1. The problem<a class="headerlink" href="#1-the-problem" title="Permanent link">&para;</a></h2>
+<p>Today's <code>contract.py</code> (1196 LoC) supports two attachment points:</p>
+<ol>
+<li><strong>Tool-level</strong>: <code>@pre</code> / <code>@post</code> decorators on tool functions.</li>
+<li><strong>Agent-level</strong>: <code>task_precondition</code>, <code>answer_postcondition</code>,
+   <code>iteration_invariant</code> passed to <code>ContractAgent.__init__</code>.</li>
+</ol>
+<p>The module docstring (lines 33-77) and the canonical examples lead with
+<code>@pre</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nd">@tool</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nd">@pre</span><span class="p">(</span><span class="k">lambda</span> <span class="n">args</span><span class="p">:</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;count&#39;</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;count must be positive&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="k">def</span><span class="w"> </span><span class="nf">fetch_items</span><span class="p">(</span><span class="n">count</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span> <span class="o">...</span>
+</code></pre></div>
+<p>After the second-pass landing of <code>coerce_args</code> + Annotated[] markers, the
+same constraint is now expressible as:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nd">@tool</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">fetch_items</span><span class="p">(</span><span class="n">count</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="n">Ge</span><span class="p">(</span><span class="mi">1</span><span class="p">)])</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span> <span class="o">...</span>
+</code></pre></div>
+<p>The Annotated form is declarative, runs at schema-generation time (so the
+LLM can see the constraint in the prompt), and survives the wire boundary
+(MCP, OpenAI). The <code>@pre</code> form is imperative, runs at dispatch time only,
+and is invisible to anything that doesn't speak ContractAgent.</p>
+<p>For type, range, enum, pattern, length, required, and multipleOf checks —
+which is what most documented <code>@pre</code> examples do — <code>@pre</code> is <em>strictly
+inferior</em> to schema. A user who reads the docs and tries ContractAgent for
+this purpose correctly concludes it's redundant.</p>
+<p>What <code>@pre</code> and the agent-level callbacks <em>uniquely</em> enable is buried.</p>
+<h2 id="2-what-contracts-uniquely-enable">2. What contracts uniquely enable<a class="headerlink" href="#2-what-contracts-uniquely-enable" title="Permanent link">&para;</a></h2>
+<p>Schema is purely structural. It cannot express:</p>
+<ol>
+<li><strong>Cross-field rules.</strong> "<code>end &gt; start</code>", "<code>payment_type == 'card'</code>
+   implies <code>card_number</code> is present". JSON Schema has <code>dependentRequired</code>,
+   <code>dependentSchemas</code>, and <code>if/then/else</code>, but they're awkward to write
+   and the LLM can't easily reason about them.</li>
+<li><strong>State-dependent rules.</strong> "the database connection is open", "the
+   user is authenticated", "now &lt; deadline", "the budget hasn't been
+   exhausted". Schema is purely structural and has zero runtime visibility.</li>
+<li><strong>Behavioral postconditions.</strong> "the returned list is non-empty", "the
+   output is sorted", "the answer doesn't contain PII", "the answer
+   doesn't leak system-prompt content". Schema has a <code>returns</code> field
+   conceptually but cyllama doesn't enforce it, and even if it did,
+   postconditions are usually behavioral rather than structural.</li>
+<li><strong>Cross-call / cross-iteration invariants.</strong> "errors &lt; 3", "total
+   cost &lt; budget", "elapsed &lt; deadline", "same tool not called more
+   than N times consecutively" (distinct from loop detection — that's
+   built-in, policy-driven; this is user-defined).</li>
+<li><strong>Agent-level postconditions.</strong> "the final answer mentions all
+   required entities", "the answer doesn't reveal internal reasoning".</li>
+</ol>
+<p>These five categories are the legitimate niche. They have no schema
+substitute, and they would be hard to express even if schema were richer.</p>
+<h2 id="3-the-repositioning-plan">3. The repositioning plan<a class="headerlink" href="#3-the-repositioning-plan" title="Permanent link">&para;</a></h2>
+<p>Six steps, scoped so they can land independently. The minimum-viable
+landing is steps 1 + 3 + 6 — that's a documentation reframe + small API
+addition + concrete recipes, and it's enough to flip ContractAgent from
+"looks redundant" to "has a clear niche". Steps 2, 4, 5 add real new
+capability that the niche needs but can land later as pull develops.</p>
+<h3 id="step-1-reposition-pre-in-the-module-docs">Step 1 — Reposition <code>@pre</code> in the module docs<a class="headerlink" href="#step-1-reposition-pre-in-the-module-docs" title="Permanent link">&para;</a></h3>
+<p><strong>Scope:</strong> docstring rewrite in <code>contract.py</code> (lines 1-86), no code
+changes. Lead with the four scenarios <code>@pre</code> is uniquely good at; demote
+argument-validation examples; cross-link to <code>Annotated[]</code> markers.</p>
+<p><strong>Concrete edits:</strong></p>
+<ul>
+<li>Replace the <code>@pre(lambda args: args['count'] &gt; 0)</code> example in the
+  Basic Usage block with a cross-field example
+  (<code>lambda args: args['end'] &gt; args['start']</code>) and a state-dependent
+  example (<code>lambda args: db.is_connected()</code>).</li>
+<li>Add a "When to use schema vs contracts" callout near the top, pointing
+  at <code>tools.py</code> for <code>Annotated[]</code> markers and reserving <code>@pre</code> for the
+  scenarios in §2.</li>
+<li>Update the docstring on the <code>pre</code> decorator function itself (lines
+  ~432-450) with the same framing.</li>
+</ul>
+<p><strong>Blast radius:</strong> zero (docs only). Estimated effort: half a day.</p>
+<h3 id="step-2-make-post-first-class-value-aware-postconditions">Step 2 — Make <code>@post</code> first-class (value-aware postconditions)<a class="headerlink" href="#step-2-make-post-first-class-value-aware-postconditions" title="Permanent link">&para;</a></h3>
+<p><strong>Scope:</strong> rewire <code>@post</code> to receive the raw return value, not the
+stringified observation.</p>
+<p><strong>Today's behavior.</strong> <code>ReActAgent._execute_tool_raw</code> returns the raw
+value (<code>react.py:402</code>), then the dispatch loop stringifies it
+(<code>react.py:403</code>: <code>observation = str(raw_result)</code>) before any postcondition
+runs. So <code>@post(lambda r: len(r) &gt; 0)</code> is testing <code>len(str(raw_result))</code>
+— a string length, not the actual list length.</p>
+<p><strong>Target behavior.</strong> <code>@post</code> receives <code>raw_result</code> itself, so:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nd">@tool</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="nd">@post</span><span class="p">(</span><span class="k">lambda</span> <span class="n">r</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">r</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;result must not be empty&quot;</span><span class="p">)</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="k">def</span><span class="w"> </span><span class="nf">fetch_rows</span><span class="p">(</span><span class="n">table</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">limit</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">Dict</span><span class="p">]:</span> <span class="o">...</span>
+</code></pre></div>
+<p>evaluates <code>len(r) &gt; 0</code> on the actual list. Two-arg form
+<code>@post(lambda r, args: ...)</code> already exists and continues to work.</p>
+<p><strong>Concrete edits:</strong></p>
+<ul>
+<li>ContractAgent's postcondition evaluation site reads <code>raw_result</code> from
+  the ACTION event metadata (which already preserves it via
+  <code>react.py:472</code> — <code>"raw_result": raw_result</code>) instead of the OBSERVATION
+  event's <code>content</code>.</li>
+<li>Document that <code>@post</code> predicates see the typed return value, not its
+  string render.</li>
+<li>Add a test asserting the predicate receives the actual type.</li>
+</ul>
+<p><strong>Blast radius:</strong> low. Touches contract.py's postcondition check and a
+small section of ContractAgent's stream loop. Estimated effort: half a
+day. Pairs naturally with Proposal #9 (typed observation rendering) but
+doesn't depend on it.</p>
+<h3 id="step-3-list-form-agent-level-callbacks">Step 3 — List-form agent-level callbacks<a class="headerlink" href="#step-3-list-form-agent-level-callbacks" title="Permanent link">&para;</a></h3>
+<p><strong>Scope:</strong> API addition. The current <code>ContractAgent.__init__</code> takes
+single callables:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">ContractAgent</span><span class="p">(</span><span class="n">llm</span><span class="o">=...</span><span class="p">,</span> <span class="n">tools</span><span class="o">=</span><span class="p">[</span><span class="o">...</span><span class="p">],</span> <span class="n">iteration_invariant</span><span class="o">=</span><span class="k">lambda</span> <span class="n">s</span><span class="p">:</span> <span class="n">s</span><span class="o">.</span><span class="n">errors</span> <span class="o">&lt;</span> <span class="mi">3</span><span class="p">)</span>
+</code></pre></div>
+<p>The model of "one big lambda" forces users to AND-compose unrelated
+invariants by hand. Accept lists instead — each entry checked
+independently, each violation surfaces as its own event:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">ContractAgent</span><span class="p">(</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>    <span class="n">llm</span><span class="o">=...</span><span class="p">,</span> <span class="n">tools</span><span class="o">=</span><span class="p">[</span><span class="o">...</span><span class="p">],</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>    <span class="n">iteration_invariants</span><span class="o">=</span><span class="p">[</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>        <span class="k">lambda</span> <span class="n">s</span><span class="p">:</span> <span class="n">s</span><span class="o">.</span><span class="n">errors</span> <span class="o">&lt;</span> <span class="mi">3</span><span class="p">,</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>        <span class="k">lambda</span> <span class="n">s</span><span class="p">:</span> <span class="n">s</span><span class="o">.</span><span class="n">elapsed_ms</span> <span class="o">&lt;</span> <span class="mi">30_000</span><span class="p">,</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>        <span class="k">lambda</span> <span class="n">s</span><span class="p">:</span> <span class="n">s</span><span class="o">.</span><span class="n">tool_calls</span> <span class="o">&lt;</span> <span class="mi">20</span><span class="p">,</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>    <span class="p">],</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>    <span class="n">answer_postconditions</span><span class="o">=</span><span class="p">[</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>        <span class="k">lambda</span> <span class="n">a</span><span class="p">:</span> <span class="s2">&quot;system_prompt&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">a</span><span class="p">,</span>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>        <span class="k">lambda</span> <span class="n">a</span><span class="p">:</span> <span class="n">contains_required_entities</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">,</span> <span class="s2">&quot;email&quot;</span><span class="p">]),</span>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>    <span class="p">],</span>
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>    <span class="n">task_preconditions</span><span class="o">=</span><span class="p">[</span>
+<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>        <span class="k">lambda</span> <span class="n">t</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="mi">10</span><span class="p">,</span>
+<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a>        <span class="k">lambda</span> <span class="n">t</span><span class="p">:</span> <span class="ow">not</span> <span class="n">t</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;ignore previous&quot;</span><span class="p">),</span>
+<a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a>    <span class="p">],</span>
+<a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a><span class="p">)</span>
+</code></pre></div>
+<p><strong>Backwards-compat.</strong> Singular forms (<code>iteration_invariant=</code>) still
+accepted; auto-wrapped into a single-element list. Document the plural
+forms as preferred and deprecate (not remove) the singular forms in a
+future minor version.</p>
+<p><strong>Concrete edits:</strong></p>
+<ul>
+<li>Add <code>iteration_invariants: Optional[List[Callable]]</code>,
+  <code>answer_postconditions: Optional[List[Callable]]</code>,
+  <code>task_preconditions: Optional[List[Callable]]</code> to <code>ContractAgent.__init__</code>.</li>
+<li>Normalize: if singular form passed, wrap in list. If both passed,
+  raise <code>ValueError</code>.</li>
+<li>The <code>_check_*</code> methods loop over the list, calling violation handler
+  per-failure (governed by the policy as today).</li>
+<li>Update the module docstring's Agent-Level Contracts example.</li>
+</ul>
+<p><strong>Blast radius:</strong> low. Strict superset of current API. Estimated effort:
+half a day.</p>
+<h3 id="step-4-surface-contract-violations-as-agentevents">Step 4 — Surface contract violations as <code>AgentEvent</code>s<a class="headerlink" href="#step-4-surface-contract-violations-as-agentevents" title="Permanent link">&para;</a></h3>
+<p><strong>Scope:</strong> make violations observable on the event stream, not just on
+loggers and exceptions.</p>
+<p><strong>Today's behavior.</strong> A violation under ENFORCE raises <code>ContractTermination</code>.
+A violation under OBSERVE calls the violation handler (typically a
+logger). Neither emits anything on the agent's event stream. So a
+monitoring UI that subscribes to <code>agent.stream(...)</code> has no way to know
+contracts ran, let alone whether they passed.</p>
+<p><strong>Target behavior.</strong> Emit <code>EventType.CONTRACT_VIOLATION</code> (and optionally
+<code>CONTRACT_PASS</code> under OBSERVE) on every check:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">yield</span> <span class="n">AgentEvent</span><span class="p">(</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>    <span class="nb">type</span><span class="o">=</span><span class="n">EventType</span><span class="o">.</span><span class="n">CONTRACT_VIOLATION</span><span class="p">,</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>    <span class="n">content</span><span class="o">=</span><span class="n">violation</span><span class="o">.</span><span class="n">message</span><span class="p">,</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    <span class="n">metadata</span><span class="o">=</span><span class="p">{</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>        <span class="s2">&quot;kind&quot;</span><span class="p">:</span> <span class="s2">&quot;pre&quot;</span> <span class="o">|</span> <span class="s2">&quot;post&quot;</span> <span class="o">|</span> <span class="s2">&quot;iteration_invariant&quot;</span> <span class="o">|</span> <span class="s2">&quot;answer_postcondition&quot;</span> <span class="o">|</span> <span class="s2">&quot;task_precondition&quot;</span><span class="p">,</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>        <span class="s2">&quot;location&quot;</span><span class="p">:</span> <span class="n">tool_name</span> <span class="ow">or</span> <span class="s2">&quot;agent&quot;</span><span class="p">,</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>        <span class="s2">&quot;predicate&quot;</span><span class="p">:</span> <span class="n">violation</span><span class="o">.</span><span class="n">predicate</span><span class="p">,</span>   <span class="c1"># source-extracted if available</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>        <span class="s2">&quot;policy&quot;</span><span class="p">:</span> <span class="n">violation</span><span class="o">.</span><span class="n">policy</span><span class="o">.</span><span class="n">value</span><span class="p">,</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>        <span class="s2">&quot;passed&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>    <span class="p">},</span>
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="p">)</span>
+</code></pre></div>
+<p><strong>Why this matters.</strong> Three concrete unlocks:</p>
+<ol>
+<li><strong>OBSERVE policy becomes useful in production</strong>, not just debugging.
+   Today OBSERVE logs and continues — but logs are out-of-band. With
+   events on the stream, an observer can react in real time.</li>
+<li><strong>Monitoring UIs can show contract state</strong> alongside thoughts and
+   actions, making the agent's reasoning auditable.</li>
+<li><strong>Test assertions become natural</strong> — <code>assert any(e.type == CONTRACT_VIOLATION for e in events)</code> rather than introspecting agent metrics.</li>
+</ol>
+<p><strong>Concrete edits:</strong></p>
+<ul>
+<li>Add <code>EventType.CONTRACT_VIOLATION</code> (and <code>CONTRACT_PASS</code>) to <code>types.py</code>.</li>
+<li>Each <code>_check_*</code> site in contract.py yields the event before applying
+  policy.</li>
+<li>Update the EventType docstring with the new variant.</li>
+<li>AsyncAgent wrappers in <code>async_agent.py</code> need no changes — they
+  pass-through unknown event types.</li>
+<li>Existing consumers that ignore unknown event types are unaffected.</li>
+<li>ACP/integrations layer needs an event-type map update; verify no
+  hardcoded list of event types exists in serialization code.</li>
+</ul>
+<p><strong>Blast radius:</strong> medium. New event type ripples through three agent
+loops (ReAct, Constrained, Contract), async wrappers, and any consumer
+that exhaustively-matches on <code>EventType</code>. Estimated effort: one day.</p>
+<h3 id="step-5-make-iterationstate-actually-useful">Step 5 — Make <code>IterationState</code> actually useful<a class="headerlink" href="#step-5-make-iterationstate-actually-useful" title="Permanent link">&para;</a></h3>
+<p><strong>Scope:</strong> expand the state object that <code>iteration_invariant</code> predicates
+receive.</p>
+<p><strong>Today's <code>IterationState</code></strong> (<code>contract.py:1175-1197</code>) tracks counters
+only: <code>iteration</code>, <code>errors</code>, <code>tool_calls</code>. Predicates can't express
+"stop if last observation hasn't changed in 3 iterations" or "stop if
+context size exceeds 4000 tokens" — both of which are exactly the kind
+of stateful invariant that justifies ContractAgent's existence.</p>
+<p><strong>Target shape:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nd">@dataclass</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="k">class</span><span class="w"> </span><span class="nc">IterationState</span><span class="p">:</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>    <span class="n">iteration</span><span class="p">:</span> <span class="nb">int</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>    <span class="n">errors</span><span class="p">:</span> <span class="nb">int</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>    <span class="n">tool_calls</span><span class="p">:</span> <span class="nb">int</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>    <span class="c1"># NEW fields:</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>    <span class="n">elapsed_ms</span><span class="p">:</span> <span class="nb">float</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>    <span class="n">last_tool_name</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>    <span class="n">last_observation</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>    <span class="n">observations_so_far</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>   <span class="c1"># capped to last N (default 10)</span>
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>    <span class="n">estimated_prompt_chars</span><span class="p">:</span> <span class="nb">int</span>       <span class="c1"># cheap proxy for token budget</span>
+<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>    <span class="n">consecutive_same_observation</span><span class="p">:</span> <span class="nb">int</span>  <span class="c1"># 0 if last two observations differ</span>
+</code></pre></div>
+<p><strong>Concrete edits:</strong></p>
+<ul>
+<li>Extend the <code>IterationState</code> dataclass in <code>contract.py</code>.</li>
+<li>Fill the new fields in <code>ContractAgent._update_iteration_state</code> (or
+  equivalent — the method that runs per-iteration in the stream loop).</li>
+<li>Document each new field.</li>
+<li>Cap <code>observations_so_far</code> to avoid unbounded memory growth.</li>
+</ul>
+<p><strong>Blast radius:</strong> low. Strict additive change to the dataclass. Estimated
+effort: half a day. Pairs naturally with Step 3 — list-form invariants
+plus richer state turn <code>iteration_invariants</code> into a real composition
+surface.</p>
+<h3 id="step-6-recipes-doc">Step 6 — Recipes doc<a class="headerlink" href="#step-6-recipes-doc" title="Permanent link">&para;</a></h3>
+<p><strong>Scope:</strong> new file <code>docs/agents/contracts.md</code> (or section in existing
+agents docs). Six concrete recipes, ~10 lines of code + 2-3 sentences
+each:</p>
+<ol>
+<li><strong>Cross-field precondition</strong> — <code>@pre(lambda a: a['end'] &gt; a['start'])</code></li>
+<li><strong>State-dependent precondition</strong> — <code>@pre(lambda a: db.is_open())</code>
+   with closure over the db handle</li>
+<li><strong>Behavioral postcondition</strong> — <code>@post(lambda r: r == sorted(r))</code></li>
+<li><strong>Cost-cap invariant</strong> — <code>iteration_invariants=[lambda s: s.cost &lt; 1.0]</code>
+   composed with a cost-tracking handler</li>
+<li><strong>Answer-content postcondition</strong> — <code>answer_postconditions=[lambda a: required_entity in a]</code></li>
+<li><strong>No-PII postcondition</strong> — <code>@post(lambda r: not detects_pii(r))</code></li>
+</ol>
+<p>Each recipe links to the relevant API in <code>cyllama.agents</code> and explicitly
+says "this is not expressible in JSON Schema — that's why contracts
+exist".</p>
+<p><strong>Blast radius:</strong> zero (new doc file). Estimated effort: half a day.</p>
+<h2 id="4-total-scope-and-sequencing">4. Total scope and sequencing<a class="headerlink" href="#4-total-scope-and-sequencing" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Step</th>
+<th>Title</th>
+<th>Blast radius</th>
+<th>Effort</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Reposition <code>@pre</code> docs</td>
+<td>zero</td>
+<td>0.5d</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Value-aware <code>@post</code></td>
+<td>low</td>
+<td>0.5d</td>
+</tr>
+<tr>
+<td>3</td>
+<td>List-form agent callbacks</td>
+<td>low</td>
+<td>0.5d</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Violation events</td>
+<td>medium</td>
+<td>1d</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Richer <code>IterationState</code></td>
+<td>low</td>
+<td>0.5d</td>
+</tr>
+<tr>
+<td>6</td>
+<td>Recipes doc</td>
+<td>zero</td>
+<td>0.5d</td>
+</tr>
+</tbody>
+</table>
+<p>Total: ~2.5 days for the full landing. Natural sequence: 1 → 3 → 6
+(minimum) → 2 → 5 → 4 (full).</p>
+<p><strong>Minimum-viable subset (1 + 3 + 6, ~1 day):</strong> docs reframe + list-form
+callbacks + recipes. Does not add new capability; repositions existing
+capability so users find the parts that aren't redundant. Lowest-risk
+way to test whether the repositioning lands. Steps 2, 4, 5 add real new
+capability and can wait for pull.</p>
+<h2 id="5-success-criteria">5. Success criteria<a class="headerlink" href="#5-success-criteria" title="Permanent link">&para;</a></h2>
+<p>After the full landing, the test is concrete: can a user articulate a
+constraint that ContractAgent expresses and <code>Annotated[]</code> doesn't?</p>
+<p>After Step 1 + 6: yes, by reading the docs and recipes.</p>
+<p>After Step 2: yes, for any behavioral postcondition.</p>
+<p>After Step 3 + 5: yes, for any cross-iteration invariant that needs
+elapsed time, observation history, or prompt-size visibility.</p>
+<p>After Step 4: yes, for any agent that needs to <em>expose</em> its contracts
+to an observer — UIs, monitoring, audit logs.</p>
+<p>If after all six steps a reader still concludes ContractAgent is
+useless, the repositioning has failed and the agent should be retired,
+not patched. This document is the bet that the repositioning will land.</p>
+<h2 id="6-non-goals">6. Non-goals<a class="headerlink" href="#6-non-goals" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Not subsuming schema.</strong> <code>Annotated[]</code> constraint markers remain the
+  canonical place for type/range/enum/pattern checks. Contracts do not
+  compete with schema; they fill the gaps schema cannot express.</li>
+<li><strong>Not adding a DSL.</strong> Predicates stay as plain Python callables. No
+  CEL, no JSONata, no "contract expression language". Python's
+  type-and-test ergonomics are sufficient; introducing a DSL would
+  reintroduce the cross-language coordination problem (predicates
+  invisible to JSON Schema, MCP, ACP) that this design accepts as a
+  constraint.</li>
+<li><strong>Not making contracts serializable across the wire.</strong> They are
+  Python-only and local to the agent process. If a use case demands
+  cross-process invariants, that's a different design problem (and
+  arguably belongs to MCP / ACP capabilities, not to ContractAgent).</li>
+<li><strong>Not deprecating the singular-form <code>iteration_invariant=</code> etc.</strong>
+  Backwards compatibility is preserved; the plural forms are additive.</li>
+</ul>
+<h2 id="7-open-questions">7. Open questions<a class="headerlink" href="#7-open-questions" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>How should violation handlers see the <code>CONTRACT_VIOLATION</code> event?</strong>
+  Currently handlers receive a <code>ContractViolation</code> dataclass. Should
+  they also see the emitted <code>AgentEvent</code>? If yes, the handler signature
+  grows; if no, the event becomes the only source of truth and the
+  handler is just a side-effect site.</li>
+<li><strong>Per-iteration vs per-event invariant checking.</strong> Today
+  <code>iteration_invariant</code> fires once per iteration. Should it fire on
+  <em>every</em> event (with type filtering), giving users finer-grained
+  intervention points? Trade-off: latency vs flexibility. Leave at
+  per-iteration for v1; revisit if pull develops.</li>
+<li><strong>Cost tracking inside <code>IterationState</code>.</strong> Step 5 lists <code>cost</code> as a
+  recipe (#4) but doesn't list it as a built-in field. Cost is
+  user-defined (depends on the model, the API, the accounting policy)
+  so it should stay user-supplied via a closure, not built into the
+  state object. Document the recipe.</li>
+</ul>
+<h2 id="8-relationship-to-other-proposals">8. Relationship to other proposals<a class="headerlink" href="#8-relationship-to-other-proposals" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Proposal #7 (tool-arg coercion)</strong>: landed. Subsumed most existing
+  <code>@pre</code> use cases. This document is the consequence.</li>
+<li><strong>Proposal #16 (Annotated[] markers)</strong>: landed. Same.</li>
+<li><strong>Proposal #9 (typed observation rendering)</strong>: pending. Step 2 above
+  benefits from this but doesn't require it — <code>raw_result</code> is already
+  preserved in event metadata.</li>
+<li><strong>Proposal #11 (real-inference grammar test)</strong>: landed. Established
+  the precedent for "verify before extend" that this document follows.</li>
+<li><strong>Proposal #15 (adversarial test suite)</strong>: pending. The contract
+  events from Step 4 should be exercised by the adversarial tests.</li>
+</ul>
+<p>This document supersedes the brief Proposal #17 entry in
+<code>AGENT_TOOL_REVIEW.md</code> (~lines 427-470). The review entry will be
+updated with a one-line pointer here once the work lands.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.expand", "navigation.top", "search.highlight", "content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

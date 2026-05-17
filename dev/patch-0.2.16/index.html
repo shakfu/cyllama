@@ -23,7 +23,7 @@
     
     
       
-        <title>Windows CUDA wheel: prebuilt DLL path - cyllama</title>
+        <title>cyllama 0.2.16 — SD "No devices found!" patch - cyllama</title>
       
     
     
@@ -74,7 +74,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#windows-cuda-wheel-prebuilt-dll-path" class="md-skip">
+        <a href="#cyllama-0216-sd-no-devices-found-patch" class="md-skip">
           Skip to content
         </a>
       
@@ -110,7 +110,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Windows CUDA wheel: prebuilt DLL path
+              cyllama 0.2.16 — SD "No devices found!" patch
             
           </span>
         </div>
@@ -1504,10 +1504,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#summary" class="md-nav__link">
+  <a href="#symptom" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Summary
+        Symptom
       
     </span>
   </a>
@@ -1515,10 +1515,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#current-state" class="md-nav__link">
+  <a href="#cause" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Current state
+        Cause
       
     </span>
   </a>
@@ -1526,10 +1526,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#recommended-config" class="md-nav__link">
+  <a href="#option-a-runtime-workaround-no-patching" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Recommended config
+        Option A — runtime workaround (no patching)
       
     </span>
   </a>
@@ -1537,10 +1537,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#tradeoffs" class="md-nav__link">
+  <a href="#option-b-patch-the-installed-package" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Tradeoffs
+        Option B — patch the installed package
       
     </span>
   </a>
@@ -1548,10 +1548,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#delvewheel-repair" class="md-nav__link">
+  <a href="#verification" class="md-nav__link">
     <span class="md-ellipsis">
       
-        delvewheel repair
+        Verification
       
     </span>
   </a>
@@ -1559,21 +1559,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#alternative-shared-ggml-source-build" class="md-nav__link">
+  <a href="#upstream-fix" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Alternative: shared-ggml + source build
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#rollout" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Rollout
+        Upstream fix
       
     </span>
   </a>
@@ -1600,130 +1589,59 @@
   
 
 
-<h1 id="windows-cuda-wheel-prebuilt-dll-path">Windows CUDA wheel: prebuilt DLL path<a class="headerlink" href="#windows-cuda-wheel-prebuilt-dll-path" title="Permanent link">&para;</a></h1>
-<h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
-<p>llama.cpp ships prebuilt CUDA Windows DLLs with every release (e.g.
-<a href="https://github.com/ggml-org/llama.cpp/releases/tag/b8828">b8828</a> includes
-<code>llama-b8828-bin-win-cuda-12.4-x64.zip</code>). <code>manage.py</code> already knows how to
-consume them — but the current <code>build-new-wheels.yml</code> CUDA-Windows job does
-not use them. This document explains why, what changes to make, and the
-tradeoffs.</p>
-<h2 id="current-state">Current state<a class="headerlink" href="#current-state" title="Permanent link">&para;</a></h2>
-<p>The CUDA-Windows job in <code>.github/workflows/build-new-wheels.yml</code> pins
-<code>WITH_DYLIB=0</code> and does not pass <code>--dynamic</code> to <code>manage.py build</code>. That
-forces a full static compile of llama.cpp under cibuildwheel, which invokes
-<code>nvcc</code> against the ggml-cuda source tree. This is by far the slowest part
-of the CI job and requires the full CUDA toolkit to be installed on the
-runner.</p>
-<p>Meanwhile, <code>manage.py:1329-1331</code> already constructs the right asset
-filename for a Windows CUDA release:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="k">if</span> <span class="n">getenv</span><span class="p">(</span><span class="s2">&quot;GGML_CUDA&quot;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">cuda_ver</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;LLAMACPP_CUDA_RELEASE&quot;</span><span class="p">,</span> <span class="s2">&quot;12.4&quot;</span><span class="p">)</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;llama-</span><span class="si">{</span><span class="n">version</span><span class="si">}</span><span class="s2">-bin-win-cuda-</span><span class="si">{</span><span class="n">cuda_ver</span><span class="si">}</span><span class="s2">-</span><span class="si">{</span><span class="n">arch_tag</span><span class="si">}</span><span class="s2">.zip&quot;</span>
+<h1 id="cyllama-0216-sd-no-devices-found-patch">cyllama 0.2.16 — SD "No devices found!" patch<a class="headerlink" href="#cyllama-0216-sd-no-devices-found-patch" title="Permanent link">&para;</a></h1>
+<h2 id="symptom">Symptom<a class="headerlink" href="#symptom" title="Permanent link">&para;</a></h2>
+<p>On 0.2.16 (any backend variant — <code>cyllama-cuda12</code>, <code>cyllama-vulkan</code>, etc.),
+constructing an <code>SDContext</code> fails to register the GPU backend:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>[ERROR] util.cpp:711  - No devices found!
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>[WARN]  util.cpp:752  - loading CPU backend
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>...
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>GGML_ASSERT(backend) failed   (ggml-backend.cpp:238)
 </code></pre></div>
-<p>And the build dispatcher at <code>manage.py:2259</code> selects between
-<code>download_release()</code> (fast) and <code>build_shared()</code> (slow) based on whether
-an asset exists and whether SD is sharing llama.cpp's ggml.</p>
-<h2 id="recommended-config">Recommended config<a class="headerlink" href="#recommended-config" title="Permanent link">&para;</a></h2>
-<p>Switch the CUDA-Windows job to the dynamic + vendored-SD config. Three
-env changes in <code>CIBW_ENVIRONMENT_WINDOWS</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nt">CIBW_ENVIRONMENT_WINDOWS</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">&gt;</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="no">GGML_CUDA=1</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span><span class="no">GGML_METAL=0</span>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span><span class="no">GGML_NATIVE=OFF</span>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">  </span><span class="no">CMAKE_CUDA_ARCHITECTURES=&quot;75&quot;</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">  </span><span class="no">WITH_DYLIB=1</span>
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">  </span><span class="no">SD_USE_VENDORED_GGML=1</span>
+<p>0.2.15 is unaffected.</p>
+<h2 id="cause">Cause<a class="headerlink" href="#cause" title="Permanent link">&para;</a></h2>
+<p>stable-diffusion.cpp <code>master-592-b8079e2</code> (PR #1448) switched from
+compile-time to runtime backend discovery. cyllama 0.2.16 bumped sd.cpp to
+<code>master-593-3d6064b</code> but the Python wrapper still assumes the old static
+auto-registration. <code>ggml_backend_load_all()</code> is exposed but never called,
+so when <code>new_sd_ctx</code> runs no backend is registered → CPU fallback → null
+backend abort in <code>ggml_backend_alloc_ctx_tensors</code>.</p>
+<h2 id="option-a-runtime-workaround-no-patching">Option A — runtime workaround (no patching)<a class="headerlink" href="#option-a-runtime-workaround-no-patching" title="Permanent link">&para;</a></h2>
+<p>Call the loader before constructing any <code>SDContext</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">cyllama.sd</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sd</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">sd</span><span class="o">.</span><span class="n">ggml_backend_load_all</span><span class="p">()</span>      <span class="c1"># register GPU backends</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="n">ctx</span> <span class="o">=</span> <span class="n">sd</span><span class="o">.</span><span class="n">SDContext</span><span class="p">(</span><span class="n">params</span><span class="p">)</span>
 </code></pre></div>
-<p>And pass <code>--dynamic</code> in the build step:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="l l-Scalar l-Scalar-Plain">python scripts/manage.py build --all --deps-only --no-sd-examples --dynamic &amp;&amp;</span>
+<h2 id="option-b-patch-the-installed-package">Option B — patch the installed package<a class="headerlink" href="#option-b-patch-the-installed-package" title="Permanent link">&para;</a></h2>
+<p>Edit <code>&lt;site-packages&gt;/cyllama/sd/__init__.py</code>. Locate the import block
+that ends with <code>set_preview_callback,</code> and the <code>__all__ = [</code> line that
+follows, then insert a call to <code>ggml_backend_load_all()</code> between them:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>    <span class="n">set_preview_callback</span><span class="p">,</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="p">)</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="c1"># sd.cpp master-592 (#1448) switched to runtime backend discovery; register</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="c1"># backends at import time so GPU support works without explicit user action.</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="n">ggml_backend_load_all</span><span class="p">()</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
 </code></pre></div>
-<p><code>SD_USE_VENDORED_GGML=1</code> is the critical pairing: the upstream prebuilt
-Windows DLLs are compiled with stock <code>GGML_MAX_NAME=64</code>. If SD tried to
-share those DLLs' ggml it would hit the same <code>ggml_tensor</code> layout
-mismatch documented in <code>ggml_max_name.md</code>. By having SD statically link
-its own vendored ggml (self-consistent at whatever <code>GGML_MAX_NAME</code> SD
-defaults to), the layout hazard disappears.</p>
-<p>With that pairing in place, the gate at <code>manage.py:2259</code>
-(<code>if asset is None or _sd_uses_shared_ggml()</code>) evaluates false and takes
-the <code>download_release()</code> fast path.</p>
-<h2 id="tradeoffs">Tradeoffs<a class="headerlink" href="#tradeoffs" title="Permanent link">&para;</a></h2>
-<p><strong>Wins:</strong></p>
-<ul>
-<li>
-<p>Much faster CI: no <code>nvcc</code> compile of ggml-cuda from source — the
-  longest single step in today's Linux CUDA job is eliminated on Windows</p>
-</li>
-<li>
-<p>Smaller runner footprint: arguably no need for the full CUDA toolkit
-  install, just the runtime DLLs that the prebuilt zip already contains
-  (verify before relying on this — nvcc may still be needed for Cython
-  bindings that touch CUDA headers)</p>
-</li>
-<li>
-<p>Matches the upstream llama.cpp binary exactly, which simplifies bug
-  reports</p>
-</li>
-</ul>
-<p><strong>Costs:</strong></p>
-<ul>
-<li>
-<p>SD statically links its own ggml, so the wheel carries two ggml copies
-  (llama.cpp's in the DLLs + SD's embedded in <code>libstable-diffusion.a</code>).
-  Slightly larger than the shared-ggml Linux CUDA wheel</p>
-</li>
-<li>
-<p>Locked to the CUDA version upstream ships (currently 12.4). Users on
-  older drivers may have compatibility issues. <code>LLAMACPP_CUDA_RELEASE</code>
-  lets you pick a different release variant if upstream publishes more
-  than one</p>
-</li>
-</ul>
-<h2 id="delvewheel-repair">delvewheel repair<a class="headerlink" href="#delvewheel-repair" title="Permanent link">&para;</a></h2>
-<p>When <code>WITH_DYLIB=1</code>, the following DLLs will need to land in the wheel
-from <code>thirdparty/llama.cpp/dynamic/</code>:</p>
-<ul>
-<li>
-<p><code>llama.dll</code></p>
-</li>
-<li>
-<p><code>ggml.dll</code></p>
-</li>
-<li>
-<p><code>ggml-base.dll</code></p>
-</li>
-<li>
-<p><code>ggml-cpu.dll</code></p>
-</li>
-<li>
-<p><code>ggml-cuda.dll</code></p>
-</li>
-</ul>
-<p>Verify that <code>delvewheel repair</code> picks them up via the build artifact path
-after scikit-build-core installs them into the wheel tree. The current
-<code>--no-dll</code> exclusions for <code>nvcuda.dll</code>, <code>cudart64_12.dll</code>,
-<code>cublas64_12.dll</code>, <code>cublasLt64_12.dll</code> are still correct (those are
-system libs the user must provide via the NVIDIA driver / CUDA runtime).</p>
-<p>If delvewheel starts mangling the bundled DLL names (its default for
-non-system libs), add <code>--no-mangle</code> for the project libs above — this is
-the Windows analogue of the Linux auditwheel SONAME-rewrite issue
-documented in <code>cuda-double-free.md</code>.</p>
-<h2 id="alternative-shared-ggml-source-build">Alternative: shared-ggml + source build<a class="headerlink" href="#alternative-shared-ggml-source-build" title="Permanent link">&para;</a></h2>
-<p>To match the Linux-CUDA dynamic wheel exactly (shared ggml across
-llama/whisper/SD, <code>GGML_MAX_NAME=128</code>, single ggml copy), the config
-would be:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>WITH_DYLIB=1
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>SD_USE_VENDORED_GGML=0
+<p>Then clear the cached bytecode so the edit takes effect:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>rm<span class="w"> </span>-f<span class="w"> </span>&lt;site-packages&gt;/cyllama/sd/__pycache__/__init__.cpython-*.pyc
 </code></pre></div>
-<p>But this forces <code>build_shared()</code> from source (the gate at
-<code>manage.py:2259</code> takes the slow path), which eliminates the speed win
-that motivated using the prebuilt DLLs in the first place. Not
-recommended for CI unless wheel size becomes a hard constraint.</p>
-<h2 id="rollout">Rollout<a class="headerlink" href="#rollout" title="Permanent link">&para;</a></h2>
-<p>For the new-wheels testbed, start with dynamic + vendored. Once CI is
-green and a test install works on a Windows box with an NVIDIA GPU,
-decide whether the few MB of duplicated ggml matters enough to switch to
-the source-build shared-ggml config.</p>
+<p>Locate <code>&lt;site-packages&gt;</code> with:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import cyllama, os; print(os.path.dirname(cyllama.__file__))&quot;</span>
+</code></pre></div>
+<h2 id="verification">Verification<a class="headerlink" href="#verification" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import cyllama.sd as sd; print(sd.get_system_info())&quot;</span>
+</code></pre></div>
+<p>Expected output includes a <code>load_backend: loaded CUDA backend from ...</code>
+(or Vulkan/Metal) line and your GPU listed with its compute capability.</p>
+<h2 id="upstream-fix">Upstream fix<a class="headerlink" href="#upstream-fix" title="Permanent link">&para;</a></h2>
+<p>This should be fixed in cyllama itself by calling <code>ggml_backend_load_all()</code>
+at the bottom of <code>src/cyllama/sd/__init__.py</code> after the import block, so
+import-time behavior matches the pre-592 static-link build. Until a
+release ships that fix, use Option A or Option B.</p>
 
 
 

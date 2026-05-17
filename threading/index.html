@@ -13,6 +13,10 @@
       
       
       
+        <link rel="prev" href="../cli-cheatsheet/">
+      
+      
+        <link rel="next" href="../troubleshooting/">
       
       
         
@@ -23,7 +27,7 @@
     
     
       
-        <title>Threading and concurrency in cyllama - cyllama</title>
+        <title>Threading & Concurrency - cyllama</title>
       
     
     
@@ -110,7 +114,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Threading and concurrency in cyllama
+              Threading & Concurrency
             
           </span>
         </div>
@@ -640,6 +644,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../cancelling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cancellation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../server_usage_examples/" class="md-nav__link">
         
   
@@ -935,6 +967,90 @@
   
   
     <li class="md-nav__item">
+      <a href="../agents/patterns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agent Patterns
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../agents/contracts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contracts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../agents/workflow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Workflow Runtime
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../mcp/" class="md-nav__link">
         
   
@@ -1196,8 +1312,10 @@
       
   
   
+    
   
   
+  
     
     
     
@@ -1208,13 +1326,11 @@
       
     
     
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
         
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_12" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_12" checked>
         
           
           <label class="md-nav__link" for="__nav_12" id="__nav_12_label" tabindex="">
@@ -1235,7 +1351,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_12">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1269,6 +1385,264 @@
   
 
       </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli-cheatsheet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Cheatsheet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Threading & Concurrency
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Threading & Concurrency
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#whats-safe-to-share" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What's safe to share
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-raises-and-how-to-fix-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What raises and how to fix it
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="What raises and how to fix it">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#mistake-module-global-llm-shared-across-handlers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Mistake: module-global LLM shared across handlers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mistake-threadpoolexecutor-with-one-shared-llm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Mistake: ThreadPoolExecutor with one shared LLM
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mistake-streaming-non-streaming-on-the-same-llm-concurrently" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Mistake: streaming + non-streaming on the same LLM concurrently
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#patterns-that-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Patterns that work
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Patterns that work">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pattern-1-one-llm-per-worker-recommended-for-most-production" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pattern 1: one LLM per worker (recommended for most production)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pattern-2-asyncllm-recommended-for-async-servers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pattern 2: AsyncLLM (recommended for async servers)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pattern-3-asyncioto_thread-with-sequential-ownership-transfer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pattern 3: asyncio.to_thread with sequential ownership transfer
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pattern-4-process-level-parallelism" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pattern 4: process-level parallelism
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sqlitevectorstore-a-different-rule-same-outcome" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SqliteVectorStore: a different rule, same outcome
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#backend-specific-caveats" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Backend-specific caveats
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#want-the-rationale" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Want the rationale?
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
