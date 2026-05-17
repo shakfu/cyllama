@@ -36,6 +36,8 @@ cdef extern from "stable-diffusion.h":
         RES_MULTISTEP_SAMPLE_METHOD
         RES_2S_SAMPLE_METHOD
         ER_SDE_SAMPLE_METHOD
+        EULER_CFG_PP_SAMPLE_METHOD
+        EULER_A_CFG_PP_SAMPLE_METHOD
         SAMPLE_METHOD_COUNT
 
     ctypedef enum scheduler_t:
@@ -180,6 +182,8 @@ cdef extern from "stable-diffusion.h":
         int chroma_t5_mask_pad
         bint qwen_image_zero_cond_t
         float max_vram
+        const char* backend
+        const char* params_backend
 
     ctypedef struct sd_image_t:
         uint32_t width
@@ -210,6 +214,7 @@ cdef extern from "stable-diffusion.h":
         float* custom_sigmas
         int custom_sigmas_count
         float flow_shift
+        const char* extra_sample_args
 
     ctypedef struct sd_pm_params_t:
         sd_image_t* id_images
@@ -419,7 +424,9 @@ cdef extern from "stable-diffusion.h":
                                       bint offload_params_to_cpu,
                                       bint direct,
                                       int n_threads,
-                                      int tile_size)
+                                      int tile_size,
+                                      const char* backend,
+                                      const char* params_backend)
     void free_upscaler_ctx(upscaler_ctx_t* upscaler_ctx)
     sd_image_t upscale(upscaler_ctx_t* upscaler_ctx, sd_image_t input_image, uint32_t upscale_factor) nogil
     int get_upscale_factor(upscaler_ctx_t* upscaler_ctx)

@@ -2916,6 +2916,8 @@ cdef class Upscaler:
     """
     cdef upscaler_ctx_t* _ctx
     cdef bytes _model_path_bytes
+    cdef bytes _backend_bytes
+    cdef bytes _params_backend_bytes
 
     def __cinit__(self):
         self._ctx = NULL
@@ -2936,7 +2938,9 @@ cdef class Upscaler:
                  n_threads: int = -1,
                  offload_to_cpu: bool = False,
                  direct: bool = False,
-                 tile_size: int = 0):
+                 tile_size: int = 0,
+                 backend: Optional[str] = None,
+                 params_backend: Optional[str] = None):
         """
         Create an upscaler context.
 
@@ -2946,6 +2950,8 @@ cdef class Upscaler:
             offload_to_cpu: Offload parameters to CPU
             direct: Use direct convolution
             tile_size: Tile size for processing (0 for default)
+            backend: Backend name (e.g. "metal", "cuda"); None = auto
+            params_backend: Backend used to hold parameters; None = auto
         """
         if not os.path.exists(model_path):
             raise FileNotFoundError(f"Model not found: {model_path}")
@@ -2955,12 +2961,23 @@ cdef class Upscaler:
         if n_threads < 0:
             n_threads = sd_get_num_physical_cores()
 
+        cdef const char* backend_c = NULL
+        cdef const char* params_backend_c = NULL
+        if backend is not None:
+            self._backend_bytes = backend.encode('utf-8')
+            backend_c = self._backend_bytes
+        if params_backend is not None:
+            self._params_backend_bytes = params_backend.encode('utf-8')
+            params_backend_c = self._params_backend_bytes
+
         self._ctx = new_upscaler_ctx(
             self._model_path_bytes,
             offload_to_cpu,
             direct,
             n_threads,
-            tile_size
+            tile_size,
+            backend_c,
+            params_backend_c
         )
 
         if self._ctx == NULL:

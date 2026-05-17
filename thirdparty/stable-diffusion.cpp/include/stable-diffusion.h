@@ -51,6 +51,8 @@ enum sample_method_t {
     RES_MULTISTEP_SAMPLE_METHOD,
     RES_2S_SAMPLE_METHOD,
     ER_SDE_SAMPLE_METHOD,
+    EULER_CFG_PP_SAMPLE_METHOD,
+    EULER_A_CFG_PP_SAMPLE_METHOD,
     SAMPLE_METHOD_COUNT
 };
 
@@ -203,7 +205,9 @@ typedef struct {
     bool chroma_use_t5_mask;
     int chroma_t5_mask_pad;
     bool qwen_image_zero_cond_t;
-    float max_vram;
+    float max_vram;  // GiB budget for graph-cut segmented param offload (0 = disabled, -1 = auto free VRAM minus 1 GiB)
+    const char* backend;
+    const char* params_backend;
 } sd_ctx_params_t;
 
 typedef struct {
@@ -238,6 +242,7 @@ typedef struct {
     float* custom_sigmas;
     int custom_sigmas_count;
     float flow_shift;
+    const char* extra_sample_args;
 } sd_sample_params_t;
 
 typedef struct {
@@ -424,7 +429,9 @@ SD_API upscaler_ctx_t* new_upscaler_ctx(const char* esrgan_path,
                                         bool offload_params_to_cpu,
                                         bool direct,
                                         int n_threads,
-                                        int tile_size);
+                                        int tile_size,
+                                        const char* backend,
+                                        const char* params_backend);
 SD_API void free_upscaler_ctx(upscaler_ctx_t* upscaler_ctx);
 
 SD_API sd_image_t upscale(upscaler_ctx_t* upscaler_ctx,
