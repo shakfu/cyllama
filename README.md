@@ -1055,3 +1055,9 @@ Contributions are welcome! Please see the [User Guide](docs/user_guide.md) for d
 ## License
 
 This project wraps [llama.cpp](https://github.com/ggml-org/llama.cpp), [whisper.cpp](https://github.com/ggml-org/whisper.cpp), and [stable-diffusion.cpp](https://github.com/leejet/stable-diffusion.cpp) which all follow the MIT licensing terms, as does cyllama.
+
+## Note on PyPI Release History
+
+Due to the size of cyllama wheels and PyPI's 10GB per-project storage limit, we have had to delete some earlier versions and known-buggy versions from PyPI to make space for new releases. Specifically, all releases below version 0.2.7 have been deleted from PyPI, and release 0.2.16 has been deleted because it included a bug that broke stable-diffusion.
+
+All of the deleted versions remain fully available in cyllama's [GitHub releases](https://github.com/shakfu/cyllama/releases) section. Note that PyPI does not allow deleted versions to be re-uploaded under the same version number, so these versions will not reappear on PyPI. Going forward, cyllama will continue to publish dual releases of wheels to both PyPI and GitHub.
