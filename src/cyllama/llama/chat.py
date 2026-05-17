@@ -372,9 +372,9 @@ class Chat:
 
         model_name = os.path.basename(self.model_path)
 
-    #     print(f"build      : inferna v{__version__}")
-    #     print(f"model      : {model_name}")
-    #     print("modalities : text")
+        #     print(f"build      : inferna v{__version__}")
+        #     print(f"model      : {model_name}")
+        #     print("modalities : text")
 
         left = f"{bold(cyan('cyllama'))} v{__version__} chat"
         right = model_name
