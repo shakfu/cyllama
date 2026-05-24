@@ -77,6 +77,8 @@ jobs:
   build_other_wheels:
     name: Build wheels on ${{ matrix.os }} ${{ matrix.arch }} (abi3)
     runs-on: ${{ matrix.os }}
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "15.0"
     strategy:
       fail-fast: false
       matrix:

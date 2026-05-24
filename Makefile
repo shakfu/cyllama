@@ -1,6 +1,5 @@
 # set path so `llama-cli` etc.. be in path
 export PATH := $(PWD)/bin:$(PATH)
-export MACOSX_DEPLOYMENT_TARGET ?= 15.0
 
 THIRDPARTY := $(PWD)/thirdparty
 LLAMACPP := $(THIRDPARTY)/llama.cpp

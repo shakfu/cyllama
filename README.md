@@ -194,7 +194,7 @@ Before pip installing `xllamacpp`, please ensure your system meets the following
    - macOS: install Xcode Command Line Tools and CMake.
    - Windows: install CMake and a native Windows C/C++ toolchain. For the current CI-compatible x86_64 build, install [w64devkit](https://github.com/skeeto/w64devkit) and put its `bin` directory on `PATH`. WSL is not required.
 
-6. Select backend via environment and build. The package build runs `scripts/build.py`, which configures and builds the vendored `llama.cpp` with CMake before compiling the Python extension. `make` is only a convenience wrapper for `python setup.py build_ext --inplace`; it is not required.
+6. Select backend via environment and build through `setup.py` or the PEP 517 build frontend. The package build configures and builds the vendored `llama.cpp` with CMake before compiling the Python extension. `scripts/build.py` is an internal helper invoked by the package build, not a standalone package build command. `make` is only a convenience wrapper for `python setup.py build_ext --inplace`; it is not required.
 
    Linux/macOS examples:
 
