@@ -1,7 +1,7 @@
 global-include *.pxd
 global-include *.pyx
 global-include *.pxi
-include scripts/setup.sh
+include scripts/build.py
 include scripts/copy_libs.py
 include requirements.txt
 include Makefile

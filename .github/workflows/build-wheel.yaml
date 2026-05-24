@@ -57,9 +57,6 @@ jobs:
               # Install build dependencies
               pip install -r requirements.txt
 
-              # Build llama.cpp and the extension
-              make
-
               # Build the wheel
               pip wheel . --no-deps --no-build-isolation -w /tmp/wheelhouse
 
@@ -120,7 +117,7 @@ jobs:
           # Build only cp310 for abi3 wheel (compatible with all Python 3.10+)
           CIBW_BUILD: cp310-*
           CIBW_TEST_REQUIRES: pytest requests pytest-asyncio pytest-timeout
-          CIBW_BEFORE_BUILD: pip install -r requirements.txt && make
+          CIBW_BEFORE_BUILD: pip install -r requirements.txt
           CIBW_BUILD_VERBOSITY: 1
           CIBW_ENVIRONMENT_MACOS: "XLLAMACPP_RELEASE=1 XLLAMACPP_BUILD_AARCH64=${{ matrix.arch == 'aarch64' && '1' || '' }}"
           CIBW_ENVIRONMENT_WINDOWS: "XLLAMACPP_RELEASE=1 XLLAMACPP_BUILD_AARCH64=${{ matrix.arch == 'aarch64' && '1' || '' }}"

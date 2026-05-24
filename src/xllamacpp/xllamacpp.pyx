@@ -753,6 +753,15 @@ cdef class CommonParamsSpeculativeDraft:
         self.p.p_min = value
 
     @property
+    def backend_sampling(self) -> bool:
+        """offload draft sampling to the backend."""
+        return self.p.backend_sampling
+
+    @backend_sampling.setter
+    def backend_sampling(self, value: bool):
+        self.p.backend_sampling = value
+
+    @property
     def mparams(self) -> CommonParamsModel:
         """draft model parameters."""
         return CommonParamsModel.from_ptr(&self.p.mparams, self)
@@ -760,15 +769,6 @@ cdef class CommonParamsSpeculativeDraft:
     @mparams.setter
     def mparams(self, value: CommonParamsModel):
         self.p.mparams = deref(value.p)
-
-    @property
-    def n_ctx(self) -> int:
-        """draft context size."""
-        return self.p.n_ctx
-
-    @n_ctx.setter
-    def n_ctx(self, value: int):
-        self.p.n_ctx = value
 
     @property
     def n_gpu_layers(self) -> int:
@@ -823,17 +823,6 @@ cdef class CommonParamsSpeculativeDraft:
     def devices(self, value: str):
         """Set devices from a comma-separated string of device names"""
         self.p.devices = c_parse_device_list(value)
-
-    @property
-    def replacements(self) -> list:
-        """main to speculative model replacements"""
-        return self.p.replacements
-
-    @replacements.setter
-    def replacements(self, value: list):
-        self.p.replacements.clear()
-        for item in value:
-            self.p.replacements.push_back((item[0], item[1]))
 
     @property
     def tensor_buft_overrides(self) -> str:
@@ -978,13 +967,18 @@ cdef class CommonParamsSpeculative:
         raise Exception(f"Can't construct an instance of {type(self).__name__}")
 
     @property
-    def type(self) -> xllamacpp.common_speculative_type:
-        """type of speculative decoding."""
-        return self.p.type
+    def types(self) -> list[xllamacpp.common_speculative_type]:
+        """types of speculative decoding."""
+        result = []
+        for i in range(self.p.types.size()):
+            result.append(self.p.types[i])
+        return result
 
-    @type.setter
-    def type(self, value: xllamacpp.common_speculative_type):
-        self.p.type = value
+    @types.setter
+    def types(self, values: list[xllamacpp.common_speculative_type]):
+        self.p.types.clear()
+        for value in values:
+            self.p.types.push_back(value)
 
     @property
     def draft(self) -> CommonParamsSpeculativeDraft:
@@ -1627,6 +1621,15 @@ cdef class CommonParams:
     @prompt.setter
     def prompt(self, value: str):
         self.p.prompt = value
+
+    @property
+    def system_prompt(self) -> str:
+        """the system prompt text"""
+        return self.p.system_prompt
+
+    @system_prompt.setter
+    def system_prompt(self, value: str):
+        self.p.system_prompt = value
 
     @property
     def prompt_file(self) -> str:
@@ -2520,8 +2523,17 @@ cdef class CommonParams:
         self.p.default_template_kwargs = value
 
     @property
+    def ui(self) -> bool:
+        """enable UI"""
+        return self.p.ui
+
+    @ui.setter
+    def ui(self, value: bool):
+        self.p.ui = value
+
+    @property
     def webui(self) -> bool:
-        """enable webui"""
+        """deprecated alias for ui"""
         return self.p.webui
 
     @webui.setter
@@ -2545,6 +2557,24 @@ cdef class CommonParams:
     @webui_config_json.setter
     def webui_config_json(self, value: str):
         self.p.webui_config_json = value
+
+    @property
+    def ui_mcp_proxy(self) -> bool:
+        """UI MCP proxy"""
+        return self.p.ui_mcp_proxy
+
+    @ui_mcp_proxy.setter
+    def ui_mcp_proxy(self, value: bool):
+        self.p.ui_mcp_proxy = value
+
+    @property
+    def ui_config_json(self) -> str:
+        """UI config json"""
+        return self.p.ui_config_json
+
+    @ui_config_json.setter
+    def ui_config_json(self, value: str):
+        self.p.ui_config_json = value
 
     @property
     def endpoint_slots(self) -> bool:

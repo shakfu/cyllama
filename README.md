@@ -188,36 +188,75 @@ Before pip installing `xllamacpp`, please ensure your system meets the following
  pip install -r requirements.txt
  ```
 
-5. Select backend via environment and build. Examples:
+5. Install platform build tools:
+
+   - Linux: install a C/C++ toolchain, CMake, and Python development headers through your distro package manager.
+   - macOS: install Xcode Command Line Tools and CMake.
+   - Windows: install CMake and a native Windows C/C++ toolchain. For the current CI-compatible x86_64 build, install [w64devkit](https://github.com/skeeto/w64devkit) and put its `bin` directory on `PATH`. WSL is not required.
+
+6. Select backend via environment and build. The package build runs `scripts/build.py`, which configures and builds the vendored `llama.cpp` with CMake before compiling the Python extension. `make` is only a convenience wrapper for `python setup.py build_ext --inplace`; it is not required.
+
+   Linux/macOS examples:
 
    - CPU (default):
      ```sh
-     make
+     python setup.py build_ext --inplace
      ```
 
    - CUDA:
      ```sh
      export XLLAMACPP_BUILD_CUDA=1
-     make
+     python setup.py build_ext --inplace
      ```
 
    - HIP (AMD):
      ```sh
      export XLLAMACPP_BUILD_HIP=1
-     make
+     python setup.py build_ext --inplace
      ```
 
    - Vulkan:
      ```sh
      export XLLAMACPP_BUILD_VULKAN=1
-     make
+     python setup.py build_ext --inplace
      ```
 
    - Enable BLAS (optional):
      ```sh
      export CMAKE_ARGS="-DGGML_BLAS=ON -DGGML_BLAS_VENDOR=OpenBLAS"
-     make
+     python setup.py build_ext --inplace
      ```
+
+   Windows PowerShell examples:
+
+   - CPU (default):
+     ```powershell
+     python setup.py build_ext --inplace
+     ```
+
+   - CUDA:
+     ```powershell
+     $env:XLLAMACPP_BUILD_CUDA = "1"
+     python setup.py build_ext --inplace
+     ```
+
+   - Vulkan:
+     ```powershell
+     $env:XLLAMACPP_BUILD_VULKAN = "1"
+     python setup.py build_ext --inplace
+     ```
+
+   - Enable BLAS (optional):
+     ```powershell
+     $env:CMAKE_ARGS = "-DGGML_BLAS=ON -DGGML_BLAS_VENDOR=OpenBLAS"
+     python setup.py build_ext --inplace
+     ```
+
+   To build a wheel directly on any platform:
+
+   ```sh
+   python -m build --wheel
+   ```
 
 ## Usage
 
@@ -1125,4 +1164,3 @@ Run the full test suite:
 ```sh
 make test
 ```
-

@@ -5,6 +5,7 @@ import sys
 import platform
 import subprocess
 from setuptools import Extension, setup
+from setuptools.command.build_ext import build_ext as setuptools_build_ext
 
 from Cython.Build import cythonize
 
@@ -26,6 +27,7 @@ VERSION = versioneer.get_version()
 PLATFORM = platform.system()
 
 LLAMACPP_LIBS_DIR = os.path.join(CWD, "src/llama.cpp/lib")
+MACOSX_DEPLOYMENT_TARGET = os.getenv("MACOSX_DEPLOYMENT_TARGET", "15.0")
 
 # ABI3+ (Limited API) support for Python 3.10+
 PY_LIMITED_API_VERSION = 0x030A0000  # Python 3.10
@@ -34,9 +36,13 @@ DEFINE_MACROS = [("Py_LIMITED_API", PY_LIMITED_API_VERSION)]
 if PLATFORM == "Windows":
     EXTRA_COMPILE_ARGS = ["/std:c++17"]
 else:
-    EXTRA_COMPILE_ARGS = ["-std=c++17", "-fvisibility=hidden", "-fvisibility-inlines-hidden"]
+    EXTRA_COMPILE_ARGS = [
+        "-std=c++17",
+        "-fvisibility=hidden",
+        "-fvisibility-inlines-hidden",
+    ]
     if PLATFORM == "Darwin":
-        EXTRA_COMPILE_ARGS.append("-mmacosx-version-min=12.0")
+        EXTRA_COMPILE_ARGS.append(f"-mmacosx-version-min={MACOSX_DEPLOYMENT_TARGET}")
 EXTRA_LINK_ARGS = []
 EXTRA_OBJECTS = []
 INCLUDE_DIRS = [
@@ -51,6 +57,7 @@ INCLUDE_DIRS = [
         CWD, "thirdparty/llama.cpp/build/tools/server"
     ),  # For including index.html.gz.hpp and loading.html.hpp
     os.path.join(CWD, "thirdparty/llama.cpp/tools/server"),
+    os.path.join(CWD, "thirdparty/llama.cpp/tools/ui"),
     os.path.join(CWD, "thirdparty/llama.cpp/tools/mtmd"),
     os.path.join(CWD, "thirdparty/llama.cpp/vendor"),
 ]
@@ -139,6 +146,7 @@ else:
         LIBRARIES.extend(["vulkan"])
 
 if PLATFORM == "Darwin":
+    EXTRA_LINK_ARGS.append(f"-mmacosx-version-min={MACOSX_DEPLOYMENT_TARGET}")
     EXTRA_LINK_ARGS.append("-Wl,-rpath," + LLAMACPP_LIBS_DIR)
     os.environ["LDFLAGS"] = " ".join(
         [
@@ -190,22 +198,62 @@ def mk_extension(name, sources, define_macros=None):
     )
 
 
+def _build_llamacpp():
+    code = subprocess.call(
+        [sys.executable, os.path.join(CWD, "scripts/build.py")], cwd=CWD
+    )
+    if code:
+        raise SystemExit(code)
+
+
+def _cythonize_extensions(extensions):
+    cythonized = cythonize(
+        extensions,
+        include_path=["src/xllamacpp"],
+        compiler_directives={
+            "language_level": "3",
+            "embedsignature": False,  # default: False
+            "emit_code_comments": False,  # default: True
+            "warn.unused": True,  # default: False
+            "binding": True,  # Required for ABI3+
+        },
+    )
+    for extension in cythonized:
+        if not hasattr(extension, "_needs_stub"):
+            extension._needs_stub = False
+    return cythonized
+
+
 # ----------------------------------------------------------------------------
 # COMMON SETUP CONFIG
+
+cmdclass = versioneer.get_cmdclass()
+
+_build_ext = cmdclass.get("build_ext", setuptools_build_ext)
+
+
+class build_ext(_build_ext):
+    def run(self):
+        _build_llamacpp()
+        self.distribution.ext_modules = _cythonize_extensions(
+            self.distribution.ext_modules
+        )
+        self.extensions = self.distribution.ext_modules
+        super().run()
+
+
+cmdclass["build_ext"] = build_ext
 
 common = {
     "name": NAME,
     "version": VERSION,
     "description": "A cython wrapper of the llama.cpp inference engine.",
     "python_requires": ">=3.10",
-    "cmdclass": versioneer.get_cmdclass(),
+    "cmdclass": cmdclass,
     "license": "MIT",
     # "include_package_data": True,
 }
 
-
-# forces cythonize in this case
-subprocess.call("cythonize *.pyx", cwd="src/xllamacpp", shell=True)
 
 if not os.path.exists("MANIFEST.in"):
     with open("MANIFEST.in", "w") as f:
@@ -229,16 +277,7 @@ extensions = [
 
 setup(
     **common,
-    ext_modules=cythonize(
-        extensions,
-        compiler_directives={
-            "language_level": "3",
-            "embedsignature": False,  # default: False
-            "emit_code_comments": False,  # default: True
-            "warn.unused": True,  # default: False
-            "binding": True,  # Required for ABI3+
-        },
-    ),
+    ext_modules=extensions,
     package_dir={"": "src"},
     options={
         "bdist_wheel": {

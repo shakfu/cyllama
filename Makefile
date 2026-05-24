@@ -1,6 +1,6 @@
 # set path so `llama-cli` etc.. be in path
 export PATH := $(PWD)/bin:$(PATH)
-export MACOSX_DEPLOYMENT_TARGET := 12
+export MACOSX_DEPLOYMENT_TARGET ?= 15.0
 
 THIRDPARTY := $(PWD)/thirdparty
 LLAMACPP := $(THIRDPARTY)/llama.cpp
@@ -10,7 +10,6 @@ LLAMACPP := $(THIRDPARTY)/llama.cpp
 all: build
 
 build:
-	@bash scripts/setup.sh
 	python setup.py build_ext --inplace
 
 wheel:

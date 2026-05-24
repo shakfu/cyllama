@@ -5,7 +5,6 @@ from libcpp.string cimport string as std_string
 from libcpp.vector cimport vector as std_vector
 from libcpp.set cimport set as std_set
 from libcpp.map cimport map as std_map
-from libcpp.utility cimport pair as std_pair
 
 
 #------------------------------------------------------------------------------
@@ -203,6 +202,10 @@ cdef extern from "llama.h":
         LLAMA_SPLIT_MODE_ROW    # split layers and KV across GPUs, use tensor parallelism if supported
         LLAMA_SPLIT_MODE_TENSOR
 
+    cpdef enum llama_context_type:
+        LLAMA_CONTEXT_TYPE_DEFAULT
+        LLAMA_CONTEXT_TYPE_MTP
+
     cpdef enum llama_model_kv_override_type:
         LLAMA_KV_OVERRIDE_TYPE_INT
         LLAMA_KV_OVERRIDE_TYPE_FLOAT
@@ -391,9 +394,10 @@ cdef extern from "common.h":
 
     cpdef enum common_speculative_type:
         COMMON_SPECULATIVE_TYPE_NONE          # no speculative decoding
-        COMMON_SPECULATIVE_TYPE_DRAFT         # draft model
-        COMMON_SPECULATIVE_TYPE_EAGLE3        # eagle draft model
-        COMMON_SPECULATIVE_TYPE_NGRAM_SIMPLE  # simple self-speculative decoding
+        COMMON_SPECULATIVE_TYPE_DRAFT_SIMPLE  # standalone draft model speculative decoding
+        COMMON_SPECULATIVE_TYPE_DRAFT_EAGLE3  # Eagle3 speculative decoding
+        COMMON_SPECULATIVE_TYPE_DRAFT_MTP     # Multi-token prediction
+        COMMON_SPECULATIVE_TYPE_NGRAM_SIMPLE  # simple self-speculative decoding based on n-grams
         COMMON_SPECULATIVE_TYPE_NGRAM_MAP_K   # self-speculative decoding with n-gram keys only
         COMMON_SPECULATIVE_TYPE_NGRAM_MAP_K4V # self-speculative decoding with n-gram keys and 4 m-gram values
         COMMON_SPECULATIVE_TYPE_NGRAM_MOD
@@ -409,9 +413,6 @@ cdef extern from "common.h":
         std_string docker_repo   # Docker repo                                                // NOLINT
         std_string name          # in format <user>/<model>[:<tag>] (tag is optional)         // NOLINT
 
-    ctypedef struct common_ngram_mod
-    ctypedef struct llama_model
-
     # draft-model-based speculative decoding parameters
     ctypedef struct common_params_speculative_draft:
         int32_t n_max   # maximum number of tokens to draft during speculative decoding
@@ -420,13 +421,10 @@ cdef extern from "common.h":
         float p_split   # speculative decoding split probability
         float p_min     # minimum speculative decoding probability (greedy)
 
+        bint backend_sampling  # offload draft sampling to the backend
+
         common_params_model mparams  # draft model parameters
 
-        llama_model * model  # a llama_model that can be shared by multiple speculative contexts (runtime only)
-
-        llama_context_params cparams  # parameters for the draft llama_context (runtime only)
-
-        int32_t n_ctx         # draft context size
         int32_t n_gpu_layers  # number of layers to store in VRAM for the draft model (-1 - use default)
 
         ggml_type cache_type_k  # KV cache data type for the K
@@ -437,14 +435,12 @@ cdef extern from "common.h":
 
         std_vector[ggml_backend_dev_t] devices  # devices to use for offloading
 
-        std_vector[std_pair[std_string, std_string]] replacements  # main to speculative model replacements
         std_vector[llama_model_tensor_buft_override] tensor_buft_overrides
 
     ctypedef struct common_params_speculative_ngram_mod:
         int32_t n_match
         int32_t n_max
         int32_t n_min
-        # std::shared_ptr<common_ngram_mod> obj  # runtime only, not exposed to Python
 
     ctypedef struct common_params_speculative_ngram_map:
         uint16_t size_n    # ngram size for lookup
@@ -456,7 +452,7 @@ cdef extern from "common.h":
         std_string lookup_cache_dynamic  # path of dynamic ngram cache file for lookup decoding
 
     ctypedef struct common_params_speculative:
-        common_speculative_type type    # type of speculative decoding
+        std_vector[common_speculative_type] types  # types of speculative decoding
 
         common_params_speculative_draft draft
 
@@ -520,7 +516,6 @@ cdef extern from "common.h":
 
         std_vector[ggml_backend_dev_t] devices # devices to use for offloading
         int32_t n_gpu_layers       # number of layers to store in VRAM (-1 - use default)
-        int32_t n_gpu_layers_draft # number of layers to store in VRAM for the draft model (-1 - use default)
         int32_t main_gpu           # the GPU that is used for scratch and small tensors
         float   tensor_split[128]  # how split tensors should be distributed across GPUs
         bint    fit_params         # whether to fit unset model/context parameters to free device memory
@@ -555,6 +550,7 @@ cdef extern from "common.h":
         std_set[std_string] model_tags      # model tags (informational, not used for routing)
         std_string hf_token             # HF token
         std_string prompt               #
+        std_string system_prompt        #
         std_string prompt_file          # store the external prompt file name
         std_string path_prompt_cache    # path to file for saving/loading prompt eval state
         std_string input_prefix         # string to prefix user inputs with
@@ -688,10 +684,16 @@ cdef extern from "common.h":
 
         std_map[std_string, std_string] default_template_kwargs
 
-        # webui configs
+        # UI configs
+        bint ui
+
+        # Deprecated: use ui, ui_mcp_proxy, ui_config_json instead
         bint webui
         bint webui_mcp_proxy
         std_string webui_config_json
+
+        bint ui_mcp_proxy
+        std_string ui_config_json
 
         bint endpoint_slots
         bint endpoint_props

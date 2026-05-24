@@ -519,9 +519,9 @@ def test_llama_server_speculative(model_path):
        ``"speculative.p_min"`` etc. in the JSON body of /completions or
        /chat/completions to override the server defaults for a single request.
 
-    Setting ``speculative.type`` is *not* required when a draft model path is
+    Setting ``speculative.types`` is *not* required when a draft model path is
     provided — ``has_dft()`` triggers the draft-model path automatically. The
-    ``type`` field only matters for n-gram / self-speculative variants which
+    ``types`` field only matters for n-gram / self-speculative variants which
     have no separate draft model.
     """
     draft_path = os.path.join(model_path, "stories15M-q4_0.gguf")

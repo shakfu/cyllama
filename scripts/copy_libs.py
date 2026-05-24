@@ -10,6 +10,7 @@ import os
 import shutil
 import glob
 import logging
+import platform
 
 ROOT = os.path.join(os.path.dirname(__file__), "..")
 
@@ -34,7 +35,7 @@ def copy_library_files():
         logging.warning(f"No .a or .lib files found in {src_dir}")
         return
 
-    linked_count = 0
+    staged_count = 0
     skipped_count = 0
 
     for lib_file in lib_files:
@@ -47,12 +48,20 @@ def copy_library_files():
             skipped_count += 1
             continue
 
-        logging.info(f"Linking {lib_file} -> {dst_file}")
-        os.symlink(lib_file, dst_file)
-        linked_count += 1
+        if platform.system() == "Windows":
+            logging.info(f"Copying {lib_file} -> {dst_file}")
+            shutil.copy2(lib_file, dst_file)
+        else:
+            try:
+                logging.info(f"Linking {lib_file} -> {dst_file}")
+                os.symlink(lib_file, dst_file)
+            except OSError:
+                logging.info(f"Symlink failed; copying {lib_file} -> {dst_file}")
+                shutil.copy2(lib_file, dst_file)
+        staged_count += 1
 
     logging.info(
-        f"Successfully linked {linked_count} libraries to {dst_dir} "
+        f"Successfully staged {staged_count} libraries to {dst_dir} "
         f"({skipped_count} skipped)"
     )
 

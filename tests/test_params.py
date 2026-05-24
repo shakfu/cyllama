@@ -87,12 +87,17 @@ def test_enum_values():
     assert xlc.llama_flash_attn_type.LLAMA_FLASH_ATTN_TYPE_ENABLED == 1
     assert xlc.llama_split_mode.LLAMA_SPLIT_MODE_ROW == 2
     assert xlc.llama_split_mode.LLAMA_SPLIT_MODE_TENSOR == 3
+    assert xlc.llama_context_type.LLAMA_CONTEXT_TYPE_DEFAULT == 0
+    assert xlc.llama_context_type.LLAMA_CONTEXT_TYPE_MTP == 1
     assert xlc.llama_model_kv_override_type.LLAMA_KV_OVERRIDE_TYPE_STR == 3
     assert xlc.dimre_method.DIMRE_METHOD_MEAN == 1
     assert xlc.common_conversation_mode.COMMON_CONVERSATION_MODE_AUTO == 2
     assert xlc.common_grammar_trigger_type.COMMON_GRAMMAR_TRIGGER_TYPE_PATTERN_FULL == 3
     assert xlc.common_reasoning_format.COMMON_REASONING_FORMAT_DEEPSEEK == 3
     assert xlc.common_params_sampling_config.COMMON_PARAMS_SAMPLING_CONFIG_TEMP == 64
+    assert xlc.common_speculative_type.COMMON_SPECULATIVE_TYPE_DRAFT_SIMPLE == 1
+    assert xlc.common_speculative_type.COMMON_SPECULATIVE_TYPE_DRAFT_EAGLE3 == 2
+    assert xlc.common_speculative_type.COMMON_SPECULATIVE_TYPE_DRAFT_MTP == 3
 
 
 def test_common_params():
@@ -107,7 +112,6 @@ def test_common_params():
     assert params.n_sequences == 1
     # assert params.p_split              ==   approx(0.1)
     assert params.n_gpu_layers == -1
-    # assert params.n_gpu_layers_draft   ==    -1
     assert params.main_gpu == 0
     assert params.tensor_split == [0] * 128
     assert params.grp_attn_n == 1
@@ -166,6 +170,9 @@ def test_common_params():
     assert params.model_tags == {"tag1", "tag2"}
     assert params.hf_token == ""
     assert params.prompt == ""
+    assert params.system_prompt == ""
+    params.system_prompt = "system"
+    assert params.system_prompt == "system"
     assert params.prompt_file == ""
     assert params.path_prompt_cache == ""
     assert params.input_prefix == ""
@@ -295,10 +302,16 @@ def test_common_params():
     params.default_template_kwargs = {"abc": "def"}
     assert params.default_template_kwargs == {"abc": "def"}
 
+    assert params.ui is True
+    params.ui = False
+    assert params.ui is False
     assert params.webui is True
     assert params.webui_mcp_proxy is False
     params.webui_mcp_proxy = True
     assert params.webui_mcp_proxy is True
+    assert params.ui_mcp_proxy is False
+    params.ui_mcp_proxy = True
+    assert params.ui_mcp_proxy is True
     assert params.endpoint_slots is True
     assert params.endpoint_props is False
     assert params.endpoint_metrics is False
@@ -373,6 +386,9 @@ def test_common_params():
     assert params.webui_config_json == ""
     params.webui_config_json = '{"theme": "dark"}'
     assert params.webui_config_json == '{"theme": "dark"}'
+    assert params.ui_config_json == ""
+    params.ui_config_json = '{"theme": "light"}'
+    assert params.ui_config_json == '{"theme": "light"}'
 
     assert params.models_dir == ""
     params.models_dir = "/models"
@@ -398,19 +414,25 @@ def test_common_params():
     assert params.sampling.samplers == "top_k;top_p;min_p;temperature;dry;typ_p;xtc"
     assert params.speculative.draft.cache_type_k == xlc.ggml_type.GGML_TYPE_F16
     assert params.speculative.draft.cache_type_v == xlc.ggml_type.GGML_TYPE_F16
-    assert params.speculative.draft.replacements == []
-    params.speculative.draft.replacements = [("a", "b")]
-    assert params.speculative.draft.replacements == [("a", "b")]
+    assert params.speculative.draft.backend_sampling is True
+    params.speculative.draft.backend_sampling = False
+    assert params.speculative.draft.backend_sampling is False
 
-    # Test new speculative type field
+    # Test new speculative types field
     assert (
-        params.speculative.type
-        == xlc.common_speculative_type.COMMON_SPECULATIVE_TYPE_NONE
+        params.speculative.types
+        == [xlc.common_speculative_type.COMMON_SPECULATIVE_TYPE_NONE]
     )
-    params.speculative.type = xlc.common_speculative_type.COMMON_SPECULATIVE_TYPE_DRAFT
+    params.speculative.types = [
+        xlc.common_speculative_type.COMMON_SPECULATIVE_TYPE_DRAFT_SIMPLE,
+        xlc.common_speculative_type.COMMON_SPECULATIVE_TYPE_DRAFT_MTP,
+    ]
     assert (
-        params.speculative.type
-        == xlc.common_speculative_type.COMMON_SPECULATIVE_TYPE_DRAFT
+        params.speculative.types
+        == [
+            xlc.common_speculative_type.COMMON_SPECULATIVE_TYPE_DRAFT_SIMPLE,
+            xlc.common_speculative_type.COMMON_SPECULATIVE_TYPE_DRAFT_MTP,
+        ]
     )
 
     # Test new ngram-based speculative decoding fields (ngram_simple)
@@ -470,7 +492,7 @@ def test_common_params():
     params.speculative.draft.p_split = 0.2
     assert params.speculative.draft.p_split == approx(0.2)
 
-    assert params.speculative.draft.p_min == approx(0.75)
+    assert params.speculative.draft.p_min == approx(0.0)
     params.speculative.draft.p_min = 0.8
     assert params.speculative.draft.p_min == approx(0.8)
 
@@ -485,8 +507,8 @@ def test_common_params():
     assert draft.n_min == params.speculative.draft.n_min
     assert draft.p_split == approx(params.speculative.draft.p_split)
     assert draft.p_min == approx(params.speculative.draft.p_min)
+    assert draft.backend_sampling == params.speculative.draft.backend_sampling
     assert draft.mparams.path == ""
-    assert draft.n_ctx == params.speculative.draft.n_ctx
     assert draft.n_gpu_layers == params.speculative.draft.n_gpu_layers
     assert draft.cache_type_k == params.speculative.draft.cache_type_k
     assert draft.cache_type_v == params.speculative.draft.cache_type_v
@@ -705,6 +727,7 @@ def test_lora_adapters():
 
 def test_llama_attn_rot_disable_env(model_path):
     """Test that LLAMA_ATTN_ROT_DISABLE environment variable affects the logic."""
+    import socket
     import subprocess
     import sys
 
@@ -720,6 +743,7 @@ import xllamacpp as xlc
 
 params = xlc.CommonParams()
 params.model.path = sys.argv[1]
+params.port = int(sys.argv[2])
 params.n_ctx = 256
 params.n_predict = 1
 params.warmup = False
@@ -734,9 +758,17 @@ server = xlc.Server(params)
         pythonpath = os.pathsep.join([os.getcwd()] + sys.path)
         base_env = {**os.environ, "PYTHONPATH": pythonpath}
 
+        def get_free_port():
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                try:
+                    sock.bind(("127.0.0.1", 0))
+                except PermissionError:
+                    pytest.skip("localhost socket binding is not permitted")
+                return sock.getsockname()[1]
+
         # Test setting to 1 (disable rotation) - should log a warning
         result = subprocess.run(
-            [sys.executable, "-c", test_script, model_file],
+            [sys.executable, "-c", test_script, model_file, str(get_free_port())],
             capture_output=True,
             text=True,
             cwd=os.getcwd(),
@@ -749,7 +781,7 @@ server = xlc.Server(params)
 
         # Test setting to 0 (enable rotation, default behavior) - should not log the warning
         result = subprocess.run(
-            [sys.executable, "-c", test_script, model_file],
+            [sys.executable, "-c", test_script, model_file, str(get_free_port())],
             capture_output=True,
             text=True,
             cwd=os.getcwd(),
@@ -765,7 +797,7 @@ server = xlc.Server(params)
             k: v for k, v in base_env.items() if k != "LLAMA_ATTN_ROT_DISABLE"
         }
         result = subprocess.run(
-            [sys.executable, "-c", test_script, model_file],
+            [sys.executable, "-c", test_script, model_file, str(get_free_port())],
             capture_output=True,
             text=True,
             cwd=os.getcwd(),

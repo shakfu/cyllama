@@ -125,7 +125,6 @@ jobs:
             cargo --version
             printenv
             git config --global --add safe.directory "*"
-            make
             python -m build --wheel
             df -ha
             echo "Clean up"
@@ -246,6 +245,35 @@ jobs:
              rustup show
            fi
 
+      - name: Configure SPIRV-Headers package (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          VULKAN_SDK_CMAKE="${VULKAN_SDK//\\//}"
+          SPIRV_HEADERS_PACKAGE_DIR="${RUNNER_TEMP//\\//}/spirv-headers-cmake/SPIRV-Headers"
+          SPIRV_INCLUDE_DIR="$VULKAN_SDK_CMAKE/Include"
+
+          if [ ! -f "$SPIRV_INCLUDE_DIR/spirv/unified1/spirv.hpp" ] && \
+             [ ! -f "$SPIRV_INCLUDE_DIR/spirv-headers/spirv.hpp" ] && \
+             [ ! -f "$SPIRV_INCLUDE_DIR/spirv.hpp" ]; then
+            echo "SPIR-V headers were not found under $SPIRV_INCLUDE_DIR"
+            find "$SPIRV_INCLUDE_DIR" -maxdepth 3 -iname '*spirv*' -print || true
+            exit 1
+          fi
+
+          mkdir -p "$SPIRV_HEADERS_PACKAGE_DIR"
+          cat > "$SPIRV_HEADERS_PACKAGE_DIR/SPIRV-HeadersConfig.cmake" <<EOF
+          set(SPIRV-Headers_FOUND TRUE)
+          if (NOT TARGET SPIRV-Headers::SPIRV-Headers)
+              add_library(SPIRV-Headers::SPIRV-Headers INTERFACE IMPORTED)
+              set_target_properties(SPIRV-Headers::SPIRV-Headers PROPERTIES
+                  INTERFACE_INCLUDE_DIRECTORIES "$SPIRV_INCLUDE_DIR")
+          endif()
+          EOF
+
+          echo "SPIRV_HEADERS_CMAKE_ARG=-DSPIRV-Headers_DIR=$SPIRV_HEADERS_PACKAGE_DIR" >> "$GITHUB_ENV"
+          echo "Configured SPIRV-Headers_DIR=$SPIRV_HEADERS_PACKAGE_DIR"
+
       - name: System Dependencies (macOS)
         if: runner.os == 'macOS'
         run: |
@@ -288,12 +316,16 @@ jobs:
           XLLAMACPP_BUILD_VULKAN: "1"
           VERSIONEER_CLOSEST_TAG_ONLY: "1"
           VERBOSE: "1"
-          CMAKE_ARGS: ${{ runner.arch == 'ARM64' && '-G Ninja -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Release' || '' }}
+        shell: bash
         run: |
+          if [ "${{ runner.arch }}" = "ARM64" ]; then
+            export CMAKE_ARGS="-G Ninja -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Release ${SPIRV_HEADERS_CMAKE_ARG:-}"
+          else
+            export CMAKE_ARGS="${SPIRV_HEADERS_CMAKE_ARG:-}"
+          fi
           python --version
           printenv
           git config --global --add safe.directory "*"
-          make
           python -m build --wheel
 
       - name: Repair Wheel (Linux)
@@ -493,7 +525,7 @@ jobs:
           # The system GCC fully supports C++17 which is all that's needed.
           export CC=/usr/bin/gcc
           export CXX=/usr/bin/g++
-          # CMAKE_ARGS is picked up by scripts/setup.sh to pass to CMake
+          # CMAKE_ARGS is picked up by scripts/build.py to pass to CMake
           # -DCMAKE_CUDA_HOST_COMPILER ensures nvcc also uses system g++ for
           # host-side compilation, preventing CXXABI_1.3.15 from CUDA objects.
           export CMAKE_ARGS="-DCMAKE_C_COMPILER=/usr/bin/gcc -DCMAKE_CXX_COMPILER=/usr/bin/g++ -DCMAKE_CUDA_HOST_COMPILER=/usr/bin/g++"
@@ -503,7 +535,6 @@ jobs:
           echo "CMAKE_ARGS=$CMAKE_ARGS"
           $CXX --version
           
-          make
           python -m build --wheel
           
           echo "CUDA_VERSION=$cuda_version" >> $GITHUB_ENV
@@ -621,7 +652,6 @@ jobs:
           export VERSIONEER_CLOSEST_TAG_ONLY=1
           export VERBOSE=1
                     
-          make
           python -m build --wheel
           
           # On Windows, we use delvewheel for wheel repair
