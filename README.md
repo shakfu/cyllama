@@ -73,6 +73,18 @@ print(_backend.cuda)   # True if built with CUDA
 print(_backend.metal)  # True if built with Metal
 ```
 
+### Python version & wheels
+
+From **v0.3.0** onwards, cyllama publishes **abi3** wheels (CPython stable ABI) that require **Python 3.12+** -- a single wheel per platform works on 3.12, 3.13, and 3.14. This replaces the earlier per-version wheels that covered Python 3.10-3.14, and is done for efficiency: one abi3 wheel instead of five per platform substantially cuts the number of artifacts and keeps each project within PyPI's per-project size limit.
+
+If you are on **Python 3.10 or 3.11**, install the last pre-abi3 release, which shipped per-version (non-abi3) wheels across 3.10-3.14:
+
+```sh
+pip install "cyllama==0.2.18"   # or: pip install "cyllama<0.3.0"
+```
+
+Otherwise, build from source (see below), which works on any supported Python.
+
 ### Optional integrations
 
 cyllama has zero hard dependencies beyond its compiled core. Features built on third-party libraries discover them lazily at runtime, so you install only what you actually use.
