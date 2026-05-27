@@ -405,7 +405,12 @@ Sampling methods for diffusion:
 | `LCM` | Latent Consistency Model |
 | `DDIM_TRAILING` | DDIM trailing |
 | `TCD` | TCD |
+| `RES_MULTISTEP` | Residual multistep |
+| `RES_2S` | Residual 2S |
 | `ER_SDE` | ER-SDE |
+| `EULER_CFG_PP` | Euler CFG++ |
+| `EULER_A_CFG_PP` | Euler ancestral CFG++ |
+| `EULER_GE` | Euler GE |
 | `COUNT` | Sentinel — auto-resolve per model (default) |
 
 ### Scheduler
@@ -422,7 +427,11 @@ Noise schedulers:
 | `SGM_UNIFORM` | SGM uniform |
 | `SIMPLE` | Simple scheduler |
 | `SMOOTHSTEP` | Smoothstep scheduler |
+| `KL_OPTIMAL` | KL-optimal scheduler |
 | `LCM` | LCM scheduler |
+| `BONG_TANGENT` | Bong-tangent scheduler |
+| `LTX2` | LTX-2 scheduler |
+| `COUNT` | Sentinel — auto-resolve per model (default) |
 
 ### Prediction
 

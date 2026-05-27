@@ -1248,13 +1248,13 @@ if Speculative.is_compat(ctx_target):
 
 **Parameters:**
 
-- `n_max`: Maximum number of tokens to draft (default: 16)
+- `n_max`: Maximum number of tokens to draft (default: 3)
 
 - `n_min`: Minimum number of draft tokens (default: 0)
 
 - `p_split`: Speculative decoding split probability (default: 0.1)
 
-- `p_min`: Minimum acceptance probability (default: 0.75)
+- `p_min`: Minimum acceptance probability (default: 0.0)
 
 **Methods:**
 
