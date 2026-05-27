@@ -1,5 +1,12 @@
 # abi3 Conversion Plan
 
+> **Status (v0.3.0):** Decided and in effect. Published wheels are abi3-only
+> (`cp312-abi3`, Python 3.12+); `requires-python` is `>=3.12`. Python 3.10/3.11
+> users install `cyllama<0.3.0` or build from source. The build remains opt-in
+> via the `CYLLAMA_ABI3` CMake option (default `OFF`) -- releases are produced by
+> the `*-abi3` workflows and `make wheel-abi3`; the per-version build path is
+> retained for local development.
+
 ## Motivation
 
 cyllama currently builds a separate wheel for each supported Python version
@@ -21,9 +28,10 @@ https://cython.readthedocs.io/en/latest/src/userguide/limited_api.html):
   loops, sampler chains).
 - **3.12 is the sweet spot**: memoryviews + vectorcall both present.
 
-Effective reduction is ~3x against the current 3.10-3.14 matrix (5 -> 1
-per platform/backend, minus 3.10 and 3.11 which fall back to the
-per-version build).
+Effective reduction is ~5x against the former 3.10-3.14 matrix (5 -> 1
+per platform/backend). As of v0.3.0 the 3.10 and 3.11 per-version wheels
+are no longer published -- those users install `cyllama<0.3.0` or build
+from source.
 
 Cython does not expose a `limited_api` compiler directive. Its
 limited-API codegen is driven entirely by the `Py_LIMITED_API` C
@@ -140,8 +148,9 @@ the limited-API directive is passed at build time.
    existing matrix for one release.
 4. Add a post-build verification job: download the abi3 wheel,
    `pip install` + `pytest` on 3.12, 3.13, and 3.14.
-5. After one clean release with no regressions, consider whether to
-   switch the default (or keep both paths indefinitely).
+5. **Done (v0.3.0):** abi3 is the sole published distribution. The CMake
+   default stays `OFF` (per-version build remains for local dev); releases
+   run the `*-abi3` workflows. `requires-python` raised to `>=3.12`.
 
 ## 6. Known risks
 
@@ -159,9 +168,9 @@ the limited-API directive is passed at build time.
 - The minimum-Python floor (3.12) is locked in for the lifetime of the
   abi3 wheel: C API additions from 3.13+ cannot be used without either
   raising the floor or dropping abi3 on that code path.
-- 3.10 and 3.11 users fall back to the per-version build (which remains
-  the default). When those EOL (3.10: Oct 2026, 3.11: Oct 2027), the
-  abi3 wheel can become the sole distribution.
+- 3.10 and 3.11 are no longer supported by published wheels as of v0.3.0
+  (`requires-python>=3.12`). Those users install `cyllama<0.3.0` or build
+  from source. (3.10 EOL: Oct 2026, 3.11 EOL: Oct 2027.)
 
 ## 7. Benefit estimate
 

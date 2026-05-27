@@ -11,6 +11,11 @@ on:
         required: false
         default: false
         type: boolean
+      publish_to_pypi:
+        description: 'Publish wheels to PyPI'
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -288,3 +293,27 @@ jobs:
             gh release edit "${TAG}" "${NOTES_ARGS[@]}"
           fi
           gh release upload "${TAG}" dist/*.whl --clobber
+
+  # ---------------------------------------------------------------------------
+  # Optional: publish wheels to PyPI. Requires the PYPI_API_TOKEN repo secret
+  # (account- or project-scoped). Opt-in via the publish_to_pypi dispatch input.
+  # ---------------------------------------------------------------------------
+  publish_to_pypi:
+    name: Publish to PyPI
+    needs: [collect_wheels, smoke_test]
+    if: inputs.publish_to_pypi
+    runs-on: ubuntu-latest
+    environment: pypi
+    steps:
+      - name: Download collected wheels
+        uses: actions/download-artifact@v8
+        with:
+          name: cyllama-wheels-all
+          path: dist
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist
+          password: ${{ secrets.PYPI_API_TOKEN }}
+          skip-existing: true

@@ -38,7 +38,7 @@ This documentation covers:
 
 ## Prerequisites
 
-- Python 3.10 or later
+- Python 3.12 or later
 
 - Familiarity with command-line tools
 
@@ -48,7 +48,7 @@ No machine learning expertise is required for basic usage.
 
 ## Conventions
 
-Code examples use Python 3.10+ syntax:
+Code examples use Python 3.12+ syntax:
 
 ```python
 from cyllama import complete

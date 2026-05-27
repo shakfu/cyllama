@@ -32,22 +32,6 @@ These three items are the residue of `AGENT_TOOL_REVIEW.md` after every concrete
 
 - [ ] **ACP protocol-version negotiation** -- `src/cyllama/agents/acp.py` hardcodes `ACP_PROTOCOL_VERSION = "2025-01-01"` (line 53) and embeds it directly in initialize responses (line 480). The module is marked experimental for this and other reasons, so the warning currently buys time -- but if ACP graduates from POC to a genuinely-used integration point, parameterize on the client's announced version (negotiate during initialize). Trigger: an ACP client surfaces with a different version. (A reference-client conformance test was also flagged but doesn't belong in a TODO until a harness target exists.)
 
-### Pattern gaps (from `docs/agents/patterns.md`)
-
-The five pattern gaps identified in the original audit have all landed.
-See [`docs/agents/patterns.md`](docs/agents/patterns.md) for the full
-catalog plus the patterns intentionally not supported.
-
-- [x] **#1 -- `ReflectionLoop` helper** -- landed in `src/cyllama/agents/composition.py`. Worker + critic loop with configurable acceptance marker, custom revision template, and per-pass `source`/`parent_event_id` annotations on streamed events. 6 tests in `tests/test_agents_composition.py::TestReflection*`.
-
-- [x] **#2 -- `rag_as_tool` helper** -- landed in `composition.py`. Wraps any `RAG`-shaped object (`search` / `retrieve`) as a `Tool`; default formatter emits one `[score] text` line per hit, deduplicated by text. 8 tests.
-
-- [x] **#3 -- `SemanticMemory` primitive** -- landed in new `src/cyllama/agents/memory.py`. Namespace-aware facade over any RAG instance; `remember(text, namespace, metadata)` and `retrieve(query, namespace, top_k)`. Over-fetches from the underlying search so the namespace filter has room to find enough hits. `forget()` raises `NotImplementedError` pending a RAG-side filtered-delete API (documented). 14 tests in `tests/test_agents_memory.py`.
-
-- [x] **#4 -- `plan_and_execute` helper** -- landed in `composition.py`. Default plan parser handles `[...]`, `{"steps"|"plan"|"tasks": [...]}`, and newline-split with bullet/number-prefix stripping; pluggable via `plan_parser=`. `stop_on_error=True` (default) halts after the first failing step. 7 tests.
-
-- [x] **#5 -- `mcp_agent_tool` helper** -- landed in `composition.py`. Cross-process analog of `agent_as_tool`; wraps a remote MCP-exposed agent as a local `Tool` named `"{server_name}/{agent_name}"`. Optional local `timeout=` separate from MCP transport timeouts. 6 tests.
-
 ### Pattern-coverage refinements (future, no urgency)
 
 These are residual refinements documented under each pattern's "Gap" line in `docs/agents/patterns.md`. None block the pattern; each is a possible extension when a use case appears.
@@ -76,17 +60,7 @@ These appear in `docs/agents/patterns.md` but won't be addressed without a forci
 
 - **Autonomous / AutoGPT-style** -- structurally opposed to cyllama's design stance (bounded loops, loop detection, max_iterations, contracts for budget invariants). Unbounded goal-decomposition is what the framework actively prevents. Document the stance, don't accommodate it.
 
-- ~~**Workflow / State-Machine agents** (graph DSL)~~ -- **landed** as the `cyllama.agents.workflow` runtime (Phases 1-5 of the workflow rollout). `Workflow` (builder) + `CompiledWorkflow` (runnable) with Layer B explicit StateGraph and Layer C `@flow.node` decorator sugar, streaming events (`WORKFLOW_START` / `NODE_START` / `NODE_END` / `ANSWER` / `WORKFLOW_END`), conditional routing + END sentinel, sub-workflow composition via `workflow_node`, agent-as-node via `agent_node`, `ContractPolicy`-flavoured workflow invariants, reducer registry for multi-writer state keys, and `Workflow.as_agent()` for `AgentProtocol` adaptation. 118 tests in `tests/test_agents_workflow.py`. The first real consumer is `cyllama-desktop`'s Workflows pane. See `docs/agents/workflow.md` and `docs/agents/patterns.md` §9.
-
 ## CI / Workflows
-
-### High Priority
-
-- [x] **Add `concurrency:` groups to all workflows** -- applied across `build-gpu-wheels.yml`, `build-gpu-wheels-abi3.yml`, `build-new-wheels.yml`, `check-vendor.yml`, `build-cibw.yml`, `build-cibw-abi3.yml`
-
-- [x] **Vendor-drift guard workflow (`check-vendor.yml` pattern)** -- llama.cpp's `check-vendor.yml` re-runs `scripts/sync_vendor.py` in CI and fails if the tree differs. cyllama's `git status` currently shows modified vendored headers (`mtmd.h`, `log.h`, `ggml-backend.h`, `common.h`) -- exactly the class of silent drift that caused the `GGML_MAX_NAME=128` ABI-match incident. Add `.github/workflows/check-thirdparty.yml` that runs the vendor sync step and diffs. Implemented as `manage.py check_vendor` subcommand + `.github/workflows/check-vendor.yml`
-
-- [x] **Extend ccache to CPU cibw workflows** -- `hendrikmuhs/ccache-action@v1.2` now wired into `build-cibw.yml` + `build-cibw-abi3.yml` for Linux and macOS, keyed per-matrix-OS, with `CMAKE_{C,CXX}_COMPILER_LAUNCHER=ccache` passed through `CIBW_ENVIRONMENT_{LINUX,MACOS}`. Linux manylinux container installs ccache via `pyproject.toml`'s `before-all`. Windows (MSVC) ccache remains skipped pending debug-format / cmake-integration investigation
 
 ### Medium Priority
 
@@ -101,8 +75,6 @@ These appear in `docs/agents/patterns.md` but won't be addressed without a forci
 ### Wheel Coverage (additional backend variants)
 
 Gap analysis vs. llama.cpp b8893 release assets. Ordered by effort/payoff.
-
-- [x] **Windows CUDA 13.1** -- shipped as `build_cuda13_windows` job in `build-new-wheels.yml:44` (wheel name `cyllama-cuda13`, Jimver/cuda-toolkit@13.1.0)
 
 - [ ] **Windows SYCL (Intel Arc + Xe)** -- Linux SYCL is shipped (`build_sycl` in `build-gpu-wheels-abi3.yml:319`, wheel name `cyllama-sycl`). Windows SYCL still pending: follows the same pattern as windows-cuda/vulkan -- download prebuilt, synthesize `.lib` via existing `_generate_import_libs()`, `delvewheel --include ggml-sycl.dll` with `--no-dll` for `sycl[78].dll`, `pi_level_zero.dll`, `pi_opencl.dll`, `svml_dispmd.dll`, `libmmd.dll`, `libiomp5md.dll` (user-installed Intel oneAPI runtime). Build-time dep: Intel oneAPI DPC++ on the Windows runner -- use `oneapi-src/setup-oneapi` or similar. Needs `_release_asset_name()` + `_dylib_names` extended to recognize Windows SYCL assets
 
@@ -133,11 +105,3 @@ Gap analysis vs. llama.cpp b8893 release assets. Ordered by effort/payoff.
 - [ ] Batch query processing in RAG pipeline
 
 - [ ] Sharding for 1M+ vector workloads
-
-## RAG Pipeline Integration
-
-- [x] **Pipeline-integrated reranking + `RerankerProtocol`** -- `RerankerProtocol` shipped in `src/cyllama/rag/types.py`; `Reranker` inherits from it. `RAGConfig(rerank=True, rerank_top_k=20, reranker=<instance>)` wired into `RAGPipeline._retrieve` (used by `query`, `stream`, `retrieve`). Default `rerank=False` preserves the legacy path.
-
-## Alternative vector-store backends
-
-- [x] **Qdrant adapter (`cyllama/rag/stores/qdrant.py`)** -- Reference adapter shipped. `QdrantVectorStore` implements the seven `VectorStoreProtocol` methods against `qdrant_client.QdrantClient`; source dedup lives in per-point payload fields (`content_hash`, `source_label`, `indexed_at`), `is_source_indexed` is a filtered count, `get_source_by_label` is a scroll+count. Lazy-imported from `cyllama.rag.QdrantVectorStore` and `cyllama.rag.stores`. Optional `qdrant` dep group in `pyproject.toml`. Tests in `tests/test_rag_qdrant.py` (21 cases) skip when `qdrant-client` isn't installed. Chroma / LanceDB / pgvector can follow the same template.

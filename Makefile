@@ -109,6 +109,15 @@ build-wheel: $(LIBLAMMA)
 
 check:
 	@uv run twine check dist/*.whl
+	@for whl in dist/*.whl; do \
+		case "$$whl" in \
+			*-abi3-*) ;; \
+			*) echo "ERROR: non-abi3 wheel in dist/: $$whl"; \
+			   echo "Releases are abi3-only (cp312-abi3). Build with 'make wheel-abi3' or use the *-abi3 CI artifacts."; \
+			   exit 1 ;; \
+		esac; \
+	done
+	@echo "OK: all wheels in dist/ are abi3-tagged"
 
 publish: check
 	@uv run twine upload dist/*.whl

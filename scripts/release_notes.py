@@ -58,9 +58,7 @@ def strip_blank_edges(text: str) -> str:
 
 
 def main(argv: Optional[list[str]] = None) -> int:
-    parser = argparse.ArgumentParser(
-        description="Extract a CHANGELOG.md section into a release notes file."
-    )
+    parser = argparse.ArgumentParser(description="Extract a CHANGELOG.md section into a release notes file.")
     parser.add_argument(
         "version",
         help='Release version, e.g. "0.1.2". The script first looks for '
@@ -81,8 +79,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument(
         "--header",
         default="Changes since the last Release",
-        help='Text after the leading "## " on line 1 of the output '
-        '(default: "%(default)s").',
+        help='Text after the leading "## " on line 1 of the output (default: "%(default)s").',
     )
     args = parser.parse_args(argv)
 
@@ -91,8 +88,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     section = extract_section(text, args.version)
     if section is None or not section.strip():
         print(
-            f"no '## [{args.version}]' section in {args.changelog}; "
-            f"falling back to '## [Unreleased]'",
+            f"no '## [{args.version}]' section in {args.changelog}; falling back to '## [Unreleased]'",
             file=sys.stderr,
         )
         section = extract_section(text, "Unreleased")

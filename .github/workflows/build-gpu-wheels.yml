@@ -54,8 +54,8 @@ on:
         required: false
         default: false
         type: boolean
-      publish_index:
-        description: 'Publish to GitHub Pages wheel index'
+      publish_to_pypi:
+        description: 'Publish wheels to PyPI'
         required: false
         default: false
         type: boolean
@@ -1030,73 +1030,18 @@ jobs:
           path: artifacts
           pattern: wheels-*
 
-      - name: Organize wheels by backend
+      - name: Collect into single directory
         run: |
-          shopt -s nullglob
-          mkdir -p index
+          mkdir -p dist
+          find artifacts -name "*.whl" -exec cp {} dist/ \;
+          echo "=== Collected GPU wheels ==="
+          ls -lh dist/
 
-          # CUDA
-          wheels=(artifacts/wheels-cuda-*/*.whl)
-          if [ ${#wheels[@]} -gt 0 ]; then
-            mkdir -p index/cuda
-            cp "${wheels[@]}" index/cuda/
-          fi
-
-          # ROCm
-          wheels=(artifacts/wheels-rocm-*/*.whl)
-          if [ ${#wheels[@]} -gt 0 ]; then
-            mkdir -p index/rocm
-            cp "${wheels[@]}" index/rocm/
-          fi
-
-          # SYCL
-          wheels=(artifacts/wheels-sycl-*/*.whl)
-          if [ ${#wheels[@]} -gt 0 ]; then
-            mkdir -p index/sycl
-            cp "${wheels[@]}" index/sycl/
-          fi
-
-          # Vulkan
-          wheels=(artifacts/wheels-vulkan-*/*.whl)
-          if [ ${#wheels[@]} -gt 0 ]; then
-            mkdir -p index/vulkan
-            cp "${wheels[@]}" index/vulkan/
-          fi
-
-          echo "=== Wheel index ==="
-          find index -name "*.whl" | sort
-
-      - name: Generate PEP 503 index pages
-        run: |
-          shopt -s nullglob
-          for backend_dir in index/*/; do
-            [ -d "$backend_dir" ] || continue
-            backend=$(basename "$backend_dir")
-            mkdir -p "index/${backend}/cyllama"
-
-            # Build file list with hashes
-            echo "<!DOCTYPE html><html><body>" > "index/${backend}/cyllama/index.html"
-            for whl in "index/${backend}"/*.whl; do
-              [ -f "$whl" ] || continue
-              filename=$(basename "$whl")
-              sha256=$(sha256sum "$whl" | cut -d' ' -f1)
-              mv "$whl" "index/${backend}/cyllama/${filename}"
-              echo "<a href=\"${filename}#sha256=${sha256}\">${filename}</a><br>" >> "index/${backend}/cyllama/index.html"
-            done
-            echo "</body></html>" >> "index/${backend}/cyllama/index.html"
-
-            # Root index for this backend
-            echo "<!DOCTYPE html><html><body><a href=\"cyllama/\">cyllama</a></body></html>" > "index/${backend}/index.html"
-          done
-
-          echo "=== Generated index ==="
-          find index -name "*.html" -exec echo {} \; -exec cat {} \; -exec echo \;
-
-      - name: Upload index artifact
+      - name: Upload collected wheels
         uses: actions/upload-artifact@v7
         with:
-          name: gpu-wheel-index
-          path: index/
+          name: gpu-wheels-all
+          path: dist/*.whl
 
   # ---------------------------------------------------------------------------
   # Upload wheels to GitHub pre-release
@@ -1136,30 +1081,27 @@ jobs:
           gh release upload "${TAG}" dist/*.whl --clobber
 
   # ---------------------------------------------------------------------------
-  # Publish wheel index to GitHub Pages
+  # Optional: publish GPU wheels to PyPI. Uploads the renamed backend packages
+  # (cyllama-cuda12, cyllama-rocm, cyllama-sycl, cyllama-vulkan) -- the
+  # PYPI_API_TOKEN repo secret must be account-scoped (or cover every project).
+  # Opt-in via the publish_to_pypi dispatch input.
   # ---------------------------------------------------------------------------
-  publish_index:
-    name: Publish to GitHub Pages
-    needs: collect
-    if: inputs.publish_index
+  publish_to_pypi:
+    name: Publish to PyPI
+    needs: [collect, smoke_test]
+    if: inputs.publish_to_pypi && always() && !cancelled() && needs.collect.result == 'success'
     runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-
+    environment: pypi
     steps:
-      - name: Download index
+      - name: Download collected wheels
         uses: actions/download-artifact@v8
         with:
-          name: gpu-wheel-index
-          path: wheel-index
+          name: gpu-wheels-all
+          path: dist
 
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          path: wheel-index
-
-      - name: Deploy to GitHub Pages
-        uses: actions/deploy-pages@v4
+          packages-dir: dist
+          password: ${{ secrets.PYPI_API_TOKEN }}
+          skip-existing: true

@@ -1,13 +1,13 @@
 [project]
 name = "cyllama"
-version = "0.2.18"
+version = "0.3.0"
 description = "cyllama is a comprehensive zero-dependencies Python library for local AI inference using the state-of-the-art llama, whisper, and stable-diffusion .cpp ecosystem."
 readme = "README.md"
 authors = [
     { name = "Shakeeb Alireza", email = "shakfu@users.noreply.github.com" }
 ]
 license = "MIT"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 keywords = ["llama", "llm", "inference", "cython", "llama.cpp", "whisper.cpp", "stable-diffusion.cpp", "gguf", "ai", "machine-learning"]
 classifiers = [
   "Development Status :: 4 - Beta",
@@ -16,8 +16,6 @@ classifiers = [
   "Operating System :: POSIX :: Linux",
   "Operating System :: Microsoft :: Windows",
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.10",
-  "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",

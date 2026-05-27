@@ -9,7 +9,7 @@ option(WITH_WHISPER "Build whisper.cpp wrapper" ON)
 option(WITH_STABLEDIFFUSION "Build stable-diffusion.cpp wrapper" ON)
 option(WITH_DYLIB "Use dynamic libraries instead of static" OFF)
 option(SD_USE_VENDORED_GGML "Link stable-diffusion against its own vendored ggml" ON)
-option(CYLLAMA_ABI3 "Build extensions against the CPython stable ABI (abi3, >= 3.10)" OFF)
+option(CYLLAMA_ABI3 "Build extensions against the CPython stable ABI (abi3, >= 3.12)" OFF)
 
 # When WITH_DYLIB=ON, point this to a directory containing pre-built dylibs
 # (e.g., from a llama.cpp release tarball). Defaults to thirdparty/llama.cpp/lib.
@@ -583,7 +583,7 @@ foreach(dir ${CYTHON_INCLUDE_DIRS})
 endforeach()
 
 # When CYLLAMA_ABI3=ON, add USE_SABI to every python_add_library call.
-# USE_SABI 3.10 defines Py_LIMITED_API=0x030a0000 at C compile time,
+# USE_SABI 3.12 defines Py_LIMITED_API=0x030c0000 at C compile time,
 # links Python::SABIModule, and uses the .abi3.so / .pyd suffix. Cython
 # adapts its generated code based on the Py_LIMITED_API macro — no
 # Cython-level flag is required (Cython has no `limited_api` compiler

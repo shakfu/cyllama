@@ -4,7 +4,9 @@ This guide covers installing cyllama on different platforms.
 
 ## Requirements
 
-- Python 3.10 or later
+- Python 3.12 or later
+
+    From v0.3.0, cyllama ships only abi3 (CPython stable ABI) wheels, which require Python 3.12+. For Python 3.10 / 3.11, install an older release (`pip install "cyllama<0.3.0"`) or build from source.
 
 - C++ compiler (clang or gcc)
 

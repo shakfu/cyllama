@@ -2022,7 +2022,7 @@ for chunk in complete("Write a long essay", model_path="model.gguf",
 
 ## Version Compatibility
 
-- **Python**: >=3.10 (tested on 3.13)
+- **Python**: >=3.12 (abi3 wheels; tested on 3.13). For 3.10/3.11 use `cyllama<0.3.0` or build from source.
 
 - **llama.cpp**: see `CHANGELOG.md` for the pinned revision
 
