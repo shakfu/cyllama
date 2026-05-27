@@ -21,10 +21,10 @@ class TestSpeculativeParams:
     def test_default_initialization(self):
         """Test default parameter initialization."""
         params = SpeculativeParams()
-        assert params.n_max == 16
+        assert params.n_max == 3
         assert params.n_min == 0
         assert abs(params.p_split - 0.1) < 0.001
-        assert params.p_min == 0.75
+        assert params.p_min == 0.0
 
     def test_custom_initialization(self):
         """Test custom parameter initialization."""

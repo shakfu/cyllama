@@ -501,8 +501,8 @@ ctx_draft = LlamaContext(model_draft, LlamaContextParams())
 
 # Setup speculative decoding
 params = SpeculativeParams(
-    n_max=16,      # Maximum tokens to draft
-    p_min=0.75     # Acceptance probability
+    n_max=3,       # Maximum tokens to draft
+    p_min=0.0      # Acceptance probability
 )
 spec = Speculative(params, ctx_target)
 

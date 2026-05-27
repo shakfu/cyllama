@@ -32,7 +32,7 @@ def test_chat_builtin_templates():
         "grok-2",
         "hunyuan-dense",
         "hunyuan-moe",
-        "hunyuan-ocr",
+        "hunyuan-vl",
         "kimi-k2",
         "llama2",
         "llama2-sys",

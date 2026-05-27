@@ -1216,10 +1216,10 @@ ctx_target = LlamaContext(model_target, ctx_params)
 
 # Configure speculative parameters
 params = SpeculativeParams(
-    n_max=16,        # Maximum number of draft tokens
+    n_max=3,         # Maximum number of draft tokens
     n_min=0,         # Minimum number of draft tokens
     p_split=0.1,     # Speculative decoding split probability
-    p_min=0.75       # Minimum acceptance probability
+    p_min=0.0        # Minimum acceptance probability
 )
 
 # Check target-context compatibility (static method)

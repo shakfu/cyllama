@@ -15,13 +15,13 @@ class SpeculativeParams:
     """Parameters for speculative decoding.
 
     Attributes:
-        n_max: Maximum number of tokens to draft (default: 16)
+        n_max: Maximum number of tokens to draft (default: 3)
         n_min: Minimum number of draft tokens (default: 0)
         p_split: Speculative decoding split probability (default: 0.1)
-        p_min: Minimum probability required to accept a token (default: 0.75)
+        p_min: Minimum probability required to accept a token (default: 0.0)
     """
 
-    def __init__(self, int n_max=16, int n_min=0, float p_split=0.1, float p_min=0.75):
+    def __init__(self, int n_max=3, int n_min=0, float p_split=0.1, float p_min=0.0):
         self.n_max = n_max
         self.n_min = n_min
         self.p_split = p_split
@@ -43,7 +43,7 @@ cdef class Speculative:
     Example:
         >>> ctx_target = LlamaContext(model_target, params_target)
         >>> ctx_draft = LlamaContext(model_draft, params_draft)
-        >>> spec_params = SpeculativeParams(n_max=16, p_min=0.75)
+        >>> spec_params = SpeculativeParams(n_max=3, p_min=0.0)
         >>> spec = Speculative(spec_params, ctx_target, ctx_draft)
         >>> draft_tokens = spec.draft(spec_params, prompt_tokens, last_token_id)
     """

@@ -17,6 +17,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+### Changed
+
+- **llama.cpp updated to b9352 (from b9190)** -- no binding changes were required. The bound C headers (`llama.h`, `ggml.h`, `gguf.h`, `mtmd.h`) changed only in non-breaking ways: doc-comment clarifications (`LLAMA_STATE_SEQ_FLAGS_ON_DEVICE` now notes that re-getting an on-device seq state invalidates prior on-device snapshots of that seq; `ggml_silu_back` arg-meaning comment corrected to `a = dy`, `b = x`); and additive functions cyllama does not yet bind (`gguf_init_from_buffer`, `gguf_init_from_callback` + `gguf_reader_callback_t`, and the C++-only, explicitly-unstable `mtmd_get_memory_usage`). The remaining upstream header churn is in the C++ common-library / internal layer (`chat*.h`, `clip*.h`, `common.h`, `fit.h`, `speculative.h`, `hf-cache.h`), none of which cyllama `cdef extern`s from. One built-in chat template was renamed upstream: `hunyuan-ocr` -> `hunyuan-vl` (the `PROJECTOR_TYPE_HUNYUANOCR` enum was dropped in favor of `PROJECTOR_TYPE_HUNYUANVL`); `tests/test_chat.py::test_chat_builtin_templates` updated to match.
+
+- **Speculative-decoding defaults aligned to upstream** -- `src/cyllama/llama/speculative.pxi:SpeculativeParams` lowers its default `n_max` 16 -> 3 (shorter drafts) and `p_min` 0.75 -> 0.0 (greedy acceptance), matching the new upstream `common_params_speculative_draft` defaults introduced in llama.cpp b9352. cyllama reimplements drafting directly against the C `llama.h` API rather than binding the C++ struct, so these are independent defaults that had simply drifted from upstream's recommendation. Callers passing `n_max=` / `p_min=` explicitly are unaffected. `tests/test_speculative.py`, `docs/user_guide.md`, and `docs/api_reference.md` updated to match.
+
 ## [0.2.18]
 
 ### Added
