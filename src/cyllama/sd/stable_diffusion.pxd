@@ -38,6 +38,7 @@ cdef extern from "stable-diffusion.h":
         ER_SDE_SAMPLE_METHOD
         EULER_CFG_PP_SAMPLE_METHOD
         EULER_A_CFG_PP_SAMPLE_METHOD
+        EULER_GE_SAMPLE_METHOD
         SAMPLE_METHOD_COUNT
 
     ctypedef enum scheduler_t:
@@ -52,6 +53,7 @@ cdef extern from "stable-diffusion.h":
         KL_OPTIMAL_SCHEDULER
         LCM_SCHEDULER
         BONG_TANGENT_SCHEDULER
+        LTX2_SCHEDULER
         SCHEDULER_COUNT
 
     ctypedef enum prediction_t:
@@ -97,6 +99,7 @@ cdef extern from "stable-diffusion.h":
         SD_TYPE_TQ2_0
         SD_TYPE_MXFP4
         SD_TYPE_NVFP4
+        SD_TYPE_Q1_0
         SD_TYPE_COUNT
 
     ctypedef enum sd_log_level_t:
@@ -124,11 +127,13 @@ cdef extern from "stable-diffusion.h":
 
     ctypedef struct sd_tiling_params_t:
         bint enabled
+        bint temporal_tiling
         int tile_size_x
         int tile_size_y
         float target_overlap
         float rel_size_x
         float rel_size_y
+        const char* extra_tiling_args
 
     ctypedef struct sd_embedding_t:
         const char* name
@@ -149,7 +154,9 @@ cdef extern from "stable-diffusion.h":
         const char* llm_vision_path
         const char* diffusion_model_path
         const char* high_noise_diffusion_model_path
+        const char* embeddings_connectors_path
         const char* vae_path
+        const char* audio_vae_path
         const char* taesd_path
         const char* control_net_path
         const sd_embedding_t* embeddings
@@ -285,6 +292,8 @@ cdef extern from "stable-diffusion.h":
         int steps
         float denoising_strength
         int upscale_tile_size
+        float* custom_sigmas
+        int custom_sigmas_count
 
     ctypedef struct sd_img_gen_params_t:
         const sd_lora_t* loras
