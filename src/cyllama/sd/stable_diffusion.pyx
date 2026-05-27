@@ -2849,17 +2849,23 @@ cdef class SDContext:
 
         # Generate video
         cdef int num_frames_out = 0
-        cdef sd_image_t* result
+        cdef sd_image_t* result = NULL
+        cdef sd_audio_t* audio_out = NULL
+        cdef bint ok = False
         cdef sd_ctx_t* ctx_ptr = self._ctx
         cdef sd_vid_gen_params_t* vid_params_ptr = &vid_params
         self._try_acquire_busy()
         try:
             with nogil:
-                result = generate_video(ctx_ptr, vid_params_ptr, &num_frames_out)
+                ok = generate_video(ctx_ptr, vid_params_ptr, &result, &num_frames_out, &audio_out)
         finally:
             self._busy_lock.release()
 
-        if result == NULL:
+        # We don't expose generated audio; release it if the library allocated any.
+        if audio_out != NULL:
+            free_sd_audio(audio_out)
+
+        if not ok or result == NULL:
             raise RuntimeError("Video generation failed")
 
         # Convert results to Python list, validating each frame. See

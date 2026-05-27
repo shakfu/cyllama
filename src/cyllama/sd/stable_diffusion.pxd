@@ -5,7 +5,7 @@
 Cython declarations for stable-diffusion.cpp C API.
 """
 
-from libc.stdint cimport int32_t, int64_t, uint8_t, uint32_t
+from libc.stdint cimport int32_t, int64_t, uint8_t, uint32_t, uint64_t
 from libc.stddef cimport size_t
 from libcpp cimport bool as bint
 
@@ -185,6 +185,12 @@ cdef extern from "stable-diffusion.h":
         const char* backend
         const char* params_backend
 
+    ctypedef struct sd_audio_t:
+        uint32_t sample_rate
+        uint32_t channels
+        uint64_t sample_count
+        float* data
+
     ctypedef struct sd_image_t:
         uint32_t width
         uint32_t height
@@ -323,9 +329,11 @@ cdef extern from "stable-diffusion.h":
         float strength
         int64_t seed
         int video_frames
+        int fps
         float vace_strength
         sd_tiling_params_t vae_tiling_params
         sd_cache_params_t cache
+        sd_hires_params_t hires
 
     # Opaque context types
     ctypedef struct sd_ctx_t:
@@ -400,6 +408,7 @@ cdef extern from "stable-diffusion.h":
 
     sd_ctx_t* new_sd_ctx(const sd_ctx_params_t* sd_ctx_params)
     void free_sd_ctx(sd_ctx_t* sd_ctx)
+    void free_sd_audio(sd_audio_t* audio)
 
     sample_method_t sd_get_default_sample_method(const sd_ctx_t* sd_ctx)
     scheduler_t sd_get_default_scheduler(const sd_ctx_t* sd_ctx, sample_method_t sample_method)
@@ -414,7 +423,7 @@ cdef extern from "stable-diffusion.h":
     # Functions - Video generation
     # =========================================================================
 
-    sd_image_t* generate_video(sd_ctx_t* sd_ctx, const sd_vid_gen_params_t* sd_vid_gen_params, int* num_frames_out) nogil
+    bint generate_video(sd_ctx_t* sd_ctx, const sd_vid_gen_params_t* sd_vid_gen_params, sd_image_t** frames_out, int* num_frames_out, sd_audio_t** audio_out) nogil
 
     # =========================================================================
     # Functions - Upscaling

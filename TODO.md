@@ -6,6 +6,8 @@
 
 ## Medium Priority
 
+- [ ] **Expose video-with-audio output from `SDContext.generate_video`** -- stable-diffusion.cpp `master-652-92dc726` changed `generate_video` to emit an optional audio track via a new `sd_audio_t** audio_out` out-param (some video models, e.g. WAN-family, produce audio alongside frames). The binding currently allocates and immediately frees it: `src/cyllama/sd/stable_diffusion.pyx:generate_video` passes `&audio_out` then calls `free_sd_audio(audio_out)` without exposing the data. The `sd_audio_t` struct (`sample_rate`, `channels`, `sample_count`, `float* data`) and `free_sd_audio()` are already declared in `src/cyllama/sd/stable_diffusion.pxd`. To expose: add a Python-side `SDAudio` wrapper (mirroring `SDImage._from_c_image`, copying the float PCM buffer before the `free_sd_audio` call), and change `generate_video`'s return from `List[SDImage]` to a `(frames, audio)` pair or a small result object (keep `audio=None` when the model produces none, to avoid breaking existing callers). Trigger: a user runs an audio-producing video model, or we add a video-gen test that exercises a model known to emit audio. No runtime test covers `generate_video` today (needs a video model not in the suite), so land a smoke test alongside.
+
 - [ ] Performance regression detection -- CI-integrated baseline capture/comparison to catch speed or memory regressions across commits
 
 - [ ] Structured logging system (JSON output option, agent decision flow logging)
