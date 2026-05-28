@@ -397,6 +397,9 @@ jobs:
             --exclude libintlc.so.5
             --exclude libtbb.so.12
             --exclude libgomp.so.1
+            --exclude 'libmkl_*.so*'
+            --exclude libiomp5.so
+            --exclude libirng.so
 
       - name: List built wheels
         run: ls -lah wheelhouse/

@@ -54,6 +54,36 @@ pip install cyllama-vulkan   # Cross-platform GPU (Vulkan)
 
 All GPU variants install the same `cyllama` Python package -- only the compiled backend differs. Install one at a time (they replace each other). GPU variants require the corresponding driver/runtime installed on your system.
 
+#### `cyllama-sycl` host prerequisites
+
+The SYCL wheel deliberately does not vendor the [Intel oneAPI](https://www.intel.com/content/www/us/en/developer/tools/oneapi/oneapi-toolkit.html) runtime (`libsycl`, MKL, TBB, `libiomp5`, the Intel compiler runtimes). The full vendored stack exceeds PyPI's 100 MB per-file cap, and the GPU-coupled pieces must match the host driver anyway. The host therefore has to supply two things, and they live in separate registers.
+
+**1. oneAPI userspace runtimes (required for `import cyllama` to succeed).**
+
+These provide the libraries the wheel's `DT_NEEDED` entries point at -- `libsycl.so.8`, `libmkl_*.so*`, `libtbb.so.12`, `libiomp5.so`, `libsvml.so`, `libimf.so`, `libintlc.so.5`, `libirng.so`. On Debian/Ubuntu after adding the [Intel oneAPI APT repo](https://www.intel.com/content/www/us/en/docs/oneapi/installation-guide-linux/current/apt-005.html):
+
+```bash
+sudo apt install \
+  intel-oneapi-runtime-dpcpp-cpp \
+  intel-oneapi-runtime-mkl \
+  intel-oneapi-runtime-tbb \
+  intel-oneapi-runtime-openmp
+source /opt/intel/oneapi/setvars.sh
+python -c "import cyllama"   # should succeed
+```
+
+For RPM-based distros, use Intel's [DNF/Yum repo](https://www.intel.com/content/www/us/en/docs/oneapi/installation-guide-linux/current/yum-dnf-zypper.html) with the same `intel-oneapi-runtime-*` package names. If you already have the full [Intel oneAPI base toolkit](https://www.intel.com/content/www/us/en/developer/tools/oneapi/oneapi-toolkit.html) (`intel-basekit`) installed, these runtimes are included -- just source `setvars.sh`. Without these libraries on the loader path, import fails with `libsycl.so.8: cannot open shared object file` (or a similar message naming one of the other runtimes).
+
+**2. A SYCL-visible compute device (required for actual GPU/CPU compute, not for import).**
+
+`cyllama` needs at least one runtime device for SYCL to dispatch kernels onto. This is hardware-conditional and lives outside the oneAPI runtime layer -- pick one of:
+
+- **Intel GPU via OpenCL**: install the Intel compute-runtime package providing `libOpenCL.so.1` and the Intel GPU ICD (`intel-opencl-icd` on recent Ubuntu, or the upstream `intel-compute-runtime` packages). Follow [Intel's GPU driver install guide](https://dgpu-docs.intel.com/driver/installation.html) for your distro and GPU family (Arc, Iris Xe, Data Center GPU Max/Flex).
+- **Intel GPU via Level Zero**: install `level-zero` and `intel-level-zero-gpu`. Same install guide.
+- **CPU fallback (no Intel GPU)**: install the Intel CPU runtime for OpenCL applications, packaged as `intel-oneapi-runtime-opencl` or the standalone CPU runtime. This is *not* a substitute for the oneAPI runtimes in step 1 -- it only adds the CPU as an OpenCL device.
+
+Package names and recommended install paths drift across distro versions and Intel releases, so we link to Intel's authoritative install pages rather than hard-coding an `apt install` line we can't keep current. Without a device, import succeeds but SYCL device enumeration returns empty and any actual generation call fails.
+
 You can verify which backend is active after installation:
 
 ```bash

@@ -402,7 +402,7 @@ The full `--exclude` list per backend (runtime libs vary, bundled project libs a
 |---|---|---|
 | CUDA | `libcuda.so.1`, `libcudart.so.12`, `libcublas.so.12`, `libcublasLt.so.12` | `libllama.so.0`, `libggml.so.0`, `libggml-base.so.0`, `libggml-cuda.so`, `libggml-cpu.so`, `libmtmd.so.0`, `libgomp.so.1` |
 | ROCm | `libamdhip64.so.6`, `libhipblas.so.2`, `librocblas.so.4`, `libhsa-runtime64.so.1`, `librocsolver.so.0`, `libhipblaslt.so.0`, `libamd_comgr.so.2`, `librocprofiler-register.so.0` | `libllama.so.0`, `libggml.so.0`, `libggml-base.so.0`, `libggml-hip.so`, `libggml-cpu.so`, `libmtmd.so.0`, `libgomp.so.1` |
-| SYCL | `libsycl.so.8`, `libOpenCL.so.1`, `libsvml.so`, `libimf.so`, `libintlc.so.5`, `libtbb.so.12` | `libllama.so.0`, `libggml.so.0`, `libggml-base.so.0`, `libggml-sycl.so`, `libggml-cpu.so`, `libmtmd.so.0`, `libgomp.so.1` |
+| SYCL | `libsycl.so.8`, `libOpenCL.so.1`, `libsvml.so`, `libimf.so`, `libintlc.so.5`, `libtbb.so.12`, `libmkl_*.so*`, `libiomp5.so`, `libirng.so` | `libllama.so.0`, `libggml.so.0`, `libggml-base.so.0`, `libggml-sycl.so`, `libggml-cpu.so`, `libmtmd.so.0`, `libgomp.so.1` |
 | Vulkan | `libvulkan.so.1` | `libllama.so.0`, `libggml.so.0`, `libggml-base.so.0`, `libggml-vulkan.so`, `libggml-cpu.so`, `libmtmd.so.0`, `libgomp.so.1` |
 
 ### Installed wheel structure (0.2.7, cp312, `--exclude` build)
