@@ -300,27 +300,39 @@ wheel-hip:
 wheel-opencl:
 	@GGML_OPENCL=1 uv build --wheel
 
-# Dynamic wheel builds
+# Dynamic wheel builds. Each target builds the wheel then runs
+# `manage.py wheel_repair --backend <b>` to bundle ggml/llama/sd/whisper
+# shared libs into it using the same per-backend exclude list CI uses, so
+# `make wheel-<b>-dynamic` locally produces a wheel equivalent to the CI
+# artifact (rather than the unrepaired `*-linux_*.whl` the prior recipes
+# left behind).
 wheel-cpu-dynamic:
 	@$(_CPU_ONLY) WITH_DYLIB=1 uv build --wheel
+	@python scripts/manage.py wheel_repair --backend cpu
 
 wheel-metal-dynamic:
 	@GGML_METAL=1 WITH_DYLIB=1 SD_USE_VENDORED_GGML=0 uv build --wheel
+	@python scripts/manage.py wheel_repair --backend metal
 
 wheel-cuda-dynamic:
 	@GGML_CUDA=1 WITH_DYLIB=1 SD_USE_VENDORED_GGML=0 CMAKE_CUDA_ARCHITECTURES=$${CMAKE_CUDA_ARCHITECTURES:-native} uv build --wheel
+	@python scripts/manage.py wheel_repair --backend cuda
 
 wheel-vulkan-dynamic:
 	@GGML_VULKAN=1 WITH_DYLIB=1 SD_USE_VENDORED_GGML=0 uv build --wheel
+	@python scripts/manage.py wheel_repair --backend vulkan
 
 wheel-sycl-dynamic:
 	@GGML_SYCL=1 WITH_DYLIB=1 SD_USE_VENDORED_GGML=0 uv build --wheel
+	@python scripts/manage.py wheel_repair --backend sycl
 
 wheel-hip-dynamic:
 	@GGML_HIP=1 WITH_DYLIB=1 SD_USE_VENDORED_GGML=0 uv build --wheel
+	@python scripts/manage.py wheel_repair --backend hip
 
 wheel-opencl-dynamic:
 	@GGML_OPENCL=1 WITH_DYLIB=1 uv build --wheel
+	@python scripts/manage.py wheel_repair --backend opencl
 
 # =============================================================================
 # CLI and server tests

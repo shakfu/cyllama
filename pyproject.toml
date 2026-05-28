@@ -186,15 +186,21 @@ before-build = ""
 # Environment variables for Linux builds
 environment = { GGML_METAL = "0", GGML_NATIVE = "0" }
 
-# Repair wheels with auditwheel
-repair-wheel-command = "auditwheel repair -w {dest_dir} {wheel}"
+# Repair wheels through manage.py wheel_repair so the per-backend exclude
+# list (module-level in scripts/manage.py) is the single source of truth.
+# CPU builds get an empty exclude list; auditwheel auto-detects the
+# manylinux platform tag.
+repair-wheel-command = "python {project}/scripts/manage.py wheel_repair --backend cpu --dest-dir {dest_dir} {wheel}"
 
 [tool.cibuildwheel.macos]
 # Environment variables for macOS builds
 environment = { MACOSX_DEPLOYMENT_TARGET = "11.0", GGML_METAL = "1", GGML_NATIVE = "0" }
 
-# Repair wheels with delocate
-repair-wheel-command = "delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel} --exclude libssl --exclude libcrypto"
+# Repair wheels through manage.py wheel_repair (backend=metal -> excludes
+# libssl/libcrypto only, matching the prior inline delocate-wheel command).
+# --archs forwards cibuildwheel's {delocate_archs} substitution so delocate
+# validates the bundled dylibs cover the requested architectures.
+repair-wheel-command = "python {project}/scripts/manage.py wheel_repair --backend metal --archs {delocate_archs} --dest-dir {dest_dir} {wheel}"
 
 [tool.cibuildwheel.windows]
 # Environment variables for Windows builds
@@ -203,5 +209,6 @@ environment = { GGML_METAL = "0", GGML_NATIVE = "0" }
 # Install delvewheel before repair
 before-build = "pip install delvewheel && python scripts/manage.py build --all --deps-only --no-sd-examples && python -c \"from pathlib import Path; libs=list(Path('thirdparty/llama.cpp/lib').glob('*llama*')); assert libs, 'manage.py produced no libraries'\""
 
-# Repair wheels with delvewheel
-repair-wheel-command = "delvewheel repair -w {dest_dir} {wheel}"
+# Repair wheels through manage.py wheel_repair (backend=cpu -> no
+# excludes; delvewheel still bundles the standard MSVC runtime DLLs).
+repair-wheel-command = "python {project}\\scripts\\manage.py wheel_repair --backend cpu --dest-dir {dest_dir} {wheel}"

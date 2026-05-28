@@ -173,15 +173,7 @@ jobs:
             SKBUILD_WHEEL_PY_API=cp312
           CIBW_TEST_COMMAND: ""
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
-            test -d {project}/thirdparty/llama.cpp/dynamic || { echo "ERROR: dynamic lib dir missing: {project}/thirdparty/llama.cpp/dynamic"; exit 1; } &&
-            LD_LIBRARY_PATH={project}/thirdparty/llama.cpp/dynamic:$LD_LIBRARY_PATH
-            auditwheel repair -w {dest_dir} {wheel}
-            --plat manylinux_2_35_x86_64
-            --exclude libcuda.so.1
-            --exclude libcudart.so.12
-            --exclude libcublas.so.12
-            --exclude libcublasLt.so.12
-            --exclude libgomp.so.1
+            python {project}/scripts/manage.py wheel_repair --backend cuda --dest-dir {dest_dir} {wheel}
 
       - name: List built wheels
         run: ls -lah wheelhouse/
@@ -290,19 +282,7 @@ jobs:
             SKBUILD_WHEEL_PY_API=cp312
           CIBW_TEST_COMMAND: ""
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
-            test -d {project}/thirdparty/llama.cpp/dynamic || { echo "ERROR: dynamic lib dir missing: {project}/thirdparty/llama.cpp/dynamic"; exit 1; } &&
-            LD_LIBRARY_PATH={project}/thirdparty/llama.cpp/dynamic:$LD_LIBRARY_PATH
-            auditwheel repair -w {dest_dir} {wheel}
-            --plat manylinux_2_35_x86_64
-            --exclude libamdhip64.so.6
-            --exclude libhipblas.so.2
-            --exclude librocblas.so.4
-            --exclude libhsa-runtime64.so.1
-            --exclude librocsolver.so.0
-            --exclude libhipblaslt.so.0
-            --exclude libamd_comgr.so.2
-            --exclude librocprofiler-register.so.0
-            --exclude libgomp.so.1
+            python {project}/scripts/manage.py wheel_repair --backend hip --dest-dir {dest_dir} {wheel}
 
       - name: List built wheels
         run: ls -lah wheelhouse/
@@ -399,20 +379,7 @@ jobs:
             SKBUILD_WHEEL_PY_API=cp312
           CIBW_TEST_COMMAND: ""
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
-            test -d {project}/thirdparty/llama.cpp/dynamic || { echo "ERROR: dynamic lib dir missing: {project}/thirdparty/llama.cpp/dynamic"; exit 1; } &&
-            LD_LIBRARY_PATH={project}/thirdparty/llama.cpp/dynamic:$LD_LIBRARY_PATH
-            auditwheel repair -w {dest_dir} {wheel}
-            --plat manylinux_2_35_x86_64
-            --exclude libsycl.so.8
-            --exclude libOpenCL.so.1
-            --exclude libsvml.so
-            --exclude libimf.so
-            --exclude libintlc.so.5
-            --exclude libtbb.so.12
-            --exclude libgomp.so.1
-            --exclude 'libmkl_*.so*'
-            --exclude libiomp5.so
-            --exclude libirng.so
+            python {project}/scripts/manage.py wheel_repair --backend sycl --dest-dir {dest_dir} {wheel}
 
       - name: List built wheels
         run: ls -lah wheelhouse/
@@ -510,12 +477,7 @@ jobs:
             SKBUILD_WHEEL_PY_API=cp312
           CIBW_TEST_COMMAND: ""
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
-            test -d {project}/thirdparty/llama.cpp/dynamic || { echo "ERROR: dynamic lib dir missing: {project}/thirdparty/llama.cpp/dynamic"; exit 1; } &&
-            LD_LIBRARY_PATH={project}/thirdparty/llama.cpp/dynamic:$LD_LIBRARY_PATH
-            auditwheel repair -w {dest_dir} {wheel}
-            --plat manylinux_2_35_x86_64
-            --exclude libvulkan.so.1
-            --exclude libgomp.so.1
+            python {project}/scripts/manage.py wheel_repair --backend vulkan --dest-dir {dest_dir} {wheel}
 
       - name: List built wheels
         run: ls -lah wheelhouse/
@@ -593,15 +555,7 @@ jobs:
             SKBUILD_WHEEL_PY_API=cp312
           CIBW_TEST_COMMAND: ""
           CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: >
-            delvewheel repair -w {dest_dir} {wheel}
-            --add-path {project}\thirdparty\llama.cpp\dynamic
-            --add-path {project}\thirdparty\whisper.cpp\dynamic
-            --add-path {project}\thirdparty\stable-diffusion.cpp\dynamic
-            --include ggml-cuda.dll
-            --no-dll nvcuda.dll
-            --no-dll cudart64_12.dll
-            --no-dll cublas64_12.dll
-            --no-dll cublasLt64_12.dll
+            python {project}\scripts\manage.py wheel_repair --backend cuda --dest-dir {dest_dir} {wheel}
 
       - name: List built wheels
         shell: bash
@@ -680,11 +634,7 @@ jobs:
             SKBUILD_WHEEL_PY_API=cp312
           CIBW_TEST_COMMAND: ""
           CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: >
-            delvewheel repair -w {dest_dir} {wheel}
-            --add-path {project}\thirdparty\llama.cpp\dynamic
-            --add-path {project}\thirdparty\whisper.cpp\dynamic
-            --add-path {project}\thirdparty\stable-diffusion.cpp\dynamic
-            --include ggml-vulkan.dll
+            python {project}\scripts\manage.py wheel_repair --backend vulkan --dest-dir {dest_dir} {wheel}
 
       - name: List built wheels
         shell: bash
@@ -766,10 +716,7 @@ jobs:
             SKBUILD_WHEEL_PY_API=cp312
           CIBW_TEST_COMMAND: ""
           CIBW_REPAIR_WHEEL_COMMAND_MACOS: >
-            delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel}
-            --exclude libvulkan
-            --exclude libMoltenVK &&
-            python {project}/scripts/manage.py fix_macos_vulkan_wheel {dest_dir}
+            python {project}/scripts/manage.py wheel_repair --backend vulkan --archs {delocate_archs} --dest-dir {dest_dir} {wheel}
 
       - name: List built wheels
         run: ls -lah wheelhouse/
