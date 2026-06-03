@@ -29,6 +29,7 @@ def test_chat_builtin_templates():
         "gpt-oss",
         "granite",
         "granite-4.0",
+        "granite-4.1",
         "grok-2",
         "hunyuan-dense",
         "hunyuan-moe",

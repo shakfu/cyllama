@@ -153,6 +153,14 @@ class LoraApplyMode(IntEnum):
     AT_RUNTIME = LORA_APPLY_AT_RUNTIME
 
 
+class VaeFormat(IntEnum):
+    """VAE format selection (AUTO = auto-detect from the model)."""
+    AUTO = SD_VAE_FORMAT_AUTO
+    FLUX = SD_VAE_FORMAT_FLUX
+    SD3 = SD_VAE_FORMAT_SD3
+    FLUX2 = SD_VAE_FORMAT_FLUX2
+
+
 class HiresUpscaler(IntEnum):
     """Hires-fix upscaler modes."""
     NONE = SD_HIRES_UPSCALER_NONE
@@ -1385,6 +1393,25 @@ cdef class SDContextParams:
     @max_vram.setter
     def max_vram(self, value: float):
         self._params.max_vram = value
+
+    @property
+    def vae_format(self) -> VaeFormat:
+        """VAE format (AUTO = auto-detect from the model)."""
+        return VaeFormat(<int>self._params.vae_format)
+
+    @vae_format.setter
+    def vae_format(self, value):
+        cdef int iv = int(value)
+        self._params.vae_format = <sd_vae_format_t>iv
+
+    @property
+    def stream_layers(self) -> bool:
+        """Enable residency+prefetch layer streaming (no effect unless max_vram is set)."""
+        return self._params.stream_layers
+
+    @stream_layers.setter
+    def stream_layers(self, value: bool):
+        self._params.stream_layers = value
 
     def __str__(self) -> str:
         """Get string representation of parameters."""

@@ -24,6 +24,7 @@ from cyllama.sd import (
     PreviewMode,
     LoraApplyMode,
     HiresUpscaler,
+    VaeFormat,
     text_to_image,
     text_to_images,
     image_to_image,
@@ -67,6 +68,12 @@ class TestEnums:
         assert len(list(SDType)) >= 10
         assert SDType.F32.value == 0
         assert SDType.F16.value == 1
+
+    def test_vae_format(self):
+        assert VaeFormat.AUTO.value == -1
+        assert VaeFormat.FLUX.value == 0
+        assert VaeFormat.SD3.value == 1
+        assert VaeFormat.FLUX2.value == 2
 
 
 class TestUtilityFunctions:
@@ -385,6 +392,24 @@ class TestSDContextParams:
         params = SDContextParams()
         params.wtype = SDType.F32
         assert params.wtype == SDType.F32
+
+    def test_vae_format_default_and_setter(self):
+        params = SDContextParams()
+        # sd_ctx_params_init() default is auto-detect
+        assert params.vae_format == VaeFormat.AUTO
+        assert isinstance(params.vae_format, VaeFormat)
+        # setter accepts the enum
+        params.vae_format = VaeFormat.FLUX2
+        assert params.vae_format == VaeFormat.FLUX2
+        # setter also accepts a raw int
+        params.vae_format = 1
+        assert params.vae_format == VaeFormat.SD3
+
+    def test_stream_layers_default_and_setter(self):
+        params = SDContextParams()
+        assert params.stream_layers is False
+        params.stream_layers = True
+        assert params.stream_layers is True
 
 
 class TestSDSampleParams:

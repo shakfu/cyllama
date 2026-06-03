@@ -121,6 +121,13 @@ cdef extern from "stable-diffusion.h":
         LORA_APPLY_AT_RUNTIME
         LORA_APPLY_MODE_COUNT
 
+    ctypedef enum sd_vae_format_t:
+        SD_VAE_FORMAT_AUTO
+        SD_VAE_FORMAT_FLUX
+        SD_VAE_FORMAT_SD3
+        SD_VAE_FORMAT_FLUX2
+        SD_VAE_FORMAT_COUNT
+
     # =========================================================================
     # Structures
     # =========================================================================
@@ -188,7 +195,9 @@ cdef extern from "stable-diffusion.h":
         bint chroma_use_t5_mask
         int chroma_t5_mask_pad
         bint qwen_image_zero_cond_t
+        sd_vae_format_t vae_format
         float max_vram
+        bint stream_layers
         const char* backend
         const char* params_backend
 

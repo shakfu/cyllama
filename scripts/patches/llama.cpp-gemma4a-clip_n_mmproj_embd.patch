@@ -1,0 +1,31 @@
+Subject: [PATCH] mtmd: fix gemma4a audio crash (missing GEMMA4A in clip_n_mmproj_embd)
+
+clip_n_mmproj_embd() lacks a PROJECTOR_TYPE_GEMMA4A case, so a Gemma-4
+mmproj with an audio projector (clip.audio.projector_type = "gemma4a")
+falls through to `default: GGML_ABORT("Unknown projector type")` and
+aborts the process (SIGABRT) during audio encoder warmup.
+
+GEMMA4A is handled in every other projector switch in clip.cpp
+(load_tensors, the graph builder dispatch, n_patches, etc.); it is only
+missing from clip_n_mmproj_embd(). Group it with its sibling audio
+variant GEMMA4UA, which already returns hparams.projection_dim. This is
+the correct value: for the Gemma-4 E4B mmproj, clip.audio.projection_dim
+== gemma4.embedding_length (2560), which is what clip_n_mmproj_embd must
+return so the audio embeddings can be injected into the text model.
+
+Refs: #21325
+---
+ tools/mtmd/clip.cpp | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/tools/mtmd/clip.cpp b/tools/mtmd/clip.cpp
+--- a/tools/mtmd/clip.cpp
++++ b/tools/mtmd/clip.cpp
+@@ -4381,6 +4381,7 @@ int clip_n_mmproj_embd(const struct clip_ctx * ctx) {
+             return ctx->model.mm_fc_w->ne[1];
+         case PROJECTOR_TYPE_LFM2A:
+             return ctx->model.position_embeddings->ne[0];
++        case PROJECTOR_TYPE_GEMMA4A:
+         case PROJECTOR_TYPE_GEMMA4UA:
+             return ctx->model.hparams.projection_dim;
+         case PROJECTOR_TYPE_GRANITE_SPEECH:

@@ -137,7 +137,7 @@ PLATFORM = platform.system()
 ARCH = platform.machine()
 PY_VER_MINOR = sys.version_info.minor
 
-STABLE_BUILD = getenv("STABLE_BUILD", True)
+STABLE_BUILD = getenv("STABLE_BUILD", False)
 if STABLE_BUILD:
     # known to build and work without errors, 100% tests pass
     LLAMACPP_VERSION = "b9352"
@@ -146,9 +146,9 @@ if STABLE_BUILD:
     SQLITEVECTOR_VERSION = "0.9.95"
 else:
     # experimental bleeding-edge builds ` = ""` means get latest
-    LLAMACPP_VERSION = "b9352"
+    LLAMACPP_VERSION = "b9493"
     WHISPERCPP_VERSION = "v1.8.4"
-    SDCPP_VERSION = "master-652-92dc726"
+    SDCPP_VERSION = "master-669-2d40a8b"
     SQLITEVECTOR_VERSION = "0.9.95"
 if PLATFORM == "Darwin":
     MACOSX_DEPLOYMENT_TARGET = setenv("MACOSX_DEPLOYMENT_TARGET", "12.6")
@@ -1164,6 +1164,52 @@ class LlamaCppBuilder(GgmlBuilder):
         # mtmd (multimodal) headers.
         self.glob_copy(self.src_dir / "tools" / "mtmd", self.include, patterns=["*.h"])
 
+    def _apply_source_patches(self) -> None:
+        """Apply local fixes to the vendored llama.cpp source before building.
+
+        Every ``scripts/patches/llama.cpp-*.patch`` file is applied (with ``-p1``,
+        a/ b/ prefixes) to the cloned source tree, which is wiped and re-fetched
+        by ``make reset``/``remake`` -- so these must run on every build. Each
+        patch is applied idempotently and is self-disabling: if it is already
+        applied, or no longer applies (e.g. upstream merged an equivalent fix or
+        refactored the context), it is skipped as a no-op. The ``.patch`` files
+        are the single source of truth and double as the upstream PR payload;
+        see scripts/patches/README.md for the rationale and upstream refs.
+        """
+        patch_dir = Path(__file__).resolve().parent / "patches"
+        patches = sorted(patch_dir.glob("llama.cpp-*.patch"))
+        for patch in patches:
+            self._apply_patch(patch)
+
+    def _apply_patch(self, patch: Path) -> None:
+        """Apply a single unified diff to ``self.src_dir`` if it isn't already.
+
+        Uses ``git apply`` (which works with or without a git repo) and its
+        ``--check`` / ``--reverse --check`` dry-runs to decide between apply,
+        already-applied, and no-longer-applies -- without aborting the build in
+        the latter two cases (unlike ``self.cmd``).
+        """
+
+        def _git_apply(*flags: str) -> bool:
+            return (
+                subprocess.run(
+                    ["git", "apply", *flags, str(patch)],
+                    cwd=str(self.src_dir),
+                    capture_output=True,
+                ).returncode
+                == 0
+            )
+
+        if _git_apply("--check"):
+            subprocess.run(
+                ["git", "apply", str(patch)], cwd=str(self.src_dir), check=True
+            )
+            self.log.info(f"applied patch: {patch.name}")
+        elif _git_apply("--reverse", "--check"):
+            self.log.debug(f"patch already applied, skipping: {patch.name}")
+        else:
+            self.log.info(f"patch no longer applies, skipping: {patch.name}")
+
     def build(self, shared: bool = False) -> None:
         """main build function"""
         if not self.src_dir.exists():
@@ -1172,6 +1218,7 @@ class LlamaCppBuilder(GgmlBuilder):
         self.prefix.mkdir(exist_ok=True)
         self.include.mkdir(exist_ok=True)
         self._copy_headers()
+        self._apply_source_patches()
 
         # Get backend-specific CMake options
         backend_options = self.get_backend_cmake_options()
@@ -1236,6 +1283,7 @@ class LlamaCppBuilder(GgmlBuilder):
         self.prefix.mkdir(exist_ok=True)
         self.include.mkdir(exist_ok=True)
         self._copy_headers()
+        self._apply_source_patches()
 
         backend_options = self.get_backend_cmake_options()
         # GGML_NATIVE is incompatible with GGML_BACKEND_DL; disable it

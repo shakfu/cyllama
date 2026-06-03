@@ -1,6 +1,28 @@
 # Patches
 
-Proposed upstream patches for vendored C++ dependencies. These are not currently applied locally — cyllama handles the affected error cases in its Cython wrapper layer instead.
+Fixes for vendored C++ dependencies, with their upstream rationale. Where the
+issue can be handled from the Cython wrapper layer, cyllama does that and the
+patch here is only a proposed upstream change. Where it cannot — e.g. a hard
+`GGML_ABORT`/`abort()` that no Python-level code can intercept — the fix is
+applied to the cloned source at build time by `LlamaCppBuilder._apply_source_patches()`
+in `scripts/manage.py` (idempotent, guarded to become a no-op once upstream merges).
+
+## llama.cpp
+
+**Target:** `b9493` (`tools/mtmd/clip.cpp`)
+
+**Status:** applied at build time via `manage.py` (`_apply_source_patches`).
+
+**Problem:** `clip_n_mmproj_embd()` lost its `PROJECTOR_TYPE_GEMMA4A` case when
+the gemma4 "ultra" audio variant (`GEMMA4UA`) was added. `GEMMA4A` is still
+handled in every other function in the file, so this is an unintentional
+omission. Loading a gemma4a mmproj (e.g. `mmproj-gemma-4-E4B-it-BF16.gguf`) and
+warming up the audio encoder falls through to `default: GGML_ABORT("Unknown
+projector type")`, which calls `abort()` and takes down the whole process
+(SIGABRT). It cannot be caught from the Cython layer, hence the source patch.
+
+**Fix:** group `PROJECTOR_TYPE_GEMMA4A` with `PROJECTOR_TYPE_GEMMA4UA` in
+`clip_n_mmproj_embd()` (both return `ctx->model.hparams.projection_dim`).
 
 ## stable-diffusion.cpp
 

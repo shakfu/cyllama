@@ -76,6 +76,7 @@ from .stable_diffusion import (
     PreviewMode,
     LoraApplyMode,
     HiresUpscaler,
+    VaeFormat,
     # Convenience functions
     text_to_image,
     text_to_images,
@@ -119,6 +120,7 @@ __all__ = [
     "PreviewMode",
     "LoraApplyMode",
     "HiresUpscaler",
+    "VaeFormat",
     # Convenience functions
     "text_to_image",
     "text_to_images",
