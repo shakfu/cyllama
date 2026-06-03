@@ -1201,9 +1201,7 @@ class LlamaCppBuilder(GgmlBuilder):
             )
 
         if _git_apply("--check"):
-            subprocess.run(
-                ["git", "apply", str(patch)], cwd=str(self.src_dir), check=True
-            )
+            subprocess.run(["git", "apply", str(patch)], cwd=str(self.src_dir), check=True)
             self.log.info(f"applied patch: {patch.name}")
         elif _git_apply("--reverse", "--check"):
             self.log.debug(f"patch already applied, skipping: {patch.name}")
