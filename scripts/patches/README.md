@@ -9,7 +9,7 @@ in `scripts/manage.py` (idempotent, guarded to become a no-op once upstream merg
 
 ## llama.cpp
 
-**Target:** `b9493` (`tools/mtmd/clip.cpp`)
+**Target:** `b9493`-`b9498` (`tools/mtmd/clip.cpp`); still required as of b9498.
 
 **Status:** applied at build time via `manage.py` (`_apply_source_patches`).
 
@@ -23,6 +23,11 @@ projector type")`, which calls `abort()` and takes down the whole process
 
 **Fix:** group `PROJECTOR_TYPE_GEMMA4A` with `PROJECTOR_TYPE_GEMMA4UA` in
 `clip_n_mmproj_embd()` (both return `ctx->model.hparams.projection_dim`).
+
+**Upstream status:** unfixed on `master` as of 2026-06-04; not merged in any
+tag. The original symptom was filed as ggml-org/llama.cpp#21325, which was
+closed without addressing this `clip_n_mmproj_embd` omission. A ready-to-post
+issue draft (with this fix) lives at `docs/dev/patch-mmproj-gemma4a.md`.
 
 ## stable-diffusion.cpp
 
