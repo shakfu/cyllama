@@ -3048,8 +3048,8 @@
 <a id="__codelineno-21-13" name="__codelineno-21-13" href="#__codelineno-21-13"></a>
 <a id="__codelineno-21-14" name="__codelineno-21-14" href="#__codelineno-21-14"></a><span class="c1"># Setup speculative decoding</span>
 <a id="__codelineno-21-15" name="__codelineno-21-15" href="#__codelineno-21-15"></a><span class="n">params</span> <span class="o">=</span> <span class="n">SpeculativeParams</span><span class="p">(</span>
-<a id="__codelineno-21-16" name="__codelineno-21-16" href="#__codelineno-21-16"></a>    <span class="n">n_max</span><span class="o">=</span><span class="mi">16</span><span class="p">,</span>      <span class="c1"># Maximum tokens to draft</span>
-<a id="__codelineno-21-17" name="__codelineno-21-17" href="#__codelineno-21-17"></a>    <span class="n">p_min</span><span class="o">=</span><span class="mf">0.75</span>     <span class="c1"># Acceptance probability</span>
+<a id="__codelineno-21-16" name="__codelineno-21-16" href="#__codelineno-21-16"></a>    <span class="n">n_max</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span>       <span class="c1"># Maximum tokens to draft</span>
+<a id="__codelineno-21-17" name="__codelineno-21-17" href="#__codelineno-21-17"></a>    <span class="n">p_min</span><span class="o">=</span><span class="mf">0.0</span>      <span class="c1"># Acceptance probability</span>
 <a id="__codelineno-21-18" name="__codelineno-21-18" href="#__codelineno-21-18"></a><span class="p">)</span>
 <a id="__codelineno-21-19" name="__codelineno-21-19" href="#__codelineno-21-19"></a><span class="n">spec</span> <span class="o">=</span> <span class="n">Speculative</span><span class="p">(</span><span class="n">params</span><span class="p">,</span> <span class="n">ctx_target</span><span class="p">)</span>
 <a id="__codelineno-21-20" name="__codelineno-21-20" href="#__codelineno-21-20"></a>
