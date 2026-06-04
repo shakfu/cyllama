@@ -2188,28 +2188,12 @@ def _run_wheel_repair(
         project.thirdparty / "stable-diffusion.cpp" / "dynamic",
         project.thirdparty / "whisper.cpp" / "dynamic",
     ]
+    # Whichever thirdparty/<x>/dynamic dirs exist are added to the loader path
+    # below so the repair tool can find the shared deps to bundle. A dynamic GPU
+    # build produces llama.cpp/dynamic (whisper/sd are static-linked into the
+    # extension); if a dep is genuinely missing the repair tool errors on its
+    # own, so no separate precheck is needed here.
     existing = [str(d) for d in dynlib if d.is_dir()]
-
-    # Backend-driven strict check: GPU backends are always dynamic builds in
-    # this project, so the thirdparty/<x>/dynamic dirs must exist. Failing
-    # fast here turns the obscure auditwheel "cannot find dependency
-    # libllama.so.X" error into an actionable message pointing at the
-    # missing build step. CPU/Metal callers may legitimately have no
-    # dynamic dirs (static-only builds), so they skip this check.
-    if backend in _GPU_BACKENDS:
-        missing = [str(d) for d in dynlib if not d.is_dir()]
-        if missing:
-            log.error(
-                f"wheel_repair --backend {backend} requires dynamic build output, but these directories are missing:"
-            )
-            for d in missing:
-                log.error(f"  {d}")
-            log.error(
-                "Build the dynamic deps first, e.g. "
-                "`GGML_" + backend.upper() + "=1 WITH_DYLIB=1 "
-                "python scripts/manage.py build --all --deps-only --dynamic`."
-            )
-            sys.exit(1)
 
     # Resolve each repair tool's entry-point script next to sys.executable
     # so we don't depend on PATH or uvx being preinstalled. cibuildwheel
