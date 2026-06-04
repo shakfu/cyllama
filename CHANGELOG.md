@@ -29,7 +29,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Changed
 
-- **sqlite-vector updatedaterd to 1.0.0 (from 0.9.95)**. No breaking api changes.
+- **sqlite-vector updated to 1.0.0 (from 0.9.95)**. No breaking api changes.
 
 - **llama.cpp updated to b9505 (from b9352); the gemma4a `clip_n_mmproj_embd()` source patch removed** -- upstream merged a fix for the gemma4a audio-mmproj abort in [ggml-org/llama.cpp#24091](https://github.com/ggml-org/llama.cpp/pull/24091) (merge `e3ba22d`, released in `b9503`), so the build-time patch cyllama previously carried is no longer needed and has been deleted (`scripts/patches/llama.cpp-gemma4a-clip_n_mmproj_embd.patch` and the `docs/dev/patch-mmproj-gemma4a.md` issue draft). `_apply_source_patches()` is retained for future patches. Note that upstream did **not** adopt cyllama's patch value: the patch returned `ctx->model.hparams.projection_dim`, whereas the merged fix groups `PROJECTOR_TYPE_GEMMA4A` with `PROJECTOR_TYPE_GEMMA4UA` and returns `ctx->model.mm_input_proj_w->ne[1]` (it also changed the `GEMMA4UA` return from `projection_dim` to the same expression). For the Gemma-4 E4B mmproj these coincide numerically, but the upstream tensor-dimension value is authoritative. No cyllama binding changes were required for the bump.
 
