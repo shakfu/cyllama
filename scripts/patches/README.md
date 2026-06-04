@@ -7,27 +7,11 @@ patch here is only a proposed upstream change. Where it cannot — e.g. a hard
 applied to the cloned source at build time by `LlamaCppBuilder._apply_source_patches()`
 in `scripts/manage.py` (idempotent, guarded to become a no-op once upstream merges).
 
-## llama.cpp
-
-**Target:** `b9493`-`b9498` (`tools/mtmd/clip.cpp`); still required as of b9498.
-
-**Status:** applied at build time via `manage.py` (`_apply_source_patches`).
-
-**Problem:** `clip_n_mmproj_embd()` lost its `PROJECTOR_TYPE_GEMMA4A` case when
-the gemma4 "ultra" audio variant (`GEMMA4UA`) was added. `GEMMA4A` is still
-handled in every other function in the file, so this is an unintentional
-omission. Loading a gemma4a mmproj (e.g. `mmproj-gemma-4-E4B-it-BF16.gguf`) and
-warming up the audio encoder falls through to `default: GGML_ABORT("Unknown
-projector type")`, which calls `abort()` and takes down the whole process
-(SIGABRT). It cannot be caught from the Cython layer, hence the source patch.
-
-**Fix:** group `PROJECTOR_TYPE_GEMMA4A` with `PROJECTOR_TYPE_GEMMA4UA` in
-`clip_n_mmproj_embd()` (both return `ctx->model.hparams.projection_dim`).
-
-**Upstream status:** unfixed on `master` as of 2026-06-04; not merged in any
-tag. The original symptom was filed as ggml-org/llama.cpp#21325, which was
-closed without addressing this `clip_n_mmproj_embd` omission. A ready-to-post
-issue draft (with this fix) lives at `docs/dev/patch-mmproj-gemma4a.md`.
+There are currently no build-time llama.cpp patches. The gemma4a
+`clip_n_mmproj_embd()` abort fix was merged upstream in
+[ggml-org/llama.cpp#24091](https://github.com/ggml-org/llama.cpp/pull/24091)
+(released in `b9503`), so cyllama no longer carries it. `_apply_source_patches()`
+remains in place for any future patch.
 
 ## stable-diffusion.cpp
 

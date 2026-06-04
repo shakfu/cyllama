@@ -137,18 +137,18 @@ PLATFORM = platform.system()
 ARCH = platform.machine()
 PY_VER_MINOR = sys.version_info.minor
 
-STABLE_BUILD = getenv("STABLE_BUILD", False)
+STABLE_BUILD = getenv("STABLE_BUILD", True)
 if STABLE_BUILD:
     # known to build and work without errors, 100% tests pass
-    LLAMACPP_VERSION = "b9352"
+    LLAMACPP_VERSION = "b9505"
     WHISPERCPP_VERSION = "v1.8.4"
-    SDCPP_VERSION = "master-652-92dc726"
-    SQLITEVECTOR_VERSION = "0.9.95"
+    SDCPP_VERSION = "master-672-1f9ee88"
+    SQLITEVECTOR_VERSION = "1.0.0"
 else:
     # experimental bleeding-edge builds ` = ""` means get latest
-    LLAMACPP_VERSION = "b9498"
+    LLAMACPP_VERSION = "b9505"
     WHISPERCPP_VERSION = "v1.8.4"
-    SDCPP_VERSION = "master-669-2d40a8b"
+    SDCPP_VERSION = "master-672-1f9ee88"
     SQLITEVECTOR_VERSION = "1.0.0"
 if PLATFORM == "Darwin":
     MACOSX_DEPLOYMENT_TARGET = setenv("MACOSX_DEPLOYMENT_TARGET", "12.6")
@@ -1953,6 +1953,12 @@ class SqliteVectorBuilder(Builder):
 # inlined into .github/workflows/build-gpu-wheels*.yml as
 # CIBW_REPAIR_WHEEL_COMMAND_* --exclude flags. Edit this dict to add or
 # remove a backend exclude; CI and the local Makefile both pick it up.
+# Sonames that are present on essentially every Linux host (system/toolchain
+# runtimes, not SDK-specific). They appear in the wheel-repair exclude lists
+# because we don't bundle them, but their absence is never the user's problem,
+# so they are filtered out of the build_config "host_runtimes" detection list.
+_HOST_SYSTEM_SONAMES: set[str] = {"libgomp.so.1"}
+
 _EXCLUDES_LINUX: dict[str, list[str]] = {
     "": [],
     "cpu": [],
@@ -2894,6 +2900,14 @@ class Application(ShellCmd, metaclass=MetaCommander):
             },
             "sycl": {
                 "enabled": getenv("GGML_SYCL", default=False),
+                # The SYCL wheel deliberately does not vendor the Intel oneAPI
+                # userspace runtimes (see installation docs), so record the
+                # sonames the host must provide. Derived from the SYCL
+                # wheel-repair exclude list -- the single source of truth --
+                # minus ubiquitous system libs. The package reads this to turn
+                # an opaque dlopen failure into an actionable "install oneAPI"
+                # message (src/cyllama/_internal/runtime_errors.py).
+                "host_runtimes": [so for so in _EXCLUDES_LINUX["sycl"] if so not in _HOST_SYSTEM_SONAMES],
             },
             "opencl": {
                 "enabled": getenv("GGML_OPENCL", default=False),

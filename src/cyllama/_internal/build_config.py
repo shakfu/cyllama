@@ -50,6 +50,21 @@ def backend_enabled(name: str) -> bool:
     return False
 
 
+def host_runtimes(name: str) -> list[str]:
+    """Sonames a backend's wheel leaves to the host (unvendored runtimes).
+
+    Populated by ``manage.py`` for backends whose userspace runtime is
+    deliberately not bundled (currently only ``sycl``). Empty for every other
+    backend, and empty when ``build_config.json`` predates this field.
+    """
+    entry = backend().get(name, {})
+    if isinstance(entry, dict):
+        runtimes = entry.get("host_runtimes", [])
+        if isinstance(runtimes, list):
+            return [str(s) for s in runtimes]
+    return []
+
+
 def versions() -> dict[str, str]:
     """Return the ``versions`` section (thirdparty version strings)."""
     versions_section: dict[str, str] = get().get("versions", {})

@@ -1,6 +1,6 @@
 [project]
 name = "cyllama"
-version = "0.3.0"
+version = "0.3.1"
 description = "cyllama is a comprehensive zero-dependencies Python library for local AI inference using the state-of-the-art llama, whisper, and stable-diffusion .cpp ecosystem."
 readme = "README.md"
 authors = [
