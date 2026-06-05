@@ -42,7 +42,6 @@ Async Example:
 
 import asyncio
 import hashlib
-import signal
 import threading
 from collections import OrderedDict
 from typing import (
@@ -68,6 +67,7 @@ import time
 
 logger = logging.getLogger(__name__)
 
+from .utils.cancellation import SigintHandle, install_sigint_handler as _install_sigint_handler
 from .defaults import (
     LLAMA_DEFAULT_SEED,
     DEFAULT_TEMPERATURE,
@@ -513,38 +513,10 @@ class _ResponseLRUCache:
         )
 
 
-class _SigintHandle:
-    """Restorer returned by ``LLM.install_sigint_handler()``.
-
-    Acts as a context manager (``__exit__`` restores the prior handler) and
-    as an imperative handle (call ``.restore()`` directly). Idempotent --
-    a second restore is a no-op.
-
-    Standard last-installed-first-restored caveat applies: if multiple
-    handlers are stacked, restore them in reverse order.
-    """
-
-    __slots__ = ("_previous", "_restored")
-
-    def __init__(self, previous: object) -> None:
-        self._previous = previous
-        self._restored = False
-
-    def restore(self) -> None:
-        if self._restored:
-            return
-        try:
-            signal.signal(signal.SIGINT, self._previous)  # type: ignore[arg-type]
-        except (ValueError, TypeError):
-            # Off-main-thread or unrestorable handler; best-effort.
-            pass
-        self._restored = True
-
-    def __enter__(self) -> "_SigintHandle":
-        return self
-
-    def __exit__(self, exc_type: object, exc_val: object, exc_tb: object) -> None:
-        self.restore()
+# SIGINT-to-cancel plumbing is shared across subsystems; see
+# cyllama.utils.cancellation. Aliased here for backward compatibility with
+# the previous local name and return-type annotation.
+_SigintHandle = SigintHandle
 
 
 class LLM:
@@ -863,8 +835,7 @@ class LLM:
             A ``_SigintHandle`` that restores the previous handler on
             ``__exit__`` or ``.restore()``.
         """
-        previous = signal.signal(signal.SIGINT, lambda *_: self.cancel())
-        return _SigintHandle(previous)
+        return _install_sigint_handler(self.cancel)
 
     def _try_acquire_busy(self) -> None:
         """Acquire the busy-lock or raise on contention.

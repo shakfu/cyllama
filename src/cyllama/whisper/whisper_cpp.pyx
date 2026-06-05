@@ -186,6 +186,17 @@ cdef void _whisper_progress_trampoline(
         traceback.print_exc()
 
 
+cdef bint _whisper_cancel_flag_callback(void * data) noexcept nogil:
+    """Pure-C nogil ggml_abort_callback that reads a bint flag by pointer.
+
+    Polled from whisper.cpp's encode/decode compute threads without
+    reacquiring the GIL on every poll; non-zero means "abort the in-flight
+    whisper_full". ``data`` is the address of ``WhisperContext._cancel_flag``.
+    Mirrors the llama-side ``_cancel_flag_callback``.
+    """
+    return (<bint*>data)[0]
+
+
 cdef cppbool _whisper_encoder_begin_trampoline(
     wh.whisper_context * ctx, wh.whisper_state * state, void * user_data
 ) noexcept with gil:
@@ -836,6 +847,12 @@ cdef class WhisperContext:
     # thread. The lock is still set internally by __init__; readonly
     # only blocks Python-level rebinding.
     cdef readonly object _busy_lock
+    # Cancellation flag polled by a nogil ggml_abort_callback installed for
+    # the duration of full(). Plain bint rather than a C11 atomic: aligned
+    # word writes are atomic on every CPU we target, and a transient stale
+    # read just delays cancellation by one ggml op poll -- not a correctness
+    # problem for a one-shot "abort now" signal. Mirrors LlamaContext.
+    cdef bint _cancel_flag
 
     def __init__(self, model_path, WhisperContextParams params=None):
         import threading
@@ -871,6 +888,7 @@ cdef class WhisperContext:
         # __dealloc__ is intentionally NOT guarded because gc may run it
         # on any thread.
         self._busy_lock = threading.Lock()
+        self._cancel_flag = 0
 
     def _try_acquire_busy(self):
         """Acquire the busy-lock or raise on contention."""
@@ -881,6 +899,39 @@ cdef class WhisperContext:
                 "WhisperContext per thread instead of sharing a single "
                 "instance across threads."
             )
+
+    def cancel(self):
+        """Request cancellation of an in-flight :meth:`full` transcription.
+
+        Sets a C-level flag polled by a nogil ggml abort-callback installed
+        for the duration of :meth:`full`. The next compute-graph poll (inside
+        encode/decode) aborts the transcription, which then raises
+        ``InterruptedError``. Safe to call from a signal handler or another
+        thread. No-op when nothing is running; the flag is cleared at the
+        start of the next :meth:`full` call so a request does not carry over.
+
+        Mirrors ``LLM.cancel()`` so the cancellation surface is uniform
+        across subsystems.
+        """
+        self._cancel_flag = 1
+
+    @property
+    def cancel_requested(self):
+        """Whether :meth:`cancel` has been called and not yet cleared."""
+        return bool(self._cancel_flag)
+
+    def install_sigint_handler(self):
+        """Install a SIGINT (Ctrl-C) handler that calls :meth:`cancel`.
+
+        Useful for CLI scripts: Ctrl-C interrupts an in-flight :meth:`full`
+        cleanly -- it raises ``InterruptedError`` from :meth:`full` instead of
+        being deferred until ``whisper_full`` returns. Must be called from the
+        main Python thread. The returned handle restores the previous handler
+        on ``.restore()`` or context-manager exit. Delegates to the shared
+        helper so the surface matches ``LLM.install_sigint_handler()``.
+        """
+        from cyllama.utils.cancellation import install_sigint_handler
+        return install_sigint_handler(self.cancel)
 
     def __dealloc__(self):
         if self._c_ctx != NULL:
@@ -1190,6 +1241,16 @@ cdef class WhisperContext:
         ctx = self._c_ctx
         c_params = params._c_params
 
+        # Install the nogil cancellation abort-callback for the duration of
+        # this call so cancel() (or a SIGINT handler that calls it) aborts an
+        # in-flight transcription -- including mid encode/decode, where one
+        # graph compute can take seconds. Clear any stale flag from a prior
+        # call first so a cancel() does not carry over. Overrides any
+        # abort_callback the user set on params (cyllama does not expose one).
+        self._cancel_flag = 0
+        c_params.abort_callback = <wh.ggml_abort_callback>&_whisper_cancel_flag_callback
+        c_params.abort_callback_user_data = <void*>&self._cancel_flag
+
         self._try_acquire_busy()
         try:
             with nogil:
@@ -1197,6 +1258,8 @@ cdef class WhisperContext:
         finally:
             self._busy_lock.release()
         if result != 0:
+            if self._cancel_flag:
+                raise InterruptedError("whisper_full aborted by cancel()")
             raise RuntimeError(f"Whisper full processing failed with error {result}")
         return result
 

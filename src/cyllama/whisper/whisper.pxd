@@ -122,6 +122,10 @@ cdef extern from "whisper.h":
     ctypedef void (*whisper_progress_callback)(whisper_context * ctx, whisper_state * state, int progress, void * user_data)
     ctypedef bint (*whisper_encoder_begin_callback)(whisper_context * ctx, whisper_state * state, void * user_data)
     ctypedef void (*whisper_logits_filter_callback)(whisper_context * ctx, whisper_state * state, const whisper_token_data * tokens, int n_tokens, float * logits, void * user_data)
+    # ggml abort callback (declared in ggml.h, which whisper.h includes):
+    # returns true to abort the in-flight compute graph. Typed here so the
+    # abort_callback field can be assigned a Cython cdef function directly.
+    ctypedef bint (*ggml_abort_callback)(void * data)
 
     # Full params structure
     ctypedef struct whisper_full_params:
@@ -176,7 +180,7 @@ cdef extern from "whisper.h":
         void * progress_callback_user_data
         whisper_encoder_begin_callback encoder_begin_callback
         void * encoder_begin_callback_user_data
-        void * abort_callback  # ggml_abort_callback
+        ggml_abort_callback abort_callback
         void * abort_callback_user_data
         whisper_logits_filter_callback logits_filter_callback
         void * logits_filter_callback_user_data

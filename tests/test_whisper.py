@@ -620,3 +620,92 @@ class TestWhisperContextConcurrencyGuard:
         # Should not raise
         ctx._try_acquire_busy()
         ctx._busy_lock.release()
+
+
+class TestWhisperCancellation:
+    """Cancellation of an in-flight ``full()`` transcription.
+
+    ``cancel()`` sets a C-level flag polled by a nogil ggml abort-callback
+    installed for the duration of ``full()`` (mirrors ``LLM.cancel()``).
+    Tests trigger ``cancel()`` from inside an ``encoder_begin_callback`` --
+    which whisper.cpp invokes before each encode -- so the abort fires
+    deterministically during native compute, with no timing race.
+    """
+
+    def test_cancel_requested_reflects_cancel(self, whisper_model_path):
+        """cancel() flips cancel_requested; it starts False."""
+        import gc
+
+        ctx = wh.WhisperContext(whisper_model_path)
+        assert ctx.cancel_requested is False
+        ctx.cancel()
+        assert ctx.cancel_requested is True
+        del ctx
+        gc.collect()
+
+    @staticmethod
+    def _synthetic_audio(seconds: float) -> np.ndarray:
+        """Quiet white noise at 16 kHz mono float32. Transcription content
+        is irrelevant -- the encode still runs (and can be aborted), which
+        is all these tests exercise. Self-contained, so no external sample
+        file is required."""
+        n = int(wh.WHISPER.SAMPLE_RATE * seconds)
+        return (0.01 * np.random.randn(n)).astype(np.float32)
+
+    def test_cancel_during_full_raises_interrupted(self, whisper_model_path):
+        """A cancel() requested mid-transcription aborts whisper_full and
+        surfaces as InterruptedError (not the generic RuntimeError)."""
+        import gc
+
+        ctx = wh.WhisperContext(whisper_model_path)
+        try:
+            # ~22s: plenty of ggml ops for the abort poll to catch.
+            samples = self._synthetic_audio(22.0)
+
+            params = wh.WhisperFullParams()
+            params.language = "en"
+            params.n_threads = 4
+
+            fired = {"n": 0}
+
+            def on_encode():
+                fired["n"] += 1
+                ctx.cancel()  # set the abort flag for the in-flight compute
+                return True  # proceed into encode; abort happens via ggml poll
+
+            params.set_encoder_begin_callback(on_encode)
+
+            with pytest.raises(InterruptedError):
+                ctx.full(samples, params)
+
+            assert fired["n"] >= 1, "encoder_begin_callback never fired"
+            # The flag persists after the abort (only cleared on the next run).
+            assert ctx.cancel_requested is True
+        finally:
+            del ctx
+            gc.collect()
+
+    def test_cancel_flag_clears_on_next_full(self, whisper_model_path):
+        """A stale cancel() does not carry over: full() clears the flag at
+        the start and runs to completion without raising."""
+        import gc
+
+        ctx = wh.WhisperContext(whisper_model_path)
+        try:
+            samples = self._synthetic_audio(2.0)
+
+            ctx.cancel()
+            assert ctx.cancel_requested is True
+
+            params = wh.WhisperFullParams()
+            params.language = "en"
+            params.n_threads = 4
+
+            # Cleared at the start of full(), so this completes normally
+            # (no InterruptedError) and leaves the flag clear.
+            ctx.full(samples, params)
+
+            assert ctx.cancel_requested is False
+        finally:
+            del ctx
+            gc.collect()

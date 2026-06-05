@@ -17,6 +17,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+### Added
+
+- **Unified cancellation surface for long-running native calls (`cancel()` / `cancel_requested` / `install_sigint_handler()`)** -- the cancellation pattern that already existed on `LLM` (llama.cpp) is now generalized so each subsystem responds to Ctrl-C / programmatic cancellation through the same methods. The signal-handling half was extracted to `cyllama/utils/cancellation.py` (`SigintHandle` + `install_sigint_handler(cancel)`); `LLM` delegates to it (the previous private `_SigintHandle` is kept as an alias). The three subsystems differ in mechanism because they differ in what the underlying library exposes:
+  - **whisper** (`WhisperContext`) gains real in-process cancellation. A nogil ggml abort-callback is installed for the duration of `full()` and polls a `_cancel_flag`; `cancel()` sets it, aborting an in-flight `whisper_full` mid encode/decode (verified on Metal), which then raises `InterruptedError`. The flag auto-clears at the start of the next `full()` so a stale request does not carry over. `whisper.pxd` gains a typed `ggml_abort_callback` for the `whisper_full_params.abort_callback` field.
+  - **llama** (`LLM`) already had this (between-token event + mid-decode ggml abort callback); unchanged behaviorally, now sharing the extracted SIGINT helper.
+  - **stable-diffusion CLI** (`python -m cyllama.sd`) gains responsive Ctrl-C via process isolation: SD's `generate()` is a single native call with no abort hook (its progress callback returns `void`; cyllama issue #8 / upstream leejet/stable-diffusion.cpp#1036), so long, hookless commands (`txt2img`/`img2img`/`inpaint`/`controlnet`/`video`/`upscale`/`convert`) are re-run in a supervised child process the parent force-kills on Ctrl-C (SIGTERM then SIGKILL). Set `CYLLAMA_SD_NO_ISOLATE=1` to run in-process. The in-process `SDContext` API itself remains uninterruptible pending the upstream hook. Covered by `tests/test_whisper.py::TestWhisperCancellation` and `tests/test_sd_cli.py`, and documented in `docs/cancelling.md` (retitled "Cancelling long-running calls" and expanded from llama-only to all three subsystems).
+
 ## [0.3.1]
 
 ### Added
