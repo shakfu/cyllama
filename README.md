@@ -69,9 +69,9 @@ pip install -U xllamacpp
 
 - From github pypi for `CUDA` (use `--force-reinstall` to replace the installed CPU version):
 
-  - CUDA 12.4
+  - CUDA 13.2
     ```sh
-    pip install xllamacpp --force-reinstall --index-url https://xorbitsai.github.io/xllamacpp/whl/cu124
+    pip install xllamacpp --force-reinstall --index-url https://xorbitsai.github.io/xllamacpp/whl/cu132
     ```
 
   - CUDA 12.8
@@ -110,7 +110,7 @@ Before pip installing `xllamacpp`, please ensure your system meets the following
 
 - **CUDA (Linux)**:
   - Requires glibc 2.35 or later
-  - Compatible NVIDIA GPU with appropriate drivers (CUDA 12.4 or 12.8)
+  - Compatible NVIDIA GPU with appropriate drivers (CUDA 12.8 or 13.2)
 
 - **ROCm (Linux)**:
   - Requires glibc 2.35 or later
