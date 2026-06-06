@@ -1130,6 +1130,52 @@ server = xlc.Server(params)
 
 Note: `/health`, `/props`, and `/models` endpoints remain responsive during sleep and do not trigger a wake-up.
 
+### Web UI
+
+llama.cpp ships a browser-based Web UI for chatting with a running server. This is analogous to step 2 ("Start llama-server") of the upstream [llama.cpp Web UI Getting Started guide](https://github.com/ggml-org/llama.cpp/blob/master/tools/server/webui/README.md#getting-started), where running `./llama-server -m model.gguf` brings up the UI — with xllamacpp you simply start an `xlc.Server` instead.
+
+> **Note:** xllamacpp's prebuilt wheels are compiled **without** the embedded Web UI (`LLAMA_BUILD_WEBUI` is not defined), so the UI assets are not baked into the binary. To serve the UI, download the official prebuilt UI package from the [llama.cpp releases](https://github.com/ggml-org/llama.cpp/releases) (the `*-ui.tar.gz` asset, e.g. <https://github.com/ggml-org/llama.cpp/releases/download/b9536/llama-b9536-ui.tar.gz>), extract it, and point `params.public_path` at the extracted directory:
+>
+> ```sh
+> curl -L -o llama-ui.tar.gz https://github.com/ggml-org/llama.cpp/releases/download/b9536/llama-b9536-ui.tar.gz
+> mkdir -p webui && tar -xzf llama-ui.tar.gz -C webui
+> ```
+
+```python
+import time
+import webbrowser
+
+import xllamacpp as xlc
+
+params = xlc.CommonParams()
+params.model.path = "models/Llama-3.2-1B-Instruct-Q8_0.gguf"
+params.hostname = "127.0.0.1"
+params.port = 8080
+
+# The Web UI is enabled by default (params.ui = True; params.webui is a
+# deprecated alias). Serve the prebuilt static assets via public_path.
+# Point this at the directory where you extracted the official UI package.
+params.public_path = "webui"
+
+server = xlc.Server(params)
+
+# The Web UI is served at the server root.
+print(f"Web UI available at {server.listening_address}")
+webbrowser.open(server.listening_address)
+
+# The server runs in a background thread, so keep the process alive
+# to leave the Web UI reachable.
+try:
+    while True:
+        time.sleep(1)
+except KeyboardInterrupt:
+    pass
+```
+
+Open the printed address (e.g. `http://127.0.0.1:8080`) in your browser to chat with the model.
+
+> **Note:** This Web UI is handy for quick local testing, but if you are running xllamacpp through [Xinference](https://github.com/xorbitsai/inference), the Xinference web UI provides a more full-featured experience (model management, multiple backends, cluster deployment, etc.) and is the recommended choice for most users.
+
 ## Testing
 
 The `tests` directory provides extensive examples and test coverage for xllamacpp.

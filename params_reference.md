@@ -171,7 +171,7 @@ The central configuration object. Controls model loading, inference, sampling, s
 
 | Property | Type | Default | R/W | Description |
 |:---------|:-----|:--------|:---:|:------------|
-| `hf_token` | str | `""` | R/W | hf token |
+| `hf_token` | str | `""` | R/W | HF token (aka bearer token) |
 | `model` | [CommonParamsModel](#commonparamsmodel) | `` | R/W |  |
 | `model_alias` | set[str] | `` | R/W | model aliases |
 | `model_tags` | set[str] | `` | R/W | model tags (informational, not used for routing) |
@@ -259,7 +259,6 @@ The central configuration object. Controls model loading, inference, sampling, s
 | `cache_prompt` | bool | `true` | R/W | whether to enable prompt caching |
 | `cache_ram_mib` | int | `8192` | R/W | -1 = no limit, 0 - disable, 1 = 1 MiB, etc. |
 | `chat_template` | str | `""` | R/W | chat template |
-| `checkpoint_every_nt` | int | `8192` | R/W | make a checkpoint every n tokens during prefill |
 | `default_template_kwargs` | dict | `` | R/W |  |
 | `enable_chat_template` | bool | `true` | R/W | enable chat template |
 | `enable_reasoning` | int | `-1` | R/W | -1 = auto, 0 = disable, 1 = enable |
@@ -285,12 +284,12 @@ The central configuration object. Controls model loading, inference, sampling, s
 | `slot_save_path` | str | `` | R/W | slot save path |
 | `ssl_file_cert` | str | `""` | R/W | ssl file cert |
 | `ssl_file_key` | str | `""` | R/W | ssl file key |
-| `timeout_read` | int | `600` | R/W | http read timeout in seconds |
+| `timeout_read` | int | `3600` | R/W | http read timeout in seconds |
 | `timeout_write` | int | `timeout_read` | R/W | http write timeout in seconds |
 | `use_jinja` | bool | `true` | R/W |  |
-| `webui` | bool | `true` | R/W | enable webui |
-| `webui_config_json` | str | `` | R/W | webui config json |
-| `webui_mcp_proxy` | bool | `false` | R/W | webui mcp proxy |
+| `webui` | bool | `ui` | R/W | deprecated alias for ui |
+| `webui_config_json` | str | `` | R/W | deprecated alias for ui_config_json |
+| `webui_mcp_proxy` | bool | `false` | R/W | deprecated alias for ui_mcp_proxy |
 
 ### Sub-params
 
@@ -311,10 +310,18 @@ The central configuration object. Controls model loading, inference, sampling, s
 
 | Property | Type | Default | R/W | Description |
 |:---------|:-----|:--------|:---:|:------------|
+| `checkpoint_min_step` | int | `256` | R/W | minimum spacing between context checkpoints |
 | `force_pure_content_parser` | bool | `false` | R/W | force pure content parser |
+| `n_outputs_max` | int | `0` | R/W | max outputs in a batch (0 = n_batch). |
 | `no_alloc` | bool | `false` | R/W | Don't allocate model buffers |
 | `reuse_port` | bool | `false` | R/W | allow multiple sockets to bind to the same port |
 | `server_tools` | list[str] | `` | R/W | enable built-in tools |
+| `skip_download` | bool | `false` | R/W | skip model file downloading |
+| `sse_ping_interval` | int | `30` | R/W | SSE ping interval in seconds |
+| `system_prompt` | str | `""` | R/W | the system prompt text |
+| `ui` | bool | `true` | R/W | enable UI |
+| `ui_config_json` | str | `` | R/W | UI config json |
+| `ui_mcp_proxy` | bool | `false` | R/W | UI MCP proxy |
 
 ---
 
@@ -387,6 +394,7 @@ Sampling parameters that control token generation strategy. Access via `params.s
 | `reasoning_budget_message` | str | `` | R/W | message injected before end tag when budget exhausted |
 | `reasoning_budget_start` | list[int] | `` | R/W | start tag token sequence |
 | `reasoning_budget_tokens` | int | `` | R/W | -1 = disabled, >= 0 = token budget |
+| `reasoning_control` | bool | `` | R/W | create the budget sampler on demand so reasoning can be ended at runtime |
 | `samplers` | str | `` | R/W | get/set sampler types |
 | `seed` | int | `LLAMA_DEFAULT_SEED` | R/W | the seed used to initialize llama_sampler. |
 | `temp` | float | `0.80` | R/W | <= 0.0 to sample greedily, 0.0 to not output probabilities |
@@ -406,26 +414,13 @@ Speculative decoding parameters. Access via `params.speculative`.
 
 | Property | Type | Default | R/W | Description |
 |:---------|:-----|:--------|:---:|:------------|
-| `cache_type_k` | ggml_type | `GGML_TYPE_F16` | R/W | KV cache data type for the K |
-| `cache_type_v` | ggml_type | `GGML_TYPE_F16` | R/W | KV cache data type for the V |
-| `cpuparams` | [CpuParams](#cpuparams) | `` | R/W |  |
-| `cpuparams_batch` | [CpuParams](#cpuparams) | `` | R/W |  |
-| `devices` | str | `` | R/W | devices to use for offloading (comma-separated device names, or 'none' to disable) |
-| `lookup_cache_dynamic` | str | `` | R/W | path of dynamic ngram cache file for lookup decoding |
-| `lookup_cache_static` | str | `` | R/W | path of static ngram cache file for lookup decoding |
-| `mparams_dft` | [CommonParamsModel](#commonparamsmodel) | `` | R/W | draft model parameters. |
-| `n_ctx` | int | `0` | R/W | draft context size. |
-| `n_gpu_layers` | int | `-1` | R/W | number of layers to store in VRAM for the draft model (-1 - use default). |
-| `n_max` | int | `16` | R/W | maximum number of tokens to draft during speculative decoding. |
-| `n_min` | int | `0` | R/W | minimum number of draft tokens to use for speculative decoding. |
-| `ngram_min_hits` | int | `1` | R/W | minimum hits at ngram/mgram lookup for mgram to be proposed. |
-| `ngram_size_m` | int | `48` | R/W | mgram size for speculative tokens. |
-| `ngram_size_n` | int | `12` | R/W | ngram size for lookup. |
-| `p_min` | float | `0.75` | R/W | minimum speculative decoding probability (greedy). |
-| `p_split` | float | `0.1` | R/W | speculative decoding split probability. |
-| `replacements` | list | `` | R/W | main to speculative model replacements |
-| `tensor_buft_overrides` | str | `` | R/W |  |
-| `type` | common_speculative_type | `COMMON_SPECULATIVE_TYPE_NONE` | R/W | type of speculative decoding. |
+| `draft` | [CommonParamsSpeculative](#commonparamsspeculative)Draft | `` | R | draft-model-based speculative decoding parameters. |
+| `ngram_cache` | [CommonParamsSpeculative](#commonparamsspeculative)NgramCache | `` | R | ngram cache parameters. |
+| `ngram_map_k` | [CommonParamsSpeculative](#commonparamsspeculative)NgramMap | `` | R | ngram map k parameters. |
+| `ngram_map_k4v` | [CommonParamsSpeculative](#commonparamsspeculative)NgramMap | `` | R | ngram map k4v parameters. |
+| `ngram_mod` | [CommonParamsSpeculative](#commonparamsspeculative)NgramMod | `` | R | ngram mod parameters. |
+| `ngram_simple` | [CommonParamsSpeculative](#commonparamsspeculative)NgramMap | `` | R | ngram simple map parameters. |
+| `types` | list[common_speculative_type] | `{ COMMON_SPECULATIVE_TYPE_NONE }` | R/W | types of speculative decoding. |
 
 ---
 
@@ -436,7 +431,7 @@ Text-to-speech (vocoder) parameters. Access via `params.vocoder`.
 | Property | Type | Default | R/W | Description |
 |:---------|:-----|:--------|:---:|:------------|
 | `model` | [CommonParamsModel](#commonparamsmodel) | `` | R/W |  |
-| `speaker_file` | str | `""` | R/W | speaker file path |
+| `speaker_file` | str | `` | R/W | speaker file path |
 
 ---
 
@@ -446,9 +441,9 @@ CPU threading and scheduling parameters. Access via `params.cpuparams` or `param
 
 | Property | Type | Default | R/W | Description |
 |:---------|:-----|:--------|:---:|:------------|
-| `cpumask` | list[bool] | `{false}` | R/W | CPU affinity mask: mask of cpu cores (all-zeros means use default affinity settings) |
-| `mask_valid` | bool | `false` | R/W | Default: any CPU. |
-| `n_threads` | int | `-1` | R/W | number of threads. |
-| `poll` | uint32_t | `50` | R/W | Polling (busywait) level (0 - no polling, 100 - mostly polling) |
-| `priority` | ggml_sched_priority | `GGML_SCHED_PRIO_NORMAL` | R/W | Scheduling prio : (0 - normal, 1 - medium, 2 - high, 3 - realtime). |
-| `strict_cpu` | bool | `false` | R/W | Use strict CPU placement. |
+| `cpumask` | list[bool] | `` | R/W | CPU affinity mask: mask of cpu cores (all-zeros means use default affinity settings) |
+| `mask_valid` | bool | `` | R/W | Default: any CPU. |
+| `n_threads` | int | `` | R/W | number of threads. |
+| `poll` | uint32_t | `` | R/W | Polling (busywait) level (0 - no polling, 100 - mostly polling) |
+| `priority` | ggml_sched_priority | `` | R/W | Scheduling prio : (0 - normal, 1 - medium, 2 - high, 3 - realtime). |
+| `strict_cpu` | bool | `` | R/W | Use strict CPU placement. |

@@ -2578,7 +2578,7 @@ cdef class CommonParams:
 
     @property
     def webui_mcp_proxy(self) -> bool:
-        """webui mcp proxy"""
+        """deprecated alias for ui_mcp_proxy"""
         return self.p.webui_mcp_proxy
 
     @webui_mcp_proxy.setter
@@ -2587,7 +2587,7 @@ cdef class CommonParams:
 
     @property
     def webui_config_json(self) -> str:
-        """webui config json"""
+        """deprecated alias for ui_config_json"""
         return self.p.webui_config_json
 
     @webui_config_json.setter
