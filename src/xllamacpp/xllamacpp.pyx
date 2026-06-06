@@ -554,6 +554,15 @@ cdef class CommonParamsSampling:
     def reasoning_budget_message(self, value: str):
         self.p.reasoning_budget_message = value
 
+    @property
+    def reasoning_control(self) -> bool:
+        """create the budget sampler on demand so reasoning can be ended at runtime"""
+        return self.p.reasoning_control
+
+    @reasoning_control.setter
+    def reasoning_control(self, value: bool):
+        self.p.reasoning_control = value
+
 
 
 cdef class CpuParams:
@@ -1332,6 +1341,15 @@ cdef class CommonParams:
         self.p.n_sequences = value
 
     @property
+    def n_outputs_max(self) -> int:
+        """max outputs in a batch (0 = n_batch)."""
+        return self.p.n_outputs_max
+
+    @n_outputs_max.setter
+    def n_outputs_max(self, value: int):
+        self.p.n_outputs_max = value
+
+    @property
     def grp_attn_n(self) -> int:
         """group-attention factor."""
         return self.p.grp_attn_n
@@ -1822,6 +1840,15 @@ cdef class CommonParams:
     @offline.setter
     def offline(self, value: bool):
         self.p.offline = value
+
+    @property
+    def skip_download(self) -> bool:
+        """skip model file downloading"""
+        return self.p.skip_download
+
+    @skip_download.setter
+    def skip_download(self, value: bool):
+        self.p.skip_download = value
 
     @property
     def ppl_stride(self) -> int:
@@ -2324,6 +2351,15 @@ cdef class CommonParams:
         self.p.timeout_write = value
 
     @property
+    def sse_ping_interval(self) -> int:
+        """SSE ping interval in seconds"""
+        return self.p.sse_ping_interval
+
+    @sse_ping_interval.setter
+    def sse_ping_interval(self, value: int):
+        self.p.sse_ping_interval = value
+
+    @property
     def n_threads_http(self) -> int:
         """number of threads to process HTTP requests (TODO: support threadpool)"""
         return self.p.n_threads_http
@@ -2369,13 +2405,13 @@ cdef class CommonParams:
         self.p.n_ctx_checkpoints = value
 
     @property
-    def checkpoint_every_nt(self) -> int:
-        """make a checkpoint every n tokens during prefill"""
-        return self.p.checkpoint_every_nt
+    def checkpoint_min_step(self) -> int:
+        """minimum spacing between context checkpoints"""
+        return self.p.checkpoint_min_step
 
-    @checkpoint_every_nt.setter
-    def checkpoint_every_nt(self, value: int):
-        self.p.checkpoint_every_nt = value
+    @checkpoint_min_step.setter
+    def checkpoint_min_step(self, value: int):
+        self.p.checkpoint_min_step = value
 
     @property
     def cache_ram_mib(self) -> int:

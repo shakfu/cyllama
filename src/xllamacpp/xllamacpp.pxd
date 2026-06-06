@@ -388,6 +388,7 @@ cdef extern from "common.h":
         std_vector[llama_token] reasoning_budget_end    # end tag token sequence
         std_vector[llama_token] reasoning_budget_forced # forced sequence (message + end tag)
         std_string              reasoning_budget_message  # message injected before end tag when budget exhausted
+        bint                    reasoning_control # create the budget sampler on demand
 
         bint backend_sampling
 
@@ -503,6 +504,7 @@ cdef extern from "common.h":
         int32_t n_chunks           # max number of chunks to process (-1 = unlimited)
         int32_t n_parallel         # number of parallel sequences to decode
         int32_t n_sequences        # number of sequences to decode
+        int32_t n_outputs_max      # max outputs in a batch (0 = n_batch)
         int32_t grp_attn_n         # group-attention factor
         int32_t grp_attn_w         # group-attention width
         int32_t n_print            # print token count every n tokens (-1 = disabled)
@@ -577,6 +579,7 @@ cdef extern from "common.h":
         int32_t control_vector_layer_start # layer range for control vector
         int32_t control_vector_layer_end   # layer range for control vector
         bint    offline
+        bint    skip_download
 
         int32_t ppl_stride          # stride for perplexity calculations. If left at 0, the pre-existing approach will be used.
         int32_t ppl_output_type     # = 0 -> ppl output is as usual, = 1 -> ppl output is num_tokens, ppl, one per line
@@ -656,12 +659,13 @@ cdef extern from "common.h":
         bint    reuse_port          # allow multiple sockets to bind to the same port
         int32_t timeout_read        # http read timeout in seconds
         int32_t timeout_write       # http write timeout in seconds
+        int32_t sse_ping_interval   # SSE ping interval in seconds
         int32_t n_threads_http      # number of threads to process HTTP requests (TODO: support threadpool)
         int32_t n_cache_reuse       # min chunk size to reuse from the cache via KV shifting
         bint    cache_prompt        # whether to enable prompt caching
         bint    cache_idle_slots    # save and clear idle slots upon starting a new task
         int32_t n_ctx_checkpoints   # max number of context checkpoints per slot
-        int32_t checkpoint_every_nt   # make a checkpoint every n tokens during prefill
+        int32_t checkpoint_min_step # minimum spacing between context checkpoints
         int32_t cache_ram_mib       # -1 = no limit, 0 - disable, 1 = 1 MiB, etc.
 
         std_string hostname

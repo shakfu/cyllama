@@ -61,6 +61,9 @@ INCLUDE_DIRS = [
     os.path.join(
         CWD, "thirdparty/llama.cpp/build/tools/server"
     ),  # For including index.html.gz.hpp and loading.html.hpp
+    os.path.join(
+        CWD, "thirdparty/llama.cpp/build/tools/ui"
+    ),  # For including generated ui.h
     os.path.join(CWD, "thirdparty/llama.cpp/tools/server"),
     os.path.join(CWD, "thirdparty/llama.cpp/tools/ui"),
     os.path.join(CWD, "thirdparty/llama.cpp/tools/mtmd"),
@@ -83,6 +86,7 @@ if PLATFORM == "Windows":
             "mtmd",
             "cpp-httplib",
             "server-context",
+            "llama-ui",
             "llguidance",
             "ssl",
             "crypto",
@@ -107,6 +111,7 @@ else:
     EXTRA_OBJECTS.extend(
         [
             f"{LLAMACPP_LIBS_DIR}/libserver-context.a",
+            f"{LLAMACPP_LIBS_DIR}/libllama-ui.a",
             f"{LLAMACPP_LIBS_DIR}/libcpp-httplib.a",
             f"{LLAMACPP_LIBS_DIR}/libmtmd.a",
             f"{LLAMACPP_LIBS_DIR}/libllama-common-base.a",

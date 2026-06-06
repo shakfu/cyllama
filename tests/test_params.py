@@ -110,6 +110,9 @@ def test_common_params():
     assert params.n_chunks == -1
     assert params.n_parallel == 1
     assert params.n_sequences == 1
+    assert params.n_outputs_max == 0
+    params.n_outputs_max = 2
+    assert params.n_outputs_max == 2
     # assert params.p_split              ==   approx(0.1)
     assert params.n_gpu_layers == -1
     assert params.main_gpu == 0
@@ -259,8 +262,11 @@ def test_common_params():
     assert params.reuse_port is False
     params.reuse_port = True
     assert params.reuse_port is True
-    assert params.timeout_read == 600
-    assert params.timeout_write == 600
+    assert params.timeout_read == 3600
+    assert params.timeout_write == 3600
+    assert params.sse_ping_interval == 30
+    params.sse_ping_interval = 15
+    assert params.sse_ping_interval == 15
     assert params.n_threads_http == -1
     assert params.n_cache_reuse == 0
     assert params.cache_prompt is True
@@ -270,9 +276,9 @@ def test_common_params():
     params.cache_idle_slots = False
     assert params.cache_idle_slots is False
     assert params.n_ctx_checkpoints == 32
-    assert params.checkpoint_every_nt == 8192
-    params.checkpoint_every_nt = 100
-    assert params.checkpoint_every_nt == 100
+    assert params.checkpoint_min_step == 256
+    params.checkpoint_min_step = 100
+    assert params.checkpoint_min_step == 100
     assert params.cache_ram_mib == 8192
 
     assert params.hostname == "127.0.0.1"
@@ -551,9 +557,14 @@ def test_common_params():
 
     assert params.cls_sep == "\t"
     assert params.offline is False
+    params.skip_download = True
+    assert params.skip_download is True
     assert params.sampling.reasoning_budget_message == ""
     params.sampling.reasoning_budget_message = "Budget exhausted"
     assert params.sampling.reasoning_budget_message == "Budget exhausted"
+    assert params.sampling.reasoning_control is False
+    params.sampling.reasoning_control = True
+    assert params.sampling.reasoning_control is True
 
     assert params.diffusion.steps == 128
     params.diffusion.steps = 13
