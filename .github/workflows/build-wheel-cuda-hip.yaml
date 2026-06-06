@@ -370,7 +370,7 @@ jobs:
         platform: ["ubuntu-22.04", "ubuntu-22.04-arm"]
         # Build only with Python 3.10 for abi3 wheel (compatible with all Python 3.10+)
         pyver: ["3.10"]
-        cuda: ["12.4.1", "12.8.1"]
+        cuda: ["12.8.1", "13.2.0"]
     env:
       CUDAVER: ${{ matrix.cuda }}
 
@@ -594,7 +594,7 @@ jobs:
       matrix:
         # Build only with Python 3.10 for abi3 wheel (compatible with all Python 3.10+)
         pyver: ["3.10"]
-        cuda: ["12.4.1", "12.8.1"]
+        cuda: ["12.8.1", "13.2.0"]
     defaults:
       run:
         shell: bash
@@ -636,7 +636,7 @@ jobs:
           echo "$(pwd)/w64devkit/bin" >> $GITHUB_PATH
 
       - name: Setup CUDA
-        uses: Jimver/cuda-toolkit@b6fc3a9f3f15256d9d94ffe1254f9c5a2565cde6 # v0.2.30
+        uses: Jimver/cuda-toolkit@3d45d157f327c09c04b50ee6ccdea2d9d017ec76 # v0.2.35
         id: cuda-toolkit
         with:
           use-github-cache: false
