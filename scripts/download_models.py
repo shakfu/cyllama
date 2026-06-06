@@ -22,7 +22,7 @@ from pathlib import Path
 
 MODELS_DIR = Path("models")
 CHUNKS_PER_FILE = 4  # Number of parallel connections per file download.
-MAX_CONCURRENT_FILES = 4  # Max files downloading simultaneously.
+MAX_CONCURRENT_FILES = 2  # Max files downloading simultaneously.
 READ_CHUNK_SIZE = 1 << 23  # 8 MB — buffer size for network reads / disk writes.
 
 # (filename, url, sha256)

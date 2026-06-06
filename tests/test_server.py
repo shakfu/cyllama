@@ -21,6 +21,13 @@ def test_get_device_info():
     print(info)
 
 
+def test_llama_server_requires_model_path():
+    params = xlc.CommonParams()
+
+    with pytest.raises(ValueError, match="router server feature"):
+        xlc.Server(params)
+
+
 def test_llama_server(model_path):
     params = xlc.CommonParams()
 

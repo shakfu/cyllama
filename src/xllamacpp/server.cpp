@@ -88,6 +88,14 @@ static void init(common_params &   params,
 
     common_init();
 
+    llama_backend_init();
+    llama_numa_init(params.numa);
+
+    SRV_INF("build_info: %s\n", llama_build_info());
+
+    const bool is_router_server = false;
+    common_params_print_info(params, !is_router_server);
+
     // validate batch size for embeddings
     // embeddings require all tokens to be processed in a single ubatch
     // see https://github.com/ggml-org/llama.cpp/issues/12836
@@ -109,12 +117,6 @@ static void init(common_params &   params,
         params.model_alias.insert(params.model.name);
     }
 
-    llama_backend_init();
-    llama_numa_init(params.numa);
-
-    SRV_INF("build_info: %s\n", llama_build_info());
-    common_params_print_info(params);
-
     server_http_context ctx_http;
     if (!ctx_http.init(params)) {
         SRV_ERR("%s", "failed to initialize HTTP server\n");
@@ -130,7 +132,6 @@ static void init(common_params &   params,
     server_routes routes(params, ctx_server);
     server_tools  tools;
 
-    constexpr bool                      is_router_server = false;
     std::optional<server_models_routes> models_routes{};
     if (is_router_server) {
         // setup server instances manager
@@ -498,6 +499,10 @@ std::vector<ggml_backend_dev_props> get_device_info() {
 }
 
 Server::Server(const common_params & params) : _params(params), _ctx_server(new server_context()) {
+    if (_params.model.path.empty()) {
+        throw std::invalid_argument("params.model.path is required: xllamacpp disabled the router server feature");
+    }
+
     std::promise<int> out;
     std::future<int>  fut = out.get_future();
     _loop_thread =
