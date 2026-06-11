@@ -108,9 +108,10 @@ Before pip installing `xllamacpp`, please ensure your system meets the following
   - Requires ARMv8-A or later architecture
   - For best performance, build from source if your CPU supports advanced instruction sets (e.g., SVE)
 
-- **CUDA (Linux)**:
-  - Requires glibc 2.35 or later
+- **CUDA (Linux/Windows)**:
+  - Requires glibc 2.35 or later (Linux)
   - Compatible NVIDIA GPU with appropriate drivers (CUDA 12.8 or 13.2)
+  - See [CUDA GPU Architecture Coverage](#cuda-gpu-architecture-coverage) below for the list of supported GPUs per CUDA version
 
 - **ROCm (Linux)**:
   - Requires glibc 2.35 or later
@@ -121,6 +122,53 @@ Before pip installing `xllamacpp`, please ensure your system meets the following
   - Install the Vulkan SDK and GPU drivers with Vulkan support
   - Linux users may need distro packages and the LunarG SDK
   - macOS Intel is supported via Vulkan; Apple Silicon Vulkan is not supported in this project
+
+## CUDA GPU Architecture Coverage
+
+The prebuilt CUDA wheels are compiled for a curated set of NVIDIA GPU architectures
+that mirrors the upstream llama.cpp *release* default (`ggml/src/ggml-cuda/CMakeLists.txt`,
+`GGML_NATIVE=OFF` branch). The set differs between CUDA versions because newer toolkits
+drop older architectures and add newer ones.
+
+Each architecture is shipped in one of two forms:
+
+- **SASS** (`-real`): native machine code (cubin) for exactly that GPU architecture.
+  It loads and runs directly with full optimization, but only on that specific architecture.
+- **PTX** (`-virtual`): a forward-compatible virtual ISA. The driver JIT-compiles it to
+  SASS on first launch (then caches it). PTX built for `compute_X` can JIT onto any GPU
+  with compute capability `>= X` (never older).
+
+At runtime CUDA picks matching SASS if available; otherwise it JIT-compiles compatible PTX;
+otherwise the load fails (CUDA error 209, "no kernel image"). This is why at least one PTX
+(`-virtual`) entry is always shipped, so GPUs without native SASS still run via JIT.
+
+| Arch | Form | GPUs | CUDA 12.8 wheel | CUDA 13.2 wheel |
+|:-----|:-----|:-----|:---------------:|:---------------:|
+| `50`   | PTX  | Maxwell (GTX 9xx)            | ✅ JIT  | — |
+| `61`   | PTX  | Pascal (GTX 10xx, P40)       | ✅ JIT  | — |
+| `70`   | PTX  | Volta (V100)                 | ✅ JIT  | — |
+| `75`   | PTX  | Turing (RTX 20xx, T4)        | ✅ JIT  | ✅ JIT  |
+| `80`   | PTX  | Ampere DC (A100); also forward-covers Hopper (90) and Blackwell DC (100/103) via JIT | ✅ JIT  | ✅ JIT  |
+| `86`   | SASS | Ampere (RTX 30xx, A10/A40)   | ✅ native | ✅ native |
+| `89`   | SASS | Ada (RTX 40xx, L4/L40)       | ✅ native | ✅ native |
+| `120a` | SASS | Blackwell (RTX 50xx)         | ✅ native | ✅ native |
+| `121a` | SASS | Blackwell variant            | —       | ✅ native |
+
+Notes:
+
+- **CUDA 13 dropped Maxwell/Pascal/Volta**, so `50`/`61`/`70` are omitted there; the CUDA 13
+  floor is `sm_75` (Turing) via the `75-virtual` PTX.
+- **`121a` requires CUDA >= 12.9**, so it is only present in the CUDA 13.2 wheel.
+- **Native SASS is shipped only for mainstream consumer cards.** Datacenter parts
+  (A100/Hopper/Blackwell-DC) run via JIT from the `80-virtual` PTX, which works but incurs a
+  one-time JIT compile on first launch.
+- **Local source builds** (where `CUDA_ARCHITECTURES` is unset) instead use CMake's `all`,
+  producing native SASS for every architecture the installed toolkit supports — see
+  `scripts/build.py`. If you need native datacenter performance from a prebuilt wheel, build
+  from source or add `90-real` / `100-real` to the architecture list.
+
+The same architecture lists apply to both Linux (x86_64 and arm64) and Windows CUDA wheels,
+since the `sm_XX` value is the GPU architecture and is independent of the host CPU.
 
 ## Build from Source
 

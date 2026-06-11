@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import os
 import platform
-import re
 import shlex
 import shutil
 import subprocess
@@ -42,33 +41,6 @@ def split_cmake_args(value: str) -> list[str]:
     if not posix:
         parts = [part.strip("\"'") for part in parts]
     return parts
-
-
-def detect_cuda_architectures() -> str:
-    log("=== Detecting supported GPU architectures ===")
-    try:
-        output = subprocess.check_output(
-            ["nvcc", "--list-gpu-arch"], text=True, stderr=subprocess.STDOUT
-        )
-    except (OSError, subprocess.CalledProcessError) as exc:
-        raise SystemExit(
-            "CUDA_ARCHITECTURES is not set and `nvcc --list-gpu-arch` failed. "
-            "Install CUDA tools or set CUDA_ARCHITECTURES explicitly."
-        ) from exc
-
-    print(output, end="", flush=True)
-    archs: set[int] = set()
-    for line in output.splitlines():
-        match = re.fullmatch(r"(?:sm|compute)_(\d+)", line.strip())
-        if match:
-            arch = int(match.group(1))
-            if arch >= 70:
-                archs.add(arch)
-
-    if not archs:
-        raise SystemExit("nvcc did not report any CUDA architectures >= 70")
-
-    return ";".join("120a" if arch == 120 else str(arch) for arch in sorted(archs))
 
 
 def hip_compiler() -> str:
@@ -134,7 +106,16 @@ def build_llamacpp() -> None:
 
     if env_is_set("XLLAMACPP_BUILD_CUDA"):
         log("Building for CUDA")
-        cuda_archs = os.environ.get("CUDA_ARCHITECTURES") or detect_cuda_architectures()
+        # CI pipelines pin CUDA_ARCHITECTURES to a curated list to keep build
+        # times under the runner limit (a few -real archs + PTX fallbacks).
+        #
+        # When unset (i.e. a user building locally for their own use), fall back
+        # to CMake's "native" keyword. Per the CMake docs this detects the GPUs
+        # actually installed on the build machine and compiles SASS only for
+        # those architectures. That keeps the build fast and produces fully
+        # arch-optimized code for the local hardware -- at the cost of a binary
+        # that is not portable to other GPU architectures.
+        cuda_archs = os.environ.get("CUDA_ARCHITECTURES") or "native"
         log(f"Using CUDA architectures: {cuda_archs}")
         cmake_args.extend(
             [

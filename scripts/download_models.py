@@ -13,7 +13,10 @@ Architecture (deadlock-free):
 """
 
 import hashlib
+import http.client
 import os
+import socket
+import ssl
 import sys
 import threading
 import time
@@ -30,7 +33,19 @@ MAX_CONCURRENT_FILES = 1  # Max files downloading simultaneously.
 READ_CHUNK_SIZE = 1 << 23  # 8 MB — buffer size for network reads / disk writes.
 MAX_HTTP_RETRIES = 3
 RATE_LIMIT_BASE_SLEEP = 30.0
+NETWORK_ERROR_BASE_SLEEP = 2.0
 REQUEST_START_DELAY = 1.0
+
+# Transient connection-level errors worth retrying (network blips, dropped TLS
+# connections, slow servers). These are distinct from HTTP status errors.
+TRANSIENT_NETWORK_ERRORS = (
+    ssl.SSLError,
+    socket.timeout,
+    TimeoutError,
+    ConnectionError,
+    http.client.IncompleteRead,
+    http.client.RemoteDisconnected,
+)
 
 
 @dataclass(frozen=True)
@@ -140,7 +155,7 @@ def _sleep_before_request() -> None:
 
 
 def open_url_with_retries(req: urllib.request.Request, timeout: int, description: str):
-    """Open a URL, retrying HTTP 429 with backoff."""
+    """Open a URL, retrying HTTP 429 and transient network errors with backoff."""
     request_timeout = timeout
     for attempt in range(MAX_HTTP_RETRIES + 1):
         try:
@@ -158,6 +173,25 @@ def open_url_with_retries(req: urllib.request.Request, timeout: int, description
                 f"HTTP 429 while requesting {description}; "
                 f"{retry_delay.detail}; "
                 f"next timeout {request_timeout}s; "
+                f"sleeping {sleep_for:.0f}s before retry {attempt + 1}/"
+                f"{MAX_HTTP_RETRIES}...",
+                flush=True,
+            )
+            time.sleep(sleep_for)
+        except (urllib.error.URLError,) + TRANSIENT_NETWORK_ERRORS as err:
+            # urllib wraps SSL/connection errors in URLError(reason=...).
+            reason = getattr(err, "reason", err)
+            if not isinstance(err, TRANSIENT_NETWORK_ERRORS) and not isinstance(
+                reason, TRANSIENT_NETWORK_ERRORS
+            ):
+                # A non-transient URLError (e.g. DNS failure): don't retry.
+                raise
+            if attempt == MAX_HTTP_RETRIES:
+                raise
+
+            sleep_for = NETWORK_ERROR_BASE_SLEEP * (2**attempt)
+            print(
+                f"Network error while requesting {description}: {reason}; "
                 f"sleeping {sleep_for:.0f}s before retry {attempt + 1}/"
                 f"{MAX_HTTP_RETRIES}...",
                 flush=True,
@@ -294,11 +328,33 @@ def download_one(
             dest.unlink()
 
     print(f"Downloading {name} ({CHUNKS_PER_FILE} connections)...", flush=True)
-    try:
-        download_file(url, dest, CHUNKS_PER_FILE, chunk_pool)
-    except Exception as e:
-        dest.unlink(missing_ok=True)
-        raise RuntimeError(f"{name}: download failed -- {e}")
+    last_err: Exception | None = None
+    for attempt in range(MAX_HTTP_RETRIES + 1):
+        try:
+            download_file(url, dest, CHUNKS_PER_FILE, chunk_pool)
+            last_err = None
+            break
+        except urllib.error.HTTPError:
+            # HTTP-status errors (404, etc.) are not transient; fail fast.
+            dest.unlink(missing_ok=True)
+            raise RuntimeError(f"{name}: download failed -- {sys.exc_info()[1]}")
+        except Exception as e:
+            # Connection-level / streaming errors (SSL EOF, reset, timeout):
+            # the body read may have died mid-stream, so retry the whole file.
+            last_err = e
+            dest.unlink(missing_ok=True)
+            if attempt == MAX_HTTP_RETRIES:
+                break
+            sleep_for = NETWORK_ERROR_BASE_SLEEP * (2**attempt)
+            print(
+                f"  {name}: download error ({e}); "
+                f"retrying in {sleep_for:.0f}s "
+                f"({attempt + 1}/{MAX_HTTP_RETRIES})...",
+                flush=True,
+            )
+            time.sleep(sleep_for)
+    if last_err is not None:
+        raise RuntimeError(f"{name}: download failed -- {last_err}")
 
     actual = sha256_file(dest)
     if actual != expected_sha:

@@ -371,8 +371,22 @@ jobs:
         # Build only with Python 3.10 for abi3 wheel (compatible with all Python 3.10+)
         pyver: ["3.10"]
         cuda: ["12.8.1", "13.2.0"]
+        include:
+          # Per-CUDA-version GPU architecture lists, mirroring the upstream
+          # llama.cpp *release* default (ggml/src/ggml-cuda/CMakeLists.txt,
+          # GGML_NATIVE=OFF branch). Without this, build.py falls back to
+          # "all" (every arch the toolkit supports), which is far slower than
+          # needed. Applies to both x86_64 and arm64 hosts (sm_XX is the GPU
+          # arch, independent of host CPU). 121a needs CUDA >= 12.9.
+          - cuda: "12.8.1"
+            cuda_arch: "50-virtual;61-virtual;70-virtual;75-virtual;80-virtual;86-real;89-real;120a-real"
+          - cuda: "13.2.0"
+            cuda_arch: "75-virtual;80-virtual;86-real;89-real;120a-real;121a-real"
     env:
       CUDAVER: ${{ matrix.cuda }}
+      # CUDA target architectures (PTX vs SASS, per-arch GPU map and rationale):
+      # see the detailed reference in the build_wheels_cuda_windows job below.
+      CUDA_ARCHITECTURES: ${{ matrix.cuda_arch }}
 
     steps:
       - name: Free Disk Space (Ubuntu)
@@ -595,11 +609,73 @@ jobs:
         # Build only with Python 3.10 for abi3 wheel (compatible with all Python 3.10+)
         pyver: ["3.10"]
         cuda: ["12.8.1", "13.2.0"]
+        include:
+          # Per-CUDA-version GPU architecture lists, mirroring the upstream
+          # llama.cpp *release* default (ggml/src/ggml-cuda/CMakeLists.txt,
+          # GGML_NATIVE=OFF branch). See the CUDA_ARCHITECTURES note below.
+          # CUDA 12.x still supports Maxwell/Pascal/Volta; 121a needs CUDA >= 12.9
+          # so it is NOT included for 12.8.
+          - cuda: "12.8.1"
+            cuda_arch: "50-virtual;61-virtual;70-virtual;75-virtual;80-virtual;86-real;89-real;120a-real"
+          # CUDA 13 dropped Maxwell/Pascal/Volta; 121a-real is available.
+          - cuda: "13.2.0"
+            cuda_arch: "75-virtual;80-virtual;86-real;89-real;120a-real;121a-real"
     defaults:
       run:
         shell: bash
     env:
       CUDAVER: ${{ matrix.cuda }}
+      # ----------------------------------------------------------------------
+      # CUDA target architectures (canonical reference; the Linux job points here)
+      # ----------------------------------------------------------------------
+      # Why pin this: the Windows runner has only 4 vCPUs, so CUDA compile time
+      # scales with the number of code-gen outputs. build.py would otherwise
+      # auto-detect archs via `nvcc --list-gpu-arch` -> 12 *bare* archs for
+      # CUDA 13, and a bare arch tells CMake to emit BOTH SASS and PTX, i.e.
+      # 24 code-gen outputs per .cu file. Across ~138 .cu files that blows past
+      # GitHub's 6-hour job limit. The lists below produce only ~6-8 outputs.
+      #
+      # PTX vs SASS (what the suffixes mean):
+      #   * <arch>-real    = SASS:  native machine code (cubin) for exactly that
+      #                      GPU arch. Loads and runs directly, fully optimized.
+      #                      Does NOT run on any other arch.
+      #   * <arch>-virtual = PTX:   a forward-compatible virtual ISA. The driver
+      #                      JIT-compiles it to SASS on first launch (then caches
+      #                      it). PTX built for compute_X can JIT onto any GPU
+      #                      with compute capability >= X (never older).
+      #   * <arch>         = both SASS and PTX (twice the work; what auto-detect
+      #                      produced, hence the slowness).
+      #
+      # Runtime kernel selection: matching SASS -> use directly; else compatible
+      # PTX -> JIT; else load fails (CUDA error 209, no kernel image). So at
+      # least one -virtual entry is REQUIRED for any GPU we do not ship SASS for.
+      #
+      # These lists mirror the upstream llama.cpp *release* default
+      # (ggml/src/ggml-cuda/CMakeLists.txt, GGML_NATIVE=OFF branch):
+      #
+      #   arch   kind   GPUs                         runtime
+      #   ----   ----   --------------------------   --------------------------
+      #   50     PTX    Maxwell (GTX 9xx)            JIT      (CUDA 12 only)
+      #   61     PTX    Pascal  (GTX 10xx, P40)      JIT      (CUDA 12 only)
+      #   70     PTX    Volta   (V100)               JIT      (CUDA 12 only)
+      #   75     PTX    Turing  (RTX 20xx, T4)       JIT
+      #   80     PTX    Ampere DC (A100)             JIT; also forward-covers
+      #                                              Hopper(90) & Blackwell DC
+      #                                              (100/103) via JIT
+      #   86     SASS   Ampere  (RTX 30xx, A10/A40)  native
+      #   89     SASS   Ada     (RTX 40xx, L4/L40)   native
+      #   120a   SASS   Blackwell (RTX 50xx)         native   (CUDA >= 12.8)
+      #   121a   SASS   Blackwell variant            native   (CUDA >= 12.9)
+      #
+      # Notes:
+      #   * CUDA 13 dropped Maxwell/Pascal/Volta, so 50/61/70 are omitted there;
+      #     the CUDA-13 floor is sm_75 (Turing) via the 75-virtual PTX.
+      #   * Native SASS is shipped only for mainstream consumer cards; datacenter
+      #     parts (A100/Hopper/Blackwell-DC) run via JIT from the 80-virtual PTX.
+      #     Add 90-real / 100-real if native datacenter perf is desired.
+      #   * Local builds (CUDA_ARCHITECTURES unset) instead use CMake's "all" for
+      #     native SASS on every arch -- see scripts/build.py.
+      CUDA_ARCHITECTURES: ${{ matrix.cuda_arch }}
 
     steps:
       - name: Clone
@@ -654,8 +730,17 @@ jobs:
                     
           python -m build --wheel
           
-          # On Windows, we use delvewheel for wheel repair
-          python -m delvewheel repair --exclude nvcuda.dll dist/*.whl -w dist
+          # On Windows, we use delvewheel for wheel repair.
+          # delvewheel must locate the CUDA redistributable DLLs (cudart64_*,
+          # cublas64_*, ...) to graft them into the wheel. CUDA 13 relocated
+          # these from <CUDA_PATH>\bin to <CUDA_PATH>\bin\x64 on Windows, while
+          # CUDA 12 keeps them in <CUDA_PATH>\bin. The toolkit action only puts
+          # \bin on PATH, so without this delvewheel fails with e.g.
+          # "Unable to find library: cublas64_13.dll". Add both dirs explicitly
+          # (semicolon = Windows path separator for --add-path).
+          python -m delvewheel repair \
+            --add-path "$CUDA_PATH/bin/x64;$CUDA_PATH/bin" \
+            --exclude nvcuda.dll dist/*.whl -w dist
           
           echo "CUDA_VERSION=$cuda_version" >> $GITHUB_ENV
 
