@@ -101,7 +101,7 @@ COMPONENTS: list[Component] = [
         name="LlamaCpp",
         bundle_id="com.cyllama.llamacpp",
         src_dyn_dir=LLAMA_DYN,
-        lib_stems=["libllama", "libmtmd"],
+        lib_stems=["libllama", "libmtmd", "libchatfmt"],
         header_sources=[
             (
                 LLAMA_DIR / "include",
@@ -111,7 +111,8 @@ COMPONENTS: list[Component] = [
                     "mtmd.h",
                     "mtmd-helper.h",
                 ],
-            )
+            ),
+            (ROOT / "thirdparty" / "chatfmt", ["chat_facade.h"]),
         ],
         deps=["Ggml"],
     ),
@@ -231,6 +232,9 @@ def ensure_dylibs() -> None:
             ],
         )
 
+    if not (LLAMA_DYN / "libchatfmt.dylib").exists():
+        _build_chatfmt_dylib()
+
     if not (WHISPER_DYN / "libwhisper.dylib").exists():
         _build_shared_cmake(
             src=WHISPER_SRC,
@@ -265,6 +269,67 @@ def ensure_dylibs() -> None:
             collect_globs=["**/libstable-diffusion*.dylib"],
             require=["libstable-diffusion.dylib"],
         )
+
+
+def _build_chatfmt_dylib() -> None:
+    """Compile libchatfmt.dylib from llama.cpp's bundled Jinja engine
+    (common/jinja/*.cpp) plus our C facade at thirdparty/chatfmt/.
+
+    Exists because llama_chat_apply_template only renders a hardcoded
+    list of known templates — any GGUF whose chat template doesn't
+    fingerprint to one of those returns -1. Linking llama.cpp's own
+    Jinja engine into a thin dylib and shipping it inside
+    LlamaCpp.framework lets Swift render arbitrary chat templates
+    directly from the GGUF.
+
+    Built independently of libllama (no llama symbols touched); only
+    relies on standard library + the in-tree common/jinja code.
+    """
+    out = LLAMA_DYN / "libchatfmt.dylib"
+    out.parent.mkdir(parents=True, exist_ok=True)
+
+    common = LLAMA_SRC / "common"
+    facade = ROOT / "thirdparty" / "chatfmt"
+
+    sources = sorted((common / "jinja").glob("*.cpp")) + [
+        # `common/jinja/value.cpp` calls `common_parse_utf8_codepoint`
+        # which is defined in `common/unicode.cpp`. This is the
+        # `common/` flavour of unicode.{h,cpp} (separate from
+        # `src/unicode.cpp` which is for vocab tokenisation), pure
+        # stdlib-only.
+        common / "unicode.cpp",
+        facade / "chat_facade.cpp",
+    ]
+    missing = [str(s) for s in sources if not s.exists()]
+    if missing:
+        fail(f"_build_chatfmt_dylib: missing source files: {missing}")
+
+    install_name = (
+        f"@rpath/LlamaCpp.framework/Versions/{FRAMEWORK_VERSION}/Libraries/libchatfmt.dylib"
+    )
+    cmd: list[str | Path] = [
+        "clang++",
+        "-dynamiclib",
+        "-std=c++17",
+        "-fPIC",
+        "-O2",
+        f"-mmacosx-version-min={MIN_MACOS}",
+        f"-I{common}",
+        f"-I{LLAMA_SRC / 'vendor'}",
+        # `common/log.h` (transitively pulled in by `common/jinja/caps.cpp`)
+        # includes <ggml.h> for ggml_log_level. Pure header — no link
+        # dependency on libggml is introduced.
+        f"-I{LLAMA_SRC / 'ggml' / 'include'}",
+        f"-I{facade}",
+        "-o",
+        str(out),
+        "-install_name",
+        install_name,
+    ]
+    cmd += [str(s) for s in sources]
+    run(cmd)
+    os.chmod(out, 0o755)
+    print(f"  built {out.name}")
 
 
 def _build_shared_cmake(
