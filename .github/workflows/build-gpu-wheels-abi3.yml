@@ -494,7 +494,7 @@ jobs:
   build_cuda_windows:
     name: CUDA 12.4 abi3 - Windows x86_64 (${{ inputs.link_mode }})
     if: inputs.cuda_windows
-    runs-on: windows-latest
+    runs-on: windows-2022
 
     steps:
       - name: Checkout repository
