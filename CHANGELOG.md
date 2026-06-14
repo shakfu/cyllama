@@ -17,12 +17,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+## [0.3.2]
+
 ### Added
+
+- **`GGUFContext.from_buffer(data, no_alloc=True)`** -- loads a GGUF context from an in-memory bytes-like buffer (any object exposing a contiguous `const unsigned char[::1]` view) instead of a file path, binding the new upstream `gguf_init_from_buffer()` added in llama.cpp b9628. Empty buffers raise `ValueError`; a NULL return from the C call raises `IOError`. Declared in `src/cyllama/llama/gguf.pxd`, implemented in `llama_cpp.pyx`, covered by `tests/test_gguf.py`.
+
+- **`MtmdContextParams.batch_max_tokens` and `MtmdContext.marker`** -- expose two additions to the mtmd C API in llama.cpp b9628. `batch_max_tokens` is a soft cap on output tokens per encode batch (C default 1024; the first image is always added even if it exceeds the limit); the constructor accepts `batch_max_tokens=None` to keep the C default and otherwise forwards the value, with a matching property getter/setter. `MtmdContext.marker` returns the media-marker string actually in use by the context (via the new `mtmd_get_marker()`), complementing the static default-marker accessor. The `mtmd_context_params` struct gains the `batch_max_tokens` field and `mtmd_get_marker()` is declared in `src/cyllama/llama/mtmd.pxd`; both are implemented in `mtmd.pxi` and covered by `tests/test_mtmd.py`.
+
+- **`SDContextParams.uncond_diffusion_model_path`** -- exposes the new `uncond_diffusion_model_path` field added to `sd_ctx_params_t` in stable-diffusion.cpp master-694-276025e, a path to an unconditional diffusion model. Standard `Optional[str]` property getter/setter following the existing diffusion-model-path pattern; declared in `src/cyllama/sd/stable_diffusion.pxd`, implemented in `stable_diffusion.pyx`, covered by `tests/test_sd.py`.
 
 - **Unified cancellation surface for long-running native calls (`cancel()` / `cancel_requested` / `install_sigint_handler()`)** -- the cancellation pattern that already existed on `LLM` (llama.cpp) is now generalized so each subsystem responds to Ctrl-C / programmatic cancellation through the same methods. The signal-handling half was extracted to `cyllama/utils/cancellation.py` (`SigintHandle` + `install_sigint_handler(cancel)`); `LLM` delegates to it (the previous private `_SigintHandle` is kept as an alias). The three subsystems differ in mechanism because they differ in what the underlying library exposes:
   - **whisper** (`WhisperContext`) gains real in-process cancellation. A nogil ggml abort-callback is installed for the duration of `full()` and polls a `_cancel_flag`; `cancel()` sets it, aborting an in-flight `whisper_full` mid encode/decode (verified on Metal), which then raises `InterruptedError`. The flag auto-clears at the start of the next `full()` so a stale request does not carry over. `whisper.pxd` gains a typed `ggml_abort_callback` for the `whisper_full_params.abort_callback` field.
   - **llama** (`LLM`) already had this (between-token event + mid-decode ggml abort callback); unchanged behaviorally, now sharing the extracted SIGINT helper.
   - **stable-diffusion CLI** (`python -m cyllama.sd`) gains responsive Ctrl-C via process isolation: SD's `generate()` is a single native call with no abort hook (its progress callback returns `void`; cyllama issue #8 / upstream leejet/stable-diffusion.cpp#1036), so long, hookless commands (`txt2img`/`img2img`/`inpaint`/`controlnet`/`video`/`upscale`/`convert`) are re-run in a supervised child process the parent force-kills on Ctrl-C (SIGTERM then SIGKILL). Set `CYLLAMA_SD_NO_ISOLATE=1` to run in-process. The in-process `SDContext` API itself remains uninterruptible pending the upstream hook. Covered by `tests/test_whisper.py::TestWhisperCancellation` and `tests/test_sd_cli.py`, and documented in `docs/cancelling.md` (retitled "Cancelling long-running calls" and expanded from llama-only to all three subsystems).
+
+### Changed
+
+- **llama.cpp updated to b9628 (from b9505); whisper.cpp updated to v1.8.6 (from v1.8.4)** -- the upstream header changes that touch the bound surface were additive: `gguf_init_from_buffer()` (now bound -- see Added), the `mtmd_context_params.batch_max_tokens` field and `mtmd_get_marker()` (now bound -- see Added), and a `mtmd_helper_bitmap_init_from_file`/`_init_from_buf` signature change. The two helper functions now take an extra `placeholder` bool and return a `mtmd_helper_bitmap_wrapper` struct (`{mtmd_bitmap* bitmap; void* video_ctx;}`) rather than a bare `mtmd_bitmap*`; `src/cyllama/llama/mtmd.pxd` adopts the new signatures and the `MtmdBitmap` loaders in `mtmd.pxi` pass `placeholder=False` and read `.bitmap` off the returned wrapper, so the Python API is unchanged. The `ggml_type` and `ggml_op` enums in `ggml.pxd` were resynced to the header (new `GGML_TYPE_NVFP4`/`GGML_TYPE_Q1_0`, `GGML_TYPE_COUNT` 40 -> 42; new ops `GGML_OP_SIN`/`COS`/`COUNT_EQUAL`/`L2_NORM`/`IM2COL_BACK`/`COL2IM_1D`/`CONV_2D`/`GATED_DELTA_NET`) -- declarations only, no behaviour change. Drift between the bound `ggml`/`gguf`/`mtmd` enums and the real headers is now guarded by `tests/test_enum_drift.py`.
+
+- **stable-diffusion.cpp updated to master-694-276025e (from master-672-1f9ee88)** -- the public-API change was additive and non-breaking: a new `sd_ctx_params_t.uncond_diffusion_model_path` field (now bound and exposed -- see Added) and a new `free_sd_images()` export (a CRT-safe image-array free for the C API, declared in the header for fidelity). No binding broke and no high-level API change.
+
+- **whisper.cpp updated from 1.8.4 to 1.86)**
 
 ## [0.3.1]
 
