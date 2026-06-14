@@ -22,37 +22,37 @@ on:
       cuda_linux:
         description: 'Build CUDA wheels'
         required: false
-        default: false
+        default: true
         type: boolean
       rocm_linux:
         description: 'Build ROCm wheels'
         required: false
-        default: false
+        default: true
         type: boolean
       sycl_linux:
         description: 'Build SYCL wheels'
         required: false
-        default: false
+        default: true
         type: boolean
       vulkan_linux:
         description: 'Build Vulkan wheels (Linux x86_64)'
         required: false
-        default: false
+        default: true
         type: boolean
       cuda_windows:
         description: 'Build CUDA 12.4 Windows (x86_64)'
         required: false
-        default: false
+        default: true
         type: boolean
       vulkan_windows:
         description: 'Build Vulkan Windows (x86_64)'
         required: false
-        default: false
+        default: true
         type: boolean
       vulkan_macos_intel:
         description: 'Build Vulkan macOS Intel (x86_64)'
         required: false
-        default: false
+        default: true
         type: boolean
       upload_release:
         description: 'Upload wheels to GitHub Release'
