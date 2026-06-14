@@ -67,6 +67,18 @@ class TestMtmdContextParams:
         assert params.use_gpu is False
         assert params.n_threads == 8
 
+    def test_batch_max_tokens_default(self):
+        """batch_max_tokens defaults to the mtmd default of 1024."""
+        params = MtmdContextParams()
+        assert params.batch_max_tokens == 1024
+
+    def test_batch_max_tokens_override(self):
+        """batch_max_tokens can be set via constructor and setter."""
+        params = MtmdContextParams(batch_max_tokens=2048)
+        assert params.batch_max_tokens == 2048
+        params.batch_max_tokens = 512
+        assert params.batch_max_tokens == 512
+
 
 class TestMtmdBitmap:
     """Test MtmdBitmap class."""
@@ -484,6 +496,11 @@ class TestMtmdIntegration:
         assert isinstance(ctx.uses_non_causal, bool)
         assert isinstance(ctx.uses_mrope, bool)
         assert isinstance(ctx.audio_sample_rate, int)
+
+    def test_context_marker(self, mtmd_ctx):
+        """The context reports its media marker, defaulting to the mtmd default."""
+        ctx, _model = mtmd_ctx
+        assert ctx.marker == get_default_media_marker()
 
     def test_tokenize_image(self, mtmd_ctx):
         """Test tokenizing a prompt with a synthetic image bitmap."""
