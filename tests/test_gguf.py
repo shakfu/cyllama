@@ -29,6 +29,31 @@ def test_gguf_read_model(model_path):
     print(f"  Data offset: {ctx.data_offset}")
 
 
+def test_gguf_from_buffer(model_path):
+    """Loading from an in-memory buffer matches loading from the file."""
+    with open(model_path, "rb") as f:
+        data = f.read()
+
+    ctx_file = GGUFContext.from_file(model_path)
+    ctx_buf = GGUFContext.from_buffer(data)
+
+    assert ctx_buf.version == ctx_file.version
+    assert ctx_buf.n_tensors == ctx_file.n_tensors
+    assert ctx_buf.n_kv == ctx_file.n_kv
+
+
+def test_gguf_from_buffer_empty_raises():
+    """An empty buffer is rejected before reaching the loader."""
+    with pytest.raises(ValueError):
+        GGUFContext.from_buffer(b"")
+
+
+def test_gguf_from_buffer_garbage_raises():
+    """A buffer without the GGUF magic fails to load."""
+    with pytest.raises(IOError):
+        GGUFContext.from_buffer(b"not a gguf file at all, just bytes")
+
+
 def test_gguf_metadata(model_path):
     """Test reading metadata from GGUF file."""
     ctx = GGUFContext.from_file(model_path)

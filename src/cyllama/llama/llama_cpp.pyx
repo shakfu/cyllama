@@ -3771,6 +3771,32 @@ cdef class GGUFContext:
         ctx.owner = True
         return ctx
 
+    @staticmethod
+    def from_buffer(const unsigned char[::1] data, bint no_alloc=True):
+        """
+        Load GGUF context from an in-memory buffer.
+
+        Args:
+            data: Bytes-like object containing the GGUF file contents
+            no_alloc: If True, don't allocate tensor data in memory
+
+        Returns:
+            GGUFContext object
+        """
+        cdef GGUFContext ctx = GGUFContext.__new__(GGUFContext)
+        cdef gguf.gguf_init_params params
+        params.no_alloc = no_alloc
+        params.ctx = NULL
+
+        cdef size_t size = data.shape[0]
+        if size == 0:
+            raise ValueError("Cannot load GGUF from empty buffer")
+        ctx.ptr = gguf.gguf_init_from_buffer(<const void*>&data[0], size, params)
+        if ctx.ptr == NULL:
+            raise IOError("Failed to load GGUF from buffer")
+        ctx.owner = True
+        return ctx
+
     @property
     def version(self) -> int:
         """Get GGUF file version."""

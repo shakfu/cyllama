@@ -51,9 +51,11 @@ cdef extern from "mtmd.h":
         int image_min_tokens  # minimum number of tokens for image input (default: read from metadata)
         int image_max_tokens  # maximum number of tokens for image input (default: read from metadata)
         bint warmup  # whether to run a warmup encode pass after initialization
+        int32_t batch_max_tokens  # maximum number of output tokens in a batch (default: 1024)
 
     # Constants and defaults
     cdef const char * mtmd_default_marker()
+    cdef const char * mtmd_get_marker(const mtmd_context * ctx)
     cdef mtmd_context_params mtmd_context_params_default()
 
     # Context management
@@ -141,11 +143,18 @@ cdef extern from "mtmd-helper.h":
     # Logging
     cdef void mtmd_helper_log_set(ggml_log_callback log_callback, void * user_data)
 
+    # Bitmap loading returns a wrapper struct holding the bitmap (and an
+    # optional video context, unused here).
+    cdef struct mtmd_helper_bitmap_wrapper:
+        mtmd_bitmap * bitmap
+        void * video_ctx
+
     # Helper functions for file/buffer loading
-    cdef mtmd_bitmap * mtmd_helper_bitmap_init_from_file(mtmd_context * ctx, const char * fname)
-    cdef mtmd_bitmap * mtmd_helper_bitmap_init_from_buf(mtmd_context * ctx,
+    cdef mtmd_helper_bitmap_wrapper mtmd_helper_bitmap_init_from_file(mtmd_context * ctx, const char * fname, bint placeholder)
+    cdef mtmd_helper_bitmap_wrapper mtmd_helper_bitmap_init_from_buf(mtmd_context * ctx,
                                                    const unsigned char * buf,
-                                                   size_t len)
+                                                   size_t len,
+                                                   bint placeholder)
 
     # Helper functions for chunk processing
     cdef size_t mtmd_helper_get_n_tokens(const mtmd_input_chunks * chunks)

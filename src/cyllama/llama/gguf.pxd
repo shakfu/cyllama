@@ -55,6 +55,7 @@ cdef extern from "gguf.h":
     # Context creation and destruction
     cdef gguf_context * gguf_init_empty()
     cdef gguf_context * gguf_init_from_file(const char * fname, gguf_init_params params)
+    cdef gguf_context * gguf_init_from_buffer(const void * data, size_t size, gguf_init_params params)
     cdef void gguf_free(gguf_context * ctx)
 
     # Utility functions

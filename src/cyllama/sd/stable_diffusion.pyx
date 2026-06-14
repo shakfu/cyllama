@@ -892,6 +892,7 @@ cdef class SDContextParams:
     cdef bytes _llm_vision_path_bytes
     cdef bytes _diffusion_model_path_bytes
     cdef bytes _high_noise_diffusion_model_path_bytes
+    cdef bytes _uncond_diffusion_model_path_bytes
     cdef bytes _vae_path_bytes
     cdef bytes _taesd_path_bytes
     cdef bytes _control_net_path_bytes
@@ -1169,6 +1170,21 @@ cdef class SDContextParams:
             self._params.high_noise_diffusion_model_path = self._high_noise_diffusion_model_path_bytes
         else:
             self._params.high_noise_diffusion_model_path = NULL
+
+    @property
+    def uncond_diffusion_model_path(self) -> Optional[str]:
+        """Path to unconditional diffusion model."""
+        if self._params.uncond_diffusion_model_path:
+            return self._params.uncond_diffusion_model_path.decode('utf-8')
+        return None
+
+    @uncond_diffusion_model_path.setter
+    def uncond_diffusion_model_path(self, value: Optional[str]):
+        if value:
+            self._uncond_diffusion_model_path_bytes = value.encode('utf-8')
+            self._params.uncond_diffusion_model_path = self._uncond_diffusion_model_path_bytes
+        else:
+            self._params.uncond_diffusion_model_path = NULL
 
     @property
     def taesd_path(self) -> Optional[str]:

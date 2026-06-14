@@ -81,12 +81,13 @@ cdef extern from "ggml.h":
         # GGML_TYPE_Q4_0_8_8 = 33
         GGML_TYPE_TQ1_0   = 34
         GGML_TYPE_TQ2_0   = 35
-        GGML_TYPE_IQ4_NL_4_4 = 36
         # GGML_TYPE_IQ4_NL_4_4 = 36
         # GGML_TYPE_IQ4_NL_4_8 = 37
         # GGML_TYPE_IQ4_NL_8_8 = 38
         GGML_TYPE_MXFP4 = 39 # MXFP4 (1 block)
-        GGML_TYPE_COUNT = 40
+        GGML_TYPE_NVFP4 = 40 # NVFP4 (4 blocks, E4M3 scale)
+        GGML_TYPE_Q1_0 = 41
+        GGML_TYPE_COUNT = 42
 
 
     cdef enum ggml_prec:
@@ -107,11 +108,14 @@ cdef extern from "ggml.h":
         GGML_OP_SQR
         GGML_OP_SQRT
         GGML_OP_LOG
+        GGML_OP_SIN
+        GGML_OP_COS
         GGML_OP_SUM
         GGML_OP_SUM_ROWS
         GGML_OP_CUMSUM
         GGML_OP_MEAN
         GGML_OP_ARGMAX
+        GGML_OP_COUNT_EQUAL
         GGML_OP_REPEAT
         GGML_OP_REPEAT_BACK
         GGML_OP_CONCAT
@@ -120,6 +124,7 @@ cdef extern from "ggml.h":
         GGML_OP_RMS_NORM
         GGML_OP_RMS_NORM_BACK
         GGML_OP_GROUP_NORM
+        GGML_OP_L2_NORM
 
         GGML_OP_MUL_MAT
         GGML_OP_MUL_MAT_ID
@@ -146,7 +151,10 @@ cdef extern from "ggml.h":
         GGML_OP_CLAMP
         GGML_OP_CONV_TRANSPOSE_1D
         GGML_OP_IM2COL
+        GGML_OP_IM2COL_BACK
         GGML_OP_IM2COL_3D
+        GGML_OP_COL2IM_1D
+        GGML_OP_CONV_2D
         GGML_OP_CONV_3D
         GGML_OP_CONV_2D_DW
         GGML_OP_CONV_TRANSPOSE_2D
@@ -177,6 +185,7 @@ cdef extern from "ggml.h":
         GGML_OP_GATED_LINEAR_ATTN
         GGML_OP_RWKV_WKV7
         GGML_OP_SOLVE_TRI
+        GGML_OP_GATED_DELTA_NET
 
         GGML_OP_UNARY
 

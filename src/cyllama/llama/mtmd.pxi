@@ -42,7 +42,8 @@ cdef class MtmdContextParams:
     def __init__(self, use_gpu: bool = True, print_timings: bool = False,
                  n_threads: int = 1, media_marker: str = None,
                  flash_attn_type: int = 0, image_min_tokens: int = -1,
-                 image_max_tokens: int = -1, warmup: bool = True):
+                 image_max_tokens: int = -1, warmup: bool = True,
+                 batch_max_tokens: int = None):
         """Initialize mtmd context parameters.
 
         Args:
@@ -54,6 +55,9 @@ cdef class MtmdContextParams:
             image_min_tokens: Minimum number of tokens for image input (-1=from metadata)
             image_max_tokens: Maximum number of tokens for image input (-1=from metadata)
             warmup: Whether to run a warmup encode pass after initialization
+            batch_max_tokens: Soft cap on output tokens per encode batch
+                (None=keep mtmd default of 1024; the first image is always
+                added even if it exceeds this limit)
         """
         self._params = mtmd_context_params_default()
         self._params.use_gpu = use_gpu
@@ -63,6 +67,9 @@ cdef class MtmdContextParams:
         self._params.image_min_tokens = image_min_tokens
         self._params.image_max_tokens = image_max_tokens
         self._params.warmup = warmup
+
+        if batch_max_tokens is not None:
+            self._params.batch_max_tokens = batch_max_tokens
 
         if media_marker is not None:
             self._media_marker_bytes = media_marker.encode('utf-8')
@@ -124,6 +131,15 @@ cdef class MtmdContextParams:
     @warmup.setter
     def warmup(self, value: bool):
         self._params.warmup = value
+
+    @property
+    def batch_max_tokens(self) -> int:
+        """Soft cap on output tokens per encode batch (default: 1024)."""
+        return self._params.batch_max_tokens
+
+    @batch_max_tokens.setter
+    def batch_max_tokens(self, value: int):
+        self._params.batch_max_tokens = value
 
 
 cdef class MtmdBitmap:
@@ -228,7 +244,7 @@ cdef class MtmdBitmap:
         cdef MtmdContext ctx = <MtmdContext>mtmd_ctx
         cdef bytes path_bytes = file_path.encode('utf-8')
 
-        bitmap._bitmap = mtmd_helper_bitmap_init_from_file(ctx._ctx, path_bytes)
+        bitmap._bitmap = mtmd_helper_bitmap_init_from_file(ctx._ctx, path_bytes, False).bitmap
         bitmap._owner = True
 
         if bitmap._bitmap is NULL:
@@ -252,7 +268,7 @@ cdef class MtmdBitmap:
         cdef const unsigned char* buf_ptr = <const unsigned char*>data
         cdef size_t buf_len = len(data)
 
-        bitmap._bitmap = mtmd_helper_bitmap_init_from_buf(ctx._ctx, buf_ptr, buf_len)
+        bitmap._bitmap = mtmd_helper_bitmap_init_from_buf(ctx._ctx, buf_ptr, buf_len, False).bitmap
         bitmap._owner = True
 
         if bitmap._bitmap is NULL:
@@ -496,6 +512,21 @@ cdef class MtmdContext:
         if self._ctx is NULL:
             return -1
         return mtmd_get_audio_sample_rate(self._ctx)
+
+    @property
+    def marker(self) -> str:
+        """Get the media marker string used by this context.
+
+        This is the marker (e.g. the default from ``get_default_media_marker``
+        or a custom one set via ``MtmdContextParams``) that must appear in the
+        prompt text wherever media is to be inserted.
+        """
+        if self._ctx is NULL:
+            raise RuntimeError("Context not initialized")
+        cdef const char* marker = mtmd_get_marker(self._ctx)
+        if marker is NULL:
+            raise RuntimeError("Failed to get media marker")
+        return marker.decode('utf-8')
 
     @property
     def uses_non_causal(self) -> bool:

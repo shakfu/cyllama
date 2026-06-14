@@ -388,6 +388,14 @@ class TestSDContextParams:
         params.n_threads = 8
         assert params.n_threads == 8
 
+    def test_uncond_diffusion_model_path(self):
+        params = SDContextParams()
+        assert params.uncond_diffusion_model_path is None
+        params.uncond_diffusion_model_path = "/path/to/uncond.safetensors"
+        assert params.uncond_diffusion_model_path == "/path/to/uncond.safetensors"
+        params.uncond_diffusion_model_path = None
+        assert params.uncond_diffusion_model_path is None
+
     def test_wtype(self):
         params = SDContextParams()
         params.wtype = SDType.F32

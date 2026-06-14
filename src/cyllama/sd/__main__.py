@@ -61,6 +61,7 @@ Examples:
 
 import argparse
 import os
+import subprocess
 import sys
 import time
 from typing import TYPE_CHECKING, List, Optional, Tuple
@@ -995,6 +996,74 @@ def add_common_misc_args(parser: argparse.ArgumentParser) -> None:
 
 
 # =============================================================================
+# Ctrl-C isolation
+#
+# Unlike llama.cpp and whisper.cpp, stable-diffusion.cpp's generate() is a
+# single long native call with no abort hook -- its progress callback returns
+# void, so a SIGINT cannot interrupt it in-process (cyllama issue #8 / upstream
+# leejet/stable-diffusion.cpp#1036). The only way to make Ctrl-C responsive for
+# the CLI is to run the work in a child process the parent can kill. The parent
+# re-invokes this exact CLI with a marker env var set so the child runs the
+# command in-process instead of recursing, then supervises it and force-kills
+# it on Ctrl-C. Set CYLLAMA_SD_NO_ISOLATE=1 to run in-process (e.g. debugging).
+# =============================================================================
+
+# Long, hookless native commands worth isolating. `info` is instant and runs
+# in-process; help/no-command never reach the dispatch below.
+_ISOLATED_COMMANDS = frozenset(
+    {"txt2img", "generate", "img2img", "inpaint", "controlnet", "video", "upscale", "convert"}
+)
+_CHILD_ENV_MARKER = "_CYLLAMA_SD_CHILD"
+
+
+def _supervise(proc: "subprocess.Popen[bytes]") -> int:
+    """Wait for the child, forwarding Ctrl-C as a kill.
+
+    On SIGINT the parent asks the child to stop (SIGTERM) and, if it does not
+    exit within a short grace period, force-kills it (SIGKILL). Returns the
+    child's exit code, or 130 (128 + SIGINT) when interrupted. The child is
+    started in its own session, so the terminal's Ctrl-C reaches only the
+    parent -- the parent is the sole canceller.
+    """
+    try:
+        return proc.wait()
+    except KeyboardInterrupt:
+        print("\nInterrupted -- stopping...", file=sys.stderr)
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
+        return 130
+    finally:
+        # Belt-and-suspenders: never leave an orphan if we exit abnormally.
+        if proc.poll() is None:
+            proc.kill()
+            proc.wait()
+
+
+def _run_isolated() -> int:
+    """Re-run this CLI invocation in a child process for responsive Ctrl-C."""
+    env = {**os.environ, _CHILD_ENV_MARKER: "1"}
+    proc = subprocess.Popen(
+        [sys.executable, "-m", "cyllama.sd", *sys.argv[1:]],
+        env=env,
+        start_new_session=True,  # shield the child from the terminal's SIGINT
+    )
+    return _supervise(proc)
+
+
+def _should_isolate(command: str) -> bool:
+    """Whether *command* should run in a supervised child process."""
+    return (
+        command in _ISOLATED_COMMANDS
+        and os.environ.get(_CHILD_ENV_MARKER) != "1"  # we are not already the child
+        and os.environ.get("CYLLAMA_SD_NO_ISOLATE") != "1"  # not opted out
+    )
+
+
+# =============================================================================
 # Main
 # =============================================================================
 
@@ -1151,11 +1220,16 @@ def main() -> int:
     }
 
     handler = cmd_map.get(args.command)
-    if handler:
-        return handler(args)
-    else:
+    if not handler:
         parser.print_help()
         return 1
+
+    # Long, hookless native commands run in a supervised child process so
+    # Ctrl-C cancels promptly (see the "Ctrl-C isolation" section above).
+    if _should_isolate(args.command):
+        return _run_isolated()
+
+    return handler(args)
 
 
 if __name__ == "__main__":
