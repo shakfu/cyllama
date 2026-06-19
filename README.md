@@ -162,10 +162,12 @@ Notes:
 - **Native SASS is shipped only for mainstream consumer cards.** Datacenter parts
   (A100/Hopper/Blackwell-DC) run via JIT from the `80-virtual` PTX, which works but incurs a
   one-time JIT compile on first launch.
-- **Local source builds** (where `CUDA_ARCHITECTURES` is unset) instead use CMake's `all`,
-  producing native SASS for every architecture the installed toolkit supports — see
-  `scripts/build.py`. If you need native datacenter performance from a prebuilt wheel, build
-  from source or add `90-real` / `100-real` to the architecture list.
+- **Local source builds** (where `CUDA_ARCHITECTURES` is unset) instead use CMake's
+  `native`, producing native SASS for the GPU architectures detected on the build machine —
+  see `scripts/build.py`. This keeps local builds fast and optimized for your hardware, but
+  the resulting binary is not portable to other GPU architectures. If you need native
+  datacenter performance from a prebuilt wheel, add `90-real` / `100-real` to the
+  architecture list.
 
 The same architecture lists apply to both Linux (x86_64 and arm64) and Windows CUDA wheels,
 since the `sm_XX` value is the GPU architecture and is independent of the host CPU.

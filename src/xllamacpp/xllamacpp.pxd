@@ -558,6 +558,7 @@ cdef extern from "common.h":
         std_string input_prefix         # string to prefix user inputs with
         std_string input_suffix         # string to suffix user inputs with
         std_string logits_file          # file for saving *all* logits
+        std_string path_prompts_log_dir # directory with logged prompts
 
         # llama-debug specific options
         std_string logits_output_dir         # directory for saving logits output files
@@ -643,6 +644,7 @@ cdef extern from "common.h":
         std_vector[std_string] image # path to image file(s)
         int32_t image_min_tokens
         int32_t image_max_tokens
+        int32_t mtmd_batch_max_tokens
 
         # finetune
         # We do not need to export finetune fields to Python
@@ -711,6 +713,7 @@ cdef extern from "common.h":
         std_string models_preset # directory containing model presets for the router server
         int32_t models_max       # maximum number of models to load simultaneously
         bint models_autoload     # automatically load models when requested via the router server
+        std_string models_preset_hf # show a warning about remote presets on router loaded
 
         bint log_json
 
@@ -775,6 +778,6 @@ cdef extern from "common.h":
     
 cdef extern from "sampling.h":
 
-    std_vector[common_sampler_type] common_sampler_types_from_names(const std_vector[std_string] & names, bint allow_alt_names)
+    std_vector[common_sampler_type] common_sampler_types_from_names(const std_vector[std_string] & names)
     
     std_string common_sampler_type_to_str(common_sampler_type cnstr)

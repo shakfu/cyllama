@@ -421,7 +421,7 @@ cdef class CommonParamsSampling:
     @samplers.setter
     def samplers(self, value: str):
         cdef vector[string] split_values = value.split(";")
-        self.p.samplers = xllamacpp.common_sampler_types_from_names(split_values, True)
+        self.p.samplers = xllamacpp.common_sampler_types_from_names(split_values)
 
     @property
     def backend_sampling(self) -> bool:
@@ -1695,6 +1695,15 @@ cdef class CommonParams:
         self.p.logits_file = value
 
     @property
+    def path_prompts_log_dir(self) -> str:
+        """directory with logged prompts"""
+        return self.p.path_prompts_log_dir
+
+    @path_prompts_log_dir.setter
+    def path_prompts_log_dir(self, value: str):
+        self.p.path_prompts_log_dir = value
+
+    @property
     def logits_output_dir(self) -> str:
         """directory for saving logits output files"""
         return self.p.logits_output_dir
@@ -2270,6 +2279,14 @@ cdef class CommonParams:
         self.p.image_max_tokens = value
 
     @property
+    def mtmd_batch_max_tokens(self) -> int:
+        return self.p.mtmd_batch_max_tokens
+
+    @mtmd_batch_max_tokens.setter
+    def mtmd_batch_max_tokens(self, value: int):
+        self.p.mtmd_batch_max_tokens = value
+
+    @property
     def embedding(self) -> bool:
         """get only sentence embedding"""
         return self.p.embedding
@@ -2688,6 +2705,15 @@ cdef class CommonParams:
     @models_autoload.setter
     def models_autoload(self, value: bool):
         self.p.models_autoload = value
+
+    @property
+    def models_preset_hf(self) -> str:
+        """show a warning about remote presets on router loaded"""
+        return self.p.models_preset_hf
+
+    @models_preset_hf.setter
+    def models_preset_hf(self, value: str):
+        self.p.models_preset_hf = value
 
     @property
     def log_json(self) -> bool:

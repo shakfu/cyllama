@@ -673,8 +673,10 @@ jobs:
       #   * Native SASS is shipped only for mainstream consumer cards; datacenter
       #     parts (A100/Hopper/Blackwell-DC) run via JIT from the 80-virtual PTX.
       #     Add 90-real / 100-real if native datacenter perf is desired.
-      #   * Local builds (CUDA_ARCHITECTURES unset) instead use CMake's "all" for
-      #     native SASS on every arch -- see scripts/build.py.
+      #   * Local builds (CUDA_ARCHITECTURES unset) instead use CMake's "native"
+      #     for native SASS on the GPUs detected on the build machine. This keeps
+      #     local builds fast and optimized for that hardware, but the resulting
+      #     binary is not portable to other GPU architectures -- see scripts/build.py.
       CUDA_ARCHITECTURES: ${{ matrix.cuda_arch }}
 
     steps:

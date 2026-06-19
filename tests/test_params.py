@@ -183,6 +183,9 @@ def test_common_params():
     assert params.speculative.ngram_cache.lookup_cache_static == ""
     assert params.speculative.ngram_cache.lookup_cache_dynamic == ""
     assert params.logits_file == ""
+    assert params.path_prompts_log_dir == ""
+    params.path_prompts_log_dir = "/tmp/prompts"
+    assert params.path_prompts_log_dir == "/tmp/prompts"
 
     # Test new debug properties
     assert params.logits_output_dir == "data"
@@ -252,6 +255,9 @@ def test_common_params():
     assert params.image == []
     assert params.image_min_tokens == -1
     assert params.image_max_tokens == -1
+    assert params.mtmd_batch_max_tokens == 1024
+    params.mtmd_batch_max_tokens = 2048
+    assert params.mtmd_batch_max_tokens == 2048
 
     assert params.embedding is False
     assert params.embd_normalize == 2
@@ -326,6 +332,10 @@ def test_common_params():
     assert params.server_tools == []
     params.server_tools = ["tool1", "tool2"]
     assert params.server_tools == ["tool1", "tool2"]
+
+    assert params.models_preset_hf == ""
+    params.models_preset_hf = "hf-org/presets"
+    assert params.models_preset_hf == "hf-org/presets"
 
     assert params.log_json is False
 
