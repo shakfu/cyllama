@@ -180,7 +180,7 @@ The central configuration object. Controls model loading, inference, sampling, s
 
 | Property | Type | Default | R/W | Description |
 |:---------|:-----|:--------|:---:|:------------|
-| `image` | list[str] | `` | R/W | paths to image file(s) |
+| `image` | list[str] | `` | R/W | path to image file(s) ; TODO: change the name to "media" |
 | `image_max_tokens` | int | `-1` | R/W |  |
 | `image_min_tokens` | int | `-1` | R/W |  |
 | `mmproj` | [CommonParamsModel](#commonparamsmodel) | `` | R/W |  |
@@ -312,8 +312,11 @@ The central configuration object. Controls model loading, inference, sampling, s
 |:---------|:-----|:--------|:---:|:------------|
 | `checkpoint_min_step` | int | `256` | R/W | minimum spacing between context checkpoints |
 | `force_pure_content_parser` | bool | `false` | R/W | force pure content parser |
+| `models_preset_hf` | str | `""` | R/W | show a warning about remote presets on router loaded (if not empty) |
+| `mtmd_batch_max_tokens` | int | `1024` | R/W |  |
 | `n_outputs_max` | int | `0` | R/W | max outputs in a batch (0 = n_batch). |
 | `no_alloc` | bool | `false` | R/W | Don't allocate model buffers |
+| `path_prompts_log_dir` | str | `""` | R/W | directory with logged prompts |
 | `reuse_port` | bool | `false` | R/W | allow multiple sockets to bind to the same port |
 | `server_tools` | list[str] | `` | R/W | enable built-in tools |
 | `skip_download` | bool | `false` | R/W | skip model file downloading |
