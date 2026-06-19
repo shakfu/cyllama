@@ -308,6 +308,42 @@ since the `sm_XX` value is the GPU architecture and is independent of the host C
    python -m build --wheel
    ```
 
+## Updating llama.cpp
+
+`xllamacpp` vendors `llama.cpp` as the Git submodule at `thirdparty/llama.cpp`.
+The repository includes a Codex skill for refreshing that submodule and checking
+the xllamacpp bindings against the updated upstream headers.
+
+Ask Codex to use the skill from the repository root:
+
+```text
+Use the update-llamacpp skill to update thirdparty/llama.cpp to the latest b* release tag.
+```
+
+The skill definition is in:
+
+```text
+.codex/skills/update-llamacpp/SKILL.md
+```
+
+The skill performs the update workflow end to end:
+
+- checks the parent repository and `thirdparty/llama.cpp` worktrees before
+  changing branches
+- updates the vendored `llama.cpp` checkout and its nested submodules
+- refreshes upstream tags and pins `thirdparty/llama.cpp` to the latest `b*`
+  release tag
+- builds xllamacpp after the update
+- checks changed llama.cpp headers against `src/xllamacpp/xllamacpp.pxd` and
+  `src/xllamacpp/xllamacpp.pyx`
+- runs the local test suite
+- summarizes the updated llama.cpp tag, commit, compatibility fixes, and
+  build/test results
+
+Do not run `git submodule update thirdparty/llama.cpp` after the skill updates
+the submodule, because it resets the checkout back to the commit currently
+recorded by the parent repository.
+
 ## Usage
 
 All examples below assume you have `xllamacpp` installed and a GGUF model file available. See [Install](#install) for installation instructions and [Testing](#testing) for how to download models.

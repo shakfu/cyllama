@@ -1,0 +1,4 @@
+interface:
+  display_name: "Update llama.cpp"
+  short_description: "Update llama.cpp and sync bindings"
+  default_prompt: "Use $update-llamacpp to update vendored llama.cpp, build xllamacpp, and sync Cython bindings for changed header fields."
