@@ -40,8 +40,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           ./scripts/get-releases.sh
-          ./scripts/releases-to-pep-503.sh index/whl/cu124 '^[v]?[0-9]+\.[0-9]+\.[0-9]+-cu124$'
           ./scripts/releases-to-pep-503.sh index/whl/cu128 '^[v]?[0-9]+\.[0-9]+\.[0-9]+-cu128$'
+          ./scripts/releases-to-pep-503.sh index/whl/cu132 '^[v]?[0-9]+\.[0-9]+\.[0-9]+-cu132$'
           ./scripts/releases-to-pep-503.sh index/whl/rocm-6.3.4 '^[v]?[0-9]+\.[0-9]+\.[0-9]+-rocm-6.3.4$'
           ./scripts/releases-to-pep-503.sh index/whl/rocm-6.4.1 '^[v]?[0-9]+\.[0-9]+\.[0-9]+-rocm-6.4.1$'
           ./scripts/releases-to-pep-503.sh index/whl/vulkan '^[v]?[0-9]+\.[0-9]+\.[0-9]+-vulkan*'
