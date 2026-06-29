@@ -19,6 +19,7 @@ from cyllama.sd import (
     SampleMethod,
     Scheduler,
     Prediction,
+    CancelMode,
     SDType,
     LogLevel,
     PreviewMode,
@@ -74,6 +75,19 @@ class TestEnums:
         assert VaeFormat.FLUX.value == 0
         assert VaeFormat.SD3.value == 1
         assert VaeFormat.FLUX2.value == 2
+
+    def test_scheduler_logit_normal(self):
+        # Added upstream in master-731.
+        assert Scheduler.LOGIT_NORMAL.value < Scheduler.COUNT.value
+
+    def test_prediction_sefi_flow(self):
+        # Added upstream in master-731.
+        assert Prediction.SEFI_FLOW.value < Prediction.COUNT.value
+
+    def test_cancel_mode(self):
+        assert CancelMode.ALL.value == 0
+        assert CancelMode.NEW_LATENTS.value == 1
+        assert CancelMode.RESET.value == 2
 
 
 class TestUtilityFunctions:
@@ -376,7 +390,6 @@ class TestSDContextParams:
     def test_default_init(self):
         params = SDContextParams()
         assert params.n_threads > 0 or params.n_threads == -1
-        assert params.vae_decode_only is True
 
     def test_model_path(self):
         params = SDContextParams()
@@ -418,6 +431,39 @@ class TestSDContextParams:
         assert params.stream_layers is False
         params.stream_layers = True
         assert params.stream_layers is True
+
+    def test_eager_load_default_and_setter(self):
+        params = SDContextParams()
+        assert params.eager_load is False
+        params.eager_load = True
+        assert params.eager_load is True
+
+    def test_max_vram_default_and_setter(self):
+        params = SDContextParams()
+        assert params.max_vram is None
+        params.max_vram = "-1"
+        assert params.max_vram == "-1"
+        # numeric values are coerced to their string form
+        params.max_vram = 4
+        assert params.max_vram == "4"
+        params.max_vram = None
+        assert params.max_vram is None
+
+    def test_pulid_weights_path(self):
+        params = SDContextParams()
+        assert params.pulid_weights_path is None
+        params.pulid_weights_path = "/path/to/pulid.safetensors"
+        assert params.pulid_weights_path == "/path/to/pulid.safetensors"
+        params.pulid_weights_path = None
+        assert params.pulid_weights_path is None
+
+    def test_rpc_servers(self):
+        params = SDContextParams()
+        assert params.rpc_servers is None
+        params.rpc_servers = "127.0.0.1:50052"
+        assert params.rpc_servers == "127.0.0.1:50052"
+        params.rpc_servers = None
+        assert params.rpc_servers is None
 
 
 class TestSDSampleParams:
@@ -519,6 +565,16 @@ class TestSDContextIntegration:
 
         ctx = sd_ctx_factory(params)
         assert ctx.is_valid
+
+    def test_cancel_reset_is_safe(self, sd_ctx_factory):
+        # With no generation in flight, RESET just clears any pending
+        # cancellation request and must not raise.
+        params = SDContextParams()
+        params.model_path = MODEL_PATH
+        params.n_threads = 4
+
+        ctx = sd_ctx_factory(params)
+        ctx.cancel(CancelMode.RESET)
 
     def test_generate_image(self, sd_ctx_factory):
         params = SDContextParams()
@@ -783,13 +839,6 @@ class TestSDContextParamsExtended:
         params.t5xxl_path = "/path/to/t5xxl.safetensors"
         assert params.t5xxl_path == "/path/to/t5xxl.safetensors"
 
-    def test_vae_decode_only(self):
-        params = SDContextParams()
-        params.vae_decode_only = False
-        assert params.vae_decode_only is False
-        params.vae_decode_only = True
-        assert params.vae_decode_only is True
-
     def test_diffusion_flash_attn(self):
         params = SDContextParams()
         params.diffusion_flash_attn = True
@@ -804,11 +853,6 @@ class TestSDContextParamsExtended:
         params = SDContextParams()
         params.diffusion_model_path = "/path/to/diffusion.safetensors"
         assert params.diffusion_model_path == "/path/to/diffusion.safetensors"
-
-    def test_offload_params_to_cpu(self):
-        params = SDContextParams()
-        params.offload_params_to_cpu = True
-        assert params.offload_params_to_cpu is True
 
     def test_clip_vision_path(self):
         params = SDContextParams()
@@ -859,21 +903,6 @@ class TestSDContextParamsExtended:
         params = SDContextParams()
         params.lora_apply_mode = LoraApplyMode.IMMEDIATELY
         assert params.lora_apply_mode == LoraApplyMode.IMMEDIATELY
-
-    def test_keep_clip_on_cpu(self):
-        params = SDContextParams()
-        params.keep_clip_on_cpu = True
-        assert params.keep_clip_on_cpu is True
-
-    def test_keep_vae_on_cpu(self):
-        params = SDContextParams()
-        params.keep_vae_on_cpu = True
-        assert params.keep_vae_on_cpu is True
-
-    def test_keep_control_net_on_cpu(self):
-        params = SDContextParams()
-        params.keep_control_net_on_cpu = True
-        assert params.keep_control_net_on_cpu is True
 
     def test_diffusion_conv_direct(self):
         params = SDContextParams()
@@ -1001,6 +1030,18 @@ class TestSDImageGenParamsExtended:
         params = SDImageGenParams()
         params.clip_skip = 2
         assert params.clip_skip == 2
+
+    def test_pulid_params(self):
+        params = SDImageGenParams()
+        assert params.pulid_id_embedding_path is None
+        params.pulid_id_embedding_path = "/path/to/id_embedding.bin"
+        assert params.pulid_id_embedding_path == "/path/to/id_embedding.bin"
+        params.pulid_id_weight = 0.8
+        assert abs(params.pulid_id_weight - 0.8) < 1e-6
+        # Clearing the path resets it to None without disturbing the weight.
+        params.pulid_id_embedding_path = None
+        assert params.pulid_id_embedding_path is None
+        assert abs(params.pulid_id_weight - 0.8) < 1e-6
 
     def test_set_init_image(self):
         """Test setting init image."""

@@ -96,6 +96,7 @@ class Scheduler(IntEnum):
     LCM = LCM_SCHEDULER
     BONG_TANGENT = BONG_TANGENT_SCHEDULER
     LTX2 = LTX2_SCHEDULER
+    LOGIT_NORMAL = LOGIT_NORMAL_SCHEDULER
     COUNT = SCHEDULER_COUNT
 
 
@@ -107,7 +108,19 @@ class Prediction(IntEnum):
     FLOW = FLOW_PRED
     FLUX_FLOW = FLUX_FLOW_PRED
     FLUX2_FLOW = FLUX2_FLOW_PRED
+    SEFI_FLOW = SEFI_FLOW_PRED
     COUNT = PREDICTION_COUNT
+
+
+class CancelMode(IntEnum):
+    """Cancellation modes for SDContext.cancel()."""
+    # Stop the current generation as soon as possible.
+    ALL = SD_CANCEL_ALL
+    # Finish the current image sample, then skip remaining batch latents
+    # and return the completed images.
+    NEW_LATENTS = SD_CANCEL_NEW_LATENTS
+    # Clear a pending cancellation request.
+    RESET = SD_CANCEL_RESET
 
 
 class SDType(IntEnum):
@@ -897,7 +910,10 @@ cdef class SDContextParams:
     cdef bytes _taesd_path_bytes
     cdef bytes _control_net_path_bytes
     cdef bytes _photo_maker_path_bytes
+    cdef bytes _pulid_weights_path_bytes
     cdef bytes _tensor_type_rules_bytes
+    cdef bytes _max_vram_bytes
+    cdef bytes _rpc_servers_bytes
 
     def __cinit__(self):
         sd_ctx_params_init(&self._params)
@@ -910,8 +926,7 @@ cdef class SDContextParams:
                  t5xxl_path: Optional[str] = None,
                  diffusion_model_path: Optional[str] = None,
                  n_threads: int = -1,
-                 wtype: SDType = SDType.COUNT,
-                 vae_decode_only: bool = True):
+                 wtype: SDType = SDType.COUNT):
         """
         Initialize context parameters.
 
@@ -924,7 +939,6 @@ cdef class SDContextParams:
             diffusion_model_path: Path to diffusion model (for split models)
             n_threads: Number of threads (-1 for auto)
             wtype: Weight type for computation
-            vae_decode_only: Only decode VAE (faster if not doing img2img)
         """
         if model_path:
             self.model_path = model_path
@@ -941,7 +955,6 @@ cdef class SDContextParams:
         if n_threads > 0:
             self.n_threads = n_threads
         self.wtype = wtype
-        self.vae_decode_only = vae_decode_only
 
     # --- Model paths ---
 
@@ -1065,15 +1078,6 @@ cdef class SDContextParams:
         self._params.rng_type = <rng_type_t>value
 
     @property
-    def vae_decode_only(self) -> bool:
-        """Only decode VAE (faster if not doing img2img)."""
-        return self._params.vae_decode_only
-
-    @vae_decode_only.setter
-    def vae_decode_only(self, value: bool):
-        self._params.vae_decode_only = value
-
-    @property
     def flash_attn(self) -> bool:
         """Use flash attention."""
         return self._params.flash_attn
@@ -1090,15 +1094,6 @@ cdef class SDContextParams:
     @diffusion_flash_attn.setter
     def diffusion_flash_attn(self, value: bool):
         self._params.diffusion_flash_attn = value
-
-    @property
-    def offload_params_to_cpu(self) -> bool:
-        """Offload parameters to CPU."""
-        return self._params.offload_params_to_cpu
-
-    @offload_params_to_cpu.setter
-    def offload_params_to_cpu(self, value: bool):
-        self._params.offload_params_to_cpu = value
 
     @property
     def enable_mmap(self) -> bool:
@@ -1276,42 +1271,6 @@ cdef class SDContextParams:
         self._params.lora_apply_mode = <lora_apply_mode_t>value
 
     @property
-    def free_params_immediately(self) -> bool:
-        """Free parameters immediately after use."""
-        return self._params.free_params_immediately
-
-    @free_params_immediately.setter
-    def free_params_immediately(self, value: bool):
-        self._params.free_params_immediately = value
-
-    @property
-    def keep_clip_on_cpu(self) -> bool:
-        """Keep CLIP model on CPU (for low VRAM)."""
-        return self._params.keep_clip_on_cpu
-
-    @keep_clip_on_cpu.setter
-    def keep_clip_on_cpu(self, value: bool):
-        self._params.keep_clip_on_cpu = value
-
-    @property
-    def keep_control_net_on_cpu(self) -> bool:
-        """Keep ControlNet on CPU (for low VRAM)."""
-        return self._params.keep_control_net_on_cpu
-
-    @keep_control_net_on_cpu.setter
-    def keep_control_net_on_cpu(self, value: bool):
-        self._params.keep_control_net_on_cpu = value
-
-    @property
-    def keep_vae_on_cpu(self) -> bool:
-        """Keep VAE on CPU (for low VRAM)."""
-        return self._params.keep_vae_on_cpu
-
-    @keep_vae_on_cpu.setter
-    def keep_vae_on_cpu(self, value: bool):
-        self._params.keep_vae_on_cpu = value
-
-    @property
     def tae_preview_only(self) -> bool:
         """Use TAESD only for preview, not final decode."""
         return self._params.tae_preview_only
@@ -1402,13 +1361,24 @@ cdef class SDContextParams:
         self._params.qwen_image_zero_cond_t = value
 
     @property
-    def max_vram(self) -> float:
-        """Maximum VRAM to use (0 = unlimited)."""
-        return self._params.max_vram
+    def max_vram(self) -> Optional[str]:
+        """GiB budget or backend-assignment spec for graph-cut segmented param
+        offload ("0" = disabled, "-1" = auto). None when unset."""
+        if self._params.max_vram:
+            return self._params.max_vram.decode('utf-8')
+        return None
 
     @max_vram.setter
-    def max_vram(self, value: float):
-        self._params.max_vram = value
+    def max_vram(self, value):
+        if value is None:
+            self._max_vram_bytes = None
+            self._params.max_vram = NULL
+            return
+        # Accept numeric values for backwards compatibility (e.g. -1, 4.0).
+        if not isinstance(value, str):
+            value = str(value)
+        self._max_vram_bytes = value.encode('utf-8')
+        self._params.max_vram = self._max_vram_bytes
 
     @property
     def vae_format(self) -> VaeFormat:
@@ -1428,6 +1398,46 @@ cdef class SDContextParams:
     @stream_layers.setter
     def stream_layers(self, value: bool):
         self._params.stream_layers = value
+
+    @property
+    def eager_load(self) -> bool:
+        """Load all params into the params backend at model-load time instead
+        of lazily on first use."""
+        return self._params.eager_load
+
+    @eager_load.setter
+    def eager_load(self, value: bool):
+        self._params.eager_load = value
+
+    @property
+    def pulid_weights_path(self) -> Optional[str]:
+        """Path to PuLID weights."""
+        if self._params.pulid_weights_path:
+            return self._params.pulid_weights_path.decode('utf-8')
+        return None
+
+    @pulid_weights_path.setter
+    def pulid_weights_path(self, value: Optional[str]):
+        if value:
+            self._pulid_weights_path_bytes = value.encode('utf-8')
+            self._params.pulid_weights_path = self._pulid_weights_path_bytes
+        else:
+            self._params.pulid_weights_path = NULL
+
+    @property
+    def rpc_servers(self) -> Optional[str]:
+        """Comma-separated list of RPC server endpoints."""
+        if self._params.rpc_servers:
+            return self._params.rpc_servers.decode('utf-8')
+        return None
+
+    @rpc_servers.setter
+    def rpc_servers(self, value: Optional[str]):
+        if value:
+            self._rpc_servers_bytes = value.encode('utf-8')
+            self._params.rpc_servers = self._rpc_servers_bytes
+        else:
+            self._params.rpc_servers = NULL
 
     def __str__(self) -> str:
         """Get string representation of parameters."""
@@ -1666,6 +1676,7 @@ cdef class SDImageGenParams:
     cdef bytes _prompt_bytes
     cdef bytes _negative_prompt_bytes
     cdef bytes _pm_id_embed_path_bytes
+    cdef bytes _pulid_id_embedding_path_bytes
     cdef bytes _scm_mask_bytes
     cdef bytes _hires_model_path_bytes
     cdef SDSampleParams _sample_params
@@ -1689,6 +1700,7 @@ cdef class SDImageGenParams:
         self._pm_id_images = None
         self._pm_id_images_buf = NULL
         self._pm_id_embed_path_bytes = None
+        self._pulid_id_embedding_path_bytes = None
         self._scm_mask_bytes = None
         self._hires_model_path_bytes = None
 
@@ -2073,6 +2085,38 @@ cdef class SDImageGenParams:
     @pm_style_strength.setter
     def pm_style_strength(self, value: float):
         self._params.pm_params.style_strength = value
+
+    # --- PuLID parameters ---
+    #
+    # PuLID is an identity-customization method (like Photo Maker) that
+    # conditions generation on a precomputed face/identity embedding. It
+    # requires PuLID weights loaded via SDContextParams.pulid_weights_path;
+    # these per-generation params point at the embedding and set its weight.
+
+    @property
+    def pulid_id_embedding_path(self) -> Optional[str]:
+        """Path to the precomputed PuLID identity embedding."""
+        if self._params.pulid_params.id_embedding_path == NULL:
+            return None
+        return self._params.pulid_params.id_embedding_path.decode('utf-8')
+
+    @pulid_id_embedding_path.setter
+    def pulid_id_embedding_path(self, value: Optional[str]):
+        if value is None:
+            self._params.pulid_params.id_embedding_path = NULL
+            self._pulid_id_embedding_path_bytes = None
+        else:
+            self._pulid_id_embedding_path_bytes = value.encode('utf-8')
+            self._params.pulid_params.id_embedding_path = <const char*>self._pulid_id_embedding_path_bytes
+
+    @property
+    def pulid_id_weight(self) -> float:
+        """Weight applied to the PuLID identity embedding."""
+        return self._params.pulid_params.id_weight
+
+    @pulid_id_weight.setter
+    def pulid_id_weight(self, value: float):
+        self._params.pulid_params.id_weight = value
 
     # --- VAE Tiling relative size ---
 
@@ -2522,6 +2566,7 @@ cdef class SDContext:
             ("control_net_path", "ControlNet"),
             ("taesd_path", "TAESD"),
             ("photo_maker_path", "PhotoMaker"),
+            ("pulid_weights_path", "PuLID"),
         )
         for attr, label in path_specs:
             value = getattr(params, attr, None)
@@ -2571,6 +2616,21 @@ cdef class SDContext:
         if self._ctx == NULL:
             raise RuntimeError("Context not initialized")
         return sd_ctx_supports_video_generation(self._ctx)
+
+    def cancel(self, mode: CancelMode = CancelMode.ALL) -> None:
+        """Request cancellation of an in-flight generation.
+
+        Intended to be called from a different thread than the one running
+        generate() / generate_video(): those release the GIL during native
+        sampling, so this signals the native loop to stop. ``mode`` selects
+        how aggressively to stop (see CancelMode). Pass CancelMode.RESET to
+        clear a pending request. This deliberately does not take the busy
+        lock, since the generating thread holds it.
+        """
+        if self._ctx == NULL:
+            raise RuntimeError("Context not initialized")
+        cdef int mode_i = int(mode)
+        sd_cancel_generation(self._ctx, <sd_cancel_mode_t>mode_i)
 
     def get_default_sample_method(self) -> SampleMethod:
         """Get the default sampling method for the loaded model."""
@@ -2989,7 +3049,6 @@ cdef class Upscaler:
     def __init__(self,
                  model_path: str,
                  n_threads: int = -1,
-                 offload_to_cpu: bool = False,
                  direct: bool = False,
                  tile_size: int = 0,
                  backend: Optional[str] = None,
@@ -3000,7 +3059,6 @@ cdef class Upscaler:
         Args:
             model_path: Path to ESRGAN model file
             n_threads: Number of threads (-1 for auto)
-            offload_to_cpu: Offload parameters to CPU
             direct: Use direct convolution
             tile_size: Tile size for processing (0 for default)
             backend: Backend name (e.g. "metal", "cuda"); None = auto
@@ -3025,7 +3083,6 @@ cdef class Upscaler:
 
         self._ctx = new_upscaler_ctx(
             self._model_path_bytes,
-            offload_to_cpu,
             direct,
             n_threads,
             tile_size,
@@ -3316,9 +3373,6 @@ def text_to_images(
     vae_tiling: bool = False,
     hires_fix: bool = False,
     hires_scale: float = 2.0,
-    offload_to_cpu: bool = False,
-    keep_clip_on_cpu: bool = False,
-    keep_vae_on_cpu: bool = False,
     diffusion_flash_attn: bool = False
 ) -> List[SDImage]:
     """
@@ -3354,9 +3408,6 @@ def text_to_images(
         vae_tiling: Enable VAE tiling for large images
         hires_fix: Enable hires-fix two-pass generation (latent upscale)
         hires_scale: Hires-fix upscale factor (default 2.0)
-        offload_to_cpu: Offload model to CPU (low VRAM)
-        keep_clip_on_cpu: Keep CLIP on CPU
-        keep_vae_on_cpu: Keep VAE on CPU
         diffusion_flash_attn: Use flash attention
 
     Returns:
@@ -3376,9 +3427,6 @@ def text_to_images(
         params.taesd_path = taesd_path
     if control_net_path:
         params.control_net_path = control_net_path
-    params.offload_params_to_cpu = offload_to_cpu
-    params.keep_clip_on_cpu = keep_clip_on_cpu
-    params.keep_vae_on_cpu = keep_vae_on_cpu
     params.diffusion_flash_attn = diffusion_flash_attn
 
     with SDContext(params) as ctx:
@@ -3426,9 +3474,6 @@ def text_to_image(
     vae_tiling: bool = False,
     hires_fix: bool = False,
     hires_scale: float = 2.0,
-    offload_to_cpu: bool = False,
-    keep_clip_on_cpu: bool = False,
-    keep_vae_on_cpu: bool = False,
     diffusion_flash_attn: bool = False
 ) -> SDImage:
     """
@@ -3461,9 +3506,6 @@ def text_to_image(
         vae_tiling: Enable VAE tiling for large images
         hires_fix: Enable hires-fix two-pass generation (latent upscale)
         hires_scale: Hires-fix upscale factor (default 2.0)
-        offload_to_cpu: Offload model to CPU (low VRAM)
-        keep_clip_on_cpu: Keep CLIP on CPU
-        keep_vae_on_cpu: Keep VAE on CPU
         diffusion_flash_attn: Use flash attention
 
     Returns:
@@ -3494,9 +3536,6 @@ def text_to_image(
         vae_tiling=vae_tiling,
         hires_fix=hires_fix,
         hires_scale=hires_scale,
-        offload_to_cpu=offload_to_cpu,
-        keep_clip_on_cpu=keep_clip_on_cpu,
-        keep_vae_on_cpu=keep_vae_on_cpu,
         diffusion_flash_attn=diffusion_flash_attn,
     )[0]
 
@@ -3545,7 +3584,6 @@ def image_to_image(
         model_path=model_path,
         vae_path=vae_path,
         n_threads=n_threads,
-        vae_decode_only=False  # Need encoder for img2img
     )
 
     with SDContext(params) as ctx:

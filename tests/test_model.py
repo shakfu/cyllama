@@ -61,6 +61,8 @@ def test_autorelease(model_path):
     assert model.n_ctx_train == 131072
     assert model.n_embd == 2048
     assert model.n_layer == 16
+    # Llama-3.2-1B has no multi-token-prediction (nextn) layers.
+    assert model.n_layer_nextn == 0
     assert model.n_head == 32
     assert model.n_head_kv == 8
     assert model.rope_freq_scale_train == 1.0

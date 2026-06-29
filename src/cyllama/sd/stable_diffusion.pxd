@@ -54,6 +54,7 @@ cdef extern from "stable-diffusion.h":
         LCM_SCHEDULER
         BONG_TANGENT_SCHEDULER
         LTX2_SCHEDULER
+        LOGIT_NORMAL_SCHEDULER
         SCHEDULER_COUNT
 
     ctypedef enum prediction_t:
@@ -63,6 +64,7 @@ cdef extern from "stable-diffusion.h":
         FLOW_PRED
         FLUX_FLOW_PRED
         FLUX2_FLOW_PRED
+        SEFI_FLOW_PRED
         PREDICTION_COUNT
 
     ctypedef enum sd_type_t:
@@ -170,20 +172,15 @@ cdef extern from "stable-diffusion.h":
         const sd_embedding_t* embeddings
         uint32_t embedding_count
         const char* photo_maker_path
+        const char* pulid_weights_path
         const char* tensor_type_rules
-        bint vae_decode_only
-        bint free_params_immediately
         int n_threads
         sd_type_t wtype
         rng_type_t rng_type
         rng_type_t sampler_rng_type
         prediction_t prediction
         lora_apply_mode_t lora_apply_mode
-        bint offload_params_to_cpu
         bint enable_mmap
-        bint keep_clip_on_cpu
-        bint keep_control_net_on_cpu
-        bint keep_vae_on_cpu
         bint flash_attn
         bint diffusion_flash_attn
         bint tae_preview_only
@@ -197,10 +194,12 @@ cdef extern from "stable-diffusion.h":
         int chroma_t5_mask_pad
         bint qwen_image_zero_cond_t
         sd_vae_format_t vae_format
-        float max_vram
+        const char* max_vram
         bint stream_layers
+        bint eager_load
         const char* backend
         const char* params_backend
+        const char* rpc_servers
 
     ctypedef struct sd_audio_t:
         uint32_t sample_rate
@@ -244,6 +243,10 @@ cdef extern from "stable-diffusion.h":
         int id_images_count
         const char* id_embed_path
         float style_strength
+
+    ctypedef struct sd_pulid_params_t:
+        const char* id_embedding_path
+        float id_weight
 
     cdef enum sd_cache_mode_t:
         SD_CACHE_DISABLED = 0
@@ -326,6 +329,7 @@ cdef extern from "stable-diffusion.h":
         sd_image_t control_image
         float control_strength
         sd_pm_params_t pm_params
+        sd_pulid_params_t pulid_params
         sd_tiling_params_t vae_tiling_params
         sd_cache_params_t cache
         sd_hires_params_t hires
@@ -438,6 +442,13 @@ cdef extern from "stable-diffusion.h":
 
     sd_image_t* generate_image(sd_ctx_t* sd_ctx, const sd_img_gen_params_t* sd_img_gen_params) nogil
 
+    ctypedef enum sd_cancel_mode_t:
+        SD_CANCEL_ALL
+        SD_CANCEL_NEW_LATENTS
+        SD_CANCEL_RESET
+
+    void sd_cancel_generation(sd_ctx_t* sd_ctx, sd_cancel_mode_t mode)
+
     # =========================================================================
     # Functions - Video generation
     # =========================================================================
@@ -449,7 +460,6 @@ cdef extern from "stable-diffusion.h":
     # =========================================================================
 
     upscaler_ctx_t* new_upscaler_ctx(const char* esrgan_path,
-                                      bint offload_params_to_cpu,
                                       bint direct,
                                       int n_threads,
                                       int tile_size,

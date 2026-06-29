@@ -1962,6 +1962,11 @@ cdef class LlamaModel:
         return llama.llama_model_n_layer(self.ptr)
 
     @property
+    def n_layer_nextn(self) -> int:
+        """Number of nextn (multi-token-prediction) layers in the model."""
+        return llama.llama_model_n_layer_nextn(self.ptr)
+
+    @property
     def n_head(self) -> int:
         if self._cache_initialized:
             return self._cached_n_head

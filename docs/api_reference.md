@@ -1493,9 +1493,6 @@ def text_to_image(
     vae_tiling: bool = False,
     hires_fix: bool = False,
     hires_scale: float = 2.0,
-    offload_to_cpu: bool = False,
-    keep_clip_on_cpu: bool = False,
-    keep_vae_on_cpu: bool = False,
     diffusion_flash_attn: bool = False
 ) -> SDImage
 ```
@@ -1508,7 +1505,7 @@ Same as `text_to_image()` but returns `List[SDImage]` and accepts `batch_count: 
 
 ### `image_to_image()`
 
-Img2img convenience function. Note: builds a context with `vae_decode_only=False` so the encoder is available.
+Img2img convenience function.
 
 ```python
 def image_to_image(
@@ -1567,13 +1564,15 @@ with SDContext(params) as ctx:
 
 - `generate(**kwargs) -> List[SDImage]`: Text/img2img/inpaint/ControlNet generation.
 
-- `generate_with_params(params: SDImageGenParams) -> List[SDImage]`: Low-level entry point taking a fully populated params object — needed for advanced features (LoRAs, reference images, Photo Maker, hires-fix model upscalers, full cache configuration).
+- `generate_with_params(params: SDImageGenParams) -> List[SDImage]`: Low-level entry point taking a fully populated params object — needed for advanced features (LoRAs, reference images, Photo Maker, PuLID, hires-fix model upscalers, full cache configuration).
 
 - `generate_video(**kwargs) -> List[SDImage]`: Video frame generation (requires video-capable model).
 
 - `default_sample_method(sample_method=None) -> SampleMethod`: Model's preferred sampler.
 
 - `default_scheduler(sample_method=None) -> Scheduler`: Model's preferred scheduler.
+
+- `cancel(mode: CancelMode = CancelMode.ALL) -> None`: Request cancellation of an in-flight `generate()` / `generate_video()` running on another thread. `CancelMode.ALL` stops as soon as possible, `CancelMode.NEW_LATENTS` finishes the current sample then skips remaining batch latents, `CancelMode.RESET` clears a pending request.
 
 ### `SDContextParams`
 
@@ -1589,14 +1588,20 @@ params.clip_g_path = "clip_g.safetensors" # Optional CLIP-G (SDXL/SD3)
 params.t5xxl_path = "t5xxl.safetensors"   # Optional T5-XXL (SD3/FLUX)
 params.control_net_path = "cn.safetensors" # Optional ControlNet
 params.n_threads = 4
-params.vae_decode_only = True             # Set False for img2img
 params.diffusion_flash_attn = False
-params.offload_params_to_cpu = False      # Low-VRAM mode
-params.keep_clip_on_cpu = False
-params.keep_vae_on_cpu = False
+params.max_vram = "-1"                     # Low-VRAM mode: "0" off, "-1" auto
+params.eager_load = False                  # Load all params up front
+params.pulid_weights_path = None           # Optional PuLID weights
+params.rpc_servers = None                  # Optional RPC backends, e.g. "host:port"
 params.wtype = SDType.COUNT               # COUNT = auto-detect
 params.rng_type = RngType.CUDA
 ```
+
+Memory placement is controlled by `max_vram` (a string: `"0"` disables offload,
+`"-1"` auto-sizes a GiB budget for graph-cut segmented param offload, or a
+GiB number / backend-assignment spec). This replaces the removed
+`offload_params_to_cpu` / `keep_clip_on_cpu` / `keep_vae_on_cpu` /
+`keep_control_net_on_cpu` / `free_params_immediately` / `vae_decode_only` flags.
 
 ### `SDImage`
 
@@ -1620,7 +1625,7 @@ img = SDImage.load("input.png")
 
 ### `SDImageGenParams`
 
-Full generation parameters; pass to `SDContext.generate_with_params()`. The `text_to_image()` convenience function only exposes a curated subset — drop down to this class for LoRAs, reference images, Photo Maker, full cache control, hires-fix model upscalers, etc.
+Full generation parameters; pass to `SDContext.generate_with_params()`. The `text_to_image()` convenience function only exposes a curated subset — drop down to this class for LoRAs, reference images, Photo Maker, PuLID, full cache control, hires-fix model upscalers, etc.
 
 ```python
 from cyllama.sd import SDImageGenParams, SDImage, HiresUpscaler
@@ -1674,7 +1679,7 @@ sample.sample_method = SampleMethod.COUNT
 sample.scheduler = Scheduler.COUNT
 ```
 
-See `docs/stable_diffusion.md` for the full property catalog (Photo Maker, ControlNet refs, full cache configuration, all hires-fix fields).
+See `docs/stable_diffusion.md` for the full property catalog (Photo Maker, PuLID, ControlNet refs, full cache configuration, all hires-fix fields).
 
 ### `SDSampleParams`
 
@@ -1703,7 +1708,6 @@ from cyllama.sd import Upscaler, SDImage
 upscaler = Upscaler(
     "models/esrgan-x4.bin",
     n_threads=4,
-    offload_to_cpu=False,
     direct=False,         # direct convolution
     tile_size=0,          # 0 = default
 )

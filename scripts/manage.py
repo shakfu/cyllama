@@ -146,9 +146,9 @@ if STABLE_BUILD:
     SQLITEVECTOR_VERSION = "1.0.0"
 else:
     # experimental bleeding-edge builds ` = ""` means get latest
-    LLAMACPP_VERSION = "b9628"
+    LLAMACPP_VERSION = "b9837"
     WHISPERCPP_VERSION = "v1.8.6"
-    SDCPP_VERSION = "master-694-276025e"
+    SDCPP_VERSION = "master-731-9f855c9"
     SQLITEVECTOR_VERSION = "1.0.0"
 if PLATFORM == "Darwin":
     MACOSX_DEPLOYMENT_TARGET = setenv("MACOSX_DEPLOYMENT_TARGET", "12.6")

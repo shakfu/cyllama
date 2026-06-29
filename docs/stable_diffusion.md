@@ -96,9 +96,6 @@ def text_to_image(
     vae_tiling: bool = False,
     hires_fix: bool = False,
     hires_scale: float = 2.0,
-    offload_to_cpu: bool = False,
-    keep_clip_on_cpu: bool = False,
-    keep_vae_on_cpu: bool = False,
     diffusion_flash_attn: bool = False
 ) -> List[SDImage]
 ```
@@ -123,7 +120,6 @@ def text_to_image(
 | `vae_tiling` | bool | False | Enable VAE tiling for large images |
 | `hires_fix` | bool | False | Enable hires-fix two-pass generation (latent upscale) |
 | `hires_scale` | float | 2.0 | Hires-fix upscale factor |
-| `offload_to_cpu` | bool | False | Offload weights to CPU (low VRAM) |
 | `diffusion_flash_attn` | bool | False | Use flash attention |
 
 #### image_to_image()
@@ -218,13 +214,14 @@ params.prediction = Prediction.COUNT          # Prediction type (COUNT = auto-de
 params.lora_apply_mode = LoraApplyMode.AUTO   # LoRA application mode
 params.chroma_t5_mask_pad = 0                 # Chroma T5 mask pad
 
+# Memory placement (replaces the removed per-component CPU-offload flags)
+params.max_vram = "-1"                        # "0" off, "-1" auto, or GiB budget / backend spec
+params.eager_load = False                     # Load all params at load time, not lazily
+params.pulid_weights_path = None              # Optional PuLID weights
+params.rpc_servers = None                     # Optional RPC backends "host:port,..."
+
 # Boolean flags
-params.vae_decode_only = True                 # VAE decode only (faster)
 params.enable_mmap = True                     # Enable memory-mapped loading
-params.offload_params_to_cpu = False          # Offload to CPU (low VRAM)
-params.keep_clip_on_cpu = False               # Keep CLIP on CPU
-params.keep_vae_on_cpu = False                # Keep VAE on CPU
-params.keep_control_net_on_cpu = False        # Keep ControlNet on CPU
 params.diffusion_flash_attn = False           # Flash attention
 params.diffusion_conv_direct = False          # Direct convolution
 params.vae_conv_direct = False                # VAE direct convolution
@@ -321,6 +318,15 @@ params.set_mask_image(mask_img)
 # Set control image for ControlNet
 params.set_control_image(control_img, strength=0.8)
 
+# Identity customization
+# Photo Maker (requires SDContextParams.photo_maker_path):
+params.set_pm_id_images([SDImage.load("face1.png"), SDImage.load("face2.png")])
+params.pm_id_embed_path = "/path/to/id_embed.bin"  # optional precomputed embedding
+params.pm_style_strength = 20.0
+# PuLID (requires SDContextParams.pulid_weights_path):
+params.pulid_id_embedding_path = "/path/to/id_embedding.bin"
+params.pulid_id_weight = 1.0
+
 # Access sample parameters
 sample = params.sample_params
 sample.sample_steps = 20
@@ -368,7 +374,6 @@ from cyllama.sd import Upscaler, SDImage
 upscaler = Upscaler(
     "models/esrgan-x4.bin",
     n_threads=4,
-    offload_to_cpu=False,
     direct=False
 )
 

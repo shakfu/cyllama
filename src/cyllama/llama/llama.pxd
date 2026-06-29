@@ -423,6 +423,7 @@ cdef extern from "llama.h":
     cdef int32_t llama_model_n_embd_inp (const llama_model * model)
     cdef int32_t llama_model_n_embd_out (const llama_model * model)
     cdef int32_t llama_model_n_layer    (const llama_model * model)
+    cdef int32_t llama_model_n_layer_nextn(const llama_model * model)
     cdef int32_t llama_model_n_head     (const llama_model * model)
     cdef int32_t llama_model_n_head_kv  (const llama_model * model)
     cdef int32_t llama_model_n_swa      (const llama_model * model)

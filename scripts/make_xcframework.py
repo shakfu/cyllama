@@ -304,9 +304,7 @@ def _build_chatfmt_dylib() -> None:
     if missing:
         fail(f"_build_chatfmt_dylib: missing source files: {missing}")
 
-    install_name = (
-        f"@rpath/LlamaCpp.framework/Versions/{FRAMEWORK_VERSION}/Libraries/libchatfmt.dylib"
-    )
+    install_name = f"@rpath/LlamaCpp.framework/Versions/{FRAMEWORK_VERSION}/Libraries/libchatfmt.dylib"
     cmd: list[str | Path] = [
         "clang++",
         "-dynamiclib",

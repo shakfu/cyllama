@@ -17,6 +17,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+### Added
+
+- **PuLID identity customization (`SDImageGenParams.pulid_id_embedding_path` / `.pulid_id_weight`, `SDContextParams.pulid_weights_path`)** -- binds the new `sd_pulid_params_t` struct and the `sd_img_gen_params_t.pulid_params` / `sd_ctx_params_t.pulid_weights_path` fields added to stable-diffusion.cpp master-731-9f855c9. PuLID is an identity-conditioning method (like Photo Maker): the PuLID weights are loaded once via `SDContextParams.pulid_weights_path`, and each generation points at a precomputed identity embedding (`pulid_id_embedding_path`, `Optional[str]`; `None` clears it) with a configurable `pulid_id_weight` (`float`). Mirrors the existing Photo Maker plumbing and, like it, is exposed through `SDImageGenParams` + `SDContext.generate_with_params()` rather than the `generate()` convenience kwargs. `pulid_weights_path` is included in `SDContext.__init__`'s path validation so a bad path raises a typed error. Declared in `src/cyllama/sd/stable_diffusion.pxd`, implemented in `stable_diffusion.pyx`, covered by `tests/test_sd.py`, documented in `docs/stable_diffusion.md` / `docs/api_reference.md`.
+
+- **`SDContext.cancel()` and `CancelMode` enum** -- bind the new `sd_cancel_generation()` export and `sd_cancel_mode_t` enum (stable-diffusion.cpp master-731). `cancel(mode=CancelMode.ALL)` requests cancellation of an in-flight `generate()` / `generate_video()`; `CancelMode.ALL` stops as soon as possible, `CancelMode.NEW_LATENTS` finishes the current sample then skips remaining batch latents, and `CancelMode.RESET` clears a pending request. Intended to be called from a different thread than the one generating (which holds the busy lock and has released the GIL during native sampling), so `cancel()` deliberately does not take the busy lock. `CancelMode` is exported from `cyllama.sd`. Declared in `stable_diffusion.pxd`, implemented in `stable_diffusion.pyx`, covered by `tests/test_sd.py`.
+
+- **`SDContextParams.eager_load` and `.rpc_servers`** -- expose the two new `sd_ctx_params_t` fields added in stable-diffusion.cpp master-731. `eager_load` (bool) loads all params into the params backend at model-load time instead of lazily on first use; `rpc_servers` (`Optional[str]`) is a comma-separated list of RPC backend endpoints. Standard property getter/setters; declared in `stable_diffusion.pxd`, implemented in `stable_diffusion.pyx`, covered by `tests/test_sd.py`.
+
+- **`Scheduler.LOGIT_NORMAL` and `Prediction.SEFI_FLOW`** -- new members mirroring the `LOGIT_NORMAL_SCHEDULER` and `SEFI_FLOW_PRED` enum values added to stable-diffusion.cpp master-731. Added to the C enum declarations in `stable_diffusion.pxd` and the Python `Scheduler` / `Prediction` `IntEnum`s, covered by `tests/test_sd.py`.
+
+- **`LlamaModel.n_layer_nextn`** -- binds the new `llama_model_n_layer_nextn()` accessor added in llama.cpp b9837, returning the number of nextn (multi-token-prediction) layers in the model (0 for models without MTP layers, e.g. Llama-3.2-1B). Declared in `src/cyllama/llama/llama.pxd`, implemented in `llama_cpp.pyx`, covered by `tests/test_model.py`.
+
+### Changed
+
+- **llama.cpp updated to b9837 (from b9628); stable-diffusion.cpp updated to master-731-9f855c9 (from master-694-276025e)** -- the llama.cpp header change was additive (`llama_model_n_layer_nextn()`, now bound -- see Added) and did not break the build. The stable-diffusion.cpp update reworked `sd_ctx_params_t`: it removed several per-component memory-placement fields (see Removed), changed `max_vram` from `float` to `const char*`, and added new fields (see Added). whisper.cpp is unchanged (v1.8.6).
+
+- **`SDContextParams.max_vram` is now a string** -- upstream changed the `sd_ctx_params_t.max_vram` field from `float` to `const char*`: it is now a GiB budget *or* a backend-assignment spec for graph-cut segmented param offload (`"0"` = disabled, `"-1"` = auto). The property returns `Optional[str]` (`None` when unset) and the setter accepts a string; for backwards compatibility it also coerces numeric values to their string form (e.g. `-1` -> `"-1"`). This single mechanism replaces the removed per-component CPU-offload flags. Declared in `stable_diffusion.pxd`, implemented in `stable_diffusion.pyx`, covered by `tests/test_sd.py`.
+
+- **`python -m cyllama.sd` low-VRAM CLI flags remapped onto `--max-vram`** -- the SD CLI gains `--max-vram` (string) and `--eager-load`. The legacy `--offload-to-cpu` / `--clip-on-cpu` / `--vae-on-cpu` / `--control-net-cpu` flags are retained for compatibility but, since upstream removed per-component CPU placement, now map to `--max-vram -1` (auto offload) when an explicit `--max-vram` is not given. The `upscale` subcommand's `--offload-to-cpu` flag is removed (the underlying `new_upscaler_ctx()` dropped its `offload_params_to_cpu` argument).
+
+### Removed
+
+- **`SDContextParams` per-component memory-placement properties** -- `vae_decode_only`, `free_params_immediately`, `offload_params_to_cpu`, `keep_clip_on_cpu`, `keep_vae_on_cpu`, and `keep_control_net_on_cpu` were removed because the corresponding `sd_ctx_params_t` fields were removed upstream (stable-diffusion.cpp master-731), consolidated into the `max_vram` string spec (see Changed). The `offload_to_cpu` / `keep_clip_on_cpu` / `keep_vae_on_cpu` keyword arguments were correspondingly dropped from the `text_to_image()` / `text_to_images()` convenience functions, the `vae_decode_only` argument was dropped from `SDContextParams.__init__()` and `image_to_image()` (the encoder is now always available for img2img), and `offload_to_cpu` was dropped from `Upscaler.__init__()`.
+
 ## [0.3.2]
 
 ### Added
