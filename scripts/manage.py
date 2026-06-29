@@ -137,12 +137,12 @@ PLATFORM = platform.system()
 ARCH = platform.machine()
 PY_VER_MINOR = sys.version_info.minor
 
-STABLE_BUILD = getenv("STABLE_BUILD", False)
+STABLE_BUILD = getenv("STABLE_BUILD", True)
 if STABLE_BUILD:
     # known to build and work without errors, 100% tests pass
-    LLAMACPP_VERSION = "b9505"
-    WHISPERCPP_VERSION = "v1.8.4"
-    SDCPP_VERSION = "master-672-1f9ee88"
+    LLAMACPP_VERSION = "b9837"
+    WHISPERCPP_VERSION = "v1.8.6"
+    SDCPP_VERSION = "master-731-9f855c9"
     SQLITEVECTOR_VERSION = "1.0.0"
 else:
     # experimental bleeding-edge builds ` = ""` means get latest
