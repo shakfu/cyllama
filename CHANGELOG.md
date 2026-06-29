@@ -17,6 +17,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+## [0.3.3]
+
 ### Added
 
 - **PuLID identity customization (`SDImageGenParams.pulid_id_embedding_path` / `.pulid_id_weight`, `SDContextParams.pulid_weights_path`)** -- binds the new `sd_pulid_params_t` struct and the `sd_img_gen_params_t.pulid_params` / `sd_ctx_params_t.pulid_weights_path` fields added to stable-diffusion.cpp master-731-9f855c9. PuLID is an identity-conditioning method (like Photo Maker): the PuLID weights are loaded once via `SDContextParams.pulid_weights_path`, and each generation points at a precomputed identity embedding (`pulid_id_embedding_path`, `Optional[str]`; `None` clears it) with a configurable `pulid_id_weight` (`float`). Mirrors the existing Photo Maker plumbing and, like it, is exposed through `SDImageGenParams` + `SDContext.generate_with_params()` rather than the `generate()` convenience kwargs. `pulid_weights_path` is included in `SDContext.__init__`'s path validation so a bad path raises a typed error. Declared in `src/cyllama/sd/stable_diffusion.pxd`, implemented in `stable_diffusion.pyx`, covered by `tests/test_sd.py`, documented in `docs/stable_diffusion.md` / `docs/api_reference.md`.
