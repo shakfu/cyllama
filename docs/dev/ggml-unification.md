@@ -2,23 +2,15 @@
 
 ## Summary
 
-The `cyllama_cuda12` wheel shipped at **157 MB compressed / ~427 MB
-uncompressed** in 0.2.9, exceeding PyPI's 100 MB default limit. Two files
-dominated: `cyllama/sd/stable_diffusion.cpython-*.so` (~210 MB) and
-`cyllama/llama/libggml-cuda.so` (~202 MB). Both carried the same set of ggml
-CUDA kernels -- the SD extension had `libggml-cuda.a` whole-archive linked
-into it, while llama.cpp shipped the same backend as a separate shared library.
+The `cyllama_cuda12` wheel shipped at **157 MB compressed / ~427 MB uncompressed** in 0.2.9, exceeding PyPI's 100 MB default limit. Two files dominated: `cyllama/sd/stable_diffusion.cpython-*.so` (~210 MB) and `cyllama/llama/libggml-cuda.so` (~202 MB). Both carried the same set of ggml CUDA kernels -- the SD extension had `libggml-cuda.a` whole-archive linked into it, while llama.cpp shipped the same backend as a separate shared library.
 
 The fix required three things:
 
-1. **Source sync** (`_sync_ggml_abi()`): replace SD's vendored ggml with
-   llama.cpp's copy so enum values and API signatures match.
-2. **Struct layout sync** (`GGML_MAX_NAME=128`): propagate SD's larger
-   `GGML_MAX_NAME` to the llama.cpp shared lib build so `ggml_tensor` struct
-   layout is identical on both sides.
-3. **Dynamic link path** (`WITH_DYLIB=1`, `SD_USE_VENDORED_GGML=0`): link SD
-   against llama.cpp's shared ggml dylibs instead of whole-archiving the
-   static `.a` files.
+1. **Source sync** (`_sync_ggml_abi()`): replace SD's vendored ggml with llama.cpp's copy so enum values and API signatures match.
+
+2. **Struct layout sync** (`GGML_MAX_NAME=128`): propagate SD's larger `GGML_MAX_NAME` to the llama.cpp shared lib build so `ggml_tensor` struct layout is identical on both sides.
+
+3. **Dynamic link path** (`WITH_DYLIB=1`, `SD_USE_VENDORED_GGML=0`): link SD against llama.cpp's shared ggml dylibs instead of whole-archiving the static `.a` files.
 
 All three are now implemented. The SD `.so` dropped from 210 MB to 23 MB.
 
@@ -39,18 +31,15 @@ From `dist/cyllama_cuda12-0.2.9-cp313-cp313-manylinux2014_x86_64.*.whl`:
 | everything else | ~5 MB | ~10 MB | Python sources, small libs, libs duplicated by auditwheel |
 | **total** | **~157 MB** | **~427 MB** | |
 
-The two CUDA-carrying `.so` files held effectively the same compiled kernel
-set. Confirmed by `nm -D` showing identical ggml_cuda kernel symbols in both.
+The two CUDA-carrying `.so` files held effectively the same compiled kernel set. Confirmed by `nm -D` showing identical ggml_cuda kernel symbols in both.
 
 ### PyPI constraint
 
-PyPI's default per-file limit is 100 MB. At 157 MB the wheel required a
-size-increase grant.
+PyPI's default per-file limit is 100 MB. At 157 MB the wheel required a size-increase grant.
 
 ### Non-goal: splitting the distribution
 
-SD is a core feature of cyllama, not an optional add-on. This document
-pursues the single-wheel path.
+SD is a core feature of cyllama, not an optional add-on. This document pursues the single-wheel path.
 
 ---
 
@@ -58,22 +47,13 @@ pursues the single-wheel path.
 
 Release 0.2.9 made `SD_USE_VENDORED_GGML=ON` the default. The rationale:
 
-> Fixes a `ggml_backend_tensor_copy` assertion crash ("cannot copy tensors
-> with different layouts") during CUDA image generation caused by subtle ggml
-> version incompatibilities between llama.cpp and stable-diffusion.cpp.
+> Fixes a `ggml_backend_tensor_copy` assertion crash ("cannot copy tensors > with different layouts") during CUDA image generation caused by subtle ggml > version incompatibilities between llama.cpp and stable-diffusion.cpp.
 
 ### Historical root cause (pre-0.2.9)
 
-SD's vendored ggml was at an older release. Upstream inserted new operations
-into the `ggml_op` enum, shifting every subsequent op's integer ordinal. SD
-was compiled against older headers but called into llama.cpp's newer
-`libggml-cuda.so` at runtime. The mismatched op ids produced compute graphs
-with wrong output shapes, tripping `GGML_ASSERT(ggml_are_same_layout(src,
-dst))` during the first cross-backend tensor copy.
+SD's vendored ggml was at an older release. Upstream inserted new operations into the `ggml_op` enum, shifting every subsequent op's integer ordinal. SD was compiled against older headers but called into llama.cpp's newer `libggml-cuda.so` at runtime. The mismatched op ids produced compute graphs with wrong output shapes, tripping `GGML_ASSERT(ggml_are_same_layout(src, dst))` during the first cross-backend tensor copy.
 
-0.2.9 short-circuited this by statically linking SD against its own vendored
-ggml with `-Wl,--whole-archive`. Correct, but every symbol in
-`libggml-cuda.a` ended up inside the SD extension.
+0.2.9 short-circuited this by statically linking SD against its own vendored ggml with `-Wl,--whole-archive`. Correct, but every symbol in `libggml-cuda.a` ended up inside the SD extension.
 
 ---
 
@@ -83,9 +63,7 @@ Unifying the ggml library required solving two distinct ABI mismatches.
 
 ### Problem 1: enum ordinal drift (solved by `_sync_ggml_abi`)
 
-SD's vendored ggml (0.9.8) and llama.cpp's ggml (0.9.11) define different
-integer values for `ggml_op` enum members. The fix replaces SD's vendored
-`ggml/` directory with llama.cpp's copy at build time:
+SD's vendored ggml (0.9.8) and llama.cpp's ggml (0.9.11) define different integer values for `ggml_op` enum members. The fix replaces SD's vendored `ggml/` directory with llama.cpp's copy at build time:
 
 ```python
 # scripts/manage.py -- StableDiffusionCppBuilder._sync_ggml_abi()
@@ -93,43 +71,33 @@ shutil.rmtree(sd_ggml)
 shutil.copytree(llama_ggml, sd_ggml)
 ```
 
-Triggered when `SD_USE_VENDORED_GGML=0`. After the sync, SD compiles against
-the same ggml headers that the shared dylibs were built from. The enum
-values match; the original 0.2.9 crash mode is eliminated.
+Triggered when `SD_USE_VENDORED_GGML=0`. After the sync, SD compiles against the same ggml headers that the shared dylibs were built from. The enum values match; the original 0.2.9 crash mode is eliminated.
 
-This was sufficient for simple models (SDXL Turbo, 512x512). More complex
-models revealed a second, subtler problem.
+This was sufficient for simple models (SDXL Turbo, 512x512). More complex models revealed a second, subtler problem.
 
 ### Problem 2: GGML_MAX_NAME struct layout mismatch
 
 #### Discovery
 
-With the source sync in place, SDXL Turbo image generation worked
-perfectly. But FLUX-like models (`z_image_turbo`) with `--offload-to-cpu
---vae-on-cpu` crashed with the same `ggml_are_same_layout` assertion:
+With the source sync in place, SDXL Turbo image generation worked perfectly. But FLUX-like models (`z_image_turbo`) with `--offload-to-cpu --vae-on-cpu` crashed with the same `ggml_are_same_layout` assertion:
 
 ```
 ggml-backend.cpp:478: GGML_ASSERT(ggml_are_same_layout(src, dst)
     && "cannot copy tensors with different layouts") failed
 ```
 
-The native `sd-cli` binary (statically linked, same ggml source after sync)
-worked fine for the same model and parameters.
+The native `sd-cli` binary (statically linked, same ggml source after sync) worked fine for the same model and parameters.
 
 #### Diagnosis
 
-Instrumenting `ggml_backend_tensor_copy` to print tensor details before the
-assertion revealed:
+Instrumenting `ggml_backend_tensor_copy` to print tensor details before the assertion revealed:
 
 ```
 src name=leaf_382 type=0 ne=[0,1,1,1]    nb=[4,10240,10240,10240]
 dst name=          type=0 ne=[2560,1,1,1] nb=[4,10240,10240,10240]
 ```
 
-The source tensor had `ne[0]=0` but strides consistent with `ne[0]=2560`
-(`nb[1] = 2560 * 4 = 10240`). This meant the tensor was originally created
-with `ne[0]=2560` but the field was subsequently overwritten with zeros --
-classic struct layout corruption.
+The source tensor had `ne[0]=0` but strides consistent with `ne[0]=2560` (`nb[1] = 2560 * 4 = 10240`). This meant the tensor was originally created with `ne[0]=2560` but the field was subsequently overwritten with zeros -- classic struct layout corruption.
 
 #### Root cause
 
@@ -156,41 +124,25 @@ And `ggml_extend.hpp:94` enforces it:
 static_assert(GGML_MAX_NAME >= 128, "GGML_MAX_NAME must be at least 128");
 ```
 
-The `ggml_tensor` struct contains `char name[GGML_MAX_NAME]`. With the
-mismatch:
+The `ggml_tensor` struct contains `char name[GGML_MAX_NAME]`. With the mismatch:
 
-- **SD's compiled code** sees `sizeof(ggml_tensor)` with a 128-byte `name`
-  field.
+- **SD's compiled code** sees `sizeof(ggml_tensor)` with a 128-byte `name` field.
 
-- **llama.cpp's shared libs** see `sizeof(ggml_tensor)` with a 64-byte
-  `name` field.
+- **llama.cpp's shared libs** see `sizeof(ggml_tensor)` with a 64-byte `name` field.
 
-Every field after `name` in the struct (`extra`, `padding`) is at a
-different byte offset. When SD writes to a tensor's `ne[0]` through what it
-thinks is the correct offset, the shared lib reads from a different location.
+Every field after `name` in the struct (`extra`, `padding`) is at a different byte offset. When SD writes to a tensor's `ne[0]` through what it thinks is the correct offset, the shared lib reads from a different location.
 
-The `_sync_ggml_abi()` function synced the ggml *source* but not the
-*compile-time defines* -- SD's cmake still injected `-DGGML_MAX_NAME=128`
-before including the synced headers, preempting the `#ifndef` guard.
+The `_sync_ggml_abi()` function synced the ggml *source* but not the *compile-time defines* -- SD's cmake still injected `-DGGML_MAX_NAME=128` before including the synced headers, preempting the `#ifndef` guard.
 
 #### Why simple models passed
 
-SDXL Turbo's tensor names are short and its inference path doesn't require
-cross-backend tensor copies with `--offload-to-cpu`. The 64-byte padding
-difference happened not to corrupt the specific `ne[]` values accessed
-during that model's execution.
+SDXL Turbo's tensor names are short and its inference path doesn't require cross-backend tensor copies with `--offload-to-cpu`. The 64-byte padding difference happened not to corrupt the specific `ne[]` values accessed during that model's execution.
 
-FLUX models use `--offload-to-cpu --vae-on-cpu` (necessary because the ~10
-GB model exceeds 8 GB VRAM), which forces
-`offload_params_to_runtime_backend()` to copy hundreds of tensors between
-CPU and CUDA backends via `ggml_backend_tensor_copy`. This exercises the
-struct layout at every copy, exposing the corruption.
+FLUX models use `--offload-to-cpu --vae-on-cpu` (necessary because the ~10 GB model exceeds 8 GB VRAM), which forces `offload_params_to_runtime_backend()` to copy hundreds of tensors between CPU and CUDA backends via `ggml_backend_tensor_copy`. This exercises the struct layout at every copy, exposing the corruption.
 
 #### Why the native binary worked
 
-`sd-cli` is statically linked. SD's cmake builds its own ggml libraries
-with `-DGGML_MAX_NAME=128`, and that same value is used throughout the
-binary. No ABI boundary, no mismatch.
+`sd-cli` is statically linked. SD's cmake builds its own ggml libraries with `-DGGML_MAX_NAME=128`, and that same value is used throughout the binary. No ABI boundary, no mismatch.
 
 ---
 
@@ -200,14 +152,11 @@ Three coordinated changes:
 
 ### 1. Source sync (existing)
 
-`_sync_ggml_abi()` replaces SD's vendored `ggml/` tree with llama.cpp's
-copy. This eliminates enum ordinal drift.
+`_sync_ggml_abi()` replaces SD's vendored `ggml/` tree with llama.cpp's copy. This eliminates enum ordinal drift.
 
 ### 2. GGML_MAX_NAME propagation (new)
 
-When `SD_USE_VENDORED_GGML=0`, both `LlamaCppBuilder.build()` and
-`LlamaCppBuilder.build_shared()` now pass `-DGGML_MAX_NAME=128` via
-`CMAKE_C_FLAGS` and `CMAKE_CXX_FLAGS`:
+When `SD_USE_VENDORED_GGML=0`, both `LlamaCppBuilder.build()` and `LlamaCppBuilder.build_shared()` now pass `-DGGML_MAX_NAME=128` via `CMAKE_C_FLAGS` and `CMAKE_CXX_FLAGS`:
 
 ```python
 # scripts/manage.py
@@ -223,8 +172,7 @@ if _sd_uses_shared_ggml():
     extra["CMAKE_CXX_FLAGS"] = _def
 ```
 
-The main `CMakeLists.txt` also propagates it to the scikit-build-core wheel
-build (the Cython extensions):
+The main `CMakeLists.txt` also propagates it to the scikit-build-core wheel build (the Cython extensions):
 
 ```cmake
 if(NOT SD_USE_VENDORED_GGML)
@@ -232,27 +180,15 @@ if(NOT SD_USE_VENDORED_GGML)
 endif()
 ```
 
-This ensures every component -- llama.cpp shared libs, SD extension, Cython
-bindings -- agrees on `sizeof(ggml_tensor)`.
+This ensures every component -- llama.cpp shared libs, SD extension, Cython bindings -- agrees on `sizeof(ggml_tensor)`.
 
 ### 3. Dynamic link path (existing)
 
-`CMakeLists.txt:843` links SD against llama.cpp's shared ggml dylibs when
-`WITH_DYLIB=ON` and `SD_USE_VENDORED_GGML=OFF`. The Makefile dynamic
-targets now set `SD_USE_VENDORED_GGML=0` by default.
+`CMakeLists.txt:843` links SD against llama.cpp's shared ggml dylibs when `WITH_DYLIB=ON` and `SD_USE_VENDORED_GGML=OFF`. The Makefile dynamic targets now set `SD_USE_VENDORED_GGML=0` by default.
 
 ### 4. Force build-from-source when SD shares ggml (0.2.10 follow-up)
 
-Problem 2's fix (`GGML_MAX_NAME=128` via `CMAKE_C_FLAGS`) only fires
-during `LlamaCppBuilder.build_shared()`. `manage.py`'s dynamic path
-normally prefers `download_release()` when llama.cpp publishes a
-pre-built tarball for the platform/backend. CUDA/ROCm/SYCL have no such
-tarball on Linux, so they always build from source and the fix
-applies. **Vulkan does publish
-`llama-{ver}-bin-ubuntu-vulkan-x64.tar.gz`**, and those binaries use
-the default `GGML_MAX_NAME=64`. Problem 2's fix never reached Vulkan
-wheels, reproducing the same `ggml_are_same_layout` crash that fix was
-meant to prevent.
+Problem 2's fix (`GGML_MAX_NAME=128` via `CMAKE_C_FLAGS`) only fires during `LlamaCppBuilder.build_shared()`. `manage.py`'s dynamic path normally prefers `download_release()` when llama.cpp publishes a pre-built tarball for the platform/backend. CUDA/ROCm/SYCL have no such tarball on Linux, so they always build from source and the fix applies. **Vulkan does publish `llama-{ver}-bin-ubuntu-vulkan-x64.tar.gz`**, and those binaries use the default `GGML_MAX_NAME=64`. Problem 2's fix never reached Vulkan wheels, reproducing the same `ggml_are_same_layout` crash that fix was meant to prevent.
 
 Resolution in `scripts/manage.py:2252`:
 
@@ -263,11 +199,7 @@ else:
     builder.download_release()
 ```
 
-When `SD_USE_VENDORED_GGML=0`, the download path is skipped
-unconditionally — matching the CUDA/ROCm/SYCL flow — so the
-`CMAKE_C_FLAGS=-DGGML_MAX_NAME=128` injection actually reaches every
-dynamic GPU backend's shared libs. See `docs/dev/ggml_max_name.md` for
-the full analysis.
+When `SD_USE_VENDORED_GGML=0`, the download path is skipped unconditionally — matching the CUDA/ROCm/SYCL flow — so the `CMAKE_C_FLAGS=-DGGML_MAX_NAME=128` injection actually reaches every dynamic GPU backend's shared libs. See `docs/dev/ggml_max_name.md` for the full analysis.
 
 ---
 
@@ -294,71 +226,47 @@ Validated on RTX 4060 (sm_89), CUDA 12.0, `CMAKE_CUDA_ARCHITECTURES=native`:
 
 ### Makefile
 
-All GPU dynamic build and wheel targets now set `SD_USE_VENDORED_GGML=0`.
-CUDA targets default `CMAKE_CUDA_ARCHITECTURES` to `native` (overridable
-via env var).
+All GPU dynamic build and wheel targets now set `SD_USE_VENDORED_GGML=0`. CUDA targets default `CMAKE_CUDA_ARCHITECTURES` to `native` (overridable via env var).
 
 ### scripts/manage.py
 
 - Module-level `_SD_GGML_MAX_NAME = 128` and `_sd_uses_shared_ggml()` helper.
 
-- `LlamaCppBuilder.build()`: passes `-DGGML_MAX_NAME=128` via CMAKE_C/CXX_FLAGS
-  when SD shares ggml.
+- `LlamaCppBuilder.build()`: passes `-DGGML_MAX_NAME=128` via CMAKE_C/CXX_FLAGS when SD shares ggml.
 
 - `LlamaCppBuilder.build_shared()`: same.
 
 - `StableDiffusionCppBuilder._sync_ggml_abi()`: unchanged (source sync).
 
-- `Application.do_build()` (0.2.10): when `SD_USE_VENDORED_GGML=0`, force
-  `build_shared()` regardless of whether a pre-built release asset exists,
-  so Vulkan dynamic wheels pick up the `GGML_MAX_NAME=128` define too.
+- `Application.do_build()` (0.2.10): when `SD_USE_VENDORED_GGML=0`, force `build_shared()` regardless of whether a pre-built release asset exists, so Vulkan dynamic wheels pick up the `GGML_MAX_NAME=128` define too.
 
 ### CMakeLists.txt
 
-- `add_definitions(-DGGML_MAX_NAME=128)` when `NOT SD_USE_VENDORED_GGML`,
-  so Cython extensions also see the correct struct layout. Placed *after*
-  the `SD_USE_VENDORED_GGML` env-var handler (0.2.10 ordering fix);
-  originally sat above it, which silently skipped the define whenever the
-  env var was the only signal (CI and Makefile dynamic targets).
+- `add_definitions(-DGGML_MAX_NAME=128)` when `NOT SD_USE_VENDORED_GGML`, so Cython extensions also see the correct struct layout. Placed *after* the `SD_USE_VENDORED_GGML` env-var handler (0.2.10 ordering fix); originally sat above it, which silently skipped the define whenever the env var was the only signal (CI and Makefile dynamic targets).
 
 ### .github/workflows/build-gpu-wheels.yml
 
-All four auditwheel repair blocks (CUDA, ROCm, SYCL, Vulkan) now exclude
-bundled project libs (`libllama`, `libggml-*`, `libmtmd`) and `libgomp` in
-addition to GPU runtime system libs. This prevents auditwheel from
-SONAME-rewriting the bundled libs, which was the root cause of the
-double-free crash documented in `docs/dev/cuda-double-free.md`.
+All four auditwheel repair blocks (CUDA, ROCm, SYCL, Vulkan) now exclude bundled project libs (`libllama`, `libggml-*`, `libmtmd`) and `libgomp` in addition to GPU runtime system libs. This prevents auditwheel from SONAME-rewriting the bundled libs, which was the root cause of the double-free crash documented in `docs/dev/cuda-double-free.md`.
 
 ---
 
 ## Follow-up work (out of scope for the first landing)
 
-- **Flip the CMake default** (Option 4b). After a release cycle of
-  real-world coverage, change `SD_USE_VENDORED_GGML` default to `OFF`.
+- **Flip the CMake default** (Option 4b). After a release cycle of real-world coverage, change `SD_USE_VENDORED_GGML` default to `OFF`.
 
-- **Extend unification to Metal / HIP / SYCL / OpenCL** wheels. Same
-  mechanism applies; each backend needs its own validation on matching
-  hardware. Vulkan landed in 0.2.10 (`docs/dev/ggml_max_name.md`).
+- **Extend unification to Metal / HIP / SYCL / OpenCL** wheels. Same mechanism applies; each backend needs its own validation on matching hardware. Vulkan landed in 0.2.10 (`docs/dev/ggml_max_name.md`).
 
-- **Default `GGML_NATIVE=ON` for local static builds** and
-  `CMAKE_CUDA_ARCHITECTURES=native` for local dynamic builds. See
-  `docs/dev/ggml-config.md` for the analysis and recommendation.
+- **Default `GGML_NATIVE=ON` for local static builds** and `CMAKE_CUDA_ARCHITECTURES=native` for local dynamic builds. See `docs/dev/ggml-config.md` for the analysis and recommendation.
 
-- **Audit whisper** for the same pattern. Whisper also wraps ggml; if its
-  static path whole-archives ggml backends, the same unification can apply.
+- **Audit whisper** for the same pattern. Whisper also wraps ggml; if its static path whole-archives ggml backends, the same unification can apply.
 
-- **Propose the sync mechanism upstream**. `_sync_ggml_abi()` is a
-  cyllama-specific workaround. An upstream fix -- either
-  stable-diffusion.cpp tracking ggml's HEAD more closely, or ggml itself
-  committing to stable ABI guarantees -- would remove the need for the sync
-  entirely.
+- **Propose the sync mechanism upstream**. `_sync_ggml_abi()` is a cyllama-specific workaround. An upstream fix -- either stable-diffusion.cpp tracking ggml's HEAD more closely, or ggml itself committing to stable ABI guarantees -- would remove the need for the sync entirely.
 
 ---
 
 ## References
 
-- `CHANGELOG.md` -- 0.2.9 entry documenting the workaround this plan
-  reverses.
+- `CHANGELOG.md` -- 0.2.9 entry documenting the workaround this plan reverses.
 
 - `CMakeLists.txt:11` -- `SD_USE_VENDORED_GGML` option default.
 
@@ -366,21 +274,15 @@ double-free crash documented in `docs/dev/cuda-double-free.md`.
 
 - `CMakeLists.txt:849-869` -- dynamic-link branch.
 
-- `CMakeLists.txt:891-894`, `CMakeLists.txt:913-917` -- the whole-archive
-  link whose bloat we eliminated.
+- `CMakeLists.txt:891-894`, `CMakeLists.txt:913-917` -- the whole-archive link whose bloat we eliminated.
 
-- `scripts/manage.py` -- `_SD_GGML_MAX_NAME`, `_sd_uses_shared_ggml()`,
-  `_sync_ggml_abi()`, and the CMAKE_C/CXX_FLAGS injection in both
-  `LlamaCppBuilder.build()` and `LlamaCppBuilder.build_shared()`.
+- `scripts/manage.py` -- `_SD_GGML_MAX_NAME`, `_sd_uses_shared_ggml()`, `_sync_ggml_abi()`, and the CMAKE_C/CXX_FLAGS injection in both `LlamaCppBuilder.build()` and `LlamaCppBuilder.build_shared()`.
 
-- `build/stable-diffusion.cpp/CMakeLists.txt:233` --
-  `-DGGML_MAX_NAME=128` that SD applies.
+- `build/stable-diffusion.cpp/CMakeLists.txt:233` -- `-DGGML_MAX_NAME=128` that SD applies.
 
-- `build/stable-diffusion.cpp/src/ggml_extend.hpp:94` --
-  `static_assert(GGML_MAX_NAME >= 128)`.
+- `build/stable-diffusion.cpp/src/ggml_extend.hpp:94` -- `static_assert(GGML_MAX_NAME >= 128)`.
 
-- `build/llama.cpp/ggml/include/ggml.h` -- `#ifndef GGML_MAX_NAME` /
-  `#define GGML_MAX_NAME 64` guard.
+- `build/llama.cpp/ggml/include/ggml.h` -- `#ifndef GGML_MAX_NAME` / `#define GGML_MAX_NAME 64` guard.
 
 - `Makefile` -- `build-*-dynamic` and `wheel-*-dynamic` targets.
 
@@ -388,5 +290,4 @@ double-free crash documented in `docs/dev/cuda-double-free.md`.
 
 - `docs/dev/cuda-double-free.md` -- auditwheel `--exclude` rationale.
 
-- `docs/dev/ggml-config.md` -- `GGML_NATIVE` and `CMAKE_CUDA_ARCHITECTURES`
-  analysis.
+- `docs/dev/ggml-config.md` -- `GGML_NATIVE` and `CMAKE_CUDA_ARCHITECTURES` analysis.

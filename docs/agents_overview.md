@@ -5,20 +5,31 @@ Cyllama includes a zero-dependency agent framework for building tool-using LLM a
 ## Table of Contents
 
 1. [Quick Start](#quick-start)
+
 2. [Architecture](#architecture)
+
 3. [Tools](#tools) -- including `Annotated[]` constraints, coercion, timeouts
+
 4. [Agents](#agents)
+
    - [ReActAgent](#reactagent)
 
    - [ConstrainedAgent](#constrainedagent)
 
    - [ContractAgent](#contractagent)
+
 5. [Multi-Agent Composition](#multi-agent-composition) -- `agent_as_tool`, `TieredAgentTeam`
+
 6. [Events and Results](#events-and-results)
+
 7. [Configuration](#configuration)
+
 8. [Best Practices](#best-practices)
+
 9. [Async Agents](#async-agents)
+
 10. [Further Reading](#further-reading) -- recipes + design docs
+
 11. [Experimental: ACPAgent](#experimental-acpagent)
 
 ## Quick Start
@@ -171,12 +182,19 @@ Marker -> JSON Schema keyword mapping:
 LLMs frequently emit string-typed JSON values for numeric fields ("5" instead of 5). The dispatch layer runs `coerce_args(tool, args)` before invoking the tool function when `tool.coerce` is True (the default; opt out via `@tool(coerce=False)` for tools that genuinely want loose typing or `**kwargs`). Coercion is narrow on purpose -- it fixes shape mismatches an LLM is likely to emit, not arbitrary type juggling:
 
 - `"5"` -> `int(5)` for `integer` fields; `"1.5"` -> `float(1.5)` for `number` fields
+
 - `"true"` / `"false"` (any case, plus `"1"`/`"0"`, `"yes"`/`"no"`) -> `bool`
+
 - Missing required args -> `ToolArgumentError`
+
 - Unknown args (not declared in the schema) -> `ToolArgumentError`
+
 - `Literal[...]` enum violations -> `ToolArgumentError`
+
 - `bool` passed for an `int` field -> rejected (Python's int-subclass trap)
+
 - `Annotated[]` bounds violated (out of range, wrong pattern, too long) -> `ToolArgumentError`
+
 - NaN / infinity values for bounded numeric fields -> rejected (NaN comparisons silently pass otherwise)
 
 `ToolArgumentError` is a `ValueError` subclass, so existing agent exception handlers catch it; the precise message gets fed back to the LLM as the observation so it can self-correct on the next iteration.
@@ -549,12 +567,7 @@ The team registers each worker as a tool on the supervisor's registry; rejects e
 
 ### Pattern helpers built on the primitives
 
-Beyond `agent_as_tool` + `TieredAgentTeam`, four canned helpers cover the
-most-used multi-agent patterns. All live in
-`src/cyllama/agents/composition.py` and re-export from
-`cyllama.agents`. Each is ~50 LoC over the primitives; see
-[`patterns.md`](agents/patterns.md) for the full pattern catalog plus
-the ones the framework intentionally doesn't support.
+Beyond `agent_as_tool` + `TieredAgentTeam`, four canned helpers cover the most-used multi-agent patterns. All live in `src/cyllama/agents/composition.py` and re-export from `cyllama.agents`. Each is ~50 LoC over the primitives; see [`patterns.md`](agents/patterns.md) for the full pattern catalog plus the ones the framework intentionally doesn't support.
 
 #### `ReflectionLoop` -- worker / critic loop (Reflexion pattern)
 
@@ -571,11 +584,7 @@ loop = ReflectionLoop(worker, critic, max_attempts=3)
 result = loop.run("Implement quicksort with a 3-way partition.")
 ```
 
-The critic's answer is checked for `acceptance_marker` (default
-`"ACCEPT"`, case-insensitive substring match); on a miss, the worker is
-re-invoked with the prior draft and the critic's feedback folded in via
-an overridable `revision_template`. Streamed events from each pass carry
-`source="worker"` and `source="critic"` annotations.
+The critic's answer is checked for `acceptance_marker` (default `"ACCEPT"`, case-insensitive substring match); on a miss, the worker is re-invoked with the prior draft and the critic's feedback folded in via an overridable `revision_template`. Streamed events from each pass carry `source="worker"` and `source="critic"` annotations.
 
 #### `plan_and_execute` -- Plan-and-Execute pattern
 
@@ -590,9 +599,7 @@ results = plan_and_execute(planner, executor, "Refactor module X.")
 ```
 
 Default plan parser handles `[...]` lists, `{"steps"|"plan"|"tasks": [...]}`
-dicts, and newline-split with bullet/number-prefix stripping. Pass
-`plan_parser=...` for custom formats. `stop_on_error=True` (default)
-halts after the first failing step.
+dicts, and newline-split with bullet/number-prefix stripping. Pass `plan_parser=...` for custom formats. `stop_on_error=True` (default) halts after the first failing step.
 
 #### `mcp_agent_tool` -- cross-process sub-agents
 
@@ -611,11 +618,7 @@ remote = mcp_agent_tool(
 supervisor = ReActAgent(llm=llm, tools=[remote])
 ```
 
-Symmetric to `agent_as_tool` but dispatches via `McpClient.call_tool`.
-The returned `Tool` is named `"{server_name}/{agent_name}"` (the
-namespaced format the action parser supports). Network failures surface
-as `RuntimeError` from MCP; the agent's generic exception handler
-catches them.
+Symmetric to `agent_as_tool` but dispatches via `McpClient.call_tool`. The returned `Tool` is named `"{server_name}/{agent_name}"` (the namespaced format the action parser supports). Network failures surface as `RuntimeError` from MCP; the agent's generic exception handler catches them.
 
 #### `rag_as_tool` -- knowledge-base search as a tool
 
@@ -628,18 +631,11 @@ search = rag_as_tool(kb, description="Search project docs.", top_k=5)
 agent = ReActAgent(llm=llm, tools=[search])
 ```
 
-Default formatter emits one `[score] text` line per hit, deduplicated by
-text. Pass `method="retrieve"` to use the higher-level
-`RAG.retrieve` path (applies the RAG pipeline config), or a custom
-`formatter` callable for non-default observation shapes.
+Default formatter emits one `[score] text` line per hit, deduplicated by text. Pass `method="retrieve"` to use the higher-level `RAG.retrieve` path (applies the RAG pipeline config), or a custom `formatter` callable for non-default observation shapes.
 
 ### Long-term semantic memory
 
-`SemanticMemory` (in `src/cyllama/agents/memory.py`) bridges the
-`cyllama.rag` subsystem to the agent layer as a namespace-aware
-long-term memory primitive. Use it for cross-session continuity
-("remember the user's preferences") that the in-process `Session`
-stores can't provide:
+`SemanticMemory` (in `src/cyllama/agents/memory.py`) bridges the `cyllama.rag` subsystem to the agent layer as a namespace-aware long-term memory primitive. Use it for cross-session continuity ("remember the user's preferences") that the in-process `Session` stores can't provide:
 
 ```python
 from cyllama.rag import RAG
@@ -654,10 +650,7 @@ for hit in hits:
     print(f"[{hit.score:.2f}] {hit.text}")
 ```
 
-Namespaces are stored as metadata on the underlying RAG records and
-filtered at retrieval time, so one `RAG` instance can back many logical
-memory buckets. Pair with `rag_as_tool` if you also want the agent to
-search the memory store directly.
+Namespaces are stored as metadata on the underlying RAG records and filtered at retrieval time, so one `RAG` instance can back many logical memory buckets. Pair with `rag_as_tool` if you also want the agent to search the memory store directly.
 
 ### Remaining recipes (still pure composition)
 
@@ -668,27 +661,13 @@ Some patterns remain user-side compositions rather than canned helpers:
 | Debate | Two workers with opposing prompts; judge agent (third role) selects. Two `ReflectionLoop` instances + a chooser. |
 | Parallel fan-out | Supervisor splits task; `asyncio.gather` over `AsyncReActAgent` workers; reducer agent or plain Python aggregates. Or build a parallel-DAG `Workflow` and let the runtime fan out. |
 
-Ship the recipe when you write the first real one -- the primitives are
-documented; preemptive helpers risk locking in shapes before they've
-been exercised against real tasks.
+Ship the recipe when you write the first real one -- the primitives are documented; preemptive helpers risk locking in shapes before they've been exercised against real tasks.
 
 ## Workflows
 
-DAG-based orchestration on top of the agent primitives. A `Workflow`
-declares typed state, named nodes (Python callables, agents, tools,
-or other workflows), and edges (static or conditional). The runtime
-topologically sorts the graph, runs independent nodes in parallel,
-threads state updates between them, and emits events for every node
-boundary.
+DAG-based orchestration on top of the agent primitives. A `Workflow` declares typed state, named nodes (Python callables, agents, tools, or other workflows), and edges (static or conditional). The runtime topologically sorts the graph, runs independent nodes in parallel, threads state updates between them, and emits events for every node boundary.
 
-Workflows expose their own kwargs-only API (`flow.run(**state)` →
-`WorkflowResult`). To plug a workflow into the multi-agent layer,
-call `flow.as_agent()` — the returned adapter satisfies
-`AgentProtocol` (`run(task: str) → AgentResult`) and binds `task`
-to the workflow's `state[task_param]`. Workflows nested inside
-other workflows forward their events into the outer event stream
-with `source` / `parent_event_id` set so streaming UIs can render
-nested execution.
+Workflows expose their own kwargs-only API (`flow.run(**state)` → `WorkflowResult`). To plug a workflow into the multi-agent layer, call `flow.as_agent()` — the returned adapter satisfies `AgentProtocol` (`run(task: str) → AgentResult`) and binds `task` to the workflow's `state[task_param]`. Workflows nested inside other workflows forward their events into the outer event stream with `source` / `parent_event_id` set so streaming UIs can render nested execution.
 
 Two authoring layers, same runtime:
 
@@ -736,47 +715,27 @@ result = flow.run(query="What is the capital of France?")
 
 Capabilities (Phases 1-5, all landed):
 
-- **Layer B + Layer C** -- explicit StateGraph or decorator sugar; the
-  two coexist on the same `Workflow` and interop freely.
-- **Parallel execution** -- nodes at the same topological level run
-  concurrently via `asyncio.gather`; sync bodies dispatched on
-  `asyncio.to_thread`.
-- **Conditional routing** -- router callbacks return either a target
-  node name or the `END` sentinel; supports `edge_map` for explicit
-  enumeration.
-- **Streaming + events** -- `flow.stream(...)` and `flow.astream(...)`
-  yield `WORKFLOW_START`, `NODE_START`, `NODE_END`, `ANSWER`,
-  `WORKFLOW_END`, and `CONTRACT_VIOLATION` events.
-- **Contracts** -- `WorkflowInvariant` predicates check the running
-  state after each node; same `ContractPolicy` semantics as
-  `ContractAgent` (IGNORE / OBSERVE / ENFORCE / QUICK_ENFORCE) with
-  per-invariant policy overrides.
-- **Reducers** -- multi-writer state keys require an explicit reducer
-  registered via `Workflow(reducers={"key": reducer.append})`; the
-  built-in namespace exposes `append`, `extend`, `merge_dict`, `add`,
-  and `last`. Runtime detects unreduced multi-writer collisions and
-  raises `WorkflowExecutionError`.
-- **AgentProtocol compliance via adapter** -- `flow.run(**kwargs)`
-  is the workflow's native API; `flow.as_agent().run("task")` is the
-  `AgentProtocol` shape (binds `task` to `state[task_param]`, returns
-  `AgentResult`). The explicit adapter keeps the native and protocol
-  shapes from colliding. `WorkflowResult` also exposes `answer` /
-  `steps` / `iterations` convenience properties so direct callers
-  can read the projected output without going through the adapter.
-- **Sub-workflows** -- `workflow_node(inner, name="research")` wraps
-  one workflow as a node in another; inner events forwarded with
-  source/parent_event_id rewriting.
-- **Visualization** -- `flow.to_mermaid()` / `flow.to_dot()` render
-  the graph for docs; `flow.dry_run()` returns a `DryRunPlan` showing
-  topological levels without executing.
-- **Typed state** -- `Workflow[State]` is a PEP 484 generic; pass a
-  `TypedDict` to `Workflow(StateSchema)` for static type-checking of
-  state access.
+- **Layer B + Layer C** -- explicit StateGraph or decorator sugar; the two coexist on the same `Workflow` and interop freely.
 
-For the full design and per-phase landing notes, see
-[`agents/workflow.md`](agents/workflow.md). The pattern catalog in
-[`agents/patterns.md`](agents/patterns.md) §9 documents the
-workflow / state-machine pattern.
+- **Parallel execution** -- nodes at the same topological level run concurrently via `asyncio.gather`; sync bodies dispatched on `asyncio.to_thread`.
+
+- **Conditional routing** -- router callbacks return either a target node name or the `END` sentinel; supports `edge_map` for explicit enumeration.
+
+- **Streaming + events** -- `flow.stream(...)` and `flow.astream(...)` yield `WORKFLOW_START`, `NODE_START`, `NODE_END`, `ANSWER`, `WORKFLOW_END`, and `CONTRACT_VIOLATION` events.
+
+- **Contracts** -- `WorkflowInvariant` predicates check the running state after each node; same `ContractPolicy` semantics as `ContractAgent` (IGNORE / OBSERVE / ENFORCE / QUICK_ENFORCE) with per-invariant policy overrides.
+
+- **Reducers** -- multi-writer state keys require an explicit reducer registered via `Workflow(reducers={"key": reducer.append})`; the built-in namespace exposes `append`, `extend`, `merge_dict`, `add`, and `last`. Runtime detects unreduced multi-writer collisions and raises `WorkflowExecutionError`.
+
+- **AgentProtocol compliance via adapter** -- `flow.run(**kwargs)` is the workflow's native API; `flow.as_agent().run("task")` is the `AgentProtocol` shape (binds `task` to `state[task_param]`, returns `AgentResult`). The explicit adapter keeps the native and protocol shapes from colliding. `WorkflowResult` also exposes `answer` / `steps` / `iterations` convenience properties so direct callers can read the projected output without going through the adapter.
+
+- **Sub-workflows** -- `workflow_node(inner, name="research")` wraps one workflow as a node in another; inner events forwarded with source/parent_event_id rewriting.
+
+- **Visualization** -- `flow.to_mermaid()` / `flow.to_dot()` render the graph for docs; `flow.dry_run()` returns a `DryRunPlan` showing topological levels without executing.
+
+- **Typed state** -- `Workflow[State]` is a PEP 484 generic; pass a `TypedDict` to `Workflow(StateSchema)` for static type-checking of state access.
+
+For the full design and per-phase landing notes, see [`agents/workflow.md`](agents/workflow.md). The pattern catalog in [`agents/patterns.md`](agents/patterns.md) §9 documents the workflow / state-machine pattern.
 
 ## Events and Results
 
@@ -809,6 +768,7 @@ class EventType(Enum):
 `AgentEvent` carries two optional fields populated by the multi-agent composition layer (default `None` in single-agent code paths, so existing event consumers are unaffected):
 
 - `source: Optional[str]` -- name of the sub-agent that emitted the event when forwarded through `agent_as_tool`'s `forward_events` callback.
+
 - `parent_event_id: Optional[str]` -- links the sub-event back to the supervisor's ACTION event that triggered the sub-run; used by streaming UIs to render nested execution.
 
 ### Streaming Events
@@ -1098,6 +1058,7 @@ async def parallel_agents():
 ## Further Reading
 
 - [`docs/agents/contracts.md`](agents/contracts.md) -- nine worked recipes for the contract patterns (cross-field, state-dependent, behavioural postconditions, cost caps, answer-content checks, PII defence, stuck-loop detection, time budgets) plus three explicit anti-patterns
+
 - [`docs/dev/contract-agent.md`](dev/contract-agent.md) -- design notes and repositioning rationale for ContractAgent; reads like a maintainer's commentary on why the API looks the way it does
 
 ## Experimental: ACPAgent
@@ -1105,7 +1066,9 @@ async def parallel_agents():
 `ACPAgent` (and `serve_acp`) implement the Agent Client Protocol for editor integration (Zed, Neovim, ...). The module is **experimental**:
 
 - `ACP_PROTOCOL_VERSION` is hardcoded to `"2025-01-01"`; no version negotiation against the client's announced version.
+
 - No conformance test against a reference ACP client.
+
 - API surface may change as the protocol stabilizes and real editor integrations exercise the rough edges.
 
 Build on it for prototypes and editor experiments; do not build a production integration on this surface without expecting churn. See the warning in `src/cyllama/agents/acp.py` module docstring for the full statement.

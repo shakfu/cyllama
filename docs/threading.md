@@ -1,8 +1,6 @@
 # Threading and concurrency in cyllama
 
-> **The rule:** Always use one context per thread. Do not share the same context across threads.
->
-> Applies to every `LLM`, `WhisperContext`, `SDContext`, and `Embedder` instance. cyllama enforces this at runtime for all four — sharing one across threads raises a clear `RuntimeError` instead of silently corrupting state.
+> **The rule:** Always use one context per thread. Do not share the same context across threads. > > Applies to every `LLM`, `WhisperContext`, `SDContext`, and `Embedder` instance. cyllama enforces this at runtime for all four — sharing one across threads raises a clear `RuntimeError` instead of silently corrupting state.
 
 This page is for users writing multi-threaded or async code with cyllama. It covers:
 

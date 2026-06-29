@@ -5,12 +5,19 @@ Complete guide to using cyllama for LLM inference.
 ## Table of Contents
 
 1. [Getting Started](#getting-started)
+
 2. [Command-Line Interface](#command-line-interface)
+
 3. [High-Level API](#high-level-api)
+
 4. [Streaming Generation](#streaming-generation)
+
 5. [Framework Integrations](#framework-integrations)
+
 6. [Advanced Features](#advanced-features)
+
 7. [Performance Optimization](#performance-optimization)
+
 8. [Troubleshooting](#troubleshooting)
 
 ## Getting Started
@@ -550,8 +557,11 @@ Understanding how generation works helps you optimize performance.
 **Autoregressive generation** means generating tokens one at a time, where each new token depends on all previous tokens:
 
 1. Feed prompt to model, get probability distribution for next token
+
 2. Sample/select next token
+
 3. Feed that token back into the model
+
 4. Repeat until done
 
 ### Prefill vs Decode
@@ -667,10 +677,15 @@ python -c "import cyllama; print(cyllama.__file__)"
 ## Best Practices
 
 1. **Reuse LLM Instances**: Create once, generate many times - avoid reloading the model
+
 2. **Monitor Memory**: Use memory estimation tools before loading large models
+
 3. **Tune Temperature**: Start at 0.7, adjust based on needs (lower for factual, higher for creative)
+
 4. **Use Stop Sequences**: Prevent over-generation with appropriate stop tokens
+
 5. **Stream Long Outputs**: Better UX for users waiting for responses
+
 6. **Profile Performance**: Measure before optimizing
 
 ## Examples

@@ -61,9 +61,13 @@ Tools are defined with the `@tool` decorator. Contracts use `@pre`, `@post`, and
 ## Best Practices
 
 1. **Reuse model instances** - Load once, generate many times
+
 2. **Match GPU layers to VRAM** - Use `estimate_gpu_layers()` for optimal settings
+
 3. **Stream long outputs** - Better user experience for verbose responses
+
 4. **Use batch processing** - Significant throughput gains for multiple prompts
+
 5. **Choose the right agent** - ConstrainedAgent for reliability, ReActAgent for flexibility
 
 ## Next Steps

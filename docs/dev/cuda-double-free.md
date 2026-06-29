@@ -19,7 +19,9 @@ The issue is caused by `auditwheel repair`, specifically its use of `patchelf` t
 During repair, auditwheel:
 
 1. Copies bundled `.so` files (`libllama.so`, `libggml-cuda.so`, etc.) into `cyllama.libs/`
+
 2. Renames them with hash suffixes (e.g., `libllama-91896a1c.so.0.0.1`)
+
 3. Rewrites their ELF SONAME headers via `patchelf` so the dynamic linker resolves the renamed copies
 
 The SONAME rewrite changes the dependency graph that glibc's dynamic linker uses to determine `dlclose` unload ordering. CUDA's runtime (`libcudart`) registers internal `atexit` handlers during initialization. When Python shuts down, the altered unload order can cause CUDA's handlers to fire after the memory they reference (in `libggml-cuda.so`) has already been unmapped.
@@ -33,7 +35,9 @@ The original CI workflow already excluded the CUDA runtime system libraries (`li
 With only runtime excludes, auditwheel still:
 
 1. Copies `libggml-cuda.so`, `libllama.so.0`, etc. from `cyllama/llama/` into `cyllama_cuda12.libs/`
+
 2. Renames them with hash suffixes (e.g., `libggml-cuda-3e3d7523.so`)
+
 3. Rewrites their SONAME headers
 
 This SONAME rewrite on `libggml-cuda.so` (and possibly the other bundled libs -- see open question below) alters the `dlclose` unload graph, triggering the crash. The fix requires excluding the bundled project libs from auditwheel's relocation, in addition to the runtime system libs.
@@ -71,8 +75,11 @@ Vulkan wheels go through the same `auditwheel repair` process on their bundled l
 When a system has multiple CUDA toolkit versions installed (e.g. CUDA 12 and CUDA 13), the dynamic linker may resolve `libcudart.so` to a different major version than the one the wheel was built against. This causes the same double-free symptom through a different mechanism:
 
 1. The wheel's bundled `libggml-cuda.so` is linked against CUDA 12 (built with `cuda-12.4`)
+
 2. At runtime, the dynamic linker resolves `libcudart.so` to the CUDA 13 version from the system, depending on `LD_LIBRARY_PATH` ordering and ldconfig priority
+
 3. The mismatched runtime initializes its own internal atexit handlers with different memory layout assumptions
+
 4. On shutdown, the CUDA 13 teardown attempts to free structures allocated by CUDA 12 conventions (or vice versa), triggering the double-free
 
 This is a well-documented pattern in the CUDA ecosystem. PyTorch, CuPy, and other projects that ship CUDA wheels use `--exclude` to avoid bundling CUDA runtime libraries for exactly this reason -- letting the system provide a single consistent CUDA installation. However, `--exclude` alone does not prevent the issue when multiple system CUDA versions coexist and the linker picks the wrong one.
@@ -381,6 +388,7 @@ Use **solution 2** (`--exclude` with both runtime and bundled project libs). It 
 The `--exclude` list must include **both categories**:
 
 1. GPU runtime system libs (backend-specific: `libcuda*`, `libamdhip*`, `libsycl*`, `libvulkan*`, etc.)
+
 2. Bundled project libs (`libllama.so.0`, `libggml*.so`, `libmtmd.so.0`) and `libgomp.so.1`
 
 Excluding only the runtime libs (category 1) is insufficient -- the double-free persisted with the original CI workflow that excluded only `libcuda.so.1`, `libcudart.so.12`, `libcublas.so.12`, and `libcublasLt.so.12`. The SONAME rewrite on the bundled project libs (particularly `libggml-cuda.so`) is the actual trigger.
@@ -392,8 +400,11 @@ All bundled project libs must be excluded -- not just `libggml-cuda.so`. A minim
 Although the double-free crash was first observed with CUDA, the `--exclude` approach applies equally to Vulkan, ROCm, SYCL, and any future GPU backend. The reasoning is backend-agnostic:
 
 1. **The build already handles library placement.** All bundled `.so` files are placed in `cyllama/llama/` with correct `$ORIGIN` RPATHs. auditwheel's relocation machinery adds no value.
+
 2. **SONAME rewriting is actively harmful for CUDA, and unnecessary for others.** It alters the `dlclose` unload ordering that glibc uses, which is the root cause of the CUDA crash. Any backend whose runtime registers `atexit` handlers (CUDA does; ROCm and SYCL may) is vulnerable.
+
 3. **Vulkan wheels are affected too, just silently.** Vulkan uses explicit cleanup (`vkDestroy*`) rather than `atexit`, so the altered unload order doesn't cause a crash. But the unnecessary relocation still occurs, and the SONAME-renamed libraries serve no purpose.
+
 4. **libgomp bundling is cross-backend.** Any GPU variant that links against OpenMP (which ggml uses for CPU threading) will have auditwheel bundle a private, SONAME-renamed copy of `libgomp.so.1`. This can conflict with other packages (PyTorch, NumPy) that load the system's libgomp in the same process -- see [LightGBM#6595](https://github.com/lightgbm-org/LightGBM/issues/6595).
 
 The full `--exclude` list per backend (runtime libs vary, bundled project libs are the same):
@@ -462,6 +473,7 @@ This confirms the `--exclude` strategy works end-to-end: the wheel's bundled lib
 `.github/workflows/test-cuda-wheel.yml` is a standalone CI workflow for validating the fix. It builds a single CUDA wheel (cp312 only) once and then tests two repair strategies as lightweight downstream jobs on the same artifact:
 
 1. **No-repair** (Strategy A): `CIBW_REPAIR_WHEEL_COMMAND_LINUX: ""` -- the unrepaired wheel with a `linux_x86_64` tag. Serves as a baseline to confirm the build itself is correct.
+
 2. **Full exclude** (Strategy B): `auditwheel repair --exclude ...` with the complete exclude list (runtime libs + all bundled project libs + libgomp) -- the production-equivalent wheel with a manylinux tag.
 
 A third strategy (minimal exclude: runtime libs + `libggml-cuda.so` only) was attempted but auditwheel refuses to produce the wheel because the remaining non-excluded bundled libs contain glibc symbols too recent for `manylinux_2_35`. This confirms the full exclude list is required.

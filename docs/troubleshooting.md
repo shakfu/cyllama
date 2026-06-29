@@ -340,6 +340,7 @@ Cyllama automatically discovers CUDA DLL paths when built with `GGML_CUDA=1`, bu
 **Solutions:**
 
 1. **Install Vulkan SDK:**
+
    - Linux: `sudo apt install vulkan-tools libvulkan-dev`
 
    - macOS: Install from [LunarG](https://vulkan.lunarg.com/)
@@ -597,5 +598,7 @@ for prompt in prompts:
 If you're still having issues:
 
 1. **Check the logs:** Run with `verbose=True` for detailed output
+
 2. **Search existing issues:** [GitHub Issues](https://github.com/shakfu/cyllama/issues)
+
 3. **Open a new issue:** Include your platform, Python version, error message, and minimal reproduction code

@@ -429,9 +429,13 @@ Download models from [Hugging Face](https://huggingface.co/ggerganov/whisper.cpp
 ## Performance Tips
 
 1. **Use GPU**: Enable `use_gpu=True` in context params
+
 2. **Use Flash Attention**: Enable `flash_attn=True` for faster inference
+
 3. **Match model to task**: Use `.en` models for English-only content
+
 4. **Batch by length**: Group similar-length audio for consistent memory usage
+
 5. **Thread count**: Set `n_threads` to match physical CPU cores
 
 ## Troubleshooting

@@ -1,20 +1,12 @@
 # Consolidating to a single Cython extension binary
 
-This document analyses whether to collapse cyllama's three Cython extensions
-(`llama_cpp`, `whisper_cpp`, `stable_diffusion`) — plus the `embedded`
-server extension — into a single shared object, and sketches how to do it
-in Cython if the answer is yes.
+This document analyses whether to collapse cyllama's three Cython extensions (`llama_cpp`, `whisper_cpp`, `stable_diffusion`) — plus the `embedded` server extension — into a single shared object, and sketches how to do it in Cython if the answer is yes.
 
-The binding-tool question (Cython vs nanobind) is treated separately in
-[`nanobind.md`](nanobind.md). This document is about binary layout only.
+The binding-tool question (Cython vs nanobind) is treated separately in [`nanobind.md`](nanobind.md). This document is about binary layout only.
 
 ## TL;DR
 
-cyllama ships with **dynamic linking** (`WITH_DYLIB=ON`). Under that mode,
-single-binary consolidation is mostly a structural change with small
-payoffs — **not recommended unless there is a specific reason**. The big
-wins (eliminating ggml duplication, unifying the backend registry) only
-exist in the static-linking mode, which is not the shipping path.
+cyllama ships with **dynamic linking** (`WITH_DYLIB=ON`). Under that mode, single-binary consolidation is mostly a structural change with small payoffs — **not recommended unless there is a specific reason**. The big wins (eliminating ggml duplication, unifying the backend registry) only exist in the static-linking mode, which is not the shipping path.
 
 Skip to [When this matters](#when-this-matters) for the short answer.
 
@@ -24,27 +16,15 @@ cyllama supports two link modes via the `WITH_DYLIB` CMake option.
 
 ### `WITH_DYLIB=ON` — the shipping path
 
-ggml is built once as a shared library; all three extensions link against
-it at runtime. One ggml registry per process. The wheel ships
-`libggml.so` plus backend dylibs (`libggml-cuda.so`,
-`libggml-cpu-haswell.so`, etc.) plus the three extension `.so`s, with
-RPATH plumbing handled by auditwheel / delocate / delvewheel.
+ggml is built once as a shared library; all three extensions link against it at runtime. One ggml registry per process. The wheel ships `libggml.so` plus backend dylibs (`libggml-cuda.so`, `libggml-cpu-haswell.so`, etc.) plus the three extension `.so`s, with RPATH plumbing handled by auditwheel / delocate / delvewheel.
 
-Backend dispatch uses `GGML_BACKEND_DL=ON`, so ggml `dlopen`s the
-appropriate `libggml-cpu-*.so` variant at runtime. Those variant dylibs
-must remain as separate files regardless of any consolidation.
+Backend dispatch uses `GGML_BACKEND_DL=ON`, so ggml `dlopen`s the appropriate `libggml-cpu-*.so` variant at runtime. Those variant dylibs must remain as separate files regardless of any consolidation.
 
 ### `WITH_DYLIB=OFF` — static linking, fallback only
 
-Each extension statically links its own copy of `libggml.a`,
-`libggml-base.a`, `libggml-cpu.a` (and the active backend). This means
-three copies of ggml in the wheel and three independent backend
-registries, isolated by Python's `RTLD_LOCAL` extension loading plus
-`-fvisibility=hidden`. Works in practice because each extension sets up
-the backends it needs itself, but the registries diverge.
+Each extension statically links its own copy of `libggml.a`, `libggml-base.a`, `libggml-cpu.a` (and the active backend). This means three copies of ggml in the wheel and three independent backend registries, isolated by Python's `RTLD_LOCAL` extension loading plus `-fvisibility=hidden`. Works in practice because each extension sets up the backends it needs itself, but the registries diverge.
 
-This mode exists as a fallback for environments where shipping dylibs is
-awkward; it is **not** the production path.
+This mode exists as a fallback for environments where shipping dylibs is awkward; it is **not** the production path.
 
 ## What consolidation buys you under dynamic linking
 
@@ -58,62 +38,41 @@ Under `WITH_DYLIB=ON`, the big-ticket wins evaporate:
 
 What actually remains:
 
-- **Three extension `.so`s become one.** Saves the per-`.so` ELF/Mach-O
-  overhead and a bit of PLT/GOT churn. Single-digit MB at most.
-- **Slightly simpler RPATH.** One consumer of `libggml.so` instead of
-  three. auditwheel/delocate already handle the three-consumer case
-  cleanly, so this is not a real pain point today.
-- **Cross-submodule C++ type sharing.** Only matters if you later want to
-  pass a `ggml_backend_t` Python wrapper or similar directly between
-  `cyllama.llama` and `cyllama.sd`. No concrete need today.
-- **Preparation for a future nanobind port.** Single-`.so` is the natural
-  shape there.
+- **Three extension `.so`s become one.** Saves the per-`.so` ELF/Mach-O overhead and a bit of PLT/GOT churn. Single-digit MB at most.
 
-Critically, **the dylib zoo cannot be eliminated even with one extension**.
-With `GGML_BACKEND_DL=ON`, ggml `dlopen`s backend variants at runtime, so
-the wheel still ships:
+- **Slightly simpler RPATH.** One consumer of `libggml.so` instead of three. auditwheel/delocate already handle the three-consumer case cleanly, so this is not a real pain point today.
 
-- `libggml-cpu-*.so` variants — **must remain separate** for runtime
-  dispatch.
-- `libggml-cuda.so` / `libggml-vulkan.so` / etc. — **must remain separate**
-  for runtime dispatch.
-- `libggml.so`, `libggml-base.so` could in principle be linked into the
-  extension if `GGML_BACKEND_DL` were turned off, but that would lose
-  runtime CPU-variant dispatch.
-- `libllama.so`, `libmtmd.so`, `libwhisper.so` could be linked into the
-  extension, but doing so loses the option of using upstream's pre-built
-  release tarballs via `LLAMACPP_DYLIB_DIR`.
+- **Cross-submodule C++ type sharing.** Only matters if you later want to pass a `ggml_backend_t` Python wrapper or similar directly between `cyllama.llama` and `cyllama.sd`. No concrete need today.
 
-Net effect: you'd save maybe 2–4 dylibs out of a wheel that already ships
-6–10+, and the mental model gets *more* complicated (some things linked
-in, some still `dlopen`'d).
+- **Preparation for a future nanobind port.** Single-`.so` is the natural shape there.
+
+Critically, **the dylib zoo cannot be eliminated even with one extension**. With `GGML_BACKEND_DL=ON`, ggml `dlopen`s backend variants at runtime, so the wheel still ships:
+
+- `libggml-cpu-*.so` variants — **must remain separate** for runtime dispatch.
+
+- `libggml-cuda.so` / `libggml-vulkan.so` / etc. — **must remain separate** for runtime dispatch.
+
+- `libggml.so`, `libggml-base.so` could in principle be linked into the extension if `GGML_BACKEND_DL` were turned off, but that would lose runtime CPU-variant dispatch.
+
+- `libllama.so`, `libmtmd.so`, `libwhisper.so` could be linked into the extension, but doing so loses the option of using upstream's pre-built release tarballs via `LLAMACPP_DYLIB_DIR`.
+
+Net effect: you'd save maybe 2–4 dylibs out of a wheel that already ships 6–10+, and the mental model gets *more* complicated (some things linked in, some still `dlopen`'d).
 
 ## When this matters
 
 Single-binary consolidation is worth doing only if one of these applies:
 
-- **You want to ship a statically linked wheel variant** — e.g. for
-  distros that dislike vendored dylibs, or for Windows where DLL search
-  rules are painful. Consolidation is a prerequisite there, because
-  static linking without consolidation gives you 3× ggml duplication and
-  registry divergence.
-- **You hit a concrete cross-module sharing need.** Passing C++ objects
-  between `cyllama.llama` and `cyllama.sd` directly, sharing a
-  `ggml_backend_t` wrapper, etc.
-- **You are preparing to migrate to nanobind.** Single-`.so` is the
-  natural target shape; doing this first establishes the packaging
-  layout before any binding code changes.
+- **You want to ship a statically linked wheel variant** — e.g. for distros that dislike vendored dylibs, or for Windows where DLL search rules are painful. Consolidation is a prerequisite there, because static linking without consolidation gives you 3× ggml duplication and registry divergence.
 
-Otherwise the current dynamic-linking story is the right answer for the
-production workload. `libggml.so` is exactly the sharing mechanism shared
-libraries exist for.
+- **You hit a concrete cross-module sharing need.** Passing C++ objects between `cyllama.llama` and `cyllama.sd` directly, sharing a `ggml_backend_t` wrapper, etc.
+
+- **You are preparing to migrate to nanobind.** Single-`.so` is the natural target shape; doing this first establishes the packaging layout before any binding code changes.
+
+Otherwise the current dynamic-linking story is the right answer for the production workload. `libggml.so` is exactly the sharing mechanism shared libraries exist for.
 
 ## How to do it in Cython (if you decide to)
 
-The rest of this document sketches the consolidation. The sketch targets
-the **static** case, because that is where consolidation has real value;
-under dynamic linking the same mechanical structure applies but the
-payoff is smaller.
+The rest of this document sketches the consolidation. The sketch targets the **static** case, because that is where consolidation has real value; under dynamic linking the same mechanical structure applies but the payoff is smaller.
 
 ### Target shape
 
@@ -129,17 +88,11 @@ src/cyllama/
     └── __init__.py    # `from cyllama._core.sd import *`
 ```
 
-One `.so`, exporting `PyInit__core`, which internally creates three
-Python submodules. The embedded server lives in the same `.so` — no
-separate `embedded` extension.
+One `.so`, exporting `PyInit__core`, which internally creates three Python submodules. The embedded server lives in the same `.so` — no separate `embedded` extension.
 
 ### Cython side
 
-Cython compiles one `.pyx` per Python module. To get three submodules
-into one extension, compile each `.pyx` to `.cpp` independently, then
-link all generated `.cpp` files into a single `python_add_library`. Each
-generated `.cpp` defines a `PyInit_<modname>`. Suppress all but one and
-call the others manually from a small `_core.pyx`:
+Cython compiles one `.pyx` per Python module. To get three submodules into one extension, compile each `.pyx` to `.cpp` independently, then link all generated `.cpp` files into a single `python_add_library`. Each generated `.cpp` defines a `PyInit_<modname>`. Suppress all but one and call the others manually from a small `_core.pyx`:
 
 ```cython
 # src/cyllama/_core.pyx
@@ -177,14 +130,11 @@ from cyllama._core import llama as _ext
 from cyllama._core.llama import *   # noqa
 ```
 
-Tidier variants exist using multi-phase init / `PyModuleDef_Init`, but
-the manual `PyInit_*` call from `_core.pyx` is the most pragmatic for an
-existing Cython codebase.
+Tidier variants exist using multi-phase init / `PyModuleDef_Init`, but the manual `PyInit_*` call from `_core.pyx` is the most pragmatic for an existing Cython codebase.
 
 ### CMake side
 
-Replace the three `add_cython_extension(...)` calls with one. Sketch (for
-the static case — which is the case where consolidation pays off):
+Replace the three `add_cython_extension(...)` calls with one. Sketch (for the static case — which is the case where consolidation pays off):
 
 ```cmake
 # Transpile each .pyx independently.
@@ -243,40 +193,23 @@ endif()
 install(TARGETS _core LIBRARY DESTINATION cyllama)
 ```
 
-The whole-archive (or `-force_load` / `/WHOLEARCHIVE`) is what
-guarantees backend registration constructors actually run — the same
-reason the current Linux build uses `--whole-archive` on ggml libs per
-extension.
+The whole-archive (or `-force_load` / `/WHOLEARCHIVE`) is what guarantees backend registration constructors actually run — the same reason the current Linux build uses `--whole-archive` on ggml libs per extension.
 
-For the **dynamic** case, the same single `python_add_library(_core ...)`
-works; just link against `libggml.so` etc. as today and skip the
-whole-archive flags. The loader handles backend registration via the
-shared library's own constructors.
+For the **dynamic** case, the same single `python_add_library(_core ...)` works; just link against `libggml.so` etc. as today and skip the whole-archive flags. The loader handles backend registration via the shared library's own constructors.
 
 ### Things to watch out for
 
-1. **Multi-init safety.** Calling `PyInit_*` manually means each Cython
-   submodule must be safe to initialize once. They are by default —
-   Cython's generated init does its own once-guard. But if any of them
-   register C-level globals that could conflict (log callbacks, etc.),
-   audit carefully.
-2. **Symbol visibility.** With `-fvisibility=hidden`, only `PyInit__core`
-   should be exported. The forward-declared `PyInit_llama_cpp` etc. need
-   to be visible *to the linker within the same .so* — they are, since
-   they are in the same translation-unit set.
-3. **`SD_USE_VENDORED_GGML=OFF` becomes mandatory.** With one binary you
-   cannot have sd.cpp's own ggml linked alongside llama.cpp's ggml — ODR
-   violation. The existing `GGML_MAX_NAME=128` define for this case
-   already handles the layout-divergence concern.
-4. **macOS `-force_load` is per-archive.** Each ggml backend needs its
-   own `-force_load`; there is no batched form.
-5. **Windows `/WHOLEARCHIVE`** uses bare library names, not paths; pass
-   them as `target_link_options`.
-6. **Test that `RTLD_GLOBAL` is not relied upon anywhere.** This used to
-   be three `.so`s and is now one — anything that depended on a symbol
-   being *not* visible across modules (unlikely) would break.
-   Conversely, anything that depended on cross-extension symbol
-   visibility would now Just Work.
+1. **Multi-init safety.** Calling `PyInit_*` manually means each Cython submodule must be safe to initialize once. They are by default — Cython's generated init does its own once-guard. But if any of them register C-level globals that could conflict (log callbacks, etc.), audit carefully.
+
+2. **Symbol visibility.** With `-fvisibility=hidden`, only `PyInit__core` should be exported. The forward-declared `PyInit_llama_cpp` etc. need to be visible *to the linker within the same .so* — they are, since they are in the same translation-unit set.
+
+3. **`SD_USE_VENDORED_GGML=OFF` becomes mandatory.** With one binary you cannot have sd.cpp's own ggml linked alongside llama.cpp's ggml — ODR violation. The existing `GGML_MAX_NAME=128` define for this case already handles the layout-divergence concern.
+
+4. **macOS `-force_load` is per-archive.** Each ggml backend needs its own `-force_load`; there is no batched form.
+
+5. **Windows `/WHOLEARCHIVE`** uses bare library names, not paths; pass them as `target_link_options`.
+
+6. **Test that `RTLD_GLOBAL` is not relied upon anywhere.** This used to be three `.so`s and is now one — anything that depended on a symbol being *not* visible across modules (unlikely) would break. Conversely, anything that depended on cross-extension symbol visibility would now Just Work.
 
 ### Effort breakdown
 
@@ -292,21 +225,10 @@ shared library's own constructors.
 
 **Do not pursue single-binary consolidation as a standalone project.**
 
-Under the shipping `WITH_DYLIB=ON` mode, the structural wins are real but
-small (one `.so` instead of three, slightly simpler RPATH) and the dylib
-zoo cannot be eliminated anyway because of `GGML_BACKEND_DL` runtime
-dispatch. The current setup is a good fit for the workload.
+Under the shipping `WITH_DYLIB=ON` mode, the structural wins are real but small (one `.so` instead of three, slightly simpler RPATH) and the dylib zoo cannot be eliminated anyway because of `GGML_BACKEND_DL` runtime dispatch. The current setup is a good fit for the workload.
 
-Do pursue it if and when one of the triggers in
-[When this matters](#when-this-matters) appears — most likely either a
-decision to ship a static wheel variant, or as the first step of a
-nanobind migration. In those scenarios this document's sketch is the
-starting point.
+Do pursue it if and when one of the triggers in [When this matters](#when-this-matters) appears — most likely either a decision to ship a static wheel variant, or as the first step of a nanobind migration. In those scenarios this document's sketch is the starting point.
 
 ## Relationship to the nanobind question
 
-This consolidation is independent of any future nanobind migration. If
-nanobind is on the roadmap, doing the consolidation first establishes
-the single-`.so` packaging layout before any binding code changes, and a
-nanobind port can then proceed one submodule at a time within that
-layout. See [`nanobind.md`](nanobind.md) for the broader analysis.
+This consolidation is independent of any future nanobind migration. If nanobind is on the roadmap, doing the consolidation first establishes the single-`.so` packaging layout before any binding code changes, and a nanobind port can then proceed one submodule at a time within that layout. See [`nanobind.md`](nanobind.md) for the broader analysis.

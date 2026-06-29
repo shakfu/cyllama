@@ -5,8 +5,11 @@
 This document outlines the design for an optional SQLite-based storage system for cyllama, providing:
 
 1. **Response Caching** - Cache responses for identical prompts with TTL
+
 2. **Statistics Tracking** - Track generation metrics over time
+
 3. **Configuration Storage** - Persistent user preferences and model defaults
+
 4. **Structured Logging** - Queryable generation logs
 
 ## Design Principles
@@ -490,7 +493,9 @@ configure_db(
 ### Cache Key Components
 
 1. **Prompt** - Full prompt text (hashed)
+
 2. **Model** - Model filename (not full path for portability)
+
 3. **Deterministic Config** - temperature, max_tokens, top_k, top_p, min_p, repeat_penalty, stop_sequences
 
 ### Excluded from Cache Key
@@ -660,21 +665,25 @@ src/cyllama/
 ## Open Questions
 
 1. **Should caching be on by default?**
+
    - Pro: Immediate performance benefit
 
    - Con: Unexpected behavior if prompts have side effects
 
 2. **How to handle model path normalization?**
+
    - Same model at different paths should share cache?
 
    - Use model hash from GGUF metadata?
 
 3. **Should we support multiple databases?**
+
    - Per-project databases for isolation?
 
    - Global + project overlay?
 
 4. **Integration with async API?**
+
    - aiosqlite for true async?
 
    - Or thread pool for DB operations?

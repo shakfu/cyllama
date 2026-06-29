@@ -177,7 +177,9 @@ embedder.close()
 ### How Hybrid Search Works
 
 1. **Vector Search**: Finds semantically similar documents
+
 2. **FTS5 Search**: Finds documents with matching keywords
+
 3. **Reciprocal Rank Fusion**: Combines rankings from both methods
 
 The `alpha` parameter controls the balance:
@@ -226,7 +228,9 @@ reranker.close()
 ### How Reranking Works
 
 1. **Initial Retrieval**: Fast bi-encoder similarity search
+
 2. **Reranking**: Slower cross-encoder scores each query-document pair
+
 3. **Final Results**: Reordered by cross-encoder scores
 
 Cross-encoders are more accurate because they see query and document together, but they're slower (can't be pre-computed).
@@ -351,7 +355,11 @@ embedder.close()
 ## Performance Tips
 
 1. **Initial Retrieval**: Retrieve 2-4x more documents than needed, then rerank
+
 2. **Hybrid Search**: Use when keyword matches matter
+
 3. **Async**: Use `AsyncRAG` in web applications to avoid blocking
+
 4. **Quantization**: Call `store.quantize()` for datasets >10k vectors
+
 5. **Caching**: Reuse embedder and store instances across queries

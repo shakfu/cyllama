@@ -36,13 +36,21 @@ for i, chunk in enumerate(chunks):
 The splitter uses a hierarchy of separators:
 
 1. `\n\n` - Paragraph breaks
+
 2. `\n` - Line breaks
+
 3. `.` - Sentences
+
 4. `!` - Exclamations
+
 5. `?` - Questions
+
 6. `;` - Semicolons
+
 7. `,` - Commas
+
 8. `` - Words
+
 9. `` - Characters
 
 ### TokenTextSplitter
@@ -297,7 +305,11 @@ chunk = Chunk(
 ### Best Practices
 
 1. **Chunk Size**: 256-1024 characters works well for most use cases
+
 2. **Overlap**: 10-20% of chunk size helps maintain context
+
 3. **Markdown**: Use `MarkdownSplitter` for structured documents
+
 4. **Large Files**: Use lazy loading with `JSONLLoader.load_lazy()`
+
 5. **Metadata**: Preserve source information for citation

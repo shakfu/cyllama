@@ -586,8 +586,11 @@ The cyllama RAG implementation leverages `sqlite-vec` for efficient vector opera
 **Recommended Approach**:
 
 1. **Use quantization** - It's built-in and highly effective
+
 2. **Add caching** for repeated queries
+
 3. **Implement async processing** for large ingestion jobs
+
 4. **Consider sharding** only for 1M+ vector workloads
 
 The architecture is well-suited for production workloads up to hundreds of thousands of documents when quantization is properly utilized.

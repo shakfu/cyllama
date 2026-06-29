@@ -67,8 +67,11 @@ Cyllama is structured as a layered stack. At the bottom, three C/C++ inference e
 ### Data Flow
 
 1. User calls a high-level function (e.g., `complete("prompt", model_path="model.gguf")`)
+
 2. The API layer loads the model via Cython bindings, which allocate C++ context objects
+
 3. Tokens are sampled in C++ and streamed back through Cython to Python callbacks
+
 4. Framework modules (agents, RAG) orchestrate multiple calls to the API layer, adding tool use, retrieval, or structured output on top
 
 ### Key Design Decisions

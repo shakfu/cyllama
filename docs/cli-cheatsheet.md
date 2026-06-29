@@ -128,10 +128,7 @@ cyllama rag -m models/llama.gguf -e models/bge-small.gguf \
 
 ### Persistent index (`--db`)
 
-By default the vector index is held in memory and rebuilt on every
-run. For corpora large enough that re-embedding is expensive, pass
-`--db PATH` to persist the index to a SQLite file and reuse it on
-subsequent runs:
+By default the vector index is held in memory and rebuilt on every run. For corpora large enough that re-embedding is expensive, pass `--db PATH` to persist the index to a SQLite file and reuse it on subsequent runs:
 
 ```bash
 # First run: index the corpus into a file
@@ -151,19 +148,11 @@ cyllama rag -m models/llama.gguf -e models/bge-small.gguf \
     -f docs/corpus.txt --db ./rag.db --rebuild
 ```
 
-The DB records the embedding model fingerprint (basename + file size),
-chunk size, and chunk overlap when it's first created. Reopening with a
-different embedding model, vector metric, or chunking config raises a
-clear error rather than silently producing wrong rankings — pass
-`--rebuild` to recreate the index against the new config.
+The DB records the embedding model fingerprint (basename + file size), chunk size, and chunk overlap when it's first created. Reopening with a different embedding model, vector metric, or chunking config raises a clear error rather than silently producing wrong rankings — pass `--rebuild` to recreate the index against the new config.
 
 ### Corpus deduplication (automatic)
 
-Each indexed file is hashed (md5 of its raw bytes) and the hash is
-recorded in the DB's `embeddings_sources` table. Re-running with the
-same `-f` files is a no-op on the indexing side — the files are
-silently skipped and the user goes straight to query mode. The status
-line surfaces the skip count:
+Each indexed file is hashed (md5 of its raw bytes) and the hash is recorded in the DB's `embeddings_sources` table. Re-running with the same `-f` files is a no-op on the indexing side — the files are silently skipped and the user goes straight to query mode. The status line surfaces the skip count:
 
 ```bash
 $ cyllama rag -m ... -e ... -f corpus.txt --db ./rag.db
@@ -176,15 +165,9 @@ $ cyllama rag -m ... -e ... -f corpus.txt -f new.txt --db ./rag.db
 3 new chunks appended to ./rag.db (128 existing, 131 total) (1 unchanged)
 ```
 
-Editing a file in place (same basename, different content) is detected
-as a hash mismatch and refused with a clear error message — rename the
-file (treat it as a new source) or use `--rebuild` to recreate the
-whole index from the new content. This prevents the index from silently
-ending up with two versions of the same logical source.
+Editing a file in place (same basename, different content) is detected as a hash mismatch and refused with a clear error message — rename the file (treat it as a new source) or use `--rebuild` to recreate the whole index from the new content. This prevents the index from silently ending up with two versions of the same logical source.
 
-`add_texts` (the directory-loading path used by `-d`) deduplicates the
-same way, using a `text:<hash-prefix>` synthetic label since text
-strings don't have a meaningful name.
+`add_texts` (the directory-loading path used by `-d`) deduplicates the same way, using a `text:<hash-prefix>` synthetic label since text strings don't have a meaningful name.
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|

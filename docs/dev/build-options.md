@@ -3,7 +3,9 @@
 This document compares the build options used across three contexts:
 
 1. **Local builds** -- developer machine via `make` / `manage.py`
+
 2. **CI wheel builds** -- GitHub Actions via `build-gpu-wheels.yml` (the active workflow)
+
 3. **Upstream llama.cpp** -- options documented in [llama.cpp/docs/build.md](https://github.com/ggml-org/llama.cpp/blob/master/docs/build.md)
 
 > **Note:** `build-gpu-wheels-cached.yml` is an experimental workflow not currently used in production. It has been synced to mirror `build-gpu-wheels.yml` (settings, flags, and cache keys), but `build-gpu-wheels.yml` remains the authoritative CI workflow.
@@ -13,6 +15,7 @@ This document compares the build options used across three contexts:
 Cyllama's build is a two-phase process:
 
 1. **Phase 1 -- Build dependencies** (`manage.py build --deps-only`): Clones llama.cpp (and whisper.cpp, stable-diffusion.cpp), runs CMake to build them, and copies headers + libraries to `thirdparty/`.
+
 2. **Phase 2 -- Build cyllama** (`uv pip install .` or `uv sync`): scikit-build-core invokes the top-level `CMakeLists.txt`, which finds the pre-built libraries in `thirdparty/` and links them into the Cython extension modules.
 
 Phase 1 is where upstream llama.cpp CMake options matter. Phase 2 uses cyllama's own `CMakeLists.txt`, which reads the same `GGML_*` environment variables to determine which backend libraries to link and which system dependencies to find.
@@ -108,7 +111,9 @@ These are set in `manage.py:LlamaCppBuilder.build()` and do not appear in upstre
 The `--dynamic` flag changes Phase 1 behavior:
 
 1. **If `SD_USE_VENDORED_GGML=0`**, always build from source with `BUILD_SHARED_LIBS=ON`. Upstream pre-built releases are skipped because they're compiled with the default `GGML_MAX_NAME=64`, which is ABI-incompatible with stable-diffusion.cpp's required `GGML_MAX_NAME=128`. Building from source lets `manage.py` inject the correct define via `CMAKE_C_FLAGS`. See `docs/dev/ggml_max_name.md`.
+
 2. **Otherwise, if a pre-built release asset exists** for the platform/backend combo, it downloads that archive (DLLs/`.so`/`.dylib` files) from llama.cpp GitHub releases.
+
 3. **If no asset exists**, it falls back to building from source with `BUILD_SHARED_LIBS=ON`.
 
 ### Pre-built Release Asset Names

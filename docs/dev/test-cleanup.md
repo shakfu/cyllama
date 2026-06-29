@@ -1,8 +1,6 @@
 # Test cleanup requirements for native-backed contexts
 
-> **The rule:** When a test creates an `SDContext`, `LLM`, or `WhisperContext`, explicitly delete it and run `gc.collect()` at the end of the test body. Do not rely on Python's reference-scoping to release native resources between tests.
->
-> This applies most critically to `SDContext` (where violating the rule crashes the process on macOS Metal) and as a precaution to `LLM` and `WhisperContext` (where the same class of bug is theoretically possible but has not been observed in practice).
+> **The rule:** When a test creates an `SDContext`, `LLM`, or `WhisperContext`, explicitly delete it and run `gc.collect()` at the end of the test body. Do not rely on Python's reference-scoping to release native resources between tests. > > This applies most critically to `SDContext` (where violating the rule crashes the process on macOS Metal) and as a precaution to `LLM` and `WhisperContext` (where the same class of bug is theoretically possible but has not been observed in practice).
 
 This document is a maintainer guide. It explains:
 
@@ -25,6 +23,7 @@ The design analysis at the end records *why* we chose Python-side forced cleanup
 Without explicit cleanup, a full run of `tests/test_sd.py` fails on macOS Metal with one of two manifestations:
 
 1. **`RuntimeError: Image generation failed`** raised from `stable_diffusion.pyx:2064` — SD.cpp's `generate_image()` returned NULL, caught by the v0.2.3 validation guardrail.
+
 2. **`Fatal Python error: Aborted`** — a native `abort()` or `SIGABRT` from inside Metal/ggml before any Python-level validation can run. The screen visibly shakes during the preceding test (macOS window-server compositor stuttering under GPU pressure) before the abort fires.
 
 Both come from the same root cause. The `RuntimeError` is the friendly surface; the abort is what happens when the GPU fails hard enough that the NULL-check never gets to run.
@@ -36,9 +35,13 @@ Neither manifestation reproduces when the failing test runs in isolation. Both r
 `tests/test_sd.py` has five tests (before `TestConvenienceFunctionsIntegration`) that create an `SDContext`:
 
 1. `TestSDContextIntegration::test_context_creation`
+
 2. `TestSDContextIntegration::test_generate_image`
+
 3. `TestSDContextConcurrencyGuard::test_concurrent_generate_raises`
+
 4. `TestSDContextConcurrencyGuard::test_concurrent_generate_with_params_raises`
+
 5. `TestSDContextConcurrencyGuard::test_lock_release_allows_subsequent_acquire`
 
 Each of them assigns the context to a local variable (`ctx = SDContext(params)`) and lets it fall out of function scope when the test returns. Naive reading: "Python's refcount drops to zero at `return`, `__dealloc__` fires, `free_sd_ctx()` is called, Metal buffers are released."
@@ -46,7 +49,9 @@ Each of them assigns the context to a local variable (`ctx = SDContext(params)`)
 The reality on pytest:
 
 1. pytest retains the test's stack frame after the test body returns, for use in failure reporting and fixture teardown. Local variables in that frame are not dropped immediately.
+
 2. Python's garbage collector runs on its own heuristic, not synchronously after every function return.
+
 3. On macOS Metal, SD.cpp allocates ~4–6 GB of unified memory per `SDContext`. `SDContext.__dealloc__` calls upstream `free_sd_ctx()`, which calls `~StableDiffusionGGML()`, which calls `ggml_backend_free(backend)`. Metal object lifetime is then handled by ARC — buffers are released *eventually*, not deterministically.
 
 Put it together: during the ~80 non-SD tests that run between `test_lock_release_allows_subsequent_acquire` and `TestConvenienceFunctionsIntegration::test_text_to_image`, up to 5 `SDContext` instances can be simultaneously alive in the Python process, each holding a full set of Metal allocations that haven't been released yet. By the time a fresh `SDContext` is constructed in `test_text_to_image`, the Metal working-set limit is exceeded, SD.cpp's GPU allocator fails to acquire buffers, and `generate_image()` returns NULL (or aborts outright if Metal rejects a command buffer).
@@ -101,6 +106,7 @@ Do not skip `gc.collect()`. `del ctx` alone drops the refcount to zero, but pyte
 **Precautionary: `LLM` and `WhisperContext`.** The same class of bug is theoretically possible — all three wrappers use the same "native resource held until `__dealloc__` fires" model, and llama.cpp / whisper.cpp allocate GPU buffers on Metal the same way SD.cpp does. We have not observed the crash on LLM or Whisper, likely because:
 
 1. The test LLM (`Llama-3.2-1B-Instruct-Q8_0.gguf`) is ~1.3 GB vs SD's ~6 GB. Even 5 concurrent instances fit comfortably in Metal's working set.
+
 2. `tests/test_memory_leaks.py::TestLLMLeaks` and `TestWhisperContextLeaks` already use the explicit-cleanup pattern, proving it works under stress.
 
 New tests that create multiple `LLM` or `WhisperContext` instances in a single process **should** follow the same `del + gc.collect()` pattern. Existing tests that create only one are fine as-is.

@@ -1,8 +1,6 @@
 # Concurrent-use runtime guard
 
-> **The rule:** Always use one context per thread. Do not share the same context across threads.
->
-> This applies to every `LLM`, `WhisperContext`, and `SDContext` instance. The underlying llama.cpp / whisper.cpp / stable-diffusion.cpp contexts are not designed for concurrent access — sharing one across threads corrupts internal state silently. cyllama enforces the rule at runtime with a non-blocking lock; the rest of this document explains the hazard, the implementation, the alternatives we rejected, and how to extend the guard when adding new native-touching methods.
+> **The rule:** Always use one context per thread. Do not share the same context across threads. > > This applies to every `LLM`, `WhisperContext`, and `SDContext` instance. The underlying llama.cpp / whisper.cpp / stable-diffusion.cpp contexts are not designed for concurrent access — sharing one across threads corrupts internal state silently. cyllama enforces the rule at runtime with a non-blocking lock; the rest of this document explains the hazard, the implementation, the alternatives we rejected, and how to extend the guard when adding new native-touching methods.
 
 This document is a maintainer guide. It covers:
 
@@ -87,9 +85,7 @@ The crucial inference: **closing #3960 does not mean "you can now share one `lla
 
 So the upstream design contract for llama.cpp, established across these three threads, is exactly the rule cyllama's runtime guard enforces:
 
-> **Always use one context per thread. Do not share the same context across threads.**
->
-> Concretely: one `llama_context` is safe to use from one thread at a time. Multiple `llama_context` objects (one per worker thread) can run in parallel, subject to backend caveats noted above. Sharing one `llama_context` across multiple concurrent native calls is not supported and never has been.
+> **Always use one context per thread. Do not share the same context across threads.** > > Concretely: one `llama_context` is safe to use from one thread at a time. Multiple `llama_context` objects (one per worker thread) can run in parallel, subject to backend caveats noted above. Sharing one `llama_context` across multiple concurrent native calls is not supported and never has been.
 
 The headers don't say this — but the issue tracker does, and ggerganov / slaren are the authoritative sources for "what llama.cpp supports." cyllama's `LLM._busy_lock` prevents the unsupported pattern (one context, multiple concurrent users) while allowing the legitimate sequential-handoff pattern (one context, one in-flight call, possibly bounced between threads via `asyncio.to_thread`).
 
@@ -249,9 +245,13 @@ The `cdef` class layouts deserve a callout because they're slightly subtle:
 The same pattern appears in all three regression test classes:
 
 1. Create an instance with a real model.
+
 2. Manually `acquire(blocking=False)` the busy-lock from the **test thread** to simulate "thread A is currently in flight."
+
 3. Spawn a worker thread that calls the actual public method.
+
 4. Assert the worker raised `RuntimeError` containing `"another thread"` and `"not thread-safe"`.
+
 5. Release the lock in `finally`.
 
 ```python
@@ -305,10 +305,15 @@ If you add a new method to `LLM`, `WhisperContext`, or `SDContext` that touches 
 Checklist for a new guarded method:
 
 1. Does the method touch `self._ctx`, `self._sampler`, `self.model`, `self._c_ctx`, `self.ptr`, or any other attribute that wraps a C++ object's mutable state?
+
 2. Does the method trigger a native call that releases the GIL (`with nogil:`, or any binding that internally does so)?
+
 3. If yes to either: wrap the body in `_try_acquire_busy()` / `try` / `finally: self._busy_lock.release()`.
+
 4. If the method is a thin delegator that only calls another already-guarded public method: do **not** acquire (the inner method will). `Lock` is non-reentrant — double acquire from the same thread would deadlock. Document the delegation in a comment.
+
 5. If the method returns a generator that holds native state across yields (streaming): use the `_stream_with_busy_release()` wrapper pattern.
+
 6. Add a regression test that follows the pattern in the table above. The test should hit your new method specifically, even if other guarded methods on the same class are already covered — bug-of-omission tests need to be per-method, not per-class.
 
 Methods that **don't** need the guard:

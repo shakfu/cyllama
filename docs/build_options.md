@@ -7,6 +7,7 @@ This guide covers advanced build configuration for cyllama. For basic backend se
 Cyllama uses a two-phase build:
 
 1. **Phase 1 -- Build dependencies**: `scripts/manage.py build --deps-only` clones and builds llama.cpp (and optionally whisper.cpp, stable-diffusion.cpp), producing static libraries in `thirdparty/`.
+
 2. **Phase 2 -- Build cyllama**: `uv pip install .` (or `uv sync`) runs scikit-build-core, which links the pre-built libraries into Cython extension modules.
 
 Most options in this guide affect Phase 1. Backend flags (`GGML_CUDA`, etc.) affect both phases.
@@ -204,7 +205,9 @@ Make sure `CUDA_PATH` or your `PATH` points to the correct CUDA toolkit installa
 On Windows, CUDA-linked extensions depend on toolkit DLLs (e.g. `cublas64_13.dll`). When cyllama is built with `GGML_CUDA=1`, it automatically registers CUDA DLL search paths via `os.add_dll_directory()` before loading native extensions. The discovery checks, in order:
 
 1. `CUDA_PATH` / `CUDA_HOME` environment variables
+
 2. `nvcc` on `PATH`
+
 3. Standard install location (`C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\`)
 
 This is a no-op on non-Windows platforms or non-CUDA builds, controlled by the build-time `_internal/backend.py` config.

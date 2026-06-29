@@ -278,6 +278,9 @@ Passing `embedder=` skips the default `Embedder` construction entirely, so calle
 ## Performance Tips
 
 1. **Batch Processing**: Use `embed_batch()` instead of multiple `embed()` calls
+
 2. **GPU Acceleration**: Set `n_gpu_layers=-1` to use all GPU layers
+
 3. **Context Size**: Match `n_ctx` to your model's training context
+
 4. **Memory Efficiency**: Use `embed_iter()` for large datasets

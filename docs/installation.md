@@ -79,7 +79,9 @@ For RPM-based distros, use Intel's [DNF/Yum repo](https://www.intel.com/content/
 `cyllama` needs at least one runtime device for SYCL to dispatch kernels onto. This is hardware-conditional and lives outside the oneAPI runtime layer -- pick one of:
 
 - **Intel GPU via OpenCL**: install the Intel compute-runtime package providing `libOpenCL.so.1` and the Intel GPU ICD (`intel-opencl-icd` on recent Ubuntu, or the upstream `intel-compute-runtime` packages). Follow [Intel's GPU driver install guide](https://dgpu-docs.intel.com/driver/installation.html) for your distro and GPU family (Arc, Iris Xe, Data Center GPU Max/Flex).
+
 - **Intel GPU via Level Zero**: install `level-zero` and `intel-level-zero-gpu`. Same install guide.
+
 - **CPU fallback (no Intel GPU)**: install the Intel CPU runtime for OpenCL applications, packaged as `intel-oneapi-runtime-opencl` or the standalone CPU runtime. This is *not* a substitute for the oneAPI runtimes in step 1 -- it only adds the CPU as an OpenCL device.
 
 Package names and recommended install paths drift across distro versions and Intel releases, so we link to Intel's authoritative install pages rather than hard-coding an `apt install` line we can't keep current. Without a device, import succeeds but SYCL device enumeration returns empty and any actual generation call fails.
@@ -164,8 +166,11 @@ make build  # Whisper is built automatically
 Cyllama uses **scikit-build-core** with CMake for building the Cython extensions. The build process:
 
 1. **Dependencies**: `make` downloads and builds llama.cpp, whisper.cpp (and optionally stable-diffusion.cpp)
+
 2. **Cython compilation**: CMake compiles `.pyx` files to C++ using Cython
+
 3. **Extension linking**: C++ extensions are linked against the static libraries
+
 4. **Installation**: Extensions are installed in editable mode
 
 ### Build Commands

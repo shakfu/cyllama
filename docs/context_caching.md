@@ -34,7 +34,9 @@ response3 = llm("Tell me a story", config=large_config)
 A new context is created when:
 
 1. No context exists yet (first generation)
+
 2. The required context size exceeds the current context size
+
 3. After calling `reset_context()` explicitly
 
 ### KV Cache Clearing
@@ -137,7 +139,9 @@ Parameters:
 ### Benefits of Context Reuse
 
 1. **Reduced allocation overhead**: Creating a new context involves GPU memory allocation which can be slow
+
 2. **Consistent memory usage**: Reusing contexts prevents memory fragmentation
+
 3. **Faster subsequent generations**: Only the KV cache needs to be cleared, not the entire context
 
 ### When to Force Recreation
@@ -153,8 +157,11 @@ Use `reset_context()` when:
 ### Memory Management Tips
 
 1. **Use context managers** for automatic cleanup
+
 2. **Call `close()`** when done with long-running applications
+
 3. **Monitor memory** with tools like `nvidia-smi` for GPU memory
+
 4. **Set appropriate `n_ctx`** in `GenerationConfig` to avoid oversized contexts
 
 ## Example: Long-Running Application

@@ -117,7 +117,9 @@ Ship CPU-only by default, with CUDA as an optional runtime-loadable plugin. This
 A hybrid approach:
 
 1. **Split into separate packages** - most users don't need all three
+
 2. **Within each package**, use static linking with hidden visibility (current approach but optimized)
+
 3. **Factor out CUDA** as a separate optional dependency if the ggml versions can be aligned for that specific component
 
 ## Trade-offs Summary

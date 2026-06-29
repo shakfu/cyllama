@@ -835,12 +835,19 @@ print(scheduler_name(Scheduler.KARRAS))  # "karras"
 ## Performance Tips
 
 1. **Use turbo models** for fast generation (1-4 steps, cfg_scale=1.0)
+
 2. **Quantize models** to Q4_0 or Q8_0 for memory efficiency
+
 3. **Reuse SDContext** when generating multiple images
+
 4. **Set n_threads** to match physical CPU cores
+
 5. **Use `--offload-to-cpu`** for low VRAM GPUs
+
 6. **Enable `--diffusion-fa`** (flash attention) for faster inference
+
 7. **Use `--vae-tiling`** for generating large images
+
 8. **Use progress callback** to track long generations
 
 ## Troubleshooting
