@@ -17,6 +17,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+### Fixed
+
+- **Extension failed to import with `undefined symbol: X509_NAME_free`** -- the compiled `cyllama.llama.llama_cpp` extension linked llama.cpp's vendored cpp-httplib (built with `LLAMA_OPENSSL=True`) via `-Wl,--whole-archive`, force-including its OpenSSL `SSLClient` code. When a prior change (`26be940`) removed OpenSSL from the link, the resulting `.so` was left with unresolved `X509_NAME_free` / `SSL_CTX_new` symbols and every `import cyllama` failed at load with an `ImportError` (all 56 test modules errored during collection). cpp-httplib is not actually used by cyllama -- the embedded server is Mongoose-based, and neither `libllama.a` nor `libmtmd.a` reference httplib -- so it is no longer linked at all, which also drops the OpenSSL runtime dependency entirely (restoring wheel portability). `scripts/manage.py` correspondingly sets `LLAMA_OPENSSL=False` and no longer copies `libcpp-httplib.a`. Changed in `CMakeLists.txt` and `scripts/manage.py`.
+
 ## [0.3.3]
 
 ### Added

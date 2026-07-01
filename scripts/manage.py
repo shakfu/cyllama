@@ -1239,7 +1239,7 @@ class LlamaCppBuilder(GgmlBuilder):
             CMAKE_C_VISIBILITY_PRESET="hidden",
             CMAKE_VISIBILITY_INLINES_HIDDEN=True,
             LLAMA_CURL=False,
-            LLAMA_OPENSSL=True,  # Enable OpenSSL in cpp-httplib for HTTPS support
+            LLAMA_OPENSSL=False,  # cpp-httplib is not linked into cyllama (see CMakeLists.txt), so no SSL needed
             LLAMA_BUILD_SERVER=False,  # Server requires httplib
             LLAMA_BUILD_TESTS=False,  # Tests require httplib
             LLAMA_BUILD_EXAMPLES=False,  # Don't need examples
@@ -1255,8 +1255,9 @@ class LlamaCppBuilder(GgmlBuilder):
         self.lib.mkdir(parents=True, exist_ok=True)
 
         # Copy core libraries from build directory (platform-aware)
+        # Note: cpp-httplib is intentionally not copied — cyllama does not link it
+        # (see CMakeLists.txt); it only pulled in OpenSSL SSLClient symbols.
         self.copy_lib(self.build_dir, "common", "llama-common", self.lib)
-        self.copy_lib(self.build_dir, "vendor/cpp-httplib", "cpp-httplib", self.lib, required=False)
         self.copy_lib(self.build_dir, "src", "llama", self.lib)
         self.copy_lib(self.build_dir, "ggml/src", "ggml", self.lib)
         self.copy_lib(self.build_dir, "ggml/src", "ggml-base", self.lib)
@@ -1312,7 +1313,7 @@ class LlamaCppBuilder(GgmlBuilder):
             GGML_BACKEND_DL=use_backend_dl,
             CMAKE_POSITION_INDEPENDENT_CODE=True,
             LLAMA_CURL=False,
-            LLAMA_OPENSSL=True,
+            LLAMA_OPENSSL=False,  # cpp-httplib is not linked into cyllama (see CMakeLists.txt), so no SSL needed
             LLAMA_BUILD_SERVER=False,
             LLAMA_BUILD_TESTS=False,
             LLAMA_BUILD_EXAMPLES=False,

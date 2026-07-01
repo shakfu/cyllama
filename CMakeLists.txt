@@ -393,12 +393,11 @@ if(WITH_DYLIB)
         _find_dylib(${_name} TRUE)
     endforeach()
 
-    # cpp-httplib: not in release tarballs, needed for embedded server
-    static_lib(LIB_CPP_HTTPLIB "${LLAMACPP_LIB}" "cpp-httplib")
-    if(EXISTS "${LIB_CPP_HTTPLIB}")
-        list(APPEND STATIC_LIBS "${LIB_CPP_HTTPLIB}")
-        message(STATUS "  Static lib (embedded server): ${LIB_CPP_HTTPLIB}")
-    endif()
+    # cpp-httplib: intentionally NOT linked. It lives in libllama-common.a's
+    # model-download code, but cyllama does not link llama-common (only llama,
+    # mtmd, ggml) and does its HuggingFace resolution in Python. cyllama's own
+    # embedded server is Mongoose-based. Linking httplib only dragged in its
+    # OpenSSL SSLClient symbols (X509_NAME_free, ...) as dead weight.
 
     # Add dylib directory to link search path
     list(APPEND COMMON_LINK_DIRS "${LLAMACPP_DYLIB_DIR}")
@@ -423,12 +422,9 @@ else()
         "${LIB_MTMD}"
     )
 
-    # cpp-httplib: optional, only needed for embedded server
-    static_lib(LIB_CPP_HTTPLIB "${LLAMACPP_LIB}" "cpp-httplib")
-    if(EXISTS "${LIB_CPP_HTTPLIB}")
-        list(APPEND STATIC_LIBS "${LIB_CPP_HTTPLIB}")
-        message(STATUS "  Static lib (embedded server): ${LIB_CPP_HTTPLIB}")
-    endif()
+    # cpp-httplib: intentionally NOT linked. cyllama does not link llama-common
+    # (only llama, mtmd, ggml) and neither llama nor mtmd reference httplib.
+    # Linking it only dragged in its OpenSSL SSLClient symbols as dead weight.
 
     # Backend-specific static libraries
     if(GGML_METAL)
@@ -501,8 +497,8 @@ if(GGML_METAL)
     )
 endif()
 
-# OpenSSL linking removed: EmbeddedServer doesn't expose SSL config,
-# and absolute homebrew paths break wheel portability.
+# OpenSSL: not needed. cpp-httplib (the only OpenSSL consumer) is not linked;
+# see the notes where LIB_CPP_HTTPLIB discovery used to live above.
 
 if(GGML_CUDA)
     find_package(CUDAToolkit REQUIRED)
@@ -659,17 +655,11 @@ function(add_cython_extension target_name pyx_file)
         endif()
 
         set(_OTHER_LIBS ${LIB_LLAMA} ${LIB_MTMD})
-        if(EXISTS "${LIB_CPP_HTTPLIB}")
-            list(APPEND _OTHER_LIBS ${LIB_CPP_HTTPLIB})
-        endif()
         if(WITH_WHISPER)
             list(APPEND _OTHER_LIBS ${LIB_WHISPER_COMMON} ${LIB_WHISPER})
         endif()
 
         set(_WHOLE_ARCHIVE_LIBS ${_GGML_LIBS})
-        if(EXISTS "${LIB_CPP_HTTPLIB}")
-            list(APPEND _WHOLE_ARCHIVE_LIBS ${LIB_CPP_HTTPLIB})
-        endif()
 
         target_link_libraries(${target_name} PRIVATE
             -Wl,--whole-archive ${_WHOLE_ARCHIVE_LIBS} -Wl,--no-whole-archive
