@@ -17,7 +17,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+### Added
+
+- **`LlamaModel.ftype` / `.ftype_name` and module-level `ftype_name()`** -- bind the two accessors added in llama.cpp b9871: `llama_model_ftype()` (the model's file-type/quantization as a `llama_ftype` enum) and `llama_ftype_name()` (maps a `llama_ftype` value to a string, e.g. `"Q8_0"`). `LlamaModel.ftype` returns the raw enum int, `.ftype_name` the human string; `cyllama.llama.llama_cpp.ftype_name(ftype)` converts any ftype value (such as `LlamaModelQuantizeParams.ftype`). Declared in `src/cyllama/llama/llama.pxd`, implemented in `llama_cpp.pyx`, covered by `tests/test_model.py`.
+
+- **`SDContextParams.split_mode`** -- exposes the new `sd_ctx_params_t.split_mode` field (stable-diffusion.cpp master-748), a `const char*` controlling weight distribution across multiple devices: `"layer"` (default) or `"row"`, or per-module assignments such as `"diffusion=row"`. `Optional[str]` property; declared in `stable_diffusion.pxd`, implemented in `stable_diffusion.pyx`, covered by `tests/test_sd.py`.
+
+- **`SDImageGenParams.qwen_image_layers`** -- binds the new `sd_img_gen_params_t.qwen_image_layers` int field (stable-diffusion.cpp master-748), the number of Qwen-Image transformer layers to run (default supplied by `sd_img_gen_params_init()`). Standard int property; declared in `stable_diffusion.pxd`, implemented in `stable_diffusion.pyx`, covered by `tests/test_sd.py`.
+
+- **`convert_model_with_components()`** -- wraps the new `convert_with_components()` export (stable-diffusion.cpp master-748), converting a model to a target quantization from separate component files (combined checkpoint, CLIP-L / CLIP-G / T5-XXL text encoders, diffusion model, VAE) instead of a single input path. Requires at least one component path (else `ValueError`) and validates that each provided path exists (else `FileNotFoundError`). Exported from `cyllama.sd`; declared in `stable_diffusion.pxd`, implemented in `stable_diffusion.pyx`, covered by `tests/test_sd.py`.
+
+- **Importance-matrix (imatrix) collection: `load_imatrix()` / `save_imatrix()` / `enable_imatrix_collection()` / `disable_imatrix_collection()`** -- bind the four new imatrix exports (stable-diffusion.cpp master-748) that gather per-tensor importance statistics for higher-quality quantization. `load_imatrix()` raises `FileNotFoundError` for a missing path. The C symbols are aliased in the pxd (`c_load_imatrix`, etc.) so the identically-named Python wrappers don't shadow and recurse into them. Exported from `cyllama.sd`; declared in `stable_diffusion.pxd`, implemented in `stable_diffusion.pyx`, covered by `tests/test_sd.py`.
+
+- **`list_devices()`** -- wraps the new `sd_list_devices()` export (stable-diffusion.cpp master-748), returning a `list[(name, description)]` of available ggml backend devices (e.g. `("MTL0", "Apple M1")`, `("BLAS", "Accelerate")`, `("CPU", "Apple M1")`). The `name` values are those accepted by the `backend` / `params_backend` context params and the `split_mode` per-module assignment specs. Exported from `cyllama.sd`; declared in `stable_diffusion.pxd`, implemented in `stable_diffusion.pyx`, covered by `tests/test_sd.py`.
+
+- **`Scheduler.FLUX2` / `.FLUX` / `.BETA` and `Prediction.MINIT2I_FLOW`** -- new members mirroring the `FLUX2_SCHEDULER` / `FLUX_SCHEDULER` / `BETA_SCHEDULER` and `MINIT2I_FLOW_PRED` enum values added to stable-diffusion.cpp master-748. Added to the C enum declarations in `stable_diffusion.pxd` and the Python `Scheduler` / `Prediction` `IntEnum`s, covered by `tests/test_sd.py`.
+
+### Changed
+
+- **llama.cpp updated to b9871 (from b9837); stable-diffusion.cpp updated to master-748-68f3d6d (from master-731-9f855c9); whisper.cpp updated to v1.9.1 (from v1.8.6)** -- the llama.cpp header change was additive (`llama_model_ftype()` / `llama_ftype_name()`, now bound -- see Added). stable-diffusion.cpp changed the `generate_image()` and `upscale()` signatures and reworked the `prediction_t` enum (see Fixed / Removed) and added new fields and functions (see Added). whisper.cpp's public `whisper.h` was unchanged; the update also newly builds a `libparakeet.a` (Parakeet ASR) which cyllama deliberately does not link -- it is redundant to the existing whisper bindings.
+
+- **`python -m cyllama.sd --prediction` choices updated** -- the `--prediction` CLI choice list drops `flux2_flow` and adds `sefi_flow` / `minit2i_flow`, matching the reworked `prediction_t` enum. Changed in `src/cyllama/sd/__main__.py`.
+
+### Removed
+
+- **`Prediction.FLUX2_FLOW`** -- removed because upstream deleted the `FLUX2_FLOW_PRED` enumerator from `prediction_t` (stable-diffusion.cpp master-748). The `flux2_flow` value is likewise gone from the `python -m cyllama.sd --prediction` choices (see Changed) and the `Prediction` table in `docs/stable_diffusion.md` / `docs/api_reference.md`.
+
 ### Fixed
+
+- **Build broke against updated stable-diffusion.cpp (master-748)** -- the vendored bindings fell out of sync with three upstream API changes and the Cython extension failed to compile: `generate_image()` and `upscale()` changed from returning `sd_image_t*` / `sd_image_t` to returning `bool` with out-parameters (`sd_image_t** images_out, int* num_images_out`), and the `prediction_t` enum removed `FLUX2_FLOW_PRED` and added `MINIT2I_FLOW_PRED`. The `.pxd` signatures and both call sites were updated; `generate_image()` / `upscale()` now take the image count from the returned out-parameter (authoritative) rather than assuming `batch_count`, and free the library-allocated array accordingly. Fixed in `src/cyllama/sd/stable_diffusion.pxd` and `stable_diffusion.pyx`; the `Prediction` / CLI / doc fallout is covered under Added / Changed / Removed.
 
 - **Extension failed to import with `undefined symbol: X509_NAME_free`** -- the compiled `cyllama.llama.llama_cpp` extension linked llama.cpp's vendored cpp-httplib (built with `LLAMA_OPENSSL=True`) via `-Wl,--whole-archive`, force-including its OpenSSL `SSLClient` code. When a prior change (`26be940`) removed OpenSSL from the link, the resulting `.so` was left with unresolved `X509_NAME_free` / `SSL_CTX_new` symbols and every `import cyllama` failed at load with an `ImportError` (all 56 test modules errored during collection). cpp-httplib is not actually used by cyllama -- the embedded server is Mongoose-based, and neither `libllama.a` nor `libmtmd.a` reference httplib -- so it is no longer linked at all, which also drops the OpenSSL runtime dependency entirely (restoring wheel portability). `scripts/manage.py` correspondingly sets `LLAMA_OPENSSL=False` and no longer copies `libcpp-httplib.a`. Changed in `CMakeLists.txt` and `scripts/manage.py`.
 

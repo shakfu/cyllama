@@ -117,6 +117,9 @@ cdef extern from "llama.h":
         LLAMA_FTYPE_MOSTLY_Q1_0          = 40   # except 1d tensors
         LLAMA_FTYPE_GUESSED              = 1024
 
+    # Get the model file type (quantization) as a string, e.g. "Q8_0" or "Q4_K - Medium"
+    cdef const char * llama_ftype_name(llama_ftype ftype)
+
     cdef enum llama_rope_scaling_type:
         LLAMA_ROPE_SCALING_TYPE_UNSPECIFIED = -1
         LLAMA_ROPE_SCALING_TYPE_NONE        = 0
@@ -465,6 +468,9 @@ cdef extern from "llama.h":
 
     # Get a string describing the model type
     cdef int32_t llama_model_desc(const llama_model * model, char * buf, size_t buf_size)
+
+    # Get the model file type (quantization), e.g. LLAMA_FTYPE_MOSTLY_Q8_0
+    cdef llama_ftype llama_model_ftype(const llama_model * model)
 
     # Returns the total size of all the tensors in the model in bytes
     cdef uint64_t llama_model_size(const llama_model * model)

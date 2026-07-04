@@ -242,7 +242,8 @@ def create_context_params(args: argparse.Namespace) -> "SDContextParams":
             "edm_v": Prediction.EDM_V,
             "flow": Prediction.FLOW,
             "flux_flow": Prediction.FLUX_FLOW,
-            "flux2_flow": Prediction.FLUX2_FLOW,
+            "sefi_flow": Prediction.SEFI_FLOW,
+            "minit2i_flow": Prediction.MINIT2I_FLOW,
         }
         params.prediction = pred_map.get(args.prediction, Prediction.EPS)
     if hasattr(args, "lora_apply_mode") and args.lora_apply_mode:
@@ -891,7 +892,7 @@ def add_common_sampler_args(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument(
         "--prediction",
-        choices=["eps", "v", "edm_v", "sd3_flow", "flux_flow", "flux2_flow"],
+        choices=["eps", "v", "edm_v", "sd3_flow", "flux_flow", "sefi_flow", "minit2i_flow"],
         help="Prediction type override",
     )
 

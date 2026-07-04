@@ -1825,7 +1825,7 @@ set_preview_callback(None)
 
 **`Prediction`**
 
-- `EPS`, `V`, `EDM_V`, `FLOW`, `FLUX_FLOW`, `FLUX2_FLOW`, `COUNT`
+- `EPS`, `V`, `EDM_V`, `FLOW`, `FLUX_FLOW`, `SEFI_FLOW`, `MINIT2I_FLOW`, `COUNT`
 
 **`SDType`**: Data types for model weights / quantization
 

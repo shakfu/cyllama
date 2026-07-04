@@ -55,6 +55,9 @@ cdef extern from "stable-diffusion.h":
         BONG_TANGENT_SCHEDULER
         LTX2_SCHEDULER
         LOGIT_NORMAL_SCHEDULER
+        FLUX2_SCHEDULER
+        FLUX_SCHEDULER
+        BETA_SCHEDULER
         SCHEDULER_COUNT
 
     ctypedef enum prediction_t:
@@ -63,8 +66,8 @@ cdef extern from "stable-diffusion.h":
         EDM_V_PRED
         FLOW_PRED
         FLUX_FLOW_PRED
-        FLUX2_FLOW_PRED
         SEFI_FLOW_PRED
+        MINIT2I_FLOW_PRED
         PREDICTION_COUNT
 
     ctypedef enum sd_type_t:
@@ -199,6 +202,7 @@ cdef extern from "stable-diffusion.h":
         bint eager_load
         const char* backend
         const char* params_backend
+        const char* split_mode
         const char* rpc_servers
 
     ctypedef struct sd_audio_t:
@@ -333,6 +337,7 @@ cdef extern from "stable-diffusion.h":
         sd_tiling_params_t vae_tiling_params
         sd_cache_params_t cache
         sd_hires_params_t hires
+        int qwen_image_layers
 
     ctypedef struct sd_vid_gen_params_t:
         const sd_lora_t* loras
@@ -440,7 +445,7 @@ cdef extern from "stable-diffusion.h":
     # Functions - Image generation
     # =========================================================================
 
-    sd_image_t* generate_image(sd_ctx_t* sd_ctx, const sd_img_gen_params_t* sd_img_gen_params) nogil
+    bint generate_image(sd_ctx_t* sd_ctx, const sd_img_gen_params_t* sd_img_gen_params, sd_image_t** images_out, int* num_images_out) nogil
 
     ctypedef enum sd_cancel_mode_t:
         SD_CANCEL_ALL
@@ -466,7 +471,7 @@ cdef extern from "stable-diffusion.h":
                                       const char* backend,
                                       const char* params_backend)
     void free_upscaler_ctx(upscaler_ctx_t* upscaler_ctx)
-    sd_image_t upscale(upscaler_ctx_t* upscaler_ctx, sd_image_t input_image, uint32_t upscale_factor) nogil
+    bint upscale(upscaler_ctx_t* upscaler_ctx, sd_image_t input_image, uint32_t upscale_factor, sd_image_t** images_out, int* num_images_out) nogil
     int get_upscale_factor(upscaler_ctx_t* upscaler_ctx)
 
     # =========================================================================
@@ -480,6 +485,17 @@ cdef extern from "stable-diffusion.h":
                  const char* tensor_type_rules,
                  bint convert_name)
 
+    bint convert_with_components(const char* model_path,
+                                 const char* clip_l_path,
+                                 const char* clip_g_path,
+                                 const char* t5xxl_path,
+                                 const char* diffusion_model_path,
+                                 const char* vae_path,
+                                 const char* output_path,
+                                 sd_type_t output_type,
+                                 const char* tensor_type_rules,
+                                 bint convert_name)
+
     # =========================================================================
     # Functions - Preprocessing
     # =========================================================================
@@ -490,6 +506,25 @@ cdef extern from "stable-diffusion.h":
                           float weak,
                           float strong,
                           bint inverse)
+
+    # =========================================================================
+    # Functions - Importance matrix (imatrix) collection for quantization
+    # =========================================================================
+
+    # Cython-side aliases avoid shadowing by the same-named Python wrappers.
+    bint c_load_imatrix "load_imatrix" (const char* imatrix_path)
+    void c_save_imatrix "save_imatrix" (const char* imatrix_path)
+    void c_enable_imatrix_collection "enable_imatrix_collection" ()
+    void c_disable_imatrix_collection "disable_imatrix_collection" ()
+
+    # =========================================================================
+    # Functions - Backend device enumeration
+    # =========================================================================
+
+    # List available ggml backend devices, one `name<TAB>description` per line.
+    # Returns the number of bytes required (excluding NUL). Passing NULL or a
+    # zero buffer_size only queries the required size.
+    size_t sd_list_devices(char* buffer, size_t buffer_size)
 
     # =========================================================================
     # Functions - Version info

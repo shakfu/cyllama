@@ -30,9 +30,15 @@ from cyllama.sd import (
     text_to_images,
     image_to_image,
     convert_model,
+    convert_model_with_components,
     canny_preprocess,
+    load_imatrix,
+    save_imatrix,
+    enable_imatrix_collection,
+    disable_imatrix_collection,
     get_num_cores,
     get_system_info,
+    list_devices,
     type_name,
     sample_method_name,
     scheduler_name,
@@ -464,6 +470,14 @@ class TestSDContextParams:
         assert params.rpc_servers == "127.0.0.1:50052"
         params.rpc_servers = None
         assert params.rpc_servers is None
+
+    def test_split_mode(self):
+        params = SDContextParams()
+        assert params.split_mode is None
+        params.split_mode = "diffusion=row"
+        assert params.split_mode == "diffusion=row"
+        params.split_mode = None
+        assert params.split_mode is None
 
 
 class TestSDSampleParams:
@@ -1031,6 +1045,14 @@ class TestSDImageGenParamsExtended:
         params.clip_skip = 2
         assert params.clip_skip == 2
 
+    def test_qwen_image_layers(self):
+        params = SDImageGenParams()
+        # Default comes from sd_img_gen_params_init(); just check round-trip.
+        params.qwen_image_layers = 8
+        assert params.qwen_image_layers == 8
+        params.qwen_image_layers = 0
+        assert params.qwen_image_layers == 0
+
     def test_pulid_params(self):
         params = SDImageGenParams()
         assert params.pulid_id_embedding_path is None
@@ -1264,12 +1286,12 @@ class TestEnumsExtended:
     def test_prediction_enum(self):
         """Test Prediction enum values."""
         assert Prediction.EPS.value == 0
-        assert len(list(Prediction)) >= 6  # Includes FLUX2_FLOW
+        assert len(list(Prediction)) >= 6  # Includes MINIT2I_FLOW
         # Verify key prediction types exist
         assert hasattr(Prediction, "EPS")
         assert hasattr(Prediction, "V")
         assert hasattr(Prediction, "FLUX_FLOW")
-        assert hasattr(Prediction, "FLUX2_FLOW")
+        assert hasattr(Prediction, "MINIT2I_FLOW")
 
     def test_log_level_enum(self):
         """Test LogLevel enum values."""
@@ -1378,6 +1400,50 @@ class TestConvertModel:
             convert_model(
                 input_path="/nonexistent/model.safetensors", output_path="/tmp/output.gguf", output_type=SDType.F16
             )
+
+    def test_convert_with_components_requires_a_component(self):
+        """convert_model_with_components rejects an all-None component set."""
+        with pytest.raises(ValueError):
+            convert_model_with_components(output_path="/tmp/output.gguf", output_type=SDType.F16)
+
+    def test_convert_with_components_missing_file(self):
+        """A provided-but-missing component path raises FileNotFoundError."""
+        with pytest.raises(FileNotFoundError):
+            convert_model_with_components(
+                output_path="/tmp/output.gguf",
+                diffusion_model_path="/nonexistent/diffusion.safetensors",
+            )
+
+
+class TestImatrixAndDevices:
+    """Test imatrix collection helpers and backend device enumeration."""
+
+    def test_list_devices(self):
+        """list_devices returns (name, description) tuples for real backends."""
+        devices = list_devices()
+        assert isinstance(devices, list)
+        # At least a CPU backend is always present.
+        assert len(devices) >= 1
+        for entry in devices:
+            assert isinstance(entry, tuple) and len(entry) == 2
+            name, description = entry
+            assert isinstance(name, str) and name
+            assert isinstance(description, str)
+        assert any(name == "CPU" for name, _ in devices)
+
+    def test_imatrix_collection_toggle(self):
+        """Enabling/disabling imatrix collection is a safe no-op toggle."""
+        enable_imatrix_collection()
+        disable_imatrix_collection()
+
+    def test_load_imatrix_missing_file(self):
+        """load_imatrix raises FileNotFoundError for a missing path."""
+        with pytest.raises(FileNotFoundError):
+            load_imatrix("/nonexistent/model.imatrix")
+
+    def test_save_imatrix_importable(self):
+        """save_imatrix is importable and callable."""
+        assert save_imatrix is not None
 
 
 class TestConvenienceFunctions:

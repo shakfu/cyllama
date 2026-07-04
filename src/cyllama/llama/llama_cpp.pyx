@@ -2004,6 +2004,20 @@ cdef class LlamaModel:
             return self._cached_n_params
         return <uint64_t>llama.llama_model_n_params(self.ptr)
 
+    @property
+    def ftype(self) -> int:
+        """Model file type (quantization) as a llama_ftype enum value."""
+        return <int>llama.llama_model_ftype(self.ptr)
+
+    @property
+    def ftype_name(self) -> str:
+        """Model file type (quantization) as a string, e.g. 'Q8_0'."""
+        cdef const char* name = llama.llama_ftype_name(
+            llama.llama_model_ftype(self.ptr))
+        if name is NULL:
+            return ""
+        return name.decode("utf-8")
+
     # def get_tensor(self, name: str) -> GgmlTensor:
     #     """Get a llama model tensor"""
     #     cdef llama.ggml_tensor * tensor = llama.llama_get_model_tensor(
@@ -3481,6 +3495,18 @@ def chat_builtin_templates() -> list[str]:
     supported_tmpl.resize(res)
     res = llama.llama_chat_builtin_templates(supported_tmpl.data(), supported_tmpl.size())
     return [name.decode() for name in supported_tmpl]
+
+def ftype_name(ftype: int) -> str:
+    """Return the string name of a llama_ftype value, e.g. 'Q8_0'.
+
+    Accepts any ``llama_ftype`` enum value (such as the ``ftype`` field of a
+    ``LlamaModelQuantizeParams`` or ``LlamaModel.ftype``). Returns an empty
+    string if the type is unknown.
+    """
+    cdef const char* name = llama.llama_ftype_name(<llama.llama_ftype>ftype)
+    if name is NULL:
+        return ""
+    return name.decode("utf-8")
 
 def ggml_version() -> str:
     return ggml.ggml_version().decode()

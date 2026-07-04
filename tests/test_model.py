@@ -69,6 +69,10 @@ def test_autorelease(model_path):
     assert model.desc == "llama 1B Q8_0"
     assert model.size == 1313251456
     assert model.n_params == 1235814432
+    # ftype: LLAMA_FTYPE_MOSTLY_Q8_0 == 7
+    assert model.ftype == 7
+    assert model.ftype_name == "Q8_0"
+    assert cy.ftype_name(model.ftype) == "Q8_0"
     assert model.has_decoder()
     assert model.decoder_start_token() == -1
     assert not model.has_encoder()

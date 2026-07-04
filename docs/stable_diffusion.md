@@ -450,7 +450,8 @@ Prediction types:
 | `EDM_V` | EDM V-prediction |
 | `SD3_FLOW` | SD3 flow matching |
 | `FLUX_FLOW` | FLUX flow matching |
-| `FLUX2_FLOW` | FLUX2 flow matching |
+| `SEFI_FLOW` | SEFI flow matching |
+| `MINIT2I_FLOW` | MiniT2I flow matching |
 
 ### SDType
 

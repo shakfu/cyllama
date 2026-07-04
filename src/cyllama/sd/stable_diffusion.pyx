@@ -97,6 +97,9 @@ class Scheduler(IntEnum):
     BONG_TANGENT = BONG_TANGENT_SCHEDULER
     LTX2 = LTX2_SCHEDULER
     LOGIT_NORMAL = LOGIT_NORMAL_SCHEDULER
+    FLUX2 = FLUX2_SCHEDULER
+    FLUX = FLUX_SCHEDULER
+    BETA = BETA_SCHEDULER
     COUNT = SCHEDULER_COUNT
 
 
@@ -107,8 +110,8 @@ class Prediction(IntEnum):
     EDM_V = EDM_V_PRED
     FLOW = FLOW_PRED
     FLUX_FLOW = FLUX_FLOW_PRED
-    FLUX2_FLOW = FLUX2_FLOW_PRED
     SEFI_FLOW = SEFI_FLOW_PRED
+    MINIT2I_FLOW = MINIT2I_FLOW_PRED
     COUNT = PREDICTION_COUNT
 
 
@@ -914,6 +917,7 @@ cdef class SDContextParams:
     cdef bytes _tensor_type_rules_bytes
     cdef bytes _max_vram_bytes
     cdef bytes _rpc_servers_bytes
+    cdef bytes _split_mode_bytes
 
     def __cinit__(self):
         sd_ctx_params_init(&self._params)
@@ -1439,6 +1443,22 @@ cdef class SDContextParams:
         else:
             self._params.rpc_servers = NULL
 
+    @property
+    def split_mode(self) -> Optional[str]:
+        """Weight distribution for multi-device modules: 'layer' (default) or
+        'row', or per-module assignments e.g. 'diffusion=row'."""
+        if self._params.split_mode:
+            return self._params.split_mode.decode('utf-8')
+        return None
+
+    @split_mode.setter
+    def split_mode(self, value: Optional[str]):
+        if value:
+            self._split_mode_bytes = value.encode('utf-8')
+            self._params.split_mode = self._split_mode_bytes
+        else:
+            self._params.split_mode = NULL
+
     def __str__(self) -> str:
         """Get string representation of parameters."""
         cdef char* s = sd_ctx_params_to_str(&self._params)
@@ -1835,6 +1855,15 @@ cdef class SDImageGenParams:
     @clip_skip.setter
     def clip_skip(self, value: int):
         self._params.clip_skip = value
+
+    @property
+    def qwen_image_layers(self) -> int:
+        """Number of Qwen-Image transformer layers to run (0 = model default)."""
+        return self._params.qwen_image_layers
+
+    @qwen_image_layers.setter
+    def qwen_image_layers(self, value: int):
+        self._params.qwen_image_layers = value
 
     @property
     def sample_params(self) -> SDSampleParams:
@@ -2789,16 +2818,18 @@ cdef class SDContext:
         # fields onto `params` itself.
         params._params.sample_params = params._sample_params._params
 
-        cdef sd_image_t* result
+        cdef sd_image_t* result = NULL
+        cdef int num_images = 0
+        cdef bint ok = False
         cdef sd_ctx_t* ctx_ptr = self._ctx
         cdef sd_img_gen_params_t* params_ptr = &params._params
         self._try_acquire_busy()
         try:
             with nogil:
-                result = generate_image(ctx_ptr, params_ptr)
+                ok = generate_image(ctx_ptr, params_ptr, &result, &num_images)
         finally:
             self._busy_lock.release()
-        if result == NULL:
+        if not ok or result == NULL or num_images < 1:
             raise RuntimeError("Image generation failed")
 
         # Convert results to Python list, validating each image. The
@@ -2811,7 +2842,7 @@ cdef class SDContext:
         cdef int n_invalid = 0
         cdef int wrapped = 0
         try:
-            for i in range(params.batch_count):
+            for i in range(num_images):
                 img = SDImage._from_c_image(result[i], owns_data=True)
                 wrapped = i + 1
                 if not img.is_valid:
@@ -2820,7 +2851,7 @@ cdef class SDContext:
         except BaseException:
             # Free unwrapped C image data so they don't leak; wrapped
             # ones are owned by SDImage and freed via their __dealloc__.
-            for i in range(wrapped, params.batch_count):
+            for i in range(wrapped, num_images):
                 if result[i].data != NULL:
                     free(result[i].data)
             raise
@@ -2829,7 +2860,7 @@ cdef class SDContext:
             # wrapped successfully, is now owned by the SDImage objects).
             free(result)
 
-        if n_invalid == params.batch_count:
+        if n_invalid == num_images:
             raise RuntimeError(
                 "Image generation failed: all images have invalid data. "
                 "This usually means GPU memory allocation failed (out of memory). "
@@ -3128,14 +3159,29 @@ cdef class Upscaler:
         cdef upscaler_ctx_t* ctx_ptr = self._ctx
         cdef sd_image_t input_img = image._image
         cdef uint32_t factor_c = <uint32_t>factor
-        cdef sd_image_t result
+        cdef sd_image_t* out_images = NULL
+        cdef int num_out = 0
+        cdef bint ok = False
+        cdef int j
         with nogil:
-            result = upscale(ctx_ptr, input_img, factor_c)
+            ok = upscale(ctx_ptr, input_img, factor_c, &out_images, &num_out)
 
-        if result.data == NULL:
+        if not ok or out_images == NULL or num_out < 1 or out_images[0].data == NULL:
+            if out_images != NULL:
+                for j in range(num_out):
+                    if out_images[j].data != NULL:
+                        free(out_images[j].data)
+                free(out_images)
             raise RuntimeError("Upscaling failed")
 
-        return SDImage._from_c_image(result, owns_data=True)
+        # `out_images[0].data` is handed to the SDImage (owns_data=True);
+        # free any extra images' data plus the outer array.
+        result = SDImage._from_c_image(out_images[0], owns_data=True)
+        for j in range(1, num_out):
+            if out_images[j].data != NULL:
+                free(out_images[j].data)
+        free(out_images)
+        return result
 
     def __enter__(self):
         """Context manager entry."""
@@ -3208,6 +3254,185 @@ def convert_model(
         raise RuntimeError(f"Model conversion failed: {input_path} -> {output_path}")
 
     return True
+
+
+def convert_model_with_components(
+    output_path: str,
+    output_type: SDType = SDType.F16,
+    model_path: Optional[str] = None,
+    clip_l_path: Optional[str] = None,
+    clip_g_path: Optional[str] = None,
+    t5xxl_path: Optional[str] = None,
+    diffusion_model_path: Optional[str] = None,
+    vae_path: Optional[str] = None,
+    tensor_type_rules: Optional[str] = None,
+    convert_name: bool = False
+) -> bool:
+    """
+    Convert a model to a different format/quantization from separate component
+    files (diffusion model, text encoders, VAE) rather than a single checkpoint.
+
+    At least one component path must be provided. Any component left as None is
+    passed through as NULL and skipped by the converter.
+
+    Args:
+        output_path: Path for output model
+        output_type: Output quantization type
+        model_path: Path to a combined model checkpoint (optional)
+        clip_l_path: Path to CLIP-L text encoder (optional)
+        clip_g_path: Path to CLIP-G text encoder (optional)
+        t5xxl_path: Path to T5-XXL text encoder (optional)
+        diffusion_model_path: Path to the diffusion model (optional)
+        vae_path: Path to VAE model (optional)
+        tensor_type_rules: Custom tensor type rules (optional)
+        convert_name: Convert tensor names (optional)
+
+    Returns:
+        True if conversion successful
+
+    Raises:
+        ValueError: If no component path is provided
+        FileNotFoundError: If a provided component path does not exist
+        RuntimeError: If conversion fails
+    """
+    components = {
+        "model_path": model_path,
+        "clip_l_path": clip_l_path,
+        "clip_g_path": clip_g_path,
+        "t5xxl_path": t5xxl_path,
+        "diffusion_model_path": diffusion_model_path,
+        "vae_path": vae_path,
+    }
+    if not any(components.values()):
+        raise ValueError(
+            "convert_model_with_components requires at least one component path "
+            "(model_path, clip_l_path, clip_g_path, t5xxl_path, "
+            "diffusion_model_path, or vae_path)."
+        )
+    for name, path in components.items():
+        if path and not os.path.exists(path):
+            raise FileNotFoundError(f"{name} not found: {path}")
+
+    cdef bytes output_bytes = output_path.encode('utf-8')
+    cdef bytes model_bytes
+    cdef bytes clip_l_bytes
+    cdef bytes clip_g_bytes
+    cdef bytes t5xxl_bytes
+    cdef bytes diffusion_bytes
+    cdef bytes vae_bytes
+    cdef bytes rules_bytes
+    cdef const char* model_ptr = NULL
+    cdef const char* clip_l_ptr = NULL
+    cdef const char* clip_g_ptr = NULL
+    cdef const char* t5xxl_ptr = NULL
+    cdef const char* diffusion_ptr = NULL
+    cdef const char* vae_ptr = NULL
+    cdef const char* rules_ptr = NULL
+
+    if model_path:
+        model_bytes = model_path.encode('utf-8')
+        model_ptr = model_bytes
+    if clip_l_path:
+        clip_l_bytes = clip_l_path.encode('utf-8')
+        clip_l_ptr = clip_l_bytes
+    if clip_g_path:
+        clip_g_bytes = clip_g_path.encode('utf-8')
+        clip_g_ptr = clip_g_bytes
+    if t5xxl_path:
+        t5xxl_bytes = t5xxl_path.encode('utf-8')
+        t5xxl_ptr = t5xxl_bytes
+    if diffusion_model_path:
+        diffusion_bytes = diffusion_model_path.encode('utf-8')
+        diffusion_ptr = diffusion_bytes
+    if vae_path:
+        vae_bytes = vae_path.encode('utf-8')
+        vae_ptr = vae_bytes
+    if tensor_type_rules:
+        rules_bytes = tensor_type_rules.encode('utf-8')
+        rules_ptr = rules_bytes
+
+    cdef bint success = convert_with_components(
+        model_ptr,
+        clip_l_ptr,
+        clip_g_ptr,
+        t5xxl_ptr,
+        diffusion_ptr,
+        vae_ptr,
+        output_bytes,
+        <sd_type_t>output_type,
+        rules_ptr,
+        convert_name
+    )
+
+    if not success:
+        raise RuntimeError(f"Model conversion failed -> {output_path}")
+
+    return True
+
+
+# =============================================================================
+# Importance matrix (imatrix) collection
+# =============================================================================
+
+def load_imatrix(imatrix_path: str) -> bool:
+    """Load an importance matrix from disk for use during quantization.
+
+    Returns True if the file was loaded successfully.
+    """
+    if not os.path.exists(imatrix_path):
+        raise FileNotFoundError(f"imatrix file not found: {imatrix_path}")
+    cdef bytes path_bytes = imatrix_path.encode('utf-8')
+    return c_load_imatrix(path_bytes)
+
+
+def save_imatrix(imatrix_path: str) -> None:
+    """Save the currently collected importance matrix to disk."""
+    cdef bytes path_bytes = imatrix_path.encode('utf-8')
+    c_save_imatrix(path_bytes)
+
+
+def enable_imatrix_collection() -> None:
+    """Start collecting importance-matrix statistics during generation."""
+    c_enable_imatrix_collection()
+
+
+def disable_imatrix_collection() -> None:
+    """Stop collecting importance-matrix statistics."""
+    c_disable_imatrix_collection()
+
+
+# =============================================================================
+# Backend device enumeration
+# =============================================================================
+
+def list_devices() -> list[tuple[str, str]]:
+    """List available ggml backend devices.
+
+    Returns a list of ``(name, description)`` tuples. The ``name`` values are
+    the device names accepted by the ``backend`` / ``params_backend`` context
+    parameters (and the ``split_mode`` per-module assignment specs).
+    """
+    cdef size_t needed = sd_list_devices(NULL, 0)
+    if needed == 0:
+        return []
+    # +1 for the NUL terminator, which sd_list_devices excludes from the count.
+    cdef size_t buf_size = needed + 1
+    cdef char* buf = <char*>malloc(buf_size)
+    if buf == NULL:
+        raise MemoryError("Failed to allocate buffer for device list")
+    try:
+        sd_list_devices(buf, buf_size)
+        raw = buf[:needed].decode('utf-8')
+    finally:
+        free(buf)
+
+    devices = []
+    for line in raw.splitlines():
+        if not line:
+            continue
+        name, _, description = line.partition('\t')
+        devices.append((name, description))
+    return devices
 
 
 # =============================================================================
