@@ -172,13 +172,19 @@ test-command = "pytest {project}/tests -x -q --ignore={project}/tests/examples -
 build-verbosity = 1
 
 [tool.cibuildwheel.linux]
-# Use manylinux2014 for broader compatibility
-manylinux-x86_64-image = "manylinux2014"
-manylinux-aarch64-image = "manylinux2014"
+# Use manylinux_2_28 (glibc 2.28, GCC 12). manylinux2014 (glibc 2.17,
+# GCC 10.2.1) is too old for the modern scientific Python stack: NumPy
+# 2.3+ dropped manylinux2014 wheels and its sdist requires GCC >= 10.3,
+# so the dev/test group install (test-groups = ["dev"]) fell back to a
+# from-source numpy build that failed on the older toolchain. cyllama
+# itself has zero runtime deps and requires Python 3.12+, so raising the
+# glibc floor to 2.28 has no realistic compatibility cost.
+manylinux-x86_64-image = "manylinux_2_28"
+manylinux-aarch64-image = "manylinux_2_28"
 
 # Install build dependencies and build thirdparty libs (once for all Python versions)
-# Use /opt/python/cp310 since system python3 is 3.6 on manylinux2014 (too old for manage.py)
-before-all = "yum install -y git ccache && /opt/python/cp310-cp310/bin/pip install cmake ninja && PATH=/opt/python/cp310-cp310/bin:$PATH /opt/python/cp310-cp310/bin/python scripts/manage.py build --all --deps-only --no-sd-examples && test -d thirdparty/llama.cpp/lib && ls thirdparty/llama.cpp/lib/*llama* >/dev/null 2>&1 || { echo 'ERROR: manage.py produced no libraries'; exit 1; }"
+# Use /opt/python/cp310 since system python3 is old on manylinux (too old for manage.py)
+before-all = "yum install -y epel-release && yum install -y git ccache && /opt/python/cp310-cp310/bin/pip install cmake ninja && PATH=/opt/python/cp310-cp310/bin:$PATH /opt/python/cp310-cp310/bin/python scripts/manage.py build --all --deps-only --no-sd-examples && test -d thirdparty/llama.cpp/lib && ls thirdparty/llama.cpp/lib/*llama* >/dev/null 2>&1 || { echo 'ERROR: manage.py produced no libraries'; exit 1; }"
 
 # Disable global before-build on Linux (deps already built by before-all)
 before-build = ""
