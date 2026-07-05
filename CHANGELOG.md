@@ -17,6 +17,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+## [0.3.4]
+
 ### Added
 
 - **`LlamaModel.ftype` / `.ftype_name` and module-level `ftype_name()`** -- bind the two accessors added in llama.cpp b9871: `llama_model_ftype()` (the model's file-type/quantization as a `llama_ftype` enum) and `llama_ftype_name()` (maps a `llama_ftype` value to a string, e.g. `"Q8_0"`). `LlamaModel.ftype` returns the raw enum int, `.ftype_name` the human string; `cyllama.llama.llama_cpp.ftype_name(ftype)` converts any ftype value (such as `LlamaModelQuantizeParams.ftype`). Declared in `src/cyllama/llama/llama.pxd`, implemented in `llama_cpp.pyx`, covered by `tests/test_model.py`.
