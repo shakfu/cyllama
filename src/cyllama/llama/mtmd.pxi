@@ -563,6 +563,7 @@ cdef class MtmdContext:
         cdef mtmd_input_text input_text
         cdef bytes text_bytes = text.encode('utf-8')
         input_text.text = text_bytes
+        input_text.text_len = len(text_bytes)
         input_text.add_special = add_special
         input_text.parse_special = parse_special
 

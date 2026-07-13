@@ -535,6 +535,20 @@ class TestSDImageGenParams:
         assert params.height == 256
         assert params.seed == 123
 
+    def test_circular_x(self):
+        # Circular padding (tileable generation) moved from the context params
+        # onto the per-generation params upstream.
+        params = SDImageGenParams()
+        assert params.circular_x is False
+        params.circular_x = True
+        assert params.circular_x is True
+
+    def test_circular_y(self):
+        params = SDImageGenParams()
+        assert params.circular_y is False
+        params.circular_y = True
+        assert params.circular_y is True
+
 
 class TestCallbacks:
     """Test callback functions."""
@@ -579,6 +593,27 @@ class TestSDContextIntegration:
 
         ctx = sd_ctx_factory(params)
         assert ctx.is_valid
+
+    def test_control_net_api(self, sd_ctx_factory):
+        # Exercise the ControlNet hot-swap bindings within a single context
+        # lifecycle (Metal working-set discipline). No ControlNet weights are
+        # loaded, so this covers the default/guard paths.
+        params = SDContextParams()
+        params.model_path = MODEL_PATH
+        params.n_threads = 4
+
+        ctx = sd_ctx_factory(params)
+
+        # Nothing loaded on a fresh context.
+        assert ctx.has_control_net is False
+
+        # A missing path is rejected before touching native code.
+        with pytest.raises(FileNotFoundError):
+            ctx.load_control_net("does/not/exist.gguf")
+
+        # Unloading when none is loaded must not raise and returns a bool.
+        assert isinstance(ctx.unload_control_net(), bool)
+        assert ctx.has_control_net is False
 
     def test_cancel_reset_is_safe(self, sd_ctx_factory):
         # With no generation in flight, RESET just clears any pending
@@ -938,20 +973,21 @@ class TestSDContextParamsExtended:
         params.flow_shift = 1.5
         assert abs(params.flow_shift - 1.5) < 0.001
 
-    def test_chroma_use_dit_mask(self):
+    def test_model_args(self):
+        # Chroma / Qwen-Image tuning knobs are now passed through the
+        # model_args key=value string (upstream folded the dedicated struct
+        # fields into it).
         params = SDContextParams()
-        params.chroma_use_dit_mask = False
-        assert params.chroma_use_dit_mask is False
+        assert params.model_args is None
+        params.model_args = "chroma_use_dit_mask=0,chroma_t5_mask_pad=10"
+        assert params.model_args == "chroma_use_dit_mask=0,chroma_t5_mask_pad=10"
+        params.model_args = None
+        assert params.model_args is None
 
-    def test_chroma_use_t5_mask(self):
+    def test_auto_fit(self):
         params = SDContextParams()
-        params.chroma_use_t5_mask = True
-        assert params.chroma_use_t5_mask is True
-
-    def test_chroma_t5_mask_pad(self):
-        params = SDContextParams()
-        params.chroma_t5_mask_pad = 10
-        assert params.chroma_t5_mask_pad == 10
+        params.auto_fit = True
+        assert params.auto_fit is True
 
 
 class TestSDSampleParamsExtended:

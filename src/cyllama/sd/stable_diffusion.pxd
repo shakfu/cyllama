@@ -39,6 +39,8 @@ cdef extern from "stable-diffusion.h":
         EULER_CFG_PP_SAMPLE_METHOD
         EULER_A_CFG_PP_SAMPLE_METHOD
         EULER_GE_SAMPLE_METHOD
+        DPMPP2M_SDE_SAMPLE_METHOD
+        DPMPP2M_SDE_BT_SAMPLE_METHOD
         SAMPLE_METHOD_COUNT
 
     ctypedef enum scheduler_t:
@@ -189,13 +191,7 @@ cdef extern from "stable-diffusion.h":
         bint tae_preview_only
         bint diffusion_conv_direct
         bint vae_conv_direct
-        bint circular_x
-        bint circular_y
         bint force_sdxl_vae_conv_scale
-        bint chroma_use_dit_mask
-        bint chroma_use_t5_mask
-        int chroma_t5_mask_pad
-        bint qwen_image_zero_cond_t
         sd_vae_format_t vae_format
         const char* max_vram
         bint stream_layers
@@ -203,7 +199,9 @@ cdef extern from "stable-diffusion.h":
         const char* backend
         const char* params_backend
         const char* split_mode
+        bint auto_fit
         const char* rpc_servers
+        const char* model_args
 
     ctypedef struct sd_audio_t:
         uint32_t sample_rate
@@ -338,6 +336,8 @@ cdef extern from "stable-diffusion.h":
         sd_cache_params_t cache
         sd_hires_params_t hires
         int qwen_image_layers
+        bint circular_x
+        bint circular_y
 
     ctypedef struct sd_vid_gen_params_t:
         const sd_lora_t* loras
@@ -362,6 +362,8 @@ cdef extern from "stable-diffusion.h":
         sd_tiling_params_t vae_tiling_params
         sd_cache_params_t cache
         sd_hires_params_t hires
+        bint circular_x
+        bint circular_y
 
     # Opaque context types
     ctypedef struct sd_ctx_t:
@@ -394,6 +396,11 @@ cdef extern from "stable-diffusion.h":
     const char* sd_get_system_info()
     bint sd_ctx_supports_image_generation(const sd_ctx_t* sd_ctx)
     bint sd_ctx_supports_video_generation(const sd_ctx_t* sd_ctx)
+
+    # ControlNet hot-swap APIs are not safe to call while generation is in flight.
+    bint sd_ctx_load_control_net(sd_ctx_t* sd_ctx, const char* path)
+    bint sd_ctx_unload_control_net(sd_ctx_t* sd_ctx)
+    bint sd_ctx_has_control_net(const sd_ctx_t* sd_ctx)
 
     # =========================================================================
     # Functions - Type/enum name conversions
@@ -494,7 +501,8 @@ cdef extern from "stable-diffusion.h":
                                  const char* output_path,
                                  sd_type_t output_type,
                                  const char* tensor_type_rules,
-                                 bint convert_name)
+                                 bint convert_name,
+                                 int n_threads)
 
     # =========================================================================
     # Functions - Preprocessing

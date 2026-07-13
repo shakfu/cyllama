@@ -38,6 +38,7 @@ cdef extern from "mtmd.h":
     # Structs
     ctypedef struct mtmd_input_text:
         const char * text
+        size_t text_len
         bint add_special
         bint parse_special
 

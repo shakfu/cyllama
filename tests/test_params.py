@@ -164,8 +164,8 @@ def test_default_model_quantize_params():
     params = cy.LlamaModelQuantizeParams()
     assert params.nthread == 0
     assert params.ftype == 7  # LLAMA_FTYPE_MOSTLY_Q8_0 = 7
-    assert params.output_tensor_type == 42  # GGML_TYPE_COUNT = 42
-    assert params.token_embedding_type == 42  # GGML_TYPE_COUNT = 42
+    assert params.output_tensor_type == 43  # GGML_TYPE_COUNT = 43
+    assert params.token_embedding_type == 43  # GGML_TYPE_COUNT = 43
     assert params.allow_requantize == False
     assert params.quantize_output_tensor == True
     assert params.only_copy == False

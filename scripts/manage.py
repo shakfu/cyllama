@@ -137,7 +137,7 @@ PLATFORM = platform.system()
 ARCH = platform.machine()
 PY_VER_MINOR = sys.version_info.minor
 
-STABLE_BUILD = getenv("STABLE_BUILD", True)
+STABLE_BUILD = getenv("STABLE_BUILD", False)
 if STABLE_BUILD:
     # known to build and work without errors, 100% tests pass
     LLAMACPP_VERSION = "b9871"
@@ -146,9 +146,9 @@ if STABLE_BUILD:
     SQLITEVECTOR_VERSION = "1.0.0"
 else:
     # experimental bleeding-edge builds ` = ""` means get latest
-    LLAMACPP_VERSION = "b9871"
+    LLAMACPP_VERSION = "b9979"
     WHISPERCPP_VERSION = "v1.9.1"
-    SDCPP_VERSION = "master-748-68f3d6d"
+    SDCPP_VERSION = "master-775-b5d8120"
     SQLITEVECTOR_VERSION = "1.0.0"
 if PLATFORM == "Darwin":
     MACOSX_DEPLOYMENT_TARGET = setenv("MACOSX_DEPLOYMENT_TARGET", "12.6")

@@ -254,13 +254,17 @@ def create_context_params(args: argparse.Namespace) -> "SDContextParams":
         }
         params.lora_apply_mode = mode_map.get(args.lora_apply_mode, LoraApplyMode.AUTO)
 
-    # Chroma options
+    # Chroma options -- upstream folded the dedicated struct fields into the
+    # model_args key=value string, so assemble them here.
+    model_args = []
     if hasattr(args, "chroma_disable_dit_mask") and args.chroma_disable_dit_mask:
-        params.chroma_use_dit_mask = False
+        model_args.append("chroma_use_dit_mask=0")
     if hasattr(args, "chroma_enable_t5_mask") and args.chroma_enable_t5_mask:
-        params.chroma_use_t5_mask = True
+        model_args.append("chroma_use_t5_mask=1")
     if hasattr(args, "chroma_t5_mask_pad") and args.chroma_t5_mask_pad:
-        params.chroma_t5_mask_pad = args.chroma_t5_mask_pad
+        model_args.append(f"chroma_t5_mask_pad={args.chroma_t5_mask_pad}")
+    if model_args:
+        params.model_args = ",".join(model_args)
 
     # TAESD options
     if hasattr(args, "taesd_preview_only") and args.taesd_preview_only:

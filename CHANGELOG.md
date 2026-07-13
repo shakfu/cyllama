@@ -17,6 +17,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+## [0.3.5]
+
+### Fixed
+
+- **Segfault in `MtmdContext.tokenize()` after the b9979 update** -- llama.cpp b9979 added a `size_t text_len` field to the `mtmd_input_text` struct and the tokenizer now consumes it (`input_text.assign(text->text, text->text_len)` in `mtmd.cpp`). The Cython binding declared the struct without `text_len` and never set it, so the stack-allocated struct carried an uninitialized length, causing an out-of-bounds read and a segfault (reproduced by `tests/test_mtmd.py::test_tokenize_image`). Fixed by adding `size_t text_len` to the `mtmd_input_text` declaration in `src/cyllama/llama/mtmd.pxd` and setting `input_text.text_len` to the encoded byte length in `src/cyllama/llama/mtmd.pxi`.
+
+### Added
+
+- **`SDContextParams.model_args` and `.auto_fit`** -- bind the two new `sd_ctx_params_t` fields (stable-diffusion.cpp master-775). `model_args` is an `Optional[str]` comma-separated key=value list (e.g. `"chroma_use_dit_mask=0,chroma_t5_mask_pad=10,qwen_image_zero_cond_t=1"`) consumed by the diffusion-model loader; `auto_fit` is a bool. Declared in `stable_diffusion.pxd`, implemented in `stable_diffusion.pyx`, covered by `tests/test_sd.py`.
+
+- **`SDImageGenParams.circular_x` / `.circular_y`** -- bind the `circular_x` / `circular_y` fields that upstream moved from the context params onto the per-generation image params (tileable generation). Bool properties; declared in `stable_diffusion.pxd`, implemented in `stable_diffusion.pyx`, covered by `tests/test_sd.py`. (The identically-named fields were also added to `sd_vid_gen_params_t` and are mirrored in the `.pxd`.)
+
+- **`SampleMethod.DPMPP2M_SDE` / `.DPMPP2M_SDE_BT`** -- new members mirroring the `DPMPP2M_SDE_SAMPLE_METHOD` / `DPMPP2M_SDE_BT_SAMPLE_METHOD` enum values added to stable-diffusion.cpp master-775. Added to the C enum declaration in `stable_diffusion.pxd` and the Python `SampleMethod` `IntEnum`.
+
+- **`SDContext.load_control_net()` / `.unload_control_net()` / `.has_control_net`** -- bind the ControlNet hot-swap APIs added in stable-diffusion.cpp master-775 (`sd_ctx_load_control_net` / `sd_ctx_unload_control_net` / `sd_ctx_has_control_net`). `load_control_net(path)` swaps a ControlNet into an existing context (raises `FileNotFoundError` for a missing path, returns `True` on success); `unload_control_net()` removes it; `has_control_net` reports whether one is loaded. These are not safe to call while a generation is in flight. Declared in `stable_diffusion.pxd`, implemented in `stable_diffusion.pyx`, covered by `tests/test_sd.py`.
+
+### Changed
+
+- **llama.cpp updated to b9979 (from b9871)** -- the header changes were additive. New enumerators were mirrored to keep the Cython bindings in sync with the upstream headers: `GGML_TYPE_Q2_0` (42, bumping `GGML_TYPE_COUNT` to 43) and `GGML_OP_LIGHTNING_INDEXER` in `src/cyllama/llama/ggml.pxd`, and `LLAMA_FTYPE_MOSTLY_Q2_0` (41) in `src/cyllama/llama/llama.pxd`. The `LlamaModelQuantizeParams` default-sentinel assertions in `tests/test_params.py` were updated to the new `GGML_TYPE_COUNT` value (43). The `mtmd_input_text` `text_len` field is also part of this bump (see Fixed).
+
+- **stable-diffusion.cpp updated to master-775-b5d8120 (from master-748-68f3d6d)** -- the `convert_with_components()` export gained a trailing `int n_threads` parameter; `convert_model_with_components()` now takes an `n_threads` kwarg (default `-1` = auto, resolved via `sd_get_num_physical_cores()`) and passes it through. New ControlNet hot-swap APIs and `circular_x` / `circular_y` (moved to the gen params) are now bound (see Added).
+
+### Removed
+
+- **`SDContextParams.chroma_use_dit_mask` / `.chroma_use_t5_mask` / `.chroma_t5_mask_pad` / `.qwen_image_zero_cond_t` and `.circular_x` / `.circular_y`** -- stable-diffusion.cpp master-775 removed the dedicated `sd_ctx_params_t` struct fields, folding the chroma/qwen tuning knobs into the new `model_args` key=value string and moving circular padding to the gen params (see Added). Set these through `SDContextParams.model_args` (e.g. `"chroma_use_dit_mask=0"`) and `SDImageGenParams.circular_x/.circular_y` instead. The `sd` CLI is unchanged: its `--chroma-disable-dit-mask` / `--chroma-enable-t5-mask` / `--chroma-t5-mask-pad` flags are now assembled into `model_args` internally.
+
 ## [0.3.4]
 
 ### Added

@@ -54,6 +54,8 @@ enum sample_method_t {
     EULER_CFG_PP_SAMPLE_METHOD,
     EULER_A_CFG_PP_SAMPLE_METHOD,
     EULER_GE_SAMPLE_METHOD,
+    DPMPP2M_SDE_SAMPLE_METHOD,
+    DPMPP2M_SDE_BT_SAMPLE_METHOD,
     SAMPLE_METHOD_COUNT
 };
 
@@ -214,13 +216,7 @@ typedef struct {
     bool tae_preview_only;
     bool diffusion_conv_direct;
     bool vae_conv_direct;
-    bool circular_x;
-    bool circular_y;
     bool force_sdxl_vae_conv_scale;
-    bool chroma_use_dit_mask;
-    bool chroma_use_t5_mask;
-    int chroma_t5_mask_pad;
-    bool qwen_image_zero_cond_t;
     enum sd_vae_format_t vae_format;
     const char* max_vram;  // GiB budget or backend assignment spec for graph-cut segmented param offload (0 = disabled, -1 = auto)
     bool stream_layers;  // Enable residency+prefetch streaming on top of --max-vram (no effect without --max-vram)
@@ -228,7 +224,9 @@ typedef struct {
     const char* backend;
     const char* params_backend;
     const char* split_mode;  // weight distribution for multi-device modules: layer (default) or row, or per-module assignments e.g. "diffusion=row"
+    bool auto_fit;
     const char* rpc_servers;
+    const char* model_args;
 } sd_ctx_params_t;
 
 typedef struct {
@@ -382,6 +380,8 @@ typedef struct {
     sd_cache_params_t cache;
     sd_hires_params_t hires;
     int qwen_image_layers;
+    bool circular_x;
+    bool circular_y;
 } sd_img_gen_params_t;
 
 typedef struct {
@@ -407,6 +407,8 @@ typedef struct {
     sd_tiling_params_t vae_tiling_params;
     sd_cache_params_t cache;
     sd_hires_params_t hires;
+    bool circular_x;
+    bool circular_y;
 } sd_vid_gen_params_t;
 
 typedef struct sd_ctx_t sd_ctx_t;
@@ -425,6 +427,11 @@ SD_API int32_t sd_get_num_physical_cores();
 SD_API const char* sd_get_system_info();
 SD_API bool sd_ctx_supports_image_generation(const sd_ctx_t* sd_ctx);
 SD_API bool sd_ctx_supports_video_generation(const sd_ctx_t* sd_ctx);
+
+// ControlNet hot-swap APIs are not safe to call while generation is in flight.
+SD_API bool sd_ctx_load_control_net(sd_ctx_t* sd_ctx, const char* path);
+SD_API bool sd_ctx_unload_control_net(sd_ctx_t* sd_ctx);
+SD_API bool sd_ctx_has_control_net(const sd_ctx_t* sd_ctx);
 
 SD_API const char* sd_type_name(enum sd_type_t type);
 SD_API enum sd_type_t str_to_sd_type(const char* str);
@@ -518,7 +525,8 @@ SD_API bool convert_with_components(const char* model_path,
                                     const char* output_path,
                                     enum sd_type_t output_type,
                                     const char* tensor_type_rules,
-                                    bool convert_name);
+                                    bool convert_name,
+                                    int n_threads);
 
 SD_API bool preprocess_canny(sd_image_t image,
                              float high_threshold,

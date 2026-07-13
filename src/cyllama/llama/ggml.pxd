@@ -87,7 +87,8 @@ cdef extern from "ggml.h":
         GGML_TYPE_MXFP4 = 39 # MXFP4 (1 block)
         GGML_TYPE_NVFP4 = 40 # NVFP4 (4 blocks, E4M3 scale)
         GGML_TYPE_Q1_0 = 41
-        GGML_TYPE_COUNT = 42
+        GGML_TYPE_Q2_0 = 42
+        GGML_TYPE_COUNT = 43
 
 
     cdef enum ggml_prec:
@@ -186,6 +187,7 @@ cdef extern from "ggml.h":
         GGML_OP_RWKV_WKV7
         GGML_OP_SOLVE_TRI
         GGML_OP_GATED_DELTA_NET
+        GGML_OP_LIGHTNING_INDEXER
 
         GGML_OP_UNARY
 

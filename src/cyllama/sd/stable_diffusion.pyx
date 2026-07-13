@@ -79,6 +79,8 @@ class SampleMethod(IntEnum):
     EULER_CFG_PP = EULER_CFG_PP_SAMPLE_METHOD
     EULER_A_CFG_PP = EULER_A_CFG_PP_SAMPLE_METHOD
     EULER_GE = EULER_GE_SAMPLE_METHOD
+    DPMPP2M_SDE = DPMPP2M_SDE_SAMPLE_METHOD
+    DPMPP2M_SDE_BT = DPMPP2M_SDE_BT_SAMPLE_METHOD
     COUNT = SAMPLE_METHOD_COUNT
 
 
@@ -918,6 +920,7 @@ cdef class SDContextParams:
     cdef bytes _max_vram_bytes
     cdef bytes _rpc_servers_bytes
     cdef bytes _split_mode_bytes
+    cdef bytes _model_args_bytes
 
     def __cinit__(self):
         sd_ctx_params_init(&self._params)
@@ -1302,24 +1305,6 @@ cdef class SDContextParams:
         self._params.vae_conv_direct = value
 
     @property
-    def circular_x(self) -> bool:
-        """Enable circular padding in X dimension (tileable generation)."""
-        return self._params.circular_x
-
-    @circular_x.setter
-    def circular_x(self, value: bool):
-        self._params.circular_x = value
-
-    @property
-    def circular_y(self) -> bool:
-        """Enable circular padding in Y dimension (tileable generation)."""
-        return self._params.circular_y
-
-    @circular_y.setter
-    def circular_y(self, value: bool):
-        self._params.circular_y = value
-
-    @property
     def force_sdxl_vae_conv_scale(self) -> bool:
         """Force conv scale on SDXL VAE."""
         return self._params.force_sdxl_vae_conv_scale
@@ -1329,40 +1314,31 @@ cdef class SDContextParams:
         self._params.force_sdxl_vae_conv_scale = value
 
     @property
-    def chroma_use_dit_mask(self) -> bool:
-        """Use DiT mask for Chroma models."""
-        return self._params.chroma_use_dit_mask
+    def auto_fit(self) -> bool:
+        """Automatically fit the model into the available memory budget."""
+        return self._params.auto_fit
 
-    @chroma_use_dit_mask.setter
-    def chroma_use_dit_mask(self, value: bool):
-        self._params.chroma_use_dit_mask = value
-
-    @property
-    def chroma_use_t5_mask(self) -> bool:
-        """Use T5 mask for Chroma models."""
-        return self._params.chroma_use_t5_mask
-
-    @chroma_use_t5_mask.setter
-    def chroma_use_t5_mask(self, value: bool):
-        self._params.chroma_use_t5_mask = value
+    @auto_fit.setter
+    def auto_fit(self, value: bool):
+        self._params.auto_fit = value
 
     @property
-    def chroma_t5_mask_pad(self) -> int:
-        """T5 mask pad size for Chroma."""
-        return self._params.chroma_t5_mask_pad
+    def model_args(self) -> Optional[str]:
+        """Extra model args as a comma-separated key=value list (e.g.
+        "chroma_use_dit_mask=0,chroma_t5_mask_pad=10,qwen_image_zero_cond_t=1").
+        Consumed by the diffusion-model loader; keys accepted depend on the
+        architecture (Chroma/Flux, Qwen-Image). None when unset."""
+        if self._params.model_args:
+            return self._params.model_args.decode('utf-8')
+        return None
 
-    @chroma_t5_mask_pad.setter
-    def chroma_t5_mask_pad(self, value: int):
-        self._params.chroma_t5_mask_pad = value
-
-    @property
-    def qwen_image_zero_cond_t(self) -> bool:
-        """Use zero conditioning for Qwen image models."""
-        return self._params.qwen_image_zero_cond_t
-
-    @qwen_image_zero_cond_t.setter
-    def qwen_image_zero_cond_t(self, value: bool):
-        self._params.qwen_image_zero_cond_t = value
+    @model_args.setter
+    def model_args(self, value: Optional[str]):
+        if value:
+            self._model_args_bytes = value.encode('utf-8')
+            self._params.model_args = self._model_args_bytes
+        else:
+            self._params.model_args = NULL
 
     @property
     def max_vram(self) -> Optional[str]:
@@ -1864,6 +1840,24 @@ cdef class SDImageGenParams:
     @qwen_image_layers.setter
     def qwen_image_layers(self, value: int):
         self._params.qwen_image_layers = value
+
+    @property
+    def circular_x(self) -> bool:
+        """Enable circular padding in X dimension (tileable generation)."""
+        return self._params.circular_x
+
+    @circular_x.setter
+    def circular_x(self, value: bool):
+        self._params.circular_x = value
+
+    @property
+    def circular_y(self) -> bool:
+        """Enable circular padding in Y dimension (tileable generation)."""
+        return self._params.circular_y
+
+    @circular_y.setter
+    def circular_y(self, value: bool):
+        self._params.circular_y = value
 
     @property
     def sample_params(self) -> SDSampleParams:
@@ -2646,6 +2640,43 @@ cdef class SDContext:
             raise RuntimeError("Context not initialized")
         return sd_ctx_supports_video_generation(self._ctx)
 
+    @property
+    def has_control_net(self) -> bool:
+        """Whether a ControlNet is currently loaded into this context.
+
+        Mirrors upstream ``sd_ctx_has_control_net``.
+        """
+        if self._ctx == NULL:
+            raise RuntimeError("Context not initialized")
+        return sd_ctx_has_control_net(self._ctx)
+
+    def load_control_net(self, path: str) -> bool:
+        """Hot-swap a ControlNet into this context from ``path``.
+
+        Mirrors upstream ``sd_ctx_load_control_net``. Returns True on success.
+        Not safe to call while a generation is in flight.
+
+        Raises:
+            FileNotFoundError: If ``path`` does not exist.
+            RuntimeError: If the context is not initialized.
+        """
+        if self._ctx == NULL:
+            raise RuntimeError("Context not initialized")
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"control net not found: {path}")
+        cdef bytes path_bytes = path.encode('utf-8')
+        return sd_ctx_load_control_net(self._ctx, path_bytes)
+
+    def unload_control_net(self) -> bool:
+        """Unload the currently loaded ControlNet from this context.
+
+        Mirrors upstream ``sd_ctx_unload_control_net``. Returns True on success.
+        Not safe to call while a generation is in flight.
+        """
+        if self._ctx == NULL:
+            raise RuntimeError("Context not initialized")
+        return sd_ctx_unload_control_net(self._ctx)
+
     def cancel(self, mode: CancelMode = CancelMode.ALL) -> None:
         """Request cancellation of an in-flight generation.
 
@@ -3266,7 +3297,8 @@ def convert_model_with_components(
     diffusion_model_path: Optional[str] = None,
     vae_path: Optional[str] = None,
     tensor_type_rules: Optional[str] = None,
-    convert_name: bool = False
+    convert_name: bool = False,
+    n_threads: int = -1
 ) -> bool:
     """
     Convert a model to a different format/quantization from separate component
@@ -3286,6 +3318,7 @@ def convert_model_with_components(
         vae_path: Path to VAE model (optional)
         tensor_type_rules: Custom tensor type rules (optional)
         convert_name: Convert tensor names (optional)
+        n_threads: Number of threads for conversion (-1 for auto)
 
     Returns:
         True if conversion successful
@@ -3351,6 +3384,9 @@ def convert_model_with_components(
         rules_bytes = tensor_type_rules.encode('utf-8')
         rules_ptr = rules_bytes
 
+    if n_threads < 0:
+        n_threads = sd_get_num_physical_cores()
+
     cdef bint success = convert_with_components(
         model_ptr,
         clip_l_ptr,
@@ -3361,7 +3397,8 @@ def convert_model_with_components(
         output_bytes,
         <sd_type_t>output_type,
         rules_ptr,
-        convert_name
+        convert_name,
+        n_threads
     )
 
     if not success:
