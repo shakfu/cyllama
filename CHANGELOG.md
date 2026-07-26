@@ -17,6 +17,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+### Added
+
+- **`LlamaModelParams.load_mode` / `.load_mode_name` and the `LLAMA_LOAD_MODE_*` constants** -- bind the `load_mode` field that llama.cpp b10107 added to `llama_model_params`, replacing the three removed booleans. `cyllama.llama.llama_cpp` exports `LLAMA_LOAD_MODE_NONE` (0), `LLAMA_LOAD_MODE_MMAP` (1, the default), `LLAMA_LOAD_MODE_MLOCK` (2) and `LLAMA_LOAD_MODE_DIRECT_IO` (3); `load_mode_name` returns the upstream string for the current value (`llama_load_mode_name()`). Declared in `src/cyllama/llama/llama.pxd` (with `llama_load_mode_from_str()`), implemented in `llama_cpp.pyx`, covered by `tests/test_params.py`.
+
+- **`SDImageGenParams.ref_image_args`** -- binds the `sd_img_gen_params_t.ref_image_args` string that stable-diffusion.cpp master-795 introduced in place of the two reference-image booleans. Comma-separated `key=value` list understood by the backend: `preset`, `pass_to_vlm`, `pass_to_dit`, `ref_index_mode` (`fixed`/`increase`/`decrease`), `force_ref_timestep_zero`, `resize_before_vae`, `vae_input_max_pixels`, `vlm_resize_mode`, `vlm_max_size`, `vlm_min_size`, `vlm_size`.
+
+- **`SDContextParams.ip_adapter_path` / `.motion_module_path` and `SDImageGenParams.set_ip_adapter_image()` / `.ip_adapter_strength`** -- bind the IP-Adapter and motion-module fields added to `sd_ctx_params_t` and `sd_img_gen_params_t` in stable-diffusion.cpp master-795. The two context paths are validated like the other optional sub-model paths when a context is created.
+
+- **`VaeFormat.WAN`** -- new `sd_vae_format_t` enumerator (value 3, shifting `SD_VAE_FORMAT_COUNT` to 4).
+
+### Changed
+
+- **llama.cpp updated to b10107 (from b9979)** -- `llama_model_params` dropped `use_mmap`, `use_direct_io` and `use_mlock` in favour of the single `load_mode` enum (see Added and Removed). New enumerators were mirrored to keep the bindings in sync with the upstream headers: `GGML_OP_DSV4_HC_COMB` / `_PRE` / `_POST` in `src/cyllama/llama/ggml.pxd` (bumping `GGML_OP_COUNT` to 101), along with `ggml_cpu_has_sme2()` and `gguf_get_tensor_ne()`.
+
+- **stable-diffusion.cpp updated to master-795-87a0177 (from master-775-b5d8120)** -- `sd_img_gen_params_t` replaced `auto_resize_ref_image` / `increase_ref_index` with the `ref_image_args` string and gained IP-Adapter fields; `sd_ctx_params_t` gained `ip_adapter_path` / `motion_module_path` (see Added). The after-detailer API (`new_adetailer_ctx()`, `free_adetailer_ctx()`, `adetail_image()`) is declared in `stable_diffusion.pxd` but not yet wrapped.
+
+### Removed
+
+- **`LlamaModelParams.use_mmap` / `.use_mlock` / `.use_direct_io`** -- llama.cpp b10107 removed the three `llama_model_params` booleans, which were mutually exclusive in practice, in favour of the `load_mode` enum (see Added). Three booleans cannot faithfully represent four exclusive states, so the properties were dropped rather than shimmed. Set `params.load_mode = LLAMA_LOAD_MODE_NONE / _MMAP / _MLOCK / _DIRECT_IO` instead. The `llama` CLI is unchanged: its `--no-mmap` / `--mlock` flags now map to `load_mode` internally (`--mlock` wins over `--no-mmap`, since mlock implies mmap).
+
+- **`SDImageGenParams.auto_resize_ref_image` / `.increase_ref_index`** -- stable-diffusion.cpp master-795 removed the two `sd_img_gen_params_t` booleans, folding reference-image behaviour into the `ref_image_args` key=value string (see Added). Set `params.ref_image_args = "resize_before_vae=0"` and `"ref_index_mode=increase"` instead -- the same mapping the upstream CLI performs.
+
 ## [0.3.5]
 
 ### Fixed

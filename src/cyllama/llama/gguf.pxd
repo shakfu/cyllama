@@ -100,6 +100,8 @@ cdef extern from "gguf.h":
     cdef int64_t gguf_find_tensor(const gguf_context * ctx, const char * name)
     cdef size_t gguf_get_tensor_offset(const gguf_context * ctx, int64_t tensor_id)
     cdef const char * gguf_get_tensor_name(const gguf_context * ctx, int64_t tensor_id)
+    # returns ne, an array of GGML_MAX_DIMS elements; ne[dim] is 1 for dim >= n_dims
+    cdef const int64_t * gguf_get_tensor_ne(const gguf_context * ctx, int64_t tensor_id)
     cdef ggml.ggml_type gguf_get_tensor_type(const gguf_context * ctx, int64_t tensor_id)
     cdef size_t gguf_get_tensor_size(const gguf_context * ctx, int64_t tensor_id)
 

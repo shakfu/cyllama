@@ -23,7 +23,7 @@ def test_model_load_with_progress_callback(model_path):
 
     cy.llama_backend_init()
     params = cy.LlamaModelParams()
-    params.use_mmap = False
+    params.load_mode = cy.LLAMA_LOAD_MODE_NONE  # no mmap: slower load, more progress ticks
     params.progress_callback = on_progress
     model = cy.LlamaModel(model_path, params)
     assert model
@@ -39,7 +39,7 @@ def test_model_load_cancel(model_path):
 
     cy.llama_backend_init()
     params = cy.LlamaModelParams()
-    params.use_mmap = False
+    params.load_mode = cy.LLAMA_LOAD_MODE_NONE  # no mmap: slower load, more progress ticks
     params.progress_callback = abort_at_50_percent
 
     # Loading should fail because we abort after 50%

@@ -72,6 +72,12 @@ cpdef enum:
     GGML_ROPE_TYPE_MROPE = 8
     GGML_ROPE_TYPE_VISION = 24
 
+cpdef enum:
+    LLAMA_LOAD_MODE_NONE = 0      # no special loading mode
+    LLAMA_LOAD_MODE_MMAP = 1      # memory map the model
+    LLAMA_LOAD_MODE_MLOCK = 2     # mmap + force system to keep model in RAM
+    LLAMA_LOAD_MODE_DIRECT_IO = 3 # use direct I/O if available
+
 
 # callbacks
 # -----------------------------------------------------------------------------
@@ -903,6 +909,20 @@ cdef class LlamaModelParams:
         self.p.split_mode = value
 
     @property
+    def load_mode(self) -> llama.llama_load_mode:
+        """How to load the model (none / mmap / mlock / direct-io)."""
+        return self.p.load_mode
+
+    @load_mode.setter
+    def load_mode(self, llama.llama_load_mode value):
+        self.p.load_mode = value
+
+    @property
+    def load_mode_name(self) -> str:
+        """Name of the current load mode."""
+        return llama.llama_load_mode_name(self.p.load_mode).decode()
+
+    @property
     def main_gpu(self) -> int:
         """The GPU that is used for the entire model when split_mode is LLAMA_SPLIT_MODE_NONE"""
         return self.p.main_gpu
@@ -1017,33 +1037,6 @@ cdef class LlamaModelParams:
     @vocab_only.setter
     def vocab_only(self, value: bool):
         self.p.vocab_only = value
-
-    @property
-    def use_mmap(self) -> bool:
-        """Use mmap if possible"""
-        return self.p.use_mmap
-
-    @use_mmap.setter
-    def use_mmap(self, value: bool):
-        self.p.use_mmap = value
-
-    @property
-    def use_direct_io(self) -> bool:
-        """Use direct I/O, takes precedence over use_mmap"""
-        return self.p.use_direct_io
-
-    @use_direct_io.setter
-    def use_direct_io(self, value: bool):
-        self.p.use_direct_io = value
-
-    @property
-    def use_mlock(self) -> bool:
-        """Force system to keep model in RAM"""
-        return self.p.use_mlock
-
-    @use_mlock.setter
-    def use_mlock(self, value: bool):
-        self.p.use_mlock = value
 
     @property
     def check_tensors(self) -> bool:

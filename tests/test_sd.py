@@ -81,6 +81,7 @@ class TestEnums:
         assert VaeFormat.FLUX.value == 0
         assert VaeFormat.SD3.value == 1
         assert VaeFormat.FLUX2.value == 2
+        assert VaeFormat.WAN.value == 3
 
     def test_scheduler_logit_normal(self):
         # Added upstream in master-731.
@@ -928,6 +929,18 @@ class TestSDContextParamsExtended:
         params.control_net_path = "/path/to/controlnet.gguf"
         assert params.control_net_path == "/path/to/controlnet.gguf"
 
+    def test_ip_adapter_path(self):
+        params = SDContextParams()
+        assert params.ip_adapter_path is None
+        params.ip_adapter_path = "/path/to/ip-adapter.safetensors"
+        assert params.ip_adapter_path == "/path/to/ip-adapter.safetensors"
+
+    def test_motion_module_path(self):
+        params = SDContextParams()
+        assert params.motion_module_path is None
+        params.motion_module_path = "/path/to/motion-module.safetensors"
+        assert params.motion_module_path == "/path/to/motion-module.safetensors"
+
     def test_photo_maker_path(self):
         params = SDContextParams()
         params.photo_maker_path = "/path/to/photomaker.bin"
@@ -1122,6 +1135,14 @@ class TestSDImageGenParamsExtended:
         # set_control_image also stores the strength, which is readable.
         assert abs(params.control_strength - 0.8) < 1e-6
 
+    def test_set_ip_adapter_image(self):
+        """Test setting the IP-Adapter reference image."""
+        params = SDImageGenParams()
+        arr = np.zeros((64, 64, 3), dtype=np.uint8)
+        img = SDImage.from_numpy(arr)
+        params.set_ip_adapter_image(img, strength=0.5)
+        assert abs(params.ip_adapter_strength - 0.5) < 1e-6
+
     def test_sample_params(self):
         """Test accessing sample_params."""
         params = SDImageGenParams()
@@ -1168,10 +1189,30 @@ class TestSDImageGenParamsExtended:
         assert abs(start - 0.1) < 0.001
         assert abs(end - 0.9) < 0.001
 
-    def test_auto_resize_ref_image(self):
+    def test_ref_image_args(self):
         params = SDImageGenParams()
-        params.auto_resize_ref_image = True
-        assert params.auto_resize_ref_image is True
+        assert params.ref_image_args == ""
+        params.ref_image_args = "resize_before_vae=0,ref_index_mode=increase"
+        assert params.ref_image_args == "resize_before_vae=0,ref_index_mode=increase"
+        # Re-setting replaces rather than appends, and the kept-alive bytes
+        # buffer must follow the new value.
+        params.ref_image_args = "preset=default,vlm_size=512"
+        assert params.ref_image_args == "preset=default,vlm_size=512"
+        params.ref_image_args = ""
+        assert params.ref_image_args == ""
+
+    def test_removed_ref_image_flags(self):
+        """The pre-master-795 booleans are gone; use ref_image_args instead."""
+        params = SDImageGenParams()
+        for attr in ("auto_resize_ref_image", "increase_ref_index"):
+            assert not hasattr(params, attr)
+            with pytest.raises(AttributeError):
+                setattr(params, attr, True)
+
+    def test_ip_adapter_strength(self):
+        params = SDImageGenParams()
+        params.ip_adapter_strength = 0.6
+        assert abs(params.ip_adapter_strength - 0.6) < 0.001
 
     def test_hires_defaults(self):
         params = SDImageGenParams()

@@ -356,8 +356,14 @@ class LlamaCLI:
         # Model parameters
         model_params = cy.LlamaModelParams()
         model_params.n_gpu_layers = args.n_gpu_layers
-        model_params.use_mmap = not args.no_mmap
-        model_params.use_mlock = args.mlock
+        # llama.cpp collapsed the mmap/mlock/direct-io booleans into a single
+        # load_mode enum; --mlock implies mmap so it wins over --no-mmap.
+        if args.mlock:
+            model_params.load_mode = cy.LLAMA_LOAD_MODE_MLOCK
+        elif args.no_mmap:
+            model_params.load_mode = cy.LLAMA_LOAD_MODE_NONE
+        else:
+            model_params.load_mode = cy.LLAMA_LOAD_MODE_MMAP
 
         # Load model
         print("load the model and apply lora adapter, if any")

@@ -133,6 +133,7 @@ cdef extern from "stable-diffusion.h":
         SD_VAE_FORMAT_FLUX
         SD_VAE_FORMAT_SD3
         SD_VAE_FORMAT_FLUX2
+        SD_VAE_FORMAT_WAN
         SD_VAE_FORMAT_COUNT
 
     # =========================================================================
@@ -174,6 +175,8 @@ cdef extern from "stable-diffusion.h":
         const char* audio_vae_path
         const char* taesd_path
         const char* control_net_path
+        const char* ip_adapter_path
+        const char* motion_module_path
         const sd_embedding_t* embeddings
         uint32_t embedding_count
         const char* photo_maker_path
@@ -319,8 +322,7 @@ cdef extern from "stable-diffusion.h":
         sd_image_t init_image
         sd_image_t* ref_images
         int ref_images_count
-        bint auto_resize_ref_image
-        bint increase_ref_index
+        const char* ref_image_args
         sd_image_t mask_image
         int width
         int height
@@ -330,6 +332,8 @@ cdef extern from "stable-diffusion.h":
         int batch_count
         sd_image_t control_image
         float control_strength
+        sd_image_t ip_adapter_image
+        float ip_adapter_strength
         sd_pm_params_t pm_params
         sd_pulid_params_t pulid_params
         sd_tiling_params_t vae_tiling_params
@@ -480,6 +484,31 @@ cdef extern from "stable-diffusion.h":
     void free_upscaler_ctx(upscaler_ctx_t* upscaler_ctx)
     bint upscale(upscaler_ctx_t* upscaler_ctx, sd_image_t input_image, uint32_t upscale_factor, sd_image_t** images_out, int* num_images_out) nogil
     int get_upscale_factor(upscaler_ctx_t* upscaler_ctx)
+
+    # =========================================================================
+    # Functions - After-detailer (adetailer)
+    # =========================================================================
+
+    ctypedef struct adetailer_ctx_t:
+        pass
+
+    ctypedef struct sd_adetailer_params_t:
+        const char* prompt
+        const char* negative_prompt
+        const char* extra_ad_args
+
+    adetailer_ctx_t* new_adetailer_ctx(const char* detector_path,
+                                       int n_threads,
+                                       const char* backend,
+                                       const char* params_backend)
+    void free_adetailer_ctx(adetailer_ctx_t* adetailer_ctx)
+    bint adetail_image(adetailer_ctx_t* adetailer_ctx,
+                       sd_ctx_t* sd_ctx,
+                       sd_image_t input_image,
+                       const sd_adetailer_params_t* adetailer_params,
+                       const sd_img_gen_params_t* inpaint_params,
+                       sd_image_t** images_out,
+                       int* num_images_out) nogil
 
     # =========================================================================
     # Functions - Model conversion

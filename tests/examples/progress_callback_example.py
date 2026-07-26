@@ -66,7 +66,7 @@ def progress_bar_example(model_path: str):
 
     params = cy.LlamaModelParams()
     params.progress_callback = on_progress
-    params.use_mmap = False  # Disable mmap to slow loading and show progress
+    params.load_mode = cy.LLAMA_LOAD_MODE_NONE  # Disable mmap to slow loading and show progress
 
     print(f"Loading: {Path(model_path).name}", flush=True)
     model = cy.LlamaModel(model_path, params)
@@ -119,7 +119,7 @@ def timeout_loading_example(model_path: str, timeout_seconds: float = 2.0):
         return True
 
     params = cy.LlamaModelParams()
-    params.use_mmap = False  # disable mmap to make loading slower for demo
+    params.load_mode = cy.LLAMA_LOAD_MODE_NONE  # disable mmap to make loading slower for demo
     params.progress_callback = on_progress
 
     print(f"Loading model with {timeout_seconds}s timeout...")
@@ -157,7 +157,7 @@ def cancellable_loading_example(model_path: str):
             cancelled = True
 
     params = cy.LlamaModelParams()
-    params.use_mmap = False  # disable mmap to make loading slower
+    params.load_mode = cy.LLAMA_LOAD_MODE_NONE  # disable mmap to make loading slower
     params.progress_callback = on_progress
 
     # Start a thread that will cancel loading after 0.5 seconds

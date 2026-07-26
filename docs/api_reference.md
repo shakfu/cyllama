@@ -935,12 +935,16 @@ Low-level Cython wrappers for direct llama.cpp access.
 Represents a loaded GGUF model.
 
 ```python
-from cyllama.llama.llama_cpp import LlamaModel, LlamaModelParams
+from cyllama.llama.llama_cpp import (
+    LLAMA_LOAD_MODE_MMAP,
+    LlamaModel,
+    LlamaModelParams,
+)
 
 params = LlamaModelParams()
 params.n_gpu_layers = -1
-params.use_mmap = True
-params.use_mlock = False
+# load_mode: LLAMA_LOAD_MODE_NONE / _MMAP (default) / _MLOCK / _DIRECT_IO
+params.load_mode = LLAMA_LOAD_MODE_MMAP
 
 model = LlamaModel("models/llama.gguf", params)
 

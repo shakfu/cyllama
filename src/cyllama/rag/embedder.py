@@ -11,6 +11,7 @@ from typing import Any, Iterator, NamedTuple
 from .types import EmbedderProtocol
 
 from ..llama.llama_cpp import (
+    LLAMA_LOAD_MODE_MMAP,
     LlamaBatch,
     LlamaContext,
     LlamaContextParams,
@@ -194,7 +195,7 @@ class Embedder(EmbedderProtocol):
         # Load model
         model_params = LlamaModelParams()
         model_params.n_gpu_layers = n_gpu_layers
-        model_params.use_mmap = True
+        model_params.load_mode = LLAMA_LOAD_MODE_MMAP
         self._model = LlamaModel(model_path, model_params)
 
         # Create context with embedding settings

@@ -177,6 +177,7 @@ class VaeFormat(IntEnum):
     FLUX = SD_VAE_FORMAT_FLUX
     SD3 = SD_VAE_FORMAT_SD3
     FLUX2 = SD_VAE_FORMAT_FLUX2
+    WAN = SD_VAE_FORMAT_WAN
 
 
 class HiresUpscaler(IntEnum):
@@ -914,6 +915,8 @@ cdef class SDContextParams:
     cdef bytes _vae_path_bytes
     cdef bytes _taesd_path_bytes
     cdef bytes _control_net_path_bytes
+    cdef bytes _ip_adapter_path_bytes
+    cdef bytes _motion_module_path_bytes
     cdef bytes _photo_maker_path_bytes
     cdef bytes _pulid_weights_path_bytes
     cdef bytes _tensor_type_rules_bytes
@@ -1217,6 +1220,36 @@ cdef class SDContextParams:
             self._params.control_net_path = self._control_net_path_bytes
         else:
             self._params.control_net_path = NULL
+
+    @property
+    def ip_adapter_path(self) -> Optional[str]:
+        """Path to IP-Adapter model."""
+        if self._params.ip_adapter_path:
+            return self._params.ip_adapter_path.decode('utf-8')
+        return None
+
+    @ip_adapter_path.setter
+    def ip_adapter_path(self, value: Optional[str]):
+        if value:
+            self._ip_adapter_path_bytes = value.encode('utf-8')
+            self._params.ip_adapter_path = self._ip_adapter_path_bytes
+        else:
+            self._params.ip_adapter_path = NULL
+
+    @property
+    def motion_module_path(self) -> Optional[str]:
+        """Path to motion module model."""
+        if self._params.motion_module_path:
+            return self._params.motion_module_path.decode('utf-8')
+        return None
+
+    @motion_module_path.setter
+    def motion_module_path(self, value: Optional[str]):
+        if value:
+            self._motion_module_path_bytes = value.encode('utf-8')
+            self._params.motion_module_path = self._motion_module_path_bytes
+        else:
+            self._params.motion_module_path = NULL
 
     @property
     def photo_maker_path(self) -> Optional[str]:
@@ -1679,6 +1712,8 @@ cdef class SDImageGenParams:
     cdef SDImage _init_image
     cdef SDImage _mask_image
     cdef SDImage _control_image
+    cdef SDImage _ip_adapter_image
+    cdef bytes _ref_image_args_bytes
     cdef list _ref_images  # keep SDImage refs alive
     cdef sd_image_t* _ref_images_buf
     cdef list _lora_paths_bytes  # keep bytes refs alive for lora paths
@@ -1697,6 +1732,7 @@ cdef class SDImageGenParams:
         self._pm_id_images_buf = NULL
         self._pm_id_embed_path_bytes = None
         self._pulid_id_embedding_path_bytes = None
+        self._ref_image_args_bytes = None
         self._scm_mask_bytes = None
         self._hires_model_path_bytes = None
 
@@ -1894,6 +1930,21 @@ cdef class SDImageGenParams:
     def control_strength(self, value: float):
         self._params.control_strength = value
 
+    def set_ip_adapter_image(self, image: SDImage, strength: float = 1.0):
+        """Set the reference image for the IP-Adapter."""
+        self._ip_adapter_image = image
+        self._params.ip_adapter_image = image._image
+        self._params.ip_adapter_strength = strength
+
+    @property
+    def ip_adapter_strength(self) -> float:
+        """IP-Adapter strength (0.0-1.0+)."""
+        return self._params.ip_adapter_strength
+
+    @ip_adapter_strength.setter
+    def ip_adapter_strength(self, value: float):
+        self._params.ip_adapter_strength = value
+
     # --- VAE Tiling parameters ---
 
     @property
@@ -1989,22 +2040,23 @@ cdef class SDImageGenParams:
     # --- Reference image params ---
 
     @property
-    def auto_resize_ref_image(self) -> bool:
-        """Auto resize reference images."""
-        return self._params.auto_resize_ref_image
+    def ref_image_args(self) -> str:
+        """Reference image options as a comma-separated 'key=value' string.
 
-    @auto_resize_ref_image.setter
-    def auto_resize_ref_image(self, value: bool):
-        self._params.auto_resize_ref_image = value
+        Recognized keys include 'preset', 'pass_to_vlm', 'pass_to_dit',
+        'ref_index_mode' (fixed|increase|decrease), 'force_ref_timestep_zero',
+        'resize_before_vae', 'vae_input_max_pixels', 'vlm_resize_mode'
+        (longest_side|area|none), 'vlm_max_size', 'vlm_min_size' and 'vlm_size'.
+        Unknown keys are ignored by the backend with a warning.
+        """
+        if self._params.ref_image_args:
+            return self._params.ref_image_args.decode('utf-8')
+        return ""
 
-    @property
-    def increase_ref_index(self) -> bool:
-        """Increase reference index per batch."""
-        return self._params.increase_ref_index
-
-    @increase_ref_index.setter
-    def increase_ref_index(self, value: bool):
-        self._params.increase_ref_index = value
+    @ref_image_args.setter
+    def ref_image_args(self, value: str):
+        self._ref_image_args_bytes = (value or "").encode('utf-8')
+        self._params.ref_image_args = self._ref_image_args_bytes
 
     # --- LoRA parameters ---
 
@@ -2587,6 +2639,8 @@ cdef class SDContext:
             ("clip_g_path", "CLIP-G"),
             ("t5xxl_path", "T5-XXL"),
             ("control_net_path", "ControlNet"),
+            ("ip_adapter_path", "IP-Adapter"),
+            ("motion_module_path", "motion module"),
             ("taesd_path", "TAESD"),
             ("photo_maker_path", "PhotoMaker"),
             ("pulid_weights_path", "PuLID"),

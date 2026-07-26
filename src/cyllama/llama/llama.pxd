@@ -155,6 +155,15 @@ cdef extern from "llama.h":
         LLAMA_SPLIT_MODE_ROW    = 2 # split layers and KV across GPUs, use tensor parallelism if supported
         LLAMA_SPLIT_MODE_TENSOR = 3
 
+    cdef enum llama_load_mode:
+        LLAMA_LOAD_MODE_NONE      = 0 # no special loading mode
+        LLAMA_LOAD_MODE_MMAP      = 1 # memory map the model
+        LLAMA_LOAD_MODE_MLOCK     = 2 # mmap + force system to keep model in RAM rather than swapping or compressing
+        LLAMA_LOAD_MODE_DIRECT_IO = 3 # use direct I/O if available
+
+    const char * llama_load_mode_name(llama_load_mode load_mode)
+    llama_load_mode llama_load_mode_from_str(const char * str)
+
     cdef enum llama_context_type:
         LLAMA_CONTEXT_TYPE_DEFAULT = 0
         LLAMA_CONTEXT_TYPE_MTP     = 1
@@ -237,7 +246,8 @@ cdef extern from "llama.h":
         const llama_model_tensor_buft_override * tensor_buft_overrides;
         int32_t n_gpu_layers           # number of layers to store in VRAM
         llama_split_mode split_mode    # how to split the model across multiple GPUs
-        int32_t main_gpu               # the GPU that is used for the entire model when split_mode is LLAMA_SPLIT_MODE_NONE
+        llama_load_mode load_mode      # how to load the model
+        int32_t main_gpu             # the GPU that is used for the entire model when split_mode is LLAMA_SPLIT_MODE_NONE
         const float * tensor_split     # proportion of the model (layers or rows) to offload to each GPU, size: llama_max_devices()
         # Called with a progress value between 0.0 and 1.0. Pass NULL to disable.
         # If the provided progress_callback returns true, model loading continues.
@@ -247,9 +257,6 @@ cdef extern from "llama.h":
         const llama_model_kv_override * kv_overrides
         # Keep the booleans together to avoid misalignment during copy-by-value.
         bint vocab_only       # only load the vocabulary, no weights
-        bint use_mmap         # use mmap if possible
-        bint use_direct_io    # use direct io, takes precedence over use_mmap when supported
-        bint use_mlock        # force system to keep model in RAM
         bint check_tensors    # validate model tensor data
         bint use_extra_bufts  # use extra buffer types (used for weight repacking)
         bint no_host          # bypass host buffer allowing extra buffers to be used
