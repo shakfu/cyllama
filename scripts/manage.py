@@ -1073,6 +1073,53 @@ class GgmlBuilder(Builder):
             options["GGML_OPENMP"] = "ON" if openmp == "1" else "OFF"
             self.log.info(f"  GGML_OPENMP={options['GGML_OPENMP']}")
 
+    def _apply_source_patches(self) -> None:
+        """Apply local fixes to the vendored source before building.
+
+        Two sets of ``scripts/patches/*.patch`` files are applied (with ``-p1``,
+        a/ b/ prefixes) to the cloned source tree: ``ggml-*.patch``, which fix
+        the ggml copy that every ggml-backed project vendors, and
+        ``<project>-*.patch`` (e.g. ``llama.cpp-*.patch``), which are specific
+        to one upstream. The tree is wiped and re-fetched by ``make
+        reset``/``remake`` -- so these must run on every build. Each patch is
+        applied idempotently and is self-disabling: if it is already applied,
+        or no longer applies (e.g. upstream merged an equivalent fix or
+        refactored the context), it is skipped as a no-op. The ``.patch`` files
+        are the single source of truth and double as the upstream PR payload;
+        see scripts/patches/README.md for the rationale and upstream refs.
+        """
+        patch_dir = Path(__file__).resolve().parent / "patches"
+        patches = sorted(patch_dir.glob("ggml-*.patch")) + sorted(patch_dir.glob(f"{self.name}-*.patch"))
+        for patch in patches:
+            self._apply_patch(patch)
+
+    def _apply_patch(self, patch: Path) -> None:
+        """Apply a single unified diff to ``self.src_dir`` if it isn't already.
+
+        Uses ``git apply`` (which works with or without a git repo) and its
+        ``--check`` / ``--reverse --check`` dry-runs to decide between apply,
+        already-applied, and no-longer-applies -- without aborting the build in
+        the latter two cases (unlike ``self.cmd``).
+        """
+
+        def _git_apply(*flags: str) -> bool:
+            return (
+                subprocess.run(
+                    ["git", "apply", *flags, str(patch)],
+                    cwd=str(self.src_dir),
+                    capture_output=True,
+                ).returncode
+                == 0
+            )
+
+        if _git_apply("--check"):
+            subprocess.run(["git", "apply", str(patch)], cwd=str(self.src_dir), check=True)
+            self.log.info(f"applied patch: {patch.name}")
+        elif _git_apply("--reverse", "--check"):
+            self.log.debug(f"patch already applied, skipping: {patch.name}")
+        else:
+            self.log.info(f"patch no longer applies, skipping: {patch.name}")
+
 
 class LlamaCppBuilder(GgmlBuilder):
     """build llama.cpp"""
@@ -1163,50 +1210,6 @@ class LlamaCppBuilder(GgmlBuilder):
         self.glob_copy(self.src_dir / "vendor" / "nlohmann", nlohmann_include, patterns=["*.hpp"])
         # mtmd (multimodal) headers.
         self.glob_copy(self.src_dir / "tools" / "mtmd", self.include, patterns=["*.h"])
-
-    def _apply_source_patches(self) -> None:
-        """Apply local fixes to the vendored llama.cpp source before building.
-
-        Every ``scripts/patches/llama.cpp-*.patch`` file is applied (with ``-p1``,
-        a/ b/ prefixes) to the cloned source tree, which is wiped and re-fetched
-        by ``make reset``/``remake`` -- so these must run on every build. Each
-        patch is applied idempotently and is self-disabling: if it is already
-        applied, or no longer applies (e.g. upstream merged an equivalent fix or
-        refactored the context), it is skipped as a no-op. The ``.patch`` files
-        are the single source of truth and double as the upstream PR payload;
-        see scripts/patches/README.md for the rationale and upstream refs.
-        """
-        patch_dir = Path(__file__).resolve().parent / "patches"
-        patches = sorted(patch_dir.glob("llama.cpp-*.patch"))
-        for patch in patches:
-            self._apply_patch(patch)
-
-    def _apply_patch(self, patch: Path) -> None:
-        """Apply a single unified diff to ``self.src_dir`` if it isn't already.
-
-        Uses ``git apply`` (which works with or without a git repo) and its
-        ``--check`` / ``--reverse --check`` dry-runs to decide between apply,
-        already-applied, and no-longer-applies -- without aborting the build in
-        the latter two cases (unlike ``self.cmd``).
-        """
-
-        def _git_apply(*flags: str) -> bool:
-            return (
-                subprocess.run(
-                    ["git", "apply", *flags, str(patch)],
-                    cwd=str(self.src_dir),
-                    capture_output=True,
-                ).returncode
-                == 0
-            )
-
-        if _git_apply("--check"):
-            subprocess.run(["git", "apply", str(patch)], cwd=str(self.src_dir), check=True)
-            self.log.info(f"applied patch: {patch.name}")
-        elif _git_apply("--reverse", "--check"):
-            self.log.debug(f"patch already applied, skipping: {patch.name}")
-        else:
-            self.log.info(f"patch no longer applies, skipping: {patch.name}")
 
     def build(self, shared: bool = False) -> None:
         """main build function"""
@@ -1739,6 +1742,7 @@ class WhisperCppBuilder(GgmlBuilder):
         self.prefix.mkdir(exist_ok=True)
         self.include.mkdir(exist_ok=True)
         self.glob_copy(self.src_dir / "examples", self.include, patterns=["*.h", "*.hpp"])
+        self._apply_source_patches()
 
         # Get backend options
         backend_options = self.get_backend_cmake_options()
@@ -1766,21 +1770,27 @@ class StableDiffusionCppBuilder(GgmlBuilder):
     name: str = "stable-diffusion.cpp"
     version: str = SDCPP_VERSION
     repo_url: str = "https://github.com/leejet/stable-diffusion.cpp.git"
-    # SD installs only its own lib; ggml comes from llama.cpp when
-    # SD_USE_VENDORED_GGML=0, otherwise from SD's vendored copy.
+    # SD installs only its own lib; ggml comes from llama.cpp by default,
+    # or from SD's vendored copy when SD_USE_VENDORED_GGML is set to 1.
     base_libs: list[str] = ["stable-diffusion"]
     extra_libs: list[str] = []
 
     # stable-diffusion.cpp requires GGML_MAX_NAME=128 (see its CMakeLists.txt:233
     # and ggml_extend.hpp:94). llama.cpp defaults to 64. When SD shares
-    # llama.cpp's ggml dylibs (SD_USE_VENDORED_GGML=0), both sides must agree on
-    # this value or the ggml_tensor struct layout diverges and tensor copies crash.
+    # llama.cpp's ggml (the default), both sides must agree on this value or the
+    # ggml_tensor struct layout diverges and tensor copies crash.
     GGML_MAX_NAME: int = 128
 
     @staticmethod
     def uses_shared_ggml() -> bool:
-        """Return True when SD is configured to share llama.cpp's ggml."""
-        return os.environ.get("SD_USE_VENDORED_GGML") == "0"
+        """Return True when SD is configured to share llama.cpp's ggml.
+
+        Sharing is the default. Mirrors the resolution order in CMakeLists.txt:
+        ``SD_USE_VENDORED_GGML`` defaults to OFF, and the env var overrides it
+        only when set -- ``0`` keeps sharing, any other value opts back into
+        SD's vendored copy.
+        """
+        return os.environ.get("SD_USE_VENDORED_GGML", "0") == "0"
 
     def get_backend_cmake_options(self) -> dict[str, Any]:
         """CMake options for stable-diffusion.cpp (SD_* flag names, no BLAS)."""
@@ -1839,12 +1849,16 @@ class StableDiffusionCppBuilder(GgmlBuilder):
         self.log.info(f"building {self.name}")
 
         # Sync ggml ABI from llama.cpp before compiling so that enum
-        # values (ggml_op, ggml_type) match the dylibs we link against.
-        # Only needed when SD links against llama.cpp's shared ggml
-        # (--sd-shared-ggml). By default SD uses its own vendored ggml
-        # statically, so syncing would overwrite the vendored source.
-        if os.environ.get("SD_USE_VENDORED_GGML") == "0":
+        # values (ggml_op, ggml_type) match the libs we link against. This is
+        # the default path; only --sd-vendored-ggml skips it, in which case SD
+        # compiles and links its own vendored copy and syncing would overwrite
+        # that source.
+        if self.uses_shared_ggml():
             self._sync_ggml_abi()
+
+        # after _sync_ggml_abi(), so the ggml patches land on whichever ggml
+        # copy is actually compiled (SD's vendored one or llama.cpp's)
+        self._apply_source_patches()
 
         self.prefix.mkdir(exist_ok=True)
         self.include.mkdir(exist_ok=True)
@@ -2676,7 +2690,12 @@ class Application(ShellCmd, metaclass=MetaCommander):
     )
     @option(
         "--sd-shared-ggml",
-        help="link stable-diffusion against llama.cpp's shared ggml instead of its own vendored copy",
+        help="link stable-diffusion against llama.cpp's ggml (default; kept for explicitness)",
+        action="store_true",
+    )
+    @option(
+        "--sd-vendored-ggml",
+        help="link stable-diffusion against its own vendored ggml instead of llama.cpp's",
         action="store_true",
     )
     @option(
@@ -2729,7 +2748,9 @@ class Application(ShellCmd, metaclass=MetaCommander):
         if args.cpu_all_variants:
             os.environ["GGML_CPU_ALL_VARIANTS"] = "1"
 
-        if args.sd_shared_ggml:
+        if args.sd_vendored_ggml:
+            os.environ["SD_USE_VENDORED_GGML"] = "1"
+        elif args.sd_shared_ggml:
             os.environ["SD_USE_VENDORED_GGML"] = "0"
 
         # Map builder classes to their version arguments
@@ -2773,9 +2794,9 @@ class Application(ShellCmd, metaclass=MetaCommander):
                 if asset is None or StableDiffusionCppBuilder.uses_shared_ggml():
                     if asset is not None:
                         self.log.info(
-                            "SD_USE_VENDORED_GGML=0: building llama.cpp from "
-                            "source to propagate GGML_MAX_NAME=128 (skipping "
-                            "upstream pre-built release)"
+                            "SD shares llama.cpp's ggml: building llama.cpp "
+                            "from source to propagate GGML_MAX_NAME=128 "
+                            "(skipping upstream pre-built release)"
                         )
                     else:
                         self.log.warning(
@@ -2839,7 +2860,7 @@ class Application(ShellCmd, metaclass=MetaCommander):
         # shares the same version as llama.cpp's.
         if not llama_ggml_version:
             llama_ggml_version = ggml_versions.get(WhisperCppBuilder)
-        sd_uses_vendored_ggml = os.environ.get("SD_USE_VENDORED_GGML") == "1"
+        sd_uses_vendored_ggml = not StableDiffusionCppBuilder.uses_shared_ggml()
 
         for BuilderClass, version in builder_versions.items():
             name = BuilderClass.name.replace(".", "_").replace("-", "_")

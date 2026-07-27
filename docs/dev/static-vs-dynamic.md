@@ -565,7 +565,7 @@ WITH_DYLIB=1 LLAMACPP_DYLIB_DIR=/path/to/llama-b8522 make build
 
 - `LLAMACPP_DYLIB_DIR=/path/to/release` -- directory containing pre-built shared libraries
 
-- `SD_USE_VENDORED_GGML=ON` (default) -- link stable-diffusion against its own vendored ggml; set to `OFF` to share llama.cpp's ggml (not recommended for GPU backends)
+- `SD_USE_VENDORED_GGML=OFF` (default) -- stable-diffusion shares llama.cpp's ggml; set to `ON` to link SD's own vendored copy instead
 
 **How it works**:
 
@@ -577,7 +577,7 @@ WITH_DYLIB=1 LLAMACPP_DYLIB_DIR=/path/to/llama-b8522 make build
 
 - Shared libraries copied alongside extension modules (`cyllama/llama/`) so `@loader_path`/`$ORIGIN` RPATH resolves correctly
 
-- Whisper and Stable Diffusion remain statically linked (no pre-built releases available). Stable Diffusion uses its own vendored ggml by default; set `SD_USE_VENDORED_GGML=0` to share llama.cpp's ggml (not recommended for GPU backends due to ggml version incompatibilities)
+- Whisper and Stable Diffusion remain statically linked (no pre-built releases available). Stable Diffusion shares llama.cpp's ggml by default, with `_sync_ggml_abi()` overlaying llama.cpp's ggml source onto SD before compilation so both sides agree on enum ordinals and `GGML_MAX_NAME`; set `SD_USE_VENDORED_GGML=1` to link SD's own vendored copy instead
 
 **Validated results** (macOS arm64, b8522 release):
 
@@ -627,7 +627,7 @@ Analysis of the `dev` branch changes since v0.1.21 (`main`), covering 11 commits
 
 **4. Dynamic linking is new and lightly validated** The changelog says "120+ tests verified" for dynamic mode, but the test matrix for dynamic linking across platforms (Linux, macOS) and backends (CUDA, Vulkan) is likely thin. A regression in dynamic mode could be hard to catch without CI coverage.
 
-**5. `SD_USE_VENDORED_GGML` adds configuration complexity** A build option with interactions across static/dynamic modes, multiple backends, and two different ggml versions. Now defaults to ON (vendored) after CUDA image generation crashes were traced to ggml version incompatibilities between llama.cpp and stable-diffusion.cpp. The shared-ggml path (`SD_USE_VENDORED_GGML=0`) remains available but is not recommended for GPU backends.
+**5. `SD_USE_VENDORED_GGML` adds configuration complexity** A build option with interactions across static/dynamic modes, multiple backends, and two different ggml versions. It briefly defaulted to ON (vendored) after CUDA image generation crashes were traced to ggml version incompatibilities between llama.cpp and stable-diffusion.cpp; `_sync_ggml_abi()` and the `GGML_MAX_NAME=128` propagation addressed the root cause, and the default is now OFF (shared). `SD_USE_VENDORED_GGML=1` still pins SD to its own copy.
 
 ### Recommendation
 

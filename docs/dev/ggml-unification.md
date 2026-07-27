@@ -252,7 +252,7 @@ All four auditwheel repair blocks (CUDA, ROCm, SYCL, Vulkan) now exclude bundled
 
 ## Follow-up work (out of scope for the first landing)
 
-- **Flip the CMake default** (Option 4b). After a release cycle of real-world coverage, change `SD_USE_VENDORED_GGML` default to `OFF`.
+- ~~**Flip the CMake default** (Option 4b). After a release cycle of real-world coverage, change `SD_USE_VENDORED_GGML` default to `OFF`.~~ Done: the CMake option and `StableDiffusionCppBuilder.uses_shared_ggml()` both default to sharing llama.cpp's ggml. `SD_USE_VENDORED_GGML=1` (or `--sd-vendored-ggml`) opts back out.
 
 - **Extend unification to Metal / HIP / SYCL / OpenCL** wheels. Same mechanism applies; each backend needs its own validation on matching hardware. Vulkan landed in 0.2.10 (`docs/dev/ggml_max_name.md`).
 

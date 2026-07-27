@@ -63,7 +63,7 @@ These are deliberately excluded as they serve niche hardware. If demand arises, 
 | `LLAMA_BUILD_EXAMPLES` | `False` | `False` (inherited) | ON | No need for example binaries. |
 | `GGML_OPENMP` | ON (disable with `--no-openmp` or `GGML_OPENMP=0`) | Not set (ON) | ON | Forwarded to all three builders. `CMakeLists.txt` does `find_package(OpenMP)` on Linux. |
 | `GGML_BACKEND_DL` | Not set (OFF) | Not set (OFF) | OFF | Dynamic backend loading at runtime. Not used. |
-| `SD_USE_VENDORED_GGML` | `0` (dynamic targets) | `0` (dynamic) / `1` (static) | ON | When `0`, SD shares llama.cpp's ggml dylibs instead of statically embedding them. Requires `GGML_MAX_NAME=128` propagation; see `docs/dev/ggml-unification.md`. |
+| `SD_USE_VENDORED_GGML` | `0` | `0` | OFF | When `0` (the default), SD shares llama.cpp's ggml instead of statically embedding its own. Requires `GGML_MAX_NAME=128` propagation; see `docs/dev/ggml-unification.md`. Set to `1` to opt back into SD's vendored copy. |
 
 ### CUDA-Specific Options
 

@@ -45,7 +45,24 @@ import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
+def _find_root() -> Path:
+    """Locate the project root: the cwd for subprocesses and the parent of
+    ``models/`` and ``.venv/``.
+
+    This file is checked in as ``<repo>/scripts/run_wheel_test.py`` but is also
+    meant to be copied out standalone (as ``./run.py``) into a bare
+    uv-managed wheel-test directory. Walking up to the nearest project marker
+    handles both layouts; using ``__file__``'s own directory would resolve to
+    ``<repo>/scripts`` in-repo and download models to ``scripts/models``.
+    """
+    here = Path(__file__).resolve().parent
+    for candidate in (here, *here.parents):
+        if (candidate / "pyproject.toml").exists() or (candidate / ".git").exists():
+            return candidate
+    return here
+
+
+ROOT = _find_root()
 MODELS_DIR = Path(os.environ.get("CYLLAMA_MODELS_DIR", ROOT / "models"))
 
 # Resolve `uv` once. Everything this script shells out to Python for is
