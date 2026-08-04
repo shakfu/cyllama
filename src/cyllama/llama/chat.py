@@ -112,7 +112,7 @@ class Chat:
         sampler_params = LlamaSamplerChainParams()
         self.sampler = LlamaSampler(sampler_params)
         if repeat_penalty != 1.0:
-            self.sampler.add_penalties(64, repeat_penalty, 0.0, 0.0)
+            self.sampler.add_penalties(self.vocab.n_vocab, 64, repeat_penalty, 0.0, 0.0)
         self.sampler.add_top_k(top_k)
         self.sampler.add_top_p(top_p, 1)
         self.sampler.add_min_p(min_p, 1)

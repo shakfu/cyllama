@@ -1,10 +1,13 @@
 name: check-vendor
 
-# Vendor-drift guard: verifies thirdparty/llama.cpp/include/ matches the
-# llama.cpp version pinned in scripts/manage.py. Catches:
+# Vendor-drift guard: verifies thirdparty/{llama.cpp,whisper.cpp,
+# stable-diffusion.cpp}/include/ match the versions pinned in
+# scripts/manage.py. Catches:
 #   - accidental local edits to vendored headers
 #   - upstream files added under non-exact pins
 #   - desynchronization between the pinned version and the committed tree
+#   - a stale build/ checkout whose older headers were installed over the
+#     committed tree and then committed (see AbstractBuilder.ensure_source)
 #
 # Pattern borrowed from llama.cpp's own check-vendor.yml.
 
@@ -17,12 +20,16 @@ on:
     paths:
       - 'scripts/manage.py'
       - 'thirdparty/llama.cpp/include/**'
+      - 'thirdparty/whisper.cpp/include/**'
+      - 'thirdparty/stable-diffusion.cpp/include/**'
       - '.github/workflows/check-vendor.yml'
   push:
     branches: [main, dev]
     paths:
       - 'scripts/manage.py'
       - 'thirdparty/llama.cpp/include/**'
+      - 'thirdparty/whisper.cpp/include/**'
+      - 'thirdparty/stable-diffusion.cpp/include/**'
       - '.github/workflows/check-vendor.yml'
 
 concurrency:
@@ -31,7 +38,7 @@ concurrency:
 
 jobs:
   check:
-    name: Verify vendored llama.cpp headers
+    name: Verify vendored llama.cpp / whisper.cpp / stable-diffusion.cpp headers
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -43,11 +50,14 @@ jobs:
       - name: Re-vendor and diff against committed tree
         run: python scripts/manage.py check_vendor
 
-      - name: Fail on untracked files under thirdparty/llama.cpp/include/
+      - name: Fail on untracked files under thirdparty/*/include/
         run: |
-          untracked=$(git status --porcelain thirdparty/llama.cpp/include/ | grep '^??' || true)
+          untracked=$(git status --porcelain \
+            thirdparty/llama.cpp/include/ \
+            thirdparty/whisper.cpp/include/ \
+            thirdparty/stable-diffusion.cpp/include/ | grep '^??' || true)
           if [ -n "$untracked" ]; then
-            echo "::error::Untracked files under thirdparty/llama.cpp/include/:"
+            echo "::error::Untracked files under thirdparty/*/include/:"
             echo "$untracked"
             exit 1
           fi

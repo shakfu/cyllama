@@ -156,10 +156,11 @@ cdef extern from "llama.h":
         LLAMA_SPLIT_MODE_TENSOR = 3
 
     cdef enum llama_load_mode:
-        LLAMA_LOAD_MODE_NONE      = 0 # no special loading mode
-        LLAMA_LOAD_MODE_MMAP      = 1 # memory map the model
-        LLAMA_LOAD_MODE_MLOCK     = 2 # mmap + force system to keep model in RAM rather than swapping or compressing
-        LLAMA_LOAD_MODE_DIRECT_IO = 3 # use direct I/O if available
+        LLAMA_LOAD_MODE_NONE       = 0 # no special loading mode
+        LLAMA_LOAD_MODE_MMAP       = 1 # memory map the model
+        LLAMA_LOAD_MODE_MLOCK      = 2 # force system to keep model in RAM rather than swapping or compressing
+        LLAMA_LOAD_MODE_MMAP_MLOCK = 3 # mmap + force system to keep model in RAM rather than swapping or compressing
+        LLAMA_LOAD_MODE_DIRECT_IO  = 4 # use direct I/O if available
 
     const char * llama_load_mode_name(llama_load_mode load_mode)
     llama_load_mode llama_load_mode_from_str(const char * str)
@@ -907,6 +908,9 @@ cdef extern from "llama.h":
     cdef bint llama_vocab_get_add_eos(const llama_vocab * vocab)
     cdef bint llama_vocab_get_add_sep(const llama_vocab * vocab)
 
+    # model-specific suppress tokens (gguf key: tokenizer.ggml.suppress_tokens)
+    cdef const llama_token * llama_vocab_get_suppress_tokens(const llama_vocab * vocab, int32_t * n_suppress_tokens)
+
     cdef llama_token llama_vocab_fim_pre(const llama_vocab * vocab)
     cdef llama_token llama_vocab_fim_suf(const llama_vocab * vocab)
     cdef llama_token llama_vocab_fim_mid(const llama_vocab * vocab)
@@ -1154,10 +1158,11 @@ cdef extern from "llama.h":
 
     # NOTE: Avoid using on the full vocabulary as searching for repeated tokens can become slow. For example, apply top-k or top-p sampling first.
     cdef llama_sampler * llama_sampler_init_penalties(
+                             int32_t   n_vocab,
                              int32_t   penalty_last_n,   # last n tokens to penalize (0 = disable penalty, -1 = context size)
-                               float   penalty_repeat,   # 1.0 = disabled
-                               float   penalty_freq,     # 0.0 = disabled
-                               float   penalty_present)  # 0.0 = disabled
+                               float   penalty_repeat,   # must be > 0.0, 1.0 = disabled
+                               float   penalty_freq,     # must be finite, 0.0 = disabled
+                               float   penalty_present)  # must be finite, 0.0 = disabled
 
     # @details DRY sampler, designed by p-e-w, as described in: https://github.com/oobabooga/text-generation-webui/pull/5677, porting Koboldcpp implementation authored by pi6am: https://github.com/LostRuins/koboldcpp/pull/982
     cdef llama_sampler * llama_sampler_init_dry(

@@ -32,12 +32,14 @@ def test_model_params_load_mode():
     assert cy.LLAMA_LOAD_MODE_NONE == 0
     assert cy.LLAMA_LOAD_MODE_MMAP == 1
     assert cy.LLAMA_LOAD_MODE_MLOCK == 2
-    assert cy.LLAMA_LOAD_MODE_DIRECT_IO == 3
+    assert cy.LLAMA_LOAD_MODE_MMAP_MLOCK == 3
+    assert cy.LLAMA_LOAD_MODE_DIRECT_IO == 4
 
     for mode, name in [
         (cy.LLAMA_LOAD_MODE_NONE, "none"),
         (cy.LLAMA_LOAD_MODE_MMAP, "mmap"),
         (cy.LLAMA_LOAD_MODE_MLOCK, "mlock"),
+        (cy.LLAMA_LOAD_MODE_MMAP_MLOCK, "mmap+mlock"),
         (cy.LLAMA_LOAD_MODE_DIRECT_IO, "dio"),
     ]:
         params.load_mode = mode

@@ -45,6 +45,7 @@ import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
+
 def _find_root() -> Path:
     """Locate the project root: the cwd for subprocesses and the parent of
     ``models/`` and ``.venv/``.

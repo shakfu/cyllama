@@ -140,15 +140,15 @@ PY_VER_MINOR = sys.version_info.minor
 STABLE_BUILD = getenv("STABLE_BUILD", True)
 if STABLE_BUILD:
     # known to build and work without errors, 100% tests pass
-    LLAMACPP_VERSION = "b10107"
-    WHISPERCPP_VERSION = "v1.9.1"
-    SDCPP_VERSION = "master-795-87a0177"
+    LLAMACPP_VERSION = "b10271"
+    WHISPERCPP_VERSION = "v1.9.2"
+    SDCPP_VERSION = "master-812-ea7f0c8"
     SQLITEVECTOR_VERSION = "1.0.0"
 else:
     # experimental bleeding-edge builds ` = ""` means get latest
-    LLAMACPP_VERSION = "b10107"
-    WHISPERCPP_VERSION = "v1.9.1"
-    SDCPP_VERSION = "master-795-87a0177"
+    LLAMACPP_VERSION = "b10271"
+    WHISPERCPP_VERSION = "v1.9.2"
+    SDCPP_VERSION = "master-812-ea7f0c8"
     SQLITEVECTOR_VERSION = "1.0.0"
 if PLATFORM == "Darwin":
     MACOSX_DEPLOYMENT_TARGET = setenv("MACOSX_DEPLOYMENT_TARGET", "12.6")
@@ -918,6 +918,76 @@ class AbstractBuilder(ShellCmd):
         """Dynamic lib paths that are absent from `self.dynamic_lib`."""
         return [p for p in self.dynamic_libs if not p.exists()]
 
+    @property
+    def version_stamp(self) -> Path:
+        """Path of the file recording which pinned version `src_dir` holds."""
+        return self.src_dir / ".cyllama-version"
+
+    def checked_out_version(self) -> Optional[str]:
+        """Return the pinned version the existing `src_dir` was fetched at.
+
+        Prefers the stamp written by `ensure_source`, which is exact and works
+        for any provenance. Falls back to `git describe --tags` for checkouts
+        made before stamping existed -- for every project pinned here that
+        returns the pin string verbatim (`b10107`, `v1.9.1`,
+        `master-795-87a0177`, `1.0.0`). Returns None when neither is available,
+        which `ensure_source` treats as unknown-and-therefore-stale.
+        """
+        if self.version_stamp.exists():
+            return self.version_stamp.read_text().strip() or None
+        if not (self.src_dir / ".git").exists():
+            return None
+        try:
+            return self.get("git describe --tags", cwd=self.src_dir).strip() or None
+        except Exception:
+            return None
+
+    def ensure_source(self) -> None:
+        """Guarantee `src_dir` holds the *pinned* source, re-fetching if not.
+
+        Build entry points used to do `if not self.src_dir.exists(): setup()`,
+        which reuses whatever revision a previous build left behind. When a
+        version pin moves, that stale tree is not just built -- `_copy_headers`
+        installs its older headers over the git-tracked `thirdparty/*/include/`
+        trees, silently reverting them and breaking compilation of bindings
+        written against the new pin. The failure surfaces far from its cause
+        (a link error, or `no member named ...` deep in generated C++), and the
+        build still exits 0.
+
+        Comparing the checked-out version against the pin makes that
+        impossible: a mismatch removes the tree and re-clones at the pin.
+        """
+        if not self.src_dir.exists():
+            self.setup()
+            self._write_version_stamp()
+            return
+
+        if not self.version:
+            return  # unpinned ("track latest"); nothing to compare against
+
+        current = self.checked_out_version()
+        if current == self.version:
+            return
+
+        self.log.warning(
+            "%s source in %s is at %s but the pin is %s -- re-cloning "
+            "(a stale checkout would install its older headers over "
+            "thirdparty/%s/include/)",
+            self.name,
+            self.src_dir,
+            current or "an unknown revision",
+            self.version,
+            self.name,
+        )
+        self.remove(self.src_dir)
+        self.setup()
+        self._write_version_stamp()
+
+    def _write_version_stamp(self) -> None:
+        """Record the pin `src_dir` was fetched at, for `checked_out_version`."""
+        if self.version and self.src_dir.exists():
+            self.version_stamp.write_text(f"{self.version}\n")
+
     def pre_process(self) -> None:
         """override by subclass if needed"""
 
@@ -1213,8 +1283,7 @@ class LlamaCppBuilder(GgmlBuilder):
 
     def build(self, shared: bool = False) -> None:
         """main build function"""
-        if not self.src_dir.exists():
-            self.setup()
+        self.ensure_source()
         self.log.info(f"building {self.name}")
         self.prefix.mkdir(exist_ok=True)
         self.include.mkdir(exist_ok=True)
@@ -1279,8 +1348,7 @@ class LlamaCppBuilder(GgmlBuilder):
         """
         # Run the cmake configure + build steps (headers + cmake config + cmake build)
         # but skip the copy_lib steps which look for .a files.
-        if not self.src_dir.exists():
-            self.setup()
+        self.ensure_source()
         self.log.info(f"building {self.name} (shared)")
         self.prefix.mkdir(exist_ok=True)
         self.include.mkdir(exist_ok=True)
@@ -1507,8 +1575,7 @@ class LlamaCppBuilder(GgmlBuilder):
         # Ensure headers exist (source checkout + header copy)
         if not self.include.exists() or not any(self.include.iterdir()):
             self.log.info("Headers not found, running source setup for headers...")
-            if not self.src_dir.exists():
-                self.setup()
+            self.ensure_source()
             # Copy headers only (same as build() header section)
             self.prefix.mkdir(exist_ok=True)
             self.include.mkdir(exist_ok=True)
@@ -1736,8 +1803,7 @@ class WhisperCppBuilder(GgmlBuilder):
 
     def build(self, shared: bool = False) -> None:
         """whisper.cpp main build function"""
-        if not self.src_dir.exists():
-            self.setup()
+        self.ensure_source()
         self.log.info(f"building {self.name}")
         self.prefix.mkdir(exist_ok=True)
         self.include.mkdir(exist_ok=True)
@@ -1844,8 +1910,7 @@ class StableDiffusionCppBuilder(GgmlBuilder):
 
     def build(self, shared: bool = False, examples: bool = True) -> None:
         """stable-diffusion.cpp main build function"""
-        if not self.src_dir.exists():
-            self.setup()
+        self.ensure_source()
         self.log.info(f"building {self.name}")
 
         # Sync ggml ABI from llama.cpp before compiling so that enum
@@ -1928,8 +1993,7 @@ class SqliteVectorBuilder(Builder):
 
     def build(self, shared: bool = True) -> None:
         """sqlite-vector main build function using make"""
-        if not self.src_dir.exists():
-            self.setup()
+        self.ensure_source()
         self.log.info(f"building {self.name}")
 
         # Ensure destination directory exists
@@ -3129,12 +3193,67 @@ class Application(ShellCmd, metaclass=MetaCommander):
     # ------------------------------------------------------------------------
     # check_vendor
 
+    # Source subdirectories searched, per project, when verifying that a
+    # committed header still matches upstream. These mirror where each
+    # builder's header-install step takes files from, and were chosen so that
+    # every committed header resolves to exactly one candidate -- a bare
+    # recursive search by filename is ambiguous (whisper.cpp has four
+    # `common.h` files in its tree).
+    _VENDOR_HEADER_ROOTS: dict[str, list[str]] = {
+        "whisper.cpp": ["include", "ggml/include", "examples"],
+        "stable-diffusion.cpp": ["include", "thirdparty", "ggml/include"],
+    }
+
+    def _check_vendor_by_name(
+        self,
+        builder: "AbstractBuilder",
+        clones: dict[str, Path],
+    ) -> list[str]:
+        """Diff each committed header against its counterpart in a clone.
+
+        llama.cpp gets an exact `diff -r` against a replayed header-copy
+        (see `do_check_vendor`), which also catches *extra* committed files.
+        whisper.cpp and stable-diffusion.cpp cannot use that form: part of
+        their committed trees is installed by `cmake --install`, so replaying
+        it would require a full build -- far too slow for a PR check. Every
+        installed header is nonetheless copied verbatim from the source tree,
+        so comparing by filename against a plain checkout is equivalent for
+        content drift, which is the failure mode that matters.
+
+        stable-diffusion.cpp is special-cased: its committed ggml/gguf headers
+        come from llama.cpp, not from sd's own vendored copy, because
+        `_sync_ggml_abi` overwrites them so the two agree on struct layout.
+        They are therefore checked against the llama.cpp clone. This reflects
+        the default build; `SD_USE_VENDORED_GGML=1` is not what ships.
+        """
+        roots = self._VENDOR_HEADER_ROOTS[builder.name]
+        own = clones[builder.name]
+        problems: list[str] = []
+
+        for committed in sorted(builder.include.rglob("*")):
+            if not committed.is_file():
+                continue
+            src = own
+            if builder.name == "stable-diffusion.cpp" and (
+                committed.name.startswith("ggml") or committed.name == "gguf.h"
+            ):
+                src = clones["llama.cpp"]
+            candidates = [c for r in roots if (c := src / r / committed.name).is_file()]
+            if not candidates:
+                problems.append(f"{committed.name}: no counterpart in {src.name} checkout")
+            elif len({c.read_bytes() for c in candidates}) > 1:
+                problems.append(f"{committed.name}: ambiguous, differing candidates in {roots}")
+            elif candidates[0].read_bytes() != committed.read_bytes():
+                problems.append(f"{committed.name}: differs from upstream")
+        return problems
+
     def do_check_vendor(self, args: argparse.Namespace) -> None:
-        """verify thirdparty/llama.cpp/include/ matches pinned llama.cpp version"""
+        """verify thirdparty/*/include/ matches the pinned upstream versions"""
         import subprocess
         import tempfile
 
         builder = LlamaCppBuilder()
+        others = [WhisperCppBuilder(), StableDiffusionCppBuilder()]
 
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
@@ -3180,6 +3299,45 @@ class Application(ShellCmd, metaclass=MetaCommander):
                 print(result.stderr, file=sys.stderr)
                 sys.exit(1)
             print(f"OK: vendored headers match llama.cpp@{builder.version}")
+
+            # whisper.cpp / stable-diffusion.cpp: filename-based comparison
+            # against a plain checkout (see _check_vendor_by_name for why the
+            # llama.cpp form does not transfer).
+            clones = {"llama.cpp": src}
+            failed = False
+            for other in others:
+                dest = tmp_path / other.name
+                subprocess.run(
+                    [
+                        "git",
+                        "clone",
+                        "--depth",
+                        "1",
+                        "--branch",
+                        other.version,
+                        "--recurse-submodules",
+                        "--shallow-submodules",
+                        other.repo_url,
+                        str(dest),
+                    ],
+                    check=True,
+                )
+                clones[other.name] = dest
+
+            for other in others:
+                problems = self._check_vendor_by_name(other, clones)
+                if problems:
+                    failed = True
+                    print(
+                        f"ERROR: thirdparty/{other.name}/include/ differs from pinned {other.name}@{other.version}",
+                        file=sys.stderr,
+                    )
+                    for p in problems:
+                        print(f"  {p}", file=sys.stderr)
+                else:
+                    print(f"OK: vendored headers match {other.name}@{other.version}")
+            if failed:
+                sys.exit(1)
 
     # ------------------------------------------------------------------------
     # test

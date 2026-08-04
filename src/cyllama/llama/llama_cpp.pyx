@@ -73,10 +73,19 @@ cpdef enum:
     GGML_ROPE_TYPE_VISION = 24
 
 cpdef enum:
-    LLAMA_LOAD_MODE_NONE = 0      # no special loading mode
-    LLAMA_LOAD_MODE_MMAP = 1      # memory map the model
-    LLAMA_LOAD_MODE_MLOCK = 2     # mmap + force system to keep model in RAM
-    LLAMA_LOAD_MODE_DIRECT_IO = 3 # use direct I/O if available
+    LLAMA_POOLING_TYPE_UNSPECIFIED = -1 # use the model's own default
+    LLAMA_POOLING_TYPE_NONE = 0
+    LLAMA_POOLING_TYPE_MEAN = 1
+    LLAMA_POOLING_TYPE_CLS = 2
+    LLAMA_POOLING_TYPE_LAST = 3
+    LLAMA_POOLING_TYPE_RANK = 4    # reranking models: attaches the classification head
+
+cpdef enum:
+    LLAMA_LOAD_MODE_NONE = 0       # no special loading mode
+    LLAMA_LOAD_MODE_MMAP = 1       # memory map the model
+    LLAMA_LOAD_MODE_MLOCK = 2      # force system to keep model in RAM
+    LLAMA_LOAD_MODE_MMAP_MLOCK = 3 # mmap + force system to keep model in RAM
+    LLAMA_LOAD_MODE_DIRECT_IO = 4  # use direct I/O if available
 
 
 # callbacks
@@ -1627,6 +1636,21 @@ cdef class LlamaVocab:
         """add separator token"""
         return llama.llama_vocab_get_add_sep(self.ptr)
 
+    def get_suppress_tokens(self) -> list[int]:
+        """Tokens the model declares should never be sampled.
+
+        Read from the ``tokenizer.ggml.suppress_tokens`` gguf key; returns an
+        empty list for models that don't declare any. Feed these to
+        :meth:`LlamaSampler.add_logit_bias` with a large negative bias to
+        honour them.
+        """
+        cdef int32_t n_suppress = 0
+        cdef const llama.llama_token * toks = llama.llama_vocab_get_suppress_tokens(
+            self.ptr, &n_suppress)
+        if toks is NULL or n_suppress <= 0:
+            return []
+        return [toks[i] for i in range(n_suppress)]
+
     # infill tokens
 
     def fim_prefix(self) -> int:
@@ -1970,6 +1994,46 @@ cdef class LlamaModel:
         if self._cache_initialized:
             return self._cached_n_head_kv
         return llama.llama_model_n_head_kv(self.ptr)
+
+    @property
+    def n_embd_out(self) -> int:
+        """Output embedding dimension.
+
+        Differs from :attr:`n_embd` for models whose output projection is
+        not square with the residual stream.
+        """
+        return llama.llama_model_n_embd_out(self.ptr)
+
+    @property
+    def n_swa(self) -> int:
+        """Sliding-window attention span, or 0 when the model uses full attention.
+
+        Models with SWA (Gemma 3, gpt-oss, Ministral, ...) only keep this
+        many positions of KV per SWA layer, so the KV cache is far smaller
+        than ``n_ctx`` would suggest.
+        """
+        return llama.llama_model_n_swa(self.ptr)
+
+    @property
+    def n_cls_out(self) -> int:
+        """Number of classifier outputs.
+
+        Only meaningful for classifier/reranker models; upstream leaves this
+        undefined for generative models, where it reads as 1.
+        """
+        return llama.llama_model_n_cls_out(self.ptr)
+
+    def cls_label(self, uint32_t i) -> Optional[str]:
+        """Label of classifier output ``i``, or ``None`` if the model has no labels.
+
+        Valid for ``i < n_cls_out``.
+        """
+        if i >= llama.llama_model_n_cls_out(self.ptr):
+            raise IndexError(f"classifier output index {i} out of range")
+        cdef const char * label = llama.llama_model_cls_label(self.ptr, i)
+        if label is NULL:
+            return None
+        return label.decode("utf-8")
 
     @property
     def rope_freq_scale_train(self) -> float:
@@ -2949,6 +3013,34 @@ cdef class LlamaContext:
             return -1
         return llama.llama_memory_seq_pos_max(mem, <llama.llama_seq_id>seq_id)
 
+    def memory_seq_div(self, int seq_id, int p0, int p1, int d):
+        """Integer-divide the positions of ``[p0, p1)`` in ``seq_id`` by ``d``.
+
+        The compaction half of context shifting: used to fold a long span
+        down into fewer positions. ``p0 < 0`` means from the start,
+        ``p1 < 0`` means to the end.
+        """
+        if d <= 0:
+            raise ValueError(f"divisor must be > 0, got {d}")
+        cdef llama.llama_memory_t mem = llama.llama_get_memory(self.ptr)
+        if mem is NULL:
+            return
+        llama.llama_memory_seq_div(
+            mem, <llama.llama_seq_id>seq_id, <llama.llama_pos>p0,
+            <llama.llama_pos>p1, d)
+
+    def memory_can_shift(self) -> bool:
+        """Whether this context's memory supports position shifting.
+
+        Check before calling :meth:`memory_seq_add` / :meth:`memory_seq_div`
+        for context-shift style eviction: recurrent and some hybrid models
+        have no shiftable KV cache, and shifting them silently corrupts state.
+        """
+        cdef llama.llama_memory_t mem = llama.llama_get_memory(self.ptr)
+        if mem is NULL:
+            return False
+        return llama.llama_memory_can_shift(mem)
+
     # def n_outputs(self) -> int:
     #     return llama.llama_n_outputs(self.ptr)
 
@@ -2964,7 +3056,8 @@ cdef class LlamaContext:
         underlying buffer (row 0 of the ``[n_outputs, n_vocab]``
         matrix). For multi-output batches use ``get_logits_ith``.
         """
-        cdef int n_vocab = self.model.n_vocab
+        cdef int n_vocab = llama.llama_vocab_n_tokens(
+            llama.llama_model_get_vocab(self.model.ptr))
         cdef float * logits = llama.llama_get_logits(self.ptr)
         if logits is NULL:
             return None
@@ -2981,7 +3074,8 @@ cdef class LlamaContext:
         Negative indicies can be used to access logits in reverse order, -1 is the last logit.
         returns NULL for invalid ids.
         """
-        cdef int n_vocab = self.model.n_vocab
+        cdef int n_vocab = llama.llama_vocab_n_tokens(
+            llama.llama_model_get_vocab(self.model.ptr))
         cdef float * logits = llama.llama_get_logits_ith(self.ptr, i)
         cdef std_vector[float] vec
         if logits is NULL:
@@ -3027,14 +3121,36 @@ cdef class LlamaContext:
             vec.push_back(embds[i])
         return vec
 
-    # def get_embeddings_seq(self, int seq_id):
-    #     """Get the embeddings for a sequence id
+    def get_embeddings_seq(self, int seq_id) -> Optional[list[float]]:
+        """Pooled embeddings for a sequence id.
 
-    #     Returns NULL if pooling_type is LLAMA_POOLING_TYPE_NONE
-    #     when pooling_type == LLAMA_POOLING_TYPE_RANK, returns float[1] with the rank of the sequence
-    #     otherwise: float[n_embd] (1-dimensional)
-    #     """
-    #     cdef float * embds = llama_get_embeddings_seq(self.ptr, seq_id)
+        Requires the context to have been created with ``embeddings = True``
+        and a ``pooling_type`` other than ``LLAMA_POOLING_TYPE_NONE``;
+        otherwise llama.cpp has nothing pooled to hand back and this
+        returns ``None``.
+
+        The result length depends on the pooling mode:
+
+        * ``LLAMA_POOLING_TYPE_RANK`` -- ``n_cls_out`` floats, the
+          classification/reranking score(s) for the sequence. This is the
+          only way to read a reranker model's relevance score.
+        * any other pooling mode -- ``n_embd`` floats.
+        """
+        cdef int n_out
+        cdef float * embds = llama.llama_get_embeddings_seq(self.ptr, seq_id)
+        if embds is NULL:
+            return None
+        # The effective pooling type, not self.params.pooling_type -- the
+        # latter is often LLAMA_POOLING_TYPE_UNSPECIFIED (-1), meaning
+        # "use the model's own default", which is what RANK models rely on.
+        if llama.llama_get_pooling_type(self.ptr) == llama.LLAMA_POOLING_TYPE_RANK:
+            n_out = llama.llama_model_n_cls_out(self.model.ptr)
+        else:
+            n_out = llama.llama_model_n_embd(self.model.ptr)
+        cdef std_vector[float] vec
+        for i in range(n_out):
+            vec.push_back(embds[i])
+        return vec
 
     # Utility functions
     @staticmethod
@@ -3117,6 +3233,60 @@ cdef class LlamaSampler:
     def name(self) -> str:
         """Get sampler name"""
         return llama.llama_sampler_name(self.ptr).decode()
+
+    def __len__(self) -> int:
+        """Number of chain links added so far."""
+        if self.ptr is NULL:
+            return 0
+        return llama.llama_sampler_chain_n(self.ptr)
+
+    def chain_get(self, int i) -> LlamaSampler:
+        """Return chain link ``i`` as a non-owning view.
+
+        The returned sampler is borrowed: it stays owned by this chain and
+        must not outlive it. Useful for reading ``name()`` back to confirm
+        the chain was assembled as intended.
+        """
+        if self.ptr is NULL:
+            raise RuntimeError("Sampler is closed")
+        cdef int n = llama.llama_sampler_chain_n(self.ptr)
+        if i < 0:
+            i += n
+        if not 0 <= i < n:
+            raise IndexError(f"chain index {i} out of range (chain has {n} links)")
+
+        cdef llama.llama_sampler * link = llama.llama_sampler_chain_get(self.ptr, i)
+        if link is NULL:
+            raise RuntimeError(f"Failed to get chain link {i}")
+
+        cdef LlamaSampler view = LlamaSampler.__new__(LlamaSampler)
+        view.ptr = link
+        view.owner = False  # the chain frees it, not us
+        view.params = self.params
+        return view
+
+    def chain_remove(self, int i) -> LlamaSampler:
+        """Detach chain link ``i`` and return it, transferring ownership.
+
+        The chain no longer frees the link; the returned object does.
+        """
+        if self.ptr is NULL:
+            raise RuntimeError("Sampler is closed")
+        cdef int n = llama.llama_sampler_chain_n(self.ptr)
+        if i < 0:
+            i += n
+        if not 0 <= i < n:
+            raise IndexError(f"chain index {i} out of range (chain has {n} links)")
+
+        cdef llama.llama_sampler * link = llama.llama_sampler_chain_remove(self.ptr, i)
+        if link is NULL:
+            raise RuntimeError(f"Failed to remove chain link {i}")
+
+        cdef LlamaSampler detached = LlamaSampler.__new__(LlamaSampler)
+        detached.ptr = link
+        detached.owner = True  # ownership transferred out of the chain
+        detached.params = self.params
+        return detached
 
     def accept(self, llama.llama_token token):
         """Accept llama token"""
@@ -3251,20 +3421,161 @@ cdef class LlamaSampler:
         llama.llama_sampler_chain_add(
             self.ptr, llama.llama_sampler_init_mirostat_v2(seed, tau, eta))
 
+    def add_top_n_sigma(self, float n):
+        """Top-n-sigma sampling (https://arxiv.org/pdf/2411.07641).
+
+        Keeps only tokens whose logit is within ``n`` standard deviations of
+        the maximum logit. Unlike top-k/top-p this threshold adapts to the
+        shape of the distribution, so it stays stable across temperatures.
+
+        Args:
+            n: Number of standard deviations. <= 0.0 disables the sampler.
+        """
+        llama.llama_sampler_chain_add(
+            self.ptr, llama.llama_sampler_init_top_n_sigma(n))
+
+    def add_adaptive_p(self, float target, float decay, uint32_t seed):
+        """Adaptive-p sampling (https://github.com/ggml-org/llama.cpp/pull/17927).
+
+        Tracks the sampled tokens' probabilities over time and steers the
+        truncation threshold towards ``target``, so the effective nucleus
+        widens on uncertain steps and narrows on confident ones.
+
+        Args:
+            target: Target probability to converge on.
+            decay: Smoothing factor for the running estimate; smaller values
+                adapt more slowly.
+            seed: Random seed for sampling.
+        """
+        llama.llama_sampler_chain_add(
+            self.ptr, llama.llama_sampler_init_adaptive_p(target, decay, seed))
+
+    def add_dry(self, LlamaVocab vocab, int32_t n_ctx_train, float dry_multiplier,
+                float dry_base, int32_t dry_allowed_length, int32_t dry_penalty_last_n,
+                seq_breakers: Optional[Sequence[str]] = None):
+        """DRY (Don't Repeat Yourself) repetition sampler.
+
+        Designed by p-e-w; penalises tokens that would extend a sequence
+        already seen in the context, with the penalty growing exponentially
+        in the length of the repeated run. Unlike the penalties sampler it
+        targets repeated *phrases* rather than repeated individual tokens.
+
+        Args:
+            vocab: Model vocabulary.
+            n_ctx_train: Training context size of the model.
+            dry_multiplier: Penalty scale. 0.0 disables the sampler.
+            dry_base: Exponential base for the penalty growth.
+            dry_allowed_length: Repetitions up to this length are not penalised.
+            dry_penalty_last_n: How many recent tokens to scan (0 = disable,
+                -1 = context size).
+            seq_breakers: Strings that reset the repetition tracking, e.g.
+                ``["\\n", ":", "\\"", "*"]``. Defaults to no breakers.
+        """
+        cdef list breakers = [s.encode("utf-8") for s in (seq_breakers or [])]
+        cdef size_t num_breakers = len(breakers)
+        cdef const char ** breaker_array = NULL
+
+        if num_breakers > 0:
+            breaker_array = <const char **>malloc(num_breakers * sizeof(char *))
+            if breaker_array == NULL:
+                raise MemoryError("Failed to allocate DRY sequence breaker array")
+
+        try:
+            # `breakers` holds the bytes objects alive for the duration of the
+            # call; llama.cpp copies them into the sampler's own storage.
+            for i in range(num_breakers):
+                breaker_array[i] = <const char *>(<bytes>breakers[i])
+            llama.llama_sampler_chain_add(
+                self.ptr, llama.llama_sampler_init_dry(
+                    vocab.ptr,
+                    n_ctx_train,
+                    dry_multiplier,
+                    dry_base,
+                    dry_allowed_length,
+                    dry_penalty_last_n,
+                    breaker_array,
+                    num_breakers,
+                ))
+        finally:
+            if breaker_array != NULL:
+                free(breaker_array)
+
     def add_grammar(self, LlamaVocab vocab, str grammar_str, str grammar_root):
         """Add grammer chain link"""
         llama.llama_sampler_chain_add(
             self.ptr, llama.llama_sampler_init_grammar(
                 vocab.ptr, grammar_str.encode(), grammar_root.encode()))
 
+    def add_grammar_lazy_patterns(self, LlamaVocab vocab, str grammar_str,
+                                  str grammar_root,
+                                  trigger_patterns: Optional[Sequence[str]] = None,
+                                  trigger_tokens: Optional[Sequence[int]] = None):
+        """Lazy grammar chain link, activated by a trigger pattern or token.
+
+        Unlike :meth:`add_grammar`, the grammar stays dormant until the
+        generated text matches one of ``trigger_patterns`` or one of
+        ``trigger_tokens`` is sampled. This is how llama.cpp implements
+        constrained tool calling: the model writes free prose, then the
+        grammar clamps down once it starts emitting a tool call.
+
+        Args:
+            vocab: Model vocabulary.
+            grammar_str: GBNF grammar text.
+            grammar_root: Name of the grammar's root rule.
+            trigger_patterns: Full-match regex patterns; each must match the
+                entire trigger prefix, so anchor them accordingly (e.g.
+                ``".*?(<tool_call>)[\\\\s\\\\S]*"``).
+            trigger_tokens: Token ids that activate the grammar directly.
+        """
+        cdef list patterns = [p.encode("utf-8") for p in (trigger_patterns or [])]
+        cdef size_t num_patterns = len(patterns)
+        cdef list tokens = list(trigger_tokens or [])
+        cdef size_t num_tokens = len(tokens)
+        cdef const char ** pattern_array = NULL
+        cdef llama.llama_token * token_array = NULL
+
+        if num_patterns > 0:
+            pattern_array = <const char **>malloc(num_patterns * sizeof(char *))
+            if pattern_array == NULL:
+                raise MemoryError("Failed to allocate trigger pattern array")
+        if num_tokens > 0:
+            token_array = <llama.llama_token *>malloc(
+                num_tokens * sizeof(llama.llama_token))
+            if token_array == NULL:
+                free(pattern_array)
+                raise MemoryError("Failed to allocate trigger token array")
+
+        try:
+            for i in range(num_patterns):
+                pattern_array[i] = <const char *>(<bytes>patterns[i])
+            for i in range(num_tokens):
+                token_array[i] = tokens[i]
+            llama.llama_sampler_chain_add(
+                self.ptr, llama.llama_sampler_init_grammar_lazy_patterns(
+                    vocab.ptr,
+                    grammar_str.encode(),
+                    grammar_root.encode(),
+                    pattern_array,
+                    num_patterns,
+                    token_array,
+                    num_tokens,
+                ))
+        finally:
+            if pattern_array != NULL:
+                free(pattern_array)
+            if token_array != NULL:
+                free(token_array)
+
     def add_penalties(self,
+         int n_vocab,          # vocabulary size (only used by the backend sampling path)
          int penalty_last_n,   # last n tokens to penalize (0 = disable penalty, -1 = context size)
-       float penalty_repeat,   # 1.0 = disabled
-       float penalty_freq,     # 0.0 = disabled
-       float penalty_present): # 0.0 = disabled
+       float penalty_repeat,   # must be > 0.0, 1.0 = disabled
+       float penalty_freq,     # must be finite, 0.0 = disabled
+       float penalty_present): # must be finite, 0.0 = disabled
         """Add penalties chain link"""
         llama.llama_sampler_chain_add(
             self.ptr, llama.llama_sampler_init_penalties(
+                n_vocab,
                 penalty_last_n,
                 penalty_repeat,
                 penalty_freq,
@@ -3614,6 +3925,78 @@ def llama_supports_gpu_offload() -> bool:
 
 def llama_supports_rpc() -> bool:
     return llama.llama_supports_rpc()
+
+
+def llama_print_system_info() -> str:
+    """Backend/CPU feature summary from llama.cpp.
+
+    Reports which SIMD extensions and backends the loaded build actually
+    uses; the single most useful line to include in a bug report.
+    """
+    cdef const char * info = llama.llama_print_system_info()
+    if info is NULL:
+        return ""
+    return info.decode("utf-8")
+
+
+def llama_split_path(str path_prefix, int split_no, int split_count) -> str:
+    """Build the filename of one shard of a split GGUF model.
+
+    ``split_no`` is **0-based**; the number written into the name is
+    ``split_no + 1``. So ``llama_split_path("/models/ggml-model-q4_0", 1, 4)``
+    yields ``"/models/ggml-model-q4_0-00002-of-00004.gguf"``. (The example
+    in llama.h is stale and disagrees with its own implementation.)
+
+    Note that loading a split model does not require this: passing the
+    first shard to :class:`LlamaModel` makes llama.cpp discover the rest
+    from the ``split.count`` metadata key. This is for naming shards
+    yourself.
+    """
+    if split_count < 1:
+        raise ValueError(f"split_count must be >= 1, got {split_count}")
+    if not 0 <= split_no < split_count:
+        raise ValueError(
+            f"split_no must be in [0, {split_count}), got {split_no}")
+
+    cdef bytes prefix_bytes = path_prefix.encode("utf-8")
+    cdef size_t maxlen = len(prefix_bytes) + 64
+    cdef char * buf = <char *>malloc(maxlen)
+    if buf == NULL:
+        raise MemoryError("Failed to allocate split path buffer")
+    try:
+        n = llama.llama_split_path(
+            buf, maxlen, <const char *>prefix_bytes, split_no, split_count)
+        if n <= 0:
+            raise RuntimeError("Failed to build split path")
+        return buf[:n].decode("utf-8")
+    finally:
+        free(buf)
+
+
+def llama_split_prefix(str split_path, int split_no, int split_count) -> Optional[str]:
+    """Recover the prefix of a split GGUF shard filename.
+
+    The inverse of :func:`llama_split_path`, and ``split_no`` is 0-based
+    the same way:
+    ``llama_split_prefix("/models/ggml-model-q4_0-00002-of-00004.gguf", 1, 4)``
+    yields ``"/models/ggml-model-q4_0"``.
+
+    Returns ``None`` when ``split_path`` does not match the expected
+    ``-%05d-of-%05d.gguf`` form for the given shard numbers.
+    """
+    cdef bytes path_bytes = split_path.encode("utf-8")
+    cdef size_t maxlen = len(path_bytes) + 1
+    cdef char * buf = <char *>malloc(maxlen)
+    if buf == NULL:
+        raise MemoryError("Failed to allocate split prefix buffer")
+    try:
+        n = llama.llama_split_prefix(
+            buf, maxlen, <const char *>path_bytes, split_no, split_count)
+        if n <= 0:
+            return None
+        return buf[:n].decode("utf-8")
+    finally:
+        free(buf)
 
 
 def model_save_to_file(LlamaModel model, path: str) -> None:

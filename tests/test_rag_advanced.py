@@ -523,3 +523,61 @@ class TestHybridStoreRRF:
         # Just verify both return valid results
         assert len(results_vector) >= 1
         assert len(results_fts) >= 1
+
+
+RERANKER_MODEL = Path.cwd() / "models" / "bge-reranker-base-q8_0.gguf"
+
+
+@pytest.mark.skipif(not RERANKER_MODEL.exists(), reason="reranker model not available")
+class TestRerankerWithRealModel:
+    """End-to-end Reranker tests against a real cross-encoder.
+
+    The mocked tests above never reach the native path, which is how the
+    scoring implementation stayed broken: it imported names that do not
+    exist (``cyllama.llama.LlamaModel``, ``common_batch_add``,
+    ``LlamaModel.tokenize``) and read LM logits instead of the classifier
+    head, which only runs under RANK pooling.
+    """
+
+    QUERY = "What is the capital of France?"
+    RELEVANT = "Paris is the capital and most populous city of France."
+    IRRELEVANT = "Bananas are a rich source of potassium and grow in the tropics."
+
+    def test_score_runs_and_orders_by_relevance(self):
+        with Reranker(model_path=str(RERANKER_MODEL), n_ctx=512) as reranker:
+            relevant = reranker.score(self.QUERY, self.RELEVANT)
+            irrelevant = reranker.score(self.QUERY, self.IRRELEVANT)
+
+        assert isinstance(relevant, float)
+        assert relevant > irrelevant
+
+    def test_score_is_deterministic(self):
+        """Each pair must be scored independently -- a stale KV cache from
+        the previous document would make repeat scores drift."""
+        with Reranker(model_path=str(RERANKER_MODEL), n_ctx=512) as reranker:
+            first = reranker.score(self.QUERY, self.RELEVANT)
+            reranker.score(self.QUERY, self.IRRELEVANT)
+            second = reranker.score(self.QUERY, self.RELEVANT)
+
+        assert first == pytest.approx(second, abs=1e-4)
+
+    def test_rerank_reorders_results(self):
+        docs = [self.IRRELEVANT, self.RELEVANT, "Berlin is the capital of Germany."]
+        results = [SearchResult(id=str(i), text=text, score=0.0, metadata={}) for i, text in enumerate(docs)]
+
+        with Reranker(model_path=str(RERANKER_MODEL), n_ctx=512) as reranker:
+            reranked = reranker.rerank(self.QUERY, results)
+
+        assert len(reranked) == 3
+        assert reranked[0].text == self.RELEVANT
+        assert [r.score for r in reranked] == sorted((r.score for r in reranked), reverse=True)
+
+    def test_rerank_respects_top_k(self):
+        docs = [self.IRRELEVANT, self.RELEVANT, "Berlin is the capital of Germany."]
+        results = [SearchResult(id=str(i), text=text, score=0.0, metadata={}) for i, text in enumerate(docs)]
+
+        with Reranker(model_path=str(RERANKER_MODEL), n_ctx=512) as reranker:
+            reranked = reranker.rerank(self.QUERY, results, top_k=2)
+
+        assert len(reranked) == 2
+        assert reranked[0].text == self.RELEVANT

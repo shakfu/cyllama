@@ -81,6 +81,7 @@ class SampleMethod(IntEnum):
     EULER_GE = EULER_GE_SAMPLE_METHOD
     DPMPP2M_SDE = DPMPP2M_SDE_SAMPLE_METHOD
     DPMPP2M_SDE_BT = DPMPP2M_SDE_BT_SAMPLE_METHOD
+    LMS = LMS_SAMPLE_METHOD
     COUNT = SAMPLE_METHOD_COUNT
 
 
@@ -3276,6 +3277,202 @@ cdef class Upscaler:
         """Context manager exit."""
         self.close()
         return False
+
+
+cdef class Adetailer:
+    """After-detailer: detect regions and re-generate them at full resolution.
+
+    A detection model (typically a YOLO face/hand detector) locates regions
+    in an image, and each is inpainted through an existing :class:`SDContext`
+    using a dedicated prompt. This is the standard fix for the small, mushy
+    faces that appear when a subject occupies only a fraction of the frame,
+    since the inpaint pass gives each region the model's full resolution.
+
+    Example:
+        with Adetailer("yolov8n-face.gguf") as ad:
+            fixed = ad.detail(sd_ctx, image, prompt="detailed face")
+    """
+    cdef adetailer_ctx_t* _ctx
+    cdef bytes _detector_path_bytes
+    cdef bytes _backend_bytes
+    cdef bytes _params_backend_bytes
+
+    def __cinit__(self):
+        self._ctx = NULL
+
+    def __dealloc__(self):
+        if self._ctx != NULL:
+            free_adetailer_ctx(self._ctx)
+            self._ctx = NULL
+
+    def close(self):
+        """Release the underlying adetailer context immediately. Idempotent."""
+        if self._ctx != NULL:
+            free_adetailer_ctx(self._ctx)
+            self._ctx = NULL
+
+    def __init__(self,
+                 detector_path: str,
+                 n_threads: int = -1,
+                 backend: Optional[str] = None,
+                 params_backend: Optional[str] = None):
+        """
+        Create an adetailer context.
+
+        Args:
+            detector_path: Path to the detection model (e.g. a YOLO face detector)
+            n_threads: Number of threads (-1 for auto)
+            backend: Backend name (e.g. "metal", "cuda"); None = auto
+            params_backend: Backend used to hold parameters; None = auto
+        """
+        if not os.path.exists(detector_path):
+            raise FileNotFoundError(f"Detector model not found: {detector_path}")
+
+        self._detector_path_bytes = detector_path.encode('utf-8')
+
+        if n_threads < 0:
+            n_threads = sd_get_num_physical_cores()
+
+        cdef const char* backend_c = NULL
+        cdef const char* params_backend_c = NULL
+        if backend is not None:
+            self._backend_bytes = backend.encode('utf-8')
+            backend_c = self._backend_bytes
+        if params_backend is not None:
+            self._params_backend_bytes = params_backend.encode('utf-8')
+            params_backend_c = self._params_backend_bytes
+
+        self._ctx = new_adetailer_ctx(
+            self._detector_path_bytes,
+            n_threads,
+            backend_c,
+            params_backend_c
+        )
+
+        if self._ctx == NULL:
+            raise RuntimeError(f"Failed to load detector model: {detector_path}")
+
+    @property
+    def is_valid(self) -> bool:
+        """Check if the adetailer context is valid."""
+        return self._ctx != NULL
+
+    def detail(self,
+               SDContext sd_ctx,
+               image: SDImage,
+               prompt: str = "",
+               negative_prompt: str = "",
+               extra_args: str = "",
+               SDImageGenParams inpaint_params=None) -> list:
+        """
+        Detect regions in an image and re-generate each one.
+
+        Args:
+            sd_ctx: Diffusion context used for the inpaint passes
+            image: Input image to refine
+            prompt: Prompt applied to each detected region
+            negative_prompt: Negative prompt for the region passes
+            extra_args: Extra detector arguments, passed through verbatim
+            inpaint_params: Generation parameters for the inpaint passes;
+                defaults are used when None
+
+        Returns:
+            List of SDImage results. Empty when the detector found nothing.
+
+        Raises:
+            RuntimeError: If the context is uninitialized or the pass fails
+        """
+        if self._ctx == NULL:
+            raise RuntimeError("Adetailer not initialized")
+        if sd_ctx is None:
+            raise ValueError("sd_ctx is required")
+
+        if inpaint_params is None:
+            inpaint_params = SDImageGenParams()
+
+        cdef bytes prompt_bytes = prompt.encode('utf-8')
+        cdef bytes neg_bytes = negative_prompt.encode('utf-8')
+        cdef bytes extra_bytes = extra_args.encode('utf-8')
+
+        cdef sd_adetailer_params_t ad_params
+        ad_params.prompt = <const char*>prompt_bytes
+        ad_params.negative_prompt = <const char*>neg_bytes
+        ad_params.extra_ad_args = <const char*>extra_bytes
+
+        cdef adetailer_ctx_t* ad_ptr = self._ctx
+        cdef sd_ctx_t* sd_ptr = sd_ctx._ctx
+        cdef sd_image_t input_img = image._image
+        cdef sd_img_gen_params_t* gen_ptr = &inpaint_params._params
+        cdef sd_image_t* out_images = NULL
+        cdef int num_out = 0
+        cdef bint ok = False
+        cdef int j
+
+        # adetail_image drives the diffusion context through several inpaint
+        # passes with the GIL released, so it must take the same
+        # single-user guard as SDContext.generate().
+        sd_ctx._try_acquire_busy()
+        try:
+            with nogil:
+                ok = adetail_image(ad_ptr, sd_ptr, input_img, &ad_params,
+                                   gen_ptr, &out_images, &num_out)
+        finally:
+            sd_ctx._busy_lock.release()
+
+        if not ok:
+            if out_images != NULL:
+                for j in range(num_out):
+                    if out_images[j].data != NULL:
+                        free(out_images[j].data)
+                free(out_images)
+            raise RuntimeError("Adetailer pass failed")
+
+        if out_images == NULL or num_out < 1:
+            # No detections is a legitimate outcome, not an error.
+            if out_images != NULL:
+                free(out_images)
+            return []
+
+        # Each image's `data` is handed to an SDImage (owns_data=True);
+        # only the outer array is freed here.
+        results = []
+        for j in range(num_out):
+            results.append(SDImage._from_c_image(out_images[j], owns_data=True))
+        free(out_images)
+        return results
+
+    def __enter__(self):
+        """Context manager entry."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit."""
+        self.close()
+        return False
+
+
+# =============================================================================
+# Version information
+# =============================================================================
+
+def version() -> str:
+    """Version string of the vendored stable-diffusion.cpp."""
+    cdef const char* v = sd_version()
+    if v == NULL:
+        return ""
+    return v.decode('utf-8')
+
+
+def commit() -> str:
+    """Git commit hash of the vendored stable-diffusion.cpp.
+
+    Useful in bug reports, since the vendored revision is otherwise not
+    visible from Python.
+    """
+    cdef const char* c = sd_commit()
+    if c == NULL:
+        return ""
+    return c.decode('utf-8')
 
 
 # =============================================================================

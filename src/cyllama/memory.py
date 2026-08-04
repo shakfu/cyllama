@@ -54,52 +54,83 @@ def get_file_host_endian(file_path: Union[str, Path]) -> Tuple[str, str]:
     return file_endian, host_endian
 
 
+_DEFAULT_METADATA: Dict[str, Any] = {
+    "general.architecture": "llama",
+    "llama.context_length": 2048,
+    "llama.embedding_length": 4096,
+    "llama.block_count": 32,
+    "llama.feed_forward_length": 11008,
+    "llama.attention.head_count": 32,
+    "llama.attention.head_count_kv": 32,
+    "llama.attention.sliding_window": 0,
+    "llama.attention.sliding_window_pattern": 0,
+    "general.file_type": 1,
+}
+
+
 def dump_metadata_json(model_path: Union[str, Path]) -> Dict[str, Any]:
-    """Extract metadata from GGUF model file."""
+    """Extract shape metadata from a GGUF model file.
+
+    Keys are returned under the ``llama.*`` prefix regardless of the model's
+    actual architecture, so callers get one stable set of names. Values come
+    from the loaded model rather than from string parsing, which is why the
+    architecture-specific gguf prefix (``gemma4.*``, ``qwen3.*``, ...) does
+    not leak into the result.
+
+    ``llama.attention.sliding_window`` is 0 for full-attention models. The
+    companion ``sliding_window_pattern`` is 0 unless the file states it: it
+    is a per-architecture default upstream, and guessing it would risk
+    under-estimating the KV cache.
+    """
+    metadata = dict(_DEFAULT_METADATA)
     try:
         from .llama.llama_cpp import LlamaModel, LlamaModelParams
 
-        # Load model to extract metadata
         params = LlamaModelParams()
         model = LlamaModel(str(model_path), params)
-
-        # Get basic model info
-        vocab = model.get_vocab()
-
-        # Extract key metadata
-        metadata = {
-            "general.architecture": "llama",  # default
-            "llama.context_length": 2048,  # default
-            "llama.embedding_length": 4096,  # default
-            "llama.block_count": 32,  # default
-            "llama.feed_forward_length": 11008,  # default
-            "llama.attention.head_count": 32,  # default
-            "llama.attention.head_count_kv": 32,  # default
-            "general.file_type": 1,  # default to Q4_0
-        }
-
-        # Try to get actual vocab size
         try:
-            metadata["tokenizer.ggml.tokens"] = [f"token_{i}" for i in range(vocab.n_vocab)]
-        except (AttributeError, TypeError):
-            metadata["tokenizer.ggml.tokens"] = [f"token_{i}" for i in range(32000)]
+            raw = model.metadata()
+            arch = raw.get("general.architecture", "llama")
+
+            metadata["general.architecture"] = arch
+            metadata["llama.context_length"] = model.n_ctx_train
+            metadata["llama.embedding_length"] = model.n_embd
+            metadata["llama.block_count"] = model.n_layer
+            metadata["llama.attention.head_count"] = model.n_head
+            metadata["llama.attention.head_count_kv"] = model.n_head_kv
+            metadata["llama.attention.sliding_window"] = model.n_swa
+
+            # No accessor for these two, so read them from the raw gguf kv
+            # under the model's own architecture prefix.
+            for key, target in (
+                ("feed_forward_length", "llama.feed_forward_length"),
+                ("attention.sliding_window_pattern", "llama.attention.sliding_window_pattern"),
+            ):
+                value = raw.get(f"{arch}.{key}")
+                if value is not None:
+                    try:
+                        metadata[target] = int(value)
+                    except (TypeError, ValueError):
+                        pass
+
+            file_type = raw.get("general.file_type")
+            if file_type is not None:
+                try:
+                    metadata["general.file_type"] = int(file_type)
+                except (TypeError, ValueError):
+                    pass
+
+            metadata["tokenizer.ggml.tokens"] = [f"token_{i}" for i in range(model.get_vocab().n_vocab)]
+        finally:
+            model.close()
 
         return metadata
 
     except Exception as e:
         # Fallback metadata for when model can't be loaded
         logger.warning("Failed to load model metadata from %s: %s, using default values", model_path, e)
-        return {
-            "general.architecture": "llama",
-            "llama.context_length": 2048,
-            "llama.embedding_length": 4096,
-            "llama.block_count": 32,
-            "llama.feed_forward_length": 11008,
-            "llama.attention.head_count": 32,
-            "llama.attention.head_count_kv": 32,
-            "general.file_type": 1,
-            "tokenizer.ggml.tokens": [f"token_{i}" for i in range(32000)],
-        }
+        metadata["tokenizer.ggml.tokens"] = [f"token_{i}" for i in range(32000)]
+        return metadata
 
 
 def graph_size(
@@ -282,13 +313,35 @@ def estimate_gpu_layers(
             "Requested context size %d exceeds training context %d, clamping to %d", ctx_size, n_ctx_train, n_ctx
         )
 
-    # KV cache size per layer formula:
-    # Size = n_ctx * batch * n_parallel * n_embd * bytes_per_element * 2 (K and V tensors)
-    # f16 = 2 bytes, f32 = 4 bytes (multiplier of 1 or 2 relative to f16 baseline)
+    # KV cache size per layer:
+    #   n_ctx * batch * n_parallel * n_embd_kv * bytes_per_element * 2 (K and V)
+    # where n_embd_kv = head_dim * n_head_kv. Grouped-query attention shares
+    # each KV head across several query heads, so the cache is n_head_kv/n_head
+    # of what n_embd alone implies -- an 8x difference on a 32:4 GQA model.
     BYTES_PER_F16 = 2
     kv_precision_multiplier = 2 if kv_cache_type == "f32" else 1  # f32 is 2x f16
-    kv_cache_size_per_layer = (
-        n_ctx * batch_size * n_parallel * n_embd * BYTES_PER_F16 * kv_precision_multiplier * 2  # K and V
+
+    head_dim = n_embd // n_head if n_head > 0 else n_embd
+    n_embd_kv = head_dim * n_head_kv if n_head_kv > 0 else n_embd
+
+    # Sliding-window attention caps each SWA layer's cache at the window
+    # rather than the full context. Applied only when the file states the
+    # SWA pattern: upstream defaults it per architecture, and assuming a
+    # pattern we cannot verify would under-estimate the cache and risk OOM.
+    # With no pattern we fall back to charging every layer full context.
+    n_swa = metadata.get("llama.attention.sliding_window", 0) or 0
+    swa_pattern = metadata.get("llama.attention.sliding_window_pattern", 0) or 0
+    swa_ctx = min(n_ctx, n_swa) if n_swa > 0 else n_ctx
+
+    if n_swa > 0 and swa_pattern > 1:
+        # set_swa_pattern(n): (n-1) of every n layers use the window.
+        swa_fraction = (swa_pattern - 1) / swa_pattern
+        effective_ctx = swa_ctx * swa_fraction + n_ctx * (1 - swa_fraction)
+    else:
+        effective_ctx = n_ctx
+
+    kv_cache_size_per_layer = int(
+        effective_ctx * batch_size * n_parallel * n_embd_kv * BYTES_PER_F16 * kv_precision_multiplier * 2
     )
 
     # Calculate graph memory requirements

@@ -3,7 +3,7 @@
 # This file provides Cython declarations for the mtmd C API from llama.cpp
 # Based on mtmd.h and mtmd-helper.h headers
 
-from libc.stdint cimport uint32_t, int32_t
+from libc.stdint cimport uint32_t, int32_t, int64_t
 from libc.stddef cimport size_t
 
 from .ggml cimport ggml_log_level, ggml_log_callback
@@ -136,11 +136,73 @@ cdef extern from "mtmd.h":
     # Logging
     cdef void mtmd_log_set(ggml_log_callback log_callback, void * user_data)
 
+    # Batch encoding API
+    # chunks are not owned by the batch, they will not be freed by mtmd_batch_free()
+    # batch is valid for a given context, cannot be shared across contexts
+    ctypedef struct mtmd_batch:
+        pass
+
+    cdef mtmd_batch * mtmd_batch_init(mtmd_context * ctx)
+    cdef void mtmd_batch_free(mtmd_batch * batch)
+
+    # only media chunks are allowed, text chunks will be rejected
+    # 0 = success, 1 = generic error, 2 = batch too large, 3 = cannot batch with existing chunks
+    cdef int32_t mtmd_batch_add_chunk(mtmd_batch * batch, const mtmd_input_chunk * chunk)
+    cdef int32_t mtmd_batch_encode(mtmd_batch * batch) nogil
+    cdef float * mtmd_batch_get_output_embd(mtmd_batch * batch, const mtmd_input_chunk * chunk)
+
+    # EXPERIMENTAL: mmproj capabilities without initializing the full context
+    ctypedef struct mtmd_caps:
+        bint inp_vision
+        bint inp_audio
+
+    cdef mtmd_caps mtmd_get_cap_from_file(const char * mmproj_fname)
+
     # Test function
     cdef mtmd_input_chunks * mtmd_test_create_input_chunks()
 
 
 cdef extern from "mtmd-helper.h":
+    # Video input helpers (require ffmpeg/ffprobe on the system PATH).
+    # Video only exists at the helper level; the core mtmd library sees
+    # the decoded frames as ordinary image bitmaps.
+    ctypedef struct mtmd_helper_video:
+        pass
+
+    ctypedef struct mtmd_helper_video_info:
+        uint32_t width
+        uint32_t height
+        float fps        # effective fps (fps_target if set, else original)
+        int32_t n_frames # estimated total frames at effective fps (-1 if unknown)
+
+    ctypedef struct mtmd_helper_video_init_params:
+        float fps_target
+        const char * ffmpeg_bin_dir
+        int64_t timestamp_interval_ms
+
+    cdef mtmd_helper_video_init_params mtmd_helper_video_init_params_default()
+
+    cdef mtmd_helper_video * mtmd_helper_video_init(mtmd_context * mctx,
+                                                    const char * path,
+                                                    mtmd_helper_video_init_params params) nogil
+
+    cdef mtmd_helper_video * mtmd_helper_video_init_from_buf(mtmd_context * mctx,
+                                                             const unsigned char * buf,
+                                                             size_t length,
+                                                             mtmd_helper_video_init_params params) nogil
+
+    cdef void mtmd_helper_video_free(mtmd_helper_video * ctx)
+    cdef mtmd_helper_video_info mtmd_helper_video_get_info(const mtmd_helper_video * ctx)
+
+    # Exactly one of out_bitmap / out_text is set per call.
+    # returns 0 on success, -1 on EOF, -2 on error
+    cdef int32_t mtmd_helper_video_read_next(mtmd_helper_video * ctx,
+                                             mtmd_bitmap ** out_bitmap,
+                                             char ** out_text) nogil
+
+    # return true if model can be used for chat
+    cdef bint mtmd_helper_model_can_chat(llama_context * lctx, mtmd_context * mctx)
+
     # Logging
     cdef void mtmd_helper_log_set(ggml_log_callback log_callback, void * user_data)
 

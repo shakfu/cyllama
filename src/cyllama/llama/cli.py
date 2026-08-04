@@ -357,7 +357,8 @@ class LlamaCLI:
         model_params = cy.LlamaModelParams()
         model_params.n_gpu_layers = args.n_gpu_layers
         # llama.cpp collapsed the mmap/mlock/direct-io booleans into a single
-        # load_mode enum; --mlock implies mmap so it wins over --no-mmap.
+        # load_mode enum. MLOCK is mlock-without-mmap upstream (LLAMA_LOAD_MODE_MMAP_MLOCK
+        # is the combined mode), and --mlock wins over --no-mmap, matching arg.cpp.
         if args.mlock:
             model_params.load_mode = cy.LLAMA_LOAD_MODE_MLOCK
         elif args.no_mmap:

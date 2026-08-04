@@ -45,6 +45,38 @@ class WhisperGretype:
     CHAR_ALT = wh.WHISPER_GRETYPE_CHAR_ALT
 
 
+def _validate_pcm_samples(samples):
+    """Validate a mono 16 kHz float32 PCM buffer before binding a memoryview.
+
+    Checked up front so the error message names the actual problem. Without
+    it, mistyped numpy inputs raise a generic "Buffer dtype mismatch" from
+    the memoryview cast, and a Python list raises "a bytes-like object is
+    required" -- neither of which makes the audio-format requirement obvious.
+    """
+    try:
+        import numpy as _np
+    except ImportError:
+        _np = None
+    if _np is not None and isinstance(samples, _np.ndarray):
+        if samples.dtype != _np.float32:
+            raise TypeError(
+                f"samples must be a float32 array, got dtype={samples.dtype}. "
+                "Cast with samples.astype(np.float32) before calling."
+            )
+        if samples.ndim != 1:
+            raise ValueError(
+                f"samples must be 1-D mono PCM, got {samples.ndim}-D shape "
+                f"{samples.shape}. For stereo input, mix down to mono first."
+            )
+        if not samples.flags["C_CONTIGUOUS"]:
+            raise ValueError(
+                "samples must be C-contiguous; "
+                "use np.ascontiguousarray(samples) to fix."
+            )
+    if len(samples) == 0:
+        raise ValueError("samples is empty; pass at least one PCM sample")
+
+
 # Python wrapper classes
 cdef class WhisperContextParams:
     cdef wh.whisper_context_params _c_params
@@ -137,6 +169,270 @@ cdef class WhisperVadParams:
     @samples_overlap.setter
     def samples_overlap(self, float value):
         self._c_params.samples_overlap = value
+
+
+cdef class WhisperVadContextParams:
+    """Load-time parameters for a standalone :class:`WhisperVadContext`."""
+    cdef wh.whisper_vad_context_params _c_params
+
+    def __init__(self):
+        self._c_params = wh.whisper_vad_default_context_params()
+
+    @property
+    def n_threads(self):
+        return self._c_params.n_threads
+
+    @n_threads.setter
+    def n_threads(self, int value):
+        self._c_params.n_threads = value
+
+    @property
+    def use_gpu(self):
+        return self._c_params.use_gpu
+
+    @use_gpu.setter
+    def use_gpu(self, bint value):
+        self._c_params.use_gpu = value
+
+    @property
+    def gpu_device(self):
+        return self._c_params.gpu_device
+
+    @gpu_device.setter
+    def gpu_device(self, int value):
+        self._c_params.gpu_device = value
+
+
+cdef class WhisperVadSegments:
+    """Speech spans produced by :class:`WhisperVadContext`.
+
+    Owns the underlying ``whisper_vad_segments``; freed by :meth:`close`,
+    ``__exit__``, or ``__dealloc__``. Supports ``len()`` and indexing,
+    yielding ``(t0, t1)`` pairs in **10 ms units** -- the same timebase as
+    ``WhisperContext.full_get_segment_t0`` / ``_t1``. Divide by 100 for
+    seconds. The values are floats rather than ints only because
+    whisper.cpp declares the accessors that way.
+    """
+    cdef wh.whisper_vad_segments * _c_segments
+
+    def __cinit__(self):
+        self._c_segments = NULL
+
+    cdef _check_open(self):
+        if self._c_segments == NULL:
+            raise RuntimeError("WhisperVadSegments is closed")
+
+    def __len__(self):
+        self._check_open()
+        return wh.whisper_vad_segments_n_segments(self._c_segments)
+
+    def __getitem__(self, int i):
+        self._check_open()
+        cdef int n = wh.whisper_vad_segments_n_segments(self._c_segments)
+        if i < 0:
+            i += n
+        if not 0 <= i < n:
+            raise IndexError(f"VAD segment index {i} out of range")
+        return (
+            wh.whisper_vad_segments_get_segment_t0(self._c_segments, i),
+            wh.whisper_vad_segments_get_segment_t1(self._c_segments, i),
+        )
+
+    def __iter__(self):
+        for i in range(len(self)):
+            yield self[i]
+
+    def close(self):
+        """Release the native segments. Idempotent."""
+        if self._c_segments != NULL:
+            wh.whisper_vad_free_segments(self._c_segments)
+            self._c_segments = NULL
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.close()
+        return False
+
+    def __dealloc__(self):
+        if self._c_segments != NULL:
+            wh.whisper_vad_free_segments(self._c_segments)
+            self._c_segments = NULL
+
+
+cdef class WhisperVadContext:
+    """Standalone voice-activity detection, independent of transcription.
+
+    Loads a Silero VAD model converted to ggml and reports where speech
+    occurs in an audio buffer. This is the separate path from
+    ``WhisperFullParams.vad``, which runs VAD internally as part of
+    :meth:`WhisperContext.full` and only exposes the resulting spans via
+    :meth:`WhisperContext.full_n_vad_segments`. Use this class when you
+    want the segments themselves -- to chunk long audio, to skip silence
+    before transcribing, or to gate a streaming pipeline.
+
+    Example:
+        >>> with WhisperVadContext("models/ggml-silero-v5.1.2.bin") as vad:
+        ...     with vad.segments_from_samples(pcm) as segs:
+        ...         for t0, t1 in segs:  # 10 ms units
+        ...             print(f"speech {t0/100:.2f}s -> {t1/100:.2f}s")
+
+    Not thread-safe; create one instance per worker thread.
+    """
+    cdef wh.whisper_vad_context * _c_ctx
+
+    def __cinit__(self):
+        self._c_ctx = NULL
+
+    def __init__(self, model_path, WhisperVadContextParams params=None):
+        from cyllama.utils.validation import validate_whisper_file
+
+        if params is None:
+            params = WhisperVadContextParams()
+
+        validate_whisper_file(model_path, kind="VAD model")
+
+        model_path_bytes = model_path.encode('utf-8')
+        self._c_ctx = wh.whisper_vad_init_from_file_with_params(
+            model_path_bytes, params._c_params)
+
+        if self._c_ctx == NULL:
+            raise RuntimeError(
+                f"Failed to load VAD model from {model_path}. "
+                "The file passed basic checks but whisper.cpp could not load it. "
+                "Expected a Silero VAD model converted to ggml format."
+            )
+
+    cdef _check_open(self):
+        if self._c_ctx == NULL:
+            raise RuntimeError("WhisperVadContext is closed")
+
+    def detect_speech(self, samples, bint reset_state=True):
+        """Run the VAD network over PCM samples, producing per-frame probabilities.
+
+        Call :meth:`probs` afterwards for the raw values, or
+        :meth:`segments_from_probs` to turn them into spans.
+
+        Args:
+            samples: 1-D C-contiguous float32 mono PCM at 16 kHz.
+            reset_state: Reset the LSTM state first. Leave True for
+                one-shot buffers. Set False for streaming, where
+                consecutive chunks of one utterance must share state, and
+                call :meth:`reset_state` between utterances.
+
+        Returns:
+            True if the detection pass succeeded.
+        """
+        self._check_open()
+        _validate_pcm_samples(samples)
+
+        cdef float[::1] samples_view = samples
+        cdef const float * c_samples = &samples_view[0]
+        cdef int n_samples = len(samples)
+        cdef wh.whisper_vad_context * ctx = self._c_ctx
+        cdef bint result
+        cdef bint c_reset = reset_state
+
+        with nogil:
+            if c_reset:
+                result = wh.whisper_vad_detect_speech(ctx, c_samples, n_samples)
+            else:
+                result = wh.whisper_vad_detect_speech_no_reset(
+                    ctx, c_samples, n_samples)
+        return bool(result)
+
+    def reset_state(self):
+        """Reset the LSTM state between utterances in a streaming session."""
+        self._check_open()
+        wh.whisper_vad_reset_state(self._c_ctx)
+
+    def n_probs(self):
+        """Number of per-frame speech probabilities from the last detection pass."""
+        self._check_open()
+        return wh.whisper_vad_n_probs(self._c_ctx)
+
+    def probs(self):
+        """Per-frame speech probabilities from the last :meth:`detect_speech` call."""
+        self._check_open()
+        cdef int n = wh.whisper_vad_n_probs(self._c_ctx)
+        cdef float * p = wh.whisper_vad_probs(self._c_ctx)
+        if p == NULL or n <= 0:
+            return []
+        return [p[i] for i in range(n)]
+
+    def segments_from_probs(self, WhisperVadParams params=None):
+        """Group the last detection pass's probabilities into speech segments.
+
+        Requires a prior :meth:`detect_speech` call.
+
+        Args:
+            params: Segmentation thresholds; uses defaults if None.
+
+        Returns:
+            A :class:`WhisperVadSegments` owning the result.
+        """
+        self._check_open()
+        if params is None:
+            params = WhisperVadParams()
+
+        cdef wh.whisper_vad_segments * segs = wh.whisper_vad_segments_from_probs(
+            self._c_ctx, params._c_params)
+        if segs == NULL:
+            raise RuntimeError("Failed to compute VAD segments from probabilities")
+
+        cdef WhisperVadSegments result = WhisperVadSegments.__new__(WhisperVadSegments)
+        result._c_segments = segs
+        return result
+
+    def segments_from_samples(self, samples, WhisperVadParams params=None):
+        """Detect speech and return the segments in one call.
+
+        Equivalent to :meth:`detect_speech` followed by
+        :meth:`segments_from_probs`, but done natively in one pass.
+
+        Args:
+            samples: 1-D C-contiguous float32 mono PCM at 16 kHz.
+            params: Segmentation thresholds; uses defaults if None.
+
+        Returns:
+            A :class:`WhisperVadSegments` owning the result.
+        """
+        self._check_open()
+        if params is None:
+            params = WhisperVadParams()
+
+        _validate_pcm_samples(samples)
+
+        cdef float[::1] samples_view = samples
+        cdef const float * c_samples = &samples_view[0]
+        cdef int n_samples = len(samples)
+        cdef wh.whisper_vad_segments * segs = wh.whisper_vad_segments_from_samples(
+            self._c_ctx, params._c_params, c_samples, n_samples)
+        if segs == NULL:
+            raise RuntimeError("Failed to compute VAD segments from samples")
+
+        cdef WhisperVadSegments result = WhisperVadSegments.__new__(WhisperVadSegments)
+        result._c_segments = segs
+        return result
+
+    def close(self):
+        """Release the native VAD context. Idempotent."""
+        if self._c_ctx != NULL:
+            wh.whisper_vad_free(self._c_ctx)
+            self._c_ctx = NULL
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.close()
+        return False
+
+    def __dealloc__(self):
+        if self._c_ctx != NULL:
+            wh.whisper_vad_free(self._c_ctx)
+            self._c_ctx = NULL
 
 
 # =============================================================================
@@ -1146,13 +1442,37 @@ cdef class WhisperContext:
             return None
         return result.decode('utf-8')
 
-    # def pcm_to_mel(self, samples, int n_threads=1):
-    #     cdef const float * c_samples = <const float *>(<float[::1]>samples).data
-    #     cdef int n_samples = len(samples)
+    def pcm_to_mel(self, samples, int n_threads=1):
+        """Compute the log-mel spectrogram of PCM samples and store it in the context.
 
-    #     cdef int result = whisper_pcm_to_mel(self._c_ctx, c_samples, n_samples, n_threads)
-    #     if result != 0:
-    #         raise RuntimeError(f"PCM to mel conversion failed with error {result}")
+        Low-level building block used by :meth:`full` internally. Run this
+        before :meth:`encode` or :meth:`lang_auto_detect` when driving the
+        pipeline stage by stage; most callers should just use :meth:`full`.
+
+        Args:
+            samples: 1-D C-contiguous float32 mono PCM at 16 kHz.
+            n_threads: CPU threads for the transform.
+
+        Raises:
+            RuntimeError: Conversion failed, or another thread is currently
+                using this context.
+        """
+        _validate_pcm_samples(samples)
+
+        cdef float[::1] samples_view = samples
+        cdef const float * c_samples = &samples_view[0]
+        cdef int n_samples = len(samples)
+        cdef int result = 0
+
+        self._try_acquire_busy()
+        try:
+            result = wh.whisper_pcm_to_mel(
+                self._c_ctx, c_samples, n_samples, n_threads)
+        finally:
+            self._busy_lock.release()
+        if result != 0:
+            raise RuntimeError(f"PCM to mel conversion failed with error {result}")
+        return result
 
     def encode(self, int offset=0, int n_threads=1):
         """Run the audio encoder pass on already-mel'd input.
@@ -1206,33 +1526,7 @@ cdef class WhisperContext:
         if params is None:
             params = WhisperFullParams()
 
-        # Validate up front so the error message names the actual problem.
-        # Without this check, mistyped numpy inputs raise a generic
-        # "Buffer dtype mismatch" from the memoryview cast below, and a
-        # Python list raises "a bytes-like object is required" -- neither
-        # of which makes the audio-format requirement obvious.
-        try:
-            import numpy as _np
-        except ImportError:
-            _np = None
-        if _np is not None and isinstance(samples, _np.ndarray):
-            if samples.dtype != _np.float32:
-                raise TypeError(
-                    f"samples must be a float32 array, got dtype={samples.dtype}. "
-                    "Cast with samples.astype(np.float32) before calling."
-                )
-            if samples.ndim != 1:
-                raise ValueError(
-                    f"samples must be 1-D mono PCM, got {samples.ndim}-D shape "
-                    f"{samples.shape}. For stereo input, mix down to mono first."
-                )
-            if not samples.flags["C_CONTIGUOUS"]:
-                raise ValueError(
-                    "samples must be C-contiguous; "
-                    "use np.ascontiguousarray(samples) to fix."
-                )
-        if len(samples) == 0:
-            raise ValueError("samples is empty; pass at least one PCM sample")
+        _validate_pcm_samples(samples)
 
         samples_view = samples
         c_samples = &samples_view[0]
@@ -1263,11 +1557,147 @@ cdef class WhisperContext:
             raise RuntimeError(f"Whisper full processing failed with error {result}")
         return result
 
+    def full_parallel(self, samples, WhisperFullParams params=None, int n_processors=1):
+        """Run transcription split across ``n_processors`` worker contexts.
+
+        whisper.cpp partitions the audio into ``n_processors`` chunks and
+        decodes them concurrently, then stitches the segments back together
+        into the same result accessors :meth:`full` populates. This trades
+        some accuracy for throughput: the transcription is not identical to
+        :meth:`full` because each chunk loses the preceding chunk's context,
+        and boundary timestamps are less precise.
+
+        ``n_processors = 1`` is equivalent to :meth:`full`.
+
+        Args:
+            samples: 1-D C-contiguous float32 buffer of mono PCM samples at
+                16 kHz, as for :meth:`full`.
+            params: Decoding parameters; uses defaults if None.
+            n_processors: Number of parallel workers. Must be >= 1.
+
+        Raises:
+            ValueError: n_processors < 1, or samples fails validation.
+            RuntimeError: whisper.cpp reported a failure.
+        """
+        cdef const float * c_samples = NULL
+        cdef int n_samples = 0
+        cdef int result = 0
+        cdef int c_n_processors = n_processors
+        cdef float[::1] samples_view
+        cdef wh.whisper_context * ctx
+        cdef wh.whisper_full_params c_params
+
+        if n_processors < 1:
+            raise ValueError(f"n_processors must be >= 1, got {n_processors}")
+
+        if params is None:
+            params = WhisperFullParams()
+
+        _validate_pcm_samples(samples)
+
+        samples_view = samples
+        c_samples = &samples_view[0]
+        n_samples = len(samples)
+
+        ctx = self._c_ctx
+        c_params = params._c_params
+
+        # Same cancellation wiring as full(); whisper_full_parallel forwards
+        # the abort callback to each worker state.
+        self._cancel_flag = 0
+        c_params.abort_callback = <wh.ggml_abort_callback>&_whisper_cancel_flag_callback
+        c_params.abort_callback_user_data = <void*>&self._cancel_flag
+
+        self._try_acquire_busy()
+        try:
+            with nogil:
+                result = wh.whisper_full_parallel(
+                    ctx, c_params, c_samples, n_samples, c_n_processors)
+        finally:
+            self._busy_lock.release()
+        if result != 0:
+            if self._cancel_flag:
+                raise InterruptedError("whisper_full_parallel aborted by cancel()")
+            raise RuntimeError(f"Whisper parallel processing failed with error {result}")
+        return result
+
+    def lang_auto_detect(self, int offset_ms=0, int n_threads=4):
+        """Detect the spoken language from the context's current mel spectrogram.
+
+        Requires :meth:`pcm_to_mel` (or a prior :meth:`full`) to have
+        populated the mel; the encoder pass is run internally. Only the
+        first token is decoded, so this is far cheaper than transcribing
+        just to discover the language.
+
+        Args:
+            offset_ms: Offset into the audio to analyse, in milliseconds.
+            n_threads: Threads to use.
+
+        Returns:
+            A ``(lang_id, probs)`` tuple, where ``probs`` is a list of
+            per-language probabilities indexed by language id. Pass
+            ``lang_id`` to :meth:`lang_str` for the ISO code.
+
+        Raises:
+            RuntimeError: The model is English-only, or whisper.cpp
+                reported a failure (bad offset, encoder failure).
+        """
+        # English-only checkpoints have no language tokens, so upstream
+        # happily returns an arbitrary id with near-uniform probabilities
+        # rather than failing. Refuse instead of handing back noise.
+        if not wh.whisper_is_multilingual(self._c_ctx):
+            raise RuntimeError(
+                "lang_auto_detect requires a multilingual model; this "
+                "checkpoint is English-only (.en). Use a non-.en model."
+            )
+
+        cdef int max_langs = wh.whisper_lang_max_id() + 1
+        cdef float * probs = <float *>malloc(max_langs * sizeof(float))
+        if probs == NULL:
+            raise MemoryError("Failed to allocate language probability array")
+        try:
+            result = wh.whisper_lang_auto_detect(
+                self._c_ctx, offset_ms, n_threads, probs)
+            if result < 0:
+                raise RuntimeError(
+                    f"Language auto-detection failed with error {result}")
+            return result, [probs[i] for i in range(max_langs)]
+        finally:
+            free(probs)
+
     # ------------------------------------------------------------------
     # Result accessors. Read state populated by the most recent full()
     # call. Calling these before full() is undefined-behavior territory
     # (whisper.cpp returns whatever the uninitialized state contains).
     # ------------------------------------------------------------------
+
+    def full_n_vad_segments(self):
+        """Number of speech segments the internal VAD kept.
+
+        Only populated when the most recent :meth:`full` ran with
+        ``params.vad = True``; otherwise returns 0. These are the raw
+        VAD spans, distinct from the transcription segments counted by
+        :meth:`full_n_segments`.
+        """
+        return wh.whisper_full_n_vad_segments(self._c_ctx)
+
+    def full_get_vad_segment_t0(self, int i):
+        """Start of VAD segment ``i`` in **10 ms units**, in original audio time.
+
+        ``i`` must be in ``[0, full_n_vad_segments())``.
+        """
+        if not 0 <= i < wh.whisper_full_n_vad_segments(self._c_ctx):
+            raise IndexError(f"VAD segment index {i} out of range")
+        return wh.whisper_full_get_vad_segment_t0(self._c_ctx, i)
+
+    def full_get_vad_segment_t1(self, int i):
+        """End of VAD segment ``i`` in **10 ms units**, in original audio time.
+
+        ``i`` must be in ``[0, full_n_vad_segments())``.
+        """
+        if not 0 <= i < wh.whisper_full_n_vad_segments(self._c_ctx):
+            raise IndexError(f"VAD segment index {i} out of range")
+        return wh.whisper_full_get_vad_segment_t1(self._c_ctx, i)
 
     def full_n_segments(self):
         """Number of segments in the most recent transcription.

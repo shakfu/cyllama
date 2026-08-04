@@ -588,3 +588,101 @@ class TestStopSequences:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+class TestDryAndTopNSigmaConfig:
+    """DRY and top-n-sigma sampler knobs on GenerationConfig."""
+
+    def test_defaults_match_upstream(self):
+        from cyllama.defaults import (
+            DEFAULT_DRY_ALLOWED_LENGTH,
+            DEFAULT_DRY_BASE,
+            DEFAULT_DRY_MULTIPLIER,
+            DEFAULT_DRY_PENALTY_LAST_N,
+            DEFAULT_TOP_N_SIGMA,
+        )
+
+        config = GenerationConfig()
+        # llama.cpp common.h defaults: DRY and top-n-sigma both off.
+        assert config.dry_multiplier == DEFAULT_DRY_MULTIPLIER == 0.0
+        assert config.dry_base == DEFAULT_DRY_BASE == 1.75
+        assert config.dry_allowed_length == DEFAULT_DRY_ALLOWED_LENGTH == 2
+        assert config.dry_penalty_last_n == DEFAULT_DRY_PENALTY_LAST_N == -1
+        assert config.top_n_sigma == DEFAULT_TOP_N_SIGMA == -1.0
+        assert config.dry_sequence_breakers == ["\n", ":", '"', "*"]
+
+    def test_sequence_breakers_not_shared_between_instances(self):
+        a = GenerationConfig()
+        b = GenerationConfig()
+        a.dry_sequence_breakers.append("|")
+        assert "|" not in b.dry_sequence_breakers
+
+    def test_to_dict_roundtrip(self):
+        config = GenerationConfig(dry_multiplier=0.8, top_n_sigma=1.5)
+        data = config.to_dict()
+        assert data["dry_multiplier"] == 0.8
+        assert data["top_n_sigma"] == 1.5
+        assert GenerationConfig(**data).dry_multiplier == 0.8
+
+    def test_to_dict_copies_breakers(self):
+        config = GenerationConfig()
+        data = config.to_dict()
+        data["dry_sequence_breakers"].append("|")
+        assert "|" not in config.dry_sequence_breakers
+
+    def test_validation_dry_multiplier(self):
+        with pytest.raises(ValueError, match="dry_multiplier"):
+            GenerationConfig(dry_multiplier=-1.0)
+
+    def test_validation_dry_base(self):
+        with pytest.raises(ValueError, match="dry_base"):
+            GenerationConfig(dry_base=-1.0)
+
+    def test_validation_dry_allowed_length(self):
+        with pytest.raises(ValueError, match="dry_allowed_length"):
+            GenerationConfig(dry_allowed_length=-1)
+
+    def test_validation_dry_penalty_last_n(self):
+        with pytest.raises(ValueError, match="dry_penalty_last_n"):
+            GenerationConfig(dry_penalty_last_n=-2)
+
+
+@pytest.mark.integration
+class TestDryAndTopNSigmaGeneration:
+    """The new samplers must actually drive generation, not just validate."""
+
+    def test_dry_generates(self, model_path):
+        with LLM(model_path) as llm:
+            config = GenerationConfig(max_tokens=24, dry_multiplier=0.8, temperature=0.7, seed=1)
+            response = llm("List three colors:", config=config)
+        assert response.text.strip()
+
+    def test_top_n_sigma_generates(self, model_path):
+        with LLM(model_path) as llm:
+            config = GenerationConfig(max_tokens=24, top_n_sigma=1.5, temperature=0.7, seed=1)
+            response = llm("List three colors:", config=config)
+        assert response.text.strip()
+
+    def test_dry_suppresses_forced_repetition(self, model_path):
+        """DRY penalises continuations of an already-seen phrase, so a prompt
+        that begs to loop should repeat less with DRY on than with it off."""
+        prompt = "Repeat exactly: ha ha ha ha ha ha ha ha ha ha ha ha"
+
+        def longest_run(text):
+            words = text.split()
+            best = run = 1
+            for i in range(1, len(words)):
+                run = run + 1 if words[i] == words[i - 1] else 1
+                best = max(best, run)
+            return best if words else 0
+
+        with LLM(model_path) as llm:
+            off = llm(prompt, config=GenerationConfig(max_tokens=48, temperature=0.0, seed=7)).text
+            on = llm(
+                prompt,
+                config=GenerationConfig(
+                    max_tokens=48, temperature=0.0, seed=7, dry_multiplier=2.0, dry_allowed_length=2
+                ),
+            ).text
+
+        assert longest_run(on) < longest_run(off)

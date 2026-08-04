@@ -33,6 +33,15 @@ DEFAULT_PENALTY_FREQ: float = 0.0  # frequency penalty, 0.0 = disabled
 DEFAULT_PENALTY_PRESENT: float = 0.0  # presence penalty, 0.0 = disabled
 
 # Mirostat: 0 = disabled, 1 = Mirostat v1, 2 = Mirostat v2
+# DRY (Don't Repeat Yourself) repetition sampler; upstream common.h defaults
+DEFAULT_DRY_MULTIPLIER: float = 0.0  # 0.0 = disabled
+DEFAULT_DRY_BASE: float = 1.75
+DEFAULT_DRY_ALLOWED_LENGTH: int = 2
+DEFAULT_DRY_PENALTY_LAST_N: int = -1  # -1 = context size, 0 = disabled
+DEFAULT_DRY_SEQUENCE_BREAKERS: tuple[str, ...] = ("\n", ":", '"', "*")
+
+DEFAULT_TOP_N_SIGMA: float = -1.0  # -1.0 = disabled
+
 DEFAULT_MIROSTAT: int = 0
 DEFAULT_MIROSTAT_TAU: float = 5.0  # target entropy
 DEFAULT_MIROSTAT_ETA: float = 0.1  # learning rate

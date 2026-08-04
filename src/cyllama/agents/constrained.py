@@ -138,7 +138,11 @@ class GrammarConstrainedLLM(LLM):
         # Add penalties if configured
         if config.repeat_penalty != 1.0:
             self._sampler.add_penalties(
-                penalty_last_n=64, penalty_repeat=config.repeat_penalty, penalty_freq=0.0, penalty_present=0.0
+                self.vocab.n_vocab,
+                penalty_last_n=64,
+                penalty_repeat=config.repeat_penalty,
+                penalty_freq=0.0,
+                penalty_present=0.0,
             )
 
         # Add sampling methods based on config

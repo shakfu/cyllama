@@ -41,6 +41,7 @@ cdef extern from "stable-diffusion.h":
         EULER_GE_SAMPLE_METHOD
         DPMPP2M_SDE_SAMPLE_METHOD
         DPMPP2M_SDE_BT_SAMPLE_METHOD
+        LMS_SAMPLE_METHOD
         SAMPLE_METHOD_COUNT
 
     ctypedef enum scheduler_t:

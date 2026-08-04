@@ -78,6 +78,12 @@ from .defaults import (
     DEFAULT_PENALTY_LAST_N,
     DEFAULT_PENALTY_FREQ,
     DEFAULT_PENALTY_PRESENT,
+    DEFAULT_DRY_MULTIPLIER,
+    DEFAULT_DRY_BASE,
+    DEFAULT_DRY_ALLOWED_LENGTH,
+    DEFAULT_DRY_PENALTY_LAST_N,
+    DEFAULT_DRY_SEQUENCE_BREAKERS,
+    DEFAULT_TOP_N_SIGMA,
     DEFAULT_MIROSTAT,
     DEFAULT_MIROSTAT_TAU,
     DEFAULT_MIROSTAT_ETA,
@@ -131,6 +137,20 @@ class GenerationConfig:
             0.0 = disabled (see defaults.py)
         presence_penalty: Penalize tokens already present in recent window,
             0.0 = disabled (see defaults.py)
+        dry_multiplier: DRY repetition penalty scale, 0.0 = disabled. DRY
+            penalises tokens that would extend a phrase already present in
+            the context, unlike repeat_penalty which works per-token
+            (see defaults.py)
+        dry_base: Exponential base for DRY penalty growth (see defaults.py)
+        dry_allowed_length: Repetitions up to this length go unpenalised
+            (see defaults.py)
+        dry_penalty_last_n: Tokens scanned for repetitions, 0 = disabled,
+            -1 = full context (see defaults.py)
+        dry_sequence_breakers: Strings that reset DRY's repetition tracking
+            (see defaults.py)
+        top_n_sigma: Keep tokens within n standard deviations of the top
+            logit, -1.0 = disabled. When enabled it replaces
+            top_k / top_p / min_p, matching upstream (see defaults.py)
         mirostat: Mirostat sampling mode (0 = off, 1 = v1, 2 = v2). When
             enabled, replaces top_k / top_p / min_p / temp / dist with the
             mirostat sampler (see defaults.py).
@@ -178,6 +198,12 @@ class GenerationConfig:
     penalty_last_n: int = DEFAULT_PENALTY_LAST_N
     frequency_penalty: float = DEFAULT_PENALTY_FREQ
     presence_penalty: float = DEFAULT_PENALTY_PRESENT
+    dry_multiplier: float = DEFAULT_DRY_MULTIPLIER
+    dry_base: float = DEFAULT_DRY_BASE
+    dry_allowed_length: int = DEFAULT_DRY_ALLOWED_LENGTH
+    dry_penalty_last_n: int = DEFAULT_DRY_PENALTY_LAST_N
+    dry_sequence_breakers: List[str] = field(default_factory=lambda: list(DEFAULT_DRY_SEQUENCE_BREAKERS))
+    top_n_sigma: float = DEFAULT_TOP_N_SIGMA
     mirostat: int = DEFAULT_MIROSTAT
     mirostat_tau: float = DEFAULT_MIROSTAT_TAU
     mirostat_eta: float = DEFAULT_MIROSTAT_ETA
@@ -204,6 +230,12 @@ class GenerationConfig:
             "penalty_last_n": self.penalty_last_n,
             "frequency_penalty": self.frequency_penalty,
             "presence_penalty": self.presence_penalty,
+            "dry_multiplier": self.dry_multiplier,
+            "dry_base": self.dry_base,
+            "dry_allowed_length": self.dry_allowed_length,
+            "dry_penalty_last_n": self.dry_penalty_last_n,
+            "dry_sequence_breakers": self.dry_sequence_breakers.copy(),
+            "top_n_sigma": self.top_n_sigma,
             "mirostat": self.mirostat,
             "mirostat_tau": self.mirostat_tau,
             "mirostat_eta": self.mirostat_eta,
@@ -249,6 +281,20 @@ class GenerationConfig:
 
         if self.presence_penalty < 0.0:
             errors.append(f"presence_penalty must be >= 0.0, got {self.presence_penalty}")
+
+        if self.dry_multiplier < 0.0:
+            errors.append(f"dry_multiplier must be >= 0.0, got {self.dry_multiplier}")
+
+        if self.dry_base < 0.0:
+            errors.append(f"dry_base must be >= 0.0, got {self.dry_base}")
+
+        if self.dry_allowed_length < 0:
+            errors.append(f"dry_allowed_length must be >= 0, got {self.dry_allowed_length}")
+
+        if self.dry_penalty_last_n < -1:
+            errors.append(
+                f"dry_penalty_last_n must be >= -1 (-1 = context size, 0 = disabled), got {self.dry_penalty_last_n}"
+            )
 
         if self.mirostat not in (0, 1, 2):
             errors.append(f"mirostat must be 0, 1, or 2, got {self.mirostat}")
@@ -1031,10 +1077,25 @@ class LLM:
             config.repeat_penalty != 1.0 or config.frequency_penalty != 0.0 or config.presence_penalty != 0.0
         ) and config.penalty_last_n != 0:
             sampler.add_penalties(
+                self.vocab.n_vocab,
                 config.penalty_last_n,
                 config.repeat_penalty,
                 config.frequency_penalty,
                 config.presence_penalty,
+            )
+
+        # DRY targets repeated phrases rather than repeated individual tokens,
+        # so it complements the penalties link above and also runs before
+        # truncation.
+        if config.dry_multiplier > 0.0 and config.dry_penalty_last_n != 0:
+            sampler.add_dry(
+                self.vocab,
+                self.model.n_ctx_train,
+                config.dry_multiplier,
+                config.dry_base,
+                config.dry_allowed_length,
+                config.dry_penalty_last_n,
+                config.dry_sequence_breakers,
             )
 
         # Add sampling methods based on config
@@ -1059,6 +1120,16 @@ class LLM:
                 config.mirostat_tau,
                 config.mirostat_eta,
             )
+        elif config.top_n_sigma >= 0.0:
+            # Top-n-sigma thresholds on the logit distribution's own spread,
+            # so upstream applies it in place of top_k/top_p/min_p.
+            sampler.add_top_n_sigma(config.top_n_sigma)
+            sampler.add_temp(config.temperature)
+
+            if config.seed != LLAMA_DEFAULT_SEED:
+                sampler.add_dist(config.seed)
+            else:
+                sampler.add_dist(LLAMA_DEFAULT_SEED)
         else:
             # Probabilistic sampling
             sampler.add_min_p(config.min_p, 1)

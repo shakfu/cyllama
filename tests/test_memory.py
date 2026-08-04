@@ -347,3 +347,48 @@ class TestMemoryIntegration:
         )
         assert isinstance(estimate, MemoryEstimate)
         assert estimate.layers >= 0
+
+
+DEFAULT_MODEL = Path.cwd() / "models" / "Llama-3.2-1B-Instruct-Q8_0.gguf"
+
+
+@pytest.mark.skipif(not DEFAULT_MODEL.exists(), reason="test model not available")
+class TestDumpMetadataRealModel:
+    """dump_metadata_json used to load the model and then throw the result
+    away, returning hardcoded defaults for every field except vocab size.
+    These pin it to the model's actual shape.
+    """
+
+    def test_reports_actual_model_shape(self):
+        metadata = dump_metadata_json(str(DEFAULT_MODEL))
+
+        # Llama-3.2-1B: 16 layers / 2048 embd / 32:8 GQA, none of which
+        # match the old hardcoded 32 / 4096 / 32:32 defaults.
+        assert metadata["general.architecture"] == "llama"
+        assert metadata["llama.block_count"] == 16
+        assert metadata["llama.embedding_length"] == 2048
+        assert metadata["llama.attention.head_count"] == 32
+        assert metadata["llama.attention.head_count_kv"] == 8
+        assert metadata["llama.context_length"] == 131072
+        assert len(metadata["tokenizer.ggml.tokens"]) == 128256
+
+    def test_reports_sliding_window(self):
+        """Full-attention model, so the SWA window is 0."""
+        metadata = dump_metadata_json(str(DEFAULT_MODEL))
+        assert metadata["llama.attention.sliding_window"] == 0
+
+    def test_estimate_uses_gqa_ratio(self):
+        """KV cache scales with n_head_kv, not n_embd: with 32:8 GQA the
+        cache is a quarter of what the embedding width alone implies."""
+        estimate = estimate_gpu_layers(
+            str(DEFAULT_MODEL),
+            gpu_memory_mb=32768,
+            ctx_size=4096,
+        )
+
+        n_layer, n_embd, n_head, n_head_kv = 16, 2048, 32, 8
+        head_dim = n_embd // n_head
+        expected_per_layer = 4096 * 1 * 1 * (head_dim * n_head_kv) * 2 * 1 * 2
+
+        assert estimate.layers == n_layer
+        assert estimate.vram_kv == n_layer * expected_per_layer

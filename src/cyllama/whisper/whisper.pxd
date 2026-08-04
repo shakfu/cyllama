@@ -293,7 +293,7 @@ cdef extern from "whisper.h":
     # Main processing functions
     cdef int whisper_full(whisper_context * ctx, whisper_full_params params, const float * samples, int n_samples) nogil
     cdef int whisper_full_with_state(whisper_context * ctx, whisper_state * state, whisper_full_params params, const float * samples, int n_samples)
-    cdef int whisper_full_parallel(whisper_context * ctx, whisper_full_params params, const float * samples, int n_samples, int n_processors)
+    cdef int whisper_full_parallel(whisper_context * ctx, whisper_full_params params, const float * samples, int n_samples, int n_processors) nogil
 
     # Result extraction
     cdef int whisper_full_n_segments(whisper_context * ctx)
@@ -321,12 +321,21 @@ cdef extern from "whisper.h":
     cdef float whisper_full_get_segment_no_speech_prob(whisper_context * ctx, int i_segment)
     cdef float whisper_full_get_segment_no_speech_prob_from_state(whisper_state * state, int i_segment)
 
+    # Access the speech segments detected by the internal VAD (only when params.vad = true).
+    cdef int whisper_full_n_vad_segments(whisper_context * ctx)
+    cdef int64_t whisper_full_get_vad_segment_t0(whisper_context * ctx, int i)
+    cdef int64_t whisper_full_get_vad_segment_t1(whisper_context * ctx, int i)
+
     # VAD functions
     cdef whisper_vad_params whisper_vad_default_params()
     cdef whisper_vad_context_params whisper_vad_default_context_params()
     cdef whisper_vad_context * whisper_vad_init_from_file_with_params(const char * path_model, whisper_vad_context_params params)
     cdef whisper_vad_context * whisper_vad_init_with_params(whisper_model_loader * loader, whisper_vad_context_params params)
-    cdef bint whisper_vad_detect_speech(whisper_vad_context * vctx, const float * samples, int n_samples)
+    cdef bint whisper_vad_detect_speech(whisper_vad_context * vctx, const float * samples, int n_samples) nogil
+    # Like whisper_vad_detect_speech, but does not reset LSTM state.
+    # Use for streaming: call whisper_vad_reset_state() between utterances.
+    cdef bint whisper_vad_detect_speech_no_reset(whisper_vad_context * vctx, const float * samples, int n_samples) nogil
+    cdef void whisper_vad_reset_state(whisper_vad_context * vctx)
     cdef int whisper_vad_n_probs(whisper_vad_context * vctx)
     cdef float * whisper_vad_probs(whisper_vad_context * vctx)
     cdef whisper_vad_segments * whisper_vad_segments_from_probs(whisper_vad_context * vctx, whisper_vad_params params)

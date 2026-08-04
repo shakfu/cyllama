@@ -394,15 +394,65 @@ class Reranker(RerankerProtocol):
     def _ensure_model(self) -> None:
         """Load model on first use."""
         if self._model is None:
-            from ..llama import LlamaModel, LlamaContext, LlamaModelParams, LlamaContextParams
+            from ..llama.llama_cpp import (
+                LLAMA_POOLING_TYPE_RANK,
+                LlamaContext,
+                LlamaContextParams,
+                LlamaModel,
+                LlamaModelParams,
+            )
 
             params = LlamaModelParams()
             params.n_gpu_layers = self.n_gpu_layers
 
             self._model = LlamaModel(self.model_path, params)
+            self._vocab = self._model.get_vocab()
+
             ctx_params = LlamaContextParams()
             ctx_params.n_ctx = self.n_ctx
+            # A reranker's score comes from a classification head that is only
+            # attached to the graph under RANK pooling, and pooled output is
+            # only produced when embeddings are enabled. Without both, the
+            # context yields ordinary LM logits and no relevance score at all.
+            ctx_params.embeddings = True
+            ctx_params.pooling_type = LLAMA_POOLING_TYPE_RANK
             self._ctx = LlamaContext(self._model, ctx_params)
+
+            # Models may ship a dedicated rerank template; when absent we build
+            # the BOS/query/EOS/SEP/document/EOS sequence by hand.
+            self._rerank_template = self._model.get_default_chat_template_by_name("rerank")
+
+    def _build_prompt_tokens(self, query: str, document: str) -> list[int]:
+        """Tokenize a query-document pair the way llama.cpp's server does.
+
+        Mirrors ``format_prompt_rerank`` in llama.cpp's
+        ``tools/server/server-common.cpp``.
+        """
+        from ..llama.llama_cpp import _TOKEN_NULL
+
+        vocab = self._vocab
+
+        if self._rerank_template:
+            prompt = self._rerank_template.replace("{query}", query).replace("{document}", document)
+            return list(vocab.tokenize(prompt, add_special=False, parse_special=True))
+
+        # EOS separates the two fields; models without one fall back to SEP.
+        eos_token = vocab.token_eos()
+        if eos_token == _TOKEN_NULL:
+            eos_token = vocab.token_sep()
+
+        tokens: list[int] = []
+        if vocab.get_add_bos():
+            tokens.append(vocab.token_bos())
+        tokens.extend(vocab.tokenize(query, add_special=False, parse_special=False))
+        if vocab.get_add_eos():
+            tokens.append(eos_token)
+        if vocab.get_add_sep():
+            tokens.append(vocab.token_sep())
+        tokens.extend(vocab.tokenize(document, add_special=False, parse_special=False))
+        if vocab.get_add_eos():
+            tokens.append(eos_token)
+        return tokens
 
     def score(self, query: str, document: str) -> float:
         """Score a single query-document pair.
@@ -412,37 +462,33 @@ class Reranker(RerankerProtocol):
             document: Document text
 
         Returns:
-            Relevance score (higher is more relevant)
+            Relevance score (higher is more relevant). Scores are raw
+            classifier logits, so they are unbounded and only meaningful
+            relative to other scores from the same model.
         """
         self._ensure_model()
 
-        # Format as query-document pair for cross-encoder
-        # Most cross-encoders use this format
-        text = f"query: {query}\ndocument: {document}"
+        from ..llama.llama_cpp import LlamaBatch
 
-        # Tokenize
-        tokens = self._model.tokenize(text.encode(), add_bos=True, special=True)
+        tokens = self._build_prompt_tokens(query, document)
 
-        # Truncate if needed
+        # Truncate if needed, keeping the trailing separator intact so the
+        # classification head still sees a well-formed pair.
         if len(tokens) > self.n_ctx:
-            tokens = tokens[: self.n_ctx]
-
-        # Get embeddings (cross-encoders output a score)
-        from ..llama import LlamaBatch, common_batch_add
+            tokens = tokens[: self.n_ctx - 1] + tokens[-1:]
 
         batch = LlamaBatch(n_tokens=len(tokens), embd=0, n_seq_max=1)
-        for i, token in enumerate(tokens):
-            common_batch_add(batch, token, i, [0], i == len(tokens) - 1)
+        batch.add_sequence(tokens, 0, False)
 
+        # A pooled context accumulates per-sequence state, so clear the
+        # previous pair before decoding the next one.
+        self._ctx.memory_seq_rm(0, -1, -1)
         self._ctx.decode(batch)
 
-        # Get the score from the last token's logits
-        # This assumes a standard cross-encoder architecture
-        logits = self._ctx.get_logits()
-        if logits is not None and len(logits) > 0:
-            # Return the first logit as score (common for binary classifiers)
-            return float(logits[0])
-        return 0.0
+        scores = self._ctx.get_embeddings_seq(0)
+        if not scores:
+            return 0.0
+        return float(scores[0])
 
     def rerank(
         self,
@@ -491,6 +537,7 @@ class Reranker(RerankerProtocol):
         """Release model resources."""
         if self._model is not None:
             self._ctx = None
+            self._vocab = None
             self._model = None
 
     def __enter__(self) -> "Reranker":
