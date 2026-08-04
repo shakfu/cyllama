@@ -32,7 +32,11 @@ Accelerate itself is system-provided and not bundled.
 
 ## `libllama-common`
 
-Upstream's `libllama-common` links against Homebrew's OpenSSL. On `macos-15-intel` runners the Homebrew OpenSSL is built for min macOS 15.0, which clashes with our `MACOSX_DEPLOYMENT_TARGET=11.0`. No cyllama extension references `libllama-common`, so it's not a concern unless it ends up on the filesystem in a location `delocate` walks into. Under the current canonical pattern nothing pulls it in, so no exclusion is needed — the extension's rpath drives what gets bundled.
+Upstream's `libllama-common` links against Homebrew's OpenSSL. On `macos-15-intel` runners the Homebrew OpenSSL is built for min macOS 15.0, which clashes with our `MACOSX_DEPLOYMENT_TARGET=11.0`. No cyllama extension references `libllama-common`, so it's not a concern unless it ends up on the filesystem in a location `delocate` walks into.
+
+As of the `b10271` bump it is no longer built at all: `scripts/manage.py` dropped it from both target lists, so it never reaches the filesystem and the deployment-target clash cannot arise. The target is expensive (`chat.cpp`, the jinja and PEG parsers, `arg.cpp`, `download.cpp`) and produced an 8 MB archive that was only ever copied, never linked. `mtmd` does not need it either — it links just `ggml` and `llama`, and upstream's `tools/mtmd/CMakeLists.txt` raises a configure error if `mtmd` ever picks up `llama-common`.
+
+If a future binding does need something from `common/`, re-add `llama-common` to the `targets` list in both `LlamaCppBuilder.build()` and `build_shared()`, restore the `copy_lib` call, and put it back in `extra_libs` — that last list drives the lib-presence checks behind `manage.py`'s status report.
 
 ## Wheel repair command
 
@@ -49,7 +53,7 @@ delocate-wheel --require-archs <arch> -w <out-dir> -v <wheel.whl>
 Builds use `GGML_BACKEND_DL=ON`, so GPU backends (`ggml-cuda`, `ggml-vulkan`) are compiled as **plugin DLLs loaded at runtime via `LoadLibrary`**, not linked into `llama.dll`. `scripts/manage.py` builds them explicitly as separate targets and copies them into `thirdparty/llama.cpp/dynamic/`:
 
 ```python
-targets = ["llama", "llama-common", "mtmd", "ggml-cpu"]
+targets = ["llama", "mtmd", "ggml-cpu"]
 if backend_options.get("GGML_VULKAN") == "ON":
     targets.append("ggml-vulkan")
 if backend_options.get("GGML_CUDA") == "ON":

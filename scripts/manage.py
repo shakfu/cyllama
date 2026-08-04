@@ -1200,7 +1200,9 @@ class LlamaCppBuilder(GgmlBuilder):
     # llama.cpp installs ggml as a split build: the unified `ggml` plus
     # the `ggml-base` / `ggml-cpu` partials.
     base_libs: list[str] = ["ggml", "ggml-base", "ggml-cpu"]
-    extra_libs: list[str] = ["llama", "llama-common", "mtmd"]
+    # `llama-common` is deliberately absent: nothing in cyllama links it. See
+    # the note above the target list in `build()`.
+    extra_libs: list[str] = ["llama", "mtmd"]
 
     def get_backend_cmake_options(self) -> dict[str, Any]:
         """CMake options for llama.cpp (GGML_* flag names)."""
@@ -1319,9 +1321,16 @@ class LlamaCppBuilder(GgmlBuilder):
             **backend_options,
         )
         # Build specific targets to avoid httplib-dependent tools like llama-run
-        # We need: llama, ggml, llama-common, mtmd
-        # (upstream b8833 renamed the `common` target -> `llama-common`)
-        self.cmake_build_targets(build_dir=self.build_dir, targets=["llama", "llama-common", "mtmd"], release=True)
+        # We need: llama, ggml, mtmd (ggml comes along as a dependency).
+        #
+        # `llama-common` (upstream renamed the `common` target in b8833) is
+        # deliberately not built. No cyllama extension references it — the
+        # link lists in CMakeLists.txt name only llama/mtmd/ggml, and mtmd
+        # links just ggml+llama (upstream even errors if mtmd picks up
+        # llama-common). It is the single most expensive target in the tree
+        # (chat.cpp, the jinja and PEG parsers, arg.cpp, download.cpp) and
+        # produced an 8 MB .a that was only ever copied, never linked.
+        self.cmake_build_targets(build_dir=self.build_dir, targets=["llama", "mtmd"], release=True)
 
         # Manually copy required libraries instead of cmake install (which tries to install all components)
         self.lib.mkdir(parents=True, exist_ok=True)
@@ -1329,7 +1338,6 @@ class LlamaCppBuilder(GgmlBuilder):
         # Copy core libraries from build directory (platform-aware)
         # Note: cpp-httplib is intentionally not copied — cyllama does not link it
         # (see CMakeLists.txt); it only pulled in OpenSSL SSLClient symbols.
-        self.copy_lib(self.build_dir, "common", "llama-common", self.lib)
         self.copy_lib(self.build_dir, "src", "llama", self.lib)
         self.copy_lib(self.build_dir, "ggml/src", "ggml", self.lib)
         self.copy_lib(self.build_dir, "ggml/src", "ggml-base", self.lib)
@@ -1394,7 +1402,7 @@ class LlamaCppBuilder(GgmlBuilder):
         # With GGML_BACKEND_DL=True, backends are separate plugin targets
         # that are not transitive dependencies of llama.  Build them explicitly.
         # ggml-cpu is always needed; GPU backends are conditional.
-        targets = ["llama", "llama-common", "mtmd", "ggml-cpu"]
+        targets = ["llama", "mtmd", "ggml-cpu"]  # no llama-common; see build()
         targets.extend(f"ggml-{short}" for short in self.enabled_backends_from_options(backend_options))
         self.cmake_build_targets(build_dir=self.build_dir, targets=targets, release=True)
 
