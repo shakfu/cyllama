@@ -1,0 +1,44 @@
+Guard posix_spawn_file_actions_addchdir_np() behind a glibc version check.
+
+The function was added in glibc 2.29. cyllama builds its manylinux wheels on
+the manylinux2014 image (glibc 2.17), where the call fails to compile and takes
+down both llama-common (common/subproc.cpp) and MTMD_VIDEO (tools/mtmd/
+mtmd-helper.cpp), which include this header. There is no posix_spawn equivalent
+on older glibc, so the cwd request is reported as ENOSYS through the existing
+error path; every other subprocess_create_ex() feature is unaffected, and no
+caller in llama.cpp requests a cwd today.
+
+The version test is written as nested #if rather than
+`defined(__GLIBC_PREREQ) && !__GLIBC_PREREQ(2, 29)` because the preprocessor
+macro-expands the whole controlling expression before evaluating it: where
+__GLIBC_PREREQ is undefined, the second operand degrades to `1 (2, 29)` and is
+a syntax error rather than a false branch.
+
+--- a/vendor/sheredom/subprocess.h
++++ b/vendor/sheredom/subprocess.h
+@@ -269,6 +269,12 @@
+ #if defined(__APPLE__)
+ #include <AvailabilityMacros.h>
+ #endif
++#if defined(__GLIBC__)
++/* posix_spawn_file_actions_addchdir_np() was added in glibc 2.29 */
++#if !__GLIBC_PREREQ(2, 29)
++#define SUBPROCESS_NO_SPAWN_ADDCHDIR
++#endif
++#endif
+ #include <sys/types.h>
+ #include <sys/wait.h>
+ #include <unistd.h>
+@@ -1205,7 +1211,11 @@
+
+   // Set working directory
+   if (process_cwd) {
+-#if defined(__APPLE__) && MAC_OS_X_VERSION_MIN_REQUIRED >= 260000
++#if defined(SUBPROCESS_NO_SPAWN_ADDCHDIR)
++    /* no posix_spawn equivalent on this libc; report the unsupported request
++       through the error path below rather than failing to compile */
++    posix_error = ENOSYS;
++#elif defined(__APPLE__) && MAC_OS_X_VERSION_MIN_REQUIRED >= 260000
+     posix_error = posix_spawn_file_actions_addchdir(&actions, process_cwd);
+ #else
+ #if defined(__APPLE__) && defined(__clang__)

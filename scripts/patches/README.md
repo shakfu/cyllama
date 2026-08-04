@@ -22,6 +22,68 @@ the submodule boundary either way, but `git checkout <path>` from the
 superproject does not — to undo a patch by hand there, run git from inside
 `build/<project>/ggml`, not from `build/<project>`.
 
+## Applied
+
+### `llama.cpp-subprocess-glibc217.patch`
+
+**Target:** `vendor/sheredom/subprocess.h` (llama.cpp `b10271`)
+
+**Problem:** `subprocess_create_ex()` honours a working-directory argument via
+`posix_spawn_file_actions_addchdir_np()`, which glibc only gained in 2.29.
+cyllama builds its manylinux wheels on the manylinux2014 image (glibc 2.17,
+see the `manylinux-*-image` rationale in `pyproject.toml`), where that call is
+undeclared and the compile fails. It takes down two targets cyllama needs:
+`llama-common` (via `common/subproc.cpp`) and `mtmd` when `MTMD_VIDEO` is on
+(via `tools/mtmd/mtmd-helper.cpp`, which includes the vendored header
+directly). This first appeared with the `b10271` bump, which added
+`common/subproc.cpp`.
+
+**Fix:** Report `ENOSYS` through the function's existing error path when the
+libc is glibc older than 2.29, instead of emitting the call. There is no
+posix_spawn equivalent on that glibc, so the cwd feature genuinely cannot be
+supported there; nothing else in `subprocess_create_ex()` is affected. No
+caller in llama.cpp passes a cwd today — `mtmd-helper.cpp` spawns ffmpeg
+through plain `subprocess_create()`, so video decoding keeps working on
+manylinux wheels.
+
+**Alternative rejected:** configuring with `LLAMA_SUBPROCESS=OFF` compiles
+`subproc.cpp` down to a stub and avoids the header entirely, but it also
+forces `MTMD_VIDEO` off (llama.cpp's top-level `CMakeLists.txt` ties the two
+together). cyllama binds video through `MtmdContext.open_video()`, so that
+would have silently dropped a working API on every platform to fix one image.
+
+**Note on the version test:** it is written as nested `#if` rather than
+`defined(__GLIBC_PREREQ) && !__GLIBC_PREREQ(2, 29)`. The preprocessor
+macro-expands the whole controlling expression before evaluating it, so where
+`__GLIBC_PREREQ` is undefined the second operand degrades to `1 (2, 29)` — a
+syntax error, not a false branch.
+
+### `stable-diffusion.cpp-msvc-bigobj.patch`
+
+**Target:** `CMakeLists.txt` (stable-diffusion.cpp `master-812-ea7f0c8`)
+
+**Problem:** `src/stable-diffusion.cpp` has grown past the 65,279-section
+limit of the COFF object format, so the Windows wheel build dies with
+`error C1128: number of sections exceeded object file format limit: compile
+with /bigobj`. llama.cpp hit the same wall long ago and carries `/bigobj` in
+its own top-level `CMakeLists.txt`; stable-diffusion.cpp's `if (MSVC)` block
+sets `/MP` and `/utf-8` but not `/bigobj`.
+
+**Fix:** Add `/bigobj` alongside `/utf-8`, using the same
+`COMPILE_LANGUAGE` generator expressions so the scoping matches its
+neighbours. Upstreamable as-is.
+
+**Why a patch and not a CMake cache variable:** passing
+`-DCMAKE_CXX_FLAGS=/bigobj` from `manage.py` would *replace* the value CMake
+initialises for MSVC (`/DWIN32 /D_WINDOWS /W3 /GR /EHsc`) rather than append
+to it, silently dropping `/EHsc` and changing unwind semantics for the whole
+tree. `add_compile_options()` is purely additive.
+
+An earlier llama.cpp patch is no longer carried: the gemma4a
+`clip_n_mmproj_embd()` abort fix was merged upstream in
+[ggml-org/llama.cpp#24091](https://github.com/ggml-org/llama.cpp/pull/24091)
+(released in `b9503`).
+
 ## Not applied
 
 ### `proposed/llama.cpp-metal-tensor-msl4.patch`
@@ -84,11 +146,6 @@ healthy and still be producing white squares.
 To re-evaluate after a ggml bump: apply the patch, rebuild, and render with a
 fixed seed. `GGML_METAL_TENSOR_DISABLE=1` toggles the tensor path at runtime
 without rebuilding, which makes the A/B cheap.
-
-An earlier llama.cpp patch is no longer carried: the gemma4a
-`clip_n_mmproj_embd()` abort fix was merged upstream in
-[ggml-org/llama.cpp#24091](https://github.com/ggml-org/llama.cpp/pull/24091)
-(released in `b9503`).
 
 ## stable-diffusion.cpp
 
