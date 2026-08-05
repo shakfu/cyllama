@@ -58,6 +58,52 @@ macro-expands the whole controlling expression before evaluating it, so where
 `__GLIBC_PREREQ` is undefined the second operand degrades to `1 (2, 29)` — a
 syntax error, not a false branch.
 
+### `ggml-metal-pin-msl-version.patch`
+
+**Target:** `ggml/src/ggml-metal/ggml-metal-device.m` — all three ggml trees
+(llama.cpp, whisper.cpp, stable-diffusion.cpp each carry the same two compile
+sites).
+
+**Problem:** ggml compiles its embedded Metal shader library with a bare
+`[MTLCompileOptions new]` and never sets `languageVersion`. Metal then derives
+the MSL version from the SDK **the host process was linked against** — not from
+the running OS. ggml is a library loaded into whichever binary the user runs, so
+shader compilation depended on the interpreter rather than the machine.
+
+python.org's CPython 3.12 links the macOS **12.1** SDK. Under it the library
+fails to compile outright:
+
+```
+ggml_metal_library_init: error: MTLLibraryErrorDomain Code=3
+  program_source: error: no matching constructor for initialization of
+  'threadgroup metal::half4x4[512]'
+ggml_metal_device_init: error: failed to create library
+```
+
+The Metal backend never initializes, and the first `llama_context` creation
+fails. Model loading succeeds first, so the traceback points at the context, not
+at Metal. Below MSL 3.1 there is a quieter variant: `ggml-metal.metal:36`
+`#undef`s the bf16 kernels while `props.has_bfloat` stays true.
+
+This is not CI-only. `cp312-abi3` wheels are what 3.12 users install, and the
+python.org installer is a mainstream way to get Python on macOS.
+
+**Fix:** Pin `languageVersion` on both compile paths via an `@available`
+ladder — 3.2 on macOS 15+, 3.1 on macOS 14+, 3.0 on macOS 13+. Versions are
+spelled numerically so the file still builds against SDKs predating the enum
+constants, matching the existing `MTLGPUFamilyMetal4_GGML` precedent.
+
+**Why the ladder stops below MSL 4.0:** 4.0 makes the Metal 4 tensor headers
+available, which enables the tensor matmul kernels that blank stable-diffusion
+output — the reason `proposed/llama.cpp-metal-tensor-msl4.patch` is not applied.
+Capping at 3.2 keeps the tensor probe on its existing unsupported path, so this
+patch makes today's behaviour deterministic rather than changing it.
+
+**Verified** against the exact failing interpreter (the `actions/python-versions`
+3.12.10 darwin-arm64 build, expanded with `pkgutil --expand-full`): before the
+patch it reproduces the CI failure; after it, `ggml_metal_library_init` succeeds
+with `has bfloat = true` and `has tensor = false`.
+
 ### `stable-diffusion.cpp-msvc-bigobj.patch`
 
 **Target:** `CMakeLists.txt` (stable-diffusion.cpp `master-812-ea7f0c8`)
