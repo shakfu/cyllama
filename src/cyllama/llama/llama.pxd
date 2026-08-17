@@ -156,6 +156,7 @@ cdef extern from "llama.h":
         LLAMA_SPLIT_MODE_TENSOR = 3
 
     cdef enum llama_load_mode:
+        LLAMA_LOAD_MODE_AUTO       = -1 # auto-detect based on device capabilities
         LLAMA_LOAD_MODE_NONE       = 0 # no special loading mode
         LLAMA_LOAD_MODE_MMAP       = 1 # memory map the model
         LLAMA_LOAD_MODE_MLOCK      = 2 # force system to keep model in RAM rather than swapping or compressing
@@ -1159,7 +1160,7 @@ cdef extern from "llama.h":
     # NOTE: Avoid using on the full vocabulary as searching for repeated tokens can become slow. For example, apply top-k or top-p sampling first.
     cdef llama_sampler * llama_sampler_init_penalties(
                              int32_t   n_vocab,
-                             int32_t   penalty_last_n,   # last n tokens to penalize (0 = disable penalty, -1 = context size)
+                             int32_t   penalty_last_n,   # last n tokens to penalize (0 = disable penalty)
                                float   penalty_repeat,   # must be > 0.0, 1.0 = disabled
                                float   penalty_freq,     # must be finite, 0.0 = disabled
                                float   penalty_present)  # must be finite, 0.0 = disabled
@@ -1167,11 +1168,10 @@ cdef extern from "llama.h":
     # @details DRY sampler, designed by p-e-w, as described in: https://github.com/oobabooga/text-generation-webui/pull/5677, porting Koboldcpp implementation authored by pi6am: https://github.com/LostRuins/koboldcpp/pull/982
     cdef llama_sampler * llama_sampler_init_dry(
                    const llama_vocab *  vocab,
-                             int32_t    n_ctx_train,
                                float    dry_multiplier,
                                float    dry_base,
                              int32_t    dry_allowed_length,
-                             int32_t    dry_penalty_last_n,
+                             int32_t    dry_penalty_last_n,  # last n tokens to penalize (0 = disable penalty)
                           const char ** seq_breakers,
                               size_t    num_breakers)
 

@@ -137,7 +137,7 @@ PLATFORM = platform.system()
 ARCH = platform.machine()
 PY_VER_MINOR = sys.version_info.minor
 
-STABLE_BUILD = getenv("STABLE_BUILD", True)
+STABLE_BUILD = getenv("STABLE_BUILD", False)
 if STABLE_BUILD:
     # known to build and work without errors, 100% tests pass
     LLAMACPP_VERSION = "b10271"
@@ -146,9 +146,14 @@ if STABLE_BUILD:
     SQLITEVECTOR_VERSION = "1.0.0"
 else:
     # experimental bleeding-edge builds ` = ""` means get latest
-    LLAMACPP_VERSION = "b10271"
+    LLAMACPP_VERSION = "b10453"
     WHISPERCPP_VERSION = "v1.9.2"
-    SDCPP_VERSION = "master-812-ea7f0c8"
+    # capped at master-816: master-817 ("feat: support INT8 ConvRot safetensors")
+    # calls ggml_quantize_i8_convrot / ggml_mul_mat_i8_tensorwise, which exist
+    # only in leejet's ggml fork. cyllama compiles SD against llama.cpp's ggml
+    # (see StableDiffusionCppBuilder._sync_ggml_abi), where those ops are
+    # undeclared. Revisit once the INT8 ConvRot ops land in upstream ggml.
+    SDCPP_VERSION = "master-816-487de75"
     SQLITEVECTOR_VERSION = "1.0.0"
 if PLATFORM == "Darwin":
     MACOSX_DEPLOYMENT_TARGET = setenv("MACOSX_DEPLOYMENT_TARGET", "12.6")
