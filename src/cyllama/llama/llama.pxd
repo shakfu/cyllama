@@ -156,6 +156,7 @@ cdef extern from "llama.h":
         LLAMA_SPLIT_MODE_TENSOR = 3
 
     cdef enum llama_load_mode:
+        LLAMA_LOAD_MODE_AUTO       = -1 # auto-detect based on device capabilities
         LLAMA_LOAD_MODE_NONE       = 0 # no special loading mode
         LLAMA_LOAD_MODE_MMAP       = 1 # memory map the model
         LLAMA_LOAD_MODE_MLOCK      = 2 # force system to keep model in RAM rather than swapping or compressing
@@ -1167,7 +1168,6 @@ cdef extern from "llama.h":
     # @details DRY sampler, designed by p-e-w, as described in: https://github.com/oobabooga/text-generation-webui/pull/5677, porting Koboldcpp implementation authored by pi6am: https://github.com/LostRuins/koboldcpp/pull/982
     cdef llama_sampler * llama_sampler_init_dry(
                    const llama_vocab *  vocab,
-                             int32_t    n_ctx_train,
                                float    dry_multiplier,
                                float    dry_base,
                              int32_t    dry_allowed_length,

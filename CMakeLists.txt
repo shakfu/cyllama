@@ -413,6 +413,10 @@ else()
     static_lib(LIB_GGML_BASE "${LLAMACPP_LIB}" "ggml-base")
     static_lib(LIB_GGML_CPU "${LLAMACPP_LIB}" "ggml-cpu")
     static_lib(LIB_MTMD "${LLAMACPP_LIB}" "mtmd")
+    # vendor/hash (sha256/sha1/xxhash), linked PRIVATE into mtmd upstream since
+    # llama.cpp v0.3.0 — mtmd-helper.cpp calls hash_sha256_hex(). It must follow
+    # LIB_MTMD in the link line for GNU ld to resolve that symbol.
+    static_lib(LIB_VENDOR_HASH "${LLAMACPP_LIB}" "vendor-hash")
 
     list(APPEND STATIC_LIBS
         "${LIB_LLAMA}"
@@ -420,6 +424,7 @@ else()
         "${LIB_GGML_BASE}"
         "${LIB_GGML_CPU}"
         "${LIB_MTMD}"
+        "${LIB_VENDOR_HASH}"
     )
 
     # cpp-httplib: intentionally NOT linked. cyllama does not link llama-common
@@ -654,7 +659,7 @@ function(add_cython_extension target_name pyx_file)
             list(APPEND _GGML_LIBS ${LIB_GGML_OPENCL})
         endif()
 
-        set(_OTHER_LIBS ${LIB_LLAMA} ${LIB_MTMD})
+        set(_OTHER_LIBS ${LIB_LLAMA} ${LIB_MTMD} ${LIB_VENDOR_HASH})
         if(WITH_WHISPER)
             list(APPEND _OTHER_LIBS ${LIB_WHISPER_COMMON} ${LIB_WHISPER})
         endif()
@@ -771,7 +776,7 @@ if(UNIX AND NOT APPLE)
     endif()
 
     # Note: SD libs are NOT included here - SD extension links its own ggml
-    set(_OTHER_LIBS ${LIB_LLAMA} ${LIB_MTMD})
+    set(_OTHER_LIBS ${LIB_LLAMA} ${LIB_MTMD} ${LIB_VENDOR_HASH})
     if(WITH_WHISPER)
         list(APPEND _OTHER_LIBS ${LIB_WHISPER_COMMON} ${LIB_WHISPER})
     endif()

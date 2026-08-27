@@ -81,6 +81,7 @@ cpdef enum:
     LLAMA_POOLING_TYPE_RANK = 4    # reranking models: attaches the classification head
 
 cpdef enum:
+    LLAMA_LOAD_MODE_AUTO = -1      # auto-detect based on device capabilities (default)
     LLAMA_LOAD_MODE_NONE = 0       # no special loading mode
     LLAMA_LOAD_MODE_MMAP = 1       # memory map the model
     LLAMA_LOAD_MODE_MLOCK = 2      # force system to keep model in RAM
@@ -3450,7 +3451,7 @@ cdef class LlamaSampler:
         llama.llama_sampler_chain_add(
             self.ptr, llama.llama_sampler_init_adaptive_p(target, decay, seed))
 
-    def add_dry(self, LlamaVocab vocab, int32_t n_ctx_train, float dry_multiplier,
+    def add_dry(self, LlamaVocab vocab, float dry_multiplier,
                 float dry_base, int32_t dry_allowed_length, int32_t dry_penalty_last_n,
                 seq_breakers: Optional[Sequence[str]] = None):
         """DRY (Don't Repeat Yourself) repetition sampler.
@@ -3462,12 +3463,12 @@ cdef class LlamaSampler:
 
         Args:
             vocab: Model vocabulary.
-            n_ctx_train: Training context size of the model.
             dry_multiplier: Penalty scale. 0.0 disables the sampler.
             dry_base: Exponential base for the penalty growth.
             dry_allowed_length: Repetitions up to this length are not penalised.
-            dry_penalty_last_n: How many recent tokens to scan (0 = disable,
-                -1 = context size).
+            dry_penalty_last_n: How many recent tokens to scan. 0 -- and, since
+                llama.cpp v0.3.0, any negative value -- disables the sampler;
+                there is no longer a sentinel for "the whole context".
             seq_breakers: Strings that reset the repetition tracking, e.g.
                 ``["\\n", ":", "\\"", "*"]``. Defaults to no breakers.
         """
@@ -3488,7 +3489,6 @@ cdef class LlamaSampler:
             llama.llama_sampler_chain_add(
                 self.ptr, llama.llama_sampler_init_dry(
                     vocab.ptr,
-                    n_ctx_train,
                     dry_multiplier,
                     dry_base,
                     dry_allowed_length,

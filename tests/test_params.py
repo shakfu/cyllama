@@ -18,8 +18,10 @@ def test_default_model_params():
     assert params.split_mode == 1  # LLAMA_SPLIT_MODE_LAYER = 1
     assert params.main_gpu == 0
     assert params.vocab_only == False
-    assert params.load_mode == cy.LLAMA_LOAD_MODE_MMAP
-    assert params.load_mode_name == "mmap"
+    # llama.cpp v0.3.0 made AUTO (-1) the default: the loader picks the mode
+    # from the device's capabilities rather than always memory-mapping.
+    assert params.load_mode == cy.LLAMA_LOAD_MODE_AUTO
+    assert params.load_mode_name == "auto"
     assert params.check_tensors == False
     assert params.progress_callback is None
     assert params.tensor_split == []  # Default is empty (no custom split)
@@ -29,6 +31,7 @@ def test_model_params_load_mode():
     """load_mode replaces the removed use_mmap/use_mlock/use_direct_io fields."""
     params = cy.LlamaModelParams()
 
+    assert cy.LLAMA_LOAD_MODE_AUTO == -1
     assert cy.LLAMA_LOAD_MODE_NONE == 0
     assert cy.LLAMA_LOAD_MODE_MMAP == 1
     assert cy.LLAMA_LOAD_MODE_MLOCK == 2
@@ -36,6 +39,7 @@ def test_model_params_load_mode():
     assert cy.LLAMA_LOAD_MODE_DIRECT_IO == 4
 
     for mode, name in [
+        (cy.LLAMA_LOAD_MODE_AUTO, "auto"),
         (cy.LLAMA_LOAD_MODE_NONE, "none"),
         (cy.LLAMA_LOAD_MODE_MMAP, "mmap"),
         (cy.LLAMA_LOAD_MODE_MLOCK, "mlock"),

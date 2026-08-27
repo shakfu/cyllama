@@ -1088,13 +1088,20 @@ class LLM:
         # so it complements the penalties link above and also runs before
         # truncation.
         if config.dry_multiplier > 0.0 and config.dry_penalty_last_n != 0:
+            # llama.cpp v0.3.0 dropped `llama_sampler_init_dry`'s n_ctx_train
+            # argument, and with it the "-1 = scan the whole context" sentinel
+            # it used to resolve against: the sampler now clamps negatives to 0,
+            # which disables DRY outright. Resolve the sentinel here, where the
+            # model is known, so GenerationConfig keeps its documented meaning.
+            dry_penalty_last_n = config.dry_penalty_last_n
+            if dry_penalty_last_n < 0:
+                dry_penalty_last_n = self.model.n_ctx_train
             sampler.add_dry(
                 self.vocab,
-                self.model.n_ctx_train,
                 config.dry_multiplier,
                 config.dry_base,
                 config.dry_allowed_length,
-                config.dry_penalty_last_n,
+                dry_penalty_last_n,
                 config.dry_sequence_breakers,
             )
 

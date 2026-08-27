@@ -137,7 +137,7 @@ PLATFORM = platform.system()
 ARCH = platform.machine()
 PY_VER_MINOR = sys.version_info.minor
 
-STABLE_BUILD = getenv("STABLE_BUILD", True)
+STABLE_BUILD = getenv("STABLE_BUILD", False)
 if STABLE_BUILD:
     # known to build and work without errors, 100% tests pass
     LLAMACPP_VERSION = "b10271"
@@ -146,9 +146,16 @@ if STABLE_BUILD:
     SQLITEVECTOR_VERSION = "1.0.0"
 else:
     # experimental bleeding-edge builds ` = ""` means get latest
-    LLAMACPP_VERSION = "b10271"
+    LLAMACPP_VERSION = "v0.3.0"
     WHISPERCPP_VERSION = "v1.9.2"
-    SDCPP_VERSION = "master-812-ea7f0c8"
+    # Ceiling, not staleness: `master-817-bcc7e29` ("support INT8 ConvRot
+    # safetensors") made stable-diffusion.cpp call `ggml_mul_mat_i8_tensorwise`
+    # and `ggml_quantize_i8_convrot`, which exist only in leejet's ggml fork.
+    # cyllama compiles SD against llama.cpp's ggml (see `_sync_ggml_abi`), where
+    # they are undeclared, so every SD translation unit fails to compile from 817
+    # on. `master-816-487de75` is the last commit that builds against upstream
+    # ggml; do not bump past it until those ops land in ggml proper.
+    SDCPP_VERSION = "master-816-487de75"
     SQLITEVECTOR_VERSION = "1.0.0"
 if PLATFORM == "Darwin":
     MACOSX_DEPLOYMENT_TARGET = setenv("MACOSX_DEPLOYMENT_TARGET", "12.6")
@@ -631,6 +638,11 @@ class AbstractBuilder(ShellCmd):
     repo_url: str
     download_url_template: str
     libs: list[str]
+    # Libs that exist only in the static form (upstream builds them as STATIC
+    # regardless of BUILD_SHARED_LIBS, and links them *into* the shared libs).
+    # Kept out of `libs` so the dynamic-build bookkeeping does not go looking
+    # for a dylib that is never produced.
+    static_only_libs: list[str] = []
     # Whether this builder produces a static/dynamic form at all. Most
     # builders do both; sqlite-vector, for example, is dynamic-only.
     produces_static: bool = True
@@ -893,7 +905,7 @@ class AbstractBuilder(ShellCmd):
         """Platform-resolved paths to the static-lib forms of `self.libs`."""
         if not self.produces_static:
             return []
-        return [self.static_lib_path(n) for n in self.libs]
+        return [self.static_lib_path(n) for n in self.libs + list(self.static_only_libs)]
 
     @property
     def dynamic_libs(self) -> list[Path]:
@@ -1203,6 +1215,13 @@ class LlamaCppBuilder(GgmlBuilder):
     # `llama-common` is deliberately absent: nothing in cyllama links it. See
     # the note above the target list in `build()`.
     extra_libs: list[str] = ["llama", "mtmd"]
+    # `vendor-hash` (vendor/hash: sha256/sha1/xxhash) is new in llama.cpp
+    # v0.3.0, where mtmd-helper.cpp started calling `hash_sha256_hex()`.
+    # Upstream links it PRIVATE into mtmd, so a static libmtmd.a leaves the
+    # symbol undefined and the Cython extension fails to load with
+    # `undefined symbol: _Z15hash_sha256_hex...`. Static-only: upstream always
+    # builds it STATIC, and the shared libmtmd already absorbs it.
+    static_only_libs: list[str] = ["vendor-hash"]
 
     def get_backend_cmake_options(self) -> dict[str, Any]:
         """CMake options for llama.cpp (GGML_* flag names)."""
@@ -1343,6 +1362,8 @@ class LlamaCppBuilder(GgmlBuilder):
         self.copy_lib(self.build_dir, "ggml/src", "ggml-base", self.lib)
         self.copy_lib(self.build_dir, "ggml/src", "ggml-cpu", self.lib)
         self.copy_lib(self.build_dir, "tools/mtmd", "mtmd", self.lib)
+        # Static-only dependency of mtmd; see `static_only_libs` above.
+        self.copy_lib(self.build_dir, "vendor/hash", "vendor-hash", self.lib, required=False)
 
         # Copy backend-specific libraries
         self.copy_backend_libs()
