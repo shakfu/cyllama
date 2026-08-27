@@ -1069,6 +1069,17 @@ class LLM:
 
         sampler = LlamaSampler(sampler_params)
 
+        # Both history-based samplers below document "-1 = whole context", but
+        # libllama never implements that: llama_sampler_init_penalties and
+        # llama_sampler_init_dry each clamp a negative window to 0, which is
+        # their *disabled* value. Upstream resolved -1 one layer up, in
+        # common/sampling.cpp, which cyllama does not use -- and v0.3.0 dropped
+        # even that, along with `llama_sampler_init_dry`'s n_ctx_train argument
+        # (upstream #26524). So resolve it here, where the context and the model
+        # are known, and keep GenerationConfig meaning what it says.
+        # `_ensure_context` runs before `_ensure_sampler`, so `_ctx_size` is set.
+        context_window = self._ctx_size or self.model.n_ctx_train
+
         # Penalties chain link is added first so it shapes logits before
         # truncation samplers (top_k/top_p/min_p) and the final selector.
         # Skipped entirely when all knobs are at their disabled values to
@@ -1078,7 +1089,7 @@ class LLM:
         ) and config.penalty_last_n != 0:
             sampler.add_penalties(
                 self.vocab.n_vocab,
-                config.penalty_last_n,
+                context_window if config.penalty_last_n < 0 else config.penalty_last_n,
                 config.repeat_penalty,
                 config.frequency_penalty,
                 config.presence_penalty,
@@ -1088,20 +1099,12 @@ class LLM:
         # so it complements the penalties link above and also runs before
         # truncation.
         if config.dry_multiplier > 0.0 and config.dry_penalty_last_n != 0:
-            # llama.cpp v0.3.0 dropped `llama_sampler_init_dry`'s n_ctx_train
-            # argument, and with it the "-1 = scan the whole context" sentinel
-            # it used to resolve against: the sampler now clamps negatives to 0,
-            # which disables DRY outright. Resolve the sentinel here, where the
-            # model is known, so GenerationConfig keeps its documented meaning.
-            dry_penalty_last_n = config.dry_penalty_last_n
-            if dry_penalty_last_n < 0:
-                dry_penalty_last_n = self.model.n_ctx_train
             sampler.add_dry(
                 self.vocab,
                 config.dry_multiplier,
                 config.dry_base,
                 config.dry_allowed_length,
-                dry_penalty_last_n,
+                context_window if config.dry_penalty_last_n < 0 else config.dry_penalty_last_n,
                 config.dry_sequence_breakers,
             )
 

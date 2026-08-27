@@ -686,3 +686,43 @@ class TestDryAndTopNSigmaGeneration:
             ).text
 
         assert longest_run(on) < longest_run(off)
+
+
+@pytest.mark.integration
+class TestHistoryWindowResolution:
+    """`-1` must mean "whole context", not "disabled".
+
+    libllama clamps a negative window to 0 in both `llama_sampler_init_dry` and
+    `llama_sampler_init_penalties`, and 0 is their disabled value -- a disabled
+    link is still added to the chain, but under a `?`-prefixed name. `LLM`
+    resolves `-1` to the live context size before building the chain, so the
+    link names below are the proof that resolution happened.
+    """
+
+    @staticmethod
+    def _link_names(llm, config):
+        llm._ensure_context(8, config)
+        sampler = llm._ensure_sampler(config)
+        return [sampler.chain_get(i).name() for i in range(len(sampler))]
+
+    def test_dry_penalty_last_n_negative_is_whole_context(self, model_path):
+        with LLM(model_path) as llm:
+            config = GenerationConfig(dry_multiplier=0.8, dry_penalty_last_n=-1)
+            names = self._link_names(llm, config)
+        assert "dry" in names, names
+        assert "?dry" not in names, names
+
+    def test_penalty_last_n_negative_is_whole_context(self, model_path):
+        with LLM(model_path) as llm:
+            config = GenerationConfig(repeat_penalty=1.2, penalty_last_n=-1)
+            names = self._link_names(llm, config)
+        assert "penalties" in names, names
+        assert "?penalties" not in names, names
+
+    def test_zero_window_still_disables(self, model_path):
+        """0 is the documented disabled value and must stay disabled."""
+        with LLM(model_path) as llm:
+            config = GenerationConfig(dry_multiplier=0.8, dry_penalty_last_n=0, repeat_penalty=1.2, penalty_last_n=0)
+            names = self._link_names(llm, config)
+        assert "dry" not in names, names
+        assert "penalties" not in names, names

@@ -1160,7 +1160,7 @@ cdef extern from "llama.h":
     # NOTE: Avoid using on the full vocabulary as searching for repeated tokens can become slow. For example, apply top-k or top-p sampling first.
     cdef llama_sampler * llama_sampler_init_penalties(
                              int32_t   n_vocab,
-                             int32_t   penalty_last_n,   # last n tokens to penalize (0 = disable penalty, -1 = context size)
+                             int32_t   penalty_last_n,   # last n tokens to penalize (0 = disable penalty)
                                float   penalty_repeat,   # must be > 0.0, 1.0 = disabled
                                float   penalty_freq,     # must be finite, 0.0 = disabled
                                float   penalty_present)  # must be finite, 0.0 = disabled
@@ -1171,7 +1171,7 @@ cdef extern from "llama.h":
                                float    dry_multiplier,
                                float    dry_base,
                              int32_t    dry_allowed_length,
-                             int32_t    dry_penalty_last_n,
+                             int32_t    dry_penalty_last_n,  # last n tokens to penalize (0 = disable penalty)
                           const char ** seq_breakers,
                               size_t    num_breakers)
 

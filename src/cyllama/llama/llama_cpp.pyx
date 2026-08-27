@@ -3466,9 +3466,10 @@ cdef class LlamaSampler:
             dry_multiplier: Penalty scale. 0.0 disables the sampler.
             dry_base: Exponential base for the penalty growth.
             dry_allowed_length: Repetitions up to this length are not penalised.
-            dry_penalty_last_n: How many recent tokens to scan. 0 -- and, since
-                llama.cpp v0.3.0, any negative value -- disables the sampler;
-                there is no longer a sentinel for "the whole context".
+            dry_penalty_last_n: How many recent tokens to scan. 0 disables the
+                sampler, and since llama.cpp v0.3.0 so does any negative value:
+                the "whole context" sentinel is gone, so resolve that intent to
+                a concrete window before calling.
             seq_breakers: Strings that reset the repetition tracking, e.g.
                 ``["\\n", ":", "\\"", "*"]``. Defaults to no breakers.
         """
