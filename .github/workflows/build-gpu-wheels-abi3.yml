@@ -434,12 +434,14 @@ jobs:
         env:
           CIBW_ARCHS_LINUX: x86_64
           CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
+          # shaderc pinned to v2026.3: glslang eaff806e (2026-08-24) emits LocalSizeId
+          # for SPIR-V >= 1.2, which spirv-val rejects under --target-env=vulkan1.2.
           CIBW_BEFORE_ALL_LINUX: >
             dnf install -y git epel-release &&
             dnf install -y ccache &&
             dnf install -y vulkan-headers vulkan-loader-devel &&
             if [ -f /project/thirdparty/.deps-complete ]; then echo "=== Deps cached, skipping build ==="; exit 0; fi &&
-            git clone --depth 1 https://github.com/google/shaderc.git /tmp/shaderc &&
+            git clone --depth 1 --branch v2026.3 https://github.com/google/shaderc.git /tmp/shaderc &&
             cd /tmp/shaderc && python3 utils/git-sync-deps &&
             cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DSHADERC_SKIP_TESTS=ON -DSHADERC_SKIP_EXAMPLES=ON -DSHADERC_SKIP_COPYRIGHT_CHECK=ON &&
             cmake --build build --target glslc_exe --parallel 4 &&
