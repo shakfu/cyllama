@@ -17,6 +17,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+## [0.4.1]
+
+Resync to llama.cpp `v0.3.0` and stable-diffusion.cpp `master-816-487de75`, plus three source patches for build breaks the wheel matrix exposed. `LlamaSampler.add_dry()` loses an argument -- see Changed.
+
+### Fixed
+
+- **`penalty_last_n = -1` and `dry_penalty_last_n = -1` disabled the sampler instead of scanning the whole context** -- both C constructors clamp a negative window to `0`, which is their *disabled* value, so a config asking for "penalise across the entire context" produced no penalty at all. llama.cpp resolved `-1` one layer up in `common/sampling.cpp`, which cyllama does not link, and `v0.3.0` dropped even that: the sentinel is gone from both `llama.h` signatures. `LLM` now resolves a negative window to the live context size (falling back to `n_ctx_train`) before building the chain, so `GenerationConfig` means what it documents. `0` still disables. Regression tests in `tests/test_generate.py` assert on chain-link names, since a disabled link is still added but under a `?`-prefixed name.
+
+- **`undefined symbol: hash_sha256_hex` when loading the extension** -- llama.cpp `v0.3.0` moved sha256/sha1/xxhash into a new `vendor-hash` target and links it `PRIVATE` into `mtmd`, so `libmtmd.a` leaves the symbol undefined for anything linking the static form. `manage.py` now builds and copies it, and `CMakeLists.txt` places it after `LIB_MTMD` in the link line so GNU ld resolves the reference. Tracked in a new `AbstractBuilder.static_only_libs` list: upstream builds it `STATIC` regardless of `BUILD_SHARED_LIBS`, so the dynamic-build bookkeeping must not go looking for a dylib.
+
+- **manylinux wheels failed to compile from the `b10271` bump on** (`scripts/patches/llama.cpp-subprocess-glibc217.patch`) -- vendored `subprocess.h` calls `posix_spawn_file_actions_addchdir_np()`, added in glibc 2.29; the manylinux2014 image ships 2.17. The patch reports `ENOSYS` through the function's existing error path on older glibc rather than emitting the call. No llama.cpp caller passes a working directory, so `MtmdContext.open_video()` keeps working. Building with `LLAMA_SUBPROCESS=OFF` would also have avoided the header but forces `MTMD_VIDEO` off on every platform.
+
+- **Metal shader compilation failed under python.org CPython 3.12** (`scripts/patches/ggml-metal-pin-msl-version.patch`) -- ggml compiles its embedded shader library with a bare `[MTLCompileOptions new]`, so Metal derives the MSL version from the SDK the *host process* was linked against, not the running OS. python.org's 3.12 links the macOS 12.1 SDK, under which the library fails outright (`no matching constructor for 'threadgroup metal::half4x4[512]'`) and the first `llama_context` creation dies with a traceback pointing away from Metal. The patch pins `languageVersion` on both compile paths via an `@available` ladder (3.2 on macOS 15+, 3.1 on 14+, 3.0 on 13+), applied to all three vendored ggml trees. The ladder stops below MSL 4.0 deliberately: 4.0 enables the tensor kernels that blank stable-diffusion output (see `proposed/llama.cpp-metal-tensor-msl4.patch` in 0.4.0).
+
+- **Windows stable-diffusion.cpp build hit `C1128: number of sections exceeded object file format limit`** (`scripts/patches/stable-diffusion.cpp-msvc-bigobj.patch`) -- `src/stable-diffusion.cpp` has grown past the COFF 65,279-section limit. The patch adds `/bigobj` to the upstream `if (MSVC)` block, which already sets `/MP` and `/utf-8`. Passing `-DCMAKE_CXX_FLAGS=/bigobj` instead would replace CMake's MSVC defaults rather than append, silently dropping `/EHsc`.
+
+- **CI smoke-test failures were undiagnosable** -- `complete()` calls `disable_logging()` unless `verbose` is set, so a backend-init or allocation failure inside llama.cpp reached the log as a bare Python exception with no cause. All four wheel workflows now pass `verbose=True`. Model downloads use `curl -fsSL --retry 3 --retry-all-errors` so a transient HuggingFace error is retried instead of being written into the `.gguf`.
+
+### Added
+
+- **`LLAMA_LOAD_MODE_AUTO`** (`-1`) -- new `llama_load_mode` enumerator and the new upstream default: the loader picks mmap/mlock/direct-I/O from the device's capabilities instead of always memory-mapping. `LlamaModelParams.load_mode` therefore now reads `-1` and `load_mode_name` returns `"auto"` on a default-constructed params object.
+
+### Changed
+
+- **llama.cpp updated to `v0.3.0` (from `b10271`), stable-diffusion.cpp to `master-816-487de75` (from `master-812-ea7f0c8`)** -- upstream llama.cpp has moved from `bNNNN` build tags to semantic-version releases; `LLAMACPP_VERSION` in `scripts/manage.py` follows. Binding-visible changes are the dropped `n_ctx_train` argument, the removed `-1` window sentinel and `LLAMA_LOAD_MODE_AUTO`, all covered above. The SD version is a ceiling, not staleness: `master-817-bcc7e29` calls `ggml_mul_mat_i8_tensorwise` and `ggml_quantize_i8_convrot`, which exist only in leejet's ggml fork, and cyllama compiles SD against llama.cpp's ggml -- every SD translation unit fails from 817 on. whisper.cpp stays at `v1.9.2`.
+
+- **`LlamaSampler.add_dry()` no longer takes `n_ctx_train`** -- `llama_sampler_init_dry()` dropped the parameter in `v0.3.0` (upstream #26524); it only ever existed to resolve the `-1` window that went with it. New signature: `add_dry(vocab, dry_multiplier, dry_base, dry_allowed_length, dry_penalty_last_n, seq_breakers=None)`. **Breaking** for direct callers of the low-level sampler; `GenerationConfig`-driven code is unaffected.
+
+- **`llama-common` is no longer built** -- dropped from the target lists in `LlamaCppBuilder.build()` and `build_shared()`, from `extra_libs`, and from the copy step. Nothing in cyllama links it: the `CMakeLists.txt` link lists name only llama/mtmd/ggml, and `mtmd` links just ggml and llama (upstream raises a configure error if it ever picks up `llama-common`). It is the most expensive target in the tree -- `chat.cpp`, the jinja and PEG parsers, `arg.cpp`, `download.cpp` -- and produced an 8 MB archive that was only ever copied. It also removes the `macos-15-intel` hazard where its Homebrew OpenSSL dependency clashed with `MACOSX_DEPLOYMENT_TARGET=11.0`. `docs/dev/packaging.md` records how to restore it if a future binding needs `common/`.
+
 ## [0.4.0]
 
 Two upstream resyncs (llama.cpp b9979 -> b10261, stable-diffusion.cpp master-775 -> master-812) plus the binding-coverage sweep they prompted. Minor rather than patch: `LlamaSampler.add_penalties()` takes a new leading argument, three `LlamaModelParams` booleans are gone, and two `SDImageGenParams` booleans are gone -- see Removed and Fixed.
