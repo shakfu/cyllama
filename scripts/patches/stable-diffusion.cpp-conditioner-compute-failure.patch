@@ -1,0 +1,104 @@
+diff --git a/src/core/ggml_extend.hpp b/src/core/ggml_extend.hpp
+index d14d287..ee49bda 100644
+--- a/src/core/ggml_extend.hpp
++++ b/src/core/ggml_extend.hpp
+@@ -1789,6 +1789,12 @@ protected:
+     template <typename T>
+     static sd::Tensor<T> take_or_empty(std::optional<sd::Tensor<T>> tensor) {
+         if (!tensor.has_value()) {
++            // compute() reports a failure as an empty optional, every caller
++            // here flattens that to an empty tensor, and their callers assert
++            // on empty. Some of compute()'s failure paths log nothing, so
++            // without this line a failed graph reaches the user as a bare
++            // GGML_ASSERT with no indication of what went wrong.
++            LOG_ERROR("runner compute failed; returning an empty tensor");
+             return {};
+         }
+         return std::move(*tensor);
+diff --git a/src/conditioning/conditioner.hpp b/src/conditioning/conditioner.hpp
+index 3d7ff03..03773b2 100644
+--- a/src/conditioning/conditioner.hpp
++++ b/src/conditioning/conditioner.hpp
+@@ -2055,7 +2055,13 @@ struct LLMEmbedder : public Conditioner {
+                                           true,
+                                           deepstack_image_embeds,
+                                           image_grids);
+-        GGML_ASSERT(!hidden_states.empty());
++        if (hidden_states.empty()) {
++            // A failed LLM compute (e.g. the graph-cut segmented path running
++            // out of VRAM) arrives here as an empty tensor. Report it and let
++            // the caller fail the generation instead of aborting the process.
++            LOG_ERROR("text encoder produced no hidden states");
++            return {};
++        }
+         hidden_states = apply_token_weights(std::move(hidden_states), weights);
+         GGML_ASSERT(hidden_states.shape()[1] > prompt_template_encode_start_idx);
+ 
+@@ -2790,7 +2796,9 @@ struct LLMEmbedder : public Conditioner {
+                                                0,
+                                                false,
+                                                max_length);
+-            GGML_ASSERT(!hidden_states.empty());
++            if (hidden_states.empty()) {
++                return {};
++            }
+ 
+             if (hidden_states.shape()[1] > pixeldit_max_length) {
+                 auto bos      = sd::ops::slice(hidden_states, 1, 0, 1);
+@@ -2823,6 +2831,9 @@ struct LLMEmbedder : public Conditioner {
+                                            max_length,
+                                            deepstack_image_embeds,
+                                            image_grids);
++        if (hidden_states.empty()) {
++            return {};
++        }
+         std::vector<sd::Tensor<float>> extra_hidden_states_vec;
+         if (sd_version_is_hunyuan_video(version) && byt5) {
+             std::vector<std::string> quoted_texts;
+@@ -2875,6 +2886,9 @@ struct LLMEmbedder : public Conditioner {
+                                                      prompt_template_encode_start_idx,
+                                                      spell_quotes,
+                                                      max_length);
++            if (extra_hidden_states.empty()) {
++                return {};
++            }
+             extra_hidden_states_vec.push_back(std::move(extra_hidden_states));
+         }
+ 
+diff --git a/src/stable-diffusion.cpp b/src/stable-diffusion.cpp
+index 5986163..a4bf38e 100644
+--- a/src/stable-diffusion.cpp
++++ b/src/stable-diffusion.cpp
+@@ -5209,6 +5209,10 @@ static std::optional<ImageGenerationEmbeds> prepare_image_generation_embeds(sd_c
+     condition_params.zero_out_masked = false;
+     auto cond                        = sd_ctx->sd->cond_stage_model->get_learned_condition(sd_ctx->sd->n_threads,
+                                                                                            condition_params);
++    if (cond.empty()) {
++        LOG_ERROR("get_learned_condition failed for the prompt");
++        return std::nullopt;
++    }
+     if (cond.c_concat.empty() && ref_image_params.pass_to_dit) {
+         cond.c_concat = latents->concat_latent;  // TODO: optimize
+     }
+@@ -5237,6 +5241,10 @@ static std::optional<ImageGenerationEmbeds> prepare_image_generation_embeds(sd_c
+             condition_params.zero_out_masked = zero_out_masked;
+             uncond                           = sd_ctx->sd->cond_stage_model->get_learned_condition(sd_ctx->sd->n_threads,
+                                                                                                    condition_params);
++            if (uncond.empty()) {
++                LOG_ERROR("get_learned_condition failed for the negative prompt");
++                return std::nullopt;
++            }
+         }
+         if (uncond.c_concat.empty() && ref_image_params.pass_to_dit) {
+             uncond.c_concat = latents->concat_latent;  // TODO: optimize
+@@ -5262,6 +5270,10 @@ static std::optional<ImageGenerationEmbeds> prepare_image_generation_embeds(sd_c
+             }
+             img_uncond = sd_ctx->sd->cond_stage_model->get_learned_condition(sd_ctx->sd->n_threads,
+                                                                              condition_params);
++            if (img_uncond.empty()) {
++                LOG_ERROR("get_learned_condition failed for the image-uncond prompt");
++                return std::nullopt;
++            }
+             if (img_uncond.c_concat.empty() && ref_image_params.pass_to_dit) {
+                 img_uncond.c_concat = latents->img_uncond_concat_latent;  // TODO: optimize
+             }

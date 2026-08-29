@@ -17,6 +17,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+### Fixed
+
+- **Stable-diffusion generation OOM'd on a single GPU whenever a text encoder and a diffusion model had to share it** -- the SD CLI mapped every legacy low-VRAM flag (`--offload-to-cpu`, `--clip-on-cpu`, `--vae-on-cpu`, `--control-net-cpu`) onto `max_vram = "-1"`. Upstream `master-731` had replaced those flags with *two* mechanisms, not one: `params_backend` placements and the `max_vram` graph-cut budget. The flags are placements, so routing them to a budget silently changed what they do -- nothing moved to the CPU, and all three flags became the same configuration. The auto budget then compounds it: it is resolved once per module at init from *free* VRAM, and a params storage block is only ever reclaimed when its tensors are disk-backed, so the diffusion model plans against a budget that assumes the text encoder's weights are not there. On an 8 GiB card with Z-Image Turbo Q6_K + Qwen3-4B-Q8_0 the diffusion model asked for a single 5638 MB buffer out of the ~3.6 GiB left and the generation failed outright. Each flag now maps to the `params_backend` placement it names (`--clip-on-cpu` -> `te=cpu`, `--offload-to-cpu` -> `cpu`, ...), independently of `--max-vram`. Covered by `tests/test_sd_cli.py::TestMemoryPlacementFlags`.
+
+- **A failed text-encoder graph aborted the interpreter** (`scripts/patches/stable-diffusion.cpp-conditioner-compute-failure.patch`) -- `GGMLRunner::compute()` reports failure as an empty `std::optional`, `take_or_empty()` flattens it to an empty tensor, and the conditioners `GGML_ASSERT(!hidden_states.empty())` on the result, so any budget that pushed the text encoder itself through the graph-cut segmented path (e.g. `--max-vram 3.5`) killed the process rather than raising. Several of `compute()`'s failure paths also log nothing, so the abort arrived with no cause. The patch logs the dropped failure and propagates it through the LLM conditioner's existing error channel, so generation fails cleanly and cyllama raises `RuntimeError`.
+
+- **`--max-vram` budgets ignored VRAM that was already in use** (`scripts/patches/stable-diffusion.cpp-graph-cut-budget-clamp.patch`) -- the graph-cut planner clamps its budget to the VRAM actually free at plan time, but only under `--stream-layers`. The patch ungates that clamp, so a module plans against what is genuinely free instead of what was free when the context was created. See `scripts/patches/README.md` for the full analysis.
+
+### Added
+
+- **`SDContextParams.backend` and `SDContextParams.params_backend`** -- the `sd_ctx_params_t` fields were declared in `stable_diffusion.pxd` but never exposed, which left no way to reach upstream's replacement for the removed `keep_clip_on_cpu` / `keep_vae_on_cpu` / `offload_params_to_cpu` flags from the txt2img path (only `Upscaler` and `Adetailer` took them). `backend` assigns *compute* per module, `params_backend` assigns *weight residency* and additionally accepts `cpu` and `disk`; both take a bare target for every module (`"cuda0"`, `"cpu"`) or comma-separated per-module assignments (`"diffusion=cuda0,te=cpu"`). Module keys follow upstream: `diffusion`/`model`/`unet`/`dit`, `te`/`clip`/`llm`/`t5`, `vae`, `clip-vision`, `control-net`, `photomaker`, `upscaler`, `detector`. Also accepted as `backend=` / `params_backend=` keyword arguments by `text_to_image()` and `text_to_images()`, restoring the capability those functions lost in 0.4.0. Covered by `tests/test_sd.py::TestSDContextParams::test_backend_and_params_backend`.
+
+- **`--backend`, `--params-backend` and `--auto-fit` on the SD CLI** -- the first two expose the new properties; `--auto-fit` sets `SDContextParams.auto_fit`, letting stable-diffusion.cpp derive both specs from the models and the available VRAM. On an 8 GiB RTX 4060, `--auto-fit` is what makes Z-Image Turbo + Qwen3-4B generate at all.
+
 ## [0.4.1]
 
 Resync to llama.cpp `v0.3.0` and stable-diffusion.cpp `master-816-487de75`, plus three source patches for build breaks the wheel matrix exposed. `LlamaSampler.add_dry()` loses an argument -- see Changed.

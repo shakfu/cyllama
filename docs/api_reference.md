@@ -1602,7 +1602,10 @@ params.t5xxl_path = "t5xxl.safetensors"   # Optional T5-XXL (SD3/FLUX)
 params.control_net_path = "cn.safetensors" # Optional ControlNet
 params.n_threads = 4
 params.diffusion_flash_attn = False
-params.max_vram = "-1"                     # Low-VRAM mode: "0" off, "-1" auto
+params.max_vram = "-1"                     # Graph-cut budget: "0" off, "-1" auto
+params.backend = None                      # Compute placement, e.g. "diffusion=cuda0,te=cpu"
+params.params_backend = "te=cpu"           # Weight placement; also accepts "cpu"/"disk"
+params.auto_fit = False                    # Derive backend/params_backend automatically
 params.eager_load = False                  # Load all params up front
 params.pulid_weights_path = None           # Optional PuLID weights
 params.rpc_servers = None                  # Optional RPC backends, e.g. "host:port"
@@ -1610,7 +1613,12 @@ params.wtype = SDType.COUNT               # COUNT = auto-detect
 params.rng_type = RngType.CUDA
 ```
 
-Memory placement is controlled by `max_vram` (a string: `"0"` disables offload, `"-1"` auto-sizes a GiB budget for graph-cut segmented param offload, or a GiB number / backend-assignment spec). This replaces the removed `offload_params_to_cpu` / `keep_clip_on_cpu` / `keep_vae_on_cpu` / `keep_control_net_on_cpu` / `free_params_immediately` / `vae_decode_only` flags.
+Memory is controlled by two independent mechanisms, which together replace the removed `offload_params_to_cpu` / `keep_clip_on_cpu` / `keep_vae_on_cpu` / `keep_control_net_on_cpu` / `free_params_immediately` / `vae_decode_only` flags:
+
+- **Placement** -- `backend` assigns compute per module and `params_backend` assigns where the weights live (`cpu` and `disk` are valid targets for the latter). Both take either a bare target for every module (`"cuda0"`, `"cpu"`) or comma-separated per-module assignments (`"diffusion=cuda0,te=cpu"`). Module keys: `diffusion` (aliases `model`/`unet`/`dit`), `te` (aliases `clip`/`text`/`conditioner`/`llm`/`t5`), `vae`, `clip-vision`, `control-net`, `photomaker`, `upscaler`, `detector`. `params_backend = "te=cpu"` is the direct replacement for the old `keep_clip_on_cpu`.
+- **Budget** -- `max_vram` (a string: `"0"` disables offload, `"-1"` auto-sizes a GiB budget for graph-cut segmented param offload, or a GiB number / per-backend spec) caps how much of a *single graph* may be resident. It is a per-graph cap, not a placement: modules are budgeted independently and resident weights are not evicted between them, so on a card that cannot hold every module at once, place the text encoder with `params_backend` (or set `auto_fit = True`) rather than relying on the budget alone.
+
+`auto_fit = True` lets stable-diffusion.cpp derive both specs from the models and the available VRAM, which is the simplest option when a model set does not fit comfortably on one GPU.
 
 ### `SDImage`
 

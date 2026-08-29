@@ -212,13 +212,38 @@ def create_context_params(args: argparse.Namespace) -> "SDContextParams":
     #
     # Upstream replaced the old per-component CPU-placement flags
     # (offload_params_to_cpu / keep_clip_on_cpu / keep_vae_on_cpu /
-    # keep_control_net_on_cpu) with a single graph-cut segmented param offload
-    # controlled by `max_vram` ("0" = disabled, "-1" = auto). An explicit
-    # --max-vram wins; otherwise any legacy low-VRAM flag maps to auto offload.
+    # keep_control_net_on_cpu) with two independent mechanisms: `params_backend`,
+    # which pins a module's *weights* to a backend ("te=cpu"), and `max_vram`,
+    # a per-graph budget for graph-cut segmented offload ("0" = disabled,
+    # "-1" = auto). The legacy flags were placements, so they map to
+    # `params_backend` -- mapping them to `max_vram=-1` instead (as an earlier
+    # port did) silently changed their meaning and OOMs on small cards, because
+    # the auto budget is computed per module and does not account for weights
+    # another module already has resident.
     if hasattr(args, "max_vram") and args.max_vram is not None:
         params.max_vram = args.max_vram
-    elif any(getattr(args, name, False) for name in ("offload_to_cpu", "clip_on_cpu", "vae_on_cpu", "control_net_cpu")):
-        params.max_vram = "-1"
+    if getattr(args, "backend", None):
+        params.backend = args.backend
+
+    params_backend_spec = getattr(args, "params_backend", None)
+    if not params_backend_spec:
+        legacy_placements = []
+        if getattr(args, "offload_to_cpu", False):
+            # Upstream's spelling for "all modules on CPU" is a bare target.
+            legacy_placements.append("cpu")
+        else:
+            if getattr(args, "clip_on_cpu", False):
+                legacy_placements.append("te=cpu")
+            if getattr(args, "vae_on_cpu", False):
+                legacy_placements.append("vae=cpu")
+            if getattr(args, "control_net_cpu", False):
+                legacy_placements.append("control-net=cpu")
+        params_backend_spec = ",".join(legacy_placements)
+    if params_backend_spec:
+        params.params_backend = params_backend_spec
+
+    if getattr(args, "auto_fit", False):
+        params.auto_fit = True
     if hasattr(args, "eager_load") and args.eager_load:
         params.eager_load = True
     if hasattr(args, "diffusion_fa") and args.diffusion_fa:
@@ -930,19 +955,59 @@ def add_common_memory_args(parser: argparse.ArgumentParser) -> None:
         help='GiB budget or backend-assignment spec for graph-cut segmented param offload ("0" = disabled, "-1" = auto)',
     )
     parser.add_argument(
+        "--backend",
+        dest="backend",
+        default=None,
+        help='Compute-backend assignment: a device for every module ("cuda0") or per-module '
+        'assignments ("diffusion=cuda0,te=cpu"). Modules: diffusion, te, vae, clip-vision, '
+        "control-net, photomaker, upscaler, detector",
+    )
+    parser.add_argument(
+        "--params-backend",
+        dest="params_backend",
+        default=None,
+        help='Weight-residency assignment, same syntax as --backend plus "cpu"/"disk" targets '
+        '(e.g. "te=cpu,vae=cpu" keeps those weights in RAM while they still compute on the GPU)',
+    )
+    parser.add_argument(
+        "--auto-fit",
+        dest="auto_fit",
+        action="store_true",
+        help="Let stable-diffusion.cpp derive --backend/--params-backend from the models and the available VRAM",
+    )
+    parser.add_argument(
         "--eager-load",
         dest="eager_load",
         action="store_true",
         help="Load all params into the params backend at model-load time instead of lazily",
     )
-    # Legacy low-VRAM flags: upstream consolidated these into --max-vram; kept
-    # for compatibility, each maps to auto offload (--max-vram -1).
+    # Legacy low-VRAM flags: upstream replaced these with --params-backend
+    # placements, which is what they map to. They are placements, not budgets,
+    # so they must not be routed to --max-vram.
     parser.add_argument(
-        "--offload-to-cpu", dest="offload_to_cpu", action="store_true", help="Offload weights to CPU (low VRAM)"
+        "--offload-to-cpu",
+        dest="offload_to_cpu",
+        action="store_true",
+        help="Keep all weights on CPU (low VRAM); alias for --params-backend cpu",
     )
-    parser.add_argument("--clip-on-cpu", dest="clip_on_cpu", action="store_true", help="Keep CLIP on CPU")
-    parser.add_argument("--vae-on-cpu", dest="vae_on_cpu", action="store_true", help="Keep VAE on CPU")
-    parser.add_argument("--control-net-cpu", dest="control_net_cpu", action="store_true", help="Keep ControlNet on CPU")
+    parser.add_argument(
+        "--clip-on-cpu",
+        dest="clip_on_cpu",
+        action="store_true",
+        help="Keep the text encoder weights on CPU; alias for --params-backend te=cpu",
+    )
+    parser.add_argument(
+        "--vae-on-cpu",
+        dest="vae_on_cpu",
+        action="store_true",
+        help="Keep the VAE weights on CPU; alias for --params-backend vae=cpu",
+    )
+    parser.add_argument(
+        "--control-net-cpu",
+        dest="control_net_cpu",
+        action="store_true",
+        help="Keep the ControlNet weights on CPU; alias for --params-backend control-net=cpu",
+    )
     parser.add_argument(
         "--diffusion-fa", dest="diffusion_fa", action="store_true", help="Use flash attention in diffusion"
     )

@@ -925,6 +925,8 @@ cdef class SDContextParams:
     cdef bytes _rpc_servers_bytes
     cdef bytes _split_mode_bytes
     cdef bytes _model_args_bytes
+    cdef bytes _backend_bytes
+    cdef bytes _params_backend_bytes
 
     def __cinit__(self):
         sd_ctx_params_init(&self._params)
@@ -1452,6 +1454,48 @@ cdef class SDContextParams:
             self._params.rpc_servers = self._rpc_servers_bytes
         else:
             self._params.rpc_servers = NULL
+
+    @property
+    def backend(self) -> Optional[str]:
+        """Compute-backend assignment spec. A bare device list applies to every
+        module (e.g. "cuda0", "cuda0,cuda1"), or per-module assignments
+        separated by commas, e.g. "diffusion=cuda0,te=cpu,vae=cpu". Module keys
+        are 'diffusion' (aliases: model/unet/dit), 'te' (aliases:
+        clip/text/conditioner/llm/t5) and 'vae' (aliases: firststage/tae).
+        None (the default) lets stable-diffusion.cpp pick. See also
+        `params_backend`, which places the *weights* rather than the compute."""
+        if self._params.backend:
+            return self._params.backend.decode('utf-8')
+        return None
+
+    @backend.setter
+    def backend(self, value: Optional[str]):
+        if value:
+            self._backend_bytes = value.encode('utf-8')
+            self._params.backend = self._backend_bytes
+        else:
+            self._params.backend = NULL
+
+    @property
+    def params_backend(self) -> Optional[str]:
+        """Weight-residency assignment spec, same syntax as `backend` plus the
+        'cpu' and 'disk' targets, e.g. "te=cpu,vae=cpu" keeps the text encoder
+        and VAE weights in system RAM while they still compute on the GPU.
+        This is the upstream replacement for the removed `keep_clip_on_cpu` /
+        `keep_vae_on_cpu` / `offload_params_to_cpu` flags, and unlike `max_vram`
+        it is a fixed placement rather than a per-graph budget. None when
+        unset."""
+        if self._params.params_backend:
+            return self._params.params_backend.decode('utf-8')
+        return None
+
+    @params_backend.setter
+    def params_backend(self, value: Optional[str]):
+        if value:
+            self._params_backend_bytes = value.encode('utf-8')
+            self._params.params_backend = self._params_backend_bytes
+        else:
+            self._params.params_backend = NULL
 
     @property
     def split_mode(self) -> Optional[str]:
@@ -3886,7 +3930,9 @@ def text_to_images(
     vae_tiling: bool = False,
     hires_fix: bool = False,
     hires_scale: float = 2.0,
-    diffusion_flash_attn: bool = False
+    diffusion_flash_attn: bool = False,
+    backend: Optional[str] = None,
+    params_backend: Optional[str] = None
 ) -> List[SDImage]:
     """
     Generate a batch of image variants from a text prompt (convenience function).
@@ -3922,6 +3968,9 @@ def text_to_images(
         hires_fix: Enable hires-fix two-pass generation (latent upscale)
         hires_scale: Hires-fix upscale factor (default 2.0)
         diffusion_flash_attn: Use flash attention
+        backend: Compute-backend assignment spec (e.g. "cuda0", "te=cpu")
+        params_backend: Weight-residency assignment spec (e.g. "te=cpu,vae=cpu");
+            the replacement for the removed keep_clip_on_cpu / keep_vae_on_cpu flags
 
     Returns:
         List of generated SDImage objects
@@ -3940,6 +3989,10 @@ def text_to_images(
         params.taesd_path = taesd_path
     if control_net_path:
         params.control_net_path = control_net_path
+    if backend:
+        params.backend = backend
+    if params_backend:
+        params.params_backend = params_backend
     params.diffusion_flash_attn = diffusion_flash_attn
 
     with SDContext(params) as ctx:
@@ -3987,7 +4040,9 @@ def text_to_image(
     vae_tiling: bool = False,
     hires_fix: bool = False,
     hires_scale: float = 2.0,
-    diffusion_flash_attn: bool = False
+    diffusion_flash_attn: bool = False,
+    backend: Optional[str] = None,
+    params_backend: Optional[str] = None
 ) -> SDImage:
     """
     Generate a single image from a text prompt (convenience function).
@@ -4020,6 +4075,9 @@ def text_to_image(
         hires_fix: Enable hires-fix two-pass generation (latent upscale)
         hires_scale: Hires-fix upscale factor (default 2.0)
         diffusion_flash_attn: Use flash attention
+        backend: Compute-backend assignment spec (e.g. "cuda0", "te=cpu")
+        params_backend: Weight-residency assignment spec (e.g. "te=cpu,vae=cpu");
+            the replacement for the removed keep_clip_on_cpu / keep_vae_on_cpu flags
 
     Returns:
         A single generated SDImage object
@@ -4050,6 +4108,8 @@ def text_to_image(
         hires_fix=hires_fix,
         hires_scale=hires_scale,
         diffusion_flash_attn=diffusion_flash_attn,
+        backend=backend,
+        params_backend=params_backend,
     )[0]
 
 

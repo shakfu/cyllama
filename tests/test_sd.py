@@ -456,6 +456,21 @@ class TestSDContextParams:
         params.max_vram = None
         assert params.max_vram is None
 
+    def test_backend_and_params_backend(self):
+        """`backend` / `params_backend` are the upstream replacement for the
+        removed keep_clip_on_cpu / keep_vae_on_cpu placement flags."""
+        params = SDContextParams()
+        assert params.backend is None
+        assert params.params_backend is None
+        params.backend = "cuda0"
+        params.params_backend = "te=cpu,vae=cpu"
+        assert params.backend == "cuda0"
+        assert params.params_backend == "te=cpu,vae=cpu"
+        params.backend = None
+        params.params_backend = None
+        assert params.backend is None
+        assert params.params_backend is None
+
     def test_pulid_weights_path(self):
         params = SDContextParams()
         assert params.pulid_weights_path is None

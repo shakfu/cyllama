@@ -125,6 +125,98 @@ initialises for MSVC (`/DWIN32 /D_WINDOWS /W3 /GR /EHsc`) rather than append
 to it, silently dropping `/EHsc` and changing unwind semantics for the whole
 tree. `add_compile_options()` is purely additive.
 
+### `stable-diffusion.cpp-graph-cut-budget-clamp.patch`
+
+**Target:** `src/core/ggml_extend.hpp` (stable-diffusion.cpp `master-816-487de75`)
+
+**Problem:** `--max-vram` is a per-graph VRAM budget, but it is resolved once
+per module at context-init time (`SDContext::max_graph_vram_bytes_for_module()`
+-> `MaxVramAssignment::bytes_for_backend()`, which also memoises the result per
+backend). With the auto budget (`"-1"`) that resolves to *free VRAM minus 1
+GiB* on a machine where nothing else is loaded yet -- so on a single-GPU box
+every module is told it may use the whole card.
+
+Nothing reclaims that. `runner_done()` asks the model manager to release the
+module's params, but `ModelManager::release_params_storage_blocks()` only frees
+a block whose tensors are `ResidencyMode::Disk`; ordinary resident weights stay
+in VRAM for the lifetime of the context. So the text encoder's weights are
+still on the card when the diffusion model plans its graph against an init-time
+budget that assumed an empty GPU. The planner duly merges the segments back
+into one blob, and the allocation fails:
+
+```
+[ERROR] ggml_backend_cuda_buffer_type_alloc_buffer: allocating 5638.16 MiB on device 0: cudaMalloc failed: out of memory
+[ERROR] model_manager.cpp:737  - model manager alloc params backend buffer failed, size = 5638.16MB
+[ERROR] ggml_extend.hpp:1948 - z_image prepare graph weights failed
+```
+
+Reproduced with Z-Image Turbo Q6_K (5.5 GiB) + Qwen3-4B-Q8_0 (3.9 GiB) at
+512x1024 on an 8 GiB RTX 4060: the text encoder loads 3974 MB, and the
+diffusion model then asks for a single 5638 MB buffer out of the ~3.6 GiB that
+is left. No `--max-vram` value avoids it, because the two modules need 8.5 GiB
+between them and neither is ever evicted.
+
+**Fix:** `GGMLRunner::resolve_graph_cut_plan()` already clamps the budget to
+the VRAM that is actually free at plan time -- it just does it only when
+`--stream-layers` is on. Drop that gate so the clamp applies whenever a budget
+is set. The planner then cuts the diffusion graph into segments that fit what
+is genuinely free, instead of one that fitted at init. A clamp can only lower
+the budget, so an explicit `--max-vram N` still means "at most N GiB".
+
+The budgeted plan cache is already keyed on the budget
+(`PlanCache::budgeted_graph_cut_plan_max_vram_bytes`), so a budget that moves
+between steps re-plans rather than reusing a stale plan; that path is what
+`--stream-layers` has always exercised.
+
+**Not fixable from the wrapper layer:** the budget is consumed inside the
+runner, and the wrapper cannot observe -- let alone correct -- a plan that has
+already been merged. What the wrapper *can* do, and now does, is expose
+`params_backend` (see the CHANGELOG entry for `SDContextParams.backend` /
+`.params_backend`), which sidesteps the budget entirely by keeping the text
+encoder's weights in RAM.
+
+### `stable-diffusion.cpp-conditioner-compute-failure.patch`
+
+**Target:** `src/core/ggml_extend.hpp`, `src/conditioning/conditioner.hpp`,
+`src/stable-diffusion.cpp` (stable-diffusion.cpp `master-816-487de75`)
+
+**Problem:** `GGMLRunner::compute()` reports failure as an empty
+`std::optional`, but `take_or_empty()` flattens that to an empty tensor and the
+conditioners then `GGML_ASSERT(!hidden_states.empty())` on the result. A failed
+text-encoder graph therefore kills the process:
+
+```
+conditioner.hpp:2058: GGML_ASSERT(!hidden_states.empty()) failed
+```
+
+Reproduced with `--max-vram 3.5` (any budget that forces the *text encoder*
+itself through the graph-cut segmented path) on the Z-Image Turbo + Qwen3-4B
+setup above. Worse, several of `compute()`'s failure paths log nothing at all,
+so the abort arrives with no indication of what actually went wrong -- the
+underlying cause of the empty result in that repro is still unidentified.
+
+An abort is the one failure mode a Python wrapper cannot contain: it takes the
+interpreter with it, so no `RuntimeError`, no traceback, nothing an application
+can retry or report.
+
+**Fix:** two parts.
+
+1. `take_or_empty()` logs `runner compute failed` before returning the empty
+   tensor, so the cause is at least named at the point the error is dropped.
+2. The LLM conditioner's `encode_prompt()` returns an empty tensor instead of
+   asserting, `get_learned_condition()` propagates that as an empty
+   `SDCondition` (which already has an `empty()` predicate), and
+   `prepare_image_generation_embeds()` turns it into `std::nullopt` -- the
+   error channel it already returns. Generation then fails cleanly and cyllama
+   raises `RuntimeError` as it does for any other failed generation.
+
+**Scope:** deliberately limited to the LLM/Qwen conditioner path (Z-Image,
+Qwen-Image, MiniMax-H3) that reproduces. The same
+`GGML_ASSERT(!hidden_states.empty())` pattern appears at 14 sites across the
+older CLIP/T5 conditioners; converting all of them means threading a failure
+result through every `get_learned_condition()` override, which is an upstream
+refactor rather than a vendored patch. Part 1 covers those sites diagnostically.
+
 An earlier llama.cpp patch is no longer carried: the gemma4a
 `clip_n_mmproj_embd()` abort fix was merged upstream in
 [ggml-org/llama.cpp#24091](https://github.com/ggml-org/llama.cpp/pull/24091)
