@@ -1842,6 +1842,21 @@ class WhisperCppBuilder(GgmlBuilder):
         # Get backend options
         backend_options = self.get_backend_cmake_options()
 
+        # whisper.cpp builds its own ggml, but nothing links it: cyllama's
+        # CMakeLists takes every ggml lib from ${LLAMACPP_LIB}, so `libwhisper.a`
+        # and `libcommon.a` end up calling llama.cpp's ggml. That makes this the
+        # third tree that has to agree on GGML_MAX_NAME -- see the note on
+        # StableDiffusionCppBuilder.GGML_MAX_NAME for what a mismatch does to
+        # `struct ggml_tensor`. Whisper has been getting away with the default
+        # (64 against llama.cpp's 160) only because it never touches `extra`,
+        # the one field that moves; that is luck, not design, and it would turn
+        # into silent corruption the first time upstream reaches for it.
+        extra = {}
+        if StableDiffusionCppBuilder.uses_shared_ggml():
+            _def = f"-DGGML_MAX_NAME={StableDiffusionCppBuilder.GGML_MAX_NAME}"
+            extra["CMAKE_C_FLAGS"] = _def
+            extra["CMAKE_CXX_FLAGS"] = _def
+
         self.cmake_config(
             src_dir=self.src_dir,
             build_dir=self.build_dir,
@@ -1851,6 +1866,7 @@ class WhisperCppBuilder(GgmlBuilder):
             CMAKE_C_VISIBILITY_PRESET="hidden",
             CMAKE_VISIBILITY_INLINES_HIDDEN=True,
             CMAKE_INSTALL_LIBDIR="lib",  # Prevent lib64 on 64-bit Linux
+            **extra,
             **backend_options,
         )
         self.cmake_build(build_dir=self.build_dir, release=True)

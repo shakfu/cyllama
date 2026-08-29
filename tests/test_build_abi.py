@@ -15,6 +15,7 @@ value cyllama's own CMakeLists compiles against.
 """
 
 import importlib.util
+import inspect
 import re
 import sys
 from pathlib import Path
@@ -33,6 +34,29 @@ def manage():
     sys.modules["cyllama_manage"] = module
     spec.loader.exec_module(module)
     return module
+
+
+def test_every_tree_that_links_the_shared_ggml_gets_the_define(manage):
+    """llama.cpp, whisper.cpp and stable-diffusion.cpp must all be built with it.
+
+    cyllama's CMakeLists takes every ggml lib from ``${LLAMACPP_LIB}``, so all
+    three trees' object code calls *llama.cpp's* ggml -- whisper's own
+    ``libggml.a`` is built and installed but never linked. A tree left on the
+    default 64 is compiled against a ``ggml_tensor`` 96 bytes shorter than the
+    one being allocated.
+    """
+    # stable-diffusion.cpp is deliberately absent: it *sets* the value in its
+    # own CMakeLists, and `_verify_ggml_max_name()` checks cyllama's pin against
+    # it. These two have to follow.
+    followers = [manage.LlamaCppBuilder(), manage.WhisperCppBuilder()]
+    for builder in followers:
+        # The value reaches cmake as a raw -D in CMAKE_{C,CXX}_FLAGS; assert the
+        # builder is wired to emit it rather than re-deriving how.
+        source = inspect.getsource(type(builder).build)
+        assert "GGML_MAX_NAME" in source, (
+            f"{builder.name} does not propagate GGML_MAX_NAME to its cmake configure; "
+            f"it will compile against a different struct ggml_tensor than the ggml it links"
+        )
 
 
 def test_cmakelists_matches_the_propagated_value(manage):
