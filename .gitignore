@@ -32,6 +32,9 @@ docs/book/_book/
 # project detritus
 .*_cache
 output.wav
+# run_wheel_test.py writes its renders into the project root
+output.png
+z_turbo_*.png
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

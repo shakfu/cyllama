@@ -1870,11 +1870,61 @@ class StableDiffusionCppBuilder(GgmlBuilder):
     base_libs: list[str] = ["stable-diffusion"]
     extra_libs: list[str] = []
 
-    # stable-diffusion.cpp requires GGML_MAX_NAME=128 (see its CMakeLists.txt:233
-    # and ggml_extend.hpp:94). llama.cpp defaults to 64. When SD shares
-    # llama.cpp's ggml (the default), both sides must agree on this value or the
-    # ggml_tensor struct layout diverges and tensor copies crash.
-    GGML_MAX_NAME: int = 128
+    # stable-diffusion.cpp raises GGML_MAX_NAME (`add_definitions()` near the top
+    # of its CMakeLists.txt) because its tensor names are long. llama.cpp
+    # defaults to 64. When SD shares llama.cpp's ggml -- the default, and what
+    # ships -- both sides must be compiled with the *same* value: `name` is an
+    # inline `char[GGML_MAX_NAME]` in `struct ggml_tensor`, so a mismatch moves
+    # every field after it. `extra` is the field right after `name`, and it is
+    # the last one, so SD writing `tensor->extra` lands past the end of the real
+    # struct -- on top of the following `ggml_object` header in the context
+    # arena. The graph-cut segmented path writes it on every segment boundary
+    # (`reset_segment_runtime_tensors`), which truncates the compute context's
+    # object list mid-run; with the params backend on the CPU it corrupts the
+    # malloc arena instead and glibc aborts with "corrupted double-linked list".
+    # Nothing warns: the headers are identical, only the -D differs.
+    #
+    # `_verify_ggml_max_name()` re-reads the value out of the cloned tree on
+    # every build, because this pin silently went stale once already: it sat at
+    # 128 while upstream had moved to 160.
+    GGML_MAX_NAME: int = 160
+
+    def _verify_ggml_max_name(self) -> None:
+        """Abort the build if upstream's GGML_MAX_NAME no longer matches the pin.
+
+        llama.cpp's ggml is configured with `GGML_MAX_NAME` *before* SD is even
+        cloned, so the value cannot simply be read from the source at that
+        point -- it has to be pinned. This check closes the loop from the other
+        side: once SD's tree is on disk, confirm the pin still describes it.
+        The failure mode it guards against is silent memory corruption, not a
+        compile error, so it fails the build rather than warning.
+        """
+        if not self.uses_shared_ggml():
+            return
+        cmakelists = self.src_dir / "CMakeLists.txt"
+        if not cmakelists.exists():
+            return
+        match = re.search(r"add_definitions\(\s*-DGGML_MAX_NAME=(\d+)\s*\)", cmakelists.read_text())
+        if match is None:
+            self.log.warning(
+                "%s: no GGML_MAX_NAME definition found in CMakeLists.txt; "
+                "assuming the pinned %d still matches llama.cpp's ggml",
+                self.name,
+                self.GGML_MAX_NAME,
+            )
+            return
+        upstream = int(match.group(1))
+        if upstream != self.GGML_MAX_NAME:
+            raise RuntimeError(
+                f"{self.name} {self.version} sets GGML_MAX_NAME={upstream}, but llama.cpp's ggml "
+                f"was built with {self.GGML_MAX_NAME}. Sharing one ggml across both requires the "
+                f"same value: it sizes `name` inside `struct ggml_tensor`, so a mismatch shifts "
+                f"`extra` and SD's writes to it land on the next ggml_object header (silent heap "
+                f"corruption, not a link error). Set "
+                f"StableDiffusionCppBuilder.GGML_MAX_NAME = {upstream} in scripts/manage.py and "
+                f"the matching add_definitions() in cyllama's own CMakeLists.txt, then rebuild "
+                f"llama.cpp so its ggml picks up the new value."
+            )
 
     @staticmethod
     def uses_shared_ggml() -> bool:
@@ -1948,6 +1998,7 @@ class StableDiffusionCppBuilder(GgmlBuilder):
         # compiles and links its own vendored copy and syncing would overwrite
         # that source.
         if self.uses_shared_ggml():
+            self._verify_ggml_max_name()
             self._sync_ggml_abi()
 
         # after _sync_ggml_abi(), so the ggml patches land on whichever ggml

@@ -192,8 +192,17 @@ conditioner.hpp:2058: GGML_ASSERT(!hidden_states.empty()) failed
 Reproduced with `--max-vram 3.5` (any budget that forces the *text encoder*
 itself through the graph-cut segmented path) on the Z-Image Turbo + Qwen3-4B
 setup above. Worse, several of `compute()`'s failure paths log nothing at all,
-so the abort arrives with no indication of what actually went wrong -- the
-underlying cause of the empty result in that repro is still unidentified.
+so the abort arrives with no indication of what actually went wrong.
+
+That silence is not hypothetical. The empty result in that repro turned out to
+be cyllama's own `GGML_MAX_NAME` pin having gone stale (see the CHANGELOG entry
+-- SD was compiled against a `struct ggml_tensor` 32 bytes longer than the one
+ggml allocates, so the segmented path scribbled over the compute context's
+object list). Finding it meant instrumenting eight separate `return
+std::nullopt` sites by hand, precisely because the abort carried no cause. That
+build-side bug is fixed and the segmented text encoder now runs, but the two
+defects this patch addresses -- a failure that logs nothing, and an abort where
+an error channel already exists -- are independent of it and remain.
 
 An abort is the one failure mode a Python wrapper cannot contain: it takes the
 interpreter with it, so no `RuntimeError`, no traceback, nothing an application

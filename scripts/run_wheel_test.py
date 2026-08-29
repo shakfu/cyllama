@@ -83,9 +83,19 @@ BACKENDS: dict[str, str] = {
 # precedence -- only unset keys are populated from these defaults, so
 # callers can always override by exporting the variable themselves.
 BACKEND_ENV_DEFAULTS: dict[str, dict[str, str]] = {
-    # Pin Vulkan to a specific device by default; override with
-    # GGML_VK_VISIBLE_DEVICES=... in the caller's env if needed.
-    "vulkan": {"GGML_VK_VISIBLE_DEVICES": "1"},
+    # Every subprocess here goes through `uv run`, which re-syncs the project
+    # environment first. Against an installed wheel that is a no-op, but in an
+    # editable checkout it *rebuilds the extension* -- and the backend is chosen
+    # from the environment at compile time, so without GGML_CUDA=1 the rebuild
+    # links a CPU-only extension against CUDA static libs and every test dies
+    # with `undefined symbol: ggml_backend_cuda_reg`. Set it so a dev checkout
+    # rebuilds for the backend it is being asked to test.
+    "cuda": {"GGML_CUDA": "1"},
+    "rocm": {"GGML_HIP": "1"},
+    "sycl": {"GGML_SYCL": "1"},
+    # Same reasoning, plus: pin Vulkan to a specific device by default;
+    # override with GGML_VK_VISIBLE_DEVICES=... in the caller's env if needed.
+    "vulkan": {"GGML_VULKAN": "1", "GGML_VK_VISIBLE_DEVICES": "1"},
 }
 
 
@@ -345,7 +355,24 @@ def ensure_models(keys: list[str]) -> dict[str, Path]:
 
 
 def test_sd_1(backend: str, timeout: float | None) -> int:
-    """z_turbo basic."""
+    """z_turbo te-on-cpu."""
+    # Unqualified, this case is a pure-GPU run needing ~9.4 GiB (3.9 text
+    # encoder + 5.5 diffusion) and OOMs on anything smaller: upstream
+    # master-731 dropped `free_params_immediately`, so the conditioner's
+    # weights now stay resident for the life of the context instead of being
+    # freed once the prompt is encoded. Parking the text encoder's weights in
+    # RAM frees enough for the diffusion model while every module still
+    # computes on the GPU -- unlike test 2, which moves *all* the weights.
+    #
+    # --vae-tiling is not optional here. Placement alone still dies in VAE
+    # decode: at 512x1024 it wants a 3328 MiB compute buffer with the 5.5 GiB
+    # of diffusion weights still resident, and no `--params-backend` spelling
+    # helps because that is a compute buffer, not weights (`te=cpu,vae=cpu`
+    # fails identically). Tiling is what shrinks it.
+    #
+    # Measured on an 8 GiB RTX 4060: 3.17 s/it, 69 s end to end. `--auto-fit`
+    # also fits but declines the GPU altogether on a single-GPU box (~143 s/it),
+    # which no wheel-test timeout would survive.
     paths = ensure_models(SD_REQUIREMENTS)
     return cyllama_module(
         "cyllama.sd",
@@ -357,10 +384,15 @@ def test_sd_1(backend: str, timeout: float | None) -> int:
             str(paths["ae"]),
             "--llm",
             str(paths["qwen3-4b"]),
+            "--params-backend",
+            "te=cpu",
+            "--vae-tiling",
             "-H",
             "1024",
             "-W",
             "512",
+            "-o",
+            "z_turbo_1.png",
             "-p",
             "a lovely cat",
         ],
@@ -388,6 +420,8 @@ def test_sd_2(backend: str, timeout: float | None) -> int:
             "1024",
             "-W",
             "512",
+            "-o",
+            "z_turbo_2.png",
             "-p",
             "a lovely cat",
         ],
@@ -418,6 +452,8 @@ def test_sd_3(backend: str, timeout: float | None) -> int:
             "1024",
             "-W",
             "512",
+            "-o",
+            "z_turbo_3.png",
             "-p",
             "a lovely plump blue-eyed cat",
         ],
@@ -663,6 +699,39 @@ def _use_color(no_color: bool) -> bool:
     return sys.stdout.isatty()
 
 
+def preflight(backend: str) -> str | None:
+    """Import cyllama once up front; return an error message, or None if fine.
+
+    Every test shells out through `uv run`, which re-syncs the project first.
+    Against an installed wheel that is a no-op. In an editable checkout it
+    rebuilds the extension -- but only when the *sources* changed, never
+    because the environment did, so an extension previously built for another
+    backend is reused as-is. Linked against this backend's static libs it then
+    fails to import, and without this check that arrives once per test as an
+    `undefined symbol` traceback with no hint of the cause.
+    """
+    proc = subprocess.run(
+        [UV, "run", "python", "-c", "import cyllama"],
+        cwd=ROOT,
+        env={**os.environ, **env_for(backend)},
+        capture_output=True,
+        text=True,
+    )
+    if proc.returncode == 0:
+        return None
+    detail = (proc.stderr or proc.stdout).strip().splitlines()
+    tail = detail[-1] if detail else f"exit code {proc.returncode}"
+    hint = ""
+    if "undefined symbol" in tail:
+        env_key = next(iter(BACKEND_ENV_DEFAULTS.get(backend, {})), None)
+        if env_key:
+            hint = (
+                f"\n  The installed cyllama was not built for '{backend}'. In an editable"
+                f"\n  checkout, rebuild it:  {env_key}=1 uv pip install -e ."
+            )
+    return f"cannot import cyllama: {tail}{hint}"
+
+
 def cmd_test(args: argparse.Namespace) -> int:
     backend = require_backend(args.backend)
     runs = _collect_runs(args.kind, args.n)
@@ -670,6 +739,11 @@ def cmd_test(args: argparse.Namespace) -> int:
         for k, n in runs:
             print(f"would run: {k} {n} (backend={backend})")
         return 0
+
+    problem = preflight(backend)
+    if problem:
+        print(f"error: {problem}", file=sys.stderr)
+        return 1
 
     color = _use_color(args.no_color)
     green = "\033[32m" if color else ""
