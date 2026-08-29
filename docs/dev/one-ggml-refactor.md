@@ -2,17 +2,9 @@
 
 ## Summary
 
-cyllama links a single ggml into every extension. That decision is right and
-should stand — `docs/dev/ggml-unification.md` established it, and it is what
-keeps the CUDA wheel at 44 MB instead of 157 MB.
+cyllama links a single ggml into every extension. That decision is right and should stand — `docs/dev/ggml-unification.md` established it, and it is what keeps the CUDA wheel at 44 MB instead of 157 MB.
 
-What is wrong is *how the decision is maintained*. Today the invariant "every
-translation unit that sees a `ggml_tensor` must be compiled the same way" is
-upheld by convention: three builders each independently remember to pass the
-same `-D`, plus a fourth copy in cyllama's own `CMakeLists.txt`, plus an
-`rmtree`-and-`copytree` of one project's ggml over another's. Nothing enforces
-it, and a violation produces neither a compile error nor a link error — it
-produces heap corruption at runtime.
+What is wrong is *how the decision is maintained*. Today the invariant "every translation unit that sees a `ggml_tensor` must be compiled the same way" is upheld by convention: three builders each independently remember to pass the same `-D`, plus a fourth copy in cyllama's own `CMakeLists.txt`, plus an `rmtree`-and-`copytree` of one project's ggml over another's. Nothing enforces it, and a violation produces neither a compile error nor a link error — it produces heap corruption at runtime.
 
 It has now failed four times:
 
@@ -23,17 +15,11 @@ It has now failed four times:
 | 0.4.1 | SD moved to 160, cyllama's pin stayed at 128 | Silent arena corruption in every GPU wheel |
 | 0.4.1 | whisper.cpp never got the `-D` at all | 96-byte mismatch, harmless only by luck |
 
-Each fix was correct and each left the mechanism intact, so the next drift
-found a new way through. This plan proposes removing the mechanism.
+Each fix was correct and each left the mechanism intact, so the next drift found a new way through. This plan proposes removing the mechanism.
 
-**Proposal:** build ggml once, as its own component, and have llama.cpp,
-whisper.cpp and stable-diffusion.cpp consume it through `find_package(ggml)`
-using the `*_USE_SYSTEM_GGML` option each already supports. The compile
-definitions travel with the imported target, so consumers cannot disagree with
-the library — CMake propagates what is currently copy-pasted.
+**Proposal:** build ggml once, as its own component, and have llama.cpp, whisper.cpp and stable-diffusion.cpp consume it through `find_package(ggml)` using the `*_USE_SYSTEM_GGML` option each already supports. The compile definitions travel with the imported target, so consumers cannot disagree with the library — CMake propagates what is currently copy-pasted.
 
-**This plan does not lift the `master-816` ceiling.** That is a separate
-problem with a separate fix; see [Non-goals](#non-goals).
+**This plan does not lift the `master-816` ceiling.** That is a separate problem with a separate fix; see [Non-goals](#non-goals).
 
 ---
 
@@ -54,17 +40,9 @@ and a fifth, upstream, is the actual source of truth:
 build/stable-diffusion.cpp/CMakeLists.txt:318  add_definitions(-DGGML_MAX_NAME=160)
 ```
 
-Add `_sync_ggml_abi()`, which deletes SD's vendored `ggml/` and copies
-llama.cpp's over it so the *sources* agree too, and `do_check_vendor()`'s
-special case, which knows that SD's committed ggml headers must be compared
-against the llama.cpp checkout rather than SD's own.
+Add `_sync_ggml_abi()`, which deletes SD's vendored `ggml/` and copies llama.cpp's over it so the *sources* agree too, and `do_check_vendor()`'s special case, which knows that SD's committed ggml headers must be compared against the llama.cpp checkout rather than SD's own.
 
-The failure mode is the problem, not the line count. `GGML_MAX_NAME` sizes an
-inline `char[]` inside `struct ggml_tensor`; `extra` is the field immediately
-after it, and the last one. A disagreement moves `extra` past the end of the
-struct the library actually allocated, so a write to it lands on the following
-`ggml_object` header. There is no diagnostic — the headers are byte-identical,
-only the `-D` differs.
+The failure mode is the problem, not the line count. `GGML_MAX_NAME` sizes an inline `char[]` inside `struct ggml_tensor`; `extra` is the field immediately after it, and the last one. A disagreement moves `extra` past the end of the struct the library actually allocated, so a write to it lands on the following `ggml_object` header. There is no diagnostic — the headers are byte-identical, only the `-D` differs.
 
 ```
 GGML_MAX_NAME=64   sizeof(ggml_tensor)=336  offsetof(extra)=320
@@ -76,8 +54,7 @@ GGML_MAX_NAME=160  sizeof(ggml_tensor)=432  offsetof(extra)=416
 
 ## What makes the refactor feasible
 
-All three upstreams already support consuming an external ggml, and all three
-use the same idiom:
+All three upstreams already support consuming an external ggml, and all three use the same idiom:
 
 | Project | Option | Location |
 |---|---|---|
@@ -95,9 +72,7 @@ if (NOT SD_USE_SYSTEM_GGML)
 endif()
 ```
 
-Under `SD_USE_SYSTEM_GGML=ON`, SD *stops setting the value* and inherits
-whatever it is given. The divergence cannot originate from SD any more — which
-is where all four incidents originated.
+Under `SD_USE_SYSTEM_GGML=ON`, SD *stops setting the value* and inherits whatever it is given. The divergence cannot originate from SD any more — which is where all four incidents originated.
 
 **2. A wrong value becomes a compile error.** `ggml_extend.hpp:79`:
 
@@ -105,18 +80,9 @@ is where all four incidents originated.
 static_assert(GGML_MAX_NAME >= 128, "GGML_MAX_NAME must be at least 128");
 ```
 
-Hand SD a ggml built at the default 64 and the build fails loudly on line 79,
-instead of shipping a wheel that corrupts memory. The class of bug becomes
-detectable at compile time by construction.
+Hand SD a ggml built at the default 64 and the build fails loudly on line 79, instead of shipping a wheel that corrupts memory. The class of bug becomes detectable at compile time by construction.
 
-**3. ggml already exports its configuration.** `ggml-config.cmake` is generated
-by `configure_package_config_file()` and expands every `GGML_*` cache variable
-into the installed package (`set(GGML_AVAILABLE_BACKENDS "ggml-cpu;ggml-cuda;ggml-vulkan")`
-and ~80 others). It is already installed and working — whisper.cpp and
-stable-diffusion.cpp both produce
-`thirdparty/*/lib/cmake/ggml/ggml-config.cmake` today. Only llama.cpp's build
-skips it, because cyllama copies its `.a` files by hand rather than running
-`cmake --install`.
+**3. ggml already exports its configuration.** `ggml-config.cmake` is generated by `configure_package_config_file()` and expands every `GGML_*` cache variable into the installed package (`set(GGML_AVAILABLE_BACKENDS "ggml-cpu;ggml-cuda;ggml-vulkan")` and ~80 others). It is already installed and working — whisper.cpp and stable-diffusion.cpp both produce `thirdparty/*/lib/cmake/ggml/ggml-config.cmake` today. Only llama.cpp's build skips it, because cyllama copies its `.a` files by hand rather than running `cmake --install`.
 
 ---
 
@@ -141,14 +107,11 @@ skips it, because cyllama copies its `.a` files by hand rather than running
                   the imported target, not by hand
 ```
 
-The invariant moves from "three builders remember the same flag" to "there is
-one ggml and its consumers import it".
+The invariant moves from "three builders remember the same flag" to "there is one ggml and its consumers import it".
 
 ### The one piece that does not exist yet
 
-`GGML_MAX_NAME` is set through `CMAKE_C_FLAGS`, which is *not* exported to
-consumers. For the imported target to carry it, ggml needs to own it as a cache
-variable and attach it to the target:
+`GGML_MAX_NAME` is set through `CMAKE_C_FLAGS`, which is *not* exported to consumers. For the imported target to carry it, ggml needs to own it as a cache variable and attach it to the target:
 
 ```cmake
 # ggml/CMakeLists.txt
@@ -158,17 +121,9 @@ set(GGML_MAX_NAME "64" CACHE STRING "ggml: maximum tensor name length")
 target_compile_definitions(ggml-base PUBLIC GGML_MAX_NAME=${GGML_MAX_NAME})
 ```
 
-`ggml-base` already carries `PUBLIC` definitions this way (`GGML_BACKEND_DL`,
-`GGML_SCHED_NO_REALLOC` at `ggml/src/CMakeLists.txt:218,222`), so this follows
-an established pattern rather than inventing one. Being a `GGML_*` cache
-variable, it also lands in `ggml-config.cmake` automatically.
+`ggml-base` already carries `PUBLIC` definitions this way (`GGML_BACKEND_DL`, `GGML_SCHED_NO_REALLOC` at `ggml/src/CMakeLists.txt:218,222`), so this follows an established pattern rather than inventing one. Being a `GGML_*` cache variable, it also lands in `ggml-config.cmake` automatically.
 
-This is a genuine upstream gap — ggml lets you resize a struct via the
-preprocessor with no way to tell consumers you did — so it belongs in
-`scripts/patches/` as `ggml-max-name-public-define.patch` (the `ggml-*` prefix
-already applies a patch to every ggml tree) and is worth proposing upstream.
-It is also the whole refactor in miniature: **land this patch first and much of
-the fragility goes away even if the rest is never done.**
+This is a genuine upstream gap — ggml lets you resize a struct via the preprocessor with no way to tell consumers you did — so it belongs in `scripts/patches/` as `ggml-max-name-public-define.patch` (the `ggml-*` prefix already applies a patch to every ggml tree) and is worth proposing upstream. It is also the whole refactor in miniature: **land this patch first and much of the fragility goes away even if the rest is never done.**
 
 ---
 
@@ -178,87 +133,51 @@ Each phase is independently landable and independently revertable.
 
 ### Phase 0 — make the invariant enforced (done, 0.4.1)
 
-`_verify_ggml_max_name()` fails the build when upstream's value drifts from the
-pin; `tests/test_build_abi.py` fails when a builder forgets to propagate it.
-Not part of the refactor, but the reason the refactor is not urgent.
+`_verify_ggml_max_name()` fails the build when upstream's value drifts from the pin; `tests/test_build_abi.py` fails when a builder forgets to propagate it. Not part of the refactor, but the reason the refactor is not urgent.
 
 ### Phase 1 — ggml exports its own definition
 
-Add the patch above. Change the three builders to pass `-DGGML_MAX_NAME=160` as
-a **cache variable** rather than a raw flag, so the value reaches the exported
-package. No structural change; the copy-paste is still there, but a consumer
-that forgets now inherits the right value instead of silently disagreeing.
+Add the patch above. Change the three builders to pass `-DGGML_MAX_NAME=160` as a **cache variable** rather than a raw flag, so the value reaches the exported package. No structural change; the copy-paste is still there, but a consumer that forgets now inherits the right value instead of silently disagreeing.
 
-*Validation:* `ggml-config.cmake` contains `set(GGML_MAX_NAME "160")`; the
-existing suites stay green.
+*Validation:* `ggml-config.cmake` contains `set(GGML_MAX_NAME "160")`; the existing suites stay green.
 
 ### Phase 2 — a real `GgmlBuilder` component
 
-Today `GgmlBuilder` is a shared *base class* for the three project builders. It
-becomes a builder in its own right:
+Today `GgmlBuilder` is a shared *base class* for the three project builders. It becomes a builder in its own right:
 
-- Source: llama.cpp's `ggml/` subtree (already the de-facto winner via
-  `_sync_ggml_abi`). Version pins to `LLAMACPP_VERSION`.
-- Configure once with the full backend option set that
-  `get_backend_cmake_options()` computes today.
-- `cmake --install` to `thirdparty/ggml/` — libraries *and*
-  `lib/cmake/ggml/ggml-config.cmake`.
+- Source: llama.cpp's `ggml/` subtree (already the de-facto winner via `_sync_ggml_abi`). Version pins to `LLAMACPP_VERSION`.
+
+- Configure once with the full backend option set that `get_backend_cmake_options()` computes today.
+
+- `cmake --install` to `thirdparty/ggml/` — libraries *and* `lib/cmake/ggml/ggml-config.cmake`.
+
 - `ggml-*.patch` files apply here once, instead of three times to three trees.
 
-*Validation:* `thirdparty/ggml/lib/` holds the same `.a` set that
-`thirdparty/llama.cpp/lib/` holds today, for one GPU backend.
+*Validation:* `thirdparty/ggml/lib/` holds the same `.a` set that `thirdparty/llama.cpp/lib/` holds today, for one GPU backend.
 
 ### Phase 3 — consumers switch to `find_package`
 
-Configure each project with `<PROJECT>_USE_SYSTEM_GGML=ON` and
-`CMAKE_PREFIX_PATH=thirdparty/ggml`. Delete `_sync_ggml_abi()` and its `rmtree`.
-Drop the per-builder `CMAKE_C/CXX_FLAGS` injection — the definition now arrives
-through the imported target.
+Configure each project with `<PROJECT>_USE_SYSTEM_GGML=ON` and `CMAKE_PREFIX_PATH=thirdparty/ggml`. Delete `_sync_ggml_abi()` and its `rmtree`. Drop the per-builder `CMAKE_C/CXX_FLAGS` injection — the definition now arrives through the imported target.
 
-The riskiest phase, and where the surprises will be: each project's
-`USE_SYSTEM_GGML` path is far less travelled upstream than its vendored path,
-and backend libraries (`ggml-cuda`, `ggml-vulkan`) may need explicit
-`GGML_AVAILABLE_BACKENDS` handling. Take one backend end-to-end before
-converting the rest.
+The riskiest phase, and where the surprises will be: each project's `USE_SYSTEM_GGML` path is far less travelled upstream than its vendored path, and backend libraries (`ggml-cuda`, `ggml-vulkan`) may need explicit `GGML_AVAILABLE_BACKENDS` handling. Take one backend end-to-end before converting the rest.
 
-*Validation:* per backend — full pytest suite, `run_wheel_test.py test all all`,
-and a built wheel installed into a clean venv.
+*Validation:* per backend — full pytest suite, `run_wheel_test.py test all all`, and a built wheel installed into a clean venv.
 
 ### Phase 4 — collapse what the coupling forced
 
-- `do_check_vendor()`'s stable-diffusion special case: ggml headers have one
-  home, so the "compare SD's committed ggml headers against the llama.cpp
-  checkout" rule disappears.
-- `thirdparty/{llama,whisper,stable-diffusion}.cpp/lib/libggml*.a` stop being
-  built and installed. whisper.cpp currently builds a full ggml — including
-  `libggml-cuda.a` and `libggml-vulkan.a`, the expensive ones — that nothing
-  links.
-- The `GGML_MAX_NAME = 64` literals in `src/cyllama/llama/ggml.pxd:18` and
-  `src/cyllama/llama/llama_cpp.pyx:66` become derivable from the installed
-  package instead of hand-maintained constants that have been wrong since
-  0.2.10. (They are inert today — Cython does not lay out `cdef extern`
-  structs, the C header does — but they are exported to Python as `cpdef enum`
-  values, so they are wrong in the API as well as in the source.)
+- `do_check_vendor()`'s stable-diffusion special case: ggml headers have one home, so the "compare SD's committed ggml headers against the llama.cpp checkout" rule disappears.
+
+- `thirdparty/{llama,whisper,stable-diffusion}.cpp/lib/libggml*.a` stop being built and installed. whisper.cpp currently builds a full ggml — including `libggml-cuda.a` and `libggml-vulkan.a`, the expensive ones — that nothing links.
+
+- The `GGML_MAX_NAME = 64` literals in `src/cyllama/llama/ggml.pxd:18` and `src/cyllama/llama/llama_cpp.pyx:66` become derivable from the installed package instead of hand-maintained constants that have been wrong since 0.2.10. (They are inert today — Cython does not lay out `cdef extern` structs, the C header does — but they are exported to Python as `cpdef enum` values, so they are wrong in the API as well as in the source.)
 
 ---
 
 ## Non-goals
 
-**The `master-816` ceiling.** `master-817-bcc7e29` calls
-`ggml_mul_mat_i8_tensorwise` and `ggml_quantize_i8_convrot`, which exist only in
-leejet's ggml fork. That is a *missing ops* problem, not a build-structure
-problem: one ggml still means one ggml, and SD still cannot call functions it
-does not contain. The fix is orthogonal — carry the two kernels as a
-`ggml-*.patch` against the shared tree, which the refactor makes strictly
-easier (one tree to patch instead of three). Worth doing, worth costing
-separately.
+**The `master-816` ceiling.** `master-817-bcc7e29` calls `ggml_mul_mat_i8_tensorwise` and `ggml_quantize_i8_convrot`, which exist only in leejet's ggml fork. That is a *missing ops* problem, not a build-structure problem: one ggml still means one ggml, and SD still cannot call functions it does not contain. The fix is orthogonal — carry the two kernels as a `ggml-*.patch` against the shared tree, which the refactor makes strictly easier (one tree to patch instead of three). Worth doing, worth costing separately.
 
-**Multiple ggml copies.** Rejected, for the record: the wheels ship ggml as
-shared objects loaded once per process, so three copies would collide on
-identical exported symbols with the loader picking a winner — trading today's
-build-time coupling for undetectable runtime coupling. ggml's backend registry
-is process-global, and the kernels dominate wheel size (95 MB Vulkan, 147 MB
-CUDA).
+**Multiple ggml copies.** Rejected, for the record: the wheels ship ggml as shared objects loaded once per process, so three copies would collide on identical exported symbols with the loader picking a winner — trading today's build-time coupling for undetectable runtime coupling. ggml's backend registry is process-global, and the kernels dominate wheel size (95 MB Vulkan, 147 MB CUDA).
 
 ---
 
@@ -276,11 +195,7 @@ CUDA).
 
 ## Recommendation
 
-Land **Phase 1** on its own merits — small, upstreamable, and it moves the
-value from "copied into three cmake invocations" to "owned by ggml and
-inherited". Treat Phases 2–4 as a follow-up with real but bounded value:
-they buy a simpler build and less friction, not a bug fix, because Phase 0
-already closed the class of defect that prompted this.
+Land **Phase 1** on its own merits — small, upstreamable, and it moves the value from "copied into three cmake invocations" to "owned by ggml and inherited". Treat Phases 2–4 as a follow-up with real but bounded value: they buy a simpler build and less friction, not a bug fix, because Phase 0 already closed the class of defect that prompted this.
 
 Do not start Phase 2 in the same release as an upstream version bump.
 
@@ -289,11 +204,19 @@ Do not start Phase 2 in the same release as an upstream version bump.
 ## References
 
 - `docs/dev/ggml-unification.md` — why one ggml, and the original 128 propagation.
+
 - `docs/dev/ggml_max_name.md` — the Vulkan `download_release()` gap in 0.2.10.
+
 - `docs/dev/ggml-config.md` — backend/arch configuration analysis.
+
 - `docs/dev/cuda-double-free.md` — auditwheel SONAME rewriting; relevant to Phase 3 validation.
+
 - `scripts/patches/README.md` — patch naming; `ggml-*.patch` applies to every ggml tree.
+
 - `scripts/manage.py` — `StableDiffusionCppBuilder.GGML_MAX_NAME`, `_verify_ggml_max_name()`, `_sync_ggml_abi()`, and the `CMAKE_C/CXX_FLAGS` injection in `LlamaCppBuilder.build()` / `WhisperCppBuilder.build()`.
+
 - `tests/test_build_abi.py` — the Phase 0 guards.
+
 - `CMakeLists.txt:107-120` — the Cython-side `add_definitions`.
+
 - `CMakeLists.txt:418-459` — every ggml lib taken from `${LLAMACPP_LIB}`, which is why whisper.cpp's own ggml is dead weight.
