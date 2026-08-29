@@ -91,3 +91,58 @@ def test_verify_is_skipped_for_a_vendored_ggml(manage, tmp_path, monkeypatch):
     (tmp_path / "CMakeLists.txt").write_text("add_definitions(-DGGML_MAX_NAME=9999)\n")
     monkeypatch.setattr(type(builder), "src_dir", property(lambda self: tmp_path))
     builder._verify_ggml_max_name()  # must not raise
+
+
+def _staged_swap(manage, tmp_path, monkeypatch):
+    """A checked-out SD tree, a built cmake dir under it, and a newer llama ggml."""
+    src = tmp_path / "src"
+    sd_dir = src / "stable-diffusion.cpp"
+    (src / "llama.cpp" / "ggml" / "src").mkdir(parents=True)
+    (src / "llama.cpp" / "ggml" / "src" / "ggml-metal-device.m").write_text("// split per op-source\n")
+    (sd_dir / "ggml" / "src").mkdir(parents=True)
+    (sd_dir / "ggml" / "src" / "ggml-metal.m").write_text("// one library\n")
+    (sd_dir / "build").mkdir()
+    (sd_dir / "build" / "ggml-metal-device.m.o").write_text("stale object")
+
+    builder = manage.StableDiffusionCppBuilder()
+    monkeypatch.setattr(builder.project, "src", src)
+    monkeypatch.setattr(type(builder), "src_dir", property(lambda self: sd_dir))
+    return builder, sd_dir
+
+
+def test_swapping_ggml_drops_the_build_tree(manage, tmp_path, monkeypatch):
+    """Objects compiled against the replaced ggml must not survive the swap.
+
+    ``copytree`` preserves mtimes, so the incoming sources are not newer than
+    the objects already in the cmake tree and make relinks against them.
+    """
+    builder, sd_dir = _staged_swap(manage, tmp_path, monkeypatch)
+
+    builder._sync_ggml_abi()
+
+    assert (sd_dir / "ggml" / "src" / "ggml-metal-device.m").exists(), "swap did not happen"
+    assert not (sd_dir / "build").exists(), "cmake tree survived a ggml swap; its objects are stale"
+
+
+def test_a_skipped_swap_leaves_the_build_tree(manage, tmp_path, monkeypatch):
+    """No llama.cpp ggml to copy means nothing was invalidated."""
+    builder, sd_dir = _staged_swap(manage, tmp_path, monkeypatch)
+    (builder.project.src / "llama.cpp").rename(builder.project.src / "llama.cpp.gone")
+
+    builder._sync_ggml_abi()
+
+    assert (sd_dir / "build" / "ggml-metal-device.m.o").exists()
+
+
+def test_backend_dl_is_off_on_darwin(manage, monkeypatch):
+    """Apple emits CMake MODULE libs as MH_BUNDLE, which cannot be linked.
+
+    cyllama's CMakeLists links the ggml backend dylibs directly, so a dynamic
+    macOS build has to produce MH_DYLIB -- on every arch and backend, not just
+    the x86_64 + Vulkan combination that first hit it.
+    """
+    monkeypatch.setattr(manage, "PLATFORM", "Darwin")
+    assert manage.LlamaCppBuilder._use_backend_dl() is False
+
+    monkeypatch.setattr(manage, "PLATFORM", "Linux")
+    assert manage.LlamaCppBuilder._use_backend_dl() is True

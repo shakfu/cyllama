@@ -1315,8 +1315,8 @@ class LlamaCppBuilder(GgmlBuilder):
         backend_options = self.get_backend_cmake_options()
 
         # When SD shares llama.cpp's ggml dylibs, the ggml_tensor struct
-        # layout must match.  SD requires GGML_MAX_NAME=128; propagate it
-        # to the llama.cpp build so both sides agree.
+        # layout must match.  Propagate SD's GGML_MAX_NAME to the llama.cpp
+        # build so both sides agree.
         extra = {}
         if StableDiffusionCppBuilder.uses_shared_ggml():
             _def = f"-DGGML_MAX_NAME={StableDiffusionCppBuilder.GGML_MAX_NAME}"
@@ -1368,6 +1368,18 @@ class LlamaCppBuilder(GgmlBuilder):
         # Copy backend-specific libraries
         self.copy_backend_libs()
 
+    @staticmethod
+    def _use_backend_dl() -> bool:
+        """Whether ggml backends may be built as dlopen-able plugins.
+
+        Under `GGML_BACKEND_DL=ON` they are CMake MODULE libraries, which Apple
+        emits as MH_BUNDLE; `ld` takes only MH_OBJECT and MH_DYLIB as input, and
+        cyllama's CMakeLists links the backend dylibs directly rather than
+        loading them at runtime. Darwin therefore has to build them SHARED,
+        which rules out BACKEND_DL there whatever the arch or backend.
+        """
+        return PLATFORM != "Darwin"
+
     def build_shared(self) -> None:
         """Build from source with BUILD_SHARED_LIBS=ON and copy to dynamic/.
 
@@ -1397,20 +1409,11 @@ class LlamaCppBuilder(GgmlBuilder):
             extra["CMAKE_C_FLAGS"] = _def
             extra["CMAKE_CXX_FLAGS"] = _def
 
-        # macOS x86_64 + Vulkan: with GGML_BACKEND_DL=ON, ggml backends are
-        # built as CMake MODULE libs (MH_BUNDLE on Apple) which cannot be
-        # linked against at build time — the downstream cyllama extensions
-        # link the backend dylibs directly, so we need MH_DYLIB output.
-        # Disable BACKEND_DL on this path to get proper SHARED dylibs.
-        use_backend_dl = True
-        if PLATFORM == "Darwin" and ARCH == "x86_64" and backend_options.get("GGML_VULKAN") == "ON":
-            use_backend_dl = False
-
         self.cmake_config(
             src_dir=self.src_dir,
             build_dir=self.build_dir,
             BUILD_SHARED_LIBS=True,
-            GGML_BACKEND_DL=use_backend_dl,
+            GGML_BACKEND_DL=self._use_backend_dl(),
             CMAKE_POSITION_INDEPENDENT_CODE=True,
             LLAMA_CURL=False,
             LLAMA_OPENSSL=False,  # cpp-httplib is not linked into cyllama (see CMakeLists.txt), so no SSL needed
@@ -1428,9 +1431,9 @@ class LlamaCppBuilder(GgmlBuilder):
         self.cmake_build_targets(build_dir=self.build_dir, targets=targets, release=True)
 
         # Collect all shared libs from the build tree into dynamic/.
-        # On Darwin, SHARED_LIB_GLOBS includes "**/*.so" to pick up CMake
-        # MODULE libs (ggml backend plugins under GGML_BACKEND_DL=ON) which
-        # get renamed to .dylib below so CMakeLists' dylib glob finds them.
+        # Darwin's "**/*.so" glob and the .dylib rename below only matter for a
+        # tree built with GGML_BACKEND_DL=ON; `_use_backend_dl()` never asks for
+        # one there. Kept so the collection step stays correct if that changes.
         self.dynamic_lib.mkdir(parents=True, exist_ok=True)
         patterns = SHARED_LIB_GLOBS
 
@@ -1989,19 +1992,30 @@ class StableDiffusionCppBuilder(GgmlBuilder):
 
         We replace SD's vendored ggml directory with llama.cpp's ggml so that
         headers, source, and the runtime dylibs all use the same version.
+
+        The swap also invalidates SD's cmake tree, which is dropped with it:
+        `copytree` preserves mtimes, so the incoming sources are not newer than
+        the objects already built from the tree being replaced. One surviving
+        `ggml-metal-device.m.o` from before llama.cpp split its Metal library
+        per op-source resolves `_ggml_metallib_start` against a tree that only
+        defines `_ggml_metallib_<name>_start`.
         """
         import shutil
 
         llama_ggml = self.project.src / "llama.cpp" / "ggml"
         sd_ggml = self.src_dir / "ggml"
         if not llama_ggml.exists() or not sd_ggml.exists():
-            self.log.warn("Cannot sync ggml ABI: llama.cpp or SD ggml dir missing")
+            self.log.warning("Cannot sync ggml ABI: llama.cpp or SD ggml dir missing")
             return
 
         # Replace SD's vendored ggml with llama.cpp's copy
         shutil.rmtree(sd_ggml)
         shutil.copytree(llama_ggml, sd_ggml)
         self.log.info("Replaced SD's vendored ggml with llama.cpp's ggml for ABI compatibility")
+
+        if self.build_dir.exists():
+            self.remove(self.build_dir)
+            self.log.info("Dropped %s: its objects were compiled against the replaced ggml", self.build_dir)
 
     def build(self, shared: bool = False, examples: bool = True) -> None:
         """stable-diffusion.cpp main build function"""
@@ -2947,7 +2961,7 @@ class Application(ShellCmd, metaclass=MetaCommander):
                 assert isinstance(builder, LlamaCppBuilder)
                 asset = builder._release_asset_name()
                 # When SD shares llama.cpp's ggml, the shared libs must be
-                # built with GGML_MAX_NAME=128 so ggml_tensor's layout matches
+                # built with SD's GGML_MAX_NAME so ggml_tensor's layout matches
                 # what SD was compiled with. Upstream pre-built releases use
                 # the default GGML_MAX_NAME=64, so skip them and build from
                 # source to propagate the define.
@@ -2955,7 +2969,8 @@ class Application(ShellCmd, metaclass=MetaCommander):
                     if asset is not None:
                         self.log.info(
                             "SD shares llama.cpp's ggml: building llama.cpp "
-                            "from source to propagate GGML_MAX_NAME=128 "
+                            "from source to propagate GGML_MAX_NAME="
+                            f"{StableDiffusionCppBuilder.GGML_MAX_NAME} "
                             "(skipping upstream pre-built release)"
                         )
                     else:

@@ -17,6 +17,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+## [0.4.2]
+
+### Fixed
+
+- **Dynamic macOS builds configured a link that cannot succeed** -- under `GGML_BACKEND_DL=ON`, `ggml_add_backend_library()` builds each backend as a CMake `MODULE` (`ggml/src/CMakeLists.txt:381`), which Apple emits as MH_BUNDLE; `ld` takes only MH_OBJECT and MH_DYLIB as input, and cyllama links the backend dylibs directly rather than loading them at runtime. The exception that turns BACKEND_DL off was scoped to Darwin + x86_64 + Vulkan, the one combination that had been built, so `make build-metal-dynamic` -- and `make build-dynamic` / `make wheel-dynamic`, which default `GGML_METAL=1` on Darwin -- all built backends the linker rejects. It now covers Darwin, since the constraint is Mach-O's rather than the arch's or the backend's. Verified on arm64: the extension links `@rpath/libggml-metal.0.dylib` and generates. Covered by `tests/test_build_abi.py::test_backend_dl_is_off_on_darwin`.
+
+- **A llama.cpp bump left stable-diffusion compiling against the new ggml but linking objects built from the old one** -- `_sync_ggml_abi()` replaces SD's vendored `ggml/` wholesale, but `copytree` preserves mtimes, so the incoming sources are not newer than the objects already in SD's cmake tree and make keeps them. After llama.cpp `v0.3.0` split the Metal library per op-source, one surviving `ggml-metal-device.m.o` resolves `_ggml_metallib_start` against a tree that only defines `_ggml_metallib_<name>_start`. The swap now drops the build dir with the ggml under it. Covered by `tests/test_build_abi.py::test_swapping_ggml_drops_the_build_tree`.
+
+- **`--dynamic` builds logged a `GGML_MAX_NAME` they had not used since the pin moved to 160** -- two comments and the "building llama.cpp from source to propagate" line still named 128. The log interpolates `StableDiffusionCppBuilder.GGML_MAX_NAME` now, so it cannot drift again.
+
 ## [0.4.1]
 
 Resync to llama.cpp `v0.3.0` and stable-diffusion.cpp `master-816-487de75`, plus five source patches: three for build breaks the wheel matrix exposed, two for runtime failures in the resynced stable-diffusion. The resync also moved two things cyllama had to follow and did not -- upstream's `GGML_MAX_NAME`, which silently mismatched the `ggml_tensor` layout in every GPU wheel, and the split of the removed `keep_*_on_cpu` flags into placements and budgets -- so image generation failed on any card that could not hold every module at once. Both are fixed here; see Fixed, and `SDContextParams.backend` / `.params_backend` under Added for the placement API that had gone missing. `LlamaSampler.add_dry()` loses an argument -- see Changed.
