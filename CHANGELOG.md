@@ -17,6 +17,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+### Fixed
+
+- **`make xcframework` could not link `libchatfmt.dylib` against llama.cpp `v0.3.0`** -- v0.3.0 moved `common/jinja` off `nlohmann::json` onto `common_json`, a pimpl wrapper whose out-of-line bodies sit in `common/json.cpp`, and the hand-maintained source list did not carry that file. `jinja::global_from_json` hid the second half: `jinja/value.h` declares it as a template and v0.3.0 narrowed the only definition to an explicit specialization for `common_json`, so `chat_facade.cpp`'s `nlohmann::ordered_json` call still compiled and failed at link with no source location. The facade builds its input as `common_json` now. `common/json.cpp` routes the JSON library's assert through `GGML_ASSERT`, so the dylib links `libggml-base` for `ggml_abort` -- over stubbing the symbol, which holds only until `GGML_ASSERT` gains a second call. `_normalize_libs` rewrites that dependency to `@rpath/Ggml.framework/...` with no change, as it already does for libllama.
+
+- **`install_name_tool` could not rewrite `libchatfmt.dylib`'s load commands** -- the bare `clang` link passes no `-headerpad_max_install_names`, which cmake supplies by default. It went unnoticed while the dylib had no dependency to rewrite; linking libggml-base gave it a longer `@rpath/Ggml.framework/Versions/A/Libraries/...` path plus an LC_RPATH, and the tool refused with "larger updated load commands do not fit".
+
 ## [0.4.2]
 
 ### Fixed

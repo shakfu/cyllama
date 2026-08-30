@@ -8,7 +8,7 @@
 #include "jinja/runtime.h"
 #include "jinja/value.h"
 
-#include <nlohmann/json.hpp>
+#include "json.h"
 
 #include <cstdlib>
 #include <cstring>
@@ -46,9 +46,8 @@ extern "C" char *chatfmt_apply(const char *template_src,
     }
 
     try {
-        nlohmann::ordered_json messages = nlohmann::ordered_json::parse(messages_json);
-        nlohmann::ordered_json input = {
-            {"messages", messages},
+        common_json input = {
+            {"messages", common_json::parse(messages_json)},
             {"bos_token", bos_token ? std::string(bos_token) : std::string()},
             {"eos_token", eos_token ? std::string(eos_token) : std::string()},
         };

@@ -282,8 +282,9 @@ def _build_chatfmt_dylib() -> None:
     LlamaCpp.framework lets Swift render arbitrary chat templates
     directly from the GGUF.
 
-    Built independently of libllama (no llama symbols touched); only
-    relies on standard library + the in-tree common/jinja code.
+    Built independently of libllama (no llama symbols touched); relies
+    on the standard library, the in-tree common/jinja code, and
+    libggml-base for ggml_abort (see the link flags below).
     """
     out = LLAMA_DYN / "libchatfmt.dylib"
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -298,6 +299,10 @@ def _build_chatfmt_dylib() -> None:
         # `src/unicode.cpp` which is for vocab tokenisation), pure
         # stdlib-only.
         common / "unicode.cpp",
+        # `common_json` is the pimpl JSON wrapper the jinja engine takes
+        # its input through; the header alone declares it, the out-of-line
+        # bodies (and the nlohmann backing) are all here.
+        common / "json.cpp",
         facade / "chat_facade.cpp",
     ]
     missing = [str(s) for s in sources if not s.exists()]
@@ -315,16 +320,26 @@ def _build_chatfmt_dylib() -> None:
         f"-I{common}",
         f"-I{LLAMA_SRC / 'vendor'}",
         # `common/log.h` (transitively pulled in by `common/jinja/caps.cpp`)
-        # includes <ggml.h> for ggml_log_level. Pure header — no link
-        # dependency on libggml is introduced.
+        # includes <ggml.h> for ggml_log_level; `common/json.cpp` uses it
+        # for GGML_ASSERT.
         f"-I{LLAMA_SRC / 'ggml' / 'include'}",
         f"-I{facade}",
         "-o",
         str(out),
         "-install_name",
         install_name,
+        # _normalize_libs rewrites this dylib's load commands to longer
+        # @rpath/<Framework>.framework/... paths and adds an LC_RPATH; without
+        # the pad install_name_tool has no room and fails. cmake passes this
+        # by default, a bare clang link does not.
+        "-Wl,-headerpad_max_install_names",
     ]
     cmd += [str(s) for s in sources]
+    # `common/json.cpp` routes the JSON library's assert through GGML_ASSERT,
+    # so the only ggml symbol pulled in is ggml_abort. libggml-base already
+    # ships in Ggml.framework and _normalize_libs rewrites the dependency
+    # path there, same as it does for libllama.
+    cmd += [f"-L{LLAMA_DYN}", "-lggml-base"]
     run(cmd)
     os.chmod(out, 0o755)
     print(f"  built {out.name}")
