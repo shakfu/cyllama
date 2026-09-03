@@ -116,7 +116,9 @@ Omit the argument to fall back to the defaults (`Embedder` over a local GGUF emb
 |-----------|-------------|
 | `Embedder` | Generate vector embeddings from text |
 | `SqliteVectorStore` | SQLite-based vector storage with sqlite-vector (default backend; implements `VectorStoreProtocol`). `VectorStore` remains as a deprecated alias. |
-| `QdrantVectorStore` | Qdrant adapter for `VectorStoreProtocol` (optional: `uv sync --group qdrant`). Reference example for multi-backend support. |
+| `QdrantVectorStore` | Qdrant adapter for `VectorStoreProtocol` (optional: `pip install qdrant-client`). |
+| `SqliteVecStore` | [sqlite-vec](https://github.com/asg017/sqlite-vec) adapter for `VectorStoreProtocol` (optional: `pip install sqlite-vec`). Permissively licensed (MIT/Apache-2.0) alternative to the vendored sqlite-vector extension. |
+| `ChromaVectorStore` | [Chroma](https://github.com/chroma-core/chroma) adapter for `VectorStoreProtocol` (optional: `pip install chromadb`). Ephemeral, on-disk or remote-server transports. |
 | `HybridStore` | Combined FTS5 + vector search |
 
 ### Text Processing

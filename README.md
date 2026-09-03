@@ -107,6 +107,8 @@ cyllama has zero hard dependencies beyond its compiled core. Features built on t
 | Feature             | Install                          |
 |---------------------|----------------------------------|
 | Qdrant vector store | `pip install qdrant-client`      |
+| Chroma vector store | `pip install chromadb`           |
+| sqlite-vec vector store | `pip install sqlite-vec`     |
 
 ### Build from source with a specific backend
 

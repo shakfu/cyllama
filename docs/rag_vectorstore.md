@@ -339,9 +339,17 @@ class VectorStoreProtocol(Protocol):
 
 This makes the RAG stack open to Qdrant, Chroma, LanceDB, pgvector, or any in-house vector service without forking `cyllama`.
 
-### Qdrant (reference adapter)
+Three adapters ship in `cyllama.rag.stores`, each lazy-imported so `import cyllama.rag` stays free of the optional dependency:
 
-`QdrantVectorStore` ships in `cyllama.rag.stores.qdrant` as the first worked example of the protocol. Install the optional dependency group (`uv sync --group qdrant`, or `pip install qdrant-client`) and pass it to `RAG`:
+| Adapter | Install | Notes |
+|---------|---------|-------|
+| `QdrantVectorStore` | `pip install qdrant-client` | `:memory:`, on-disk, or remote server |
+| `SqliteVecStore` | `pip install sqlite-vec` | MIT/Apache-2.0 licensed SQLite backend |
+| `ChromaVectorStore` | `pip install chromadb` | Ephemeral, on-disk, or remote server |
+
+### Qdrant
+
+`QdrantVectorStore` ships in `cyllama.rag.stores.qdrant` as the first worked example of the protocol. Install the optional dependency (`pip install qdrant-client`) and pass it to `RAG`:
 
 ```python
 from cyllama.rag import RAG
@@ -360,7 +368,48 @@ rag = RAG(
 )
 ```
 
-Source dedup is implemented via per-point payload fields (`content_hash`, `source_label`, `indexed_at`) so `RAG.add_documents` skips unchanged files just like on the sqlite backend. See `src/cyllama/rag/stores/qdrant.py` for the full implementation — Chroma / LanceDB / pgvector adapters can follow the same template.
+Source dedup is implemented via per-point payload fields (`content_hash`, `source_label`, `indexed_at`) so `RAG.add_documents` skips unchanged files just like on the sqlite backend. See `src/cyllama/rag/stores/qdrant.py` for the full implementation.
+
+### sqlite-vec
+
+`SqliteVecStore` backs the same SQLite-file workflow as the default store, but with [sqlite-vec](https://github.com/asg017/sqlite-vec) — which is dual MIT/Apache-2.0 licensed, unlike the vendored `sqlite-vector` extension (Elastic License 2.0: free for open-source projects, paid for commercial use). If that licensing matters for your deployment, this is the drop-in.
+
+```python
+from cyllama.rag import RAG
+from cyllama.rag.stores import SqliteVecStore
+
+store = SqliteVecStore(
+    dimension=384,
+    db_path="vectors.db",          # ":memory:" for ephemeral
+    metric="cosine",               # cosine | l2 | squared_l2 | l1
+    vector_type="float32",         # float32 | int8
+)
+```
+
+The extension comes from the `sqlite-vec` PyPI package by default; pass `extension_path=...` to use your own build. Vectors live in a `vec0` virtual-table sidecar (`{table_name}_vec`) keyed by the base table's `id`, which keeps the chunk rows in an ordinary table — so FTS5 triggers still work over them.
+
+Differences from `SqliteVectorStore`:
+
+- No `dot` metric and no `uint8` vector type — `vec0` offers cosine/L2/L1 and float32/int8. (`vec0` parses a `float16` column type but stores it as float32 as of sqlite-vec 0.1.9, so the adapter doesn't offer it.)
+- No `quantize()` / `preload_quantization()`. A `vec0` table is either exhaustive or built with an ANN index at CREATE time; there is no runtime quantization step.
+- The on-disk format is different, so an existing `SqliteVectorStore` database has to be re-indexed rather than opened.
+
+For a full comparison — licensing, benchmarks, and what a default-backend swap would cost — see [`docs/dev/use-sqlite-vec.md`](dev/use-sqlite-vec.md).
+
+### Chroma
+
+`ChromaVectorStore` adapts [Chroma](https://github.com/chroma-core/chroma), with the same transport choice as the Qdrant adapter:
+
+```python
+from cyllama.rag.stores import ChromaVectorStore
+
+store = ChromaVectorStore(dimension=384)                       # ephemeral, in-process
+store = ChromaVectorStore(dimension=384, path="./chroma")      # local on-disk
+store = ChromaVectorStore(dimension=384, host="localhost", port=8000)  # remote server
+store = ChromaVectorStore(dimension=384, client=my_client)     # caller-owned client
+```
+
+Metrics are `cosine`, `l2` and `dot`. The collection is created without an embedding function — cyllama always supplies the vectors itself. Chroma only stores scalar metadata values, so the adapter JSON-encodes anything nested on the way in and decodes it on the way out; arbitrary JSON-serializable metadata round-trips unchanged. Source dedup uses `content_hash` / `source_label` / `indexed_at` metadata fields, mirroring the Qdrant adapter. Note that Chroma requires collection names of 3-512 characters from `[a-zA-Z0-9._-]`, starting and ending alphanumeric.
 
 Sqlite-specific features (quantization, FTS5 `HybridStore`, raw `store.conn` access) stay on `SqliteVectorStore` and aren't part of the contract. Backends without a natural dedup mechanism may return `False` / `None` from `is_source_indexed` / `get_source_by_label` — the RAG layer treats that as "always re-index" and still behaves correctly, just less efficiently on repeated `add_documents` calls.
 
