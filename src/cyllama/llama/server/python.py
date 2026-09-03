@@ -24,7 +24,13 @@ from urllib.parse import urlparse
 import uuid
 
 # Import our existing cyllama bindings
-from ..llama_cpp import LlamaModel, LlamaContext, LlamaSampler, llama_batch_get_one
+from ..llama_cpp import (
+    LlamaModel,
+    LlamaContext,
+    LlamaSampler,
+    ggml_backend_load_all,
+    llama_batch_get_one,
+)
 
 
 @dataclass
@@ -261,6 +267,9 @@ class PythonServer:
         """Load the model and initialize slots."""
         try:
             self.logger.info(f"Loading model: {self.config.model_path}")
+
+            # Load backends
+            ggml_backend_load_all()
 
             # Load model
             self.model = LlamaModel(path_model=self.config.model_path)

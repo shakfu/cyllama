@@ -2215,6 +2215,25 @@ _WIN_INCLUDES: dict[str, list[str]] = {
 _WIN_EXCLUDES: dict[str, list[str]] = {
     "cuda": ["nvcuda.dll", "cudart64_12.dll", "cublas64_12.dll", "cublasLt64_12.dll"],
 }
+# delvewheel mangles bundled non-system DLLs to hash-suffixed names and rewrites
+# the import tables of everything in the dependency graph to match. Backend
+# plugins arrive via --include and are NOT in that graph -- nothing in the wheel
+# imports them, that is why --include is needed -- so their own import tables are
+# never rewritten and they keep importing the pre-mangling names. Pin the project
+# libs to their real names so an --include'd plugin can resolve them.
+#
+# Applied unconditionally, not per-backend: the CPU wheel static-links ggml into
+# the extensions and bundles none of these, so the flag is a no-op there, while
+# one shared list means a future --include'd plugin cannot reintroduce the bug.
+# Confirmed broken in the published 0.4.2 cuda12 and vulkan Windows wheels; see
+# windows-dll-mangling.md.
+_WIN_NO_MANGLE: list[str] = [
+    "ggml.dll",
+    "ggml-base.dll",
+    "ggml-cpu.dll",
+    "llama.dll",
+    "mtmd.dll",
+]
 
 # GPU backends share a manylinux platform override -- their SDK libs
 # (CUDA/Vulkan/ROCm/oneAPI) reference glibc symbols newer than
@@ -2448,6 +2467,8 @@ def _run_wheel_repair(
                 cmd += ["--include", inc]
             for exc in _WIN_EXCLUDES.get(backend, []):
                 cmd += ["--no-dll", exc]
+            if _WIN_NO_MANGLE:
+                cmd += ["--no-mangle", ";".join(_WIN_NO_MANGLE)]
             cmd.append(str(whl))
             log.info(" ".join(cmd))
             subprocess.check_call(cmd)
@@ -3260,7 +3281,12 @@ class Application(ShellCmd, metaclass=MetaCommander):
 
         # Step 3: bundle shared-library deps into the wheel (dynamic only).
         if args.dynamic:
-            self.do_wheel_repair(argparse.Namespace(backend=args.backend, wheel=None, dest_dir=None))
+            # archs must be present: do_wheel_repair reads it unconditionally.
+            # It is macOS-only (delocate --require-archs) and None means "don't
+            # pass the flag", which is what a local build wants on any platform.
+            self.do_wheel_repair(
+                argparse.Namespace(backend=args.backend, wheel=None, dest_dir=None, archs=None)
+            )
 
     # ------------------------------------------------------------------------
     # wheel

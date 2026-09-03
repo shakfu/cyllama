@@ -400,7 +400,11 @@ class Reranker(RerankerProtocol):
                 LlamaContextParams,
                 LlamaModel,
                 LlamaModelParams,
+                ggml_backend_load_all,
             )
+
+            # Load backends
+            ggml_backend_load_all()
 
             params = LlamaModelParams()
             params.n_gpu_layers = self.n_gpu_layers

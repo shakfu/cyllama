@@ -84,7 +84,12 @@ def dump_metadata_json(model_path: Union[str, Path]) -> Dict[str, Any]:
     """
     metadata = dict(_DEFAULT_METADATA)
     try:
-        from .llama.llama_cpp import LlamaModel, LlamaModelParams
+        from .llama.llama_cpp import LlamaModel, LlamaModelParams, ggml_backend_load_all
+
+        # Load backends. Without this llama.cpp refuses to load the model at
+        # all ("no backends are loaded"), and the except below would quietly
+        # return _DEFAULT_METADATA -- an estimate for a different model.
+        ggml_backend_load_all()
 
         params = LlamaModelParams()
         model = LlamaModel(str(model_path), params)

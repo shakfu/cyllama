@@ -18,6 +18,7 @@ from ..llama.llama_cpp import (
     LlamaModel,
     LlamaModelParams,
     disable_logging,
+    ggml_backend_load_all,
 )
 from .types import EmbeddingResult
 
@@ -180,6 +181,9 @@ class Embedder(EmbedderProtocol):
 
         if not verbose:
             disable_logging()
+
+        # Load backends
+        ggml_backend_load_all()
 
         # Parse pooling type
         pooling_map = {
