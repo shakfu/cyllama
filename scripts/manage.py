@@ -3281,7 +3281,12 @@ class Application(ShellCmd, metaclass=MetaCommander):
 
         # Step 3: bundle shared-library deps into the wheel (dynamic only).
         if args.dynamic:
-            self.do_wheel_repair(argparse.Namespace(backend=args.backend, wheel=None, dest_dir=None))
+            # archs must be present: do_wheel_repair reads it unconditionally.
+            # It is macOS-only (delocate --require-archs) and None means "don't
+            # pass the flag", which is what a local build wants on any platform.
+            self.do_wheel_repair(
+                argparse.Namespace(backend=args.backend, wheel=None, dest_dir=None, archs=None)
+            )
 
     # ------------------------------------------------------------------------
     # wheel

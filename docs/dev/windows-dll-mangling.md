@@ -14,7 +14,9 @@ Result: `cyllama info` prints `built: CUDA` while `registries:` lists only `CPU`
 The package installs, imports, and passes its test suite, entirely on CPU.
 
 `windows-cuda.md` predicted exactly this failure and prescribed the fix
-(`--no-mangle`); the prescription was never applied.
+(`--no-mangle`); the prescription was never applied. It is now, and a CUDA wheel
+built with it reports `registries: CPU, CUDA` on a clean install -- see
+Verification.
 
 ## Symptoms
 
@@ -118,28 +120,27 @@ repair graph.
 
 ## Fix
 
-Add a `--no-mangle` list to the Windows branch of `wheel_repair`:
+Applied in `manage.py`. A `--no-mangle` list beside the existing include/exclude
+tables:
 
 ```python
-# delvewheel mangles bundled non-system DLLs and rewrites the import
-# tables of everything in the dependency graph to match. Backend plugins
-# arrive via --include and are NOT in that graph, so their imports are
-# never rewritten -- they keep importing the pre-mangling names. Pin the
-# project libs to their real names so --include'd plugins can resolve
-# them. See windows-dll-mangling.md.
 _WIN_NO_MANGLE: list[str] = [
     "ggml.dll", "ggml-base.dll", "ggml-cpu.dll", "llama.dll", "mtmd.dll",
 ]
 ```
 
-and in the repair loop:
+and one flag in the Windows branch of `_run_wheel_repair`, `;`-joined the way
+delvewheel expects (`--no-mangle DLLS`, "DLL name(s) not to mangle,
+';'-delimited"):
 
 ```python
-for nm in _WIN_NO_MANGLE:
-    cmd += ["--no-mangle", nm]
+if _WIN_NO_MANGLE:
+    cmd += ["--no-mangle", ";".join(_WIN_NO_MANGLE)]
 ```
 
-`--no-mangle` takes a `;`-separated list too, if a single flag is preferred.
+No narrower option exists: `--analyze-existing` vendors dependencies of DLLs the
+*build* placed in the wheel, not of `--include`d ones, so nothing makes
+delvewheel rewrite an `--include`d file's own import table.
 
 Pinning only `ggml-base.dll` is sufficient for today's failure, but the whole
 set is cheaper than rediscovering this per-plugin. Mangling exists to avoid
@@ -175,6 +176,86 @@ plugin inherits the bug.
 
 No `cyllama-rocm` or `cyllama-sycl` distributions exist on PyPI, so there is
 nothing further to check; `_WIN_INCLUDES` has no entry for them either.
+
+## Verification: a CUDA wheel built with the fix
+
+Built locally on the box described above:
+
+```
+CMAKE_CUDA_ARCHITECTURES=89 python scripts/manage.py wheel_build \
+    --backend cuda --dynamic --abi3
+```
+
+`89` is this card's native compute capability rather than the `75` CI pins; the
+packaging fix is architecture-independent, so this only makes the artifact local
+rather than a drop-in for the published one. Note that `wheel_build` hardcodes
+`SD_USE_VENDORED_GGML=0` for dynamic non-CPU backends, so it takes the
+from-source nvcc path rather than the `download_release()` fast path
+`windows-cuda.md` describes -- slow, but it is what the Makefile's
+`build-cuda-dynamic` does, so the artifact matches a CI-built one.
+
+The repair now emits:
+
+```
+delvewheel repair -w dist --add-path thirdparty\llama.cpp\dynamic
+                  --include ggml-cuda.dll
+                  --no-dll nvcuda.dll --no-dll cudart64_12.dll
+                  --no-dll cublas64_12.dll --no-dll cublasLt64_12.dll
+                  --no-mangle ggml.dll;ggml-base.dll;ggml-cpu.dll;llama.dll;mtmd.dll
+                  dist\cyllama-0.4.2-cp312-abi3-win_amd64.whl
+```
+
+and the resulting wheel parses clean under the script above:
+
+```
+shipped: ggml-base.dll, ggml-cpu.dll, ggml-cuda.dll, ggml.dll, llama.dll,
+         msvcp140-<hash>.dll, msvcp140_codecvt_ids-<hash>.dll, mtmd.dll,
+         vcomp140-<hash>.dll
+=> 0 file(s) with unresolvable in-wheel imports
+```
+
+The five project libs are unmangled; the MSVC runtimes keep their hashes, which
+is the point of scoping the list rather than reaching for `--no-mangle-all` --
+cross-wheel collision protection still applies everywhere it matters.
+
+Installed into a clean venv, with no patching of any kind:
+
+| check | result |
+|---|---|
+| `cyllama info` | `built: CUDA`, `registries: CPU, CUDA`, `CUDA0 [GPU] RTX 4060` |
+| `run_wheel_test.py test gen all` | 3/3 PASS -- 163.1 / 53.3 / 57.8 tok/s |
+| `run_wheel_test.py test sd 3` | PASS -- 40.66s, sampling 37.2s on CUDA0 |
+| `cyllama embed` | PASS -- also the first real-install test of the backend-load fix below |
+
+Two caveats on those numbers. `run_wheel_test.py` labels the runs `backend=cpu`
+because `detect_backend()` matches on the `cyllama-cuda12` distribution name and
+a local build is plain `cyllama`; the label is wrong, the execution is CUDA.
+And gen 3 ran at 57.8 tok/s here against 7.3 on the byte-patched published wheel
+-- unexplained, and this build differs in more than one way (sm_89 vs sm_75,
+dynamic vs the published config), so the earlier gen-3 slowness should be treated
+as still open rather than fixed.
+
+### `wheel_build --dynamic` could not reach the repair step
+
+Building the above first required fixing an unrelated crash. `do_wheel_build`
+calls `do_wheel_repair` directly with a hand-built namespace instead of going
+through the parser:
+
+```python
+self.do_wheel_repair(argparse.Namespace(backend=args.backend, wheel=None, dest_dir=None))
+```
+
+`do_wheel_repair` reads `args.archs` unconditionally, so every dynamic build on
+every platform ended in `AttributeError: 'Namespace' object has no attribute
+'archs'`. It fires *after* `uv build` succeeds, which is what made it survive: it
+leaves a built-but-unrepaired wheel in `dist/` -- no bundled libs, no `.libs`
+directory -- and looks like a successful build to anyone who checks the artifact
+rather than the traceback. The namespace now passes `archs=None`.
+
+One environment snag, not a bug: `_run_wheel_repair` calls
+`_install("delvewheel")`, which shells out to `pip`. A uv-created `.venv` has no
+pip, so a local repair fails there until pip is installed. CI is unaffected --
+cibuildwheel environments have pip.
 
 ## Unrelated but adjacent: CUDA runtime DLLs are not bundled
 
