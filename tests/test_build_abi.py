@@ -10,8 +10,8 @@ the next `ggml_object` header. Nothing fails to compile or link; the arena is
 simply corrupted at runtime.
 
 The pin went stale once (128 while upstream had moved to 160), so these tests
-check both directions: the value manage.py propagates to llama.cpp, and the
-value cyllama's own CMakeLists compiles against.
+check every direction: the value manage.py propagates to llama.cpp, and the
+value cyllama's own CMakeLists and xcframework script compile against.
 """
 
 import importlib.util
@@ -65,6 +65,15 @@ def test_cmakelists_matches_the_propagated_value(manage):
     text = (ROOT / "CMakeLists.txt").read_text()
     found = re.findall(r"add_definitions\(-DGGML_MAX_NAME=(\d+)\)", text)
     assert found, "cyllama's CMakeLists.txt no longer defines GGML_MAX_NAME"
+    assert [int(v) for v in found] == [pinned] * len(found)
+
+
+def test_xcframework_matches_the_propagated_value(manage):
+    """The xcframework build configures ggml itself and must agree too."""
+    pinned = manage.StableDiffusionCppBuilder.GGML_MAX_NAME
+    text = (ROOT / "scripts" / "make_xcframework.py").read_text()
+    found = re.findall(r"-DGGML_MAX_NAME=(\d+)", text)
+    assert found, "make_xcframework.py no longer sets GGML_MAX_NAME"
     assert [int(v) for v in found] == [pinned] * len(found)
 
 

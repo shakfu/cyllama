@@ -380,8 +380,11 @@ def _build_shared_cmake(
         "-DBUILD_SHARED_LIBS=ON",
         "-DCMAKE_POSITION_INDEPENDENT_CODE=ON",
         "-DGGML_NATIVE=OFF",
-        "-DCMAKE_C_FLAGS=-DGGML_MAX_NAME=128",
-        "-DCMAKE_CXX_FLAGS=-DGGML_MAX_NAME=128",
+        # Must equal StableDiffusionCppBuilder.GGML_MAX_NAME in scripts/manage.py:
+        # all three trees below share one ggml, so they share one ggml_tensor
+        # layout. tests/test_build_abi.py holds the two in step.
+        "-DCMAKE_C_FLAGS=-DGGML_MAX_NAME=160",
+        "-DCMAKE_CXX_FLAGS=-DGGML_MAX_NAME=160",
         f"-DCMAKE_OSX_DEPLOYMENT_TARGET={MIN_MACOS}",
         *extra_cmake,
     ]
@@ -537,14 +540,24 @@ def _existing_rpaths(dylib: Path) -> list[str]:
 
 
 def _copy_headers(component: Component, dst: Path) -> None:
+    """Copy the component's public headers into its framework.
+
+    The list is hand-maintained against the pinned upstream, so a rename or
+    removal there has to fail the build: a framework missing a header still
+    stages, links and packages, and the error only reaches a consumer trying
+    to compile against it.
+    """
+    missing: list[str] = []
     for inc, names in component.header_sources:
         for name in names:
             src = inc / name
             if not src.exists():
-                print(f"  warn: missing header {src}")
+                missing.append(str(src))
                 continue
             shutil.copy2(src, dst / name)
             print(f"  header {component.name}/{name}")
+    if missing:
+        fail(f"{component.name}: missing headers: {missing}")
 
 
 def _header_owner_map() -> dict[str, Component]:
@@ -608,6 +621,11 @@ def _build_umbrella(component: Component, out: Path, libs_dir: Path) -> None:
         str(stub_c),
         "-install_name",
         umbrella_install_name(component),
+        # A bare clang link does not pad the Mach-O header the way cmake does,
+        # so any later install_name_tool rewrite into a longer @rpath path has
+        # no room. Nothing rewrites the umbrella today; the pad costs nothing
+        # and keeps that from being a precondition.
+        "-Wl,-headerpad_max_install_names",
     ]
     for stem in component.lib_stems:
         cmd += ["-Wl,-reexport_library," + str(libs_dir / f"{stem}.dylib")]

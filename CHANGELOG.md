@@ -19,9 +19,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Fixed
 
+- **The xcframework build still compiled ggml with `GGML_MAX_NAME=128`** -- `0.4.1` moved the pin to `160` and updated `CMakeLists.txt` and `manage.py`, but `_build_shared_tree()` carries its own `-DCMAKE_{C,CXX}_FLAGS` and was missed. It configures all three trees, so every xcframework shipped the `struct ggml_tensor` mismatch `0.4.1` fixed for the wheels: SD writes `tensor->extra` past the end of the struct the linked ggml allocates. Found by auditing inferna against this changelog, which had already fixed it. `tests/test_build_abi.py::test_xcframework_matches_the_propagated_value`, ported back from inferna, now holds the literal to `StableDiffusionCppBuilder.GGML_MAX_NAME`.
+
+- **A missing framework header failed only for the consumer** -- `_copy_headers` logged `warn: missing header` and continued, so a rename or removal in the pinned upstream still staged, linked and packaged an xcframework, and the error arrived when someone compiled against it. The list is hand-maintained against the pin, so it now fails the build, naming every missing header rather than one per run.
+
 - **`make xcframework` could not link `libchatfmt.dylib` against llama.cpp `v0.3.0`** -- v0.3.0 moved `common/jinja` off `nlohmann::json` onto `common_json`, a pimpl wrapper whose out-of-line bodies sit in `common/json.cpp`, and the hand-maintained source list did not carry that file. `jinja::global_from_json` hid the second half: `jinja/value.h` declares it as a template and v0.3.0 narrowed the only definition to an explicit specialization for `common_json`, so `chat_facade.cpp`'s `nlohmann::ordered_json` call still compiled and failed at link with no source location. The facade builds its input as `common_json` now. `common/json.cpp` routes the JSON library's assert through `GGML_ASSERT`, so the dylib links `libggml-base` for `ggml_abort` -- over stubbing the symbol, which holds only until `GGML_ASSERT` gains a second call. `_normalize_libs` rewrites that dependency to `@rpath/Ggml.framework/...` with no change, as it already does for libllama.
 
 - **`install_name_tool` could not rewrite `libchatfmt.dylib`'s load commands** -- the bare `clang` link passes no `-headerpad_max_install_names`, which cmake supplies by default. It went unnoticed while the dylib had no dependency to rewrite; linking libggml-base gave it a longer `@rpath/Ggml.framework/Versions/A/Libraries/...` path plus an LC_RPATH, and the tool refused with "larger updated load commands do not fit".
+
+### Changed
+
+- **The umbrella dylibs link with `-headerpad_max_install_names`** -- the same bare-`clang` gap as `libchatfmt.dylib` above, in `_build_umbrella()`. No rewrite reaches an umbrella today: `_normalize_libs()` runs before it, and its install name and rpath are set at link time. The pad costs a header page and removes that ordering as a precondition.
 
 ## [0.4.2]
 
