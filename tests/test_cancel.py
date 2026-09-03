@@ -149,16 +149,17 @@ class TestCancellation:
 
     def test_install_sigint_handler_calls_cancel(self, model_path):
         """The installed handler routes SIGINT to llm.cancel()."""
-        import os as _os
         import signal as _signal
 
         llm = LLM(model_path)
         try:
             assert llm.cancel_requested is False
             with llm.install_sigint_handler():
-                # Raise SIGINT in our own process; the handler should
-                # synchronously invoke cancel() before returning.
-                _os.kill(_os.getpid(), _signal.SIGINT)
+                # Raise SIGINT in our own process. Must be raise_signal(), not
+                # os.kill(): on Windows os.kill() only delivers a real signal
+                # for CTRL_C_EVENT/CTRL_BREAK_EVENT and otherwise calls
+                # TerminateProcess(), which would hard-kill the test runner.
+                _signal.raise_signal(_signal.SIGINT)
                 # signal handlers run at the next bytecode boundary; give
                 # the interpreter a brief moment to dispatch.
                 time.sleep(0.05)
