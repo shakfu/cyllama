@@ -1,0 +1,307 @@
+name: test-store-adapters
+
+# Exercises the optional vector-store backend adapters in
+# src/cyllama/rag/stores/ against their real client libraries -- and, for
+# Qdrant and Chroma, against a real server.
+#
+# Why this exists as its own workflow:
+#
+#   - These adapters are the only code in the repo whose correctness
+#     depends on third-party libraries the project neither vendors nor
+#     pins. They have broken from upstream churn before (qdrant-client
+#     removed the .search() the adapter used; chromadb 1.x tightened
+#     collection-name validation and started rejecting empty metadata
+#     dicts), and sqlite-vec is explicitly pre-v1 "expect breaking
+#     changes".
+#
+#   - Nothing else catches that. cibuildwheel's in-container test step
+#     installs only the `test` dependency group, which deliberately
+#     excludes these clients, so tests/test_rag_{qdrant,chroma,
+#     sqlite_vec}.py `importorskip` their way to green in every wheel
+#     build.
+#
+#   - The failure mode is calendar-driven, not commit-driven: a release
+#     of chromadb breaks us on a day nobody touched the repo. Hence the
+#     weekly schedule alongside workflow_dispatch, and the deliberately
+#     unpinned installs -- pinning would defeat the entire purpose.
+#
+# The adapters themselves are pure Python, but cyllama/__init__.py
+# eagerly imports the Cython extension, so importing cyllama.rag at all
+# requires a real build. That build happens once in the `build` job and
+# is shared with the test matrix as a wheel artifact.
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+    inputs:
+      adapters:
+        description: 'Which adapters to test'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - sqlite-vec
+          - chroma
+          - qdrant
+          - pgvector
+      pip_args:
+        description: 'Extra pip args for the client install (e.g. "chromadb==1.5.9" to reproduce a failure)'
+        required: false
+        default: ''
+        type: string
+  schedule:
+    # Mondays at 06:00 UTC. Catches upstream releases within a week.
+    - cron: '0 6 * * 1'
+  pull_request:
+    paths:
+      - 'src/cyllama/rag/stores/**'
+      - 'src/cyllama/rag/types.py'
+      - 'tests/test_rag_store_conformance.py'
+      - 'tests/test_rag_qdrant.py'
+      - 'tests/test_rag_chroma.py'
+      - 'tests/test_rag_sqlite_vec.py'
+      - '.github/workflows/test-store-adapters.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: '3.12'
+
+jobs:
+  build:
+    name: Build cyllama (CPU)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install build tooling
+        run: python -m pip install --upgrade pip build cmake ninja
+
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ccache
+          key: store-adapters-ccache-${{ runner.os }}-${{ hashFiles('scripts/manage.py') }}
+          restore-keys: store-adapters-ccache-${{ runner.os }}-
+
+      - name: Install ccache
+        run: sudo apt-get update && sudo apt-get install -y ccache
+
+      - name: Build thirdparty dependencies
+        env:
+          GGML_METAL: '0'
+          GGML_CUDA: '0'
+          GGML_VULKAN: '0'
+        run: python scripts/manage.py build --all --deps-only --no-sd-examples
+
+      # Built with PEP 517 isolation so the backend pins in
+      # [build-system].requires (scikit-build-core, cython, cython-cmake)
+      # come from pyproject rather than from whatever this job installed.
+      # The thirdparty libs built above live in the source tree, so the
+      # isolated build still links against them.
+      - name: Build wheel
+        run: python -m build --wheel --outdir dist/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cyllama-wheel
+          path: dist/*.whl
+          retention-days: 1
+
+  test:
+    name: ${{ matrix.adapter }}
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      # One broken upstream must not mask the state of the others --
+      # the whole point is knowing which adapters are healthy.
+      fail-fast: false
+      matrix:
+        include:
+          - adapter: sqlite-vec
+            client: sqlite-vec
+            test_file: tests/test_rag_sqlite_vec.py
+          - adapter: chroma
+            client: chromadb
+            test_file: tests/test_rag_chroma.py
+          - adapter: qdrant
+            client: qdrant-client
+            test_file: tests/test_rag_qdrant.py
+          - adapter: pgvector
+            client: '"psycopg[binary]" pgvector'
+            test_file: tests/test_rag_pgvector.py
+
+    services:
+      # GitHub Actions has no conditional `services:`, so both containers
+      # start for every matrix leg. They are small and start in seconds;
+      # the alternative is three near-identical jobs. Each adapter's tests
+      # only reach for the server named in its own env var below.
+      qdrant:
+        image: qdrant/qdrant:latest
+        ports:
+          - 6333:6333
+      chroma:
+        image: chromadb/chroma:latest
+        ports:
+          - 8000:8000
+      # pgvector/pgvector ships the extension preinstalled, so the
+      # adapter's CREATE EXTENSION succeeds without provisioning. This
+      # image carries a recent pgvector (0.8.x at time of writing),
+      # which is what exercises the l1 (<+>) operator -- added in 0.7.0,
+      # so older builds take the adapter's refusal path instead.
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_PASSWORD: cyllama
+          POSTGRES_DB: cyllama_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Skip unselected adapter
+        id: gate
+        run: |
+          selected='${{ github.event.inputs.adapters || 'all' }}'
+          if [ "$selected" = "all" ] || [ "$selected" = "${{ matrix.adapter }}" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::${{ matrix.adapter }} not selected (adapters=$selected)"
+          fi
+
+      - uses: actions/checkout@v6
+        if: steps.gate.outputs.run == 'true'
+
+      - uses: actions/setup-python@v6
+        if: steps.gate.outputs.run == 'true'
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - uses: actions/download-artifact@v4
+        if: steps.gate.outputs.run == 'true'
+        with:
+          name: cyllama-wheel
+          path: dist/
+
+      - name: Install cyllama and the client
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install dist/*.whl
+          python -m pip install pytest pytest-asyncio
+          # Unpinned by default: testing against the current release is
+          # the point. pip_args lets a dispatch pin a version to
+          # reproduce a specific failure.
+          python -m pip install ${{ matrix.client }} ${{ github.event.inputs.pip_args }}
+
+      - name: Record resolved versions
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          echo "### ${{ matrix.adapter }}" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          for pkg in ${{ matrix.client }}; do
+            # Strip any extras/quotes so `pip show` gets a bare name.
+            pkg=$(echo "$pkg" | tr -d '"' | sed 's/\[.*\]//')
+            python -m pip show "$pkg" | grep -E '^(Name|Version):' >> "$GITHUB_STEP_SUMMARY"
+          done
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Wait for services
+        if: steps.gate.outputs.run == 'true' && matrix.adapter != 'sqlite-vec'
+        run: |
+          if [ "${{ matrix.adapter }}" = "pgvector" ]; then
+            # Postgres speaks its own protocol, not HTTP -- the service
+            # health-check above already gates on pg_isready, so just
+            # confirm the extension is creatable.
+            PGPASSWORD=cyllama psql -h localhost -U postgres -d cyllama_test \
+              -c "CREATE EXTENSION IF NOT EXISTS vector" -c "SELECT extversion FROM pg_extension WHERE extname='vector'"
+            exit 0
+          fi
+          case "${{ matrix.adapter }}" in
+            qdrant) url=http://localhost:6333/readyz ;;
+            chroma) url=http://localhost:8000/api/v2/heartbeat ;;
+          esac
+          for i in $(seq 1 60); do
+            if curl -sf "$url" > /dev/null; then
+              echo "$url ready after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::${{ matrix.adapter }} server never became ready at $url"
+          exit 1
+
+      # `-o pythonpath=` clears pyproject's `pythonpath = ["src", "tests"]`
+      # so `import cyllama` resolves to the installed wheel rather than
+      # being shadowed by the unbuilt ./src tree.
+      - name: Run adapter tests
+        if: steps.gate.outputs.run == 'true'
+        env:
+          # Only the matching adapter's tests read these, so setting both
+          # unconditionally is harmless and keeps the step uniform.
+          CYLLAMA_QDRANT_URL: ${{ matrix.adapter == 'qdrant' && 'http://localhost:6333' || '' }}
+          CYLLAMA_CHROMA_HOST: ${{ matrix.adapter == 'chroma' && 'localhost' || '' }}
+          CYLLAMA_CHROMA_PORT: ${{ matrix.adapter == 'chroma' && '8000' || '' }}
+          CYLLAMA_POSTGRES_DSN: ${{ matrix.adapter == 'pgvector' && 'postgresql://postgres:cyllama@localhost:5432/cyllama_test' || '' }}
+        run: |
+          python -m pytest "${{ matrix.test_file }}" -v -o pythonpath= -o testpaths=
+
+      # The cross-backend contract. No -k filtering: the suite skips
+      # backends whose client isn't installed, and each leg installs
+      # exactly one -- plus sqlite-vector, which ships inside the wheel,
+      # so every leg also re-verifies the reference implementation the
+      # contract is anchored on. This is what catches an adapter
+      # drifting from the shared VectorStoreProtocol semantics rather
+      # than from its own test file's expectations.
+      - name: Run cross-backend conformance suite
+        if: steps.gate.outputs.run == 'true'
+        env:
+          CYLLAMA_POSTGRES_DSN: ${{ matrix.adapter == 'pgvector' && 'postgresql://postgres:cyllama@localhost:5432/cyllama_test' || '' }}
+        run: |
+          python -m pytest tests/test_rag_store_conformance.py -v -o pythonpath= -o testpaths=
+
+      # A conformance run where this leg's backend never constructed is
+      # worthless, so require its parametrisation to have actually run.
+      - name: Assert the conformance suite covered this backend
+        if: steps.gate.outputs.run == 'true'
+        env:
+          CYLLAMA_POSTGRES_DSN: ${{ matrix.adapter == 'pgvector' && 'postgresql://postgres:cyllama@localhost:5432/cyllama_test' || '' }}
+        run: |
+          python -c "
+          import sys
+          sys.path.insert(0, 'tests')
+          from test_rag_store_conformance import BACKENDS
+          name = '${{ matrix.adapter }}'
+          _factory, available, reason = BACKENDS[name]
+          if not available():
+              sys.exit(f'::error::conformance suite skipped {name}: {reason}')
+          print(f'conformance suite covered {name}')
+          "
+
+      # A green run where every test silently skipped is the failure this
+      # workflow exists to prevent, so assert the import actually worked.
+      - name: Assert the adapter was importable
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          python -c "
+          from cyllama.rag import stores
+          name = {'sqlite-vec': 'SqliteVecStore',
+                  'chroma': 'ChromaVectorStore',
+                  'qdrant': 'QdrantVectorStore',
+                  'pgvector': 'PgVectorStore'}['${{ matrix.adapter }}']
+          print('resolved', getattr(stores, name))
+          "

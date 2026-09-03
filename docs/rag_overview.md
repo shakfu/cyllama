@@ -119,6 +119,7 @@ Omit the argument to fall back to the defaults (`Embedder` over a local GGUF emb
 | `QdrantVectorStore` | Qdrant adapter for `VectorStoreProtocol` (optional: `pip install qdrant-client`). |
 | `SqliteVecStore` | [sqlite-vec](https://github.com/asg017/sqlite-vec) adapter for `VectorStoreProtocol` (optional: `pip install sqlite-vec`). Permissively licensed (MIT/Apache-2.0) alternative to the vendored sqlite-vector extension. |
 | `ChromaVectorStore` | [Chroma](https://github.com/chroma-core/chroma) adapter for `VectorStoreProtocol` (optional: `pip install chromadb`). Ephemeral, on-disk or remote-server transports. |
+| `PgVectorStore` | [pgvector](https://github.com/pgvector/pgvector) adapter for `VectorStoreProtocol` (optional: `pip install "psycopg[binary]" pgvector`). Native JSONB metadata, every metric including `dot`, HNSW/IVFFlat indexes. Requires a PostgreSQL server. |
 | `HybridStore` | Combined FTS5 + vector search |
 
 ### Text Processing

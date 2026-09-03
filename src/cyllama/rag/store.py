@@ -856,17 +856,27 @@ class SqliteVectorStore(VectorStoreProtocol):
         return cursor.rowcount
 
     def clear(self) -> int:
-        """Delete all embeddings.
+        """Delete all embeddings and forget every indexed source.
+
+        The source-dedup records go with the chunks. Leaving them
+        behind would make :meth:`is_source_indexed` keep answering True
+        for sources whose chunks no longer exist, so ``RAG.clear()``
+        followed by re-adding the same files would silently index
+        nothing and report every file as skipped.
 
         Returns:
-            Number of rows deleted
+            Number of embedding rows deleted (source records aren't
+            counted -- the return value is a chunk count).
         """
         self._check_closed()
 
-        cursor = self.conn.execute(f"DELETE FROM {self.table_name}")
-        self.conn.commit()
+        sources_table = f"{self.table_name}_sources"
+        with self.conn:
+            cursor = self.conn.execute(f"DELETE FROM {self.table_name}")
+            deleted = cursor.rowcount
+            self.conn.execute(f"DELETE FROM {sources_table}")
         self._quantized = False
-        return cursor.rowcount
+        return deleted
 
     def quantize(self, max_memory: str = "30MB") -> int:
         """Quantize vectors for faster approximate search.

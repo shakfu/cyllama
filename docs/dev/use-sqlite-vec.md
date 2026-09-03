@@ -284,3 +284,10 @@ See `src/cyllama/rag/stores/sqlite_vec.py` and
 `tests/test_rag_sqlite_vec.py`. The adapter takes an `extension_path=`
 argument for pointing at your own build of the extension instead of the
 copy shipped by the PyPI package.
+
+The adapter is covered in CI by the `test-store-adapters` workflow,
+which runs its test module and the cross-backend conformance suite
+(`tests/test_rag_store_conformance.py`) against the current sqlite-vec
+release on a weekly cron. That is also the tripwire for the pre-v1
+concern above: a breaking change upstream shows up there within a week
+rather than in a user's bug report.

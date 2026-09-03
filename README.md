@@ -109,6 +109,7 @@ cyllama has zero hard dependencies beyond its compiled core. Features built on t
 | Qdrant vector store | `pip install qdrant-client`      |
 | Chroma vector store | `pip install chromadb`           |
 | sqlite-vec vector store | `pip install sqlite-vec`     |
+| pgvector vector store | `pip install "psycopg[binary]" pgvector` |
 
 ### Build from source with a specific backend
 

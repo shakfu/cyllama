@@ -339,13 +339,16 @@ class VectorStoreProtocol(Protocol):
 
 This makes the RAG stack open to Qdrant, Chroma, LanceDB, pgvector, or any in-house vector service without forking `cyllama`.
 
-Three adapters ship in `cyllama.rag.stores`, each lazy-imported so `import cyllama.rag` stays free of the optional dependency:
+Four adapters ship in `cyllama.rag.stores`, each lazy-imported so `import cyllama.rag` stays free of the optional dependency:
 
 | Adapter | Install | Notes |
 |---------|---------|-------|
 | `QdrantVectorStore` | `pip install qdrant-client` | `:memory:`, on-disk, or remote server |
 | `SqliteVecStore` | `pip install sqlite-vec` | MIT/Apache-2.0 licensed SQLite backend |
 | `ChromaVectorStore` | `pip install chromadb` | Ephemeral, on-disk, or remote server |
+| `PgVectorStore` | `pip install "psycopg[binary]" pgvector` | PostgreSQL; needs a running server |
+
+Install the clients directly (`pip install qdrant-client chromadb sqlite-vec "psycopg[binary]" pgvector`) to un-skip `tests/test_rag_{qdrant,chroma,sqlite_vec}.py` locally — cyllama ships no extras or dependency groups for them and takes no position on their version pins. CI covers them through the `test-store-adapters` workflow, which runs those tests weekly against current releases to catch upstream drift.
 
 ### Qdrant
 
@@ -410,6 +413,46 @@ store = ChromaVectorStore(dimension=384, client=my_client)     # caller-owned cl
 ```
 
 Metrics are `cosine`, `l2` and `dot`. The collection is created without an embedding function — cyllama always supplies the vectors itself. Chroma only stores scalar metadata values, so the adapter JSON-encodes anything nested on the way in and decodes it on the way out; arbitrary JSON-serializable metadata round-trips unchanged. Source dedup uses `content_hash` / `source_label` / `indexed_at` metadata fields, mirroring the Qdrant adapter. Note that Chroma requires collection names of 3-512 characters from `[a-zA-Z0-9._-]`, starting and ending alphanumeric.
+
+### pgvector
+
+`PgVectorStore` adapts [pgvector](https://github.com/pgvector/pgvector). It is the most capable of the four adapters — it covers **every metric the default backend does**, including the `dot` that sqlite-vec cannot offer — but it is the only one with no in-process mode: a reachable PostgreSQL server is a hard requirement.
+
+```python
+from cyllama.rag.stores import PgVectorStore
+
+store = PgVectorStore(dimension=384, dsn="postgresql://user:pw@localhost/rag")
+store = PgVectorStore(dimension=384, conn=my_psycopg_connection)  # caller-owned
+```
+
+| `metric` | Operator | Notes |
+|----------|----------|-------|
+| `cosine` | `<=>` | default |
+| `l2` | `<->` | euclidean |
+| `squared_l2` | `<->` | squared in Python; ordering identical |
+| `dot` | `<#>` | score is the plain inner product |
+| `l1` | `<+>` | requires pgvector >= 0.7.0, checked at construction |
+
+Metadata is stored as native `JSONB`, so nested values round-trip with no encoding. Chunks live in `{table_name}`, with `{table_name}_meta` and `{table_name}_sources` alongside; reopening with a different `dimension` or `metric` raises rather than corrupting the table, and the declared `vector(N)` column width is cross-checked against the catalog.
+
+Two pgvector-specific extras sit outside `VectorStoreProtocol` — this is pgvector's answer to `SqliteVectorStore.quantize()`:
+
+```python
+store.create_index("hnsw", m=16, ef_construction=64)   # or "ivfflat", lists=100
+store.drop_index("hnsw")
+print(store.pgvector_version)
+```
+
+The operator class is derived from the store's `metric`, so the index actually serves the queries `search()` issues. Build it after bulk loading, not before.
+
+For local development without installing PostgreSQL, `pip install pgserver` (Python <= 3.12) ships a PostgreSQL binary with pgvector bundled and needs no root:
+
+```python
+import pgserver
+db = pgserver.get_server("/tmp/pgdata")
+store = PgVectorStore(dimension=384, dsn=db.get_uri())
+```
+
 
 Sqlite-specific features (quantization, FTS5 `HybridStore`, raw `store.conn` access) stay on `SqliteVectorStore` and aren't part of the contract. Backends without a natural dedup mechanism may return `False` / `None` from `is_source_indexed` / `get_source_by_label` — the RAG layer treats that as "always re-index" and still behaves correctly, just less efficiently on repeated `add_documents` calls.
 

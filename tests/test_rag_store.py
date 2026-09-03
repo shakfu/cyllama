@@ -303,6 +303,34 @@ class TestVectorStoreDelete:
         deleted = store.delete([])
         assert deleted == 0
 
+    def test_clear_forgets_indexed_sources(self, store):
+        """clear() must drop the dedup records along with the chunks.
+
+        Otherwise is_source_indexed() keeps answering True for sources
+        whose chunks are gone, and RAG.add_documents skips re-indexing
+        every file that was in the store before the clear.
+        """
+        store.add(
+            [[1.0, 0.0, 0.0, 0.0]],
+            ["doc"],
+            source_hash="h1",
+            source_label="a.txt",
+        )
+        assert store.is_source_indexed("h1") is True
+        store.clear()
+        assert store.is_source_indexed("h1") is False
+        assert store.get_source_by_label("a.txt") is None
+        assert store.list_sources() == []
+
+    def test_clear_allows_readding_the_same_source(self, store):
+        """The user-visible consequence of the above."""
+        store.add([[1.0, 0.0, 0.0, 0.0]], ["doc"], source_hash="h1", source_label="a.txt")
+        store.clear()
+        # Must not raise UNIQUE-constraint on the sources table, and the
+        # chunks must actually land.
+        store.add([[1.0, 0.0, 0.0, 0.0]], ["doc"], source_hash="h1", source_label="a.txt")
+        assert len(store) == 1
+
     def test_clear(self, store, sample_embeddings, sample_texts):
         """Test clearing all embeddings."""
         store.add(sample_embeddings, sample_texts)

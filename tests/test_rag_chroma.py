@@ -1,11 +1,15 @@
 """Tests for the Chroma adapter (:class:`ChromaVectorStore`).
 
 Skipped when ``chromadb`` isn't installed so the suite stays green on
-minimal test environments. Uses Chroma's in-process ephemeral client --
-no server required.
+minimal test environments. Everything here uses Chroma's in-process
+ephemeral client -- no server required -- except :class:`TestRealServer`,
+which is opt-in via ``CYLLAMA_CHROMA_HOST``.
 """
 
 from __future__ import annotations
+
+import os
+import uuid
 
 import pytest
 
@@ -276,3 +280,71 @@ class TestProtocolConformance:
         for name in ("search", "add", "is_source_indexed", "get_source_by_label", "clear", "close"):
             assert callable(getattr(store, name))
         assert len(store) == 0
+
+
+_CHROMA_HOST = os.environ.get("CYLLAMA_CHROMA_HOST")
+_CHROMA_PORT = os.environ.get("CYLLAMA_CHROMA_PORT")
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(not _CHROMA_HOST, reason="CYLLAMA_CHROMA_HOST not set")
+class TestRealServer:
+    """Exercise the HttpClient transport against a live Chroma server.
+
+    Opt in by pointing ``CYLLAMA_CHROMA_HOST`` (and optionally
+    ``CYLLAMA_CHROMA_PORT``) at one; the store-adapters workflow runs
+    these against a ``chromadb/chroma`` service container.
+    """
+
+    @pytest.fixture
+    def server_store(self):
+        collection = f"cyllama-test-{uuid.uuid4().hex[:12]}"
+        kwargs = {"host": _CHROMA_HOST}
+        if _CHROMA_PORT:
+            kwargs["port"] = int(_CHROMA_PORT)
+        s = ChromaVectorStore(dimension=4, collection_name=collection, **kwargs)
+        try:
+            yield s
+        finally:
+            try:
+                s.client.delete_collection(name=collection)
+            finally:
+                s.close()
+
+    def test_add_search_roundtrip(self, server_store):
+        ids = server_store.add(
+            [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0]],
+            ["first", "second"],
+            metadata=[{"tag": "a"}, {"tag": "b"}],
+        )
+        assert ids == [0, 1]
+        assert len(server_store) == 2
+        hits = server_store.search([1.0, 0.05, 0.0, 0.0], k=1)
+        assert len(hits) == 1
+        assert hits[0].text == "first"
+        assert hits[0].metadata == {"tag": "a"}
+
+    def test_nested_metadata_roundtrip_on_real_server(self, server_store):
+        nested = {"span": {"start": 1, "end": 9}, "tags": ["x", "y"]}
+        server_store.add([[1.0, 0.0, 0.0, 0.0]], ["doc"], [nested])
+        assert server_store.search([1.0, 0.0, 0.0, 0.0], k=1)[0].metadata == nested
+
+    def test_source_dedup_roundtrip(self, server_store):
+        server_store.add(
+            [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0]],
+            ["a", "b"],
+            source_hash="real-hash",
+            source_label="real.txt",
+        )
+        assert server_store.is_source_indexed("real-hash") is True
+        assert server_store.is_source_indexed("missing") is False
+        record = server_store.get_source_by_label("real.txt")
+        assert record is not None
+        assert record["content_hash"] == "real-hash"
+        assert record["chunk_count"] == 2
+
+    def test_clear_on_real_server(self, server_store):
+        server_store.add([[1.0, 0.0, 0.0, 0.0]], ["x"])
+        assert len(server_store) == 1
+        assert server_store.clear() == 1
+        assert len(server_store) == 0
