@@ -14,7 +14,8 @@ import pytest
 
 import cyllama.llama.llama_cpp as cy
 
-ROOT = Path.cwd()
+# Anchored to this file, not the cwd: see the note in conftest.py.
+ROOT = Path(__file__).resolve().parent.parent
 VISION_MODEL = ROOT / "models" / "gemma-4-E4B-it-Q4_K_M.gguf"
 MMPROJ = ROOT / "models" / "mmproj-gemma-4-E4B-it-BF16.gguf"
 

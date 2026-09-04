@@ -51,8 +51,10 @@ import pytest
 
 from cyllama.whisper import whisper_cpp as wh
 
-WHISPER_MODEL_PATH = Path("models/ggml-base.en.bin")
-JFK_PATH = Path("tests/samples/jfk.wav")
+# Anchored to this file, not the cwd: see the note in conftest.py.
+_ROOT = Path(__file__).resolve().parent.parent
+WHISPER_MODEL_PATH = _ROOT / "models" / "ggml-base.en.bin"
+JFK_PATH = _ROOT / "tests" / "samples" / "jfk.wav"
 
 # Canonical fragments of the JFK clip transcript; tokenisation varies across
 # builds, so we check robust lowercase substrings rather than exact equality.

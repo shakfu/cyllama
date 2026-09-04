@@ -8,15 +8,25 @@ This module provides:
 - Custom pytest markers
 """
 
+import os
 from pathlib import Path
 
 import pytest
 
-# Project root
-ROOT = Path.cwd()
+# Anchor every path to this file rather than the cwd. The suite is invoked from
+# the repo root, from tests/ and from cibuildwheel's container, and a
+# cwd-relative anchor makes whole files skip themselves depending on which --
+# silently, since a missing asset is a skip rather than an error. It also made
+# the two whisper fixtures unsatisfiable together: the model resolved only from
+# the repo root and the audio only from tests/, so any test wanting both always
+# skipped, whichever directory pytest ran in.
+TESTS_DIR = Path(__file__).resolve().parent
+ROOT = TESTS_DIR.parent
+MODELS_DIR = Path(os.environ.get("CYLLAMA_MODELS_DIR", ROOT / "models"))
+SAMPLES_DIR = TESTS_DIR / "samples"
 
 # Default model path constant (for use in subprocesses where fixtures aren't available)
-DEFAULT_MODEL = "models/Llama-3.2-1B-Instruct-Q8_0.gguf"
+DEFAULT_MODEL = str(MODELS_DIR / "Llama-3.2-1B-Instruct-Q8_0.gguf")
 
 
 # =============================================================================
@@ -35,13 +45,31 @@ def model_path() -> str:
     Returns:
         Absolute path to the test model file.
     """
-    return str(ROOT / DEFAULT_MODEL)
+    return DEFAULT_MODEL
 
 
 @pytest.fixture(scope="module")
 def model_exists(model_path: str) -> bool:
     """Check if the test model exists."""
     return Path(model_path).exists()
+
+
+@pytest.fixture
+def whisper_model_path() -> str:
+    """Path to the whisper test model, or skip if it is not downloaded."""
+    model_path = MODELS_DIR / "ggml-base.en.bin"
+    if not model_path.exists():
+        pytest.skip(f"Whisper model not found at {model_path}")
+    return str(model_path)
+
+
+@pytest.fixture
+def sample_audio_path() -> str:
+    """Path to the bundled jfk.wav sample, or skip if it is missing."""
+    audio_path = SAMPLES_DIR / "jfk.wav"
+    if not audio_path.exists():
+        pytest.skip(f"Sample audio not found at {audio_path}")
+    return str(audio_path)
 
 
 # =============================================================================
@@ -252,7 +280,7 @@ def pytest_collection_modifyitems(config, items):
 
     Tests can also be explicitly marked with @pytest.mark.requires_model.
     """
-    model_file = ROOT / DEFAULT_MODEL
+    model_file = Path(DEFAULT_MODEL)
 
     # Fixtures that require the model to exist
     model_fixtures = {"model_path", "llm", "llm_deterministic", "llm_shared"}

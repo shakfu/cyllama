@@ -349,7 +349,9 @@ class TestMemoryIntegration:
         assert estimate.layers >= 0
 
 
-DEFAULT_MODEL = Path.cwd() / "models" / "Llama-3.2-1B-Instruct-Q8_0.gguf"
+# Anchored to this file, not the cwd: see the note in conftest.py.
+_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_MODEL = _ROOT / "models" / "Llama-3.2-1B-Instruct-Q8_0.gguf"
 
 
 @pytest.mark.skipif(not DEFAULT_MODEL.exists(), reason="test model not available")

@@ -456,8 +456,10 @@ class TestErrorHandling:
                     processor._load_audio_bitmap({"invalid": "type"})
 
 
-GEMMA4_MODEL = Path("models/gemma-4-E4B-it-Q4_K_M.gguf")
-GEMMA4_MMPROJ = Path("models/mmproj-gemma-4-E4B-it-BF16.gguf")
+# Anchored to this file, not the cwd: see the note in conftest.py.
+_ROOT = Path(__file__).resolve().parent.parent
+GEMMA4_MODEL = _ROOT / "models" / "gemma-4-E4B-it-Q4_K_M.gguf"
+GEMMA4_MMPROJ = _ROOT / "models" / "mmproj-gemma-4-E4B-it-BF16.gguf"
 
 _gemma4_available = GEMMA4_MODEL.exists() and GEMMA4_MMPROJ.exists()
 skip_no_gemma4 = pytest.mark.skipif(not _gemma4_available, reason="gemma-4 model or mmproj not found in models/")

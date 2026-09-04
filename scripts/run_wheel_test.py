@@ -1,35 +1,45 @@
 #!/usr/bin/env python3
 """Self-contained smoke-test runner for built cyllama wheels.
 
-Designed to be run inside a uv-managed environment. Invoke via
-``uv run run_wheel_test.py ...`` (or any other entrypoint that
-activates the project's uv venv). The install command uses ``uv pip``
-and subprocess invocations of python/module entry points are routed
-through ``uv run`` so they always execute inside the active venv.
+``--venv`` names the environment under test and every subprocess runs that
+interpreter directly. Without it the script falls back to ``uv run``, which
+re-syncs whichever project owns the cwd -- so from the cyllama checkout it
+would build the extension from source and test that, never the wheel.
 
-Supports cpu / cuda / vulkan / rocm / sycl backends, can download the
-required models from the Hugging Face Hub, and runs stable-diffusion and
-text-generation tests as inline Python functions (no shell scripts
-required).
+``--cuda`` (and ``--cpu`` / ``--vulkan`` / ``--rocm`` / ``--sycl``) is shorthand
+for ``--venv .venv-<backend> --backend <backend>``; anything given explicitly
+wins over it. ``--wheel`` installs a local wheel into that venv, creating it if
+needed, and ``--pypi`` installs from PyPI instead; either runs implicitly
+before a test target. Options are accepted before or after the target.
+
+Each test is one target -- ``test-all``, ``test-gen-all``, ``test-sd-3`` --
+named identically to the generated Makefile rules; ``list-tests`` prints them.
 
 Examples:
-    # install a wheel into the current uv environment
-    uv run run_wheel_test.py install vulkan
+    # create .venv-cuda, install a local wheel into it, run everything
+    python run_wheel_test.py --cuda --wheel dist/cyllama_cuda12-0.4.3-cp312-abi3-win_amd64.whl test-all
 
-    # download everything this script needs
-    uv run run_wheel_test.py download all
+    # against an existing venv; backend is detected from what is installed
+    python run_wheel_test.py --venv .venv-cuda12 test-all
 
-    # run a single test, backend auto-detected from installed distribution
-    uv run run_wheel_test.py test gen 1
+    # one family, or one case
+    python run_wheel_test.py --cuda test-rag-all
+    python run_wheel_test.py --cuda test-sd-3 --timeout 600
 
-    # run every sd + gen test (continues on failure, prints summary)
-    uv run run_wheel_test.py test all all
+    # install from PyPI rather than a local wheel
+    python run_wheel_test.py --vulkan test-all --pypi
+    python run_wheel_test.py --venv .venv-x --pypi cyllama-cuda12==0.4.3 test-gen-1
 
-    # stop at the first failing test
-    uv run run_wheel_test.py test all all --fail-fast
+    # show the matrix without installing, downloading or running anything
+    python run_wheel_test.py --cuda test-all --dry-run
 
-    # per-invocation timeout
-    uv run run_wheel_test.py test sd 1 --timeout 600
+    # environment, registry and target listings
+    python run_wheel_test.py --cuda info
+    python run_wheel_test.py list-tests
+    python run_wheel_test.py --models-dir models download all
+
+``--pypi`` takes an optional spec, so a bare ``--pypi`` must not sit directly
+before the target -- put it last, or give it a spec.
 """
 
 from __future__ import annotations
@@ -42,6 +52,7 @@ import subprocess
 import sys
 import time
 import urllib.request
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -70,6 +81,71 @@ MODELS_DIR = Path(os.environ.get("CYLLAMA_MODELS_DIR", ROOT / "models"))
 # routed through `uv run` so it executes inside the project's uv venv
 # regardless of how the script itself was launched.
 UV = shutil.which("uv") or "uv"
+
+# The environment under test. When --venv is given, every subprocess runs that
+# interpreter *directly* rather than through `uv run`. This matters: `uv run`
+# re-syncs whichever project owns the cwd, so run from this checkout it would
+# build cyllama from source and test that instead of the installed wheel.
+# Set by _apply_cli_overrides(); None restores the legacy `uv run` behaviour.
+VENV: Path | None = None
+
+# Interpreter `uv venv` should build the target env from (--python). Left unset,
+# uv picks its own default, which is not necessarily the version a given wheel
+# was built for.
+VENV_PYTHON: str | None = None
+
+# Where the --cpu/--cuda/--vulkan/... shorthands look for their venv. Relative
+# names resolve against ROOT so the shorthand means the same thing from any cwd.
+DEFAULT_VENV_PREFIX = os.environ.get("CYLLAMA_VENV_PREFIX", ".venv-")
+
+
+def venv_python(venv: Path) -> Path:
+    """Interpreter path inside `venv`, on either the Windows or POSIX layout."""
+    win = venv / "Scripts" / "python.exe"
+    if win.exists():
+        return win
+    posix = venv / "bin" / "python"
+    if posix.exists():
+        return posix
+    return win if os.name == "nt" else posix
+
+
+def ensure_venv(venv: Path) -> Path:
+    """Create `venv` if it does not exist yet; return its interpreter."""
+    py = venv_python(venv)
+    if not py.exists():
+        print(f"creating venv at {venv}")
+        cmd = [UV, "venv", str(venv)]
+        if VENV_PYTHON:
+            cmd += ["--python", VENV_PYTHON]
+        subprocess.run(cmd, check=True)
+        py = venv_python(venv)
+    return py
+
+
+def python_cmd() -> list[str]:
+    """argv prefix that runs Python in the environment under test."""
+    if VENV is not None:
+        return [str(venv_python(VENV))]
+    return [UV, "run", "python"]
+
+
+def pip_install(
+    spec: list[str],
+    upgrade: bool = False,
+    reinstall: bool = False,
+    extra: list[str] | None = None,
+) -> int:
+    """Install `spec` (plus any --with packages) into the environment under test."""
+    cmd = [UV, "pip", "install"]
+    if VENV is not None:
+        cmd += ["--python", str(ensure_venv(VENV))]
+    if upgrade:
+        cmd.append("--upgrade")
+    if reinstall:
+        cmd.append("--reinstall")
+    return run(cmd + spec + list(extra or []))
+
 
 BACKENDS: dict[str, str] = {
     "cpu": "cyllama",
@@ -161,10 +237,90 @@ MODELS: dict[str, ModelSource] = {
         hf_filename="ae.safetensors",
         url="https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/vae/ae.safetensors",
     ),
+    "bge-small-en": ModelSource(
+        filename="bge-small-en-v1.5-q8_0.gguf",
+        repo_id="CompendiumLabs/bge-small-en-v1.5-gguf",
+        url="https://huggingface.co/CompendiumLabs/bge-small-en-v1.5-gguf/resolve/main/bge-small-en-v1.5-q8_0.gguf",
+    ),
+    "whisper-base-en": ModelSource(
+        filename="ggml-base.en.bin",
+        repo_id="ggerganov/whisper.cpp",
+        url="https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin",
+    ),
 }
 
 # Which tests need which models.
 SD_REQUIREMENTS: list[str] = ["z-image-turbo", "ae", "qwen3-4b"]
+RAG_REQUIREMENTS: list[str] = ["qwen3-4b", "bge-small-en"]
+
+# ---------------------------------------------------------------------------
+# data assets (corpus text, sample audio)
+#
+# These are inputs rather than models. In the checkout they already exist under
+# tests/media; standalone they do not, so each has a fallback -- jfk.wav is
+# fetched from whisper.cpp, and the corpus is synthesised rather than
+# downloaded, since the one in the repo is a copyrighted short story.
+# ---------------------------------------------------------------------------
+
+DATA_DIR = Path(os.environ.get("CYLLAMA_DATA_DIR", ROOT / "tests" / "media"))
+
+# The checkout keeps text under tests/media but audio under tests/samples, so
+# look in both rather than making the caller pick one with --data-dir.
+DATA_FALLBACK_DIRS: list[Path] = [ROOT / "tests" / "media", ROOT / "tests" / "samples"]
+
+
+def find_data_asset(name: str) -> Path | None:
+    """First existing copy of `name` in --data-dir or the checkout's data dirs."""
+    for d in (DATA_DIR, *DATA_FALLBACK_DIRS):
+        candidate = d / name
+        if candidate.exists():
+            return candidate
+    return None
+
+
+JFK_WAV_URL = "https://raw.githubusercontent.com/ggml-org/whisper.cpp/master/samples/jfk.wav"
+
+# One text per line -- the format `cyllama embed -f` expects. Deliberately
+# includes a cluster about mortality so the `--similarity "death and dying"`
+# query in the embed case has something to rank above its 0.5 threshold.
+GENERATED_CORPUS: list[str] = [
+    "The old man knew that he was dying, and he felt no fear of it.",
+    "Death comes for everyone eventually, and grief is the price of having loved.",
+    "Mourners gathered at the graveside in the cold morning air.",
+    "He had spent his last years writing about mortality and the end of life.",
+    "The hospice nurse spoke gently about what the final days would be like.",
+    "Photosynthesis converts light energy into chemical energy stored in glucose.",
+    "The compiler performs constant folding before emitting machine code.",
+    "Mount Kilimanjaro is the highest free-standing mountain in the world.",
+    "She sold the bakery and moved to a small town near the coast.",
+    "Quicksort has an average time complexity of O(n log n).",
+    "The bridge was rebuilt after the flood washed away its central span.",
+    "A leopard was found frozen near the western summit of the mountain.",
+]
+
+
+def ensure_corpus() -> Path:
+    """Path to a line-per-text corpus, preferring the checkout's own."""
+    repo_copy = find_data_asset("corpus1.txt")
+    if repo_copy is not None:
+        return repo_copy
+    generated = MODELS_DIR / "corpus_generated.txt"
+    if not generated.exists():
+        print(f"writing generated corpus -> {generated}")
+        generated.parent.mkdir(parents=True, exist_ok=True)
+        generated.write_text("\n".join(GENERATED_CORPUS) + "\n", encoding="utf-8")
+    return generated
+
+
+def ensure_audio() -> Path:
+    """Path to the jfk.wav sample, downloading it if the checkout lacks one."""
+    repo_copy = find_data_asset("jfk.wav")
+    if repo_copy is not None:
+        return repo_copy
+    dest = MODELS_DIR / "jfk.wav"
+    if not dest.exists():
+        _download_urllib(JFK_WAV_URL, dest)
+    return dest
 
 
 def _apply_env_overrides() -> None:
@@ -187,6 +343,30 @@ def _apply_env_overrides() -> None:
 # ---------------------------------------------------------------------------
 
 
+def _kill_tree(proc: "subprocess.Popen[bytes]") -> None:
+    """Kill `proc` and every process it spawned.
+
+    ``proc.kill()`` reaps only the direct child. A venv's python.exe re-execs
+    the real interpreter, so a timed-out image run leaves that grandchild alive
+    holding several GiB of VRAM -- and every later test in the matrix then OOMs
+    or crawls, which silently invalidates the whole run's timings. Take the
+    entire tree down instead.
+    """
+    if os.name == "nt":
+        subprocess.run(["taskkill", "/PID", str(proc.pid), "/T", "/F"], capture_output=True)
+    else:
+        import signal
+
+        try:
+            os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            proc.kill()
+    try:
+        proc.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        print(f"warning: could not fully reap pid {proc.pid}", file=sys.stderr)
+
+
 def run(
     cmd: list[str],
     env: dict[str, str] | None = None,
@@ -201,13 +381,19 @@ def run(
     """
     print(f"$ {' '.join(cmd)}", flush=True)
     full_env = os.environ.copy()
+    # Redirected stdout on Windows defaults to the ANSI codepage, and the sd log
+    # callback emits byte-level BPE markers (U+0120, U+010A) that cp1252 cannot
+    # encode -- one UnicodeEncodeError traceback per log line once the output is
+    # piped to a file. Force UTF-8 so a logged run matches a console one.
+    full_env.setdefault("PYTHONIOENCODING", "utf-8")
     if env:
         full_env.update(env)
+    proc = subprocess.Popen(cmd, cwd=ROOT, env=full_env, start_new_session=os.name != "nt")
     try:
-        result = subprocess.run(cmd, cwd=ROOT, env=full_env, timeout=timeout)
-        rc = result.returncode
+        rc = proc.wait(timeout=timeout)
     except subprocess.TimeoutExpired:
         print(f"error: command timed out after {timeout}s", file=sys.stderr)
+        _kill_tree(proc)
         rc = 124  # conventional timeout exit code
     if check and rc != 0:
         sys.exit(rc)
@@ -215,7 +401,7 @@ def run(
 
 
 def cyllama(argv: list[str], env: dict[str, str] | None = None, timeout: float | None = None) -> int:
-    return run([UV, "run", "python", "-m", "cyllama", *argv], env=env, timeout=timeout)
+    return run([*python_cmd(), "-m", "cyllama", *argv], env=env, timeout=timeout)
 
 
 def cyllama_module(
@@ -224,7 +410,7 @@ def cyllama_module(
     env: dict[str, str] | None = None,
     timeout: float | None = None,
 ) -> int:
-    return run([UV, "run", "python", "-m", module, *argv], env=env, timeout=timeout)
+    return run([*python_cmd(), "-m", module, *argv], env=env, timeout=timeout)
 
 
 # ---------------------------------------------------------------------------
@@ -232,7 +418,36 @@ def cyllama_module(
 # ---------------------------------------------------------------------------
 
 
+_DETECT_SRC = """
+import importlib.metadata as md
+for backend, dist in {backends!r}.items():
+    try:
+        md.distribution(dist)
+        print(backend)
+        break
+    except md.PackageNotFoundError:
+        pass
+"""
+
+
+def _detect_backend_in_venv(venv: Path) -> str | None:
+    py = venv_python(venv)
+    if not py.exists():
+        return None
+    proc = subprocess.run(
+        [str(py), "-c", _DETECT_SRC.format(backends=BACKENDS)],
+        capture_output=True,
+        text=True,
+    )
+    return proc.stdout.strip() or None
+
+
 def detect_backend() -> str | None:
+    # With an explicit target venv, ask *it* what is installed. importlib.metadata
+    # here would describe the interpreter running this script, which under
+    # `uv run` from the checkout is the project env, not the wheel under test.
+    if VENV is not None:
+        return _detect_backend_in_venv(VENV)
     for backend, dist in BACKENDS.items():
         try:
             md.distribution(dist)
@@ -258,10 +473,19 @@ def require_backend(requested: str | None) -> str:
         )
     backend = requested or detected
     if not backend:
-        print(
-            f"error: no cyllama backend installed. Run: {Path(__file__).name} install {{{','.join(BACKENDS)}}}",
-            file=sys.stderr,
-        )
+        name = Path(__file__).name
+        if VENV is not None:
+            print(
+                f"error: no cyllama backend installed in {VENV}."
+                f"\n  Install a local wheel:  {name} --venv {VENV} --wheel <path> test all all"
+                f"\n  ...or from PyPI:        {name} --venv {VENV} --pypi --backend vulkan test all all",
+                file=sys.stderr,
+            )
+        else:
+            print(
+                f"error: no cyllama backend installed. Run: {name} install {{{','.join(BACKENDS)}}}",
+                file=sys.stderr,
+            )
         sys.exit(2)
     return backend
 
@@ -504,8 +728,147 @@ def test_gen_3(backend: str, timeout: float | None) -> int:
     )
 
 
+def has_module(name: str) -> bool:
+    """Whether `name` is importable in the environment under test."""
+    proc = subprocess.run(
+        [*python_cmd(), "-c", f"import {name}"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+    return proc.returncode == 0
+
+
+def test_embed_1(backend: str, timeout: float | None) -> int:
+    """corpus similarity ranking."""
+    model = ensure_model("bge-small-en")
+    corpus = ensure_corpus()
+    return cyllama(
+        [
+            "embed",
+            "-m",
+            str(model),
+            "-f",
+            str(corpus),
+            "--similarity",
+            "death and dying",
+            "--threshold",
+            "0.5",
+        ],
+        env=env_for(backend),
+        timeout=timeout,
+    )
+
+
+def test_transcribe_1(backend: str, timeout: float | None) -> int:
+    """jfk.wav speech-to-text."""
+    # The invariant is that transcription works on a bare wheel install: the
+    # wheels declare no dependencies, so nothing on this path may import a
+    # third-party package. Do not gate on numbers being present -- gating on
+    # numpy would fail a *correctly* built wheel, which is the whole point.
+    model = ensure_model("whisper-base-en")
+    audio = ensure_audio()
+    rc = cyllama(
+        ["transcribe", "-f", str(audio), "-m", str(model)],
+        env=env_for(backend),
+        timeout=timeout,
+    )
+    if rc != 0 and not has_module("numpy"):
+        # Wheels built before numpy was removed from whisper/cli.py import it at
+        # module scope while declaring no dependency on it, so they die on the
+        # import rather than on anything whisper did.
+        print(
+            "hint: this wheel may predate the numpy removal in whisper/cli.py."
+            "\n  Re-running with --with numpy will confirm that diagnosis;"
+            "\n  if it then passes, the wheel needs rebuilding, not a dependency.",
+            file=sys.stderr,
+        )
+    return rc
+
+
+def test_rag_1(backend: str, timeout: float | None) -> int:
+    """in-memory index + query."""
+    paths = ensure_models(RAG_REQUIREMENTS)
+    corpus = ensure_corpus()
+    return cyllama(
+        [
+            "rag",
+            "-m",
+            str(paths["qwen3-4b"]),
+            "-e",
+            str(paths["bge-small-en"]),
+            "-f",
+            str(corpus),
+            # The case script omits -p and drops into an interactive chat loop,
+            # which a smoke test cannot drive; a single query exercises the same
+            # index -> retrieve -> generate path and then exits.
+            "-p",
+            "What does this text say about death?",
+            "-n",
+            "128",
+            "--sources",
+        ],
+        env=env_for(backend),
+        timeout=timeout,
+    )
+
+
+def test_rag_2(backend: str, timeout: float | None) -> int:
+    """persistent sqlite vector store (build + reopen)."""
+    paths = ensure_models(RAG_REQUIREMENTS)
+    corpus = ensure_corpus()
+    db = ROOT / "vector.db"
+    if db.exists():
+        db.unlink()  # start from nothing so the create path is covered
+
+    def query(prompt: str) -> int:
+        return cyllama(
+            [
+                "rag",
+                "-m",
+                str(paths["qwen3-4b"]),
+                "-e",
+                str(paths["bge-small-en"]),
+                "-f",
+                str(corpus),
+                "--db",
+                str(db),
+                "-p",
+                prompt,
+                "-n",
+                "128",
+            ],
+            env=env_for(backend),
+            timeout=timeout,
+        )
+
+    rc = query("What does this text say about death?")
+    if rc != 0:
+        return rc
+    if not db.exists():
+        print(f"error: --db was given but no store was created at {db}", file=sys.stderr)
+        return 1
+    # Second pass reopens the existing store instead of re-embedding: the whole
+    # point of --db, and the only part a single run would not cover.
+    print(f"-- reopening existing store ({db.stat().st_size} bytes)")
+    return query("What is the mountain in this text?")
+
+
 SD_TESTS = {"1": test_sd_1, "2": test_sd_2, "3": test_sd_3}
 GEN_TESTS = {"1": test_gen_1, "2": test_gen_2, "3": test_gen_3}
+EMBED_TESTS = {"1": test_embed_1}
+TRANSCRIBE_TESTS = {"1": test_transcribe_1}
+RAG_TESTS = {"1": test_rag_1, "2": test_rag_2}
+
+# Every test family, in the order `test all all` runs them: cheap and
+# fast-failing first, the multi-minute image cases last.
+TEST_FAMILIES: dict[str, dict[str, "Callable[[str, float | None], int]"]] = {
+    "embed": EMBED_TESTS,
+    "transcribe": TRANSCRIBE_TESTS,
+    "gen": GEN_TESTS,
+    "rag": RAG_TESTS,
+    "sd": SD_TESTS,
+}
 
 
 # ---------------------------------------------------------------------------
@@ -515,7 +878,8 @@ GEN_TESTS = {"1": test_gen_1, "2": test_gen_2, "3": test_gen_3}
 
 def cmd_info(_args: argparse.Namespace) -> int:
     backend = detect_backend()
-    print(f"{'python:':<9}{sys.executable}")
+    target = str(venv_python(VENV)) if VENV is not None else sys.executable
+    print(f"{'python:':<9}{target}")
     print(f"{'backend:':<9}{backend or '(none)'}")
     print(f"{'models:':<9}{MODELS_DIR}")
     if backend:
@@ -528,7 +892,7 @@ def cmd_sync(_args: argparse.Namespace) -> int:
 
 
 def cmd_clean(_args: argparse.Namespace) -> int:
-    venv = ROOT / ".venv"
+    venv = VENV if VENV is not None else ROOT / ".venv"
     if venv.exists():
         print(f"removing {venv}")
         shutil.rmtree(venv)
@@ -542,13 +906,50 @@ def cmd_reset(args: argparse.Namespace) -> int:
     return cmd_sync(args)
 
 
+def resolve_install_spec(args: argparse.Namespace) -> list[str] | None:
+    """Work out what to install, if anything: a local wheel or a PyPI spec.
+
+    --wheel wins over --pypi. A bare --pypi needs --backend to know which
+    distribution to ask for; --pypi cyllama-cuda12==0.4.3 names it outright.
+    """
+    wheel = getattr(args, "wheel", None)
+    if wheel:
+        path = Path(wheel).expanduser().resolve()
+        if not path.exists():
+            print(f"error: wheel not found: {path}", file=sys.stderr)
+            sys.exit(2)
+        return [str(path)]
+
+    pypi = getattr(args, "pypi", None)
+    if not pypi:
+        return None
+    if pypi is not True:  # an explicit requirement spec
+        return [pypi]
+    backend = getattr(args, "backend", None)
+    if not backend:
+        print(
+            f"error: --pypi without a spec needs --backend {{{','.join(BACKENDS)}}} "
+            f"(or give one, e.g. --pypi cyllama-vulkan==0.4.3)",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+    return [BACKENDS[backend]]
+
+
 def cmd_install(args: argparse.Namespace) -> int:
-    dist = BACKENDS[args.backend]
-    cmd = [UV, "pip", "install"]
-    if args.upgrade:
-        cmd.append("--upgrade")
-    cmd.append(dist)
-    return run(cmd)
+    spec = resolve_install_spec(args)
+    if spec is None:
+        # Neither --wheel nor --pypi: the positional backend means PyPI.
+        if not getattr(args, "backend", None):
+            print("error: give a backend, --wheel <path>, or --pypi [spec]", file=sys.stderr)
+            return 2
+        spec = [BACKENDS[getattr(args, "backend")]]
+    return pip_install(
+        spec,
+        upgrade=getattr(args, "upgrade", False),
+        reinstall=getattr(args, "reinstall", False),
+        extra=getattr(args, "extra", None),
+    )
 
 
 def cmd_download(args: argparse.Namespace) -> int:
@@ -574,29 +975,32 @@ def cmd_list_models(_args: argparse.Namespace) -> int:
     return 0
 
 
+# Human-readable section headings for the generated Makefile's help text.
+FAMILY_TITLES: dict[str, str] = {
+    "embed": "Embedding",
+    "transcribe": "Transcription",
+    "gen": "Generation",
+    "rag": "RAG",
+    "sd": "Stable Diffusion",
+}
+
+
 def _render_makefile() -> str:
     py_var = "uv run ./run.py"
     backends = list(BACKENDS)
-    sd_keys = sorted(SD_TESTS)
-    gen_keys = sorted(GEN_TESTS)
 
-    sd_targets = [f"test-sd-{n}" for n in sd_keys] + ["test-sd-all"]
-    gen_targets = [f"test-gen-{n}" for n in gen_keys] + ["test-gen-all"]
-    phony = (
-        ["help", "sync", "info", "clean", "reset"]
-        + backends
-        + ["list-models", "list-tests", "download"]
-        + sd_targets
-        + gen_targets
-        + ["test-all"]
-    )
+    family_targets: dict[str, list[str]] = {
+        fam: [f"test-{fam}-{n}" for n in sorted(mapping)] + [f"test-{fam}-all"]
+        for fam, mapping in TEST_FAMILIES.items()
+    }
+    width = max(len(t) for ts in family_targets.values() for t in ts) + 2
+
     # Group .PHONY into readable lines
     groups = [
         ["help", "sync", "info", "clean", "reset"],
         backends,
         ["list-models", "list-tests", "download"],
-        sd_targets,
-        gen_targets,
+        *family_targets.values(),
         ["test-all"],
     ]
     phony_lines = " \\\n\t\t".join(" ".join(g) for g in groups if g)
@@ -622,21 +1026,21 @@ def _render_makefile() -> str:
     lines.append('\t@echo "  Models:"')
     lines.append('\t@echo "    list-models  - list known models and whether they are on disk"')
     lines.append('\t@echo "    download     - download all known models (use $(PY) download <key> for one)"')
-    lines.append('\t@echo ""')
-    lines.append('\t@echo "  Stable Diffusion tests (backend auto-detected):"')
-    for n in sd_keys:
-        doc = (SD_TESTS[n].__doc__ or "").strip().rstrip(".")
-        lines.append(f'\t@echo "    test-sd-{n}    - {doc}"')
-    lines.append('\t@echo "    test-sd-all  - run all sd tests"')
-    lines.append('\t@echo ""')
-    lines.append('\t@echo "  Generation tests (backend auto-detected):"')
-    for n in gen_keys:
-        doc = (GEN_TESTS[n].__doc__ or "").strip().rstrip(".")
-        lines.append(f'\t@echo "    test-gen-{n}   - {doc}"')
-    lines.append('\t@echo "    test-gen-all - run all gen tests"')
+
+    for fam, mapping in TEST_FAMILIES.items():
+        title = FAMILY_TITLES.get(fam, fam)
+        lines.append('\t@echo ""')
+        lines.append(f'\t@echo "  {title} tests (backend auto-detected):"')
+        for n in sorted(mapping):
+            doc = (mapping[n].__doc__ or "").strip().rstrip(".")
+            label = f"test-{fam}-{n}"
+            lines.append(f'\t@echo "    {label:<{width}}- {doc}"')
+        label = f"test-{fam}-all"
+        lines.append(f'\t@echo "    {label:<{width}}- run all {fam} tests"')
+
     lines.append('\t@echo ""')
     lines.append('\t@echo "    list-tests   - list available smoke tests"')
-    lines.append('\t@echo "    test-all     - run all sd + gen tests"')
+    lines.append('\t@echo "    test-all     - run every test in every family"')
 
     def rule(target: str, args: str) -> None:
         lines.append("")
@@ -652,13 +1056,10 @@ def _render_makefile() -> str:
     rule("list-models", "list-models")
     rule("list-tests", "list-tests")
     rule("download", "download all")
-    for n in sd_keys:
-        rule(f"test-sd-{n}", f"test sd {n}")
-    rule("test-sd-all", "test sd all")
-    for n in gen_keys:
-        rule(f"test-gen-{n}", f"test gen {n}")
-    rule("test-gen-all", "test gen all")
-    rule("test-all", "test all all")
+    for target in test_targets():
+        if target != "test-all":
+            rule(target, target)
+    rule("test-all", "test-all")
     lines.append("")
     return "\n".join(lines)
 
@@ -674,22 +1075,53 @@ def cmd_gen_makefile(args: argparse.Namespace) -> int:
 
 
 def cmd_list_tests(_args: argparse.Namespace) -> int:
-    for kind, mapping in (("sd", SD_TESTS), ("gen", GEN_TESTS)):
-        for n, fn in sorted(mapping.items()):
-            doc = (fn.__doc__ or "").strip()
-            print(f"{kind} {n}  {doc}")
+    width = max(len(t) for t in test_targets())
+    for target, (kind, n) in test_targets().items():
+        if kind == "all":
+            doc = "every test in every family"
+        elif n == "all":
+            doc = f"all {kind} tests"
+        else:
+            doc = (TEST_FAMILIES[kind][n].__doc__ or "").strip()
+        print(f"{target:<{width}}  {doc}")
     return 0
 
 
+def test_targets() -> dict[str, tuple[str, str]]:
+    """Map each ``test-*`` target name to the (family, case) it runs.
+
+    One token per test -- ``test-all``, ``test-gen-all``, ``test-sd-3`` -- so
+    the CLI and the generated Makefile name the same things.
+    """
+    targets: dict[str, tuple[str, str]] = {"test-all": ("all", "all")}
+    for fam, mapping in TEST_FAMILIES.items():
+        for n in sorted(mapping):
+            targets[f"test-{fam}-{n}"] = (fam, n)
+        targets[f"test-{fam}-all"] = (fam, "all")
+    return targets
+
+
 def _collect_runs(kind: str, n: str) -> list[tuple[str, str]]:
-    """Expand ('all'|'sd'|'gen', 'all'|'1'|...) into concrete (kind, n) pairs."""
-    kinds = ["sd", "gen"] if kind == "all" else [kind]
+    """Expand ('all'|<family>, 'all'|'1'|...) into concrete (kind, n) pairs."""
+    kinds = list(TEST_FAMILIES) if kind == "all" else [kind]
     runs: list[tuple[str, str]] = []
     for k in kinds:
-        mapping = SD_TESTS if k == "sd" else GEN_TESTS
-        keys = sorted(mapping) if n == "all" else [n]
-        for nk in keys:
-            runs.append((k, nk))
+        mapping = TEST_FAMILIES[k]
+        if n == "all":
+            runs.extend((k, nk) for nk in sorted(mapping))
+        elif n in mapping:
+            runs.append((k, n))
+        elif kind != "all":
+            # An explicit `test embed 3` is a mistake worth reporting; the same
+            # number under `test all 3` just means "the families that have a 3".
+            print(
+                f"error: no test '{n}' in family '{k}' (have: {', '.join(sorted(mapping))})",
+                file=sys.stderr,
+            )
+            sys.exit(2)
+    if not runs:
+        print(f"error: no tests matched kind={kind} n={n}", file=sys.stderr)
+        sys.exit(2)
     return runs
 
 
@@ -711,7 +1143,7 @@ def preflight(backend: str) -> str | None:
     `undefined symbol` traceback with no hint of the cause.
     """
     proc = subprocess.run(
-        [UV, "run", "python", "-c", "import cyllama"],
+        [*python_cmd(), "-c", "import cyllama"],
         cwd=ROOT,
         env={**os.environ, **env_for(backend)},
         capture_output=True,
@@ -722,7 +1154,13 @@ def preflight(backend: str) -> str | None:
     detail = (proc.stderr or proc.stdout).strip().splitlines()
     tail = detail[-1] if detail else f"exit code {proc.returncode}"
     hint = ""
-    if "undefined symbol" in tail:
+    if VENV is not None:
+        hint = (
+            f"\n  Environment under test: {venv_python(VENV)}"
+            f"\n  Install a wheel into it:  --venv {VENV} --wheel <path-to-wheel>"
+            f"\n  ...or from PyPI:          --venv {VENV} --pypi --backend {backend}"
+        )
+    elif "undefined symbol" in tail:
         env_key = next(iter(BACKEND_ENV_DEFAULTS.get(backend, {})), None)
         if env_key:
             hint = (
@@ -732,13 +1170,37 @@ def preflight(backend: str) -> str | None:
     return f"cannot import cyllama: {tail}{hint}"
 
 
+def maybe_install(args: argparse.Namespace) -> int:
+    """Install before testing when --wheel/--pypi was given; no-op otherwise."""
+    spec = resolve_install_spec(args)
+    extra = getattr(args, "extra", None)
+    if spec is None:
+        if VENV is not None:
+            ensure_venv(VENV)  # so a bare --venv still produces a usable env
+        if extra:
+            return pip_install([], extra=extra)
+        return 0
+    return pip_install(
+        spec,
+        upgrade=getattr(args, "upgrade", False),
+        reinstall=getattr(args, "reinstall", False),
+        extra=getattr(args, "extra", None),
+    )
+
+
 def cmd_test(args: argparse.Namespace) -> int:
-    backend = require_backend(args.backend)
-    runs = _collect_runs(args.kind, args.n)
+    # --dry-run promises to touch nothing, so it precedes the install step.
     if args.dry_run:
-        for k, n in runs:
+        backend = getattr(args, "backend", None) or detect_backend() or "?"
+        for k, n in _collect_runs(args.kind, args.n):
             print(f"would run: {k} {n} (backend={backend})")
         return 0
+
+    rc = maybe_install(args)
+    if rc != 0:
+        return rc
+    backend = require_backend(getattr(args, "backend", None))
+    runs = _collect_runs(args.kind, args.n)
 
     problem = preflight(backend)
     if problem:
@@ -750,28 +1212,30 @@ def cmd_test(args: argparse.Namespace) -> int:
     red = "\033[31m" if color else ""
     reset = "\033[0m" if color else ""
 
-    results: list[tuple[str, str, int]] = []
+    results: list[tuple[str, str, int, float]] = []
     for k, n in runs:
-        mapping = SD_TESTS if k == "sd" else GEN_TESTS
+        mapping = TEST_FAMILIES[k]
         print(f"\n=== {k} test {n} (backend={backend}) ===")
+        started = time.monotonic()
         try:
             rc = mapping[n](backend, args.timeout)
         except ModelSourceUnavailable as e:
             print(f"skip: {e}", file=sys.stderr)
             rc = 2
-        results.append((k, n, rc))
+        results.append((k, n, rc, time.monotonic() - started))
         if rc != 0 and args.fail_fast:
             break
 
     # Summary
     print("\n=== summary ===")
     worst = 0
-    for k, n, rc in results:
+    for k, n, rc, secs in results:
         status = f"{green}PASS{reset}" if rc == 0 else f"{red}FAIL (rc={rc}){reset}"
-        print(f"  {k} {n}: {status}")
+        print(f"  {k} {n}: {status}  ({secs:.1f}s)")
         worst = max(worst, rc)
-    passed = sum(1 for _, _, rc in results if rc == 0)
-    print(f"{passed}/{len(results)} passed")
+    passed = sum(1 for r in results if r[2] == 0)
+    total = sum(r[3] for r in results)
+    print(f"{passed}/{len(results)} passed in {total:.1f}s")
     return worst
 
 
@@ -780,18 +1244,121 @@ def cmd_test(args: argparse.Namespace) -> int:
 # ---------------------------------------------------------------------------
 
 
+def _common_parser() -> argparse.ArgumentParser:
+    """Options accepted both before and after the subcommand."""
+    c = argparse.ArgumentParser(add_help=False)
+    c.add_argument(
+        "--venv",
+        metavar="PATH",
+        default=argparse.SUPPRESS,
+        help="virtualenv to test against; created if missing. Every subprocess "
+        "runs this interpreter directly instead of `uv run`, so the installed "
+        "wheel is what gets tested even from inside the source checkout.",
+    )
+    c.add_argument(
+        "--models-dir",
+        "--models_dir",
+        metavar="PATH",
+        dest="models_dir",
+        default=argparse.SUPPRESS,
+        help=f"directory holding the GGUF/safetensors models (default: {MODELS_DIR})",
+    )
+    shorthand = c.add_mutually_exclusive_group()
+    for backend in BACKENDS:
+        shorthand.add_argument(
+            f"--{backend}",
+            dest="backend_shorthand",
+            action="store_const",
+            const=backend,
+            default=argparse.SUPPRESS,
+            help=f"shorthand for --venv {DEFAULT_VENV_PREFIX}{backend} --backend {backend}",
+        )
+    c.add_argument(
+        "--backend",
+        choices=list(BACKENDS),
+        default=argparse.SUPPRESS,
+        help="backend under test; auto-detected from the installed distribution",
+    )
+    c.add_argument(
+        "--python",
+        metavar="VERSION",
+        default=argparse.SUPPRESS,
+        help="interpreter for a venv created by --venv (e.g. 3.12); passed to `uv venv --python`",
+    )
+    c.add_argument(
+        "--data-dir",
+        "--data_dir",
+        metavar="PATH",
+        dest="data_dir",
+        default=argparse.SUPPRESS,
+        help=f"directory holding corpus1.txt / jfk.wav (default: {DATA_DIR})",
+    )
+    c.add_argument(
+        "--wheel",
+        metavar="PATH",
+        default=argparse.SUPPRESS,
+        help="local wheel file to install into --venv before running",
+    )
+    c.add_argument(
+        "--pypi",
+        nargs="?",
+        const=True,
+        default=argparse.SUPPRESS,
+        metavar="SPEC",
+        help="install from PyPI instead of a local wheel. Bare --pypi installs "
+        "the distribution for --backend; or name one, e.g. --pypi cyllama-cuda12==0.4.3. "
+        "Because the spec is optional, a bare --pypi must not directly precede the "
+        "subcommand -- put it last, or give it a spec.",
+    )
+    c.add_argument(
+        "--with",
+        dest="extra",
+        action="append",
+        metavar="PKG",
+        default=argparse.SUPPRESS,
+        help="extra package to install alongside the wheel (repeatable), "
+        "e.g. --with numpy when diagnosing a wheel that predates a fix.",
+    )
+    c.add_argument(
+        "--upgrade",
+        action="store_true",
+        default=argparse.SUPPRESS,
+        help="pass --upgrade to uv pip install",
+    )
+    c.add_argument(
+        "--reinstall",
+        action="store_true",
+        default=argparse.SUPPRESS,
+        help="pass --reinstall to uv pip install",
+    )
+    return c
+
+
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(description="cyllama wheel tester")
-    sub = p.add_subparsers(dest="cmd", required=True)
+    common = _common_parser()
+    p = argparse.ArgumentParser(
+        description="cyllama wheel tester",
+        parents=[common],
+        epilog=(
+            "example: run_wheel_test.py --venv .venv-vulkan "
+            "--wheel dist/cyllama_vulkan-0.4.3-cp312-abi3-win_amd64.whl "
+            "--models-dir models test all all"
+        ),
+    )
+    _sub = p.add_subparsers(dest="cmd", required=True)
+
+    class sub:  # noqa: N801 - thin shim so add_parser always inherits `common`
+        @staticmethod
+        def add_parser(name, parents=(), **kw):
+            return _sub.add_parser(name, parents=[common, *parents], **kw)
 
     sub.add_parser("info", help="show python/backend/models info").set_defaults(func=cmd_info)
     sub.add_parser("sync", help="uv sync project dependencies").set_defaults(func=cmd_sync)
     sub.add_parser("clean", help="remove the .venv directory").set_defaults(func=cmd_clean)
     sub.add_parser("reset", help="clean + sync").set_defaults(func=cmd_reset)
 
-    inst = sub.add_parser("install", help="pip install a cyllama backend wheel")
-    inst.add_argument("backend", choices=list(BACKENDS))
-    inst.add_argument("--upgrade", action="store_true")
+    inst = sub.add_parser("install", help="install a cyllama backend (PyPI, or --wheel)")
+    inst.add_argument("backend", nargs="?", choices=list(BACKENDS), default=argparse.SUPPRESS)
     inst.set_defaults(func=cmd_install)
 
     dl = sub.add_parser("download", help="download a model (or 'all')")
@@ -812,39 +1379,66 @@ def build_parser() -> argparse.ArgumentParser:
     gm.add_argument("-o", "--output", help="write to file instead of stdout (e.g. -o Makefile)")
     gm.set_defaults(func=cmd_gen_makefile)
 
-    test = sub.add_parser("test", help="run one or more smoke tests")
-    test.add_argument("kind", choices=["sd", "gen", "all"])
-    test.add_argument("n", choices=["1", "2", "3", "all"])
-    test.add_argument("--backend", choices=list(BACKENDS))
-    test.add_argument(
+    # One subcommand per test target. `test-sd-3` rather than `test sd 3`, so a
+    # target is a single token and matches the Makefile rule of the same name.
+    test_opts = argparse.ArgumentParser(add_help=False)
+    test_opts.add_argument(
         "--timeout",
         type=float,
         default=None,
         help="per-test timeout in seconds (default: no timeout)",
     )
-    test.add_argument(
+    test_opts.add_argument(
         "--fail-fast",
         action="store_true",
         help="stop at the first failing test instead of running the full matrix",
     )
-    test.add_argument(
+    test_opts.add_argument(
         "--dry-run",
         action="store_true",
         help="print the test matrix without downloading or invoking anything",
     )
-    test.add_argument(
+    test_opts.add_argument(
         "--no-color",
         action="store_true",
         help="disable colored PASS/FAIL output in the summary",
     )
-    test.set_defaults(func=cmd_test)
+
+    for target, (kind, n) in test_targets().items():
+        if kind == "all":
+            blurb = "run every test in every family"
+        elif n == "all":
+            blurb = f"run all {kind} tests"
+        else:
+            blurb = (TEST_FAMILIES[kind][n].__doc__ or "").strip().rstrip(".")
+        t = sub.add_parser(target, parents=[test_opts], help=blurb)
+        t.set_defaults(func=cmd_test, kind=kind, n=n)
 
     return p
+
+
+def _apply_cli_overrides(args: argparse.Namespace) -> None:
+    global VENV, MODELS_DIR, VENV_PYTHON, DATA_DIR
+    if getattr(args, "venv", None):
+        VENV = Path(args.venv).expanduser().resolve()
+    elif getattr(args, "backend_shorthand", None):
+        # --cuda etc. only fills in what was not given explicitly, so
+        # `--cuda --venv /tmp/x` still targets /tmp/x.
+        VENV = (ROOT / f"{DEFAULT_VENV_PREFIX}{args.backend_shorthand}").resolve()
+    if getattr(args, "backend_shorthand", None) and not getattr(args, "backend", None):
+        args.backend = args.backend_shorthand
+    if getattr(args, "python", None):
+        VENV_PYTHON = args.python
+    if getattr(args, "models_dir", None):
+        MODELS_DIR = Path(args.models_dir).expanduser().resolve()
+    if getattr(args, "data_dir", None):
+        DATA_DIR = Path(args.data_dir).expanduser().resolve()
 
 
 def main() -> None:
     _apply_env_overrides()
     args = build_parser().parse_args()
+    _apply_cli_overrides(args)
     rc = args.func(args)
     sys.exit(int(rc or 0))
 

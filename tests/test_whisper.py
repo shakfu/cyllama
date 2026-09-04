@@ -17,22 +17,8 @@ import pytest
 from cyllama.whisper import whisper_cpp as wh
 
 
-@pytest.fixture
-def whisper_model_path():
-    """Fixture for whisper model path."""
-    model_path = Path("models/ggml-base.en.bin")
-    if not model_path.exists():
-        pytest.skip(f"Whisper model not found at {model_path}")
-    return str(model_path)
-
-
-@pytest.fixture
-def sample_audio_path():
-    """Fixture for sample audio path."""
-    audio_path = Path("samples/jfk.wav")
-    if not audio_path.exists():
-        pytest.skip(f"Sample audio not found at {audio_path}")
-    return str(audio_path)
+# whisper_model_path and sample_audio_path come from conftest.py, which anchors
+# them to the repo rather than to the cwd.
 
 
 def load_wav_file(filepath):

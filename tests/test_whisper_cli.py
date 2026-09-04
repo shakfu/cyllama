@@ -19,22 +19,8 @@ import pytest
 from cyllama.whisper import cli
 
 
-@pytest.fixture
-def whisper_model_path():
-    """Fixture for whisper model path."""
-    model_path = Path("models/ggml-base.en.bin")
-    if not model_path.exists():
-        pytest.skip(f"Whisper model not found at {model_path}")
-    return str(model_path)
-
-
-@pytest.fixture
-def sample_audio_path():
-    """Fixture for sample audio path."""
-    audio_path = Path("samples/jfk.wav")
-    if not audio_path.exists():
-        pytest.skip(f"Sample audio not found at {audio_path}")
-    return str(audio_path)
+# whisper_model_path and sample_audio_path come from conftest.py, which anchors
+# them to the repo rather than to the cwd.
 
 
 @pytest.fixture
@@ -138,11 +124,11 @@ class TestAudioProcessing:
         assert samples is not None
         assert len(samples) > 0
         assert sample_rate > 0
-        assert samples.dtype.name == "float32"
+        assert samples.typecode == "f"
 
         # Check that samples are normalized to [-1, 1]
-        assert samples.min() >= -1.0
-        assert samples.max() <= 1.0
+        assert min(samples) >= -1.0
+        assert max(samples) <= 1.0
 
     def test_resample_audio(self):
         """Test audio resampling."""
@@ -159,7 +145,13 @@ class TestAudioProcessing:
         # Check that the length is approximately correct
         expected_length = int(len(samples) * target_sr / orig_sr)
         assert abs(len(resampled) - expected_length) <= 1
-        assert resampled.dtype.name == "float32"
+        assert resampled.typecode == "f"
+
+        # Still the linear interpolation numpy used to do, to float32 precision.
+        old_indices = np.arange(len(samples))
+        new_indices = np.linspace(0, len(samples) - 1, len(resampled))
+        expected = np.interp(new_indices, old_indices, samples).astype(np.float32)
+        assert np.allclose(np.asarray(resampled, dtype=np.float32), expected, atol=1e-6)
 
     def test_resample_audio_same_rate(self):
         """Test resampling with same sample rate."""
@@ -169,7 +161,27 @@ class TestAudioProcessing:
         resampled = cli.resample_audio(samples, 16000, 16000)
 
         assert len(resampled) == len(samples)
-        assert np.allclose(resampled, samples)
+        assert resampled.typecode == "f"
+        assert np.allclose(np.asarray(resampled, dtype=np.float32), samples)
+
+    def test_resample_audio_without_numpy(self):
+        """Resampling works on plain Python sequences, with numpy uninvolved."""
+        # cli.py must stay importable and usable with no third-party packages
+        # present -- the wheels declare no dependencies, so a numpy import here
+        # would break `cyllama transcribe` on a clean install.
+        samples = [0.0, 1.0, 2.0, 3.0]
+        resampled = cli.resample_audio(samples, 32000, 16000)
+
+        assert resampled.typecode == "f"
+        assert len(resampled) == 2
+        # linspace(0, 3, 2) reads at 0.0 and 3.0, hitting the endpoints exactly
+        assert list(resampled) == [0.0, 3.0]
+
+    def test_resample_audio_interpolates_midpoints(self):
+        """Downsampling to 3 points reads at 0, 1.5 and 3 -- the middle blends."""
+        resampled = cli.resample_audio([0.0, 1.0, 2.0, 3.0], 48000, 36000)
+
+        assert list(resampled) == [0.0, 1.5, 3.0]
 
 
 class TestOutputFormatting:

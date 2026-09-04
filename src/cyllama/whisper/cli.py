@@ -12,9 +12,10 @@ import os
 import json
 import wave
 import struct
-import numpy as np
+from array import array
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, List, Tuple, cast
+from typing import Any, List, Tuple
 import threading
 
 # Import the whisper module (use: python -m cyllama.whisper.cli).
@@ -108,8 +109,14 @@ class WhisperParams:
         self.vad_samples_overlap = 0.1
 
 
-def load_wav_file(filepath: str) -> Tuple[np.ndarray, int]:
-    """Load a WAV file and return samples as float32 array and sample rate."""
+def load_wav_file(filepath: str) -> Tuple["array[float]", int]:
+    """Load a WAV file and return samples as a float32 array and sample rate.
+
+    Returns a stdlib ``array('f')`` rather than a numpy array: it is already
+    the float32, C-contiguous, buffer-protocol layout ``WhisperContext.full``
+    wants, and it keeps this module -- and so the ``cyllama transcribe``
+    entry point -- free of any third-party import.
+    """
     with wave.open(filepath, "rb") as wav_file:
         frames = wav_file.readframes(-1)
         sound_info = wav_file.getparams()
@@ -139,25 +146,45 @@ def load_wav_file(filepath: str) -> Tuple[np.ndarray, int]:
         else:
             raise ValueError(f"Unsupported sample width: {sound_info.sampwidth}")
 
-        return np.array(samples_f, dtype=np.float32), sound_info.framerate
+        return array("f", samples_f), sound_info.framerate
 
 
-def resample_audio(samples: np.ndarray, orig_sr: int, target_sr: int = 16000) -> np.ndarray:
-    """Simple resampling using linear interpolation."""
+def resample_audio(samples: Sequence[float], orig_sr: int, target_sr: int = 16000) -> "array[float]":
+    """Simple resampling using linear interpolation.
+
+    Accepts any float sequence (a numpy array included) and always returns a
+    stdlib ``array('f')``. This is the hand-rolled equivalent of the former
+    ``np.interp`` over ``linspace(0, n - 1, new_length)``: sample j reads at
+    ``j * (n - 1) / (new_length - 1)`` and blends its two neighbours.
+    """
     if orig_sr == target_sr:
-        return samples
+        if isinstance(samples, array) and samples.typecode == "f":
+            return samples
+        return array("f", samples)
+
+    n = len(samples)
+    if n == 0:
+        return array("f")
 
     # Calculate the ratio
     ratio = orig_sr / target_sr
-    new_length = int(len(samples) / ratio)
+    new_length = int(n / ratio)
+    if new_length <= 0:
+        return array("f")
+    if new_length == 1 or n == 1:
+        return array("f", [float(samples[0])])
 
-    # Create new indices
-    old_indices = np.arange(len(samples))
-    new_indices = np.linspace(0, len(samples) - 1, new_length)
-
-    # Interpolate
-    resampled = np.interp(new_indices, old_indices, samples)
-    return cast(np.ndarray, resampled.astype(np.float32))
+    resampled = array("f", bytes(4 * new_length))
+    step = (n - 1) / (new_length - 1)
+    for j in range(new_length):
+        x = j * step
+        i = int(x)
+        if i >= n - 1:
+            resampled[j] = float(samples[n - 1])
+        else:
+            left = float(samples[i])
+            resampled[j] = left + (x - i) * (float(samples[i + 1]) - left)
+    return resampled
 
 
 def escape_string_json(text: str) -> str:

@@ -525,7 +525,8 @@ class TestHybridStoreRRF:
         assert len(results_fts) >= 1
 
 
-RERANKER_MODEL = Path.cwd() / "models" / "bge-reranker-base-q8_0.gguf"
+# Anchored to this file, not the cwd: see the note in conftest.py.
+RERANKER_MODEL = Path(__file__).resolve().parent.parent / "models" / "bge-reranker-base-q8_0.gguf"
 
 
 @pytest.mark.skipif(not RERANKER_MODEL.exists(), reason="reranker model not available")

@@ -18,7 +18,8 @@ np = pytest.importorskip("numpy")
 
 import cyllama.whisper.whisper_cpp as wcy
 
-ROOT = Path.cwd()
+# Anchored to this file, not the cwd: see the note in conftest.py.
+ROOT = Path(__file__).resolve().parent.parent
 WHISPER_MODEL = ROOT / "models" / "ggml-base.en.bin"
 VAD_MODEL = ROOT / "models" / "ggml-silero-v5.1.2.bin"
 JFK_WAV = ROOT / "tests" / "samples" / "jfk.wav"

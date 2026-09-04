@@ -35,6 +35,7 @@ output.wav
 # run_wheel_test.py writes its renders into the project root
 output.png
 z_turbo_*.png
+vector.db
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

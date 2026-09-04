@@ -16,7 +16,8 @@ import pytest
 
 import cyllama.llama.llama_cpp as cy
 
-ROOT = Path.cwd()
+# Anchored to this file, not the cwd: see the note in conftest.py.
+ROOT = Path(__file__).resolve().parent.parent
 RERANKER_MODEL = ROOT / "models" / "bge-reranker-base-q8_0.gguf"
 
 
