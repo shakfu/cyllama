@@ -161,7 +161,7 @@ Configure each project with `<PROJECT>_USE_SYSTEM_GGML=ON` and `CMAKE_PREFIX_PAT
 
 The riskiest phase, and where the surprises will be: each project's `USE_SYSTEM_GGML` path is far less travelled upstream than its vendored path, and backend libraries (`ggml-cuda`, `ggml-vulkan`) may need explicit `GGML_AVAILABLE_BACKENDS` handling. Take one backend end-to-end before converting the rest.
 
-*Validation:* per backend — full pytest suite, `run_wheel_test.py test all all`, and a built wheel installed into a clean venv.
+*Validation:* per backend — full pytest suite, `run_wheel_test.py test-all`, and a built wheel installed into a clean venv.
 
 ### Phase 4 — collapse what the coupling forced
 

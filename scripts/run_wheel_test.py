@@ -8,9 +8,10 @@ would build the extension from source and test that, never the wheel.
 
 ``--cuda`` (and ``--cpu`` / ``--vulkan`` / ``--rocm`` / ``--sycl``) is shorthand
 for ``--venv .venv-<backend> --backend <backend>``; anything given explicitly
-wins over it. ``--wheel`` installs a local wheel into that venv, creating it if
-needed, and ``--pypi`` installs from PyPI instead; either runs implicitly
-before a test target. Options are accepted before or after the target.
+wins over it. ``--wheel`` says what to install into that venv, creating it if
+needed -- either a local wheel or a requirement for the index, told apart by
+shape -- and it runs implicitly before a test target. Options are accepted
+before or after the target.
 
 Each test is one target -- ``test-all``, ``test-gen-all``, ``test-sd-3`` --
 named identically to the generated Makefile rules; ``list-tests`` prints them.
@@ -26,20 +27,17 @@ Examples:
     python run_wheel_test.py --cuda test-rag-all
     python run_wheel_test.py --cuda test-sd-3 --timeout 600
 
-    # install from PyPI rather than a local wheel
-    python run_wheel_test.py --vulkan test-all --pypi
-    python run_wheel_test.py --venv .venv-x --pypi cyllama-cuda12==0.4.3 test-gen-1
+    # the same flag takes a requirement instead of a path
+    python run_wheel_test.py --vulkan --wheel cyllama-vulkan test-all
+    python run_wheel_test.py --venv .venv-x --wheel cyllama-cuda12==0.4.3 test-gen-1
 
     # show the matrix without installing, downloading or running anything
     python run_wheel_test.py --cuda test-all --dry-run
 
     # environment, registry and target listings
     python run_wheel_test.py --cuda info
-    python run_wheel_test.py list-tests
+    python run_wheel_test.py list
     python run_wheel_test.py --models-dir models download all
-
-``--pypi`` takes an optional spec, so a bare ``--pypi`` must not sit directly
-before the target -- put it last, or give it a spec.
 """
 
 from __future__ import annotations
@@ -47,6 +45,7 @@ from __future__ import annotations
 import argparse
 import importlib.metadata as md
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -477,8 +476,8 @@ def require_backend(requested: str | None) -> str:
         if VENV is not None:
             print(
                 f"error: no cyllama backend installed in {VENV}."
-                f"\n  Install a local wheel:  {name} --venv {VENV} --wheel <path> test all all"
-                f"\n  ...or from PyPI:        {name} --venv {VENV} --pypi --backend vulkan test all all",
+                f"\n  Install a local wheel:  {name} --venv {VENV} --wheel <path> test-all"
+                f"\n  ...or from the index:   {name} --venv {VENV} --wheel cyllama-vulkan test-all",
                 file=sys.stderr,
             )
         else:
@@ -860,7 +859,7 @@ EMBED_TESTS = {"1": test_embed_1}
 TRANSCRIBE_TESTS = {"1": test_transcribe_1}
 RAG_TESTS = {"1": test_rag_1, "2": test_rag_2}
 
-# Every test family, in the order `test all all` runs them: cheap and
+# Every test family, in the order `test-all` runs them: cheap and
 # fast-failing first, the multi-minute image cases last.
 TEST_FAMILIES: dict[str, dict[str, "Callable[[str, float | None], int]"]] = {
     "embed": EMBED_TESTS,
@@ -907,41 +906,39 @@ def cmd_reset(args: argparse.Namespace) -> int:
 
 
 def resolve_install_spec(args: argparse.Namespace) -> list[str] | None:
-    """Work out what to install, if anything: a local wheel or a PyPI spec.
+    """What ``--wheel`` asks to install, or None if it was not given.
 
-    --wheel wins over --pypi. A bare --pypi needs --backend to know which
-    distribution to ask for; --pypi cyllama-cuda12==0.4.3 names it outright.
+    The value is either a local artifact or a requirement for the index, told
+    apart by shape rather than by a second flag: a URL or anything carrying a
+    path separator or a ``.whl`` suffix is a file, everything else is a spec
+    handed to ``uv pip install`` as written (``cyllama-cuda12``,
+    ``cyllama-vulkan==0.4.3``, ``cyllama-cuda12[extra]``).
     """
-    wheel = getattr(args, "wheel", None)
-    if wheel:
-        path = Path(wheel).expanduser().resolve()
-        if not path.exists():
-            print(f"error: wheel not found: {path}", file=sys.stderr)
-            sys.exit(2)
-        return [str(path)]
-
-    pypi = getattr(args, "pypi", None)
-    if not pypi:
+    value = getattr(args, "wheel", None)
+    if not value:
         return None
-    if pypi is not True:  # an explicit requirement spec
-        return [pypi]
-    backend = getattr(args, "backend", None)
-    if not backend:
-        print(
-            f"error: --pypi without a spec needs --backend {{{','.join(BACKENDS)}}} "
-            f"(or give one, e.g. --pypi cyllama-vulkan==0.4.3)",
-            file=sys.stderr,
-        )
+
+    if re.match(r"^[A-Za-z][A-Za-z0-9+.-]*://", value):
+        return [value]  # a URL; uv resolves it itself
+
+    path = Path(value).expanduser()
+    looks_local = path.suffix == ".whl" or path.exists() or "/" in value or "\\" in value
+    if not looks_local:
+        return [value]
+
+    resolved = path.resolve()
+    if not resolved.exists():
+        print(f"error: wheel not found: {resolved}", file=sys.stderr)
         sys.exit(2)
-    return [BACKENDS[backend]]
+    return [str(resolved)]
 
 
 def cmd_install(args: argparse.Namespace) -> int:
     spec = resolve_install_spec(args)
     if spec is None:
-        # Neither --wheel nor --pypi: the positional backend means PyPI.
+        # No --wheel: the backend names the distribution to fetch from the index.
         if not getattr(args, "backend", None):
-            print("error: give a backend, --wheel <path>, or --pypi [spec]", file=sys.stderr)
+            print("error: give a backend, or --wheel <path-or-spec>", file=sys.stderr)
             return 2
         spec = [BACKENDS[getattr(args, "backend")]]
     return pip_install(
@@ -983,6 +980,21 @@ FAMILY_TITLES: dict[str, str] = {
     "rag": "RAG",
     "sd": "Stable Diffusion",
 }
+
+
+def cmd_list(args: argparse.Namespace) -> int:
+    """`list` with no argument shows both registries; `list tests|models` narrows."""
+    what = getattr(args, "what", "all")
+    rc = 0
+    if what in ("tests", "all"):
+        if what == "all":
+            print("tests:")
+        rc |= cmd_list_tests(args)
+    if what in ("models", "all"):
+        if what == "all":
+            print("\nmodels:")
+        rc |= cmd_list_models(args)
+    return rc
 
 
 def _render_makefile() -> str:
@@ -1039,7 +1051,7 @@ def _render_makefile() -> str:
         lines.append(f'\t@echo "    {label:<{width}}- run all {fam} tests"')
 
     lines.append('\t@echo ""')
-    lines.append('\t@echo "    list-tests   - list available smoke tests"')
+    lines.append('\t@echo "    list         - list test targets and models"')
     lines.append('\t@echo "    test-all     - run every test in every family"')
 
     def rule(target: str, args: str) -> None:
@@ -1053,8 +1065,8 @@ def _render_makefile() -> str:
     rule("reset", "reset")
     for b in backends:
         rule(b, f"install {b}")
-    rule("list-models", "list-models")
-    rule("list-tests", "list-tests")
+    rule("list-models", "list models")
+    rule("list-tests", "list tests")
     rule("download", "download all")
     for target in test_targets():
         if target != "test-all":
@@ -1158,7 +1170,7 @@ def preflight(backend: str) -> str | None:
         hint = (
             f"\n  Environment under test: {venv_python(VENV)}"
             f"\n  Install a wheel into it:  --venv {VENV} --wheel <path-to-wheel>"
-            f"\n  ...or from PyPI:          --venv {VENV} --pypi --backend {backend}"
+            f"\n  ...or from the index:     --venv {VENV} --wheel {BACKENDS[backend]}"
         )
     elif "undefined symbol" in tail:
         env_key = next(iter(BACKEND_ENV_DEFAULTS.get(backend, {})), None)
@@ -1171,7 +1183,7 @@ def preflight(backend: str) -> str | None:
 
 
 def maybe_install(args: argparse.Namespace) -> int:
-    """Install before testing when --wheel/--pypi was given; no-op otherwise."""
+    """Install before testing when --wheel was given; no-op otherwise."""
     spec = resolve_install_spec(args)
     extra = getattr(args, "extra", None)
     if spec is None:
@@ -1295,20 +1307,12 @@ def _common_parser() -> argparse.ArgumentParser:
     )
     c.add_argument(
         "--wheel",
-        metavar="PATH",
+        metavar="WHEEL|SPEC",
         default=argparse.SUPPRESS,
-        help="local wheel file to install into --venv before running",
-    )
-    c.add_argument(
-        "--pypi",
-        nargs="?",
-        const=True,
-        default=argparse.SUPPRESS,
-        metavar="SPEC",
-        help="install from PyPI instead of a local wheel. Bare --pypi installs "
-        "the distribution for --backend; or name one, e.g. --pypi cyllama-cuda12==0.4.3. "
-        "Because the spec is optional, a bare --pypi must not directly precede the "
-        "subcommand -- put it last, or give it a spec.",
+        help="what to install into --venv before running: a local wheel "
+        "(dist/cyllama_cuda12-0.4.3-cp312-abi3-win_amd64.whl) or a requirement "
+        "for the index (cyllama-cuda12, cyllama-vulkan==0.4.3). Without it, "
+        "`install` fetches the distribution for --backend.",
     )
     c.add_argument(
         "--with",
@@ -1342,10 +1346,10 @@ def build_parser() -> argparse.ArgumentParser:
         epilog=(
             "example: run_wheel_test.py --venv .venv-vulkan "
             "--wheel dist/cyllama_vulkan-0.4.3-cp312-abi3-win_amd64.whl "
-            "--models-dir models test all all"
+            "--models-dir models test-all"
         ),
     )
-    _sub = p.add_subparsers(dest="cmd", required=True)
+    _sub = p.add_subparsers(dest="cmd", required=True, metavar="<command>")
 
     class sub:  # noqa: N801 - thin shim so add_parser always inherits `common`
         @staticmethod
@@ -1357,7 +1361,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("clean", help="remove the .venv directory").set_defaults(func=cmd_clean)
     sub.add_parser("reset", help="clean + sync").set_defaults(func=cmd_reset)
 
-    inst = sub.add_parser("install", help="install a cyllama backend (PyPI, or --wheel)")
+    inst = sub.add_parser("install", help="install a cyllama backend into --venv (see --wheel)")
     inst.add_argument("backend", nargs="?", choices=list(BACKENDS), default=argparse.SUPPRESS)
     inst.set_defaults(func=cmd_install)
 
@@ -1365,15 +1369,20 @@ def build_parser() -> argparse.ArgumentParser:
     dl.add_argument("key", choices=[*MODELS.keys(), "all"])
     dl.set_defaults(func=cmd_download)
 
-    sub.add_parser(
-        "list-models",
-        help="list known model keys, their filenames and sources",
-    ).set_defaults(func=cmd_list_models)
+    lst = sub.add_parser("list", help="list test targets and models (or one of them)")
+    lst.add_argument(
+        "what",
+        nargs="?",
+        choices=["tests", "models", "all"],
+        default="all",
+        help="which registry to show (default: both)",
+    )
+    lst.set_defaults(func=cmd_list)
 
-    sub.add_parser(
-        "list-tests",
-        help="list available smoke tests",
-    ).set_defaults(func=cmd_list_tests)
+    # The flat names this script used before `list` existed. Kept working, but
+    # out of --help so there is one obvious spelling.
+    sub.add_parser("list-models").set_defaults(func=cmd_list_models)
+    sub.add_parser("list-tests").set_defaults(func=cmd_list_tests)
 
     gm = sub.add_parser("gen-makefile", help="generate the Makefile from this script's registries")
     gm.add_argument("-o", "--output", help="write to file instead of stdout (e.g. -o Makefile)")
