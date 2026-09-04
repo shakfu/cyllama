@@ -64,6 +64,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Changed
 
+- **`scripts/run_wheel_test.py` is now `scripts/rwt.py`, with a smaller option set** -- `--backend` is gone: it duplicated the `--cpu` / `--cuda` / `--vulkan` / `--rocm` / `--sycl` shorthands, which now set the backend directly and still default `--venv` to `.venv-<backend>`. `--wheel` (with `--with`, `--python`, `--upgrade`, `--reinstall`) moved off the top level onto `install`, the one subcommand that writes to the venv; a test target no longer installs implicitly, so `install --cuda --wheel <path-or-spec>` and `test --cuda test-all` are two steps. `install` also loses its positional backend argument, since `install --cuda` picks the venv the tests will use and `install cuda` did not. The generated Makefile emits `install --<backend>` rules and calls the standalone copy `./rwt.py`.
+
+- **`--metal` shorthand for macOS** -- the macOS wheel is the Metal wheel: CI builds the unrenamed `cyllama` distribution with `GGML_METAL=1` on Darwin, so only the GPU backends get a renamed distribution and `--cpu` was the only shorthand that reached it. That put the Metal environment in `.venv-cpu` and labelled every run `backend=cpu`. `metal` joins `BACKENDS` mapped to the same `cyllama` distribution; since inverting that map is now ambiguous, detection goes through a `DISTRIBUTIONS` table that resolves `cyllama` by platform -- `metal` on Darwin, `cpu` elsewhere -- so a venv holding a plain `cyllama` wheel reports the backend it actually runs on. No env default is added for it: Metal is already ggml's Darwin default, so unlike CUDA or Vulkan an editable rebuild needs no variable set.
+
+- **Test targets are arguments to `test`, not subcommands** -- `rwt.py test test-gen-1` rather than `rwt.py test-gen-1`. The sixteen generated subparsers put sixteen entries in `--help` for one operation, and `list tests` already prints them with their descriptions. Target names are unchanged, so each still matches the generated Makefile rule of the same name.
+
 - **The umbrella dylibs link with `-headerpad_max_install_names`** -- the same bare-`clang` gap as `libchatfmt.dylib` above, in `_build_umbrella()`. No rewrite reaches an umbrella today: `_normalize_libs()` runs before it, and its install name and rpath are set at link time. The pad costs a header page and removes that ordering as a precondition.
 
 ## [0.4.2]
