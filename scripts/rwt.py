@@ -22,22 +22,23 @@ environment that already has cyllama in it.
 named identically to the generated Makefile rules; ``list tests`` prints them.
 
 Examples:
-    # create .venv-cuda and install into it, from the index or from a file
-    python rwt.py install --cuda --wheel cyllama-cuda12
-    python rwt.py install --cuda --wheel cyllama-cuda12==0.4.2
-    python rwt.py install --vulkan --wheel dist/cyllama_vulkan-0.4.3-cp312-abi3-win_amd64.whl
-
-    # without --wheel, the backend names the distribution to fetch
+    # create .venv-cuda and install the latest cyllama-cuda12 from the index;
+    # the backend names the distribution, so --wheel is not needed here
     python rwt.py install --cuda
     python rwt.py install --metal          # macOS: the plain `cyllama` wheel
+
+    # --wheel is only for pinning a version or naming a local artifact
+    python rwt.py install --cuda --wheel cyllama-cuda12==0.4.2
+    python rwt.py install --vulkan --wheel dist/cyllama_vulkan-0.4.3-cp312-abi3-win_amd64.whl
 
     # run everything, one family, or one case
     python rwt.py test --cuda test-all
     python rwt.py test --cuda test-rag-all
     python rwt.py test --cuda test-sd-3 --timeout 600
 
-    # against an existing venv; the backend is detected from what is installed
-    python rwt.py test --venv .venv-cuda12 test-all
+    # against a venv somewhere else; the backend is detected from what is
+    # installed, so no --cuda/--vulkan/... is needed
+    python rwt.py test --venv /tmp/wheel-check test-all
 
     # show the matrix without downloading or running anything
     python rwt.py test --cuda test-all --dry-run
@@ -497,8 +498,8 @@ def require_backend(requested: str | None) -> str:
         if VENV is not None:
             print(
                 f"error: no cyllama backend installed in {VENV}."
-                f"\n  Install a local wheel:  {name} install --venv {VENV} --wheel <path>"
-                f"\n  ...or from the index:   {name} install --venv {VENV} --wheel cyllama-vulkan",
+                f"\n  Install from the index: {name} install --venv {VENV} {{{','.join('--' + b for b in BACKENDS)}}}"
+                f"\n  ...or a local wheel:    {name} install --venv {VENV} --wheel <path>",
                 file=sys.stderr,
             )
         else:
@@ -1194,8 +1195,8 @@ def preflight(backend: str) -> str | None:
         name = Path(__file__).name
         hint = (
             f"\n  Environment under test: {venv_python(VENV)}"
-            f"\n  Install a wheel into it:  {name} install --venv {VENV} --wheel <path-to-wheel>"
-            f"\n  ...or from the index:     {name} install --venv {VENV} --wheel {BACKENDS[backend]}"
+            f"\n  Install from the index:   {name} install --venv {VENV} --{backend}"
+            f"\n  ...or a local wheel:      {name} install --venv {VENV} --wheel <path-to-wheel>"
         )
     elif "undefined symbol" in tail:
         env_key = next(iter(BACKEND_ENV_DEFAULTS.get(backend, {})), None)
@@ -1309,10 +1310,11 @@ def _install_parser() -> argparse.ArgumentParser:
         "--wheel",
         metavar="WHEEL|SPEC",
         default=None,
-        help="what to install: a local wheel "
-        "(dist/cyllama_cuda12-0.4.3-cp312-abi3-win_amd64.whl) or a requirement "
-        "for the index (cyllama-cuda12, cyllama-vulkan==0.4.3). Without it, "
-        "the distribution for the chosen backend is fetched from the index.",
+        help="override what to install: a local wheel "
+        "(dist/cyllama_cuda12-0.4.3-cp312-abi3-win_amd64.whl) or a pinned "
+        "requirement (cyllama-vulkan==0.4.3). Usually unnecessary -- without "
+        "it the latest release of the backend's distribution is fetched from "
+        "the index (--cuda -> cyllama-cuda12).",
     )
     i.add_argument(
         "--with",
@@ -1346,9 +1348,8 @@ def build_parser() -> argparse.ArgumentParser:
         description="cyllama wheel tester",
         parents=[common],
         epilog=(
-            "example: rwt.py install --vulkan "
-            "--wheel dist/cyllama_vulkan-0.4.3-cp312-abi3-win_amd64.whl "
-            "&& rwt.py test --vulkan test-all --models-dir models"
+            "example: rwt.py install --cuda "
+            "&& rwt.py test --cuda test-all --models-dir models"
         ),
     )
     _sub = p.add_subparsers(dest="cmd", required=True, metavar="<command>")

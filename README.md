@@ -48,7 +48,7 @@ This installs the cpu-backend for linux and windows. For MacOS, the Metal backen
 
 ### GPU-Accelerated Variants
 
-GPU variants are available on PyPI as separate packages (dynamically linked, Linux x86_64 only for now):
+GPU variants are available on PyPI as separate packages (dynamically linked). All four cover Linux x86_64; CUDA and Vulkan also ship Windows x86_64 wheels, and Vulkan additionally covers macOS Intel -- see the [availability table](#platform--gpu-availability) below:
 
 ```sh
 pip install cyllama-cuda12   # NVIDIA GPU (CUDA 12.4)
@@ -77,7 +77,7 @@ print(_backend.metal)  # True if built with Metal
 
 ### Python version & wheels
 
-From **v0.3.0** onwards, cyllama publishes **abi3** wheels (CPython stable ABI) that require **Python 3.12+** -- a single wheel per platform works on 3.12, 3.13, and 3.14. This replaces the earlier per-version wheels that covered Python 3.10-3.14, and is done for efficiency: one abi3 wheel instead of five per platform substantially cuts the number of artifacts and keeps each project within PyPI's per-project size limit.
+From **v0.3.0** onwards, cyllama publishes **abi3** wheels (CPython stable ABI) that require **Python 3.12+** -- a single wheel per platform works on 3.12, 3.13, and 3.14+. This replaces the earlier per-version wheels that covered Python 3.10-3.14, and is done to overcome pypi storage constrains and efficiency: one abi3 wheel instead of five per platform substantially cuts the number of artifacts and keeps each project within PyPI's per-project size limit.
 
 If you are on **Python 3.10 or 3.11**, install the last pre-abi3 release, which shipped per-version (non-abi3) wheels across 3.10-3.14:
 
@@ -147,7 +147,9 @@ cyllama server -m models/llama.gguf --port 8080
 cyllama transcribe -m models/ggml-base.en.bin audio.wav
 cyllama tts -m models/tts.gguf -p "Hello world"
 cyllama sd txt2img --model models/sd.gguf --prompt "a sunset"
+cyllama agent -m models/llama.gguf -p "What is 25 * 4?"   # run a tool-calling agent
 cyllama info       # build and backend information
+cyllama version    # print the installed version
 cyllama memory -m models/llama.gguf  # GPU memory estimation
 ```
 
@@ -216,9 +218,12 @@ responses = batch_generate(prompts, model_path="model.gguf")
 ```python
 from cyllama.llama.llama_cpp import Speculative, SpeculativeParams
 
-params = SpeculativeParams(n_max=16, p_min=0.75)
-spec = Speculative(params, ctx_target)
-draft_tokens = spec.draft(prompt_tokens, last_token)
+# n_max=3 / p_min=0.0 are the defaults, matching upstream llama.cpp
+params = SpeculativeParams(n_max=3, p_min=0.0)
+
+# A draft context is required -- it is the smaller model doing the drafting
+spec = Speculative(params, ctx_target, ctx_draft)
+draft_tokens = spec.draft(params, prompt_tokens, last_token)
 ```
 
 **Memory Optimization** - Smart GPU layer allocation:
@@ -380,7 +385,6 @@ See [Agents Overview](docs/agents_overview.md) for detailed agent documentation,
 
 ```python
 from cyllama.whisper import WhisperContext, WhisperFullParams
-import numpy as np
 
 # Load model and audio
 ctx = WhisperContext("models/ggml-base.en.bin")
@@ -636,13 +640,15 @@ models = list_cached_models()
 
 - [x] **Speculative Decoding** - 2-3x inference speedup with draft models
 
+- [x] **Text-to-Speech** - `cyllama tts` and `cyllama.llama.tts`
+
 ### Speech Recognition (whisper.cpp)
 
 - [x] **Full whisper.cpp API** - Cython wrapper
 
-- [x] **High-Level API** - Simple `transcribe()` function
+- [x] **CLI** - `cyllama transcribe`, with SRT/VTT output
 
-- [x] **Multiple Formats** - WAV, MP3, FLAC, and more
+- [x] **WAV input, no dependencies** - 8/16/24/32-bit PCM decoded via the stdlib; convert other formats with ffmpeg first
 
 - [x] **Language Detection** - Automatic or specified language
 
@@ -664,6 +670,18 @@ models = list_cached_models()
 
 - [x] **Upscaling** - ESRGAN 4x upscaling
 
+### Retrieval-Augmented Generation
+
+- [x] **End-to-end RAG** - chunking, embedding, retrieval and generation in one `RAG` class
+
+- [x] **Pluggable vector stores** - sqlite-vector (default, bundled), sqlite-vec, Chroma, Qdrant, pgvector behind one `VectorStoreProtocol`
+
+- [x] **Hybrid search** - dense + FTS5 keyword search with configurable weights
+
+- [x] **Reranking** - cross-encoder reranking in the pipeline via `RAGConfig.rerank`
+
+- [x] **Document loaders** - four pluggable PDF backends, plus text and markdown
+
 ### Cross-Cutting Features
 
 - [x] **GPU Acceleration** - Metal, CUDA, ROCm, Vulkan, SYCL backends
@@ -672,7 +690,7 @@ models = list_cached_models()
 
 - [x] **Agent Framework** - ReActAgent, ConstrainedAgent, ContractAgent
 
-- [x] **Framework Integration** - OpenAI API, LangChain, FastAPI
+- [x] **Framework Integration** - OpenAI-compatible client, LangChain
 
 ## Why Cyllama?
 
@@ -698,7 +716,7 @@ models = list_cached_models()
 
 - Extensive test coverage across the API surface
 
-- Documentation and examples fir each module
+- Documentation and examples for each module
 
 - Proper error handling and logging
 
@@ -729,11 +747,14 @@ Pre-built wheels on PyPI:
 | `cyllama` | Metal | macOS | arm64 (Apple Silicon) | static |
 | `cyllama` | Metal | macOS | x86_64 (Intel) | static |
 | `cyllama-cuda12` | CUDA 12.4 | Linux | x86_64 | dynamic |
+| `cyllama-cuda12` | CUDA 12.4 | Windows | x86_64 | dynamic |
 | `cyllama-rocm` | ROCm 6.3 | Linux | x86_64 | dynamic |
 | `cyllama-sycl` | Intel SYCL (oneAPI 2025.3) | Linux | x86_64 | dynamic |
 | `cyllama-vulkan` | Vulkan | Linux | x86_64 | dynamic |
+| `cyllama-vulkan` | Vulkan | Windows | x86_64 | dynamic |
+| `cyllama-vulkan` | Vulkan | macOS | x86_64 (Intel) | dynamic |
 
-We will be adding additional wheel support for more platforms in the future, starting with vulkan and cuda12 support Windows.
+ROCm and SYCL remain Linux-only, and there are no arm64 GPU wheels beyond macOS Metal. Any combination not listed builds from source.
 
 Build from source (any platform with a C++ toolchain):
 
@@ -749,71 +770,9 @@ Build from source (any platform with a C++ toolchain):
 
 All source builds support both static (`make build-<backend>`) and dynamic (`make build-<backend>-dynamic`) linking.
 
-### Recent Releases
+### Release History
 
-See [CHANGELOG.md](CHANGELOG.md) for full release notes.
-
-- **v0.2.15** (May 2026) - Context-manager protocol across llama/whisper/SD resource classes; whisper streaming callbacks; GIL released on per-token hot paths and across long native calls; new `model_save_to_file` / `model_quantize` top-level wrappers; `LlamaContext` state serialization switched to `bytes`; broad correctness sweep
-
-- **v0.2.14** (Apr 2026) - stable-diffusion.cpp hires-fix two-pass generation; two-layer generation cancellation on `LLM`; llama.cpp upgraded b8833 -> b8931
-
-- **v0.2.13** (Apr 2026) - `QdrantVectorStore` reference adapter for `VectorStoreProtocol`; pipeline-integrated reranking (`RAGConfig.rerank`) with `RerankerProtocol`; ccache + concurrency groups on CPU cibw workflows
-
-- **v0.2.12** - Windows-CUDA, Windows-Vulkan, and macOS-Intel Vulkan GPU wheels; canonical delocate/auditwheel/delvewheel packaging. Experimental abi3 wheels (cp312+)
-
-- **v0.2.11** (Apr 2026) - Pluggable RAG backends (`VectorStoreProtocol` / `EmbedderProtocol`) and MCP client API on `LLM`
-
-- **v0.2.10** (Apr 2026) - GPU wheel size halved; packaging fixes (`build_config.json`, auditwheel SONAME, Vulkan ABI)
-
-- **v0.2.9** (Apr 2026) - CUDA + SD stability fixes; `get_perf_data()` telemetry APIs
-
-- **v0.2.8** (Apr 2026) - Expanded Cython bindings across llama / whisper / SD; interactive-chat streaming & sampling
-
-- **v0.2.7** (Apr 2026) - SD defaults aligned with C library (fixes blank CUDA images)
-
-- **v0.2.6** (Apr 2026) - Hotfix: remove accidental test-only runtime dependency
-
-- **v0.2.5** (Apr 2026) - RAG hardening: persistent store, corpus dedup, vendored jinja2 chat templates
-
-- **v0.2.4** (Apr 2026) - Unified `cyllama` CLI (`gen`, `chat`, `embed`, `rag`, …)
-
-- **v0.2.3** (Apr 2026) - Wheel packaging and GPU portability fixes
-
-- **v0.2.2** (Apr 2026) - CUDA wheel size stability
-
-- **v0.2.1** (Mar 2026) - Code-quality hardening, GIL release, async fixes
-
-- **v0.2.0** (Mar 2026) - Dynamic-linked GPU wheels on PyPI (CUDA, ROCm, SYCL, Vulkan)
-
-- **v0.1.21** (Mar 2026) - GPU wheel builds: CUDA + ROCm, sqlite-vector bundled
-
-- **v0.1.20** (Feb 2026) - Update llama.cpp + stable-diffusion.cpp
-
-- **v0.1.19** (Dec 2025) - Metal fix for stable-diffusion.cpp
-
-- **v0.1.18** (Dec 2025) - Remaining stable-diffusion.cpp wrapped
-
-- **v0.1.16** (Dec 2025) - Response class, Async API, Chat templates
-
-- **v0.1.12** (Nov 2025) - Initial wrapper of stable-diffusion.cpp
-
-- **v0.1.11** (Nov 2025) - ACP support, build improvements
-
-- **v0.1.10** (Nov 2025) - Agent Framework, bug fixes
-
-- **v0.1.9** (Nov 2025) - High-level APIs, integrations, batch processing, comprehensive documentation
-
-- **v0.1.8** (Nov 2025) - Speculative decoding API
-
-- **v0.1.7** (Nov 2025) - GGUF, JSON Schema, Downloads, N-gram Cache
-
-- **v0.1.6** (Nov 2025) - Multimodal test fixes
-
-- **v0.1.5** (Oct 2025) - Mongoose server, embedded server
-
-- **v0.1.4** (Oct 2025) - Memory estimation, performance optimizations
-
-See [CHANGELOG.md](CHANGELOG.md) for complete release history.
+See [CHANGELOG.md](CHANGELOG.md) -- it is the single source of truth for what changed in each release, and for the pinned llama.cpp / whisper.cpp / stable-diffusion.cpp revisions.
 
 ## Building from Source
 
@@ -990,7 +949,7 @@ make test  # Run full test suite
 You can also explore interactively:
 
 ```python
-python3 -i scripts/start.py
+python3 -i -c "import cyllama"
 
 >>> from cyllama import complete
 >>> response = complete("What is 2+2?", model_path="models/Llama-3.2-1B-Instruct-Q8_0.gguf")
@@ -1017,54 +976,6 @@ To serve docs locally: `make docs-serve`
 
 - **Examples** - See `tests/examples/` for working code samples
 
-## Roadmap
-
-### Completed
-
-- [x] Full llama.cpp API wrapper with Cython
-
-- [x] High-level API (`LLM`, `complete`, `chat`)
-
-- [x] Async API support (`AsyncLLM`, `complete_async`, `chat_async`)
-
-- [x] Response class with stats and serialization
-
-- [x] Built-in chat template system (llama.cpp templates)
-
-- [x] Batch processing utilities
-
-- [x] OpenAI-compatible API client
-
-- [x] LangChain integration
-
-- [x] Speculative decoding
-
-- [x] GGUF file manipulation
-
-- [x] JSON schema to grammar conversion
-
-- [x] Model download helper
-
-- [x] N-gram cache
-
-- [x] OpenAI-compatible servers (PythonServer, EmbeddedServer, LlamaServer) with chat and embeddings
-
-- [x] Whisper.cpp integration
-
-- [x] Multimodal support (LLAVA)
-
-- [x] Memory estimation utilities
-
-- [x] Agent Framework (ReActAgent, ConstrainedAgent, ContractAgent)
-
-- [x] Stable Diffusion (stable-diffusion.cpp) - image/video generation
-
-- [x] RAG utilities (text chunking, document processing)
-
-### Future
-
-- [ ] Web UI for testing
-
 ## Contributing
 
 Contributions are welcome! Please see the [User Guide](docs/user_guide.md) for development guidelines.
@@ -1075,6 +986,6 @@ This project wraps [llama.cpp](https://github.com/ggml-org/llama.cpp), [whisper.
 
 ## Note on PyPI Release History
 
-Due to the size of cyllama wheels and PyPI's 10GB per-project storage limit, we have had to delete some earlier versions and known-buggy versions from PyPI to make space for new releases. Specifically, all releases below version 0.2.7 have been deleted from PyPI, and release 0.2.16 has been deleted because it included a bug that broke stable-diffusion.
+Due to the size of cyllama wheels and PyPI's 10GB per-project storage limit, we have had switch to releasing only `.abi3` wheels and also to delete some earlier versions and known-buggy versions from PyPI to make space for new releases. Specifically, all releases below version 0.2.7 have been deleted from PyPI, and release 0.2.16 has been deleted because it included a bug that broke stable-diffusion.
 
 All of the deleted versions remain fully available in cyllama's [GitHub releases](https://github.com/shakfu/cyllama/releases) section. Note that PyPI does not allow deleted versions to be re-uploaded under the same version number, so these versions will not reappear on PyPI. Going forward, cyllama will continue to publish dual releases of wheels to both PyPI and GitHub.

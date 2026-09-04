@@ -103,30 +103,62 @@ def save_video_frames(frames: List["SDImage"], output_path: str, fps: int = 24) 
     print(f"Saved {len(frames)} frames to {base}_*.png")
 
 
+LOG_LEVEL_NAMES = {0: "DEBUG", 1: "INFO", 2: "WARN", 3: "ERROR"}
+
+# Rewind to column 0 and erase to end of line.
+_ERASE_LINE = "\r\033[K"
+
+# True while the last log text we emitted had no trailing newline, i.e. the
+# cursor sits inside a message of ours that must not be erased.
+_log_partial = False
+
+
+def emit_log(level: int, text: str) -> None:
+    """Print one native log line, stepping around the sampler's progress bar.
+
+    The sampler draws its bar straight from C with a bare ``\\r...\\033[K`` and
+    emits no newline until the final step (``print_progress_line`` in upstream
+    ``util.cpp``). That is a different stdout buffer from this one, so without
+    care a log line lands on top of the unterminated bar and the terminal
+    commits the result::
+
+        |====>     | 4/20 - 1.29s/it[DEBUG] ggml_extend.hpp:63 - ...
+
+    Erasing the line first drops the stale bar; the next progress callback
+    redraws it in full below the log line. Skipped when stdout is not a tty,
+    where the escape would be literal noise in a redirected log, and when a
+    previous fragment of this same message is still on the line.
+    """
+    global _log_partial
+    lead = "" if _log_partial or not sys.stdout.isatty() else _ERASE_LINE
+    print(f"{lead}[{LOG_LEVEL_NAMES.get(level, level)}] {text}", end="", flush=True)
+    _log_partial = not text.endswith("\n")
+
+
+def _log_warnings_only(level: int, text: str) -> None:
+    if level >= 2:
+        emit_log(level, text)
+
+
 def setup_logging(args: argparse.Namespace) -> None:
     """Setup logging and progress callbacks."""
     from .stable_diffusion import set_log_callback, set_progress_callback
 
-    if args.verbose:
-
-        def log_cb(level: int, text: str) -> None:
-            level_names = {0: "DEBUG", 1: "INFO", 2: "WARN", 3: "ERROR"}
-            print(f"[{level_names.get(level, level)}] {text}", end="")
-
-        set_log_callback(log_cb)
-    else:
-
-        def log_cb(level: int, text: str) -> None:
-            if level >= 2:
-                print(f"[{'WARN' if level == 2 else 'ERROR'}] {text}", end="")
-
-        set_log_callback(log_cb)
+    set_log_callback(emit_log if args.verbose else _log_warnings_only)
 
     if args.progress:
 
         def progress_cb(step: int, steps: int, time_ms: float) -> None:
+            # Same contract as the C bar: stay on one line, erase whatever the
+            # previous, longer update left behind, and close the line only once
+            # the run is done so the shell prompt starts clean.
             pct = (step / steps) * 100 if steps > 0 else 0
-            print(f"\rStep {step}/{steps} ({pct:.1f}%) - {time_ms:.2f}s", end="", flush=True)
+            done = steps > 0 and step >= steps
+            print(
+                f"\rStep {step}/{steps} ({pct:.1f}%) - {time_ms:.2f}s\033[K",
+                end="\n" if done else "",
+                flush=True,
+            )
 
         set_progress_callback(progress_cb)
 
@@ -742,12 +774,7 @@ def cmd_upscale(args: argparse.Namespace) -> int:
     from .stable_diffusion import Upscaler, SDImage, set_log_callback
 
     if args.verbose:
-
-        def log_cb(level: int, text: str) -> None:
-            level_names = {0: "DEBUG", 1: "INFO", 2: "WARN", 3: "ERROR"}
-            print(f"[{level_names.get(level, level)}] {text}", end="")
-
-        set_log_callback(log_cb)
+        set_log_callback(emit_log)
 
     print(f"Loading image: {args.input}")
     try:
@@ -794,12 +821,7 @@ def cmd_convert(args: argparse.Namespace) -> int:
     from .stable_diffusion import convert_model, SDType, set_log_callback
 
     if args.verbose:
-
-        def log_cb(level: int, text: str) -> None:
-            level_names = {0: "DEBUG", 1: "INFO", 2: "WARN", 3: "ERROR"}
-            print(f"[{level_names.get(level, level)}] {text}", end="")
-
-        set_log_callback(log_cb)
+        set_log_callback(emit_log)
 
     try:
         output_type = SDType[args.type.upper()]

@@ -17,6 +17,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+### Fixed
+
+- **`cyllama.sd -v` shredded the sampling progress bar** -- with verbose logging on, every native log line landed on top of the in-flight bar and the terminal committed the result, so a 20-step run left a trail of half-drawn bars instead of one that advanced in place: `|====>    | 4/20 - 1.29s/it[DEBUG] ggml_extend.hpp:63 - CUDA graph warmup complete`. The two writers are on the same file descriptor but not the same buffer -- the bar is drawn from C by `print_progress_line` in upstream `util.cpp`, which emits `\r%s %i/%i - %s\033[K` and deliberately withholds the newline until `step == steps`, while the log lines come from Python's `sys.stdout` via the callback installed in `src/cyllama/sd/__main__.py`. Nothing was wrong with either half on its own; they simply had no protocol for sharing the line. The log callback now rewinds and erases (`\r\033[K`) before writing, dropping the stale bar so the log line owns the row and the next progress callback redraws the bar in full beneath it. This is why the `|####| 386/386` tensor-loading bars always looked fine and only the sampler misbehaved: those report just once, at `step == steps`, which is the case that does get a newline. The erase is suppressed when stdout is not a tty, where the escape would be literal noise in a redirected log, and when the previous fragment of a partial message is still on the line, so a log message delivered in pieces cannot erase its own prefix. The `--progress` callback carried the same defect from the other direction and now appends `\033[K` -- without it a short update leaves the tail of a longer one behind -- and terminates the line at the final step so the shell prompt starts clean. The four near-identical log callbacks in the module (verbose and quiet in `setup_logging`, plus `cmd_upscale` and `cmd_convert`) collapse into one `emit_log`.
+
+### Changed
+
+- **`scripts/rwt.py install --wheel` documented as the exception it is** -- `install --cuda` has always resolved to `cyllama-cuda12` from the index on its own, the backend naming the distribution, but every example, the epilog and both "no backend installed" hints led with the `--wheel cyllama-cuda12` spelling, which read as though the flag were required. They now lead with the bare backend flag and show `--wheel` only for the two cases that need it: pinning a version (`cyllama-cuda12==0.4.2`) or naming a local artifact. The `--wheel` help says the same. No behaviour changed. The docstring's `--venv .venv-cuda12` example, left over from the convention that predated the `--cuda` shorthand, points outside the checkout now so it illustrates `--venv` rather than a stale naming scheme.
+
+- **`.venv-*/` is ignored explicitly** -- uv writes a `.gitignore` containing `*` inside each environment it creates, so the per-backend venvs were already invisible to git, but only by grace of the tool that made them. `.gitignore` covers the pattern directly now.
+
 ## [0.4.3]
 
 ### Added
