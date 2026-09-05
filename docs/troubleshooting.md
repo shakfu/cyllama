@@ -214,7 +214,7 @@ llm = LLM("model.gguf", config=config)
    ```python
    from cyllama.llama.llama_cpp import GGUFContext
    ctx = GGUFContext.from_file("model.gguf")
-   print(ctx.get_val_str("general.architecture"))
+   print(ctx.get_value("general.architecture"))
    ```
 
 ### Chat Format Issues
@@ -327,8 +327,8 @@ Cyllama automatically discovers CUDA DLL paths when built with `GGML_CUDA=1`, bu
 3. **Verify the build detected CUDA:**
 
    ```python
-   from cyllama import _backend
-   print(_backend.cuda)  # Should be True
+   from cyllama._internal import build_config
+   print(build_config.backend_enabled("cuda"))  # Should be True
    ```
 
    If `False`, the package was not built with CUDA support. Rebuild with `GGML_CUDA=1`.

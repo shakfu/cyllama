@@ -416,9 +416,9 @@ if __name__ == "__main__":
 
     print(f"Model: {MODEL}")
     print(f"Parameters: {model.n_params / 1e9:.2f}B")
-    print(f"Layers: {model.n_layers}")
+    print(f"Layers: {model.n_layer}")
     print(f"Embedding dim: {model.n_embd}")
-    print(f"Vocabulary size: {model.n_vocab}")
+    print(f"Vocabulary size: {model.get_vocab().n_vocab}")
 ```
 
 ## Running the Examples

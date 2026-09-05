@@ -70,9 +70,11 @@ cyllama info
 You can also query the backend configuration at runtime:
 
 ```python
-from cyllama import _backend
-print(_backend.cuda)   # True if built with CUDA
-print(_backend.metal)  # True if built with Metal
+from cyllama._internal import build_config
+
+print(build_config.backend_enabled("cuda"))   # True if built with CUDA
+print(build_config.backend_enabled("metal"))  # True if built with Metal
+print(build_config.backend())                 # full per-backend config dict
 ```
 
 ### Python version & wheels
@@ -144,10 +146,10 @@ cyllama rag -m models/llama.gguf -e models/bge-small.gguf -f file.md   # interac
 cyllama rag -m models/llama.gguf -e models/bge-small.gguf -d docs/ --db docs.sqlite -p "..."  # index to persistent DB
 cyllama rag -m models/llama.gguf -e models/bge-small.gguf --db docs.sqlite -p "..."           # reuse existing DB, no re-indexing
 cyllama server -m models/llama.gguf --port 8080
-cyllama transcribe -m models/ggml-base.en.bin audio.wav
-cyllama tts -m models/tts.gguf -p "Hello world"
+cyllama transcribe -m models/ggml-base.en.bin -f audio.wav
+cyllama tts -m models/tts.gguf -mv models/vocoder.gguf -p "Hello world"
 cyllama sd txt2img --model models/sd.gguf --prompt "a sunset"
-cyllama agent -m models/llama.gguf -p "What is 25 * 4?"   # run a tool-calling agent
+cyllama agent run -m models/llama.gguf -p "What is 25 * 4?"   # run a tool-calling agent
 cyllama info       # build and backend information
 cyllama version    # print the installed version
 cyllama memory -m models/llama.gguf  # GPU memory estimation

@@ -210,7 +210,7 @@ On Windows, CUDA-linked extensions depend on toolkit DLLs (e.g. `cublas64_13.dll
 
 3. Standard install location (`C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\`)
 
-This is a no-op on non-Windows platforms or non-CUDA builds, controlled by the build-time `_internal/backend.py` config.
+This is a no-op on non-Windows platforms or non-CUDA builds. It lives in `cyllama/utils/platform.py` and is gated on `build_config.backend_enabled("cuda")` from the build-time `build_config.json`.
 
 ## Complete Environment Variable Reference
 

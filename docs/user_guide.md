@@ -157,10 +157,10 @@ cyllama rag -m models/llama.gguf -e models/bge-small.gguf \
 
 ```bash
 cyllama server -m models/llama.gguf    # OpenAI-compatible server
-cyllama transcribe -m models/ggml-base.en.bin audio.wav
-cyllama tts -m models/tts.gguf -p "Hello world"
+cyllama transcribe -m models/ggml-base.en.bin -f audio.wav
+cyllama tts -m models/tts.gguf -mv models/vocoder.gguf -p "Hello world"
 cyllama sd txt2img --model models/sd.gguf --prompt "a sunset"
-cyllama agent run task.yaml            # Run agents
+cyllama agent run -m models/llama.gguf -p "What is 25 * 4?"   # Run agents
 cyllama memory -m models/llama.gguf    # GPU memory estimation
 cyllama info                           # Build and backend info
 ```
@@ -692,11 +692,13 @@ python -c "import cyllama; print(cyllama.__file__)"
 
 See the `tests/examples/` directory for complete working examples:
 
-- `generate_example.py` - Basic generation
-
 - `speculative_example.py` - Speculative decoding
 
-- `integration_example.py` - Framework integrations
+- `framework_integration_examples.py` - Framework integrations
+
+- `rag_basic_example.py` - Retrieval-augmented generation
+
+- `agent_example.py` - Tool-calling agents
 
 ## Next Steps
 

@@ -234,48 +234,48 @@ show-backends:
 # Env vars to disable all GPU backends
 _CPU_ONLY := GGML_METAL=0 GGML_CUDA=0 GGML_VULKAN=0 GGML_HIP=0 GGML_SYCL=0 GGML_OPENCL=0
 
-# Static backend builds (clean, build deps as static libs, install)
-build-cpu: clean
+# Static backend builds (reset, build deps as static libs, install)
+build-cpu: reset
 	@$(_CPU_ONLY) $(SYSTEM_PYTHON) scripts/manage.py build --all
 
-build-metal: clean
+build-metal: reset
 	@GGML_METAL=1 $(SYSTEM_PYTHON) scripts/manage.py build --all
 
-build-cuda: clean
+build-cuda: reset
 	@GGML_CUDA=1 $(SYSTEM_PYTHON) scripts/manage.py build --all
 
-build-vulkan: clean
+build-vulkan: reset
 	@GGML_VULKAN=1 $(SYSTEM_PYTHON) scripts/manage.py build --all
 
-build-sycl: clean
+build-sycl: reset
 	@GGML_SYCL=1 $(SYSTEM_PYTHON) scripts/manage.py build --all
 
-build-hip: clean
+build-hip: reset
 	@GGML_HIP=1 $(SYSTEM_PYTHON) scripts/manage.py build --all
 
-build-opencl: clean
+build-opencl: reset
 	@GGML_OPENCL=1 $(SYSTEM_PYTHON) scripts/manage.py build --all
 
-# Dynamic backend builds (clean, build deps as shared libs, install)
-build-cpu-dynamic: clean
+# Dynamic backend builds (reset, build deps as shared libs, install)
+build-cpu-dynamic: reset
 	@$(_CPU_ONLY) $(SYSTEM_PYTHON) scripts/manage.py build --all --dynamic
 
-build-metal-dynamic: clean
+build-metal-dynamic: reset
 	@GGML_METAL=1 SD_USE_VENDORED_GGML=0 $(SYSTEM_PYTHON) scripts/manage.py build --all --dynamic
 
-build-cuda-dynamic: clean
+build-cuda-dynamic: reset
 	@GGML_CUDA=1 SD_USE_VENDORED_GGML=0 CMAKE_CUDA_ARCHITECTURES=$${CMAKE_CUDA_ARCHITECTURES:-native} $(SYSTEM_PYTHON) scripts/manage.py build --all --dynamic
 
-build-vulkan-dynamic: clean
+build-vulkan-dynamic: reset
 	@GGML_VULKAN=1 SD_USE_VENDORED_GGML=0 $(SYSTEM_PYTHON) scripts/manage.py build --all --dynamic
 
-build-sycl-dynamic: clean
+build-sycl-dynamic: reset
 	@GGML_SYCL=1 SD_USE_VENDORED_GGML=0 $(SYSTEM_PYTHON) scripts/manage.py build --all --dynamic
 
-build-hip-dynamic: clean
+build-hip-dynamic: reset
 	@GGML_HIP=1 SD_USE_VENDORED_GGML=0 $(SYSTEM_PYTHON) scripts/manage.py build --all --dynamic
 
-build-opencl-dynamic: clean
+build-opencl-dynamic: reset
 	@GGML_OPENCL=1 SD_USE_VENDORED_GGML=0 $(SYSTEM_PYTHON) scripts/manage.py build --all --dynamic
 
 # Static wheel builds

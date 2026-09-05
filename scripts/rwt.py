@@ -757,9 +757,14 @@ class TestSuite:
         """
         return f"z_turbo_{n}.png"
 
+    def rag_db(self) -> Path:
+        """Vector store the persistent rag case builds. Named here for the same
+        reason as :meth:`sd_output`: `clean` sweeps it, and only what it writes."""
+        return self.env.paths.root / "vector.db"
+
     def outputs(self) -> list[Path]:
         """Every file the suite leaves in the project root."""
-        return [self.env.paths.root / self.sd_output(n) for n in sorted(self.families["sd"])]
+        return [self.env.paths.root / self.sd_output(n) for n in sorted(self.families["sd"])] + [self.rag_db()]
 
     def sd_1(self, backend: str, timeout: float | None) -> int:
         """z_turbo te-on-cpu."""
@@ -997,7 +1002,7 @@ class TestSuite:
         """persistent sqlite vector store (build + reopen)."""
         paths = self.models.ensure_models(ModelRegistry.RAG_REQUIREMENTS)
         corpus = self.models.ensure_corpus()
-        db = self.env.paths.root / "vector.db"
+        db = self.rag_db()
         if db.exists():
             db.unlink()  # start from nothing so the create path is covered
 

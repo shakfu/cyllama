@@ -950,13 +950,15 @@ model = LlamaModel("models/llama.gguf", params)
 
 # Properties
 print(model.n_params)      # Total parameters
-print(model.n_layers)      # Number of layers
+print(model.n_layer)       # Number of layers
 print(model.n_embd)        # Embedding dimension
-print(model.n_vocab)       # Vocabulary size
+print(model.desc)          # Model description
+print(model.size)          # On-disk size in bytes
 
 # Methods
 vocab = model.get_vocab()  # Get vocabulary
-model.free()               # Free resources
+print(vocab.n_vocab)       # Vocabulary size
+model.close()              # Free resources (or use `with LlamaModel(...) as model:`)
 ```
 
 ---
@@ -981,10 +983,13 @@ from cyllama.llama.llama_cpp import llama_batch_get_one
 batch = llama_batch_get_one(tokens)
 ctx.decode(batch)
 
-# KV cache management
+# Memory (KV cache) management
 ctx.kv_cache_clear()
-ctx.kv_cache_seq_rm(seq_id, p0, p1)
-ctx.kv_cache_seq_add(seq_id, p0, p1, delta)
+ctx.memory_seq_rm(seq_id, p0, p1)
+ctx.memory_seq_cp(seq_id_src, seq_id_dst, p0, p1)
+ctx.memory_seq_keep(seq_id)
+ctx.memory_seq_add(seq_id, p0, p1, delta)
+print(ctx.memory_seq_pos_min(seq_id), ctx.memory_seq_pos_max(seq_id))
 
 # Performance
 ctx.print_perf_data()
@@ -1072,19 +1077,34 @@ batch = llama_batch_get_one(tokens, pos_offset=0)
 ```python
 from cyllama.llama.llama_cpp import (
     ggml_backend_load_all,
-    ggml_backend_offload_supported,
-    ggml_backend_metal_set_n_cb
+    ggml_backend_reg_names,
+    ggml_backend_reg_count,
+    ggml_backend_dev_info,
+    ggml_backend_unload,
 )
 
 # Load all available backends (Metal, CUDA, etc.)
 ggml_backend_load_all()
 
-# Check GPU support
-if ggml_backend_offload_supported():
-    print("GPU offload supported")
+# Which backends registered at runtime
+print(ggml_backend_reg_count(), ggml_backend_reg_names())  # e.g. ['CPU', 'Vulkan']
 
-# Configure Metal (macOS)
-ggml_backend_metal_set_n_cb(2)  # Number of command buffers
+# Per-device information (dicts with name, description, type)
+for dev in ggml_backend_dev_info():
+    print(dev)
+
+# Unload a registered backend by name
+ggml_backend_unload("Vulkan")
+```
+
+To ask what was compiled in (as opposed to what loaded), use the build config:
+
+```python
+from cyllama._internal import build_config
+
+print(build_config.backend_enabled("cuda"))
+print(build_config.backend())    # full per-backend dict
+print(build_config.versions())   # pinned llama.cpp / whisper.cpp / sd.cpp revisions
 ```
 
 ---
@@ -1108,13 +1128,13 @@ metadata = ctx.get_all_metadata()
 print(metadata['general.architecture'])
 print(metadata['general.name'])
 
-value = ctx.get_val_str("general.architecture")
+value = ctx.get_value("general.architecture")
 
 # Create new file
 ctx = GGUFContext.empty()
 ctx.set_val_str("custom.key", "value")
 ctx.set_val_u32("custom.number", 42)
-ctx.write_to_file("custom.gguf", write_tensors=False)
+ctx.write_to_file("custom.gguf", only_meta=True)
 
 # Modify existing
 ctx = GGUFContext.from_file("model.gguf")
@@ -1283,56 +1303,65 @@ if Speculative.is_compat(ctx_target):
 
 ## Server Implementations
 
-Three OpenAI-compatible server implementations.
+Three OpenAI-compatible server implementations, all exported from
+`cyllama.llama.server`. Note that the package-level `ServerConfig` is an alias
+for `PythonServerConfig` (the dataclass in `.python`), which the embedded server
+also takes; the subprocess launcher has its own `LauncherServerConfig`.
 
-### Embedded Server
+### PythonServer
 
 Pure Python server implementation.
 
 ```python
-from cyllama.llama.server.embedded import start_server
+from cyllama.llama.server import start_python_server
 
-# Start server
-start_server(
+server = start_python_server(
     model_path="models/llama.gguf",
     host="127.0.0.1",
     port=8000,
     n_ctx=2048,
-    n_gpu_layers=-1
+    n_gpu_layers=-1,
 )
 
 # Use with OpenAI client
 import openai
-openai.api_base = "http://127.0.0.1:8000/v1"
+client = openai.OpenAI(base_url="http://127.0.0.1:8000/v1", api_key="not-needed")
 
-response = openai.ChatCompletion.create(
-    model="cyllama",
-    messages=[{"role": "user", "content": "Hello!"}]
+response = client.chat.completions.create(
+    model="gpt-3.5-turbo",
+    messages=[{"role": "user", "content": "Hello!"}],
 )
+
+server.stop()
 ```
 
 ---
 
-### Mongoose Server
+### EmbeddedServer
 
-High-performance C server using Mongoose library.
+High-performance in-process C server built on the Mongoose HTTP library. It is
+compiled as a Cython extension, so it is only importable when the wheel was
+built with it -- `cyllama.llama.server` swallows the `ImportError` otherwise.
 
 ```python
-from cyllama.llama.server.mongoose_server import EmbeddedServer
+from cyllama.llama.server import EmbeddedServer, ServerConfig
 
-server = EmbeddedServer(
+config = ServerConfig(
     model_path="models/llama.gguf",
     host="127.0.0.1",
     port=8080,
     n_ctx=2048,
-    n_threads=4
+    n_threads=4,
 )
 
-server.start()
+# Context manager starts the server and stops it on exit
+with EmbeddedServer(config) as server:
+    ...  # server runs at http://127.0.0.1:8080
 
-# Server runs in background
-# Access at http://127.0.0.1:8080
+# Or the convenience helper, which builds the config and starts it for you
+from cyllama.llama.server import start_embedded_server
 
+server = start_embedded_server("models/llama.gguf", port=8080, n_ctx=2048)
 server.stop()
 ```
 
@@ -1361,32 +1390,62 @@ if server.is_running():
 server.stop()
 ```
 
+There is also `start_server(model_path, **kwargs)` as a one-call shorthand, and
+`LlamaServerClient` for talking to a running server:
+
+```python
+from cyllama.llama.server import LlamaServerClient
+
+client = LlamaServerClient("http://127.0.0.1:8080")
+print(client.health())
+print(client.chat_completion([{"role": "user", "content": "Hello!"}]))
+```
+
 ---
 
 ## Multimodal Support
 
-LLAVA and other vision-language models.
+Vision- and audio-language models, via llama.cpp's `libmtmd`. The high-level
+classes live in `cyllama.llama.mtmd`; the underlying `MtmdContext`,
+`MtmdBitmap`, and `MtmdInputChunks` bindings are re-exported from the same
+package.
 
 ```python
-from cyllama.llama.mtmd.multimodal import (
-    LlavaImageEmbed,
-    load_mmproj,
-    process_image
-)
+from cyllama.llama.llama_cpp import LlamaModel
+from cyllama.llama.mtmd import MultimodalProcessor
 
-# Load multimodal projector
-mmproj = load_mmproj("models/mmproj.gguf")
+model = LlamaModel("models/model.gguf")
 
-# Process image
-image_embed = process_image(
-    ctx=ctx,
-    image_path="image.jpg",
-    mmproj=mmproj
-)
+# The projector is loaded by the processor itself
+processor = MultimodalProcessor("models/mmproj.gguf", model)
 
-# Use in generation
-# Image embeddings are automatically integrated into context
+print(processor.supports_vision)
+print(processor.supports_audio)
+
+# Tokenize text + image into chunks ready for evaluation.
+# The media marker is appended automatically if the text lacks one.
+chunks = processor.process_image("What's in this image?", "image.jpg")
+
+# Audio works the same way when the model supports it
+chunks = processor.process_audio("Transcribe this", "audio.wav")
 ```
+
+For a full question-answer loop, `VisionLanguageChat` wraps the processor and a
+context and keeps conversation history:
+
+```python
+from cyllama.llama.mtmd import VisionLanguageChat
+
+chat = VisionLanguageChat("models/mmproj.gguf", model, ctx)
+
+print(chat.ask_about_image("What's in this image?", "image.jpg"))
+print(chat.continue_conversation("What colour is the car?"))
+chat.clear_history()
+```
+
+`AudioProcessor` and `ImageAnalyzer` provide the equivalent task-specific
+helpers. All of them raise `UnsupportedModalityError` (a `MultimodalError`
+subclass) when the loaded model lacks the modality.
 
 ---
 
