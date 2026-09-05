@@ -2093,15 +2093,33 @@
 <h4 id="default-separators">Default Separators<a class="headerlink" href="#default-separators" title="Permanent link">&para;</a></h4>
 <p>The splitter uses a hierarchy of separators:</p>
 <ol>
-<li><code>\n\n</code> - Paragraph breaks</li>
-<li><code>\n</code> - Line breaks</li>
-<li><code>.</code> - Sentences</li>
-<li><code>!</code> - Exclamations</li>
-<li><code>?</code> - Questions</li>
-<li><code>;</code> - Semicolons</li>
-<li><code>,</code> - Commas</li>
-<li>`` - Words</li>
-<li>`` - Characters</li>
+<li>
+<p><code>\n\n</code> - Paragraph breaks</p>
+</li>
+<li>
+<p><code>\n</code> - Line breaks</p>
+</li>
+<li>
+<p><code>.</code> - Sentences</p>
+</li>
+<li>
+<p><code>!</code> - Exclamations</p>
+</li>
+<li>
+<p><code>?</code> - Questions</p>
+</li>
+<li>
+<p><code>;</code> - Semicolons</p>
+</li>
+<li>
+<p><code>,</code> - Commas</p>
+</li>
+<li>
+<p>`` - Words</p>
+</li>
+<li>
+<p>`` - Characters</p>
+</li>
 </ol>
 <h3 id="tokentextsplitter">TokenTextSplitter<a class="headerlink" href="#tokentextsplitter" title="Permanent link">&para;</a></h3>
 <p>Split based on token count using a custom tokenizer:</p>
@@ -2306,11 +2324,21 @@
 </code></pre></div>
 <h3 id="best-practices">Best Practices<a class="headerlink" href="#best-practices" title="Permanent link">&para;</a></h3>
 <ol>
-<li><strong>Chunk Size</strong>: 256-1024 characters works well for most use cases</li>
-<li><strong>Overlap</strong>: 10-20% of chunk size helps maintain context</li>
-<li><strong>Markdown</strong>: Use <code>MarkdownSplitter</code> for structured documents</li>
-<li><strong>Large Files</strong>: Use lazy loading with <code>JSONLLoader.load_lazy()</code></li>
-<li><strong>Metadata</strong>: Preserve source information for citation</li>
+<li>
+<p><strong>Chunk Size</strong>: 256-1024 characters works well for most use cases</p>
+</li>
+<li>
+<p><strong>Overlap</strong>: 10-20% of chunk size helps maintain context</p>
+</li>
+<li>
+<p><strong>Markdown</strong>: Use <code>MarkdownSplitter</code> for structured documents</p>
+</li>
+<li>
+<p><strong>Large Files</strong>: Use lazy loading with <code>JSONLLoader.load_lazy()</code></p>
+</li>
+<li>
+<p><strong>Metadata</strong>: Preserve source information for citation</p>
+</li>
 </ol>
 
 

@@ -23,7 +23,7 @@
     
     
       
-        <title>Windows CUDA wheel: prebuilt DLL path - cyllama</title>
+        <title>One ggml: making the shared-ggml invariant structural - cyllama</title>
       
     
     
@@ -74,7 +74,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#windows-cuda-wheel-prebuilt-dll-path" class="md-skip">
+        <a href="#one-ggml-making-the-shared-ggml-invariant-structural" class="md-skip">
           Skip to content
         </a>
       
@@ -110,7 +110,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Windows CUDA wheel: prebuilt DLL path
+              One ggml: making the shared-ggml invariant structural
             
           </span>
         </div>
@@ -1515,10 +1515,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#current-state" class="md-nav__link">
+  <a href="#why-the-current-shape-is-fragile" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Current state
+        Why the current shape is fragile
       
     </span>
   </a>
@@ -1526,10 +1526,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#recommended-config" class="md-nav__link">
+  <a href="#what-makes-the-refactor-feasible" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Recommended config
+        What makes the refactor feasible
       
     </span>
   </a>
@@ -1537,10 +1537,110 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#tradeoffs" class="md-nav__link">
+  <a href="#target-shape" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Tradeoffs
+        Target shape
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Target shape">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-one-piece-that-does-not-exist-yet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The one piece that does not exist yet
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phases" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phases
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Phases">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#phase-0-make-the-invariant-enforced-done-041" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 0 — make the invariant enforced (done, 0.4.1)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-1-ggml-exports-its-own-definition" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 1 — ggml exports its own definition
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-2-a-real-ggmlbuilder-component" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 2 — a real GgmlBuilder component
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-3-consumers-switch-to-find_package" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 3 — consumers switch to find_package
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-4-collapse-what-the-coupling-forced" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 4 — collapse what the coupling forced
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#non-goals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Non-goals
       
     </span>
   </a>
@@ -1548,10 +1648,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#delvewheel-repair" class="md-nav__link">
+  <a href="#risks" class="md-nav__link">
     <span class="md-ellipsis">
       
-        delvewheel repair
+        Risks
       
     </span>
   </a>
@@ -1559,10 +1659,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#alternative-shared-ggml-source-build" class="md-nav__link">
+  <a href="#recommendation" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Alternative: shared-ggml + source build
+        Recommendation
       
     </span>
   </a>
@@ -1570,10 +1670,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#rollout" class="md-nav__link">
+  <a href="#references" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Rollout
+        References
       
     </span>
   </a>
@@ -1600,83 +1700,245 @@
   
 
 
-<h1 id="windows-cuda-wheel-prebuilt-dll-path">Windows CUDA wheel: prebuilt DLL path<a class="headerlink" href="#windows-cuda-wheel-prebuilt-dll-path" title="Permanent link">&para;</a></h1>
+<h1 id="one-ggml-making-the-shared-ggml-invariant-structural">One ggml: making the shared-ggml invariant structural<a class="headerlink" href="#one-ggml-making-the-shared-ggml-invariant-structural" title="Permanent link">&para;</a></h1>
 <h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
-<p>llama.cpp ships prebuilt CUDA Windows DLLs with every release (e.g. <a href="https://github.com/ggml-org/llama.cpp/releases/tag/b8828">b8828</a> includes <code>llama-b8828-bin-win-cuda-12.4-x64.zip</code>). <code>manage.py</code> already knows how to consume them — but the current <code>build-new-wheels.yml</code> CUDA-Windows job does not use them. This document explains why, what changes to make, and the tradeoffs.</p>
-<h2 id="current-state">Current state<a class="headerlink" href="#current-state" title="Permanent link">&para;</a></h2>
-<p>The CUDA-Windows job in <code>.github/workflows/build-new-wheels.yml</code> pins <code>WITH_DYLIB=0</code> and does not pass <code>--dynamic</code> to <code>manage.py build</code>. That forces a full static compile of llama.cpp under cibuildwheel, which invokes <code>nvcc</code> against the ggml-cuda source tree. This is by far the slowest part of the CI job and requires the full CUDA toolkit to be installed on the runner.</p>
-<p>Meanwhile, <code>manage.py:1329-1331</code> already constructs the right asset filename for a Windows CUDA release:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="k">if</span> <span class="n">getenv</span><span class="p">(</span><span class="s2">&quot;GGML_CUDA&quot;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">cuda_ver</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;LLAMACPP_CUDA_RELEASE&quot;</span><span class="p">,</span> <span class="s2">&quot;12.4&quot;</span><span class="p">)</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;llama-</span><span class="si">{</span><span class="n">version</span><span class="si">}</span><span class="s2">-bin-win-cuda-</span><span class="si">{</span><span class="n">cuda_ver</span><span class="si">}</span><span class="s2">-</span><span class="si">{</span><span class="n">arch_tag</span><span class="si">}</span><span class="s2">.zip&quot;</span>
+<p>cyllama links a single ggml into every extension. That decision is right and should stand — <code>docs/dev/ggml-unification.md</code> established it, and it is what keeps the CUDA wheel at 44 MB instead of 157 MB.</p>
+<p>What is wrong is <em>how the decision is maintained</em>. Today the invariant "every translation unit that sees a <code>ggml_tensor</code> must be compiled the same way" is upheld by convention: three builders each independently remember to pass the same <code>-D</code>, plus a fourth copy in cyllama's own <code>CMakeLists.txt</code>, plus an <code>rmtree</code>-and-<code>copytree</code> of one project's ggml over another's. Nothing enforces it, and a violation produces neither a compile error nor a link error — it produces heap corruption at runtime.</p>
+<p>It has now failed four times:</p>
+<table>
+<thead>
+<tr>
+<th>When</th>
+<th>Failure</th>
+<th>Cost</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0.2.9 → 0.2.10</td>
+<td>SD at 128, llama at 64</td>
+<td><code>ggml_are_same_layout</code> assertion; diagnosed in <code>ggml-unification.md</code></td>
+</tr>
+<tr>
+<td>0.2.10</td>
+<td>Vulkan took the <code>download_release()</code> path, never got the <code>-D</code></td>
+<td>Same assertion, Vulkan only; <code>ggml_max_name.md</code></td>
+</tr>
+<tr>
+<td>0.4.1</td>
+<td>SD moved to 160, cyllama's pin stayed at 128</td>
+<td>Silent arena corruption in every GPU wheel</td>
+</tr>
+<tr>
+<td>0.4.1</td>
+<td>whisper.cpp never got the <code>-D</code> at all</td>
+<td>96-byte mismatch, harmless only by luck</td>
+</tr>
+</tbody>
+</table>
+<p>Each fix was correct and each left the mechanism intact, so the next drift found a new way through. This plan proposes removing the mechanism.</p>
+<p><strong>Proposal:</strong> build ggml once, as its own component, and have llama.cpp, whisper.cpp and stable-diffusion.cpp consume it through <code>find_package(ggml)</code> using the <code>*_USE_SYSTEM_GGML</code> option each already supports. The compile definitions travel with the imported target, so consumers cannot disagree with the library — CMake propagates what is currently copy-pasted.</p>
+<p><strong>This plan does not lift the <code>master-816</code> ceiling.</strong> That is a separate problem with a separate fix; see <a href="#non-goals">Non-goals</a>.</p>
+<hr />
+<h2 id="why-the-current-shape-is-fragile">Why the current shape is fragile<a class="headerlink" href="#why-the-current-shape-is-fragile" title="Permanent link">&para;</a></h2>
+<p>Four places must agree on one number, and none of them can see the others:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>scripts/manage.py  StableDiffusionCppBuilder.GGML_MAX_NAME = 160   # the pin
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>scripts/manage.py  LlamaCppBuilder.build()        -&gt; CMAKE_C/CXX_FLAGS
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>scripts/manage.py  WhisperCppBuilder.build()      -&gt; CMAKE_C/CXX_FLAGS   (added 0.4.1)
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>CMakeLists.txt:119 add_definitions(-DGGML_MAX_NAME=160)                  # Cython extensions
 </code></pre></div>
-<p>And the build dispatcher at <code>manage.py:2259</code> selects between <code>download_release()</code> (fast) and <code>build_shared()</code> (slow) based on whether an asset exists and whether SD is sharing llama.cpp's ggml.</p>
-<h2 id="recommended-config">Recommended config<a class="headerlink" href="#recommended-config" title="Permanent link">&para;</a></h2>
-<p>Switch the CUDA-Windows job to the dynamic + vendored-SD config. Three env changes in <code>CIBW_ENVIRONMENT_WINDOWS</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nt">CIBW_ENVIRONMENT_WINDOWS</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">&gt;</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="no">GGML_CUDA=1</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span><span class="no">GGML_METAL=0</span>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span><span class="no">GGML_NATIVE=OFF</span>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">  </span><span class="no">CMAKE_CUDA_ARCHITECTURES=&quot;75&quot;</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">  </span><span class="no">WITH_DYLIB=1</span>
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">  </span><span class="no">SD_USE_VENDORED_GGML=1</span>
+<p>and a fifth, upstream, is the actual source of truth:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>build/stable-diffusion.cpp/CMakeLists.txt:318  add_definitions(-DGGML_MAX_NAME=160)
 </code></pre></div>
-<p>And pass <code>--dynamic</code> in the build step:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="l l-Scalar l-Scalar-Plain">python scripts/manage.py build --all --deps-only --no-sd-examples --dynamic &amp;&amp;</span>
+<p>Add <code>_sync_ggml_abi()</code>, which deletes SD's vendored <code>ggml/</code> and copies llama.cpp's over it so the <em>sources</em> agree too, and <code>do_check_vendor()</code>'s special case, which knows that SD's committed ggml headers must be compared against the llama.cpp checkout rather than SD's own.</p>
+<p>The failure mode is the problem, not the line count. <code>GGML_MAX_NAME</code> sizes an inline <code>char[]</code> inside <code>struct ggml_tensor</code>; <code>extra</code> is the field immediately after it, and the last one. A disagreement moves <code>extra</code> past the end of the struct the library actually allocated, so a write to it lands on the following <code>ggml_object</code> header. There is no diagnostic — the headers are byte-identical, only the <code>-D</code> differs.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>GGML_MAX_NAME=64   sizeof(ggml_tensor)=336  offsetof(extra)=320
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>GGML_MAX_NAME=128  sizeof(ggml_tensor)=400  offsetof(extra)=384
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>GGML_MAX_NAME=160  sizeof(ggml_tensor)=432  offsetof(extra)=416
 </code></pre></div>
-<p><code>SD_USE_VENDORED_GGML=1</code> is the critical pairing: the upstream prebuilt Windows DLLs are compiled with stock <code>GGML_MAX_NAME=64</code>. If SD tried to share those DLLs' ggml it would hit the same <code>ggml_tensor</code> layout mismatch documented in <code>ggml_max_name.md</code>. By having SD statically link its own vendored ggml (self-consistent at whatever <code>GGML_MAX_NAME</code> SD defaults to), the layout hazard disappears.</p>
-<p>With that pairing in place, the gate at <code>manage.py:2259</code> (<code>if asset is None or _sd_uses_shared_ggml()</code>) evaluates false and takes the <code>download_release()</code> fast path.</p>
-<h2 id="tradeoffs">Tradeoffs<a class="headerlink" href="#tradeoffs" title="Permanent link">&para;</a></h2>
-<p><strong>Wins:</strong></p>
+<hr />
+<h2 id="what-makes-the-refactor-feasible">What makes the refactor feasible<a class="headerlink" href="#what-makes-the-refactor-feasible" title="Permanent link">&para;</a></h2>
+<p>All three upstreams already support consuming an external ggml, and all three use the same idiom:</p>
+<table>
+<thead>
+<tr>
+<th>Project</th>
+<th>Option</th>
+<th>Location</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>llama.cpp</td>
+<td><code>LLAMA_USE_SYSTEM_GGML</code></td>
+<td><code>CMakeLists.txt:51</code>, <code>find_package</code> at <code>:206</code></td>
+</tr>
+<tr>
+<td>whisper.cpp</td>
+<td><code>WHISPER_USE_SYSTEM_GGML</code></td>
+<td><code>CMakeLists.txt:72</code>, <code>find_package</code> at <code>:138</code></td>
+</tr>
+<tr>
+<td>stable-diffusion.cpp</td>
+<td><code>SD_USE_SYSTEM_GGML</code></td>
+<td><code>CMakeLists.txt:99</code>, <code>find_package</code> at <code>:325</code></td>
+</tr>
+</tbody>
+</table>
+<p>Two properties make this more than a lateral move:</p>
+<p><strong>1. SD's override is gated on the same option.</strong> <code>build/stable-diffusion.cpp/CMakeLists.txt:316</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nb">if</span><span class="w"> </span><span class="p">(</span><span class="s">NOT</span><span class="w"> </span><span class="s">SD_USE_SYSTEM_GGML</span><span class="p">)</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">    </span><span class="nb">add_definitions</span><span class="p">(</span><span class="s">-DGGML_MAX_NAME=160</span><span class="p">)</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="nb">endif</span><span class="p">()</span>
+</code></pre></div>
+<p>Under <code>SD_USE_SYSTEM_GGML=ON</code>, SD <em>stops setting the value</em> and inherits whatever it is given. The divergence cannot originate from SD any more — which is where all four incidents originated.</p>
+<p><strong>2. A wrong value becomes a compile error.</strong> <code>ggml_extend.hpp:79</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="k">static_assert</span><span class="p">(</span><span class="n">GGML_MAX_NAME</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">128</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;GGML_MAX_NAME must be at least 128&quot;</span><span class="p">);</span>
+</code></pre></div>
+<p>Hand SD a ggml built at the default 64 and the build fails loudly on line 79, instead of shipping a wheel that corrupts memory. The class of bug becomes detectable at compile time by construction.</p>
+<p><strong>3. ggml already exports its configuration.</strong> <code>ggml-config.cmake</code> is generated by <code>configure_package_config_file()</code> and expands every <code>GGML_*</code> cache variable into the installed package (<code>set(GGML_AVAILABLE_BACKENDS "ggml-cpu;ggml-cuda;ggml-vulkan")</code> and ~80 others). It is already installed and working — whisper.cpp and stable-diffusion.cpp both produce <code>thirdparty/*/lib/cmake/ggml/ggml-config.cmake</code> today. Only llama.cpp's build skips it, because cyllama copies its <code>.a</code> files by hand rather than running <code>cmake --install</code>.</p>
+<hr />
+<h2 id="target-shape">Target shape<a class="headerlink" href="#target-shape" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>                    ┌──────────────────┐
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>                    │   GgmlBuilder    │   one source tree, one configure,
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>                    │  (new component) │   one install, one set of flags
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>                    └────────┬─────────┘
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>                             │  cmake --install  -&gt;  thirdparty/ggml/
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>                             │  lib/*.a  +  lib/cmake/ggml/ggml-config.cmake
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>              ┌──────────────┼──────────────┐
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>              ▼              ▼              ▼
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>    LLAMA_USE_SYSTEM   WHISPER_USE_    SD_USE_SYSTEM
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>      _GGML=ON          SYSTEM_GGML=ON   _GGML=ON
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>              │              │              │
+<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a>              └──────────────┴──────────────┘
+<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a>                             │  find_package(ggml REQUIRED)
+<a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a>                             ▼
+<a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a>                  compile definitions arrive with
+<a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a>                  the imported target, not by hand
+</code></pre></div>
+<p>The invariant moves from "three builders remember the same flag" to "there is one ggml and its consumers import it".</p>
+<h3 id="the-one-piece-that-does-not-exist-yet">The one piece that does not exist yet<a class="headerlink" href="#the-one-piece-that-does-not-exist-yet" title="Permanent link">&para;</a></h3>
+<p><code>GGML_MAX_NAME</code> is set through <code>CMAKE_C_FLAGS</code>, which is <em>not</em> exported to consumers. For the imported target to carry it, ggml needs to own it as a cache variable and attach it to the target:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c"># ggml/CMakeLists.txt</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="nb">set</span><span class="p">(</span><span class="s">GGML_MAX_NAME</span><span class="w"> </span><span class="s2">&quot;64&quot;</span><span class="w"> </span><span class="s">CACHE</span><span class="w"> </span><span class="s">STRING</span><span class="w"> </span><span class="s2">&quot;ggml: maximum tensor name length&quot;</span><span class="p">)</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="c"># ggml/src/CMakeLists.txt, beside the existing PUBLIC definitions</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="nb">target_compile_definitions</span><span class="p">(</span><span class="s">ggml-base</span><span class="w"> </span><span class="s">PUBLIC</span><span class="w"> </span><span class="s">GGML_MAX_NAME=</span><span class="o">${</span><span class="nv">GGML_MAX_NAME</span><span class="o">}</span><span class="p">)</span>
+</code></pre></div>
+<p><code>ggml-base</code> already carries <code>PUBLIC</code> definitions this way (<code>GGML_BACKEND_DL</code>, <code>GGML_SCHED_NO_REALLOC</code> at <code>ggml/src/CMakeLists.txt:218,222</code>), so this follows an established pattern rather than inventing one. Being a <code>GGML_*</code> cache variable, it also lands in <code>ggml-config.cmake</code> automatically.</p>
+<p>This is a genuine upstream gap — ggml lets you resize a struct via the preprocessor with no way to tell consumers you did — so it belongs in <code>scripts/patches/</code> as <code>ggml-max-name-public-define.patch</code> (the <code>ggml-*</code> prefix already applies a patch to every ggml tree) and is worth proposing upstream. It is also the whole refactor in miniature: <strong>land this patch first and much of the fragility goes away even if the rest is never done.</strong></p>
+<hr />
+<h2 id="phases">Phases<a class="headerlink" href="#phases" title="Permanent link">&para;</a></h2>
+<p>Each phase is independently landable and independently revertable.</p>
+<h3 id="phase-0-make-the-invariant-enforced-done-041">Phase 0 — make the invariant enforced (done, 0.4.1)<a class="headerlink" href="#phase-0-make-the-invariant-enforced-done-041" title="Permanent link">&para;</a></h3>
+<p><code>_verify_ggml_max_name()</code> fails the build when upstream's value drifts from the pin; <code>tests/test_build_abi.py</code> fails when a builder forgets to propagate it. Not part of the refactor, but the reason the refactor is not urgent.</p>
+<h3 id="phase-1-ggml-exports-its-own-definition">Phase 1 — ggml exports its own definition<a class="headerlink" href="#phase-1-ggml-exports-its-own-definition" title="Permanent link">&para;</a></h3>
+<p>Add the patch above. Change the three builders to pass <code>-DGGML_MAX_NAME=160</code> as a <strong>cache variable</strong> rather than a raw flag, so the value reaches the exported package. No structural change; the copy-paste is still there, but a consumer that forgets now inherits the right value instead of silently disagreeing.</p>
+<p><em>Validation:</em> <code>ggml-config.cmake</code> contains <code>set(GGML_MAX_NAME "160")</code>; the existing suites stay green.</p>
+<h3 id="phase-2-a-real-ggmlbuilder-component">Phase 2 — a real <code>GgmlBuilder</code> component<a class="headerlink" href="#phase-2-a-real-ggmlbuilder-component" title="Permanent link">&para;</a></h3>
+<p>Today <code>GgmlBuilder</code> is a shared <em>base class</em> for the three project builders. It becomes a builder in its own right:</p>
 <ul>
 <li>
-<p>Much faster CI: no <code>nvcc</code> compile of ggml-cuda from source — the longest single step in today's Linux CUDA job is eliminated on Windows</p>
+<p>Source: llama.cpp's <code>ggml/</code> subtree (already the de-facto winner via <code>_sync_ggml_abi</code>). Version pins to <code>LLAMACPP_VERSION</code>.</p>
 </li>
 <li>
-<p>Smaller runner footprint: arguably no need for the full CUDA toolkit install, just the runtime DLLs that the prebuilt zip already contains (verify before relying on this — nvcc may still be needed for Cython bindings that touch CUDA headers)</p>
+<p>Configure once with the full backend option set that <code>get_backend_cmake_options()</code> computes today.</p>
 </li>
 <li>
-<p>Matches the upstream llama.cpp binary exactly, which simplifies bug reports</p>
+<p><code>cmake --install</code> to <code>thirdparty/ggml/</code> — libraries <em>and</em> <code>lib/cmake/ggml/ggml-config.cmake</code>.</p>
+</li>
+<li>
+<p><code>ggml-*.patch</code> files apply here once, instead of three times to three trees.</p>
 </li>
 </ul>
-<p><strong>Costs:</strong></p>
+<p><em>Validation:</em> <code>thirdparty/ggml/lib/</code> holds the same <code>.a</code> set that <code>thirdparty/llama.cpp/lib/</code> holds today, for one GPU backend.</p>
+<h3 id="phase-3-consumers-switch-to-find_package">Phase 3 — consumers switch to <code>find_package</code><a class="headerlink" href="#phase-3-consumers-switch-to-find_package" title="Permanent link">&para;</a></h3>
+<p>Configure each project with <code>&lt;PROJECT&gt;_USE_SYSTEM_GGML=ON</code> and <code>CMAKE_PREFIX_PATH=thirdparty/ggml</code>. Delete <code>_sync_ggml_abi()</code> and its <code>rmtree</code>. Drop the per-builder <code>CMAKE_C/CXX_FLAGS</code> injection — the definition now arrives through the imported target.</p>
+<p>The riskiest phase, and where the surprises will be: each project's <code>USE_SYSTEM_GGML</code> path is far less travelled upstream than its vendored path, and backend libraries (<code>ggml-cuda</code>, <code>ggml-vulkan</code>) may need explicit <code>GGML_AVAILABLE_BACKENDS</code> handling. Take one backend end-to-end before converting the rest.</p>
+<p><em>Validation:</em> per backend — full pytest suite, <code>rwt.py test-all</code>, and a built wheel installed into a clean venv.</p>
+<h3 id="phase-4-collapse-what-the-coupling-forced">Phase 4 — collapse what the coupling forced<a class="headerlink" href="#phase-4-collapse-what-the-coupling-forced" title="Permanent link">&para;</a></h3>
 <ul>
 <li>
-<p>SD statically links its own ggml, so the wheel carries two ggml copies (llama.cpp's in the DLLs + SD's embedded in <code>libstable-diffusion.a</code>). Slightly larger than the shared-ggml Linux CUDA wheel</p>
+<p><code>do_check_vendor()</code>'s stable-diffusion special case: ggml headers have one home, so the "compare SD's committed ggml headers against the llama.cpp checkout" rule disappears.</p>
 </li>
 <li>
-<p>Locked to the CUDA version upstream ships (currently 12.4). Users on older drivers may have compatibility issues. <code>LLAMACPP_CUDA_RELEASE</code> lets you pick a different release variant if upstream publishes more than one</p>
+<p><code>thirdparty/{llama,whisper,stable-diffusion}.cpp/lib/libggml*.a</code> stop being built and installed. whisper.cpp currently builds a full ggml — including <code>libggml-cuda.a</code> and <code>libggml-vulkan.a</code>, the expensive ones — that nothing links.</p>
+</li>
+<li>
+<p>The <code>GGML_MAX_NAME = 64</code> literals in <code>src/cyllama/llama/ggml.pxd:18</code> and <code>src/cyllama/llama/llama_cpp.pyx:66</code> become derivable from the installed package instead of hand-maintained constants that have been wrong since 0.2.10. (They are inert today — Cython does not lay out <code>cdef extern</code> structs, the C header does — but they are exported to Python as <code>cpdef enum</code> values, so they are wrong in the API as well as in the source.)</p>
 </li>
 </ul>
-<h2 id="delvewheel-repair">delvewheel repair<a class="headerlink" href="#delvewheel-repair" title="Permanent link">&para;</a></h2>
-<p>When <code>WITH_DYLIB=1</code>, the following DLLs will need to land in the wheel from <code>thirdparty/llama.cpp/dynamic/</code>:</p>
+<hr />
+<h2 id="non-goals">Non-goals<a class="headerlink" href="#non-goals" title="Permanent link">&para;</a></h2>
+<p><strong>The <code>master-816</code> ceiling.</strong> <code>master-817-bcc7e29</code> calls <code>ggml_mul_mat_i8_tensorwise</code> and <code>ggml_quantize_i8_convrot</code>, which exist only in leejet's ggml fork. That is a <em>missing ops</em> problem, not a build-structure problem: one ggml still means one ggml, and SD still cannot call functions it does not contain. The fix is orthogonal — carry the two kernels as a <code>ggml-*.patch</code> against the shared tree, which the refactor makes strictly easier (one tree to patch instead of three). Worth doing, worth costing separately.</p>
+<p><strong>Multiple ggml copies.</strong> Rejected, for the record: the wheels ship ggml as shared objects loaded once per process, so three copies would collide on identical exported symbols with the loader picking a winner — trading today's build-time coupling for undetectable runtime coupling. ggml's backend registry is process-global, and the kernels dominate wheel size (95 MB Vulkan, 147 MB CUDA).</p>
+<hr />
+<h2 id="risks">Risks<a class="headerlink" href="#risks" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Risk</th>
+<th>Mitigation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>USE_SYSTEM_GGML</code> is a lightly-tested upstream path</td>
+<td>Phase 2 before Phase 3; one backend end-to-end first</td>
+</tr>
+<tr>
+<td>Backend libs not exported cleanly by <code>ggml-config.cmake</code></td>
+<td>Verify <code>GGML_AVAILABLE_BACKENDS</code> early — it is already populated correctly in the installed config today</td>
+</tr>
+<tr>
+<td>Wheel packaging regressions (auditwheel/delocate SONAME rewriting)</td>
+<td><code>docs/dev/cuda-double-free.md</code> documents the failure and the exclusion lists; re-run that validation per backend</td>
+</tr>
+<tr>
+<td>Phase 3 stalls half-done</td>
+<td>Every phase is independently useful; Phase 1 alone removes most of the fragility</td>
+</tr>
+<tr>
+<td>Divergence from upstream build layouts on a bump</td>
+<td>Fewer trees to reconcile than today, not more</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="recommendation">Recommendation<a class="headerlink" href="#recommendation" title="Permanent link">&para;</a></h2>
+<p>Land <strong>Phase 1</strong> on its own merits — small, upstreamable, and it moves the value from "copied into three cmake invocations" to "owned by ggml and inherited". Treat Phases 2–4 as a follow-up with real but bounded value: they buy a simpler build and less friction, not a bug fix, because Phase 0 already closed the class of defect that prompted this.</p>
+<p>Do not start Phase 2 in the same release as an upstream version bump.</p>
+<hr />
+<h2 id="references">References<a class="headerlink" href="#references" title="Permanent link">&para;</a></h2>
 <ul>
 <li>
-<p><code>llama.dll</code></p>
+<p><code>docs/dev/ggml-unification.md</code> — why one ggml, and the original 128 propagation.</p>
 </li>
 <li>
-<p><code>ggml.dll</code></p>
+<p><code>docs/dev/ggml_max_name.md</code> — the Vulkan <code>download_release()</code> gap in 0.2.10.</p>
 </li>
 <li>
-<p><code>ggml-base.dll</code></p>
+<p><code>docs/dev/ggml-config.md</code> — backend/arch configuration analysis.</p>
 </li>
 <li>
-<p><code>ggml-cpu.dll</code></p>
+<p><code>docs/dev/cuda-double-free.md</code> — auditwheel SONAME rewriting; relevant to Phase 3 validation.</p>
 </li>
 <li>
-<p><code>ggml-cuda.dll</code></p>
+<p><code>scripts/patches/README.md</code> — patch naming; <code>ggml-*.patch</code> applies to every ggml tree.</p>
+</li>
+<li>
+<p><code>scripts/manage.py</code> — <code>StableDiffusionCppBuilder.GGML_MAX_NAME</code>, <code>_verify_ggml_max_name()</code>, <code>_sync_ggml_abi()</code>, and the <code>CMAKE_C/CXX_FLAGS</code> injection in <code>LlamaCppBuilder.build()</code> / <code>WhisperCppBuilder.build()</code>.</p>
+</li>
+<li>
+<p><code>tests/test_build_abi.py</code> — the Phase 0 guards.</p>
+</li>
+<li>
+<p><code>CMakeLists.txt:107-120</code> — the Cython-side <code>add_definitions</code>.</p>
+</li>
+<li>
+<p><code>CMakeLists.txt:418-459</code> — every ggml lib taken from <code>${LLAMACPP_LIB}</code>, which is why whisper.cpp's own ggml is dead weight.</p>
 </li>
 </ul>
-<p>Verify that <code>delvewheel repair</code> picks them up via the build artifact path after scikit-build-core installs them into the wheel tree. The current <code>--no-dll</code> exclusions for <code>nvcuda.dll</code>, <code>cudart64_12.dll</code>, <code>cublas64_12.dll</code>, <code>cublasLt64_12.dll</code> are still correct (those are system libs the user must provide via the NVIDIA driver / CUDA runtime).</p>
-<p>If delvewheel starts mangling the bundled DLL names (its default for non-system libs), add <code>--no-mangle</code> for the project libs above — this is the Windows analogue of the Linux auditwheel SONAME-rewrite issue documented in <code>cuda-double-free.md</code>.</p>
-<h2 id="alternative-shared-ggml-source-build">Alternative: shared-ggml + source build<a class="headerlink" href="#alternative-shared-ggml-source-build" title="Permanent link">&para;</a></h2>
-<p>To match the Linux-CUDA dynamic wheel exactly (shared ggml across llama/whisper/SD, <code>GGML_MAX_NAME=128</code>, single ggml copy), the config would be:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>WITH_DYLIB=1
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>SD_USE_VENDORED_GGML=0
-</code></pre></div>
-<p>But this forces <code>build_shared()</code> from source (the gate at <code>manage.py:2259</code> takes the slow path), which eliminates the speed win that motivated using the prebuilt DLLs in the first place. Not recommended for CI unless wheel size becomes a hard constraint.</p>
-<h2 id="rollout">Rollout<a class="headerlink" href="#rollout" title="Permanent link">&para;</a></h2>
-<p>For the new-wheels testbed, start with dynamic + vendored. Once CI is green and a test install works on a Windows box with an NVIDIA GPU, decide whether the few MB of duplicated ggml matters enough to switch to the source-build shared-ggml config.</p>
 
 
 

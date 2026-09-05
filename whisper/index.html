@@ -2770,11 +2770,21 @@
 <p>Download models from <a href="https://huggingface.co/ggerganov/whisper.cpp">Hugging Face</a>.</p>
 <h2 id="performance-tips">Performance Tips<a class="headerlink" href="#performance-tips" title="Permanent link">&para;</a></h2>
 <ol>
-<li><strong>Use GPU</strong>: Enable <code>use_gpu=True</code> in context params</li>
-<li><strong>Use Flash Attention</strong>: Enable <code>flash_attn=True</code> for faster inference</li>
-<li><strong>Match model to task</strong>: Use <code>.en</code> models for English-only content</li>
-<li><strong>Batch by length</strong>: Group similar-length audio for consistent memory usage</li>
-<li><strong>Thread count</strong>: Set <code>n_threads</code> to match physical CPU cores</li>
+<li>
+<p><strong>Use GPU</strong>: Enable <code>use_gpu=True</code> in context params</p>
+</li>
+<li>
+<p><strong>Use Flash Attention</strong>: Enable <code>flash_attn=True</code> for faster inference</p>
+</li>
+<li>
+<p><strong>Match model to task</strong>: Use <code>.en</code> models for English-only content</p>
+</li>
+<li>
+<p><strong>Batch by length</strong>: Group similar-length audio for consistent memory usage</p>
+</li>
+<li>
+<p><strong>Thread count</strong>: Set <code>n_threads</code> to match physical CPU cores</p>
+</li>
 </ol>
 <h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h2>
 <h3 id="model-loading-errors">Model Loading Errors<a class="headerlink" href="#model-loading-errors" title="Permanent link">&para;</a></h3>

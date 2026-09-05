@@ -23,7 +23,7 @@
     
     
       
-        <title>Windows CUDA wheel: prebuilt DLL path - cyllama</title>
+        <title>cyllama Plugins Architecture - cyllama</title>
       
     
     
@@ -74,7 +74,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#windows-cuda-wheel-prebuilt-dll-path" class="md-skip">
+        <a href="#cyllama-plugins-architecture" class="md-skip">
           Skip to content
         </a>
       
@@ -110,7 +110,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Windows CUDA wheel: prebuilt DLL path
+              cyllama Plugins Architecture
             
           </span>
         </div>
@@ -1504,10 +1504,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#summary" class="md-nav__link">
+  <a href="#tldr" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Summary
+        TL;DR
       
     </span>
   </a>
@@ -1515,10 +1515,38 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#current-state" class="md-nav__link">
+  <a href="#why-this-works-the-phase-0-isolation-result" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Current state
+        Why this works: the Phase 0 isolation result
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Why this works: the Phase 0 isolation result">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-proven-build-recipe" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The proven build recipe
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#scope-where-the-plugin-model-applies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scope: where the plugin model applies
       
     </span>
   </a>
@@ -1526,10 +1554,60 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#recommended-config" class="md-nav__link">
+  <a href="#recommended-architecture" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Recommended config
+        Recommended architecture
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Recommended architecture">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#repo-layout-one-repo-one-wheel-per-plugin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Repo layout — one repo, one wheel per plugin
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#import-cli-surface-both-via-entry-point-discovery" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Import / CLI surface — both, via entry-point discovery
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#relationship-to-core-independent-optional-one-way-integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Relationship to core — independent, optional one-way integration
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-one-real-cost-gpu-wheel-matrix" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The one real cost: GPU wheel matrix
       
     </span>
   </a>
@@ -1537,10 +1615,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#tradeoffs" class="md-nav__link">
+  <a href="#recommended-first-step" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Tradeoffs
+        Recommended first step
       
     </span>
   </a>
@@ -1548,32 +1626,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#delvewheel-repair" class="md-nav__link">
+  <a href="#public-abi-reference-omnivoiceh-ov_abi_version-3" class="md-nav__link">
     <span class="md-ellipsis">
       
-        delvewheel repair
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#alternative-shared-ggml-source-build" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Alternative: shared-ggml + source build
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#rollout" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Rollout
+        Public ABI reference (omnivoice.h, OV_ABI_VERSION = 3)
       
     </span>
   </a>
@@ -1600,83 +1656,195 @@
   
 
 
-<h1 id="windows-cuda-wheel-prebuilt-dll-path">Windows CUDA wheel: prebuilt DLL path<a class="headerlink" href="#windows-cuda-wheel-prebuilt-dll-path" title="Permanent link">&para;</a></h1>
-<h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
-<p>llama.cpp ships prebuilt CUDA Windows DLLs with every release (e.g. <a href="https://github.com/ggml-org/llama.cpp/releases/tag/b8828">b8828</a> includes <code>llama-b8828-bin-win-cuda-12.4-x64.zip</code>). <code>manage.py</code> already knows how to consume them — but the current <code>build-new-wheels.yml</code> CUDA-Windows job does not use them. This document explains why, what changes to make, and the tradeoffs.</p>
-<h2 id="current-state">Current state<a class="headerlink" href="#current-state" title="Permanent link">&para;</a></h2>
-<p>The CUDA-Windows job in <code>.github/workflows/build-new-wheels.yml</code> pins <code>WITH_DYLIB=0</code> and does not pass <code>--dynamic</code> to <code>manage.py build</code>. That forces a full static compile of llama.cpp under cibuildwheel, which invokes <code>nvcc</code> against the ggml-cuda source tree. This is by far the slowest part of the CI job and requires the full CUDA toolkit to be installed on the runner.</p>
-<p>Meanwhile, <code>manage.py:1329-1331</code> already constructs the right asset filename for a Windows CUDA release:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="k">if</span> <span class="n">getenv</span><span class="p">(</span><span class="s2">&quot;GGML_CUDA&quot;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">cuda_ver</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;LLAMACPP_CUDA_RELEASE&quot;</span><span class="p">,</span> <span class="s2">&quot;12.4&quot;</span><span class="p">)</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;llama-</span><span class="si">{</span><span class="n">version</span><span class="si">}</span><span class="s2">-bin-win-cuda-</span><span class="si">{</span><span class="n">cuda_ver</span><span class="si">}</span><span class="s2">-</span><span class="si">{</span><span class="n">arch_tag</span><span class="si">}</span><span class="s2">.zip&quot;</span>
-</code></pre></div>
-<p>And the build dispatcher at <code>manage.py:2259</code> selects between <code>download_release()</code> (fast) and <code>build_shared()</code> (slow) based on whether an asset exists and whether SD is sharing llama.cpp's ggml.</p>
-<h2 id="recommended-config">Recommended config<a class="headerlink" href="#recommended-config" title="Permanent link">&para;</a></h2>
-<p>Switch the CUDA-Windows job to the dynamic + vendored-SD config. Three env changes in <code>CIBW_ENVIRONMENT_WINDOWS</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nt">CIBW_ENVIRONMENT_WINDOWS</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">&gt;</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="no">GGML_CUDA=1</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span><span class="no">GGML_METAL=0</span>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span><span class="no">GGML_NATIVE=OFF</span>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">  </span><span class="no">CMAKE_CUDA_ARCHITECTURES=&quot;75&quot;</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">  </span><span class="no">WITH_DYLIB=1</span>
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">  </span><span class="no">SD_USE_VENDORED_GGML=1</span>
-</code></pre></div>
-<p>And pass <code>--dynamic</code> in the build step:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="l l-Scalar l-Scalar-Plain">python scripts/manage.py build --all --deps-only --no-sd-examples --dynamic &amp;&amp;</span>
-</code></pre></div>
-<p><code>SD_USE_VENDORED_GGML=1</code> is the critical pairing: the upstream prebuilt Windows DLLs are compiled with stock <code>GGML_MAX_NAME=64</code>. If SD tried to share those DLLs' ggml it would hit the same <code>ggml_tensor</code> layout mismatch documented in <code>ggml_max_name.md</code>. By having SD statically link its own vendored ggml (self-consistent at whatever <code>GGML_MAX_NAME</code> SD defaults to), the layout hazard disappears.</p>
-<p>With that pairing in place, the gate at <code>manage.py:2259</code> (<code>if asset is None or _sd_uses_shared_ggml()</code>) evaluates false and takes the <code>download_release()</code> fast path.</p>
-<h2 id="tradeoffs">Tradeoffs<a class="headerlink" href="#tradeoffs" title="Permanent link">&para;</a></h2>
-<p><strong>Wins:</strong></p>
+<h1 id="cyllama-plugins-architecture">cyllama Plugins Architecture<a class="headerlink" href="#cyllama-plugins-architecture" title="Permanent link">&para;</a></h1>
+<p>Status: proposal / design recommendation Context: GitHub issue <a href="https://github.com/shakfu/cyllama/issues/16">#16</a> — request to integrate <a href="https://github.com/ServeurpersoCom/acestep.cpp">acestep.cpp</a> (music generation) and <a href="https://github.com/ServeurpersoCom/omnivoice.cpp">omnivoice.cpp</a> (multilingual TTS + voice cloning), both by @ServeurpersoCom.</p>
+<p>This document records the recommendation for how to integrate self-contained <code>.cpp</code> model libraries into the cyllama family as <strong>plugins</strong> rather than baking them into the core wheel.</p>
+<h2 id="tldr">TL;DR<a class="headerlink" href="#tldr" title="Permanent link">&para;</a></h2>
 <ul>
 <li>
-<p>Much faster CI: no <code>nvcc</code> compile of ggml-cuda from source — the longest single step in today's Linux CUDA job is eliminated on Windows</p>
+<p>A plugin model is <strong>feasible and recommended</strong> for self-contained <code>.cpp</code> libs that vendor their own ggml (omnivoice, acestep). It is <em>not</em> suitable for libs that extend llama.cpp internals and share core's ggml ABI.</p>
 </li>
 <li>
-<p>Smaller runner footprint: arguably no need for the full CUDA toolkit install, just the runtime DLLs that the prebuilt zip already contains (verify before relying on this — nvcc may still be needed for Cython bindings that touch CUDA headers)</p>
+<p>Ship <strong>one repo (<code>cyllama-plugins</code>), one wheel per plugin</strong> (<code>cyllama-omnivoice</code>, <code>cyllama-acestep</code>, …) — not a single fat bundle.</p>
 </li>
 <li>
-<p>Matches the upstream llama.cpp binary exactly, which simplifies bug reports</p>
+<p>Surface plugins <strong>both</strong> standalone (<code>import cyllama_omnivoice</code>) <strong>and</strong> under the <code>cyllama.</code> namespace via entry-point discovery.</p>
+</li>
+<li>
+<p>Plugins stay <strong>independent</strong> of core; core integration (e.g. whisper → TTS) lives in examples, not as a hard dependency.</p>
+</li>
+<li>
+<p><strong>CPU-first</strong>; add GPU wheels per plugin on demand.</p>
+</li>
+<li>
+<p><strong>Prototype in-tree first</strong> (behind <code>WITH_OMNIVOICE=OFF</code>), prove real synthesis + live ggml coexistence, <em>then</em> extract into the separate plugin repo.</p>
 </li>
 </ul>
-<p><strong>Costs:</strong></p>
+<h2 id="why-this-works-the-phase-0-isolation-result">Why this works: the Phase 0 isolation result<a class="headerlink" href="#why-this-works-the-phase-0-isolation-result" title="Permanent link">&para;</a></h2>
+<p>The enabling fact is that these libraries are fully self-contained at the ABI level. Building omnivoice.cpp with the recipe below produces a <code>libomnivoice.so</code> that:</p>
 <ul>
 <li>
-<p>SD statically links its own ggml, so the wheel carries two ggml copies (llama.cpp's in the DLLs + SD's embedded in <code>libstable-diffusion.a</code>). Slightly larger than the shared-ggml Linux CUDA wheel</p>
+<p>has <strong>no external <code>libggml</code> dependency</strong> (ggml is statically baked in; only <code>libgomp</code>/<code>libstdc++</code>/<code>libm</code>/<code>libgcc_s</code>/<code>libc</code> remain as <code>NEEDED</code>),</p>
 </li>
 <li>
-<p>Locked to the CUDA version upstream ships (currently 12.4). Users on older drivers may have compatibility issues. <code>LLAMACPP_CUDA_RELEASE</code> lets you pick a different release variant if upstream publishes more than one</p>
+<p>exports <strong>0 <code>ggml_*</code> and 0 <code>gguf_*</code> symbols</strong>, and exactly the <strong>13 <code>ov_*</code></strong> public ABI functions,</p>
+</li>
+<li>
+<p>in omnivoice's case, has <strong>no dependency on llama.cpp at all</strong>.</p>
 </li>
 </ul>
-<h2 id="delvewheel-repair">delvewheel repair<a class="headerlink" href="#delvewheel-repair" title="Permanent link">&para;</a></h2>
-<p>When <code>WITH_DYLIB=1</code>, the following DLLs will need to land in the wheel from <code>thirdparty/llama.cpp/dynamic/</code>:</p>
-<ul>
-<li>
-<p><code>llama.dll</code></p>
-</li>
-<li>
-<p><code>ggml.dll</code></p>
-</li>
-<li>
-<p><code>ggml-base.dll</code></p>
-</li>
-<li>
-<p><code>ggml-cpu.dll</code></p>
-</li>
-<li>
-<p><code>ggml-cuda.dll</code></p>
-</li>
-</ul>
-<p>Verify that <code>delvewheel repair</code> picks them up via the build artifact path after scikit-build-core installs them into the wheel tree. The current <code>--no-dll</code> exclusions for <code>nvcuda.dll</code>, <code>cudart64_12.dll</code>, <code>cublas64_12.dll</code>, <code>cublasLt64_12.dll</code> are still correct (those are system libs the user must provide via the NVIDIA driver / CUDA runtime).</p>
-<p>If delvewheel starts mangling the bundled DLL names (its default for non-system libs), add <code>--no-mangle</code> for the project libs above — this is the Windows analogue of the Linux auditwheel SONAME-rewrite issue documented in <code>cuda-double-free.md</code>.</p>
-<h2 id="alternative-shared-ggml-source-build">Alternative: shared-ggml + source build<a class="headerlink" href="#alternative-shared-ggml-source-build" title="Permanent link">&para;</a></h2>
-<p>To match the Linux-CUDA dynamic wheel exactly (shared ggml across llama/whisper/SD, <code>GGML_MAX_NAME=128</code>, single ggml copy), the config would be:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>WITH_DYLIB=1
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>SD_USE_VENDORED_GGML=0
+<p>Because a plugin shares nothing with core at the ABI level, it can be built, versioned, and shipped as a completely independent wheel. That is the entire precondition for a plugin system, and it was verified empirically (symbol + <code>ldd</code>/<code>readelf</code> inspection, and an ABI consumer smoke test).</p>
+<h3 id="the-proven-build-recipe">The proven build recipe<a class="headerlink" href="#the-proven-build-recipe" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>-DBUILD_SHARED_LIBS=OFF                       # ggml -&gt; static, baked into the .so
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>-DOMNIVOICE_SHARED=ON                         # omnivoice itself -&gt; shared (only ov_* visible)
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>-DGGML_BACKEND_DL=OFF                          # backends linked in, not dlopen&#39;d
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>-DCMAKE_C_VISIBILITY_PRESET=hidden
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>-DCMAKE_CXX_VISIBILITY_PRESET=hidden
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>-DCMAKE_VISIBILITY_INLINES_HIDDEN=ON
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>-DCMAKE_POSITION_INDEPENDENT_CODE=ON
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>-DCMAKE_SHARED_LINKER_FLAGS=-Wl,--exclude-libs,ALL
 </code></pre></div>
-<p>But this forces <code>build_shared()</code> from source (the gate at <code>manage.py:2259</code> takes the slow path), which eliminates the speed win that motivated using the prebuilt DLLs in the first place. Not recommended for CI unless wheel size becomes a hard constraint.</p>
-<h2 id="rollout">Rollout<a class="headerlink" href="#rollout" title="Permanent link">&para;</a></h2>
-<p>For the new-wheels testbed, start with dynamic + vendored. Once CI is green and a test install works on a Windows box with an NVIDIA GPU, decide whether the few MB of duplicated ggml matters enough to switch to the source-build shared-ggml config.</p>
+<blockquote>
+<p><strong>Critical correction discovered during Phase 0:</strong> <code>OMNIVOICE_SHARED=ON</code> &gt; <em>without</em> <code>BUILD_SHARED_LIBS=OFF</code> looks clean on a <code>nm</code> symbol check but &gt; secretly carries <code>NEEDED libggml.so.0</code> — which would collide with llama.cpp's &gt; identically-named <code>libggml.so.0</code> at load time (the dynamic linker resolves the &gt; SONAME to a single file → crash). Forcing ggml <strong>static</strong> is mandatory, not &gt; optional. Always verify with <code>ldd</code>/<code>readelf -d</code>, not <code>nm</code> alone.</p>
+</blockquote>
+<h2 id="scope-where-the-plugin-model-applies">Scope: where the plugin model applies<a class="headerlink" href="#scope-where-the-plugin-model-applies" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Library shape</th>
+<th>Plugin-friendly?</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Self-contained, vendors own ggml (omnivoice, acestep)</td>
+<td>yes</td>
+<td>Sealed <code>.so</code>, no ABI lockstep with core</td>
+</tr>
+<tr>
+<td>Extends llama.cpp internals, shares core's ggml ABI</td>
+<td>no</td>
+<td>Needs version lockstep with core; defeats independent packaging</td>
+</tr>
+</tbody>
+</table>
+<p>"Plugins" here means <em>a family of self-contained native model wrappers</em>, not an arbitrary extension point into core internals.</p>
+<h2 id="recommended-architecture">Recommended architecture<a class="headerlink" href="#recommended-architecture" title="Permanent link">&para;</a></h2>
+<h3 id="repo-layout-one-repo-one-wheel-per-plugin">Repo layout — one repo, one wheel per plugin<a class="headerlink" href="#repo-layout-one-repo-one-wheel-per-plugin" title="Permanent link">&para;</a></h3>
+<p><code>cyllama-plugins</code> is the <strong>repo/umbrella</strong>, shipping <strong>a wheel per plugin</strong>, not one fat wheel. A single bundled wheel would force every user to download every model's native lib + its own ggml copy + every GPU variant just to get one modality — throwing away the main benefit (small, à la carte installs).</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>cyllama-plugins/                 # the repo
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>├─ shared/                       # the Phase-0 Builder recipe + CMake helpers, factored once
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>├─ plugins/
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>│  ├─ omnivoice/                 # -&gt; wheel: cyllama-omnivoice   (multilingual TTS + voice clone)
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>│  │   ├─ pyproject.toml         #    scikit-build-core, name=&quot;cyllama-omnivoice&quot;
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>│  │   ├─ CMakeLists.txt         #    builds self-contained libomnivoice.so + Cython ext
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>│  │   └─ src/cyllama_omnivoice/
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>│  └─ acestep/                   # -&gt; wheel: cyllama-acestep     (music gen; later)
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>└─ (optional) cyllama-plugins meta-wheel -&gt; just deps on the individual plugin wheels
+</code></pre></div>
+<p>Each plugin is its own scikit-build-core project reusing the proven recipe above.</p>
+<h3 id="import-cli-surface-both-via-entry-point-discovery">Import / CLI surface — both, via entry-point discovery<a class="headerlink" href="#import-cli-surface-both-via-entry-point-discovery" title="Permanent link">&para;</a></h3>
+<p>Each plugin is importable standalone <strong>and</strong> lazily surfaced under <code>cyllama.</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># 1. Standalone — omnivoice needs nothing from core</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama_omnivoice</span><span class="w"> </span><span class="kn">import</span> <span class="n">OmniVoice</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">tts</span> <span class="o">=</span> <span class="n">OmniVoice</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s2">&quot;omnivoice-base-Q8_0.gguf&quot;</span><span class="p">,</span> <span class="n">codec</span><span class="o">=</span><span class="s2">&quot;omnivoice-tokenizer-F32.gguf&quot;</span><span class="p">)</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="n">tts</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;hello.wav&quot;</span><span class="p">,</span> <span class="s2">&quot;Hello world&quot;</span><span class="p">,</span> <span class="n">lang</span><span class="o">=</span><span class="s2">&quot;en&quot;</span><span class="p">)</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="c1"># 2. Unified namespace — core lazily exposes installed plugins</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="kn">import</span><span class="w"> </span><span class="nn">cyllama</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="n">cyllama</span><span class="o">.</span><span class="n">omnivoice</span><span class="o">.</span><span class="n">OmniVoice</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>        <span class="c1"># works if the plugin wheel is present,</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>                                        <span class="c1"># else: &quot;pip install cyllama-omnivoice&quot;</span>
+</code></pre></div>
+<p>Discovery is via entry points, <strong>not</strong> namespace packages (which are fragile when mixing a regular core package with separately-built contributions). Each plugin declares:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">[project.entry-points.</span><span class="s2">&quot;cyllama.plugins&quot;</span><span class="k">]</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">omnivoice</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;cyllama_omnivoice:register&quot;</span>
+</code></pre></div>
+<p>Core grows a tiny loader (~30 lines, zero per-plugin coupling): <code>cyllama/__init__.py</code> gets a <code>__getattr__</code> that resolves <code>cyllama.&lt;name&gt;</code> against the <code>cyllama.plugins</code> entry-point group, and the <code>cyllama</code> CLI auto-registers a subcommand per discovered plugin (<code>cyllama omnivoice -m … --codec … -p "Hi"</code>).</p>
+<h3 id="relationship-to-core-independent-optional-one-way-integration">Relationship to core — independent, optional one-way integration<a class="headerlink" href="#relationship-to-core-independent-optional-one-way-integration" title="Permanent link">&para;</a></h3>
+<p>Plugins depend on <strong>nothing</strong> in core (that is what keeps the isolation clean — don't give it up). Valuable glue such as whisper transcript → omnivoice TTS lives in <strong>examples/recipes</strong>, not as a hard dependency. A plugin may optionally <code>import cyllama</code> if present, but must work without it.</p>
+<h2 id="the-one-real-cost-gpu-wheel-matrix">The one real cost: GPU wheel matrix<a class="headerlink" href="#the-one-real-cost-gpu-wheel-matrix" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Plugin repo (per-plugin wheels)</th>
+<th>In-core <code>WITH_*</code> flag</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Core wheel size</td>
+<td>unchanged</td>
+<td>grows per model</td>
+</tr>
+<tr>
+<td>Release cadence</td>
+<td><strong>independent</strong> (upstreams move fast: 528 / 73 commits)</td>
+<td>locked to core releases</td>
+</tr>
+<tr>
+<td>Per-plugin backend gaps (e.g. no SYCL)</td>
+<td>isolated — don't block core</td>
+<td>complicate the <code>cyllama-sycl</code> wheel</td>
+</tr>
+<tr>
+<td>GPU packaging</td>
+<td><strong>each plugin needs its own cpu/cuda/rocm/vulkan wheels</strong> → matrix multiplies</td>
+<td>one shared matrix</td>
+</tr>
+<tr>
+<td>Per-process cost</td>
+<td>each plugin carries its own ggml copy (~MBs RAM/disk)</td>
+<td>one shared ggml</td>
+</tr>
+</tbody>
+</table>
+<p>The cadence + backend-gap decoupling is why the plugin repo wins for these fast-moving, partial-backend upstreams. The cost is the GPU matrix — mitigated by <strong>starting CPU-only</strong> and adding GPU wheels per plugin on demand.</p>
+<h2 id="recommended-first-step">Recommended first step<a class="headerlink" href="#recommended-first-step" title="Permanent link">&para;</a></h2>
+<p><strong>Prototype omnivoice in-tree behind <code>WITH_OMNIVOICE=OFF</code>, drive it to a real 24 kHz WAV, and confirm <code>import cyllama</code> + omnivoice coexist live.</strong> That single milestone validates everything the plugin architecture rests on. (Phase 0 only proved static linkage; it never loaded both ggml copies into one process at once — the in-tree synthesis test does.) If it holds, extracting to <code>cyllama-plugins</code> is mechanical.</p>
+<p>In this repo:</p>
+<ol>
+<li>
+<p><code>OmniVoiceCppBuilder</code> in <code>scripts/manage.py</code> encoding the proven recipe; copy <code>src/omnivoice.h</code> + <code>libomnivoice.so</code> into <code>thirdparty/omnivoice.cpp/{include,lib}</code>.</p>
+</li>
+<li>
+<p><code>src/cyllama/omnivoice/omnivoice.{pxd,pyx}</code> wrapping the 13 <code>ov_*</code> functions, plus a small <code>OmniVoice</code> class returning NumPy samples / writing a WAV.</p>
+</li>
+<li>
+<p><code>WITH_OMNIVOICE</code> option in <code>CMakeLists.txt</code> (default OFF), dynamic extension linking only <code>libomnivoice.so</code> (mirrors the dynamic <code>whisper_cpp</code> target).</p>
+</li>
+<li>
+<p>Smoke test: download a Q8_0 base + F32 tokenizer from <a href="https://huggingface.co/Serveurperso/OmniVoice-GGUF"><code>Serveurperso/OmniVoice-GGUF</code></a>, synthesize "Hello world", assert a non-empty 24 kHz mono WAV — in a process that has also imported <code>cyllama</code>.</p>
+</li>
+</ol>
+<p>Once the pilot generates a WAV and coexists with core in one process, acestep and future libs are repetition. acestep is a bigger lift and should follow omnivoice: it currently exposes <strong>no public library API</strong> (only executables + an internal <code>acestep-core</code> static lib with no install rules), so wrapping it needs either an upstream <code>libacestep</code> + public header, or a subprocess/HTTP-server integration style cyllama does not currently use. Its SYCL support is also still experimental (acestep.cpp#54).</p>
+<h2 id="public-abi-reference-omnivoiceh-ov_abi_version-3">Public ABI reference (omnivoice.h, OV_ABI_VERSION = 3)<a class="headerlink" href="#public-abi-reference-omnivoiceh-ov_abi_version-3" title="Permanent link">&para;</a></h2>
+<p>The 13 exported functions wrapped by the plugin:</p>
+<ul>
+<li>
+<p><code>ov_version</code>, <code>ov_last_error</code></p>
+</li>
+<li>
+<p><code>ov_init_default_params</code>, <code>ov_init</code>, <code>ov_free</code></p>
+</li>
+<li>
+<p><code>ov_tts_default_params</code>, <code>ov_synthesize</code></p>
+</li>
+<li>
+<p><code>ov_audio_free</code></p>
+</li>
+<li>
+<p><code>ov_duration_sec_to_tokens</code>, <code>ov_num_codebooks</code></p>
+</li>
+<li>
+<p><code>ov_extract_voice_ref</code>, <code>ov_voice_ref_free</code></p>
+</li>
+<li>
+<p><code>ov_log_set</code></p>
+</li>
+</ul>
+<p>Output is mono float PCM at 24 kHz (<code>struct ov_audio</code>). Voice cloning is supported via either pre-encoded RVQ tokens or raw 24 kHz reference audio (<code>ov_tts_params.ref_audio_tokens</code> / <code>ref_audio_24k</code>).</p>
 
 
 

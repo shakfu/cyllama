@@ -1629,14 +1629,10 @@
 
 
 <h1 id="pypi-deployment">PyPI Deployment<a class="headerlink" href="#pypi-deployment" title="Permanent link">&para;</a></h1>
-<p>How cyllama and its GPU variants are published to PyPI, how to configure the
-publishing token, and how to harden the publish jobs with a GitHub environment.</p>
+<p>How cyllama and its GPU variants are published to PyPI, how to configure the publishing token, and how to harden the publish jobs with a GitHub environment.</p>
 <h2 id="what-gets-published">What gets published<a class="headerlink" href="#what-gets-published" title="Permanent link">&para;</a></h2>
-<p>As of v0.3.0 the published wheels are <strong>abi3-only</strong> (<code>cp312-abi3</code>, Python
-3.12+). See <a href="../abi3/">abi3.md</a> for the rationale.</p>
-<p>cyllama is distributed as several <strong>separate PyPI projects</strong> — the base
-package plus one per GPU backend (the GPU workflows rename the package at
-build time via <code>CIBW_BEFORE_BUILD</code>):</p>
+<p>As of v0.3.0 the published wheels are <strong>abi3-only</strong> (<code>cp312-abi3</code>, Python 3.12+). See <a href="../abi3/">abi3.md</a> for the rationale.</p>
+<p>cyllama is distributed as several <strong>separate PyPI projects</strong> — the base package plus one per GPU backend (the GPU workflows rename the package at build time via <code>CIBW_BEFORE_BUILD</code>):</p>
 <table>
 <thead>
 <tr>
@@ -1655,16 +1651,11 @@ build time via <code>CIBW_BEFORE_BUILD</code>):</p>
 </tr>
 </tbody>
 </table>
-<p>Each project has its own 10 GB PyPI size quota, which is the main reason for
-the abi3 switch (one wheel per platform instead of five).</p>
+<p>Each project has its own 10 GB PyPI size quota, which is the main reason for the abi3 switch (one wheel per platform instead of five).</p>
 <h2 id="two-ways-to-publish">Two ways to publish<a class="headerlink" href="#two-ways-to-publish" title="Permanent link">&para;</a></h2>
 <h3 id="1-ci-workflows-recommended-for-releases">1. CI workflows (recommended for releases)<a class="headerlink" href="#1-ci-workflows-recommended-for-releases" title="Permanent link">&para;</a></h3>
-<p>Each of the four wheel workflows has an <strong>optional</strong> <code>publish_to_pypi</code> job,
-gated behind a <code>workflow_dispatch</code> input (default <code>false</code>). It is inert on
-normal CI runs; publishing only happens when you explicitly enable it at
-dispatch time.</p>
-<p>The job downloads the collected-wheels artifact and uploads via
-<code>pypa/gh-action-pypi-publish</code> using an API token:</p>
+<p>Each of the four wheel workflows has an <strong>optional</strong> <code>publish_to_pypi</code> job, gated behind a <code>workflow_dispatch</code> input (default <code>false</code>). It is inert on normal CI runs; publishing only happens when you explicitly enable it at dispatch time.</p>
+<p>The job downloads the collected-wheels artifact and uploads via <code>pypa/gh-action-pypi-publish</code> using an API token:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Publish to PyPI</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypa/gh-action-pypi-publish@release/v1</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span><span class="nt">with</span><span class="p">:</span>
@@ -1672,68 +1663,56 @@ dispatch time.</p>
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">    </span><span class="nt">password</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${{ secrets.PYPI_API_TOKEN }}</span>
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">    </span><span class="nt">skip-existing</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 </code></pre></div>
-<p><code>skip-existing: true</code> makes a re-run after a partial multi-wheel upload
-idempotent (PyPI forbids overwriting an existing version regardless).</p>
-<p>To cut a release: trigger the workflow via <strong>Actions -&gt; (workflow) -&gt; Run
-workflow</strong>, set <code>publish_to_pypi</code> (and, if desired, <code>upload_release</code> for the
-GitHub Release) to <code>true</code>.</p>
+<p><code>skip-existing: true</code> makes a re-run after a partial multi-wheel upload idempotent (PyPI forbids overwriting an existing version regardless).</p>
+<p>To cut a release: trigger the workflow via <strong>Actions -&gt; (workflow) -&gt; Run workflow</strong>, set <code>publish_to_pypi</code> (and, if desired, <code>upload_release</code> for the GitHub Release) to <code>true</code>.</p>
 <h3 id="2-local-manual-publish">2. Local manual publish<a class="headerlink" href="#2-local-manual-publish" title="Permanent link">&para;</a></h3>
-<p><code>make publish</code> runs <code>twine upload dist/*.whl</code> against whatever is in <code>dist/</code>.
-<code>make check</code> (a prerequisite of <code>publish</code>) refuses any non-abi3 wheel, so a
-stray per-version build cannot be uploaded by mistake. Because a single
-machine can only build one platform's wheels, the local path is mainly for
-quick single-platform fixes; full releases come from CI.</p>
+<p><code>make publish</code> runs <code>twine upload dist/*.whl</code> against whatever is in <code>dist/</code>. <code>make check</code> (a prerequisite of <code>publish</code>) refuses any non-abi3 wheel, so a stray per-version build cannot be uploaded by mistake. Because a single machine can only build one platform's wheels, the local path is mainly for quick single-platform fixes; full releases come from CI.</p>
 <h2 id="creating-the-pypi-api-token">Creating the PyPI API token<a class="headerlink" href="#creating-the-pypi-api-token" title="Permanent link">&para;</a></h2>
-<p>Authentication is via an <strong>API token</strong> (consistently — we do not use OIDC
-trusted publishing; see the note at the end for why).</p>
+<p>Authentication is via an <strong>API token</strong> (consistently — we do not use OIDC trusted publishing; see the note at the end for why).</p>
 <ol>
-<li>Log in at <a href="https://pypi.org">https://pypi.org</a> -&gt; <strong>Account settings</strong> -&gt; <strong>API tokens</strong> -&gt;
-   <strong>Add API token</strong>.</li>
-<li>Name it, e.g. <code>cyllama-github-actions</code>.</li>
-<li><strong>Scope</strong> — choose <strong>"Entire account"</strong> (account-wide). This is required
-   because the GPU workflows upload several distinct projects
-   (<code>cyllama-cuda12</code>, <code>cyllama-vulkan</code>, ...) in a single step, so one
-   account-scoped token must cover them all. Project-scoped tokens are more
-   restrictive but would need one token per project and could not drive the
-   GPU single-step upload from one secret.</li>
-<li>Copy the token — it is shown <strong>once</strong> and looks like <code>pypi-AgEIcHlwaS5vcmc...</code>.</li>
+<li>
+<p>Log in at <a href="https://pypi.org">https://pypi.org</a> -&gt; <strong>Account settings</strong> -&gt; <strong>API tokens</strong> -&gt; <strong>Add API token</strong>.</p>
+</li>
+<li>
+<p>Name it, e.g. <code>cyllama-github-actions</code>.</p>
+</li>
+<li>
+<p><strong>Scope</strong> — choose <strong>"Entire account"</strong> (account-wide). This is required because the GPU workflows upload several distinct projects (<code>cyllama-cuda12</code>, <code>cyllama-vulkan</code>, ...) in a single step, so one account-scoped token must cover them all. Project-scoped tokens are more restrictive but would need one token per project and could not drive the GPU single-step upload from one secret.</p>
+</li>
+<li>
+<p>Copy the token — it is shown <strong>once</strong> and looks like <code>pypi-AgEIcHlwaS5vcmc...</code>.</p>
+</li>
 </ol>
-<p>A project-scoped token can only be created after the project already exists on
-PyPI. An account-scoped token avoids this chicken-and-egg for new projects.</p>
+<p>A project-scoped token can only be created after the project already exists on PyPI. An account-scoped token avoids this chicken-and-egg for new projects.</p>
 <h2 id="adding-the-token-as-a-github-secret">Adding the token as a GitHub secret<a class="headerlink" href="#adding-the-token-as-a-github-secret" title="Permanent link">&para;</a></h2>
-<p>The secret name <strong>must be exactly <code>PYPI_API_TOKEN</code></strong> — that is what all four
-workflows reference.</p>
+<p>The secret name <strong>must be exactly <code>PYPI_API_TOKEN</code></strong> — that is what all four workflows reference.</p>
 <ul>
-<li><strong>Web UI</strong>: repository -&gt; <strong>Settings</strong> -&gt; <strong>Secrets and variables</strong> -&gt;
-  <strong>Actions</strong> -&gt; <strong>New repository secret</strong>. Name <code>PYPI_API_TOKEN</code>, value = the
-  full <code>pypi-...</code> string.</li>
-<li><strong>gh CLI</strong> (prompts for the value, so it stays out of shell history):</li>
+<li>
+<p><strong>Web UI</strong>: repository -&gt; <strong>Settings</strong> -&gt; <strong>Secrets and variables</strong> -&gt; <strong>Actions</strong> -&gt; <strong>New repository secret</strong>. Name <code>PYPI_API_TOKEN</code>, value = the full <code>pypi-...</code> string.</p>
+</li>
+<li>
+<p><strong>gh CLI</strong> (prompts for the value, so it stays out of shell history):</p>
+</li>
 </ul>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>gh<span class="w"> </span>secret<span class="w"> </span><span class="nb">set</span><span class="w"> </span>PYPI_API_TOKEN
 </code></pre></div>
-<p>You do <strong>not</strong> set a username: <code>pypa/gh-action-pypi-publish</code> uses <code>__token__</code>
-automatically when the token is passed as <code>password:</code>.</p>
+<p>You do <strong>not</strong> set a username: <code>pypa/gh-action-pypi-publish</code> uses <code>__token__</code> automatically when the token is passed as <code>password:</code>.</p>
 <h2 id="hardening-the-pypi-environment">Hardening: the <code>pypi</code> environment<a class="headerlink" href="#hardening-the-pypi-environment" title="Permanent link">&para;</a></h2>
-<p>Each <code>publish_to_pypi</code> job runs in the GitHub Actions <strong><code>pypi</code> environment</strong>
-(<code>environment: pypi</code>). This lets you gate every PyPI upload behind
-environment protection rules:</p>
+<p>Each <code>publish_to_pypi</code> job runs in the GitHub Actions <strong><code>pypi</code> environment</strong> (<code>environment: pypi</code>). This lets you gate every PyPI upload behind environment protection rules:</p>
 <ol>
-<li>Repository -&gt; <strong>Settings</strong> -&gt; <strong>Environments</strong> -&gt; <strong>New environment</strong> -&gt;
-   name it <code>pypi</code>.</li>
-<li>Add <strong>Required reviewers</strong> so a human must approve before any publish job
-   runs. Optionally restrict to specific branches/tags via a deployment
-   branch rule.</li>
-<li>(Optional, more restrictive) Move the <code>PYPI_API_TOKEN</code> secret from a
-   repository secret to an <strong>environment secret</strong> scoped to <code>pypi</code>, so the
-   token is only readable by jobs that target that environment.</li>
+<li>
+<p>Repository -&gt; <strong>Settings</strong> -&gt; <strong>Environments</strong> -&gt; <strong>New environment</strong> -&gt; name it <code>pypi</code>.</p>
+</li>
+<li>
+<p>Add <strong>Required reviewers</strong> so a human must approve before any publish job runs. Optionally restrict to specific branches/tags via a deployment branch rule.</p>
+</li>
+<li>
+<p>(Optional, more restrictive) Move the <code>PYPI_API_TOKEN</code> secret from a repository secret to an <strong>environment secret</strong> scoped to <code>pypi</code>, so the token is only readable by jobs that target that environment.</p>
+</li>
 </ol>
-<p>The environment is referenced by name in the workflows; if it does not exist
-yet, GitHub creates it on first use with no protection rules, so configure the
-reviewers before relying on the gate.</p>
+<p>The environment is referenced by name in the workflows; if it does not exist yet, GitHub creates it on first use with no protection rules, so configure the reviewers before relying on the gate.</p>
 <h2 id="testpypi-dry-runs">TestPyPI dry runs<a class="headerlink" href="#testpypi-dry-runs" title="Permanent link">&para;</a></h2>
-<p>The workflows publish to real PyPI (no <code>repository-url</code> set). To rehearse
-against TestPyPI instead, add a separate TestPyPI token and point the action
-at the test index:</p>
+<p>The workflows publish to real PyPI (no <code>repository-url</code> set). To rehearse against TestPyPI instead, add a separate TestPyPI token and point the action at the test index:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypa/gh-action-pypi-publish@release/v1</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="nt">with</span><span class="p">:</span>
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">    </span><span class="nt">packages-dir</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dist</span>
@@ -1741,16 +1720,9 @@ at the test index:</p>
 <a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">    </span><span class="nt">repository-url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://test.pypi.org/legacy/</span>
 <a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">    </span><span class="nt">skip-existing</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 </code></pre></div>
-<p>Locally, <code>make publish-test</code> already targets TestPyPI
-(<code>twine upload --repository testpypi</code>).</p>
+<p>Locally, <code>make publish-test</code> already targets TestPyPI (<code>twine upload --repository testpypi</code>).</p>
 <h2 id="why-token-auth-not-oidc">Why token auth, not OIDC<a class="headerlink" href="#why-token-auth-not-oidc" title="Permanent link">&para;</a></h2>
-<p>PyPI's OIDC trusted publishing converts cleanly for the single-project CPU
-workflows, but not for the GPU workflows: OIDC mint tokens are project-scoped,
-so the one mixed-<code>dist/</code> upload of four distinct projects would have to be
-split into per-project upload steps, each with its own trusted-publisher
-registration (per project x per workflow filename). A single account-scoped
-API token uploads everything in one step, so we use tokens consistently across
-all four workflows.</p>
+<p>PyPI's OIDC trusted publishing converts cleanly for the single-project CPU workflows, but not for the GPU workflows: OIDC mint tokens are project-scoped, so the one mixed-<code>dist/</code> upload of four distinct projects would have to be split into per-project upload steps, each with its own trusted-publisher registration (per project x per workflow filename). A single account-scoped API token uploads everything in one step, so we use tokens consistently across all four workflows.</p>
 
 
 

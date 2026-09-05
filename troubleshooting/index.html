@@ -2616,7 +2616,7 @@
 </ol>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.llama.llama_cpp</span><span class="w"> </span><span class="kn">import</span> <span class="n">GGUFContext</span>
 <a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="n">ctx</span> <span class="o">=</span> <span class="n">GGUFContext</span><span class="o">.</span><span class="n">from_file</span><span class="p">(</span><span class="s2">&quot;model.gguf&quot;</span><span class="p">)</span>
-<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="nb">print</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">get_val_str</span><span class="p">(</span><span class="s2">&quot;general.architecture&quot;</span><span class="p">))</span>
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="nb">print</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">get_value</span><span class="p">(</span><span class="s2">&quot;general.architecture&quot;</span><span class="p">))</span>
 </code></pre></div>
 <h3 id="chat-format-issues">Chat Format Issues<a class="headerlink" href="#chat-format-issues" title="Permanent link">&para;</a></h3>
 <p><strong>Cause:</strong> Model expects specific chat format that isn't being applied.</p>
@@ -2707,15 +2707,17 @@
 <ol>
 <li><strong>Verify the build detected CUDA:</strong></li>
 </ol>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama</span><span class="w"> </span><span class="kn">import</span> <span class="n">_backend</span>
-<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a><span class="nb">print</span><span class="p">(</span><span class="n">_backend</span><span class="o">.</span><span class="n">cuda</span><span class="p">)</span>  <span class="c1"># Should be True</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama._internal</span><span class="w"> </span><span class="kn">import</span> <span class="n">build_config</span>
+<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a><span class="nb">print</span><span class="p">(</span><span class="n">build_config</span><span class="o">.</span><span class="n">backend_enabled</span><span class="p">(</span><span class="s2">&quot;cuda&quot;</span><span class="p">))</span>  <span class="c1"># Should be True</span>
 </code></pre></div>
 <p>If <code>False</code>, the package was not built with CUDA support. Rebuild with <code>GGML_CUDA=1</code>.</p>
 <h3 id="vulkan-issues">Vulkan Issues<a class="headerlink" href="#vulkan-issues" title="Permanent link">&para;</a></h3>
 <p><strong>Symptoms:</strong> Vulkan backend not loading.</p>
 <p><strong>Solutions:</strong></p>
 <ol>
-<li><strong>Install Vulkan SDK:</strong></li>
+<li>
+<p><strong>Install Vulkan SDK:</strong></p>
+</li>
 <li>
 <p>Linux: <code>sudo apt install vulkan-tools libvulkan-dev</code></p>
 </li>
@@ -2913,9 +2915,15 @@
 <h2 id="getting-help">Getting Help<a class="headerlink" href="#getting-help" title="Permanent link">&para;</a></h2>
 <p>If you're still having issues:</p>
 <ol>
-<li><strong>Check the logs:</strong> Run with <code>verbose=True</code> for detailed output</li>
-<li><strong>Search existing issues:</strong> <a href="https://github.com/shakfu/cyllama/issues">GitHub Issues</a></li>
-<li><strong>Open a new issue:</strong> Include your platform, Python version, error message, and minimal reproduction code</li>
+<li>
+<p><strong>Check the logs:</strong> Run with <code>verbose=True</code> for detailed output</p>
+</li>
+<li>
+<p><strong>Search existing issues:</strong> <a href="https://github.com/shakfu/cyllama/issues">GitHub Issues</a></p>
+</li>
+<li>
+<p><strong>Open a new issue:</strong> Include your platform, Python version, error message, and minimal reproduction code</p>
+</li>
 </ol>
 
 

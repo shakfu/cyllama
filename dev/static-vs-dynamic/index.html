@@ -2248,10 +2248,18 @@
 <p>llama.cpp is built from source via <code>manage.py</code>, producing <code>.a</code> archives that are linked into <code>.so</code> Python extension modules at build time. Cython <code>.pxd</code> files declare the C/C++ API, and everything gets baked into <code>llama_cpp.cpython-*.so</code>.</p>
 <h3 id="build-flow">Build Flow<a class="headerlink" href="#build-flow" title="Permanent link">&para;</a></h3>
 <ol>
-<li><code>manage.py</code> clones llama.cpp at a pinned commit (currently <code>b8522</code>)</li>
-<li>CMake builds static libraries (<code>libllama.a</code>, <code>libggml*.a</code>, <code>libcommon.a</code>, etc.)</li>
-<li>Libraries and ~56 headers are copied to <code>thirdparty/llama.cpp/{lib,include}/</code></li>
-<li>scikit-build-core runs the root <code>CMakeLists.txt</code>, which:</li>
+<li>
+<p><code>manage.py</code> clones llama.cpp at a pinned commit (currently <code>b8522</code>)</p>
+</li>
+<li>
+<p>CMake builds static libraries (<code>libllama.a</code>, <code>libggml*.a</code>, <code>libcommon.a</code>, etc.)</p>
+</li>
+<li>
+<p>Libraries and ~56 headers are copied to <code>thirdparty/llama.cpp/{lib,include}/</code></p>
+</li>
+<li>
+<p>scikit-build-core runs the root <code>CMakeLists.txt</code>, which:</p>
+</li>
 <li>
 <p>Transpiles <code>.pyx</code> to <code>.cxx</code> via Cython</p>
 </li>
@@ -2622,9 +2630,15 @@
 <p><strong>No public API equivalent exists.</strong> Speculative decoding orchestrates two models (draft + target) with coordinated KV cache management. This is ~500 lines of C++ with nontrivial algorithmic content (tree-based verification, KV cache rollback).</p>
 <p><strong>Replacement strategy options</strong>:</p>
 <ol>
-<li><strong>Reimplement in Python</strong>: Use public <code>llama_decode()</code>, <code>llama_memory_seq_rm/cp()</code>, and sampler APIs to orchestrate the draft-verify loop. Feasible but significant effort.</li>
-<li><strong>Keep as optional C++ dependency</strong>: Build only <code>libcommon-speculative.a</code> from source for users who need this feature.</li>
-<li><strong>Drop feature</strong>: If speculative decoding is not a core use case.</li>
+<li>
+<p><strong>Reimplement in Python</strong>: Use public <code>llama_decode()</code>, <code>llama_memory_seq_rm/cp()</code>, and sampler APIs to orchestrate the draft-verify loop. Feasible but significant effort.</p>
+</li>
+<li>
+<p><strong>Keep as optional C++ dependency</strong>: Build only <code>libcommon-speculative.a</code> from source for users who need this feature.</p>
+</li>
+<li>
+<p><strong>Drop feature</strong>: If speculative decoding is not a core use case.</p>
+</li>
 </ol>
 <p><strong>Effort</strong>: High. ~500 lines of algorithmic C++ to reimplement, with subtle correctness requirements around KV cache state management.</p>
 <p><strong>Risk</strong>: Medium-high. KV cache coordination bugs would cause silent correctness issues.</p>
@@ -3088,7 +3102,7 @@
 <p><code>LLAMACPP_DYLIB_DIR=/path/to/release</code> -- directory containing pre-built shared libraries</p>
 </li>
 <li>
-<p><code>SD_USE_VENDORED_GGML=ON</code> (default) -- link stable-diffusion against its own vendored ggml; set to <code>OFF</code> to share llama.cpp's ggml (not recommended for GPU backends)</p>
+<p><code>SD_USE_VENDORED_GGML=OFF</code> (default) -- stable-diffusion shares llama.cpp's ggml; set to <code>ON</code> to link SD's own vendored copy instead</p>
 </li>
 </ul>
 <p><strong>How it works</strong>:</p>
@@ -3106,7 +3120,7 @@
 <p>Shared libraries copied alongside extension modules (<code>cyllama/llama/</code>) so <code>@loader_path</code>/<code>$ORIGIN</code> RPATH resolves correctly</p>
 </li>
 <li>
-<p>Whisper and Stable Diffusion remain statically linked (no pre-built releases available). Stable Diffusion uses its own vendored ggml by default; set <code>SD_USE_VENDORED_GGML=0</code> to share llama.cpp's ggml (not recommended for GPU backends due to ggml version incompatibilities)</p>
+<p>Whisper and Stable Diffusion remain statically linked (no pre-built releases available). Stable Diffusion shares llama.cpp's ggml by default, with <code>_sync_ggml_abi()</code> overlaying llama.cpp's ggml source onto SD before compilation so both sides agree on enum ordinals and <code>GGML_MAX_NAME</code>; set <code>SD_USE_VENDORED_GGML=1</code> to link SD's own vendored copy instead</p>
 </li>
 </ul>
 <p><strong>Validated results</strong> (macOS arm64, b8522 release):</p>
@@ -3125,10 +3139,8 @@
 <h2 id="dev-branch-merge-analysis-2026-03-28">Dev Branch Merge Analysis (2026-03-28)<a class="headerlink" href="#dev-branch-merge-analysis-2026-03-28" title="Permanent link">&para;</a></h2>
 <p>Analysis of the <code>dev</code> branch changes since v0.1.21 (<code>main</code>), covering 11 commits, 63 files, +27,633 / -4,246 lines.</p>
 <h3 id="pros-of-merging">Pros of merging<a class="headerlink" href="#pros-of-merging" title="Permanent link">&para;</a></h3>
-<p><strong>1. Eliminates internal C++ API fragility (the biggest win)</strong>
-The branch removes all <code>common.h</code>/<code>libcommon</code> dependencies (~4200 lines deleted across <code>.pxd</code>/<code>.pxi</code> files). The extension now uses only public C APIs (<code>llama.h</code>, <code>ggml.h</code>, <code>gguf.h</code>, <code>mtmd.h</code>). This decouples cyllama from llama.cpp internals that break between releases, making future upstream version bumps significantly safer.</p>
-<p><strong>2. Enables dynamic linking</strong>
-<code>WITH_DYLIB=1</code> is a new build mode that links against pre-built llama.cpp releases instead of compiling from source. Extension size drops from ~15 MB to ~1.6 MB, build time goes from minutes to seconds. This unblocks faster iteration and simpler CI.</p>
+<p><strong>1. Eliminates internal C++ API fragility (the biggest win)</strong> The branch removes all <code>common.h</code>/<code>libcommon</code> dependencies (~4200 lines deleted across <code>.pxd</code>/<code>.pxi</code> files). The extension now uses only public C APIs (<code>llama.h</code>, <code>ggml.h</code>, <code>gguf.h</code>, <code>mtmd.h</code>). This decouples cyllama from llama.cpp internals that break between releases, making future upstream version bumps significantly safer.</p>
+<p><strong>2. Enables dynamic linking</strong> <code>WITH_DYLIB=1</code> is a new build mode that links against pre-built llama.cpp releases instead of compiling from source. Extension size drops from ~15 MB to ~1.6 MB, build time goes from minutes to seconds. This unblocks faster iteration and simpler CI.</p>
 <p><strong>3. Build system consistency</strong></p>
 <ul>
 <li>
@@ -3153,19 +3165,13 @@ The branch removes all <code>common.h</code>/<code>libcommon</code> dependencies
 <p><code>_build_info.py</code> reporting wrong ggml version for SD</p>
 </li>
 </ul>
-<p><strong>5. Cleaner test suite</strong>
-Removed ~220 lines of tests for <code>CommonParams</code>/<code>CommonParamsSampling</code> that tested deleted wrapper classes. The remaining tests cover the actual public API.</p>
+<p><strong>5. Cleaner test suite</strong> Removed ~220 lines of tests for <code>CommonParams</code>/<code>CommonParamsSampling</code> that tested deleted wrapper classes. The remaining tests cover the actual public API.</p>
 <h3 id="cons-of-merging">Cons of merging<a class="headerlink" href="#cons-of-merging" title="Permanent link">&para;</a></h3>
-<p><strong>1. Large, multi-concern changeset</strong>
-11 commits touching 63 files with +27,633 / -4,246 lines. Hard to review atomically or bisect if something regresses. The changes span: API refactor, build system overhaul, new build mode, vendored dependency, bug fixes. Ideally these would be separate PRs, but they're intertwined (e.g., public API refactor enables dynamic linking).</p>
-<p><strong>2. Removed public Python API surface</strong>
-<code>CommonParams</code>, <code>CommonParamsSampling</code>, <code>CommonSampler</code> are gone. Any downstream code using these classes will break. The replacements (<code>LlamaContextParams</code>, <code>LlamaSampler</code>) exist but the migration isn't documented beyond the changelog. This is a breaking change that warrants a minor version bump.</p>
-<p><strong>3. Vendored sqlite-vector adds ~24K lines of C to the repo</strong>
-The <code>thirdparty/sqlite-vector/</code> directory includes <code>sqlite3.h</code> (13,773 lines) and several SIMD distance implementations. This bloats the repo and creates a maintenance burden for keeping it in sync with upstream. The alternative (the pre-built binary approach) had its own problems, but the tradeoff is worth being explicit about.</p>
-<p><strong>4. Dynamic linking is new and lightly validated</strong>
-The changelog says "120+ tests verified" for dynamic mode, but the test matrix for dynamic linking across platforms (Linux, macOS) and backends (CUDA, Vulkan) is likely thin. A regression in dynamic mode could be hard to catch without CI coverage.</p>
-<p><strong>5. <code>SD_USE_VENDORED_GGML</code> adds configuration complexity</strong>
-A build option with interactions across static/dynamic modes, multiple backends, and two different ggml versions. Now defaults to ON (vendored) after CUDA image generation crashes were traced to ggml version incompatibilities between llama.cpp and stable-diffusion.cpp. The shared-ggml path (<code>SD_USE_VENDORED_GGML=0</code>) remains available but is not recommended for GPU backends.</p>
+<p><strong>1. Large, multi-concern changeset</strong> 11 commits touching 63 files with +27,633 / -4,246 lines. Hard to review atomically or bisect if something regresses. The changes span: API refactor, build system overhaul, new build mode, vendored dependency, bug fixes. Ideally these would be separate PRs, but they're intertwined (e.g., public API refactor enables dynamic linking).</p>
+<p><strong>2. Removed public Python API surface</strong> <code>CommonParams</code>, <code>CommonParamsSampling</code>, <code>CommonSampler</code> are gone. Any downstream code using these classes will break. The replacements (<code>LlamaContextParams</code>, <code>LlamaSampler</code>) exist but the migration isn't documented beyond the changelog. This is a breaking change that warrants a minor version bump.</p>
+<p><strong>3. Vendored sqlite-vector adds ~24K lines of C to the repo</strong> The <code>thirdparty/sqlite-vector/</code> directory includes <code>sqlite3.h</code> (13,773 lines) and several SIMD distance implementations. This bloats the repo and creates a maintenance burden for keeping it in sync with upstream. The alternative (the pre-built binary approach) had its own problems, but the tradeoff is worth being explicit about.</p>
+<p><strong>4. Dynamic linking is new and lightly validated</strong> The changelog says "120+ tests verified" for dynamic mode, but the test matrix for dynamic linking across platforms (Linux, macOS) and backends (CUDA, Vulkan) is likely thin. A regression in dynamic mode could be hard to catch without CI coverage.</p>
+<p><strong>5. <code>SD_USE_VENDORED_GGML</code> adds configuration complexity</strong> A build option with interactions across static/dynamic modes, multiple backends, and two different ggml versions. It briefly defaulted to ON (vendored) after CUDA image generation crashes were traced to ggml version incompatibilities between llama.cpp and stable-diffusion.cpp; <code>_sync_ggml_abi()</code> and the <code>GGML_MAX_NAME=128</code> propagation addressed the root cause, and the default is now OFF (shared). <code>SD_USE_VENDORED_GGML=1</code> still pins SD to its own copy.</p>
 <h3 id="recommendation">Recommendation<a class="headerlink" href="#recommendation" title="Permanent link">&para;</a></h3>
 <p>The public API refactor and correctness fixes alone justify merging. The core risk is the breaking API change (<code>CommonParams</code> removal) -- if there are downstream consumers, they need a migration path. If this is primarily internal/personal use, the tradeoff is clearly positive.</p>
 <p>One option to reduce risk: merge now, tag as <code>0.2.0</code> (semver minor bump for breaking changes), and add CI for the dynamic linking path before advertising it as stable.</p>

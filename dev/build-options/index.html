@@ -1748,9 +1748,15 @@
 <h1 id="build-options-analysis-local-vs-ci-vs-upstream-llamacpp">Build Options Analysis: Local vs CI vs Upstream llama.cpp<a class="headerlink" href="#build-options-analysis-local-vs-ci-vs-upstream-llamacpp" title="Permanent link">&para;</a></h1>
 <p>This document compares the build options used across three contexts:</p>
 <ol>
-<li><strong>Local builds</strong> -- developer machine via <code>make</code> / <code>manage.py</code></li>
-<li><strong>CI wheel builds</strong> -- GitHub Actions via <code>build-gpu-wheels.yml</code> (the active workflow)</li>
-<li><strong>Upstream llama.cpp</strong> -- options documented in <a href="https://github.com/ggml-org/llama.cpp/blob/master/docs/build.md">llama.cpp/docs/build.md</a></li>
+<li>
+<p><strong>Local builds</strong> -- developer machine via <code>make</code> / <code>manage.py</code></p>
+</li>
+<li>
+<p><strong>CI wheel builds</strong> -- GitHub Actions via <code>build-gpu-wheels.yml</code> (the active workflow)</p>
+</li>
+<li>
+<p><strong>Upstream llama.cpp</strong> -- options documented in <a href="https://github.com/ggml-org/llama.cpp/blob/master/docs/build.md">llama.cpp/docs/build.md</a></p>
+</li>
 </ol>
 <blockquote>
 <p><strong>Note:</strong> <code>build-gpu-wheels-cached.yml</code> is an experimental workflow not currently used in production. It has been synced to mirror <code>build-gpu-wheels.yml</code> (settings, flags, and cache keys), but <code>build-gpu-wheels.yml</code> remains the authoritative CI workflow.</p>
@@ -1758,8 +1764,12 @@
 <h2 id="build-flow-overview">Build Flow Overview<a class="headerlink" href="#build-flow-overview" title="Permanent link">&para;</a></h2>
 <p>Cyllama's build is a two-phase process:</p>
 <ol>
-<li><strong>Phase 1 -- Build dependencies</strong> (<code>manage.py build --deps-only</code>): Clones llama.cpp (and whisper.cpp, stable-diffusion.cpp), runs CMake to build them, and copies headers + libraries to <code>thirdparty/</code>.</li>
-<li><strong>Phase 2 -- Build cyllama</strong> (<code>uv pip install .</code> or <code>uv sync</code>): scikit-build-core invokes the top-level <code>CMakeLists.txt</code>, which finds the pre-built libraries in <code>thirdparty/</code> and links them into the Cython extension modules.</li>
+<li>
+<p><strong>Phase 1 -- Build dependencies</strong> (<code>manage.py build --deps-only</code>): Clones llama.cpp (and whisper.cpp, stable-diffusion.cpp), runs CMake to build them, and copies headers + libraries to <code>thirdparty/</code>.</p>
+</li>
+<li>
+<p><strong>Phase 2 -- Build cyllama</strong> (<code>uv pip install .</code> or <code>uv sync</code>): scikit-build-core invokes the top-level <code>CMakeLists.txt</code>, which finds the pre-built libraries in <code>thirdparty/</code> and links them into the Cython extension modules.</p>
+</li>
 </ol>
 <p>Phase 1 is where upstream llama.cpp CMake options matter. Phase 2 uses cyllama's own <code>CMakeLists.txt</code>, which reads the same <code>GGML_*</code> environment variables to determine which backend libraries to link and which system dependencies to find.</p>
 <h2 id="backend-support-matrix">Backend Support Matrix<a class="headerlink" href="#backend-support-matrix" title="Permanent link">&para;</a></h2>
@@ -1954,10 +1964,10 @@
 </tr>
 <tr>
 <td><code>SD_USE_VENDORED_GGML</code></td>
-<td><code>0</code> (dynamic targets)</td>
-<td><code>0</code> (dynamic) / <code>1</code> (static)</td>
-<td>ON</td>
-<td>When <code>0</code>, SD shares llama.cpp's ggml dylibs instead of statically embedding them. Requires <code>GGML_MAX_NAME=128</code> propagation; see <code>docs/dev/ggml-unification.md</code>.</td>
+<td><code>0</code></td>
+<td><code>0</code></td>
+<td>OFF</td>
+<td>When <code>0</code> (the default), SD shares llama.cpp's ggml instead of statically embedding its own. Requires <code>GGML_MAX_NAME=128</code> propagation; see <code>docs/dev/ggml-unification.md</code>. Set to <code>1</code> to opt back into SD's vendored copy.</td>
 </tr>
 </tbody>
 </table>
@@ -2116,9 +2126,15 @@
 <h2 id="dynamic-linking-dynamic-mode">Dynamic Linking (<code>--dynamic</code> mode)<a class="headerlink" href="#dynamic-linking-dynamic-mode" title="Permanent link">&para;</a></h2>
 <p>The <code>--dynamic</code> flag changes Phase 1 behavior:</p>
 <ol>
-<li><strong>If <code>SD_USE_VENDORED_GGML=0</code></strong>, always build from source with <code>BUILD_SHARED_LIBS=ON</code>. Upstream pre-built releases are skipped because they're compiled with the default <code>GGML_MAX_NAME=64</code>, which is ABI-incompatible with stable-diffusion.cpp's required <code>GGML_MAX_NAME=128</code>. Building from source lets <code>manage.py</code> inject the correct define via <code>CMAKE_C_FLAGS</code>. See <code>docs/dev/ggml_max_name.md</code>.</li>
-<li><strong>Otherwise, if a pre-built release asset exists</strong> for the platform/backend combo, it downloads that archive (DLLs/<code>.so</code>/<code>.dylib</code> files) from llama.cpp GitHub releases.</li>
-<li><strong>If no asset exists</strong>, it falls back to building from source with <code>BUILD_SHARED_LIBS=ON</code>.</li>
+<li>
+<p><strong>If <code>SD_USE_VENDORED_GGML=0</code></strong>, always build from source with <code>BUILD_SHARED_LIBS=ON</code>. Upstream pre-built releases are skipped because they're compiled with the default <code>GGML_MAX_NAME=64</code>, which is ABI-incompatible with stable-diffusion.cpp's required <code>GGML_MAX_NAME=128</code>. Building from source lets <code>manage.py</code> inject the correct define via <code>CMAKE_C_FLAGS</code>. See <code>docs/dev/ggml_max_name.md</code>.</p>
+</li>
+<li>
+<p><strong>Otherwise, if a pre-built release asset exists</strong> for the platform/backend combo, it downloads that archive (DLLs/<code>.so</code>/<code>.dylib</code> files) from llama.cpp GitHub releases.</p>
+</li>
+<li>
+<p><strong>If no asset exists</strong>, it falls back to building from source with <code>BUILD_SHARED_LIBS=ON</code>.</p>
+</li>
 </ol>
 <h3 id="pre-built-release-asset-names">Pre-built Release Asset Names<a class="headerlink" href="#pre-built-release-asset-names" title="Permanent link">&para;</a></h3>
 <p>Defined in <code>manage.py:LlamaCppBuilder._release_asset_name()</code>:</p>

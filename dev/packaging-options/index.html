@@ -1795,9 +1795,15 @@
 <h2 id="recommended-approach">Recommended Approach<a class="headerlink" href="#recommended-approach" title="Permanent link">&para;</a></h2>
 <p>A hybrid approach:</p>
 <ol>
-<li><strong>Split into separate packages</strong> - most users don't need all three</li>
-<li><strong>Within each package</strong>, use static linking with hidden visibility (current approach but optimized)</li>
-<li><strong>Factor out CUDA</strong> as a separate optional dependency if the ggml versions can be aligned for that specific component</li>
+<li>
+<p><strong>Split into separate packages</strong> - most users don't need all three</p>
+</li>
+<li>
+<p><strong>Within each package</strong>, use static linking with hidden visibility (current approach but optimized)</p>
+</li>
+<li>
+<p><strong>Factor out CUDA</strong> as a separate optional dependency if the ggml versions can be aligned for that specific component</p>
+</li>
 </ol>
 <h2 id="trade-offs-summary">Trade-offs Summary<a class="headerlink" href="#trade-offs-summary" title="Permanent link">&para;</a></h2>
 <table>

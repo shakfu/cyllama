@@ -1895,27 +1895,23 @@
 
 
 <h1 id="agent-patterns-in-cyllama">Agent patterns in cyllama<a class="headerlink" href="#agent-patterns-in-cyllama" title="Permanent link">&para;</a></h1>
-<p>This document maps the canonical agent patterns from the literature onto
-their cyllama implementations. Each entry says:</p>
+<p>This document maps the canonical agent patterns from the literature onto their cyllama implementations. Each entry says:</p>
 <ul>
-<li><strong>Status</strong> — first-class (canned helper or primitive), recipe (you
-  compose existing primitives yourself), or not supported.</li>
-<li><strong>How to do it</strong> — the actual cyllama API call, with pointers to
-  source files.</li>
-<li><strong>Gap</strong> — what's missing or possible as a future refinement, if
-  anything.</li>
+<li>
+<p><strong>Status</strong> — first-class (canned helper or primitive), recipe (you compose existing primitives yourself), or not supported.</p>
+</li>
+<li>
+<p><strong>How to do it</strong> — the actual cyllama API call, with pointers to source files.</p>
+</li>
+<li>
+<p><strong>Gap</strong> — what's missing or possible as a future refinement, if anything.</p>
+</li>
 </ul>
-<p>The five "worth-doing" pattern gaps identified in the original audit
-have all landed; the <a href="#gap-summary">Gap summary</a> records what shipped
-and what residual refinements remain. Patterns the framework
-intentionally does not support are explicitly listed.</p>
-<p>For the broader question "should I use schema or contracts for X?" see
-<a href="../contracts/"><code>contracts.md</code></a> and <a href="../../dev/contract-agent/"><code>../dev/contract-agent.md</code></a>.</p>
+<p>The five "worth-doing" pattern gaps identified in the original audit have all landed; the <a href="#gap-summary">Gap summary</a> records what shipped and what residual refinements remain. Patterns the framework intentionally does not support are explicitly listed.</p>
+<p>For the broader question "should I use schema or contracts for X?" see <a href="../contracts/"><code>contracts.md</code></a> and <a href="../../dev/contract-agent/"><code>../dev/contract-agent.md</code></a>.</p>
 <hr />
 <h2 id="1-react-reason-act">1. ReAct (Reason + Act)<a class="headerlink" href="#1-react-reason-act" title="Permanent link">&para;</a></h2>
-<p><strong>Status: first-class primitive.</strong>
-Reference: <em>ReAct: Synergizing Reasoning and Acting in Language Models</em>
-(Yao et al., 2022).</p>
+<p><strong>Status: first-class primitive.</strong> Reference: <em>ReAct: Synergizing Reasoning and Acting in Language Models</em> (Yao et al., 2022).</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama</span><span class="w"> </span><span class="kn">import</span> <span class="n">LLM</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">ReActAgent</span><span class="p">,</span> <span class="n">tool</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
@@ -1925,18 +1921,12 @@ Reference: <em>ReAct: Synergizing Reasoning and Acting in Language Models</em>
 <a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">ReActAgent</span><span class="p">(</span><span class="n">llm</span><span class="o">=</span><span class="n">LLM</span><span class="p">(</span><span class="s2">&quot;model.gguf&quot;</span><span class="p">),</span> <span class="n">tools</span><span class="o">=</span><span class="p">[</span><span class="n">search</span><span class="p">])</span>
 <a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="n">result</span> <span class="o">=</span> <span class="n">agent</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="s2">&quot;What is the capital of France?&quot;</span><span class="p">)</span>
 </code></pre></div>
-<p>Implementation: <code>src/cyllama/agents/react.py</code>. The loop alternates
-THOUGHT / ACTION / OBSERVATION events emitted on the stream. Loop
-detection (<code>_loop_detection.py</code>) catches stuck patterns; coercion
-(<code>tools.coerce_args</code>) catches malformed arguments before dispatch;
-timeouts (<code>Tool.timeout</code>) cap individual tool calls.</p>
+<p>Implementation: <code>src/cyllama/agents/react.py</code>. The loop alternates THOUGHT / ACTION / OBSERVATION events emitted on the stream. Loop detection (<code>_loop_detection.py</code>) catches stuck patterns; coercion (<code>tools.coerce_args</code>) catches malformed arguments before dispatch; timeouts (<code>Tool.timeout</code>) cap individual tool calls.</p>
 <p><strong>Gap</strong>: none. This is the strongest pattern in the framework.</p>
 <hr />
 <h2 id="2-plan-and-execute">2. Plan-and-Execute<a class="headerlink" href="#2-plan-and-execute" title="Permanent link">&para;</a></h2>
-<p><strong>Status: first-class helper.</strong>
-Reference: <em>Plan-and-Solve Prompting</em> (Wang et al., 2023).</p>
-<p>A planner agent emits a structured task list; an executor runs each step
-sequentially.</p>
+<p><strong>Status: first-class helper.</strong> Reference: <em>Plan-and-Solve Prompting</em> (Wang et al., 2023).</p>
+<p>A planner agent emits a structured task list; an executor runs each step sequentially.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">ConstrainedAgent</span><span class="p">,</span> <span class="n">ReActAgent</span><span class="p">,</span> <span class="n">plan_and_execute</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">planner</span> <span class="o">=</span> <span class="n">ConstrainedAgent</span><span class="p">(</span>
@@ -1950,21 +1940,14 @@ sequentially.</p>
 <a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="k">for</span> <span class="n">step_result</span> <span class="ow">in</span> <span class="n">results</span><span class="p">:</span>
 <a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">step_result</span><span class="o">.</span><span class="n">answer</span><span class="p">)</span>
 </code></pre></div>
-<p><code>plan_and_execute(planner, executor, task, plan_parser=None,
-stop_on_error=True)</code> lives in <code>composition.py</code>. The default
-<code>plan_parser</code> tries <code>json.loads</code> first (recognizing top-level lists or
+<p><code>plan_and_execute(planner, executor, task, plan_parser=None, stop_on_error=True)</code> lives in <code>composition.py</code>. The default <code>plan_parser</code> tries <code>json.loads</code> first (recognizing top-level lists or
 <code>{"steps"|"plan"|"tasks": [...]}</code> shapes) and falls back to newline
-splitting with bullet/number-prefix stripping. Pass a custom callable
-for other plan formats.</p>
-<p><strong>Gap</strong>: none for the basic pattern. Streaming events from each step
-through a unified iterator is a possible future extension.</p>
+splitting with bullet/number-prefix stripping. Pass a custom callable for other plan formats.</p>
+<p><strong>Gap</strong>: none for the basic pattern. Streaming events from each step through a unified iterator is a possible future extension.</p>
 <hr />
 <h2 id="3-reflection-reflexion">3. Reflection / Reflexion<a class="headerlink" href="#3-reflection-reflexion" title="Permanent link">&para;</a></h2>
-<p><strong>Status: first-class helper.</strong>
-Reference: <em>Reflexion: Language Agents with Verbal Reinforcement
-Learning</em> (Shinn et al., 2023).</p>
-<p>A worker emits a draft; a critic agent emits acceptance or revision
-feedback; the loop iterates up to N times.</p>
+<p><strong>Status: first-class helper.</strong> Reference: <em>Reflexion: Language Agents with Verbal Reinforcement Learning</em> (Shinn et al., 2023).</p>
+<p>A worker emits a draft; a critic agent emits acceptance or revision feedback; the loop iterates up to N times.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">ReActAgent</span><span class="p">,</span> <span class="n">ReflectionLoop</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">worker</span> <span class="o">=</span> <span class="n">ReActAgent</span><span class="p">(</span><span class="n">llm</span><span class="o">=</span><span class="n">llm</span><span class="p">,</span> <span class="n">tools</span><span class="o">=</span><span class="p">[</span><span class="o">...</span><span class="p">],</span> <span class="n">system_prompt</span><span class="o">=</span><span class="n">WORKER_PROMPT</span><span class="p">)</span>
@@ -1979,46 +1962,25 @@ feedback; the loop iterates up to N times.</p>
 <a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="n">loop</span> <span class="o">=</span> <span class="n">ReflectionLoop</span><span class="p">(</span><span class="n">worker</span><span class="p">,</span> <span class="n">critic</span><span class="p">,</span> <span class="n">max_attempts</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
 <a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="n">result</span> <span class="o">=</span> <span class="n">loop</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="s2">&quot;Implement quicksort with a 3-way partition.&quot;</span><span class="p">)</span>
 </code></pre></div>
-<p><code>ReflectionLoop(worker, critic, max_attempts=3,
-acceptance_marker="ACCEPT", critique_prefix=..., revision_template=...)</code>
-lives in <code>composition.py</code>. The critic's answer is checked for a
-substring match (case-insensitive) on <code>acceptance_marker</code>; on a miss,
-the worker is re-invoked with the task augmented by the draft and the
-critic feedback (overridable via <code>revision_template</code>). Streams emit
-worker events tagged <code>source="worker"</code> and critic events tagged
-<code>source="critic"</code>, with <code>parent_event_id</code> linking each pass; the
-loop's own final ANSWER event has no source.</p>
-<p><strong>Gap</strong>: none for the basic pattern. Parallel critic ensembles
-(multiple critics voting) and reward-model-based acceptance are
-possible future extensions.</p>
+<p><code>ReflectionLoop(worker, critic, max_attempts=3, acceptance_marker="ACCEPT", critique_prefix=..., revision_template=...)</code> lives in <code>composition.py</code>. The critic's answer is checked for a substring match (case-insensitive) on <code>acceptance_marker</code>; on a miss, the worker is re-invoked with the task augmented by the draft and the critic feedback (overridable via <code>revision_template</code>). Streams emit worker events tagged <code>source="worker"</code> and critic events tagged <code>source="critic"</code>, with <code>parent_event_id</code> linking each pass; the loop's own final ANSWER event has no source.</p>
+<p><strong>Gap</strong>: none for the basic pattern. Parallel critic ensembles (multiple critics voting) and reward-model-based acceptance are possible future extensions.</p>
 <hr />
 <h2 id="4-tree-of-thoughts-tot">4. Tree of Thoughts (ToT)<a class="headerlink" href="#4-tree-of-thoughts-tot" title="Permanent link">&para;</a></h2>
-<p><strong>Status: not supported.</strong>
-Reference: <em>Tree of Thoughts: Deliberate Problem Solving with Large
-Language Models</em> (Yao et al., 2023).</p>
-<p>ToT requires forking the generation state at each thought node and
-exploring multiple branches before committing — typically with
-KV-cache snapshotting so divergent branches don't recompute the shared
-prefix. cyllama's public API does not expose KV-cache snapshot /
-restore primitives, and the agent loops are linear (single stream of
-events, no branching).</p>
-<p>Implementing ToT would require: (a) public <code>LlamaContext.snapshot()</code> /
-<code>restore()</code> (currently absent), and (b) a branching agent loop that
-maintains a frontier of candidate states with scoring. Significant new
-machinery; non-trivial value for cyllama's typical user.</p>
-<p><strong>Gap</strong>: structurally hard. See <a href="#gap-summary">Gap summary</a> -- explicitly
-<strong>not on the roadmap</strong> unless a use case forces it.</p>
+<p><strong>Status: not supported.</strong> Reference: <em>Tree of Thoughts: Deliberate Problem Solving with Large Language Models</em> (Yao et al., 2023).</p>
+<p>ToT requires forking the generation state at each thought node and exploring multiple branches before committing — typically with KV-cache snapshotting so divergent branches don't recompute the shared prefix. cyllama's public API does not expose KV-cache snapshot / restore primitives, and the agent loops are linear (single stream of events, no branching).</p>
+<p>Implementing ToT would require: (a) public <code>LlamaContext.snapshot()</code> / <code>restore()</code> (currently absent), and (b) a branching agent loop that maintains a frontier of candidate states with scoring. Significant new machinery; non-trivial value for cyllama's typical user.</p>
+<p><strong>Gap</strong>: structurally hard. See <a href="#gap-summary">Gap summary</a> -- explicitly <strong>not on the roadmap</strong> unless a use case forces it.</p>
 <hr />
 <h2 id="5-multi-agent-systems">5. Multi-Agent Systems<a class="headerlink" href="#5-multi-agent-systems" title="Permanent link">&para;</a></h2>
 <p><strong>Status: first-class primitives.</strong></p>
 <p>Two building blocks in <code>src/cyllama/agents/composition.py</code>:</p>
 <ul>
-<li><strong><code>agent_as_tool(agent, name, description)</code></strong> — wraps any
-  <code>AgentProtocol</code> instance as a <code>Tool</code> so a supervisor can dispatch to
-  it through the normal ReAct flow.</li>
-<li><strong><code>TieredAgentTeam(supervisor, workers)</code></strong> — ergonomic container for
-  supervisor + named workers, each potentially on a different LLM
-  (capability tiering).</li>
+<li>
+<p><strong><code>agent_as_tool(agent, name, description)</code></strong> — wraps any <code>AgentProtocol</code> instance as a <code>Tool</code> so a supervisor can dispatch to it through the normal ReAct flow.</p>
+</li>
+<li>
+<p><strong><code>TieredAgentTeam(supervisor, workers)</code></strong> — ergonomic container for supervisor + named workers, each potentially on a different LLM (capability tiering).</p>
+</li>
 </ul>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">ReActAgent</span><span class="p">,</span> <span class="n">AgentRole</span><span class="p">,</span> <span class="n">TieredAgentTeam</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
@@ -2031,14 +1993,8 @@ machinery; non-trivial value for cyllama's typical user.</p>
 <a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="p">)</span>
 <a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="n">result</span> <span class="o">=</span> <span class="n">team</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="s2">&quot;Refactor X using technique Y.&quot;</span><span class="p">)</span>
 </code></pre></div>
-<p>Sub-agent events surface in the supervisor's stream with <code>source</code> and
-<code>parent_event_id</code> annotations (<code>AgentEvent</code> fields) when a
-<code>forward_events</code> callback is supplied. See <a href="../../agents_overview/#multi-agent-composition"><code>agents_overview.md</code></a>
-for the full reference.</p>
-<p><strong>Cross-process variant</strong>: <code>mcp_agent_tool(client, server_name,
-agent_name, description)</code> wraps a remote agent exposed through MCP as
-a local <code>Tool</code>, symmetric to <code>agent_as_tool</code> but the dispatch crosses
-a process boundary:</p>
+<p>Sub-agent events surface in the supervisor's stream with <code>source</code> and <code>parent_event_id</code> annotations (<code>AgentEvent</code> fields) when a <code>forward_events</code> callback is supplied. See <a href="../../agents_overview/#multi-agent-composition"><code>agents_overview.md</code></a> for the full reference.</p>
+<p><strong>Cross-process variant</strong>: <code>mcp_agent_tool(client, server_name, agent_name, description)</code> wraps a remote agent exposed through MCP as a local <code>Tool</code>, symmetric to <code>agent_as_tool</code> but the dispatch crosses a process boundary:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">McpClient</span><span class="p">,</span> <span class="n">McpServerConfig</span><span class="p">,</span> <span class="n">mcp_agent_tool</span><span class="p">,</span> <span class="n">ReActAgent</span>
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
 <a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="n">client</span> <span class="o">=</span> <span class="n">McpClient</span><span class="p">([</span><span class="n">McpServerConfig</span><span class="p">(</span><span class="o">...</span><span class="p">)])</span>
@@ -2052,27 +2008,24 @@ a process boundary:</p>
 <a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="p">)</span>
 <a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="n">supervisor</span> <span class="o">=</span> <span class="n">ReActAgent</span><span class="p">(</span><span class="n">llm</span><span class="o">=</span><span class="n">llm</span><span class="p">,</span> <span class="n">tools</span><span class="o">=</span><span class="p">[</span><span class="n">remote</span><span class="p">])</span>
 </code></pre></div>
-<p>The wrapped tool is named <code>"{server_name}/{agent_name}"</code> -- the
-namespaced format the action parser supports. Network failures surface
-as <code>RuntimeError</code> from <code>McpClient.call_tool</code>; the agent's generic
-exception handler catches them. Pass <code>timeout=...</code> to apply a local
-budget (separate from MCP transport timeouts).</p>
-<p><strong>Gap</strong>: streaming sub-agent events across the wire (the current MCP
-shape returns a single value per call). Possible future extension if
-the MCP server-streaming RFC stabilizes.</p>
+<p>The wrapped tool is named <code>"{server_name}/{agent_name}"</code> -- the namespaced format the action parser supports. Network failures surface as <code>RuntimeError</code> from <code>McpClient.call_tool</code>; the agent's generic exception handler catches them. Pass <code>timeout=...</code> to apply a local budget (separate from MCP transport timeouts).</p>
+<p><strong>Gap</strong>: streaming sub-agent events across the wire (the current MCP shape returns a single value per call). Possible future extension if the MCP server-streaming RFC stabilizes.</p>
 <hr />
 <h2 id="6-memory-augmented-agents">6. Memory-Augmented Agents<a class="headerlink" href="#6-memory-augmented-agents" title="Permanent link">&para;</a></h2>
 <p><strong>Status: partial — short-term and episodic memory only.</strong></p>
-<p>cyllama ships three session-storage backends in
-<code>src/cyllama/agents/session.py</code>:</p>
+<p>cyllama ships three session-storage backends in <code>src/cyllama/agents/session.py</code>:</p>
 <ul>
-<li><code>MemorySessionStore</code> — in-process dict, lost at process end.</li>
-<li><code>FileSessionStore</code> — JSON files on disk; multi-process via OS locks.</li>
-<li><code>SqliteSessionStore</code> — SQLite-backed, supports concurrent readers.</li>
+<li>
+<p><code>MemorySessionStore</code> — in-process dict, lost at process end.</p>
+</li>
+<li>
+<p><code>FileSessionStore</code> — JSON files on disk; multi-process via OS locks.</p>
+</li>
+<li>
+<p><code>SqliteSessionStore</code> — SQLite-backed, supports concurrent readers.</p>
+</li>
 </ul>
-<p>Each stores <code>Message</code> records, <code>ToolCallRecord</code> records, and
-<code>Permission</code> records keyed by session id. This covers short-term
-(within a run) and episodic (across runs) memory.</p>
+<p>Each stores <code>Message</code> records, <code>ToolCallRecord</code> records, and <code>Permission</code> records keyed by session id. This covers short-term (within a run) and episodic (across runs) memory.</p>
 <p><strong>Semantic memory primitive</strong> in <code>src/cyllama/agents/memory.py</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.rag</span><span class="w"> </span><span class="kn">import</span> <span class="n">RAG</span>
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">SemanticMemory</span>
@@ -2091,28 +2044,13 @@ the MCP server-streaming RFC stabilizes.</p>
 <a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a><span class="k">for</span> <span class="n">hit</span> <span class="ow">in</span> <span class="n">hits</span><span class="p">:</span>
 <a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">hit</span><span class="o">.</span><span class="n">text</span><span class="p">,</span> <span class="n">hit</span><span class="o">.</span><span class="n">score</span><span class="p">)</span>
 </code></pre></div>
-<p><code>SemanticMemory(rag, namespace_field="_memory_namespace",
-default_namespace="default")</code> is a thin namespace-aware facade over any
-RAG-shaped object (<code>add_texts</code> + <code>search</code>). Records under different
-namespaces share the same embedding store but are filtered apart at
-retrieval time -- so one cyllama-managed <code>RAG</code> instance can back many
-logical memory buckets (per-user, per-conversation, per-topic).</p>
-<p><code>retrieve()</code> over-fetches from the underlying search to give the
-namespace filter room to find enough matches. <code>remember()</code> defaults
-<code>split=False</code> since memory fragments are typically short. <code>forget()</code>
-exists but currently raises <code>NotImplementedError</code> -- the underlying
-RAG store doesn't expose metadata-filtered deletion; the documented
-workaround is to use separate <code>RAG</code> instances per namespace when you
-need per-namespace clearing.</p>
-<p><strong>Gap</strong>: filtered deletion -- pending a RAG-side API. Long-term
-"profile" semantics (richer than text fragments -- structured user
-preferences, time-decay, summarization) is a possible future
-extension but the primitive covers the common cases as-is.</p>
+<p><code>SemanticMemory(rag, namespace_field="_memory_namespace", default_namespace="default")</code> is a thin namespace-aware facade over any RAG-shaped object (<code>add_texts</code> + <code>search</code>). Records under different namespaces share the same embedding store but are filtered apart at retrieval time -- so one cyllama-managed <code>RAG</code> instance can back many logical memory buckets (per-user, per-conversation, per-topic).</p>
+<p><code>retrieve()</code> over-fetches from the underlying search to give the namespace filter room to find enough matches. <code>remember()</code> defaults <code>split=False</code> since memory fragments are typically short. <code>forget()</code> exists but currently raises <code>NotImplementedError</code> -- the underlying RAG store doesn't expose metadata-filtered deletion; the documented workaround is to use separate <code>RAG</code> instances per namespace when you need per-namespace clearing.</p>
+<p><strong>Gap</strong>: filtered deletion -- pending a RAG-side API. Long-term "profile" semantics (richer than text fragments -- structured user preferences, time-decay, summarization) is a possible future extension but the primitive covers the common cases as-is.</p>
 <hr />
 <h2 id="7-retrieval-augmented-agents-rag-agents">7. Retrieval-Augmented Agents (RAG agents)<a class="headerlink" href="#7-retrieval-augmented-agents-rag-agents" title="Permanent link">&para;</a></h2>
 <p><strong>Status: first-class helper.</strong></p>
-<p>cyllama ships a complete RAG pipeline in <code>src/cyllama/rag/</code>. The
-<code>rag_as_tool</code> helper bridges it to the agent layer:</p>
+<p>cyllama ships a complete RAG pipeline in <code>src/cyllama/rag/</code>. The <code>rag_as_tool</code> helper bridges it to the agent layer:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.rag</span><span class="w"> </span><span class="kn">import</span> <span class="n">RAG</span>
 <a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">ReActAgent</span><span class="p">,</span> <span class="n">rag_as_tool</span>
 <a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
@@ -2125,46 +2063,30 @@ extension but the primitive covers the common cases as-is.</p>
 <a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="p">)</span>
 <a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">ReActAgent</span><span class="p">(</span><span class="n">llm</span><span class="o">=</span><span class="n">llm</span><span class="p">,</span> <span class="n">tools</span><span class="o">=</span><span class="p">[</span><span class="n">search</span><span class="p">])</span>
 </code></pre></div>
-<p><code>rag_as_tool(rag, name="search_kb", description=..., top_k=5,
-query_param="query", method="search", formatter=None)</code> lives in
-<code>composition.py</code>. The default formatter emits one <code>[score] text</code> line
-per hit, deduplicated by text so the agent doesn't see repeated
-content. Pass <code>method="retrieve"</code> to use the higher-level
-<code>RAG.retrieve</code> path (applies the RAG pipeline config); pass a custom
-<code>formatter</code> callable to control the observation shape.</p>
-<p><strong>Gap</strong>: streaming results to the agent as they arrive (currently
-returns a single concatenated observation). Possible future extension.</p>
+<p><code>rag_as_tool(rag, name="search_kb", description=..., top_k=5, query_param="query", method="search", formatter=None)</code> lives in <code>composition.py</code>. The default formatter emits one <code>[score] text</code> line per hit, deduplicated by text so the agent doesn't see repeated content. Pass <code>method="retrieve"</code> to use the higher-level <code>RAG.retrieve</code> path (applies the RAG pipeline config); pass a custom <code>formatter</code> callable to control the observation shape.</p>
+<p><strong>Gap</strong>: streaming results to the agent as they arrive (currently returns a single concatenated observation). Possible future extension.</p>
 <hr />
 <h2 id="8-autonomous-autogpt-style">8. Autonomous / AutoGPT-style<a class="headerlink" href="#8-autonomous-autogpt-style" title="Permanent link">&para;</a></h2>
 <p><strong>Status: not supported, by design.</strong></p>
-<p>The Auto-GPT / BabyAGI pattern is recursive goal decomposition with
-no external bound: the agent generates its own subgoals, executes
-them, generates more subgoals, etc. The literature consistently
-reports goal drift, infinite loops, cost explosion, and unreliability.</p>
+<p>The Auto-GPT / BabyAGI pattern is recursive goal decomposition with no external bound: the agent generates its own subgoals, executes them, generates more subgoals, etc. The literature consistently reports goal drift, infinite loops, cost explosion, and unreliability.</p>
 <p>cyllama's design leans in the opposite direction:</p>
 <ul>
-<li><code>ReActAgent.max_iterations</code> caps every run (default 10).</li>
-<li><code>_loop_detection.py</code> actively terminates runs that show signs of
-  repetition.</li>
-<li><code>ContractAgent</code> lets you express <em>budget invariants</em>
-  (<code>elapsed_ms &lt; 30_000</code>, <code>tool_calls &lt; 20</code>, <code>errors &lt; 3</code>) that
-  enforce hard ceilings.</li>
+<li>
+<p><code>ReActAgent.max_iterations</code> caps every run (default 10).</p>
+</li>
+<li>
+<p><code>_loop_detection.py</code> actively terminates runs that show signs of repetition.</p>
+</li>
+<li>
+<p><code>ContractAgent</code> lets you express <em>budget invariants</em> (<code>elapsed_ms &lt; 30_000</code>, <code>tool_calls &lt; 20</code>, <code>errors &lt; 3</code>) that enforce hard ceilings.</p>
+</li>
 </ul>
-<p>These are the <em>opposite</em> of what an autonomous agent needs. If you
-genuinely want unbounded goal-decomposition, cyllama is the wrong
-framework — use an explicitly autonomy-oriented one and accept the
-trade-offs.</p>
-<p><strong>Gap</strong>: not on the roadmap. Documented here so readers know the
-framework's stance.</p>
+<p>These are the <em>opposite</em> of what an autonomous agent needs. If you genuinely want unbounded goal-decomposition, cyllama is the wrong framework — use an explicitly autonomy-oriented one and accept the trade-offs.</p>
+<p><strong>Gap</strong>: not on the roadmap. Documented here so readers know the framework's stance.</p>
 <hr />
 <h2 id="9-workflow-state-machine-agents">9. Workflow / State-Machine Agents<a class="headerlink" href="#9-workflow-state-machine-agents" title="Permanent link">&para;</a></h2>
 <p><strong>Status: first-class.</strong></p>
-<p><code>cyllama.agents.workflow</code> ships an explicit DAG / state-graph runtime
-with two authoring layers over the same compile + execute model.
-Nodes are typed Python callables (or agents, tools, or other
-workflows); edges are static or conditional; state is a typed dict
-threaded between nodes; independent nodes at the same topological
-level run concurrently.</p>
+<p><code>cyllama.agents.workflow</code> ships an explicit DAG / state-graph runtime with two authoring layers over the same compile + execute model. Nodes are typed Python callables (or agents, tools, or other workflows); edges are static or conditional; state is a typed dict threaded between nodes; independent nodes at the same topological level run concurrently.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.agents.workflow</span><span class="w"> </span><span class="kn">import</span> <span class="n">Workflow</span>
 <a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>
 <a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="n">flow</span> <span class="o">=</span> <span class="n">Workflow</span><span class="p">()</span>
@@ -2207,35 +2129,32 @@ level run concurrently.</p>
 <a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a><span class="n">flow</span><span class="o">.</span><span class="n">set_entry</span><span class="p">(</span><span class="s2">&quot;classify&quot;</span><span class="p">)</span>
 <a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a><span class="n">result</span> <span class="o">=</span> <span class="n">flow</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">query</span><span class="o">=</span><span class="s2">&quot;...&quot;</span><span class="p">)</span>
 </code></pre></div>
-<p>A workflow's native API is kwargs-only (<code>flow.run(**state)</code>); to
-plug it into the multi-agent layer, call <code>flow.as_agent()</code> to get
-an <code>AgentProtocol</code>-conformant adapter. <code>agent_as_tool(flow.as_agent(),
-...)</code>, <code>ReflectionLoop(flow.as_agent(), critic.as_agent(), ...)</code>,
-and <code>TieredAgentTeam(workers=[AgentRole("research", flow.as_agent(),
-...)])</code> all work via the same explicit-adapter pattern. Workflows
-nest one inside another via <code>workflow_node(inner, name="research")</code>;
-inner events forward into the outer event stream with <code>source</code> /
-<code>parent_event_id</code> set so streaming UIs can render the tree.</p>
+<p>A workflow's native API is kwargs-only (<code>flow.run(**state)</code>); to plug it into the multi-agent layer, call <code>flow.as_agent()</code> to get an <code>AgentProtocol</code>-conformant adapter. <code>agent_as_tool(flow.as_agent(), ...)</code>, <code>ReflectionLoop(flow.as_agent(), critic.as_agent(), ...)</code>, and <code>TieredAgentTeam(workers=[AgentRole("research", flow.as_agent(), ...)])</code> all work via the same explicit-adapter pattern. Workflows nest one inside another via <code>workflow_node(inner, name="research")</code>; inner events forward into the outer event stream with <code>source</code> / <code>parent_event_id</code> set so streaming UIs can render the tree.</p>
 <p>Other capabilities (all landed in the Phase 1-5 rollout):</p>
 <ul>
-<li>Parallel level execution (<code>asyncio.gather</code>); sync nodes dispatched
-  on <code>asyncio.to_thread</code>.</li>
-<li>Per-node <code>timeout=</code> using <code>asyncio.wait_for</code>.</li>
-<li><code>WorkflowInvariant</code> reusing <code>ContractPolicy</code> semantics for
-  workflow-level pre/postconditions.</li>
-<li>Reducer registry (<code>reducer.append</code> / <code>extend</code> / <code>merge_dict</code> /
-  <code>add</code> / <code>last</code>) for explicit multi-writer state keys; runtime
-  detects unreduced collisions.</li>
-<li><code>flow.stream(...)</code> / <code>flow.astream(...)</code> event streams with
-  <code>WORKFLOW_START</code> / <code>NODE_START</code> / <code>NODE_END</code> / <code>ANSWER</code> /
-  <code>WORKFLOW_END</code> / <code>CONTRACT_VIOLATION</code>.</li>
-<li><code>flow.to_mermaid()</code> / <code>flow.to_dot()</code> for graph rendering;
-  <code>flow.dry_run()</code> for execution-order inspection without running.</li>
-<li>PEP 484 <code>Workflow[StateT]</code> generic for typed state.</li>
+<li>
+<p>Parallel level execution (<code>asyncio.gather</code>); sync nodes dispatched on <code>asyncio.to_thread</code>.</p>
+</li>
+<li>
+<p>Per-node <code>timeout=</code> using <code>asyncio.wait_for</code>.</p>
+</li>
+<li>
+<p><code>WorkflowInvariant</code> reusing <code>ContractPolicy</code> semantics for workflow-level pre/postconditions.</p>
+</li>
+<li>
+<p>Reducer registry (<code>reducer.append</code> / <code>extend</code> / <code>merge_dict</code> / <code>add</code> / <code>last</code>) for explicit multi-writer state keys; runtime detects unreduced collisions.</p>
+</li>
+<li>
+<p><code>flow.stream(...)</code> / <code>flow.astream(...)</code> event streams with <code>WORKFLOW_START</code> / <code>NODE_START</code> / <code>NODE_END</code> / <code>ANSWER</code> / <code>WORKFLOW_END</code> / <code>CONTRACT_VIOLATION</code>.</p>
+</li>
+<li>
+<p><code>flow.to_mermaid()</code> / <code>flow.to_dot()</code> for graph rendering; <code>flow.dry_run()</code> for execution-order inspection without running.</p>
+</li>
+<li>
+<p>PEP 484 <code>Workflow[StateT]</code> generic for typed state.</p>
+</li>
 </ul>
-<p><strong>Reference</strong>: <code>cyllama/agents/workflow.py</code>; design + per-phase
-notes in <a href="../workflow/"><code>workflow.md</code></a>; 118 tests in
-<code>tests/test_agents_workflow.py</code>.</p>
+<p><strong>Reference</strong>: <code>cyllama/agents/workflow.py</code>; design + per-phase notes in <a href="../workflow/"><code>workflow.md</code></a>; 118 tests in <code>tests/test_agents_workflow.py</code>.</p>
 <hr />
 <h2 id="summary-table">Summary table<a class="headerlink" href="#summary-table" title="Permanent link">&para;</a></h2>
 <table>
@@ -2295,9 +2214,7 @@ notes in <a href="../workflow/"><code>workflow.md</code></a>; 118 tests in
 </tbody>
 </table>
 <h2 id="gap-summary">Gap summary<a class="headerlink" href="#gap-summary" title="Permanent link">&para;</a></h2>
-<p>All six tractable pattern gaps from the original audit have <strong>landed</strong>.
-The table below records what was added, where it lives, and the
-tests that pin each helper.</p>
+<p>All six tractable pattern gaps from the original audit have <strong>landed</strong>. The table below records what was added, where it lives, and the tests that pin each helper.</p>
 <table>
 <thead>
 <tr>
@@ -2353,61 +2270,49 @@ tests that pin each helper.</p>
 </tr>
 </tbody>
 </table>
-<p>Documented gaps that remain (each is a future extension, not a missing
-fundamental):</p>
-<ul>
-<li><strong>Streaming sub-agent events across MCP</strong> -- <code>mcp_agent_tool</code> returns
-  a single value per call; streaming would require the MCP
-  server-streaming RFC to stabilize.</li>
-<li><strong>Streaming RAG results to the agent</strong> -- <code>rag_as_tool</code> returns a
-  single concatenated observation today.</li>
-<li><strong>Filtered deletion in SemanticMemory</strong> -- <code>forget()</code> raises
-  <code>NotImplementedError</code> pending a RAG-side metadata-filtered delete API.</li>
-<li><strong>Parallel critic ensembles in ReflectionLoop</strong> -- multiple critics
-  voting, reward-model-based acceptance.</li>
-<li><strong>Unified streaming for plan_and_execute steps</strong> -- one iterator
-  surfacing events from all steps in sequence.</li>
-</ul>
-<p>None of these block the pattern; they're refinements waiting on real
-use cases.</p>
-<h3 id="explicitly-not-on-the-roadmap">Explicitly <strong>not on the roadmap</strong><a class="headerlink" href="#explicitly-not-on-the-roadmap" title="Permanent link">&para;</a></h3>
-<p>These appear in the table above but won't be addressed without a
-forcing use case. Listed here to make the position explicit.</p>
+<p>Documented gaps that remain (each is a future extension, not a missing fundamental):</p>
 <ul>
 <li>
-<p><strong>Tree of Thoughts (§4)</strong> -- requires public <code>LlamaContext.snapshot()</code> /
-  <code>restore()</code> (currently absent) plus a branching agent loop with a
-  scored candidate frontier. Significant new machinery; non-trivial
-  value for cyllama's typical user.</p>
+<p><strong>Streaming sub-agent events across MCP</strong> -- <code>mcp_agent_tool</code> returns a single value per call; streaming would require the MCP server-streaming RFC to stabilize.</p>
 </li>
 <li>
-<p><strong>Autonomous / AutoGPT (§8)</strong> -- structurally opposed to cyllama's
-  design stance (bounded loops, loop detection, max_iterations,
-  contracts for budget invariants). Unbounded goal-decomposition is
-  what the framework actively prevents.</p>
+<p><strong>Streaming RAG results to the agent</strong> -- <code>rag_as_tool</code> returns a single concatenated observation today.</p>
+</li>
+<li>
+<p><strong>Filtered deletion in SemanticMemory</strong> -- <code>forget()</code> raises <code>NotImplementedError</code> pending a RAG-side metadata-filtered delete API.</p>
+</li>
+<li>
+<p><strong>Parallel critic ensembles in ReflectionLoop</strong> -- multiple critics voting, reward-model-based acceptance.</p>
+</li>
+<li>
+<p><strong>Unified streaming for plan_and_execute steps</strong> -- one iterator surfacing events from all steps in sequence.</p>
+</li>
+</ul>
+<p>None of these block the pattern; they're refinements waiting on real use cases.</p>
+<h3 id="explicitly-not-on-the-roadmap">Explicitly <strong>not on the roadmap</strong><a class="headerlink" href="#explicitly-not-on-the-roadmap" title="Permanent link">&para;</a></h3>
+<p>These appear in the table above but won't be addressed without a forcing use case. Listed here to make the position explicit.</p>
+<ul>
+<li>
+<p><strong>Tree of Thoughts (§4)</strong> -- requires public <code>LlamaContext.snapshot()</code> / <code>restore()</code> (currently absent) plus a branching agent loop with a scored candidate frontier. Significant new machinery; non-trivial value for cyllama's typical user.</p>
+</li>
+<li>
+<p><strong>Autonomous / AutoGPT (§8)</strong> -- structurally opposed to cyllama's design stance (bounded loops, loop detection, max_iterations, contracts for budget invariants). Unbounded goal-decomposition is what the framework actively prevents.</p>
 </li>
 </ul>
 <h3 id="positioning-consequence">Positioning consequence<a class="headerlink" href="#positioning-consequence" title="Permanent link">&para;</a></h3>
-<p>Reading down the "Value" column reveals the pattern: every "high value"
-gap closes a <strong>reliability or composition</strong> gap (reflection loops, RAG
-bridging, persistent memory, plan-then-execute). Every "not on
-roadmap" item belongs to the <strong>autonomy or graph-orchestration</strong> half
-of the agent space.</p>
-<p>This isn't accidental. cyllama leans into bounded, observable,
-schema-constrained behavior (loop detection, <code>max_iterations</code>,
-<code>Annotated[]</code> markers, ContractAgent invariants); it explicitly
-declines unbounded autonomy and graph orchestration. Users who want
-those should reach for an autonomy-first framework. Users who want
-debuggable, schema-grounded, locally-runnable agents are in the right
-place.</p>
+<p>Reading down the "Value" column reveals the pattern: every "high value" gap closes a <strong>reliability or composition</strong> gap (reflection loops, RAG bridging, persistent memory, plan-then-execute). Every "not on roadmap" item belongs to the <strong>autonomy or graph-orchestration</strong> half of the agent space.</p>
+<p>This isn't accidental. cyllama leans into bounded, observable, schema-constrained behavior (loop detection, <code>max_iterations</code>, <code>Annotated[]</code> markers, ContractAgent invariants); it explicitly declines unbounded autonomy and graph orchestration. Users who want those should reach for an autonomy-first framework. Users who want debuggable, schema-grounded, locally-runnable agents are in the right place.</p>
 <h2 id="further-reading">Further reading<a class="headerlink" href="#further-reading" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="../../agents_overview/"><code>agents_overview.md</code></a> — the full agent
-  framework reference: agent types, tools, events, configuration.</li>
-<li><a href="../contracts/"><code>contracts.md</code></a> — nine worked recipes for contract
-  patterns and the schema-vs-contract decision.</li>
-<li><a href="../../dev/contract-agent/"><code>../dev/contract-agent.md</code></a> — design
-  rationale for the ContractAgent reposition.</li>
+<li>
+<p><a href="../../agents_overview/"><code>agents_overview.md</code></a> — the full agent framework reference: agent types, tools, events, configuration.</p>
+</li>
+<li>
+<p><a href="../contracts/"><code>contracts.md</code></a> — nine worked recipes for contract patterns and the schema-vs-contract decision.</p>
+</li>
+<li>
+<p><a href="../../dev/contract-agent/"><code>../dev/contract-agent.md</code></a> — design rationale for the ContractAgent reposition.</p>
+</li>
 </ul>
 
 

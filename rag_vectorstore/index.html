@@ -1568,10 +1568,43 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#qdrant-reference-adapter" class="md-nav__link">
+  <a href="#qdrant" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Qdrant (reference adapter)
+        Qdrant
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sqlite-vec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        sqlite-vec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#chroma" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Chroma
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pgvector" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pgvector
       
     </span>
   </a>
@@ -2206,10 +2239,43 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#qdrant-reference-adapter" class="md-nav__link">
+  <a href="#qdrant" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Qdrant (reference adapter)
+        Qdrant
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sqlite-vec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        sqlite-vec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#chroma" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Chroma
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pgvector" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pgvector
       
     </span>
   </a>
@@ -2560,8 +2626,41 @@
 <a id="__codelineno-17-13" name="__codelineno-17-13" href="#__codelineno-17-13"></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span> <span class="o">...</span>
 </code></pre></div>
 <p>This makes the RAG stack open to Qdrant, Chroma, LanceDB, pgvector, or any in-house vector service without forking <code>cyllama</code>.</p>
-<h3 id="qdrant-reference-adapter">Qdrant (reference adapter)<a class="headerlink" href="#qdrant-reference-adapter" title="Permanent link">&para;</a></h3>
-<p><code>QdrantVectorStore</code> ships in <code>cyllama.rag.stores.qdrant</code> as the first worked example of the protocol. Install the optional dependency group (<code>uv sync --group qdrant</code>, or <code>pip install qdrant-client</code>) and pass it to <code>RAG</code>:</p>
+<p>Four adapters ship in <code>cyllama.rag.stores</code>, each lazy-imported so <code>import cyllama.rag</code> stays free of the optional dependency:</p>
+<table>
+<thead>
+<tr>
+<th>Adapter</th>
+<th>Install</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>QdrantVectorStore</code></td>
+<td><code>pip install qdrant-client</code></td>
+<td><code>:memory:</code>, on-disk, or remote server</td>
+</tr>
+<tr>
+<td><code>SqliteVecStore</code></td>
+<td><code>pip install sqlite-vec</code></td>
+<td>MIT/Apache-2.0 licensed SQLite backend</td>
+</tr>
+<tr>
+<td><code>ChromaVectorStore</code></td>
+<td><code>pip install chromadb</code></td>
+<td>Ephemeral, on-disk, or remote server</td>
+</tr>
+<tr>
+<td><code>PgVectorStore</code></td>
+<td><code>pip install "psycopg[binary]" pgvector</code></td>
+<td>PostgreSQL; needs a running server</td>
+</tr>
+</tbody>
+</table>
+<p>Install the clients directly (<code>pip install qdrant-client chromadb sqlite-vec "psycopg[binary]" pgvector</code>) to un-skip <code>tests/test_rag_{qdrant,chroma,sqlite_vec}.py</code> locally — cyllama ships no extras or dependency groups for them and takes no position on their version pins. CI covers them through the <code>test-store-adapters</code> workflow, which runs those tests weekly against current releases to catch upstream drift.</p>
+<h3 id="qdrant">Qdrant<a class="headerlink" href="#qdrant" title="Permanent link">&para;</a></h3>
+<p><code>QdrantVectorStore</code> ships in <code>cyllama.rag.stores.qdrant</code> as the first worked example of the protocol. Install the optional dependency (<code>pip install qdrant-client</code>) and pass it to <code>RAG</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.rag</span><span class="w"> </span><span class="kn">import</span> <span class="n">RAG</span>
 <a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.rag.stores</span><span class="w"> </span><span class="kn">import</span> <span class="n">QdrantVectorStore</span>
 <a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>
@@ -2577,7 +2676,98 @@
 <a id="__codelineno-18-13" name="__codelineno-18-13" href="#__codelineno-18-13"></a>    <span class="n">store</span><span class="o">=</span><span class="n">store</span><span class="p">,</span>
 <a id="__codelineno-18-14" name="__codelineno-18-14" href="#__codelineno-18-14"></a><span class="p">)</span>
 </code></pre></div>
-<p>Source dedup is implemented via per-point payload fields (<code>content_hash</code>, <code>source_label</code>, <code>indexed_at</code>) so <code>RAG.add_documents</code> skips unchanged files just like on the sqlite backend. See <code>src/cyllama/rag/stores/qdrant.py</code> for the full implementation — Chroma / LanceDB / pgvector adapters can follow the same template.</p>
+<p>Source dedup is implemented via per-point payload fields (<code>content_hash</code>, <code>source_label</code>, <code>indexed_at</code>) so <code>RAG.add_documents</code> skips unchanged files just like on the sqlite backend. See <code>src/cyllama/rag/stores/qdrant.py</code> for the full implementation.</p>
+<h3 id="sqlite-vec">sqlite-vec<a class="headerlink" href="#sqlite-vec" title="Permanent link">&para;</a></h3>
+<p><code>SqliteVecStore</code> backs the same SQLite-file workflow as the default store, but with <a href="https://github.com/asg017/sqlite-vec">sqlite-vec</a> — which is dual MIT/Apache-2.0 licensed, unlike the vendored <code>sqlite-vector</code> extension (Elastic License 2.0: free for open-source projects, paid for commercial use). If that licensing matters for your deployment, this is the drop-in.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.rag</span><span class="w"> </span><span class="kn">import</span> <span class="n">RAG</span>
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.rag.stores</span><span class="w"> </span><span class="kn">import</span> <span class="n">SqliteVecStore</span>
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>
+<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a><span class="n">store</span> <span class="o">=</span> <span class="n">SqliteVecStore</span><span class="p">(</span>
+<a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a>    <span class="n">dimension</span><span class="o">=</span><span class="mi">384</span><span class="p">,</span>
+<a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a>    <span class="n">db_path</span><span class="o">=</span><span class="s2">&quot;vectors.db&quot;</span><span class="p">,</span>          <span class="c1"># &quot;:memory:&quot; for ephemeral</span>
+<a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a>    <span class="n">metric</span><span class="o">=</span><span class="s2">&quot;cosine&quot;</span><span class="p">,</span>               <span class="c1"># cosine | l2 | squared_l2 | l1</span>
+<a id="__codelineno-19-8" name="__codelineno-19-8" href="#__codelineno-19-8"></a>    <span class="n">vector_type</span><span class="o">=</span><span class="s2">&quot;float32&quot;</span><span class="p">,</span>         <span class="c1"># float32 | int8</span>
+<a id="__codelineno-19-9" name="__codelineno-19-9" href="#__codelineno-19-9"></a><span class="p">)</span>
+</code></pre></div>
+<p>The extension comes from the <code>sqlite-vec</code> PyPI package by default; pass <code>extension_path=...</code> to use your own build. Vectors live in a <code>vec0</code> virtual-table sidecar (<code>{table_name}_vec</code>) keyed by the base table's <code>id</code>, which keeps the chunk rows in an ordinary table — so FTS5 triggers still work over them.</p>
+<p>Differences from <code>SqliteVectorStore</code>:</p>
+<ul>
+<li>
+<p>No <code>dot</code> metric and no <code>uint8</code> vector type — <code>vec0</code> offers cosine/L2/L1 and float32/int8. (<code>vec0</code> parses a <code>float16</code> column type but stores it as float32 as of sqlite-vec 0.1.9, so the adapter doesn't offer it.)</p>
+</li>
+<li>
+<p>No <code>quantize()</code> / <code>preload_quantization()</code>. A <code>vec0</code> table is either exhaustive or built with an ANN index at CREATE time; there is no runtime quantization step.</p>
+</li>
+<li>
+<p>The on-disk format is different, so an existing <code>SqliteVectorStore</code> database has to be re-indexed rather than opened.</p>
+</li>
+</ul>
+<p>For a full comparison — licensing, benchmarks, and what a default-backend swap would cost — see <a href="../dev/use-sqlite-vec/"><code>docs/dev/use-sqlite-vec.md</code></a>.</p>
+<h3 id="chroma">Chroma<a class="headerlink" href="#chroma" title="Permanent link">&para;</a></h3>
+<p><code>ChromaVectorStore</code> adapts <a href="https://github.com/chroma-core/chroma">Chroma</a>, with the same transport choice as the Qdrant adapter:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.rag.stores</span><span class="w"> </span><span class="kn">import</span> <span class="n">ChromaVectorStore</span>
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>
+<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a><span class="n">store</span> <span class="o">=</span> <span class="n">ChromaVectorStore</span><span class="p">(</span><span class="n">dimension</span><span class="o">=</span><span class="mi">384</span><span class="p">)</span>                       <span class="c1"># ephemeral, in-process</span>
+<a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a><span class="n">store</span> <span class="o">=</span> <span class="n">ChromaVectorStore</span><span class="p">(</span><span class="n">dimension</span><span class="o">=</span><span class="mi">384</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s2">&quot;./chroma&quot;</span><span class="p">)</span>      <span class="c1"># local on-disk</span>
+<a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a><span class="n">store</span> <span class="o">=</span> <span class="n">ChromaVectorStore</span><span class="p">(</span><span class="n">dimension</span><span class="o">=</span><span class="mi">384</span><span class="p">,</span> <span class="n">host</span><span class="o">=</span><span class="s2">&quot;localhost&quot;</span><span class="p">,</span> <span class="n">port</span><span class="o">=</span><span class="mi">8000</span><span class="p">)</span>  <span class="c1"># remote server</span>
+<a id="__codelineno-20-6" name="__codelineno-20-6" href="#__codelineno-20-6"></a><span class="n">store</span> <span class="o">=</span> <span class="n">ChromaVectorStore</span><span class="p">(</span><span class="n">dimension</span><span class="o">=</span><span class="mi">384</span><span class="p">,</span> <span class="n">client</span><span class="o">=</span><span class="n">my_client</span><span class="p">)</span>     <span class="c1"># caller-owned client</span>
+</code></pre></div>
+<p>Metrics are <code>cosine</code>, <code>l2</code> and <code>dot</code>. The collection is created without an embedding function — cyllama always supplies the vectors itself. Chroma only stores scalar metadata values, so the adapter JSON-encodes anything nested on the way in and decodes it on the way out; arbitrary JSON-serializable metadata round-trips unchanged. Source dedup uses <code>content_hash</code> / <code>source_label</code> / <code>indexed_at</code> metadata fields, mirroring the Qdrant adapter. Note that Chroma requires collection names of 3-512 characters from <code>[a-zA-Z0-9._-]</code>, starting and ending alphanumeric.</p>
+<h3 id="pgvector">pgvector<a class="headerlink" href="#pgvector" title="Permanent link">&para;</a></h3>
+<p><code>PgVectorStore</code> adapts <a href="https://github.com/pgvector/pgvector">pgvector</a>. It is the most capable of the four adapters — it covers <strong>every metric the default backend does</strong>, including the <code>dot</code> that sqlite-vec cannot offer — but it is the only one with no in-process mode: a reachable PostgreSQL server is a hard requirement.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.rag.stores</span><span class="w"> </span><span class="kn">import</span> <span class="n">PgVectorStore</span>
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>
+<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a><span class="n">store</span> <span class="o">=</span> <span class="n">PgVectorStore</span><span class="p">(</span><span class="n">dimension</span><span class="o">=</span><span class="mi">384</span><span class="p">,</span> <span class="n">dsn</span><span class="o">=</span><span class="s2">&quot;postgresql://user:pw@localhost/rag&quot;</span><span class="p">)</span>
+<a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a><span class="n">store</span> <span class="o">=</span> <span class="n">PgVectorStore</span><span class="p">(</span><span class="n">dimension</span><span class="o">=</span><span class="mi">384</span><span class="p">,</span> <span class="n">conn</span><span class="o">=</span><span class="n">my_psycopg_connection</span><span class="p">)</span>  <span class="c1"># caller-owned</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th><code>metric</code></th>
+<th>Operator</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>cosine</code></td>
+<td><code>&lt;=&gt;</code></td>
+<td>default</td>
+</tr>
+<tr>
+<td><code>l2</code></td>
+<td><code>&lt;-&gt;</code></td>
+<td>euclidean</td>
+</tr>
+<tr>
+<td><code>squared_l2</code></td>
+<td><code>&lt;-&gt;</code></td>
+<td>squared in Python; ordering identical</td>
+</tr>
+<tr>
+<td><code>dot</code></td>
+<td><code>&lt;#&gt;</code></td>
+<td>score is the plain inner product</td>
+</tr>
+<tr>
+<td><code>l1</code></td>
+<td><code>&lt;+&gt;</code></td>
+<td>requires pgvector &gt;= 0.7.0, checked at construction</td>
+</tr>
+</tbody>
+</table>
+<p>Metadata is stored as native <code>JSONB</code>, so nested values round-trip with no encoding. Chunks live in <code>{table_name}</code>, with <code>{table_name}_meta</code> and <code>{table_name}_sources</code> alongside; reopening with a different <code>dimension</code> or <code>metric</code> raises rather than corrupting the table, and the declared <code>vector(N)</code> column width is cross-checked against the catalog.</p>
+<p>Two pgvector-specific extras sit outside <code>VectorStoreProtocol</code> — this is pgvector's answer to <code>SqliteVectorStore.quantize()</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="n">store</span><span class="o">.</span><span class="n">create_index</span><span class="p">(</span><span class="s2">&quot;hnsw&quot;</span><span class="p">,</span> <span class="n">m</span><span class="o">=</span><span class="mi">16</span><span class="p">,</span> <span class="n">ef_construction</span><span class="o">=</span><span class="mi">64</span><span class="p">)</span>   <span class="c1"># or &quot;ivfflat&quot;, lists=100</span>
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a><span class="n">store</span><span class="o">.</span><span class="n">drop_index</span><span class="p">(</span><span class="s2">&quot;hnsw&quot;</span><span class="p">)</span>
+<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a><span class="nb">print</span><span class="p">(</span><span class="n">store</span><span class="o">.</span><span class="n">pgvector_version</span><span class="p">)</span>
+</code></pre></div>
+<p>The operator class is derived from the store's <code>metric</code>, so the index actually serves the queries <code>search()</code> issues. Build it after bulk loading, not before.</p>
+<p>For local development without installing PostgreSQL, <code>pip install pgserver</code> (Python &lt;= 3.12) ships a PostgreSQL binary with pgvector bundled and needs no root:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">pgserver</span>
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a><span class="n">db</span> <span class="o">=</span> <span class="n">pgserver</span><span class="o">.</span><span class="n">get_server</span><span class="p">(</span><span class="s2">&quot;/tmp/pgdata&quot;</span><span class="p">)</span>
+<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a><span class="n">store</span> <span class="o">=</span> <span class="n">PgVectorStore</span><span class="p">(</span><span class="n">dimension</span><span class="o">=</span><span class="mi">384</span><span class="p">,</span> <span class="n">dsn</span><span class="o">=</span><span class="n">db</span><span class="o">.</span><span class="n">get_uri</span><span class="p">())</span>
+</code></pre></div>
 <p>Sqlite-specific features (quantization, FTS5 <code>HybridStore</code>, raw <code>store.conn</code> access) stay on <code>SqliteVectorStore</code> and aren't part of the contract. Backends without a natural dedup mechanism may return <code>False</code> / <code>None</code> from <code>is_source_indexed</code> / <code>get_source_by_label</code> — the RAG layer treats that as "always re-index" and still behaves correctly, just less efficiently on repeated <code>add_documents</code> calls.</p>
 <h2 id="performance-characteristics">Performance Characteristics<a class="headerlink" href="#performance-characteristics" title="Permanent link">&para;</a></h2>
 <ul>

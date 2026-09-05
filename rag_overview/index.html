@@ -2144,7 +2144,19 @@
 </tr>
 <tr>
 <td><code>QdrantVectorStore</code></td>
-<td>Qdrant adapter for <code>VectorStoreProtocol</code> (optional: <code>uv sync --group qdrant</code>). Reference example for multi-backend support.</td>
+<td>Qdrant adapter for <code>VectorStoreProtocol</code> (optional: <code>pip install qdrant-client</code>).</td>
+</tr>
+<tr>
+<td><code>SqliteVecStore</code></td>
+<td><a href="https://github.com/asg017/sqlite-vec">sqlite-vec</a> adapter for <code>VectorStoreProtocol</code> (optional: <code>pip install sqlite-vec</code>). Permissively licensed (MIT/Apache-2.0) alternative to the vendored sqlite-vector extension.</td>
+</tr>
+<tr>
+<td><code>ChromaVectorStore</code></td>
+<td><a href="https://github.com/chroma-core/chroma">Chroma</a> adapter for <code>VectorStoreProtocol</code> (optional: <code>pip install chromadb</code>). Ephemeral, on-disk or remote-server transports.</td>
+</tr>
+<tr>
+<td><code>PgVectorStore</code></td>
+<td><a href="https://github.com/pgvector/pgvector">pgvector</a> adapter for <code>VectorStoreProtocol</code> (optional: <code>pip install "psycopg[binary]" pgvector</code>). Native JSONB metadata, every metric including <code>dot</code>, HNSW/IVFFlat indexes. Requires a PostgreSQL server.</td>
 </tr>
 <tr>
 <td><code>HybridStore</code></td>

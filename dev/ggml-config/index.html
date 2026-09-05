@@ -1680,18 +1680,11 @@
 
 <h1 id="ggml-build-configuration-ggml_native-and-cmake_cuda_architectures">ggml build configuration: GGML_NATIVE and CMAKE_CUDA_ARCHITECTURES<a class="headerlink" href="#ggml-build-configuration-ggml_native-and-cmake_cuda_architectures" title="Permanent link">&para;</a></h1>
 <h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
-<p>Local CUDA builds are unnecessarily slow to compile and produce bloated
-binaries because neither <code>GGML_NATIVE</code> nor <code>CMAKE_CUDA_ARCHITECTURES</code> is
-defaulted for local development.  This document describes the current
-behavior, the upstream constraints, and a concrete recommendation for
-sensible defaults.</p>
+<p>Local CUDA builds are unnecessarily slow to compile and produce bloated binaries because neither <code>GGML_NATIVE</code> nor <code>CMAKE_CUDA_ARCHITECTURES</code> is defaulted for local development. This document describes the current behavior, the upstream constraints, and a concrete recommendation for sensible defaults.</p>
 <hr />
 <h2 id="current-behavior">Current behavior<a class="headerlink" href="#current-behavior" title="Permanent link">&para;</a></h2>
 <h3 id="ggml_native">GGML_NATIVE<a class="headerlink" href="#ggml_native" title="Permanent link">&para;</a></h3>
-<p><code>GGML_NATIVE</code> tells ggml's cmake to optimize for the build machine's CPU
-(native ISA detection: AVX2, AVX-512, etc.) and, when CUDA is enabled, to
-set <code>CMAKE_CUDA_ARCHITECTURES=native</code> so only the installed GPU's SM
-architecture is targeted.</p>
+<p><code>GGML_NATIVE</code> tells ggml's cmake to optimize for the build machine's CPU (native ISA detection: AVX2, AVX-512, etc.) and, when CUDA is enabled, to set <code>CMAKE_CUDA_ARCHITECTURES=native</code> so only the installed GPU's SM architecture is targeted.</p>
 <table>
 <thead>
 <tr>
@@ -1713,24 +1706,17 @@ architecture is targeted.</p>
 </tr>
 </tbody>
 </table>
-<p>The incompatibility between <code>GGML_NATIVE</code> and <code>GGML_BACKEND_DL</code> is enforced
-by ggml-cpu's cmake at <code>ggml/src/ggml-cpu/CMakeLists.txt:382</code>:</p>
+<p>The incompatibility between <code>GGML_NATIVE</code> and <code>GGML_BACKEND_DL</code> is enforced by ggml-cpu's cmake at <code>ggml/src/ggml-cpu/CMakeLists.txt:382</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>GGML_NATIVE is not compatible with GGML_BACKEND_DL, consider using
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>GGML_CPU_ALL_VARIANTS
 </code></pre></div>
-<p>This is a CPU-side constraint -- <code>GGML_NATIVE</code> enables compile-time ISA
-selection (<code>-march=native</code>), which conflicts with the runtime plugin loading
-model where each CPU variant is a separate <code>.so</code>.  The CUDA architecture
-selection (<code>CMAKE_CUDA_ARCHITECTURES=native</code>) has no such conflict.</p>
+<p>This is a CPU-side constraint -- <code>GGML_NATIVE</code> enables compile-time ISA selection (<code>-march=native</code>), which conflicts with the runtime plugin loading model where each CPU variant is a separate <code>.so</code>. The CUDA architecture selection (<code>CMAKE_CUDA_ARCHITECTURES=native</code>) has no such conflict.</p>
 <h3 id="cmake_cuda_architectures">CMAKE_CUDA_ARCHITECTURES<a class="headerlink" href="#cmake_cuda_architectures" title="Permanent link">&para;</a></h3>
-<p>Pure passthrough from the environment.  Only set if the user explicitly
-provides it (<code>scripts/manage.py:964-966</code>).</p>
-<p>If not set, ggml-cuda's own default logic applies
-(<code>build/llama.cpp/ggml/src/ggml-cuda/CMakeLists.txt:8-55</code>).  With CUDA 12.0
-and <code>GGML_NATIVE</code> unset, this produces:</p>
+<p>Pure passthrough from the environment. Only set if the user explicitly provides it (<code>scripts/manage.py:964-966</code>).</p>
+<p>If not set, ggml-cuda's own default logic applies (<code>build/llama.cpp/ggml/src/ggml-cuda/CMakeLists.txt:8-55</code>). With CUDA 12.0 and <code>GGML_NATIVE</code> unset, this produces:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>50-virtual  61-virtual  70-virtual  75-virtual  80-virtual  86-real  89-real
 </code></pre></div>
-<p>Seven architectures.  Each one roughly multiplies the compiled kernel code.</p>
+<p>Seven architectures. Each one roughly multiplies the compiled kernel code.</p>
 <h3 id="net-effect-on-local-builds">Net effect on local builds<a class="headerlink" href="#net-effect-on-local-builds" title="Permanent link">&para;</a></h3>
 <p>A local <code>make build-cuda-dynamic</code> with no env vars:</p>
 <ul>
@@ -1754,12 +1740,10 @@ and <code>GGML_NATIVE</code> unset, this produces:</p>
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="l l-Scalar l-Scalar-Plain">CMAKE_CUDA_ARCHITECTURES=&quot;75&quot;</span>
 <a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="l l-Scalar l-Scalar-Plain">GGML_NATIVE=OFF</span>
 </code></pre></div>
-<p>This has been <code>"75"</code> (sm_75 / Turing) since the first CUDA CI workflow.
-Any new defaults must not override these explicit settings.</p>
+<p>This has been <code>"75"</code> (sm_75 / Turing) since the first CUDA CI workflow. Any new defaults must not override these explicit settings.</p>
 <hr />
 <h2 id="observed-sizes">Observed sizes<a class="headerlink" href="#observed-sizes" title="Permanent link">&para;</a></h2>
-<p>Measured on an RTX 4060 (sm_89) with CUDA 12.0, dynamic build,
-<code>SD_USE_VENDORED_GGML=0</code>:</p>
+<p>Measured on an RTX 4060 (sm_89) with CUDA 12.0, dynamic build, <code>SD_USE_VENDORED_GGML=0</code>:</p>
 <table>
 <thead>
 <tr>
@@ -1793,20 +1777,13 @@ Any new defaults must not override these explicit settings.</p>
 <hr />
 <h2 id="recommendation">Recommendation<a class="headerlink" href="#recommendation" title="Permanent link">&para;</a></h2>
 <h3 id="local-builds-default-to-native">Local builds: default to native<a class="headerlink" href="#local-builds-default-to-native" title="Permanent link">&para;</a></h3>
-<p><strong>Static builds</strong>: Default <code>GGML_NATIVE=ON</code> when the environment variable is
-not set.  This gives native CPU ISA optimization and
-<code>CMAKE_CUDA_ARCHITECTURES=native</code> in one flag.</p>
-<p><strong>Dynamic builds</strong>: Cannot use <code>GGML_NATIVE</code> (BACKEND_DL conflict).  Instead,
-when CUDA is enabled and <code>CMAKE_CUDA_ARCHITECTURES</code> is not explicitly set,
-default it to <code>native</code>.  This targets only the installed GPU without
-triggering the CPU-side incompatibility.</p>
+<p><strong>Static builds</strong>: Default <code>GGML_NATIVE=ON</code> when the environment variable is not set. This gives native CPU ISA optimization and <code>CMAKE_CUDA_ARCHITECTURES=native</code> in one flag.</p>
+<p><strong>Dynamic builds</strong>: Cannot use <code>GGML_NATIVE</code> (BACKEND_DL conflict). Instead, when CUDA is enabled and <code>CMAKE_CUDA_ARCHITECTURES</code> is not explicitly set, default it to <code>native</code>. This targets only the installed GPU without triggering the CPU-side incompatibility.</p>
 <h3 id="ci-builds-no-change-needed">CI builds: no change needed<a class="headerlink" href="#ci-builds-no-change-needed" title="Permanent link">&para;</a></h3>
-<p>CI already sets <code>GGML_NATIVE=OFF</code> and <code>CMAKE_CUDA_ARCHITECTURES="75"</code>
-explicitly.  These override any defaults.</p>
+<p>CI already sets <code>GGML_NATIVE=OFF</code> and <code>CMAKE_CUDA_ARCHITECTURES="75"</code> explicitly. These override any defaults.</p>
 <h3 id="implementation">Implementation<a class="headerlink" href="#implementation" title="Permanent link">&para;</a></h3>
 <p>Two changes in <code>scripts/manage.py</code>:</p>
-<p><strong>1. Default <code>GGML_NATIVE=ON</code> for static builds (<code>get_backend_cmake_options</code>,
-~line 1036):</strong></p>
+<p><strong>1. Default <code>GGML_NATIVE=ON</code> for static builds (<code>get_backend_cmake_options</code>, ~line 1036):</strong></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Before:</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">ggml_native</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;GGML_NATIVE&quot;</span><span class="p">)</span>
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="k">if</span> <span class="n">ggml_native</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
@@ -1821,11 +1798,8 @@ explicitly.  These override any defaults.</p>
 <a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>    <span class="n">options</span><span class="p">[</span><span class="s2">&quot;GGML_NATIVE&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;ON&quot;</span>
 <a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  GGML_NATIVE=</span><span class="si">{</span><span class="n">options</span><span class="p">[</span><span class="s1">&#39;GGML_NATIVE&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 </code></pre></div>
-<p><code>build_shared()</code> already forces <code>GGML_NATIVE=OFF</code> after calling
-<code>get_backend_cmake_options()</code>, so the new default is harmless for dynamic
-builds.</p>
-<p><strong>2. Default <code>CMAKE_CUDA_ARCHITECTURES=native</code> for dynamic builds
-(<code>build_shared</code>, ~line 1190):</strong></p>
+<p><code>build_shared()</code> already forces <code>GGML_NATIVE=OFF</code> after calling <code>get_backend_cmake_options()</code>, so the new default is harmless for dynamic builds.</p>
+<p><strong>2. Default <code>CMAKE_CUDA_ARCHITECTURES=native</code> for dynamic builds (<code>build_shared</code>, ~line 1190):</strong></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># After forcing GGML_NATIVE=OFF:</span>
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="k">if</span> <span class="s2">&quot;GGML_NATIVE&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">backend_options</span><span class="p">:</span>
 <a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>    <span class="n">backend_options</span><span class="p">[</span><span class="s2">&quot;GGML_NATIVE&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;OFF&quot;</span>

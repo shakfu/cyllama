@@ -2361,8 +2361,8 @@
 </tr>
 <tr>
 <td><code>SD_USE_VENDORED_GGML</code></td>
-<td><code>1</code></td>
-<td>Link stable-diffusion against its own vendored ggml (set to <code>0</code> to share llama.cpp's ggml; not recommended for GPU backends)</td>
+<td><code>0</code></td>
+<td>Share llama.cpp's ggml with stable-diffusion (set to <code>1</code> to link SD's own vendored copy instead)</td>
 </tr>
 </tbody>
 </table>
@@ -2509,16 +2509,23 @@
 <a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a>ls<span class="w"> </span>-lh<span class="w"> </span>thirdparty/llama.cpp/lib/
 </code></pre></div>
 <h3 id="querying-at-runtime">Querying at Runtime<a class="headerlink" href="#querying-at-runtime" title="Permanent link">&para;</a></h3>
-<p>The build generates <code>src/cyllama/_internal/backend.py</code> with the enabled backends and their configuration. You can inspect this at runtime:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama._internal</span><span class="w"> </span><span class="kn">import</span> <span class="n">backend</span>
+<p>The build generates <code>src/cyllama/build_config.json</code> with the enabled backends and their configuration. <code>cyllama._internal.build_config</code> provides a cached accessor for it:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama._internal</span><span class="w"> </span><span class="kn">import</span> <span class="n">build_config</span>
 <a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>
-<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a><span class="nb">print</span><span class="p">(</span><span class="n">backend</span><span class="o">.</span><span class="n">cuda</span><span class="p">)</span>    <span class="c1"># True if built with CUDA</span>
-<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a><span class="nb">print</span><span class="p">(</span><span class="n">backend</span><span class="o">.</span><span class="n">metal</span><span class="p">)</span>   <span class="c1"># True if built with Metal</span>
-<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a><span class="nb">print</span><span class="p">(</span><span class="n">backend</span><span class="o">.</span><span class="n">vulkan</span><span class="p">)</span>  <span class="c1"># True if built with Vulkan</span>
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a><span class="nb">print</span><span class="p">(</span><span class="n">build_config</span><span class="o">.</span><span class="n">backend_enabled</span><span class="p">(</span><span class="s2">&quot;cuda&quot;</span><span class="p">))</span>    <span class="c1"># True if built with CUDA</span>
+<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a><span class="nb">print</span><span class="p">(</span><span class="n">build_config</span><span class="o">.</span><span class="n">backend_enabled</span><span class="p">(</span><span class="s2">&quot;metal&quot;</span><span class="p">))</span>   <span class="c1"># True if built with Metal</span>
+<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a><span class="nb">print</span><span class="p">(</span><span class="n">build_config</span><span class="o">.</span><span class="n">backend_enabled</span><span class="p">(</span><span class="s2">&quot;vulkan&quot;</span><span class="p">))</span>  <span class="c1"># True if built with Vulkan</span>
 <a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a>
-<a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a><span class="c1"># Backend-specific options (None if not set)</span>
-<a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a><span class="nb">print</span><span class="p">(</span><span class="n">backend</span><span class="o">.</span><span class="n">cuda_architectures</span><span class="p">)</span>   <span class="c1"># e.g. &quot;89&quot; or None</span>
-<a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a><span class="nb">print</span><span class="p">(</span><span class="n">_backend</span><span class="o">.</span><span class="n">blas_vendor</span><span class="p">)</span>          <span class="c1"># e.g. &quot;OpenBLAS&quot; or None</span>
+<a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a><span class="c1"># Each backend is a dict; backend-specific options are None if not set</span>
+<a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a><span class="n">cfg</span> <span class="o">=</span> <span class="n">build_config</span><span class="o">.</span><span class="n">backend</span><span class="p">()</span>
+<a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a><span class="nb">print</span><span class="p">(</span><span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;cuda&quot;</span><span class="p">][</span><span class="s2">&quot;architectures&quot;</span><span class="p">])</span>   <span class="c1"># e.g. &quot;89&quot; or None</span>
+<a id="__codelineno-18-10" name="__codelineno-18-10" href="#__codelineno-18-10"></a><span class="nb">print</span><span class="p">(</span><span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;blas&quot;</span><span class="p">][</span><span class="s2">&quot;vendor&quot;</span><span class="p">])</span>          <span class="c1"># e.g. &quot;OpenBLAS&quot; or None</span>
+<a id="__codelineno-18-11" name="__codelineno-18-11" href="#__codelineno-18-11"></a>
+<a id="__codelineno-18-12" name="__codelineno-18-12" href="#__codelineno-18-12"></a><span class="c1"># Thirdparty revisions recorded at build time</span>
+<a id="__codelineno-18-13" name="__codelineno-18-13" href="#__codelineno-18-13"></a><span class="nb">print</span><span class="p">(</span><span class="n">build_config</span><span class="o">.</span><span class="n">versions</span><span class="p">())</span>
+<a id="__codelineno-18-14" name="__codelineno-18-14" href="#__codelineno-18-14"></a>
+<a id="__codelineno-18-15" name="__codelineno-18-15" href="#__codelineno-18-15"></a><span class="c1"># Pretty-print everything</span>
+<a id="__codelineno-18-16" name="__codelineno-18-16" href="#__codelineno-18-16"></a><span class="n">build_config</span><span class="o">.</span><span class="n">dump</span><span class="p">()</span>
 </code></pre></div>
 <p>This is also used internally for platform-specific setup such as Windows CUDA DLL discovery (see <a href="../troubleshooting/#cuda-dlls-not-found-windows">Troubleshooting</a>).</p>
 <p>Expected libraries for each backend:</p>
@@ -2693,8 +2700,12 @@
 <h2 id="advanced-custom-cmake-flags">Advanced: Custom CMake Flags<a class="headerlink" href="#advanced-custom-cmake-flags" title="Permanent link">&para;</a></h2>
 <p>Cyllama has a two-stage build process:</p>
 <ol>
-<li><strong>Dependency build</strong> (<code>scripts/manage.py</code>): Builds llama.cpp, whisper.cpp, stable-diffusion.cpp as static libraries</li>
-<li><strong>Extension build</strong> (<code>CMakeLists.txt</code>): Builds Cython extensions with scikit-build-core, linking against the static libraries</li>
+<li>
+<p><strong>Dependency build</strong> (<code>scripts/manage.py</code>): Builds llama.cpp, whisper.cpp, stable-diffusion.cpp as static libraries</p>
+</li>
+<li>
+<p><strong>Extension build</strong> (<code>CMakeLists.txt</code>): Builds Cython extensions with scikit-build-core, linking against the static libraries</p>
+</li>
 </ol>
 <h3 id="customizing-dependency-build">Customizing Dependency Build<a class="headerlink" href="#customizing-dependency-build" title="Permanent link">&para;</a></h3>
 <p>Use <code>scripts/manage.py</code> with environment variables or flags:</p>

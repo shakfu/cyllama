@@ -2118,9 +2118,15 @@
 </code></pre></div>
 <h3 id="how-hybrid-search-works">How Hybrid Search Works<a class="headerlink" href="#how-hybrid-search-works" title="Permanent link">&para;</a></h3>
 <ol>
-<li><strong>Vector Search</strong>: Finds semantically similar documents</li>
-<li><strong>FTS5 Search</strong>: Finds documents with matching keywords</li>
-<li><strong>Reciprocal Rank Fusion</strong>: Combines rankings from both methods</li>
+<li>
+<p><strong>Vector Search</strong>: Finds semantically similar documents</p>
+</li>
+<li>
+<p><strong>FTS5 Search</strong>: Finds documents with matching keywords</p>
+</li>
+<li>
+<p><strong>Reciprocal Rank Fusion</strong>: Combines rankings from both methods</p>
+</li>
 </ol>
 <p>The <code>alpha</code> parameter controls the balance:</p>
 <ul>
@@ -2171,9 +2177,15 @@
 </code></pre></div>
 <h3 id="how-reranking-works">How Reranking Works<a class="headerlink" href="#how-reranking-works" title="Permanent link">&para;</a></h3>
 <ol>
-<li><strong>Initial Retrieval</strong>: Fast bi-encoder similarity search</li>
-<li><strong>Reranking</strong>: Slower cross-encoder scores each query-document pair</li>
-<li><strong>Final Results</strong>: Reordered by cross-encoder scores</li>
+<li>
+<p><strong>Initial Retrieval</strong>: Fast bi-encoder similarity search</p>
+</li>
+<li>
+<p><strong>Reranking</strong>: Slower cross-encoder scores each query-document pair</p>
+</li>
+<li>
+<p><strong>Final Results</strong>: Reordered by cross-encoder scores</p>
+</li>
 </ol>
 <p>Cross-encoders are more accurate because they see query and document together, but they're slower (can't be pre-computed).</p>
 <h3 id="reranker-methods">Reranker Methods<a class="headerlink" href="#reranker-methods" title="Permanent link">&para;</a></h3>
@@ -2284,11 +2296,21 @@
 </code></pre></div>
 <h2 id="performance-tips">Performance Tips<a class="headerlink" href="#performance-tips" title="Permanent link">&para;</a></h2>
 <ol>
-<li><strong>Initial Retrieval</strong>: Retrieve 2-4x more documents than needed, then rerank</li>
-<li><strong>Hybrid Search</strong>: Use when keyword matches matter</li>
-<li><strong>Async</strong>: Use <code>AsyncRAG</code> in web applications to avoid blocking</li>
-<li><strong>Quantization</strong>: Call <code>store.quantize()</code> for datasets &gt;10k vectors</li>
-<li><strong>Caching</strong>: Reuse embedder and store instances across queries</li>
+<li>
+<p><strong>Initial Retrieval</strong>: Retrieve 2-4x more documents than needed, then rerank</p>
+</li>
+<li>
+<p><strong>Hybrid Search</strong>: Use when keyword matches matter</p>
+</li>
+<li>
+<p><strong>Async</strong>: Use <code>AsyncRAG</code> in web applications to avoid blocking</p>
+</li>
+<li>
+<p><strong>Quantization</strong>: Call <code>store.quantize()</code> for datasets &gt;10k vectors</p>
+</li>
+<li>
+<p><strong>Caching</strong>: Reuse embedder and store instances across queries</p>
+</li>
 </ol>
 
 

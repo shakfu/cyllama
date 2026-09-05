@@ -2180,10 +2180,18 @@
 <p>Passing <code>embedder=</code> skips the default <code>Embedder</code> construction entirely, so callers using a remote embedding API don't need a local GGUF embedding model. The RAG layer never calls backend-specific extensions (caching introspection, <code>embed_with_info</code>, async APIs) — those remain on the concrete <code>Embedder</code> and aren't part of the contract.</p>
 <h2 id="performance-tips">Performance Tips<a class="headerlink" href="#performance-tips" title="Permanent link">&para;</a></h2>
 <ol>
-<li><strong>Batch Processing</strong>: Use <code>embed_batch()</code> instead of multiple <code>embed()</code> calls</li>
-<li><strong>GPU Acceleration</strong>: Set <code>n_gpu_layers=-1</code> to use all GPU layers</li>
-<li><strong>Context Size</strong>: Match <code>n_ctx</code> to your model's training context</li>
-<li><strong>Memory Efficiency</strong>: Use <code>embed_iter()</code> for large datasets</li>
+<li>
+<p><strong>Batch Processing</strong>: Use <code>embed_batch()</code> instead of multiple <code>embed()</code> calls</p>
+</li>
+<li>
+<p><strong>GPU Acceleration</strong>: Set <code>n_gpu_layers=-1</code> to use all GPU layers</p>
+</li>
+<li>
+<p><strong>Context Size</strong>: Match <code>n_ctx</code> to your model's training context</p>
+</li>
+<li>
+<p><strong>Memory Efficiency</strong>: Use <code>embed_iter()</code> for large datasets</p>
+</li>
 </ol>
 
 

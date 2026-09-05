@@ -1954,10 +1954,18 @@
 <h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
 <p>This document outlines the design for an optional SQLite-based storage system for cyllama, providing:</p>
 <ol>
-<li><strong>Response Caching</strong> - Cache responses for identical prompts with TTL</li>
-<li><strong>Statistics Tracking</strong> - Track generation metrics over time</li>
-<li><strong>Configuration Storage</strong> - Persistent user preferences and model defaults</li>
-<li><strong>Structured Logging</strong> - Queryable generation logs</li>
+<li>
+<p><strong>Response Caching</strong> - Cache responses for identical prompts with TTL</p>
+</li>
+<li>
+<p><strong>Statistics Tracking</strong> - Track generation metrics over time</p>
+</li>
+<li>
+<p><strong>Configuration Storage</strong> - Persistent user preferences and model defaults</p>
+</li>
+<li>
+<p><strong>Structured Logging</strong> - Queryable generation logs</p>
+</li>
 </ol>
 <h2 id="design-principles">Design Principles<a class="headerlink" href="#design-principles" title="Permanent link">&para;</a></h2>
 <ul>
@@ -2422,9 +2430,15 @@
 <h2 id="caching-strategy">Caching Strategy<a class="headerlink" href="#caching-strategy" title="Permanent link">&para;</a></h2>
 <h3 id="cache-key-components">Cache Key Components<a class="headerlink" href="#cache-key-components" title="Permanent link">&para;</a></h3>
 <ol>
-<li><strong>Prompt</strong> - Full prompt text (hashed)</li>
-<li><strong>Model</strong> - Model filename (not full path for portability)</li>
-<li><strong>Deterministic Config</strong> - temperature, max_tokens, top_k, top_p, min_p, repeat_penalty, stop_sequences</li>
+<li>
+<p><strong>Prompt</strong> - Full prompt text (hashed)</p>
+</li>
+<li>
+<p><strong>Model</strong> - Model filename (not full path for portability)</p>
+</li>
+<li>
+<p><strong>Deterministic Config</strong> - temperature, max_tokens, top_k, top_p, min_p, repeat_penalty, stop_sequences</p>
+</li>
 </ol>
 <h3 id="excluded-from-cache-key">Excluded from Cache Key<a class="headerlink" href="#excluded-from-cache-key" title="Permanent link">&para;</a></h3>
 <ul>
@@ -2604,7 +2618,9 @@
 </ul>
 <h2 id="open-questions">Open Questions<a class="headerlink" href="#open-questions" title="Permanent link">&para;</a></h2>
 <ol>
-<li><strong>Should caching be on by default?</strong></li>
+<li>
+<p><strong>Should caching be on by default?</strong></p>
+</li>
 <li>
 <p>Pro: Immediate performance benefit</p>
 </li>

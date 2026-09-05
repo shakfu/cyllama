@@ -2774,10 +2774,18 @@
 <p>Cyllama includes a zero-dependency agent framework for building tool-using LLM agents. The framework provides three agent architectures, each designed for different reliability and control requirements.</p>
 <h2 id="table-of-contents">Table of Contents<a class="headerlink" href="#table-of-contents" title="Permanent link">&para;</a></h2>
 <ol>
-<li><a href="#quick-start">Quick Start</a></li>
-<li><a href="#architecture">Architecture</a></li>
-<li><a href="#tools">Tools</a> -- including <code>Annotated[]</code> constraints, coercion, timeouts</li>
-<li><a href="#agents">Agents</a></li>
+<li>
+<p><a href="#quick-start">Quick Start</a></p>
+</li>
+<li>
+<p><a href="#architecture">Architecture</a></p>
+</li>
+<li>
+<p><a href="#tools">Tools</a> -- including <code>Annotated[]</code> constraints, coercion, timeouts</p>
+</li>
+<li>
+<p><a href="#agents">Agents</a></p>
+</li>
 <li>
 <p><a href="#reactagent">ReActAgent</a></p>
 </li>
@@ -2787,13 +2795,27 @@
 <li>
 <p><a href="#contractagent">ContractAgent</a></p>
 </li>
-<li><a href="#multi-agent-composition">Multi-Agent Composition</a> -- <code>agent_as_tool</code>, <code>TieredAgentTeam</code></li>
-<li><a href="#events-and-results">Events and Results</a></li>
-<li><a href="#configuration">Configuration</a></li>
-<li><a href="#best-practices">Best Practices</a></li>
-<li><a href="#async-agents">Async Agents</a></li>
-<li><a href="#further-reading">Further Reading</a> -- recipes + design docs</li>
-<li><a href="#experimental-acpagent">Experimental: ACPAgent</a></li>
+<li>
+<p><a href="#multi-agent-composition">Multi-Agent Composition</a> -- <code>agent_as_tool</code>, <code>TieredAgentTeam</code></p>
+</li>
+<li>
+<p><a href="#events-and-results">Events and Results</a></p>
+</li>
+<li>
+<p><a href="#configuration">Configuration</a></p>
+</li>
+<li>
+<p><a href="#best-practices">Best Practices</a></p>
+</li>
+<li>
+<p><a href="#async-agents">Async Agents</a></p>
+</li>
+<li>
+<p><a href="#further-reading">Further Reading</a> -- recipes + design docs</p>
+</li>
+<li>
+<p><a href="#experimental-acpagent">Experimental: ACPAgent</a></p>
+</li>
 </ol>
 <h2 id="quick-start">Quick Start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama</span><span class="w"> </span><span class="kn">import</span> <span class="n">LLM</span>
@@ -2984,14 +3006,30 @@
 <h3 id="tool-argument-coercion-and-validation">Tool-Argument Coercion and Validation<a class="headerlink" href="#tool-argument-coercion-and-validation" title="Permanent link">&para;</a></h3>
 <p>LLMs frequently emit string-typed JSON values for numeric fields ("5" instead of 5). The dispatch layer runs <code>coerce_args(tool, args)</code> before invoking the tool function when <code>tool.coerce</code> is True (the default; opt out via <code>@tool(coerce=False)</code> for tools that genuinely want loose typing or <code>**kwargs</code>). Coercion is narrow on purpose -- it fixes shape mismatches an LLM is likely to emit, not arbitrary type juggling:</p>
 <ul>
-<li><code>"5"</code> -&gt; <code>int(5)</code> for <code>integer</code> fields; <code>"1.5"</code> -&gt; <code>float(1.5)</code> for <code>number</code> fields</li>
-<li><code>"true"</code> / <code>"false"</code> (any case, plus <code>"1"</code>/<code>"0"</code>, <code>"yes"</code>/<code>"no"</code>) -&gt; <code>bool</code></li>
-<li>Missing required args -&gt; <code>ToolArgumentError</code></li>
-<li>Unknown args (not declared in the schema) -&gt; <code>ToolArgumentError</code></li>
-<li><code>Literal[...]</code> enum violations -&gt; <code>ToolArgumentError</code></li>
-<li><code>bool</code> passed for an <code>int</code> field -&gt; rejected (Python's int-subclass trap)</li>
-<li><code>Annotated[]</code> bounds violated (out of range, wrong pattern, too long) -&gt; <code>ToolArgumentError</code></li>
-<li>NaN / infinity values for bounded numeric fields -&gt; rejected (NaN comparisons silently pass otherwise)</li>
+<li>
+<p><code>"5"</code> -&gt; <code>int(5)</code> for <code>integer</code> fields; <code>"1.5"</code> -&gt; <code>float(1.5)</code> for <code>number</code> fields</p>
+</li>
+<li>
+<p><code>"true"</code> / <code>"false"</code> (any case, plus <code>"1"</code>/<code>"0"</code>, <code>"yes"</code>/<code>"no"</code>) -&gt; <code>bool</code></p>
+</li>
+<li>
+<p>Missing required args -&gt; <code>ToolArgumentError</code></p>
+</li>
+<li>
+<p>Unknown args (not declared in the schema) -&gt; <code>ToolArgumentError</code></p>
+</li>
+<li>
+<p><code>Literal[...]</code> enum violations -&gt; <code>ToolArgumentError</code></p>
+</li>
+<li>
+<p><code>bool</code> passed for an <code>int</code> field -&gt; rejected (Python's int-subclass trap)</p>
+</li>
+<li>
+<p><code>Annotated[]</code> bounds violated (out of range, wrong pattern, too long) -&gt; <code>ToolArgumentError</code></p>
+</li>
+<li>
+<p>NaN / infinity values for bounded numeric fields -&gt; rejected (NaN comparisons silently pass otherwise)</p>
+</li>
 </ul>
 <p><code>ToolArgumentError</code> is a <code>ValueError</code> subclass, so existing agent exception handlers catch it; the precise message gets fed back to the LLM as the observation so it can self-correct on the next iteration.</p>
 <h3 id="tool-timeouts">Tool Timeouts<a class="headerlink" href="#tool-timeouts" title="Permanent link">&para;</a></h3>
@@ -3508,12 +3546,7 @@
 <p>The team registers each worker as a tool on the supervisor's registry; rejects empty worker lists, duplicate names, and supervisors without a <code>registry</code> attribute. Both <code>ReActAgent</code> and <code>ConstrainedAgent</code> satisfy the registry requirement.</p>
 <p><strong>GPU-budgeting note:</strong> loading multiple 7B+ models is rarely viable on consumer hardware. Typical configurations are <em>one large + N small</em> (a 7B planner with 1B workers) or <em>model swapping</em> (one LLM in VRAM at a time, sequential dispatch). See <code>src/cyllama/memory.py</code> for sizing utilities.</p>
 <h3 id="pattern-helpers-built-on-the-primitives">Pattern helpers built on the primitives<a class="headerlink" href="#pattern-helpers-built-on-the-primitives" title="Permanent link">&para;</a></h3>
-<p>Beyond <code>agent_as_tool</code> + <code>TieredAgentTeam</code>, four canned helpers cover the
-most-used multi-agent patterns. All live in
-<code>src/cyllama/agents/composition.py</code> and re-export from
-<code>cyllama.agents</code>. Each is ~50 LoC over the primitives; see
-<a href="../agents/patterns/"><code>patterns.md</code></a> for the full pattern catalog plus
-the ones the framework intentionally doesn't support.</p>
+<p>Beyond <code>agent_as_tool</code> + <code>TieredAgentTeam</code>, four canned helpers cover the most-used multi-agent patterns. All live in <code>src/cyllama/agents/composition.py</code> and re-export from <code>cyllama.agents</code>. Each is ~50 LoC over the primitives; see <a href="../agents/patterns/"><code>patterns.md</code></a> for the full pattern catalog plus the ones the framework intentionally doesn't support.</p>
 <h4 id="reflectionloop-worker-critic-loop-reflexion-pattern"><code>ReflectionLoop</code> -- worker / critic loop (Reflexion pattern)<a class="headerlink" href="#reflectionloop-worker-critic-loop-reflexion-pattern" title="Permanent link">&para;</a></h4>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">ReActAgent</span><span class="p">,</span> <span class="n">ReflectionLoop</span>
 <a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>
@@ -3526,11 +3559,7 @@ the ones the framework intentionally doesn't support.</p>
 <a id="__codelineno-19-9" name="__codelineno-19-9" href="#__codelineno-19-9"></a><span class="n">loop</span> <span class="o">=</span> <span class="n">ReflectionLoop</span><span class="p">(</span><span class="n">worker</span><span class="p">,</span> <span class="n">critic</span><span class="p">,</span> <span class="n">max_attempts</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
 <a id="__codelineno-19-10" name="__codelineno-19-10" href="#__codelineno-19-10"></a><span class="n">result</span> <span class="o">=</span> <span class="n">loop</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="s2">&quot;Implement quicksort with a 3-way partition.&quot;</span><span class="p">)</span>
 </code></pre></div>
-<p>The critic's answer is checked for <code>acceptance_marker</code> (default
-<code>"ACCEPT"</code>, case-insensitive substring match); on a miss, the worker is
-re-invoked with the prior draft and the critic's feedback folded in via
-an overridable <code>revision_template</code>. Streamed events from each pass carry
-<code>source="worker"</code> and <code>source="critic"</code> annotations.</p>
+<p>The critic's answer is checked for <code>acceptance_marker</code> (default <code>"ACCEPT"</code>, case-insensitive substring match); on a miss, the worker is re-invoked with the prior draft and the critic's feedback folded in via an overridable <code>revision_template</code>. Streamed events from each pass carry <code>source="worker"</code> and <code>source="critic"</code> annotations.</p>
 <h4 id="plan_and_execute-plan-and-execute-pattern"><code>plan_and_execute</code> -- Plan-and-Execute pattern<a class="headerlink" href="#plan_and_execute-plan-and-execute-pattern" title="Permanent link">&para;</a></h4>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">ConstrainedAgent</span><span class="p">,</span> <span class="n">ReActAgent</span><span class="p">,</span> <span class="n">plan_and_execute</span>
 <a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>
@@ -3541,9 +3570,7 @@ an overridable <code>revision_template</code>. Streamed events from each pass ca
 <a id="__codelineno-20-7" name="__codelineno-20-7" href="#__codelineno-20-7"></a><span class="n">results</span> <span class="o">=</span> <span class="n">plan_and_execute</span><span class="p">(</span><span class="n">planner</span><span class="p">,</span> <span class="n">executor</span><span class="p">,</span> <span class="s2">&quot;Refactor module X.&quot;</span><span class="p">)</span>
 </code></pre></div>
 <p>Default plan parser handles <code>[...]</code> lists, <code>{"steps"|"plan"|"tasks": [...]}</code>
-dicts, and newline-split with bullet/number-prefix stripping. Pass
-<code>plan_parser=...</code> for custom formats. <code>stop_on_error=True</code> (default)
-halts after the first failing step.</p>
+dicts, and newline-split with bullet/number-prefix stripping. Pass <code>plan_parser=...</code> for custom formats. <code>stop_on_error=True</code> (default) halts after the first failing step.</p>
 <h4 id="mcp_agent_tool-cross-process-sub-agents"><code>mcp_agent_tool</code> -- cross-process sub-agents<a class="headerlink" href="#mcp_agent_tool-cross-process-sub-agents" title="Permanent link">&para;</a></h4>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">McpClient</span><span class="p">,</span> <span class="n">McpServerConfig</span><span class="p">,</span> <span class="n">mcp_agent_tool</span><span class="p">,</span> <span class="n">ReActAgent</span>
 <a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>
@@ -3558,11 +3585,7 @@ halts after the first failing step.</p>
 <a id="__codelineno-21-11" name="__codelineno-21-11" href="#__codelineno-21-11"></a><span class="p">)</span>
 <a id="__codelineno-21-12" name="__codelineno-21-12" href="#__codelineno-21-12"></a><span class="n">supervisor</span> <span class="o">=</span> <span class="n">ReActAgent</span><span class="p">(</span><span class="n">llm</span><span class="o">=</span><span class="n">llm</span><span class="p">,</span> <span class="n">tools</span><span class="o">=</span><span class="p">[</span><span class="n">remote</span><span class="p">])</span>
 </code></pre></div>
-<p>Symmetric to <code>agent_as_tool</code> but dispatches via <code>McpClient.call_tool</code>.
-The returned <code>Tool</code> is named <code>"{server_name}/{agent_name}"</code> (the
-namespaced format the action parser supports). Network failures surface
-as <code>RuntimeError</code> from MCP; the agent's generic exception handler
-catches them.</p>
+<p>Symmetric to <code>agent_as_tool</code> but dispatches via <code>McpClient.call_tool</code>. The returned <code>Tool</code> is named <code>"{server_name}/{agent_name}"</code> (the namespaced format the action parser supports). Network failures surface as <code>RuntimeError</code> from MCP; the agent's generic exception handler catches them.</p>
 <h4 id="rag_as_tool-knowledge-base-search-as-a-tool"><code>rag_as_tool</code> -- knowledge-base search as a tool<a class="headerlink" href="#rag_as_tool-knowledge-base-search-as-a-tool" title="Permanent link">&para;</a></h4>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.rag</span><span class="w"> </span><span class="kn">import</span> <span class="n">RAG</span>
 <a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">ReActAgent</span><span class="p">,</span> <span class="n">rag_as_tool</span>
@@ -3571,16 +3594,9 @@ catches them.</p>
 <a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a><span class="n">search</span> <span class="o">=</span> <span class="n">rag_as_tool</span><span class="p">(</span><span class="n">kb</span><span class="p">,</span> <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Search project docs.&quot;</span><span class="p">,</span> <span class="n">top_k</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
 <a id="__codelineno-22-6" name="__codelineno-22-6" href="#__codelineno-22-6"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">ReActAgent</span><span class="p">(</span><span class="n">llm</span><span class="o">=</span><span class="n">llm</span><span class="p">,</span> <span class="n">tools</span><span class="o">=</span><span class="p">[</span><span class="n">search</span><span class="p">])</span>
 </code></pre></div>
-<p>Default formatter emits one <code>[score] text</code> line per hit, deduplicated by
-text. Pass <code>method="retrieve"</code> to use the higher-level
-<code>RAG.retrieve</code> path (applies the RAG pipeline config), or a custom
-<code>formatter</code> callable for non-default observation shapes.</p>
+<p>Default formatter emits one <code>[score] text</code> line per hit, deduplicated by text. Pass <code>method="retrieve"</code> to use the higher-level <code>RAG.retrieve</code> path (applies the RAG pipeline config), or a custom <code>formatter</code> callable for non-default observation shapes.</p>
 <h3 id="long-term-semantic-memory">Long-term semantic memory<a class="headerlink" href="#long-term-semantic-memory" title="Permanent link">&para;</a></h3>
-<p><code>SemanticMemory</code> (in <code>src/cyllama/agents/memory.py</code>) bridges the
-<code>cyllama.rag</code> subsystem to the agent layer as a namespace-aware
-long-term memory primitive. Use it for cross-session continuity
-("remember the user's preferences") that the in-process <code>Session</code>
-stores can't provide:</p>
+<p><code>SemanticMemory</code> (in <code>src/cyllama/agents/memory.py</code>) bridges the <code>cyllama.rag</code> subsystem to the agent layer as a namespace-aware long-term memory primitive. Use it for cross-session continuity ("remember the user's preferences") that the in-process <code>Session</code> stores can't provide:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.rag</span><span class="w"> </span><span class="kn">import</span> <span class="n">RAG</span>
 <a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">SemanticMemory</span>
 <a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>
@@ -3592,10 +3608,7 @@ stores can't provide:</p>
 <a id="__codelineno-23-9" name="__codelineno-23-9" href="#__codelineno-23-9"></a><span class="k">for</span> <span class="n">hit</span> <span class="ow">in</span> <span class="n">hits</span><span class="p">:</span>
 <a id="__codelineno-23-10" name="__codelineno-23-10" href="#__codelineno-23-10"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[</span><span class="si">{</span><span class="n">hit</span><span class="o">.</span><span class="n">score</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">] </span><span class="si">{</span><span class="n">hit</span><span class="o">.</span><span class="n">text</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 </code></pre></div>
-<p>Namespaces are stored as metadata on the underlying RAG records and
-filtered at retrieval time, so one <code>RAG</code> instance can back many logical
-memory buckets. Pair with <code>rag_as_tool</code> if you also want the agent to
-search the memory store directly.</p>
+<p>Namespaces are stored as metadata on the underlying RAG records and filtered at retrieval time, so one <code>RAG</code> instance can back many logical memory buckets. Pair with <code>rag_as_tool</code> if you also want the agent to search the memory store directly.</p>
 <h3 id="remaining-recipes-still-pure-composition">Remaining recipes (still pure composition)<a class="headerlink" href="#remaining-recipes-still-pure-composition" title="Permanent link">&para;</a></h3>
 <p>Some patterns remain user-side compositions rather than canned helpers:</p>
 <table>
@@ -3616,24 +3629,10 @@ search the memory store directly.</p>
 </tr>
 </tbody>
 </table>
-<p>Ship the recipe when you write the first real one -- the primitives are
-documented; preemptive helpers risk locking in shapes before they've
-been exercised against real tasks.</p>
+<p>Ship the recipe when you write the first real one -- the primitives are documented; preemptive helpers risk locking in shapes before they've been exercised against real tasks.</p>
 <h2 id="workflows">Workflows<a class="headerlink" href="#workflows" title="Permanent link">&para;</a></h2>
-<p>DAG-based orchestration on top of the agent primitives. A <code>Workflow</code>
-declares typed state, named nodes (Python callables, agents, tools,
-or other workflows), and edges (static or conditional). The runtime
-topologically sorts the graph, runs independent nodes in parallel,
-threads state updates between them, and emits events for every node
-boundary.</p>
-<p>Workflows expose their own kwargs-only API (<code>flow.run(**state)</code> →
-<code>WorkflowResult</code>). To plug a workflow into the multi-agent layer,
-call <code>flow.as_agent()</code> — the returned adapter satisfies
-<code>AgentProtocol</code> (<code>run(task: str) → AgentResult</code>) and binds <code>task</code>
-to the workflow's <code>state[task_param]</code>. Workflows nested inside
-other workflows forward their events into the outer event stream
-with <code>source</code> / <code>parent_event_id</code> set so streaming UIs can render
-nested execution.</p>
+<p>DAG-based orchestration on top of the agent primitives. A <code>Workflow</code> declares typed state, named nodes (Python callables, agents, tools, or other workflows), and edges (static or conditional). The runtime topologically sorts the graph, runs independent nodes in parallel, threads state updates between them, and emits events for every node boundary.</p>
+<p>Workflows expose their own kwargs-only API (<code>flow.run(**state)</code> → <code>WorkflowResult</code>). To plug a workflow into the multi-agent layer, call <code>flow.as_agent()</code> — the returned adapter satisfies <code>AgentProtocol</code> (<code>run(task: str) → AgentResult</code>) and binds <code>task</code> to the workflow's <code>state[task_param]</code>. Workflows nested inside other workflows forward their events into the outer event stream with <code>source</code> / <code>parent_event_id</code> set so streaming UIs can render nested execution.</p>
 <p>Two authoring layers, same runtime:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="c1"># Layer C -- decorator sugar; dependencies inferred from parameter names.</span>
 <a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.agents.workflow</span><span class="w"> </span><span class="kn">import</span> <span class="n">Workflow</span>
@@ -3675,47 +3674,38 @@ nested execution.</p>
 </code></pre></div>
 <p>Capabilities (Phases 1-5, all landed):</p>
 <ul>
-<li><strong>Layer B + Layer C</strong> -- explicit StateGraph or decorator sugar; the
-  two coexist on the same <code>Workflow</code> and interop freely.</li>
-<li><strong>Parallel execution</strong> -- nodes at the same topological level run
-  concurrently via <code>asyncio.gather</code>; sync bodies dispatched on
-  <code>asyncio.to_thread</code>.</li>
-<li><strong>Conditional routing</strong> -- router callbacks return either a target
-  node name or the <code>END</code> sentinel; supports <code>edge_map</code> for explicit
-  enumeration.</li>
-<li><strong>Streaming + events</strong> -- <code>flow.stream(...)</code> and <code>flow.astream(...)</code>
-  yield <code>WORKFLOW_START</code>, <code>NODE_START</code>, <code>NODE_END</code>, <code>ANSWER</code>,
-  <code>WORKFLOW_END</code>, and <code>CONTRACT_VIOLATION</code> events.</li>
-<li><strong>Contracts</strong> -- <code>WorkflowInvariant</code> predicates check the running
-  state after each node; same <code>ContractPolicy</code> semantics as
-  <code>ContractAgent</code> (IGNORE / OBSERVE / ENFORCE / QUICK_ENFORCE) with
-  per-invariant policy overrides.</li>
-<li><strong>Reducers</strong> -- multi-writer state keys require an explicit reducer
-  registered via <code>Workflow(reducers={"key": reducer.append})</code>; the
-  built-in namespace exposes <code>append</code>, <code>extend</code>, <code>merge_dict</code>, <code>add</code>,
-  and <code>last</code>. Runtime detects unreduced multi-writer collisions and
-  raises <code>WorkflowExecutionError</code>.</li>
-<li><strong>AgentProtocol compliance via adapter</strong> -- <code>flow.run(**kwargs)</code>
-  is the workflow's native API; <code>flow.as_agent().run("task")</code> is the
-  <code>AgentProtocol</code> shape (binds <code>task</code> to <code>state[task_param]</code>, returns
-  <code>AgentResult</code>). The explicit adapter keeps the native and protocol
-  shapes from colliding. <code>WorkflowResult</code> also exposes <code>answer</code> /
-  <code>steps</code> / <code>iterations</code> convenience properties so direct callers
-  can read the projected output without going through the adapter.</li>
-<li><strong>Sub-workflows</strong> -- <code>workflow_node(inner, name="research")</code> wraps
-  one workflow as a node in another; inner events forwarded with
-  source/parent_event_id rewriting.</li>
-<li><strong>Visualization</strong> -- <code>flow.to_mermaid()</code> / <code>flow.to_dot()</code> render
-  the graph for docs; <code>flow.dry_run()</code> returns a <code>DryRunPlan</code> showing
-  topological levels without executing.</li>
-<li><strong>Typed state</strong> -- <code>Workflow[State]</code> is a PEP 484 generic; pass a
-  <code>TypedDict</code> to <code>Workflow(StateSchema)</code> for static type-checking of
-  state access.</li>
+<li>
+<p><strong>Layer B + Layer C</strong> -- explicit StateGraph or decorator sugar; the two coexist on the same <code>Workflow</code> and interop freely.</p>
+</li>
+<li>
+<p><strong>Parallel execution</strong> -- nodes at the same topological level run concurrently via <code>asyncio.gather</code>; sync bodies dispatched on <code>asyncio.to_thread</code>.</p>
+</li>
+<li>
+<p><strong>Conditional routing</strong> -- router callbacks return either a target node name or the <code>END</code> sentinel; supports <code>edge_map</code> for explicit enumeration.</p>
+</li>
+<li>
+<p><strong>Streaming + events</strong> -- <code>flow.stream(...)</code> and <code>flow.astream(...)</code> yield <code>WORKFLOW_START</code>, <code>NODE_START</code>, <code>NODE_END</code>, <code>ANSWER</code>, <code>WORKFLOW_END</code>, and <code>CONTRACT_VIOLATION</code> events.</p>
+</li>
+<li>
+<p><strong>Contracts</strong> -- <code>WorkflowInvariant</code> predicates check the running state after each node; same <code>ContractPolicy</code> semantics as <code>ContractAgent</code> (IGNORE / OBSERVE / ENFORCE / QUICK_ENFORCE) with per-invariant policy overrides.</p>
+</li>
+<li>
+<p><strong>Reducers</strong> -- multi-writer state keys require an explicit reducer registered via <code>Workflow(reducers={"key": reducer.append})</code>; the built-in namespace exposes <code>append</code>, <code>extend</code>, <code>merge_dict</code>, <code>add</code>, and <code>last</code>. Runtime detects unreduced multi-writer collisions and raises <code>WorkflowExecutionError</code>.</p>
+</li>
+<li>
+<p><strong>AgentProtocol compliance via adapter</strong> -- <code>flow.run(**kwargs)</code> is the workflow's native API; <code>flow.as_agent().run("task")</code> is the <code>AgentProtocol</code> shape (binds <code>task</code> to <code>state[task_param]</code>, returns <code>AgentResult</code>). The explicit adapter keeps the native and protocol shapes from colliding. <code>WorkflowResult</code> also exposes <code>answer</code> / <code>steps</code> / <code>iterations</code> convenience properties so direct callers can read the projected output without going through the adapter.</p>
+</li>
+<li>
+<p><strong>Sub-workflows</strong> -- <code>workflow_node(inner, name="research")</code> wraps one workflow as a node in another; inner events forwarded with source/parent_event_id rewriting.</p>
+</li>
+<li>
+<p><strong>Visualization</strong> -- <code>flow.to_mermaid()</code> / <code>flow.to_dot()</code> render the graph for docs; <code>flow.dry_run()</code> returns a <code>DryRunPlan</code> showing topological levels without executing.</p>
+</li>
+<li>
+<p><strong>Typed state</strong> -- <code>Workflow[State]</code> is a PEP 484 generic; pass a <code>TypedDict</code> to <code>Workflow(StateSchema)</code> for static type-checking of state access.</p>
+</li>
 </ul>
-<p>For the full design and per-phase landing notes, see
-<a href="../agents/workflow/"><code>agents/workflow.md</code></a>. The pattern catalog in
-<a href="../agents/patterns/"><code>agents/patterns.md</code></a> §9 documents the
-workflow / state-machine pattern.</p>
+<p>For the full design and per-phase landing notes, see <a href="../agents/workflow/"><code>agents/workflow.md</code></a>. The pattern catalog in <a href="../agents/patterns/"><code>agents/patterns.md</code></a> §9 documents the workflow / state-machine pattern.</p>
 <h2 id="events-and-results">Events and Results<a class="headerlink" href="#events-and-results" title="Permanent link">&para;</a></h2>
 <h3 id="event-types">Event Types<a class="headerlink" href="#event-types" title="Permanent link">&para;</a></h3>
 <p>Agents emit events during execution:</p>
@@ -3741,8 +3731,12 @@ workflow / state-machine pattern.</p>
 </code></pre></div>
 <p><code>AgentEvent</code> carries two optional fields populated by the multi-agent composition layer (default <code>None</code> in single-agent code paths, so existing event consumers are unaffected):</p>
 <ul>
-<li><code>source: Optional[str]</code> -- name of the sub-agent that emitted the event when forwarded through <code>agent_as_tool</code>'s <code>forward_events</code> callback.</li>
-<li><code>parent_event_id: Optional[str]</code> -- links the sub-event back to the supervisor's ACTION event that triggered the sub-run; used by streaming UIs to render nested execution.</li>
+<li>
+<p><code>source: Optional[str]</code> -- name of the sub-agent that emitted the event when forwarded through <code>agent_as_tool</code>'s <code>forward_events</code> callback.</p>
+</li>
+<li>
+<p><code>parent_event_id: Optional[str]</code> -- links the sub-event back to the supervisor's ACTION event that triggered the sub-run; used by streaming UIs to render nested execution.</p>
+</li>
 </ul>
 <h3 id="streaming-events">Streaming Events<a class="headerlink" href="#streaming-events" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="k">for</span> <span class="n">event</span> <span class="ow">in</span> <span class="n">agent</span><span class="o">.</span><span class="n">stream</span><span class="p">(</span><span class="s2">&quot;What is 2+2?&quot;</span><span class="p">):</span>
@@ -4039,15 +4033,25 @@ workflow / state-machine pattern.</p>
 </ul>
 <h2 id="further-reading">Further Reading<a class="headerlink" href="#further-reading" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="../agents/contracts/"><code>docs/agents/contracts.md</code></a> -- nine worked recipes for the contract patterns (cross-field, state-dependent, behavioural postconditions, cost caps, answer-content checks, PII defence, stuck-loop detection, time budgets) plus three explicit anti-patterns</li>
-<li><a href="../dev/contract-agent/"><code>docs/dev/contract-agent.md</code></a> -- design notes and repositioning rationale for ContractAgent; reads like a maintainer's commentary on why the API looks the way it does</li>
+<li>
+<p><a href="../agents/contracts/"><code>docs/agents/contracts.md</code></a> -- nine worked recipes for the contract patterns (cross-field, state-dependent, behavioural postconditions, cost caps, answer-content checks, PII defence, stuck-loop detection, time budgets) plus three explicit anti-patterns</p>
+</li>
+<li>
+<p><a href="../dev/contract-agent/"><code>docs/dev/contract-agent.md</code></a> -- design notes and repositioning rationale for ContractAgent; reads like a maintainer's commentary on why the API looks the way it does</p>
+</li>
 </ul>
 <h2 id="experimental-acpagent">Experimental: ACPAgent<a class="headerlink" href="#experimental-acpagent" title="Permanent link">&para;</a></h2>
 <p><code>ACPAgent</code> (and <code>serve_acp</code>) implement the Agent Client Protocol for editor integration (Zed, Neovim, ...). The module is <strong>experimental</strong>:</p>
 <ul>
-<li><code>ACP_PROTOCOL_VERSION</code> is hardcoded to <code>"2025-01-01"</code>; no version negotiation against the client's announced version.</li>
-<li>No conformance test against a reference ACP client.</li>
-<li>API surface may change as the protocol stabilizes and real editor integrations exercise the rough edges.</li>
+<li>
+<p><code>ACP_PROTOCOL_VERSION</code> is hardcoded to <code>"2025-01-01"</code>; no version negotiation against the client's announced version.</p>
+</li>
+<li>
+<p>No conformance test against a reference ACP client.</p>
+</li>
+<li>
+<p>API surface may change as the protocol stabilizes and real editor integrations exercise the rough edges.</p>
+</li>
 </ul>
 <p>Build on it for prototypes and editor experiments; do not build a production integration on this surface without expecting churn. See the warning in <code>src/cyllama/agents/acp.py</code> module docstring for the full statement.</p>
 

@@ -3037,51 +3037,46 @@
 
 
 <h1 id="dag-based-agent-workflow-orchestration">DAG-based agent workflow orchestration<a class="headerlink" href="#dag-based-agent-workflow-orchestration" title="Permanent link">&para;</a></h1>
-<p><strong>Implementation specification for <code>src/cyllama/agents/workflow.py</code>.</strong>
-This document is the design that will be built. Ports byte-identical to
-<code>inferna</code> modulo namespace.</p>
+<p><strong>Implementation specification for <code>src/cyllama/agents/workflow.py</code>.</strong> This document is the design that will be built. Ports byte-identical to <code>inferna</code> modulo namespace.</p>
 <h2 id="1-thesis">1. Thesis<a class="headerlink" href="#1-thesis" title="Permanent link">&para;</a></h2>
-<p>The framework ships <strong>two layered APIs</strong> for the same underlying
-runtime:</p>
+<p>The framework ships <strong>two layered APIs</strong> for the same underlying runtime:</p>
 <ul>
-<li><strong>Layer B (explicit StateGraph):</strong> a LangGraph-style typed
-  state-graph: explicit nodes, explicit edges, explicit state schema.
-  This is the <strong>canonical runtime model</strong>. Every workflow ultimately
-  compiles to this.</li>
-<li><strong>Layer C (decorated functions):</strong> a higher-level decorator API
-  that desugars to Layer B. Parameter names bind from state; function
-  return values update state; dependencies between nodes are inferred
-  from matching parameter names. Concise for the common case.</li>
+<li>
+<p><strong>Layer B (explicit StateGraph):</strong> a LangGraph-style typed state-graph: explicit nodes, explicit edges, explicit state schema. This is the <strong>canonical runtime model</strong>. Every workflow ultimately compiles to this.</p>
+</li>
+<li>
+<p><strong>Layer C (decorated functions):</strong> a higher-level decorator API that desugars to Layer B. Parameter names bind from state; function return values update state; dependencies between nodes are inferred from matching parameter names. Concise for the common case.</p>
+</li>
 </ul>
-<p>The two layers are interoperable. A single workflow can mix decorator
-nodes (Layer C) with explicit <code>add_node</code> / <code>add_edge</code> calls (Layer B)
-on the same <code>Workflow</code> object. The decorator is sugar; the underlying
-graph is one shape.</p>
+<p>The two layers are interoperable. A single workflow can mix decorator nodes (Layer C) with explicit <code>add_node</code> / <code>add_edge</code> calls (Layer B) on the same <code>Workflow</code> object. The decorator is sugar; the underlying graph is one shape.</p>
 <h2 id="2-goals">2. Goals<a class="headerlink" href="#2-goals" title="Permanent link">&para;</a></h2>
 <ol>
-<li>Express any directed acyclic agent workflow with typed state,
-   parallel execution of independent nodes, and conditional routing.</li>
-<li>Provide a single canonical runtime model (Layer B) so every
-   workflow has the same execution semantics regardless of authoring
-   style.</li>
-<li>Provide a concise decorator API (Layer C) for the common case
-   where node dependencies are obvious from data flow.</li>
-<li>Integrate with the existing agent primitives (<code>AgentProtocol</code>,
-   <code>Tool</code>, <code>ContractPolicy</code>, <code>AgentEvent</code>, <code>SemanticMemory</code>) without
-   re-implementing them.</li>
-<li>Zero new runtime dependencies. Pure stdlib only (asyncio, typing,
-   dataclasses, contextvars).</li>
-<li>Synchronous-default API; async variant available; matches the
-   <code>ReActAgent</code> / <code>AsyncReActAgent</code> pattern.</li>
-<li>Single-process. Cross-process sub-agents are already handled by
-   <code>mcp_agent_tool</code>.</li>
+<li>
+<p>Express any directed acyclic agent workflow with typed state, parallel execution of independent nodes, and conditional routing.</p>
+</li>
+<li>
+<p>Provide a single canonical runtime model (Layer B) so every workflow has the same execution semantics regardless of authoring style.</p>
+</li>
+<li>
+<p>Provide a concise decorator API (Layer C) for the common case where node dependencies are obvious from data flow.</p>
+</li>
+<li>
+<p>Integrate with the existing agent primitives (<code>AgentProtocol</code>, <code>Tool</code>, <code>ContractPolicy</code>, <code>AgentEvent</code>, <code>SemanticMemory</code>) without re-implementing them.</p>
+</li>
+<li>
+<p>Zero new runtime dependencies. Pure stdlib only (asyncio, typing, dataclasses, contextvars).</p>
+</li>
+<li>
+<p>Synchronous-default API; async variant available; matches the <code>ReActAgent</code> / <code>AsyncReActAgent</code> pattern.</p>
+</li>
+<li>
+<p>Single-process. Cross-process sub-agents are already handled by <code>mcp_agent_tool</code>.</p>
+</li>
 </ol>
 <h2 id="3-three-shapes-weighed">3. Three shapes weighed<a class="headerlink" href="#3-three-shapes-weighed" title="Permanent link">&para;</a></h2>
 <p>For completeness, the three design shapes considered:</p>
 <h3 id="shape-a-prefect-style-implicit-dag-from-data-flow">Shape A — Prefect-style implicit DAG from data flow<a class="headerlink" href="#shape-a-prefect-style-implicit-dag-from-data-flow" title="Permanent link">&para;</a></h3>
-<p>User writes a workflow function; the runtime traces data dependencies
-between decorated tasks. The DAG is inferred from <code>task_b(task_a())</code>
-patterns in plain Python.</p>
+<p>User writes a workflow function; the runtime traces data dependencies between decorated tasks. The DAG is inferred from <code>task_b(task_a())</code> patterns in plain Python.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nd">@workflow_task</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">search</span><span class="p">(</span><span class="n">query</span><span class="p">):</span> <span class="o">...</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
@@ -3092,13 +3087,9 @@ patterns in plain Python.</p>
 <a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="k">def</span><span class="w"> </span><span class="nf">research_flow</span><span class="p">(</span><span class="n">query</span><span class="p">):</span>
 <a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="k">return</span> <span class="n">summarize</span><span class="p">(</span><span class="n">search</span><span class="p">(</span><span class="n">query</span><span class="p">))</span>
 </code></pre></div>
-<p>Inference is fragile: conditionals, loops, and assignments in the
-workflow function need special handling. Hard to introspect the graph
-before running, hard to visualize, hard to checkpoint (state is
-implicit in the Python stack). Rejected for cyllama.</p>
+<p>Inference is fragile: conditionals, loops, and assignments in the workflow function need special handling. Hard to introspect the graph before running, hard to visualize, hard to checkpoint (state is implicit in the Python stack). Rejected for cyllama.</p>
 <h3 id="shape-b-explicit-stategraph">Shape B — Explicit StateGraph<a class="headerlink" href="#shape-b-explicit-stategraph" title="Permanent link">&para;</a></h3>
-<p>User defines a state schema, declares nodes that receive and update
-state, declares edges (static or conditional). Compile then run.</p>
+<p>User defines a state schema, declares nodes that receive and update state, declares edges (static or conditional). Compile then run.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">State</span><span class="p">(</span><span class="n">TypedDict</span><span class="p">):</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    <span class="n">query</span><span class="p">:</span> <span class="nb">str</span>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="n">docs</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
@@ -3114,13 +3105,9 @@ state, declares edges (static or conditional). Compile then run.</p>
 <a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="n">compiled</span> <span class="o">=</span> <span class="n">flow</span><span class="o">.</span><span class="n">compile</span><span class="p">()</span>
 <a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="n">result</span> <span class="o">=</span> <span class="n">compiled</span><span class="o">.</span><span class="n">run</span><span class="p">({</span><span class="s2">&quot;query&quot;</span><span class="p">:</span> <span class="s2">&quot;...&quot;</span><span class="p">})</span>
 </code></pre></div>
-<p>Verbose but explicit. Graph is a first-class object. Easy to
-introspect, visualize, validate, checkpoint. Conditional edges are
-natural. The canonical model.</p>
+<p>Verbose but explicit. Graph is a first-class object. Easy to introspect, visualize, validate, checkpoint. Conditional edges are natural. The canonical model.</p>
 <h3 id="shape-c-decorated-functions-over-a-workflow">Shape C — Decorated functions over a Workflow<a class="headerlink" href="#shape-c-decorated-functions-over-a-workflow" title="Permanent link">&para;</a></h3>
-<p>Nodes are decorated functions whose parameters bind from state by
-name. Dependencies between nodes come from parameter names that match
-other nodes' names.</p>
+<p>Nodes are decorated functions whose parameters bind from state by name. Dependencies between nodes come from parameter names that match other nodes' names.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">flow</span> <span class="o">=</span> <span class="n">Workflow</span><span class="p">()</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="nd">@flow</span><span class="o">.</span><span class="n">node</span>
@@ -3133,28 +3120,23 @@ other nodes' names.</p>
 <a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>
 <a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="n">result</span> <span class="o">=</span> <span class="n">flow</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">query</span><span class="o">=</span><span class="s2">&quot;...&quot;</span><span class="p">)</span>
 </code></pre></div>
-<p>Concise. Type-checkable: parameters and returns are real types.
-Dependencies visible from a casual read.</p>
+<p>Concise. Type-checkable: parameters and returns are real types. Dependencies visible from a casual read.</p>
 <h3 id="choice-b-is-the-runtime-c-is-sugar">Choice: B is the runtime, C is sugar<a class="headerlink" href="#choice-b-is-the-runtime-c-is-sugar" title="Permanent link">&para;</a></h3>
-<p>The doc commits to <strong>building both, with C compiling to B</strong>. Every
-<code>@flow.node</code> decorator emits the same <code>Workflow.add_node</code> +
-<code>Workflow.add_edge</code> calls a user could write by hand. Every workflow
-authored in pure Layer B works without the decorator. Mixed authoring
-on the same <code>Workflow</code> object is supported.</p>
+<p>The doc commits to <strong>building both, with C compiling to B</strong>. Every <code>@flow.node</code> decorator emits the same <code>Workflow.add_node</code> + <code>Workflow.add_edge</code> calls a user could write by hand. Every workflow authored in pure Layer B works without the decorator. Mixed authoring on the same <code>Workflow</code> object is supported.</p>
 <p>The reason for the layering:</p>
 <ul>
-<li><strong>B alone</strong> is verbose for the 80% case (single-state-key per node,
-  parameter-name = upstream-node-name).</li>
-<li><strong>C alone</strong> can't express the 20% case (custom state schemas with
-  multiple keys per node, reducer-based merging, hand-written routers
-  with complex edge maps).</li>
-<li><strong>B + C</strong> lets users start in C and drop to B when the shape doesn't
-  fit. The runtime is one model regardless.</li>
+<li>
+<p><strong>B alone</strong> is verbose for the 80% case (single-state-key per node, parameter-name = upstream-node-name).</p>
+</li>
+<li>
+<p><strong>C alone</strong> can't express the 20% case (custom state schemas with multiple keys per node, reducer-based merging, hand-written routers with complex edge maps).</p>
+</li>
+<li>
+<p><strong>B + C</strong> lets users start in C and drop to B when the shape doesn't fit. The runtime is one model regardless.</p>
+</li>
 </ul>
 <h2 id="4-state-model">4. State model<a class="headerlink" href="#4-state-model" title="Permanent link">&para;</a></h2>
-<p>State is a <code>TypedDict</code> (or plain <code>dict</code>) threaded through every node.
-Each node receives the current state and returns a <strong>partial update</strong>
-that gets shallow-merged into the running state.</p>
+<p>State is a <code>TypedDict</code> (or plain <code>dict</code>) threaded through every node. Each node receives the current state and returns a <strong>partial update</strong> that gets shallow-merged into the running state.</p>
 <h3 id="41-explicit-state-schema-layer-b">4.1 Explicit state schema (Layer B)<a class="headerlink" href="#41-explicit-state-schema-layer-b" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TypedDict</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
@@ -3168,18 +3150,19 @@ that gets shallow-merged into the running state.</p>
 </code></pre></div>
 <p>The state class is the workflow's I/O contract:</p>
 <ul>
-<li>Initial state passed to <code>run()</code> must satisfy the schema (any
-  required keys; mypy can check this if the user enables type
-  checking).</li>
-<li>Each node returns a <code>dict</code> containing a subset of state keys.</li>
-<li>Final state matches the schema.</li>
+<li>
+<p>Initial state passed to <code>run()</code> must satisfy the schema (any required keys; mypy can check this if the user enables type checking).</p>
+</li>
+<li>
+<p>Each node returns a <code>dict</code> containing a subset of state keys.</p>
+</li>
+<li>
+<p>Final state matches the schema.</p>
+</li>
 </ul>
-<p>When no schema is supplied (<code>Workflow()</code> without an argument), state
-is a plain <code>dict[str, Any]</code> with no validation.</p>
+<p>When no schema is supplied (<code>Workflow()</code> without an argument), state is a plain <code>dict[str, Any]</code> with no validation.</p>
 <h3 id="42-implicit-state-schema-layer-c">4.2 Implicit state schema (Layer C)<a class="headerlink" href="#42-implicit-state-schema-layer-c" title="Permanent link">&para;</a></h3>
-<p>When using only the decorator API, the state schema is <strong>derived</strong>:
-each node's name becomes a state key whose value type is the node's
-return type. So:</p>
+<p>When using only the decorator API, the state schema is <strong>derived</strong>: each node's name becomes a state key whose value type is the node's return type. So:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nd">@flow</span><span class="o">.</span><span class="n">node</span>
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">search</span><span class="p">(</span><span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span> <span class="o">...</span>
 </code></pre></div>
@@ -3188,17 +3171,10 @@ return type. So:</p>
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>    <span class="n">query</span><span class="p">:</span> <span class="nb">str</span>
 <a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>    <span class="n">search</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
 </code></pre></div>
-<p><code>query</code> is in the schema because some node consumes it; <code>search</code> is
-in the schema because the node named <code>search</code> produces it. The
-derived schema is available on <code>flow.derived_state_schema</code> after
-compilation.</p>
+<p><code>query</code> is in the schema because some node consumes it; <code>search</code> is in the schema because the node named <code>search</code> produces it. The derived schema is available on <code>flow.derived_state_schema</code> after compilation.</p>
 <h3 id="43-reducer-semantics">4.3 Reducer semantics<a class="headerlink" href="#43-reducer-semantics" title="Permanent link">&para;</a></h3>
-<p>By default, each state key has <strong>one writer</strong> — a node returning a
-key already written by another node raises <code>WorkflowDefinitionError</code>
-at compile time. This is the safest default and what the decorator
-API enforces.</p>
-<p>For multi-writer keys (e.g., a <code>messages</code> list aggregated across
-nodes), declare a reducer on the state field:</p>
+<p>By default, each state key has <strong>one writer</strong> — a node returning a key already written by another node raises <code>WorkflowDefinitionError</code> at compile time. This is the safest default and what the decorator API enforces.</p>
+<p>For multi-writer keys (e.g., a <code>messages</code> list aggregated across nodes), declare a reducer on the state field:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.agents.workflow</span><span class="w"> </span><span class="kn">import</span> <span class="n">Workflow</span><span class="p">,</span> <span class="n">reducer</span>
 <a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
 <a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="k">class</span><span class="w"> </span><span class="nc">State</span><span class="p">(</span><span class="n">TypedDict</span><span class="p">):</span>
@@ -3208,12 +3184,21 @@ nodes), declare a reducer on the state field:</p>
 </code></pre></div>
 <p>Built-in reducers (in <code>cyllama.agents.workflow.reducer</code>):</p>
 <ul>
-<li><code>reducer.append</code> — append to list</li>
-<li><code>reducer.extend</code> — extend list with another list</li>
-<li><code>reducer.merge_dict</code> — dict.update style</li>
-<li><code>reducer.add</code> — numeric accumulation</li>
-<li><code>reducer.last</code> — last-writer-wins (explicit override of the default
-  conflict error)</li>
+<li>
+<p><code>reducer.append</code> — append to list</p>
+</li>
+<li>
+<p><code>reducer.extend</code> — extend list with another list</p>
+</li>
+<li>
+<p><code>reducer.merge_dict</code> — dict.update style</p>
+</li>
+<li>
+<p><code>reducer.add</code> — numeric accumulation</p>
+</li>
+<li>
+<p><code>reducer.last</code> — last-writer-wins (explicit override of the default conflict error)</p>
+</li>
 </ul>
 <p>Custom reducers: any <code>Callable[[Existing, Update], Merged]</code>.</p>
 <h2 id="5-layer-b-specification">5. Layer B specification<a class="headerlink" href="#5-layer-b-specification" title="Permanent link">&para;</a></h2>
@@ -3274,27 +3259,17 @@ nodes), declare a reducer on the state field:</p>
 <a id="__codelineno-7-53" name="__codelineno-7-53" href="#__codelineno-7-53"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">to_dot</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span> <span class="o">...</span>
 <a id="__codelineno-7-54" name="__codelineno-7-54" href="#__codelineno-7-54"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">dry_run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">initial_state</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;DryRunPlan&quot;</span><span class="p">:</span> <span class="o">...</span>
 </code></pre></div>
-<p><code>run()</code> is a thin sync wrapper over <code>arun()</code> (uses <code>asyncio.run</code>).
-Calling <code>run()</code> or <code>stream()</code> on an uncompiled workflow lazily
-compiles first; the compile step is idempotent.</p>
+<p><code>run()</code> is a thin sync wrapper over <code>arun()</code> (uses <code>asyncio.run</code>). Calling <code>run()</code> or <code>stream()</code> on an uncompiled workflow lazily compiles first; the compile step is idempotent.</p>
 <h3 id="52-node-functions-layer-b">5.2 Node functions (Layer B)<a class="headerlink" href="#52-node-functions-layer-b" title="Permanent link">&para;</a></h3>
 <p>A Layer-B node has the signature:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">node</span><span class="p">(</span><span class="n">state</span><span class="p">:</span> <span class="n">StateT</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span> <span class="o">...</span>
 </code></pre></div>
-<p>It returns a <code>dict</code> whose keys are state keys to update. Returning
-<code>{}</code> is valid (no state change). Returning a key not in the schema is
-a runtime error (unless <code>state_schema=None</code>).</p>
-<p><code>async def</code> nodes are supported and awaited; sync nodes run on
-<code>asyncio.to_thread</code> so the event loop isn't blocked.</p>
+<p>It returns a <code>dict</code> whose keys are state keys to update. Returning <code>{}</code> is valid (no state change). Returning a key not in the schema is a runtime error (unless <code>state_schema=None</code>).</p>
+<p><code>async def</code> nodes are supported and awaited; sync nodes run on <code>asyncio.to_thread</code> so the event loop isn't blocked.</p>
 <h3 id="53-edges-and-routing">5.3 Edges and routing<a class="headerlink" href="#53-edges-and-routing" title="Permanent link">&para;</a></h3>
 <p>Two edge kinds:</p>
-<p><strong>Static edge.</strong> <code>add_edge("a", "b")</code> declares "<code>b</code> runs after <code>a</code>".
-A node may have multiple incoming static edges (all must complete
-before it runs) and multiple outgoing static edges (all run after it
-completes).</p>
-<p><strong>Conditional edge.</strong> <code>add_conditional_edge(from_node, router,
-edge_map)</code> declares "after <code>from_node</code> runs, call <code>router(state)</code>,
-take its return value, look up the target node in <code>edge_map</code>".</p>
+<p><strong>Static edge.</strong> <code>add_edge("a", "b")</code> declares "<code>b</code> runs after <code>a</code>". A node may have multiple incoming static edges (all must complete before it runs) and multiple outgoing static edges (all run after it completes).</p>
+<p><strong>Conditional edge.</strong> <code>add_conditional_edge(from_node, router, edge_map)</code> declares "after <code>from_node</code> runs, call <code>router(state)</code>, take its return value, look up the target node in <code>edge_map</code>".</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">route</span><span class="p">(</span><span class="n">state</span><span class="p">:</span> <span class="n">State</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>    <span class="k">return</span> <span class="s2">&quot;summarize&quot;</span> <span class="k">if</span> <span class="n">state</span><span class="p">[</span><span class="s2">&quot;docs&quot;</span><span class="p">]</span> <span class="k">else</span> <span class="s2">&quot;fallback&quot;</span>
 <a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>
@@ -3303,39 +3278,32 @@ take its return value, look up the target node in <code>edge_map</code>".</p>
 <a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>    <span class="s2">&quot;fallback&quot;</span><span class="p">:</span> <span class="s2">&quot;fallback&quot;</span><span class="p">,</span>
 <a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="p">})</span>
 </code></pre></div>
-<p>The <code>edge_map</code> argument is optional. If omitted, the router's return
-value is used directly as the next node's name. Routers may return
-the sentinel <code>END</code> (importable from <code>cyllama.agents.workflow</code>) to
-terminate this branch without going to another node.</p>
-<p>A node may have <em>either</em> static outgoing edges <em>or</em> conditional
-outgoing edges, not both — keeps the routing model deterministic.
-Mixing them at compile time raises <code>WorkflowDefinitionError</code>.</p>
+<p>The <code>edge_map</code> argument is optional. If omitted, the router's return value is used directly as the next node's name. Routers may return the sentinel <code>END</code> (importable from <code>cyllama.agents.workflow</code>) to terminate this branch without going to another node.</p>
+<p>A node may have <em>either</em> static outgoing edges <em>or</em> conditional outgoing edges, not both — keeps the routing model deterministic. Mixing them at compile time raises <code>WorkflowDefinitionError</code>.</p>
 <h3 id="54-entry-and-exit">5.4 Entry and exit<a class="headerlink" href="#54-entry-and-exit" title="Permanent link">&para;</a></h3>
-<p><code>set_entry(name)</code> declares the workflow's start node. Exactly one
-entry is required.</p>
-<p><code>set_exit(name)</code> declares an exit node. Multiple calls register
-multiple exits — the workflow terminates whenever any exit node
-completes (useful for branching workflows where each branch ends at
-its own exit).</p>
-<p>If <code>set_exit</code> is never called, all sink nodes (nodes with no outgoing
-edges) are exits.</p>
+<p><code>set_entry(name)</code> declares the workflow's start node. Exactly one entry is required.</p>
+<p><code>set_exit(name)</code> declares an exit node. Multiple calls register multiple exits — the workflow terminates whenever any exit node completes (useful for branching workflows where each branch ends at its own exit).</p>
+<p>If <code>set_exit</code> is never called, all sink nodes (nodes with no outgoing edges) are exits.</p>
 <h3 id="55-compile">5.5 Compile<a class="headerlink" href="#55-compile" title="Permanent link">&para;</a></h3>
 <p><code>Workflow.compile()</code> runs validation and returns a <code>CompiledWorkflow</code>:</p>
 <ul>
-<li>All referenced node names exist (in <code>add_edge</code>, <code>add_conditional_edge</code>,
-  <code>set_entry</code>, <code>set_exit</code>, and in <code>edge_map</code> values).</li>
-<li>Entry node is set.</li>
-<li>Graph (over static edges) is acyclic — topological sort succeeds.
-  Conditional edges <em>can</em> create cycles (a router could route back to
-  an earlier node), but the cycle bound is the workflow's
-  configurable <code>max_steps</code> (default 100); see §7.5.</li>
-<li>For each state key, at most one writer node (unless a reducer is
-  registered for that key).</li>
-<li>All node return types (declared via type hints when available)
-  match the state schema field types.</li>
+<li>
+<p>All referenced node names exist (in <code>add_edge</code>, <code>add_conditional_edge</code>, <code>set_entry</code>, <code>set_exit</code>, and in <code>edge_map</code> values).</p>
+</li>
+<li>
+<p>Entry node is set.</p>
+</li>
+<li>
+<p>Graph (over static edges) is acyclic — topological sort succeeds. Conditional edges <em>can</em> create cycles (a router could route back to an earlier node), but the cycle bound is the workflow's configurable <code>max_steps</code> (default 100); see §7.5.</p>
+</li>
+<li>
+<p>For each state key, at most one writer node (unless a reducer is registered for that key).</p>
+</li>
+<li>
+<p>All node return types (declared via type hints when available) match the state schema field types.</p>
+</li>
 </ul>
-<p>Compilation is the only failure mode for definition errors — runtime
-errors are different (§9).</p>
+<p>Compilation is the only failure mode for definition errors — runtime errors are different (§9).</p>
 <h3 id="56-run-stream-arun">5.6 Run, stream, arun<a class="headerlink" href="#56-run-stream-arun" title="Permanent link">&para;</a></h3>
 <p>The workflow's native API is <strong>kwargs-only</strong>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="c1"># Canonical: kwargs map to state.</span>
@@ -3346,31 +3314,12 @@ errors are different (§9).</p>
 <a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="c1"># CompiledWorkflow takes a single optional positional dict:</span>
 <a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="n">result</span> <span class="o">=</span> <span class="n">compiled</span><span class="o">.</span><span class="n">run</span><span class="p">({</span><span class="s2">&quot;query&quot;</span><span class="p">:</span> <span class="s2">&quot;Treaty of Westphalia&quot;</span><span class="p">})</span>
 </code></pre></div>
-<p><code>Workflow.run(**kwargs)</code> → <code>WorkflowResult</code>. Same kwargs-only shape
-for <code>arun</code> (async), <code>stream</code> (sync iterator over <code>AgentEvent</code>), and
-<code>astream</code> (async iterator). <code>CompiledWorkflow</code> takes the dict
-positionally because compiled callers usually have the state pre-built.</p>
-<p><code>stream(...)</code> yields <code>AgentEvent</code>s as the workflow executes (§8). The
-stream emits <code>EventType.ANSWER</code> just before <code>EventType.WORKFLOW_END</code>,
-carrying the resolved answer string (the value at <code>state[answer_key]</code>,
-or the last-run node's state entry when <code>answer_key</code> is unset).
-<code>WORKFLOW_END</code> carries the full state under <code>metadata["state"]</code>.</p>
-<p>The <code>metrics</code> property on <code>Workflow</code> delegates to the cached
-<code>CompiledWorkflow</code>, which stashes the most-recent run's <code>AgentMetrics</code>
-on the (frozen) instance via <code>object.__setattr__</code>. Both run paths
-(<code>Workflow.run</code> → <code>CompiledWorkflow.arun</code>, or direct
-<code>CompiledWorkflow.run</code>) update the same cache; the sync <code>stream()</code>
-path records metrics on <code>WORKFLOW_END</code>.</p>
-<p>The <code>answer_key</code> (set via the <code>Workflow(answer_key=...)</code> constructor
-kwarg, or implicitly to the sole exit when one is registered)
-controls what <code>WorkflowResult.answer</code> returns and what content lands
-on the final <code>ANSWER</code> event.</p>
+<p><code>Workflow.run(**kwargs)</code> → <code>WorkflowResult</code>. Same kwargs-only shape for <code>arun</code> (async), <code>stream</code> (sync iterator over <code>AgentEvent</code>), and <code>astream</code> (async iterator). <code>CompiledWorkflow</code> takes the dict positionally because compiled callers usually have the state pre-built.</p>
+<p><code>stream(...)</code> yields <code>AgentEvent</code>s as the workflow executes (§8). The stream emits <code>EventType.ANSWER</code> just before <code>EventType.WORKFLOW_END</code>, carrying the resolved answer string (the value at <code>state[answer_key]</code>, or the last-run node's state entry when <code>answer_key</code> is unset). <code>WORKFLOW_END</code> carries the full state under <code>metadata["state"]</code>.</p>
+<p>The <code>metrics</code> property on <code>Workflow</code> delegates to the cached <code>CompiledWorkflow</code>, which stashes the most-recent run's <code>AgentMetrics</code> on the (frozen) instance via <code>object.__setattr__</code>. Both run paths (<code>Workflow.run</code> → <code>CompiledWorkflow.arun</code>, or direct <code>CompiledWorkflow.run</code>) update the same cache; the sync <code>stream()</code> path records metrics on <code>WORKFLOW_END</code>.</p>
+<p>The <code>answer_key</code> (set via the <code>Workflow(answer_key=...)</code> constructor kwarg, or implicitly to the sole exit when one is registered) controls what <code>WorkflowResult.answer</code> returns and what content lands on the final <code>ANSWER</code> event.</p>
 <h4 id="agentprotocol-compliance-via-as_agent">AgentProtocol compliance via <code>as_agent()</code><a class="headerlink" href="#agentprotocol-compliance-via-as_agent" title="Permanent link">&para;</a></h4>
-<p>A workflow's native shape is "typed state in, typed state out"; the
-<code>AgentProtocol</code> shape (<code>run(task: str) -&gt; AgentResult</code>) is a lossy
-projection of that. Rather than overloading <code>run</code> to mean both
-things, <code>Workflow</code> and <code>CompiledWorkflow</code> expose <code>as_agent()</code>
-returning a small adapter that satisfies <code>AgentProtocol</code>:</p>
+<p>A workflow's native shape is "typed state in, typed state out"; the <code>AgentProtocol</code> shape (<code>run(task: str) -&gt; AgentResult</code>) is a lossy projection of that. Rather than overloading <code>run</code> to mean both things, <code>Workflow</code> and <code>CompiledWorkflow</code> expose <code>as_agent()</code> returning a small adapter that satisfies <code>AgentProtocol</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="n">flow</span> <span class="o">=</span> <span class="n">Workflow</span><span class="p">()</span>
 <a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="c1"># ... build flow ...</span>
 <a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="n">flow</span><span class="o">.</span><span class="n">set_exit</span><span class="p">(</span><span class="s2">&quot;answer&quot;</span><span class="p">)</span>
@@ -3389,24 +3338,22 @@ returning a small adapter that satisfies <code>AgentProtocol</code>:</p>
 </code></pre></div>
 <p>The adapter:</p>
 <ul>
-<li><code>run(task: str) -&gt; AgentResult</code> — binds <code>task</code> to
-  <code>state[task_param]</code> (default <code>"task"</code>; configured via
-  <code>Workflow(task_param=...)</code> or <code>flow.as_agent(task_param=...)</code>),
-  runs the workflow, projects the final state to an <code>AgentResult</code>.</li>
-<li><code>arun(task)</code> — async variant.</li>
-<li><code>stream(task)</code> / <code>astream(task)</code> — yield the workflow's
-  <code>AgentEvent</code>s.</li>
-<li><code>metrics</code> — delegates to the underlying compiled workflow.</li>
+<li>
+<p><code>run(task: str) -&gt; AgentResult</code> — binds <code>task</code> to <code>state[task_param]</code> (default <code>"task"</code>; configured via <code>Workflow(task_param=...)</code> or <code>flow.as_agent(task_param=...)</code>), runs the workflow, projects the final state to an <code>AgentResult</code>.</p>
+</li>
+<li>
+<p><code>arun(task)</code> — async variant.</p>
+</li>
+<li>
+<p><code>stream(task)</code> / <code>astream(task)</code> — yield the workflow's <code>AgentEvent</code>s.</p>
+</li>
+<li>
+<p><code>metrics</code> — delegates to the underlying compiled workflow.</p>
+</li>
 </ul>
-<p><code>isinstance(flow.as_agent(), AgentProtocol)</code> returns <code>True</code>;
-<code>isinstance(flow, AgentProtocol)</code> is structurally true (workflows
-have <code>run</code>/<code>stream</code>/<code>metrics</code> members) but the workflow's
-<code>run(**kwargs)</code> shape is <em>not</em> protocol-compatible. The adapter
-exists precisely so the protocol projection is explicit at the call
-site.</p>
+<p><code>isinstance(flow.as_agent(), AgentProtocol)</code> returns <code>True</code>; <code>isinstance(flow, AgentProtocol)</code> is structurally true (workflows have <code>run</code>/<code>stream</code>/<code>metrics</code> members) but the workflow's <code>run(**kwargs)</code> shape is <em>not</em> protocol-compatible. The adapter exists precisely so the protocol projection is explicit at the call site.</p>
 <h2 id="6-layer-c-specification">6. Layer C specification<a class="headerlink" href="#6-layer-c-specification" title="Permanent link">&para;</a></h2>
-<p>The decorator API is sugar over Layer B. Every Layer-C operation
-desugars to specific Layer-B calls.</p>
+<p>The decorator API is sugar over Layer B. Every Layer-C operation desugars to specific Layer-B calls.</p>
 <h3 id="61-flownode">6.1 <code>@flow.node</code><a class="headerlink" href="#61-flownode" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="nd">@flow</span><span class="o">.</span><span class="n">node</span>
 <a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">search</span><span class="p">(</span><span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
@@ -3426,31 +3373,24 @@ desugars to specific Layer-B calls.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="nd">@flow</span><span class="o">.</span><span class="n">node</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;fast_search&quot;</span><span class="p">)</span>
 <a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">search</span><span class="p">(</span><span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span> <span class="o">...</span>
 </code></pre></div>
-<p>The return type annotation becomes the state field type (when a state
-schema is being derived; §4.2).</p>
+<p>The return type annotation becomes the state field type (when a state schema is being derived; §4.2).</p>
 <h3 id="62-flownodetimeout">6.2 <code>@flow.node(timeout=...)</code><a class="headerlink" href="#62-flownodetimeout" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="nd">@flow</span><span class="o">.</span><span class="n">node</span><span class="p">(</span><span class="n">timeout</span><span class="o">=</span><span class="mf">10.0</span><span class="p">)</span>
 <a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">slow_fetch</span><span class="p">(</span><span class="n">url</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span> <span class="o">...</span>
 </code></pre></div>
-<p>Forwards to <code>Workflow.add_node(..., timeout=10.0)</code>. Enforced via the
-same daemon-thread + join pattern used by <code>Tool.timeout</code>
-(<code>react.py:_execute_tool_raw</code>); the node raises <code>ToolTimeoutError</code> on
-timeout, which the workflow converts to an error event and skips
-downstream nodes.</p>
+<p>Forwards to <code>Workflow.add_node(..., timeout=10.0)</code>. Enforced via the same daemon-thread + join pattern used by <code>Tool.timeout</code> (<code>react.py:_execute_tool_raw</code>); the node raises <code>ToolTimeoutError</code> on timeout, which the workflow converts to an error event and skips downstream nodes.</p>
 <h3 id="63-dependency-inference">6.3 Dependency inference<a class="headerlink" href="#63-dependency-inference" title="Permanent link">&para;</a></h3>
 <p>For each parameter of a decorated node:</p>
 <ol>
-<li>If the parameter name matches a previously-registered node name:
-   add a static edge from that node to this one.</li>
-<li>Otherwise: the parameter is a workflow input — it must be supplied
-   via <code>run(**initial_state)</code>.</li>
+<li>
+<p>If the parameter name matches a previously-registered node name: add a static edge from that node to this one.</p>
+</li>
+<li>
+<p>Otherwise: the parameter is a workflow input — it must be supplied via <code>run(**initial_state)</code>.</p>
+</li>
 </ol>
-<p>A parameter that is <strong>neither</strong> a registered node nor in
-<code>initial_state</code> at compile time raises <code>WorkflowDefinitionError</code>.</p>
-<p>Order of decoration matters only when names collide. The same
-decorator on a function whose parameter shadows a real workflow input
-is allowed; the input wins (i.e., <code>initial_state["query"]</code> is what
-<code>search(query=...)</code> receives).</p>
+<p>A parameter that is <strong>neither</strong> a registered node nor in <code>initial_state</code> at compile time raises <code>WorkflowDefinitionError</code>.</p>
+<p>Order of decoration matters only when names collide. The same decorator on a function whose parameter shadows a real workflow input is allowed; the input wins (i.e., <code>initial_state["query"]</code> is what <code>search(query=...)</code> receives).</p>
 <h3 id="64-flowrouteafter">6.4 <code>@flow.route(after=...)</code><a class="headerlink" href="#64-flowrouteafter" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="nd">@flow</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="n">after</span><span class="o">=</span><span class="s2">&quot;search&quot;</span><span class="p">)</span>
 <a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">route_after_search</span><span class="p">(</span><span class="n">search</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
@@ -3462,12 +3402,8 @@ is allowed; the input wins (i.e., <code>initial_state["query"]</code> is what
 <a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>
 <a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="n">flow</span><span class="o">.</span><span class="n">add_conditional_edge</span><span class="p">(</span><span class="s2">&quot;search&quot;</span><span class="p">,</span> <span class="n">_route_layer_b</span><span class="p">,</span> <span class="n">edge_map</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
 </code></pre></div>
-<p>The router function's parameter binding follows the same rules as
-node parameter binding (§6.3): each parameter pulls from state by
-name.</p>
-<p>The router's return value is treated as the target node name directly
-(equivalent to <code>edge_map=None</code>). To use an explicit edge map, drop to
-Layer B and call <code>add_conditional_edge</code> directly.</p>
+<p>The router function's parameter binding follows the same rules as node parameter binding (§6.3): each parameter pulls from state by name.</p>
+<p>The router's return value is treated as the target node name directly (equivalent to <code>edge_map=None</code>). To use an explicit edge map, drop to Layer B and call <code>add_conditional_edge</code> directly.</p>
 <h3 id="65-flowadd_nodefn-namenone-non-decorator-form">6.5 <code>flow.add_node(fn, name=None)</code> (non-decorator form)<a class="headerlink" href="#65-flowadd_nodefn-namenone-non-decorator-form" title="Permanent link">&para;</a></h3>
 <p>For reusable node functions or programmatic registration:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">search</span><span class="p">(</span><span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span> <span class="o">...</span>
@@ -3492,15 +3428,11 @@ Layer B and call <code>add_conditional_edge</code> directly.</p>
 <a id="__codelineno-19-12" name="__codelineno-19-12" href="#__codelineno-19-12"></a><span class="n">flow</span><span class="o">.</span><span class="n">set_entry</span><span class="p">(</span><span class="s2">&quot;search&quot;</span><span class="p">)</span>
 <a id="__codelineno-19-13" name="__codelineno-19-13" href="#__codelineno-19-13"></a><span class="n">flow</span><span class="o">.</span><span class="n">set_exit</span><span class="p">(</span><span class="s2">&quot;merge&quot;</span><span class="p">)</span>
 </code></pre></div>
-<p>When the decorator can't express the node (multi-key writes, custom
-state binding, edge maps with non-trivial fanout), drop to Layer B
-for that specific node.</p>
+<p>When the decorator can't express the node (multi-key writes, custom state binding, edge maps with non-trivial fanout), drop to Layer B for that specific node.</p>
 <h2 id="7-execution-model">7. Execution model<a class="headerlink" href="#7-execution-model" title="Permanent link">&para;</a></h2>
-<p>The runtime that both layers compile to. Sections 7.1-7.5 are the
-contract every workflow obeys.</p>
+<p>The runtime that both layers compile to. Sections 7.1-7.5 are the contract every workflow obeys.</p>
 <h3 id="71-compile">7.1 Compile<a class="headerlink" href="#71-compile" title="Permanent link">&para;</a></h3>
-<p><code>Workflow.compile()</code> produces a <code>CompiledWorkflow</code> whose internals
-are:</p>
+<p><code>Workflow.compile()</code> produces a <code>CompiledWorkflow</code> whose internals are:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 <a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a><span class="k">class</span><span class="w"> </span><span class="nc">CompiledWorkflow</span><span class="p">(</span><span class="n">Generic</span><span class="p">[</span><span class="n">StateT</span><span class="p">]):</span>
 <a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>    <span class="n">nodes</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">_CompiledNode</span><span class="p">]</span>
@@ -3513,14 +3445,13 @@ are:</p>
 <a id="__codelineno-20-10" name="__codelineno-20-10" href="#__codelineno-20-10"></a>    <span class="n">max_steps</span><span class="p">:</span> <span class="nb">int</span>
 <a id="__codelineno-20-11" name="__codelineno-20-11" href="#__codelineno-20-11"></a>    <span class="n">levels</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span>   <span class="c1"># topological levels for static-edge nodes</span>
 </code></pre></div>
-<p><code>_CompiledNode</code> wraps the user function with type-coercion (via
-<code>coerce_args</code>) and timeout enforcement.</p>
-<p><code>levels</code> is computed once at compile time via Kahn's algorithm over
-static edges only. Conditional edges are not in the level structure;
-they're resolved at runtime.</p>
+<p><code>_CompiledNode</code> wraps the user function with type-coercion (via <code>coerce_args</code>) and timeout enforcement.</p>
+<p><code>levels</code> is computed once at compile time via Kahn's algorithm over static edges only. Conditional edges are not in the level structure; they're resolved at runtime.</p>
 <h3 id="72-run">7.2 Run<a class="headerlink" href="#72-run" title="Permanent link">&para;</a></h3>
-<p>Execution starts at <code>entry</code> and proceeds via a hybrid level-scheduled
-+ conditional-routed loop:</p>
+<p>Execution starts at <code>entry</code> and proceeds via a hybrid level-scheduled</p>
+<ul>
+<li>conditional-routed loop:</li>
+</ul>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="n">state</span> <span class="o">=</span> <span class="n">initial_state</span>
 <a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a><span class="n">active</span> <span class="o">=</span> <span class="p">{</span><span class="n">entry</span><span class="p">}</span>
 <a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a><span class="n">visited</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
@@ -3558,57 +3489,64 @@ they're resolved at runtime.</p>
 <a id="__codelineno-21-35" name="__codelineno-21-35" href="#__codelineno-21-35"></a>
 <a id="__codelineno-21-36" name="__codelineno-21-36" href="#__codelineno-21-36"></a><span class="c1"># Workflow terminates when active is empty or we hit an exit.</span>
 </code></pre></div>
-<p>In practice the implementation is more careful about fan-in
-synchronization (a node with multiple predecessors waits for all of
-them), but the shape above captures it.</p>
+<p>In practice the implementation is more careful about fan-in synchronization (a node with multiple predecessors waits for all of them), but the shape above captures it.</p>
 <h3 id="73-node-execution">7.3 Node execution<a class="headerlink" href="#73-node-execution" title="Permanent link">&para;</a></h3>
 <p>A single node's execution:</p>
 <ol>
-<li>Bind args from state (Layer C: by parameter name; Layer B: pass
-   the whole state).</li>
-<li>Apply <code>coerce_args</code> to bind values to declared types (Annotated
-   constraints enforced).</li>
-<li>If <code>async def</code>, await directly; else, run on <code>asyncio.to_thread</code>.</li>
-<li>If a timeout is set, race against an <code>asyncio.wait_for</code> with the
-   declared budget; on timeout raise <code>ToolTimeoutError</code>.</li>
-<li>Emit <code>EventType.ACTION</code> at start (with <code>metadata={"node": name,
-   "inputs": ...}</code>) and <code>EventType.OBSERVATION</code> at end (with
-   <code>metadata={"node": name, "result": ...}</code>).</li>
-<li>Capture the return dict and hand back for state merging.</li>
+<li>
+<p>Bind args from state (Layer C: by parameter name; Layer B: pass the whole state).</p>
+</li>
+<li>
+<p>Apply <code>coerce_args</code> to bind values to declared types (Annotated constraints enforced).</p>
+</li>
+<li>
+<p>If <code>async def</code>, await directly; else, run on <code>asyncio.to_thread</code>.</p>
+</li>
+<li>
+<p>If a timeout is set, race against an <code>asyncio.wait_for</code> with the declared budget; on timeout raise <code>ToolTimeoutError</code>.</p>
+</li>
+<li>
+<p>Emit <code>EventType.ACTION</code> at start (with <code>metadata={"node": name, "inputs": ...}</code>) and <code>EventType.OBSERVATION</code> at end (with <code>metadata={"node": name, "result": ...}</code>).</p>
+</li>
+<li>
+<p>Capture the return dict and hand back for state merging.</p>
+</li>
 </ol>
 <h3 id="74-state-merging">7.4 State merging<a class="headerlink" href="#74-state-merging" title="Permanent link">&para;</a></h3>
-<p>After a level completes, all node return dicts are merged into the
-running state:</p>
+<p>After a level completes, all node return dicts are merged into the running state:</p>
 <ul>
-<li>For each (key, value) pair in each return dict:</li>
-<li>If <code>key</code> has a registered reducer, call <code>reducer(state[key],
-    value)</code> and update state.</li>
-<li>Else: state[key] = value (last-write wins within the level; but
-    multiple writers in the same level without a reducer is a compile
-    error per §5.5).</li>
+<li>
+<p>For each (key, value) pair in each return dict:</p>
+</li>
+<li>
+<p>If <code>key</code> has a registered reducer, call <code>reducer(state[key], value)</code> and update state.</p>
+</li>
+<li>
+<p>Else: state[key] = value (last-write wins within the level; but multiple writers in the same level without a reducer is a compile error per §5.5).</p>
+</li>
 </ul>
-<p>State merges across levels are sequential. State merges within a
-level are deterministic (alphabetical by node name) when no reducer
-is registered, but the compile-time single-writer rule means this
-shouldn't matter.</p>
+<p>State merges across levels are sequential. State merges within a level are deterministic (alphabetical by node name) when no reducer is registered, but the compile-time single-writer rule means this shouldn't matter.</p>
 <h3 id="75-termination">7.5 Termination<a class="headerlink" href="#75-termination" title="Permanent link">&para;</a></h3>
 <p>Workflow terminates when:</p>
 <ol>
-<li>The active set is empty (all reachable nodes have run).</li>
-<li>An active node is in the <code>exits</code> set (it runs to completion, then
-   the workflow terminates).</li>
-<li>A conditional router returns <code>END</code> (the path terminates;
-   workflow continues if other paths are still active; if no paths
-   remain, terminate).</li>
-<li>A node raises (workflow terminates with <code>success=False</code>,
-   downstream nodes skipped, error captured on <code>WorkflowResult</code>).</li>
-<li><code>max_steps</code> reached (default 100, configurable via
-   <code>Workflow(max_steps=...)</code>). Raises <code>WorkflowExecutionError</code>. The
-   cap exists to bound conditional-edge cycles.</li>
+<li>
+<p>The active set is empty (all reachable nodes have run).</p>
+</li>
+<li>
+<p>An active node is in the <code>exits</code> set (it runs to completion, then the workflow terminates).</p>
+</li>
+<li>
+<p>A conditional router returns <code>END</code> (the path terminates; workflow continues if other paths are still active; if no paths remain, terminate).</p>
+</li>
+<li>
+<p>A node raises (workflow terminates with <code>success=False</code>, downstream nodes skipped, error captured on <code>WorkflowResult</code>).</p>
+</li>
+<li>
+<p><code>max_steps</code> reached (default 100, configurable via <code>Workflow(max_steps=...)</code>). Raises <code>WorkflowExecutionError</code>. The cap exists to bound conditional-edge cycles.</p>
+</li>
 </ol>
 <h2 id="8-event-model">8. Event model<a class="headerlink" href="#8-event-model" title="Permanent link">&para;</a></h2>
-<p>Every workflow execution emits a stream of <code>AgentEvent</code>s. New event
-type added to <code>EventType</code>:</p>
+<p>Every workflow execution emits a stream of <code>AgentEvent</code>s. New event type added to <code>EventType</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">EventType</span><span class="p">(</span><span class="n">Enum</span><span class="p">):</span>
 <a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>    <span class="o">...</span>
 <a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a>    <span class="n">NODE_START</span> <span class="o">=</span> <span class="s2">&quot;node_start&quot;</span>
@@ -3616,9 +3554,7 @@ type added to <code>EventType</code>:</p>
 <a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a>    <span class="n">WORKFLOW_START</span> <span class="o">=</span> <span class="s2">&quot;workflow_start&quot;</span>
 <a id="__codelineno-22-6" name="__codelineno-22-6" href="#__codelineno-22-6"></a>    <span class="n">WORKFLOW_END</span> <span class="o">=</span> <span class="s2">&quot;workflow_end&quot;</span>
 </code></pre></div>
-<p>(The existing <code>ACTION</code> / <code>OBSERVATION</code> semantics are tool-centric;
-workflows are level above that, so dedicated event types are clearer
-than overloading.)</p>
+<p>(The existing <code>ACTION</code> / <code>OBSERVATION</code> semantics are tool-centric; workflows are level above that, so dedicated event types are clearer than overloading.)</p>
 <p>For each workflow run, the event sequence is:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>WORKFLOW_START               metadata={&quot;entry&quot;: &quot;...&quot;, &quot;initial_state&quot;: ...}
 <a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>  NODE_START (entry)         metadata={&quot;node&quot;: &quot;...&quot;, &quot;inputs&quot;: ...}
@@ -3628,51 +3564,59 @@ than overloading.)</p>
 <a id="__codelineno-23-6" name="__codelineno-23-6" href="#__codelineno-23-6"></a>  ...
 <a id="__codelineno-23-7" name="__codelineno-23-7" href="#__codelineno-23-7"></a>WORKFLOW_END                 metadata={&quot;final_state&quot;: ..., &quot;success&quot;: bool}
 </code></pre></div>
-<p><code>source</code> on workflow-level events is <code>None</code> (they're emitted by the
-workflow itself). Sub-agent events forwarded into a workflow run carry
-their <code>source</code> (set by <code>agent_as_tool</code> or by the node wrapping the
-agent) and a <code>parent_event_id</code> linking to the enclosing
-<code>NODE_START</code> event.</p>
-<p>Workflows nested inside workflows (sub-workflow as a node) preserve
-the hierarchy: inner <code>NODE_START</code> events carry <code>parent_event_id</code>
-linking to the outer <code>NODE_START</code>, and <code>source</code> carries the
-outer node's name.</p>
+<p><code>source</code> on workflow-level events is <code>None</code> (they're emitted by the workflow itself). Sub-agent events forwarded into a workflow run carry their <code>source</code> (set by <code>agent_as_tool</code> or by the node wrapping the agent) and a <code>parent_event_id</code> linking to the enclosing <code>NODE_START</code> event.</p>
+<p>Workflows nested inside workflows (sub-workflow as a node) preserve the hierarchy: inner <code>NODE_START</code> events carry <code>parent_event_id</code> linking to the outer <code>NODE_START</code>, and <code>source</code> carries the outer node's name.</p>
 <h2 id="9-error-handling">9. Error handling<a class="headerlink" href="#9-error-handling" title="Permanent link">&para;</a></h2>
 <p>Three categories:</p>
 <h3 id="91-compile-time-errors-workflowdefinitionerror">9.1 Compile-time errors (<code>WorkflowDefinitionError</code>)<a class="headerlink" href="#91-compile-time-errors-workflowdefinitionerror" title="Permanent link">&para;</a></h3>
 <p>Raised by <code>Workflow.compile()</code>:</p>
 <ul>
-<li>Unknown node name referenced in an edge / router / entry / exit.</li>
-<li>No entry node set.</li>
-<li>Cycle in static-edge graph.</li>
-<li>Multiple writers for the same state key without a reducer.</li>
-<li>Node return type incompatible with state schema field type.</li>
-<li>Conditional edge target node has only conditional incoming edges
-  (over-specified).</li>
-<li>A node has both static outgoing and conditional outgoing edges
-  (mixed routing; ambiguous).</li>
+<li>
+<p>Unknown node name referenced in an edge / router / entry / exit.</p>
+</li>
+<li>
+<p>No entry node set.</p>
+</li>
+<li>
+<p>Cycle in static-edge graph.</p>
+</li>
+<li>
+<p>Multiple writers for the same state key without a reducer.</p>
+</li>
+<li>
+<p>Node return type incompatible with state schema field type.</p>
+</li>
+<li>
+<p>Conditional edge target node has only conditional incoming edges (over-specified).</p>
+</li>
+<li>
+<p>A node has both static outgoing and conditional outgoing edges (mixed routing; ambiguous).</p>
+</li>
 </ul>
 <h3 id="92-runtime-errors-captured-on-workflowresult">9.2 Runtime errors (captured on <code>WorkflowResult</code>)<a class="headerlink" href="#92-runtime-errors-captured-on-workflowresult" title="Permanent link">&para;</a></h3>
 <p>Raised inside a node and caught by the runtime:</p>
 <ul>
-<li>Any exception from a node body.</li>
-<li><code>ToolTimeoutError</code> from a timed-out node.</li>
-<li><code>ToolArgumentError</code> from <code>coerce_args</code> boundary validation.</li>
-<li>Conditional router returns a node name not in <code>edge_map</code> (and
-  <code>edge_map</code> is non-None) — <code>WorkflowRoutingError</code>.</li>
-<li><code>max_steps</code> exceeded — <code>WorkflowExecutionError</code>.</li>
+<li>
+<p>Any exception from a node body.</p>
+</li>
+<li>
+<p><code>ToolTimeoutError</code> from a timed-out node.</p>
+</li>
+<li>
+<p><code>ToolArgumentError</code> from <code>coerce_args</code> boundary validation.</p>
+</li>
+<li>
+<p>Conditional router returns a node name not in <code>edge_map</code> (and <code>edge_map</code> is non-None) — <code>WorkflowRoutingError</code>.</p>
+</li>
+<li>
+<p><code>max_steps</code> exceeded — <code>WorkflowExecutionError</code>.</p>
+</li>
 </ul>
-<p>The workflow terminates, emits <code>EventType.ERROR</code> with the exception,
-and returns <code>WorkflowResult(success=False, error=&lt;formatted&gt;, ...)</code>.
-Downstream nodes are skipped.</p>
+<p>The workflow terminates, emits <code>EventType.ERROR</code> with the exception, and returns <code>WorkflowResult(success=False, error=&lt;formatted&gt;, ...)</code>. Downstream nodes are skipped.</p>
 <h3 id="93-invariant-violations-contractpolicy">9.3 Invariant violations (<code>ContractPolicy</code>)<a class="headerlink" href="#93-invariant-violations-contractpolicy" title="Permanent link">&para;</a></h3>
-<p>Workflow-level invariants (§10) emit <code>EventType.CONTRACT_VIOLATION</code>
-events. Under <code>ContractPolicy.ENFORCE</code> the workflow terminates;
-under <code>OBSERVE</code> it continues.</p>
+<p>Workflow-level invariants (§10) emit <code>EventType.CONTRACT_VIOLATION</code> events. Under <code>ContractPolicy.ENFORCE</code> the workflow terminates; under <code>OBSERVE</code> it continues.</p>
 <h2 id="10-contracts-integration">10. Contracts integration<a class="headerlink" href="#10-contracts-integration" title="Permanent link">&para;</a></h2>
-<p><code>Workflow(invariants=[...])</code> accepts the same <code>WorkflowInvariant</code>
-shape used by <code>ContractAgent.iteration_invariants</code> — but operating
-over workflow state instead of <code>IterationState</code>:</p>
+<p><code>Workflow(invariants=[...])</code> accepts the same <code>WorkflowInvariant</code> shape used by <code>ContractAgent.iteration_invariants</code> — but operating over workflow state instead of <code>IterationState</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.agents.workflow</span><span class="w"> </span><span class="kn">import</span> <span class="n">Workflow</span><span class="p">,</span> <span class="n">WorkflowInvariant</span>
 <a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">ContractPolicy</span>
 <a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a>
@@ -3695,8 +3639,7 @@ over workflow state instead of <code>IterationState</code>:</p>
 <a id="__codelineno-24-20" name="__codelineno-24-20" href="#__codelineno-24-20"></a>    <span class="n">policy</span><span class="o">=</span><span class="n">ContractPolicy</span><span class="o">.</span><span class="n">ENFORCE</span><span class="p">,</span>
 <a id="__codelineno-24-21" name="__codelineno-24-21" href="#__codelineno-24-21"></a><span class="p">)</span>
 </code></pre></div>
-<p>The <code>WorkflowInvariant</code> predicate receives a <code>WorkflowExecutionState</code>
-view of the running state augmented with framework-tracked counters:</p>
+<p>The <code>WorkflowInvariant</code> predicate receives a <code>WorkflowExecutionState</code> view of the running state augmented with framework-tracked counters:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="nd">@dataclass</span>
 <a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a><span class="k">class</span><span class="w"> </span><span class="nc">WorkflowExecutionState</span><span class="p">:</span>
 <a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a>    <span class="n">state</span><span class="p">:</span> <span class="nb">dict</span>           <span class="c1"># the user-facing state</span>
@@ -3706,12 +3649,9 @@ view of the running state augmented with framework-tracked counters:</p>
 <a id="__codelineno-25-7" name="__codelineno-25-7" href="#__codelineno-25-7"></a>    <span class="n">estimated_cost_usd</span><span class="p">:</span> <span class="nb">float</span>  <span class="c1"># sum of per-node costs if tracked</span>
 <a id="__codelineno-25-8" name="__codelineno-25-8" href="#__codelineno-25-8"></a>    <span class="n">nodes_run</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>  <span class="c1"># in execution order</span>
 </code></pre></div>
-<p>Invariants fire after each node completes. Violations follow
-<code>ContractPolicy</code> semantics, reusing the same <code>_handle_violation</code>
-logic as <code>ContractAgent</code>.</p>
+<p>Invariants fire after each node completes. Violations follow <code>ContractPolicy</code> semantics, reusing the same <code>_handle_violation</code> logic as <code>ContractAgent</code>.</p>
 <h2 id="11-public-api-surface">11. Public API surface<a class="headerlink" href="#11-public-api-surface" title="Permanent link">&para;</a></h2>
-<p>Complete list of names exported from <code>cyllama.agents.workflow</code> and
-re-exported from <code>cyllama.agents</code>.</p>
+<p>Complete list of names exported from <code>cyllama.agents.workflow</code> and re-exported from <code>cyllama.agents</code>.</p>
 <h3 id="classes">Classes<a class="headerlink" href="#classes" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
@@ -3831,163 +3771,184 @@ re-exported from <code>cyllama.agents</code>.</p>
 <a id="__codelineno-26-15" name="__codelineno-26-15" href="#__codelineno-26-15"></a>docs/
 <a id="__codelineno-26-16" name="__codelineno-26-16" href="#__codelineno-26-16"></a>  agents/workflow.md     # this design doc, kept as the implementation reference
 </code></pre></div>
-<p>The originally-planned <code>workflow-user.md</code> and the planned three-file
-test split did not ship; the single test file stays navigable at 1800
-lines, and the patterns doc (<code>docs/agents/patterns.md</code>) covers the
-user-tutorial role.</p>
+<p>The originally-planned <code>workflow-user.md</code> and the planned three-file test split did not ship; the single test file stays navigable at 1800 lines, and the patterns doc (<code>docs/agents/patterns.md</code>) covers the user-tutorial role.</p>
 <h2 id="13-implementation-phases">13. Implementation phases<a class="headerlink" href="#13-implementation-phases" title="Permanent link">&para;</a></h2>
-<p><strong>All five phases have landed.</strong> Each phase shipped as a self-contained
-landing with its own tests, CHANGELOG entry, and validation pass.</p>
+<p><strong>All five phases have landed.</strong> Each phase shipped as a self-contained landing with its own tests, CHANGELOG entry, and validation pass.</p>
 <h3 id="phase-1-layer-b-core-workflow-compile-run-landed">Phase 1 — Layer B core (Workflow + compile + run) — <strong>landed</strong><a class="headerlink" href="#phase-1-layer-b-core-workflow-compile-run-landed" title="Permanent link">&para;</a></h3>
 <ul>
-<li><code>Workflow.__init__</code> with optional state schema.</li>
-<li><code>add_node</code>, <code>add_edge</code>, <code>add_conditional_edge</code>, <code>set_entry</code>,
-  <code>set_exit</code>.</li>
-<li><code>compile()</code> — validation + topological levels.</li>
-<li><code>CompiledWorkflow.run()</code> / <code>arun()</code> — sequential + level-parallel
-  execution with conditional routing.</li>
-<li><code>WorkflowResult</code> dataclass.</li>
-<li><code>WorkflowDefinitionError</code>, <code>WorkflowExecutionError</code>,
-  <code>WorkflowRoutingError</code>.</li>
-<li><code>END</code> sentinel.</li>
-<li>Sync nodes (via <code>asyncio.to_thread</code>), async nodes (awaited
-  directly).</li>
-<li>~400 LoC + 25 tests.</li>
+<li>
+<p><code>Workflow.__init__</code> with optional state schema.</p>
+</li>
+<li>
+<p><code>add_node</code>, <code>add_edge</code>, <code>add_conditional_edge</code>, <code>set_entry</code>, <code>set_exit</code>.</p>
+</li>
+<li>
+<p><code>compile()</code> — validation + topological levels.</p>
+</li>
+<li>
+<p><code>CompiledWorkflow.run()</code> / <code>arun()</code> — sequential + level-parallel execution with conditional routing.</p>
+</li>
+<li>
+<p><code>WorkflowResult</code> dataclass.</p>
+</li>
+<li>
+<p><code>WorkflowDefinitionError</code>, <code>WorkflowExecutionError</code>, <code>WorkflowRoutingError</code>.</p>
+</li>
+<li>
+<p><code>END</code> sentinel.</p>
+</li>
+<li>
+<p>Sync nodes (via <code>asyncio.to_thread</code>), async nodes (awaited directly).</p>
+</li>
+<li>
+<p>~400 LoC + 25 tests.</p>
+</li>
 </ul>
 <h3 id="phase-2-layer-c-sugar-decorators-inference-landed">Phase 2 — Layer C sugar (decorators + inference) — <strong>landed</strong><a class="headerlink" href="#phase-2-layer-c-sugar-decorators-inference-landed" title="Permanent link">&para;</a></h3>
 <ul>
-<li><code>@flow.node</code> and <code>@flow.node(name=..., timeout=...)</code>.</li>
-<li><code>@flow.route(after=...)</code>.</li>
-<li><code>flow.add_node(fn)</code> non-decorator form.</li>
-<li>Dependency inference from parameter names.</li>
-<li>Derived state schema (<code>flow.derived_state_schema</code>).</li>
-<li>~150 LoC + 20 tests.</li>
+<li>
+<p><code>@flow.node</code> and <code>@flow.node(name=..., timeout=...)</code>.</p>
+</li>
+<li>
+<p><code>@flow.route(after=...)</code>.</p>
+</li>
+<li>
+<p><code>flow.add_node(fn)</code> non-decorator form.</p>
+</li>
+<li>
+<p>Dependency inference from parameter names.</p>
+</li>
+<li>
+<p>Derived state schema (<code>flow.derived_state_schema</code>).</p>
+</li>
+<li>
+<p>~150 LoC + 20 tests.</p>
+</li>
 </ul>
 <h3 id="phase-3-helpers-streaming-visualization-landed">Phase 3 — Helpers, streaming, visualization — <strong>landed</strong><a class="headerlink" href="#phase-3-helpers-streaming-visualization-landed" title="Permanent link">&para;</a></h3>
 <ul>
-<li><code>agent_node()</code> and <code>tool_node()</code> adapters.</li>
-<li><code>stream()</code> method on <code>Workflow</code> / <code>CompiledWorkflow</code>.</li>
-<li>New <code>EventType</code> variants (<code>NODE_START</code>, <code>NODE_END</code>,
-  <code>WORKFLOW_START</code>, <code>WORKFLOW_END</code>).</li>
-<li><code>to_mermaid()</code>, <code>to_dot()</code>, <code>dry_run()</code>.</li>
-<li>~150 LoC + 15 tests.</li>
+<li>
+<p><code>agent_node()</code> and <code>tool_node()</code> adapters.</p>
+</li>
+<li>
+<p><code>stream()</code> method on <code>Workflow</code> / <code>CompiledWorkflow</code>.</p>
+</li>
+<li>
+<p>New <code>EventType</code> variants (<code>NODE_START</code>, <code>NODE_END</code>, <code>WORKFLOW_START</code>, <code>WORKFLOW_END</code>).</p>
+</li>
+<li>
+<p><code>to_mermaid()</code>, <code>to_dot()</code>, <code>dry_run()</code>.</p>
+</li>
+<li>
+<p>~150 LoC + 15 tests.</p>
+</li>
 </ul>
 <h3 id="phase-4-contracts-reducers-typed-state-landed">Phase 4 — Contracts, reducers, typed state — <strong>landed</strong><a class="headerlink" href="#phase-4-contracts-reducers-typed-state-landed" title="Permanent link">&para;</a></h3>
 <ul>
-<li><code>WorkflowInvariant</code> + <code>WorkflowExecutionState</code>.</li>
-<li><code>ContractPolicy</code> integration; <code>CONTRACT_VIOLATION</code> events emitted
-  during workflow runs.</li>
-<li>Per-node <code>timeout=</code>.</li>
-<li>Built-in reducers (<code>append</code>, <code>extend</code>, <code>merge_dict</code>, <code>add</code>,
-  <code>last</code>).</li>
-<li>Custom reducer registration.</li>
-<li>Generic <code>Workflow[StateT]</code> typing (PEP 484 compatible).</li>
-<li>~250 LoC + 25 tests.</li>
+<li>
+<p><code>WorkflowInvariant</code> + <code>WorkflowExecutionState</code>.</p>
+</li>
+<li>
+<p><code>ContractPolicy</code> integration; <code>CONTRACT_VIOLATION</code> events emitted during workflow runs.</p>
+</li>
+<li>
+<p>Per-node <code>timeout=</code>.</p>
+</li>
+<li>
+<p>Built-in reducers (<code>append</code>, <code>extend</code>, <code>merge_dict</code>, <code>add</code>, <code>last</code>).</p>
+</li>
+<li>
+<p>Custom reducer registration.</p>
+</li>
+<li>
+<p>Generic <code>Workflow[StateT]</code> typing (PEP 484 compatible).</p>
+</li>
+<li>
+<p>~250 LoC + 25 tests.</p>
+</li>
 </ul>
 <h3 id="phase-5-agentprotocol-compliance-via-as_agent-sub-workflow-composition-landed">Phase 5 — <code>AgentProtocol</code> compliance via <code>as_agent()</code>, sub-workflow composition — <strong>landed</strong><a class="headerlink" href="#phase-5-agentprotocol-compliance-via-as_agent-sub-workflow-composition-landed" title="Permanent link">&para;</a></h3>
 <ul>
-<li><code>Workflow.as_agent()</code> and <code>CompiledWorkflow.as_agent()</code> return a
-  <code>_WorkflowAgentAdapter</code> that satisfies <code>AgentProtocol</code>
-  (<code>run(task: str) -&gt; AgentResult</code>, <code>arun(task)</code>, <code>stream(task)</code>,
-  <code>astream(task)</code>, <code>metrics</code> property). Callers opt in at the
-  protocol boundary: <code>agent_as_tool(flow.as_agent(), ...)</code>,
-  <code>ReflectionLoop(worker.as_agent(), critic.as_agent(), ...)</code>,
-  <code>TieredAgentTeam(workers=[AgentRole("name", flow.as_agent(), ...)])</code>.</li>
-<li>The workflow's native API stays <strong>kwargs-only</strong>:
-  <code>flow.run(**kwargs)</code> returns <code>WorkflowResult</code>. No polymorphic
-  positional overloading. This trades one extra method call at
-  protocol boundaries for an unambiguous native API — <code>flow.run</code>
-  always means "kwargs in, WorkflowResult out".</li>
-<li><code>_WorkflowAgentAdapter.run(task)</code> projects the final workflow
-  state to an <code>AgentResult</code> by reading <code>state[answer_key]</code> (set via
-  <code>Workflow(answer_key=...)</code>, or implicitly to the sole exit when
-  one is registered). The adapter accepts a per-call override:
-  <code>flow.as_agent(task_param="query", answer_key="response")</code>.</li>
-<li><code>WorkflowResult</code> exposes convenience properties (<code>answer</code> /
-  <code>steps</code> / <code>iterations</code>) so direct callers can read the projected
-  output without going through the adapter; same projection rules.</li>
-<li>Final <code>EventType.ANSWER</code> event emitted just before <code>WORKFLOW_END</code>,
-  carrying the resolved answer string — so consumers that only
-  watch for <code>ANSWER</code> (e.g. <code>ReflectionLoop.stream</code>) see the
-  canonical "I'm done" event without walking metadata.</li>
-<li><code>metrics</code> property on <code>Workflow</code> delegates to the cached
-  <code>CompiledWorkflow</code>, which stores the most-recent run's
-  <code>AgentMetrics</code> via <code>object.__setattr__</code> on the frozen dataclass.
-  Both run paths (<code>Workflow.run</code> → <code>CompiledWorkflow.arun</code>, and
-  direct <code>CompiledWorkflow.run</code>) update the same cache; sync
-  <code>stream()</code> records metrics on <code>WORKFLOW_END</code>. The adapter
-  delegates to this property.</li>
-<li><code>NODE_START</code> and <code>NODE_END</code> events carry a stable
-  <code>metadata["event_id"]</code> (uuid4) so consumers can reconstruct the
-  nesting tree.</li>
-<li><code>agent_node(agent, name, task_param="task", *, forward_events=True)</code>
-  default flipped to stream-based dispatch: events from the inner
-  agent stream live (not batched) into the outer event stream
-  between <code>NODE_START</code> and <code>NODE_END</code> with <code>source=name</code> and
-  <code>parent_event_id=&lt;NODE_START event_id&gt;</code>. The runtime sets a
-  per-call <code>_event_sink</code> attribute on streaming node bodies, then
-  drains a shared <code>asyncio.Queue</code> concurrently with the node tasks
-  (one DONE sentinel per node) so each event yields the instant it
-  lands. Sync bodies hand events across thread boundaries via
-  <code>loop.call_soon_threadsafe</code>; async bodies use plain
-  <code>await queue.put</code>. Pass <code>forward_events=False</code> for the original
-  fast (run-based) path.</li>
-<li>New <code>workflow_node(compiled, name, *, task_param="task",
-  project_state=False)</code> free function wraps another
-  <code>CompiledWorkflow</code> (or <code>Workflow</code>, auto-compiled) as a node in an
-  outer workflow. Inner events forwarded with <code>source</code> /
-  <code>parent_event_id</code> rewriting (preserving any deeper nesting set by
-  the inner workflow). Inner failures re-raise as
-  <code>WorkflowExecutionError</code> on the outer (captured into
-  <code>WorkflowResult.error</code>). <code>project_state=True</code> exposes the entire
-  final sub-state under <code>state[name]</code>; default surfaces only the
-  inner <code>answer_key</code> value (AgentResult-shape).</li>
-<li>Internal <code>_run_one</code> dispatch extended to detect async-<code>__call__</code>
-  callable instances (<code>asyncio.iscoroutinefunction(node.fn.__call__)</code>)
-  so <code>_SubWorkflowNodeBody</code> and similar stateful node bodies
-  dispatch via the async path instead of being incorrectly run on
-  <code>asyncio.to_thread</code>.</li>
-<li>~250 LoC + 21 tests (across <code>TestAgentProtocolCompliance</code>,
-  <code>TestAgentNodeStreaming</code>, <code>TestWorkflowNode</code>,
-  <code>TestAgentAsToolIntegration</code>, <code>TestReflectionLoopIntegration</code>).</li>
+<li>
+<p><code>Workflow.as_agent()</code> and <code>CompiledWorkflow.as_agent()</code> return a <code>_WorkflowAgentAdapter</code> that satisfies <code>AgentProtocol</code> (<code>run(task: str) -&gt; AgentResult</code>, <code>arun(task)</code>, <code>stream(task)</code>, <code>astream(task)</code>, <code>metrics</code> property). Callers opt in at the protocol boundary: <code>agent_as_tool(flow.as_agent(), ...)</code>, <code>ReflectionLoop(worker.as_agent(), critic.as_agent(), ...)</code>, <code>TieredAgentTeam(workers=[AgentRole("name", flow.as_agent(), ...)])</code>.</p>
+</li>
+<li>
+<p>The workflow's native API stays <strong>kwargs-only</strong>: <code>flow.run(**kwargs)</code> returns <code>WorkflowResult</code>. No polymorphic positional overloading. This trades one extra method call at protocol boundaries for an unambiguous native API — <code>flow.run</code> always means "kwargs in, WorkflowResult out".</p>
+</li>
+<li>
+<p><code>_WorkflowAgentAdapter.run(task)</code> projects the final workflow state to an <code>AgentResult</code> by reading <code>state[answer_key]</code> (set via <code>Workflow(answer_key=...)</code>, or implicitly to the sole exit when one is registered). The adapter accepts a per-call override: <code>flow.as_agent(task_param="query", answer_key="response")</code>.</p>
+</li>
+<li>
+<p><code>WorkflowResult</code> exposes convenience properties (<code>answer</code> / <code>steps</code> / <code>iterations</code>) so direct callers can read the projected output without going through the adapter; same projection rules.</p>
+</li>
+<li>
+<p>Final <code>EventType.ANSWER</code> event emitted just before <code>WORKFLOW_END</code>, carrying the resolved answer string — so consumers that only watch for <code>ANSWER</code> (e.g. <code>ReflectionLoop.stream</code>) see the canonical "I'm done" event without walking metadata.</p>
+</li>
+<li>
+<p><code>metrics</code> property on <code>Workflow</code> delegates to the cached <code>CompiledWorkflow</code>, which stores the most-recent run's <code>AgentMetrics</code> via <code>object.__setattr__</code> on the frozen dataclass. Both run paths (<code>Workflow.run</code> → <code>CompiledWorkflow.arun</code>, and direct <code>CompiledWorkflow.run</code>) update the same cache; sync <code>stream()</code> records metrics on <code>WORKFLOW_END</code>. The adapter delegates to this property.</p>
+</li>
+<li>
+<p><code>NODE_START</code> and <code>NODE_END</code> events carry a stable <code>metadata["event_id"]</code> (uuid4) so consumers can reconstruct the nesting tree.</p>
+</li>
+<li>
+<p><code>agent_node(agent, name, task_param="task", *, forward_events=True)</code> default flipped to stream-based dispatch: events from the inner agent stream live (not batched) into the outer event stream between <code>NODE_START</code> and <code>NODE_END</code> with <code>source=name</code> and <code>parent_event_id=&lt;NODE_START event_id&gt;</code>. The runtime sets a per-call <code>_event_sink</code> attribute on streaming node bodies, then drains a shared <code>asyncio.Queue</code> concurrently with the node tasks (one DONE sentinel per node) so each event yields the instant it lands. Sync bodies hand events across thread boundaries via <code>loop.call_soon_threadsafe</code>; async bodies use plain <code>await queue.put</code>. Pass <code>forward_events=False</code> for the original fast (run-based) path.</p>
+</li>
+<li>
+<p>New <code>workflow_node(compiled, name, *, task_param="task", project_state=False)</code> free function wraps another <code>CompiledWorkflow</code> (or <code>Workflow</code>, auto-compiled) as a node in an outer workflow. Inner events forwarded with <code>source</code> / <code>parent_event_id</code> rewriting (preserving any deeper nesting set by the inner workflow). Inner failures re-raise as <code>WorkflowExecutionError</code> on the outer (captured into <code>WorkflowResult.error</code>). <code>project_state=True</code> exposes the entire final sub-state under <code>state[name]</code>; default surfaces only the inner <code>answer_key</code> value (AgentResult-shape).</p>
+</li>
+<li>
+<p>Internal <code>_run_one</code> dispatch extended to detect async-<code>__call__</code> callable instances (<code>asyncio.iscoroutinefunction(node.fn.__call__)</code>) so <code>_SubWorkflowNodeBody</code> and similar stateful node bodies dispatch via the async path instead of being incorrectly run on <code>asyncio.to_thread</code>.</p>
+</li>
+<li>
+<p>~250 LoC + 21 tests (across <code>TestAgentProtocolCompliance</code>, <code>TestAgentNodeStreaming</code>, <code>TestWorkflowNode</code>, <code>TestAgentAsToolIntegration</code>, <code>TestReflectionLoopIntegration</code>).</p>
+</li>
 </ul>
 <h3 id="out-of-scope-not-in-this-implementation">Out-of-scope (not in this implementation)<a class="headerlink" href="#out-of-scope-not-in-this-implementation" title="Permanent link">&para;</a></h3>
-<p>The following are explicitly <strong>out of scope</strong> for the initial
-implementation. They land as separate proposals when forced by use
-cases:</p>
+<p>The following are explicitly <strong>out of scope</strong> for the initial implementation. They land as separate proposals when forced by use cases:</p>
 <ul>
-<li>Durable execution across process restarts (would need deterministic
-  re-execution semantics).</li>
-<li>Distributed execution across hosts.</li>
-<li>Automatic checkpointing to a <code>SessionStore</code> (in-process state
-  preservation works; the user can call <code>result.state</code> themselves).</li>
-<li>Human-approval gate nodes (composable as a regular node that calls
-  <code>input()</code> or a UI hook; no special primitive).</li>
-<li>Bounded retry loops on individual nodes (composable by writing a
-  retry wrapper as a node body; no special primitive).</li>
-<li>Dynamic graph extension at runtime (a node deciding to add a new
-  node based on its output).</li>
+<li>
+<p>Durable execution across process restarts (would need deterministic re-execution semantics).</p>
+</li>
+<li>
+<p>Distributed execution across hosts.</p>
+</li>
+<li>
+<p>Automatic checkpointing to a <code>SessionStore</code> (in-process state preservation works; the user can call <code>result.state</code> themselves).</p>
+</li>
+<li>
+<p>Human-approval gate nodes (composable as a regular node that calls <code>input()</code> or a UI hook; no special primitive).</p>
+</li>
+<li>
+<p>Bounded retry loops on individual nodes (composable by writing a retry wrapper as a node body; no special primitive).</p>
+</li>
+<li>
+<p>Dynamic graph extension at runtime (a node deciding to add a new node based on its output).</p>
+</li>
 </ul>
 <h2 id="14-documentation-updates">14. Documentation updates<a class="headerlink" href="#14-documentation-updates" title="Permanent link">&para;</a></h2>
 <p>When the implementation lands:</p>
 <ul>
-<li><code>docs/agents/workflow.md</code> (this doc) stays as the maintainer
-  reference.</li>
-<li><code>docs/agents/workflow-user.md</code> is new — five-example user tutorial.</li>
-<li><code>docs/agents/patterns.md</code> §9 flipped from "not supported" to
-  "first-class"; recipe shows a Layer-C workflow that branches on
-  data.</li>
-<li><code>docs/agents_overview.md</code> gains a "Workflows" section that
-  references the user tutorial and lists the Phase 1-5 capability
-  matrix.</li>
-<li><code>CHANGELOG.md</code> <code>[Unreleased]</code> section in both repos: one entry per
-  phase landing (5 entries total), each in the existing prose style.</li>
-<li><code>TODO.md</code> pattern-gaps "not on the roadmap" entry for
-  Workflow/State-Machine is removed.</li>
+<li>
+<p><code>docs/agents/workflow.md</code> (this doc) stays as the maintainer reference.</p>
+</li>
+<li>
+<p><code>docs/agents/workflow-user.md</code> is new — five-example user tutorial.</p>
+</li>
+<li>
+<p><code>docs/agents/patterns.md</code> §9 flipped from "not supported" to "first-class"; recipe shows a Layer-C workflow that branches on data.</p>
+</li>
+<li>
+<p><code>docs/agents_overview.md</code> gains a "Workflows" section that references the user tutorial and lists the Phase 1-5 capability matrix.</p>
+</li>
+<li>
+<p><code>CHANGELOG.md</code> <code>[Unreleased]</code> section in both repos: one entry per phase landing (5 entries total), each in the existing prose style.</p>
+</li>
+<li>
+<p><code>TODO.md</code> pattern-gaps "not on the roadmap" entry for Workflow/State-Machine is removed.</p>
+</li>
 </ul>
 <h2 id="15-worked-examples">15. Worked examples<a class="headerlink" href="#15-worked-examples" title="Permanent link">&para;</a></h2>
-<p>Five end-to-end examples that drive the design. The implementation
-must support all five; the user tutorial walks through them.</p>
+<p>Five end-to-end examples that drive the design. The implementation must support all five; the user tutorial walks through them.</p>
 <h3 id="151-linear-pipeline-layer-c">15.1 Linear pipeline (Layer C)<a class="headerlink" href="#151-linear-pipeline-layer-c" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.agents.workflow</span><span class="w"> </span><span class="kn">import</span> <span class="n">Workflow</span>
 <a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>
@@ -4037,8 +3998,7 @@ must support all five; the user tutorial walks through them.</p>
 <a id="__codelineno-28-22" name="__codelineno-28-22" href="#__codelineno-28-22"></a>
 <a id="__codelineno-28-23" name="__codelineno-28-23" href="#__codelineno-28-23"></a><span class="n">result</span> <span class="o">=</span> <span class="n">flow</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">query</span><span class="o">=</span><span class="s2">&quot;...&quot;</span><span class="p">)</span>
 </code></pre></div>
-<p>(The three searches run concurrently because none depends on the
-others; <code>synthesize</code> waits for all three.)</p>
+<p>(The three searches run concurrently because none depends on the others; <code>synthesize</code> waits for all three.)</p>
 <h3 id="153-conditional-branching-layer-c">15.3 Conditional branching (Layer C)<a class="headerlink" href="#153-conditional-branching-layer-c" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a><span class="n">flow</span> <span class="o">=</span> <span class="n">Workflow</span><span class="p">()</span>
 <a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>
@@ -4113,30 +4073,26 @@ others; <code>synthesize</code> waits for all three.)</p>
 <a id="__codelineno-31-17" name="__codelineno-31-17" href="#__codelineno-31-17"></a>
 <a id="__codelineno-31-18" name="__codelineno-31-18" href="#__codelineno-31-18"></a><span class="n">result</span> <span class="o">=</span> <span class="n">team</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="s2">&quot;Compare X and Y in technical depth.&quot;</span><span class="p">)</span>
 </code></pre></div>
-<p><code>inner_flow.run(**kwargs)</code> is the workflow's native API — kwargs map
-to state. To plug a workflow into the multi-agent layer
-(<code>agent_as_tool</code>, <code>TieredAgentTeam</code>, <code>ReflectionLoop</code>), call
-<code>inner_flow.as_agent()</code> first; the returned adapter satisfies
-<code>AgentProtocol</code> (<code>run(task: str) -&gt; AgentResult</code>) and binds <code>task</code>
-to the inner workflow's <code>state[task_param]</code> (default <code>"task"</code>,
-override via <code>Workflow(task_param="prompt")</code> or
-<code>inner_flow.as_agent(task_param="prompt")</code>).</p>
-<p>For nesting one workflow inside another with full event forwarding,
-prefer <code>workflow_node(inner, name="research")</code> over the
-<code>.as_agent()</code> adapter — it preserves the inner workflow's structured
-state surface and forwards the inner event stream into the outer
-workflow's events with <code>source</code> / <code>parent_event_id</code> set.</p>
+<p><code>inner_flow.run(**kwargs)</code> is the workflow's native API — kwargs map to state. To plug a workflow into the multi-agent layer (<code>agent_as_tool</code>, <code>TieredAgentTeam</code>, <code>ReflectionLoop</code>), call <code>inner_flow.as_agent()</code> first; the returned adapter satisfies <code>AgentProtocol</code> (<code>run(task: str) -&gt; AgentResult</code>) and binds <code>task</code> to the inner workflow's <code>state[task_param]</code> (default <code>"task"</code>, override via <code>Workflow(task_param="prompt")</code> or <code>inner_flow.as_agent(task_param="prompt")</code>).</p>
+<p>For nesting one workflow inside another with full event forwarding, prefer <code>workflow_node(inner, name="research")</code> over the <code>.as_agent()</code> adapter — it preserves the inner workflow's structured state surface and forwards the inner event stream into the outer workflow's events with <code>source</code> / <code>parent_event_id</code> set.</p>
 <h2 id="16-validation">16. Validation<a class="headerlink" href="#16-validation" title="Permanent link">&para;</a></h2>
 <p>Each phase's landing must pass:</p>
 <ol>
-<li><code>make test</code> (all existing + new tests).</li>
-<li><code>make qa</code> (lint + typecheck strict).</li>
-<li>Cross-cutting integration: at least one Phase-5 test exercises a
-   workflow that contains a <code>ReActAgent</code>, hits a <code>ToolTimeoutError</code>
-   path, and trips a <code>WorkflowInvariant</code> — verifying that all three
-   subsystems compose correctly.</li>
-<li>Documentation updates land in the same PR as the code.</li>
-<li>CHANGELOG entry written in the existing dense prose style.</li>
+<li>
+<p><code>make test</code> (all existing + new tests).</p>
+</li>
+<li>
+<p><code>make qa</code> (lint + typecheck strict).</p>
+</li>
+<li>
+<p>Cross-cutting integration: at least one Phase-5 test exercises a workflow that contains a <code>ReActAgent</code>, hits a <code>ToolTimeoutError</code> path, and trips a <code>WorkflowInvariant</code> — verifying that all three subsystems compose correctly.</p>
+</li>
+<li>
+<p>Documentation updates land in the same PR as the code.</p>
+</li>
+<li>
+<p>CHANGELOG entry written in the existing dense prose style.</p>
+</li>
 </ol>
 <h2 id="17-cost-summary-estimated-vs-actual">17. Cost summary (estimated vs. actual)<a class="headerlink" href="#17-cost-summary-estimated-vs-actual" title="Permanent link">&para;</a></h2>
 <table>
@@ -4187,23 +4143,21 @@ workflow's events with <code>source</code> / <code>parent_event_id</code> set.</
 </tr>
 </tbody>
 </table>
-<p>Final implementation: a single <code>workflow.py</code> (~2100 LoC including the
-inline <code>reducer</code> namespace) and a single test file
-<code>test_agents_workflow.py</code> (118 tests, all passing in &lt;1s). The
-landed code reuses <code>ContractPolicy</code> / <code>ContractViolation</code> from
-<code>contract.py</code>, <code>AgentEvent.source</code> / <code>parent_event_id</code> from
-<code>types.py</code>, the <code>Tool.timeout</code> daemon-thread pattern (for sync
-nodes), and the <code>AgentProtocol</code> structural contract — no parallel
-reimplementations.</p>
+<p>Final implementation: a single <code>workflow.py</code> (~2100 LoC including the inline <code>reducer</code> namespace) and a single test file <code>test_agents_workflow.py</code> (118 tests, all passing in &lt;1s). The landed code reuses <code>ContractPolicy</code> / <code>ContractViolation</code> from <code>contract.py</code>, <code>AgentEvent.source</code> / <code>parent_event_id</code> from <code>types.py</code>, the <code>Tool.timeout</code> daemon-thread pattern (for sync nodes), and the <code>AgentProtocol</code> structural contract — no parallel reimplementations.</p>
 <h2 id="18-further-reading">18. Further reading<a class="headerlink" href="#18-further-reading" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="../patterns/"><code>patterns.md</code></a> §9 — current "not supported" stance
-  flipped to first-class on Phase 1 landing.</li>
-<li><a href="../../agents_overview/"><code>../agents_overview.md</code></a> — the agent layer
-  this workflow composes with.</li>
-<li><a href="../../dev/contract-agent/"><code>../dev/contract-agent.md</code></a> —
-  <code>ContractPolicy</code> semantics inherited by <code>WorkflowInvariant</code>.</li>
-<li>LangGraph's <code>StateGraph</code> — closest external precedent for Layer B.</li>
+<li>
+<p><a href="../patterns/"><code>patterns.md</code></a> §9 — current "not supported" stance flipped to first-class on Phase 1 landing.</p>
+</li>
+<li>
+<p><a href="../../agents_overview/"><code>../agents_overview.md</code></a> — the agent layer this workflow composes with.</p>
+</li>
+<li>
+<p><a href="../../dev/contract-agent/"><code>../dev/contract-agent.md</code></a> — <code>ContractPolicy</code> semantics inherited by <code>WorkflowInvariant</code>.</p>
+</li>
+<li>
+<p>LangGraph's <code>StateGraph</code> — closest external precedent for Layer B.</p>
+</li>
 </ul>
 
 

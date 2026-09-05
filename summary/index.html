@@ -1793,11 +1793,21 @@
 <p>Tools are defined with the <code>@tool</code> decorator. Contracts use <code>@pre</code>, <code>@post</code>, and <code>contract_assert()</code>.</p>
 <h2 id="best-practices">Best Practices<a class="headerlink" href="#best-practices" title="Permanent link">&para;</a></h2>
 <ol>
-<li><strong>Reuse model instances</strong> - Load once, generate many times</li>
-<li><strong>Match GPU layers to VRAM</strong> - Use <code>estimate_gpu_layers()</code> for optimal settings</li>
-<li><strong>Stream long outputs</strong> - Better user experience for verbose responses</li>
-<li><strong>Use batch processing</strong> - Significant throughput gains for multiple prompts</li>
-<li><strong>Choose the right agent</strong> - ConstrainedAgent for reliability, ReActAgent for flexibility</li>
+<li>
+<p><strong>Reuse model instances</strong> - Load once, generate many times</p>
+</li>
+<li>
+<p><strong>Match GPU layers to VRAM</strong> - Use <code>estimate_gpu_layers()</code> for optimal settings</p>
+</li>
+<li>
+<p><strong>Stream long outputs</strong> - Better user experience for verbose responses</p>
+</li>
+<li>
+<p><strong>Use batch processing</strong> - Significant throughput gains for multiple prompts</p>
+</li>
+<li>
+<p><strong>Choose the right agent</strong> - ConstrainedAgent for reliability, ReActAgent for flexibility</p>
+</li>
 </ol>
 <h2 id="next-steps">Next Steps<a class="headerlink" href="#next-steps" title="Permanent link">&para;</a></h2>
 <ul>

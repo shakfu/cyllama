@@ -2268,10 +2268,10 @@
 <p>This guide covers installing cyllama on different platforms.</p>
 <h2 id="requirements">Requirements<a class="headerlink" href="#requirements" title="Permanent link">&para;</a></h2>
 <ul>
-<li>
-<p>Python 3.12 or later</p>
+<li>Python 3.12 or later</li>
+</ul>
 <p>From v0.3.0, cyllama ships only abi3 (CPython stable ABI) wheels, which require Python 3.12+. For Python 3.10 / 3.11, install an older release (<code>pip install "cyllama&lt;0.3.0"</code>) or build from source.</p>
-</li>
+<ul>
 <li>
 <p>C++ compiler (clang or gcc)</p>
 </li>
@@ -2320,9 +2320,15 @@
 <p><strong>2. A SYCL-visible compute device (required for actual GPU/CPU compute, not for import).</strong></p>
 <p><code>cyllama</code> needs at least one runtime device for SYCL to dispatch kernels onto. This is hardware-conditional and lives outside the oneAPI runtime layer -- pick one of:</p>
 <ul>
-<li><strong>Intel GPU via OpenCL</strong>: install the Intel compute-runtime package providing <code>libOpenCL.so.1</code> and the Intel GPU ICD (<code>intel-opencl-icd</code> on recent Ubuntu, or the upstream <code>intel-compute-runtime</code> packages). Follow <a href="https://dgpu-docs.intel.com/driver/installation.html">Intel's GPU driver install guide</a> for your distro and GPU family (Arc, Iris Xe, Data Center GPU Max/Flex).</li>
-<li><strong>Intel GPU via Level Zero</strong>: install <code>level-zero</code> and <code>intel-level-zero-gpu</code>. Same install guide.</li>
-<li><strong>CPU fallback (no Intel GPU)</strong>: install the Intel CPU runtime for OpenCL applications, packaged as <code>intel-oneapi-runtime-opencl</code> or the standalone CPU runtime. This is <em>not</em> a substitute for the oneAPI runtimes in step 1 -- it only adds the CPU as an OpenCL device.</li>
+<li>
+<p><strong>Intel GPU via OpenCL</strong>: install the Intel compute-runtime package providing <code>libOpenCL.so.1</code> and the Intel GPU ICD (<code>intel-opencl-icd</code> on recent Ubuntu, or the upstream <code>intel-compute-runtime</code> packages). Follow <a href="https://dgpu-docs.intel.com/driver/installation.html">Intel's GPU driver install guide</a> for your distro and GPU family (Arc, Iris Xe, Data Center GPU Max/Flex).</p>
+</li>
+<li>
+<p><strong>Intel GPU via Level Zero</strong>: install <code>level-zero</code> and <code>intel-level-zero-gpu</code>. Same install guide.</p>
+</li>
+<li>
+<p><strong>CPU fallback (no Intel GPU)</strong>: install the Intel CPU runtime for OpenCL applications, packaged as <code>intel-oneapi-runtime-opencl</code> or the standalone CPU runtime. This is <em>not</em> a substitute for the oneAPI runtimes in step 1 -- it only adds the CPU as an OpenCL device.</p>
+</li>
 </ul>
 <p>Package names and recommended install paths drift across distro versions and Intel releases, so we link to Intel's authoritative install pages rather than hard-coding an <code>apt install</code> line we can't keep current. Without a device, import succeeds but SYCL device enumeration returns empty and any actual generation call fails.</p>
 <p>You can verify which backend is active after installation:</p>
@@ -2375,8 +2381,8 @@
 <p><strong>Stable Diffusion support:</strong></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nv">WITH_STABLEDIFFUSION</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>make<span class="w"> </span>build
 <a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="c1"># Opt into sharing llama.cpp&#39;s ggml (not recommended for GPU backends)</span>
-<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="nv">SD_USE_VENDORED_GGML</span><span class="o">=</span><span class="m">0</span><span class="w"> </span>make<span class="w"> </span>build
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="c1"># SD shares llama.cpp&#39;s ggml by default; opt into SD&#39;s vendored copy instead</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="nv">SD_USE_VENDORED_GGML</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>make<span class="w"> </span>build
 </code></pre></div>
 <p><strong>Whisper support</strong> (included by default):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>make<span class="w"> </span>build<span class="w">  </span><span class="c1"># Whisper is built automatically</span>
@@ -2384,10 +2390,18 @@
 <h2 id="build-system">Build System<a class="headerlink" href="#build-system" title="Permanent link">&para;</a></h2>
 <p>Cyllama uses <strong>scikit-build-core</strong> with CMake for building the Cython extensions. The build process:</p>
 <ol>
-<li><strong>Dependencies</strong>: <code>make</code> downloads and builds llama.cpp, whisper.cpp (and optionally stable-diffusion.cpp)</li>
-<li><strong>Cython compilation</strong>: CMake compiles <code>.pyx</code> files to C++ using Cython</li>
-<li><strong>Extension linking</strong>: C++ extensions are linked against the static libraries</li>
-<li><strong>Installation</strong>: Extensions are installed in editable mode</li>
+<li>
+<p><strong>Dependencies</strong>: <code>make</code> downloads and builds llama.cpp, whisper.cpp (and optionally stable-diffusion.cpp)</p>
+</li>
+<li>
+<p><strong>Cython compilation</strong>: CMake compiles <code>.pyx</code> files to C++ using Cython</p>
+</li>
+<li>
+<p><strong>Extension linking</strong>: C++ extensions are linked against the static libraries</p>
+</li>
+<li>
+<p><strong>Installation</strong>: Extensions are installed in editable mode</p>
+</li>
 </ol>
 <h3 id="build-commands">Build Commands<a class="headerlink" href="#build-commands" title="Permanent link">&para;</a></h3>
 <table>

@@ -1896,22 +1896,12 @@
 
 <h1 id="contract-recipes">Contract recipes<a class="headerlink" href="#contract-recipes" title="Permanent link">&para;</a></h1>
 <blockquote>
-<p><strong>TL;DR.</strong> Use <code>Annotated[]</code> constraint markers (<code>Ge</code>, <code>Le</code>, <code>Pattern</code>,
-etc.) for per-argument type, range, enum, pattern, and length checks.
-Use <strong>contracts</strong> (<code>@pre</code>, <code>@post</code>, agent-level callbacks) for the
-things schema cannot express: cross-field rules, state-dependent rules,
-behavioral postconditions on return values, and invariants that span
-multiple agent iterations.</p>
+<p><strong>TL;DR.</strong> Use <code>Annotated[]</code> constraint markers (<code>Ge</code>, <code>Le</code>, <code>Pattern</code>, &gt; etc.) for per-argument type, range, enum, pattern, and length checks. &gt; Use <strong>contracts</strong> (<code>@pre</code>, <code>@post</code>, agent-level callbacks) for the &gt; things schema cannot express: cross-field rules, state-dependent rules, &gt; behavioral postconditions on return values, and invariants that span &gt; multiple agent iterations.</p>
 </blockquote>
-<p>This document is a cookbook of working contract patterns. Each recipe
-explains <em>what</em> the rule is, <em>why</em> schema can't express it, and <em>where</em>
-to attach it. For the design rationale, see
-<a href="../../dev/contract-agent/"><code>docs/dev/contract-agent.md</code></a>.</p>
+<p>This document is a cookbook of working contract patterns. Each recipe explains <em>what</em> the rule is, <em>why</em> schema can't express it, and <em>where</em> to attach it. For the design rationale, see <a href="../../dev/contract-agent/"><code>docs/dev/contract-agent.md</code></a>.</p>
 <hr />
 <h2 id="recipe-1-cross-field-precondition">Recipe 1 — Cross-field precondition<a class="headerlink" href="#recipe-1-cross-field-precondition" title="Permanent link">&para;</a></h2>
-<p><strong>Use case.</strong> A relationship <em>between</em> arguments. JSON Schema has
-<code>dependentRequired</code> / <code>if</code>/<code>then</code>/<code>else</code>, but they're awkward to write
-and the LLM can't easily reason about them.</p>
+<p><strong>Use case.</strong> A relationship <em>between</em> arguments. JSON Schema has <code>dependentRequired</code> / <code>if</code>/<code>then</code>/<code>else</code>, but they're awkward to write and the LLM can't easily reason about them.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">tool</span><span class="p">,</span> <span class="n">pre</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="nd">@tool</span>
@@ -1920,17 +1910,10 @@ and the LLM can't easily reason about them.</p>
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Fetch rows where row.id is in [start, end).&quot;&quot;&quot;</span>
 <a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="o">...</span>
 </code></pre></div>
-<p><strong>What schema covers:</strong> that <code>start</code> and <code>end</code> are both integers
-(via <code>Annotated[int, Ge(0)]</code> etc.).
-<strong>What the contract covers:</strong> that they relate correctly.
-<strong>Failure mode:</strong> under ENFORCE the agent aborts before the SQL runs;
-under OBSERVE a <code>CONTRACT_VIOLATION</code> event lands on the stream and the
-loop continues so the LLM can self-correct.</p>
+<p><strong>What schema covers:</strong> that <code>start</code> and <code>end</code> are both integers (via <code>Annotated[int, Ge(0)]</code> etc.). <strong>What the contract covers:</strong> that they relate correctly. <strong>Failure mode:</strong> under ENFORCE the agent aborts before the SQL runs; under OBSERVE a <code>CONTRACT_VIOLATION</code> event lands on the stream and the loop continues so the LLM can self-correct.</p>
 <hr />
 <h2 id="recipe-2-state-dependent-precondition">Recipe 2 — State-dependent precondition<a class="headerlink" href="#recipe-2-state-dependent-precondition" title="Permanent link">&para;</a></h2>
-<p><strong>Use case.</strong> The validity of a call depends on runtime state — an
-external resource, the clock, an authentication context. Schema has zero
-runtime visibility.</p>
+<p><strong>Use case.</strong> The validity of a call depends on runtime state — an external resource, the clock, an authentication context. Schema has zero runtime visibility.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">tool</span><span class="p">,</span> <span class="n">pre</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">db</span> <span class="o">=</span> <span class="n">MyDatabase</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
@@ -1942,13 +1925,10 @@ runtime visibility.</p>
 <a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Query the user table; bails if the db is closed or the deadline is past.&quot;&quot;&quot;</span>
 <a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>    <span class="k">return</span> <span class="n">db</span><span class="o">.</span><span class="n">fetch_users</span><span class="p">()</span>
 </code></pre></div>
-<p><strong>Closures capture the state.</strong> The predicate is plain Python, so it can
-read from any object in scope. Multiple <code>@pre</code> decorators stack; they
-all run, in declaration order.</p>
+<p><strong>Closures capture the state.</strong> The predicate is plain Python, so it can read from any object in scope. Multiple <code>@pre</code> decorators stack; they all run, in declaration order.</p>
 <hr />
 <h2 id="recipe-3-behavioral-postcondition-on-return-value">Recipe 3 — Behavioral postcondition on return value<a class="headerlink" href="#recipe-3-behavioral-postcondition-on-return-value" title="Permanent link">&para;</a></h2>
-<p><strong>Use case.</strong> A property of the <em>output</em> that schema can't express:
-sorted, non-empty, idempotent, free of secrets, etc.</p>
+<p><strong>Use case.</strong> A property of the <em>output</em> that schema can't express: sorted, non-empty, idempotent, free of secrets, etc.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">tool</span><span class="p">,</span> <span class="n">post</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="nd">@tool</span>
@@ -1959,16 +1939,10 @@ sorted, non-empty, idempotent, free of secrets, etc.</p>
 <a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>    <span class="n">rows</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;select id from </span><span class="si">{</span><span class="n">table</span><span class="si">}</span><span class="s2"> order by id&quot;</span><span class="p">)</span>
 <a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>    <span class="k">return</span> <span class="p">[</span><span class="n">row</span><span class="o">.</span><span class="n">id</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">rows</span><span class="p">]</span>
 </code></pre></div>
-<p><strong>Predicates receive the raw value</strong>, not its string render — so
-<code>len(r)</code>, <code>r == sorted(r)</code>, and <code>isinstance(r, MyType)</code> all work as
-written. (The pre-Step-2 implementation passed <code>str(raw_result)</code>, which
-silently broke this pattern. Pinned with regression tests in
-<code>tests/test_agents_contract.py::TestPostReceivesRawValue</code>.)</p>
+<p><strong>Predicates receive the raw value</strong>, not its string render — so <code>len(r)</code>, <code>r == sorted(r)</code>, and <code>isinstance(r, MyType)</code> all work as written. (The pre-Step-2 implementation passed <code>str(raw_result)</code>, which silently broke this pattern. Pinned with regression tests in <code>tests/test_agents_contract.py::TestPostReceivesRawValue</code>.)</p>
 <hr />
 <h2 id="recipe-4-cost-cap-invariant-across-iterations">Recipe 4 — Cost-cap invariant across iterations<a class="headerlink" href="#recipe-4-cost-cap-invariant-across-iterations" title="Permanent link">&para;</a></h2>
-<p><strong>Use case.</strong> A budget that spans the whole run, not any single tool
-call. No schema substitute exists; this is the niche ContractAgent was
-built for.</p>
+<p><strong>Use case.</strong> A budget that spans the whole run, not any single tool call. No schema substitute exists; this is the niche ContractAgent was built for.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">ContractAgent</span><span class="p">,</span> <span class="n">ContractPolicy</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="k">class</span><span class="w"> </span><span class="nc">CostTracker</span><span class="p">:</span>
@@ -1992,14 +1966,10 @@ built for.</p>
 <a id="__codelineno-3-21" name="__codelineno-3-21" href="#__codelineno-3-21"></a>    <span class="n">policy</span><span class="o">=</span><span class="n">ContractPolicy</span><span class="o">.</span><span class="n">ENFORCE</span><span class="p">,</span>
 <a id="__codelineno-3-22" name="__codelineno-3-22" href="#__codelineno-3-22"></a><span class="p">)</span>
 </code></pre></div>
-<p><strong>Why this isn't <code>max_iterations</code>.</strong> <code>max_iterations</code> caps the count of
-loops, which is an indirect proxy for cost (cheap tools cost less). A
-cost cap is the actual constraint; expressing it directly is clearer
-and lets users mix tools with different cost profiles.</p>
+<p><strong>Why this isn't <code>max_iterations</code>.</strong> <code>max_iterations</code> caps the count of loops, which is an indirect proxy for cost (cheap tools cost less). A cost cap is the actual constraint; expressing it directly is clearer and lets users mix tools with different cost profiles.</p>
 <hr />
 <h2 id="recipe-5-answer-content-postcondition">Recipe 5 — Answer-content postcondition<a class="headerlink" href="#recipe-5-answer-content-postcondition" title="Permanent link">&para;</a></h2>
-<p><strong>Use case.</strong> Properties of the <em>final</em> answer, not of any individual
-tool's output. Common in compliance or product-safety contexts.</p>
+<p><strong>Use case.</strong> Properties of the <em>final</em> answer, not of any individual tool's output. Common in compliance or product-safety contexts.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">ContractAgent</span>
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
 <a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="n">required_entities</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">,</span> <span class="s2">&quot;email&quot;</span><span class="p">,</span> <span class="s2">&quot;ticket_id&quot;</span><span class="p">]</span>
@@ -2014,16 +1984,10 @@ tool's output. Common in compliance or product-safety contexts.</p>
 <a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>    <span class="p">],</span>
 <a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="p">)</span>
 </code></pre></div>
-<p><strong>Composition is via lists.</strong> Each predicate runs independently; under
-OBSERVE every failing predicate yields its own <code>CONTRACT_VIOLATION</code>
-event, so monitoring can attribute each failure to its specific rule.
-The singular <code>answer_postcondition=</code> form is still accepted for
-back-compat.</p>
+<p><strong>Composition is via lists.</strong> Each predicate runs independently; under OBSERVE every failing predicate yields its own <code>CONTRACT_VIOLATION</code> event, so monitoring can attribute each failure to its specific rule. The singular <code>answer_postcondition=</code> form is still accepted for back-compat.</p>
 <hr />
 <h2 id="recipe-6-no-pii-postcondition-with-a-real-predicate">Recipe 6 — No-PII postcondition with a real predicate<a class="headerlink" href="#recipe-6-no-pii-postcondition-with-a-real-predicate" title="Permanent link">&para;</a></h2>
-<p><strong>Use case.</strong> Tool output must not contain PII. Combines a tool-level
-<code>@post</code> (for narrow scope) with an answer-level postcondition (for
-defense in depth on the final answer).</p>
+<p><strong>Use case.</strong> Tool output must not contain PII. Combines a tool-level <code>@post</code> (for narrow scope) with an answer-level postcondition (for defense in depth on the final answer).</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">tool</span><span class="p">,</span> <span class="n">post</span><span class="p">,</span> <span class="n">ContractAgent</span>
 <a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
@@ -2049,17 +2013,10 @@ defense in depth on the final answer).</p>
 <a id="__codelineno-5-23" name="__codelineno-5-23" href="#__codelineno-5-23"></a>    <span class="p">],</span>
 <a id="__codelineno-5-24" name="__codelineno-5-24" href="#__codelineno-5-24"></a><span class="p">)</span>
 </code></pre></div>
-<p><strong>Two attachment points, deliberately.</strong> The tool-level <code>@post</code> catches
-the violation as close to the source as possible (so the agent can retry
-with a different tool / args). The agent-level postcondition is the
-last-line check on the final answer, in case PII slipped through a tool
-that doesn't have <code>@post</code> or via the LLM's own paraphrasing.</p>
+<p><strong>Two attachment points, deliberately.</strong> The tool-level <code>@post</code> catches the violation as close to the source as possible (so the agent can retry with a different tool / args). The agent-level postcondition is the last-line check on the final answer, in case PII slipped through a tool that doesn't have <code>@post</code> or via the LLM's own paraphrasing.</p>
 <hr />
 <h2 id="recipe-7-stuck-loop-detector-beyond-the-built-in">Recipe 7 — Stuck-loop detector beyond the built-in<a class="headerlink" href="#recipe-7-stuck-loop-detector-beyond-the-built-in" title="Permanent link">&para;</a></h2>
-<p><strong>Use case.</strong> ReAct's built-in loop detector catches <em>identical</em> action
-repeats and same-tool spam. It does not catch "the agent is making
-progress but the output isn't changing" — same observation N times in a
-row. Express this directly using <code>IterationState</code>:</p>
+<p><strong>Use case.</strong> ReAct's built-in loop detector catches <em>identical</em> action repeats and same-tool spam. It does not catch "the agent is making progress but the output isn't changing" — same observation N times in a row. Express this directly using <code>IterationState</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">ContractAgent</span><span class="p">(</span>
 <a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>    <span class="n">llm</span><span class="o">=</span><span class="n">my_llm</span><span class="p">,</span>
 <a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>    <span class="n">tools</span><span class="o">=</span><span class="p">[</span><span class="o">...</span><span class="p">],</span>
@@ -2069,16 +2026,10 @@ row. Express this directly using <code>IterationState</code>:</p>
 <a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>    <span class="n">policy</span><span class="o">=</span><span class="n">ContractPolicy</span><span class="o">.</span><span class="n">ENFORCE</span><span class="p">,</span>
 <a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="p">)</span>
 </code></pre></div>
-<p><strong>What's available on the state.</strong> See <code>IterationState</code> in
-<code>cyllama/agents/contract.py</code>: <code>iterations</code>, <code>tool_calls</code>, <code>errors</code>,
-<code>elapsed_ms</code>, <code>last_tool_name</code>, <code>last_observation</code>,
-<code>observations_so_far</code> (capped to last 10), <code>estimated_prompt_chars</code>,
-<code>consecutive_same_observation</code>. All filled in automatically as events
-stream through; predicates just read whatever's relevant.</p>
+<p><strong>What's available on the state.</strong> See <code>IterationState</code> in <code>cyllama/agents/contract.py</code>: <code>iterations</code>, <code>tool_calls</code>, <code>errors</code>, <code>elapsed_ms</code>, <code>last_tool_name</code>, <code>last_observation</code>, <code>observations_so_far</code> (capped to last 10), <code>estimated_prompt_chars</code>, <code>consecutive_same_observation</code>. All filled in automatically as events stream through; predicates just read whatever's relevant.</p>
 <hr />
 <h2 id="recipe-8-time-budget-invariant">Recipe 8 — Time-budget invariant<a class="headerlink" href="#recipe-8-time-budget-invariant" title="Permanent link">&para;</a></h2>
-<p><strong>Use case.</strong> Don't let the agent run forever, but express it in terms
-of wall-clock time rather than iteration count.</p>
+<p><strong>Use case.</strong> Don't let the agent run forever, but express it in terms of wall-clock time rather than iteration count.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">ContractAgent</span><span class="p">(</span>
 <a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>    <span class="n">llm</span><span class="o">=</span><span class="n">my_llm</span><span class="p">,</span>
 <a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>    <span class="n">tools</span><span class="o">=</span><span class="p">[</span><span class="o">...</span><span class="p">],</span>
@@ -2087,14 +2038,10 @@ of wall-clock time rather than iteration count.</p>
 <a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>    <span class="p">],</span>
 <a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="p">)</span>
 </code></pre></div>
-<p><strong><code>elapsed_ms</code> is wall-clock since the first event.</strong> The clock starts
-the first time <code>IterationState.update()</code> runs — typically the first
-event from the inner agent. Includes time spent in LLM generation, tool
-dispatch, and contract checks.</p>
+<p><strong><code>elapsed_ms</code> is wall-clock since the first event.</strong> The clock starts the first time <code>IterationState.update()</code> runs — typically the first event from the inner agent. Includes time spent in LLM generation, tool dispatch, and contract checks.</p>
 <hr />
 <h2 id="recipe-9-combined-budgets">Recipe 9 — Combined budgets<a class="headerlink" href="#recipe-9-combined-budgets" title="Permanent link">&para;</a></h2>
-<p><strong>Use case.</strong> Cap multiple budgets simultaneously. Lists make this
-trivial; the singular form would have forced a single mega-lambda.</p>
+<p><strong>Use case.</strong> Cap multiple budgets simultaneously. Lists make this trivial; the singular form would have forced a single mega-lambda.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">ContractAgent</span><span class="p">(</span>
 <a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>    <span class="n">llm</span><span class="o">=</span><span class="n">my_llm</span><span class="p">,</span>
 <a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>    <span class="n">tools</span><span class="o">=</span><span class="p">[</span><span class="o">...</span><span class="p">],</span>
@@ -2111,14 +2058,10 @@ trivial; the singular form would have forced a single mega-lambda.</p>
 <a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a>    <span class="p">],</span>
 <a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a><span class="p">)</span>
 </code></pre></div>
-<p>Under OBSERVE, every failing predicate yields its own event with its
-list index in <code>metadata["index"]</code>, so you can attribute failures back
-to specific rules in dashboards or logs.</p>
+<p>Under OBSERVE, every failing predicate yields its own event with its list index in <code>metadata["index"]</code>, so you can attribute failures back to specific rules in dashboards or logs.</p>
 <hr />
 <h2 id="anti-pattern-reference">Anti-pattern reference<a class="headerlink" href="#anti-pattern-reference" title="Permanent link">&para;</a></h2>
-<p>These are the cases where contracts <em>look</em> like the right tool but are
-actually inferior to schema. They're listed here to make the distinction
-concrete.</p>
+<p>These are the cases where contracts <em>look</em> like the right tool but are actually inferior to schema. They're listed here to make the distinction concrete.</p>
 <h3 id="dont-per-arg-type-range-with-pre">Don't: per-arg type / range with <code>@pre</code><a class="headerlink" href="#dont-per-arg-type-range-with-pre" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1"># Bad — the constraint is invisible to the LLM, invisible across the wire,</span>
 <a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="c1"># and harder to read.</span>
@@ -2161,19 +2104,19 @@ concrete.</p>
 <a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a><span class="nd">@tool</span>
 <a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a><span class="k">def</span><span class="w"> </span><span class="nf">lookup</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">MinLen</span><span class="p">(</span><span class="mi">2</span><span class="p">),</span> <span class="n">MaxLen</span><span class="p">(</span><span class="mi">50</span><span class="p">),</span> <span class="n">Pattern</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;\w+&quot;</span><span class="p">)])</span> <span class="o">-&gt;</span> <span class="o">...</span><span class="p">:</span> <span class="o">...</span>
 </code></pre></div>
-<p>The rule of thumb: <strong>if the rule is about one argument's type/range/shape
-and you can write it in <code>Annotated[]</code>, do.</strong> Reserve contracts for the
-things <code>Annotated[]</code> cannot reach.</p>
+<p>The rule of thumb: <strong>if the rule is about one argument's type/range/shape and you can write it in <code>Annotated[]</code>, do.</strong> Reserve contracts for the things <code>Annotated[]</code> cannot reach.</p>
 <hr />
 <h2 id="further-reading">Further reading<a class="headerlink" href="#further-reading" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="../../dev/contract-agent/"><code>docs/dev/contract-agent.md</code></a> — design
-  rationale, repositioning plan, success criteria</li>
-<li><a href="../../src/cyllama/agents/contract.py"><code>src/cyllama/agents/contract.py</code></a>
-  — module docstring (the canonical <code>@pre</code> / <code>@post</code> reference)</li>
-<li><a href="../../src/cyllama/agents/tools.py"><code>src/cyllama/agents/tools.py</code></a> —
-  <code>Annotated[]</code> constraint markers (<code>Ge</code>, <code>Le</code>, <code>Pattern</code>, ...) and
-  <code>coerce_args</code></li>
+<li>
+<p><a href="../../dev/contract-agent/"><code>docs/dev/contract-agent.md</code></a> — design rationale, repositioning plan, success criteria</p>
+</li>
+<li>
+<p><a href="../../src/cyllama/agents/contract.py"><code>src/cyllama/agents/contract.py</code></a> — module docstring (the canonical <code>@pre</code> / <code>@post</code> reference)</p>
+</li>
+<li>
+<p><a href="../../src/cyllama/agents/tools.py"><code>src/cyllama/agents/tools.py</code></a> — <code>Annotated[]</code> constraint markers (<code>Ge</code>, <code>Le</code>, <code>Pattern</code>, ...) and <code>coerce_args</code></p>
+</li>
 </ul>
 
 

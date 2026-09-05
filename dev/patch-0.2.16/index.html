@@ -1591,8 +1591,7 @@
 
 <h1 id="cyllama-0216-sd-no-devices-found-patch">cyllama 0.2.16 — SD "No devices found!" patch<a class="headerlink" href="#cyllama-0216-sd-no-devices-found-patch" title="Permanent link">&para;</a></h1>
 <h2 id="symptom">Symptom<a class="headerlink" href="#symptom" title="Permanent link">&para;</a></h2>
-<p>On 0.2.16 (any backend variant — <code>cyllama-cuda12</code>, <code>cyllama-vulkan</code>, etc.),
-constructing an <code>SDContext</code> fails to register the GPU backend:</p>
+<p>On 0.2.16 (any backend variant — <code>cyllama-cuda12</code>, <code>cyllama-vulkan</code>, etc.), constructing an <code>SDContext</code> fails to register the GPU backend:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>[ERROR] util.cpp:711  - No devices found!
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>[WARN]  util.cpp:752  - loading CPU backend
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>...
@@ -1600,12 +1599,7 @@ constructing an <code>SDContext</code> fails to register the GPU backend:</p>
 </code></pre></div>
 <p>0.2.15 is unaffected.</p>
 <h2 id="cause">Cause<a class="headerlink" href="#cause" title="Permanent link">&para;</a></h2>
-<p>stable-diffusion.cpp <code>master-592-b8079e2</code> (PR #1448) switched from
-compile-time to runtime backend discovery. cyllama 0.2.16 bumped sd.cpp to
-<code>master-593-3d6064b</code> but the Python wrapper still assumes the old static
-auto-registration. <code>ggml_backend_load_all()</code> is exposed but never called,
-so when <code>new_sd_ctx</code> runs no backend is registered → CPU fallback → null
-backend abort in <code>ggml_backend_alloc_ctx_tensors</code>.</p>
+<p>stable-diffusion.cpp <code>master-592-b8079e2</code> (PR #1448) switched from compile-time to runtime backend discovery. cyllama 0.2.16 bumped sd.cpp to <code>master-593-3d6064b</code> but the Python wrapper still assumes the old static auto-registration. <code>ggml_backend_load_all()</code> is exposed but never called, so when <code>new_sd_ctx</code> runs no backend is registered → CPU fallback → null backend abort in <code>ggml_backend_alloc_ctx_tensors</code>.</p>
 <h2 id="option-a-runtime-workaround-no-patching">Option A — runtime workaround (no patching)<a class="headerlink" href="#option-a-runtime-workaround-no-patching" title="Permanent link">&para;</a></h2>
 <p>Call the loader before constructing any <code>SDContext</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">cyllama.sd</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sd</span>
@@ -1614,9 +1608,7 @@ backend abort in <code>ggml_backend_alloc_ctx_tensors</code>.</p>
 <a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="n">ctx</span> <span class="o">=</span> <span class="n">sd</span><span class="o">.</span><span class="n">SDContext</span><span class="p">(</span><span class="n">params</span><span class="p">)</span>
 </code></pre></div>
 <h2 id="option-b-patch-the-installed-package">Option B — patch the installed package<a class="headerlink" href="#option-b-patch-the-installed-package" title="Permanent link">&para;</a></h2>
-<p>Edit <code>&lt;site-packages&gt;/cyllama/sd/__init__.py</code>. Locate the import block
-that ends with <code>set_preview_callback,</code> and the <code>__all__ = [</code> line that
-follows, then insert a call to <code>ggml_backend_load_all()</code> between them:</p>
+<p>Edit <code>&lt;site-packages&gt;/cyllama/sd/__init__.py</code>. Locate the import block that ends with <code>set_preview_callback,</code> and the <code>__all__ = [</code> line that follows, then insert a call to <code>ggml_backend_load_all()</code> between them:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>    <span class="n">set_preview_callback</span><span class="p">,</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="p">)</span>
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
@@ -1635,13 +1627,9 @@ follows, then insert a call to <code>ggml_backend_load_all()</code> between them
 <h2 id="verification">Verification<a class="headerlink" href="#verification" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import cyllama.sd as sd; print(sd.get_system_info())&quot;</span>
 </code></pre></div>
-<p>Expected output includes a <code>load_backend: loaded CUDA backend from ...</code>
-(or Vulkan/Metal) line and your GPU listed with its compute capability.</p>
+<p>Expected output includes a <code>load_backend: loaded CUDA backend from ...</code> (or Vulkan/Metal) line and your GPU listed with its compute capability.</p>
 <h2 id="upstream-fix">Upstream fix<a class="headerlink" href="#upstream-fix" title="Permanent link">&para;</a></h2>
-<p>This should be fixed in cyllama itself by calling <code>ggml_backend_load_all()</code>
-at the bottom of <code>src/cyllama/sd/__init__.py</code> after the import block, so
-import-time behavior matches the pre-592 static-link build. Until a
-release ships that fix, use Option A or Option B.</p>
+<p>This should be fixed in cyllama itself by calling <code>ggml_backend_load_all()</code> at the bottom of <code>src/cyllama/sd/__init__.py</code> after the import block, so import-time behavior matches the pre-592 static-link build. Until a release ships that fix, use Option A or Option B.</p>
 
 
 

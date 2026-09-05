@@ -2698,10 +2698,18 @@
 <p><strong>Key Insight</strong>: The most important optimization is <strong>enabling quantization</strong> for datasets &gt;5,000 vectors. This is already implemented and provides 4-5x speedup with &gt;95% recall.</p>
 <p><strong>Recommended Approach</strong>:</p>
 <ol>
-<li><strong>Use quantization</strong> - It's built-in and highly effective</li>
-<li><strong>Add caching</strong> for repeated queries</li>
-<li><strong>Implement async processing</strong> for large ingestion jobs</li>
-<li><strong>Consider sharding</strong> only for 1M+ vector workloads</li>
+<li>
+<p><strong>Use quantization</strong> - It's built-in and highly effective</p>
+</li>
+<li>
+<p><strong>Add caching</strong> for repeated queries</p>
+</li>
+<li>
+<p><strong>Implement async processing</strong> for large ingestion jobs</p>
+</li>
+<li>
+<p><strong>Consider sharding</strong> only for 1M+ vector workloads</p>
+</li>
 </ol>
 <p>The architecture is well-suited for production workloads up to hundreds of thousands of documents when quantization is properly utilized.</p>
 

@@ -1647,31 +1647,15 @@
 
 <h1 id="ggml_max_name-abi-mismatch-in-dynamic-vulkan-wheels">GGML_MAX_NAME ABI mismatch in dynamic Vulkan wheels<a class="headerlink" href="#ggml_max_name-abi-mismatch-in-dynamic-vulkan-wheels" title="Permanent link">&para;</a></h1>
 <h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
-<p>Vulkan wheels built from the <code>build-gpu-wheels.yml</code> workflow with
-<code>link_mode=dynamic</code> crash during stable-diffusion image generation with:</p>
+<p>Vulkan wheels built from the <code>build-gpu-wheels.yml</code> workflow with <code>link_mode=dynamic</code> crash during stable-diffusion image generation with:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>ggml/src/ggml-backend.cpp:478: GGML_ASSERT(ggml_are_same_layout(src, dst) &amp;&amp;
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>  &quot;cannot copy tensors with different layouts&quot;) failed
 </code></pre></div>
-<p>The crash fires on the first <code>ggml_backend_tensor_copy()</code> that transfers a
-CPU-offloaded tensor to the Vulkan buffer. CUDA dynamic wheels built from
-the same workflow do <strong>not</strong> crash, which is the clue that isolates the
-bug.</p>
-<p>The symptom looks identical to the <code>GGML_MAX_NAME</code> ABI issue that the
-0.2.9 → Unreleased work is supposed to fix (via <code>_sync_ggml_abi()</code> and
-<code>CMAKE_C_FLAGS=-DGGML_MAX_NAME=128</code> propagation in
-<code>LlamaCppBuilder.build_shared()</code>). The fix is in place; Vulkan just
-doesn't go through that code path.</p>
+<p>The crash fires on the first <code>ggml_backend_tensor_copy()</code> that transfers a CPU-offloaded tensor to the Vulkan buffer. CUDA dynamic wheels built from the same workflow do <strong>not</strong> crash, which is the clue that isolates the bug.</p>
+<p>The symptom looks identical to the <code>GGML_MAX_NAME</code> ABI issue that the 0.2.9 → Unreleased work is supposed to fix (via <code>_sync_ggml_abi()</code> and <code>CMAKE_C_FLAGS=-DGGML_MAX_NAME=128</code> propagation in <code>LlamaCppBuilder.build_shared()</code>). The fix is in place; Vulkan just doesn't go through that code path.</p>
 <h2 id="what-has-to-match-and-why-its-not-a-vulkan-specific-rule">What has to match, and why it's not a Vulkan-specific rule<a class="headerlink" href="#what-has-to-match-and-why-its-not-a-vulkan-specific-rule" title="Permanent link">&para;</a></h2>
-<p>Vulkan does <strong>not</strong> have a special <code>GGML_MAX_NAME</code> requirement that CUDA
-lacks. The rule is the same for every backend: when
-<code>SD_USE_VENDORED_GGML=0</code>, <strong>every</strong> ggml-related <code>.so</code> that SD links
-against must be compiled with <code>GGML_MAX_NAME=128</code>. That set is
-<code>libggml-base.so</code>, <code>libggml.so</code>, <code>libggml-cpu.so</code>, and the backend
-plugin (<code>libggml-cuda.so</code>, <code>libggml-vulkan.so</code>, <code>libggml-hip.so</code>, …).
-They all read and write <code>ggml_tensor</code> structs across the boundary with
-SD; any one of them seeing a different layout corrupts field offsets.</p>
-<p>What's different between backends is <em>how the <code>.so</code> files end up on
-disk</em>:</p>
+<p>Vulkan does <strong>not</strong> have a special <code>GGML_MAX_NAME</code> requirement that CUDA lacks. The rule is the same for every backend: when <code>SD_USE_VENDORED_GGML=0</code>, <strong>every</strong> ggml-related <code>.so</code> that SD links against must be compiled with <code>GGML_MAX_NAME=128</code>. That set is <code>libggml-base.so</code>, <code>libggml.so</code>, <code>libggml-cpu.so</code>, and the backend plugin (<code>libggml-cuda.so</code>, <code>libggml-vulkan.so</code>, <code>libggml-hip.so</code>, …). They all read and write <code>ggml_tensor</code> structs across the boundary with SD; any one of them seeing a different layout corrupts field offsets.</p>
+<p>What's different between backends is <em>how the <code>.so</code> files end up on disk</em>:</p>
 <table>
 <thead>
 <tr>
@@ -1703,15 +1687,9 @@ disk</em>:</p>
 </tr>
 </tbody>
 </table>
-<p>So the Vulkan crash isn't about Vulkan having a different requirement —
-it's that the requirement was silently not being met because the libs
-came pre-compiled from a third party. The fix just routes Vulkan
-through the same <code>build_shared()</code> path the other GPU backends already
-use, so the existing <code>GGML_MAX_NAME=128</code> injection actually reaches
-<code>libggml-vulkan.so</code>.</p>
+<p>So the Vulkan crash isn't about Vulkan having a different requirement — it's that the requirement was silently not being met because the libs came pre-compiled from a third party. The fix just routes Vulkan through the same <code>build_shared()</code> path the other GPU backends already use, so the existing <code>GGML_MAX_NAME=128</code> injection actually reaches <code>libggml-vulkan.so</code>.</p>
 <h2 id="root-cause">Root cause<a class="headerlink" href="#root-cause" title="Permanent link">&para;</a></h2>
-<p><code>scripts/manage.py:2252</code> chooses between two strategies when building
-llama.cpp in dynamic mode:</p>
+<p><code>scripts/manage.py:2252</code> chooses between two strategies when building llama.cpp in dynamic mode:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">dynamic</span> <span class="ow">and</span> <span class="n">BuilderClass</span> <span class="o">==</span> <span class="n">LlamaCppBuilder</span><span class="p">:</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    <span class="n">asset</span> <span class="o">=</span> <span class="n">builder</span><span class="o">.</span><span class="n">_release_asset_name</span><span class="p">()</span>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="k">if</span> <span class="n">asset</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
@@ -1750,17 +1728,8 @@ llama.cpp in dynamic mode:</p>
 </tr>
 </tbody>
 </table>
-<p>So on CUDA the code falls into <code>build_shared()</code>, which (since b378cba)
-injects <code>-DGGML_MAX_NAME=128</code> into <code>CMAKE_C_FLAGS</code> / <code>CMAKE_CXX_FLAGS</code>
-whenever <code>SD_USE_VENDORED_GGML=0</code>. The resulting <code>libggml-base.so</code>,
-<code>libggml.so</code>, <code>libggml-cuda.so</code> all have <code>ggml_tensor</code> structs with
-<code>char name[128]</code>. stable-diffusion.cpp's <code>libstable-diffusion.a</code> uses
-<code>GGML_MAX_NAME=128</code> (its own default, see
-<code>build/stable-diffusion.cpp/CMakeLists.txt:233</code>). Both sides agree → no
-mismatch.</p>
-<p>On Vulkan the code goes to <code>download_release()</code>, which pulls the
-upstream pre-built <code>llama-bXXXX-bin-ubuntu-vulkan-x64.tar.gz</code>. Upstream
-binaries are compiled with the default <code>GGML_MAX_NAME=64</code>. So:</p>
+<p>So on CUDA the code falls into <code>build_shared()</code>, which (since b378cba) injects <code>-DGGML_MAX_NAME=128</code> into <code>CMAKE_C_FLAGS</code> / <code>CMAKE_CXX_FLAGS</code> whenever <code>SD_USE_VENDORED_GGML=0</code>. The resulting <code>libggml-base.so</code>, <code>libggml.so</code>, <code>libggml-cuda.so</code> all have <code>ggml_tensor</code> structs with <code>char name[128]</code>. stable-diffusion.cpp's <code>libstable-diffusion.a</code> uses <code>GGML_MAX_NAME=128</code> (its own default, see <code>build/stable-diffusion.cpp/CMakeLists.txt:233</code>). Both sides agree → no mismatch.</p>
+<p>On Vulkan the code goes to <code>download_release()</code>, which pulls the upstream pre-built <code>llama-bXXXX-bin-ubuntu-vulkan-x64.tar.gz</code>. Upstream binaries are compiled with the default <code>GGML_MAX_NAME=64</code>. So:</p>
 <ul>
 <li>
 <p><code>libstable-diffusion.a</code> (SD): <code>char name[128]</code></p>
@@ -1772,61 +1741,30 @@ binaries are compiled with the default <code>GGML_MAX_NAME=64</code>. So:</p>
 <p><code>libggml-vulkan.so</code> (downloaded): <code>char name[64]</code></p>
 </li>
 </ul>
-<p><code>sizeof(ggml_tensor)</code> diverges by 64 bytes between the two sides, and
-every field after <code>name</code> (<code>extra</code>, <code>padding</code>) sits at a different offset
-depending on which side allocated the struct.</p>
+<p><code>sizeof(ggml_tensor)</code> diverges by 64 bytes between the two sides, and every field after <code>name</code> (<code>extra</code>, <code>padding</code>) sits at a different offset depending on which side allocated the struct.</p>
 <h3 id="how-this-manifests-as-an-ggml_are_same_layout-failure">How this manifests as an <code>ggml_are_same_layout</code> failure<a class="headerlink" href="#how-this-manifests-as-an-ggml_are_same_layout-failure" title="Permanent link">&para;</a></h3>
-<p><code>ggml_are_same_layout()</code> (ggml/src/ggml-impl.h:73) itself only reads
-<code>type</code>, <code>ne[4]</code>, and <code>nb[4]</code> — all fields that are <strong>before</strong> <code>name</code>,
-so their offsets don't depend on <code>GGML_MAX_NAME</code>. The ABI mismatch
-doesn't corrupt those fields directly.</p>
-<p>The mechanism is indirect: SD code assumes <code>name[128]</code> and writes up to
-128 bytes via <code>ggml_set_name()</code> / <code>strncpy(tensor-&gt;name, ..., 128)</code>.
-When the tensor was allocated by the downloaded <code>libggml-base.so</code>, the
-struct only has 64 bytes reserved for <code>name</code>, so the trailing 64 bytes
-spill into <code>extra</code> (pointer) and <code>padding[8]</code>. Later calls inside
-<code>libggml-base.so</code> or <code>libggml-vulkan.so</code> read <code>tensor-&gt;extra</code>
-expecting an <code>ggml-backend.cpp</code> buffer handle or similar — and get
-garbage. Downstream code dereferences that garbage, tensors look
-malformed, and <code>ggml_are_same_layout</code> fires on what looks like a
-size/stride mismatch.</p>
-<p>The CPU-offload path is the trigger because that's where SD constructs a
-host tensor, calls <code>ggml_backend_tensor_copy(host, device)</code>, and crosses
-the ABI boundary.</p>
+<p><code>ggml_are_same_layout()</code> (ggml/src/ggml-impl.h:73) itself only reads <code>type</code>, <code>ne[4]</code>, and <code>nb[4]</code> — all fields that are <strong>before</strong> <code>name</code>, so their offsets don't depend on <code>GGML_MAX_NAME</code>. The ABI mismatch doesn't corrupt those fields directly.</p>
+<p>The mechanism is indirect: SD code assumes <code>name[128]</code> and writes up to 128 bytes via <code>ggml_set_name()</code> / <code>strncpy(tensor-&gt;name, ..., 128)</code>. When the tensor was allocated by the downloaded <code>libggml-base.so</code>, the struct only has 64 bytes reserved for <code>name</code>, so the trailing 64 bytes spill into <code>extra</code> (pointer) and <code>padding[8]</code>. Later calls inside <code>libggml-base.so</code> or <code>libggml-vulkan.so</code> read <code>tensor-&gt;extra</code> expecting an <code>ggml-backend.cpp</code> buffer handle or similar — and get garbage. Downstream code dereferences that garbage, tensors look malformed, and <code>ggml_are_same_layout</code> fires on what looks like a size/stride mismatch.</p>
+<p>The CPU-offload path is the trigger because that's where SD constructs a host tensor, calls <code>ggml_backend_tensor_copy(host, device)</code>, and crosses the ABI boundary.</p>
 <h2 id="why-the-existing-fixes-dont-cover-this-path">Why the existing fixes don't cover this path<a class="headerlink" href="#why-the-existing-fixes-dont-cover-this-path" title="Permanent link">&para;</a></h2>
 <p>Two defenses landed in <code>b378cba</code>:</p>
 <ol>
 <li>
-<p><strong><code>_sync_ggml_abi()</code></strong> (<code>scripts/manage.py:1654</code>) — overlays
-   llama.cpp's ggml source tree onto stable-diffusion.cpp so enum
-   ordinals (<code>ggml_op</code>, <code>ggml_type</code>) match. This runs during SD's
-   <code>build()</code> regardless of which llama.cpp strategy was used, so Vulkan
-   benefits from it.</p>
+<p><strong><code>_sync_ggml_abi()</code></strong> (<code>scripts/manage.py:1654</code>) — overlays llama.cpp's ggml source tree onto stable-diffusion.cpp so enum ordinals (<code>ggml_op</code>, <code>ggml_type</code>) match. This runs during SD's <code>build()</code> regardless of which llama.cpp strategy was used, so Vulkan benefits from it.</p>
 </li>
 <li>
-<p><strong><code>GGML_MAX_NAME=128</code> injection into <code>CMAKE_C_FLAGS</code></strong> — only runs
-   inside <code>LlamaCppBuilder.build()</code> (static path, manage.py:1140) and
-   <code>LlamaCppBuilder.build_shared()</code> (dynamic-from-source path,
-   manage.py:1215).</p>
+<p><strong><code>GGML_MAX_NAME=128</code> injection into <code>CMAKE_C_FLAGS</code></strong> — only runs inside <code>LlamaCppBuilder.build()</code> (static path, manage.py:1140) and <code>LlamaCppBuilder.build_shared()</code> (dynamic-from-source path, manage.py:1215).</p>
 </li>
 </ol>
-<p><code>download_release()</code> doesn't compile anything, it just extracts a
-pre-built tarball. There's nowhere for the define to apply. So Vulkan
-dynamic wheels escape the fix entirely.</p>
+<p><code>download_release()</code> doesn't compile anything, it just extracts a pre-built tarball. There's nowhere for the define to apply. So Vulkan dynamic wheels escape the fix entirely.</p>
 <p>Root-level <code>CMakeLists.txt:16-18</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nb">if</span><span class="p">(</span><span class="s">NOT</span><span class="w"> </span><span class="s">SD_USE_VENDORED_GGML</span><span class="p">)</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">    </span><span class="nb">add_definitions</span><span class="p">(</span><span class="s">-DGGML_MAX_NAME=128</span><span class="p">)</span>
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="nb">endif</span><span class="p">()</span>
 </code></pre></div>
-<p>is ordered before <code>CMakeLists.txt:105</code> which reads the
-<code>SD_USE_VENDORED_GGML</code> env var, so this <code>add_definitions</code> never fires
-when the env var is the only source of <code>SD_USE_VENDORED_GGML=OFF</code>.
-This is a separate-but-related ordering bug — not the proximal cause of
-the Vulkan crash (the project-level Cython modules don't dereference
-<code>ggml_tensor</code> fields), but worth fixing while touching this area.</p>
+<p>is ordered before <code>CMakeLists.txt:105</code> which reads the <code>SD_USE_VENDORED_GGML</code> env var, so this <code>add_definitions</code> never fires when the env var is the only source of <code>SD_USE_VENDORED_GGML=OFF</code>. This is a separate-but-related ordering bug — not the proximal cause of the Vulkan crash (the project-level Cython modules don't dereference <code>ggml_tensor</code> fields), but worth fixing while touching this area.</p>
 <h2 id="proposed-fix">Proposed fix<a class="headerlink" href="#proposed-fix" title="Permanent link">&para;</a></h2>
-<p>Route Vulkan (and any future backend that gains an upstream release)
-through <code>build_shared()</code> whenever SD is configured to share ggml:</p>
+<p>Route Vulkan (and any future backend that gains an upstream release) through <code>build_shared()</code> whenever SD is configured to share ggml:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># scripts/manage.py, in do_build()</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">dynamic</span> <span class="ow">and</span> <span class="n">BuilderClass</span> <span class="o">==</span> <span class="n">LlamaCppBuilder</span><span class="p">:</span>
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="n">asset</span> <span class="o">=</span> <span class="n">builder</span><span class="o">.</span><span class="n">_release_asset_name</span><span class="p">()</span>
@@ -1847,17 +1785,9 @@ through <code>build_shared()</code> whenever SD is configured to share ggml:</p>
 <a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a>        <span class="n">builder</span><span class="o">.</span><span class="n">download_release</span><span class="p">()</span>
 </code></pre></div>
 <h3 id="tradeoff">Tradeoff<a class="headerlink" href="#tradeoff" title="Permanent link">&para;</a></h3>
-<p>Building llama.cpp from source adds CI time (Vulkan CI now has to build
-llama.cpp in addition to shaderc). For a local Vulkan dynamic build on
-this machine the llama.cpp build is ~3-4 minutes. On CI this cost is
-paid once and cached via the <code>actions/cache@v5</code> step that already keys
-on <code>scripts/manage.py</code> + <code>build-gpu-wheels.yml</code>.</p>
+<p>Building llama.cpp from source adds CI time (Vulkan CI now has to build llama.cpp in addition to shaderc). For a local Vulkan dynamic build on this machine the llama.cpp build is ~3-4 minutes. On CI this cost is paid once and cached via the <code>actions/cache@v5</code> step that already keys on <code>scripts/manage.py</code> + <code>build-gpu-wheels.yml</code>.</p>
 <h3 id="alternative-considered">Alternative considered<a class="headerlink" href="#alternative-considered" title="Permanent link">&para;</a></h3>
-<p>Keeping <code>download_release()</code> and forcing <code>SD_USE_VENDORED_GGML=1</code> on
-Vulkan reverts to the 0.2.9 behavior: SD statically embeds its own ggml
-backend, giving a ~2x wheel size. Rejected because it contradicts the
-entire Unreleased "GPU wheel size reduced ~50%" goal and reintroduces
-the duplicate-ggml-backend runtime risk that motivated unification.</p>
+<p>Keeping <code>download_release()</code> and forcing <code>SD_USE_VENDORED_GGML=1</code> on Vulkan reverts to the 0.2.9 behavior: SD statically embeds its own ggml backend, giving a ~2x wheel size. Rejected because it contradicts the entire Unreleased "GPU wheel size reduced ~50%" goal and reintroduces the duplicate-ggml-backend runtime risk that motivated unification.</p>
 <h2 id="backend-coverage-after-the-fix">Backend coverage after the fix<a class="headerlink" href="#backend-coverage-after-the-fix" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -1895,9 +1825,7 @@ the duplicate-ggml-backend runtime risk that motivated unification.</p>
 </tr>
 </tbody>
 </table>
-<p>The CPU dynamic path (no SD) is unaffected: <code>_sd_uses_shared_ggml()</code>
-returns <code>False</code> when <code>SD_USE_VENDORED_GGML</code> is unset, so
-<code>download_release()</code> is still used for plain CPU dynamic wheels.</p>
+<p>The CPU dynamic path (no SD) is unaffected: <code>_sd_uses_shared_ggml()</code> returns <code>False</code> when <code>SD_USE_VENDORED_GGML</code> is unset, so <code>download_release()</code> is still used for plain CPU dynamic wheels.</p>
 <h2 id="references">References<a class="headerlink" href="#references" title="Permanent link">&para;</a></h2>
 <ul>
 <li>

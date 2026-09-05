@@ -1921,10 +1921,18 @@
 </table>
 <h3 id="data-flow">Data Flow<a class="headerlink" href="#data-flow" title="Permanent link">&para;</a></h3>
 <ol>
-<li>User calls a high-level function (e.g., <code>complete("prompt", model_path="model.gguf")</code>)</li>
-<li>The API layer loads the model via Cython bindings, which allocate C++ context objects</li>
-<li>Tokens are sampled in C++ and streamed back through Cython to Python callbacks</li>
-<li>Framework modules (agents, RAG) orchestrate multiple calls to the API layer, adding tool use, retrieval, or structured output on top</li>
+<li>
+<p>User calls a high-level function (e.g., <code>complete("prompt", model_path="model.gguf")</code>)</p>
+</li>
+<li>
+<p>The API layer loads the model via Cython bindings, which allocate C++ context objects</p>
+</li>
+<li>
+<p>Tokens are sampled in C++ and streamed back through Cython to Python callbacks</p>
+</li>
+<li>
+<p>Framework modules (agents, RAG) orchestrate multiple calls to the API layer, adding tool use, retrieval, or structured output on top</p>
+</li>
 </ol>
 <h3 id="key-design-decisions">Key Design Decisions<a class="headerlink" href="#key-design-decisions" title="Permanent link">&para;</a></h3>
 <ul>

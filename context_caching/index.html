@@ -2255,9 +2255,15 @@
 <h3 id="when-contexts-are-recreated">When Contexts Are Recreated<a class="headerlink" href="#when-contexts-are-recreated" title="Permanent link">&para;</a></h3>
 <p>A new context is created when:</p>
 <ol>
-<li>No context exists yet (first generation)</li>
-<li>The required context size exceeds the current context size</li>
-<li>After calling <code>reset_context()</code> explicitly</li>
+<li>
+<p>No context exists yet (first generation)</p>
+</li>
+<li>
+<p>The required context size exceeds the current context size</p>
+</li>
+<li>
+<p>After calling <code>reset_context()</code> explicitly</p>
+</li>
 </ol>
 <h3 id="kv-cache-clearing">KV Cache Clearing<a class="headerlink" href="#kv-cache-clearing" title="Permanent link">&para;</a></h3>
 <p>When a context is reused, the KV cache is automatically cleared via <code>kv_cache_clear()</code>. This ensures each generation starts with a clean state while avoiding the overhead of context recreation.</p>
@@ -2333,9 +2339,15 @@
 <h2 id="performance-considerations">Performance Considerations<a class="headerlink" href="#performance-considerations" title="Permanent link">&para;</a></h2>
 <h3 id="benefits-of-context-reuse">Benefits of Context Reuse<a class="headerlink" href="#benefits-of-context-reuse" title="Permanent link">&para;</a></h3>
 <ol>
-<li><strong>Reduced allocation overhead</strong>: Creating a new context involves GPU memory allocation which can be slow</li>
-<li><strong>Consistent memory usage</strong>: Reusing contexts prevents memory fragmentation</li>
-<li><strong>Faster subsequent generations</strong>: Only the KV cache needs to be cleared, not the entire context</li>
+<li>
+<p><strong>Reduced allocation overhead</strong>: Creating a new context involves GPU memory allocation which can be slow</p>
+</li>
+<li>
+<p><strong>Consistent memory usage</strong>: Reusing contexts prevents memory fragmentation</p>
+</li>
+<li>
+<p><strong>Faster subsequent generations</strong>: Only the KV cache needs to be cleared, not the entire context</p>
+</li>
 </ol>
 <h3 id="when-to-force-recreation">When to Force Recreation<a class="headerlink" href="#when-to-force-recreation" title="Permanent link">&para;</a></h3>
 <p>Use <code>reset_context()</code> when:</p>
@@ -2352,10 +2364,18 @@
 </ul>
 <h3 id="memory-management-tips">Memory Management Tips<a class="headerlink" href="#memory-management-tips" title="Permanent link">&para;</a></h3>
 <ol>
-<li><strong>Use context managers</strong> for automatic cleanup</li>
-<li><strong>Call <code>close()</code></strong> when done with long-running applications</li>
-<li><strong>Monitor memory</strong> with tools like <code>nvidia-smi</code> for GPU memory</li>
-<li><strong>Set appropriate <code>n_ctx</code></strong> in <code>GenerationConfig</code> to avoid oversized contexts</li>
+<li>
+<p><strong>Use context managers</strong> for automatic cleanup</p>
+</li>
+<li>
+<p><strong>Call <code>close()</code></strong> when done with long-running applications</p>
+</li>
+<li>
+<p><strong>Monitor memory</strong> with tools like <code>nvidia-smi</code> for GPU memory</p>
+</li>
+<li>
+<p><strong>Set appropriate <code>n_ctx</code></strong> in <code>GenerationConfig</code> to avoid oversized contexts</p>
+</li>
 </ol>
 <h2 id="example-long-running-application">Example: Long-Running Application<a class="headerlink" href="#example-long-running-application" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama</span><span class="w"> </span><span class="kn">import</span> <span class="n">LLM</span><span class="p">,</span> <span class="n">GenerationConfig</span>

@@ -1791,8 +1791,7 @@
 
 <h1 id="concurrent-use-runtime-guard">Concurrent-use runtime guard<a class="headerlink" href="#concurrent-use-runtime-guard" title="Permanent link">&para;</a></h1>
 <blockquote>
-<p><strong>The rule:</strong> Always use one context per thread. Do not share the same context across threads.</p>
-<p>This applies to every <code>LLM</code>, <code>WhisperContext</code>, and <code>SDContext</code> instance. The underlying llama.cpp / whisper.cpp / stable-diffusion.cpp contexts are not designed for concurrent access — sharing one across threads corrupts internal state silently. cyllama enforces the rule at runtime with a non-blocking lock; the rest of this document explains the hazard, the implementation, the alternatives we rejected, and how to extend the guard when adding new native-touching methods.</p>
+<p><strong>The rule:</strong> Always use one context per thread. Do not share the same context across threads. &gt; &gt; This applies to every <code>LLM</code>, <code>WhisperContext</code>, and <code>SDContext</code> instance. The underlying llama.cpp / whisper.cpp / stable-diffusion.cpp contexts are not designed for concurrent access — sharing one across threads corrupts internal state silently. cyllama enforces the rule at runtime with a non-blocking lock; the rest of this document explains the hazard, the implementation, the alternatives we rejected, and how to extend the guard when adding new native-touching methods.</p>
 </blockquote>
 <p>This document is a maintainer guide. It covers:</p>
 <ul>
@@ -1879,8 +1878,7 @@
 <p>The crucial inference: <strong>closing #3960 does not mean "you can now share one <code>llama_context</code> across threads."</strong> It means "the CUDA singletons that broke per-context isolation are gone, so one-context-per-thread actually works now." The KV cache, sampler state, and batch buffers inside a single <code>llama_context</code> are still single-owner data structures touched on every token without locks — there's no PR claiming to have changed that, because it was never the goal.</p>
 <p>So the upstream design contract for llama.cpp, established across these three threads, is exactly the rule cyllama's runtime guard enforces:</p>
 <blockquote>
-<p><strong>Always use one context per thread. Do not share the same context across threads.</strong></p>
-<p>Concretely: one <code>llama_context</code> is safe to use from one thread at a time. Multiple <code>llama_context</code> objects (one per worker thread) can run in parallel, subject to backend caveats noted above. Sharing one <code>llama_context</code> across multiple concurrent native calls is not supported and never has been.</p>
+<p><strong>Always use one context per thread. Do not share the same context across threads.</strong> &gt; &gt; Concretely: one <code>llama_context</code> is safe to use from one thread at a time. Multiple <code>llama_context</code> objects (one per worker thread) can run in parallel, subject to backend caveats noted above. Sharing one <code>llama_context</code> across multiple concurrent native calls is not supported and never has been.</p>
 </blockquote>
 <p>The headers don't say this — but the issue tracker does, and ggerganov / slaren are the authoritative sources for "what llama.cpp supports." cyllama's <code>LLM._busy_lock</code> prevents the unsupported pattern (one context, multiple concurrent users) while allowing the legitimate sequential-handoff pattern (one context, one in-flight call, possibly bounced between threads via <code>asyncio.to_thread</code>).</p>
 <p><strong>stable-diffusion.cpp</strong> is also <strong>not</strong> explicit. <code>thirdparty/stable-diffusion.cpp/include/stable-diffusion.h</code> has no thread-safety statements about <code>sd_ctx_t</code>, <code>generate_image</code>, or <code>generate_video</code>. The only "thread-safe" mentions in the include directory are in unrelated bundled libraries (<code>stb_image.h</code>, <code>ggml-cann.h</code>). The non-thread-safety is again conventional knowledge from the implementation rather than a documented contract.</p>
@@ -2021,11 +2019,21 @@
 <h2 id="test-pattern">Test pattern<a class="headerlink" href="#test-pattern" title="Permanent link">&para;</a></h2>
 <p>The same pattern appears in all three regression test classes:</p>
 <ol>
-<li>Create an instance with a real model.</li>
-<li>Manually <code>acquire(blocking=False)</code> the busy-lock from the <strong>test thread</strong> to simulate "thread A is currently in flight."</li>
-<li>Spawn a worker thread that calls the actual public method.</li>
-<li>Assert the worker raised <code>RuntimeError</code> containing <code>"another thread"</code> and <code>"not thread-safe"</code>.</li>
-<li>Release the lock in <code>finally</code>.</li>
+<li>
+<p>Create an instance with a real model.</p>
+</li>
+<li>
+<p>Manually <code>acquire(blocking=False)</code> the busy-lock from the <strong>test thread</strong> to simulate "thread A is currently in flight."</p>
+</li>
+<li>
+<p>Spawn a worker thread that calls the actual public method.</p>
+</li>
+<li>
+<p>Assert the worker raised <code>RuntimeError</code> containing <code>"another thread"</code> and <code>"not thread-safe"</code>.</p>
+</li>
+<li>
+<p>Release the lock in <code>finally</code>.</p>
+</li>
 </ol>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">test_concurrent_generate_raises</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>    <span class="n">ctx</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_make_ctx</span><span class="p">()</span>
@@ -2102,12 +2110,24 @@
 <p>If you add a new method to <code>LLM</code>, <code>WhisperContext</code>, or <code>SDContext</code> that touches native state, <strong>you must add the acquire/release pair</strong>. There is no static check that catches this — the discipline is purely manual.</p>
 <p>Checklist for a new guarded method:</p>
 <ol>
-<li>Does the method touch <code>self._ctx</code>, <code>self._sampler</code>, <code>self.model</code>, <code>self._c_ctx</code>, <code>self.ptr</code>, or any other attribute that wraps a C++ object's mutable state?</li>
-<li>Does the method trigger a native call that releases the GIL (<code>with nogil:</code>, or any binding that internally does so)?</li>
-<li>If yes to either: wrap the body in <code>_try_acquire_busy()</code> / <code>try</code> / <code>finally: self._busy_lock.release()</code>.</li>
-<li>If the method is a thin delegator that only calls another already-guarded public method: do <strong>not</strong> acquire (the inner method will). <code>Lock</code> is non-reentrant — double acquire from the same thread would deadlock. Document the delegation in a comment.</li>
-<li>If the method returns a generator that holds native state across yields (streaming): use the <code>_stream_with_busy_release()</code> wrapper pattern.</li>
-<li>Add a regression test that follows the pattern in the table above. The test should hit your new method specifically, even if other guarded methods on the same class are already covered — bug-of-omission tests need to be per-method, not per-class.</li>
+<li>
+<p>Does the method touch <code>self._ctx</code>, <code>self._sampler</code>, <code>self.model</code>, <code>self._c_ctx</code>, <code>self.ptr</code>, or any other attribute that wraps a C++ object's mutable state?</p>
+</li>
+<li>
+<p>Does the method trigger a native call that releases the GIL (<code>with nogil:</code>, or any binding that internally does so)?</p>
+</li>
+<li>
+<p>If yes to either: wrap the body in <code>_try_acquire_busy()</code> / <code>try</code> / <code>finally: self._busy_lock.release()</code>.</p>
+</li>
+<li>
+<p>If the method is a thin delegator that only calls another already-guarded public method: do <strong>not</strong> acquire (the inner method will). <code>Lock</code> is non-reentrant — double acquire from the same thread would deadlock. Document the delegation in a comment.</p>
+</li>
+<li>
+<p>If the method returns a generator that holds native state across yields (streaming): use the <code>_stream_with_busy_release()</code> wrapper pattern.</p>
+</li>
+<li>
+<p>Add a regression test that follows the pattern in the table above. The test should hit your new method specifically, even if other guarded methods on the same class are already covered — bug-of-omission tests need to be per-method, not per-class.</p>
+</li>
 </ol>
 <p>Methods that <strong>don't</strong> need the guard:</p>
 <ul>

@@ -78,7 +78,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#cancelling-generation" class="md-skip">
+        <a href="#cancelling-long-running-calls" class="md-skip">
           Skip to content
         </a>
       
@@ -704,6 +704,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#llm-llamacpp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        LLM (llama.cpp)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#what-abort-means" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -715,10 +726,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#api" class="md-nav__link">
+  <a href="#llm-api" class="md-nav__link">
     <span class="md-ellipsis">
       
-        API
+        LLM API
       
     </span>
   </a>
@@ -726,15 +737,15 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#examples" class="md-nav__link">
+  <a href="#llm-examples" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Examples
+        LLM examples
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Examples">
+    <nav class="md-nav" aria-label="LLM examples">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -783,6 +794,56 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#whisper-whispercpp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Whisper (whisper.cpp)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Whisper (whisper.cpp)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#ctrl-c-during-transcription" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ctrl-C during transcription
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cancel-from-another-thread" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cancel from another thread
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stable-diffusion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stable Diffusion
+      
+    </span>
+  </a>
   
 </li>
       
@@ -1649,6 +1710,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#llm-llamacpp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        LLM (llama.cpp)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#what-abort-means" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1660,10 +1732,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#api" class="md-nav__link">
+  <a href="#llm-api" class="md-nav__link">
     <span class="md-ellipsis">
       
-        API
+        LLM API
       
     </span>
   </a>
@@ -1671,15 +1743,15 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#examples" class="md-nav__link">
+  <a href="#llm-examples" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Examples
+        LLM examples
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Examples">
+    <nav class="md-nav" aria-label="LLM examples">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1732,6 +1804,56 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#whisper-whispercpp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Whisper (whisper.cpp)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Whisper (whisper.cpp)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#ctrl-c-during-transcription" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ctrl-C during transcription
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cancel-from-another-thread" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cancel from another thread
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stable-diffusion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stable Diffusion
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#notes-and-caveats" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1762,36 +1884,65 @@
   
 
 
-<h1 id="cancelling-generation">Cancelling generation<a class="headerlink" href="#cancelling-generation" title="Permanent link">&para;</a></h1>
-<p><code>LLM</code> supports thread-safe cancellation of an in-flight generation at two
-layers:</p>
+<h1 id="cancelling-long-running-calls">Cancelling long-running calls<a class="headerlink" href="#cancelling-long-running-calls" title="Permanent link">&para;</a></h1>
+<p>Generation, transcription, and image synthesis all enter a long native call where Python's default <code>KeyboardInterrupt</code> is deferred until the call returns. cyllama exposes a uniform cancellation surface so Ctrl-C (or a programmatic request) takes effect promptly:</p>
+<table>
+<thead>
+<tr>
+<th>Subsystem</th>
+<th>Cancellation</th>
+<th>Mechanism</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>LLM</code> (llama.cpp)</td>
+<td>in-process</td>
+<td>between-token event + mid-<code>decode</code> ggml abort callback</td>
+</tr>
+<tr>
+<td><code>WhisperContext</code> (whisper.cpp)</td>
+<td>in-process</td>
+<td>mid-<code>whisper_full</code> ggml abort callback</td>
+</tr>
+<tr>
+<td><code>cyllama.sd</code> CLI (stable-diffusion.cpp)</td>
+<td>process isolation</td>
+<td>child process the CLI force-kills on Ctrl-C</td>
+</tr>
+</tbody>
+</table>
+<p><code>LLM</code> and <code>WhisperContext</code> present the same three members — <code>cancel()</code>, <code>cancel_requested</code>, and <code>install_sigint_handler()</code> — backed by the shared helper in <code>cyllama.utils.cancellation</code>. Stable Diffusion is the exception: its native API exposes no abort hook, so the in-process <code>SDContext</code> cannot be cancelled and only the CLI gets responsive Ctrl-C (see <a href="#stable-diffusion">Stable Diffusion</a> below).</p>
+<h2 id="llm-llamacpp">LLM (llama.cpp)<a class="headerlink" href="#llm-llamacpp" title="Permanent link">&para;</a></h2>
+<p><code>LLM</code> supports thread-safe cancellation of an in-flight generation at two layers:</p>
 <ul>
-<li><strong>Between tokens</strong> — a <code>threading.Event</code> polled in the per-token loop.
-  Sub-millisecond latency in steady-state generation.</li>
-<li><strong>Mid-decode</strong> — a nogil <code>ggml_abort_callback</code> reads a C-level flag and
-  aborts the in-progress <code>llama_decode</code> from inside ggml's compute graph.
-  This is what makes cancellation responsive during long prompt prefill,
-  where a single <code>decode</code> call may run for seconds.</li>
+<li>
+<p><strong>Between tokens</strong> — a <code>threading.Event</code> polled in the per-token loop. Sub-millisecond latency in steady-state generation.</p>
+</li>
+<li>
+<p><strong>Mid-decode</strong> — a nogil <code>ggml_abort_callback</code> reads a C-level flag and aborts the in-progress <code>llama_decode</code> from inside ggml's compute graph. This is what makes cancellation responsive during long prompt prefill, where a single <code>decode</code> call may run for seconds.</p>
+</li>
 </ul>
 <p>Both layers are wired by a single call: <code>llm.cancel()</code>.</p>
 <h2 id="what-abort-means">What "abort" means<a class="headerlink" href="#what-abort-means" title="Permanent link">&para;</a></h2>
-<p><code>ggml_abort_callback</code> is cooperative: when it returns non-zero, ggml stops
-scheduling further ops in the current graph and <code>llama_decode</code> returns
-early. <strong>The process is not killed.</strong> Control returns to Python normally,
-the partially-produced tokens are yielded, and the <code>LLM</code> object remains
-reusable for the next call. Only the in-progress batch is discarded.</p>
-<p>The cancel flag auto-clears at the start of each generation, so a stale
-<code>cancel()</code> does not leak into the next call.</p>
-<h2 id="api">API<a class="headerlink" href="#api" title="Permanent link">&para;</a></h2>
+<p><code>ggml_abort_callback</code> is cooperative: when it returns non-zero, ggml stops scheduling further ops in the current graph and <code>llama_decode</code> returns early. <strong>The process is not killed.</strong> Control returns to Python normally, the partially-produced tokens are yielded, and the <code>LLM</code> object remains reusable for the next call. Only the in-progress batch is discarded.</p>
+<p>The cancel flag auto-clears at the start of each generation, so a stale <code>cancel()</code> does not leak into the next call.</p>
+<h2 id="llm-api">LLM API<a class="headerlink" href="#llm-api" title="Permanent link">&para;</a></h2>
 <ul>
-<li><code>LLM.cancel()</code> — request cancellation. Safe from any thread.</li>
-<li><code>LLM.cancel_requested</code> — read-only <code>bool</code> property.</li>
-<li><code>LLM.install_sigint_handler()</code> — opt-in Ctrl-C handler. Returns a
-  context manager / handle with <code>.restore()</code>.</li>
-<li><code>LlamaContext.cancel</code> — read/write <code>bool</code> mirror of the C-level flag,
-  for direct lower-level use.</li>
+<li>
+<p><code>LLM.cancel()</code> — request cancellation. Safe from any thread.</p>
+</li>
+<li>
+<p><code>LLM.cancel_requested</code> — read-only <code>bool</code> property.</p>
+</li>
+<li>
+<p><code>LLM.install_sigint_handler()</code> — opt-in Ctrl-C handler. Returns a context manager / handle with <code>.restore()</code>.</p>
+</li>
+<li>
+<p><code>LlamaContext.cancel</code> — read/write <code>bool</code> mirror of the C-level flag, for direct lower-level use.</p>
+</li>
 </ul>
-<h2 id="examples">Examples<a class="headerlink" href="#examples" title="Permanent link">&para;</a></h2>
+<h2 id="llm-examples">LLM examples<a class="headerlink" href="#llm-examples" title="Permanent link">&para;</a></h2>
 <h3 id="1-cancel-from-another-thread">1. Cancel from another thread<a class="headerlink" href="#1-cancel-from-another-thread" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">threading</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama</span><span class="w"> </span><span class="kn">import</span> <span class="n">LLM</span><span class="p">,</span> <span class="n">GenerationConfig</span>
@@ -1822,15 +1973,9 @@ reusable for the next call. Only the in-progress batch is discarded.</p>
 <a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">-- back to normal --&quot;</span><span class="p">)</span>
 <a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="nb">print</span><span class="p">(</span><span class="n">llm</span><span class="p">(</span><span class="s2">&quot;ok?&quot;</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">GenerationConfig</span><span class="p">(</span><span class="n">max_tokens</span><span class="o">=</span><span class="mi">5</span><span class="p">)))</span>
 </code></pre></div>
-<p><code>install_sigint_handler()</code> is opt-in by design; cyllama does not touch
-signal handlers otherwise. The previous handler is saved and restored
-on <code>.restore()</code> / <code>__exit__</code>, so it composes with Click, Jupyter,
-asyncio, etc. Must be called from the main thread (<code>signal.signal</code>
-restriction).</p>
+<p><code>install_sigint_handler()</code> is opt-in by design; cyllama does not touch signal handlers otherwise. The previous handler is saved and restored on <code>.restore()</code> / <code>__exit__</code>, so it composes with Click, Jupyter, asyncio, etc. Must be called from the main thread (<code>signal.signal</code> restriction).</p>
 <h3 id="3-cancel-on-disconnect-in-a-fastapi-sse-sidecar">3. Cancel-on-disconnect in a FastAPI / SSE sidecar<a class="headerlink" href="#3-cancel-on-disconnect-in-a-fastapi-sse-sidecar" title="Permanent link">&para;</a></h3>
-<p>The motivating use case: a streaming HTTP server should free the GPU
-when the client closes the connection, instead of running to
-<code>max_tokens</code>.</p>
+<p>The motivating use case: a streaming HTTP server should free the GPU when the client closes the connection, instead of running to <code>max_tokens</code>.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fastapi</span><span class="w"> </span><span class="kn">import</span> <span class="n">FastAPI</span><span class="p">,</span> <span class="n">Request</span>
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fastapi.responses</span><span class="w"> </span><span class="kn">import</span> <span class="n">StreamingResponse</span>
@@ -1870,25 +2015,67 @@ when the client closes the connection, instead of running to
 <a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="k">assert</span> <span class="n">ctx</span><span class="o">.</span><span class="n">cancel</span> <span class="ow">is</span> <span class="kc">True</span>
 <a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="n">ctx</span><span class="o">.</span><span class="n">cancel</span> <span class="o">=</span> <span class="kc">False</span>                  <span class="c1"># clear before next call</span>
 </code></pre></div>
+<h2 id="whisper-whispercpp">Whisper (whisper.cpp)<a class="headerlink" href="#whisper-whispercpp" title="Permanent link">&para;</a></h2>
+<p><code>WhisperContext</code> cancels an in-flight <code>full()</code> the same way <code>LLM</code> cancels a decode: a nogil <code>ggml_abort_callback</code> is installed for the duration of the <code>whisper_full</code> call and polls a C-level flag. <code>cancel()</code> sets it, the next compute-graph poll inside encode/decode aborts, and <code>full()</code> raises <code>InterruptedError</code> rather than running to completion. This works because whisper.cpp exposes <code>whisper_full_params.abort_callback</code>.</p>
+<p>The flag auto-clears at the start of the next <code>full()</code>, so a stale <code>cancel()</code> does not carry over. Like <code>LLM</code>, the abort is cooperative — the process is not killed and the context stays reusable.</p>
+<p>API: <code>WhisperContext.cancel()</code>, <code>WhisperContext.cancel_requested</code>, <code>WhisperContext.install_sigint_handler()</code> — identical in shape to the <code>LLM</code> methods above.</p>
+<h3 id="ctrl-c-during-transcription">Ctrl-C during transcription<a class="headerlink" href="#ctrl-c-during-transcription" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.whisper.whisper_cpp</span><span class="w"> </span><span class="kn">import</span> <span class="n">WhisperContext</span><span class="p">,</span> <span class="n">WhisperFullParams</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="n">ctx</span> <span class="o">=</span> <span class="n">WhisperContext</span><span class="p">(</span><span class="s2">&quot;models/ggml-base.en.bin&quot;</span><span class="p">)</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="n">samples</span> <span class="o">=</span> <span class="n">load_pcm_16khz_mono_float32</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>  <span class="c1"># 1-D float32 ndarray</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="n">params</span> <span class="o">=</span> <span class="n">WhisperFullParams</span><span class="p">()</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="n">params</span><span class="o">.</span><span class="n">language</span> <span class="o">=</span> <span class="s2">&quot;en&quot;</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="k">with</span> <span class="n">ctx</span><span class="o">.</span><span class="n">install_sigint_handler</span><span class="p">():</span>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>    <span class="k">try</span><span class="p">:</span>
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>        <span class="n">ctx</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="n">params</span><span class="p">)</span>
+<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>    <span class="k">except</span> <span class="ne">InterruptedError</span><span class="p">:</span>
+<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a>        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;transcription cancelled&quot;</span><span class="p">)</span>
+<a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a>    <span class="k">else</span><span class="p">:</span>
+<a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a>        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">full_n_segments</span><span class="p">()):</span>
+<a id="__codelineno-4-17" name="__codelineno-4-17" href="#__codelineno-4-17"></a>            <span class="nb">print</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">full_get_segment_text</span><span class="p">(</span><span class="n">i</span><span class="p">))</span>
+</code></pre></div>
+<h3 id="cancel-from-another-thread">Cancel from another thread<a class="headerlink" href="#cancel-from-another-thread" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">threading</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="n">threading</span><span class="o">.</span><span class="n">Timer</span><span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">ctx</span><span class="o">.</span><span class="n">cancel</span><span class="p">)</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="k">try</span><span class="p">:</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>    <span class="n">ctx</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="n">params</span><span class="p">)</span>   <span class="c1"># raises InterruptedError when the timer fires</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="k">except</span> <span class="ne">InterruptedError</span><span class="p">:</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>    <span class="k">pass</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="c1"># ctx is still usable for the next full().</span>
+</code></pre></div>
+<h2 id="stable-diffusion">Stable Diffusion<a class="headerlink" href="#stable-diffusion" title="Permanent link">&para;</a></h2>
+<p>stable-diffusion.cpp's <code>generate()</code> is a single native call with <strong>no abort hook</strong> — its progress callback returns <code>void</code>, so there is no way to signal "stop" mid-generation. Consequently:</p>
+<ul>
+<li>
+<p><strong>The in-process API (<code>SDContext.generate()</code>, <code>text_to_image()</code>) cannot be cancelled.</strong> Called directly from Python, it blocks until the image is finished; a <code>cancel()</code> method would have nothing to drive.</p>
+</li>
+<li>
+<p><strong>The CLI (<code>python -m cyllama.sd</code>) is responsive to Ctrl-C</strong> via process isolation. Long, hookless commands (<code>txt2img</code>/<code>img2img</code>/<code>inpaint</code>/ <code>controlnet</code>/<code>video</code>/<code>upscale</code>/<code>convert</code>) run in a child process the parent force-kills on Ctrl-C (SIGTERM, then SIGKILL after a short grace period). The child runs in its own session, so the terminal's Ctrl-C reaches only the parent. Set <code>CYLLAMA_SD_NO_ISOLATE=1</code> to run in-process instead (e.g. for debugging or profiling).</p>
+</li>
+</ul>
+<p>In-process cancellation will be wired into the same <code>cancel()</code> surface once an abort hook lands upstream, tracked at <a href="https://github.com/leejet/stable-diffusion.cpp/issues/1036">leejet/stable-diffusion.cpp#1036</a> and <a href="https://github.com/shakfu/cyllama/issues/8">cyllama#8</a>.</p>
 <h2 id="notes-and-caveats">Notes and caveats<a class="headerlink" href="#notes-and-caveats" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>Performance.</strong> The between-token check is one <code>Event.is_set()</code> per
-  token (sub-microsecond). The mid-decode callback is <code>noexcept nogil</code>
-  and does a single indirect load per ggml op poll. Overhead is not
-  measurable against decode time.</li>
-<li><strong>Memory model.</strong> The C flag is a plain <code>bint</code>, not a C11 atomic.
-  Aligned word writes are atomic on every CPU cyllama targets; a stale
-  read just delays cancellation by one op poll. This is acceptable for
-  a one-shot "abort now" signal.</li>
-<li><strong>Custom abort callbacks.</strong> <code>LLM</code> auto-installs the cancel callback
-  on every context creation. Calling <code>LlamaContext.set_abort_callback()</code>
-  with a Python callable overrides it. To combine user logic with
-  cancellation, consult <code>ctx.cancel</code> (or your own state) inside that
-  Python callback.</li>
-<li><strong>Stable Diffusion.</strong> <code>cyllama.sd</code> does <strong>not</strong> currently support
-  cancellation; <code>generate_image()</code> is a single blocking C call with no
-  abort path. Tracked against upstream
-  <a href="https://github.com/leejet/stable-diffusion.cpp/pull/1124">leejet/stable-diffusion.cpp#1124</a>.</li>
+<li>
+<p><strong>Performance.</strong> The between-token check is one <code>Event.is_set()</code> per token (sub-microsecond). The mid-decode callback is <code>noexcept nogil</code> and does a single indirect load per ggml op poll. Overhead is not measurable against decode time.</p>
+</li>
+<li>
+<p><strong>Memory model.</strong> The C flag is a plain <code>bint</code>, not a C11 atomic. Aligned word writes are atomic on every CPU cyllama targets; a stale read just delays cancellation by one op poll. This is acceptable for a one-shot "abort now" signal.</p>
+</li>
+<li>
+<p><strong>Custom abort callbacks.</strong> <code>LLM</code> auto-installs the cancel callback on every context creation. Calling <code>LlamaContext.set_abort_callback()</code> with a Python callable overrides it. To combine user logic with cancellation, consult <code>ctx.cancel</code> (or your own state) inside that Python callback.</p>
+</li>
+<li>
+<p><strong>Whisper concurrency.</strong> <code>cancel()</code> only sets a flag, so it is safe to call from a signal handler or another thread while <code>full()</code> runs. A <code>WhisperContext</code> is otherwise not thread-safe (<code>full()</code> raises on concurrent use); see <a href="../threading/">Threading</a>.</p>
+</li>
+<li>
+<p><strong>Stable Diffusion.</strong> Only the CLI is cancellable, via process isolation; the in-process <code>SDContext</code> is not. See <a href="#stable-diffusion">Stable Diffusion</a> above.</p>
+</li>
 </ul>
 
 

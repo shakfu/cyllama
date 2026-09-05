@@ -1685,128 +1685,95 @@
 
 <h1 id="contractagent-design-notes-and-repositioning-plan">ContractAgent: design notes and repositioning plan<a class="headerlink" href="#contractagent-design-notes-and-repositioning-plan" title="Permanent link">&para;</a></h1>
 <blockquote>
-<p><strong>The thesis:</strong> ContractAgent's value proposition needs to be re-centered.
-As currently documented, <code>@pre</code> is used for argument validation — which is
-now largely subsumed by <code>coerce_args</code> and <code>Annotated[]</code> constraint markers
-(landed in the second-pass agent work). What's left for contracts is the
-set of things schema cannot express: cross-field rules, state-dependent
-rules, behavioral postconditions, and cross-call invariants. The docs lead
-with the redundant use case and bury the unique one, which makes the agent
-look useless. This document captures the design of how to fix that.</p>
+<p><strong>The thesis:</strong> ContractAgent's value proposition needs to be re-centered. &gt; As currently documented, <code>@pre</code> is used for argument validation — which is &gt; now largely subsumed by <code>coerce_args</code> and <code>Annotated[]</code> constraint markers &gt; (landed in the second-pass agent work). What's left for contracts is the &gt; set of things schema cannot express: cross-field rules, state-dependent &gt; rules, behavioral postconditions, and cross-call invariants. The docs lead &gt; with the redundant use case and bury the unique one, which makes the agent &gt; look useless. This document captures the design of how to fix that.</p>
 </blockquote>
-<p>Maintainer audience. The plan is referenced from <code>AGENT_TOOL_REVIEW.md</code>
-proposal #17 and from the contract.py module docstring.</p>
+<p>Maintainer audience. The plan is referenced from <code>AGENT_TOOL_REVIEW.md</code> proposal #17 and from the contract.py module docstring.</p>
 <h2 id="1-the-problem">1. The problem<a class="headerlink" href="#1-the-problem" title="Permanent link">&para;</a></h2>
 <p>Today's <code>contract.py</code> (1196 LoC) supports two attachment points:</p>
 <ol>
-<li><strong>Tool-level</strong>: <code>@pre</code> / <code>@post</code> decorators on tool functions.</li>
-<li><strong>Agent-level</strong>: <code>task_precondition</code>, <code>answer_postcondition</code>,
-   <code>iteration_invariant</code> passed to <code>ContractAgent.__init__</code>.</li>
+<li>
+<p><strong>Tool-level</strong>: <code>@pre</code> / <code>@post</code> decorators on tool functions.</p>
+</li>
+<li>
+<p><strong>Agent-level</strong>: <code>task_precondition</code>, <code>answer_postcondition</code>, <code>iteration_invariant</code> passed to <code>ContractAgent.__init__</code>.</p>
+</li>
 </ol>
-<p>The module docstring (lines 33-77) and the canonical examples lead with
-<code>@pre</code>:</p>
+<p>The module docstring (lines 33-77) and the canonical examples lead with <code>@pre</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nd">@tool</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nd">@pre</span><span class="p">(</span><span class="k">lambda</span> <span class="n">args</span><span class="p">:</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;count&#39;</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;count must be positive&quot;</span><span class="p">)</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="k">def</span><span class="w"> </span><span class="nf">fetch_items</span><span class="p">(</span><span class="n">count</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span> <span class="o">...</span>
 </code></pre></div>
-<p>After the second-pass landing of <code>coerce_args</code> + Annotated[] markers, the
-same constraint is now expressible as:</p>
+<p>After the second-pass landing of <code>coerce_args</code> + Annotated[] markers, the same constraint is now expressible as:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nd">@tool</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">fetch_items</span><span class="p">(</span><span class="n">count</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="n">Ge</span><span class="p">(</span><span class="mi">1</span><span class="p">)])</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span> <span class="o">...</span>
 </code></pre></div>
-<p>The Annotated form is declarative, runs at schema-generation time (so the
-LLM can see the constraint in the prompt), and survives the wire boundary
-(MCP, OpenAI). The <code>@pre</code> form is imperative, runs at dispatch time only,
-and is invisible to anything that doesn't speak ContractAgent.</p>
-<p>For type, range, enum, pattern, length, required, and multipleOf checks —
-which is what most documented <code>@pre</code> examples do — <code>@pre</code> is <em>strictly
-inferior</em> to schema. A user who reads the docs and tries ContractAgent for
-this purpose correctly concludes it's redundant.</p>
+<p>The Annotated form is declarative, runs at schema-generation time (so the LLM can see the constraint in the prompt), and survives the wire boundary (MCP, OpenAI). The <code>@pre</code> form is imperative, runs at dispatch time only, and is invisible to anything that doesn't speak ContractAgent.</p>
+<p>For type, range, enum, pattern, length, required, and multipleOf checks — which is what most documented <code>@pre</code> examples do — <code>@pre</code> is <em>strictly inferior</em> to schema. A user who reads the docs and tries ContractAgent for this purpose correctly concludes it's redundant.</p>
 <p>What <code>@pre</code> and the agent-level callbacks <em>uniquely</em> enable is buried.</p>
 <h2 id="2-what-contracts-uniquely-enable">2. What contracts uniquely enable<a class="headerlink" href="#2-what-contracts-uniquely-enable" title="Permanent link">&para;</a></h2>
 <p>Schema is purely structural. It cannot express:</p>
 <ol>
-<li><strong>Cross-field rules.</strong> "<code>end &gt; start</code>", "<code>payment_type == 'card'</code>
-   implies <code>card_number</code> is present". JSON Schema has <code>dependentRequired</code>,
-   <code>dependentSchemas</code>, and <code>if/then/else</code>, but they're awkward to write
-   and the LLM can't easily reason about them.</li>
-<li><strong>State-dependent rules.</strong> "the database connection is open", "the
-   user is authenticated", "now &lt; deadline", "the budget hasn't been
-   exhausted". Schema is purely structural and has zero runtime visibility.</li>
-<li><strong>Behavioral postconditions.</strong> "the returned list is non-empty", "the
-   output is sorted", "the answer doesn't contain PII", "the answer
-   doesn't leak system-prompt content". Schema has a <code>returns</code> field
-   conceptually but cyllama doesn't enforce it, and even if it did,
-   postconditions are usually behavioral rather than structural.</li>
-<li><strong>Cross-call / cross-iteration invariants.</strong> "errors &lt; 3", "total
-   cost &lt; budget", "elapsed &lt; deadline", "same tool not called more
-   than N times consecutively" (distinct from loop detection — that's
-   built-in, policy-driven; this is user-defined).</li>
-<li><strong>Agent-level postconditions.</strong> "the final answer mentions all
-   required entities", "the answer doesn't reveal internal reasoning".</li>
+<li>
+<p><strong>Cross-field rules.</strong> "<code>end &gt; start</code>", "<code>payment_type == 'card'</code> implies <code>card_number</code> is present". JSON Schema has <code>dependentRequired</code>, <code>dependentSchemas</code>, and <code>if/then/else</code>, but they're awkward to write and the LLM can't easily reason about them.</p>
+</li>
+<li>
+<p><strong>State-dependent rules.</strong> "the database connection is open", "the user is authenticated", "now &lt; deadline", "the budget hasn't been exhausted". Schema is purely structural and has zero runtime visibility.</p>
+</li>
+<li>
+<p><strong>Behavioral postconditions.</strong> "the returned list is non-empty", "the output is sorted", "the answer doesn't contain PII", "the answer doesn't leak system-prompt content". Schema has a <code>returns</code> field conceptually but cyllama doesn't enforce it, and even if it did, postconditions are usually behavioral rather than structural.</p>
+</li>
+<li>
+<p><strong>Cross-call / cross-iteration invariants.</strong> "errors &lt; 3", "total cost &lt; budget", "elapsed &lt; deadline", "same tool not called more than N times consecutively" (distinct from loop detection — that's built-in, policy-driven; this is user-defined).</p>
+</li>
+<li>
+<p><strong>Agent-level postconditions.</strong> "the final answer mentions all required entities", "the answer doesn't reveal internal reasoning".</p>
+</li>
 </ol>
-<p>These five categories are the legitimate niche. They have no schema
-substitute, and they would be hard to express even if schema were richer.</p>
+<p>These five categories are the legitimate niche. They have no schema substitute, and they would be hard to express even if schema were richer.</p>
 <h2 id="3-the-repositioning-plan">3. The repositioning plan<a class="headerlink" href="#3-the-repositioning-plan" title="Permanent link">&para;</a></h2>
-<p>Six steps, scoped so they can land independently. The minimum-viable
-landing is steps 1 + 3 + 6 — that's a documentation reframe + small API
-addition + concrete recipes, and it's enough to flip ContractAgent from
-"looks redundant" to "has a clear niche". Steps 2, 4, 5 add real new
-capability that the niche needs but can land later as pull develops.</p>
+<p>Six steps, scoped so they can land independently. The minimum-viable landing is steps 1 + 3 + 6 — that's a documentation reframe + small API addition + concrete recipes, and it's enough to flip ContractAgent from "looks redundant" to "has a clear niche". Steps 2, 4, 5 add real new capability that the niche needs but can land later as pull develops.</p>
 <h3 id="step-1-reposition-pre-in-the-module-docs">Step 1 — Reposition <code>@pre</code> in the module docs<a class="headerlink" href="#step-1-reposition-pre-in-the-module-docs" title="Permanent link">&para;</a></h3>
-<p><strong>Scope:</strong> docstring rewrite in <code>contract.py</code> (lines 1-86), no code
-changes. Lead with the four scenarios <code>@pre</code> is uniquely good at; demote
-argument-validation examples; cross-link to <code>Annotated[]</code> markers.</p>
+<p><strong>Scope:</strong> docstring rewrite in <code>contract.py</code> (lines 1-86), no code changes. Lead with the four scenarios <code>@pre</code> is uniquely good at; demote argument-validation examples; cross-link to <code>Annotated[]</code> markers.</p>
 <p><strong>Concrete edits:</strong></p>
 <ul>
-<li>Replace the <code>@pre(lambda args: args['count'] &gt; 0)</code> example in the
-  Basic Usage block with a cross-field example
-  (<code>lambda args: args['end'] &gt; args['start']</code>) and a state-dependent
-  example (<code>lambda args: db.is_connected()</code>).</li>
-<li>Add a "When to use schema vs contracts" callout near the top, pointing
-  at <code>tools.py</code> for <code>Annotated[]</code> markers and reserving <code>@pre</code> for the
-  scenarios in §2.</li>
-<li>Update the docstring on the <code>pre</code> decorator function itself (lines
-  ~432-450) with the same framing.</li>
+<li>
+<p>Replace the <code>@pre(lambda args: args['count'] &gt; 0)</code> example in the Basic Usage block with a cross-field example (<code>lambda args: args['end'] &gt; args['start']</code>) and a state-dependent example (<code>lambda args: db.is_connected()</code>).</p>
+</li>
+<li>
+<p>Add a "When to use schema vs contracts" callout near the top, pointing at <code>tools.py</code> for <code>Annotated[]</code> markers and reserving <code>@pre</code> for the scenarios in §2.</p>
+</li>
+<li>
+<p>Update the docstring on the <code>pre</code> decorator function itself (lines ~432-450) with the same framing.</p>
+</li>
 </ul>
 <p><strong>Blast radius:</strong> zero (docs only). Estimated effort: half a day.</p>
 <h3 id="step-2-make-post-first-class-value-aware-postconditions">Step 2 — Make <code>@post</code> first-class (value-aware postconditions)<a class="headerlink" href="#step-2-make-post-first-class-value-aware-postconditions" title="Permanent link">&para;</a></h3>
-<p><strong>Scope:</strong> rewire <code>@post</code> to receive the raw return value, not the
-stringified observation.</p>
-<p><strong>Today's behavior.</strong> <code>ReActAgent._execute_tool_raw</code> returns the raw
-value (<code>react.py:402</code>), then the dispatch loop stringifies it
-(<code>react.py:403</code>: <code>observation = str(raw_result)</code>) before any postcondition
-runs. So <code>@post(lambda r: len(r) &gt; 0)</code> is testing <code>len(str(raw_result))</code>
-— a string length, not the actual list length.</p>
+<p><strong>Scope:</strong> rewire <code>@post</code> to receive the raw return value, not the stringified observation.</p>
+<p><strong>Today's behavior.</strong> <code>ReActAgent._execute_tool_raw</code> returns the raw value (<code>react.py:402</code>), then the dispatch loop stringifies it (<code>react.py:403</code>: <code>observation = str(raw_result)</code>) before any postcondition runs. So <code>@post(lambda r: len(r) &gt; 0)</code> is testing <code>len(str(raw_result))</code> — a string length, not the actual list length.</p>
 <p><strong>Target behavior.</strong> <code>@post</code> receives <code>raw_result</code> itself, so:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nd">@tool</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="nd">@post</span><span class="p">(</span><span class="k">lambda</span> <span class="n">r</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">r</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;result must not be empty&quot;</span><span class="p">)</span>
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="k">def</span><span class="w"> </span><span class="nf">fetch_rows</span><span class="p">(</span><span class="n">table</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">limit</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">Dict</span><span class="p">]:</span> <span class="o">...</span>
 </code></pre></div>
-<p>evaluates <code>len(r) &gt; 0</code> on the actual list. Two-arg form
-<code>@post(lambda r, args: ...)</code> already exists and continues to work.</p>
+<p>evaluates <code>len(r) &gt; 0</code> on the actual list. Two-arg form <code>@post(lambda r, args: ...)</code> already exists and continues to work.</p>
 <p><strong>Concrete edits:</strong></p>
 <ul>
-<li>ContractAgent's postcondition evaluation site reads <code>raw_result</code> from
-  the ACTION event metadata (which already preserves it via
-  <code>react.py:472</code> — <code>"raw_result": raw_result</code>) instead of the OBSERVATION
-  event's <code>content</code>.</li>
-<li>Document that <code>@post</code> predicates see the typed return value, not its
-  string render.</li>
-<li>Add a test asserting the predicate receives the actual type.</li>
+<li>
+<p>ContractAgent's postcondition evaluation site reads <code>raw_result</code> from the ACTION event metadata (which already preserves it via <code>react.py:472</code> — <code>"raw_result": raw_result</code>) instead of the OBSERVATION event's <code>content</code>.</p>
+</li>
+<li>
+<p>Document that <code>@post</code> predicates see the typed return value, not its string render.</p>
+</li>
+<li>
+<p>Add a test asserting the predicate receives the actual type.</p>
+</li>
 </ul>
-<p><strong>Blast radius:</strong> low. Touches contract.py's postcondition check and a
-small section of ContractAgent's stream loop. Estimated effort: half a
-day. Pairs naturally with Proposal #9 (typed observation rendering) but
-doesn't depend on it.</p>
+<p><strong>Blast radius:</strong> low. Touches contract.py's postcondition check and a small section of ContractAgent's stream loop. Estimated effort: half a day. Pairs naturally with Proposal #9 (typed observation rendering) but doesn't depend on it.</p>
 <h3 id="step-3-list-form-agent-level-callbacks">Step 3 — List-form agent-level callbacks<a class="headerlink" href="#step-3-list-form-agent-level-callbacks" title="Permanent link">&para;</a></h3>
-<p><strong>Scope:</strong> API addition. The current <code>ContractAgent.__init__</code> takes
-single callables:</p>
+<p><strong>Scope:</strong> API addition. The current <code>ContractAgent.__init__</code> takes single callables:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">ContractAgent</span><span class="p">(</span><span class="n">llm</span><span class="o">=...</span><span class="p">,</span> <span class="n">tools</span><span class="o">=</span><span class="p">[</span><span class="o">...</span><span class="p">],</span> <span class="n">iteration_invariant</span><span class="o">=</span><span class="k">lambda</span> <span class="n">s</span><span class="p">:</span> <span class="n">s</span><span class="o">.</span><span class="n">errors</span> <span class="o">&lt;</span> <span class="mi">3</span><span class="p">)</span>
 </code></pre></div>
-<p>The model of "one big lambda" forces users to AND-compose unrelated
-invariants by hand. Accept lists instead — each entry checked
-independently, each violation surfaces as its own event:</p>
+<p>The model of "one big lambda" forces users to AND-compose unrelated invariants by hand. Accept lists instead — each entry checked independently, each violation surfaces as its own event:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">ContractAgent</span><span class="p">(</span>
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>    <span class="n">llm</span><span class="o">=...</span><span class="p">,</span> <span class="n">tools</span><span class="o">=</span><span class="p">[</span><span class="o">...</span><span class="p">],</span>
 <a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>    <span class="n">iteration_invariants</span><span class="o">=</span><span class="p">[</span>
@@ -1824,33 +1791,27 @@ independently, each violation surfaces as its own event:</p>
 <a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a>    <span class="p">],</span>
 <a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a><span class="p">)</span>
 </code></pre></div>
-<p><strong>Backwards-compat.</strong> Singular forms (<code>iteration_invariant=</code>) still
-accepted; auto-wrapped into a single-element list. Document the plural
-forms as preferred and deprecate (not remove) the singular forms in a
-future minor version.</p>
+<p><strong>Backwards-compat.</strong> Singular forms (<code>iteration_invariant=</code>) still accepted; auto-wrapped into a single-element list. Document the plural forms as preferred and deprecate (not remove) the singular forms in a future minor version.</p>
 <p><strong>Concrete edits:</strong></p>
 <ul>
-<li>Add <code>iteration_invariants: Optional[List[Callable]]</code>,
-  <code>answer_postconditions: Optional[List[Callable]]</code>,
-  <code>task_preconditions: Optional[List[Callable]]</code> to <code>ContractAgent.__init__</code>.</li>
-<li>Normalize: if singular form passed, wrap in list. If both passed,
-  raise <code>ValueError</code>.</li>
-<li>The <code>_check_*</code> methods loop over the list, calling violation handler
-  per-failure (governed by the policy as today).</li>
-<li>Update the module docstring's Agent-Level Contracts example.</li>
+<li>
+<p>Add <code>iteration_invariants: Optional[List[Callable]]</code>, <code>answer_postconditions: Optional[List[Callable]]</code>, <code>task_preconditions: Optional[List[Callable]]</code> to <code>ContractAgent.__init__</code>.</p>
+</li>
+<li>
+<p>Normalize: if singular form passed, wrap in list. If both passed, raise <code>ValueError</code>.</p>
+</li>
+<li>
+<p>The <code>_check_*</code> methods loop over the list, calling violation handler per-failure (governed by the policy as today).</p>
+</li>
+<li>
+<p>Update the module docstring's Agent-Level Contracts example.</p>
+</li>
 </ul>
-<p><strong>Blast radius:</strong> low. Strict superset of current API. Estimated effort:
-half a day.</p>
+<p><strong>Blast radius:</strong> low. Strict superset of current API. Estimated effort: half a day.</p>
 <h3 id="step-4-surface-contract-violations-as-agentevents">Step 4 — Surface contract violations as <code>AgentEvent</code>s<a class="headerlink" href="#step-4-surface-contract-violations-as-agentevents" title="Permanent link">&para;</a></h3>
-<p><strong>Scope:</strong> make violations observable on the event stream, not just on
-loggers and exceptions.</p>
-<p><strong>Today's behavior.</strong> A violation under ENFORCE raises <code>ContractTermination</code>.
-A violation under OBSERVE calls the violation handler (typically a
-logger). Neither emits anything on the agent's event stream. So a
-monitoring UI that subscribes to <code>agent.stream(...)</code> has no way to know
-contracts ran, let alone whether they passed.</p>
-<p><strong>Target behavior.</strong> Emit <code>EventType.CONTRACT_VIOLATION</code> (and optionally
-<code>CONTRACT_PASS</code> under OBSERVE) on every check:</p>
+<p><strong>Scope:</strong> make violations observable on the event stream, not just on loggers and exceptions.</p>
+<p><strong>Today's behavior.</strong> A violation under ENFORCE raises <code>ContractTermination</code>. A violation under OBSERVE calls the violation handler (typically a logger). Neither emits anything on the agent's event stream. So a monitoring UI that subscribes to <code>agent.stream(...)</code> has no way to know contracts ran, let alone whether they passed.</p>
+<p><strong>Target behavior.</strong> Emit <code>EventType.CONTRACT_VIOLATION</code> (and optionally <code>CONTRACT_PASS</code> under OBSERVE) on every check:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">yield</span> <span class="n">AgentEvent</span><span class="p">(</span>
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>    <span class="nb">type</span><span class="o">=</span><span class="n">EventType</span><span class="o">.</span><span class="n">CONTRACT_VIOLATION</span><span class="p">,</span>
 <a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>    <span class="n">content</span><span class="o">=</span><span class="n">violation</span><span class="o">.</span><span class="n">message</span><span class="p">,</span>
@@ -1865,36 +1826,41 @@ contracts ran, let alone whether they passed.</p>
 </code></pre></div>
 <p><strong>Why this matters.</strong> Three concrete unlocks:</p>
 <ol>
-<li><strong>OBSERVE policy becomes useful in production</strong>, not just debugging.
-   Today OBSERVE logs and continues — but logs are out-of-band. With
-   events on the stream, an observer can react in real time.</li>
-<li><strong>Monitoring UIs can show contract state</strong> alongside thoughts and
-   actions, making the agent's reasoning auditable.</li>
-<li><strong>Test assertions become natural</strong> — <code>assert any(e.type == CONTRACT_VIOLATION for e in events)</code> rather than introspecting agent metrics.</li>
+<li>
+<p><strong>OBSERVE policy becomes useful in production</strong>, not just debugging. Today OBSERVE logs and continues — but logs are out-of-band. With events on the stream, an observer can react in real time.</p>
+</li>
+<li>
+<p><strong>Monitoring UIs can show contract state</strong> alongside thoughts and actions, making the agent's reasoning auditable.</p>
+</li>
+<li>
+<p><strong>Test assertions become natural</strong> — <code>assert any(e.type == CONTRACT_VIOLATION for e in events)</code> rather than introspecting agent metrics.</p>
+</li>
 </ol>
 <p><strong>Concrete edits:</strong></p>
 <ul>
-<li>Add <code>EventType.CONTRACT_VIOLATION</code> (and <code>CONTRACT_PASS</code>) to <code>types.py</code>.</li>
-<li>Each <code>_check_*</code> site in contract.py yields the event before applying
-  policy.</li>
-<li>Update the EventType docstring with the new variant.</li>
-<li>AsyncAgent wrappers in <code>async_agent.py</code> need no changes — they
-  pass-through unknown event types.</li>
-<li>Existing consumers that ignore unknown event types are unaffected.</li>
-<li>ACP/integrations layer needs an event-type map update; verify no
-  hardcoded list of event types exists in serialization code.</li>
+<li>
+<p>Add <code>EventType.CONTRACT_VIOLATION</code> (and <code>CONTRACT_PASS</code>) to <code>types.py</code>.</p>
+</li>
+<li>
+<p>Each <code>_check_*</code> site in contract.py yields the event before applying policy.</p>
+</li>
+<li>
+<p>Update the EventType docstring with the new variant.</p>
+</li>
+<li>
+<p>AsyncAgent wrappers in <code>async_agent.py</code> need no changes — they pass-through unknown event types.</p>
+</li>
+<li>
+<p>Existing consumers that ignore unknown event types are unaffected.</p>
+</li>
+<li>
+<p>ACP/integrations layer needs an event-type map update; verify no hardcoded list of event types exists in serialization code.</p>
+</li>
 </ul>
-<p><strong>Blast radius:</strong> medium. New event type ripples through three agent
-loops (ReAct, Constrained, Contract), async wrappers, and any consumer
-that exhaustively-matches on <code>EventType</code>. Estimated effort: one day.</p>
+<p><strong>Blast radius:</strong> medium. New event type ripples through three agent loops (ReAct, Constrained, Contract), async wrappers, and any consumer that exhaustively-matches on <code>EventType</code>. Estimated effort: one day.</p>
 <h3 id="step-5-make-iterationstate-actually-useful">Step 5 — Make <code>IterationState</code> actually useful<a class="headerlink" href="#step-5-make-iterationstate-actually-useful" title="Permanent link">&para;</a></h3>
-<p><strong>Scope:</strong> expand the state object that <code>iteration_invariant</code> predicates
-receive.</p>
-<p><strong>Today's <code>IterationState</code></strong> (<code>contract.py:1175-1197</code>) tracks counters
-only: <code>iteration</code>, <code>errors</code>, <code>tool_calls</code>. Predicates can't express
-"stop if last observation hasn't changed in 3 iterations" or "stop if
-context size exceeds 4000 tokens" — both of which are exactly the kind
-of stateful invariant that justifies ContractAgent's existence.</p>
+<p><strong>Scope:</strong> expand the state object that <code>iteration_invariant</code> predicates receive.</p>
+<p><strong>Today's <code>IterationState</code></strong> (<code>contract.py:1175-1197</code>) tracks counters only: <code>iteration</code>, <code>errors</code>, <code>tool_calls</code>. Predicates can't express "stop if last observation hasn't changed in 3 iterations" or "stop if context size exceeds 4000 tokens" — both of which are exactly the kind of stateful invariant that justifies ContractAgent's existence.</p>
 <p><strong>Target shape:</strong></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nd">@dataclass</span>
 <a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="k">class</span><span class="w"> </span><span class="nc">IterationState</span><span class="p">:</span>
@@ -1911,33 +1877,43 @@ of stateful invariant that justifies ContractAgent's existence.</p>
 </code></pre></div>
 <p><strong>Concrete edits:</strong></p>
 <ul>
-<li>Extend the <code>IterationState</code> dataclass in <code>contract.py</code>.</li>
-<li>Fill the new fields in <code>ContractAgent._update_iteration_state</code> (or
-  equivalent — the method that runs per-iteration in the stream loop).</li>
-<li>Document each new field.</li>
-<li>Cap <code>observations_so_far</code> to avoid unbounded memory growth.</li>
+<li>
+<p>Extend the <code>IterationState</code> dataclass in <code>contract.py</code>.</p>
+</li>
+<li>
+<p>Fill the new fields in <code>ContractAgent._update_iteration_state</code> (or equivalent — the method that runs per-iteration in the stream loop).</p>
+</li>
+<li>
+<p>Document each new field.</p>
+</li>
+<li>
+<p>Cap <code>observations_so_far</code> to avoid unbounded memory growth.</p>
+</li>
 </ul>
-<p><strong>Blast radius:</strong> low. Strict additive change to the dataclass. Estimated
-effort: half a day. Pairs naturally with Step 3 — list-form invariants
-plus richer state turn <code>iteration_invariants</code> into a real composition
-surface.</p>
+<p><strong>Blast radius:</strong> low. Strict additive change to the dataclass. Estimated effort: half a day. Pairs naturally with Step 3 — list-form invariants plus richer state turn <code>iteration_invariants</code> into a real composition surface.</p>
 <h3 id="step-6-recipes-doc">Step 6 — Recipes doc<a class="headerlink" href="#step-6-recipes-doc" title="Permanent link">&para;</a></h3>
-<p><strong>Scope:</strong> new file <code>docs/agents/contracts.md</code> (or section in existing
-agents docs). Six concrete recipes, ~10 lines of code + 2-3 sentences
-each:</p>
+<p><strong>Scope:</strong> new file <code>docs/agents/contracts.md</code> (or section in existing agents docs). Six concrete recipes, ~10 lines of code + 2-3 sentences each:</p>
 <ol>
-<li><strong>Cross-field precondition</strong> — <code>@pre(lambda a: a['end'] &gt; a['start'])</code></li>
-<li><strong>State-dependent precondition</strong> — <code>@pre(lambda a: db.is_open())</code>
-   with closure over the db handle</li>
-<li><strong>Behavioral postcondition</strong> — <code>@post(lambda r: r == sorted(r))</code></li>
-<li><strong>Cost-cap invariant</strong> — <code>iteration_invariants=[lambda s: s.cost &lt; 1.0]</code>
-   composed with a cost-tracking handler</li>
-<li><strong>Answer-content postcondition</strong> — <code>answer_postconditions=[lambda a: required_entity in a]</code></li>
-<li><strong>No-PII postcondition</strong> — <code>@post(lambda r: not detects_pii(r))</code></li>
+<li>
+<p><strong>Cross-field precondition</strong> — <code>@pre(lambda a: a['end'] &gt; a['start'])</code></p>
+</li>
+<li>
+<p><strong>State-dependent precondition</strong> — <code>@pre(lambda a: db.is_open())</code> with closure over the db handle</p>
+</li>
+<li>
+<p><strong>Behavioral postcondition</strong> — <code>@post(lambda r: r == sorted(r))</code></p>
+</li>
+<li>
+<p><strong>Cost-cap invariant</strong> — <code>iteration_invariants=[lambda s: s.cost &lt; 1.0]</code> composed with a cost-tracking handler</p>
+</li>
+<li>
+<p><strong>Answer-content postcondition</strong> — <code>answer_postconditions=[lambda a: required_entity in a]</code></p>
+</li>
+<li>
+<p><strong>No-PII postcondition</strong> — <code>@post(lambda r: not detects_pii(r))</code></p>
+</li>
 </ol>
-<p>Each recipe links to the relevant API in <code>cyllama.agents</code> and explicitly
-says "this is not expressible in JSON Schema — that's why contracts
-exist".</p>
+<p>Each recipe links to the relevant API in <code>cyllama.agents</code> and explicitly says "this is not expressible in JSON Schema — that's why contracts exist".</p>
 <p><strong>Blast radius:</strong> zero (new doc file). Estimated effort: half a day.</p>
 <h2 id="4-total-scope-and-sequencing">4. Total scope and sequencing<a class="headerlink" href="#4-total-scope-and-sequencing" title="Permanent link">&para;</a></h2>
 <table>
@@ -1988,77 +1964,61 @@ exist".</p>
 </tr>
 </tbody>
 </table>
-<p>Total: ~2.5 days for the full landing. Natural sequence: 1 → 3 → 6
-(minimum) → 2 → 5 → 4 (full).</p>
-<p><strong>Minimum-viable subset (1 + 3 + 6, ~1 day):</strong> docs reframe + list-form
-callbacks + recipes. Does not add new capability; repositions existing
-capability so users find the parts that aren't redundant. Lowest-risk
-way to test whether the repositioning lands. Steps 2, 4, 5 add real new
-capability and can wait for pull.</p>
+<p>Total: ~2.5 days for the full landing. Natural sequence: 1 → 3 → 6 (minimum) → 2 → 5 → 4 (full).</p>
+<p><strong>Minimum-viable subset (1 + 3 + 6, ~1 day):</strong> docs reframe + list-form callbacks + recipes. Does not add new capability; repositions existing capability so users find the parts that aren't redundant. Lowest-risk way to test whether the repositioning lands. Steps 2, 4, 5 add real new capability and can wait for pull.</p>
 <h2 id="5-success-criteria">5. Success criteria<a class="headerlink" href="#5-success-criteria" title="Permanent link">&para;</a></h2>
-<p>After the full landing, the test is concrete: can a user articulate a
-constraint that ContractAgent expresses and <code>Annotated[]</code> doesn't?</p>
+<p>After the full landing, the test is concrete: can a user articulate a constraint that ContractAgent expresses and <code>Annotated[]</code> doesn't?</p>
 <p>After Step 1 + 6: yes, by reading the docs and recipes.</p>
 <p>After Step 2: yes, for any behavioral postcondition.</p>
-<p>After Step 3 + 5: yes, for any cross-iteration invariant that needs
-elapsed time, observation history, or prompt-size visibility.</p>
-<p>After Step 4: yes, for any agent that needs to <em>expose</em> its contracts
-to an observer — UIs, monitoring, audit logs.</p>
-<p>If after all six steps a reader still concludes ContractAgent is
-useless, the repositioning has failed and the agent should be retired,
-not patched. This document is the bet that the repositioning will land.</p>
+<p>After Step 3 + 5: yes, for any cross-iteration invariant that needs elapsed time, observation history, or prompt-size visibility.</p>
+<p>After Step 4: yes, for any agent that needs to <em>expose</em> its contracts to an observer — UIs, monitoring, audit logs.</p>
+<p>If after all six steps a reader still concludes ContractAgent is useless, the repositioning has failed and the agent should be retired, not patched. This document is the bet that the repositioning will land.</p>
 <h2 id="6-non-goals">6. Non-goals<a class="headerlink" href="#6-non-goals" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>Not subsuming schema.</strong> <code>Annotated[]</code> constraint markers remain the
-  canonical place for type/range/enum/pattern checks. Contracts do not
-  compete with schema; they fill the gaps schema cannot express.</li>
-<li><strong>Not adding a DSL.</strong> Predicates stay as plain Python callables. No
-  CEL, no JSONata, no "contract expression language". Python's
-  type-and-test ergonomics are sufficient; introducing a DSL would
-  reintroduce the cross-language coordination problem (predicates
-  invisible to JSON Schema, MCP, ACP) that this design accepts as a
-  constraint.</li>
-<li><strong>Not making contracts serializable across the wire.</strong> They are
-  Python-only and local to the agent process. If a use case demands
-  cross-process invariants, that's a different design problem (and
-  arguably belongs to MCP / ACP capabilities, not to ContractAgent).</li>
-<li><strong>Not deprecating the singular-form <code>iteration_invariant=</code> etc.</strong>
-  Backwards compatibility is preserved; the plural forms are additive.</li>
+<li>
+<p><strong>Not subsuming schema.</strong> <code>Annotated[]</code> constraint markers remain the canonical place for type/range/enum/pattern checks. Contracts do not compete with schema; they fill the gaps schema cannot express.</p>
+</li>
+<li>
+<p><strong>Not adding a DSL.</strong> Predicates stay as plain Python callables. No CEL, no JSONata, no "contract expression language". Python's type-and-test ergonomics are sufficient; introducing a DSL would reintroduce the cross-language coordination problem (predicates invisible to JSON Schema, MCP, ACP) that this design accepts as a constraint.</p>
+</li>
+<li>
+<p><strong>Not making contracts serializable across the wire.</strong> They are Python-only and local to the agent process. If a use case demands cross-process invariants, that's a different design problem (and arguably belongs to MCP / ACP capabilities, not to ContractAgent).</p>
+</li>
+<li>
+<p><strong>Not deprecating the singular-form <code>iteration_invariant=</code> etc.</strong> Backwards compatibility is preserved; the plural forms are additive.</p>
+</li>
 </ul>
 <h2 id="7-open-questions">7. Open questions<a class="headerlink" href="#7-open-questions" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>How should violation handlers see the <code>CONTRACT_VIOLATION</code> event?</strong>
-  Currently handlers receive a <code>ContractViolation</code> dataclass. Should
-  they also see the emitted <code>AgentEvent</code>? If yes, the handler signature
-  grows; if no, the event becomes the only source of truth and the
-  handler is just a side-effect site.</li>
-<li><strong>Per-iteration vs per-event invariant checking.</strong> Today
-  <code>iteration_invariant</code> fires once per iteration. Should it fire on
-  <em>every</em> event (with type filtering), giving users finer-grained
-  intervention points? Trade-off: latency vs flexibility. Leave at
-  per-iteration for v1; revisit if pull develops.</li>
-<li><strong>Cost tracking inside <code>IterationState</code>.</strong> Step 5 lists <code>cost</code> as a
-  recipe (#4) but doesn't list it as a built-in field. Cost is
-  user-defined (depends on the model, the API, the accounting policy)
-  so it should stay user-supplied via a closure, not built into the
-  state object. Document the recipe.</li>
+<li>
+<p><strong>How should violation handlers see the <code>CONTRACT_VIOLATION</code> event?</strong> Currently handlers receive a <code>ContractViolation</code> dataclass. Should they also see the emitted <code>AgentEvent</code>? If yes, the handler signature grows; if no, the event becomes the only source of truth and the handler is just a side-effect site.</p>
+</li>
+<li>
+<p><strong>Per-iteration vs per-event invariant checking.</strong> Today <code>iteration_invariant</code> fires once per iteration. Should it fire on <em>every</em> event (with type filtering), giving users finer-grained intervention points? Trade-off: latency vs flexibility. Leave at per-iteration for v1; revisit if pull develops.</p>
+</li>
+<li>
+<p><strong>Cost tracking inside <code>IterationState</code>.</strong> Step 5 lists <code>cost</code> as a recipe (#4) but doesn't list it as a built-in field. Cost is user-defined (depends on the model, the API, the accounting policy) so it should stay user-supplied via a closure, not built into the state object. Document the recipe.</p>
+</li>
 </ul>
 <h2 id="8-relationship-to-other-proposals">8. Relationship to other proposals<a class="headerlink" href="#8-relationship-to-other-proposals" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>Proposal #7 (tool-arg coercion)</strong>: landed. Subsumed most existing
-  <code>@pre</code> use cases. This document is the consequence.</li>
-<li><strong>Proposal #16 (Annotated[] markers)</strong>: landed. Same.</li>
-<li><strong>Proposal #9 (typed observation rendering)</strong>: pending. Step 2 above
-  benefits from this but doesn't require it — <code>raw_result</code> is already
-  preserved in event metadata.</li>
-<li><strong>Proposal #11 (real-inference grammar test)</strong>: landed. Established
-  the precedent for "verify before extend" that this document follows.</li>
-<li><strong>Proposal #15 (adversarial test suite)</strong>: pending. The contract
-  events from Step 4 should be exercised by the adversarial tests.</li>
+<li>
+<p><strong>Proposal #7 (tool-arg coercion)</strong>: landed. Subsumed most existing <code>@pre</code> use cases. This document is the consequence.</p>
+</li>
+<li>
+<p><strong>Proposal #16 (Annotated[] markers)</strong>: landed. Same.</p>
+</li>
+<li>
+<p><strong>Proposal #9 (typed observation rendering)</strong>: pending. Step 2 above benefits from this but doesn't require it — <code>raw_result</code> is already preserved in event metadata.</p>
+</li>
+<li>
+<p><strong>Proposal #11 (real-inference grammar test)</strong>: landed. Established the precedent for "verify before extend" that this document follows.</p>
+</li>
+<li>
+<p><strong>Proposal #15 (adversarial test suite)</strong>: pending. The contract events from Step 4 should be exercised by the adversarial tests.</p>
+</li>
 </ul>
-<p>This document supersedes the brief Proposal #17 entry in
-<code>AGENT_TOOL_REVIEW.md</code> (~lines 427-470). The review entry will be
-updated with a one-line pointer here once the work lands.</p>
+<p>This document supersedes the brief Proposal #17 entry in <code>AGENT_TOOL_REVIEW.md</code> (~lines 427-470). The review entry will be updated with a one-line pointer here once the work lands.</p>
 
 
 

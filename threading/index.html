@@ -1886,8 +1886,7 @@
 
 <h1 id="threading-and-concurrency-in-cyllama">Threading and concurrency in cyllama<a class="headerlink" href="#threading-and-concurrency-in-cyllama" title="Permanent link">&para;</a></h1>
 <blockquote>
-<p><strong>The rule:</strong> Always use one context per thread. Do not share the same context across threads.</p>
-<p>Applies to every <code>LLM</code>, <code>WhisperContext</code>, <code>SDContext</code>, and <code>Embedder</code> instance. cyllama enforces this at runtime for all four — sharing one across threads raises a clear <code>RuntimeError</code> instead of silently corrupting state.</p>
+<p><strong>The rule:</strong> Always use one context per thread. Do not share the same context across threads. &gt; &gt; Applies to every <code>LLM</code>, <code>WhisperContext</code>, <code>SDContext</code>, and <code>Embedder</code> instance. cyllama enforces this at runtime for all four — sharing one across threads raises a clear <code>RuntimeError</code> instead of silently corrupting state.</p>
 </blockquote>
 <p>This page is for users writing multi-threaded or async code with cyllama. It covers:</p>
 <ul>
