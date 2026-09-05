@@ -80,7 +80,7 @@ def chat(
 
 New package layout:
 
-```
+```text
 src/cyllama/mcp/
   __init__.py
   protocol.py      # MCP method dispatch over JSON-RPC (uses agents/jsonrpc.py)

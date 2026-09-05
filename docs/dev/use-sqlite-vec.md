@@ -50,7 +50,7 @@ instead owns a `vec0` **virtual table**.
 
 That matters because **SQLite forbids triggers on virtual tables**:
 
-```
+```text
 sqlite> CREATE TRIGGER t AFTER INSERT ON some_vec0_table BEGIN SELECT 1; END;
 Error: cannot create triggers on virtual tables
 ```
@@ -141,7 +141,7 @@ Four things bit during the port and are worth recording:
    it stores those columns as float32 — `vec_type()` reports `float32`
    and each element still occupies 4 bytes:
 
-   ```
+   ```text
    float   : stored=32B vec_type=float32 len=8
    float16 : stored=32B vec_type=float32 len=8
    ```

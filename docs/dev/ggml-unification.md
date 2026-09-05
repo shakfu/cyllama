@@ -81,7 +81,7 @@ This was sufficient for simple models (SDXL Turbo, 512x512). More complex models
 
 With the source sync in place, SDXL Turbo image generation worked perfectly. But FLUX-like models (`z_image_turbo`) with `--offload-to-cpu --vae-on-cpu` crashed with the same `ggml_are_same_layout` assertion:
 
-```
+```text
 ggml-backend.cpp:478: GGML_ASSERT(ggml_are_same_layout(src, dst)
     && "cannot copy tensors with different layouts") failed
 ```
@@ -92,7 +92,7 @@ The native `sd-cli` binary (statically linked, same ggml source after sync) work
 
 Instrumenting `ggml_backend_tensor_copy` to print tensor details before the assertion revealed:
 
-```
+```text
 src name=leaf_382 type=0 ne=[0,1,1,1]    nb=[4,10240,10240,10240]
 dst name=          type=0 ne=[2560,1,1,1] nb=[4,10240,10240,10240]
 ```

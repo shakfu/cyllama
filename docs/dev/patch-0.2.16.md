@@ -4,7 +4,7 @@
 
 On 0.2.16 (any backend variant — `cyllama-cuda12`, `cyllama-vulkan`, etc.), constructing an `SDContext` fails to register the GPU backend:
 
-```
+```text
 [ERROR] util.cpp:711  - No devices found!
 [WARN]  util.cpp:752  - loading CPU backend
 ...

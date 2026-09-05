@@ -76,7 +76,7 @@ The rest of this document sketches the consolidation. The sketch targets the **s
 
 ### Target shape
 
-```
+```text
 src/cyllama/
 ├── __init__.py
 ├── _core.cpython-312-x86_64-linux-gnu.so   ← single binary

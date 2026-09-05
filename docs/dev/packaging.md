@@ -40,7 +40,7 @@ If a future binding does need something from `common/`, re-add `llama-common` to
 
 ## Wheel repair command
 
-```
+```text
 delocate-wheel --require-archs <arch> -w <out-dir> -v <wheel.whl>
                --exclude libvulkan
                --exclude libMoltenVK

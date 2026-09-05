@@ -500,7 +500,8 @@ class CompiledWorkflow(Generic[StateT]):
 ### 7.2 Run
 
 Execution starts at `entry` and proceeds via a hybrid level-scheduled
-+ conditional-routed loop:
+
+- conditional-routed loop:
 
 ```python
 state = initial_state
@@ -602,7 +603,7 @@ class EventType(Enum):
 
 For each workflow run, the event sequence is:
 
-```
+```text
 WORKFLOW_START               metadata={"entry": "...", "initial_state": ...}
   NODE_START (entry)         metadata={"node": "...", "inputs": ...}
   ... (sub-agent events, if the node wraps an agent, with source + parent_event_id)
@@ -743,7 +744,7 @@ All names are added to `cyllama.agents.__init__.py` `__all__`.
 
 ## 12. File layout (as landed)
 
-```
+```text
 src/cyllama/agents/
   workflow.py            # main module (~2100 LoC across all five phases)
                          # includes the `reducer` namespace inline

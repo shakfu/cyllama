@@ -2,7 +2,7 @@
 
 ## Summary
 
-Local CUDA builds are unnecessarily slow to compile and produce bloated binaries because neither `GGML_NATIVE` nor `CMAKE_CUDA_ARCHITECTURES` is defaulted for local development.  This document describes the current behavior, the upstream constraints, and a concrete recommendation for sensible defaults.
+Local CUDA builds are unnecessarily slow to compile and produce bloated binaries because neither `GGML_NATIVE` nor `CMAKE_CUDA_ARCHITECTURES` is defaulted for local development. This document describes the current behavior, the upstream constraints, and a concrete recommendation for sensible defaults.
 
 ---
 
@@ -19,24 +19,24 @@ Local CUDA builds are unnecessarily slow to compile and produce bloated binaries
 
 The incompatibility between `GGML_NATIVE` and `GGML_BACKEND_DL` is enforced by ggml-cpu's cmake at `ggml/src/ggml-cpu/CMakeLists.txt:382`:
 
-```
+```text
 GGML_NATIVE is not compatible with GGML_BACKEND_DL, consider using
 GGML_CPU_ALL_VARIANTS
 ```
 
-This is a CPU-side constraint -- `GGML_NATIVE` enables compile-time ISA selection (`-march=native`), which conflicts with the runtime plugin loading model where each CPU variant is a separate `.so`.  The CUDA architecture selection (`CMAKE_CUDA_ARCHITECTURES=native`) has no such conflict.
+This is a CPU-side constraint -- `GGML_NATIVE` enables compile-time ISA selection (`-march=native`), which conflicts with the runtime plugin loading model where each CPU variant is a separate `.so`. The CUDA architecture selection (`CMAKE_CUDA_ARCHITECTURES=native`) has no such conflict.
 
 ### CMAKE_CUDA_ARCHITECTURES
 
-Pure passthrough from the environment.  Only set if the user explicitly provides it (`scripts/manage.py:964-966`).
+Pure passthrough from the environment. Only set if the user explicitly provides it (`scripts/manage.py:964-966`).
 
-If not set, ggml-cuda's own default logic applies (`build/llama.cpp/ggml/src/ggml-cuda/CMakeLists.txt:8-55`).  With CUDA 12.0 and `GGML_NATIVE` unset, this produces:
+If not set, ggml-cuda's own default logic applies (`build/llama.cpp/ggml/src/ggml-cuda/CMakeLists.txt:8-55`). With CUDA 12.0 and `GGML_NATIVE` unset, this produces:
 
-```
+```text
 50-virtual  61-virtual  70-virtual  75-virtual  80-virtual  86-real  89-real
 ```
 
-Seven architectures.  Each one roughly multiplies the compiled kernel code.
+Seven architectures. Each one roughly multiplies the compiled kernel code.
 
 ### Net effect on local builds
 
@@ -81,13 +81,13 @@ Measured on an RTX 4060 (sm_89) with CUDA 12.0, dynamic build, `SD_USE_VENDORED_
 
 ### Local builds: default to native
 
-**Static builds**: Default `GGML_NATIVE=ON` when the environment variable is not set.  This gives native CPU ISA optimization and `CMAKE_CUDA_ARCHITECTURES=native` in one flag.
+**Static builds**: Default `GGML_NATIVE=ON` when the environment variable is not set. This gives native CPU ISA optimization and `CMAKE_CUDA_ARCHITECTURES=native` in one flag.
 
-**Dynamic builds**: Cannot use `GGML_NATIVE` (BACKEND_DL conflict).  Instead, when CUDA is enabled and `CMAKE_CUDA_ARCHITECTURES` is not explicitly set, default it to `native`.  This targets only the installed GPU without triggering the CPU-side incompatibility.
+**Dynamic builds**: Cannot use `GGML_NATIVE` (BACKEND_DL conflict). Instead, when CUDA is enabled and `CMAKE_CUDA_ARCHITECTURES` is not explicitly set, default it to `native`. This targets only the installed GPU without triggering the CPU-side incompatibility.
 
 ### CI builds: no change needed
 
-CI already sets `GGML_NATIVE=OFF` and `CMAKE_CUDA_ARCHITECTURES="75"` explicitly.  These override any defaults.
+CI already sets `GGML_NATIVE=OFF` and `CMAKE_CUDA_ARCHITECTURES="75"` explicitly. These override any defaults.
 
 ### Implementation
 

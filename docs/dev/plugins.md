@@ -32,7 +32,7 @@ Because a plugin shares nothing with core at the ABI level, it can be built, ver
 
 ### The proven build recipe
 
-```
+```text
 -DBUILD_SHARED_LIBS=OFF                       # ggml -> static, baked into the .so
 -DOMNIVOICE_SHARED=ON                         # omnivoice itself -> shared (only ov_* visible)
 -DGGML_BACKEND_DL=OFF                          # backends linked in, not dlopen'd
@@ -60,7 +60,7 @@ Because a plugin shares nothing with core at the ABI level, it can be built, ver
 
 `cyllama-plugins` is the **repo/umbrella**, shipping **a wheel per plugin**, not one fat wheel. A single bundled wheel would force every user to download every model's native lib + its own ggml copy + every GPU variant just to get one modality — throwing away the main benefit (small, à la carte installs).
 
-```
+```text
 cyllama-plugins/                 # the repo
 ├─ shared/                       # the Phase-0 Builder recipe + CMake helpers, factored once
 ├─ plugins/

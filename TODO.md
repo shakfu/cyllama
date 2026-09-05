@@ -39,9 +39,13 @@ These are residual refinements documented under each pattern's "Gap" line in `do
 **Note:** every entry in this section should land in `inferna` too. The two projects share the agent layer byte-identical modulo namespace; refinements ported one-way only would drift the surfaces.
 
 - [ ] **Streaming sub-agent events across MCP** -- `mcp_agent_tool` returns a single value per call; streaming would require the MCP server-streaming RFC to stabilize.
+
 - [ ] **Streaming RAG results to the agent** -- `rag_as_tool` returns a single concatenated observation today.
+
 - [ ] **Filtered deletion in `SemanticMemory`** -- `forget()` raises `NotImplementedError` pending a RAG-side metadata-filtered delete API.
+
 - [ ] **Parallel critic ensembles in `ReflectionLoop`** -- multiple critics voting, reward-model-based acceptance.
+
 - [ ] **Unified streaming for `plan_and_execute` steps** -- one iterator surfacing events from all steps in sequence (e.g. an `aplan_and_execute` async-generator variant, or a `stream=True` flag on the existing helper). `cyllama-desktop`'s sidecar bypasses the wrapper today and reimplements the loop with `planner.stream()` / `executor.stream()` precisely to get incremental events flowing into its SSE channel; a streaming variant in cyllama would let that ~100 LoC of reimplementation go away. Trigger: the next consumer (after cyllama-desktop) that needs per-step events.
 
 - [ ] **`ReflectionLoop.stream()` per-attempt `source` labels.** Today `composition.py` sets `event.source = "worker"` / `"critic"` (role only -- see `_reflect_loop` in `composition.py`). Downstream consumers (cyllama-desktop today) want `worker-1` / `critic-1` / `worker-2` / etc. so the trace renderer can distinguish attempts. ~5 LoC change: `f"worker-{attempt + 1}"` in the source-tagging block. Same surface for ReflectionLoop's async variant if/when it lands. Trigger: a consumer wants per-attempt distinction (cyllama-desktop already does -- it currently reimplements the loop in the sidecar for this reason).

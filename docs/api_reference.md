@@ -1303,10 +1303,7 @@ if Speculative.is_compat(ctx_target):
 
 ## Server Implementations
 
-Three OpenAI-compatible server implementations, all exported from
-`cyllama.llama.server`. Note that the package-level `ServerConfig` is an alias
-for `PythonServerConfig` (the dataclass in `.python`), which the embedded server
-also takes; the subprocess launcher has its own `LauncherServerConfig`.
+Three OpenAI-compatible server implementations, all exported from `cyllama.llama.server`. Note that the package-level `ServerConfig` is an alias for `PythonServerConfig` (the dataclass in `.python`), which the embedded server also takes; the subprocess launcher has its own `LauncherServerConfig`.
 
 ### PythonServer
 
@@ -1339,9 +1336,7 @@ server.stop()
 
 ### EmbeddedServer
 
-High-performance in-process C server built on the Mongoose HTTP library. It is
-compiled as a Cython extension, so it is only importable when the wheel was
-built with it -- `cyllama.llama.server` swallows the `ImportError` otherwise.
+High-performance in-process C server built on the Mongoose HTTP library. It is compiled as a Cython extension, so it is only importable when the wheel was built with it -- `cyllama.llama.server` swallows the `ImportError` otherwise.
 
 ```python
 from cyllama.llama.server import EmbeddedServer, ServerConfig
@@ -1390,8 +1385,7 @@ if server.is_running():
 server.stop()
 ```
 
-There is also `start_server(model_path, **kwargs)` as a one-call shorthand, and
-`LlamaServerClient` for talking to a running server:
+There is also `start_server(model_path, **kwargs)` as a one-call shorthand, and `LlamaServerClient` for talking to a running server:
 
 ```python
 from cyllama.llama.server import LlamaServerClient
@@ -1405,10 +1399,7 @@ print(client.chat_completion([{"role": "user", "content": "Hello!"}]))
 
 ## Multimodal Support
 
-Vision- and audio-language models, via llama.cpp's `libmtmd`. The high-level
-classes live in `cyllama.llama.mtmd`; the underlying `MtmdContext`,
-`MtmdBitmap`, and `MtmdInputChunks` bindings are re-exported from the same
-package.
+Vision- and audio-language models, via llama.cpp's `libmtmd`. The high-level classes live in `cyllama.llama.mtmd`; the underlying `MtmdContext`, `MtmdBitmap`, and `MtmdInputChunks` bindings are re-exported from the same package.
 
 ```python
 from cyllama.llama.llama_cpp import LlamaModel
@@ -1430,8 +1421,7 @@ chunks = processor.process_image("What's in this image?", "image.jpg")
 chunks = processor.process_audio("Transcribe this", "audio.wav")
 ```
 
-For a full question-answer loop, `VisionLanguageChat` wraps the processor and a
-context and keeps conversation history:
+For a full question-answer loop, `VisionLanguageChat` wraps the processor and a context and keeps conversation history:
 
 ```python
 from cyllama.llama.mtmd import VisionLanguageChat
@@ -1443,9 +1433,7 @@ print(chat.continue_conversation("What colour is the car?"))
 chat.clear_history()
 ```
 
-`AudioProcessor` and `ImageAnalyzer` provide the equivalent task-specific
-helpers. All of them raise `UnsupportedModalityError` (a `MultimodalError`
-subclass) when the loaded model lacks the modality.
+`AudioProcessor` and `ImageAnalyzer` provide the equivalent task-specific helpers. All of them raise `UnsupportedModalityError` (a `MultimodalError` subclass) when the loaded model lacks the modality.
 
 ---
 
@@ -1675,6 +1663,7 @@ params.rng_type = RngType.CUDA
 Memory is controlled by two independent mechanisms, which together replace the removed `offload_params_to_cpu` / `keep_clip_on_cpu` / `keep_vae_on_cpu` / `keep_control_net_on_cpu` / `free_params_immediately` / `vae_decode_only` flags:
 
 - **Placement** -- `backend` assigns compute per module and `params_backend` assigns where the weights live (`cpu` and `disk` are valid targets for the latter). Both take either a bare target for every module (`"cuda0"`, `"cpu"`) or comma-separated per-module assignments (`"diffusion=cuda0,te=cpu"`). Module keys: `diffusion` (aliases `model`/`unet`/`dit`), `te` (aliases `clip`/`text`/`conditioner`/`llm`/`t5`), `vae`, `clip-vision`, `control-net`, `photomaker`, `upscaler`, `detector`. `params_backend = "te=cpu"` is the direct replacement for the old `keep_clip_on_cpu`.
+
 - **Budget** -- `max_vram` (a string: `"0"` disables offload, `"-1"` auto-sizes a GiB budget for graph-cut segmented param offload, or a GiB number / per-backend spec) caps how much of a *single graph* may be resident. It is a per-graph cap, not a placement: modules are budgeted independently and resident weights are not evicted between them, so on a card that cannot hold every module at once, place the text encoder with `params_backend` (or set `auto_fit = True`) rather than relying on the budget alone.
 
 `auto_fit = True` lets stable-diffusion.cpp derive both specs from the models and the available VRAM, which is the simplest option when a model set does not fit comfortably on one GPU.

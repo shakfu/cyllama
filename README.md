@@ -791,7 +791,7 @@ To build `cyllama` from source:
 
 3. We use [uv](https://github.com/astral-sh/uv) for package management:
 
-    If you don't have it see the link above to install it, otherwise:
+   If you don't have it see the link above to install it, otherwise:
 
     ```sh
     uv sync
@@ -799,10 +799,12 @@ To build `cyllama` from source:
 
 4. Type `make` in the terminal.
 
-    This will:
+   This will:
 
     1. Download and build `llama.cpp`, `whisper.cpp` and `stable-diffusion.cpp`
+
     2. Install them into the `thirdparty` folder
+
     3. Build `cyllama` using scikit-build-core + CMake
 
 ### Build Commands

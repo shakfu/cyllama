@@ -6,7 +6,7 @@ Status: sketch / parked until concrete model and data format exist
 
 Lab test pipeline: physical samples are tested, results are classified/interpreted by an ONNX model, then an LLM performs trend analysis and writes reports from the classified outputs.
 
-```
+```text
 ONNX model (classify) --> structured results --> LLM (analyze/report)
 ```
 

@@ -394,7 +394,9 @@ The extension comes from the `sqlite-vec` PyPI package by default; pass `extensi
 Differences from `SqliteVectorStore`:
 
 - No `dot` metric and no `uint8` vector type — `vec0` offers cosine/L2/L1 and float32/int8. (`vec0` parses a `float16` column type but stores it as float32 as of sqlite-vec 0.1.9, so the adapter doesn't offer it.)
+
 - No `quantize()` / `preload_quantization()`. A `vec0` table is either exhaustive or built with an ANN index at CREATE time; there is no runtime quantization step.
+
 - The on-disk format is different, so an existing `SqliteVectorStore` database has to be re-indexed rather than opened.
 
 For a full comparison — licensing, benchmarks, and what a default-backend swap would cost — see [`docs/dev/use-sqlite-vec.md`](dev/use-sqlite-vec.md).
@@ -452,7 +454,6 @@ import pgserver
 db = pgserver.get_server("/tmp/pgdata")
 store = PgVectorStore(dimension=384, dsn=db.get_uri())
 ```
-
 
 Sqlite-specific features (quantization, FTS5 `HybridStore`, raw `store.conn` access) stay on `SqliteVectorStore` and aren't part of the contract. Backends without a natural dedup mechanism may return `False` / `None` from `is_source_indexed` / `get_source_by_label` — the RAG layer treats that as "always re-index" and still behaves correctly, just less efficiently on repeated `add_documents` calls.
 

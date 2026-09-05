@@ -80,7 +80,7 @@ If delvewheel starts mangling the bundled DLL names (its default for non-system 
 
 To match the Linux-CUDA dynamic wheel exactly (shared ggml across llama/whisper/SD, `GGML_MAX_NAME=128`, single ggml copy), the config would be:
 
-```
+```text
 WITH_DYLIB=1
 SD_USE_VENDORED_GGML=0
 ```

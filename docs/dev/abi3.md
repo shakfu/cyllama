@@ -6,7 +6,7 @@
 
 cyllama currently builds a separate wheel for each supported Python version (3.10, 3.11, 3.12, 3.13, 3.14) x each platform x each GPU backend. Converting the extensions to use the CPython stable ABI (abi3 / limited API) collapses the Python-version axis: one wheel tagged `cp312-abi3-<plat>` works on CPython 3.12 and every newer version.
 
-Floor rationale (per https://cython.readthedocs.io/en/latest/src/userguide/limited_api.html):
+Floor rationale (per <https://cython.readthedocs.io/en/latest/src/userguide/limited_api.html>):
 
 - **3.10 fails to build**: `Py_buffer` and `PyBUF_*` entered the stable ABI only in 3.11 (PEP 688). Cython's auto-generated memoryview boilerplate references them, so a 3.10 floor fails to compile `whisper_cpp` and `stable_diffusion`.
 
@@ -79,7 +79,7 @@ python_add_library(${target_name} MODULE WITH_SOABI ${_SABI_ARGS}
 
 Do **not** hard-code `wheel.py-api` in `[tool.scikit-build]`, since that would force every wheel to be tagged abi3 regardless of how the code was compiled. Instead, the abi3 CI job sets it via environment variable:
 
-```
+```text
 SKBUILD_WHEEL_PY_API=cp312
 SKBUILD_CMAKE_DEFINE=CYLLAMA_ABI3=ON
 ```

@@ -4,7 +4,7 @@
 
 Vulkan wheels built from the `build-gpu-wheels.yml` workflow with `link_mode=dynamic` crash during stable-diffusion image generation with:
 
-```
+```text
 ggml/src/ggml-backend.cpp:478: GGML_ASSERT(ggml_are_same_layout(src, dst) &&
   "cannot copy tensors with different layouts") failed
 ```

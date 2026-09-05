@@ -27,7 +27,7 @@ Each fix was correct and each left the mechanism intact, so the next drift found
 
 Four places must agree on one number, and none of them can see the others:
 
-```
+```text
 scripts/manage.py  StableDiffusionCppBuilder.GGML_MAX_NAME = 160   # the pin
 scripts/manage.py  LlamaCppBuilder.build()        -> CMAKE_C/CXX_FLAGS
 scripts/manage.py  WhisperCppBuilder.build()      -> CMAKE_C/CXX_FLAGS   (added 0.4.1)
@@ -36,7 +36,7 @@ CMakeLists.txt:119 add_definitions(-DGGML_MAX_NAME=160)                  # Cytho
 
 and a fifth, upstream, is the actual source of truth:
 
-```
+```text
 build/stable-diffusion.cpp/CMakeLists.txt:318  add_definitions(-DGGML_MAX_NAME=160)
 ```
 
@@ -44,7 +44,7 @@ Add `_sync_ggml_abi()`, which deletes SD's vendored `ggml/` and copies llama.cpp
 
 The failure mode is the problem, not the line count. `GGML_MAX_NAME` sizes an inline `char[]` inside `struct ggml_tensor`; `extra` is the field immediately after it, and the last one. A disagreement moves `extra` past the end of the struct the library actually allocated, so a write to it lands on the following `ggml_object` header. There is no diagnostic — the headers are byte-identical, only the `-D` differs.
 
-```
+```text
 GGML_MAX_NAME=64   sizeof(ggml_tensor)=336  offsetof(extra)=320
 GGML_MAX_NAME=128  sizeof(ggml_tensor)=400  offsetof(extra)=384
 GGML_MAX_NAME=160  sizeof(ggml_tensor)=432  offsetof(extra)=416
@@ -88,7 +88,7 @@ Hand SD a ggml built at the default 64 and the build fails loudly on line 79, in
 
 ## Target shape
 
-```
+```text
                     ┌──────────────────┐
                     │   GgmlBuilder    │   one source tree, one configure,
                     │  (new component) │   one install, one set of flags

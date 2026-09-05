@@ -22,14 +22,14 @@ Verification.
 
 The only user-visible signal is a single line with an empty error string:
 
-```
+```text
 load_backend: loaded CPU backend from ...\cyllama_cuda12.libs\ggml-cpu-<hash>.dll
 load_backend: failed to load ...\cyllama_cuda12.libs\ggml-cuda.dll:
 ```
 
 and then:
 
-```
+```text
 $ cyllama info
   built:         CUDA
   registries:    CPU
@@ -54,7 +54,7 @@ offload thrashing an 8 GiB card.)
 `manage.py:2442-2453` builds the Windows repair command from
 `_WIN_INCLUDES` / `_WIN_EXCLUDES` (`manage.py:2211-2217`):
 
-```
+```text
 delvewheel repair -w {dest} --add-path <thirdparty dynamic dirs>
                   --include ggml-cuda.dll
                   --no-dll nvcuda.dll --no-dll cudart64_12.dll
@@ -102,7 +102,7 @@ for f in sorted(glob.glob(L + "/*.dll")) + sorted(glob.glob("cyllama/*/*.pyd")):
 
 Output:
 
-```
+```text
 ggml-<hash>.dll        imports ['ggml-base-b034757f8f3c9df6e6af5e38d8541643.dll']
 ggml-cpu-<hash>.dll    imports ['ggml-base-b034757f8f3c9df6e6af5e38d8541643.dll']
 llama-<hash>.dll       imports ['ggml-<hash>.dll', 'ggml-base-b034757f8f3c9df6e6af5e38d8541643.dll']
@@ -181,7 +181,7 @@ nothing further to check; `_WIN_INCLUDES` has no entry for them either.
 
 Built locally on the box described above:
 
-```
+```text
 CMAKE_CUDA_ARCHITECTURES=89 python scripts/manage.py wheel_build \
     --backend cuda --dynamic --abi3
 ```
@@ -196,7 +196,7 @@ from-source nvcc path rather than the `download_release()` fast path
 
 The repair now emits:
 
-```
+```text
 delvewheel repair -w dist --add-path thirdparty\llama.cpp\dynamic
                   --include ggml-cuda.dll
                   --no-dll nvcuda.dll --no-dll cudart64_12.dll
@@ -207,7 +207,7 @@ delvewheel repair -w dist --add-path thirdparty\llama.cpp\dynamic
 
 and the resulting wheel parses clean under the script above:
 
-```
+```text
 shipped: ggml-base.dll, ggml-cpu.dll, ggml-cuda.dll, ggml.dll, llama.dll,
          msvcp140-<hash>.dll, msvcp140_codecvt_ids-<hash>.dll, mtmd.dll,
          vcomp140-<hash>.dll
@@ -326,7 +326,7 @@ instances with two copies of ggml's static state; the process crashes at exit
 Four entry points constructed a `LlamaModel` with no preceding
 `ggml_backend_load_all()`, so llama.cpp refused to load into an empty registry:
 
-```
+```text
 $ cyllama embed -m models/bge-small-en-v1.5-q8_0.gguf -f tests/media/corpus1.txt ...
 llama_model_load_from_file_impl: no backends are loaded. hint: use ggml_backend_load()
 ValueError: Failed to load model from file: ...
