@@ -558,6 +558,61 @@ if(IS_LINUX)
     find_package(OpenMP)
     if(OpenMP_CXX_FOUND)
         list(APPEND SYSTEM_LIBS OpenMP::OpenMP_CXX)
+        message(STATUS "OpenMP: found")
+    else()
+        # Not finding OpenMP is only survivable if nothing we link needs
+        # it. When the prebuilt ggml archives were themselves compiled
+        # with OpenMP (GGML_OPENMP=ON, the upstream default), staying
+        # silent here produces extensions that link cleanly and then fail
+        # at import with "undefined symbol: omp_get_thread_num" -- the
+        # link leaves the omp_* / GOMP_* references undefined and adds no
+        # DT_NEEDED for libgomp. Nothing downstream can repair that:
+        # auditwheel rewrites existing DT_NEEDED entries but never adds a
+        # missing one, so the wheel is broken too.
+        #
+        # So probe what we are about to link and fail now, with the cause,
+        # rather than shipping an unimportable build. Only the static path
+        # is affected: in WITH_DYLIB mode the prebuilt ggml shared libs
+        # carry their own libgomp dependency and the extensions inherit it.
+        set(_ggml_needs_openmp FALSE)
+        if(NOT WITH_DYLIB AND LIB_GGML_CPU AND EXISTS "${LIB_GGML_CPU}")
+            find_program(NM_EXECUTABLE NAMES ${CMAKE_NM} nm llvm-nm)
+            if(NM_EXECUTABLE)
+                execute_process(
+                    COMMAND "${NM_EXECUTABLE}" -g --undefined-only "${LIB_GGML_CPU}"
+                    OUTPUT_VARIABLE _ggml_cpu_undefined
+                    ERROR_QUIET
+                    RESULT_VARIABLE _nm_result
+                )
+                if(_nm_result EQUAL 0
+                   AND _ggml_cpu_undefined MATCHES "(^|[ \t])(omp_|GOMP_)")
+                    set(_ggml_needs_openmp TRUE)
+                endif()
+            endif()
+        endif()
+
+        if(_ggml_needs_openmp)
+            get_filename_component(_cxx_name "${CMAKE_CXX_COMPILER}" NAME)
+            message(FATAL_ERROR
+                "OpenMP not found, but ${LIB_GGML_CPU} references OpenMP "
+                "symbols.\n"
+                "Linking would succeed and every entry point would then die at "
+                "'import cyllama' with 'undefined symbol: omp_get_thread_num'.\n"
+                "\n"
+                "CMake selected ${_cxx_name} (${CMAKE_CXX_COMPILER}); its OpenMP "
+                "runtime and headers are not installed. Either:\n"
+                "  - install them for that compiler "
+                "(clang: apt install libomp-dev; gcc: apt install libgomp1 and "
+                "the matching gcc), or\n"
+                "  - point CMake at a compiler that has them, e.g. "
+                "-DCMAKE_CXX_COMPILER=g++, or\n"
+                "  - rebuild the thirdparty libs without OpenMP "
+                "(GGML_OPENMP=OFF) so nothing requires it.\n"
+                "\n"
+                "The archives under ${LLAMACPP_LIB} were built with OpenMP, so "
+                "they and this extension must agree.")
+        endif()
+        message(STATUS "OpenMP: not found (nothing being linked requires it)")
     endif()
 endif()
 
