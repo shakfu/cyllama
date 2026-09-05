@@ -21,6 +21,14 @@ environment that already has cyllama in it.
 ``test`` takes one target -- ``test-all``, ``test-gen-all``, ``test-sd-3`` --
 named identically to the generated Makefile rules; ``list tests`` prints them.
 
+``run`` is ``install``, ``test`` and ``clean`` in one invocation, stopping at
+the first step that fails and taking the options of all three. It is the whole
+cycle for one backend, so a wheel can be checked on a machine that has nothing
+installed yet without three commands that must agree on which venv they mean.
+``--fast`` swaps ``test-all`` for ``test-gen-1``, ``test-gen-2`` and
+``test-sd-3`` -- the same shape of coverage without the image cases that
+dominate the wall clock, or the one case whose model may not be downloadable.
+
 The script is organised as a handful of collaborating objects rather than
 module state: :class:`Paths` resolves the directory layout, :class:`Env` owns
 the environment under test (venv, backend, subprocesses), :class:`ModelRegistry`
@@ -36,6 +44,11 @@ Examples:
     # --wheel is only for pinning a version or naming a local artifact
     python rwt.py install --cuda --wheel cyllama-cuda12==0.4.2
     python rwt.py install --vulkan --wheel dist/cyllama_vulkan-0.4.3-cp312-abi3-win_amd64.whl
+
+    # install, test everything, then remove the venv again -- one command
+    python rwt.py run --cuda
+    python rwt.py run --cuda --fast    # a short cycle instead of everything
+    python rwt.py run --vulkan test-sd-all --timeout 900
 
     # run everything, one family, or one case
     python rwt.py test --cuda test-all
@@ -696,6 +709,16 @@ class TestSuite:
     # fast-failing first, the multi-minute image cases last.
     FAMILY_ORDER: tuple[str, ...] = ("embed", "transcribe", "gen", "rag", "sd")
 
+    # What `run --fast` runs in place of `test-all`. The sd cases dominate the
+    # wall clock and mostly re-exercise the same three modules, so the third --
+    # cpu-offload plus flash-attn, the most machinery of the three -- stands in
+    # for all of them. gen-3 is left out rather than the family being named as a
+    # whole: `gemma-e4b` has no configured download source, so on a machine
+    # without that file already on disk the case is a skip, and a skip is rc=2 --
+    # which would stop the sequence before `clean` over a missing model rather
+    # than a bad wheel.
+    FAST_TARGETS: tuple[str, ...] = ("test-gen-1", "test-gen-2", "test-sd-3")
+
     # Human-readable section headings for the generated Makefile's help text.
     FAMILY_TITLES: dict[str, str] = {
         "embed": "Embedding",
@@ -718,8 +741,25 @@ class TestSuite:
         # Declared separately from FAMILY_ORDER so a family added to one and not
         # the other is caught here rather than silently skipped by `test-all`.
         assert tuple(self.families) == self.FAMILY_ORDER, "families must match FAMILY_ORDER"
+        # Same reasoning: a renamed case would otherwise turn `run --fast` into an
+        # argparse KeyError deep in the sequence, after the install step has run.
+        unknown = [t for t in self.FAST_TARGETS if t not in self.targets()]
+        assert not unknown, f"FAST_TARGETS names no such target: {unknown}"
 
     # -- stable diffusion ---------------------------------------------------
+
+    def sd_output(self, n: str) -> str:
+        """Filename the sd case `n` writes its image to.
+
+        The cases run with the project root as cwd, so their output lands there.
+        Named here rather than inline in each case so `clean` sweeps exactly the
+        files the suite produces instead of globbing the root for `*.png`.
+        """
+        return f"z_turbo_{n}.png"
+
+    def outputs(self) -> list[Path]:
+        """Every file the suite leaves in the project root."""
+        return [self.env.paths.root / self.sd_output(n) for n in sorted(self.families["sd"])]
 
     def sd_1(self, backend: str, timeout: float | None) -> int:
         """z_turbo te-on-cpu."""
@@ -759,7 +799,7 @@ class TestSuite:
                 "-W",
                 "512",
                 "-o",
-                "z_turbo_1.png",
+                self.sd_output("1"),
                 "-p",
                 "a lovely cat",
             ],
@@ -787,7 +827,7 @@ class TestSuite:
                 "-W",
                 "512",
                 "-o",
-                "z_turbo_2.png",
+                self.sd_output("2"),
                 "-p",
                 "a lovely cat",
             ],
@@ -818,7 +858,7 @@ class TestSuite:
                 "-W",
                 "512",
                 "-o",
-                "z_turbo_3.png",
+                self.sd_output("3"),
                 "-p",
                 "a lovely plump blue-eyed cat",
             ],
@@ -1072,6 +1112,8 @@ class MakefileRenderer:
         groups = [
             ["help", "sync", "info", "clean", "reset"],
             backends,
+            [f"run-{b}" for b in backends],
+            [f"run-{b}-fast" for b in backends],
             ["list-models", "list-tests", "download"],
             *family_targets.values(),
             ["test-all"],
@@ -1090,7 +1132,7 @@ class MakefileRenderer:
         add('\t@echo "  Setup:"')
         add('\t@echo "    sync         - uv sync dependencies"')
         add('\t@echo "    info         - show cyllama backend info"')
-        add('\t@echo "    clean        - remove .venv"')
+        add('\t@echo "    clean        - remove .venv and any test images"')
         add('\t@echo "    reset        - clean + sync"')
         for b in backends:
             dist = self.env.BACKENDS[b]
@@ -1112,6 +1154,12 @@ class MakefileRenderer:
             add(f'\t@echo "    {label:<{width}}- run all {fam} tests"')
 
         add('\t@echo ""')
+        add('\t@echo "  Full cycle (install + test-all + clean):"')
+        for b in backends:
+            add(f'\t@echo "    run-{b:<8} - install, test and clean the {b} backend"')
+        fast = ", ".join(self.suite.FAST_TARGETS)
+        add(f'\t@echo "    run-<backend>-fast - as above, but {fast} in place of test-all"')
+        add('\t@echo ""')
         add('\t@echo "    list         - list test targets and models"')
         add('\t@echo "    test-all     - run every test in every family"')
 
@@ -1121,6 +1169,9 @@ class MakefileRenderer:
         self.rule("reset", "reset")
         for b in backends:
             self.rule(b, f"install --{b}")
+        for b in backends:
+            self.rule(f"run-{b}", f"run --{b}")
+            self.rule(f"run-{b}-fast", f"run --{b} --fast")
         self.rule("list-models", "list models")
         self.rule("list-tests", "list tests")
         self.rule("download", "download all")
@@ -1199,6 +1250,12 @@ class Cli:
         if venv.exists():
             print(f"removing {venv}")
             shutil.rmtree(venv)
+        # The sd cases write their images into the project root, so a run leaves
+        # z_turbo_*.png behind for the next `git status` to report.
+        for out in self.suite.outputs():
+            if out.exists():
+                print(f"removing {out}")
+                out.unlink()
         return 0
 
     def cmd_reset(self, args: argparse.Namespace) -> int:
@@ -1361,6 +1418,64 @@ class Cli:
         print(f"{passed}/{len(results)} passed in {total:.1f}s")
         return worst
 
+    # -- run ----------------------------------------------------------------
+
+    def run_targets(self, args: argparse.Namespace) -> list[str]:
+        """The test targets one `run` invocation covers, in order."""
+        if not args.fast:
+            return [args.target or "test-all"]
+        if args.target is not None:
+            print(
+                f"error: --fast already names its targets ({', '.join(self.suite.FAST_TARGETS)});"
+                f" drop it to run '{args.target}' alone",
+                file=sys.stderr,
+            )
+            sys.exit(2)
+        return list(self.suite.FAST_TARGETS)
+
+    def cmd_run(self, args: argparse.Namespace) -> int:
+        """install -> test... -> clean, stopping at the first step that fails.
+
+        A failure leaves the venv in place rather than cleaning up after it: the
+        thing worth inspecting when a wheel fails is the environment it failed in,
+        and `clean` is one command away once it has been looked at.
+        """
+
+        def test_step(target: str) -> Callable[[argparse.Namespace], int]:
+            def step(a: argparse.Namespace) -> int:
+                a.target = target
+                return self.cmd_test(a)
+
+            return step
+
+        targets = self.run_targets(args)
+        steps: list[tuple[str, Callable[[argparse.Namespace], int]]] = [
+            ("install", self.cmd_install),
+            *((f"test {t}", test_step(t)) for t in targets),
+            ("clean", self.cmd_clean),
+        ]
+
+        if args.dry_run:
+            # `test --dry-run` promises to touch nothing, and `run` inherits that
+            # promise for the whole sequence: print the steps, run none of them.
+            where = f" --venv {self.env.venv}" if self.env.venv is not None else ""
+            for name, _ in steps:
+                verb, _, target = name.partition(" ")
+                print(f"would run: {SCRIPT_NAME} {verb}{where}{' ' + target if target else ''}")
+            print()
+            for _, step in steps[1 : 1 + len(targets)]:
+                step(args)
+            return 0
+
+        for i, (name, step) in enumerate(steps):
+            print(f"\n=== {name} ===")
+            rc = step(args)
+            if rc != 0:
+                skipped = ", ".join(n for n, _ in steps[i + 1 :])
+                print(f"\nerror: {name} failed (rc={rc}); skipping {skipped}", file=sys.stderr)
+                return rc
+        return 0
+
     # -- argparse -----------------------------------------------------------
 
     def common_parser(self) -> argparse.ArgumentParser:
@@ -1441,6 +1556,33 @@ class Cli:
         )
         return i
 
+    @staticmethod
+    def test_parser() -> argparse.ArgumentParser:
+        """Options that shape a test run; shared by `test` and `run`."""
+        t = argparse.ArgumentParser(add_help=False)
+        t.add_argument(
+            "--timeout",
+            type=float,
+            default=None,
+            help="per-test timeout in seconds (default: no timeout)",
+        )
+        t.add_argument(
+            "--fail-fast",
+            action="store_true",
+            help="stop at the first failing test instead of running the full matrix",
+        )
+        t.add_argument(
+            "--dry-run",
+            action="store_true",
+            help="print the test matrix without downloading or invoking anything",
+        )
+        t.add_argument(
+            "--no-color",
+            action="store_true",
+            help="disable colored PASS/FAIL output in the summary",
+        )
+        return t
+
     def build_parser(self) -> argparse.ArgumentParser:
         common = self.common_parser()
         p = argparse.ArgumentParser(
@@ -1461,7 +1603,9 @@ class Cli:
 
         sub.add_parser("info", help="show python/backend/models info").set_defaults(func=self.cmd_info)
         sub.add_parser("sync", help="uv sync project dependencies").set_defaults(func=self.cmd_sync)
-        sub.add_parser("clean", help="remove the .venv directory").set_defaults(func=self.cmd_clean)
+        sub.add_parser("clean", help="remove the venv and any images the sd tests left behind").set_defaults(
+            func=self.cmd_clean
+        )
         sub.add_parser("reset", help="clean + sync").set_defaults(func=self.cmd_reset)
 
         inst = sub.add_parser(
@@ -1496,36 +1640,38 @@ class Cli:
 
         # `test` takes one target name -- `test-sd-3` rather than `test sd 3`, so a
         # target is a single token and matches the Makefile rule of the same name.
-        t = sub.add_parser("test", help="run a test target (see `list tests`)")
+        t = sub.add_parser("test", parents=[self.test_parser()], help="run a test target (see `list tests`)")
         t.add_argument(
             "target",
             choices=list(self.suite.targets()),
             metavar="TARGET",
             help="one of the targets `list tests` prints, e.g. test-all, test-gen-1",
         )
-        t.add_argument(
-            "--timeout",
-            type=float,
-            default=None,
-            help="per-test timeout in seconds (default: no timeout)",
-        )
-        t.add_argument(
-            "--fail-fast",
-            action="store_true",
-            help="stop at the first failing test instead of running the full matrix",
-        )
-        t.add_argument(
-            "--dry-run",
-            action="store_true",
-            help="print the test matrix without downloading or invoking anything",
-        )
-        t.add_argument(
-            "--no-color",
-            action="store_true",
-            help="disable colored PASS/FAIL output in the summary",
-        )
-
         t.set_defaults(func=self.cmd_test)
+
+        # `run` is the whole cycle in one command, so a wheel can be checked out of
+        # a clean machine without three invocations that must agree on the backend.
+        r = sub.add_parser(
+            "run",
+            parents=[self.install_parser(), self.test_parser()],
+            help="install, test, then clean -- stopping at the first failure",
+        )
+        r.add_argument(
+            "target",
+            nargs="?",
+            default=None,
+            choices=list(self.suite.targets()),
+            metavar="[TARGET]",
+            help="the target to run (default: test-all)",
+        )
+        r.add_argument(
+            "--fast",
+            action="store_true",
+            help="the short cycle: run "
+            + ", ".join(self.suite.FAST_TARGETS)
+            + " in place of test-all, skipping the image cases that dominate the wall clock",
+        )
+        r.set_defaults(func=self.cmd_run)
 
         return p
 
