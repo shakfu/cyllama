@@ -46,7 +46,7 @@ jobs:
             runs-on: macos-latest
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Cache thirdparty deps
         id: cache-deps
@@ -68,7 +68,7 @@ jobs:
           evict-old-files: 1d
 
       - name: Build abi3 wheels
-        uses: pypa/cibuildwheel@v3.4.0
+        uses: pypa/cibuildwheel@v4.2.0
         env:
           CIBW_PLATFORM: ${{ matrix.platform || 'auto' }}
           CIBW_ARCHS: ${{ matrix.archs || 'auto' }}
@@ -333,7 +333,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Download collected abi3 wheels
         uses: actions/download-artifact@v8
