@@ -138,7 +138,7 @@ jobs:
             runs-on: windows-latest
 
     steps:
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python }}
           allow-prereleases: true

@@ -75,7 +75,7 @@ jobs:
           ls "$CUDA_PATH/lib/x64/" | head -20
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: '3.11'
 
@@ -163,7 +163,7 @@ jobs:
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         if: steps.check.outputs.skip != 'true'
         with:
           python-version: "3.12"

@@ -106,7 +106,7 @@ jobs:
           key: deps-abi3-cuda-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage.py', '.github/workflows/build-gpu-wheels-abi3.yml') }}
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: '3.11'
 
@@ -211,7 +211,7 @@ jobs:
           key: deps-abi3-rocm-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage.py', '.github/workflows/build-gpu-wheels-abi3.yml') }}
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: '3.11'
 
@@ -315,7 +315,7 @@ jobs:
           key: deps-abi3-sycl-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage.py', '.github/workflows/build-gpu-wheels-abi3.yml') }}
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: '3.11'
 
@@ -413,7 +413,7 @@ jobs:
           key: deps-abi3-vulkan-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage.py', '.github/workflows/build-gpu-wheels-abi3.yml') }}
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: '3.11'
 
@@ -527,7 +527,7 @@ jobs:
           ls "$CUDA_PATH/lib/x64/" | head -20
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: '3.11'
 
@@ -607,7 +607,7 @@ jobs:
           & "${VK_PATH}\Bin\glslc.exe" --version
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: '3.11'
 
@@ -680,7 +680,7 @@ jobs:
           ${SHADERC_BIN}/glslc --version
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: '3.11'
 
@@ -782,7 +782,7 @@ jobs:
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         if: steps.check.outputs.skip != 'true'
         with:
           python-version: "3.12"
