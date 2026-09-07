@@ -1163,6 +1163,10 @@ cdef class WhisperContext:
         # try to parse arbitrary garbage and may segfault before returning.
         validate_whisper_file(model_path, kind="whisper model")
 
+        # Concurrent-use guard, created before the context so close() never
+        # sees a live pointer with no lock. See _try_acquire_busy().
+        self._busy_lock = threading.Lock()
+
         model_path_bytes = model_path.encode('utf-8')
         self._c_ctx = wh.whisper_init_from_file_with_params(model_path_bytes, params._c_params)
 
@@ -1174,16 +1178,11 @@ cdef class WhisperContext:
                 "or insufficient memory."
             )
 
-        # Concurrent-use guard for the underlying whisper.cpp context.
-        # whisper_context is not thread-safe and full() / encode()
-        # release the GIL during native calls, so two threads racing on
-        # the same context corrupt internal state. We use a non-blocking
-        # lock acquired around each guarded method: legitimate sequential
-        # ownership transfer (asyncio.to_thread, ThreadPoolExecutor) keeps
-        # working, but real concurrent use raises a clear RuntimeError.
-        # __dealloc__ is intentionally NOT guarded because gc may run it
-        # on any thread.
-        self._busy_lock = threading.Lock()
+        # The busy lock (created above) is non-blocking: legitimate
+        # sequential ownership transfer (asyncio.to_thread,
+        # ThreadPoolExecutor) keeps working, but real concurrent use raises
+        # a clear RuntimeError. __dealloc__ is intentionally NOT guarded
+        # because gc may run it on any thread.
         self._cancel_flag = 0
 
     def _try_acquire_busy(self):
@@ -1235,10 +1234,30 @@ cdef class WhisperContext:
             self._c_ctx = NULL
 
     def close(self):
-        """Release the underlying whisper context immediately. Idempotent."""
-        if self._c_ctx != NULL:
-            wh.whisper_free(self._c_ctx)
-            self._c_ctx = NULL
+        """Release the underlying whisper context immediately. Idempotent.
+
+        ``__exit__`` propagates the contention error rather than swallowing
+        it: exiting while another thread is transcribing means the free is
+        unsafe, and skipping it silently would leak the context instead.
+
+        Takes ``_busy_lock`` first: freeing while another thread is inside
+        a GIL-released native call (``full``, ``encode``) would free a
+        pointer that call still holds, so contention raises rather than
+        frees. ``__dealloc__`` needs no such guard -- an in-flight call's
+        frame holds a reference, so refcounting already prevents it.
+
+        Raises:
+            RuntimeError: another thread is inside a guarded native call.
+        """
+        if self._c_ctx == NULL:
+            return
+        self._try_acquire_busy()
+        try:
+            if self._c_ctx != NULL:
+                wh.whisper_free(self._c_ctx)
+                self._c_ctx = NULL
+        finally:
+            self._busy_lock.release()
 
     def __enter__(self):
         return self
@@ -1375,28 +1394,50 @@ cdef class WhisperContext:
     def tokenize(self, str text, int max_tokens=512):
         """Tokenize ``text`` to a list of whisper token ids.
 
+        The buffer is sized automatically, so long inputs no longer fail.
+        whisper's tokenizer emits at most one token per input byte (every
+        match consumes at least one byte of a word, and words partition
+        the text), making ``len(text_bytes)`` a sufficient bound. The
+        grow-and-retry path below is a backstop in case that upstream
+        property ever changes.
+
         Args:
             text: Input string.
-            max_tokens: Buffer capacity. If the tokenizer needs more
-                tokens than this, the call raises ``RuntimeError`` with
-                the required size in the message; retry with a larger
-                ``max_tokens``.
+            max_tokens: Minimum buffer capacity. Retained for backward
+                compatibility; it no longer caps the result.
 
         Raises:
             MemoryError: token buffer allocation failed.
-            RuntimeError: ``max_tokens`` was too small (message reports
-                the required count).
         """
         cdef int n_tokens = 0
         cdef bytes text_bytes = text.encode('utf-8')
-        cdef wh.whisper_token * tokens = <wh.whisper_token *>malloc(max_tokens * sizeof(wh.whisper_token))
+        cdef int cap = len(text_bytes)
+        cdef int needed
+        cdef wh.whisper_token * grown
+        if max_tokens > cap:
+            cap = max_tokens
+        if cap < 1:
+            cap = 1
+        cdef wh.whisper_token * tokens = <wh.whisper_token *>malloc(cap * sizeof(wh.whisper_token))
         if tokens is NULL:
             raise MemoryError("Failed to allocate token buffer")
 
         try:
-            n_tokens = wh.whisper_tokenize(self._c_ctx, text_bytes, tokens, max_tokens)
+            n_tokens = wh.whisper_tokenize(self._c_ctx, text_bytes, tokens, cap)
+            # The C ABI returns -needed when the buffer is too small; grow
+            # and retry once with the size it asked for.
             if n_tokens < 0:
-                raise RuntimeError(f"Tokenization failed, need {-n_tokens} tokens but only {max_tokens} provided")
+                needed = -n_tokens
+                grown = <wh.whisper_token *>realloc(
+                    tokens, needed * sizeof(wh.whisper_token))
+                if grown is NULL:
+                    raise MemoryError("Failed to grow token buffer")
+                tokens = grown
+                n_tokens = wh.whisper_tokenize(self._c_ctx, text_bytes, tokens, needed)
+                if n_tokens < 0:
+                    raise RuntimeError(
+                        f"Tokenization failed: buffer of {needed} tokens still "
+                        f"too small (needs {-n_tokens})")
 
             result = []
             for i in range(n_tokens):

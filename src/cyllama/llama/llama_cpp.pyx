@@ -2116,7 +2116,9 @@ cdef class LlamaModel:
             self.ptr, path_lora.encode())
         if ptr is NULL:
             raise ValueError(f"Failed to load LoRA adapter from: {path_lora}")
-        return LlamaAdapterLora.from_ptr(ptr)
+        # Pass self so the adapter keeps this model alive: the model's
+        # destructor deletes every adapter registered to it.
+        return LlamaAdapterLora.from_ptr(ptr, False, self)
  
     # metadata
 
@@ -2391,6 +2393,12 @@ cdef class LlamaContext:
     cdef object _abort_callback
     cdef object _threadpool
     cdef object _threadpool_batch
+    # Adapters currently set on this context. The C side keeps only raw
+    # pointers, and an adapter is deleted with the model that loaded it,
+    # so holding the wrappers here (each of which holds its own model)
+    # keeps those pointers valid even for an adapter borrowed from a
+    # model other than self.model.
+    cdef object _lora_adapters
 
     def __cinit__(self):
         self.ptr = NULL
@@ -2816,6 +2824,98 @@ cdef class LlamaContext:
         if res == 0:
             raise ValueError("Failed to set sequence data")
 
+
+    # LoRA adapters
+    # -------------------------------------------------------------------------
+
+    def set_adapters_lora(self, adapters=()) -> None:
+        """Replace the set of LoRA adapters applied to this context.
+
+        This is set-semantics, not add-semantics: the call replaces whatever
+        was there, so passing an empty iterable clears all adapters. Model
+        weights are not modified.
+
+        Args:
+            adapters: iterable of ``(LlamaAdapterLora, scale)`` pairs, or a
+                mapping of adapter to scale. A scale of 0.0 drops the
+                adapter, matching llama.cpp.
+
+        Raises:
+            TypeError: an entry is not a ``(LlamaAdapterLora, float)`` pair.
+            ValueError: an adapter has already been released, or the same
+                adapter appears twice.
+            RuntimeError: llama.cpp rejected the set.
+        """
+        cdef list pairs
+        cdef Py_ssize_t n
+        cdef Py_ssize_t i
+        cdef llama.llama_adapter_lora ** ptrs = NULL
+        cdef float * scale_buf = NULL
+        cdef LlamaAdapterLora adapter
+        cdef int32_t res
+
+        if isinstance(adapters, dict):
+            pairs = list(adapters.items())
+        else:
+            pairs = list(adapters)
+
+        for i in range(len(pairs)):
+            try:
+                entry, scale = pairs[i]
+            except (TypeError, ValueError):
+                raise TypeError(
+                    f"adapters[{i}] must be a (LlamaAdapterLora, scale) pair, "
+                    f"got {pairs[i]!r}"
+                )
+            if not isinstance(entry, LlamaAdapterLora):
+                raise TypeError(
+                    f"adapters[{i}][0] must be a LlamaAdapterLora, "
+                    f"got {type(entry).__name__}"
+                )
+            adapter = <LlamaAdapterLora>entry
+            if adapter.ptr is NULL:
+                raise ValueError(f"adapters[{i}][0] has already been released")
+            pairs[i] = (entry, float(scale))
+
+        # llama.cpp stores adapters in a map keyed by pointer, so a repeat
+        # would silently drop one of the two scales.
+        if len({id(entry) for entry, _ in pairs}) != len(pairs):
+            raise ValueError("the same adapter was passed more than once")
+
+        n = len(pairs)
+        if n == 0:
+            # NULL is only legal when n_adapters is 0; llama.cpp asserts otherwise.
+            res = llama.llama_set_adapters_lora(self.ptr, NULL, 0, NULL)
+        else:
+            ptrs = <llama.llama_adapter_lora **>malloc(
+                n * sizeof(llama.llama_adapter_lora *))
+            scale_buf = <float *>malloc(n * sizeof(float))
+            if ptrs is NULL or scale_buf is NULL:
+                free(ptrs)
+                free(scale_buf)
+                raise MemoryError("Failed to allocate LoRA adapter arrays")
+            try:
+                for i in range(n):
+                    adapter = <LlamaAdapterLora>(pairs[i][0])
+                    ptrs[i] = adapter.ptr
+                    scale_buf[i] = pairs[i][1]
+                res = llama.llama_set_adapters_lora(
+                    self.ptr, ptrs, <size_t>n, scale_buf)
+            finally:
+                free(ptrs)
+                free(scale_buf)
+
+        if res != 0:
+            raise RuntimeError(f"failed to set LoRA adapters (rc={res})")
+
+        # Retain only after the call succeeds, so a rejected set does not
+        # change what this context claims to hold.
+        self._lora_adapters = [entry for entry, _ in pairs]
+
+    @property
+    def lora_adapters(self) -> list:
+        """Adapters currently set on this context, in the order given."""
+        return list(self._lora_adapters or ())
 
     # Decoding
     # -------------------------------------------------------------------------
@@ -3707,12 +3807,26 @@ cdef class LlamaSampler:
 
 
 cdef class LlamaAdapterLora:
+    """A LoRA adapter loaded against a :class:`LlamaModel`.
+
+    The adapter is owned by the model that loaded it: ``~llama_model``
+    deletes every adapter registered to it, so the pointer here dangles the
+    moment that model is freed. ``_model`` keeps the parent alive for as
+    long as any adapter borrowed from it, which makes the natural one-liner
+    ``LlamaModel(path).lora_adapter_init(lora)`` safe -- without it the
+    temporary model is collected on the same line and every accessor below
+    dereferences freed memory.
+    """
     cdef llama.llama_adapter_lora * ptr
     cdef bint owner
+    # Strong reference to the owning LlamaModel. Never None for adapters
+    # produced by LlamaModel.lora_adapter_init().
+    cdef readonly object model
 
     def __cinit__(self):
         self.ptr = NULL
         self.owner = False
+        self.model = None
 
     def __dealloc__(self):
         # De-allocate if not null and flag is set
@@ -3722,7 +3836,11 @@ cdef class LlamaAdapterLora:
 
     def close(self):
         """Release the underlying adapter immediately. Idempotent. No-op for
-        non-owning instances (which are freed by the owning model)."""
+        non-owning instances (which are freed by the owning model).
+
+        Adapters from :meth:`LlamaModel.lora_adapter_init` are model-owned,
+        so this is a no-op for them; drop the model to release the memory.
+        """
         if self.ptr is not NULL and self.owner is True:
             llama.llama_adapter_lora_free(self.ptr)
             self.ptr = NULL
@@ -3740,11 +3858,13 @@ cdef class LlamaAdapterLora:
         raise TypeError("This class cannot be instantiated directly.")
 
     @staticmethod
-    cdef LlamaAdapterLora from_ptr(llama.llama_adapter_lora *ptr, bint owner=False):
+    cdef LlamaAdapterLora from_ptr(llama.llama_adapter_lora *ptr, bint owner=False,
+                                   object model=None):
         # Fast call to __new__() that bypasses the __init__() constructor.
         cdef LlamaAdapterLora wrapper = LlamaAdapterLora.__new__(LlamaAdapterLora)
         wrapper.ptr = ptr
         wrapper.owner = owner
+        wrapper.model = model
         return wrapper
 
     # Functions to access the adapter's GGUF metadata scalar values
@@ -3782,6 +3902,28 @@ cdef class LlamaAdapterLora:
         if str_len == -1:
             raise ValueError("failed to retrieve metadata value")
         return buf.decode()
+
+    # aLoRA (activated LoRA) invocation sequence
+
+    @property
+    def n_alora_invocation_tokens(self) -> int:
+        """Length of the aLoRA invocation sequence; 0 for a plain LoRA."""
+        return llama.llama_adapter_get_alora_n_invocation_tokens(self.ptr)
+
+    @property
+    def alora_invocation_tokens(self) -> list[int]:
+        """Token sequence that activates this adapter, empty for a plain LoRA.
+
+        An aLoRA only takes effect once these tokens appear in the prompt.
+        """
+        cdef uint64_t n = llama.llama_adapter_get_alora_n_invocation_tokens(self.ptr)
+        cdef const llama.llama_token * toks
+        if n == 0:
+            return []
+        toks = llama.llama_adapter_get_alora_invocation_tokens(self.ptr)
+        if toks is NULL:
+            return []
+        return [toks[i] for i in range(n)]
 
 # -------------------------------------------------------------------------
 # functions

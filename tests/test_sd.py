@@ -825,6 +825,40 @@ class TestSDContextConcurrencyGuard:
         ctx._try_acquire_busy()
         ctx._busy_lock.release()
 
+    def test_close_while_busy_raises_and_keeps_context(self, sd_ctx_factory):
+        """close() must not free sd_ctx_t while another thread is inside a
+        GIL-released sampling call. Holding the busy-lock stands in for
+        that thread; close() must raise and leave the pointer intact so the
+        in-flight call still has valid memory."""
+        ctx = self._make_ctx(sd_ctx_factory)
+
+        assert ctx._busy_lock.acquire(blocking=False) is True
+        try:
+            with pytest.raises(RuntimeError, match="another thread"):
+                ctx.close()
+            assert ctx.is_valid
+        finally:
+            ctx._busy_lock.release()
+
+        # Once free, close() proceeds and is idempotent.
+        ctx.close()
+        assert not ctx.is_valid
+        ctx.close()
+
+    def test_exit_propagates_close_contention(self, sd_ctx_factory):
+        """__exit__ delegates to close(), so leaving a `with` block while
+        another thread is sampling raises rather than freeing."""
+        ctx = self._make_ctx(sd_ctx_factory)
+
+        assert ctx._busy_lock.acquire(blocking=False) is True
+        try:
+            with pytest.raises(RuntimeError, match="another thread"):
+                with ctx:
+                    pass
+            assert ctx.is_valid
+        finally:
+            ctx._busy_lock.release()
+
 
 class TestSDImageExtended:
     """Extended SDImage tests."""

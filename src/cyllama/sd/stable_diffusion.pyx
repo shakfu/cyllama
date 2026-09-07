@@ -2695,6 +2695,11 @@ cdef class SDContext:
             if value:
                 validate_model_file(value, kind=label)
 
+        # Concurrent-use guard, created before the context so close() never
+        # sees a live pointer with no lock. See _try_acquire_busy().
+        import threading
+        self._busy_lock = threading.Lock()
+
         self._params = params
         self._ctx = new_sd_ctx(&params._params)
         if self._ctx == NULL:
@@ -2705,10 +2710,6 @@ cdef class SDContext:
                 "version, mismatched companion files (VAE/CLIP/T5), insufficient memory, "
                 "or invalid weight type. Check stderr for details from stable-diffusion.cpp."
             )
-
-        # Initialize the concurrent-use guard. See _try_acquire_busy().
-        import threading
-        self._busy_lock = threading.Lock()
 
     @property
     def is_valid(self) -> bool:
@@ -3013,17 +3014,38 @@ cdef class SDContext:
         Equivalent to ``__exit__``: lets test code deterministically
         release Metal/CUDA working-set pressure between contexts without
         relying on GC timing (see ``docs/dev/test-cleanup.md``).
+
+        Takes ``_busy_lock`` first: freeing while another thread is inside
+        a GIL-released native sampling call would free a pointer that call
+        still holds, so contention raises rather than frees. ``__dealloc__``
+        needs no such guard -- an in-flight call's frame holds a reference,
+        so refcounting already prevents it.
+
+        Raises:
+            RuntimeError: another thread is inside a guarded native call.
         """
-        if self._ctx != NULL:
-            free_sd_ctx(self._ctx)
-            self._ctx = NULL
+        if self._ctx == NULL:
+            return
+        self._try_acquire_busy()
+        try:
+            if self._ctx != NULL:
+                free_sd_ctx(self._ctx)
+                self._ctx = NULL
+        finally:
+            self._busy_lock.release()
 
     def __enter__(self):
         """Context manager entry."""
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """Context manager exit - cleanup."""
+        """Context manager exit - cleanup.
+
+        Propagates ``close()``'s contention RuntimeError rather than
+        swallowing it: exiting the block while another thread is still
+        sampling means the free is unsafe, and silently skipping it would
+        leak the context instead.
+        """
         self.close()
         return False
 

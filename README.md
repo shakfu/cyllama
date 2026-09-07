@@ -642,6 +642,8 @@ models = list_cached_models()
 
 - [x] **Speculative Decoding** - 2-3x inference speedup with draft models
 
+- [x] **LoRA Adapters** - Apply adapters to a context (binding layer, see API reference)
+
 - [x] **Text-to-Speech** - `cyllama tts` and `cyllama.llama.tts`
 
 ### Speech Recognition (whisper.cpp)

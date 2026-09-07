@@ -88,19 +88,22 @@ class LlamaCLI:
 
         # Model parameters
         parser.add_argument("-m", "--model", type=str, required=True, help="model path")
-        parser.add_argument("--lora", type=str, default="", help="apply LoRA adapter (implies --no-mmap)")
+        parser.add_argument(
+            "--lora",
+            type=str,
+            action="append",
+            default=[],
+            metavar="PATH",
+            help="apply a LoRA adapter at scale 1.0 (repeat for multiple adapters)",
+        )
         parser.add_argument(
             "--lora-scaled",
             type=str,
+            action="append",
             nargs=2,
+            default=[],
             metavar=("PATH", "SCALE"),
-            help="apply LoRA adapter with user defined scaling S (implies --no-mmap)",
-        )
-        parser.add_argument(
-            "--lora-base",
-            type=str,
-            default="",
-            help="optional model to use as a base for the layers modified by the LoRA adapter",
+            help="apply a LoRA adapter with user defined scaling (repeat for multiple adapters)",
         )
 
         # Context parameters
@@ -367,7 +370,7 @@ class LlamaCLI:
             model_params.load_mode = cy.LLAMA_LOAD_MODE_MMAP
 
         # Load model
-        print("load the model and apply lora adapter, if any")
+        print("load the model")
         self.model = cy.LlamaModel(args.model, model_params)
         if self.model is None:
             print("error: unable to load model")
@@ -395,6 +398,14 @@ class LlamaCLI:
         # Create context
         self.ctx = cy.LlamaContext(self.model, ctx_params)
 
+        # Apply LoRA adapters, if any. Adapters attach to the context, not
+        # the model weights, so this has to follow context creation.
+        adapters = self._load_lora_adapters(args)
+        if adapters:
+            self.ctx.set_adapters_lora(adapters)
+            for adapter, scale in adapters:
+                print(f"applied lora adapter at scale {scale}")
+
         # Initialize sampler
         sampler_params = cy.LlamaSamplerChainParams()
         sampler_params.no_perf = args.no_perf
@@ -408,6 +419,25 @@ class LlamaCLI:
         print(
             f"generate: n_ctx = {self.ctx.n_ctx}, n_batch = {args.batch_size}, n_predict = {args.n_predict}, n_keep = {args.keep}"
         )
+
+    def _load_lora_adapters(self, args: argparse.Namespace) -> List[tuple[Any, float]]:
+        """Resolve --lora / --lora-scaled into (adapter, scale) pairs.
+
+        Both flags are repeatable and apply in the order given, --lora
+        entries first. Scales are parsed before any adapter file is read so
+        a typo fails immediately rather than after a slow load.
+        """
+        specs = [(path, 1.0) for path in args.lora]
+        for path, raw_scale in args.lora_scaled:
+            try:
+                scale = float(raw_scale)
+            except ValueError:
+                raise SystemExit(f"error: --lora-scaled scale must be a number, got {raw_scale!r}")
+            specs.append((path, scale))
+
+        # Runs after _load_model, which exits if the model failed to load.
+        model = cast(Any, self.model)
+        return [(model.lora_adapter_init(path), scale) for path, scale in specs]
 
     def _load_prompt(self, args: argparse.Namespace) -> str:
         """Load prompt from file or use provided prompt."""

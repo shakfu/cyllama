@@ -553,21 +553,14 @@ cdef extern from "llama.h":
 
     # The following functions operate on a llama_context, hence the naming: llama_verb_...
 
-    # Add a loaded LoRA adapter to given context
-    # This will not modify model's weight
-    cdef int32_t llama_set_adapter_lora(
+    # Set LoRa adapters on the context. Will only modify if the adapters
+    # currently in context are different. Replaces the whole set; pass
+    # n_adapters == 0 to clear. Adapters with a zero scale are dropped.
+    cdef int32_t llama_set_adapters_lora(
             llama_context * ctx,
-            llama_adapter_lora * adapter,
-            float scale)
-
-    # Remove a specific LoRA adapter from given context
-    # Return -1 if the adapter is not present in the context
-    cdef int32_t llama_rm_adapter_lora(
-            llama_context * ctx,
-            llama_adapter_lora * adapter)
-
-    # Remove all LoRA adapters from given context
-    cdef void llama_clear_adapter_lora(llama_context * ctx)
+            llama_adapter_lora ** adapters,
+            size_t n_adapters,
+            float * scales)
 
     # Apply a loaded control vector to a llama_context, or if data is NULL, clear
     # the currently loaded vector.
@@ -575,7 +568,7 @@ cdef extern from "llama.h":
     # to an n_embd x n_layers buffer starting from layer 1.
     # il_start and il_end are the layer range the vector should apply to (both inclusive)
     # See llama_control_vector_load in common to load a control vector.
-    cdef int32_t llama_apply_adapter_cvec(
+    cdef int32_t llama_set_adapter_cvec(
             llama_context * ctx,
                      const float * data,
                           size_t   len,

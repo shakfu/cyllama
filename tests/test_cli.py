@@ -352,6 +352,8 @@ def test_load_model_basic(cli: LlamaCLI, test_model_path, mocker: MockerFixture)
         no_perf=False,
         n_predict=-1,
         keep=0,
+        lora=[],
+        lora_scaled=[],
     )
 
     cli._load_model(args)

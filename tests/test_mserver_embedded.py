@@ -935,3 +935,43 @@ class TestEmbeddedServerLifecycle:
         # (no double-free or raise). This is the only observable post-exit
         # check since _running is cdef and not Python-accessible.
         server.stop()
+
+
+class TestServerEntryPointImports:
+    """`python -m cyllama.llama.server` selects the embedded server by
+    default, but its import sits inside `main()` under a bare
+    `except ImportError` that falls back to PythonServer. A wrong module
+    name there is therefore invisible: the CLI silently runs the wrong
+    server. These tests resolve the entry point's deferred imports
+    statically so a typo fails here instead."""
+
+    def _relative_imports(self):
+        import ast
+        import importlib.resources
+
+        src = importlib.resources.files("cyllama.llama.server").joinpath("__main__.py").read_text()
+        return [
+            node.module
+            for node in ast.walk(ast.parse(src))
+            if isinstance(node, ast.ImportFrom) and node.level == 1 and node.module
+        ]
+
+    def test_relative_imports_resolve(self):
+        """Every `from .X import ...` in __main__.py names a real module."""
+        import importlib
+
+        modules = self._relative_imports()
+        assert modules, "expected __main__.py to use relative imports"
+        for name in modules:
+            importlib.import_module(f"cyllama.llama.server.{name}")
+
+    def test_embedded_server_is_reachable(self):
+        """The embedded branch imports a real EmbeddedServer that accepts
+        the same ServerConfig the entry point builds."""
+        from cyllama.llama.server.embedded import EmbeddedServer
+
+        assert "embedded" in self._relative_imports()
+        server = EmbeddedServer(ServerConfig(model_path="test.gguf"))
+        assert hasattr(server, "start")
+        assert hasattr(server, "stop")
+        assert hasattr(server, "wait_for_shutdown")

@@ -35,7 +35,7 @@ def main() -> int:
 
     if args.server_type == "embedded":
         try:
-            from .mongoose_server import EmbeddedServer
+            from .embedded import EmbeddedServer
 
             print("Starting embedded server (high-performance C implementation)")
 

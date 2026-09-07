@@ -438,14 +438,18 @@ def test_whisper_tokenize_edge_cases(whisper_model_path):
     tokens = ctx.tokenize("")
     assert isinstance(tokens, list)
 
-    # Test very long string (should handle gracefully)
+    # Long text must tokenize at the default max_tokens: the wrapper sizes
+    # the buffer from the input rather than from the caller's hint, so the
+    # old "raise and tell the caller to retry bigger" path is gone.
     long_text = "hello " * 1000
-    try:
-        tokens = ctx.tokenize(long_text, max_tokens=2000)
-        assert isinstance(tokens, list)
-    except RuntimeError:
-        # Expected if text is too long for max_tokens
-        pass
+    tokens = ctx.tokenize(long_text)
+    assert isinstance(tokens, list)
+    assert len(tokens) > 512  # would have overflowed the old 512 default
+
+    # An explicit hint below the real requirement must not cap the result.
+    assert ctx.tokenize(long_text, max_tokens=1) == tokens
+    # An explicit hint above it is harmless.
+    assert ctx.tokenize(long_text, max_tokens=8000) == tokens
 
     # Test unicode text
     unicode_text = "Hello 世界"
@@ -606,6 +610,49 @@ class TestWhisperContextConcurrencyGuard:
         # Should not raise
         ctx._try_acquire_busy()
         ctx._busy_lock.release()
+
+    def test_close_while_busy_raises_and_keeps_context(self, whisper_model_path):
+        """close() must not free the context while another thread is
+        inside a GIL-released native call. Holding the busy-lock stands
+        in for that thread; close() must raise and leave the pointer
+        intact so the in-flight call still has valid memory."""
+        import gc
+
+        ctx = wh.WhisperContext(whisper_model_path)
+
+        assert ctx._busy_lock.acquire(blocking=False) is True
+        try:
+            with pytest.raises(RuntimeError, match="another thread"):
+                ctx.close()
+            # Pointer survived: a native accessor still works.
+            assert ctx.n_vocab() > 0
+        finally:
+            ctx._busy_lock.release()
+
+        # Once free, close() proceeds and is idempotent.
+        ctx.close()
+        ctx.close()
+
+        del ctx
+        gc.collect()
+
+    def test_exit_propagates_close_contention(self, whisper_model_path):
+        """__exit__ delegates to close(), so leaving a `with` block while
+        another thread is transcribing raises rather than freeing."""
+        import gc
+
+        ctx = wh.WhisperContext(whisper_model_path)
+        assert ctx._busy_lock.acquire(blocking=False) is True
+        try:
+            with pytest.raises(RuntimeError, match="another thread"):
+                with ctx:
+                    pass
+        finally:
+            ctx._busy_lock.release()
+
+        ctx.close()
+        del ctx
+        gc.collect()
 
 
 class TestWhisperCancellation:

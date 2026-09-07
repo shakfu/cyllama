@@ -1228,6 +1228,71 @@ cache.clear()
 
 ---
 
+### LoRA Adapters
+
+Apply LoRA adapters to a context. Adapters are a binding-layer feature: the
+high-level `LLM` does not expose them, because it recreates its context when a
+prompt needs a larger one and adapters would silently stop applying.
+
+```python
+from cyllama.llama.llama_cpp import LlamaModel, LlamaContext, LlamaContextParams
+
+model = LlamaModel("models/llama.gguf")
+
+# An adapter is owned by the model that loads it and stays valid for that
+# model's lifetime. The adapter holds a reference to its model, so the model
+# cannot be collected while any adapter borrowed from it is still alive.
+adapter = model.lora_adapter_init("models/adapter.gguf")
+
+ctx_params = LlamaContextParams()
+ctx_params.n_ctx = 2048
+ctx = LlamaContext(model, ctx_params)
+
+# Apply at scale 1.0. Model weights are not modified.
+ctx.set_adapters_lora([(adapter, 1.0)])
+
+# Several adapters at once, as pairs or as a mapping.
+second = model.lora_adapter_init("models/other.gguf")
+ctx.set_adapters_lora({adapter: 0.8, second: 0.5})
+
+# Empty clears every adapter.
+ctx.set_adapters_lora()
+```
+
+`set_adapters_lora()` replaces the whole set on each call rather than adding to
+it, matching the llama.cpp call it wraps. A scale of `0.0` drops an adapter.
+Passing the same adapter twice raises `ValueError`, because llama.cpp keys its
+set by pointer and would otherwise keep only one of the two scales.
+
+**Methods:**
+
+| Method | Description |
+|--------|-------------|
+| `LlamaModel.lora_adapter_init(path)` | Load an adapter against this model |
+| `LlamaContext.set_adapters_lora(adapters=())` | Replace the context's adapter set |
+| `LlamaContext.lora_adapters` | Adapters currently set, in the order given |
+| `LlamaAdapterLora.model` | The model that owns this adapter |
+| `LlamaAdapterLora.meta_count()` | Number of GGUF metadata key/value pairs |
+| `LlamaAdapterLora.meta_val_str(key)` | Metadata value by key name |
+| `LlamaAdapterLora.meta_key_by_index(i)` | Metadata key name by index |
+| `LlamaAdapterLora.meta_val_str_by_index(i)` | Metadata value by index |
+| `LlamaAdapterLora.n_alora_invocation_tokens` | Length of the aLoRA invocation sequence, 0 for a plain LoRA |
+| `LlamaAdapterLora.alora_invocation_tokens` | Token sequence that activates an aLoRA |
+
+An activated LoRA (aLoRA) only takes effect once its invocation tokens appear in
+the prompt. `alora_invocation_tokens` is empty for a plain LoRA.
+
+From the CLI, `--lora` and `--lora-scaled` do the same thing and are repeatable:
+
+```bash
+python -m cyllama.llama.cli -m models/llama.gguf \
+    --lora models/adapter.gguf \
+    --lora-scaled models/other.gguf 0.5 \
+    -p "Hello"
+```
+
+---
+
 ### Speculative Decoding
 
 Use draft model for 2-3x inference speedup.

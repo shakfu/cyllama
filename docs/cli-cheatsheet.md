@@ -674,9 +674,8 @@ python -m cyllama.llama.cli -m models/llama.gguf -i      # interactive mode
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
 | `-m, --model` | string | (required) | Path to GGUF model |
-| `--lora` | string | | LoRA adapter path (implies `--no-mmap`) |
-| `--lora-scaled` | PATH SCALE | | LoRA adapter with custom scaling |
-| `--lora-base` | string | | Base model for LoRA layers |
+| `--lora` | string | | LoRA adapter path, scale 1.0 (repeatable) |
+| `--lora-scaled` | PATH SCALE | | LoRA adapter with custom scaling (repeatable) |
 
 ### Context Parameters
 

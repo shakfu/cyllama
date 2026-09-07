@@ -22,9 +22,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+### Added
+
+- **`LlamaContext.set_adapters_lora()`** applies LoRA adapters to a context. It inherits the set-semantics of the llama.cpp call it wraps: a call replaces the whole set, an empty argument clears, a zero scale drops an adapter. A repeated adapter is rejected rather than silently resolved to one of its two scales. Available through the bindings and `llama/cli.py`; the high-level `LLM` does not expose LoRA yet.
+
+- **`LlamaAdapterLora.alora_invocation_tokens`** and `n_alora_invocation_tokens` expose the token sequence that activates an aLoRA. Empty for a plain LoRA.
+
+### Removed
+
+- **`--lora-base`** named the pre-adapter apply-to-weights path, which no longer exists upstream. It never had an effect; passing it now fails rather than being ignored.
+
 ### Fixed
 
-- **A missing OpenMP failed for the consumer, not the build** -- `find_package(OpenMP)` is optional on Linux and `OpenMP::OpenMP_CXX` was appended to `SYSTEM_LIBS` only `if(OpenMP_CXX_FOUND)`, with no message and no check on either branch. When the prebuilt ggml archives had been compiled with OpenMP (`GGML_OPENMP=ON`, upstream's default) but the extension's own configure could not detect it, the link still succeeded: the `omp_*` / `GOMP_*` references were left undefined and no `DT_NEEDED` for libgomp was emitted. The build, the wheel and the install all looked clean, and the error arrived at `import cyllama` as `undefined symbol: omp_get_thread_num`, taking every entry point and CLI subcommand with it -- the same shape as the missing-framework-header fix in `0.4.4`, where a warning stood in for a failure. Nothing downstream could have rescued it either: auditwheel rewrites existing `DT_NEEDED` entries but never adds a missing one, so `auditwheel repair` produced an equally broken wheel. Configuration now fails with the cause and three ways out (install the OpenMP runtime for the compiler CMake selected, point CMake at one that has it, or rebuild the thirdparty libs with `GGML_OPENMP=OFF`), and both branches log an `OpenMP:` status line so the state is visible in any build log. The check is narrow on purpose: it probes `libggml-cpu.a` with `nm` and fires only when that archive actually references OpenMP symbols, so an intentionally OpenMP-free build still configures, and it is skipped entirely under `WITH_DYLIB` -- there the prebuilt ggml shared libraries carry their own libgomp dependency and the extensions inherit it. Found on a host where CMake selected clang with no `libomp-dev` installed while the archives had been built with gcc (`OpenMP_CXX_FLAGS:STRING=NOTFOUND` in the cache, discoverable only by dumping it). Verified on all three paths: OpenMP present configures and logs `OpenMP: found`; OpenMP suppressed against the real archives fails with the diagnostic; OpenMP suppressed against an OpenMP-free archive configures and logs `OpenMP: not found (nothing being linked requires it)`.
+- **LoRA was inert** -- `--lora` and `--lora-scaled` parsed into variables no code read, and nothing bound the context-side adapter call, so an adapter could be loaded and its metadata read but never applied. The three functions the bindings declared for the job had been removed upstream in favour of one taking the whole adapter list, and linked only because nothing called them. Both flags now apply their adapters after context creation, and both are repeatable.
+
+  An adapter also did not retain the model that owns it, and a model's destructor deletes every adapter registered to it, so `LlamaModel(path).lora_adapter_init(lora)` read freed memory as soon as the temporary was collected. This stayed latent while there was nothing useful to do with an adapter. Giving the adapter ownership of its pointer, rather than a reference to its model, would double-free.
+
+- **`WhisperContext.tokenize()` failed on long input** -- the buffer was sized from `max_tokens`, default 512, so anything longer raised `RuntimeError` telling the caller to retry bigger. It is sized from the input now, which cannot overflow: whisper emits at most one token per input byte. Sizing rather than growing on demand avoids the error whisper.cpp logs before it reports the shortfall. `max_tokens` is a minimum-capacity hint and no longer caps the result.
+
+- **`close()` could free a context another thread was still using** -- `SDContext` and `WhisperContext` guard their native calls with a busy lock that `close()` ignored, so closing during an in-flight `generate()` or `full()` freed a pointer that call still held. `close()` now takes the same lock and raises on contention instead of freeing. `__exit__` propagates that: leaving the block early beats a use-after-free, and skipping the free would leak the context. `__dealloc__` stays unguarded because refcounting already prevents it.
+
+- **`python -m cyllama.llama.server` never ran the embedded server** -- the entry point imported `EmbeddedServer` from a module that does not exist, and the surrounding `except ImportError` reported that as "not built" and fell back to the Python server. The default server type ran the wrong implementation behind a plausible explanation.
+
+- **A missing OpenMP failed for the consumer, not the build** -- `find_package(OpenMP)` is optional on Linux, so when the prebuilt ggml archives had been compiled with OpenMP but the extension's own configure could not detect it, the link left the `omp_*` references undefined and emitted no `DT_NEEDED` for libgomp. Build, wheel and install all looked clean, and the error arrived at `import cyllama` as `undefined symbol: omp_get_thread_num`, taking every entry point with it. `auditwheel repair` could not rescue it either: it rewrites existing `DT_NEEDED` entries but never adds a missing one. Configuration now fails with the cause and three ways out, and logs an `OpenMP:` status line on both branches. The check fires only when `libggml-cpu.a` actually references OpenMP symbols, so an intentionally OpenMP-free build still configures.
 
 ## [0.4.4]
 
