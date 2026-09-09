@@ -88,6 +88,11 @@ cpdef enum:
     LLAMA_LOAD_MODE_MMAP_MLOCK = 3 # mmap + force system to keep model in RAM
     LLAMA_LOAD_MODE_DIRECT_IO = 4  # use direct I/O if available
 
+cpdef enum:
+    LLAMA_LAZY_MODE_OFF = 0        # always read the whole tensor up front
+    LLAMA_LAZY_MODE_AUTO = 1       # lazy only for marked tensors larger than 4 GiB (requires mmap)
+    LLAMA_LAZY_MODE_ON = 2         # read the rows of tensors marked by the arch on demand (requires mmap)
+
 
 # callbacks
 # -----------------------------------------------------------------------------
@@ -933,6 +938,15 @@ cdef class LlamaModelParams:
         return llama.llama_load_mode_name(self.p.load_mode).decode()
 
     @property
+    def lazy_mode(self) -> llama.llama_lazy_mode:
+        """On-demand reading of tensors marked by the arch (off / auto / on)."""
+        return self.p.lazy_mode
+
+    @lazy_mode.setter
+    def lazy_mode(self, llama.llama_lazy_mode value):
+        self.p.lazy_mode = value
+
+    @property
     def main_gpu(self) -> int:
         """The GPU that is used for the entire model when split_mode is LLAMA_SPLIT_MODE_NONE"""
         return self.p.main_gpu
@@ -1464,6 +1478,15 @@ cdef class LlamaModelQuantizeParams:
     @property
     def tt_overrides(self) -> None:
         """pointer to tensor overrides"""
+
+    @property
+    def max_buf_size(self) -> int:
+        """max bytes of tensor rows kept in memory at once, 0 = default (8 GiB)"""
+        return self.p.max_buf_size
+
+    @max_buf_size.setter
+    def max_buf_size(self, value: int):
+        self.p.max_buf_size = value
 
 
 cdef class LlamaLogitBias:

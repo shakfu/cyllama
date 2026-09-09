@@ -166,6 +166,11 @@ cdef extern from "llama.h":
     const char * llama_load_mode_name(llama_load_mode load_mode)
     llama_load_mode llama_load_mode_from_str(const char * str)
 
+    cdef enum llama_lazy_mode:
+        LLAMA_LAZY_MODE_OFF  = 0 # always read the whole tensor up front
+        LLAMA_LAZY_MODE_AUTO = 1 # lazy only for marked tensors larger than 4 GiB (requires mmap)
+        LLAMA_LAZY_MODE_ON   = 2 # read the rows of tensors marked by the arch on demand (requires mmap)
+
     cdef enum llama_context_type:
         LLAMA_CONTEXT_TYPE_DEFAULT = 0
         LLAMA_CONTEXT_TYPE_MTP     = 1
@@ -249,6 +254,7 @@ cdef extern from "llama.h":
         int32_t n_gpu_layers           # number of layers to store in VRAM
         llama_split_mode split_mode    # how to split the model across multiple GPUs
         llama_load_mode load_mode      # how to load the model
+        llama_lazy_mode lazy_mode      # on-demand reading of tensors marked by the arch
         int32_t main_gpu             # the GPU that is used for the entire model when split_mode is LLAMA_SPLIT_MODE_NONE
         const float * tensor_split     # proportion of the model (layers or rows) to offload to each GPU, size: llama_max_devices()
         # Called with a progress value between 0.0 and 1.0. Pass NULL to disable.
@@ -335,6 +341,7 @@ cdef extern from "llama.h":
         const llama_model_kv_override * kv_overrides                # pointer to kv overrides
         const llama_model_tensor_override * tt_overrides            # pointer to tensor overrides
         const int32_t * prune_layers                                # pointer to layer indices to prune
+        size_t max_buf_size                                         # max bytes of tensor rows kept in memory at once, 0 = default (8 GiB)
 
     ctypedef struct llama_logit_bias:
         llama_token token

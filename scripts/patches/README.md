@@ -24,40 +24,6 @@ superproject does not — to undo a patch by hand there, run git from inside
 
 ## Applied
 
-### `llama.cpp-subprocess-glibc217.patch`
-
-**Target:** `vendor/sheredom/subprocess.h` (llama.cpp `b10271`)
-
-**Problem:** `subprocess_create_ex()` honours a working-directory argument via
-`posix_spawn_file_actions_addchdir_np()`, which glibc only gained in 2.29.
-cyllama builds its manylinux wheels on the manylinux2014 image (glibc 2.17,
-see the `manylinux-*-image` rationale in `pyproject.toml`), where that call is
-undeclared and the compile fails. It takes down two targets cyllama needs:
-`llama-common` (via `common/subproc.cpp`) and `mtmd` when `MTMD_VIDEO` is on
-(via `tools/mtmd/mtmd-helper.cpp`, which includes the vendored header
-directly). This first appeared with the `b10271` bump, which added
-`common/subproc.cpp`.
-
-**Fix:** Report `ENOSYS` through the function's existing error path when the
-libc is glibc older than 2.29, instead of emitting the call. There is no
-posix_spawn equivalent on that glibc, so the cwd feature genuinely cannot be
-supported there; nothing else in `subprocess_create_ex()` is affected. No
-caller in llama.cpp passes a cwd today — `mtmd-helper.cpp` spawns ffmpeg
-through plain `subprocess_create()`, so video decoding keeps working on
-manylinux wheels.
-
-**Alternative rejected:** configuring with `LLAMA_SUBPROCESS=OFF` compiles
-`subproc.cpp` down to a stub and avoids the header entirely, but it also
-forces `MTMD_VIDEO` off (llama.cpp's top-level `CMakeLists.txt` ties the two
-together). cyllama binds video through `MtmdContext.open_video()`, so that
-would have silently dropped a working API on every platform to fix one image.
-
-**Note on the version test:** it is written as nested `#if` rather than
-`defined(__GLIBC_PREREQ) && !__GLIBC_PREREQ(2, 29)`. The preprocessor
-macro-expands the whole controlling expression before evaluating it, so where
-`__GLIBC_PREREQ` is undefined the second operand degrades to `1 (2, 29)` — a
-syntax error, not a false branch.
-
 ### `ggml-metal-pin-msl-version.patch`
 
 **Target:** `ggml/src/ggml-metal/ggml-metal-device.m` — all three ggml trees
@@ -103,6 +69,31 @@ patch makes today's behaviour deterministic rather than changing it.
 3.12.10 darwin-arm64 build, expanded with `pkgutil --expand-full`): before the
 patch it reproduces the CI failure; after it, `ggml_metal_library_init` succeeds
 with `has bfloat = true` and `has tensor = false`.
+
+### `ggml-metal-pin-msl-version-set-lang.patch`
+
+**Target:** `ggml/src/ggml-metal/ggml-metal-device.m` — the ggml that
+llama.cpp `v0.4.0` vendors, and stable-diffusion.cpp's tree once
+`_sync_ggml_abi()` has copied that ggml over its own. whisper.cpp still
+vendors the older shape and takes `ggml-metal-pin-msl-version.patch`; the two
+are mutually exclusive, and the one that does not match is skipped as a no-op.
+
+**Problem:** the same unset `languageVersion` described above. `v0.4.0` routed
+both compile sites through `ggml_metal_compile_options_set_lang()` and sets the
+version only on the tensor branch, so the original patch stopped applying while
+the bug it fixes was unchanged. A skipped patch is silent, so this surfaced as
+nothing at all.
+
+**Fix:** the same `@available` ladder, moved into that function.
+
+**What changed about the 4.0 cap:** it now overrides an upstream default
+instead of making an unset one deterministic. `v0.4.0` enables the tensor API
+on M5/M6/A19/A20 and asks for MSL 4.0 to get its headers. Capping at 3.2 makes
+the tensor probe's dummy-kernel compile fail, so `ggml_metal_device_init`
+clears `props.has_tensor` and the backend keeps the simdgroup kernels — the
+pre-`v0.4.0` behaviour, and the one `proposed/llama.cpp-metal-tensor-msl4.patch`
+argues for. `GGML_METAL_TENSOR_ENABLE=1` cannot override it either, which it
+could not before this branch existed. Untested on Metal 4 hardware.
 
 ### `stable-diffusion.cpp-msvc-bigobj.patch`
 

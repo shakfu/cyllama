@@ -51,6 +51,19 @@ def test_model_params_load_mode():
         assert params.load_mode_name == name
 
 
+def test_model_params_lazy_mode():
+    """lazy_mode is new in llama.cpp v0.4.0: on-demand reads of arch-marked tensors."""
+    params = cy.LlamaModelParams()
+
+    assert cy.LLAMA_LAZY_MODE_OFF == 0
+    assert cy.LLAMA_LAZY_MODE_AUTO == 1
+    assert cy.LLAMA_LAZY_MODE_ON == 2
+
+    for mode in (cy.LLAMA_LAZY_MODE_OFF, cy.LLAMA_LAZY_MODE_ON, cy.LLAMA_LAZY_MODE_AUTO):
+        params.lazy_mode = mode
+        assert params.lazy_mode == mode
+
+
 def test_model_params_removed_load_flags():
     """The pre-b10107 booleans are gone; load_mode is the only way to set this."""
     params = cy.LlamaModelParams()
@@ -206,6 +219,10 @@ def test_default_model_quantize_params():
     assert params.only_copy == False
     assert params.pure == False
     assert params.keep_split == False
+    # max_buf_size is new in llama.cpp v0.4.0; the default params set 8 GiB
+    assert params.max_buf_size == 8 * 1024**3
+    params.max_buf_size = 1 << 30
+    assert params.max_buf_size == 1 << 30
 
 
 def test_default_ggml_threadpool_params():

@@ -243,8 +243,9 @@ cdef class MtmdBitmap:
         cdef MtmdBitmap bitmap = MtmdBitmap()
         cdef MtmdContext ctx = <MtmdContext>mtmd_ctx
         cdef bytes path_bytes = file_path.encode('utf-8')
+        cdef mtmd_helper_init_opt opt = mtmd_helper_init_opt_default()
 
-        bitmap._bitmap = mtmd_helper_bitmap_init_from_file(ctx._ctx, path_bytes, False).bitmap
+        bitmap._bitmap = mtmd_helper_bitmap_init_from_file(ctx._ctx, path_bytes, False, opt).bitmap
         bitmap._owner = True
 
         if bitmap._bitmap is NULL:
@@ -267,8 +268,9 @@ cdef class MtmdBitmap:
         cdef MtmdContext ctx = <MtmdContext>mtmd_ctx
         cdef const unsigned char* buf_ptr = <const unsigned char*>data
         cdef size_t buf_len = len(data)
+        cdef mtmd_helper_init_opt opt = mtmd_helper_init_opt_default()
 
-        bitmap._bitmap = mtmd_helper_bitmap_init_from_buf(ctx._ctx, buf_ptr, buf_len, False).bitmap
+        bitmap._bitmap = mtmd_helper_bitmap_init_from_buf(ctx._ctx, buf_ptr, buf_len, False, opt).bitmap
         bitmap._owner = True
 
         if bitmap._bitmap is NULL:

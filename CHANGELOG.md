@@ -28,7 +28,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 - **`LlamaAdapterLora.alora_invocation_tokens`** and `n_alora_invocation_tokens` expose the token sequence that activates an aLoRA. Empty for a plain LoRA.
 
+### Changed
+
+- **llama.cpp updated to v0.4.0.** `mtmd_helper_bitmap_init_from_file()` and `mtmd_helper_bitmap_init_from_buf()` gained a trailing `mtmd_helper_init_opt` argument, which broke the extension build; both call sites pass `mtmd_helper_init_opt_default()`. Two new fields are bound: `LlamaModelParams.lazy_mode` (`LLAMA_LAZY_MODE_OFF` / `_AUTO` / `_ON`, on-demand reads of arch-marked tensors, needs mmap) and `LlamaModelQuantizeParams.max_buf_size`.
+
 ### Removed
+
+- **`llama.cpp-subprocess-glibc217.patch`** -- llama.cpp v0.4.0 vendors a `subprocess.h` that reports the same `ENOSYS` for the same glibc under upstream's own `SUBPROCESS_HAVE_CWD`, and adds a fork/exec fallback for the libcs that have neither spelling of the chdir file action.
 
 - **`--lora-base`** named the pre-adapter apply-to-weights path, which no longer exists upstream. It never had an effect; passing it now fails rather than being ignored.
 
@@ -37,6 +43,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 - **LoRA was inert** -- `--lora` and `--lora-scaled` parsed into variables no code read, and nothing bound the context-side adapter call, so an adapter could be loaded and its metadata read but never applied. The three functions the bindings declared for the job had been removed upstream in favour of one taking the whole adapter list, and linked only because nothing called them. Both flags now apply their adapters after context creation, and both are repeatable.
 
   An adapter also did not retain the model that owns it, and a model's destructor deletes every adapter registered to it, so `LlamaModel(path).lora_adapter_init(lora)` read freed memory as soon as the temporary was collected. This stayed latent while there was nothing useful to do with an adapter. Giving the adapter ownership of its pointer, rather than a reference to its model, would double-free.
+
+- **The Metal MSL version pin was silently dropped** -- llama.cpp v0.4.0 routed both shader-compile sites through `ggml_metal_compile_options_set_lang()` and sets `languageVersion` only on its new tensor branch, so `ggml-metal-pin-msl-version.patch` stopped applying while the bug it fixes was unchanged. Patch application treats a non-matching patch as a no-op by design, so nothing reported it: the Metal backend went back to deriving its MSL version from the host binary's SDK, which under python.org's CPython 3.12 fails to compile the shader library at all. Rebased as `ggml-metal-pin-msl-version-set-lang.patch`, which llama.cpp's and stable-diffusion.cpp's trees take; whisper.cpp still vendors the older shape and keeps the original. The 4.0 cap now suppresses the tensor API on M5/M6/A19/A20 rather than merely leaving it unreachable.
 
 - **`WhisperContext.tokenize()` failed on long input** -- the buffer was sized from `max_tokens`, default 512, so anything longer raised `RuntimeError` telling the caller to retry bigger. It is sized from the input now, which cannot overflow: whisper emits at most one token per input byte. Sizing rather than growing on demand avoids the error whisper.cpp logs before it reports the shortfall. `max_tokens` is a minimum-capacity hint and no longer caps the result.
 

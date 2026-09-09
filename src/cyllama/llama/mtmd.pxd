@@ -182,6 +182,12 @@ cdef extern from "mtmd-helper.h":
 
     cdef mtmd_helper_video_init_params mtmd_helper_video_init_params_default()
 
+    # opt for mtmd_helper_bitmap_init_from_*()
+    ctypedef struct mtmd_helper_init_opt:
+        mtmd_helper_video_init_params video_params
+
+    cdef mtmd_helper_init_opt mtmd_helper_init_opt_default()
+
     cdef mtmd_helper_video * mtmd_helper_video_init(mtmd_context * mctx,
                                                     const char * path,
                                                     mtmd_helper_video_init_params params) nogil
@@ -213,11 +219,15 @@ cdef extern from "mtmd-helper.h":
         void * video_ctx
 
     # Helper functions for file/buffer loading
-    cdef mtmd_helper_bitmap_wrapper mtmd_helper_bitmap_init_from_file(mtmd_context * ctx, const char * fname, bint placeholder)
-    cdef mtmd_helper_bitmap_wrapper mtmd_helper_bitmap_init_from_buf(mtmd_context * ctx,
+    cdef mtmd_helper_bitmap_wrapper mtmd_helper_bitmap_init_from_file(const mtmd_context * ctx,
+                                                   const char * fname,
+                                                   bint placeholder,
+                                                   mtmd_helper_init_opt opt)
+    cdef mtmd_helper_bitmap_wrapper mtmd_helper_bitmap_init_from_buf(const mtmd_context * ctx,
                                                    const unsigned char * buf,
                                                    size_t len,
-                                                   bint placeholder)
+                                                   bint placeholder,
+                                                   mtmd_helper_init_opt opt)
 
     # Helper functions for chunk processing
     cdef size_t mtmd_helper_get_n_tokens(const mtmd_input_chunks * chunks)

@@ -943,8 +943,10 @@ from cyllama.llama.llama_cpp import (
 
 params = LlamaModelParams()
 params.n_gpu_layers = -1
-# load_mode: LLAMA_LOAD_MODE_NONE / _MMAP (default) / _MLOCK / _DIRECT_IO
+# load_mode: LLAMA_LOAD_MODE_AUTO (default) / _NONE / _MMAP / _MLOCK / _DIRECT_IO
 params.load_mode = LLAMA_LOAD_MODE_MMAP
+# lazy_mode: LLAMA_LAZY_MODE_OFF / _AUTO (default) / _ON -- on-demand row reads
+# for tensors the arch marks; requires mmap
 
 model = LlamaModel("models/llama.gguf", params)
 
