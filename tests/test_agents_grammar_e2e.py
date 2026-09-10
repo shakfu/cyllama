@@ -115,7 +115,7 @@ def test_grammar_actually_constrains_real_inference(model_path: str) -> None:
         answer_events = [e for e in events if e.type == EventType.ANSWER]
         error_events = [e for e in events if e.type == EventType.ERROR]
 
-        # The load-bearing assertion: no JSON-parse ERROR events. If the
+        # The structural assertion: no JSON-parse ERROR events. If the
         # grammar weren't enforced, the upstream parser would fail on free
         # text and emit these.
         parse_errors = [

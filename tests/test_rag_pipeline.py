@@ -787,7 +787,7 @@ class TestRAGPipelineSystemRoleFallback:
     """Feature-detection fallback for chat templates that reject the
     `system` role (Gemma 2/3, some Mistral variants, etc.).
 
-    The test surface here is small but load-bearing: without this
+    The test surface here is small but structural: without this
     fallback, `cyllama rag -m gemma-*.gguf` crashes immediately on the
     first query with `RuntimeError: Failed to apply chat template`. The
     fallback merges the system content into the first user message and

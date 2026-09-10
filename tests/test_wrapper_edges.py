@@ -213,7 +213,7 @@ class TestSpeculativeIsCompatNonDestructive:
                 Speculative.is_compat(ctx)
 
                 # The caller's KV state is still intact: pos_max for seq 0
-                # is unchanged. This is the load-bearing assertion -- the
+                # is unchanged. This is the structural assertion -- the
                 # pre-fix behavior would fail it.
                 assert ctx.memory_seq_pos_max(0) == pos_max_before
             finally:

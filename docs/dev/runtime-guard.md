@@ -180,7 +180,7 @@ def _try_acquire_busy(self) -> None:
         )
 ```
 
-`blocking=False` is the load-bearing detail: a second concurrent caller fails fast instead of waiting in line. The reason for failing fast over serializing is discussed in the design-analysis section below.
+`blocking=False` is the structural detail: a second concurrent caller fails fast instead of waiting in line. The reason for failing fast over serializing is discussed in the design-analysis section below.
 
 ### Where the guard is called
 
