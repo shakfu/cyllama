@@ -22,6 +22,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+## [0.4.5]
+
 ### Added
 
 - **`LlamaContext.set_adapters_lora()`** applies LoRA adapters to a context. It inherits the set-semantics of the llama.cpp call it wraps: a call replaces the whole set, an empty argument clears, a zero scale drops an adapter. A repeated adapter is rejected rather than silently resolved to one of its two scales. Available through the bindings and `llama/cli.py`; the high-level `LLM` does not expose LoRA yet.
