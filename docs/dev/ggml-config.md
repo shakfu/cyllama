@@ -55,8 +55,7 @@ A local `make build-cuda-dynamic` with no env vars:
 CI workflows already set both variables explicitly:
 
 ```yaml
-# .github/workflows/build-gpu-wheels.yml:103,116
-# .github/workflows/build-new-wheels.yml:280
+# .github/workflows/build-gpu-wheels-abi3.yml:144,158,552
 CMAKE_CUDA_ARCHITECTURES="75"
 GGML_NATIVE=OFF
 ```
@@ -151,6 +150,4 @@ if (backend_options.get("GGML_CUDA") == "ON"
 
 - `build/llama.cpp/ggml/src/ggml-cpu/CMakeLists.txt:382` -- NATIVE vs BACKEND_DL incompatibility
 
-- `.github/workflows/build-gpu-wheels.yml:103,116` -- CI arch settings
-
-- `.github/workflows/build-new-wheels.yml:280` -- CI arch settings
+- `.github/workflows/build-gpu-wheels-abi3.yml:144,158,552` -- CI arch settings

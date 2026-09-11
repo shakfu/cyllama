@@ -86,7 +86,7 @@ SKBUILD_CMAKE_DEFINE=CYLLAMA_ABI3=ON
 
 The default build reads neither and produces per-version wheels as today.
 
-In `[tool.cibuildwheel]` the default `build = "cp310-* cp311-* cp312-* cp313-* cp314-*"` remains untouched. The abi3 CI workflow overrides with `CIBW_BUILD=cp312-*` and the two `SKBUILD_*` variables above.
+In `[tool.cibuildwheel]` the default `build` is the per-version `"cp312-* cp313-* cp314-*"`, matching `requires-python`. The abi3 CI workflow overrides with `CIBW_BUILD=cp312-*` and the two `SKBUILD_*` variables above.
 
 ## 3. Cython source changes
 
@@ -138,4 +138,4 @@ Current wheel matrix per release (approximate):
 
 - Windows x86_64: 5 wheels/backend
 
-After abi3 (when the abi3 path is used): 1/2/1 wheels per backend respectively - roughly a 5x reduction in total wheel count and a proportional reduction in CI build time and artifact storage. Because the non-abi3 path remains available, the two matrices can coexist during transition.
+After abi3 (when the abi3 path is used): 1/2/1 wheels per backend respectively - roughly a 5x reduction in total wheel count and a proportional reduction in CI build time and artifact storage. The per-version CI workflows have since been removed; the non-abi3 path remains for local builds only.

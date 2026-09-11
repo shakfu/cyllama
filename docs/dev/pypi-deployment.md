@@ -10,8 +10,8 @@ cyllama is distributed as several **separate PyPI projects** — the base packag
 
 | Project | Built by |
 |---------|----------|
-| `cyllama` (CPU) | `build-cibw-abi3.yml` (and `build-cibw.yml` for per-version builds) |
-| `cyllama-cuda12`, `cyllama-rocm`, `cyllama-sycl`, `cyllama-vulkan` | `build-gpu-wheels-abi3.yml` (and `build-gpu-wheels.yml`) |
+| `cyllama` (CPU) | `build-cibw-abi3.yml` |
+| `cyllama-cuda12`, `cyllama-rocm`, `cyllama-sycl`, `cyllama-vulkan` | `build-gpu-wheels-abi3.yml` |
 
 Each project has its own 10 GB PyPI size quota, which is the main reason for the abi3 switch (one wheel per platform instead of five).
 

@@ -140,7 +140,7 @@ endif()
 
 if(CYLLAMA_ABI3)
     find_package(Python COMPONENTS Interpreter Development.Module Development.SABIModule REQUIRED)
-    message(STATUS "CYLLAMA_ABI3: ON (targeting CPython stable ABI >= 3.10)")
+    message(STATUS "CYLLAMA_ABI3: ON (targeting CPython stable ABI >= 3.12)")
 else()
     find_package(Python COMPONENTS Interpreter Development.Module REQUIRED)
 endif()

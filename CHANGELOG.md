@@ -22,6 +22,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+### Removed
+
+- **`build-cibw.yml`, `build-gpu-wheels.yml`, `build-new-wheels.yml`** -- the non-abi3 wheel workflows. Only abi3 wheels are released, and with `requires-python >= 3.12` the `cp310`/`cp311` targets were already skipped. `build-new-wheels.yml` was the only CUDA 13.1 Windows job; `git show` recovers it. `build-cibw-abi3.yml` and `build-gpu-wheels-abi3.yml` are now the only wheel workflows (see `docs/dev/abi3.md`).
+
 ## [0.4.5]
 
 ### Added

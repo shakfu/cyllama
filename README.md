@@ -4,7 +4,7 @@ cyllama is a no-dependencies Python library for local AI inference built on the 
 
 - **[llama.cpp](https://github.com/ggml-org/llama.cpp)** - Text generation, chat, embeddings, and text-to-speech
 
-- **[whisper.cpp](https://github.com/ggerganov/whisper.cpp)** - Speech-to-text transcription and translation
+- **[whisper.cpp](https://github.com/ggml-org/whisper.cpp)** - Speech-to-text transcription and translation
 
 - **[stable-diffusion.cpp](https://github.com/leejet/stable-diffusion.cpp)** - Image and video generation
 
@@ -115,10 +115,20 @@ cyllama has zero hard dependencies beyond its compiled core. Features built on t
 
 ### Build from source with a specific backend
 
+A source install has two phases. The sdist excludes the static `llama.cpp`, `whisper.cpp`, and `stable-diffusion.cpp` libraries (`sdist.exclude` in `pyproject.toml`), so build them first, then build the extension against them:
+
 ```sh
-GGML_CUDA=1 pip install cyllama --no-binary cyllama
-GGML_VULKAN=1 pip install cyllama --no-binary cyllama
+# 1. Clone and build the third-party deps in place.
+git clone https://github.com/shakfu/cyllama && cd cyllama
+GGML_CUDA=1 python scripts/manage.py build --all --deps-only --no-sd-examples
+
+# 2. Build and install against the prebuilt deps.
+GGML_CUDA=1 pip install . --no-build-isolation
 ```
+
+`pip install cyllama --no-binary cyllama` does **not** work: an sdist-only install has no step that builds the deps. CI runs the same `manage.py build --deps-only` step in cibuildwheel's `before-all` / `before-build` hooks.
+
+A plain source build produces a version-specific extension. See [Build Commands](#build-commands) for the abi3 wheel target.
 
 ## Command-Line Interface
 
@@ -152,7 +162,7 @@ cyllama sd txt2img --model models/sd.gguf --prompt "a sunset"
 cyllama agent run -m models/llama.gguf -p "What is 25 * 4?"   # run a tool-calling agent
 cyllama info       # build and backend information
 cyllama version    # print the installed version
-cyllama memory -m models/llama.gguf  # GPU memory estimation
+cyllama memory models/llama.gguf     # GPU memory estimation
 ```
 
 Run `cyllama --help` or `cyllama <command> --help` for full usage. See [CLI Cheatsheet](docs/cli-cheatsheet.md) for the complete reference.
@@ -782,7 +792,7 @@ See [CHANGELOG.md](CHANGELOG.md) -- it is the single source of truth for what ch
 
 To build `cyllama` from source:
 
-1. A recent version of `python3` (currently testing on python 3.13)
+1. Python 3.12+
 
 2. Git clone the latest version of `cyllama`:
 
@@ -819,7 +829,8 @@ make              # Build dependencies + editable install
 make build-dynamic  # No source compilation needed for llama.cpp
 
 # Build wheel for distribution
-make wheel        # Creates wheel in dist/
+make wheel        # Version-specific wheel in dist/
+make wheel-abi3   # cp312-abi3 wheel in dist/, the format published to PyPI
 make dist         # Creates sdist + wheel in dist/
 
 # Backend-specific builds (static)
@@ -939,17 +950,10 @@ mkdir models && cd models
 wget https://huggingface.co/unsloth/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q8_0.gguf
 ```
 
-Now you can test it using `llama-cli` or `llama-simple`:
+Run the full test suite:
 
 ```sh
-bin/llama-cli -c 512 -n 32 -m models/Llama-3.2-1B-Instruct-Q8_0.gguf \
- -p "Is mathematics discovered or invented?"
-```
-
-The library covers both quick prototyping and longer-running deployments:
-
-```sh
-make test  # Run full test suite
+make test
 ```
 
 You can also explore interactively:

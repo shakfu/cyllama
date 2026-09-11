@@ -1,10 +1,9 @@
 name: build-cibw-abi3
 
-# Experimental abi3 wheel build. Produces one wheel per platform tagged
-# cp312-abi3-<plat>, which by spec is importable on CPython 3.12+.
+# Release build for the CPU/Metal wheels. Produces one wheel per platform
+# tagged cp312-abi3-<plat>, importable on CPython 3.12+.
 #
-# This workflow is gated behind CYLLAMA_ABI3=ON (see docs/dev/abi3.md).
-# It runs in parallel to build-cibw.yml and does NOT replace it.
+# Builds with CYLLAMA_ABI3=ON (see docs/dev/abi3.md).
 # Trigger manually via workflow_dispatch.
 
 permissions:

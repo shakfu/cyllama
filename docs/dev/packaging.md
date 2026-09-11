@@ -99,7 +99,7 @@ Without it, `manage.py` defaults to vendored ggml and SD statically embeds its o
 
 This also causes `build_config.json` to omit `llama_cpp_ggml_version`: with vendored ggml, `write_build_config` records only per-project vendored versions, not a single shared llama.cpp ggml version — a useful signal for auditing whether ggml is actually being shared.
 
-Reference workflows with the pattern already applied: `build-gpu-wheels.yml`, `build-gpu-wheels2.yml`.
+Reference workflow with the pattern already applied: `build-gpu-wheels-abi3.yml`.
 
 ## Installing from sdist (non-cibuildwheel) on macOS / Linux
 
@@ -115,4 +115,4 @@ Not directly supported under the current pattern: CMake does not install any dyl
 
 - `scripts/manage.py` — `LlamaCppBuilder.install_shared_libs` copies upstream dylibs into `thirdparty/llama.cpp/dynamic/` with symlinks preserved.
 
-- `.github/workflows/build-new-wheels.yml` — `build_vulkan_macos_intel` job.
+- `.github/workflows/build-gpu-wheels-abi3.yml` — `build_vulkan_macos_intel` job.
