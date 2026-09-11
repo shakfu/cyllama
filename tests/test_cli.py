@@ -422,7 +422,7 @@ def test_generate_text_basic(cli, mocker: MockerFixture):
     mock_vocab.get_add_bos.return_value = True
     mock_vocab.token_bos.return_value = 1
     mock_vocab.is_eog.return_value = False
-    mock_vocab.token_to_piece.return_value = "test"
+    mock_vocab.token_to_bytes.return_value = b"test"
     mock_vocab.detokenize.return_value = "Hello world"
 
     mock_ctx.n_ctx = 4096

@@ -1770,13 +1770,21 @@ cdef class LlamaVocab:
         Does not write null terminator to the buffer.
         User can skip up to 'lstrip' leading spaces before copying
         (useful when encoding/decoding multiple tokens with 'add_space_prefix')
+
+        A token may hold part of a multi-byte UTF-8 character, which decodes
+        to U+FFFD here. Streaming callers should use
+        ``cyllama.llama.token_decoder.TokenDecoder``.
         """
+        return self.token_to_bytes(token, lstrip, special).decode("utf-8", errors="replace")
+
+    def token_to_bytes(self, token: int, lstrip: int = 0, special: bool = False) -> bytes:
+        """Token Id -> raw piece bytes, as ``token_to_piece`` without decoding."""
         cdef char stackbuf[128]
         cdef int32_t length = llama.llama_token_to_piece(
             self.ptr, token, stackbuf, 128, lstrip, special
         )
         if length >= 0:
-            return stackbuf[:length].decode("utf-8", errors="replace")
+            return stackbuf[:length]
 
         # The C ABI returns -needed when the buffer is too small; retry on heap.
         cdef int32_t needed = -length
@@ -1795,7 +1803,7 @@ cdef class LlamaVocab:
             payload = heapbuf[:length]
         finally:
             free(heapbuf)
-        return payload.decode("utf-8", errors="replace")
+        return payload
 
     def detokenize(self, tokens: list[int], text_len_max: int = 1024, remove_special: bool = False, unparse_special: bool = False) -> str:
         """Convert the provided tokens into text (inverse of llama_tokenize()).

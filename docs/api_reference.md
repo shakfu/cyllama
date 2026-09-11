@@ -1037,6 +1037,12 @@ tokens = vocab.tokenize("Hello world", add_special=True, parse_special=True)
 # Detokenization
 text = vocab.detokenize(tokens)
 piece = vocab.token_to_piece(token_id, special=True)
+raw = vocab.token_to_bytes(token_id, special=True)  # may be a partial UTF-8 character
+
+# Streaming detokenization: holds a split character until complete
+from cyllama.llama.token_decoder import TokenDecoder
+decoder = TokenDecoder(vocab)
+text = "".join(decoder.decode(t) for t in token_ids) + decoder.flush()
 
 # Special tokens
 print(vocab.bos)           # Begin-of-sequence token

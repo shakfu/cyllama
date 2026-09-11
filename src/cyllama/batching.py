@@ -23,10 +23,7 @@ Example:
 
 from typing import Any, List, Optional
 from dataclasses import dataclass
-import logging
 import time
-
-logger = logging.getLogger(__name__)
 
 from .defaults import DEFAULT_N_GPU_LAYERS
 
@@ -293,7 +290,8 @@ class BatchGenerator:
             batch = get_pooled_batch(n_tokens=self.batch_size, embd=0, n_seq_max=self.n_seq_max)
         else:
             batch = LlamaBatch(n_tokens=self.batch_size, embd=0, n_seq_max=self.n_seq_max)
-        responses = [""] * len(prompts)
+        # Bytes, decoded once at the end: a multi-byte character can span tokens.
+        responses = [b""] * len(prompts)
         active_sequences = set(range(len(prompts)))
         seq_positions = {i: 0 for i in range(len(prompts))}
 
@@ -333,14 +331,7 @@ class BatchGenerator:
                         active_sequences.remove(seq_id)
                         continue
 
-                    # Decode token
-                    try:
-                        piece = self.vocab.token_to_piece(new_token, special=True)
-                        responses[seq_id] += piece
-                    except UnicodeDecodeError:
-                        logger.warning(
-                            "Failed to decode token %d in sequence %d: UnicodeDecodeError", new_token, seq_id
-                        )
+                    responses[seq_id] += self.vocab.token_to_bytes(new_token, special=True)
 
                     # Add to batch for next iteration and remember new logits index
                     batch.add(new_token, seq_positions[seq_id], [seq_id], True)
@@ -363,7 +354,8 @@ class BatchGenerator:
 
         # Wrap responses in Response objects with stats
         result_responses = []
-        for i, (text, prompt_tokens) in enumerate(zip(responses, tokenized_prompts)):
+        for i, (raw, prompt_tokens) in enumerate(zip(responses, tokenized_prompts)):
+            text = raw.decode("utf-8", errors="replace")
             # Approximate token count for response
             response_tokens = self.vocab.tokenize(text, add_special=False, parse_special=False)
             n_generated = len(response_tokens)

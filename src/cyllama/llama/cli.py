@@ -13,6 +13,7 @@ import signal
 from typing import Any, List, Optional, cast
 
 from . import llama_cpp as cy
+from .token_decoder import TokenDecoder
 
 
 class LlamaCLI:
@@ -539,6 +540,7 @@ class LlamaCLI:
 
         # Generate response
         response = ""
+        decoder = TokenDecoder(vocab)
         for i in range(n_remain):
             # Sample next token
             new_token_id = sampler.sample(ctx, -1)
@@ -547,8 +549,7 @@ class LlamaCLI:
             if vocab.is_eog(new_token_id):
                 break
 
-            # Convert token to text
-            piece = vocab.token_to_piece(new_token_id, special=True)
+            piece = decoder.decode(new_token_id)
             response += piece
             print(piece, end="", flush=True)
 
@@ -563,7 +564,9 @@ class LlamaCLI:
                 print(f"error: {e}")
                 break
 
-        print()  # New line after generation
+        tail = decoder.flush()
+        response += tail
+        print(tail)  # also ends the generation line
 
         # Print performance
         self._print_performance()

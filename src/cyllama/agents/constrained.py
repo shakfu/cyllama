@@ -20,6 +20,7 @@ from ..llama.llama_cpp import (
     LlamaSamplerChainParams,
     llama_batch_get_one,
 )
+from ..llama.token_decoder import TokenDecoder
 from ._loop_detection import detect_loop, format_loop_error
 from .react import render_observation
 from .tools import Tool, ToolArgumentError, ToolRegistry, coerce_args
@@ -90,6 +91,7 @@ class GrammarConstrainedLLM(LLM):
         n_pos = n_prompt
         n_generated = 0
         output_tokens = []
+        decoder = TokenDecoder(self.vocab)
 
         for _ in range(config.max_tokens):
             # Sample next token with grammar constraint
@@ -102,18 +104,11 @@ class GrammarConstrainedLLM(LLM):
             # Note: Do NOT call sampler.accept() manually - the sampler chain
             # handles acceptance internally when using grammar constraints
 
-            # Decode token to text
-            try:
-                piece = self.vocab.token_to_piece(new_token_id, special=True)
-            except UnicodeDecodeError:
-                logger.warning("Failed to decode token %d: UnicodeDecodeError", new_token_id)
-                piece = ""
-
-            output_tokens.append(piece)
-
-            # Call token callback if provided
-            if on_token:
-                on_token(piece)
+            piece = decoder.decode(new_token_id)
+            if piece:
+                output_tokens.append(piece)
+                if on_token:
+                    on_token(piece)
 
             # Prepare next iteration
             batch = llama_batch_get_one([new_token_id], n_pos)
@@ -121,6 +116,11 @@ class GrammarConstrainedLLM(LLM):
             n_pos += 1
             n_generated += 1
 
+        tail = decoder.flush()
+        if tail:
+            output_tokens.append(tail)
+            if on_token:
+                on_token(tail)
         return "".join(output_tokens)
 
     def _ensure_sampler_with_grammar(self, config: GenerationConfig, grammar: str, grammar_root: str) -> None:

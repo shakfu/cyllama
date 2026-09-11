@@ -36,6 +36,7 @@ from .llama_cpp import (
     llama_batch_get_one,
     disable_logging,
 )
+from .token_decoder import TokenDecoder
 
 # Vendored jinja2 for chat-template rendering (same path as api.py).
 try:
@@ -294,6 +295,7 @@ class Chat:
         # Generation loop
         max_tokens = self.max_tokens
         t_gen_start = time.perf_counter()
+        decoder = TokenDecoder(self.vocab)
 
         for i in range(max_tokens):
             # Check context size
@@ -310,17 +312,12 @@ class Chat:
             if self.vocab.is_eog(new_token_id):
                 break
 
-            # Convert token to piece and add to response
-            try:
-                piece = self.vocab.token_to_piece(new_token_id, 0, True)
+            piece = decoder.decode(new_token_id)
+            n_generated += 1
+            if piece:
                 response += piece
-                n_generated += 1
                 if on_token is not None:
                     on_token(piece)
-
-            except Exception as e:
-                print(f"Failed to convert token to piece: {e}")
-                break
 
             # Create batch with the new token at the correct position
             batch = llama_batch_get_one([new_token_id], n_past)
@@ -336,6 +333,12 @@ class Chat:
                 break
 
         t_gen_end = time.perf_counter()
+
+        tail = decoder.flush()
+        if tail:
+            response += tail
+            if on_token is not None:
+                on_token(tail)
 
         # Accumulate session stats
         self.total_prompt_tokens += len(prompt_tokens)

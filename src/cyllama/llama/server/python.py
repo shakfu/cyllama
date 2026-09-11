@@ -196,8 +196,9 @@ class ServerSlot:
                 logging.warning(f"Initial decode returned {ret}")
                 return ""
 
-            # Generation loop
-            response_text = ""
+            # Generation loop. Bytes, decoded once at the end: a multi-byte
+            # character can span tokens.
+            response_bytes = b""
             generated_count = 0
 
             for i in range(max_tokens):
@@ -213,9 +214,7 @@ class ServerSlot:
                 if vocab.is_eog(new_token_id):
                     break
 
-                # Convert token to text
-                token_piece = vocab.token_to_piece(new_token_id, 0, True)
-                response_text += token_piece
+                response_bytes += vocab.token_to_bytes(new_token_id, 0, True)
 
                 # Create batch for single token at correct position
                 batch = llama_batch_get_one([new_token_id], n_past)
@@ -229,6 +228,7 @@ class ServerSlot:
 
                 generated_count += 1
 
+            response_text = response_bytes.decode("utf-8", errors="replace")
             self.response_text = response_text
             return response_text
 

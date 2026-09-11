@@ -144,7 +144,7 @@ class TestServerSlot:
         vocab = Mock()
         vocab.tokenize.return_value = [1, 2, 3, 4, 5]
         vocab.is_eog_token.return_value = False
-        vocab.token_to_piece.return_value = "test"
+        vocab.token_to_bytes.return_value = b"test"
         model.get_vocab.return_value = vocab
         return model
 
@@ -224,7 +224,7 @@ class TestServerSlot:
             mock_vocab = mock_model.get_vocab()
             mock_vocab.tokenize.return_value = [1, 2, 3]  # 3 tokens for prompt
             mock_vocab.is_eog.side_effect = [False, True]  # First token not EOS, second is EOS
-            mock_vocab.token_to_piece.side_effect = [" Hello", " world"]
+            mock_vocab.token_to_bytes.side_effect = [b" Hello", b" world"]
 
             slot = ServerSlot(0, mock_model, config)
 
@@ -286,7 +286,7 @@ class TestPythonServer:
         vocab = Mock()
         vocab.tokenize.return_value = [1, 2, 3]
         vocab.is_eog_token.return_value = False
-        vocab.token_to_piece.return_value = " test"
+        vocab.token_to_bytes.return_value = b" test"
         model.get_vocab.return_value = vocab
         return model
 

@@ -22,6 +22,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+### Added
+
+- **`LlamaVocab.token_to_bytes()`** returns a token's raw piece bytes. `token_to_piece()` decodes each token separately.
+- **`cyllama.llama.token_decoder.TokenDecoder`** decodes a token stream one token at a time. It holds the bytes of a split character until a later token completes it. `flush()` emits an unfinished character as `U+FFFD`.
+
+### Fixed
+
+- **Generated text no longer shows `U+FFFD` where a character spans several tokens.** Byte-level BPE vocabularies split some characters. For example, Llama-3.2 and Qwen3 encode a 4-byte emoji as three tokens. Each token was decoded on its own with `errors="replace"`, so each fragment became `U+FFFD`. `LLM` generation, grammar-constrained generation, and the chat and CLI loops now use `TokenDecoder`. `BatchGenerator` and the Python server decode each response's bytes once at the end.
+
 ### Removed
 
 - **`build-cibw.yml`, `build-gpu-wheels.yml`, `build-new-wheels.yml`** -- the non-abi3 wheel workflows. Only abi3 wheels are released, and with `requires-python >= 3.12` the `cp310`/`cp311` targets were already skipped. `build-new-wheels.yml` was the only CUDA 13.1 Windows job; `git show` recovers it. `build-cibw-abi3.yml` and `build-gpu-wheels-abi3.yml` are now the only wheel workflows (see `docs/dev/abi3.md`).

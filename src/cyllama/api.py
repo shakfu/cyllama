@@ -106,6 +106,7 @@ from .llama.llama_cpp import (
     ggml_backend_load_all,
     disable_logging,
 )
+from .llama.token_decoder import TokenDecoder
 
 # Alias the vendored jinja2 TemplateError so the chat-template fallback
 # inside _apply_template can catch it without paying the import cost on
@@ -1297,6 +1298,8 @@ class LLM:
         stop_buffer = ""
         max_stop_len = max(len(s) for s in config.stop_sequences) if config.stop_sequences else 0
 
+        decoder = TokenDecoder(self.vocab)
+
         for _ in range(config.max_tokens):
             # Cooperative cancellation check between tokens. The mid-decode
             # ggml abort callback handles cancellation during long
@@ -1312,12 +1315,7 @@ class LLM:
             if self.vocab.is_eog(new_token_id):
                 break
 
-            # Decode token to text
-            try:
-                piece = self.vocab.token_to_piece(new_token_id, special=True)
-            except UnicodeDecodeError:
-                logger.warning("Failed to decode token %d: UnicodeDecodeError", new_token_id)
-                piece = ""
+            piece = decoder.decode(new_token_id)
 
             # Handle stop sequences
             if config.stop_sequences:
@@ -1334,8 +1332,9 @@ class LLM:
                         if on_token:
                             on_token(text_before_stop)
                         yield text_before_stop
-                    # Clear buffer to prevent flush at end
+                    # Clear buffers to prevent flush at end
                     stop_buffer = ""
+                    decoder.reset()
                     break
 
                 # No stop found yet - yield text that can't be part of a stop sequence
@@ -1349,7 +1348,7 @@ class LLM:
                     if on_token:
                         on_token(safe_text)
                     yield safe_text
-            else:
+            elif piece:
                 # No stop sequences - yield immediately
                 if on_token:
                     on_token(piece)
@@ -1368,11 +1367,13 @@ class LLM:
             n_pos += 1
             n_generated += 1
 
-        # Flush remaining buffer (no stop sequence found)
-        if config.stop_sequences and stop_buffer:
+        # Flush remaining buffer (no stop sequence found). A character cut off
+        # by max_tokens or cancel flushes as U+FFFD.
+        tail = stop_buffer + decoder.flush()
+        if tail:
             if on_token:
-                on_token(stop_buffer)
-            yield stop_buffer
+                on_token(tail)
+            yield tail
 
         # Store streaming stats so callers can retrieve them after exhaustion
         total_time = time.time() - start_time
@@ -2287,13 +2288,8 @@ def simple(
 
     # print the prompt token-by-token
     print()
-    prompt = ""
-    for i in prompt_tokens:
-        try:
-            prompt += vocab.token_to_piece(i, lstrip=0, special=False)
-        except UnicodeDecodeError:
-            continue
-    print(prompt)
+    prompt_bytes = b"".join(vocab.token_to_bytes(i, lstrip=0, special=False) for i in prompt_tokens)
+    print(prompt_bytes.decode("utf-8", errors="replace"))
 
     # prepare a batch for the prompt
     batch = cy.llama_batch_get_one(prompt_tokens)
@@ -2303,7 +2299,7 @@ def simple(
     n_decode = 0
 
     n_pos = n_prompt
-    response = ""
+    response = b""
     for i in range(n_predict):
         ctx.decode(batch)
 
@@ -2314,8 +2310,7 @@ def simple(
         if vocab.is_eog(new_token_id):
             break
 
-        piece: str = vocab.token_to_piece(new_token_id, special=True)
-        response += piece
+        response += vocab.token_to_bytes(new_token_id, special=True)
 
         # prepare the next batch with the sampled token
         batch = cy.llama_batch_get_one([new_token_id], n_pos)
@@ -2324,7 +2319,7 @@ def simple(
         n_decode += 1
 
     print()
-    print(f"response: {response}")
+    print(f"response: {response.decode('utf-8', errors='replace')}")
     print()
 
     t_main_end: int = cy.ggml_time_us()
