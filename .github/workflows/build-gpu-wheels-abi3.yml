@@ -85,6 +85,7 @@ jobs:
     name: CUDA 12.4 abi3 - Linux x86_64 (${{ inputs.link_mode }})
     if: inputs.cuda_linux
     runs-on: ubuntu-22.04
+    timeout-minutes: 120
 
     steps:
       - name: Checkout repository
@@ -190,6 +191,7 @@ jobs:
     name: ROCm 6.3 abi3 - Linux x86_64 (${{ inputs.link_mode }})
     if: inputs.rocm_linux
     runs-on: ubuntu-22.04
+    timeout-minutes: 120
 
     steps:
       - name: Checkout repository
@@ -299,6 +301,7 @@ jobs:
     name: SYCL abi3 - Linux x86_64 (${{ inputs.link_mode }})
     if: inputs.sycl_linux
     runs-on: ubuntu-22.04
+    timeout-minutes: 120
 
     steps:
       - name: Checkout repository
@@ -396,6 +399,7 @@ jobs:
     name: Vulkan abi3 - Linux x86_64 (${{ inputs.link_mode }})
     if: inputs.vulkan_linux
     runs-on: ubuntu-22.04
+    timeout-minutes: 120
 
     steps:
       - name: Checkout repository
@@ -496,6 +500,7 @@ jobs:
     name: CUDA 12.4 abi3 - Windows x86_64 (${{ inputs.link_mode }})
     if: inputs.cuda_windows
     runs-on: windows-2022
+    timeout-minutes: 120
 
     steps:
       - name: Checkout repository
@@ -575,6 +580,7 @@ jobs:
     name: Vulkan abi3 - Windows x86_64 (${{ inputs.link_mode }})
     if: inputs.vulkan_windows
     runs-on: windows-latest
+    timeout-minutes: 120
 
     steps:
       - name: Checkout repository
@@ -654,6 +660,7 @@ jobs:
     name: Vulkan abi3 - macOS Intel x86_64 (${{ inputs.link_mode }})
     if: inputs.vulkan_macos_intel
     runs-on: macos-15-intel
+    timeout-minutes: 120
 
     steps:
       - name: Checkout repository
@@ -737,6 +744,7 @@ jobs:
     needs: [build_cuda, build_rocm, build_sycl, build_vulkan, build_cuda_windows, build_vulkan_windows, build_vulkan_macos_intel]
     if: always() && !cancelled() && (needs.build_cuda.result == 'success' || needs.build_rocm.result == 'success' || needs.build_sycl.result == 'success' || needs.build_vulkan.result == 'success' || needs.build_cuda_windows.result == 'success' || needs.build_vulkan_windows.result == 'success' || needs.build_vulkan_macos_intel.result == 'success')
     runs-on: ${{ matrix.runs-on }}
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
@@ -1016,6 +1024,7 @@ jobs:
     needs: [build_cuda, build_rocm, build_sycl, build_vulkan, build_cuda_windows, build_vulkan_windows, build_vulkan_macos_intel]
     if: always() && !cancelled()
     runs-on: ubuntu-latest
+    timeout-minutes: 120
 
     steps:
       - name: Download all wheel artifacts
@@ -1045,6 +1054,7 @@ jobs:
     needs: [collect, smoke_test]
     if: inputs.upload_release && always() && !cancelled() && needs.collect.result == 'success'
     runs-on: ubuntu-latest
+    timeout-minutes: 120
     permissions:
       contents: write
     steps:
@@ -1085,6 +1095,7 @@ jobs:
     needs: [collect, smoke_test]
     if: inputs.publish_to_pypi && always() && !cancelled() && needs.collect.result == 'success'
     runs-on: ubuntu-latest
+    timeout-minutes: 120
     environment: pypi
     steps:
       - name: Download collected wheels

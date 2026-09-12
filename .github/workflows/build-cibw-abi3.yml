@@ -31,6 +31,7 @@ jobs:
   build_wheels:
     name: Build abi3 wheels for ${{ matrix.os }}
     runs-on: ${{ matrix.runs-on }}
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
@@ -123,6 +124,7 @@ jobs:
     name: Smoke test py${{ matrix.python }} on ${{ matrix.os }}
     needs: build_wheels
     runs-on: ${{ matrix.runs-on }}
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
@@ -305,6 +307,7 @@ jobs:
     name: Collect all abi3 wheels
     needs: build_wheels
     runs-on: ubuntu-latest
+    timeout-minutes: 120
     steps:
       - name: Download all abi3 wheel artifacts
         uses: actions/download-artifact@v8
@@ -329,6 +332,7 @@ jobs:
     needs: [collect_wheels, cross_version_smoke_test]
     if: inputs.upload_release
     runs-on: ubuntu-latest
+    timeout-minutes: 120
     permissions:
       contents: write
     steps:
@@ -373,6 +377,7 @@ jobs:
     needs: [collect_wheels, cross_version_smoke_test]
     if: inputs.publish_to_pypi
     runs-on: ubuntu-latest
+    timeout-minutes: 120
     environment: pypi
     steps:
       - name: Download collected abi3 wheels

@@ -76,6 +76,7 @@ jobs:
   build:
     name: Build cyllama (CPU)
     runs-on: ubuntu-latest
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v7
 
@@ -121,6 +122,7 @@ jobs:
     name: ${{ matrix.adapter }}
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 120
     strategy:
       # One broken upstream must not mask the state of the others --
       # the whole point is knowing which adapters are healthy.
