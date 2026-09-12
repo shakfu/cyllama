@@ -1,0 +1,112 @@
+name: _gpu-build-vulkan-windows
+
+# Reusable workflow: builds Vulkan abi3 wheels for Windows x86_64.
+# Called by build-gpu-wheels-abi3.yml, which owns the trigger, the
+# per-backend opt-out, and the release. Do not invoke directly --
+# `workflow_call` only.
+
+on:
+  workflow_call:
+    inputs:
+      link_mode:
+        description: '"dynamic" | "static"'
+        type: string
+        default: dynamic
+
+permissions:
+  contents: read
+
+env:
+  CIBW_BUILD_VERBOSITY: 1
+  # abi3: a single build per platform produces a cp312-abi3 wheel
+  # valid for CPython 3.12+.
+  CIBW_BUILD: "cp312-*"
+  CIBW_SKIP: "*-musllinux_* *-win32 *-manylinux_i686"
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  build:
+    name: Vulkan abi3 - Windows x86_64 (${{ inputs.link_mode }})
+    runs-on: windows-latest
+    timeout-minutes: 120
+
+    steps:
+      # workflow_call has no `choice` input type, so the value is checked
+      # here. Anything but 'dynamic' falls through the ternaries below to
+      # a static build, which would otherwise ship silently mislabelled.
+      - name: Validate link_mode
+        shell: bash
+        run: |
+          case "${{ inputs.link_mode }}" in
+            dynamic|static) ;;
+            *) echo "::error::link_mode must be 'dynamic' or 'static', got '${{ inputs.link_mode }}'"; exit 1 ;;
+          esac
+
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Cache thirdparty deps
+        id: cache-deps
+        uses: actions/cache@v5
+        with:
+          path: thirdparty/
+          key: deps-abi3-vulkan-windows-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage.py', 'pyproject.toml', '.github/workflows/_gpu-build-vulkan-windows.yml') }}
+
+      - name: Install Vulkan SDK
+        shell: pwsh
+        run: |
+          $VK_LATEST = (Invoke-RestMethod -Uri "https://vulkan.lunarg.com/sdk/latest/windows.json").windows
+          Write-Host "Latest Vulkan SDK: ${VK_LATEST}"
+          $VK_URL = "https://sdk.lunarg.com/sdk/download/${VK_LATEST}/windows/vulkan-sdk.exe"
+          Write-Host "Downloading Vulkan SDK from ${VK_URL}..."
+          Invoke-WebRequest -Uri $VK_URL -OutFile vulkan-sdk.exe
+          Write-Host "Installing Vulkan SDK..."
+          Start-Process -FilePath .\vulkan-sdk.exe -ArgumentList "--accept-licenses --default-answer --confirm-command install" -Wait -NoNewWindow
+          $VK_PATH = "C:\VulkanSDK\${VK_LATEST}"
+          Write-Host "VULKAN_SDK=${VK_PATH}"
+          echo "VULKAN_SDK=${VK_PATH}" >> $env:GITHUB_ENV
+          echo "${VK_PATH}\Bin" >> $env:GITHUB_PATH
+          & "${VK_PATH}\Bin\glslc.exe" --version
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.11'
+
+      - name: Install cibuildwheel
+        run: pip install cibuildwheel==3.4.0
+
+      - name: Build Vulkan abi3 wheels
+        run: python -m cibuildwheel --output-dir wheelhouse
+        env:
+          CIBW_ARCHS_WINDOWS: AMD64
+          CIBW_BEFORE_BUILD_WINDOWS: >
+            pip install delvewheel &&
+            python {project}/scripts/ci_rename_package.py cyllama-vulkan &&
+            cd {project} &&
+            python scripts/manage.py build --all --deps-only --no-sd-examples
+            ${{ inputs.link_mode == 'dynamic' && '--dynamic' || '' }} &&
+            python scripts/manage.py write_build_config
+          CIBW_ENVIRONMENT_WINDOWS: >
+            GGML_VULKAN=1
+            GGML_METAL=0
+            GGML_NATIVE=OFF
+            WITH_DYLIB=${{ inputs.link_mode == 'dynamic' && '1' || '0' }}
+            SD_USE_VENDORED_GGML=${{ inputs.link_mode == 'dynamic' && '0' || '1' }}
+            SKBUILD_CMAKE_DEFINE="CYLLAMA_ABI3=ON"
+            SKBUILD_WHEEL_PY_API=cp312
+          CIBW_TEST_COMMAND: ""
+          CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: >
+            python {project}\scripts\manage.py wheel_repair --backend vulkan --dest-dir {dest_dir} {wheel}
+
+      - name: List built wheels
+        shell: bash
+        run: ls -lah wheelhouse/
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v7
+        with:
+          name: wheels-abi3-vulkan-windows-x86_64
+          path: ./wheelhouse/*.whl

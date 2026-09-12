@@ -4,19 +4,35 @@ name: build-cibw-abi3
 # tagged cp312-abi3-<plat>, importable on CPython 3.12+.
 #
 # Builds with CYLLAMA_ABI3=ON (see docs/dev/abi3.md).
-# Trigger manually via workflow_dispatch.
+#
+# Triggers:
+#   push of a bare-semver tag (0.4.7)  -> build, smoke test, publish the
+#     GitHub release for that tag
+#   workflow_dispatch against a tag    -> same, and republishes if the
+#     release already exists
+#   workflow_dispatch against a branch -> build + smoke test only
+#
+# Release mode is `github.ref_type == 'tag'`, so the tag always comes from
+# the ref being built. Deriving it from pyproject.toml instead would let
+# `gh release create` invent a tag that does not exist, pointing at the
+# default branch.
+#
+# Publishing needs every build leg and the full cross-version smoke
+# matrix, so one failure ships nothing. The GPU wheels attach to the same
+# release from build-gpu-wheels-abi3.yml; both use
+# softprops/action-gh-release, which creates the release once and updates
+# it thereafter, so either order works and either can be re-run alone.
+# PyPI uploads stay dispatch-only.
 
 permissions:
   contents: read
 
 on:
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+*'
   workflow_dispatch:
     inputs:
-      upload_release:
-        description: 'Upload wheels to GitHub Release'
-        required: false
-        default: false
-        type: boolean
       publish_to_pypi:
         description: 'Publish wheels to PyPI'
         required: false
@@ -28,8 +44,37 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # A tag naming a different version than pyproject.toml would produce a
+  # release called 0.4.7 whose assets are all cyllama-0.4.6-*.whl, and no
+  # re-run fixes that -- it needs a new tag. Catch it in a minute rather
+  # than after a two-hour build. No-op for branch builds.
+  verify_tag:
+    name: Verify release tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+
+      - if: github.ref_type == 'tag'
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          version=$(python3 -c "
+          import re
+          text = open('pyproject.toml').read()
+          print(re.search(r'^version\s*=\s*\"([^\"]+)\"', text, re.M).group(1))
+          ")
+          if [ "$TAG" != "$version" ]; then
+            echo "::error::tag $TAG does not match pyproject.toml version $version"
+            exit 1
+          fi
+          echo "tag $TAG matches pyproject.toml"
+
   build_wheels:
     name: Build abi3 wheels for ${{ matrix.os }}
+    needs: verify_tag
     runs-on: ${{ matrix.runs-on }}
     timeout-minutes: 120
     strategy:
@@ -327,14 +372,19 @@ jobs:
           name: cyllama-abi3-wheels-all
           path: dist/*.whl
 
-  upload_release:
-    name: Upload abi3 wheels to GitHub Release
+  publish:
+    name: Publish to GitHub Release
+    # Plain `if`, so the default gating applies: collect_wheels and the
+    # whole cross-version smoke matrix must succeed before anything ships.
     needs: [collect_wheels, cross_version_smoke_test]
-    if: inputs.upload_release
+    if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 30
     permissions:
       contents: write
+    env:
+      TAG: ${{ github.ref_name }}
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v7
 
@@ -344,29 +394,42 @@ jobs:
           name: cyllama-abi3-wheels-all
           path: dist
 
-      - name: Upload to GitHub Release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: List wheels
+        run: ls -lh dist/
+
+      - name: Extract release notes from CHANGELOG
+        id: notes
+        # release_notes.py exits 2 and writes nothing when neither
+        # `## [<tag>]` nor `## [Unreleased]` is present. A release without
+        # hand-written notes beats a failed release, so fall back to
+        # GitHub's generated ones.
         run: |
-          VERSION=$(python3 -c "
-          import re
-          text = open('pyproject.toml').read()
-          print(re.search(r'^version\s*=\s*\"([^\"]+)\"', text, re.M).group(1))
-          ")
-          TAG="${VERSION}"
-          echo "Version: ${VERSION}, Tag: ${TAG}"
-          NOTES_ARGS=()
-          if python3 scripts/release_notes.py "${VERSION}" --output release-notes.md; then
-            NOTES_ARGS=(--notes-file release-notes.md)
+          if python3 scripts/release_notes.py "$TAG" --output release-notes.md; then
+            echo "found=1" >> "$GITHUB_OUTPUT"
+            cat release-notes.md
           else
-            echo "No CHANGELOG section for ${VERSION}; creating release without notes."
+            echo "found=0" >> "$GITHUB_OUTPUT"
+            echo "::warning::no CHANGELOG section for $TAG; using generated notes"
           fi
-          if gh release create "${TAG}" --prerelease --title "cyllama ${TAG}" "${NOTES_ARGS[@]}" 2>/dev/null; then
-            echo "Created release ${TAG}"
-          elif [ ${#NOTES_ARGS[@]} -gt 0 ]; then
-            gh release edit "${TAG}" "${NOTES_ARGS[@]}"
-          fi
-          gh release upload "${TAG}" dist/*.whl --clobber
+
+      # Creates the release on first run and updates it thereafter, so the
+      # CPU and GPU workflows can both publish to one tag in either order.
+      # Always a prerelease: the GPU leg runs up to 2h behind this one, so
+      # promoting on the first leg to finish would advertise a "Latest"
+      # release carrying only half the wheels. Promotion is manual:
+      # `gh release edit <tag> --prerelease=false`.
+      - uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ env.TAG }}
+          name: cyllama ${{ env.TAG }}
+          body_path: ${{ steps.notes.outputs.found == '1' && 'release-notes.md' || '' }}
+          generate_release_notes: ${{ steps.notes.outputs.found != '1' }}
+          prerelease: true
+
+      - name: Upload wheels
+        # --clobber so re-running one workflow tops the release up instead
+        # of failing on the assets already attached by the other.
+        run: gh release upload "$TAG" dist/*.whl --clobber
 
   # ---------------------------------------------------------------------------
   # Optional: publish abi3 wheels to PyPI. Requires the PYPI_API_TOKEN repo

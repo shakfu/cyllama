@@ -1,0 +1,112 @@
+name: _gpu-build-cuda-windows
+
+# Reusable workflow: builds CUDA 12.4 abi3 wheels for Windows x86_64.
+# Called by build-gpu-wheels-abi3.yml, which owns the trigger, the
+# per-backend opt-out, and the release. Do not invoke directly --
+# `workflow_call` only.
+
+on:
+  workflow_call:
+    inputs:
+      link_mode:
+        description: '"dynamic" | "static"'
+        type: string
+        default: dynamic
+
+permissions:
+  contents: read
+
+env:
+  CIBW_BUILD_VERBOSITY: 1
+  # abi3: a single build per platform produces a cp312-abi3 wheel
+  # valid for CPython 3.12+.
+  CIBW_BUILD: "cp312-*"
+  CIBW_SKIP: "*-musllinux_* *-win32 *-manylinux_i686"
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  build:
+    name: CUDA 12.4 abi3 - Windows x86_64 (${{ inputs.link_mode }})
+    runs-on: windows-2022
+    timeout-minutes: 120
+
+    steps:
+      # workflow_call has no `choice` input type, so the value is checked
+      # here. Anything but 'dynamic' falls through the ternaries below to
+      # a static build, which would otherwise ship silently mislabelled.
+      - name: Validate link_mode
+        shell: bash
+        run: |
+          case "${{ inputs.link_mode }}" in
+            dynamic|static) ;;
+            *) echo "::error::link_mode must be 'dynamic' or 'static', got '${{ inputs.link_mode }}'"; exit 1 ;;
+          esac
+
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Cache thirdparty deps
+        id: cache-deps
+        uses: actions/cache@v5
+        with:
+          path: thirdparty/
+          key: deps-abi3-cuda-windows-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage.py', 'pyproject.toml', '.github/workflows/_gpu-build-cuda-windows.yml') }}
+
+      - name: Install CUDA Toolkit 12.4
+        uses: Jimver/cuda-toolkit@v0.2.21
+        id: cuda-toolkit
+        with:
+          cuda: '12.4.0'
+          method: 'network'
+          sub-packages: '["nvcc", "cudart", "cublas", "cublas_dev", "visual_studio_integration"]'
+
+      - name: Verify CUDA installation
+        shell: bash
+        run: |
+          echo "CUDA_PATH=$CUDA_PATH"
+          nvcc --version
+          ls "$CUDA_PATH/lib/x64/" | head -20
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.11'
+
+      - name: Install cibuildwheel
+        run: pip install cibuildwheel==3.4.0
+
+      - name: Build CUDA abi3 wheels
+        run: python -m cibuildwheel --output-dir wheelhouse
+        env:
+          CIBW_ARCHS_WINDOWS: AMD64
+          CIBW_BEFORE_BUILD_WINDOWS: >
+            pip install delvewheel &&
+            python {project}/scripts/ci_rename_package.py cyllama-cuda12 &&
+            cd {project} &&
+            python scripts/manage.py build --all --deps-only --no-sd-examples
+            ${{ inputs.link_mode == 'dynamic' && '--dynamic' || '' }} &&
+            python scripts/manage.py write_build_config
+          CIBW_ENVIRONMENT_WINDOWS: >
+            GGML_CUDA=1
+            GGML_METAL=0
+            GGML_NATIVE=OFF
+            CMAKE_CUDA_ARCHITECTURES="75"
+            WITH_DYLIB=${{ inputs.link_mode == 'dynamic' && '1' || '0' }}
+            SD_USE_VENDORED_GGML=${{ inputs.link_mode == 'dynamic' && '0' || '1' }}
+            SKBUILD_CMAKE_DEFINE="CYLLAMA_ABI3=ON"
+            SKBUILD_WHEEL_PY_API=cp312
+          CIBW_TEST_COMMAND: ""
+          CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: >
+            python {project}\scripts\manage.py wheel_repair --backend cuda --dest-dir {dest_dir} {wheel}
+
+      - name: List built wheels
+        shell: bash
+        run: ls -lah wheelhouse/
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v7
+        with:
+          name: wheels-abi3-cuda-windows-x86_64
+          path: ./wheelhouse/*.whl

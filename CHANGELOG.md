@@ -22,6 +22,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+### Changed
+
+- **`build-cibw-abi3.yml` and `build-gpu-wheels-abi3.yml` publish the GitHub release for the tag they build** -- both were `workflow_dispatch`-only. Release mode is now `github.ref_type == 'tag'`, which covers a tag push and a dispatch against a tag alike; a dispatch against a branch builds only. The body comes from the `## [<tag>]` section of `CHANGELOG.md` via `scripts/release_notes.py`, falling back to GitHub's generated notes when no section exists -- a release without hand-written notes beats a failed release. This replaces the `upload_release` input, which derived the tag from `pyproject.toml` and so let `gh release create` invent a tag that did not exist, pointing at the default branch. A `verify_tag` job now fails the run in under a minute when a tag disagrees with `pyproject.toml`; that mismatch yields a release named `0.4.7` whose assets are all `cyllama-0.4.6-*.whl`, and no re-run fixes it. PyPI uploads stay dispatch-only.
+
+  Publishing uses `softprops/action-gh-release`, which creates the release once and updates it thereafter, so the two workflows attach their wheels to one tag in either order and either can be re-run alone. Wheel uploads use `gh release upload --clobber` for the same reason. The release is always a prerelease: the GPU leg runs up to 2h behind the CPU one, so promoting on whichever finishes first would advertise a "Latest" release carrying half the wheels. Promotion stays a deliberate `gh release edit <tag> --prerelease=false`.
+
+- **Per-backend package rename consolidated into `scripts/ci_rename_package.py`** -- the seven GPU workflows rewrote `pyproject.toml`'s `[project] name` in three spellings: GNU `sed -i` plus a `grep -q` verify on Linux, BSD `sed -i ''` plus the same verify on macOS, and a pair of `python -c` one-liners on Windows. Each `CIBW_BEFORE_BUILD_*` now calls one script. It keeps the read-back verification the shell versions had, adds an allowlist so a typo'd name cannot build a wheel under a distribution nobody owns, and locates `pyproject.toml` relative to itself rather than the working directory -- the Windows hook ran its rename before `cd {project}`, so a cwd-relative path resolved differently per platform. A standalone script over a `manage.py` subcommand: the rename is needed before `manage.py` runs and has no dependency on it.
+
+- **`build-gpu-wheels-abi3.yml` split into per-backend reusable workflows** -- the 1206-line monolith became a 312-line dispatcher plus seven `_gpu-build-<backend>.yml` files (113-143 lines each) and `_gpu-smoke.yml`, each `workflow_call`-only. Build steps moved verbatim; the only edits are `link_mode` becoming a typed input with a `dynamic` default, and each backend's `actions/cache` key hashing its own file instead of the dispatcher, so editing one backend no longer busts the other six caches. Per-backend opt-out stays in the dispatcher as a job-level `if` on the `uses:` call, rather than inferna's `enabled` input threaded to an inner `if`, which needs no input and lets a skipped backend report as skipped.
+
+  Total line count rises (1206 -> 1521): eight files each carry a `workflow_call` header, the workflow-level `env` block that `workflow_call` does not inherit, and a `link_mode` validation step -- `workflow_call` has no `choice` type, and an unvalidated typo would fall through the `== 'dynamic'` ternaries to a silent static build. The win is per-file: changing one backend means reading ~130 lines instead of 1206.
+
+### Fixed
+
+- **GPU wheel smoke tests never ran** -- `smoke_test`'s matrix carried `condition: inputs.cuda_linux` without `${{ }}`, so `matrix.condition` was the literal string `inputs.cuda_linux`, the `!= "true"` check always matched, and every step in the job was skipped via `steps.check.outputs.skip`. The job reported success throughout. Now that the release is gated on these tests, the conditions are real expressions.
+
+- **`build-gpu-wheels-abi3.yml` `collect` reported success with no wheels** -- the job runs under `always()`, so a run where every build failed still produced a green `collect` and an empty artifact. It now fails when `dist/` holds no wheel.
+
+- **GPU workflow `inputs.link_mode` was empty outside `workflow_dispatch`** -- 45 references across cache keys, job names, `WITH_DYLIB`, and `SD_USE_VENDORED_GGML` read it directly, so a non-dispatch trigger would have silently built in the wrong link mode against poisoned cache keys. All now read `inputs.link_mode || 'dynamic'`.
+
 ## [0.4.6]
 
 ### Added

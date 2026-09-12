@@ -1,0 +1,133 @@
+name: _gpu-build-vulkan-linux
+
+# Reusable workflow: builds Vulkan abi3 wheels for Linux x86_64.
+# Called by build-gpu-wheels-abi3.yml, which owns the trigger, the
+# per-backend opt-out, and the release. Do not invoke directly --
+# `workflow_call` only.
+
+on:
+  workflow_call:
+    inputs:
+      link_mode:
+        description: '"dynamic" | "static"'
+        type: string
+        default: dynamic
+
+permissions:
+  contents: read
+
+env:
+  CIBW_BUILD_VERBOSITY: 1
+  # abi3: a single build per platform produces a cp312-abi3 wheel
+  # valid for CPython 3.12+.
+  CIBW_BUILD: "cp312-*"
+  CIBW_SKIP: "*-musllinux_* *-win32 *-manylinux_i686"
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  build:
+    name: Vulkan abi3 - Linux x86_64 (${{ inputs.link_mode }})
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+
+    steps:
+      # workflow_call has no `choice` input type, so the value is checked
+      # here. Anything but 'dynamic' falls through the ternaries below to
+      # a static build, which would otherwise ship silently mislabelled.
+      - name: Validate link_mode
+        shell: bash
+        run: |
+          case "${{ inputs.link_mode }}" in
+            dynamic|static) ;;
+            *) echo "::error::link_mode must be 'dynamic' or 'static', got '${{ inputs.link_mode }}'"; exit 1 ;;
+          esac
+
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          clean: true
+
+      - name: Cache thirdparty deps
+        id: cache-deps
+        uses: actions/cache@v5
+        with:
+          path: thirdparty/
+          key: deps-abi3-vulkan-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage.py', 'pyproject.toml', '.github/workflows/_gpu-build-vulkan-linux.yml') }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.11'
+
+      - name: Install cibuildwheel
+        run: pip install cibuildwheel==3.4.0
+
+      - name: Set CCACHE_DIR to workspace
+        run: echo "CCACHE_DIR=${{ github.workspace }}/.ccache" >> "$GITHUB_ENV"
+
+      - name: ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ccache-abi3-vulkan-${{ inputs.link_mode }}
+          evict-old-files: 1d
+
+      - name: Build Vulkan abi3 wheels
+        run: python -m cibuildwheel --output-dir wheelhouse
+        env:
+          CIBW_ARCHS_LINUX: x86_64
+          CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
+          # shaderc pinned to v2026.3: glslang eaff806e (2026-08-24) emits LocalSizeId
+          # for SPIR-V >= 1.2, which spirv-val rejects under --target-env=vulkan1.2.
+          CIBW_BEFORE_ALL_LINUX: >
+            dnf install -y git epel-release &&
+            dnf install -y ccache &&
+            dnf install -y vulkan-headers vulkan-loader-devel &&
+            if [ -f /project/thirdparty/.deps-complete ]; then echo "=== Deps cached, skipping build ==="; exit 0; fi &&
+            git clone --depth 1 --branch v2026.3 https://github.com/google/shaderc.git /tmp/shaderc &&
+            cd /tmp/shaderc && python3 utils/git-sync-deps &&
+            cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DSHADERC_SKIP_TESTS=ON -DSHADERC_SKIP_EXAMPLES=ON -DSHADERC_SKIP_COPYRIGHT_CHECK=ON &&
+            cmake --build build --target glslc_exe --parallel 4 &&
+            cp build/glslc/glslc /usr/local/bin/glslc &&
+            cmake -S /tmp/shaderc/third_party/spirv-headers -B /tmp/spirv-headers-build -DCMAKE_INSTALL_PREFIX=/usr/local -DSPIRV_HEADERS_SKIP_EXAMPLES=ON -DSPIRV_HEADERS_SKIP_INSTALL=OFF &&
+            cmake --install /tmp/spirv-headers-build &&
+            cd /project && rm -rf /tmp/shaderc /tmp/spirv-headers-build &&
+            CI_PYTHON=$(ls -d /opt/python/cp3*/bin | head -1) &&
+            $CI_PYTHON/pip install cmake ninja &&
+            PATH=$CI_PYTHON:$PATH
+            CCACHE_DIR=/project/.ccache
+            CMAKE_C_COMPILER_LAUNCHER=ccache
+            CMAKE_CXX_COMPILER_LAUNCHER=ccache
+            GGML_NATIVE=OFF GGML_VULKAN=1 GGML_METAL=0
+            SD_USE_VENDORED_GGML=${{ inputs.link_mode == 'dynamic' && '0' || '1' }}
+            $CI_PYTHON/python scripts/manage.py build --all --deps-only --no-sd-examples
+            ${{ inputs.link_mode == 'dynamic' && '--dynamic' || '' }} &&
+            touch /project/thirdparty/.deps-complete
+          CIBW_BEFORE_BUILD_LINUX: >
+            python {project}/scripts/ci_rename_package.py cyllama-vulkan &&
+            cd {project} && python scripts/manage.py write_build_config
+          CIBW_ENVIRONMENT_LINUX: >
+            GGML_NATIVE=OFF
+            GGML_VULKAN=1
+            GGML_METAL=0
+            CFLAGS=-s
+            CXXFLAGS=-s
+            CCACHE_DIR=/project/.ccache
+            CMAKE_C_COMPILER_LAUNCHER=ccache
+            CMAKE_CXX_COMPILER_LAUNCHER=ccache
+            WITH_DYLIB=${{ inputs.link_mode == 'dynamic' && '1' || '0' }}
+            SD_USE_VENDORED_GGML=${{ inputs.link_mode == 'dynamic' && '0' || '1' }}
+            SKBUILD_CMAKE_DEFINE="CYLLAMA_ABI3=ON"
+            SKBUILD_WHEEL_PY_API=cp312
+          CIBW_TEST_COMMAND: ""
+          CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
+            python {project}/scripts/manage.py wheel_repair --backend vulkan --dest-dir {dest_dir} {wheel}
+
+      - name: List built wheels
+        run: ls -lah wheelhouse/
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v7
+        with:
+          name: wheels-abi3-vulkan-linux-x86_64
+          path: ./wheelhouse/*.whl

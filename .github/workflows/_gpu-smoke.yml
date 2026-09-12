@@ -1,0 +1,321 @@
+name: _gpu-smoke
+
+# Reusable workflow: installs each backend's abi3 wheel in a clean venv
+# and checks that it imports, that every compiled extension carries the
+# abi3 tag, and (on Windows) that every bundled ggml-*.dll loads.
+# Called by build-gpu-wheels-abi3.yml. Do not invoke directly --
+# `workflow_call` only.
+#
+# One matrix leg per backend. A leg whose flag is false skips every step
+# rather than the job, so the matrix shape stays constant across runs.
+
+on:
+  workflow_call:
+    inputs:
+      cuda_linux:
+        description: 'Whether the cuda_linux wheel was built'
+        type: boolean
+        default: true
+      rocm_linux:
+        description: 'Whether the rocm_linux wheel was built'
+        type: boolean
+        default: true
+      sycl_linux:
+        description: 'Whether the sycl_linux wheel was built'
+        type: boolean
+        default: true
+      vulkan_linux:
+        description: 'Whether the vulkan_linux wheel was built'
+        type: boolean
+        default: true
+      cuda_windows:
+        description: 'Whether the cuda_windows wheel was built'
+        type: boolean
+        default: true
+      vulkan_windows:
+        description: 'Whether the vulkan_windows wheel was built'
+        type: boolean
+        default: true
+      vulkan_macos_intel:
+        description: 'Whether the vulkan_macos_intel wheel was built'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Smoke test abi3 - ${{ matrix.backend }}
+    runs-on: ${{ matrix.runs-on }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - backend: cuda
+            runs-on: ubuntu-latest
+            artifact: wheels-abi3-cuda-linux-x86_64
+            condition: ${{ inputs.cuda_linux }}
+          - backend: rocm
+            runs-on: ubuntu-latest
+            artifact: wheels-abi3-rocm-linux-x86_64
+            condition: ${{ inputs.rocm_linux }}
+          - backend: sycl
+            runs-on: ubuntu-latest
+            artifact: wheels-abi3-sycl-linux-x86_64
+            condition: ${{ inputs.sycl_linux }}
+          - backend: vulkan
+            runs-on: ubuntu-latest
+            artifact: wheels-abi3-vulkan-linux-x86_64
+            condition: ${{ inputs.vulkan_linux }}
+          - backend: cuda-windows
+            runs-on: windows-latest
+            artifact: wheels-abi3-cuda-windows-x86_64
+            condition: ${{ inputs.cuda_windows }}
+          - backend: vulkan-windows
+            runs-on: windows-latest
+            artifact: wheels-abi3-vulkan-windows-x86_64
+            condition: ${{ inputs.vulkan_windows }}
+          - backend: vulkan-macos-intel
+            runs-on: macos-15-intel
+            artifact: wheels-abi3-vulkan-macos-intel-x86_64
+            condition: ${{ inputs.vulkan_macos_intel }}
+
+    steps:
+      - name: Check if backend was built
+        id: check
+        shell: bash
+        run: |
+          if [ "${{ matrix.condition }}" != "true" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-python@v7
+        if: steps.check.outputs.skip != 'true'
+        with:
+          python-version: "3.12"
+
+      - name: Download wheel artifacts
+        if: steps.check.outputs.skip != 'true'
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ matrix.artifact }}
+          path: wheels
+
+      - name: Find abi3 wheel
+        if: steps.check.outputs.skip != 'true'
+        id: find-wheel
+        shell: bash
+        run: |
+          WHEEL=$(find wheels -name "*abi3*.whl" | head -1)
+          if [ -z "$WHEEL" ]; then
+            echo "ERROR: no abi3 wheel found in wheels/"
+            ls -la wheels/
+            exit 1
+          fi
+          echo "wheel=$WHEEL" >> "$GITHUB_OUTPUT"
+          echo "Found abi3 wheel: $WHEEL"
+
+      - name: Install wheel in clean venv
+        if: steps.check.outputs.skip != 'true'
+        shell: bash
+        run: |
+          python -m venv smoke-venv
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            source smoke-venv/Scripts/activate
+          else
+            source smoke-venv/bin/activate
+          fi
+          pip install "${{ steps.find-wheel.outputs.wheel }}"
+
+      # -------------------------------------------------------------------
+      # Windows-only: link-test every bundled ggml-*.dll using the same
+      # LoadLibraryW(path, NULL, 0) semantics that ggml_backend_load()
+      # uses in C. Catches the class of bug where delvewheel-bundled
+      # siblings (e.g. vulkan-1-<hash>.dll) are unreachable because the
+      # libs dir is not on PATH — a failure mode invisible to GPU-less
+      # runners since `cyllama info` still exits 0 when a backend DLL
+      # fails to load. Independent of GPU/ICD presence.
+      # -------------------------------------------------------------------
+      - name: Smoke test - DLL link (Windows)
+        if: steps.check.outputs.skip != 'true' && runner.os == 'Windows'
+        shell: bash
+        run: |
+          source smoke-venv/Scripts/activate
+          python -c "
+          import ctypes, glob, os, site, sys
+          failed = []
+          for sp in site.getsitepackages():
+              for libs in glob.glob(os.path.join(sp, 'cyllama*.libs')):
+                  for dll in sorted(glob.glob(os.path.join(libs, 'ggml-*.dll'))):
+                      try:
+                          ctypes.WinDLL(dll)
+                      except OSError as e:
+                          failed.append((dll, str(e)))
+                      else:
+                          print(f'OK   {dll}')
+          if failed:
+              for d, e in failed:
+                  print(f'FAIL {d}: {e}', file=sys.stderr)
+              sys.exit(1)
+          "
+
+      - name: Verify extension suffix is .abi3
+        if: steps.check.outputs.skip != 'true'
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            source smoke-venv/Scripts/activate
+          else
+            source smoke-venv/bin/activate
+          fi
+          python -c "
+          import pathlib, re, cyllama
+          root = pathlib.Path(cyllama.__file__).parent
+          bad = []
+          # cyllama/rag/vector.* is sqlite-vector (plain C, loaded by
+          # SQLite), not a CPython extension — skip.
+          # Linux/macOS: abi3 wheels tag extensions as foo.abi3.so.
+          # Windows: abi3 wheels produce plain foo.pyd (no soabi tag);
+          # version-specific wheels produce foo.cp3XX-win_amd64.pyd.
+          for ext in ('*.so', '*.pyd', '*.dylib'):
+              for p in root.rglob(ext):
+                  if p.parent.name == 'rag' and p.stem.split('.')[0] == 'vector':
+                      continue
+                  if p.suffix == '.pyd':
+                      if re.search(r'\.cp\d+-', p.name):
+                          bad.append(str(p))
+                  else:
+                      if '.abi3.' not in p.name:
+                          bad.append(str(p))
+          if bad:
+              print('Non-abi3 extensions found:')
+              for b in bad:
+                  print(f'  {b}')
+              raise SystemExit(1)
+          print('All compiled Python extensions are abi3-tagged')
+          "
+
+      - name: Smoke test - imports
+        if: steps.check.outputs.skip != 'true'
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            source smoke-venv/Scripts/activate
+          else
+            source smoke-venv/bin/activate
+          fi
+          python -c "
+          import cyllama
+          print(f'cyllama {cyllama.__version__} imported successfully')
+
+          from cyllama import LLM, complete, chat, AsyncLLM
+          from cyllama import batch_generate, BatchGenerator
+          from cyllama import estimate_gpu_layers, estimate_memory_usage
+          from cyllama import GenerationConfig, Response
+
+          from cyllama.llama import llama_cpp
+          print('llama_cpp extension loaded')
+
+          from cyllama.agents import ReActAgent, ConstrainedAgent, ContractAgent, tool
+          print('agents loaded')
+
+          from cyllama.integrations.openai_compat import OpenAICompatibleClient
+          print('integrations loaded')
+
+          try:
+              from cyllama.whisper import whisper_cpp
+              print('whisper_cpp extension loaded')
+          except ImportError as e:
+              print(f'whisper_cpp not available: {e}')
+
+          try:
+              from cyllama.sd import stable_diffusion
+              print('stable_diffusion extension loaded')
+          except ImportError as e:
+              print(f'stable_diffusion not available: {e}')
+
+          try:
+              from cyllama import _backend
+              print(f'Backend: cuda={getattr(_backend, \"cuda\", False)}, '
+                    f'vulkan={getattr(_backend, \"vulkan\", False)}, '
+                    f'hip={getattr(_backend, \"hip\", False)}, '
+                    f'sycl={getattr(_backend, \"sycl\", False)}')
+          except ImportError:
+              print('No _backend module')
+
+          print('All imports passed (${{ matrix.backend }})')
+          "
+
+      - name: Smoke test - cyllama info
+        if: steps.check.outputs.skip != 'true'
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            source smoke-venv/Scripts/activate
+          else
+            source smoke-venv/bin/activate
+          fi
+          python -m cyllama info
+
+      # -------------------------------------------------------------------
+      # SYCL-only: install Intel's OpenCL CPU runtime so the SYCL dispatch
+      # stack has a compliant device on a GPU-less runner, then run a
+      # 1-token decode. Exercises the full pipeline (Cython wrappers ->
+      # libllama -> libggml-sycl -> SYCL runtime -> OpenCL CPU device ->
+      # sampler -> teardown) on free hardware. Catches ABI/symbol/teardown
+      # regressions that bare imports miss. Best-effort: if the Intel
+      # runtime install fails (repo mirror issue, etc.) we log and move on
+      # rather than breaking the whole GPU-wheels workflow.
+      # -------------------------------------------------------------------
+      - name: Install Intel OpenCL CPU runtime
+        if: steps.check.outputs.skip != 'true' && matrix.backend == 'sycl'
+        continue-on-error: true
+        run: |
+          wget -qO - https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB \
+            | sudo gpg --dearmor -o /usr/share/keyrings/oneapi-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" \
+            | sudo tee /etc/apt/sources.list.d/oneAPI.list
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            intel-oneapi-runtime-opencl \
+            intel-oneapi-runtime-dpcpp-cpp
+
+      - name: Cache test model (SYCL)
+        if: steps.check.outputs.skip != 'true' && matrix.backend == 'sycl'
+        id: cache-model-sycl
+        uses: actions/cache@v5
+        with:
+          path: models/Llama-3.2-1B-Instruct-Q8_0.gguf
+          key: test-model-llama-3.2-1b-q8
+
+      - name: Download test model (SYCL)
+        if: steps.check.outputs.skip != 'true' && matrix.backend == 'sycl' && steps.cache-model-sycl.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p models
+          curl -fsSL --retry 3 --retry-all-errors --retry-delay 2 https://huggingface.co/unsloth/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q8_0.gguf \
+            -o models/Llama-3.2-1B-Instruct-Q8_0.gguf
+
+      - name: Smoke test - SYCL 1-token CPU inference
+        if: steps.check.outputs.skip != 'true' && matrix.backend == 'sycl'
+        continue-on-error: true
+        env:
+          ONEAPI_DEVICE_SELECTOR: opencl:cpu
+        run: |
+          source smoke-venv/bin/activate
+          python -c "
+          from cyllama import complete
+          response = complete(
+              'Hi',
+              model_path='models/Llama-3.2-1B-Instruct-Q8_0.gguf',
+              n_ctx=128,
+              max_tokens=1,
+              verbose=True,  # else llama.cpp's own error is discarded; see build-cibw-abi3.yml
+          )
+          print(f'SYCL CPU decode response: {response!r}')
+          assert len(str(response).strip()) > 0, 'Empty response'
+          print('SYCL CPU inference smoke test passed')
+          "
