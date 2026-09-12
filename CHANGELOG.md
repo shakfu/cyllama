@@ -22,6 +22,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+## [0.4.6]
+
 ### Added
 
 - **`LlamaVocab.token_to_bytes()`** returns a token's raw piece bytes. `token_to_piece()` decodes each token separately.
