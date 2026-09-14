@@ -1,0 +1,53 @@
+name: python-lint
+
+# ruff + mypy on Python changes. Installs only the dev dependency group,
+# not the project, so no native build is needed and the job runs in ~1 min.
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '**/*.py'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - '.github/workflows/python-lint.yml'
+  push:
+    branches: [main, dev]
+    paths:
+      - '**/*.py'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - '.github/workflows/python-lint.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: ruff + mypy
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - uses: astral-sh/setup-uv@v10
+
+      - name: Install dev tools
+        run: uv sync --locked --only-group dev --no-install-project
+
+      - name: ruff check
+        run: uv run --no-sync ruff check src/ tests/ scripts/
+
+      - name: ruff format
+        run: uv run --no-sync ruff format --check src/ tests/ scripts/
+
+      - name: mypy
+        run: uv run --no-sync mypy src/ scripts/ --follow-imports=skip

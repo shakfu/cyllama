@@ -31,27 +31,43 @@ python -m cyllama.llama.server -m models/Llama-3.2-1B-Instruct-Q8_0.gguf
 ### Start High-Performance Mongoose Server
 
 ```bash
-python -m cyllama.llama.server -m models/Llama-3.2-1B-Instruct-Q8_0.gguf --server-type mongoose
+python -m cyllama.llama.server -m models/Llama-3.2-1B-Instruct-Q8_0.gguf --server-type embedded
 ```
 
 ## Advanced Configuration
 
 ### Custom Host and Port
 
+Both servers bind `127.0.0.1` by default. Binding any other address exposes the API to the network; set an API key first (see [Authentication and Limits](#authentication-and-limits)).
+
 ```bash
-python -m cyllama.llama.server \
+CYLLAMA_API_KEY=... python -m cyllama.llama.server \
     -m models/Llama-3.2-1B-Instruct-Q8_0.gguf \
-    --server-type mongoose \
     --host 0.0.0.0 \
     --port 8080
 ```
+
+### Authentication and Limits
+
+With an API key set, every endpoint except `/health` requires `Authorization: Bearer <key>` and returns 401 otherwise. The server logs a warning when it binds a non-loopback address without a key.
+
+- `CYLLAMA_API_KEY` environment variable, or `--api-key-file PATH`, which takes precedence. There is no `--api-key` flag: command-line arguments are visible to other local users.
+- In Python: `ServerConfig(api_key=...)`.
+
+Request bodies over `ServerConfig.max_body_bytes` (default 2 MiB) get 413. `EmbeddedServer` also drops bodies over 3 MiB, the Mongoose receive limit, without a response.
+
+```bash
+curl http://host:8080/v1/models -H "Authorization: Bearer $CYLLAMA_API_KEY"
+```
+
+There is no TLS. Across untrusted networks, put the server behind a TLS-terminating reverse proxy.
 
 ### Multiple Parallel Processing Slots
 
 ```bash
 python -m cyllama.llama.server \
     -m models/Llama-3.2-1B-Instruct-Q8_0.gguf \
-    --server-type mongoose \
+    --server-type embedded \
     --n-parallel 4 \
     --ctx-size 2048
 ```
@@ -61,7 +77,7 @@ python -m cyllama.llama.server \
 ```bash
 python -m cyllama.llama.server \
     -m models/Llama-3.2-1B-Instruct-Q8_0.gguf \
-    --server-type mongoose \
+    --server-type embedded \
     --gpu-layers 32 \
     --ctx-size 4096
 ```

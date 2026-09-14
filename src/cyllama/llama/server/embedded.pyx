@@ -11,13 +11,23 @@ from typing import Dict, List, Optional, Any, Callable
 from dataclasses import dataclass
 
 # Import Mongoose C API
+from cpython.exc cimport PyErr_CheckSignals
+
 from .mongoose cimport *
 
 # Import from Python server implementation
-from .python import ServerConfig, ServerSlot, ChatMessage, ChatRequest, ChatResponse, ChatChoice
+from .python import (ServerConfig, ServerSlot, ChatMessage, ChatRequest, ChatResponse, ChatChoice,
+                     check_request, exposed_without_auth)
 
 # Global shutdown flag for signal handling (following pymongoose pattern)
 _shutdown_requested = False
+
+
+def _listen_url(host: str, port: int) -> str:
+    """Build the Mongoose listen URL for exactly the configured host."""
+    if ":" in host and not host.startswith("["):
+        host = f"[{host}]"  # IPv6 literal; unbracketed colons break port parsing
+    return f"http://{host}:{port}"
 
 
 cdef class MongooseConnection:
@@ -45,14 +55,16 @@ cdef class MongooseConnection:
         # Extract C pointers from bytes objects before nogil section
         cdef const char* headers_ptr = headers_bytes
         cdef const char* json_ptr = json_bytes
+        cdef size_t json_len = len(json_bytes)
 
         # Send HTTP reply without GIL for better performance
-        self._send_reply_nogil(status_code, headers_ptr, json_ptr)
+        self._send_reply_nogil(status_code, headers_ptr, json_ptr, json_len)
         return True
 
-    cdef void _send_reply_nogil(self, int status_code, const char* headers_ptr, const char* json_ptr) nogil:
+    cdef void _send_reply_nogil(self, int status_code, const char* headers_ptr, const char* json_ptr,
+                                size_t json_len) nogil:
         """Send HTTP reply without holding GIL."""
-        cyllama_mg_http_reply(self._conn, status_code, headers_ptr, "%s", json_ptr)
+        cyllama_mg_http_reply(self._conn, status_code, headers_ptr, json_ptr, json_len)
 
     def send_error(self, status_code: int, message: str):
         """Send error response."""
@@ -195,15 +207,14 @@ cdef class EmbeddedServer:
         if not self.load_model():
             return False
 
+        if exposed_without_auth(self._config):
+            self._logger.warning(f"Binding {self._config.host} without an API key: any host that can reach it can use it")
+
         # Setup signal handlers for graceful shutdown
         self._setup_signal_handlers()
 
         try:
-            # Create listener address - try different format that might work better
-            if self._config.host == "127.0.0.1" or self._config.host == "localhost":
-                listen_addr = f"http://0.0.0.0:{self._config.port}"
-            else:
-                listen_addr = f"http://{self._config.host}:{self._config.port}"
+            listen_addr = _listen_url(self._config.host, self._config.port)
 
             self._logger.info(f"Attempting to bind to: {listen_addr}")
             addr_bytes = listen_addr.encode('utf-8')
@@ -283,8 +294,13 @@ cdef class EmbeddedServer:
         # Follow pymongoose pattern: check flag in Python, poll in C
         # This ensures signal handling works correctly across the GIL boundary
         while not _shutdown_requested:
-            # Poll with GIL released for performance
-            self._poll_nogil(100)  # 100ms like pymongoose
+            # Calling a nogil function does not release the GIL; `with nogil` does.
+            # Holding it starved every other Python thread.
+            with nogil:
+                self._poll_nogil(100)  # 100ms like pymongoose
+            # A pure-C loop never runs Python signal handlers, so Ctrl-C waited for
+            # the next request.
+            PyErr_CheckSignals()
 
         self._logger.info(f"Exiting on signal {self._signal_received}")
         # Close connections gracefully
@@ -305,6 +321,11 @@ cdef class EmbeddedServer:
     def handle_http_request(self, conn: MongooseConnection, method: str, uri: str,
                           headers: dict, body: str):
         """Handle HTTP request using existing logic."""
+        rejection = check_request(self._config, uri, headers.get("authorization"), len(body.encode("utf-8")))
+        if rejection is not None:
+            conn.send_error(*rejection)
+            return
+
         try:
             if method == "GET":
                 if uri == "/health":
@@ -568,8 +589,11 @@ cdef void _http_event_handler(mg_connection *c, int ev, void *ev_data) noexcept 
             uri = hm.uri.buf[:hm.uri.len].decode('utf-8')
             body = hm.body.buf[:hm.body.len].decode('utf-8') if hm.body.len > 0 else ""
 
-            # Extract headers (simplified)
+            # Only the headers the handlers read; keys are lowercase.
             headers = {}
+            auth = cyllama_mg_http_get_header(hm, b"Authorization")
+            if auth != NULL:
+                headers["authorization"] = auth.buf[:auth.len].decode('latin-1')
 
             # Handle request
             server.handle_http_request(conn_wrapper, method, uri, headers, body)
@@ -578,7 +602,8 @@ cdef void _http_event_handler(mg_connection *c, int ev, void *ev_data) noexcept 
             # Log error and send 500 response
             if server._logger:
                 server._logger.error(f"Event handler error: {e}")
-            cyllama_mg_http_reply(c, 500, b"Content-Type: text/plain\r\n", "%s", b"Internal Server Error")
+            msg = b"Internal Server Error"
+            cyllama_mg_http_reply(c, 500, b"Content-Type: text/plain\r\n", msg, len(msg))
 
 
 # Convenience function

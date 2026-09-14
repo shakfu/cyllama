@@ -10,11 +10,13 @@ This approach avoids the complexity of wrapping cpp-httplib and complex C++ temp
 while still providing the full server functionality using the existing libllama.a linkage.
 """
 
+import hmac
+import ipaddress
 import json
 import time
 import threading
 import logging
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 if TYPE_CHECKING:
     from ...rag.embedder import Embedder
@@ -64,6 +66,33 @@ class ServerConfig:
 
     # OpenAI compatibility
     model_alias: str = "gpt-3.5-turbo"
+
+    # Security
+    api_key: Optional[str] = None  # if set, require "Authorization: Bearer <key>" except on /health
+    max_body_bytes: int = 2 * 1024 * 1024  # EmbeddedServer is also capped at 3 MiB by Mongoose
+
+
+def check_request(
+    config: ServerConfig, path: str, authorization: Optional[str], content_length: int
+) -> Optional[Tuple[int, str]]:
+    """Return (status, message) if a request must be rejected before its body is read, else None."""
+    if config.api_key and path != "/health":
+        expected = f"Bearer {config.api_key}".encode("utf-8")
+        if not hmac.compare_digest((authorization or "").encode("utf-8"), expected):
+            return 401, "Invalid or missing API key"
+    if content_length > config.max_body_bytes:
+        return 413, f"Request body exceeds {config.max_body_bytes} bytes"
+    return None
+
+
+def exposed_without_auth(config: ServerConfig) -> bool:
+    """True if the server binds a non-loopback address with no API key."""
+    if config.api_key or config.host == "localhost":
+        return False
+    try:
+        return not ipaddress.ip_address(config.host.strip("[]")).is_loopback
+    except ValueError:
+        return True  # a hostname may resolve to any interface
 
 
 @dataclass
@@ -389,6 +418,9 @@ class PythonServer:
         if not self.load_model():
             return False
 
+        if exposed_without_auth(self.config):
+            self.logger.warning(f"Binding {self.config.host} without an API key: any host that can reach it can use it")
+
         try:
             # Create HTTP server
             handler = self._create_request_handler()
@@ -439,6 +471,8 @@ class PythonServer:
             def do_GET(self) -> None:
                 """Handle GET requests."""
                 path = urlparse(self.path).path
+                if self._reject(path, 0):
+                    return
 
                 if path == "/health":
                     self._send_json_response({"status": "ok"})
@@ -452,8 +486,15 @@ class PythonServer:
                 path = urlparse(self.path).path
 
                 try:
-                    # Read request body
                     content_length = int(self.headers.get("Content-Length", 0))
+                except ValueError:
+                    self.close_connection = True
+                    self._send_error(400, "Invalid Content-Length")
+                    return
+                if self._reject(path, content_length):
+                    return
+
+                try:
                     if content_length > 0:
                         body = self.rfile.read(content_length).decode("utf-8")
                         data = json.loads(body)
@@ -472,6 +513,17 @@ class PythonServer:
                 except Exception as e:
                     server_instance.logger.error(f"Request error: {e}")
                     self._send_error(500, "Internal Server Error")
+
+            def _reject(self, path: str, content_length: int) -> bool:
+                """Send an error and return True if the request fails auth or size checks."""
+                rejection = check_request(
+                    server_instance.config, path, self.headers.get("Authorization"), content_length
+                )
+                if rejection is None:
+                    return False
+                self.close_connection = True  # the unread body must not be parsed as the next request
+                self._send_error(*rejection)
+                return True
 
             def _send_json_response(self, data: Dict[str, Any], status: int = 200) -> None:
                 """Send a JSON response."""

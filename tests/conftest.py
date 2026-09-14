@@ -285,6 +285,11 @@ def pytest_collection_modifyitems(config, items):
     # Fixtures that require the model to exist
     model_fixtures = {"model_path", "llm", "llm_deterministic", "llm_shared"}
 
+    # CI sets this where the model is provisioned, so a missing model fails the
+    # run instead of silently skipping every model test.
+    if not model_file.exists() and os.environ.get("CYLLAMA_REQUIRE_MODELS") == "1":
+        raise pytest.UsageError(f"CYLLAMA_REQUIRE_MODELS=1 but test model is missing: {model_file}")
+
     if not model_file.exists():
         skip_no_model = pytest.mark.skip(reason="Model file not found")
         for item in items:

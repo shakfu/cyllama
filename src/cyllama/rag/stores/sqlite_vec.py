@@ -216,11 +216,7 @@ class SqliteVecStore(VectorStoreProtocol):
             # SQLite derives the entrypoint symbol from the filename,
             # but the symbol is named for the upstream artifact (vec0),
             # so name it explicitly instead.
-            # The entrypoint kwarg landed in Python 3.12 (which cyllama
-            # already requires) but mypy's stdlib stubs don't carry it.
-            self.conn.load_extension(  # type: ignore[call-arg]
-                self._extension_path, entrypoint="sqlite3_vec_init"
-            )
+            self.conn.load_extension(self._extension_path, entrypoint="sqlite3_vec_init")
         except sqlite3.OperationalError as e:
             raise self._error(f"Failed to load sqlite-vec extension from {self._extension_path!r}: {e}") from e
         finally:

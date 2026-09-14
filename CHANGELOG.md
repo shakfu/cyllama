@@ -34,13 +34,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
   Total line count rises (1206 -> 1521): eight files each carry a `workflow_call` header, the workflow-level `env` block that `workflow_call` does not inherit, and a `link_mode` validation step -- `workflow_call` has no `choice` type, and an unvalidated typo would fall through the `== 'dynamic'` ternaries to a silent static build. The win is per-file: changing one backend means reading ~130 lines instead of 1206.
 
+- **CPU wheel build runs on PRs touching native or build files** -- `build-cibw-abi3.yml` gains a path-filtered `pull_request` trigger (Cython, C/C++ helpers, CMake, `scripts/manage.py`, `pyproject.toml`) that builds and smoke-tests the Linux leg only. Binding and build breaks previously surfaced at the release tag. macOS, Windows and GPU legs stay on tags and dispatch.
+
+- **Linux in-container wheel test requires the test model** -- `CYLLAMA_REQUIRE_MODELS=1` makes `tests/conftest.py` fail the run when the default model is missing, instead of skipping every model test. The Linux cibuildwheel leg now provisions the model and sets it, so that pass exercises inference rather than reporting a skip-heavy success. Other platforms and local runs keep skipping.
+
+- **`python-lint.yml` runs `ruff` and `mypy` on Python changes** -- installs only the dev group, no native build. ruff and mypy now target 3.12, matching `requires-python`; they had targeted 3.10.
+
 ### Fixed
+
+- **`EmbeddedServer` truncated responses to 4095 bytes** -- the Mongoose reply wrapper formatted the body into a fixed 4096-byte stack buffer before handing it to Mongoose, and still sent 200. Embedding vectors and long completions arrived as invalid JSON. The wrapper now takes an explicit body length and writes straight into Mongoose's growable send buffer. Covered by `tests/test_server_security.py::test_large_response_not_truncated`.
+
+- **`EmbeddedServer` ignored Ctrl-C and blocked other threads while idle** -- the event loop called a `nogil` poll function without `with nogil`, which does not release the GIL, and never ran pending Python signal handlers. SIGINT took effect only when the next request arrived, and no other Python thread could run while the loop waited. Covered by `tests/test_server_security.py::test_embedded_loop_handles_signals_while_idle`.
 
 - **GPU wheel smoke tests never ran** -- `smoke_test`'s matrix carried `condition: inputs.cuda_linux` without `${{ }}`, so `matrix.condition` was the literal string `inputs.cuda_linux`, the `!= "true"` check always matched, and every step in the job was skipped via `steps.check.outputs.skip`. The job reported success throughout. Now that the release is gated on these tests, the conditions are real expressions.
 
 - **`build-gpu-wheels-abi3.yml` `collect` reported success with no wheels** -- the job runs under `always()`, so a run where every build failed still produced a green `collect` and an empty artifact. It now fails when `dist/` holds no wheel.
 
 - **GPU workflow `inputs.link_mode` was empty outside `workflow_dispatch`** -- 45 references across cache keys, job names, `WITH_DYLIB`, and `SD_USE_VENDORED_GGML` read it directly, so a non-dispatch trigger would have silently built in the wrong link mode against poisoned cache keys. All now read `inputs.link_mode || 'dynamic'`.
+
+### Security
+
+- **`EmbeddedServer` bound all interfaces when asked for localhost** -- `host="127.0.0.1"` or `"localhost"` was rewritten to `0.0.0.0`, exposing the unauthenticated inference API to the network. The server now binds the configured host as given; IPv6 literals are bracketed. Covered by `tests/test_embedded_bind.py`.
+
+- **API-key auth and request-size limit for `EmbeddedServer` and `PythonServer`** -- with `ServerConfig.api_key` set (CLI: `CYLLAMA_API_KEY` or `--api-key-file`), every endpoint except `/health` requires `Authorization: Bearer <key>`. Bodies over `max_body_bytes` (default 2 MiB) get 413 before they are read. Binding a non-loopback address without a key logs a warning. There is no `--api-key` flag because other local users can read command-line arguments. See `SECURITY.md` and `docs/server_usage_examples.md`.
 
 ## [0.4.6]
 

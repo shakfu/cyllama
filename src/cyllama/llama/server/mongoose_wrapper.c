@@ -3,8 +3,6 @@
  * This allows us to compile mongoose.c with C flags and the rest with C++
  */
 
-#include <stdarg.h>
-#include <stdio.h>
 #include "mongoose.h"
 
 /* Re-export all mongoose functions we need for Cython */
@@ -26,17 +24,11 @@ struct mg_connection *cyllama_mg_http_listen(struct mg_mgr *mgr, const char *url
     return mg_http_listen(mgr, url, fn, fn_data);
 }
 
+/* Length-explicit: Mongoose's send buffer grows as needed, so no intermediate
+   buffer (a fixed 4096-byte one truncated larger responses). */
 void cyllama_mg_http_reply(struct mg_connection *c, int status_code, const char *headers,
-                          const char *body_fmt, ...) {
-    va_list ap;
-    va_start(ap, body_fmt);
-
-    /* Create a formatted string from the body_fmt and args */
-    char body[4096];
-    vsnprintf(body, sizeof(body), body_fmt, ap);
-    va_end(ap);
-
-    mg_http_reply(c, status_code, headers, "%s", body);
+                          const char *body, size_t body_len) {
+    mg_http_reply(c, status_code, headers, "%.*s", (int) body_len, body);
 }
 
 struct mg_str *cyllama_mg_http_get_header(struct mg_http_message *hm, const char *name) {

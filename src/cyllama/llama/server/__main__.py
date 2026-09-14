@@ -1,5 +1,6 @@
 import argparse
 import logging
+import os
 import time
 
 from .python import ServerConfig, PythonServer
@@ -20,9 +21,22 @@ def main() -> int:
         help="Server implementation to use: python (pure Python) or embedded (high-performance C). Default: embedded",
     )
 
+    parser.add_argument(
+        "--api-key-file",
+        help="File holding the API key clients must send as 'Authorization: Bearer <key>'. "
+        "Overrides CYLLAMA_API_KEY. Not accepted on the command line, where other users can read it.",
+    )
+
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO)
+
+    api_key = os.environ.get("CYLLAMA_API_KEY") or None
+    if args.api_key_file:
+        with open(args.api_key_file, encoding="utf-8") as f:
+            api_key = f.read().strip()
+        if not api_key:
+            parser.error(f"--api-key-file {args.api_key_file} is empty")
 
     config = ServerConfig(
         model_path=args.model,
@@ -31,6 +45,7 @@ def main() -> int:
         n_ctx=args.ctx_size,
         n_gpu_layers=args.gpu_layers,
         n_parallel=args.n_parallel,
+        api_key=api_key,
     )
 
     if args.server_type == "embedded":

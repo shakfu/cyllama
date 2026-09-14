@@ -11,6 +11,8 @@ name: build-cibw-abi3
 #   workflow_dispatch against a tag    -> same, and republishes if the
 #     release already exists
 #   workflow_dispatch against a branch -> build + smoke test only
+#   pull_request touching native/build files -> Linux-only build + smoke
+#     test, to catch binding and build breaks before release day
 #
 # Release mode is `github.ref_type == 'tag'`, so the tag always comes from
 # the ref being built. Deriving it from pyproject.toml instead would let
@@ -31,6 +33,20 @@ on:
   push:
     tags:
       - '[0-9]+.[0-9]+.[0-9]+*'
+  pull_request:
+    paths:
+      - 'src/cyllama/**/*.pyx'
+      - 'src/cyllama/**/*.pxd'
+      - 'src/cyllama/**/*.pxi'
+      - 'src/cyllama/**/*.c'
+      - 'src/cyllama/**/*.cpp'
+      - 'src/cyllama/**/*.h'
+      - 'CMakeLists.txt'
+      - 'scripts/cmake/**'
+      - 'scripts/patches/**'
+      - 'scripts/manage.py'
+      - 'pyproject.toml'
+      - '.github/workflows/build-cibw-abi3.yml'
   workflow_dispatch:
     inputs:
       publish_to_pypi:
@@ -75,23 +91,35 @@ jobs:
   build_wheels:
     name: Build abi3 wheels for ${{ matrix.os }}
     needs: verify_tag
-    runs-on: ${{ matrix.runs-on }}
+    # runs-on is a lookup, not a matrix `include`: an include naming an os
+    # that the PR filter removed would add that job back.
+    runs-on: ${{ fromJSON('{"linux-intel":"ubuntu-latest","windows-intel":"windows-latest","macos-intel":"macos-15-intel","macos-arm":"macos-latest"}')[matrix.os] }}
     timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: linux-intel
-            runs-on: ubuntu-latest
-          - os: windows-intel
-            runs-on: windows-latest
-          - os: macos-intel
-            runs-on: macos-15-intel
-          - os: macos-arm
-            runs-on: macos-latest
+        os: ${{ github.event_name == 'pull_request' && fromJSON('["linux-intel"]') || fromJSON('["linux-intel","windows-intel","macos-intel","macos-arm"]') }}
 
     steps:
       - uses: actions/checkout@v7
+
+      # The Linux in-container test runs with CYLLAMA_REQUIRE_MODELS=1, so the
+      # model must be in the project dir that cibuildwheel copies to /project.
+      - name: Cache test model
+        if: runner.os == 'Linux'
+        id: cache-model
+        uses: actions/cache@v5
+        with:
+          path: models/Llama-3.2-1B-Instruct-Q8_0.gguf
+          key: test-model-llama-3.2-1b-q8
+
+      - name: Download test model
+        if: runner.os == 'Linux' && steps.cache-model.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          mkdir -p models
+          curl -fsSL --retry 3 --retry-all-errors --retry-delay 2 https://huggingface.co/unsloth/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q8_0.gguf \
+            -o models/Llama-3.2-1B-Instruct-Q8_0.gguf
 
       - name: Cache thirdparty deps
         id: cache-deps
@@ -115,8 +143,8 @@ jobs:
       - name: Build abi3 wheels
         uses: pypa/cibuildwheel@v4.2.0
         env:
-          CIBW_PLATFORM: ${{ matrix.platform || 'auto' }}
-          CIBW_ARCHS: ${{ matrix.archs || 'auto' }}
+          CIBW_PLATFORM: auto
+          CIBW_ARCHS: auto
           # Single build per platform - the resulting wheel is tagged
           # cp312-abi3 and is valid on 3.12+. Floor is 3.12 because
           # Cython uses vectorcall (limited-API since 3.12) for faster
@@ -137,6 +165,7 @@ jobs:
             SKBUILD_WHEEL_PY_API=cp312
             GGML_METAL=0
             GGML_NATIVE=0
+            CYLLAMA_REQUIRE_MODELS=1
             CCACHE_DIR=/project/.ccache
             CCACHE_DEPEND=1
             CMAKE_C_COMPILER_LAUNCHER=ccache
@@ -168,20 +197,13 @@ jobs:
   cross_version_smoke_test:
     name: Smoke test py${{ matrix.python }} on ${{ matrix.os }}
     needs: build_wheels
-    runs-on: ${{ matrix.runs-on }}
+    runs-on: ${{ fromJSON('{"linux-intel":"ubuntu-latest","macos-arm":"macos-latest","windows-intel":"windows-latest"}')[matrix.os] }}
     timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
-        os: [linux-intel, macos-arm, windows-intel]
+        os: ${{ github.event_name == 'pull_request' && fromJSON('["linux-intel"]') || fromJSON('["linux-intel","macos-arm","windows-intel"]') }}
         python: ["3.12", "3.13", "3.14"]
-        include:
-          - os: linux-intel
-            runs-on: ubuntu-latest
-          - os: macos-arm
-            runs-on: macos-latest
-          - os: windows-intel
-            runs-on: windows-latest
 
     steps:
       - uses: actions/setup-python@v7
@@ -351,6 +373,7 @@ jobs:
   collect_wheels:
     name: Collect all abi3 wheels
     needs: build_wheels
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:

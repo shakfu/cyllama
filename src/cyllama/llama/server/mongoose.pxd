@@ -93,7 +93,7 @@ cdef extern from "mongoose.h":
 
     # HTTP response functions (using wrapper) - optimized with nogil
     void cyllama_mg_http_reply(mg_connection *c, int status_code, const char *headers,
-                               const char *body_fmt, ...) nogil
+                               const char *body, size_t body_len) nogil
 
     # Helper functions for HTTP (using wrapper) - optimized with nogil
     mg_str *cyllama_mg_http_get_header(mg_http_message *hm, const char *name) nogil

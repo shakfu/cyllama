@@ -417,7 +417,7 @@ class ShellCmd:
             if PY_VER_MINOR < 11:
                 shutil.rmtree(path, ignore_errors=not DEBUG, onerror=remove_readonly)
             else:
-                shutil.rmtree(path, ignore_errors=not DEBUG, onexc=remove_readonly)  # type: ignore[call-arg]
+                shutil.rmtree(path, ignore_errors=not DEBUG, onexc=remove_readonly)
         else:
             if not silent:
                 self.log.info("remove file: %s", path)
