@@ -1,7 +1,8 @@
 name: debug-macos-intel-info
 
-# One-off diagnostic: reruns `cyllama info` on macos-15-intel against an
-# already-built Vulkan wheel, with stderr and native logging visible.
+# One-off diagnostic: why Vulkan backend registration aborts on
+# macos-15-intel. Runs an already-built Vulkan wheel against several
+# MoltenVK versions, and runs vulkaninfo to separate MoltenVK from ggml.
 
 on:
   workflow_dispatch:
@@ -17,14 +18,24 @@ permissions:
 
 jobs:
   info:
+    name: MoltenVK ${{ matrix.mvk }}
     runs-on: macos-15-intel
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - mvk: brew
+          - mvk: v1.4.1
+            sha256: 5ea0c259df7ded9a275444820f09cced54d6e5a7c7a31d262de62a5cdb7e15cf
+          - mvk: v1.3.0
+            sha256: 57b4184ded521b08a63e3642552ebef8b9e98c2f0bcffa49bd93bbe1301c173d
     env:
       HOMEBREW_NO_AUTO_UPDATE: "1"
       PYTHONUNBUFFERED: "1"
       PYTHONFAULTHANDLER: "1"
-      VK_LOADER_DEBUG: error,warn
-      MVK_CONFIG_LOG_LEVEL: "3"
+      VK_LOADER_DEBUG: error,warn,driver
+      MVK_CONFIG_LOG_LEVEL: "4"
     steps:
       - uses: actions/setup-python@v7
         with:
@@ -37,17 +48,34 @@ jobs:
           run-id: ${{ inputs.run_id }}
           github-token: ${{ github.token }}
 
-      - name: Install wheel and Vulkan runtime
+      - name: Install wheel, Vulkan loader and tools
         run: |
-          brew install vulkan-loader molten-vk
+          brew install vulkan-loader molten-vk vulkan-tools
+          brew list --versions vulkan-loader molten-vk vulkan-tools
           python -m venv venv
           venv/bin/pip install wheels/*abi3*.whl
 
-      - name: Host GPU
-        continue-on-error: true
-        run: system_profiler SPDisplaysDataType
+      # VK_DRIVER_FILES replaces the loader's ICD search, so only this MoltenVK loads.
+      - name: Use MoltenVK ${{ matrix.mvk }} from GitHub release
+        if: matrix.mvk != 'brew'
+        env:
+          MVK: ${{ matrix.mvk }}
+          SHA256: ${{ matrix.sha256 }}
+        run: |
+          curl -fsSL --retry 3 -o mvk.tar \
+            "https://github.com/KhronosGroup/MoltenVK/releases/download/$MVK/MoltenVK-macos.tar"
+          echo "$SHA256  mvk.tar" | shasum -a 256 -c -
+          tar -xf mvk.tar
+          ICD="$PWD/MoltenVK/MoltenVK/dynamic/dylib/macOS/MoltenVK_icd.json"
+          test -f "$ICD"
+          echo "VK_DRIVER_FILES=$ICD" >> "$GITHUB_ENV"
+          echo "VK_ICD_FILENAMES=$ICD" >> "$GITHUB_ENV"
 
-      - name: Vulkan registry and devices (unsilenced)
+      - name: vulkaninfo (no ggml)
+        continue-on-error: true
+        run: vulkaninfo --summary
+
+      - name: ggml Vulkan registration
         continue-on-error: true
         run: |
           venv/bin/python -c "
@@ -59,28 +87,18 @@ jobs:
           print('done; exiting', flush=True)
           "
 
-      # A raw abort() records its reason and native stack here, even when
-      # nothing reaches stderr.
-      - name: Crash reports
+      # Apple frameworks log abort reasons to the unified log, not stderr.
+      - name: Unified log
         if: always()
         run: |
-          sleep 5
-          for f in ~/Library/Logs/DiagnosticReports/*.ips; do
-            [ -e "$f" ] || { echo "no crash reports"; break; }
-            echo "===== $f"
-            cat "$f"
-          done
+          log show --last 5m --style compact --predicate \
+            'process == "Python" OR process == "vulkaninfo" OR eventMessage CONTAINS[c] "abort" OR eventMessage CONTAINS[c] "assert"' \
+            | tail -200
 
       - name: Native backtrace (lldb)
         if: always()
         run: |
-          lldb --batch -o run -k "thread backtrace all" -k quit -- \
-            "$(venv/bin/python -c 'import sys; print(sys.executable)')" \
-            -c "from cyllama.llama import llama_cpp as cy; cy.llama_backend_init()"
-
-      - name: Package versions
-        if: always()
-        run: |
-          brew list --versions vulkan-loader molten-vk
-          ls -l /usr/local/lib/libvulkan* /usr/local/lib/libMoltenVK* 2>/dev/null
-          cat "$(brew --prefix)"/etc/vulkan/icd.d/*.json 2>/dev/null || cat "$(brew --prefix molten-vk)"/etc/vulkan/icd.d/*.json
+          lldb --batch \
+            -O "settings set target.process.stop-on-exec false" \
+            -o run -k "thread backtrace all" -k quit -- \
+            venv/bin/python -c "from cyllama.llama import llama_cpp as cy; cy.llama_backend_init()"
