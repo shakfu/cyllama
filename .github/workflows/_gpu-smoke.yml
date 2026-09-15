@@ -132,6 +132,122 @@ jobs:
           pip install "${{ steps.find-wheel.outputs.wheel }}"
 
       # -------------------------------------------------------------------
+      # Host runtimes. GPU wheels do not vendor their vendor runtime (see
+      # the per-backend excludes in scripts/manage.py), so each leg installs
+      # it here, pinned to the version the wheel was built against. Only the
+      # userspace libraries are needed: the runners have no GPU, and these
+      # steps exist so the wheel imports and its backend libraries link.
+      # vulkan-windows needs nothing: delvewheel bundles vulkan-1.dll.
+      # -------------------------------------------------------------------
+      - name: Install CUDA 12.4 runtime (Linux)
+        if: steps.check.outputs.skip != 'true' && matrix.backend == 'cuda'
+        shell: bash
+        run: |
+          REDIST=https://developer.download.nvidia.com/compute/cuda/redist
+          CUDA="$RUNNER_TEMP/cuda"
+          mkdir -p "$CUDA"
+          fetch() {  # url sha256 dest
+            curl -fsSL --retry 3 --retry-all-errors -o "$3" "$1"
+            echo "$2  $3" | sha256sum -c -
+          }
+          fetch "$REDIST/cuda_cudart/linux-x86_64/cuda_cudart-linux-x86_64-12.4.127-archive.tar.xz" \
+            0483bff9a36e7a44465db3cd42874f6f70f019297dcf803fbefcbf58d7448c8f "$RUNNER_TEMP/cudart.tar.xz"
+          fetch "$REDIST/libcublas/linux-x86_64/libcublas-linux-x86_64-12.4.5.8-archive.tar.xz" \
+            c267c4d2cd42065ae2c30ca41a43ddce4e0ecc5484de23f299e3c397b5506eda "$RUNNER_TEMP/cublas.tar.xz"
+          # libcuda.so.1 belongs to the driver; cuda-compat ships it without a kernel module.
+          fetch https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-compat-12-4_550.163.01-0ubuntu1_amd64.deb \
+            e80aa09b12f22238f9fa36b8793bcb7cbca9c2e152fe153de4a4588841e18551 "$RUNNER_TEMP/cuda-compat.deb"
+          tar -xJf "$RUNNER_TEMP/cudart.tar.xz" -C "$CUDA"
+          tar -xJf "$RUNNER_TEMP/cublas.tar.xz" -C "$CUDA"
+          dpkg-deb -x "$RUNNER_TEMP/cuda-compat.deb" "$CUDA/compat"
+          LIBS="$(printf '%s:' "$CUDA"/*-archive/lib)$CUDA/compat/usr/local/cuda-12.4/compat"
+          echo "LD_LIBRARY_PATH=$LIBS:$LD_LIBRARY_PATH" >> "$GITHUB_ENV"
+
+      - name: Install CUDA 12.4 runtime (Windows)
+        if: steps.check.outputs.skip != 'true' && matrix.backend == 'cuda-windows'
+        shell: bash
+        run: |
+          REDIST=https://developer.download.nvidia.com/compute/cuda/redist
+          CUDA="$(cygpath -u "$RUNNER_TEMP")/cuda"
+          WCUDA="$(cygpath -w "$CUDA")"  # 7z is a native exe
+          mkdir -p "$CUDA"
+          fetch() {  # url sha256 dest
+            curl -fsSL --retry 3 --retry-all-errors -o "$3" "$1"
+            echo "$2  $3" | sha256sum -c -
+          }
+          fetch "$REDIST/cuda_cudart/windows-x86_64/cuda_cudart-windows-x86_64-12.4.127-archive.zip" \
+            6a1c32e68ee1a95ca17334691ff9ad1ffe7f352c24a083d55e4c96b8063b2bcb "$RUNNER_TEMP/cudart.zip"
+          fetch "$REDIST/libcublas/windows-x86_64/libcublas-windows-x86_64-12.4.5.8-archive.zip" \
+            698140f12da055a3709eee2e022fcfe7bc8edf31f30115e3f7a5c877a9491de5 "$RUNNER_TEMP/cublas.zip"
+          # nvcuda.dll ships only in the driver package (551.78 is the CUDA 12.4.1 driver).
+          # nvcuda64.dll imports system DLLs only, so it loads on a GPU-less runner.
+          fetch https://us.download.nvidia.com/tesla/551.78/551.78-data-center-tesla-desktop-winserver-2022-dch-international.exe \
+            4b635030749ecefcef34c4f39d7638be8aa4c853b4052e80029a383abf2a7132 "$RUNNER_TEMP/driver.exe"
+          7z x -y -o"$WCUDA" "$RUNNER_TEMP/cudart.zip" > /dev/null
+          7z x -y -o"$WCUDA" "$RUNNER_TEMP/cublas.zip" > /dev/null
+          7z e -y -o"$WCUDA\\driver" "$RUNNER_TEMP/driver.exe" nvcuda64.dll -r > /dev/null
+          # System32 is where the driver installs nvcuda.dll, and it is on every
+          # DLL search path, including ctypes' restricted one in the link test.
+          cp "$CUDA/driver/nvcuda64.dll" /c/Windows/System32/nvcuda.dll
+          cp "$CUDA"/*-archive/bin/{cudart64_12,cublas64_12,cublasLt64_12}.dll /c/Windows/System32/
+
+      - name: Install ROCm 6.3.3 runtime
+        if: steps.check.outputs.skip != 'true' && matrix.backend == 'rocm'
+        shell: bash
+        run: |
+          curl -fsSL https://repo.radeon.com/rocm/rocm.gpg.key | gpg --dearmor | sudo tee /etc/apt/keyrings/rocm.gpg > /dev/null
+          echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] https://repo.radeon.com/rocm/apt/6.3.3 noble main" \
+            | sudo tee /etc/apt/sources.list.d/rocm.list
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libnuma1 libelf1 libdrm-amdgpu1 libzstd1 zlib1g
+          # A full install is ~18.5 GB, almost all GPU kernel data in hipblaslt,
+          # rocblas and rocsolver. Extract only the shared libraries.
+          ROCM="$RUNNER_TEMP/rocm"
+          mkdir -p "$ROCM" "$RUNNER_TEMP/rocm-debs"
+          cd "$RUNNER_TEMP/rocm-debs"
+          apt-get download hip-runtime-amd hsa-rocr comgr rocprofiler-register hipblas hipblaslt rocblas rocsolver
+          for deb in ./*.deb; do
+            dpkg-deb --fsys-tarfile "$deb" | tar -x -C "$ROCM" --wildcards '*/lib/lib*.so*'
+          done
+          echo "LD_LIBRARY_PATH=$(printf '%s:' "$ROCM"/opt/rocm-*/lib)$LD_LIBRARY_PATH" >> "$GITHUB_ENV"
+
+      # Pinned to the build's oneAPI 2025.3: the unversioned
+      # intel-oneapi-runtime-* packages now resolve to 2026.x, which ships
+      # libsycl.so.9 and cannot satisfy the wheel's libsycl.so.8.
+      - name: Install oneAPI 2025.3 runtime
+        if: steps.check.outputs.skip != 'true' && matrix.backend == 'sycl'
+        shell: bash
+        run: |
+          wget -qO - https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB \
+            | sudo gpg --dearmor -o /usr/share/keyrings/oneapi-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" \
+            | sudo tee /etc/apt/sources.list.d/oneAPI.list
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            intel-oneapi-compiler-dpcpp-cpp-runtime-2025.3 \
+            intel-oneapi-openmp-2025.3 \
+            intel-oneapi-mkl-core-2025.3 \
+            intel-oneapi-mkl-sycl-blas-2025.3 \
+            ocl-icd-libopencl1
+          source /opt/intel/oneapi/setvars.sh
+          echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" >> "$GITHUB_ENV"
+
+      - name: Install Vulkan loader (Linux)
+        if: steps.check.outputs.skip != 'true' && matrix.backend == 'vulkan'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libvulkan1
+
+      # The wheel's @rpath includes /usr/local/lib, where Intel Homebrew links these.
+      - name: Install Vulkan loader and MoltenVK (macOS)
+        if: steps.check.outputs.skip != 'true' && matrix.backend == 'vulkan-macos-intel'
+        shell: bash
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: "1"
+        run: brew install vulkan-loader molten-vk
+
+      # -------------------------------------------------------------------
       # Windows-only: link-test every bundled ggml-*.dll using the same
       # LoadLibraryW(path, NULL, 0) semantics that ggml_backend_load()
       # uses in C. Catches the class of bug where delvewheel-bundled
@@ -276,11 +392,7 @@ jobs:
         continue-on-error: true
         timeout-minutes: 15
         run: |
-          wget -qO - https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB \
-            | sudo gpg --dearmor -o /usr/share/keyrings/oneapi-archive-keyring.gpg
-          echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" \
-            | sudo tee /etc/apt/sources.list.d/oneAPI.list
-          sudo apt-get update
+          # The oneAPI apt repo was added by "Install oneAPI 2025.3 runtime".
           sudo apt-get install -y --no-install-recommends \
             intel-oneapi-runtime-opencl \
             intel-oneapi-runtime-dpcpp-cpp
