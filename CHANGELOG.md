@@ -28,6 +28,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Fixed
 
+- **`cyllama info` printed nothing when a native backend aborted** -- stdout was still buffered when stderr was redirected for backend loading, so an abort discarded everything printed so far.
+
 - **`cyllama-sycl` install instructions installed an incompatible oneAPI** -- `docs/installation.md`, the README and the missing-runtime `ImportError` named the unversioned `intel-oneapi-runtime-*` packages. Those now resolve to 2026.x, which ships `libsycl.so.9`; the wheel links `libsycl.so.8`. The instructions now name the `-2025.3` packages, matching the build.
 
 - **GPU wheel smoke tests failed on import for five of seven backends** -- the tests had never run (see 0.4.7), and the runners lack the vendor runtimes the wheels deliberately do not vendor. `_gpu-smoke.yml` now installs each backend's runtime at the build's version: CUDA 12.4 redist plus the driver's `libcuda.so.1`/`nvcuda.dll`, ROCm 6.3.3 shared libraries only (a full install is ~18.5 GB), oneAPI 2025.3, and the Vulkan loader on Linux and macOS.

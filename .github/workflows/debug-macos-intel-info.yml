@@ -9,7 +9,7 @@ on:
       run_id:
         description: 'build-gpu-wheels-abi3 run that produced the wheel'
         required: true
-        default: '34960926357'
+        default: '34679210491'
 
 permissions:
   contents: read
@@ -59,26 +59,28 @@ jobs:
           print('done; exiting', flush=True)
           "
 
-      - name: whisper backends (unsilenced)
-        continue-on-error: true
+      # A raw abort() records its reason and native stack here, even when
+      # nothing reaches stderr.
+      - name: Crash reports
+        if: always()
         run: |
-          venv/bin/python -c "
-          import importlib
-          w = importlib.import_module('cyllama.whisper.whisper_cpp')
-          w.ggml_backend_load_all()
-          print(w.print_system_info(), flush=True)
-          print('done; exiting', flush=True)
-          "
+          sleep 5
+          for f in ~/Library/Logs/DiagnosticReports/*.ips; do
+            [ -e "$f" ] || { echo "no crash reports"; break; }
+            echo "===== $f"
+            cat "$f"
+          done
 
-      - name: sd backends (unsilenced)
-        continue-on-error: true
+      - name: Native backtrace (lldb)
+        if: always()
         run: |
-          venv/bin/python -c "
-          from cyllama.sd import get_system_info, ggml_backend_load_all
-          ggml_backend_load_all()
-          print(get_system_info(), flush=True)
-          print('done; exiting', flush=True)
-          "
+          lldb --batch -o run -k "thread backtrace all" -k quit -- \
+            "$(venv/bin/python -c 'import sys; print(sys.executable)')" \
+            -c "from cyllama.llama import llama_cpp as cy; cy.llama_backend_init()"
 
-      - name: cyllama info
-        run: venv/bin/python -m cyllama info
+      - name: Package versions
+        if: always()
+        run: |
+          brew list --versions vulkan-loader molten-vk
+          ls -l /usr/local/lib/libvulkan* /usr/local/lib/libMoltenVK* 2>/dev/null
+          cat "$(brew --prefix)"/etc/vulkan/icd.d/*.json 2>/dev/null || cat "$(brew --prefix molten-vk)"/etc/vulkan/icd.d/*.json
