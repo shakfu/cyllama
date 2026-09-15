@@ -288,7 +288,8 @@ jobs:
           import pathlib, re, cyllama
           root = pathlib.Path(cyllama.__file__).parent
           bad = []
-          for ext in ('*.so', '*.pyd', '*.dylib'):
+          # CPython extensions on macOS are .so; .dylib files are delocate-bundled C libs.
+          for ext in ('*.so', '*.pyd'):
               for p in root.rglob(ext):
                   if p.parent.name == 'rag' and p.stem.split('.')[0] == 'vector':
                       continue

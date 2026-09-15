@@ -302,7 +302,8 @@ jobs:
           # Linux/macOS: abi3 wheels tag extensions as foo.abi3.so.
           # Windows: abi3 wheels produce plain foo.pyd (no soabi tag);
           # version-specific wheels produce foo.cp3XX-win_amd64.pyd.
-          for ext in ('*.so', '*.pyd', '*.dylib'):
+          # CPython extensions on macOS are .so; .dylib files are delocate-bundled C libs.
+          for ext in ('*.so', '*.pyd'):
               for p in root.rglob(ext):
                   if p.parent.name == 'rag' and p.stem.split('.')[0] == 'vector':
                       continue
