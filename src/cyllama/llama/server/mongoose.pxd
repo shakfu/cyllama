@@ -8,6 +8,15 @@ cdef extern from "mongoose_wrapper.c":
     pass
 
 cdef extern from "mongoose.h":
+    # Logging
+    cdef enum:
+        MG_LL_NONE
+        MG_LL_ERROR
+        MG_LL_INFO
+        MG_LL_DEBUG
+        MG_LL_VERBOSE
+    int mg_log_level
+
     # Basic types
     ctypedef struct mg_str:
         char *buf

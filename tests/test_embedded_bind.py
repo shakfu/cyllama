@@ -1,5 +1,6 @@
 """EmbeddedServer must bind exactly the configured host, never a wider address."""
 
+import ctypes
 import errno
 import signal
 import socket
@@ -67,3 +68,44 @@ def test_bind_address(host, wildcard):
         del server  # __dealloc__ frees the Mongoose manager and closes the socket
         signal.signal(signal.SIGINT, saved[0])
         signal.signal(signal.SIGTERM, saved[1])
+
+
+def _start_stop():
+    """Start and stop a server on a free port, restoring signal handlers.
+
+    Mongoose logs through C stdio, which is fully buffered when stdout is not a
+    terminal, so flush it for capfd to see the output.
+    """
+    saved = signal.getsignal(signal.SIGINT), signal.getsignal(signal.SIGTERM)
+    server = _NoModelServer(ServerConfig(model_path="unused.gguf", port=_free_port()))
+    try:
+        assert server.start()
+        server.stop()
+    finally:
+        del server
+        ctypes.CDLL(None).fflush(None)
+        signal.signal(signal.SIGINT, saved[0])
+        signal.signal(signal.SIGTERM, saved[1])
+
+
+_needs_libc = pytest.mark.skipif(sys.platform == "win32", reason="flushes C stdio via ctypes.CDLL(None)")
+
+
+@_needs_libc
+def test_mongoose_logs_quiet_by_default(capfd, monkeypatch):
+    monkeypatch.delenv("CYLLAMA_MONGOOSE_LOG", raising=False)
+    _start_stop()
+    assert "mongoose.c" not in capfd.readouterr().out
+
+
+@_needs_libc
+@pytest.mark.parametrize("value, logged", [("debug", True), ("DEBUG", True), ("error", False), ("bogus", False)])
+def test_mongoose_log_env(capfd, monkeypatch, value, logged):
+    monkeypatch.setenv("CYLLAMA_MONGOOSE_LOG", value)
+    try:
+        _start_stop()  # start() re-reads the variable; mg_listen logs at debug
+        assert ("mg_listen" in capfd.readouterr().out) is logged
+    finally:
+        monkeypatch.delenv("CYLLAMA_MONGOOSE_LOG")
+        _start_stop()  # restore the quiet default for later tests
+        capfd.readouterr()

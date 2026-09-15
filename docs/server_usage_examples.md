@@ -62,6 +62,16 @@ curl http://host:8080/v1/models -H "Authorization: Bearer $CYLLAMA_API_KEY"
 
 There is no TLS. Across untrusted networks, put the server behind a TLS-terminating reverse proxy.
 
+### Mongoose Debug Logging
+
+`EmbeddedServer` prints only Mongoose errors. To trace connections, set `CYLLAMA_MONGOOSE_LOG` to `none`, `error`, `info`, `debug` or `verbose`:
+
+```bash
+CYLLAMA_MONGOOSE_LOG=debug python -m cyllama.llama.server -m models/Llama-3.2-1B-Instruct-Q8_0.gguf
+```
+
+Without it, enabling DEBUG on the `cyllama.llama.server.embedded` logger also selects `debug`.
+
 ### Multiple Parallel Processing Slots
 
 ```bash

@@ -22,6 +22,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+## [0.4.7]
+
 ### Changed
 
 - **`build-cibw-abi3.yml` and `build-gpu-wheels-abi3.yml` publish the GitHub release for the tag they build** -- both were `workflow_dispatch`-only. Release mode is now `github.ref_type == 'tag'`, which covers a tag push and a dispatch against a tag alike; a dispatch against a branch builds only. The body comes from the `## [<tag>]` section of `CHANGELOG.md` via `scripts/release_notes.py`, falling back to GitHub's generated notes when no section exists -- a release without hand-written notes beats a failed release. This replaces the `upload_release` input, which derived the tag from `pyproject.toml` and so let `gh release create` invent a tag that did not exist, pointing at the default branch. A `verify_tag` job now fails the run in under a minute when a tag disagrees with `pyproject.toml`; that mismatch yields a release named `0.4.7` whose assets are all `cyllama-0.4.6-*.whl`, and no re-run fixes it. PyPI uploads stay dispatch-only.
@@ -41,6 +43,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 - **`python-lint.yml` runs `ruff` and `mypy` on Python changes** -- installs only the dev group, no native build. ruff and mypy now target 3.12, matching `requires-python`; they had targeted 3.10.
 
 ### Fixed
+
+- **`EmbeddedServer` printed Mongoose debug logs for every connection** -- Mongoose's compiled-in default is `MG_LL_DEBUG`. The level is now errors-only. `CYLLAMA_MONGOOSE_LOG` (`none`, `error`, `info`, `debug`, `verbose`) overrides it; without it, DEBUG on the `cyllama.llama.server.embedded` logger selects `debug`. See `docs/server_usage_examples.md`.
 
 - **`EmbeddedServer` truncated responses to 4095 bytes** -- the Mongoose reply wrapper formatted the body into a fixed 4096-byte stack buffer before handing it to Mongoose, and still sent 200. Embedding vectors and long completions arrived as invalid JSON. The wrapper now takes an explicit body length and writes straight into Mongoose's growable send buffer. Covered by `tests/test_server_security.py::test_large_response_not_truncated`.
 
@@ -70,7 +74,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Security
 
-- **`EmbeddedServer` bound all interfaces when asked for localhost** -- `host="127.0.0.1"` or `"localhost"` was rewritten to `0.0.0.0`, exposing the unauthenticated inference API to the network. The server now binds the configured host as given; IPv6 literals are bracketed. Covered by `tests/test_embedded_bind.py`.
+- **Breaking:** **`EmbeddedServer` bound all interfaces when asked for localhost** -- `host="127.0.0.1"` or `"localhost"` was rewritten to `0.0.0.0`, exposing the unauthenticated inference API to the network. The server now binds the configured host as given; IPv6 literals are bracketed. Clients that reached the default `127.0.0.1` server from another host or container can no longer connect; set `host="0.0.0.0"` (CLI: `--host 0.0.0.0`) with an API key. Covered by `tests/test_embedded_bind.py`.
 
 - **API-key auth and request-size limit for `EmbeddedServer` and `PythonServer`** -- with `ServerConfig.api_key` set (CLI: `CYLLAMA_API_KEY` or `--api-key-file`), every endpoint except `/health` requires `Authorization: Bearer <key>`. Bodies over `max_body_bytes` (default 2 MiB) get 413; `PythonServer` rejects them before reading, `EmbeddedServer` after Mongoose has buffered them. The `Bearer` scheme is case-insensitive, and a non-ASCII key matches the UTF-8 bytes a client sends. Binding a non-loopback address without a key logs a warning. There is no `--api-key` flag because other local users can read command-line arguments. See `SECURITY.md` and `docs/server_usage_examples.md`.
 

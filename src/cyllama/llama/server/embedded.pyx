@@ -3,6 +3,7 @@
 
 import json
 import logging
+import os
 import signal
 import threading
 import time
@@ -21,6 +22,26 @@ from .python import (ServerConfig, ServerSlot, ChatMessage, ChatRequest, ChatRes
 
 # Global shutdown flag for signal handling (following pymongoose pattern)
 _shutdown_requested = False
+
+_MONGOOSE_LOG_LEVELS = {
+    "none": MG_LL_NONE, "error": MG_LL_ERROR, "info": MG_LL_INFO,
+    "debug": MG_LL_DEBUG, "verbose": MG_LL_VERBOSE,
+}
+
+
+def _mongoose_log_level(logger) -> int:
+    """CYLLAMA_MONGOOSE_LOG if set, else debug when `logger` has DEBUG enabled, else errors only."""
+    name = os.environ.get("CYLLAMA_MONGOOSE_LOG", "").strip().lower()
+    if name in _MONGOOSE_LOG_LEVELS:
+        return _MONGOOSE_LOG_LEVELS[name]
+    if name:
+        logger.warning(f"Ignoring CYLLAMA_MONGOOSE_LOG={name!r}; expected one of {', '.join(_MONGOOSE_LOG_LEVELS)}")
+    return MG_LL_DEBUG if logger.isEnabledFor(logging.DEBUG) else MG_LL_ERROR
+
+
+# Mongoose defaults to MG_LL_DEBUG, which prints every connection to stdout.
+# Set here because constructing a server already logs; start() re-reads it.
+mg_log_level = _mongoose_log_level(logging.getLogger(__name__))
 
 
 def _listen_url(host: str, port: int) -> str:
@@ -217,6 +238,9 @@ cdef class EmbeddedServer:
 
         if exposed_without_auth(self._config):
             self._logger.warning(f"Binding {self._config.host} without an API key: any host that can reach it can use it")
+
+        global mg_log_level
+        mg_log_level = _mongoose_log_level(self._logger)
 
         # Setup signal handlers for graceful shutdown
         self._setup_signal_handlers()
