@@ -28,6 +28,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Fixed
 
+- **vulkan-macos-intel smoke leg aborted in `cyllama info`** -- MoltenVK 1.4.1+ creates a Metal argument encoder in `vkCreateInstance`, and the `macos-15-intel` runner's paravirtual GPU driver calls `abort()` on that request, with no message. The leg now sets `MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS=0`, which skips the probe. This was chosen over pinning MoltenVK 1.3.0, so the leg tests the Homebrew MoltenVK users install. The wheel was not at fault.
+
 - **`cyllama info` printed nothing when a native backend aborted** -- stdout was still buffered when stderr was redirected for backend loading, so an abort discarded everything printed so far.
 
 - **`cyllama-sycl` install instructions installed an incompatible oneAPI** -- `docs/installation.md`, the README and the missing-runtime `ImportError` named the unversioned `intel-oneapi-runtime-*` packages. Those now resolve to 2026.x, which ships `libsycl.so.9`; the wheel links `libsycl.so.8`. The instructions now name the `-2025.3` packages, matching the build.
