@@ -1,0 +1,84 @@
+name: debug-macos-intel-info
+
+# One-off diagnostic: reruns `cyllama info` on macos-15-intel against an
+# already-built Vulkan wheel, with stderr and native logging visible.
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'build-gpu-wheels-abi3 run that produced the wheel'
+        required: true
+        default: '34960926357'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  info:
+    runs-on: macos-15-intel
+    timeout-minutes: 20
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+      PYTHONUNBUFFERED: "1"
+      PYTHONFAULTHANDLER: "1"
+      VK_LOADER_DEBUG: error,warn
+      MVK_CONFIG_LOG_LEVEL: "3"
+    steps:
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: wheels-abi3-vulkan-macos-intel-x86_64
+          path: wheels
+          run-id: ${{ inputs.run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Install wheel and Vulkan runtime
+        run: |
+          brew install vulkan-loader molten-vk
+          python -m venv venv
+          venv/bin/pip install wheels/*abi3*.whl
+
+      - name: Host GPU
+        continue-on-error: true
+        run: system_profiler SPDisplaysDataType
+
+      - name: Vulkan registry and devices (unsilenced)
+        continue-on-error: true
+        run: |
+          venv/bin/python -c "
+          from cyllama.llama import llama_cpp as cy
+          print('backend_init', flush=True)
+          cy.llama_backend_init()
+          print('registries', cy.ggml_backend_reg_names(), flush=True)
+          print('devices', cy.ggml_backend_dev_info(), flush=True)
+          print('done; exiting', flush=True)
+          "
+
+      - name: whisper backends (unsilenced)
+        continue-on-error: true
+        run: |
+          venv/bin/python -c "
+          import importlib
+          w = importlib.import_module('cyllama.whisper.whisper_cpp')
+          w.ggml_backend_load_all()
+          print(w.print_system_info(), flush=True)
+          print('done; exiting', flush=True)
+          "
+
+      - name: sd backends (unsilenced)
+        continue-on-error: true
+        run: |
+          venv/bin/python -c "
+          from cyllama.sd import get_system_info, ggml_backend_load_all
+          ggml_backend_load_all()
+          print(get_system_info(), flush=True)
+          print('done; exiting', flush=True)
+          "
+
+      - name: cyllama info
+        run: venv/bin/python -m cyllama info

@@ -24,6 +24,8 @@ from .defaults import (
 @contextlib.contextmanager
 def _silence_stderr() -> Iterator[None]:
     """Redirect fd 2 to /dev/null for native libs that bypass log callbacks."""
+    # A native abort inside the block would otherwise discard buffered stdout.
+    sys.stdout.flush()
     sys.stderr.flush()
     saved = os.dup(2)
     devnull = os.open(os.devnull, os.O_WRONLY)
