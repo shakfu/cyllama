@@ -8,9 +8,10 @@ name: build-cibw-abi3
 # Triggers:
 #   push of a bare-semver tag (0.4.7)  -> build, smoke test, publish the
 #     GitHub release for that tag
-#   workflow_dispatch against a tag    -> same, and republishes if the
-#     release already exists
-#   workflow_dispatch against a branch -> build + smoke test only
+#   workflow_dispatch against a tag    -> build + smoke test; publishes
+#     (or republishes) the release only if `upload_release` is ticked
+#   workflow_dispatch against a branch -> build + smoke test only;
+#     `upload_release` is ignored
 #   pull_request touching native/build files -> Linux-only build + smoke
 #     test, to catch binding and build breaks before release day
 #
@@ -49,6 +50,11 @@ on:
       - '.github/workflows/build-cibw-abi3.yml'
   workflow_dispatch:
     inputs:
+      upload_release:
+        description: 'Publish the GitHub release (tag refs only)'
+        required: false
+        default: false
+        type: boolean
       publish_to_pypi:
         description: 'Publish wheels to PyPI'
         required: false
@@ -403,7 +409,7 @@ jobs:
     # Plain `if`, so the default gating applies: collect_wheels and the
     # whole cross-version smoke matrix must succeed before anything ships.
     needs: [collect_wheels, cross_version_smoke_test]
-    if: github.ref_type == 'tag'
+    if: github.ref_type == 'tag' && (github.event_name == 'push' || inputs.upload_release)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:

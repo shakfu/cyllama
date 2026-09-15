@@ -14,9 +14,11 @@ name: build-gpu-wheels-abi3
 # Triggers:
 #   push of a bare-semver tag (0.4.7)  -> build every backend, then
 #     publish the GitHub release for that tag. link_mode is 'dynamic'.
-#   workflow_dispatch against a tag    -> same, with per-backend opt-out;
-#     republishes if the release already exists
-#   workflow_dispatch against a branch -> build only
+#   workflow_dispatch against a tag    -> build with per-backend opt-out;
+#     publishes (or republishes) the release only if `upload_release`
+#     is ticked
+#   workflow_dispatch against a branch -> build only; `upload_release`
+#     is ignored
 #
 # Release mode is `github.ref_type == 'tag'`, so the tag always comes from
 # the ref being built. Deriving it from pyproject.toml instead would let
@@ -79,6 +81,11 @@ on:
         description: 'Build Vulkan macOS Intel (x86_64)'
         required: false
         default: true
+        type: boolean
+      upload_release:
+        description: 'Publish the GitHub release (tag refs only)'
+        required: false
+        default: false
         type: boolean
       publish_to_pypi:
         description: 'Publish wheels to PyPI'
@@ -237,6 +244,7 @@ jobs:
     # builds publish; `--clobber` would otherwise replace the release assets.
     if: >-
       github.ref_type == 'tag'
+      && (github.event_name == 'push' || inputs.upload_release)
       && (inputs.link_mode || 'dynamic') == 'dynamic'
       && !cancelled()
       && needs.verify_tag.result == 'success'

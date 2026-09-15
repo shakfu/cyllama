@@ -22,6 +22,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+### Changed
+
+- **`upload_release` restored on both wheel workflows** -- 0.4.7 dropped the input, so every dispatch against a tag published, and a tag could not be rebuilt without touching its release. A dispatch now publishes only when the box is ticked, and only on a tag ref. A tag push still publishes unprompted; a branch still cannot publish.
+
 ### Fixed
 
 - **`cyllama-sycl` install instructions installed an incompatible oneAPI** -- `docs/installation.md`, the README and the missing-runtime `ImportError` named the unversioned `intel-oneapi-runtime-*` packages. Those now resolve to 2026.x, which ships `libsycl.so.9`; the wheel links `libsycl.so.8`. The instructions now name the `-2025.3` packages, matching the build.
