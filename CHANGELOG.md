@@ -32,6 +32,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 - **GPU wheel smoke tests failed on import for five of seven backends** -- the tests had never run (see 0.4.7), and the runners lack the vendor runtimes the wheels deliberately do not vendor. `_gpu-smoke.yml` now installs each backend's runtime at the build's version: CUDA 12.4 redist plus the driver's `libcuda.so.1`/`nvcuda.dll`, ROCm 6.3.3 shared libraries only (a full install is ~18.5 GB), oneAPI 2025.3, and the Vulkan loader on Linux and macOS.
 
+- **vulkan-macos-intel smoke leg flagged delocate's bundled libraries as non-abi3** -- the abi3 suffix check in `_gpu-smoke.yml` and `build-cibw-abi3.yml` matched `*.dylib`, so it flagged the C libraries in `cyllama/.dylibs/`. Python extensions on macOS are `.so`.
+
+- **SYCL smoke leg aborted, and the docs promised a CPU fallback that does not exist** -- ggml-sycl's device manager throws `can not find preferred GPU platform` when no GPU device exists, even with `ONEAPI_DEVICE_SELECTOR=opencl:cpu`, and nothing catches it. Any backend registration on a GPU-less host aborts: `import cyllama.sd`, `cyllama info`, `LLM()`. An Intel GPU is now documented as a hard requirement. Patching ggml-sycl to register zero devices was rejected: it adds a carried patch without making a GPU-less host useful. The SYCL leg now link-tests the `sd` extension instead of importing it and skips `cyllama info`. The OpenCL CPU runtime install and the 1-token CPU inference step are removed; `continue-on-error` had hidden that they could never pass.
+
 - **A GPU smoke leg could pass without running its checks** -- `_gpu-smoke.yml` now fails a leg whose `matrix.condition` is not `true` or `false`, and ends with a step that fails if the suffix, import, `cyllama info` or Windows DLL-link check was skipped on a leg that should run.
 
 - **Linux CPU wheel test failed `test_model.py::test_autorelease`** -- CI, `make download` and the README fetched unsloth's `Llama-3.2-1B-Instruct-Q8_0.gguf` (27 metadata keys); the tests assume bartowski's (30). All three now fetch bartowski's at a pinned revision, and CI checks its sha256.

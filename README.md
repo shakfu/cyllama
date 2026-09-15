@@ -59,7 +59,7 @@ pip install cyllama-vulkan   # Cross-platform GPU (Vulkan)
 
 All variants install the same `cyllama` Python package -- only the compiled backend differs. Install one at a time (they replace each other). GPU variants require the corresponding driver/runtime installed on your system.
 
-`cyllama-sycl` has two host prerequisites it does not vendor: the [Intel oneAPI](https://www.intel.com/content/www/us/en/developer/tools/oneapi/oneapi-toolkit.html) userspace runtimes, pinned to 2025.3 (`intel-oneapi-compiler-dpcpp-cpp-runtime-2025.3`, `intel-oneapi-openmp-2025.3`, `intel-oneapi-mkl-core-2025.3`, `intel-oneapi-mkl-sycl-blas-2025.3` -- needed for `import` to succeed) and a SYCL-visible compute device (Intel GPU driver via OpenCL or Level Zero, or the Intel OpenCL CPU runtime for CPU fallback -- needed for actual compute). See [`docs/installation.md`](docs/installation.md#cyllama-sycl-host-prerequisites) for the full breakdown and links to Intel's install guides.
+`cyllama-sycl` has two host prerequisites it does not vendor: the [Intel oneAPI](https://www.intel.com/content/www/us/en/developer/tools/oneapi/oneapi-toolkit.html) userspace runtimes, pinned to 2025.3 (`intel-oneapi-compiler-dpcpp-cpp-runtime-2025.3`, `intel-oneapi-openmp-2025.3`, `intel-oneapi-mkl-core-2025.3`, `intel-oneapi-mkl-sycl-blas-2025.3` -- needed for `import` to succeed) and an Intel GPU with its OpenCL or Level Zero driver (there is no CPU fallback; without a GPU, backend registration aborts the process). See [`docs/installation.md`](docs/installation.md#cyllama-sycl-host-prerequisites) for the full breakdown and links to Intel's install guides.
 
 You can verify which backend is active after installation:
 

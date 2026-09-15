@@ -76,17 +76,15 @@ Keep the `-2025.3` suffix. The wheel is built against oneAPI 2025.3 and links `l
 
 For RPM-based distros, use Intel's [DNF/Yum repo](https://www.intel.com/content/www/us/en/docs/oneapi/installation-guide-linux/current/yum-dnf-zypper.html) with the same package names. An existing [Intel oneAPI base toolkit](https://www.intel.com/content/www/us/en/developer/tools/oneapi/oneapi-toolkit.html) install works if it is 2025.x; `intel-oneapi-base-toolkit-2025.3` pins it. Source its `setvars.sh`. Without these libraries on the loader path, import fails with `libsycl.so.8: cannot open shared object file` (or a similar message naming one of the other runtimes).
 
-**2. A SYCL-visible compute device (required for actual GPU/CPU compute, not for import).**
+**2. An Intel GPU visible to SYCL.**
 
-`cyllama` needs at least one runtime device for SYCL to dispatch kernels onto. This is hardware-conditional and lives outside the oneAPI runtime layer -- pick one of:
+ggml's SYCL backend requires a GPU device. It has no CPU fallback. Install the driver for one of:
 
 - **Intel GPU via OpenCL**: install the Intel compute-runtime package providing `libOpenCL.so.1` and the Intel GPU ICD (`intel-opencl-icd` on recent Ubuntu, or the upstream `intel-compute-runtime` packages). Follow [Intel's GPU driver install guide](https://dgpu-docs.intel.com/driver/installation.html) for your distro and GPU family (Arc, Iris Xe, Data Center GPU Max/Flex).
 
 - **Intel GPU via Level Zero**: install `level-zero` and `intel-level-zero-gpu`. Same install guide.
 
-- **CPU fallback (no Intel GPU)**: install the Intel CPU runtime for OpenCL applications, packaged as `intel-oneapi-runtime-opencl` or the standalone CPU runtime. This is *not* a substitute for the oneAPI runtimes in step 1 -- it only adds the CPU as an OpenCL device.
-
-Package names and recommended install paths drift across distro versions and Intel releases, so we link to Intel's authoritative install pages rather than hard-coding an `apt install` line we can't keep current. Without a device, import succeeds but SYCL device enumeration returns empty and any actual generation call fails.
+Package names and recommended install paths drift across distro versions and Intel releases, so we link to Intel's authoritative install pages rather than hard-coding an `apt install` line we can't keep current. Without a GPU, `import cyllama` succeeds, but registering backends aborts the process with `can not find preferred GPU platform`. `import cyllama.sd`, `cyllama info` and loading a model all register backends.
 
 You can verify which backend is active after installation:
 
