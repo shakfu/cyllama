@@ -57,7 +57,8 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # A tag build publishes the release; a second run on the tag queues instead of cancelling it.
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
 
 jobs:
   # A tag naming a different version than pyproject.toml would produce a
@@ -135,7 +136,7 @@ jobs:
 
       - name: ccache
         if: runner.os != 'Windows'
-        uses: hendrikmuhs/ccache-action@v1.2
+        uses: hendrikmuhs/ccache-action@5ebbd400eff9e74630f759d94ddd7b6c26299639 # v1.2
         with:
           key: ccache-abi3-${{ matrix.os }}
           evict-old-files: 1d
@@ -437,17 +438,30 @@ jobs:
 
       # Creates the release on first run and updates it thereafter, so the
       # CPU and GPU workflows can both publish to one tag in either order.
-      # Always a prerelease: the GPU leg runs up to 2h behind this one, so
+      # A new release is a prerelease: the GPU leg runs up to 2h behind this one, so
       # promoting on the first leg to finish would advertise a "Latest"
       # release carrying only half the wheels. Promotion is manual:
       # `gh release edit <tag> --prerelease=false`.
-      - uses: softprops/action-gh-release@v3
+      # A re-run must not demote a release that was promoted by hand.
+      - name: Read existing prerelease state
+        id: existing
+        run: |
+          if state=$(gh release view "$TAG" --json isPrerelease --jq .isPrerelease 2>err.txt); then
+            echo "prerelease=$state" >> "$GITHUB_OUTPUT"
+          elif grep -q "release not found" err.txt; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            cat err.txt >&2
+            exit 1
+          fi
+
+      - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
         with:
           tag_name: ${{ env.TAG }}
           name: cyllama ${{ env.TAG }}
           body_path: ${{ steps.notes.outputs.found == '1' && 'release-notes.md' || '' }}
           generate_release_notes: ${{ steps.notes.outputs.found != '1' }}
-          prerelease: true
+          prerelease: ${{ steps.existing.outputs.prerelease != 'false' }}
 
       - name: Upload wheels
         # --clobber so re-running one workflow tops the release up instead

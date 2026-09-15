@@ -28,7 +28,7 @@ jobs:
   build:
     name: CUDA 12.4 abi3 - Windows x86_64 (${{ inputs.link_mode }})
     runs-on: windows-2022
-    timeout-minutes: 120
+    timeout-minutes: 240
 
     steps:
       # workflow_call has no `choice` input type, so the value is checked
@@ -36,10 +36,12 @@ jobs:
       # a static build, which would otherwise ship silently mislabelled.
       - name: Validate link_mode
         shell: bash
+        env:
+          LINK_MODE: ${{ inputs.link_mode }}
         run: |
-          case "${{ inputs.link_mode }}" in
+          case "$LINK_MODE" in
             dynamic|static) ;;
-            *) echo "::error::link_mode must be 'dynamic' or 'static', got '${{ inputs.link_mode }}'"; exit 1 ;;
+            *) echo "::error::link_mode must be 'dynamic' or 'static', got '$LINK_MODE'"; exit 1 ;;
           esac
 
       - name: Checkout repository
@@ -52,10 +54,10 @@ jobs:
         uses: actions/cache@v5
         with:
           path: thirdparty/
-          key: deps-abi3-cuda-windows-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage.py', 'pyproject.toml', '.github/workflows/_gpu-build-cuda-windows.yml') }}
+          key: deps-abi3-cuda-windows-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage.py', '.github/workflows/_gpu-build-cuda-windows.yml') }}
 
       - name: Install CUDA Toolkit 12.4
-        uses: Jimver/cuda-toolkit@v0.2.21
+        uses: Jimver/cuda-toolkit@8022558310ea543e35132143092835585f60e628 # v0.2.21
         id: cuda-toolkit
         with:
           cuda: '12.4.0'

@@ -89,7 +89,8 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ (inputs.link_mode || 'dynamic') }}
-  cancel-in-progress: true
+  # A tag build publishes the release; a second run on the tag queues instead of cancelling it.
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
 
 jobs:
   verify_tag:
@@ -178,13 +179,13 @@ jobs:
     if: always() && !cancelled() && (needs.cuda.result == 'success' || needs.rocm.result == 'success' || needs.sycl.result == 'success' || needs.vulkan_linux.result == 'success' || needs.cuda_windows.result == 'success' || needs.vulkan_windows.result == 'success' || needs.vulkan_macos_intel.result == 'success')
     uses: ./.github/workflows/_gpu-smoke.yml
     with:
-      cuda_linux: ${{ github.event_name != 'workflow_dispatch' || inputs.cuda_linux }}
-      rocm_linux: ${{ github.event_name != 'workflow_dispatch' || inputs.rocm_linux }}
-      sycl_linux: ${{ github.event_name != 'workflow_dispatch' || inputs.sycl_linux }}
-      vulkan_linux: ${{ github.event_name != 'workflow_dispatch' || inputs.vulkan_linux }}
-      cuda_windows: ${{ github.event_name != 'workflow_dispatch' || inputs.cuda_windows }}
-      vulkan_windows: ${{ github.event_name != 'workflow_dispatch' || inputs.vulkan_windows }}
-      vulkan_macos_intel: ${{ github.event_name != 'workflow_dispatch' || inputs.vulkan_macos_intel }}
+      cuda_linux: ${{ needs.cuda.result == 'success' }}
+      rocm_linux: ${{ needs.rocm.result == 'success' }}
+      sycl_linux: ${{ needs.sycl.result == 'success' }}
+      vulkan_linux: ${{ needs.vulkan_linux.result == 'success' }}
+      cuda_windows: ${{ needs.cuda_windows.result == 'success' }}
+      vulkan_windows: ${{ needs.vulkan_windows.result == 'success' }}
+      vulkan_macos_intel: ${{ needs.vulkan_macos_intel.result == 'success' }}
 
   collect:
     name: Collect abi3 GPU wheels
@@ -229,10 +230,14 @@ jobs:
     needs: [verify_tag, collect, smoke_test]
     # !cancelled() is needed because individual backends may be skipped,
     # which would otherwise skip this job too. The remaining clauses put
-    # back the gating that override removes: collect fails when nothing
-    # built, and a backend whose smoke test failed keeps its wheels out.
+    # back the gating that override removes. A backend whose build failed
+    # is absent from the release; any failed smoke test blocks the whole
+    # release, since collect cannot drop one backend's wheels.
+    # Static wheels share the dynamic wheels' filenames, so only dynamic
+    # builds publish; `--clobber` would otherwise replace the release assets.
     if: >-
       github.ref_type == 'tag'
+      && (inputs.link_mode || 'dynamic') == 'dynamic'
       && !cancelled()
       && needs.verify_tag.result == 'success'
       && needs.collect.result == 'success'
@@ -273,17 +278,30 @@ jobs:
 
       # Creates the release on first run and updates it thereafter, so the
       # CPU and GPU workflows can both publish to one tag in either order.
-      # Always a prerelease: this leg runs up to 2h behind the CPU one, so
+      # A new release is a prerelease: this leg runs up to 2h behind the CPU one, so
       # promoting on the first leg to finish would advertise a "Latest"
       # release carrying only half the wheels. Promotion is manual:
       # `gh release edit <tag> --prerelease=false`.
-      - uses: softprops/action-gh-release@v3
+      # A re-run must not demote a release that was promoted by hand.
+      - name: Read existing prerelease state
+        id: existing
+        run: |
+          if state=$(gh release view "$TAG" --json isPrerelease --jq .isPrerelease 2>err.txt); then
+            echo "prerelease=$state" >> "$GITHUB_OUTPUT"
+          elif grep -q "release not found" err.txt; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            cat err.txt >&2
+            exit 1
+          fi
+
+      - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
         with:
           tag_name: ${{ env.TAG }}
           name: cyllama ${{ env.TAG }}
           body_path: ${{ steps.notes.outputs.found == '1' && 'release-notes.md' || '' }}
           generate_release_notes: ${{ steps.notes.outputs.found != '1' }}
-          prerelease: true
+          prerelease: ${{ steps.existing.outputs.prerelease != 'false' }}
 
       - name: Upload wheels
         # --clobber so re-running one workflow tops the release up instead

@@ -28,7 +28,7 @@ jobs:
   build:
     name: SYCL abi3 - Linux x86_64 (${{ inputs.link_mode }})
     runs-on: ubuntu-22.04
-    timeout-minutes: 120
+    timeout-minutes: 240
 
     steps:
       # workflow_call has no `choice` input type, so the value is checked
@@ -36,10 +36,12 @@ jobs:
       # a static build, which would otherwise ship silently mislabelled.
       - name: Validate link_mode
         shell: bash
+        env:
+          LINK_MODE: ${{ inputs.link_mode }}
         run: |
-          case "${{ inputs.link_mode }}" in
+          case "$LINK_MODE" in
             dynamic|static) ;;
-            *) echo "::error::link_mode must be 'dynamic' or 'static', got '${{ inputs.link_mode }}'"; exit 1 ;;
+            *) echo "::error::link_mode must be 'dynamic' or 'static', got '$LINK_MODE'"; exit 1 ;;
           esac
 
       - name: Checkout repository
@@ -52,7 +54,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: thirdparty/
-          key: deps-abi3-sycl-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage.py', 'pyproject.toml', '.github/workflows/_gpu-build-sycl.yml') }}
+          key: deps-abi3-sycl-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage.py', '.github/workflows/_gpu-build-sycl.yml') }}
 
       - name: Set up Python
         uses: actions/setup-python@v7
@@ -66,7 +68,7 @@ jobs:
         run: echo "CCACHE_DIR=${{ github.workspace }}/.ccache" >> "$GITHUB_ENV"
 
       - name: ccache
-        uses: hendrikmuhs/ccache-action@v1.2
+        uses: hendrikmuhs/ccache-action@5ebbd400eff9e74630f759d94ddd7b6c26299639 # v1.2
         with:
           key: ccache-abi3-sycl-${{ inputs.link_mode }}
           evict-old-files: 1d

@@ -28,7 +28,7 @@ jobs:
   build:
     name: Vulkan abi3 - Windows x86_64 (${{ inputs.link_mode }})
     runs-on: windows-latest
-    timeout-minutes: 120
+    timeout-minutes: 240
 
     steps:
       # workflow_call has no `choice` input type, so the value is checked
@@ -36,10 +36,12 @@ jobs:
       # a static build, which would otherwise ship silently mislabelled.
       - name: Validate link_mode
         shell: bash
+        env:
+          LINK_MODE: ${{ inputs.link_mode }}
         run: |
-          case "${{ inputs.link_mode }}" in
+          case "$LINK_MODE" in
             dynamic|static) ;;
-            *) echo "::error::link_mode must be 'dynamic' or 'static', got '${{ inputs.link_mode }}'"; exit 1 ;;
+            *) echo "::error::link_mode must be 'dynamic' or 'static', got '$LINK_MODE'"; exit 1 ;;
           esac
 
       - name: Checkout repository
@@ -52,7 +54,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: thirdparty/
-          key: deps-abi3-vulkan-windows-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage.py', 'pyproject.toml', '.github/workflows/_gpu-build-vulkan-windows.yml') }}
+          key: deps-abi3-vulkan-windows-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage.py', '.github/workflows/_gpu-build-vulkan-windows.yml') }}
 
       - name: Install Vulkan SDK
         shell: pwsh

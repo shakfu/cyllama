@@ -75,10 +75,16 @@ class ServerConfig:
 def check_request(
     config: ServerConfig, path: str, authorization: Optional[str], content_length: int
 ) -> Optional[Tuple[int, str]]:
-    """Return (status, message) if a request must be rejected before its body is read, else None."""
+    """Return (status, message) if a request must be rejected before its body is handled, else None.
+
+    `authorization` is the header as both servers decode it, latin-1, so
+    re-encoding it recovers the bytes the client sent.
+    """
     if config.api_key and path != "/health":
-        expected = f"Bearer {config.api_key}".encode("utf-8")
-        if not hmac.compare_digest((authorization or "").encode("utf-8"), expected):
+        scheme, _, token = (authorization or "").partition(" ")
+        sent = token.encode("latin-1", errors="replace")
+        # compare_digest runs even on a wrong scheme; the scheme is case-insensitive (RFC 7235).
+        if not (hmac.compare_digest(sent, config.api_key.encode("utf-8")) and scheme.lower() == "bearer"):
             return 401, "Invalid or missing API key"
     if content_length > config.max_body_bytes:
         return 413, f"Request body exceeds {config.max_body_bytes} bytes"
@@ -508,7 +514,7 @@ class PythonServer:
                     else:
                         self._send_error(404, "Not Found")
 
-                except json.JSONDecodeError:
+                except (json.JSONDecodeError, UnicodeDecodeError):  # JSON must be UTF-8 (RFC 8259)
                     self._send_error(400, "Invalid JSON")
                 except Exception as e:
                     server_instance.logger.error(f"Request error: {e}")

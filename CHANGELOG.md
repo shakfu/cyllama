@@ -48,6 +48,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 - **GPU wheel smoke tests never ran** -- `smoke_test`'s matrix carried `condition: inputs.cuda_linux` without `${{ }}`, so `matrix.condition` was the literal string `inputs.cuda_linux`, the `!= "true"` check always matched, and every step in the job was skipped via `steps.check.outputs.skip`. The job reported success throughout. Now that the release is gated on these tests, the conditions are real expressions.
 
+- **Static-link GPU dispatch on a tag replaced the release's dynamic wheels** -- both link modes produce identical wheel filenames, and the upload uses `--clobber`. Only dynamic builds publish now.
+
+- **One failed GPU build blocked the whole release** -- smoke legs ran for every requested backend, so a backend whose build failed failed its smoke leg at artifact download, and `publish` skipped all seven. Smoke legs now run for backends whose build succeeded; a failed build is absent from the release. A failed smoke test still blocks the release, because `collect` cannot drop one backend's wheels.
+
+- **GPU deps cache always missed on release tags** -- the refactor added `pyproject.toml` to each backend's deps cache key, and every release bumps its version. The key no longer hashes it. Build timeouts rise from 120 to 240 minutes, and the two best-effort SYCL smoke steps get 15-minute step timeouts, since `continue-on-error` does not cover a job timeout.
+
+- **`EmbeddedServer.stop()` from another thread raced the event loop** -- once polling released the GIL, `stop()` could walk Mongoose's connection list while `mg_mgr_poll` modified it. `stop()` now waits for the polling thread to exit first.
+
+- **Non-UTF-8 request bodies got 500** -- `EmbeddedServer` decoded the body before the auth check, so an unauthenticated client got 500 instead of 401. Both servers now return 401 for an unauthenticated request and 400 for an authenticated one. The check lives in `handle_http_request`, so a direct caller cannot skip it.
+
+- **`ci_rename_package.py` could edit a `name` outside `[project]` and drop a newline** -- matching is now confined to `[project]`, and I/O is explicitly UTF-8 rather than cp1252 on Windows.
+
+- **Re-running a release workflow demoted a promoted release** -- both workflows passed `prerelease: true` on every run, and `softprops/action-gh-release` applies it on update. They now keep an existing release's state; a new release is still a prerelease. Third-party actions other than PyPI publishing are pinned to commit SHAs.
+
+- **A second run on a release tag cancelled the in-flight one** -- both wheel workflows used `cancel-in-progress: true`, so a dispatch against a tag killed the tag-push build mid-publish. Tag runs now queue; branch and PR runs still cancel.
+
 - **`build-gpu-wheels-abi3.yml` `collect` reported success with no wheels** -- the job runs under `always()`, so a run where every build failed still produced a green `collect` and an empty artifact. It now fails when `dist/` holds no wheel.
 
 - **GPU workflow `inputs.link_mode` was empty outside `workflow_dispatch`** -- 45 references across cache keys, job names, `WITH_DYLIB`, and `SD_USE_VENDORED_GGML` read it directly, so a non-dispatch trigger would have silently built in the wrong link mode against poisoned cache keys. All now read `inputs.link_mode || 'dynamic'`.
@@ -56,7 +72,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 - **`EmbeddedServer` bound all interfaces when asked for localhost** -- `host="127.0.0.1"` or `"localhost"` was rewritten to `0.0.0.0`, exposing the unauthenticated inference API to the network. The server now binds the configured host as given; IPv6 literals are bracketed. Covered by `tests/test_embedded_bind.py`.
 
-- **API-key auth and request-size limit for `EmbeddedServer` and `PythonServer`** -- with `ServerConfig.api_key` set (CLI: `CYLLAMA_API_KEY` or `--api-key-file`), every endpoint except `/health` requires `Authorization: Bearer <key>`. Bodies over `max_body_bytes` (default 2 MiB) get 413 before they are read. Binding a non-loopback address without a key logs a warning. There is no `--api-key` flag because other local users can read command-line arguments. See `SECURITY.md` and `docs/server_usage_examples.md`.
+- **API-key auth and request-size limit for `EmbeddedServer` and `PythonServer`** -- with `ServerConfig.api_key` set (CLI: `CYLLAMA_API_KEY` or `--api-key-file`), every endpoint except `/health` requires `Authorization: Bearer <key>`. Bodies over `max_body_bytes` (default 2 MiB) get 413; `PythonServer` rejects them before reading, `EmbeddedServer` after Mongoose has buffered them. The `Bearer` scheme is case-insensitive, and a non-ASCII key matches the UTF-8 bytes a client sends. Binding a non-loopback address without a key logs a warning. There is no `--api-key` flag because other local users can read command-line arguments. See `SECURITY.md` and `docs/server_usage_examples.md`.
 
 ## [0.4.6]
 

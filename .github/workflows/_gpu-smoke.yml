@@ -6,8 +6,8 @@ name: _gpu-smoke
 # Called by build-gpu-wheels-abi3.yml. Do not invoke directly --
 # `workflow_call` only.
 #
-# One matrix leg per backend. A leg whose flag is false skips every step
-# rather than the job, so the matrix shape stays constant across runs.
+# One matrix leg per backend. A leg whose build did not succeed skips
+# every step rather than the job, so the matrix shape stays constant.
 
 on:
   workflow_call:
@@ -274,6 +274,7 @@ jobs:
       - name: Install Intel OpenCL CPU runtime
         if: steps.check.outputs.skip != 'true' && matrix.backend == 'sycl'
         continue-on-error: true
+        timeout-minutes: 15
         run: |
           wget -qO - https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB \
             | sudo gpg --dearmor -o /usr/share/keyrings/oneapi-archive-keyring.gpg
@@ -302,6 +303,7 @@ jobs:
       - name: Smoke test - SYCL 1-token CPU inference
         if: steps.check.outputs.skip != 'true' && matrix.backend == 'sycl'
         continue-on-error: true
+        timeout-minutes: 15
         env:
           ONEAPI_DEVICE_SELECTOR: opencl:cpu
         run: |

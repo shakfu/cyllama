@@ -38,37 +38,49 @@ DEFAULT_PYPROJECT = Path(__file__).resolve().parent.parent / "pyproject.toml"
 
 
 def name_pattern(name: str) -> re.Pattern[str]:
-    """Match a top-level `name = "<name>"` line, tolerant of spacing.
+    """Match a `name = "<name>"` line, tolerant of spacing."""
+    return re.compile(rf'^name[ \t]*=[ \t]*"{re.escape(name)}"[ \t]*$', re.MULTILINE)
 
-    Anchored to the line start so a `name` key nested in another table
-    (authors, entry points) can never match.
+
+def project_table(text: str) -> tuple[int, int]:
+    """Return the (start, end) offsets of the `[project]` table body, or (0, 0) if absent.
+
+    Other tables have their own top-level `name` keys, so matching is
+    confined to this span.
     """
-    return re.compile(rf'^name\s*=\s*"{re.escape(name)}"\s*$', re.MULTILINE)
+    header = re.search(r"^\[project\][ \t]*$", text, re.MULTILINE)
+    if header is None:
+        return 0, 0
+    following = re.compile(r"^\[", re.MULTILINE).search(text, header.end())
+    return header.end(), following.start() if following else len(text)
 
 
 def rename(path: Path, new_name: str) -> int:
-    text = path.read_text()
+    text = path.read_text(encoding="utf-8")
+    start, end = project_table(text)
+    table = text[start:end]
 
     # Idempotent: cibuildwheel runs CIBW_BEFORE_BUILD once per wheel, so a
     # job building more than one invokes this repeatedly against a tree it
     # already renamed.
-    if name_pattern(new_name).search(text):
+    if name_pattern(new_name).search(table):
         print(f"already renamed to {new_name} in {path}")
         return 0
 
     pattern = name_pattern(CANONICAL)
-    if not pattern.search(text):
+    if not pattern.search(table):
         sys.stderr.write(
-            f'ERROR: no `name = "{CANONICAL}"` line in {path}; '
+            f'ERROR: no `name = "{CANONICAL}"` line in [project] of {path}; '
             "already renamed to something else, or the file was reformatted\n"
         )
         return 1
 
-    path.write_text(pattern.sub(f'name = "{new_name}"', text, count=1))
+    path.write_text(text[:start] + pattern.sub(f'name = "{new_name}"', table, count=1) + text[end:], encoding="utf-8")
 
     # Read back rather than trusting the write: this is the step the three
     # shell spellings each had, and the reason they were worth keeping.
-    if not name_pattern(new_name).search(path.read_text()):
+    written = path.read_text(encoding="utf-8")
+    if not name_pattern(new_name).search(written[slice(*project_table(written))]):
         sys.stderr.write(f'ERROR: `name = "{new_name}"` absent from {path} after rewrite\n')
         return 1
 

@@ -90,6 +90,9 @@ cdef class EmbeddedServer:
     cdef bint _running
     cdef object _server_thread
     cdef int _signal_received
+    cdef bint _stop_requested
+    cdef object _loop_exited  # threading.Event, clear while wait_for_shutdown polls
+    cdef object _loop_ident
 
     @property
     def signal_received(self):
@@ -107,6 +110,10 @@ cdef class EmbeddedServer:
         self._running = False
         self._server_thread = None
         self._signal_received = 0
+        self._stop_requested = False
+        self._loop_exited = threading.Event()
+        self._loop_exited.set()
+        self._loop_ident = 0
 
     def __dealloc__(self):
         self.stop()
@@ -203,6 +210,7 @@ cdef class EmbeddedServer:
 
         # Reset global shutdown flag
         _shutdown_requested = False
+        self._stop_requested = False
 
         if not self.load_model():
             return False
@@ -244,6 +252,13 @@ cdef class EmbeddedServer:
     def stop(self):
         """Stop the embedded server."""
         self._logger.info("Stop method called")
+        # Mongoose is not thread-safe. Another thread must not touch the
+        # manager until the polling thread has left mg_mgr_poll.
+        if not self._loop_exited.is_set() and threading.get_ident() != self._loop_ident:
+            self._stop_requested = True
+            if not self._loop_exited.wait(timeout=5):
+                self._logger.error("Event loop did not exit within 5s; not stopping")
+                return
         if self._running:
             self._logger.info("Stopping embedded server...")
             self._running = False
@@ -291,20 +306,24 @@ cdef class EmbeddedServer:
         global _shutdown_requested
         self._logger.info("Starting embedded server event loop...")
 
-        # Follow pymongoose pattern: check flag in Python, poll in C
-        # This ensures signal handling works correctly across the GIL boundary
-        while not _shutdown_requested:
-            # Calling a nogil function does not release the GIL; `with nogil` does.
-            # Holding it starved every other Python thread.
-            with nogil:
-                self._poll_nogil(100)  # 100ms like pymongoose
-            # A pure-C loop never runs Python signal handlers, so Ctrl-C waited for
-            # the next request.
-            PyErr_CheckSignals()
-
-        self._logger.info(f"Exiting on signal {self._signal_received}")
-        # Close connections gracefully
-        self._close_all_connections_from_main_thread()
+        self._loop_ident = threading.get_ident()
+        self._loop_exited.clear()
+        try:
+            # Follow pymongoose pattern: check flag in Python, poll in C
+            # This ensures signal handling works correctly across the GIL boundary
+            while not _shutdown_requested and not self._stop_requested:
+                # Calling a nogil function does not release the GIL; `with nogil` does.
+                # Holding it starved every other Python thread.
+                with nogil:
+                    self._poll_nogil(100)  # 100ms like pymongoose
+                # A pure-C loop never runs Python signal handlers, so Ctrl-C waited for
+                # the next request. Raises if a handler raises.
+                PyErr_CheckSignals()
+        finally:
+            self._logger.info(f"Exiting on signal {self._signal_received}")
+            # Close connections gracefully
+            self._close_all_connections_from_main_thread()
+            self._loop_exited.set()
 
     cdef void _poll_nogil(self, int timeout_ms) nogil:
         """Poll Mongoose manager without GIL for maximum performance."""
@@ -319,9 +338,10 @@ cdef class EmbeddedServer:
         self._logger.info(f"Set closing flag on {closed_count} connections")
 
     def handle_http_request(self, conn: MongooseConnection, method: str, uri: str,
-                          headers: dict, body: str):
+                          headers: dict, body: bytes):
         """Handle HTTP request using existing logic."""
-        rejection = check_request(self._config, uri, headers.get("authorization"), len(body.encode("utf-8")))
+        # Before decoding the body, so an unauthenticated client gets 401, not a decode error.
+        rejection = check_request(self._config, uri, headers.get("authorization"), len(body))
         if rejection is not None:
             conn.send_error(*rejection)
             return
@@ -336,12 +356,18 @@ cdef class EmbeddedServer:
                     conn.send_error(404, "Not Found")
 
             elif method == "POST":
-                if uri == "/v1/chat/completions":
-                    self._handle_chat_completions(conn, body)
-                elif uri == "/v1/embeddings":
-                    self._handle_embeddings(conn, body)
-                else:
+                if uri not in ("/v1/chat/completions", "/v1/embeddings"):
                     conn.send_error(404, "Not Found")
+                    return
+                try:
+                    text = body.decode("utf-8")
+                except UnicodeDecodeError:
+                    conn.send_error(400, "Invalid JSON")
+                    return
+                if uri == "/v1/chat/completions":
+                    self._handle_chat_completions(conn, text)
+                else:
+                    self._handle_embeddings(conn, text)
             else:
                 conn.send_error(405, "Method Not Allowed")
 
@@ -587,13 +613,13 @@ cdef void _http_event_handler(mg_connection *c, int ev, void *ev_data) noexcept 
             # Extract request details
             method = hm.method.buf[:hm.method.len].decode('utf-8')
             uri = hm.uri.buf[:hm.uri.len].decode('utf-8')
-            body = hm.body.buf[:hm.body.len].decode('utf-8') if hm.body.len > 0 else ""
 
             # Only the headers the handlers read; keys are lowercase.
             headers = {}
             auth = cyllama_mg_http_get_header(hm, b"Authorization")
             if auth != NULL:
                 headers["authorization"] = auth.buf[:auth.len].decode('latin-1')
+            body = hm.body.buf[:hm.body.len] if hm.body.len > 0 else b""
 
             # Handle request
             server.handle_http_request(conn_wrapper, method, uri, headers, body)

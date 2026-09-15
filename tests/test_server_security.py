@@ -30,6 +30,12 @@ def _config(**kwargs):
         (KEY, "/v1/models", "Bearer wrong", 0, 401),
         (KEY, "/v1/models", KEY, 0, 401),  # scheme is required
         (KEY, "/v1/models", f"Bearer {KEY}", 0, None),
+        (KEY, "/v1/models", f"bearer {KEY}", 0, None),  # scheme is case-insensitive
+        (KEY, "/v1/models", f"Basic {KEY}", 0, 401),
+        (KEY, "/v1/models", f"Bearer {KEY} ", 0, 401),
+        # Non-ASCII key: clients send UTF-8, both servers decode headers as latin-1.
+        ("k\u00e9y", "/v1/models", "Bearer k\u00e9y".encode("utf-8").decode("latin-1"), 0, None),
+        ("k\u00e9y", "/v1/models", "Bearer k\u0100y", 0, 401),
         (KEY, "/health", None, 0, None),
         ("", "/v1/models", None, 0, None),  # empty key disables auth
         (None, "/v1/chat/completions", None, 101, 413),
@@ -208,3 +214,58 @@ def test_large_response_not_truncated(serve):
     status, body = _request(port, "GET", "/v1/models")
     assert status == 200
     assert body["data"][0]["id"] == alias
+
+
+def test_unauthenticated_invalid_utf8_body_gets_401(serve):
+    port = serve(api_key=KEY)
+    assert _request(port, "POST", "/v1/chat/completions", body=b"\xff\xfe")[0] == 401
+
+
+def test_authenticated_invalid_utf8_body_gets_400(serve):
+    port = serve(api_key=KEY)
+    auth = {"Authorization": f"Bearer {KEY}"}
+    assert _request(port, "POST", "/v1/chat/completions", auth, b"\xff\xfe")[0] == 400
+
+
+def test_embedded_stop_from_other_thread_waits_for_loop():
+    """stop() must not touch the Mongoose manager while another thread polls it."""
+    saved = signal.getsignal(signal.SIGINT), signal.getsignal(signal.SIGTERM)
+    port = _free_port()
+    server = _NoModelEmbeddedServer(_config(port=port))
+    try:
+        assert server.start()
+        loop = threading.Thread(target=server.wait_for_shutdown, daemon=True)
+        loop.start()
+        assert _request(port, "GET", "/health")[0] == 200
+        server.stop()
+        assert not loop.is_alive()
+    finally:
+        signal.signal(signal.SIGINT, saved[0])
+        signal.signal(signal.SIGTERM, saved[1])
+
+
+def test_embedded_loop_exit_by_exception_does_not_block_stop():
+    """A raising signal handler ends the loop; stop() must not then wait for it."""
+    import os
+    import time
+
+    class Interrupt(Exception):
+        pass
+
+    def raise_interrupt(signum, frame):
+        raise Interrupt
+
+    saved = signal.getsignal(signal.SIGINT), signal.getsignal(signal.SIGTERM)
+    server = _NoModelEmbeddedServer(_config(port=_free_port()))
+    try:
+        assert server.start()
+        signal.signal(signal.SIGTERM, raise_interrupt)
+        threading.Timer(0.2, os.kill, (os.getpid(), signal.SIGTERM)).start()
+        with pytest.raises(Interrupt):
+            server.wait_for_shutdown()
+        t0 = time.monotonic()
+        server.stop()
+        assert time.monotonic() - t0 < 1.0
+    finally:
+        signal.signal(signal.SIGINT, saved[0])
+        signal.signal(signal.SIGTERM, saved[1])
