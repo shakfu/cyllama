@@ -64,15 +64,17 @@ These provide the libraries the wheel's `DT_NEEDED` entries point at -- `libsycl
 
 ```bash
 sudo apt install \
-  intel-oneapi-runtime-dpcpp-cpp \
-  intel-oneapi-runtime-mkl \
-  intel-oneapi-runtime-tbb \
-  intel-oneapi-runtime-openmp
+  intel-oneapi-compiler-dpcpp-cpp-runtime-2025.3 \
+  intel-oneapi-openmp-2025.3 \
+  intel-oneapi-mkl-core-2025.3 \
+  intel-oneapi-mkl-sycl-blas-2025.3
 source /opt/intel/oneapi/setvars.sh
 python -c "import cyllama"   # should succeed
 ```
 
-For RPM-based distros, use Intel's [DNF/Yum repo](https://www.intel.com/content/www/us/en/docs/oneapi/installation-guide-linux/current/yum-dnf-zypper.html) with the same `intel-oneapi-runtime-*` package names. If you already have the full [Intel oneAPI base toolkit](https://www.intel.com/content/www/us/en/developer/tools/oneapi/oneapi-toolkit.html) (`intel-basekit`) installed, these runtimes are included -- just source `setvars.sh`. Without these libraries on the loader path, import fails with `libsycl.so.8: cannot open shared object file` (or a similar message naming one of the other runtimes).
+Keep the `-2025.3` suffix. The wheel is built against oneAPI 2025.3 and links `libsycl.so.8`. The unversioned `intel-oneapi-runtime-*` packages now install 2026.x, which ships `libsycl.so.9` only. The GPU wheel CI smoke test installs this same package set.
+
+For RPM-based distros, use Intel's [DNF/Yum repo](https://www.intel.com/content/www/us/en/docs/oneapi/installation-guide-linux/current/yum-dnf-zypper.html) with the same package names. An existing [Intel oneAPI base toolkit](https://www.intel.com/content/www/us/en/developer/tools/oneapi/oneapi-toolkit.html) install works if it is 2025.x; `intel-oneapi-base-toolkit-2025.3` pins it. Source its `setvars.sh`. Without these libraries on the loader path, import fails with `libsycl.so.8: cannot open shared object file` (or a similar message naming one of the other runtimes).
 
 **2. A SYCL-visible compute device (required for actual GPU/CPU compute, not for import).**
 

@@ -193,7 +193,7 @@ reset:
 
 $(MODEL):
 	@mkdir -p models && cd models && \
-		wget https://huggingface.co/unsloth/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q8_0.gguf
+		wget https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/067b946cf014b7c697f3654f621d577a3e3afd1c/Llama-3.2-1B-Instruct-Q8_0.gguf
 
 $(MODEL_RAG):
 	@mkdir -p models && cd models && \

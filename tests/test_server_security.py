@@ -178,7 +178,6 @@ def test_exposure_warning(caplog):
 
 def test_embedded_loop_handles_signals_while_idle():
     """wait_for_shutdown must release the GIL and run signal handlers with no traffic."""
-    import os
     import time
 
     from cyllama.llama.server import embedded
@@ -188,7 +187,8 @@ def test_embedded_loop_handles_signals_while_idle():
     assert server.start()
     # The first timer can only fire if the loop releases the GIL. The second
     # unblocks a regressed loop so the test fails instead of hanging.
-    kill = threading.Timer(0.3, os.kill, (os.getpid(), signal.SIGTERM))
+    # raise_signal, not os.kill: on Windows os.kill(SIGTERM) calls TerminateProcess.
+    kill = threading.Timer(0.3, signal.raise_signal, (signal.SIGTERM,))
     rescue = threading.Timer(5.0, setattr, (embedded, "_shutdown_requested", True))
     try:
         kill.start()
@@ -246,7 +246,6 @@ def test_embedded_stop_from_other_thread_waits_for_loop():
 
 def test_embedded_loop_exit_by_exception_does_not_block_stop():
     """A raising signal handler ends the loop; stop() must not then wait for it."""
-    import os
     import time
 
     class Interrupt(Exception):
@@ -260,7 +259,7 @@ def test_embedded_loop_exit_by_exception_does_not_block_stop():
     try:
         assert server.start()
         signal.signal(signal.SIGTERM, raise_interrupt)
-        threading.Timer(0.2, os.kill, (os.getpid(), signal.SIGTERM)).start()
+        threading.Timer(0.2, signal.raise_signal, (signal.SIGTERM,)).start()
         with pytest.raises(Interrupt):
             server.wait_for_shutdown()
         t0 = time.monotonic()

@@ -112,15 +112,16 @@ jobs:
         uses: actions/cache@v5
         with:
           path: models/Llama-3.2-1B-Instruct-Q8_0.gguf
-          key: test-model-llama-3.2-1b-q8
+          key: test-model-llama-3.2-1b-q8-432f310a
 
       - name: Download test model
         if: runner.os == 'Linux' && steps.cache-model.outputs.cache-hit != 'true'
         shell: bash
         run: |
           mkdir -p models
-          curl -fsSL --retry 3 --retry-all-errors --retry-delay 2 https://huggingface.co/unsloth/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q8_0.gguf \
+          curl -fsSL --retry 3 --retry-all-errors --retry-delay 2 https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/067b946cf014b7c697f3654f621d577a3e3afd1c/Llama-3.2-1B-Instruct-Q8_0.gguf \
             -o models/Llama-3.2-1B-Instruct-Q8_0.gguf
+          echo "432f310a77f4650a88d0fd59ecdd7cebed8d684bafea53cbff0473542964f0c3  models/Llama-3.2-1B-Instruct-Q8_0.gguf" | (sha256sum -c - || shasum -a 256 -c -)
 
       - name: Cache thirdparty deps
         id: cache-deps
@@ -223,15 +224,16 @@ jobs:
         uses: actions/cache@v5
         with:
           path: models/Llama-3.2-1B-Instruct-Q8_0.gguf
-          key: test-model-llama-3.2-1b-q8
+          key: test-model-llama-3.2-1b-q8-432f310a
 
       - name: Download test model
         if: steps.cache-model.outputs.cache-hit != 'true'
         shell: bash
         run: |
           mkdir -p models
-          curl -fsSL --retry 3 --retry-all-errors --retry-delay 2 https://huggingface.co/unsloth/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q8_0.gguf \
+          curl -fsSL --retry 3 --retry-all-errors --retry-delay 2 https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/067b946cf014b7c697f3654f621d577a3e3afd1c/Llama-3.2-1B-Instruct-Q8_0.gguf \
             -o models/Llama-3.2-1B-Instruct-Q8_0.gguf
+          echo "432f310a77f4650a88d0fd59ecdd7cebed8d684bafea53cbff0473542964f0c3  models/Llama-3.2-1B-Instruct-Q8_0.gguf" | (sha256sum -c - || shasum -a 256 -c -)
 
       - name: Find abi3 wheel
         id: find-wheel

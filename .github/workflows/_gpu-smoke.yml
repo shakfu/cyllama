@@ -86,12 +86,16 @@ jobs:
       - name: Check if backend was built
         id: check
         shell: bash
+        env:
+          CONDITION: ${{ matrix.condition }}
         run: |
-          if [ "${{ matrix.condition }}" != "true" ]; then
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-          fi
+          # Reject anything but a boolean: an unexpanded `inputs.x` once
+          # skipped every leg while each reported success.
+          case "$CONDITION" in
+            true)  echo "skip=false" >> "$GITHUB_OUTPUT" ;;
+            false) echo "skip=true" >> "$GITHUB_OUTPUT" ;;
+            *) echo "::error::matrix.condition is '$CONDITION', expected true or false"; exit 1 ;;
+          esac
 
       - uses: actions/setup-python@v7
         if: steps.check.outputs.skip != 'true'
@@ -227,8 +231,7 @@ jobs:
             intel-oneapi-compiler-dpcpp-cpp-runtime-2025.3 \
             intel-oneapi-openmp-2025.3 \
             intel-oneapi-mkl-core-2025.3 \
-            intel-oneapi-mkl-sycl-blas-2025.3 \
-            ocl-icd-libopencl1
+            intel-oneapi-mkl-sycl-blas-2025.3
           source /opt/intel/oneapi/setvars.sh
           echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" >> "$GITHUB_ENV"
 
@@ -257,6 +260,7 @@ jobs:
       # fails to load. Independent of GPU/ICD presence.
       # -------------------------------------------------------------------
       - name: Smoke test - DLL link (Windows)
+        id: dll-link
         if: steps.check.outputs.skip != 'true' && runner.os == 'Windows'
         shell: bash
         run: |
@@ -280,6 +284,7 @@ jobs:
           "
 
       - name: Verify extension suffix is .abi3
+        id: abi3-suffix
         if: steps.check.outputs.skip != 'true'
         shell: bash
         run: |
@@ -316,6 +321,7 @@ jobs:
           "
 
       - name: Smoke test - imports
+        id: imports
         if: steps.check.outputs.skip != 'true'
         shell: bash
         run: |
@@ -367,6 +373,7 @@ jobs:
           "
 
       - name: Smoke test - cyllama info
+        id: info
         if: steps.check.outputs.skip != 'true'
         shell: bash
         run: |
@@ -403,14 +410,15 @@ jobs:
         uses: actions/cache@v5
         with:
           path: models/Llama-3.2-1B-Instruct-Q8_0.gguf
-          key: test-model-llama-3.2-1b-q8
+          key: test-model-llama-3.2-1b-q8-432f310a
 
       - name: Download test model (SYCL)
         if: steps.check.outputs.skip != 'true' && matrix.backend == 'sycl' && steps.cache-model-sycl.outputs.cache-hit != 'true'
         run: |
           mkdir -p models
-          curl -fsSL --retry 3 --retry-all-errors --retry-delay 2 https://huggingface.co/unsloth/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q8_0.gguf \
+          curl -fsSL --retry 3 --retry-all-errors --retry-delay 2 https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/067b946cf014b7c697f3654f621d577a3e3afd1c/Llama-3.2-1B-Instruct-Q8_0.gguf \
             -o models/Llama-3.2-1B-Instruct-Q8_0.gguf
+          echo "432f310a77f4650a88d0fd59ecdd7cebed8d684bafea53cbff0473542964f0c3  models/Llama-3.2-1B-Instruct-Q8_0.gguf" | (sha256sum -c - || shasum -a 256 -c -)
 
       - name: Smoke test - SYCL 1-token CPU inference
         if: steps.check.outputs.skip != 'true' && matrix.backend == 'sycl'
@@ -433,3 +441,24 @@ jobs:
           assert len(str(response).strip()) > 0, 'Empty response'
           print('SYCL CPU inference smoke test passed')
           "
+
+      # Last step, so it runs only when every earlier step succeeded. Fails a
+      # leg whose checks were skipped instead of run, which would otherwise
+      # report success.
+      - name: Require that the checks ran
+        if: steps.check.outputs.skip != 'true'
+        shell: bash
+        env:
+          ABI3_SUFFIX: ${{ steps.abi3-suffix.outcome }}
+          IMPORTS: ${{ steps.imports.outcome }}
+          INFO: ${{ steps.info.outcome }}
+          DLL_LINK: ${{ runner.os == 'Windows' && steps.dll-link.outcome || 'success' }}
+        run: |
+          failed=0
+          for name in ABI3_SUFFIX IMPORTS INFO DLL_LINK; do
+            if [ "${!name}" != "success" ]; then
+              echo "::error::check $name has outcome '${!name}', expected success"
+              failed=1
+            fi
+          done
+          exit "$failed"

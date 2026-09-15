@@ -59,7 +59,7 @@ pip install cyllama-vulkan   # Cross-platform GPU (Vulkan)
 
 All variants install the same `cyllama` Python package -- only the compiled backend differs. Install one at a time (they replace each other). GPU variants require the corresponding driver/runtime installed on your system.
 
-`cyllama-sycl` has two host prerequisites it does not vendor: the [Intel oneAPI](https://www.intel.com/content/www/us/en/developer/tools/oneapi/oneapi-toolkit.html) userspace runtimes (`intel-oneapi-runtime-dpcpp-cpp`, `-mkl`, `-tbb`, `-openmp` -- needed for `import` to succeed) and a SYCL-visible compute device (Intel GPU driver via OpenCL or Level Zero, or the Intel OpenCL CPU runtime for CPU fallback -- needed for actual compute). See [`docs/installation.md`](docs/installation.md#cyllama-sycl-host-prerequisites) for the full breakdown and links to Intel's install guides.
+`cyllama-sycl` has two host prerequisites it does not vendor: the [Intel oneAPI](https://www.intel.com/content/www/us/en/developer/tools/oneapi/oneapi-toolkit.html) userspace runtimes, pinned to 2025.3 (`intel-oneapi-compiler-dpcpp-cpp-runtime-2025.3`, `intel-oneapi-openmp-2025.3`, `intel-oneapi-mkl-core-2025.3`, `intel-oneapi-mkl-sycl-blas-2025.3` -- needed for `import` to succeed) and a SYCL-visible compute device (Intel GPU driver via OpenCL or Level Zero, or the Intel OpenCL CPU runtime for CPU fallback -- needed for actual compute). See [`docs/installation.md`](docs/installation.md#cyllama-sycl-host-prerequisites) for the full breakdown and links to Intel's install guides.
 
 You can verify which backend is active after installation:
 
@@ -936,7 +936,7 @@ llm = LLM("model.gguf", config=config)
 
 The `tests` directory in this repo provides extensive examples of using cyllama.
 
-However, as a first step, you should download a smallish llm in the `.gguf` model from [huggingface](https://huggingface.co/models?search=gguf). A good small model to start and which is assumed by tests is [Llama-3.2-1B-Instruct-Q8_0.gguf](https://huggingface.co/unsloth/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q8_0.gguf). `cyllama` expects models to be stored in a `models` folder in the cloned `cyllama` directory. So to create the `models` directory if doesn't exist and download this model, you can just type:
+However, as a first step, you should download a smallish llm in the `.gguf` model from [huggingface](https://huggingface.co/models?search=gguf). A good small model to start and which is assumed by tests is [Llama-3.2-1B-Instruct-Q8_0.gguf](https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/067b946cf014b7c697f3654f621d577a3e3afd1c/Llama-3.2-1B-Instruct-Q8_0.gguf). `cyllama` expects models to be stored in a `models` folder in the cloned `cyllama` directory. So to create the `models` directory if doesn't exist and download this model, you can just type:
 
 ```sh
 make download
@@ -947,7 +947,7 @@ This basically just does:
 ```sh
 cd cyllama
 mkdir models && cd models
-wget https://huggingface.co/unsloth/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q8_0.gguf
+wget https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/067b946cf014b7c697f3654f621d577a3e3afd1c/Llama-3.2-1B-Instruct-Q8_0.gguf
 ```
 
 Run the full test suite:
