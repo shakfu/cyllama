@@ -1,8 +1,7 @@
 name: debug-macos-intel-info
 
-# One-off diagnostic: why Vulkan backend registration aborts on
-# macos-15-intel. Runs an already-built Vulkan wheel against several
-# MoltenVK versions, and runs vulkaninfo to separate MoltenVK from ggml.
+# One-off diagnostic: checks that MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS=0
+# stops Homebrew's MoltenVK aborting on the macos-15-intel paravirtual GPU.
 
 on:
   workflow_dispatch:
@@ -18,24 +17,13 @@ permissions:
 
 jobs:
   info:
-    name: MoltenVK ${{ matrix.mvk }}
     runs-on: macos-15-intel
     timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - mvk: brew
-          - mvk: v1.4.1
-            sha256: 5ea0c259df7ded9a275444820f09cced54d6e5a7c7a31d262de62a5cdb7e15cf
-          - mvk: v1.3.0
-            sha256: 57b4184ded521b08a63e3642552ebef8b9e98c2f0bcffa49bd93bbe1301c173d
     env:
       HOMEBREW_NO_AUTO_UPDATE: "1"
       PYTHONUNBUFFERED: "1"
       PYTHONFAULTHANDLER: "1"
-      VK_LOADER_DEBUG: error,warn,driver
-      MVK_CONFIG_LOG_LEVEL: "4"
+      MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS: "0"
     steps:
       - uses: actions/setup-python@v7
         with:
@@ -55,50 +43,9 @@ jobs:
           python -m venv venv
           venv/bin/pip install wheels/*abi3*.whl
 
-      # VK_DRIVER_FILES replaces the loader's ICD search, so only this MoltenVK loads.
-      - name: Use MoltenVK ${{ matrix.mvk }} from GitHub release
-        if: matrix.mvk != 'brew'
-        env:
-          MVK: ${{ matrix.mvk }}
-          SHA256: ${{ matrix.sha256 }}
-        run: |
-          curl -fsSL --retry 3 -o mvk.tar \
-            "https://github.com/KhronosGroup/MoltenVK/releases/download/$MVK/MoltenVK-macos.tar"
-          echo "$SHA256  mvk.tar" | shasum -a 256 -c -
-          tar -xf mvk.tar
-          ICD="$PWD/MoltenVK/MoltenVK/dynamic/dylib/macOS/MoltenVK_icd.json"
-          test -f "$ICD"
-          echo "VK_DRIVER_FILES=$ICD" >> "$GITHUB_ENV"
-          echo "VK_ICD_FILENAMES=$ICD" >> "$GITHUB_ENV"
-
       - name: vulkaninfo (no ggml)
         continue-on-error: true
         run: vulkaninfo --summary
 
-      - name: ggml Vulkan registration
-        continue-on-error: true
-        run: |
-          venv/bin/python -c "
-          from cyllama.llama import llama_cpp as cy
-          print('backend_init', flush=True)
-          cy.llama_backend_init()
-          print('registries', cy.ggml_backend_reg_names(), flush=True)
-          print('devices', cy.ggml_backend_dev_info(), flush=True)
-          print('done; exiting', flush=True)
-          "
-
-      # Apple frameworks log abort reasons to the unified log, not stderr.
-      - name: Unified log
-        if: always()
-        run: |
-          log show --last 5m --style compact --predicate \
-            'process == "Python" OR process == "vulkaninfo" OR eventMessage CONTAINS[c] "abort" OR eventMessage CONTAINS[c] "assert"' \
-            | tail -200
-
-      - name: Native backtrace (lldb)
-        if: always()
-        run: |
-          lldb --batch \
-            -O "settings set target.process.stop-on-exec false" \
-            -o run -k "thread backtrace all" -k quit -- \
-            venv/bin/python -c "from cyllama.llama import llama_cpp as cy; cy.llama_backend_init()"
+      - name: cyllama info
+        run: venv/bin/python -m cyllama info

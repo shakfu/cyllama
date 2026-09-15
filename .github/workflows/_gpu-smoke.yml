@@ -243,12 +243,16 @@ jobs:
           sudo apt-get install -y --no-install-recommends libvulkan1
 
       # The wheel's @rpath includes /usr/local/lib, where Intel Homebrew links these.
+      # The runner's paravirtual GPU aborts in -[MTLDevice newArgumentEncoderWithArguments:],
+      # which MoltenVK >= 1.4.1 calls at vkCreateInstance unless argument buffers are off.
       - name: Install Vulkan loader and MoltenVK (macOS)
         if: steps.check.outputs.skip != 'true' && matrix.backend == 'vulkan-macos-intel'
         shell: bash
         env:
           HOMEBREW_NO_AUTO_UPDATE: "1"
-        run: brew install vulkan-loader molten-vk
+        run: |
+          brew install vulkan-loader molten-vk
+          echo "MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS=0" >> "$GITHUB_ENV"
 
       # -------------------------------------------------------------------
       # Windows-only: link-test every bundled ggml-*.dll using the same
