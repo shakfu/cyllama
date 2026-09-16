@@ -6,9 +6,10 @@ Generation, transcription, and image synthesis all enter a long native call wher
 |---|---|---|
 | `LLM` (llama.cpp) | in-process | between-token event + mid-`decode` ggml abort callback |
 | `WhisperContext` (whisper.cpp) | in-process | mid-`whisper_full` ggml abort callback |
+| `SDContext` (stable-diffusion.cpp) | in-process, programmatic only | per-step cancel flag set by `sd_cancel_generation` |
 | `cyllama.sd` CLI (stable-diffusion.cpp) | process isolation | child process the CLI force-kills on Ctrl-C |
 
-`LLM` and `WhisperContext` present the same three members — `cancel()`, `cancel_requested`, and `install_sigint_handler()` — backed by the shared helper in `cyllama.utils.cancellation`. Stable Diffusion is the exception: its native API exposes no abort hook, so the in-process `SDContext` cannot be cancelled and only the CLI gets responsive Ctrl-C (see [Stable Diffusion](#stable-diffusion) below).
+`LLM` and `WhisperContext` present the same three members — `cancel()`, `cancel_requested`, and `install_sigint_handler()` — backed by the shared helper in `cyllama.utils.cancellation`. `SDContext` has `cancel()` only: Ctrl-C does not reach an in-process generation, and only the CLI stops on Ctrl-C (see [Stable Diffusion](#stable-diffusion) below).
 
 ## LLM (llama.cpp)
 
@@ -170,13 +171,39 @@ except InterruptedError:
 
 ## Stable Diffusion
 
-stable-diffusion.cpp's `generate()` is a single native call with **no abort hook** — its progress callback returns `void`, so there is no way to signal "stop" mid-generation. Consequently:
+`SDContext.cancel(mode=CancelMode.ALL)` stops an in-flight `generate()` or `generate_video()`. Call it from another thread; the generating thread releases the GIL during sampling. stable-diffusion.cpp checks the flag once per denoising step, so latency is at most one step.
 
-- **The in-process API (`SDContext.generate()`, `text_to_image()`) cannot be cancelled.** Called directly from Python, it blocks until the image is finished; a `cancel()` method would have nothing to drive.
+| `CancelMode` | Effect |
+|---|---|
+| `ALL` | stop as soon as possible |
+| `NEW_LATENTS` | finish the current sample, skip remaining batch latents |
+| `RESET` | clear a pending request |
 
-- **The CLI (`python -m cyllama.sd`) is responsive to Ctrl-C** via process isolation. Long, hookless commands (`txt2img`/`img2img`/`inpaint`/ `controlnet`/`video`/`upscale`/`convert`) run in a child process the parent force-kills on Ctrl-C (SIGTERM, then SIGKILL after a short grace period). The child runs in its own session, so the terminal's Ctrl-C reaches only the parent. Set `CYLLAMA_SD_NO_ISOLATE=1` to run in-process instead (e.g. for debugging or profiling).
+```python
+import threading
+from cyllama.sd import SDContext, SDContextParams, CancelMode
 
-In-process cancellation will be wired into the same `cancel()` surface once an abort hook lands upstream, tracked at [leejet/stable-diffusion.cpp#1036](https://github.com/leejet/stable-diffusion.cpp/issues/1036) and [cyllama#8](https://github.com/shakfu/cyllama/issues/8).
+params = SDContextParams()
+params.model_path = "models/sd_xl_turbo_1.0.q8_0.gguf"
+with SDContext(params) as ctx:
+    threading.Timer(5.0, ctx.cancel).start()
+    try:
+        ctx.generate(prompt="a cat", sample_steps=30)
+    except RuntimeError:
+        pass  # cancelled
+```
+
+Limitations:
+
+- **No Ctrl-C.** `SDContext` has no `install_sigint_handler()` or `cancel_requested`. SIGINT during a main-thread `generate()` is lost: the call runs to completion and returns normally.
+
+- **Cancellation raises `RuntimeError`.** `LLM` and `WhisperContext` raise `InterruptedError`; `SDContext` raises the same `RuntimeError("Image generation failed")` as a real failure.
+
+- **`upscale` and `convert` cannot be cancelled.** They do not take an `sd_ctx_t`, so the cancel flag does not reach them.
+
+- **The flag resets automatically.** stable-diffusion.cpp clears it at the start of each generation, so a stale request does not cancel the next call.
+
+The CLI (`python -m cyllama.sd`) stops on Ctrl-C via process isolation. `txt2img`/`img2img`/`inpaint`/`controlnet`/`video`/`upscale`/`convert` run in a child process the parent force-kills on Ctrl-C (SIGTERM, then SIGKILL after a short grace period). The child runs in its own session, so the terminal's Ctrl-C reaches only the parent. Set `CYLLAMA_SD_NO_ISOLATE=1` to run in-process instead (e.g. for debugging or profiling).
 
 ## Notes and caveats
 
@@ -188,4 +215,4 @@ In-process cancellation will be wired into the same `cancel()` surface once an a
 
 - **Whisper concurrency.** `cancel()` only sets a flag, so it is safe to call from a signal handler or another thread while `full()` runs. A `WhisperContext` is otherwise not thread-safe (`full()` raises on concurrent use); see [Threading](threading.md).
 
-- **Stable Diffusion.** Only the CLI is cancellable, via process isolation; the in-process `SDContext` is not. See [Stable Diffusion](#stable-diffusion) above.
+- **Stable Diffusion.** `SDContext.cancel()` works from another thread, but Ctrl-C reaches only the CLI. See [Stable Diffusion](#stable-diffusion) above.

@@ -22,7 +22,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+## [0.4.8]
+
 ### Changed
+
+- **`docs/cancelling.md` described `SDContext` as uncancellable** -- `SDContext.cancel()` has worked since 0.3.3. The docs now cover it and its limits: no Ctrl-C handler, cancellation raises `RuntimeError`, and `upscale`/`convert` cannot be cancelled.
 
 - **`upload_release` restored on both wheel workflows** -- 0.4.7 dropped the input, so every dispatch against a tag published, and a tag could not be rebuilt without touching its release. A dispatch now publishes only when the box is ticked, and only on a tag ref. A tag push still publishes unprompted; a branch still cannot publish.
 

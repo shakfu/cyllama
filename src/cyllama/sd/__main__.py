@@ -1105,17 +1105,16 @@ def add_common_misc_args(parser: argparse.ArgumentParser) -> None:
 # =============================================================================
 # Ctrl-C isolation
 #
-# Unlike llama.cpp and whisper.cpp, stable-diffusion.cpp's generate() is a
-# single long native call with no abort hook -- its progress callback returns
-# void, so a SIGINT cannot interrupt it in-process (cyllama issue #8 / upstream
-# leejet/stable-diffusion.cpp#1036). The only way to make Ctrl-C responsive for
-# the CLI is to run the work in a child process the parent can kill. The parent
-# re-invokes this exact CLI with a marker env var set so the child runs the
-# command in-process instead of recursing, then supervises it and force-kills
-# it on Ctrl-C. Set CYLLAMA_SD_NO_ISOLATE=1 to run in-process (e.g. debugging).
+# SDContext.cancel() stops generate()/generate_video(), but SDContext has no
+# SIGINT handler, and upscale/convert cannot be cancelled at all (no sd_ctx_t).
+# The CLI therefore runs the work in a child process the parent can kill. The
+# parent re-invokes this exact CLI with a marker env var set so the child runs
+# the command in-process instead of recursing, then supervises it and
+# force-kills it on Ctrl-C. Set CYLLAMA_SD_NO_ISOLATE=1 to run in-process
+# (e.g. debugging).
 # =============================================================================
 
-# Long, hookless native commands worth isolating. `info` is instant and runs
+# Long native commands worth isolating. `info` is instant and runs
 # in-process; help/no-command never reach the dispatch below.
 _ISOLATED_COMMANDS = frozenset(
     {"txt2img", "generate", "img2img", "inpaint", "controlnet", "video", "upscale", "convert"}
@@ -1330,7 +1329,7 @@ def main() -> int:
         parser.print_help()
         return 1
 
-    # Long, hookless native commands run in a supervised child process so
+    # Long native commands run in a supervised child process so
     # Ctrl-C cancels promptly (see the "Ctrl-C isolation" section above).
     if _should_isolate(args.command):
         return _run_isolated()

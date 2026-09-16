@@ -1,10 +1,10 @@
 """Tests for the stable-diffusion CLI Ctrl-C isolation harness.
 
 These exercise the supervision logic (`_supervise`) and the isolation gate
-(`_should_isolate`) without spawning a real generation -- SD's generate() has
-no in-process abort hook, so the CLI runs it in a child process the parent can
-kill (cyllama issue #8). The harness is plain process plumbing, so it is tested
-with fake process objects and env toggles rather than a multi-GB model.
+(`_should_isolate`) without spawning a real generation -- the CLI runs long
+commands in a child process the parent kills on Ctrl-C (cyllama issue #8). The
+harness is plain process plumbing, so it is tested with fake process objects
+and env toggles rather than a multi-GB model.
 """
 
 import pytest
