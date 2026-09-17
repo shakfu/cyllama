@@ -72,13 +72,17 @@ from __future__ import annotations
 
 import argparse
 import importlib.metadata as md
+import math
 import os
 import re
 import shutil
+import struct
 import subprocess
 import sys
 import time
 import urllib.request
+import zlib
+from collections import Counter
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -94,6 +98,89 @@ SCRIPT_NAME = Path(__file__).name
 
 class ModelSourceUnavailable(RuntimeError):
     """Raised when a model has no configured source and isn't on disk."""
+
+
+# ---------------------------------------------------------------------------
+# image checks
+# ---------------------------------------------------------------------------
+
+
+def read_png(path: Path) -> tuple[int, int, int, bytes]:
+    """Decode an 8-bit, non-interlaced PNG to (width, height, channels, pixels).
+
+    Stdlib only: the script must run standalone, and the venv under test has no
+    image library. That covers what stb_image_write produces.
+
+    Raises:
+        OSError: the file cannot be read.
+        ValueError, zlib.error: the file is not a PNG this can decode.
+    """
+    data = path.read_bytes()
+    if data[:8] != b"\x89PNG\r\n\x1a\n":
+        raise ValueError("not a PNG")
+    header: tuple[int, ...] | None = None
+    idat = bytearray()
+    pos = 8
+    while pos + 8 <= len(data):
+        length, ctype = struct.unpack(">I4s", data[pos : pos + 8])
+        body = data[pos + 8 : pos + 8 + length]
+        if ctype == b"IHDR":
+            header = struct.unpack(">IIBBBBB", body)
+        elif ctype == b"IDAT":
+            idat += body
+        elif ctype == b"IEND":
+            break
+        pos += 12 + length
+    if header is None:
+        raise ValueError("no IHDR chunk")
+    width, height, depth, color, _, _, interlace = header
+    channels = {0: 1, 2: 3, 4: 2, 6: 4}.get(color)
+    if depth != 8 or channels is None or interlace:
+        raise ValueError(f"unsupported PNG (bit depth {depth}, color type {color}, interlace {interlace})")
+
+    raw = zlib.decompress(idat)
+    stride = width * channels
+    if len(raw) != height * (stride + 1):
+        raise ValueError(f"image data is {len(raw)} bytes, expected {height * (stride + 1)}")
+    pixels = bytearray()
+    prev = bytearray(stride)
+    for y in range(height):
+        start = y * (stride + 1) + 1
+        ftype = raw[start - 1]
+        row = bytearray(raw[start : start + stride])
+        if ftype == 1:  # Sub
+            for i in range(channels, stride):
+                row[i] = (row[i] + row[i - channels]) & 0xFF
+        elif ftype == 2:  # Up
+            for i in range(stride):
+                row[i] = (row[i] + prev[i]) & 0xFF
+        elif ftype == 3:  # Average
+            for i in range(stride):
+                left = row[i - channels] if i >= channels else 0
+                row[i] = (row[i] + (left + prev[i]) // 2) & 0xFF
+        elif ftype == 4:  # Paeth
+            for i in range(stride):
+                a = row[i - channels] if i >= channels else 0
+                b = prev[i]
+                c = prev[i - channels] if i >= channels else 0
+                pa, pb, pc = abs(b - c), abs(a - c), abs(a + b - 2 * c)
+                row[i] = (row[i] + (a if pa <= pb and pa <= pc else b if pb <= pc else c)) & 0xFF
+        elif ftype != 0:
+            raise ValueError(f"row {y} has unknown filter type {ftype}")
+        pixels += row
+        prev = row
+    return width, height, channels, bytes(pixels)
+
+
+def channel_stddevs(pixels: bytes, channels: int) -> list[float]:
+    """Population standard deviation of each channel of interleaved 8-bit pixels."""
+    result = []
+    for ch in range(channels):
+        hist = Counter(pixels[ch::channels])
+        n = sum(hist.values())
+        mean = sum(v * k for v, k in hist.items()) / n
+        result.append(math.sqrt(sum(k * (v - mean) ** 2 for v, k in hist.items()) / n))
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -719,6 +806,15 @@ class TestSuite:
     # than a bad wheel.
     FAST_TARGETS: tuple[str, ...] = ("test-gen-1", "test-gen-2", "test-sd-3")
 
+    # Z-Image-Turbo is distilled for 8 steps without guidance (upstream
+    # docs/z_image.md). The CLI defaults, 20 steps at cfg 7.0, cost 5x the passes.
+    # A fixed seed makes a backend's images comparable from one release to the next.
+    SD_TURBO_SAMPLING: tuple[str, ...] = ("--steps", "8", "--cfg-scale", "1.0", "--seed", "42")
+    SD_WIDTH, SD_HEIGHT = 512, 1024
+    # Below this in every channel an image is blank: black from a NaN render, or
+    # one flat colour. A real render is in the tens.
+    SD_MIN_STDDEV = 2.0
+
     # Human-readable section headings for the generated Makefile's help text.
     FAMILY_TITLES: dict[str, str] = {
         "embed": "Embedding",
@@ -762,9 +858,69 @@ class TestSuite:
         reason as :meth:`sd_output`: `clean` sweeps it, and only what it writes."""
         return self.env.paths.root / "vector.db"
 
+    def images(self) -> list[Path]:
+        """The images the sd cases write, one per case."""
+        return [self.env.paths.root / self.sd_output(n) for n in sorted(self.families["sd"])]
+
     def outputs(self) -> list[Path]:
         """Every file the suite leaves in the project root."""
-        return [self.env.paths.root / self.sd_output(n) for n in sorted(self.families["sd"])] + [self.rag_db()]
+        return [*self.images(), self.rag_db()]
+
+    def run_sd(self, n: str, argv: list[str], backend: str, timeout: float | None) -> int:
+        """Run sd case `n` with its own `argv`, then check the image it wrote."""
+        paths = self.models.ensure_models(ModelRegistry.SD_REQUIREMENTS)
+        out = self.env.paths.root / self.sd_output(n)
+        # A stale image from an earlier run would otherwise pass the check.
+        out.unlink(missing_ok=True)
+        rc = self.env.cyllama_module(
+            "cyllama.sd",
+            [
+                "txt2img",
+                "--diffusion-model",
+                str(paths["z-image-turbo"]),
+                "--vae",
+                str(paths["ae"]),
+                "--llm",
+                str(paths["qwen3-4b"]),
+                *self.SD_TURBO_SAMPLING,
+                "-H",
+                str(self.SD_HEIGHT),
+                "-W",
+                str(self.SD_WIDTH),
+                "-o",
+                self.sd_output(n),
+                *argv,
+            ],
+            env=self.env.env_for(backend),
+            timeout=timeout,
+        )
+        return rc or self.check_image(out)
+
+    def check_image(self, path: Path) -> int:
+        """Fail an image of the wrong size, or one with no variation in any channel.
+
+        Exit 0 from the CLI only means an image was written; a NaN render still
+        writes one, all black.
+        """
+        try:
+            width, height, channels, pixels = read_png(path)
+        except (OSError, ValueError, zlib.error) as e:
+            print(f"error: {path.name}: {e}", file=sys.stderr)
+            return 1
+        if (width, height) != (self.SD_WIDTH, self.SD_HEIGHT):
+            print(
+                f"error: {path.name} is {width}x{height}, expected {self.SD_WIDTH}x{self.SD_HEIGHT}",
+                file=sys.stderr,
+            )
+            return 1
+        spread = max(channel_stddevs(pixels, channels))
+        print(f"-- {path.name}: {width}x{height}, max channel stddev {spread:.1f}")
+        if spread < self.SD_MIN_STDDEV:
+            print(
+                f"error: {path.name} is blank (max channel stddev {spread:.2f} < {self.SD_MIN_STDDEV})", file=sys.stderr
+            )
+            return 1
+        return 0
 
     def sd_1(self, backend: str, timeout: float | None) -> int:
         """z_turbo te-on-cpu."""
@@ -782,93 +938,22 @@ class TestSuite:
         # helps because that is a compute buffer, not weights (`te=cpu,vae=cpu`
         # fails identically). Tiling is what shrinks it.
         #
-        # Measured on an 8 GiB RTX 4060: 3.17 s/it, 69 s end to end. `--auto-fit`
-        # also fits but declines the GPU altogether on a single-GPU box (~143 s/it),
-        # which no wheel-test timeout would survive.
-        paths = self.models.ensure_models(ModelRegistry.SD_REQUIREMENTS)
-        return self.env.cyllama_module(
-            "cyllama.sd",
-            [
-                "txt2img",
-                "--diffusion-model",
-                str(paths["z-image-turbo"]),
-                "--vae",
-                str(paths["ae"]),
-                "--llm",
-                str(paths["qwen3-4b"]),
-                "--params-backend",
-                "te=cpu",
-                "--vae-tiling",
-                "-H",
-                "1024",
-                "-W",
-                "512",
-                "-o",
-                self.sd_output("1"),
-                "-p",
-                "a lovely cat",
-            ],
-            env=self.env.env_for(backend),
-            timeout=timeout,
-        )
+        # Measured on an 8 GiB RTX 4060 at 20 steps, cfg 7.0: 3.17 s/it, 69 s end
+        # to end. `--auto-fit` also fits but declines the GPU altogether on a
+        # single-GPU box (~143 s/it), which no wheel-test timeout would survive.
+        return self.run_sd("1", ["--params-backend", "te=cpu", "--vae-tiling", "-p", "a lovely cat"], backend, timeout)
 
     def sd_2(self, backend: str, timeout: float | None) -> int:
         """z_turbo cpu-offload."""
-        paths = self.models.ensure_models(ModelRegistry.SD_REQUIREMENTS)
-        return self.env.cyllama_module(
-            "cyllama.sd",
-            [
-                "txt2img",
-                "--diffusion-model",
-                str(paths["z-image-turbo"]),
-                "--vae",
-                str(paths["ae"]),
-                "--llm",
-                str(paths["qwen3-4b"]),
-                "--offload-to-cpu",
-                "--vae-on-cpu",
-                "-H",
-                "1024",
-                "-W",
-                "512",
-                "-o",
-                self.sd_output("2"),
-                "-p",
-                "a lovely cat",
-            ],
-            env=self.env.env_for(backend),
-            timeout=timeout,
-        )
+        return self.run_sd("2", ["--offload-to-cpu", "--vae-on-cpu", "-p", "a lovely cat"], backend, timeout)
 
     def sd_3(self, backend: str, timeout: float | None) -> int:
         """z_turbo cpu-offload + flash-attn."""
-        paths = self.models.ensure_models(ModelRegistry.SD_REQUIREMENTS)
-        return self.env.cyllama_module(
-            "cyllama.sd",
-            [
-                "txt2img",
-                "--diffusion-model",
-                str(paths["z-image-turbo"]),
-                "--vae",
-                str(paths["ae"]),
-                "--llm",
-                str(paths["qwen3-4b"]),
-                "--cfg-scale",
-                "1.0",
-                "-v",
-                "--offload-to-cpu",
-                "--diffusion-fa",
-                "-H",
-                "1024",
-                "-W",
-                "512",
-                "-o",
-                self.sd_output("3"),
-                "-p",
-                "a lovely plump blue-eyed cat",
-            ],
-            env=self.env.env_for(backend),
-            timeout=timeout,
+        return self.run_sd(
+            "3",
+            ["-v", "--offload-to-cpu", "--diffusion-fa", "-p", "a lovely plump blue-eyed cat"],
+            backend,
+            timeout,
         )
 
     # -- generation ---------------------------------------------------------
@@ -1250,15 +1335,20 @@ class Cli:
     def cmd_sync(self, _args: argparse.Namespace) -> int:
         return self.env.run([self.env.uv, "sync"])
 
-    def cmd_clean(self, _args: argparse.Namespace) -> int:
+    def cmd_clean(self, args: argparse.Namespace) -> int:
         venv = self.env.venv if self.env.venv is not None else self.paths.root / ".venv"
         if venv.exists():
             print(f"removing {venv}")
             shutil.rmtree(venv)
         # The sd cases write their images into the project root, so a run leaves
         # z_turbo_*.png behind for the next `git status` to report.
+        keep = self.suite.images() if getattr(args, "keep_images", False) else []
         for out in self.suite.outputs():
-            if out.exists():
+            if not out.exists():
+                continue
+            if out in keep:
+                print(f"keeping {out}")
+            else:
                 print(f"removing {out}")
                 out.unlink()
         return 0
@@ -1466,6 +1556,8 @@ class Cli:
             where = f" --venv {self.env.venv}" if self.env.venv is not None else ""
             for name, _ in steps:
                 verb, _, target = name.partition(" ")
+                if verb == "clean" and args.keep_images:
+                    target = "--keep-images"
                 print(f"would run: {SCRIPT_NAME} {verb}{where}{' ' + target if target else ''}")
             print()
             for _, step in steps[1 : 1 + len(targets)]:
@@ -1562,6 +1654,17 @@ class Cli:
         return i
 
     @staticmethod
+    def clean_parser() -> argparse.ArgumentParser:
+        """Options for what `clean` removes; shared by `clean` and `run`."""
+        c = argparse.ArgumentParser(add_help=False)
+        c.add_argument(
+            "--keep-images",
+            action="store_true",
+            help="leave the images the sd tests wrote (z_turbo_*.png) in the project root",
+        )
+        return c
+
+    @staticmethod
     def test_parser() -> argparse.ArgumentParser:
         """Options that shape a test run; shared by `test` and `run`."""
         t = argparse.ArgumentParser(add_help=False)
@@ -1608,9 +1711,11 @@ class Cli:
 
         sub.add_parser("info", help="show python/backend/models info").set_defaults(func=self.cmd_info)
         sub.add_parser("sync", help="uv sync project dependencies").set_defaults(func=self.cmd_sync)
-        sub.add_parser("clean", help="remove the venv and any images the sd tests left behind").set_defaults(
-            func=self.cmd_clean
-        )
+        sub.add_parser(
+            "clean",
+            parents=[self.clean_parser()],
+            help="remove the venv and any images the sd tests left behind",
+        ).set_defaults(func=self.cmd_clean)
         sub.add_parser("reset", help="clean + sync").set_defaults(func=self.cmd_reset)
 
         inst = sub.add_parser(
@@ -1658,7 +1763,7 @@ class Cli:
         # a clean machine without three invocations that must agree on the backend.
         r = sub.add_parser(
             "run",
-            parents=[self.install_parser(), self.test_parser()],
+            parents=[self.install_parser(), self.test_parser(), self.clean_parser()],
             help="install, test, then clean -- stopping at the first failure",
         )
         r.add_argument(

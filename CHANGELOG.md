@@ -22,6 +22,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+### Added
+
+- **`scripts/rwt.py` checks the images the sd cases write** -- exit 0 from `cyllama.sd` only meant a file was written, so a NaN render (all black) passed. A case now also fails if its PNG is the wrong size or has a per-channel standard deviation below 2. The decoder is stdlib-only because neither the script nor the wheel venv has an image library.
+
+- **`rwt.py clean --keep-images` and `run --keep-images`** -- leave `z_turbo_*.png` in the project root so a run's images can be inspected. Each sd case deletes its own image before it runs, so the next run replaces them.
+
+### Changed
+
+- **`rwt.py` sd cases use Z-Image-Turbo's sampling settings** -- `--steps 8 --cfg-scale 1.0`, per upstream stable-diffusion.cpp `docs/z_image.md`, with a fixed `--seed 42`. They had run the CLI defaults, 20 steps at cfg 7.0: five times the diffusion passes of 8 steps at cfg 1.0. On an M1 the sd family dropped from 3065 s to 875 s. The fixed seed makes a backend's images comparable across releases.
+
 ## [0.4.8]
 
 ### Changed
