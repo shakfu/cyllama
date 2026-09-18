@@ -7,6 +7,7 @@ This document compares the build options used across three contexts:
 2. **CI wheel builds** -- GitHub Actions via `build-gpu-wheels-abi3.yml`
 
 3. **Upstream llama.cpp** -- options documented in [llama.cpp/docs/build.md](https://github.com/ggml-org/llama.cpp/blob/master/docs/build.md)
+
 ## Build Flow Overview
 
 Cyllama's build is a two-phase process:
