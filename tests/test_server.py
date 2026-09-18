@@ -547,3 +547,59 @@ class TestServerIntegration:
 
         # Server should be stopped after context exit
         assert not server.is_running()
+
+
+class TestServerLogDraining:
+    """The launcher pipes the child's stdout and stderr. An undrained pipe
+    blocks the child once its buffer fills, which hangs readiness checks
+    and inference, so both streams are read continuously into bounded ring
+    buffers and ``get_logs`` reports what was captured.
+    """
+
+    def _server(self, tmp_path):
+        model = tmp_path / "model.gguf"
+        model.write_bytes(b"\0")
+        binary = tmp_path / "llama-server"
+        binary.write_text("#!/bin/sh\n")
+        binary.chmod(0o755)
+        return LlamaServer(ServerConfig(model_path=str(model)), server_binary=str(binary))
+
+    def test_get_logs_is_empty_before_start(self, tmp_path):
+        server = self._server(tmp_path)
+        assert server.get_logs() == {"stdout": [], "stderr": []}
+
+    def test_both_streams_are_captured(self, tmp_path):
+        """A child that writes far more than a pipe buffer must still exit,
+        and its output must be readable afterwards."""
+        import sys
+
+        server = self._server(tmp_path)
+        server.server_binary = Path(sys.executable)
+        script = "import sys\n" + "".join(
+            [
+                "sys.stdout.write('out ' + 'x' * 100 + chr(10))\n",
+                "sys.stderr.write('err ' + 'y' * 100 + chr(10))\n",
+            ]
+        )
+        # ~200KB per stream, comfortably past the 64KB pipe buffer, so an
+        # undrained pipe blocks the child rather than merely losing output.
+        with patch.object(ServerConfig, "to_args", return_value=["-c", script * 2000]):
+            server.start(wait_for_ready=False)
+            assert server.process is not None
+            server.process.wait(timeout=30)
+            server.stop()
+
+        logs = server.get_logs(lines=5)
+        assert logs["stdout"] and all(line.startswith("out ") for line in logs["stdout"])
+        assert logs["stderr"] and all(line.startswith("err ") for line in logs["stderr"])
+
+    def test_buffers_are_bounded(self, tmp_path):
+        """Retention is capped so a long-running chatty server can't grow
+        the launcher's memory without limit."""
+        from cyllama.llama.server.launcher import LOG_BUFFER_LINES
+
+        server = self._server(tmp_path)
+        for i in range(LOG_BUFFER_LINES + 50):
+            server._logs["stdout"].append(f"line {i}")
+        assert len(server._logs["stdout"]) == LOG_BUFFER_LINES
+        assert server.get_logs(lines=1)["stdout"] == [f"line {LOG_BUFFER_LINES + 49}"]

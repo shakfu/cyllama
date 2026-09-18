@@ -354,3 +354,52 @@ class TestEdgeCases:
         text = "Para 1.\n\nPara 2.\nLine 2. Sentence 2. Word1 word2"
         chunks = splitter.split(text)
         assert len(chunks) >= 1
+
+
+class TestForceSplitRespectsLengthFunction:
+    """``_force_split`` handles text with no usable separator. It must
+    measure with ``length_function``, not character arithmetic: for
+    ``TokenTextSplitter`` ``chunk_size`` counts tokens, so slicing by
+    characters produces chunks unrelated to the configured limit.
+    """
+
+    TEXT = "abcdefghij" * 200  # 2000 chars, no separators
+
+    @staticmethod
+    def _tokens(text):
+        """Stand-in tokenizer: roughly one token per four characters."""
+        return (len(text) + 3) // 4
+
+    def test_token_chunks_fill_the_token_budget(self):
+        splitter = TokenTextSplitter(chunk_size=32, chunk_overlap=4, tokenizer=self._tokens)
+        chunks = splitter._force_split(self.TEXT)
+        sizes = [self._tokens(c) for c in chunks]
+        assert max(sizes) == 32, "chunks must reach, and not exceed, the token limit"
+
+    def test_token_chunks_never_exceed_the_limit(self):
+        splitter = TokenTextSplitter(chunk_size=32, chunk_overlap=4, tokenizer=self._tokens)
+        chunks = splitter._force_split(self.TEXT)
+        assert all(self._tokens(c) <= 32 for c in chunks)
+
+    def test_character_chunks_never_exceed_chunk_size(self):
+        """Previously every chunk after the first was chunk_size + overlap."""
+        splitter = TextSplitter(chunk_size=100, chunk_overlap=20)
+        chunks = splitter._force_split(self.TEXT)
+        assert max(len(c) for c in chunks) == 100
+
+    def test_no_text_is_lost(self):
+        splitter = TextSplitter(chunk_size=100, chunk_overlap=20)
+        chunks = splitter._force_split(self.TEXT)
+        rebuilt = chunks[0] + "".join(c[20:] for c in chunks[1:])
+        assert rebuilt == self.TEXT
+
+    def test_consecutive_chunks_overlap_as_configured(self):
+        splitter = TextSplitter(chunk_size=100, chunk_overlap=20)
+        chunks = splitter._force_split(self.TEXT)
+        assert chunks[0][-20:] == chunks[1][:20]
+
+    def test_limit_smaller_than_one_unit_terminates(self):
+        """Forward progress must not depend on a unit fitting the limit."""
+        splitter = TextSplitter(chunk_size=1, chunk_overlap=0, length_function=lambda s: len(s) * 10)
+        chunks = splitter._force_split("abcdef")
+        assert "".join(chunks) == "abcdef"

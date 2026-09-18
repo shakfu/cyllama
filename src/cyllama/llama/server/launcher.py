@@ -13,9 +13,16 @@ import time
 import logging
 import subprocess
 import threading
+from collections import deque
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union, cast
 from dataclasses import dataclass, field
+
+
+# Per-stream ring buffer size. llama-server is chatty, so the pipes must be
+# drained continuously or the child blocks on a full pipe buffer; the lines
+# are kept bounded rather than discarded so get_logs() can report them.
+LOG_BUFFER_LINES = 1000
 
 
 @dataclass
@@ -148,6 +155,11 @@ class LlamaServer:
         self.config = config
         self.process: Optional["subprocess.Popen[str]"] = None
         self._shutdown_event = threading.Event()
+        self._logs: Dict[str, "deque[str]"] = {
+            "stdout": deque(maxlen=LOG_BUFFER_LINES),
+            "stderr": deque(maxlen=LOG_BUFFER_LINES),
+        }
+        self._log_readers: List[threading.Thread] = []
 
         # Find server binary
         if server_binary:
@@ -205,6 +217,8 @@ class LlamaServer:
         except Exception as e:
             raise RuntimeError(f"Failed to start server: {e}")
 
+        self._start_log_readers()
+
         # Wait for ready if requested
         if wait_for_ready:
             if not self.wait_for_ready(timeout):
@@ -213,6 +227,35 @@ class LlamaServer:
 
         assert self.process is not None
         self.logger.info(f"Server started successfully (PID: {self.process.pid})")
+
+    def _start_log_readers(self) -> None:
+        """Drain the child's stdout and stderr into bounded ring buffers.
+
+        Both streams are piped, and an undrained pipe blocks the child once
+        its buffer fills -- which hangs readiness checks and inference.
+        """
+        assert self.process is not None
+        for name in ("stdout", "stderr"):
+            stream = getattr(self.process, name)
+            if stream is None:
+                continue
+            buffer = self._logs[name]
+            buffer.clear()
+
+            def _drain(stream: Any = stream, buffer: "deque[str]" = buffer, name: str = name) -> None:
+                try:
+                    for line in stream:
+                        buffer.append(line.rstrip("\n"))
+                except (ValueError, OSError):
+                    pass  # stream closed underneath us during shutdown
+                except Exception:
+                    # A reader that dies stops draining, so the child blocks
+                    # again once the pipe fills. Never fail silently.
+                    self.logger.exception("Server %s reader stopped; output may block", name)
+
+            reader = threading.Thread(target=_drain, name=f"llama-server-{name}", daemon=True)
+            reader.start()
+            self._log_readers.append(reader)
 
     def stop(self, timeout: float = 10.0) -> None:
         """
@@ -241,6 +284,11 @@ class LlamaServer:
                 self.process.kill()
                 self.process.wait()
                 self.logger.info("Server forcefully stopped")
+
+        # The readers exit on EOF once the child's pipes close.
+        for reader in self._log_readers:
+            reader.join(timeout=1.0)
+        self._log_readers.clear()
 
         self.process = None
 
@@ -332,14 +380,10 @@ class LlamaServer:
             lines: Number of recent lines to return
 
         Returns:
-            Dictionary with 'stdout' and 'stderr' logs
+            Dictionary with 'stdout' and 'stderr' logs, oldest first. At most
+            the last LOG_BUFFER_LINES per stream are retained.
         """
-        if not self.process:
-            return {"stdout": [], "stderr": []}
-
-        # Note: This is a simplified implementation
-        # In practice, you might want to capture logs to files
-        return {"stdout": ["Logs would be captured here"], "stderr": ["Error logs would be captured here"]}
+        return {name: list(buffer)[-lines:] for name, buffer in self._logs.items()}
 
     def __enter__(self) -> "LlamaServer":
         """Context manager entry."""

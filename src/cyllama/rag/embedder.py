@@ -238,6 +238,7 @@ class Embedder(EmbedderProtocol):
         # between threads (asyncio.to_thread, ThreadPoolExecutor) keeps
         # working since the guard catches contention, not thread identity.
         self._busy_lock = threading.Lock()
+        self._closed = False
 
     @property
     def dimension(self) -> int:
@@ -299,6 +300,8 @@ class Embedder(EmbedderProtocol):
         Mirrors the LLM/WhisperContext/SDContext pattern. See
         ``docs/dev/runtime-guard.md`` for the rationale.
         """
+        if self._closed:
+            raise RuntimeError("Embedder is closed")
         if not self._busy_lock.acquire(blocking=False):
             raise RuntimeError(
                 "Embedder is currently being used by another thread. llama.cpp "
@@ -517,9 +520,20 @@ class Embedder(EmbedderProtocol):
         return embedding
 
     def close(self) -> None:
-        """Release resources."""
-        # Context and model will be cleaned up by their destructors
-        pass
+        """Release the native context and model. Idempotent.
+
+        Leaving these to their destructors keeps GPU memory alive until a
+        nondeterministic collection runs, which strands a working set per
+        RAG lifecycle. The context is closed first because it borrows the
+        model.
+        """
+        if self._closed:
+            return
+        self._closed = True
+        if self._cache is not None:
+            self._cache.clear()
+        self._ctx.close()
+        self._model.close()
 
     def __enter__(self) -> "Embedder":
         return self

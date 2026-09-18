@@ -230,9 +230,11 @@ class SqliteVecStore(VectorStoreProtocol):
             CREATE TABLE IF NOT EXISTS {self.table_name} (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 text TEXT NOT NULL,
-                metadata TEXT
+                metadata TEXT,
+                source_hash TEXT
             )
         """)
+        self._ensure_source_hash_column()
         self.conn.execute(f"""
             CREATE TABLE IF NOT EXISTS {self.meta_table} (
                 key TEXT PRIMARY KEY,
@@ -367,8 +369,8 @@ class SqliteVecStore(VectorStoreProtocol):
                 for emb, text, meta in zip(embeddings, texts, metadata):
                     blob = self._encode_vector(emb)
                     cursor.execute(
-                        f"INSERT INTO {self.table_name} (text, metadata) VALUES (?, ?)",
-                        (text, json.dumps(meta) if meta else None),
+                        f"INSERT INTO {self.table_name} (text, metadata, source_hash) VALUES (?, ?, ?)",
+                        (text, json.dumps(meta) if meta else None, source_hash),
                     )
                     rowid = cursor.lastrowid or 0
                     cursor.execute(
@@ -545,16 +547,49 @@ class SqliteVecStore(VectorStoreProtocol):
             return 0
         int_ids = [int(id_) for id_ in ids]
         placeholders = ",".join("?" * len(int_ids))
-        cursor = self.conn.execute(
-            f"DELETE FROM {self.table_name} WHERE id IN ({placeholders})",
-            int_ids,
-        )
-        self.conn.execute(
-            f"DELETE FROM {self.vec_table} WHERE rowid IN ({placeholders})",
-            int_ids,
-        )
-        self.conn.commit()
+        with self.conn:
+            affected = [
+                row[0]
+                for row in self.conn.execute(
+                    f"SELECT DISTINCT source_hash FROM {self.table_name} "
+                    f"WHERE id IN ({placeholders}) AND source_hash IS NOT NULL",
+                    int_ids,
+                )
+            ]
+            cursor = self.conn.execute(
+                f"DELETE FROM {self.table_name} WHERE id IN ({placeholders})",
+                int_ids,
+            )
+            self.conn.execute(
+                f"DELETE FROM {self.vec_table} WHERE rowid IN ({placeholders})",
+                int_ids,
+            )
+            # See SqliteVectorStore.delete: a source whose last chunk is gone
+            # must lose its dedup record, or reindexing it is silently skipped.
+            for source_hash in affected:
+                still_present = self.conn.execute(
+                    f"SELECT 1 FROM {self.table_name} WHERE source_hash = ? LIMIT 1",
+                    (source_hash,),
+                ).fetchone()
+                if still_present is None:
+                    self.conn.execute(
+                        f"DELETE FROM {self.sources_table} WHERE content_hash = ?",
+                        (source_hash,),
+                    )
         return cursor.rowcount
+
+    def _ensure_source_hash_column(self) -> None:
+        """Add the chunk -> source link to a table created before it existed.
+
+        Pre-existing rows keep NULL, so delete() cannot reconcile them --
+        the same behaviour as before the column was added.
+        """
+        columns = {row[1] for row in self.conn.execute(f"PRAGMA table_info({self.table_name})")}
+        if "source_hash" not in columns:
+            self.conn.execute(f"ALTER TABLE {self.table_name} ADD COLUMN source_hash TEXT")
+        self.conn.execute(
+            f"CREATE INDEX IF NOT EXISTS {self.table_name}_source_hash_idx ON {self.table_name}(source_hash)"
+        )
 
     def clear(self) -> int:
         """Remove every chunk, vector and source record."""

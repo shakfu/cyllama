@@ -967,10 +967,13 @@ class LLM:
 
         Returns None if caching should be skipped (e.g., random seed).
 
-        The key includes parameters that affect output:
-        - prompt, temperature, top_k, top_p, min_p
-        - repeat_penalty, max_tokens, stop_sequences (sorted)
-        - seed, add_bos, parse_special
+        The key includes every parameter that affects output:
+        - prompt, temperature, top_k, top_p, min_p, top_n_sigma
+        - repeat_penalty, penalty_last_n, frequency_penalty, presence_penalty
+        - dry_multiplier, dry_base, dry_allowed_length, dry_penalty_last_n,
+          dry_sequence_breakers
+        - mirostat, mirostat_tau, mirostat_eta
+        - max_tokens, stop_sequences (sorted), seed, add_bos, parse_special
 
         Infrastructure parameters are excluded:
         - n_gpu_layers, main_gpu, split_mode, tensor_split, n_ctx, n_batch
@@ -993,6 +996,12 @@ class LLM:
             str(config.mirostat),
             str(config.mirostat_tau),
             str(config.mirostat_eta),
+            str(config.dry_multiplier),
+            str(config.dry_base),
+            str(config.dry_allowed_length),
+            str(config.dry_penalty_last_n),
+            str(config.dry_sequence_breakers),
+            str(config.top_n_sigma),
             str(config.max_tokens),
             str(sorted(config.stop_sequences)),
             str(config.seed),

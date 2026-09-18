@@ -156,6 +156,40 @@ _QUARTO_EXAMPLE_CONTENT = (
 )
 
 
+def _quarto_write_target(input_path: str, content: str) -> _Path:
+    """Resolve where ``content`` may be written, confined to the output dir.
+
+    ``input_path`` reaches here straight from the model, and the write is
+    followed by ``quarto render``, which executes code cells in the
+    document. Unconfined, text the agent merely reads could pick the
+    destination -- so a relative path is taken as relative to the output
+    dir, and an absolute one must already be inside it. Point
+    ``CYLLAMA_QUARTO_OUTPUT_DIR`` somewhere else to widen the root; there
+    is deliberately no per-call override, since the model controls the
+    call.
+
+    Raises:
+        ValueError: If the resolved path escapes the output dir
+    """
+    root = default_quarto_output_dir().resolve()
+    if not input_path:
+        return _quarto_unique_path(root, _quarto_slug_from_content(content), ".qmd")
+
+    target = _Path(input_path).expanduser()
+    if not target.is_absolute():
+        target = root / target
+    # Non-strict resolve: collapses ".." and follows symlinks on the parts
+    # that exist, so neither can be used to step outside the root.
+    target = target.resolve()
+    if target != root and not target.is_relative_to(root):
+        raise ValueError(
+            f"refusing to write outside the quarto output directory: "
+            f"{target} is not under {root}. Pass a path inside it, or set "
+            f"CYLLAMA_QUARTO_OUTPUT_DIR to the directory you want written to."
+        )
+    return target
+
+
 @tool
 def quarto_render(
     input: str = "",
@@ -227,12 +261,8 @@ def quarto_render(
 
     # CREATE-AND-RENDER: materialize content to disk before invoking quarto.
     if body.strip():
-        if not input_path:
-            dest_dir = default_quarto_output_dir()
-            target = _quarto_unique_path(dest_dir, _quarto_slug_from_content(body), ".qmd")
-        else:
-            target = _Path(input_path).expanduser()
-            target.parent.mkdir(parents=True, exist_ok=True)
+        target = _quarto_write_target(input_path, body)
+        target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(body, encoding="utf-8")
         input_path = str(target)
 

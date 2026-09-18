@@ -20,7 +20,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ---
 
-## [Unreleased]
+## [0.4.9]
 
 ### Added
 
@@ -31,6 +31,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 ### Changed
 
 - **`rwt.py` sd cases use Z-Image-Turbo's sampling settings** -- `--steps 8 --cfg-scale 1.0`, per upstream stable-diffusion.cpp `docs/z_image.md`, with a fixed `--seed 42`. They had run the CLI defaults, 20 steps at cfg 7.0: five times the diffusion passes of 8 steps at cfg 1.0. On an M1 the sd family dropped from 3065 s to 875 s. The fixed seed makes a backend's images comparable across releases.
+
+### Fixed
+
+- **`quarto_render` wrote wherever the model pointed it** -- ``input`` comes straight from the model, and the tool created the parent directory, wrote the document, then rendered it, which executes the document's code cells. Text an agent merely read could therefore choose the destination. Writes are now confined to the output directory: a relative ``input`` resolves inside it, an absolute one must already be under it, and ``..`` or a symlink out of it is refused. ``CYLLAMA_QUARTO_OUTPUT_DIR`` widens the root; there is no per-call override, because the model controls the call.
+
+- **`SqliteVectorStore` wrote float32 blobs for every `vector_type`** -- `float16`, `int8` and `uint8` were accepted and passed to `vector_init`, then encoded with `struct` format `f`. sqlite-vector reads `dimension * sizeof(element)` bytes and does not validate blob length, so a FLOAT16 column read each 4-byte float as two halves. Search returned wrong rows with no error: over 20 random 16-d vectors, float16 shared no result with float32's top 3. Encoding now follows the declared type, and the integer types raise on a value they cannot represent instead of wrapping.
+
+- **Deleting a source's last chunk left its dedup record behind** -- `is_source_indexed()` kept reporting the source as present, so a later `add_documents()` skipped reindexing it and the content could not be recovered without a rebuild. A `source_hash` column now links each chunk to its source and `delete()` drops the record when the last chunk goes. Tables written before the column keep NULL and behave as they did. Applies to `SqliteVectorStore`, `SqliteVecStore` and `PgVectorStore`.
+
+- **Undrained subprocess pipes could block the server launcher and the MCP client** -- both piped stdout and stderr and read neither. llama-server logs to stderr, so once the 64KB pipe buffer filled the child blocked, hanging readiness checks and inference. Each stream is now drained on a reader thread into a bounded buffer, and `LlamaServer.get_logs()` reports those lines in place of the placeholder strings it returned before.
+
+- **MCP requests ignored `request_timeout`** -- the value was read from the config and never used, and the response was read with a blocking `readline()`, so a server that never answered blocked the agent thread forever. Responses now arrive on a queue with a deadline. A response carrying an id nobody is waiting for is discarded rather than handed to the next caller, which a timed-out request would otherwise cause.
+
+- **`AsyncReActAgent.close()` raced with `run()` and `stream()`** -- close did not take the lock those operations hold, so it could free the native context while work was still using it. Close now serializes with them, is idempotent, and later calls raise instead of using a freed context. `AsyncConstrainedAgent` had the same gap.
+
+- **`Embedder.close()` released nothing** -- the context and model were left to their destructors, so every RAG lifecycle held its GPU working set until a collection ran. `RAG.close()` delegates here.
+
+- **Response cache could return output generated under different sampling** -- the key omitted `dry_multiplier`, `dry_base`, `dry_allowed_length`, `dry_penalty_last_n`, `dry_sequence_breakers` and `top_n_sigma`. All six reach the sampler.
+
+- **`TokenTextSplitter` force-split on character offsets** -- `_force_split` advanced by `chunk_size` characters while `length_function` counted tokens, so a 32-token limit produced 32-character chunks of roughly 8 tokens. It now measures with the configured function. Character splitters change too: chunks after the first were `chunk_size + chunk_overlap` long and are now `chunk_size`, so an index built by the old code will not match a rebuild.
+
+- **Server 500 responses carried exception text** -- `/v1/chat/completions` and `/v1/embeddings` put `str(e)` in the body, which can disclose model and filesystem paths. Both now return a generic message and log the detail, as the request handler already did.
 
 ## [0.4.8]
 

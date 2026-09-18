@@ -6,8 +6,10 @@ enabling cyllama agents to access external tools and resources.
 """
 
 import logging
+import queue
 import subprocess
 import threading
+import time
 import os
 from typing import Any, Callable, Dict, List, Optional, Protocol, runtime_checkable
 from dataclasses import dataclass
@@ -156,6 +158,8 @@ class McpStdioConnection(McpConnectionProtocol):
         self._request_id = 0
         self._lock = threading.Lock()
         self._read_lock = threading.Lock()
+        self._responses: "queue.Queue[Optional[str]]" = queue.Queue()
+        self._readers: List[threading.Thread] = []
 
     def connect(self) -> None:
         """Start the MCP server subprocess."""
@@ -178,6 +182,53 @@ class McpStdioConnection(McpConnectionProtocol):
             text=True,
             bufsize=1,  # Line buffered
         )
+        self._start_readers()
+
+    def _start_readers(self) -> None:
+        """Drain stdout into a queue and stderr into the log.
+
+        Both are needed. Reading stdout on a thread is what lets
+        send_request honour its timeout, since a blocking readline() on the
+        calling thread cannot be interrupted. Draining stderr keeps a chatty
+        server from filling that pipe and blocking on its own diagnostics,
+        which would stall stdin processing even while stdout is healthy.
+        """
+        process = self._process
+        assert process is not None
+        name = self._config.name
+        out_stream: Any = process.stdout
+        err_stream: Any = process.stderr
+
+        def _read_stdout() -> None:
+            try:
+                for line in out_stream:
+                    self._responses.put(line)
+            except (ValueError, OSError):
+                pass  # pipe closed during shutdown
+            except Exception:
+                logger.exception("MCP server '%s' stdout reader stopped", name)
+            finally:
+                self._responses.put(None)  # EOF sentinel unblocks any waiter
+
+        def _read_stderr() -> None:
+            try:
+                for line in err_stream:
+                    logger.debug("MCP server '%s' stderr: %s", name, line.rstrip("\n"))
+            except (ValueError, OSError):
+                pass
+            except Exception:
+                logger.exception("MCP server '%s' stderr reader stopped", name)
+
+        self._readers = []
+        for target, stream, suffix in (
+            (_read_stdout, out_stream, "stdout"),
+            (_read_stderr, err_stream, "stderr"),
+        ):
+            if stream is None:
+                continue
+            reader = threading.Thread(target=target, name=f"mcp-{name}-{suffix}", daemon=True)
+            reader.start()
+            self._readers.append(reader)
 
     def disconnect(self) -> None:
         """Stop the MCP server subprocess."""
@@ -188,6 +239,9 @@ class McpStdioConnection(McpConnectionProtocol):
                 self._process.wait(timeout=self._config.shutdown_timeout)
             except subprocess.TimeoutExpired:
                 self._process.kill()
+            for reader in self._readers:
+                reader.join(timeout=1.0)
+            self._readers = []
             self._process = None
 
     def _next_id(self) -> int:
@@ -232,22 +286,55 @@ class McpStdioConnection(McpConnectionProtocol):
             with self._read_lock:
                 self._process.stdin.write(request_str)
                 self._process.stdin.flush()
-
-                # Read response
-                response_line = self._process.stdout.readline()
-                if not response_line:
-                    raise RuntimeError(f"MCP server '{self._config.name}' closed connection")
+                msg = self._await_response(request_id, timeout)
+        except TimeoutError:
+            raise  # TimeoutError subclasses OSError; don't report it as a lost connection
         except (BrokenPipeError, OSError) as e:
             raise RuntimeError(f"MCP server '{self._config.name}' connection lost: {e}") from e
-
-        msg = parse_message(response_line.strip())
-        if not isinstance(msg, JsonRpcResponse):
-            raise RuntimeError(f"Expected response, got: {type(msg)}")
 
         if msg.error:
             raise RuntimeError(f"MCP error from '{self._config.name}': {msg.error.message} (code: {msg.error.code})")
 
         return msg.result
+
+    def _await_response(self, request_id: int, timeout: float) -> JsonRpcResponse:
+        """Wait up to ``timeout`` seconds for the response to ``request_id``.
+
+        Messages with another id are discarded: a request that timed out
+        earlier may still have its late response sitting in the queue, and
+        handing that to the next caller would return one request's result
+        for another.
+
+        Raises:
+            TimeoutError: If no matching response arrives in time
+            RuntimeError: If the server closed its stdout
+        """
+        deadline = time.monotonic() + timeout
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError(f"MCP server '{self._config.name}' did not respond within {timeout}s")
+            try:
+                line = self._responses.get(timeout=remaining)
+            except queue.Empty:
+                raise TimeoutError(f"MCP server '{self._config.name}' did not respond within {timeout}s") from None
+            if line is None:
+                raise RuntimeError(f"MCP server '{self._config.name}' closed connection")
+            if not line.strip():
+                continue
+            msg = parse_message(line.strip())
+            if not isinstance(msg, JsonRpcResponse):
+                logger.debug("MCP server '%s' sent a non-response message, ignoring", self._config.name)
+                continue
+            if msg.id != request_id:
+                logger.debug(
+                    "MCP server '%s' sent a response for id %s while awaiting %s, discarding",
+                    self._config.name,
+                    msg.id,
+                    request_id,
+                )
+                continue
+            return msg
 
     def send_notification(self, method: str, params: Optional[Dict[str, Any]] = None) -> None:
         """Send a notification (no response expected)."""

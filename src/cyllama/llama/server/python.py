@@ -602,8 +602,10 @@ class PythonServer:
                     self._send_json_response(response_data)
 
                 except Exception as e:
+                    # The message can carry model and filesystem paths; log it
+                    # server-side and tell the client nothing specific.
                     server_instance.logger.error(f"Chat completion error: {e}")
-                    self._send_error(500, str(e))
+                    self._send_error(500, "Internal Server Error")
 
             def _handle_embeddings(self, data: Dict[str, Any]) -> None:
                 """Handle /v1/embeddings endpoint."""
@@ -657,7 +659,7 @@ class PythonServer:
 
                 except Exception as e:
                     server_instance.logger.error(f"Embeddings error: {e}")
-                    self._send_error(500, str(e))
+                    self._send_error(500, "Internal Server Error")
 
         return RequestHandler
 

@@ -870,6 +870,130 @@ class TestVectorEncoding:
         # Just verify it doesn't crash - exact values may differ due to float precision
 
 
+class TestVectorTypeEncoding:
+    """The blob written must match the element type declared to
+    ``vector_init``. The extension reads ``dimension * sizeof(element)``
+    bytes and does not validate blob length, so a float32 blob in a
+    FLOAT16 column is silently reinterpreted as twice as many halves and
+    search returns wrong rows with no error.
+    """
+
+    ELEMENT_BYTES = {"float32": 4, "float16": 2, "int8": 1, "uint8": 1}
+
+    @pytest.mark.parametrize("vector_type,element_bytes", sorted(ELEMENT_BYTES.items()))
+    def test_blob_width_matches_declared_type(self, vector_type, element_bytes):
+        dimension = 8
+        # Values chosen to be representable in every type, including uint8.
+        vector = [float(i + 1) for i in range(dimension)]
+        with SqliteVectorStore(dimension=dimension, vector_type=vector_type) as store:
+            ids = store.add([vector], ["t"])
+            blob = store.conn.execute(f"SELECT embedding FROM {store.table_name} WHERE id = ?", (ids[0],)).fetchone()[0]
+            assert len(blob) == dimension * element_bytes
+
+    @pytest.mark.parametrize("vector_type", sorted(ELEMENT_BYTES))
+    def test_roundtrip_preserves_values(self, vector_type):
+        dimension = 8
+        vector = [float(i + 1) for i in range(dimension)]
+        with SqliteVectorStore(dimension=dimension, vector_type=vector_type) as store:
+            ids = store.add([vector], ["t"])
+            assert store.get_vector(ids[0]) == pytest.approx(vector)
+
+    def test_narrow_types_rank_like_float32(self):
+        """float16 and int8 must return the same neighbours as float32.
+
+        This is the regression the byte-width check exists to prevent:
+        before the fix all four types wrote float32 blobs, and float16
+        search shared no results with float32 in its top 3.
+        """
+        dimension = 16
+        vectors = [[float((i * 7 + j * 13) % 100) for j in range(dimension)] for i in range(20)]
+        query = [float((j * 5) % 100) for j in range(dimension)]
+        texts = [f"t{i}" for i in range(20)]
+
+        expected = None
+        for vector_type in ("float32", "float16", "int8"):
+            # int8 tops out at 127, so scale the shared fixture into range.
+            scale = 127.0 / 100.0 if vector_type == "int8" else 1.0
+            with SqliteVectorStore(dimension=dimension, vector_type=vector_type) as store:
+                store.add([[v * scale for v in vec] for vec in vectors], texts)
+                ranking = [r.text for r in store.search([v * scale for v in query], k=5)]
+            if expected is None:
+                expected = ranking
+            assert ranking == expected, f"{vector_type} ranked differently from float32"
+
+    def test_out_of_range_value_raises_rather_than_corrupting(self):
+        """An unrepresentable value must fail loudly, not wrap around."""
+        with SqliteVectorStore(dimension=4, vector_type="uint8") as store:
+            with pytest.raises(ValueError, match="out of range"):
+                store.add([[-1.0, 0.0, 0.0, 0.0]], ["negative"])
+
+
+class TestVectorStoreDeleteReconcilesSources:
+    """``delete()`` must drop a source's dedup record once its last chunk
+    is gone. Otherwise ``is_source_indexed()`` keeps reporting the source
+    as present and a later ``add_documents()`` skips reindexing it, so the
+    content is unrecoverable without a rebuild.
+    """
+
+    def test_partial_delete_keeps_source_record(self):
+        with SqliteVectorStore(dimension=4) as store:
+            ids = store.add([[1, 0, 0, 0], [0, 1, 0, 0]], ["a1", "a2"], source_hash="hashA", source_label="a.txt")
+            store.delete(ids[:1])
+            assert store.is_source_indexed("hashA") is True
+
+    def test_deleting_last_chunk_drops_source_record(self):
+        with SqliteVectorStore(dimension=4) as store:
+            ids = store.add([[1, 0, 0, 0], [0, 1, 0, 0]], ["a1", "a2"], source_hash="hashA", source_label="a.txt")
+            store.delete(ids)
+            assert store.is_source_indexed("hashA") is False
+            assert store.list_sources() == []
+
+    def test_other_sources_are_untouched(self):
+        with SqliteVectorStore(dimension=4) as store:
+            ids_a = store.add([[1, 0, 0, 0]], ["a1"], source_hash="hashA", source_label="a.txt")
+            store.add([[0, 1, 0, 0]], ["b1"], source_hash="hashB", source_label="b.txt")
+            store.delete(ids_a)
+            assert store.is_source_indexed("hashA") is False
+            assert store.is_source_indexed("hashB") is True
+
+    def test_reindexing_works_after_full_delete(self):
+        """The point of the invariant: a deleted source can be re-added."""
+        with SqliteVectorStore(dimension=4) as store:
+            ids = store.add([[1, 0, 0, 0]], ["a1"], source_hash="hashA", source_label="a.txt")
+            store.delete(ids)
+            store.add([[1, 0, 0, 0]], ["a1"], source_hash="hashA", source_label="a.txt")
+            assert store.is_source_indexed("hashA") is True
+
+    def test_legacy_table_without_source_hash_column_is_migrated(self, tmp_path):
+        """Stores written before the chunk -> source link existed must
+        keep working: the column is added on open, existing rows read as
+        NULL, and their dedup records stay put because they can't be
+        attributed to any chunk."""
+        import sqlite3
+
+        db_path = str(tmp_path / "legacy.db")
+        with SqliteVectorStore(dimension=4, db_path=db_path) as store:
+            store.add([[1, 0, 0, 0]], ["a1"], source_hash="hashA", source_label="a.txt")
+
+        raw = sqlite3.connect(db_path)
+        raw.execute("DROP INDEX IF EXISTS embeddings_source_hash_idx")
+        raw.execute("ALTER TABLE embeddings DROP COLUMN source_hash")
+        raw.commit()
+        raw.close()
+
+        with SqliteVectorStore(dimension=4, db_path=db_path) as store:
+            columns = {row[1] for row in store.conn.execute("PRAGMA table_info(embeddings)")}
+            assert "source_hash" in columns
+            assert store.search([1, 0, 0, 0], k=1)[0].text == "a1"
+
+            # A source added after the migration reconciles normally.
+            ids = store.add([[0, 1, 0, 0]], ["b1"], source_hash="hashB", source_label="b.txt")
+            store.delete(ids)
+            assert store.is_source_indexed("hashB") is False
+            # The pre-migration source keeps its record; its chunk link is NULL.
+            assert store.is_source_indexed("hashA") is True
+
+
 class TestConcurrentAccess:
     """Test VectorStore concurrent access from multiple threads.
 

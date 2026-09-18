@@ -17,6 +17,7 @@ from pathlib import Path
 
 import pytest
 
+from cyllama.agents.tools.quarto import _quarto_write_target
 from cyllama.agents.tools import (
     _quarto_slug_from_content,
     _quarto_unique_path,
@@ -144,7 +145,10 @@ class TestQuartoRenderLive:
         assert f"Output file: {rendered}" in out
         assert f"[doc.html](file://{rendered})" in out
 
-    def test_create_and_render_writes_input(self, tmp_path: Path):
+    def test_create_and_render_writes_input(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        # Writes are confined to the output dir, so point it at tmp_path
+        # the way test_create_and_render_slug_path does.
+        monkeypatch.setenv("CYLLAMA_QUARTO_OUTPUT_DIR", str(tmp_path))
         dst = tmp_path / "presentation.qmd"
         src = '---\ntitle: "t"\nformat: html\n---\n\nbody\n'
 
@@ -174,3 +178,58 @@ class TestQuartoRenderLive:
         ghost = tmp_path / "does-not-exist.qmd"
         with pytest.raises(FileNotFoundError):
             quarto_render(input=str(ghost), content="", to="html")
+
+
+class TestQuartoWriteConfinement:
+    """``input`` reaches ``quarto_render`` straight from the model, and the
+    write is followed by a render that executes the document's code cells.
+    Text the agent merely reads must not be able to choose where that
+    lands, so writes are confined to the output directory.
+    """
+
+    @pytest.fixture
+    def root(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+        out = tmp_path / "out"
+        monkeypatch.setenv("CYLLAMA_QUARTO_OUTPUT_DIR", str(out))
+        return out.resolve()
+
+    SRC = '---\ntitle: "t"\nformat: html\n---\n\nbody\n'
+
+    def test_absolute_path_outside_the_root_is_refused(self, root: Path, tmp_path: Path):
+        escape = tmp_path / "elsewhere" / "evil.qmd"
+        with pytest.raises(ValueError, match="refusing to write outside"):
+            quarto_render(input=str(escape), content=self.SRC)
+        assert not escape.exists()
+
+    def test_dotdot_traversal_is_refused(self, root: Path):
+        with pytest.raises(ValueError, match="refusing to write outside"):
+            quarto_render(input="../../evil.qmd", content=self.SRC)
+
+    def test_home_expansion_outside_the_root_is_refused(self, root: Path):
+        with pytest.raises(ValueError, match="refusing to write outside"):
+            quarto_render(input="~/evil.qmd", content=self.SRC)
+
+    def test_symlink_pointing_out_of_the_root_is_refused(self, root: Path, tmp_path: Path):
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        root.mkdir(parents=True, exist_ok=True)
+        (root / "link").symlink_to(outside, target_is_directory=True)
+        with pytest.raises(ValueError, match="refusing to write outside"):
+            quarto_render(input="link/evil.qmd", content=self.SRC)
+        assert not (outside / "evil.qmd").exists()
+
+    def test_relative_path_is_taken_relative_to_the_root(self, root: Path):
+        target = _quarto_write_target("nested/report.qmd", self.SRC)
+        assert target == root / "nested" / "report.qmd"
+
+    def test_path_inside_the_root_is_allowed(self, root: Path):
+        target = _quarto_write_target(str(root / "report.qmd"), self.SRC)
+        assert target == root / "report.qmd"
+
+    def test_empty_input_still_slugs_into_the_root(self, root: Path):
+        target = _quarto_write_target("", '---\ntitle: "My Doc"\n---\n')
+        assert target == root / "my-doc.qmd"
+
+    def test_refusal_names_the_configured_root(self, root: Path, tmp_path: Path):
+        with pytest.raises(ValueError, match="CYLLAMA_QUARTO_OUTPUT_DIR"):
+            quarto_render(input=str(tmp_path / "evil.qmd"), content=self.SRC)

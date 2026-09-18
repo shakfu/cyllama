@@ -302,3 +302,70 @@ class TestAsyncAgentIntegration:
 
             # Should have at least one event
             assert len(events) > 0
+
+
+class TestAsyncAgentCloseSerialization:
+    """``close()`` frees the native context, so it must take the same lock
+    ``run()`` and ``stream()`` hold. Closing underneath a running operation
+    lets in-flight work touch freed native resources.
+    """
+
+    @pytest.mark.parametrize("agent_cls", [AsyncReActAgent, AsyncConstrainedAgent])
+    async def test_close_waits_for_a_running_operation(self, agent_cls):
+        import threading
+
+        # run() executes on a worker thread, so these are threading events.
+        started = threading.Event()
+        release = threading.Event()
+        closed_during_run = False
+
+        def slow_run(task):
+            started.set()
+            release.wait(timeout=10)
+            return AgentResult(answer="done", steps=[], iterations=1, success=True)
+
+        with patch("cyllama.agents.async_agent.LLM") as mock_llm_cls:
+            agent = agent_cls("model.gguf")
+            agent._agent.run = slow_run
+
+            def record_close():
+                nonlocal closed_during_run
+                closed_during_run = started.is_set() and not release.is_set()
+
+            mock_llm_cls.return_value.close.side_effect = record_close
+
+            run_task = asyncio.create_task(agent.run("task"))
+            while not started.is_set():
+                await asyncio.sleep(0.01)
+            close_task = asyncio.create_task(agent.close())
+            await asyncio.sleep(0.05)  # give close a chance to jump the queue
+            release.set()
+            await run_task
+            await close_task
+
+        assert closed_during_run is False, "close() ran while an operation held the lock"
+
+    @pytest.mark.parametrize("agent_cls", [AsyncReActAgent, AsyncConstrainedAgent])
+    async def test_close_is_idempotent(self, agent_cls):
+        with patch("cyllama.agents.async_agent.LLM") as mock_llm_cls:
+            agent = agent_cls("model.gguf")
+            await agent.close()
+            await agent.close()
+            assert mock_llm_cls.return_value.close.call_count == 1
+
+    @pytest.mark.parametrize("agent_cls", [AsyncReActAgent, AsyncConstrainedAgent])
+    async def test_run_after_close_raises(self, agent_cls):
+        with patch("cyllama.agents.async_agent.LLM"):
+            agent = agent_cls("model.gguf")
+            await agent.close()
+            with pytest.raises(RuntimeError, match="closed"):
+                await agent.run("task")
+
+    @pytest.mark.parametrize("agent_cls", [AsyncReActAgent, AsyncConstrainedAgent])
+    async def test_stream_after_close_raises(self, agent_cls):
+        with patch("cyllama.agents.async_agent.LLM"):
+            agent = agent_cls("model.gguf")
+            await agent.close()
+            with pytest.raises(RuntimeError, match="closed"):
+                async for _ in agent.stream("task"):
+                    pass

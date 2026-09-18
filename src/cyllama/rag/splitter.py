@@ -287,13 +287,13 @@ class TextSplitter:
         """
         chunks = []
         start = 0
+        n = len(text)
 
-        while start < len(text):
-            end = start + self.chunk_size
-
-            # Adjust for overlap on subsequent chunks
-            if start > 0:
-                start = max(0, start - self.chunk_overlap)
+        while start < n:
+            # Measure with length_function, not character arithmetic: for
+            # TokenTextSplitter chunk_size counts tokens, and slicing by
+            # characters produces chunks unrelated to the configured limit.
+            end = max(self._max_span(text, start, self.chunk_size), start + 1)
 
             chunk = text[start:end]
             if self.strip_whitespace:
@@ -301,9 +301,47 @@ class TextSplitter:
             if chunk:
                 chunks.append(chunk)
 
-            start = end
+            if end >= n:
+                break
+            # Overlap is measured the same way, and start must advance so a
+            # limit smaller than one unit cannot loop forever.
+            start = max(start + 1, end - self._max_suffix(text, end, self.chunk_overlap))
 
         return chunks
+
+    def _max_span(self, text: str, start: int, limit: int) -> int:
+        """Largest ``end`` with ``length_function(text[start:end]) <= limit``.
+
+        Binary search assumes length grows monotonically with the slice,
+        which holds for character counts and for any tokenizer that does
+        not shrink when given more text.
+        """
+        n = len(text)
+        if self.length_function(text[start:n]) <= limit:
+            return n
+        lo, hi = start, n  # lo always fits (empty slice), hi never does
+        while hi - lo > 1:
+            mid = (lo + hi) // 2
+            if self.length_function(text[start:mid]) <= limit:
+                lo = mid
+            else:
+                hi = mid
+        return lo
+
+    def _max_suffix(self, text: str, end: int, limit: int) -> int:
+        """Longest suffix of ``text[:end]`` measuring at most ``limit``."""
+        if limit <= 0:
+            return 0
+        if self.length_function(text[:end]) <= limit:
+            return end
+        lo, hi = 0, end  # lo always fits (empty suffix), hi never does
+        while hi - lo > 1:
+            mid = (lo + hi) // 2
+            if self.length_function(text[end - mid : end]) <= limit:
+                lo = mid
+            else:
+                hi = mid
+        return lo
 
     def _join_and_strip(self, parts: list[str], separator: str) -> str:
         """Join parts and optionally strip whitespace.

@@ -15,6 +15,8 @@ Tests cover:
 
 import time
 
+import pytest
+
 from cyllama import LLM, GenerationConfig, ResponseCacheInfo
 
 
@@ -334,3 +336,45 @@ class TestExportedFromPackage:
         # Verify it's a NamedTuple
         assert hasattr(ResponseCacheInfo, "_fields")
         assert "hits" in ResponseCacheInfo._fields
+
+
+class TestCacheKeyCoversSamplingParams:
+    """Every parameter that changes generation must change the cache key.
+
+    A parameter that reaches the sampler but not the key lets one
+    request receive a response generated under different sampling. These
+    six were omitted: the DRY penalty group and top_n_sigma.
+    """
+
+    # (field name, a value different from the default)
+    VARIANTS = [
+        ("dry_multiplier", 0.8),
+        ("dry_base", 1.5),
+        ("dry_allowed_length", 3),
+        ("dry_penalty_last_n", 64),
+        ("dry_sequence_breakers", ["<<<"]),
+        ("top_n_sigma", 2.0),
+        ("temperature", 0.9),
+        ("top_k", 7),
+        ("mirostat", 2),
+    ]
+
+    @staticmethod
+    def _key(llm, **overrides):
+        # seed must be explicit; a random seed bypasses caching entirely.
+        return llm._make_cache_key("prompt", GenerationConfig(seed=42, **overrides))
+
+    @pytest.mark.parametrize("field,value", VARIANTS, ids=[v[0] for v in VARIANTS])
+    def test_field_changes_the_key(self, model_path, field, value):
+        with LLM(model_path, cache_size=4) as llm:
+            baseline = self._key(llm)
+            assert baseline is not None
+            assert self._key(llm, **{field: value}) != baseline, f"{field} affects generation but not the cache key"
+
+    def test_identical_configs_share_a_key(self, model_path):
+        with LLM(model_path, cache_size=4) as llm:
+            assert self._key(llm, dry_multiplier=0.8) == self._key(llm, dry_multiplier=0.8)
+
+    def test_random_seed_still_bypasses_the_cache(self, model_path):
+        with LLM(model_path, cache_size=4) as llm:
+            assert llm._make_cache_key("prompt", GenerationConfig()) is None

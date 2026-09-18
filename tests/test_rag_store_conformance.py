@@ -358,6 +358,39 @@ class TestSourceDedup:
         assert record["chunk_count"] == 2
         assert record["indexed_at"]
 
+    def test_deleting_every_chunk_forgets_the_source(self, store):
+        """Dedup state may not outlive the chunks it describes.
+
+        Otherwise ``is_source_indexed`` keeps answering True for a source
+        with nothing left in the index, and ``RAG.add_documents`` skips
+        reindexing it -- the content is then unreachable without a
+        rebuild. Backends keyed on per-chunk metadata get this for free;
+        backends with a separate source table have to reconcile.
+        """
+        ids = store.add(EMBEDDINGS[:2], TEXTS[:2], source_hash="probe-delete-all", source_label="a.txt")
+        if self._opted_out(store, "probe-delete-all"):
+            pytest.skip("backend opts out of source dedup")
+        store.delete(list(ids))
+        assert store.is_source_indexed("probe-delete-all") is False
+        assert store.get_source_by_label("a.txt") is None
+
+    def test_deleting_some_chunks_keeps_the_source(self, store):
+        """The source is only forgotten once its last chunk is gone."""
+        ids = store.add(EMBEDDINGS[:2], TEXTS[:2], source_hash="probe-delete-some", source_label="b.txt")
+        if self._opted_out(store, "probe-delete-some"):
+            pytest.skip("backend opts out of source dedup")
+        store.delete(list(ids)[:1])
+        assert store.is_source_indexed("probe-delete-some") is True
+
+    def test_a_forgotten_source_can_be_reindexed(self, store):
+        """The point of the invariant, stated as the caller sees it."""
+        ids = store.add(EMBEDDINGS[:2], TEXTS[:2], source_hash="probe-reindex", source_label="c.txt")
+        if self._opted_out(store, "probe-reindex"):
+            pytest.skip("backend opts out of source dedup")
+        store.delete(list(ids))
+        store.add(EMBEDDINGS[:2], TEXTS[:2], source_hash="probe-reindex", source_label="c.txt")
+        assert store.is_source_indexed("probe-reindex") is True
+
     def test_adding_without_a_hash_records_no_source(self, store):
         store.add(EMBEDDINGS, TEXTS)
         assert store.get_source_by_label("a.txt") is None

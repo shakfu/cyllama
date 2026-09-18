@@ -591,3 +591,63 @@ class TestLRUCacheMemoryAware:
         info = cache.info()
         assert hasattr(info, "memory_bytes")
         assert info.memory_bytes == 0
+
+
+class TestEmbedderClose:
+    """``close()`` must release the native context and model rather than
+    leaving them to their destructors. ``RAG.close()`` delegates here, so
+    a no-op strands a GPU working set per RAG lifecycle until a
+    nondeterministic collection runs.
+    """
+
+    @staticmethod
+    def _recording_embedder(model_path: str):
+        """Swap both native handles for recorders.
+
+        The cdef wrappers expose no "am I closed" predicate, so delegation
+        is observed directly. Ordering matters: the context borrows the
+        model and must be released first.
+        """
+        emb = Embedder(model_path, n_ctx=512, n_gpu_layers=0)
+        order: list[str] = []
+
+        class _Recorder:
+            def __init__(self, label: str) -> None:
+                self.label = label
+
+            def close(self) -> None:
+                order.append(self.label)
+
+        emb._ctx = _Recorder("ctx")
+        emb._model = _Recorder("model")
+        return emb, order
+
+    def test_close_releases_both_native_objects(self, model_path: str):
+        emb, order = self._recording_embedder(model_path)
+        emb.close()
+        assert order == ["ctx", "model"]
+
+    def test_close_does_not_release_twice(self, model_path: str):
+        emb, order = self._recording_embedder(model_path)
+        emb.close()
+        emb.close()
+        assert order == ["ctx", "model"]
+
+    def test_close_is_idempotent(self, model_path: str):
+        emb = Embedder(model_path, n_ctx=512, n_gpu_layers=0)
+        emb.close()
+        emb.close()  # must not raise on the second call
+
+    def test_use_after_close_raises_clearly(self, model_path: str):
+        emb = Embedder(model_path, n_ctx=512, n_gpu_layers=0)
+        emb.close()
+        with pytest.raises(RuntimeError, match="closed"):
+            emb.embed("anything")
+
+    def test_context_manager_closes(self, model_path: str):
+        emb = Embedder(model_path, n_ctx=512, n_gpu_layers=0)
+        with emb:
+            emb.embed("hello")
+        assert emb._closed is True
+        with pytest.raises(RuntimeError, match="closed"):
+            emb.embed("after")

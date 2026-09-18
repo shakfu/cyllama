@@ -266,7 +266,8 @@ class PgVectorStore(VectorStoreProtocol):
                         id       BIGSERIAL PRIMARY KEY,
                         text     TEXT NOT NULL,
                         embedding VECTOR({dim}) NOT NULL,
-                        metadata JSONB
+                        metadata JSONB,
+                        source_hash TEXT
                     )
                 """).format(table=self._ident(self.table_name), dim=sql.Literal(self.dimension))
             )
@@ -292,6 +293,20 @@ class PgVectorStore(VectorStoreProtocol):
                 sql.SQL("CREATE INDEX IF NOT EXISTS {idx} ON {table} (source_label)").format(
                     idx=self._ident(f"{self.sources_table}_label_idx"),
                     table=self._ident(self.sources_table),
+                )
+            )
+            # Chunk -> source link. Tables created before this column keep
+            # NULL on existing rows, so delete() cannot reconcile them --
+            # the same behaviour as before the column was added.
+            self.conn.execute(
+                sql.SQL("ALTER TABLE {table} ADD COLUMN IF NOT EXISTS source_hash TEXT").format(
+                    table=self._ident(self.table_name)
+                )
+            )
+            self.conn.execute(
+                sql.SQL("CREATE INDEX IF NOT EXISTS {idx} ON {table} (source_hash)").format(
+                    idx=self._ident(f"{self.table_name}_source_hash_idx"),
+                    table=self._ident(self.table_name),
                 )
             )
             self.conn.commit()
@@ -396,14 +411,16 @@ class PgVectorStore(VectorStoreProtocol):
         vectors = [self._vector(e) for e in embeddings]
 
         sql = self._sql
-        insert = sql.SQL("INSERT INTO {table} (text, embedding, metadata) VALUES (%s, %s, %s) RETURNING id").format(
-            table=self._ident(self.table_name)
-        )
+        insert = sql.SQL(
+            "INSERT INTO {table} (text, embedding, metadata, source_hash) VALUES (%s, %s, %s, %s) RETURNING id"
+        ).format(table=self._ident(self.table_name))
         ids: list[int] = []
         try:
             with self.conn.transaction():
                 for vector, text, meta in zip(vectors, texts, metadata):
-                    row = self.conn.execute(insert, (text, vector, self._jsonb(meta) if meta else None)).fetchone()
+                    row = self.conn.execute(
+                        insert, (text, vector, self._jsonb(meta) if meta else None, source_hash)
+                    ).fetchone()
                     ids.append(int(row[0]))
 
                 if source_hash is not None:
@@ -569,12 +586,34 @@ class PgVectorStore(VectorStoreProtocol):
         self._check_closed()
         if not ids:
             return 0
+        int_ids = [int(i) for i in ids]
+        sql = self._sql
+        affected = [
+            row[0]
+            for row in self.conn.execute(
+                sql.SQL(
+                    "SELECT DISTINCT source_hash FROM {table} WHERE id = ANY(%s) AND source_hash IS NOT NULL"
+                ).format(table=self._ident(self.table_name)),
+                (int_ids,),
+            ).fetchall()
+        ]
         cursor = self.conn.execute(
-            self._sql.SQL("DELETE FROM {table} WHERE id = ANY(%s)").format(table=self._ident(self.table_name)),
-            ([int(i) for i in ids],),
+            sql.SQL("DELETE FROM {table} WHERE id = ANY(%s)").format(table=self._ident(self.table_name)),
+            (int_ids,),
         )
+        count = int(cursor.rowcount)
+        if affected:
+            # See SqliteVectorStore.delete: a source whose last chunk is gone
+            # must lose its dedup record, or reindexing it is silently skipped.
+            self.conn.execute(
+                sql.SQL(
+                    "DELETE FROM {sources} s WHERE s.content_hash = ANY(%s) "
+                    "AND NOT EXISTS (SELECT 1 FROM {table} c WHERE c.source_hash = s.content_hash)"
+                ).format(sources=self._ident(self.sources_table), table=self._ident(self.table_name)),
+                (affected,),
+            )
         self.conn.commit()
-        return int(cursor.rowcount)
+        return count
 
     def clear(self) -> int:
         """Remove every chunk and source record; return chunks removed."""
