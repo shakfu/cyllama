@@ -244,12 +244,6 @@ def quarto_render(
         <absolute path>`` line and a markdown link the model should
         paste verbatim when telling the user where the document is.
     """
-    if not quarto_available():
-        raise RuntimeError(
-            "quarto CLI not found on PATH. Install via `brew install quarto` "
-            "(macOS) or see https://quarto.org/docs/get-started/."
-        )
-
     input_path = input.strip()
     body = content
     if not input_path and not body.strip():
@@ -259,9 +253,18 @@ def quarto_render(
     if fmt not in _QUARTO_FORMATS:
         raise ValueError(f"unsupported format {fmt!r} (allowed: {', '.join(sorted(_QUARTO_FORMATS))})")
 
+    # Resolve the write target before probing for the CLI: a path escaping
+    # the output dir is refused on hosts without quarto too.
+    target = _quarto_write_target(input_path, body) if body.strip() else None
+
+    if not quarto_available():
+        raise RuntimeError(
+            "quarto CLI not found on PATH. Install via `brew install quarto` "
+            "(macOS) or see https://quarto.org/docs/get-started/."
+        )
+
     # CREATE-AND-RENDER: materialize content to disk before invoking quarto.
-    if body.strip():
-        target = _quarto_write_target(input_path, body)
+    if target is not None:
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(body, encoding="utf-8")
         input_path = str(target)
