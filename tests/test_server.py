@@ -575,15 +575,18 @@ class TestServerLogDraining:
 
         server = self._server(tmp_path)
         server.server_binary = Path(sys.executable)
-        script = "import sys\n" + "".join(
-            [
-                "sys.stdout.write('out ' + 'x' * 100 + chr(10))\n",
-                "sys.stderr.write('err ' + 'y' * 100 + chr(10))\n",
-            ]
-        )
         # ~200KB per stream, comfortably past the 64KB pipe buffer, so an
         # undrained pipe blocks the child rather than merely losing output.
-        with patch.object(ServerConfig, "to_args", return_value=["-c", script * 2000]):
+        # The script goes in a file: inlined via -c it exceeds Linux's
+        # 128KB per-argument limit and Windows' 32KB command line.
+        script = tmp_path / "chatty.py"
+        script.write_text(
+            "import sys\n"
+            "for _ in range(2000):\n"
+            "    sys.stdout.write('out ' + 'x' * 100 + chr(10))\n"
+            "    sys.stderr.write('err ' + 'y' * 100 + chr(10))\n"
+        )
+        with patch.object(ServerConfig, "to_args", return_value=[str(script)]):
             server.start(wait_for_ready=False)
             assert server.process is not None
             server.process.wait(timeout=30)

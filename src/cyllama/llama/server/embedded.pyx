@@ -349,7 +349,7 @@ cdef class EmbeddedServer:
             self._close_all_connections_from_main_thread()
             self._loop_exited.set()
 
-    cdef void _poll_nogil(self, int timeout_ms) nogil:
+    cdef void _poll_nogil(self, int timeout_ms) noexcept nogil:
         """Poll Mongoose manager without GIL for maximum performance."""
         cyllama_mg_mgr_poll(&self._mgr, timeout_ms)
 
