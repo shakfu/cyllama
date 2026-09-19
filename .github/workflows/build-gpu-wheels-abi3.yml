@@ -102,7 +102,7 @@ concurrency:
 jobs:
   verify_tag:
     name: Verify release tag
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
@@ -198,7 +198,7 @@ jobs:
     name: Collect abi3 GPU wheels
     needs: [cuda, rocm, sycl, vulkan_linux, cuda_windows, vulkan_windows, vulkan_macos_intel]
     if: always() && !cancelled()
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 120
 
     steps:
@@ -250,7 +250,7 @@ jobs:
       && needs.verify_tag.result == 'success'
       && needs.collect.result == 'success'
       && needs.smoke_test.result != 'failure'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
       contents: write
@@ -320,7 +320,7 @@ jobs:
     name: Publish abi3 wheels to PyPI
     needs: [collect, smoke_test]
     if: inputs.publish_to_pypi && always() && !cancelled() && needs.collect.result == 'success'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 120
     environment: pypi
     steps:

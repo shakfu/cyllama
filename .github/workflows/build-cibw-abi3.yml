@@ -73,7 +73,7 @@ jobs:
   # than after a two-hour build. No-op for branch builds.
   verify_tag:
     name: Verify release tag
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
@@ -100,7 +100,7 @@ jobs:
     needs: verify_tag
     # runs-on is a lookup, not a matrix `include`: an include naming an os
     # that the PR filter removed would add that job back.
-    runs-on: ${{ fromJSON('{"linux-intel":"ubuntu-latest","windows-intel":"windows-latest","macos-intel":"macos-15-intel","macos-arm":"macos-latest"}')[matrix.os] }}
+    runs-on: ${{ fromJSON('{"linux-intel":"ubuntu-24.04","windows-intel":"windows-latest","macos-intel":"macos-15-intel","macos-arm":"macos-latest"}')[matrix.os] }}
     timeout-minutes: 120
     strategy:
       fail-fast: false
@@ -205,7 +205,7 @@ jobs:
   cross_version_smoke_test:
     name: Smoke test py${{ matrix.python }} on ${{ matrix.os }}
     needs: build_wheels
-    runs-on: ${{ fromJSON('{"linux-intel":"ubuntu-latest","macos-arm":"macos-latest","windows-intel":"windows-latest"}')[matrix.os] }}
+    runs-on: ${{ fromJSON('{"linux-intel":"ubuntu-24.04","macos-arm":"macos-latest","windows-intel":"windows-latest"}')[matrix.os] }}
     timeout-minutes: 120
     strategy:
       fail-fast: false
@@ -384,7 +384,7 @@ jobs:
     name: Collect all abi3 wheels
     needs: build_wheels
     if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 120
     steps:
       - name: Download all abi3 wheel artifacts
@@ -411,7 +411,7 @@ jobs:
     # whole cross-version smoke matrix must succeed before anything ships.
     needs: [collect_wheels, cross_version_smoke_test]
     if: github.ref_type == 'tag' && (github.event_name == 'push' || inputs.upload_release)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
       contents: write
@@ -485,7 +485,7 @@ jobs:
     name: Publish abi3 wheels to PyPI
     needs: [collect_wheels, cross_version_smoke_test]
     if: inputs.publish_to_pypi
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 120
     environment: pypi
     steps:

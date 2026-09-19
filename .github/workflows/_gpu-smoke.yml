@@ -54,19 +54,19 @@ jobs:
       matrix:
         include:
           - backend: cuda
-            runs-on: ubuntu-latest
+            runs-on: ubuntu-24.04
             artifact: wheels-abi3-cuda-linux-x86_64
             condition: ${{ inputs.cuda_linux }}
           - backend: rocm
-            runs-on: ubuntu-latest
+            runs-on: ubuntu-24.04
             artifact: wheels-abi3-rocm-linux-x86_64
             condition: ${{ inputs.rocm_linux }}
           - backend: sycl
-            runs-on: ubuntu-latest
+            runs-on: ubuntu-24.04
             artifact: wheels-abi3-sycl-linux-x86_64
             condition: ${{ inputs.sycl_linux }}
           - backend: vulkan
-            runs-on: ubuntu-latest
+            runs-on: ubuntu-24.04
             artifact: wheels-abi3-vulkan-linux-x86_64
             condition: ${{ inputs.vulkan_linux }}
           - backend: cuda-windows

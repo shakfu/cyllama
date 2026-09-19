@@ -75,7 +75,7 @@ env:
 jobs:
   build:
     name: Build cyllama (CPU)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v7
@@ -121,7 +121,7 @@ jobs:
   test:
     name: ${{ matrix.adapter }}
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 120
     strategy:
       # One broken upstream must not mask the state of the others --
