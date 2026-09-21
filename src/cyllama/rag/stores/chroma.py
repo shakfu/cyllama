@@ -349,6 +349,17 @@ class ChromaVectorStore(VectorStoreProtocol):
             "indexed_at": indexed_at,
         }
 
+    def delete(self, ids: list[str | int]) -> int:
+        """Delete chunks by ID; return the number removed."""
+        self._check_closed()
+        if not ids:
+            return 0
+        # Chroma's delete returns nothing, so count the ids that exist first.
+        present = self.collection.get(ids=[str(int(i)) for i in ids], include=[])["ids"]
+        if present:
+            self.collection.delete(ids=present)
+        return len(present)
+
     def clear(self) -> int:
         """Drop and recreate the collection; return the count removed."""
         self._check_closed()

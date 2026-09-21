@@ -409,6 +409,13 @@ class TestSourceDedup:
 
 
 class TestLifecycle:
+    def test_delete_reports_rows_removed(self, store):
+        ids = store.add(EMBEDDINGS, TEXTS)
+        assert store.delete([]) == 0
+        assert store.delete(list(ids)[:2]) == 2
+        assert store.delete(list(ids)[:2]) == 0
+        assert len(store) == len(EMBEDDINGS) - 2
+
     def test_clear_reports_and_empties(self, store):
         store.add(EMBEDDINGS, TEXTS)
         assert store.clear() == len(EMBEDDINGS)

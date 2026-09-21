@@ -293,6 +293,27 @@ class QdrantVectorStore(VectorStoreProtocol):
             "indexed_at": indexed_at,
         }
 
+    def delete(self, ids: list[str | int]) -> int:
+        """Delete chunks by ID; return the number removed."""
+        self._check_closed()
+        if not ids:
+            return 0
+        # Qdrant's delete reports no count, so retrieve the ids that exist first.
+        found = self.client.retrieve(
+            collection_name=self.collection_name,
+            ids=[int(i) for i in ids],
+            with_payload=False,
+            with_vectors=False,
+        )
+        present = [p.id for p in found]
+        if present:
+            self.client.delete(
+                collection_name=self.collection_name,
+                points_selector=self._qmodels.PointIdsList(points=present),
+                wait=True,
+            )
+        return len(present)
+
     def clear(self) -> int:
         self._check_closed()
         count = self._count_exact()
