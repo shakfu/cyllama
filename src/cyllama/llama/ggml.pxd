@@ -92,8 +92,13 @@ cdef extern from "ggml.h":
 
 
     cdef enum ggml_prec:
-        GGML_PREC_DEFAULT =  0
-        GGML_PREC_F32     = 10
+        GGML_PREC_UNDEFINED = 0
+        GGML_PREC_DEFAULT   = 0  # deprecated, use GGML_PREC_UNDEFINED
+        GGML_PREC_F32       = 10
+        GGML_PREC_BF16      = 15
+        GGML_PREC_F16       = 20
+        GGML_PREC_Q8        = 30
+        GGML_PREC_Q4        = 40
 
     cdef enum ggml_op:
         GGML_OP_NONE = 0
@@ -368,6 +373,8 @@ cdef extern from "ggml-backend.h":
         bint buffer_from_host_ptr
         # event synchronization
         bint events
+        # mmap is supported for loading
+        bint mmap_support
 
     # all the device properties
     ctypedef struct ggml_backend_dev_props:

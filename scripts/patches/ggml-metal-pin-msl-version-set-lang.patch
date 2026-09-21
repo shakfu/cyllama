@@ -1,7 +1,7 @@
 Pin the Metal shading-language version instead of inheriting it from the host.
 
-Rebase of ggml-metal-pin-msl-version.patch onto the ggml that llama.cpp v0.4.0
-vendors, which routed both compile sites through
+Rebase of the former ggml-metal-pin-msl-version.patch onto the ggml that
+llama.cpp v0.4.0 vendors, which routed both compile sites through
 ggml_metal_compile_options_set_lang() and set languageVersion only on the tensor
 branch. Off that branch it is still unset, so the original bug is unchanged:
 Metal derives the MSL version from the SDK the *host process* linked against.
@@ -13,11 +13,9 @@ library fails to compile entirely --
 -- and the Metal backend never initializes. Below MSL 3.1 the bf16 kernels are
 additionally #undef'd by ggml-metal.metal while props.has_bfloat stays true.
 
-Applied to all three ggml trees (ggml-*.patch). Only the trees on v0.4.0's ggml
-take it -- llama.cpp itself, and stable-diffusion.cpp after _sync_ggml_abi()
-copies llama.cpp's ggml over its own. whisper.cpp still vendors the older shape
-and takes ggml-metal-pin-msl-version.patch instead; the two are mutually
-exclusive, and the one that does not match is skipped as a no-op.
+Applied to all three ggml trees (ggml-*.patch): llama.cpp v0.4.0+, whisper.cpp
+v1.9.4+, and stable-diffusion.cpp after _sync_ggml_abi() copies llama.cpp's
+ggml over its own.
 
 The ladder deliberately stops below MSL 4.0. That now overrides an upstream
 default rather than making an unset one deterministic: v0.4.0 enables the tensor

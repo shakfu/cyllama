@@ -20,6 +20,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ---
 
+## [0.4.10]
+
+### Changed
+
+- **llama.cpp updated to `v0.4.1` (from `v0.4.0`).** No wrapper code changed. Three declarations follow the headers: the `ggml_prec` enum in `ggml.pxd` gains `UNDEFINED`, `BF16`, `F16`, `Q8` and `Q4`, `llama_sampler_chain_n` returns `int32_t`, and `ggml_backend_dev_caps` gains `mmap_support`.
+
+- **whisper.cpp updated to `v1.9.4` (from `v1.9.2`).** `whisper.h` is unchanged. Its ggml now routes Metal shader compilation through `ggml_metal_compile_options_set_lang()`, so it takes `ggml-metal-pin-msl-version-set-lang.patch` like the other two trees.
+
+### Removed
+
+- **`scripts/patches/ggml-metal-pin-msl-version.patch`** -- no vendored tree matches its shape after the whisper.cpp bump. It would have been skipped silently on every build.
+
 ## [0.4.9]
 
 ### Added

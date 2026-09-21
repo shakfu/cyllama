@@ -140,14 +140,14 @@ PY_VER_MINOR = sys.version_info.minor
 STABLE_BUILD = getenv("STABLE_BUILD", True)
 if STABLE_BUILD:
     # known to build and work without errors, 100% tests pass
-    LLAMACPP_VERSION = "v0.4.0"
-    WHISPERCPP_VERSION = "v1.9.2"
+    LLAMACPP_VERSION = "v0.4.1"
+    WHISPERCPP_VERSION = "v1.9.4"
     SDCPP_VERSION = "master-816-487de75"
     SQLITEVECTOR_VERSION = "1.0.0"
 else:
     # experimental bleeding-edge builds ` = ""` means get latest
-    LLAMACPP_VERSION = "v0.4.0"
-    WHISPERCPP_VERSION = "v1.9.2"
+    LLAMACPP_VERSION = "v0.4.1"
+    WHISPERCPP_VERSION = "v1.9.4"
     # Ceiling, not staleness: `master-817-bcc7e29` ("support INT8 ConvRot
     # safetensors") made stable-diffusion.cpp call `ggml_mul_mat_i8_tensorwise`
     # and `ggml_quantize_i8_convrot`, which exist only in leejet's ggml fork.

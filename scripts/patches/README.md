@@ -24,17 +24,18 @@ superproject does not — to undo a patch by hand there, run git from inside
 
 ## Applied
 
-### `ggml-metal-pin-msl-version.patch`
+### `ggml-metal-pin-msl-version-set-lang.patch`
 
-**Target:** `ggml/src/ggml-metal/ggml-metal-device.m` — all three ggml trees
-(llama.cpp, whisper.cpp, stable-diffusion.cpp each carry the same two compile
-sites).
+**Target:** `ggml/src/ggml-metal/ggml-metal-device.m` -- all three ggml trees:
+llama.cpp `v0.4.0`+, whisper.cpp `v1.9.4`+, and stable-diffusion.cpp once
+`_sync_ggml_abi()` has copied llama.cpp's ggml over its own.
 
-**Problem:** ggml compiles its embedded Metal shader library with a bare
-`[MTLCompileOptions new]` and never sets `languageVersion`. Metal then derives
-the MSL version from the SDK **the host process was linked against** — not from
-the running OS. ggml is a library loaded into whichever binary the user runs, so
-shader compilation depended on the interpreter rather than the machine.
+**Problem:** ggml compiles its embedded Metal shader library without setting
+`languageVersion` except on the tensor branch of
+`ggml_metal_compile_options_set_lang()`. Metal then derives the MSL version
+from the SDK **the host process was linked against** -- not from the running
+OS. ggml is a library loaded into whichever binary the user runs, so shader
+compilation depended on the interpreter rather than the machine.
 
 python.org's CPython 3.12 links the macOS **12.1** SDK. Under it the library
 fails to compile outright:
@@ -54,46 +55,32 @@ at Metal. Below MSL 3.1 there is a quieter variant: `ggml-metal.metal:36`
 This is not CI-only. `cp312-abi3` wheels are what 3.12 users install, and the
 python.org installer is a mainstream way to get Python on macOS.
 
-**Fix:** Pin `languageVersion` on both compile paths via an `@available`
-ladder — 3.2 on macOS 15+, 3.1 on macOS 14+, 3.0 on macOS 13+. Versions are
-spelled numerically so the file still builds against SDKs predating the enum
-constants, matching the existing `MTLGPUFamilyMetal4_GGML` precedent.
+**Fix:** Pin `languageVersion` in `ggml_metal_compile_options_set_lang()` via
+an `@available` ladder -- 3.2 on macOS 15+, 3.1 on macOS 14+, 3.0 on macOS 13+.
+Versions are spelled numerically so the file still builds against SDKs
+predating the enum constants, matching the existing `MTLGPUFamilyMetal4_GGML`
+precedent.
 
 **Why the ladder stops below MSL 4.0:** 4.0 makes the Metal 4 tensor headers
 available, which enables the tensor matmul kernels that blank stable-diffusion
-output — the reason `proposed/llama.cpp-metal-tensor-msl4.patch` is not applied.
-Capping at 3.2 keeps the tensor probe on its existing unsupported path, so this
-patch makes today's behaviour deterministic rather than changing it.
+output -- the reason `proposed/llama.cpp-metal-tensor-msl4.patch` is not
+applied. Upstream enables the tensor API on M5/M6/A19/A20 and asks for MSL 4.0
+to get its headers, so the cap overrides an upstream default. Capping at 3.2
+makes the tensor probe's dummy-kernel compile fail, so `ggml_metal_device_init`
+clears `props.has_tensor` and the backend keeps the simdgroup kernels.
+`GGML_METAL_TENSOR_ENABLE=1` cannot override it. Untested on Metal 4 hardware.
 
 **Verified** against the exact failing interpreter (the `actions/python-versions`
 3.12.10 darwin-arm64 build, expanded with `pkgutil --expand-full`): before the
-patch it reproduces the CI failure; after it, `ggml_metal_library_init` succeeds
-with `has bfloat = true` and `has tensor = false`.
+fix it reproduces the CI failure; after it, `ggml_metal_library_init` succeeds
+with `has bfloat = true` and `has tensor = false`. This was measured with the
+predecessor patch, which set the same ladder at the two bare
+`[MTLCompileOptions new]` sites that pre-`v0.4.0` ggml had.
 
-### `ggml-metal-pin-msl-version-set-lang.patch`
-
-**Target:** `ggml/src/ggml-metal/ggml-metal-device.m` — the ggml that
-llama.cpp `v0.4.0` vendors, and stable-diffusion.cpp's tree once
-`_sync_ggml_abi()` has copied that ggml over its own. whisper.cpp still
-vendors the older shape and takes `ggml-metal-pin-msl-version.patch`; the two
-are mutually exclusive, and the one that does not match is skipped as a no-op.
-
-**Problem:** the same unset `languageVersion` described above. `v0.4.0` routed
-both compile sites through `ggml_metal_compile_options_set_lang()` and sets the
-version only on the tensor branch, so the original patch stopped applying while
-the bug it fixes was unchanged. A skipped patch is silent, so this surfaced as
-nothing at all.
-
-**Fix:** the same `@available` ladder, moved into that function.
-
-**What changed about the 4.0 cap:** it now overrides an upstream default
-instead of making an unset one deterministic. `v0.4.0` enables the tensor API
-on M5/M6/A19/A20 and asks for MSL 4.0 to get its headers. Capping at 3.2 makes
-the tensor probe's dummy-kernel compile fail, so `ggml_metal_device_init`
-clears `props.has_tensor` and the backend keeps the simdgroup kernels — the
-pre-`v0.4.0` behaviour, and the one `proposed/llama.cpp-metal-tensor-msl4.patch`
-argues for. `GGML_METAL_TENSOR_ENABLE=1` cannot override it either, which it
-could not before this branch existed. Untested on Metal 4 hardware.
+**History:** that predecessor, `ggml-metal-pin-msl-version.patch`, stopped
+applying when llama.cpp `v0.4.0` introduced `ggml_metal_compile_options_set_lang()`.
+A skipped patch is silent, so this surfaced as nothing at all. It was removed
+once whisper.cpp `v1.9.4`, the last tree on the old shape, adopted the new one.
 
 ### `stable-diffusion.cpp-msvc-bigobj.patch`
 
