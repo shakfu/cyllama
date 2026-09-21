@@ -4,6 +4,8 @@
 
 ## High
 
+- [ ] **Unpin stable-diffusion.cpp via `SD_USE_UPSTREAM_GGML`** (next release, not 0.4.10) -- `SDCPP_VERSION` is stuck at `master-816-487de75` because later sd.cpp calls fork-only ggml APIs. Upstream [#1999](https://github.com/leejet/stable-diffusion.cpp/pull/1999) and [#2001](https://github.com/leejet/stable-diffusion.cpp/pull/2001) (from `master-884-008ca5b`) guard those calls. Analysis, plan and re-check commands: `docs/dev/sd_upstream_ggml.md`. Trigger: upstream mode has some real-world use; re-run the doc's checks at the chosen tag first.
+
 ## Medium
 
 - [ ] **Ctrl-C does not interrupt in-process `SDContext` generation** ([#8](https://github.com/shakfu/cyllama/issues/8)) -- `SDContext.cancel()` works from another thread (0.3.3; upstream PR [#1124](https://github.com/leejet/stable-diffusion.cpp/pull/1124)), and the CLI stops on Ctrl-C via process isolation. Remaining: (1) `install_sigint_handler()` and `cancel_requested` via `cyllama.utils.cancellation`; SIGINT during a main-thread `generate()` is currently lost and the call returns normally. (2) Raise `InterruptedError` on cancel instead of `RuntimeError("Image generation failed")`, matching `LLM`/`WhisperContext`. (3) `tests/test_sd_cancel.py` that cancels a running generation; only `test_cancel_reset_is_safe` exists. (4) Wire into the cyllama-desktop sidecar's `asyncio.CancelledError` path. CLI isolation stays: `upscale`/`convert` take no `sd_ctx_t` and cannot be cancelled.
