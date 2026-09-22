@@ -125,7 +125,7 @@ class TestMemoryPlacementFlags:
         assert params.max_vram is None
         assert params.params_backend is None
         assert params.backend is None
-        assert params.auto_fit is False
+        assert params.auto_fit is True  # upstream default since master-845 (#1942)
 
     def test_offload_to_cpu_places_all_weights_on_cpu(self):
         params = self._params(["--offload-to-cpu"])
@@ -155,3 +155,34 @@ class TestMemoryPlacementFlags:
         params = self._params(["--backend", "diffusion=cuda0,te=cpu", "--auto-fit"])
         assert params.backend == "diffusion=cuda0,te=cpu"
         assert params.auto_fit is True
+
+    def test_auto_fit_off(self):
+        assert self._params(["--auto-fit", "off"]).auto_fit is False
+        assert self._params(["--auto-fit", "on"]).auto_fit is True
+
+    def test_segmented_compute_flags(self):
+        params = self._params([])
+        assert params.disable_prefetch is False
+        assert params.disable_segmented_compute is False
+        params = self._params(["--disable-prefetch", "--disable-segmented-compute"])
+        assert params.disable_prefetch is True
+        assert params.disable_segmented_compute is True
+
+
+class TestLogLevels:
+    """Upstream inserted SD_LOG_VERBOSE after DEBUG, shifting INFO..ERROR by one."""
+
+    def test_warnings_only_drops_info(self, capsys):
+        from cyllama.sd import LogLevel
+
+        mod._log_warnings_only(LogLevel.INFO, "info line\n")
+        mod._log_warnings_only(LogLevel.WARN, "warn line\n")
+        out = capsys.readouterr().out
+        assert "info line" not in out
+        assert "[WARN] warn line" in out
+
+    def test_label_follows_enum(self, capsys):
+        from cyllama.sd import LogLevel
+
+        mod.emit_log(LogLevel.INFO, "x\n")
+        assert "[INFO] x" in capsys.readouterr().out

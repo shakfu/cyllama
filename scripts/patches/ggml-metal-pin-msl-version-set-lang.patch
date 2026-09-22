@@ -14,8 +14,8 @@ library fails to compile entirely --
 additionally #undef'd by ggml-metal.metal while props.has_bfloat stays true.
 
 Applied to all three ggml trees (ggml-*.patch): llama.cpp v0.4.0+, whisper.cpp
-v1.9.4+, and stable-diffusion.cpp after _sync_ggml_abi() copies llama.cpp's
-ggml over its own.
+v1.9.4+, and stable-diffusion.cpp's vendored copy. By default SD compiles
+llama.cpp's ggml (SD_GGML_SOURCE_DIR), so its own copy is unused.
 
 The ladder deliberately stops below MSL 4.0. That now overrides an upstream
 default rather than making an unset one deterministic: v0.4.0 enables the tensor

@@ -61,6 +61,7 @@ cdef extern from "stable-diffusion.h":
         FLUX2_SCHEDULER
         FLUX_SCHEDULER
         BETA_SCHEDULER
+        LLADA_IMAGE_SCHEDULER
         SCHEDULER_COUNT
 
     ctypedef enum prediction_t:
@@ -71,6 +72,7 @@ cdef extern from "stable-diffusion.h":
         FLUX_FLOW_PRED
         SEFI_FLOW_PRED
         MINIT2I_FLOW_PRED
+        SENSENOVA_U1_FLOW_PRED
         PREDICTION_COUNT
 
     ctypedef enum sd_type_t:
@@ -108,10 +110,14 @@ cdef extern from "stable-diffusion.h":
         SD_TYPE_MXFP4
         SD_TYPE_NVFP4
         SD_TYPE_Q1_0
+        SD_TYPE_Q2_0
+        SD_TYPE_F8_E4M3
+        SD_TYPE_F8_E5M2
         SD_TYPE_COUNT
 
     ctypedef enum sd_log_level_t:
         SD_LOG_DEBUG
+        SD_LOG_VERBOSE
         SD_LOG_INFO
         SD_LOG_WARN
         SD_LOG_ERROR
@@ -174,6 +180,7 @@ cdef extern from "stable-diffusion.h":
         const char* embeddings_connectors_path
         const char* vae_path
         const char* audio_vae_path
+        const char* audio_encoder_path
         const char* taesd_path
         const char* control_net_path
         const char* ip_adapter_path
@@ -198,7 +205,7 @@ cdef extern from "stable-diffusion.h":
         bint force_sdxl_vae_conv_scale
         sd_vae_format_t vae_format
         const char* max_vram
-        bint stream_layers
+        bint disable_prefetch
         bint eager_load
         const char* backend
         const char* params_backend
@@ -206,6 +213,11 @@ cdef extern from "stable-diffusion.h":
         bint auto_fit
         const char* rpc_servers
         const char* model_args
+        bint disable_segmented_compute
+        float linear_scale
+        float attn_scale
+        const char* tokenizer
+        bint sage_attn
 
     ctypedef struct sd_audio_t:
         uint32_t sample_rate
@@ -452,6 +464,7 @@ cdef extern from "stable-diffusion.h":
 
     sample_method_t sd_get_default_sample_method(const sd_ctx_t* sd_ctx)
     scheduler_t sd_get_default_scheduler(const sd_ctx_t* sd_ctx, sample_method_t sample_method)
+    const char* sd_get_model_version_name(const sd_ctx_t* sd_ctx)
 
     # =========================================================================
     # Functions - Image generation
@@ -470,7 +483,7 @@ cdef extern from "stable-diffusion.h":
     # Functions - Video generation
     # =========================================================================
 
-    bint generate_video(sd_ctx_t* sd_ctx, const sd_vid_gen_params_t* sd_vid_gen_params, sd_image_t** frames_out, int* num_frames_out, sd_audio_t** audio_out) nogil
+    bint generate_video(sd_ctx_t* sd_ctx, const sd_vid_gen_params_t* sd_vid_gen_params, sd_image_t** frames_out, int* num_frames_out, sd_audio_t** audio_out, int* fps_out) nogil
 
     # =========================================================================
     # Functions - Upscaling

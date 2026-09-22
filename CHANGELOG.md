@@ -26,6 +26,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 - `ChromaVectorStore.delete()` and `QdrantVectorStore.delete()`, matching the sqlite and pgvector stores. Their absence failed the source-dedup conformance tests added in 0.4.9 on the chroma and qdrant CI legs. `delete` is still not part of `VectorStoreProtocol`.
 
+- `SDContextParams.disable_segmented_compute`, `.linear_scale`, `.attn_scale` and `.tokenizer`, plus the matching `--disable-segmented-compute`, `--disable-prefetch` and `--tokenizer` CLI flags. `tokenizer` is required for PiD and Lens models. `Scheduler.LLADA_IMAGE`, `Prediction.SENSENOVA_U1_FLOW` and `LogLevel.VERBOSE` follow the header.
+
+### Changed
+
+- **stable-diffusion.cpp updated to `master-898-2bb7294` (from `master-816-487de75`)** ([#19](https://github.com/shakfu/cyllama/issues/19)). From `master-817` sd.cpp called ops that exist only in leejet's ggml fork, so it no longer compiled against llama.cpp's ggml. Upstream's `SD_USE_UPSTREAM_GGML` ([#1999](https://github.com/leejet/stable-diffusion.cpp/pull/1999)) compiles those calls out. The build now passes it, with `SD_GGML_SOURCE_DIR` pointing at llama.cpp's ggml, instead of copying that tree over SD's. Features lost in this mode: INT8 ConvRot model files are rejected at load, FP8 safetensors load as F16 (twice the memory for those tensors), and SageAttention is unavailable. None of these worked at the old pin. Details: `docs/dev/sd_upstream_ggml.md`.
+
+- **Breaking: SD memory defaults and semantics changed upstream.** `auto_fit` now defaults to `True` and places modules on the GPU, RAM, another GPU or disk by free memory. A non-empty `params_backend` disables it. `max_vram` is a per-device budget: `"0"` no longer disables segmentation, it uses live free VRAM; set `disable_segmented_compute` instead. `SDContextParams.stream_layers` is removed; prefetch is on by default and `disable_prefetch` turns it off. The CLI's `--auto-fit` takes `on`/`off`; a bare `--auto-fit` still means `on`.
+
+- **Breaking: `LogLevel` values shifted.** Upstream inserted `SD_LOG_VERBOSE` after `DEBUG`, so `INFO`, `WARN` and `ERROR` are now 2, 3 and 4. Code that compares against the names is unaffected.
+
+### Removed
+
+- **`stable-diffusion.cpp-graph-cut-budget-clamp.patch` and `stable-diffusion.cpp-conditioner-compute-failure.patch`**. Both defects are fixed upstream at the new pin; see `scripts/patches/README.md`.
+
 ## [0.4.10]
 
 ### Changed

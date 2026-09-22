@@ -103,8 +103,6 @@ def save_video_frames(frames: List["SDImage"], output_path: str, fps: int = 24) 
     print(f"Saved {len(frames)} frames to {base}_*.png")
 
 
-LOG_LEVEL_NAMES = {0: "DEBUG", 1: "INFO", 2: "WARN", 3: "ERROR"}
-
 # Rewind to column 0 and erase to end of line.
 _ERASE_LINE = "\r\033[K"
 
@@ -131,12 +129,14 @@ def emit_log(level: int, text: str) -> None:
     """
     global _log_partial
     lead = "" if _log_partial or not sys.stdout.isatty() else _ERASE_LINE
-    print(f"{lead}[{LOG_LEVEL_NAMES.get(level, level)}] {text}", end="", flush=True)
+    print(f"{lead}[{getattr(level, 'name', level)}] {text}", end="", flush=True)
     _log_partial = not text.endswith("\n")
 
 
 def _log_warnings_only(level: int, text: str) -> None:
-    if level >= 2:
+    from .stable_diffusion import LogLevel
+
+    if level >= LogLevel.WARN:
         emit_log(level, text)
 
 
@@ -239,6 +239,8 @@ def create_context_params(args: argparse.Namespace) -> "SDContextParams":
         params.photo_maker_path = args.photo_maker
     if hasattr(args, "tensor_type_rules") and args.tensor_type_rules:
         params.tensor_type_rules = args.tensor_type_rules
+    if getattr(args, "tokenizer", None):
+        params.tokenizer = args.tokenizer
 
     # Memory/performance options.
     #
@@ -246,12 +248,8 @@ def create_context_params(args: argparse.Namespace) -> "SDContextParams":
     # (offload_params_to_cpu / keep_clip_on_cpu / keep_vae_on_cpu /
     # keep_control_net_on_cpu) with two independent mechanisms: `params_backend`,
     # which pins a module's *weights* to a backend ("te=cpu"), and `max_vram`,
-    # a per-graph budget for graph-cut segmented offload ("0" = disabled,
-    # "-1" = auto). The legacy flags were placements, so they map to
-    # `params_backend` -- mapping them to `max_vram=-1` instead (as an earlier
-    # port did) silently changed their meaning and OOMs on small cards, because
-    # the auto budget is computed per module and does not account for weights
-    # another module already has resident.
+    # a per-device GiB budget. The legacy flags were placements, so they map to
+    # `params_backend`, not to a `max_vram` budget.
     if hasattr(args, "max_vram") and args.max_vram is not None:
         params.max_vram = args.max_vram
     if getattr(args, "backend", None):
@@ -274,8 +272,12 @@ def create_context_params(args: argparse.Namespace) -> "SDContextParams":
     if params_backend_spec:
         params.params_backend = params_backend_spec
 
-    if getattr(args, "auto_fit", False):
-        params.auto_fit = True
+    if getattr(args, "auto_fit", None) is not None:
+        params.auto_fit = args.auto_fit == "on"
+    if getattr(args, "disable_prefetch", False):
+        params.disable_prefetch = True
+    if getattr(args, "disable_segmented_compute", False):
+        params.disable_segmented_compute = True
     if hasattr(args, "eager_load") and args.eager_load:
         params.eager_load = True
     if hasattr(args, "diffusion_fa") and args.diffusion_fa:
@@ -914,6 +916,10 @@ def add_common_model_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--tensor-type-rules", dest="tensor_type_rules", help='Tensor type rules (e.g., "^vae\\.=f16,model\\.=q8_0")'
     )
+    parser.add_argument(
+        "--tokenizer",
+        help='tokenizer.json path, or "main=FILE,clip-l=FILE,clip-g=FILE" assignments; required for PiD and Lens',
+    )
 
 
 def add_common_gen_args(parser: argparse.ArgumentParser) -> None:
@@ -974,7 +980,20 @@ def add_common_memory_args(parser: argparse.ArgumentParser) -> None:
         "--max-vram",
         dest="max_vram",
         default=None,
-        help='GiB budget or backend-assignment spec for graph-cut segmented param offload ("0" = disabled, "-1" = auto)',
+        help='Per-device GiB budget for weights and compute buffers: "N" caps at N GiB, "-N" leaves N GiB free, '
+        '"0" uses live free VRAM. Per-device form: "cuda0=6,vulkan0=4"',
+    )
+    parser.add_argument(
+        "--disable-prefetch",
+        dest="disable_prefetch",
+        action="store_true",
+        help="Disable asynchronous prefetch of the next segment's weights",
+    )
+    parser.add_argument(
+        "--disable-segmented-compute",
+        dest="disable_segmented_compute",
+        action="store_true",
+        help="Force monolithic graph execution even when graph cutting would fit memory better",
     )
     parser.add_argument(
         "--backend",
@@ -994,8 +1013,12 @@ def add_common_memory_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--auto-fit",
         dest="auto_fit",
-        action="store_true",
-        help="Let stable-diffusion.cpp derive --backend/--params-backend from the models and the available VRAM",
+        nargs="?",
+        const="on",
+        choices=["on", "off"],
+        default=None,
+        help="Place modules on the GPU, RAM, another GPU, or disk by available memory (upstream default: on). "
+        "A non-empty --params-backend disables it",
     )
     parser.add_argument(
         "--eager-load",

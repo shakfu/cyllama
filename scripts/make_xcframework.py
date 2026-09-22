@@ -262,6 +262,7 @@ def ensure_dylibs() -> None:
                 "-DSD_BUILD_SHARED_LIBS=ON",
                 "-DSD_BUILD_SHARED_GGML_LIB=ON",
                 "-DSD_BUILD_EXAMPLES=OFF",
+                "-DSD_USE_UPSTREAM_GGML=ON",  # llama.cpp's ggml lacks leejet's fork ops
                 "-DGGML_METAL_EMBED_LIBRARY=ON",
                 "-DGGML_BACKEND_DL=OFF",
             ],

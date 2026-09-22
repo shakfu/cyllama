@@ -102,14 +102,13 @@ def test_verify_is_skipped_for_a_vendored_ggml(manage, tmp_path, monkeypatch):
     builder._verify_ggml_max_name()  # must not raise
 
 
-def _staged_swap(manage, tmp_path, monkeypatch):
-    """A checked-out SD tree, a built cmake dir under it, and a newer llama ggml."""
+def _staged_sd(manage, tmp_path, monkeypatch):
+    """A checked-out SD tree (post-#1999), a built cmake dir under it, and a llama ggml."""
     src = tmp_path / "src"
     sd_dir = src / "stable-diffusion.cpp"
     (src / "llama.cpp" / "ggml" / "src").mkdir(parents=True)
-    (src / "llama.cpp" / "ggml" / "src" / "ggml-metal-device.m").write_text("// split per op-source\n")
-    (sd_dir / "ggml" / "src").mkdir(parents=True)
-    (sd_dir / "ggml" / "src" / "ggml-metal.m").write_text("// one library\n")
+    (sd_dir / "cmake").mkdir(parents=True)
+    (sd_dir / "cmake" / "ggml.cmake").write_text("# SD_GGML_SOURCE_DIR\n")
     (sd_dir / "build").mkdir()
     (sd_dir / "build" / "ggml-metal-device.m.o").write_text("stale object")
 
@@ -119,28 +118,35 @@ def _staged_swap(manage, tmp_path, monkeypatch):
     return builder, sd_dir
 
 
-def test_swapping_ggml_drops_the_build_tree(manage, tmp_path, monkeypatch):
-    """Objects compiled against the replaced ggml must not survive the swap.
+def test_shared_ggml_points_sd_at_llama_ggml(manage, tmp_path, monkeypatch):
+    """SD must compile llama.cpp's ggml, with fork-only calls compiled out."""
+    builder, sd_dir = _staged_sd(manage, tmp_path, monkeypatch)
 
-    ``copytree`` preserves mtimes, so the incoming sources are not newer than
-    the objects already in the cmake tree and make relinks against them.
-    """
-    builder, sd_dir = _staged_swap(manage, tmp_path, monkeypatch)
+    options = builder._shared_ggml_options()
 
-    builder._sync_ggml_abi()
-
-    assert (sd_dir / "ggml" / "src" / "ggml-metal-device.m").exists(), "swap did not happen"
-    assert not (sd_dir / "build").exists(), "cmake tree survived a ggml swap; its objects are stale"
+    assert options == {
+        "SD_USE_UPSTREAM_GGML": True,
+        "SD_GGML_SOURCE_DIR": str(builder.project.src / "llama.cpp" / "ggml"),
+    }
+    assert not (sd_dir / "build").exists(), "cmake tree survived; it may hold objects from another ggml tree"
 
 
-def test_a_skipped_swap_leaves_the_build_tree(manage, tmp_path, monkeypatch):
-    """No llama.cpp ggml to copy means nothing was invalidated."""
-    builder, sd_dir = _staged_swap(manage, tmp_path, monkeypatch)
+def test_missing_llama_ggml_falls_back_to_vendored(manage, tmp_path, monkeypatch):
+    """No llama.cpp ggml means SD builds its own, and nothing was invalidated."""
+    builder, sd_dir = _staged_sd(manage, tmp_path, monkeypatch)
     (builder.project.src / "llama.cpp").rename(builder.project.src / "llama.cpp.gone")
 
-    builder._sync_ggml_abi()
-
+    assert builder._shared_ggml_options() == {}
     assert (sd_dir / "build" / "ggml-metal-device.m.o").exists()
+
+
+def test_pre_1999_pin_is_rejected(manage, tmp_path, monkeypatch):
+    """A pin older than master-883 ignores SD_GGML_SOURCE_DIR and builds the fork ggml."""
+    builder, sd_dir = _staged_sd(manage, tmp_path, monkeypatch)
+    (sd_dir / "cmake" / "ggml.cmake").unlink()
+
+    with pytest.raises(RuntimeError, match="master-883"):
+        builder._shared_ggml_options()
 
 
 def test_backend_dl_is_off_on_darwin(manage, monkeypatch):

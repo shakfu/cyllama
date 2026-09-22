@@ -1,7 +1,6 @@
 # Building stable-diffusion.cpp against upstream ggml
 
-Status: deferred. Not for 0.4.10. Revisit in the next release, once
-upstream's upstream-ggml mode has seen some real-world use.
+Status: done at `master-898-2bb7294` (issue #19). See "Outcome" below.
 
 ## Problem
 
@@ -125,6 +124,26 @@ Nothing was built or run.
 - **Maintenance.** Upstream keeps the fork ggml as the default, so new
   features will keep landing behind the fork. Each SD bump needs the
   symbol check from "Verification done" repeated.
+
+## Outcome (2026-09-22, `master-898-2bb7294`)
+
+Plan steps 1-5 were done. Differences from the plan:
+
+- Both stale patches were dropped, not rebased. Upstream fixed both after
+  889: see `scripts/patches/README.md`.
+- `tests/test_enum_drift.py` covers only llama.cpp enums. SD enums need no
+  such test: they are `ctypedef enum` inside `cdef extern`, so Cython takes
+  their values from the header.
+- `auto_fit` now defaults to `true` upstream (#1942, `master-845`). The CLI's
+  `--auto-fit` became `on`/`off` to match.
+- `sage_attn` and `audio_encoder_path` are declared in the `.pxd` but not
+  exposed. SageAttention is compiled out in upstream mode, and
+  `audio_vae_path` is not exposed either.
+- `make_xcframework.py` still copies llama.cpp's ggml over SD's; it only
+  gained `-DSD_USE_UPSTREAM_GGML=ON`.
+
+Built and tested on macOS Metal (M1) only. The CUDA, Vulkan and ROCm wheels
+are not verified.
 
 ## Relation to `one-ggml-refactor.md`
 

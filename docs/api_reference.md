@@ -1722,11 +1722,14 @@ params.t5xxl_path = "t5xxl.safetensors"   # Optional T5-XXL (SD3/FLUX)
 params.control_net_path = "cn.safetensors" # Optional ControlNet
 params.n_threads = 4
 params.diffusion_flash_attn = False
-params.max_vram = "-1"                     # Graph-cut budget: "0" off, "-1" auto
+params.max_vram = "-1"                     # Per-device budget: "N" GiB cap, "-N" leave N free
 params.backend = None                      # Compute placement, e.g. "diffusion=cuda0,te=cpu"
 params.params_backend = "te=cpu"           # Weight placement; also accepts "cpu"/"disk"
-params.auto_fit = False                    # Derive backend/params_backend automatically
+params.auto_fit = True                     # Tiered placement by free memory (default)
 params.eager_load = False                  # Load all params up front
+params.disable_prefetch = False            # Async prefetch of next segment's weights
+params.disable_segmented_compute = False   # True forces monolithic graphs
+params.tokenizer = None                    # tokenizer.json; required for PiD and Lens
 params.pulid_weights_path = None           # Optional PuLID weights
 params.rpc_servers = None                  # Optional RPC backends, e.g. "host:port"
 params.wtype = SDType.COUNT               # COUNT = auto-detect
@@ -1737,9 +1740,9 @@ Memory is controlled by two independent mechanisms, which together replace the r
 
 - **Placement** -- `backend` assigns compute per module and `params_backend` assigns where the weights live (`cpu` and `disk` are valid targets for the latter). Both take either a bare target for every module (`"cuda0"`, `"cpu"`) or comma-separated per-module assignments (`"diffusion=cuda0,te=cpu"`). Module keys: `diffusion` (aliases `model`/`unet`/`dit`), `te` (aliases `clip`/`text`/`conditioner`/`llm`/`t5`), `vae`, `clip-vision`, `control-net`, `photomaker`, `upscaler`, `detector`. `params_backend = "te=cpu"` is the direct replacement for the old `keep_clip_on_cpu`.
 
-- **Budget** -- `max_vram` (a string: `"0"` disables offload, `"-1"` auto-sizes a GiB budget for graph-cut segmented param offload, or a GiB number / per-backend spec) caps how much of a *single graph* may be resident. It is a per-graph cap, not a placement: modules are budgeted independently and resident weights are not evicted between them, so on a card that cannot hold every module at once, place the text encoder with `params_backend` (or set `auto_fit = True`) rather than relying on the budget alone.
+- **Budget** -- `max_vram` is a per-device GiB budget shared by resident weights and compute buffers. `"N"` caps each device at N GiB, `"-N"` leaves N GiB free, and `"0"` or `None` uses live free VRAM. The per-device form is `"cuda0=6,vulkan0=4"`. A graph that does not fit is split into segments; `disable_segmented_compute = True` prevents that.
 
-`auto_fit = True` lets stable-diffusion.cpp derive both specs from the models and the available VRAM, which is the simplest option when a model set does not fit comfortably on one GPU.
+`auto_fit` (default `True`) places each module on the compute GPU, then RAM, another GPU, or disk, by available memory. A non-empty `params_backend` disables it.
 
 ### `SDImage`
 

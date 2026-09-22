@@ -433,11 +433,34 @@ class TestSDContextParams:
         params.vae_format = 1
         assert params.vae_format == VaeFormat.SD3
 
-    def test_stream_layers_default_and_setter(self):
+    def test_disable_prefetch_default_and_setter(self):
         params = SDContextParams()
-        assert params.stream_layers is False
-        params.stream_layers = True
-        assert params.stream_layers is True
+        assert params.disable_prefetch is False
+        params.disable_prefetch = True
+        assert params.disable_prefetch is True
+
+    def test_disable_segmented_compute_default_and_setter(self):
+        params = SDContextParams()
+        assert params.disable_segmented_compute is False
+        params.disable_segmented_compute = True
+        assert params.disable_segmented_compute is True
+
+    def test_scale_overrides_default_to_model(self):
+        params = SDContextParams()
+        assert params.linear_scale == 0.0
+        assert params.attn_scale == 0.0
+        params.linear_scale = 0.5
+        params.attn_scale = 2.0
+        assert params.linear_scale == 0.5
+        assert params.attn_scale == 2.0
+
+    def test_tokenizer_default_and_setter(self):
+        params = SDContextParams()
+        assert params.tokenizer is None
+        params.tokenizer = "main=tok.json,clip-l=clip.json"
+        assert params.tokenizer == "main=tok.json,clip-l=clip.json"
+        params.tokenizer = None
+        assert params.tokenizer is None
 
     def test_eager_load_default_and_setter(self):
         params = SDContextParams()
@@ -1418,13 +1441,15 @@ class TestEnumsExtended:
         assert hasattr(Prediction, "V")
         assert hasattr(Prediction, "FLUX_FLOW")
         assert hasattr(Prediction, "MINIT2I_FLOW")
+        assert hasattr(Prediction, "SENSENOVA_U1_FLOW")
 
     def test_log_level_enum(self):
         """Test LogLevel enum values."""
         assert LogLevel.DEBUG.value == 0
-        assert LogLevel.INFO.value == 1
-        assert LogLevel.WARN.value == 2
-        assert LogLevel.ERROR.value == 3
+        assert LogLevel.VERBOSE.value == 1
+        assert LogLevel.INFO.value == 2
+        assert LogLevel.WARN.value == 3
+        assert LogLevel.ERROR.value == 4
 
     def test_preview_mode_enum(self):
         """Test PreviewMode enum values."""

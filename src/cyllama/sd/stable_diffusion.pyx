@@ -103,6 +103,7 @@ class Scheduler(IntEnum):
     FLUX2 = FLUX2_SCHEDULER
     FLUX = FLUX_SCHEDULER
     BETA = BETA_SCHEDULER
+    LLADA_IMAGE = LLADA_IMAGE_SCHEDULER
     COUNT = SCHEDULER_COUNT
 
 
@@ -115,6 +116,7 @@ class Prediction(IntEnum):
     FLUX_FLOW = FLUX_FLOW_PRED
     SEFI_FLOW = SEFI_FLOW_PRED
     MINIT2I_FLOW = MINIT2I_FLOW_PRED
+    SENSENOVA_U1_FLOW = SENSENOVA_U1_FLOW_PRED
     COUNT = PREDICTION_COUNT
 
 
@@ -152,6 +154,7 @@ class SDType(IntEnum):
 class LogLevel(IntEnum):
     """Log levels."""
     DEBUG = SD_LOG_DEBUG
+    VERBOSE = SD_LOG_VERBOSE
     INFO = SD_LOG_INFO
     WARN = SD_LOG_WARN
     ERROR = SD_LOG_ERROR
@@ -927,6 +930,7 @@ cdef class SDContextParams:
     cdef bytes _model_args_bytes
     cdef bytes _backend_bytes
     cdef bytes _params_backend_bytes
+    cdef bytes _tokenizer_bytes
 
     def __cinit__(self):
         sd_ctx_params_init(&self._params)
@@ -1351,7 +1355,8 @@ cdef class SDContextParams:
 
     @property
     def auto_fit(self) -> bool:
-        """Automatically fit the model into the available memory budget."""
+        """Place modules on the GPU, RAM, another GPU, or disk by available
+        memory. Default True. A non-empty `params_backend` disables it."""
         return self._params.auto_fit
 
     @auto_fit.setter
@@ -1378,8 +1383,10 @@ cdef class SDContextParams:
 
     @property
     def max_vram(self) -> Optional[str]:
-        """GiB budget or backend-assignment spec for graph-cut segmented param
-        offload ("0" = disabled, "-1" = auto). None when unset."""
+        """Per-device GiB budget for weights and compute buffers. "N" caps at
+        N GiB, "-N" leaves N GiB free, "0" or None uses live free VRAM.
+        Per-device form: "cuda0=6,vulkan0=4". To force monolithic graphs, set
+        `disable_segmented_compute`."""
         if self._params.max_vram:
             return self._params.max_vram.decode('utf-8')
         return None
@@ -1407,13 +1414,57 @@ cdef class SDContextParams:
         self._params.vae_format = <sd_vae_format_t>iv
 
     @property
-    def stream_layers(self) -> bool:
-        """Enable residency+prefetch layer streaming (no effect unless max_vram is set)."""
-        return self._params.stream_layers
+    def disable_prefetch(self) -> bool:
+        """Disable asynchronous prefetch of the next segment's weights."""
+        return self._params.disable_prefetch
 
-    @stream_layers.setter
-    def stream_layers(self, value: bool):
-        self._params.stream_layers = value
+    @disable_prefetch.setter
+    def disable_prefetch(self, value: bool):
+        self._params.disable_prefetch = value
+
+    @property
+    def disable_segmented_compute(self) -> bool:
+        """Force monolithic graph execution, even when graph cutting would fit
+        memory better."""
+        return self._params.disable_segmented_compute
+
+    @disable_segmented_compute.setter
+    def disable_segmented_compute(self, value: bool):
+        self._params.disable_segmented_compute = value
+
+    @property
+    def linear_scale(self) -> float:
+        """Linear input scaling override (0 = model default)."""
+        return self._params.linear_scale
+
+    @linear_scale.setter
+    def linear_scale(self, value: float):
+        self._params.linear_scale = value
+
+    @property
+    def attn_scale(self) -> float:
+        """Flash-attention K/V scaling override (0 = model default)."""
+        return self._params.attn_scale
+
+    @attn_scale.setter
+    def attn_scale(self, value: float):
+        self._params.attn_scale = value
+
+    @property
+    def tokenizer(self) -> Optional[str]:
+        """tokenizer.json path, or "main=FILE,clip-l=FILE,clip-g=FILE"
+        assignments. Required for PiD and Lens models. None when unset."""
+        if self._params.tokenizer:
+            return self._params.tokenizer.decode('utf-8')
+        return None
+
+    @tokenizer.setter
+    def tokenizer(self, value: Optional[str]):
+        if value:
+            self._tokenizer_bytes = value.encode('utf-8')
+            self._params.tokenizer = self._tokenizer_bytes
+        else:
+            self._params.tokenizer = NULL
 
     @property
     def eager_load(self) -> bool:
@@ -1483,8 +1534,8 @@ cdef class SDContextParams:
         and VAE weights in system RAM while they still compute on the GPU.
         This is the upstream replacement for the removed `keep_clip_on_cpu` /
         `keep_vae_on_cpu` / `offload_params_to_cpu` flags, and unlike `max_vram`
-        it is a fixed placement rather than a per-graph budget. None when
-        unset."""
+        it is a fixed placement rather than a budget. Setting it disables
+        `auto_fit`. None when unset."""
         if self._params.params_backend:
             return self._params.params_backend.decode('utf-8')
         return None
@@ -3147,7 +3198,7 @@ cdef class SDContext:
         self._try_acquire_busy()
         try:
             with nogil:
-                ok = generate_video(ctx_ptr, vid_params_ptr, &result, &num_frames_out, &audio_out)
+                ok = generate_video(ctx_ptr, vid_params_ptr, &result, &num_frames_out, &audio_out, NULL)
         finally:
             self._busy_lock.release()
 
