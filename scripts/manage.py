@@ -1148,23 +1148,27 @@ class GgmlBuilder(Builder):
             options["GGML_OPENMP"] = "ON" if openmp == "1" else "OFF"
             self.log.info(f"  GGML_OPENMP={options['GGML_OPENMP']}")
 
+    def takes_ggml_patches(self) -> bool:
+        """True when ggml-*.patch apply to this tree; they target upstream ggml's layout."""
+        return True
+
     def _apply_source_patches(self) -> None:
         """Apply local fixes to the vendored source before building.
 
-        Two sets of ``scripts/patches/*.patch`` files are applied (with ``-p1``,
-        a/ b/ prefixes) to the cloned source tree: ``ggml-*.patch``, which fix
-        the ggml copy that every ggml-backed project vendors, and
+        Two sets of ``scripts/patches/*.patch`` files are applied (with
+        ``-p1``, a/ b/ prefixes) to the cloned source tree: ``ggml-*.patch``,
+        which fix the ggml copy that every ggml-backed project vendors, and
         ``<project>-*.patch`` (e.g. ``llama.cpp-*.patch``), which are specific
         to one upstream. The tree is wiped and re-fetched by ``make
-        reset``/``remake`` -- so these must run on every build. Each patch is
-        applied idempotently and is self-disabling: if it is already applied,
-        or no longer applies (e.g. upstream merged an equivalent fix or
-        refactored the context), it is skipped as a no-op. The ``.patch`` files
-        are the single source of truth and double as the upstream PR payload;
-        see scripts/patches/README.md for the rationale and upstream refs.
+        reset``/``remake`` -- so these must run on every build. An
+        already-applied patch is skipped; one that no longer applies fails the
+        build (see `_apply_patch`). The ``.patch`` files are the single source
+        of truth and double as the upstream PR payload; see
+        scripts/patches/README.md for the rationale and upstream refs.
         """
         patch_dir = Path(__file__).resolve().parent / "patches"
-        patches = sorted(patch_dir.glob("ggml-*.patch")) + sorted(patch_dir.glob(f"{self.name}-*.patch"))
+        ggml_patches = sorted(patch_dir.glob("ggml-*.patch")) if self.takes_ggml_patches() else []
+        patches = ggml_patches + sorted(patch_dir.glob(f"{self.name}-*.patch"))
         for patch in patches:
             self._apply_patch(patch)
 
@@ -1173,27 +1177,34 @@ class GgmlBuilder(Builder):
 
         Uses ``git apply`` (which works with or without a git repo) and its
         ``--check`` / ``--reverse --check`` dry-runs to decide between apply,
-        already-applied, and no-longer-applies -- without aborting the build in
-        the latter two cases (unlike ``self.cmd``).
+        already-applied, and no-longer-applies.
+
+        A patch that no longer applies is fatal. Skipping it ships the build
+        without the fix, which is how the Metal MSL pin was lost when llama.cpp
+        v0.4.0 moved the code it patched.
         """
 
-        def _git_apply(*flags: str) -> bool:
-            return (
-                subprocess.run(
-                    ["git", "apply", *flags, str(patch)],
-                    cwd=str(self.src_dir),
-                    capture_output=True,
-                ).returncode
-                == 0
+        def _git_apply(*flags: str) -> subprocess.CompletedProcess[str]:
+            return subprocess.run(
+                ["git", "apply", *flags, str(patch)],
+                cwd=str(self.src_dir),
+                capture_output=True,
+                text=True,
             )
 
-        if _git_apply("--check"):
+        check = _git_apply("--check")
+        if check.returncode == 0:
             subprocess.run(["git", "apply", str(patch)], cwd=str(self.src_dir), check=True)
             self.log.info(f"applied patch: {patch.name}")
-        elif _git_apply("--reverse", "--check"):
+        elif _git_apply("--reverse", "--check").returncode == 0:
             self.log.debug(f"patch already applied, skipping: {patch.name}")
         else:
-            self.log.info(f"patch no longer applies, skipping: {patch.name}")
+            self.fail(
+                f"{patch.name} no longer applies to {self.name} {self.version} ({self.src_dir}):\n"
+                f"{check.stderr.strip()}\n"
+                f"Rebase it onto this tree, or delete it if upstream fixed the defect, "
+                f"and record which in scripts/patches/README.md."
+            )
 
 
 class LlamaCppBuilder(GgmlBuilder):
@@ -1954,6 +1965,11 @@ class StableDiffusionCppBuilder(GgmlBuilder):
         """
         return os.environ.get("SD_USE_VENDORED_GGML", "0") == "0"
 
+    def takes_ggml_patches(self) -> bool:
+        # Shared mode compiles llama.cpp's already-patched tree. Vendored mode
+        # compiles leejet's fork, which upstream-ggml patches do not match.
+        return False
+
     def get_backend_cmake_options(self) -> dict[str, Any]:
         """CMake options for stable-diffusion.cpp (SD_* flag names, no BLAS)."""
         options: dict[str, Any] = {}
@@ -2037,8 +2053,6 @@ class StableDiffusionCppBuilder(GgmlBuilder):
         ggml_options = self._ggml_options()
         self._drop_build_dir_on_ggml_change(ggml_options)
 
-        # In shared mode the ggml-*.patch files land on SD's unused vendored
-        # ggml; llama.cpp's tree was already patched by LlamaCppBuilder.
         self._apply_source_patches()
 
         self.prefix.mkdir(exist_ok=True)

@@ -5,11 +5,14 @@ issue can be handled from the Cython wrapper layer, cyllama does that and the
 patch here is only a proposed upstream change. Where it cannot — e.g. a hard
 `GGML_ABORT`/`abort()` that no Python-level code can intercept — the fix is
 applied to the cloned source at build time by `GgmlBuilder._apply_source_patches()`
-in `scripts/manage.py` (idempotent, guarded to become a no-op once upstream merges).
+in `scripts/manage.py`. An already-applied patch is skipped. A patch that no
+longer applies fails the build with git's reason: rebase it, or delete it once
+upstream merges the fix.
 
-Naming decides where a patch lands. `ggml-*.patch` files are applied to every
-ggml-backed tree (llama.cpp, whisper.cpp, stable-diffusion.cpp), since each
-vendors its own ggml copy and shares its bugs. `<project>-*.patch` files
+Naming decides where a patch lands. `ggml-*.patch` files are applied to
+llama.cpp's and whisper.cpp's trees, which vendor upstream ggml. They are not
+applied to stable-diffusion.cpp: shared mode compiles llama.cpp's patched tree,
+and vendored mode compiles leejet's fork, whose layout they do not match. `<project>-*.patch` files
 (e.g. `llama.cpp-*.patch`) are applied only to that project's tree.
 
 `proposed/` holds patches that are **not** applied — the glob is non-recursive,
@@ -26,10 +29,11 @@ superproject does not — to undo a patch by hand there, run git from inside
 
 ### `ggml-metal-pin-msl-version-set-lang.patch`
 
-**Target:** `ggml/src/ggml-metal/ggml-metal-device.m` -- all three ggml trees:
-llama.cpp `v0.4.0`+, whisper.cpp `v1.9.4`+, and stable-diffusion.cpp's
-vendored copy. By default SD compiles llama.cpp's ggml via
-`SD_GGML_SOURCE_DIR`, so its own copy is unused.
+**Target:** `ggml/src/ggml-metal/ggml-metal-device.m` -- llama.cpp `v0.4.0`+
+and whisper.cpp `v1.9.4`+. By default SD compiles llama.cpp's ggml via
+`SD_GGML_SOURCE_DIR` and gets the pin from it. An `SD_USE_VENDORED_GGML=1`
+Metal build ships SD without it: the fork predates
+`ggml_metal_compile_options_set_lang()`.
 
 **Problem:** ggml compiles its embedded Metal shader library without setting
 `languageVersion` except on the tensor branch of
@@ -80,7 +84,8 @@ predecessor patch, which set the same ladder at the two bare
 
 **History:** that predecessor, `ggml-metal-pin-msl-version.patch`, stopped
 applying when llama.cpp `v0.4.0` introduced `ggml_metal_compile_options_set_lang()`.
-A skipped patch is silent, so this surfaced as nothing at all. It was removed
+A skipped patch was silent then, so this surfaced as nothing at all; a
+non-matching patch now fails the build. It was removed
 once whisper.cpp `v1.9.4`, the last tree on the old shape, adopted the new one.
 
 ### `stable-diffusion.cpp-msvc-bigobj.patch`

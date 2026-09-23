@@ -22,6 +22,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+### Changed
+
+- **A source patch that no longer applies now fails the build** with git's reason, instead of logging "no longer applies" and building without the fix. The llama.cpp v0.4.0 bump lost the Metal MSL pin that way until it was caught by hand. `ggml-*.patch` no longer go to stable-diffusion.cpp's vendored ggml: shared-ggml mode does not compile it, and vendored mode compiles leejet's fork, whose layout they do not match. Without this, every static-link GPU wheel build (`SD_USE_VENDORED_GGML=1`) would fail on the Metal patch. Tests: `tests/test_build_patches.py`.
+
 ## [0.5.0]
 
 ### Fixed
