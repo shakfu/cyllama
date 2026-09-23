@@ -2008,8 +2008,7 @@ class StableDiffusionCppBuilder(GgmlBuilder):
         llama_ggml = self.project.src / "llama.cpp" / "ggml"
         if not llama_ggml.exists():
             raise RuntimeError(
-                f"Cannot share ggml: {llama_ggml} is missing. Build llama.cpp first, "
-                f"or pass --sd-vendored-ggml."
+                f"Cannot share ggml: {llama_ggml} is missing. Build llama.cpp first, or pass --sd-vendored-ggml."
             )
         return {"SD_USE_UPSTREAM_GGML": True, "SD_GGML_SOURCE_DIR": str(llama_ggml)}
 
