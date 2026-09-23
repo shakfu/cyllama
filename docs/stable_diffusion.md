@@ -2,7 +2,7 @@
 
 Cyllama wraps [stable-diffusion.cpp](https://github.com/leejet/stable-diffusion.cpp) to provide image and video generation capabilities in Python.
 
-**Note**: Build with `WITH_STABLEDIFFUSION=1` to enable this module. By default, stable-diffusion.cpp shares llama.cpp's ggml, so every extension runs the same ggml version. To link SD's own vendored ggml instead, set `SD_USE_VENDORED_GGML=1`.
+**Note**: Build with `WITH_STABLEDIFFUSION=1` to enable this module. By default, stable-diffusion.cpp shares llama.cpp's ggml, so every extension runs the same ggml version. To link SD's own vendored ggml instead, set `SD_USE_VENDORED_GGML=1`; see [Stable Diffusion ggml selection](build_backends.md#stable-diffusion-ggml-selection).
 
 ## Overview
 

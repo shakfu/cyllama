@@ -1942,6 +1942,11 @@ class StableDiffusionCppBuilder(GgmlBuilder):
     def uses_shared_ggml() -> bool:
         """Return True when SD is configured to share llama.cpp's ggml.
 
+        ``SD_USE_VENDORED_GGML`` is the only switch for SD's ggml. Upstream's
+        ``SD_USE_UPSTREAM_GGML`` and ``SD_GGML_SOURCE_DIR`` are derived from it
+        in `_ggml_options` and are never set directly; see
+        docs/build_backends.md.
+
         Sharing is the default. Mirrors the resolution order in CMakeLists.txt:
         ``SD_USE_VENDORED_GGML`` defaults to OFF, and the env var overrides it
         only when set -- ``0`` keeps sharing, any other value opts back into
@@ -1975,19 +1980,22 @@ class StableDiffusionCppBuilder(GgmlBuilder):
         self._apply_openmp(options)
         return options
 
-    def _shared_ggml_options(self) -> dict[str, Any]:
-        """CMake options that compile SD against llama.cpp's ggml tree.
+    def _ggml_options(self) -> dict[str, Any]:
+        """CMake options selecting the ggml tree SD compiles against.
 
-        The extension links llama.cpp's ggml libs, so SD must compile against
-        the same headers or `ggml_op`/`ggml_type` enum values diverge and SD
-        builds graphs with wrong op ids. `SD_GGML_SOURCE_DIR` selects that tree;
-        `SD_USE_UPSTREAM_GGML` compiles out the calls into leejet's ggml fork
-        (INT8 ConvRot, native FP8, SageAttention), which upstream ggml lacks.
+        Shared mode: the extension links llama.cpp's ggml libs, so SD must
+        compile against the same headers or `ggml_op`/`ggml_type` enum values
+        diverge and SD builds graphs with wrong op ids. `SD_GGML_SOURCE_DIR`
+        selects that tree; `SD_USE_UPSTREAM_GGML` compiles out the calls into
+        leejet's ggml fork (INT8 ConvRot, native FP8, SageAttention), which
+        upstream ggml lacks.
 
-        The SD cmake tree is dropped on every build: its object paths are
-        relative to the ggml root, so objects built from a previous ggml tree
-        would otherwise be relinked as if current.
+        Both are CMake cache variables, so vendored mode passes them too:
+        omitting them keeps whatever an earlier shared configure cached.
         """
+        if not self.uses_shared_ggml():
+            return {"SD_USE_UPSTREAM_GGML": False, "SD_GGML_SOURCE_DIR": str(self.src_dir / "ggml")}
+
         # Both options arrived in master-883 (#1999). An older pin ignores them
         # and silently compiles the fork ggml, so fail instead.
         if not (self.src_dir / "cmake" / "ggml.cmake").exists():
@@ -1995,15 +2003,30 @@ class StableDiffusionCppBuilder(GgmlBuilder):
                 f"{self.name} {self.version} predates SD_GGML_SOURCE_DIR (master-883); "
                 f"it cannot be built against llama.cpp's ggml. Pin master-883 or later."
             )
+        # The extension links llama.cpp's ggml either way, so building SD's fork
+        # instead would leave fork-only symbols undefined and op ids mismatched.
         llama_ggml = self.project.src / "llama.cpp" / "ggml"
         if not llama_ggml.exists():
-            self.log.warning("Cannot share ggml: %s missing; SD builds its vendored ggml", llama_ggml)
-            return {}
-
-        if self.build_dir.exists():
-            self.remove(self.build_dir)
-            self.log.info("Dropped %s: it may hold objects from a different ggml tree", self.build_dir)
+            raise RuntimeError(
+                f"Cannot share ggml: {llama_ggml} is missing. Build llama.cpp first, "
+                f"or pass --sd-vendored-ggml."
+            )
         return {"SD_USE_UPSTREAM_GGML": True, "SD_GGML_SOURCE_DIR": str(llama_ggml)}
+
+    def _drop_build_dir_on_ggml_change(self, ggml_options: dict[str, Any]) -> None:
+        """Drop the SD cmake tree when its ggml options differ from the last configure.
+
+        Every ggml source tree compiles into the same `ggml/` binary dir, and
+        make compares only mtimes, so objects from the previous tree survive
+        whenever they are newer than the incoming sources.
+        """
+        stamp = self.build_dir / ".cyllama-ggml-options"
+        wanted = repr(sorted(ggml_options.items()))
+        if self.build_dir.exists() and not (stamp.exists() and stamp.read_text() == wanted):
+            self.remove(self.build_dir)
+            self.log.info("Dropped %s: it was configured against a different ggml", self.build_dir)
+        self.build_dir.mkdir(parents=True, exist_ok=True)
+        stamp.write_text(wanted)
 
     def build(self, shared: bool = False, examples: bool = True) -> None:
         """stable-diffusion.cpp main build function"""
@@ -2011,10 +2034,9 @@ class StableDiffusionCppBuilder(GgmlBuilder):
         self.log.info(f"building {self.name}")
 
         # Default path; --sd-vendored-ggml compiles and links SD's own ggml.
-        ggml_options: dict[str, Any] = {}
-        if self.uses_shared_ggml():
-            self._verify_ggml_max_name()
-            ggml_options = self._shared_ggml_options()
+        self._verify_ggml_max_name()  # no-op in vendored mode
+        ggml_options = self._ggml_options()
+        self._drop_build_dir_on_ggml_change(ggml_options)
 
         # In shared mode the ggml-*.patch files land on SD's unused vendored
         # ggml; llama.cpp's tree was already patched by LlamaCppBuilder.
@@ -2876,7 +2898,8 @@ class Application(ShellCmd, metaclass=MetaCommander):
     )
     @option(
         "--sd-vendored-ggml",
-        help="link stable-diffusion against its own vendored ggml instead of llama.cpp's",
+        help="fallback: build and link stable-diffusion's own ggml fork instead of llama.cpp's "
+        "(sets SD_USE_VENDORED_GGML=1)",
         action="store_true",
     )
     @option(
@@ -3343,7 +3366,7 @@ class Application(ShellCmd, metaclass=MetaCommander):
 
         stable-diffusion.cpp is special-cased: its committed ggml/gguf headers
         come from llama.cpp, not from sd's own vendored copy, because
-        `_shared_ggml_options` builds SD against llama.cpp's ggml tree.
+        `_ggml_options` builds SD against llama.cpp's ggml tree.
         They are therefore checked against the llama.cpp clone. This reflects
         the default build; `SD_USE_VENDORED_GGML=1` is not what ships.
         """

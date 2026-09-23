@@ -117,7 +117,22 @@ These flags apply uniformly to all components (llama.cpp, whisper.cpp, stable-di
 | `GGML_SYCL` | `0` | Intel SYCL (oneAPI) |
 | `GGML_HIP` | `0` | AMD ROCm/HIP |
 | `GGML_OPENCL` | `0` | OpenCL (Adreno, mobile GPUs) |
-| `SD_USE_VENDORED_GGML` | `0` | Share llama.cpp's ggml with stable-diffusion (set to `1` to link SD's own vendored copy instead) |
+| `SD_USE_VENDORED_GGML` | `0` | Which ggml stable-diffusion.cpp uses; see [Stable Diffusion ggml selection](#stable-diffusion-ggml-selection) |
+
+### Stable Diffusion ggml selection
+
+`SD_USE_VENDORED_GGML` is the only switch that selects stable-diffusion.cpp's ggml. `manage.py build --sd-vendored-ggml` sets it to `1`.
+
+| `SD_USE_VENDORED_GGML` | ggml tree SD compiles | `SD_USE_UPSTREAM_GGML` | Use |
+|------------------------|-----------------------|------------------------|-----|
+| `0` (default) | llama.cpp's (`build/llama.cpp/ggml`) | `ON` | Normal builds and release wheels. llama.cpp and SD use one ggml. |
+| `1` | SD's fork (`build/stable-diffusion.cpp/ggml`) | `OFF` | Fallback when llama.cpp's ggml does not work with SD. The static CI builds also use it. |
+
+Do not set `SD_USE_UPSTREAM_GGML` or `SD_GGML_SOURCE_DIR` yourself. `scripts/manage.py` derives both from `SD_USE_VENDORED_GGML` and passes both on every build. Both are CMake cache variables, so passing them explicitly keeps an earlier build's cached values from overriding the switch. The SD build dir is dropped when the switch changes.
+
+Mode `0` loses the features that need SD's ggml fork: INT8 ConvRot model files are rejected, FP8 safetensors load as F16, and SageAttention is unavailable. Mode `1` restores them.
+
+`scripts/make_xcframework.py` supports only mode `0`, because the xcframeworks ship one `Ggml.framework`.
 
 ## Backend Requirements
 

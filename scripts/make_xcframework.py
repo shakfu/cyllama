@@ -178,6 +178,13 @@ def ensure_dylibs() -> None:
 
     Idempotent: skips any project whose dylib is already present.
     """
+    # SD_USE_VENDORED_GGML is the only ggml switch for SD; see
+    # docs/build_backends.md. Fail rather than silently override it.
+    if os.environ.get("SD_USE_VENDORED_GGML", "0") != "0":
+        fail(
+            "SD_USE_VENDORED_GGML=1 is not supported here: the xcframeworks ship one "
+            "Ggml.framework built from llama.cpp, and libstable-diffusion links it."
+        )
     env = {**os.environ, "SD_USE_VENDORED_GGML": "0"}
 
     # Ensure source trees are cloned. manage.py's --deps-only path runs
@@ -262,11 +269,15 @@ def ensure_dylibs() -> None:
                 "-DSD_BUILD_SHARED_LIBS=ON",
                 "-DSD_BUILD_SHARED_GGML_LIB=ON",
                 "-DSD_BUILD_EXAMPLES=OFF",
-                "-DSD_USE_UPSTREAM_GGML=ON",  # llama.cpp's ggml lacks leejet's fork ops
+                # Shared-mode values of the options StableDiffusionCppBuilder._ggml_options
+                # derives from SD_USE_VENDORED_GGML. Setting the source dir, instead of
+                # copying over SD's ggml/, keeps SD's fork intact for vendored builds.
+                "-DSD_USE_UPSTREAM_GGML=ON",
+                f"-DSD_GGML_SOURCE_DIR={LLAMA_SRC / 'ggml'}",
                 "-DGGML_METAL_EMBED_LIBRARY=ON",
                 "-DGGML_BACKEND_DL=OFF",
             ],
-            sync_ggml_from=LLAMA_SRC / "ggml",
+            sync_ggml_from=None,
             collect_globs=["**/libstable-diffusion*.dylib"],
             require=["libstable-diffusion.dylib"],
         )

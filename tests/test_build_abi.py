@@ -115,29 +115,35 @@ def _staged_sd(manage, tmp_path, monkeypatch):
     builder = manage.StableDiffusionCppBuilder()
     monkeypatch.setattr(builder.project, "src", src)
     monkeypatch.setattr(type(builder), "src_dir", property(lambda self: sd_dir))
+    monkeypatch.delenv("SD_USE_VENDORED_GGML", raising=False)
     return builder, sd_dir
 
 
 def test_shared_ggml_points_sd_at_llama_ggml(manage, tmp_path, monkeypatch):
     """SD must compile llama.cpp's ggml, with fork-only calls compiled out."""
-    builder, sd_dir = _staged_sd(manage, tmp_path, monkeypatch)
+    builder, _ = _staged_sd(manage, tmp_path, monkeypatch)
 
-    options = builder._shared_ggml_options()
-
-    assert options == {
+    assert builder._ggml_options() == {
         "SD_USE_UPSTREAM_GGML": True,
         "SD_GGML_SOURCE_DIR": str(builder.project.src / "llama.cpp" / "ggml"),
     }
-    assert not (sd_dir / "build").exists(), "cmake tree survived; it may hold objects from another ggml tree"
 
 
-def test_missing_llama_ggml_falls_back_to_vendored(manage, tmp_path, monkeypatch):
-    """No llama.cpp ggml means SD builds its own, and nothing was invalidated."""
+def test_vendored_ggml_overrides_cached_options(manage, tmp_path, monkeypatch):
+    """Both options are CMake cache variables; omitting them keeps a shared configure's values."""
     builder, sd_dir = _staged_sd(manage, tmp_path, monkeypatch)
+    monkeypatch.setenv("SD_USE_VENDORED_GGML", "1")
+
+    assert builder._ggml_options() == {"SD_USE_UPSTREAM_GGML": False, "SD_GGML_SOURCE_DIR": str(sd_dir / "ggml")}
+
+
+def test_missing_llama_ggml_is_rejected(manage, tmp_path, monkeypatch):
+    """The extension links llama.cpp's ggml, so SD must not fall back to its fork."""
+    builder, _ = _staged_sd(manage, tmp_path, monkeypatch)
     (builder.project.src / "llama.cpp").rename(builder.project.src / "llama.cpp.gone")
 
-    assert builder._shared_ggml_options() == {}
-    assert (sd_dir / "build" / "ggml-metal-device.m.o").exists()
+    with pytest.raises(RuntimeError, match="--sd-vendored-ggml"):
+        builder._ggml_options()
 
 
 def test_pre_1999_pin_is_rejected(manage, tmp_path, monkeypatch):
@@ -146,7 +152,39 @@ def test_pre_1999_pin_is_rejected(manage, tmp_path, monkeypatch):
     (sd_dir / "cmake" / "ggml.cmake").unlink()
 
     with pytest.raises(RuntimeError, match="master-883"):
-        builder._shared_ggml_options()
+        builder._ggml_options()
+
+
+def test_build_dir_survives_unchanged_ggml_options(manage, tmp_path, monkeypatch):
+    """Same ggml as the last configure: keep the objects for an incremental build."""
+    builder, sd_dir = _staged_sd(manage, tmp_path, monkeypatch)
+    builder._drop_build_dir_on_ggml_change(builder._ggml_options())
+    (sd_dir / "build" / "sd.o").write_text("object")
+
+    builder._drop_build_dir_on_ggml_change(builder._ggml_options())
+
+    assert (sd_dir / "build" / "sd.o").exists()
+
+
+def test_build_dir_is_dropped_when_ggml_options_change(manage, tmp_path, monkeypatch):
+    """Objects from the previous ggml tree must not be relinked against the new one."""
+    builder, sd_dir = _staged_sd(manage, tmp_path, monkeypatch)
+    builder._drop_build_dir_on_ggml_change(builder._ggml_options())
+    (sd_dir / "build" / "ggml-metal-device.m.o").write_text("shared-mode object")
+    monkeypatch.setenv("SD_USE_VENDORED_GGML", "1")
+
+    builder._drop_build_dir_on_ggml_change(builder._ggml_options())
+
+    assert not (sd_dir / "build" / "ggml-metal-device.m.o").exists()
+
+
+def test_unstamped_build_dir_is_dropped(manage, tmp_path, monkeypatch):
+    """A build dir from before the stamp existed has unknown ggml provenance."""
+    builder, sd_dir = _staged_sd(manage, tmp_path, monkeypatch)
+
+    builder._drop_build_dir_on_ggml_change(builder._ggml_options())
+
+    assert not (sd_dir / "build" / "ggml-metal-device.m.o").exists()
 
 
 def test_backend_dl_is_off_on_darwin(manage, monkeypatch):

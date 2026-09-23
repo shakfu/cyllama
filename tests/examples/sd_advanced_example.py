@@ -29,14 +29,13 @@ def example_with_callbacks(model_path: str):
     """Demonstrate progress and log callbacks."""
     print("\n=== Example: Progress and Log Callbacks ===\n")
 
-    from cyllama.sd import SDContext, SDContextParams, set_log_callback, set_progress_callback
+    from cyllama.sd import LogLevel, SDContext, SDContextParams, set_log_callback, set_progress_callback
 
     # Set up log callback
     def log_callback(level, text):
-        level_names = {0: "DEBUG", 1: "INFO", 2: "WARN", 3: "ERROR"}
         # Only show INFO and above
-        if level >= 1:
-            print(f"[{level_names.get(level, level)}] {text}", end="")
+        if level >= LogLevel.INFO:
+            print(f"[{level.name}] {text}", end="")
 
     set_log_callback(log_callback)
 

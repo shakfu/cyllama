@@ -155,6 +155,8 @@ WITH_STABLEDIFFUSION=1 make build
 SD_USE_VENDORED_GGML=1 make build
 ```
 
+`SD_USE_VENDORED_GGML` is the only ggml switch for SD. See [Stable Diffusion ggml selection](build_backends.md#stable-diffusion-ggml-selection).
+
 **Whisper support** (included by default):
 
 ```bash

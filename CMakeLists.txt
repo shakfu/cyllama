@@ -8,6 +8,9 @@ project(cyllama LANGUAGES C CXX)
 option(WITH_WHISPER "Build whisper.cpp wrapper" ON)
 option(WITH_STABLEDIFFUSION "Build stable-diffusion.cpp wrapper" ON)
 option(WITH_DYLIB "Use dynamic libraries instead of static" OFF)
+# SD_USE_VENDORED_GGML is the only switch for stable-diffusion.cpp's ggml.
+# scripts/manage.py derives SD's SD_USE_UPSTREAM_GGML and SD_GGML_SOURCE_DIR
+# from it; see docs/build_backends.md.
 option(SD_USE_VENDORED_GGML "Link stable-diffusion against its own vendored ggml" OFF)
 option(CYLLAMA_ABI3 "Build extensions against the CPython stable ABI (abi3, >= 3.12)" OFF)
 

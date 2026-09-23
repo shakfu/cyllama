@@ -24,6 +24,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [0.5.0]
 
+### Fixed
+
+- **`--sd-vendored-ggml` after a shared build compiled llama.cpp's ggml.** `SD_GGML_SOURCE_DIR` and `SD_USE_UPSTREAM_GGML` are CMake cache variables, and only shared mode passed them, so a vendored build silently reused the cached shared values. Both modes now pass them. The SD build dir is dropped only when these options change, not on every build, which removes a full SD and ggml rebuild per `make`.
+
+- **Shared-ggml SD builds now fail when llama.cpp's ggml is missing.** They used to warn and compile SD's fork ggml, which the extension cannot link: it links llama.cpp's ggml, which lacks the fork-only symbols.
+
+- `tests/examples/sd_example.py` and `sd_advanced_example.py` compared log levels by number, so the 0.5.0 `LogLevel` shift let INFO through the warnings-only filter.
+
 ### Added
 
 - `ChromaVectorStore.delete()` and `QdrantVectorStore.delete()`, matching the sqlite and pgvector stores. Their absence failed the source-dedup conformance tests added in 0.4.9 on the chroma and qdrant CI legs. `delete` is still not part of `VectorStoreProtocol`.

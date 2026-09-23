@@ -101,7 +101,7 @@ def main():
 
     # Import stable diffusion module
     try:
-        from cyllama.sd import SDContext, SDContextParams, SampleMethod, Scheduler, set_log_callback
+        from cyllama.sd import LogLevel, SDContext, SDContextParams, SampleMethod, Scheduler, set_log_callback
     except ImportError as e:
         print(f"Error: Could not import stable diffusion module: {e}")
         print("Make sure cyllama is built with WITH_STABLEDIFFUSION=1")
@@ -111,16 +111,14 @@ def main():
     if args.verbose:
 
         def log_callback(level, text):
-            level_names = {0: "DEBUG", 1: "INFO", 2: "WARN", 3: "ERROR"}
-            print(f"[{level_names.get(level, level)}] {text}", end="")
+            print(f"[{level.name}] {text}", end="")
 
         set_log_callback(log_callback)
     else:
         # Only show warnings and errors
         def log_callback(level, text):
-            if level >= 2:
-                level_names = {2: "WARN", 3: "ERROR"}
-                print(f"[{level_names.get(level, level)}] {text}", end="")
+            if level >= LogLevel.WARN:
+                print(f"[{level.name}] {text}", end="")
 
         set_log_callback(log_callback)
 
