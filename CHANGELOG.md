@@ -22,6 +22,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+## [0.5.0]
+
 ### Added
 
 - `ChromaVectorStore.delete()` and `QdrantVectorStore.delete()`, matching the sqlite and pgvector stores. Their absence failed the source-dedup conformance tests added in 0.4.9 on the chroma and qdrant CI legs. `delete` is still not part of `VectorStoreProtocol`.
