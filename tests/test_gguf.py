@@ -191,3 +191,42 @@ if __name__ == "__main__":
     test_gguf_remove_key()
     test_gguf_key_not_found()
     print("\nAll GGUF tests passed!")
+
+
+def test_gguf_from_fileobj_embedded_metadata_only(tmp_path):
+    """A metadata-only GGUF (zero tensors) loads from an offset in a larger file."""
+    src = GGUFContext.empty()
+    src.set_val_str("test.string", "hello")
+    src.set_val_u32("test.number", 42)
+    single = tmp_path / "meta.gguf"
+    src.write_to_file(str(single))
+
+    bundle = tmp_path / "bundle.bin"
+    bundle.write_bytes(b"\xab" * 100 + single.read_bytes() + b"\xcd" * 16)
+
+    with open(bundle, "rb") as f:
+        with GGUFContext.from_fileobj(f, offset=100) as ctx:
+            assert ctx.n_tensors == 0
+            assert ctx.get_value("test.string") == "hello"
+            assert ctx.get_value("test.number") == 42
+            # offsets are relative to the containing file
+            assert ctx.data_offset >= 100
+        assert f.tell() == 0
+
+
+def test_gguf_from_fileobj_matches_from_file(model_path):
+    with open(model_path, "rb") as f:
+        ctx_fd = GGUFContext.from_fileobj(f)
+    ctx_file = GGUFContext.from_file(model_path)
+    assert (ctx_fd.n_tensors, ctx_fd.n_kv, ctx_fd.data_offset) == (
+        ctx_file.n_tensors,
+        ctx_file.n_kv,
+        ctx_file.data_offset,
+    )
+
+
+def test_gguf_from_fileobj_garbage_raises(tmp_path):
+    path = tmp_path / "junk.bin"
+    path.write_bytes(b"\0" * 64)
+    with open(path, "rb") as f, pytest.raises(IOError):
+        GGUFContext.from_fileobj(f)

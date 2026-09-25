@@ -10,6 +10,7 @@ test_mtmd_video_batch.py respectively, since they need their own models.
 """
 
 import gc
+import re
 from pathlib import Path
 
 import pytest
@@ -311,6 +312,9 @@ class TestSystemInfo:
         info = cy.llama_print_system_info()
         assert isinstance(info, str)
         assert len(info) > 0
+
+    def test_llama_version_format(self):
+        assert re.fullmatch(r"\d+\.\d+\.\d+(-\w+)?", cy.llama_version())
 
 
 # =============================================================================

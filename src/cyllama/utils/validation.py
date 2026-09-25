@@ -119,33 +119,53 @@ def validate_gguf_file(path: str, *, kind: str = "GGUF model") -> None:
     except OSError as e:
         raise PermissionError(f"failed to read {kind} header from {path}: {e}") from e
 
+    check_gguf_header(header, path)
+
+
+def check_gguf_header(header: bytes, source: str) -> None:
+    """Validate the first 24 bytes of a GGUF stream.
+
+    Args:
+        header: Bytes read from the start of the GGUF data.
+        source: Label for error messages (a path, or "fd 5 at offset 64").
+
+    Raises:
+        ValueError: if the magic, version or header counts are invalid.
+    """
     if len(header) < 24:
         raise ValueError(
-            f"{path} is too small to contain a valid GGUF header "
+            f"{source} is too small to contain a valid GGUF header "
             f"(need at least 24 bytes, got {len(header)}). "
             "The file is truncated or not a GGUF file."
         )
 
     # Layout: char[4] magic | uint32 version | uint64 tensor_count | uint64 kv_count
     # All little-endian per the GGUF spec.
-    _magic, version, tensor_count, kv_count = struct.unpack("<4sIQQ", header)
+    magic, version, tensor_count, kv_count = struct.unpack("<4sIQQ", header)
+
+    if magic != GGUF_MAGIC:
+        raise ValueError(
+            f"{source} does not look like a valid GGUF file "
+            f"(expected magic {GGUF_MAGIC!r}, got {magic!r}). "
+            "The data may be corrupt, truncated, or in a different format."
+        )
 
     if version not in GGUF_KNOWN_VERSIONS:
         raise ValueError(
-            f"{path} has unsupported GGUF version {version} "
+            f"{source} has unsupported GGUF version {version} "
             f"(this build understands versions {GGUF_KNOWN_VERSIONS}). "
             "The file may be corrupt or produced by a much newer tool."
         )
 
     if tensor_count == 0 or tensor_count > GGUF_MAX_TENSORS:
         raise ValueError(
-            f"{path} has implausible GGUF tensor_count={tensor_count} "
+            f"{source} has implausible GGUF tensor_count={tensor_count} "
             f"(expected 1..{GGUF_MAX_TENSORS}). The file is corrupt or truncated."
         )
 
     if kv_count > GGUF_MAX_KV_PAIRS:
         raise ValueError(
-            f"{path} has implausible GGUF kv_count={kv_count} "
+            f"{source} has implausible GGUF kv_count={kv_count} "
             f"(expected 0..{GGUF_MAX_KV_PAIRS}). The file is corrupt or truncated."
         )
 

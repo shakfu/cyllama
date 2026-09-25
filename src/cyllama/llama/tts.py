@@ -14,6 +14,9 @@ from typing import Any, Dict, List, Optional, Tuple, cast
 from ..defaults import DEFAULT_N_GPU_LAYERS
 from . import llama_cpp as cy
 
+# WavTokenizer codebook size; OuteTTS writes code i as the token <|i|>
+_N_AUDIO_CODES = 4096
+
 
 def save_wav16(filename: str, data: List[float], sample_rate: int) -> bool:
     """Save audio data as 16-bit WAV file"""
@@ -124,7 +127,10 @@ def prepare_guide_tokens(vocab: Any, text: str, tts_version: str = "0.2") -> Lis
 
 
 class TTSGenerator:
-    """Text-to-Speech generator using OuteTTS models"""
+    """Text-to-speech with an OuteTTS 0.2/0.3 model and the WavTokenizer vocoder.
+
+    OuteTTS 1.0 uses a different audio codec and is rejected at load.
+    """
 
     def __init__(
         self,
@@ -136,18 +142,17 @@ class TTSGenerator:
         n_predict: int = 4096,
         speaker_file: Optional[str] = None,
         use_guide_tokens: bool = True,
-        guide_token_id: int = 198,
-        audio_code_range: Tuple[int, int] = (151672, 155772),
+        guide_token_id: Optional[int] = None,
+        audio_code_range: Optional[Tuple[int, int]] = None,
     ):
         """Initialize TTS with models and parameters.
 
         Args:
-            guide_token_id: Token ID that precedes a new word (default: 198, newline for OuteTTS).
-            audio_code_range: (start, end) inclusive range of audio code token IDs
-                (default: (151672, 155772) for OuteTTS).
+            guide_token_id: Token ID that precedes a new word. Defaults to the
+                text model's newline token.
+            audio_code_range: (start, end) inclusive token IDs of the audio codes.
+                Defaults to the ids of ``<|0|>`` .. ``<|4095|>`` in the text model.
         """
-        self.guide_token_id = guide_token_id
-        self.audio_code_range = audio_code_range
 
         # Load dynamic backends
         cy.ggml_backend_load_all()
@@ -157,6 +162,17 @@ class TTSGenerator:
         model_params.n_gpu_layers = ngl
         self.model_ttc = cy.LlamaModel(ttc_model_path, model_params)
         self.vocab = self.model_ttc.get_vocab()
+
+        # OuteTTS variants use different base vocabularies (Qwen2 for 0.2 and
+        # 0.3-500M, OLMo for 0.3-1B), so both ids come from the loaded vocab.
+        self.guide_token_id = guide_token_id if guide_token_id is not None else self._single_token("\n")
+        if audio_code_range is None:
+            audio_code_range = (self._single_token("<|0|>"), self._single_token(f"<|{_N_AUDIO_CODES - 1}|>"))
+            if audio_code_range[1] - audio_code_range[0] != _N_AUDIO_CODES - 1:
+                raise ValueError(
+                    f"{ttc_model_path}: audio code tokens are not contiguous; is this an OuteTTS 0.2/0.3 model?"
+                )
+        self.audio_code_range = audio_code_range
 
         # Initialize text-to-codes context
         ctx_params = cy.LlamaContextParams()
@@ -203,6 +219,14 @@ class TTSGenerator:
             self.load_speaker(speaker_file)
         else:
             self.setup_default_speaker()
+
+    def _single_token(self, text: str) -> int:
+        tokens = self.vocab.tokenize(text, False, True)
+        if len(tokens) != 1:
+            raise ValueError(
+                f"{text!r} is not a single token in the text-to-codes model; is this an OuteTTS 0.2/0.3 model?"
+            )
+        return tokens[0]
 
     def load_speaker(self, speaker_file: str) -> None:
         """Load speaker profile from JSON file"""
@@ -433,8 +457,8 @@ lovely<|t_0.56|><|code_start|><|634|><|596|><|1766|><|1556|><|1306|><|1285|><|14
         except (UnicodeDecodeError, ValueError, AttributeError):
             pass
 
-        # Filter to audio codes only (token range 151672-155772) - matches C++ line 1003
-        audio_codes = [t for t in codes if 151672 <= t <= 155772]
+        lo, hi = self.audio_code_range
+        audio_codes = [t for t in codes if lo <= t <= hi]
         print(f"Filtered to {len(audio_codes)} audio codes for vocoder")
 
         # Debug: Show filtered audio text
@@ -444,8 +468,8 @@ lovely<|t_0.56|><|code_start|><|634|><|596|><|1766|><|1556|><|1306|><|1285|><|14
         except (UnicodeDecodeError, ValueError, AttributeError):
             pass
 
-        # Adjust token values for vocoder input (matches C++ lines 1011-1013)
-        adjusted_codes = [t - 151672 for t in audio_codes]
+        # Vocoder input is the code index, 0 .. _N_AUDIO_CODES - 1
+        adjusted_codes = [t - lo for t in audio_codes]
 
         return adjusted_codes
 
@@ -466,20 +490,14 @@ lovely<|t_0.56|><|code_start|><|634|><|596|><|1766|><|1556|><|1306|><|1285|><|14
             return []
 
         # Get embeddings for all tokens at once
-        n_embd = self.model_cts.n_embd
+        # WavTokenizer's output rows are n_embd_out wide, not n_embd
+        n_embd = self.model_cts.n_embd_out
 
         try:
-            # Try to get all embeddings at once (should be n_codes * n_embd floats)
-            embeddings = self.context_cts.get_embeddings()
-            # If we got fewer embeddings than expected, collect them individually (slower fallback)
-            if len(embeddings) < n_codes * n_embd:
-                print(f"Collecting embeddings for {n_codes} audio codes...")
-                embeddings = []
-                for i in range(n_codes):
-                    if i % 100 == 0 and i > 0:
-                        print(f"Processing audio code {i}/{n_codes}")
-                    token_embeddings = self.context_cts.get_embeddings_ith(i)
-                    embeddings.extend(token_embeddings)
+            # One row per code; get_embeddings() returns only the first row
+            embeddings = []
+            for i in range(n_codes):
+                embeddings.extend(self.context_cts.get_embeddings_ith(i))
         except Exception as e:
             print(f"Error getting embeddings: {e}")
             return []

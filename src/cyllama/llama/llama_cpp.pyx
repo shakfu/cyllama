@@ -5,6 +5,7 @@
 from libc.stdint cimport uint8_t, int32_t, int64_t, uint32_t, uint64_t
 from libc.string cimport strlen
 from libc.stdlib cimport malloc, calloc, realloc, free
+from libc.stdio cimport FILE, fdopen, fclose
 from libcpp.vector cimport vector as std_vector
 from libcpp.string cimport string as std_string
 from libcpp.set cimport set as std_set
@@ -15,8 +16,11 @@ cimport llama
 cimport gguf
 
 
+import io
 import os
+import stat
 import traceback
+import weakref
 # from enum import Enum
 from typing import Optional, Sequence, Callable
 
@@ -1877,6 +1881,77 @@ cdef class LlamaVocab:
         return result.lstrip()
 
 
+cdef class _GgufFileHandle:
+    """C ``FILE*`` over a dup of a caller's fd, positioned at a GGUF offset.
+
+    llama.cpp borrows the ``FILE*`` only for the duration of the load call.
+    ``close()`` releases it and restores the fd's OS offset, which the dup
+    shares. The raw offset is restored, not ``fileobj.seek()``: a buffered
+    reader may satisfy that seek from its buffer without an ``lseek``.
+    """
+    cdef FILE * fp
+    cdef int fd
+    cdef object saved
+
+    def __cinit__(self):
+        self.fp = NULL
+        self.fd = -1
+        self.saved = None
+
+    def __init__(self, fileobj, offset, str kind, bint check_header=True):
+        from cyllama.utils.validation import check_gguf_header
+
+        if isinstance(fileobj, io.TextIOBase):
+            raise TypeError(f"{kind} file must be opened in binary mode")
+        if isinstance(fileobj, int):
+            fd = fileobj
+        else:
+            fd = fileobj.fileno()
+            flush = getattr(fileobj, "flush", None)
+            if flush is not None:
+                flush()
+
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode):
+            raise ValueError(f"{kind} fd {fd} is not a regular file")
+
+        saved = os.lseek(fd, 0, os.SEEK_CUR)
+        if offset is None:
+            offset = saved if isinstance(fileobj, int) else fileobj.tell()
+        if not 0 <= offset < st.st_size:
+            raise ValueError(f"{kind} offset {offset} is outside fd {fd} (size {st.st_size})")
+
+        self.fd = fd
+        self.saved = saved
+        try:
+            if check_header:
+                os.lseek(fd, offset, os.SEEK_SET)
+                check_gguf_header(os.read(fd, 24), f"{kind} fd {fd} at offset {offset}")
+            os.lseek(fd, offset, os.SEEK_SET)
+
+            dup_fd = os.dup(fd)
+            self.fp = fdopen(dup_fd, "rb")
+            if self.fp is NULL:
+                os.close(dup_fd)
+                raise OSError(f"fdopen failed for {kind} fd {fd}")
+        except BaseException:
+            self.close()
+            raise
+
+    def close(self):
+        if self.fp is not NULL:
+            fclose(self.fp)
+            self.fp = NULL
+        if self.saved is not None:
+            saved, self.saved = self.saved, None
+            os.lseek(self.fd, saved, os.SEEK_SET)
+
+    def __dealloc__(self):
+        if self.fp is not NULL:
+            fclose(self.fp)
+            self.fp = NULL
+
+
 cdef class LlamaModel:
     """cython wrapper for llama.llama_model."""
     cdef llama.llama_model * ptr
@@ -1959,6 +2034,49 @@ cdef class LlamaModel:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
         return False
+
+    @staticmethod
+    def from_fileobj(fileobj, offset: Optional[int] = None,
+                     params: Optional[LlamaModelParams] = None,
+                     verbose: bool = True) -> LlamaModel:
+        """Load a model from an open binary file or fd.
+
+        The GGUF may be embedded in a larger file. The caller's file
+        position is unchanged on return.
+
+        Args:
+            fileobj: Binary file object with ``fileno()``, or an int fd.
+            offset: Byte offset of the GGUF. Defaults to the current position.
+            params: Model parameters.
+            verbose: Stored on the model, as for the path constructor.
+
+        Returns:
+            LlamaModel: The loaded model.
+
+        Raises:
+            TypeError: If ``fileobj`` is a text-mode file.
+            ValueError: If the fd is not a regular file, the offset is out of
+                range, the GGUF header is invalid, or llama.cpp fails to load.
+        """
+        cdef LlamaModel model = LlamaModel.__new__(LlamaModel)
+        cdef _GgufFileHandle fh = _GgufFileHandle(fileobj, offset, "GGUF model")
+        name = getattr(fileobj, "name", None)
+        model.path_model = name if isinstance(name, str) else None
+        model.params = params if params else LlamaModelParams()
+        model.verbose = verbose
+        try:
+            model.ptr = llama.llama_model_load_from_file_ptr(fh.fp, model.params.p)
+        finally:
+            fh.close()
+        if model.ptr is NULL:
+            raise ValueError(
+                "Failed to load model from file object. The header passed "
+                "format checks but llama.cpp could not load it. With mmap, the "
+                "GGUF data section must sit at a 32-byte aligned file offset. "
+                "Run with verbose=True to see detailed errors from llama.cpp."
+            )
+        model._initialize_cache()
+        return model
 
     @staticmethod
     cdef LlamaModel from_ptr(llama.llama_model *ptr, bint owner=False):
@@ -2149,6 +2267,34 @@ cdef class LlamaModel:
             raise ValueError(f"Failed to load LoRA adapter from: {path_lora}")
         # Pass self so the adapter keeps this model alive: the model's
         # destructor deletes every adapter registered to it.
+        return LlamaAdapterLora.from_ptr(ptr, False, self)
+
+    def lora_adapter_init_from_fileobj(self, fileobj, offset: Optional[int] = None) -> LlamaAdapterLora:
+        """Load a LoRA adapter from an open binary file or fd.
+
+        Ownership is as for :meth:`lora_adapter_init`. The caller's file
+        position is unchanged on return.
+
+        Args:
+            fileobj: Binary file object with ``fileno()``, or an int fd.
+            offset: Byte offset of the GGUF. Defaults to the current position.
+
+        Returns:
+            LlamaAdapterLora: The loaded LoRA adapter.
+
+        Raises:
+            TypeError: If ``fileobj`` is a text-mode file.
+            ValueError: If the fd is not a regular file, the offset is out of
+                range, the GGUF header is invalid, or llama.cpp fails to load.
+        """
+        cdef _GgufFileHandle fh = _GgufFileHandle(fileobj, offset, "LoRA adapter")
+        cdef llama.llama_adapter_lora * ptr
+        try:
+            ptr = llama.llama_adapter_lora_init_from_file_ptr(self.ptr, fh.fp)
+        finally:
+            fh.close()
+        if ptr is NULL:
+            raise ValueError("Failed to load LoRA adapter from file object")
         return LlamaAdapterLora.from_ptr(ptr, False, self)
  
     # metadata
@@ -2430,17 +2576,34 @@ cdef class LlamaContext:
     # keeps those pointers valid even for an adapter borrowed from a
     # model other than self.model.
     cdef object _lora_adapters
+    # seq_id -> LlamaSampler attached for backend sampling. llama.cpp keeps
+    # only the raw chain pointer, so these wrappers must outlive self.ptr.
+    cdef object _backend_samplers
+    # LlamaSampler binds to its context by weak reference
+    cdef object __weakref__
 
     def __cinit__(self):
         self.ptr = NULL
         self.owner = True
         self.n_tokens = 0
+        self._backend_samplers = {}
         self._cancel_flag = 0
         self._abort_callback = None
         self._threadpool = None
         self._threadpool_batch = None
 
-    def __init__(self, model: LlamaModel, params: Optional[LlamaContextParams] = None, verbose: bool = True):
+    def __init__(self, model: LlamaModel, params: Optional[LlamaContextParams] = None, verbose: bool = True,
+                 samplers=None):
+        """Create a context for ``model``.
+
+        Args:
+            model: The loaded model.
+            params: Context parameters.
+            verbose: Stored on the context.
+            samplers: Optional mapping of seq_id to :class:`LlamaSampler`
+                chain for backend sampling [EXPERIMENTAL]. Equivalent to
+                :meth:`set_sampler` per entry, but avoids a graph re-reserve.
+        """
         if model is None:
             raise ValueError("model cannot be None")
         if not isinstance(model, LlamaModel):
@@ -2482,7 +2645,42 @@ cdef class LlamaContext:
                     "rather than return NULL on extreme OOM.)"
                 )
 
-        self.ptr = llama.llama_init_from_model(self.model.ptr, self.params.p)
+        cdef llama.llama_context_params cparams = self.params.p
+        cdef llama.llama_sampler_seq_config * configs = NULL
+        cdef LlamaSampler smpl
+        cdef Py_ssize_t k
+        entries = []
+        if samplers:
+            entries = [(seq_id, self._check_backend_sampler(seq_id, sampler))
+                       for seq_id, sampler in dict(samplers).items()]
+            if len({id(e[1]) for e in entries}) != len(entries):
+                raise ValueError("the same sampler was given for more than one seq_id")
+            configs = <llama.llama_sampler_seq_config *>malloc(
+                len(entries) * sizeof(llama.llama_sampler_seq_config))
+            if configs is NULL:
+                raise MemoryError("Failed to allocate backend sampler configs")
+            for k in range(len(entries)):
+                smpl = entries[k][1]
+                configs[k].seq_id = entries[k][0]
+                configs[k].sampler = smpl.ptr
+                # bind before the call: the constructor may initialise the
+                # chain and still fail later
+                if len(smpl) > 0:
+                    smpl._bound_ctx = weakref.ref(self)
+            cparams.samplers = configs
+            cparams.n_samplers = len(entries)
+
+        try:
+            self.ptr = llama.llama_init_from_model(self.model.ptr, cparams)
+        finally:
+            free(configs)
+
+        if self.ptr is not NULL:
+            for seq_id, smpl in entries:
+                # llama.cpp does not attach an empty chain
+                if len(smpl) > 0:
+                    smpl._attached = True
+                    self._backend_samplers[seq_id] = smpl
 
         if self.ptr is NULL:
             raise RuntimeError(
@@ -2498,6 +2696,7 @@ cdef class LlamaContext:
         if self.ptr is not NULL and self.owner is True:
             llama.llama_free(self.ptr)
             self.ptr = NULL
+            self._release_backend_samplers()
 
     @staticmethod
     cdef LlamaContext from_ptr(llama.llama_context *ptr, bint owner=False):
@@ -2511,6 +2710,120 @@ cdef class LlamaContext:
         if self.ptr is not NULL and self.owner is True:
             llama.llama_free(self.ptr)
             self.ptr = NULL
+            self._release_backend_samplers()
+
+    cdef void _release_backend_samplers(self):
+        # the dict may already be cleared if the GC broke a cycle through self
+        if not self._backend_samplers:
+            return
+        for smpl in self._backend_samplers.values():
+            (<LlamaSampler>smpl)._attached = False
+        self._backend_samplers.clear()
+
+    cdef LlamaSampler _check_backend_sampler(self, seq_id, sampler):
+        if not isinstance(sampler, LlamaSampler):
+            raise TypeError(f"backend sampler must be a LlamaSampler, got {type(sampler).__name__}")
+        cdef LlamaSampler smpl = <LlamaSampler>sampler
+        if smpl.ptr is NULL:
+            raise ValueError("backend sampler has been closed")
+        if llama.llama_sampler_chain_get(smpl.ptr, -1) is NULL:
+            raise TypeError("backend sampler must be a chain (LlamaSampler()), not a chain link")
+        if not 0 <= seq_id < self.params.n_seq_max:
+            raise ValueError(f"seq_id {seq_id} is outside [0, n_seq_max={self.params.n_seq_max})")
+        if smpl._bound_ctx is not None:
+            raise ValueError(
+                "this chain was already attached for backend sampling, which binds it "
+                "to that context for life; attach sampler.clone() instead")
+        return smpl
+
+    def set_sampler(self, int seq_id, sampler) -> bool:
+        """Attach a sampler chain to ``seq_id`` for backend sampling [EXPERIMENTAL].
+
+        Sampling then runs inside the decode graph on the output device.
+        :meth:`LlamaSampler.sample` returns the backend result, or finishes
+        on the CPU from the first link that cannot be offloaded.
+
+        Attaching binds the chain to this context for life: llama.cpp never
+        resets its backend state. The chain cannot be attached again, used
+        with another context, modified, or closed while attached. Use
+        ``sampler.clone()`` for a fresh chain with the same configuration.
+
+        Args:
+            seq_id: Sequence to sample for.
+            sampler: A :class:`LlamaSampler` chain, or ``None`` to detach.
+
+        Returns:
+            bool: False if llama.cpp could not offload the chain (empty
+            chain, or tensor split mode). The chain is then not attached.
+
+        Raises:
+            TypeError: ``sampler`` is not a chain.
+            ValueError: the chain is closed or already bound, or ``seq_id``
+                is out of range.
+        """
+        if self.ptr is NULL:
+            raise RuntimeError("context has been closed")
+        cdef LlamaSampler smpl = None
+        if sampler is not None and self._backend_samplers.get(seq_id) is sampler:
+            return True
+        if sampler is not None:
+            smpl = self._check_backend_sampler(seq_id, sampler)
+            if len(smpl) > 0:
+                smpl._bound_ctx = weakref.ref(self)
+            ok = llama.llama_set_sampler(self.ptr, seq_id, smpl.ptr)
+        else:
+            ok = llama.llama_set_sampler(self.ptr, seq_id, NULL)
+
+        # llama.cpp replaces or drops the previous chain for seq_id either way
+        old = self._backend_samplers.pop(seq_id, None)
+        if old is not None:
+            (<LlamaSampler>old)._attached = False
+        if smpl is not None and ok:
+            smpl._attached = True
+            self._backend_samplers[seq_id] = smpl
+        return ok
+
+    @property
+    def backend_samplers(self) -> dict:
+        """Chains attached for backend sampling, keyed by seq_id."""
+        return dict(self._backend_samplers)
+
+    def sampled_token_ith(self, int i) -> Optional[int]:
+        """Backend-sampled token for output ``i``, or None if none was sampled."""
+        if self.ptr is NULL:
+            raise RuntimeError("context has been closed")
+        cdef llama.llama_token tok = llama.llama_get_sampled_token_ith(self.ptr, i)
+        return None if tok == llama.LLAMA_TOKEN_NULL else tok
+
+    def sampled_probs_ith(self, int i) -> Optional[list[float]]:
+        """Backend probabilities for output ``i``, aligned with :meth:`sampled_candidates_ith`."""
+        if self.ptr is NULL:
+            raise RuntimeError("context has been closed")
+        cdef float * data = llama.llama_get_sampled_probs_ith(self.ptr, i)
+        cdef uint32_t n = llama.llama_get_sampled_probs_count_ith(self.ptr, i)
+        if data is NULL or n == 0:
+            return None
+        return [data[k] for k in range(n)]
+
+    def sampled_logits_ith(self, int i) -> Optional[list[float]]:
+        """Backend logits for output ``i``, aligned with :meth:`sampled_candidates_ith`."""
+        if self.ptr is NULL:
+            raise RuntimeError("context has been closed")
+        cdef float * data = llama.llama_get_sampled_logits_ith(self.ptr, i)
+        cdef uint32_t n = llama.llama_get_sampled_logits_count_ith(self.ptr, i)
+        if data is NULL or n == 0:
+            return None
+        return [data[k] for k in range(n)]
+
+    def sampled_candidates_ith(self, int i) -> Optional[list[int]]:
+        """Vocab token ids indexing :meth:`sampled_probs_ith` / :meth:`sampled_logits_ith`."""
+        if self.ptr is NULL:
+            raise RuntimeError("context has been closed")
+        cdef llama.llama_token * data = llama.llama_get_sampled_candidates_ith(self.ptr, i)
+        cdef uint32_t n = llama.llama_get_sampled_candidates_count_ith(self.ptr, i)
+        if data is NULL or n == 0:
+            return None
+        return [data[k] for k in range(n)]
 
     def __enter__(self):
         return self
@@ -2754,15 +3067,15 @@ cdef class LlamaContext:
         if parent_dir and not os.path.exists(parent_dir):
             raise FileNotFoundError(f"Parent directory does not exist: {parent_dir}")
 
-        cdef std_vector[uint8_t] vec
+        cdef std_vector[llama.llama_token] vec
         cdef size_t res = 0
         for i in tokens:
-            vec.push_back(i)
+            vec.push_back(<llama.llama_token>i)
         res = llama.llama_state_seq_save_file(
             self.ptr,
             filepath.encode(),
             seq_id,
-            <const llama.llama_token *>vec.data(),
+            vec.data(),
             vec.size())
         if res == 0:
             raise ValueError(f"Failed to save seq data {filepath}")
@@ -3217,18 +3530,15 @@ cdef class LlamaContext:
         return vec
 
     def get_embeddings(self) -> Optional[list[float]]:
-        """Get output token embeddings.
+        """Embedding of the first output row, ``n_embd_out`` floats.
 
-        When ``pooling_type == LLAMA_POOLING_TYPE_NONE`` or for generative
-        models, the embeddings for which ``llama_batch.logits[i] != 0``
-        are stored contiguously in batch order; the underlying shape is
-        ``[n_outputs, n_embd]``. Returns ``None`` when no embeddings are
-        available (no decode requested logits, or the model returned a
-        NULL pointer for the current pooling configuration) -- callers
-        should branch on the return value rather than catching an
-        exception.
+        llama.cpp stores ``[n_outputs, n_embd_out]`` floats but does not
+        expose ``n_outputs``, so only the first row can be read safely. Use
+        :meth:`get_embeddings_ith` for the others. Returns ``None`` when no
+        embeddings are available (no decode requested outputs, or the
+        pooling configuration produced none).
         """
-        cdef int n_embd = self.model.n_embd
+        cdef int n_embd = self.model.n_embd_out
         cdef float * embds = llama.llama_get_embeddings(self.ptr)
         if embds is NULL:
             return None
@@ -3244,7 +3554,7 @@ cdef class LlamaContext:
         Negative indicies can be used to access embeddings in reverse order, -1 is the last embedding.
         returns NULL for invalid ids.
         """
-        cdef int n_embd = self.model.n_embd
+        cdef int n_embd = self.model.n_embd_out
         cdef float * embds = llama.llama_get_embeddings_ith(self.ptr, i)
         cdef std_vector[float] vec
         if embds is NULL:
@@ -3266,7 +3576,7 @@ cdef class LlamaContext:
         * ``LLAMA_POOLING_TYPE_RANK`` -- ``n_cls_out`` floats, the
           classification/reranking score(s) for the sequence. This is the
           only way to read a reranker model's relevance score.
-        * any other pooling mode -- ``n_embd`` floats.
+        * any other pooling mode -- ``n_embd_out`` floats.
         """
         cdef int n_out
         cdef float * embds = llama.llama_get_embeddings_seq(self.ptr, seq_id)
@@ -3278,7 +3588,7 @@ cdef class LlamaContext:
         if llama.llama_get_pooling_type(self.ptr) == llama.LLAMA_POOLING_TYPE_RANK:
             n_out = llama.llama_model_n_cls_out(self.model.ptr)
         else:
-            n_out = llama.llama_model_n_embd(self.model.ptr)
+            n_out = llama.llama_model_n_embd_out(self.model.ptr)
         cdef std_vector[float] vec
         for i in range(n_out):
             vec.push_back(embds[i])
@@ -3322,15 +3632,94 @@ cdef class LlamaContext:
         llama.llama_perf_context_reset(self.ptr)
 
 
+cdef enum:
+    _SAMPLE_NO_LOGITS = 1
+    _SAMPLE_NONE_SELECTED = 2
+
+
+cdef int _sampler_sample(llama.llama_sampler * smpl, llama.llama_context * ctx, int32_t idx,
+                         int32_t n_vocab, std_vector[llama.llama_token_data] * cur,
+                         llama.llama_token * out) noexcept nogil:
+    # Mirrors llama_sampler_sample() in llama-sampler.cpp, but returns an
+    # error code at each of its GGML_ASSERTs instead of aborting the process.
+    cdef llama.llama_token token = llama.llama_get_sampled_token_ith(ctx, idx)
+    if token != llama.LLAMA_TOKEN_NULL:
+        llama.llama_sampler_accept(smpl, token)
+        out[0] = token
+        return 0
+
+    cdef float * probs = llama.llama_get_sampled_probs_ith(ctx, idx)
+    cdef float * logits = llama.llama_get_sampled_logits_ith(ctx, idx)
+    cdef llama.llama_token * ids = llama.llama_get_sampled_candidates_ith(ctx, idx)
+    cdef uint32_t n
+    cdef uint32_t i
+    cdef llama.llama_token_data * d
+
+    if probs != NULL and logits != NULL and ids != NULL:
+        n = llama.llama_get_sampled_probs_count_ith(ctx, idx)
+        cur.resize(n)
+        d = cur.data()
+        for i in range(n):
+            d[i].id = ids[i]
+            d[i].logit = logits[i]
+            d[i].p = probs[i]
+    elif logits != NULL and ids != NULL:
+        n = llama.llama_get_sampled_logits_count_ith(ctx, idx)
+        cur.resize(n)
+        d = cur.data()
+        for i in range(n):
+            d[i].id = ids[i]
+            d[i].logit = logits[i]
+            d[i].p = 0.0
+    else:
+        logits = llama.llama_get_logits_ith(ctx, idx)
+        if logits == NULL:
+            return _SAMPLE_NO_LOGITS
+        n = <uint32_t>n_vocab
+        cur.resize(n)
+        d = cur.data()
+        for i in range(n):
+            d[i].id = <llama.llama_token>i
+            d[i].logit = logits[i]
+            d[i].p = 0.0
+
+    cdef llama.llama_token_data_array cur_p
+    cur_p.data = cur.data()
+    cur_p.size = cur.size()
+    cur_p.selected = -1
+    cur_p.sorted = False
+
+    llama.llama_sampler_apply(smpl, &cur_p)
+
+    # cur_p.data may now point at a sampler-owned buffer
+    if cur_p.selected < 0 or cur_p.selected >= <int64_t>cur_p.size:
+        return _SAMPLE_NONE_SELECTED
+
+    token = cur_p.data[cur_p.selected].id
+    llama.llama_sampler_accept(smpl, token)
+    out[0] = token
+    return 0
+
+
 cdef class LlamaSampler:
     """cython wrapper for llama.llama_sampler."""
     cdef llama.llama_sampler * ptr
     cdef LlamaSamplerChainParams params
     cdef bint owner
+    # Weak reference to the LlamaContext this chain was attached to for
+    # backend sampling. llama.cpp initialises the chain for that context's
+    # graph and never resets it, so the binding lasts for the chain's life.
+    cdef object _bound_ctx
+    # True while a context holds this chain's pointer
+    cdef bint _attached
+    # candidate buffer reused across sample() calls
+    cdef std_vector[llama.llama_token_data] _cur
 
     def __cinit__(self):
         self.ptr = NULL
         self.owner = True
+        self._bound_ctx = None
+        self._attached = False
 
     def __init__(self, params: Optional[LlamaSamplerChainParams] = None):
         cdef LlamaSamplerChainParams _params
@@ -3351,9 +3740,29 @@ cdef class LlamaSampler:
 
     def close(self):
         """Release the underlying sampler immediately. Idempotent."""
+        if self._attached:
+            raise RuntimeError(
+                "sampler is attached to a context for backend sampling; "
+                "detach it with ctx.set_sampler(seq_id, None) or close the context first")
         if self.ptr is not NULL and self.owner is True:
             llama.llama_sampler_free(self.ptr)
             self.ptr = NULL
+
+    cdef int _check_unbound(self) except -1:
+        if self._bound_ctx is not None:
+            raise RuntimeError(
+                "chain is bound to a context for backend sampling and cannot be "
+                "modified; build a new chain instead")
+        return 0
+
+    cdef int _chain_add(self, llama.llama_sampler * link) except -1:
+        # takes ownership of link, freeing it if the chain cannot accept it
+        if self._bound_ctx is not None:
+            if link is not NULL:
+                llama.llama_sampler_free(link)
+            self._check_unbound()
+        llama.llama_sampler_chain_add(self.ptr, link)
+        return 0
 
     def __enter__(self):
         return self
@@ -3410,6 +3819,7 @@ cdef class LlamaSampler:
         if not 0 <= i < n:
             raise IndexError(f"chain index {i} out of range (chain has {n} links)")
 
+        self._check_unbound()
         cdef llama.llama_sampler * link = llama.llama_sampler_chain_remove(self.ptr, i)
         if link is NULL:
             raise RuntimeError(f"Failed to remove chain link {i}")
@@ -3452,16 +3862,14 @@ cdef class LlamaSampler:
 
         This should be at the end of the chain.
         """
-        llama.llama_sampler_chain_add(
-            self.ptr, llama.llama_sampler_init_greedy())
+        self._chain_add(llama.llama_sampler_init_greedy())
 
     def add_dist(self, uint32_t seed):
         """Add dist sampling chain link
 
         This should be at the end of the chain.
         """
-        llama.llama_sampler_chain_add(
-            self.ptr, llama.llama_sampler_init_dist(seed))
+        self._chain_add(llama.llama_sampler_init_dist(seed))
 
     # DEPRECATED
     # def add_softmax(self):
@@ -3473,51 +3881,44 @@ cdef class LlamaSampler:
         """Add Top-K sampling chain link.
 
         Described in academic paper "The Curious Case of Neural Text Degeneration" https:#arxiv.org/abs/1904.09751"""
-        llama.llama_sampler_chain_add(
-            self.ptr, llama.llama_sampler_init_top_k(k))
+        self._chain_add(llama.llama_sampler_init_top_k(k))
 
     def add_top_p(self, float p, size_t min_keep):
         """Add Nucleus sampling chain link.
 
         Described in academic paper "The Curious Case of Neural Text Degeneration" https:#arxiv.org/abs/1904.09751"""
-        llama.llama_sampler_chain_add(
-            self.ptr, llama.llama_sampler_init_top_p(p, min_keep))
+        self._chain_add(llama.llama_sampler_init_top_p(p, min_keep))
 
     def add_min_p(self, float p, size_t min_keep):
         """Add Minimum P sampling.
 
         Described in https:#github.com/ggerganov/llama.cpp/pull/3841"""
-        llama.llama_sampler_chain_add(
-            self.ptr, llama.llama_sampler_init_min_p(p, min_keep))
+        self._chain_add(llama.llama_sampler_init_min_p(p, min_keep))
 
     def add_typical(self, float p, size_t min_keep):
         """Add Locally Typical Sampling implementation.
 
         Described in the paper https:#arxiv.org/abs/2202.00666."""
-        llama.llama_sampler_chain_add(
-            self.ptr, llama.llama_sampler_init_typical(p, min_keep))
+        self._chain_add(llama.llama_sampler_init_typical(p, min_keep))
 
     def add_temp(self, float t):
         """Add temperature sampling chain link.
 
         Updates the logits `l_i = l_i/t`. When `t <= 0.0f`,
         the maximum logit is kept at its original value, the rest are set to -inf."""
-        llama.llama_sampler_chain_add(
-            self.ptr, llama.llama_sampler_init_temp(t))
+        self._chain_add(llama.llama_sampler_init_temp(t))
 
     def add_temp_ext(self, float t, float delta, float exponent):
         """Add Dynamic temperature implementation sampling chain link
 
         Described in the paper https:#arxiv.org/abs/2309.02772."""
-        llama.llama_sampler_chain_add(
-            self.ptr, llama.llama_sampler_init_temp_ext(t, delta, exponent))
+        self._chain_add(llama.llama_sampler_init_temp_ext(t, delta, exponent))
 
     def add_xtc(self, float p, float t, size_t min_keep, uint32_t seed):
         """Add XTC sampler chain link
 
         Described in https://github.com/oobabooga/text-generation-webui/pull/6335"""
-        llama.llama_sampler_chain_add(
-            self.ptr, llama.llama_sampler_init_xtc(p, t, min_keep, seed))
+        self._chain_add(llama.llama_sampler_init_xtc(p, t, min_keep, seed))
 
     def add_mirostat(self, int n_vocab, uint32_t seed, float tau, float eta, int m):
         """Mirostat 1.0 algorithm described in the paper https://arxiv.org/abs/2007.14966.
@@ -3534,8 +3935,7 @@ cdef class LlamaSampler:
             m: The number of tokens considered in the estimation of `s_hat`.
                 The paper uses m=100, but other values can be experimented with.
         """
-        llama.llama_sampler_chain_add(
-            self.ptr, llama.llama_sampler_init_mirostat(n_vocab, seed, tau, eta, m))
+        self._chain_add(llama.llama_sampler_init_mirostat(n_vocab, seed, tau, eta, m))
 
     def add_mirostat_v2(self, uint32_t seed, float tau, float eta):
         """Mirostat 2.0 algorithm described in the paper https://arxiv.org/abs/2007.14966.
@@ -3550,8 +3950,7 @@ cdef class LlamaSampler:
             eta: The learning rate used to update `mu` based on the error between
                 the target and observed surprisal. Larger values update faster.
         """
-        llama.llama_sampler_chain_add(
-            self.ptr, llama.llama_sampler_init_mirostat_v2(seed, tau, eta))
+        self._chain_add(llama.llama_sampler_init_mirostat_v2(seed, tau, eta))
 
     def add_top_n_sigma(self, float n):
         """Top-n-sigma sampling (https://arxiv.org/pdf/2411.07641).
@@ -3563,8 +3962,7 @@ cdef class LlamaSampler:
         Args:
             n: Number of standard deviations. <= 0.0 disables the sampler.
         """
-        llama.llama_sampler_chain_add(
-            self.ptr, llama.llama_sampler_init_top_n_sigma(n))
+        self._chain_add(llama.llama_sampler_init_top_n_sigma(n))
 
     def add_adaptive_p(self, float target, float decay, uint32_t seed):
         """Adaptive-p sampling (https://github.com/ggml-org/llama.cpp/pull/17927).
@@ -3579,8 +3977,7 @@ cdef class LlamaSampler:
                 adapt more slowly.
             seed: Random seed for sampling.
         """
-        llama.llama_sampler_chain_add(
-            self.ptr, llama.llama_sampler_init_adaptive_p(target, decay, seed))
+        self._chain_add(llama.llama_sampler_init_adaptive_p(target, decay, seed))
 
     def add_dry(self, LlamaVocab vocab, float dry_multiplier,
                 float dry_base, int32_t dry_allowed_length, int32_t dry_penalty_last_n,
@@ -3618,8 +4015,7 @@ cdef class LlamaSampler:
             # call; llama.cpp copies them into the sampler's own storage.
             for i in range(num_breakers):
                 breaker_array[i] = <const char *>(<bytes>breakers[i])
-            llama.llama_sampler_chain_add(
-                self.ptr, llama.llama_sampler_init_dry(
+            self._chain_add(llama.llama_sampler_init_dry(
                     vocab.ptr,
                     dry_multiplier,
                     dry_base,
@@ -3634,8 +4030,7 @@ cdef class LlamaSampler:
 
     def add_grammar(self, LlamaVocab vocab, str grammar_str, str grammar_root):
         """Add grammer chain link"""
-        llama.llama_sampler_chain_add(
-            self.ptr, llama.llama_sampler_init_grammar(
+        self._chain_add(llama.llama_sampler_init_grammar(
                 vocab.ptr, grammar_str.encode(), grammar_root.encode()))
 
     def add_grammar_lazy_patterns(self, LlamaVocab vocab, str grammar_str,
@@ -3682,8 +4077,7 @@ cdef class LlamaSampler:
                 pattern_array[i] = <const char *>(<bytes>patterns[i])
             for i in range(num_tokens):
                 token_array[i] = tokens[i]
-            llama.llama_sampler_chain_add(
-                self.ptr, llama.llama_sampler_init_grammar_lazy_patterns(
+            self._chain_add(llama.llama_sampler_init_grammar_lazy_patterns(
                     vocab.ptr,
                     grammar_str.encode(),
                     grammar_root.encode(),
@@ -3705,8 +4099,7 @@ cdef class LlamaSampler:
        float penalty_freq,     # must be finite, 0.0 = disabled
        float penalty_present): # must be finite, 0.0 = disabled
         """Add penalties chain link"""
-        llama.llama_sampler_chain_add(
-            self.ptr, llama.llama_sampler_init_penalties(
+        self._chain_add(llama.llama_sampler_init_penalties(
                 n_vocab,
                 penalty_last_n,
                 penalty_repeat,
@@ -3743,14 +4136,12 @@ cdef class LlamaSampler:
                     bias_array[i].token = token
                     bias_array[i].bias = bias
 
-                llama.llama_sampler_chain_add(
-                    self.ptr, llama.llama_sampler_init_logit_bias(
+                self._chain_add(llama.llama_sampler_init_logit_bias(
                         n_vocab, n_logit_bias, bias_array))
             finally:
                 free(bias_array)
         else:
-            llama.llama_sampler_chain_add(
-                self.ptr, llama.llama_sampler_init_logit_bias(n_vocab, 0, NULL))
+            self._chain_add(llama.llama_sampler_init_logit_bias(n_vocab, 0, NULL))
 
     def add_infill(self, LlamaVocab vocab):
         """This sampler is meant to be used for fill-in-the-middle infilling
@@ -3775,30 +4166,56 @@ cdef class LlamaSampler:
         3. discard non-EOG tokens with low prob
         4. if no tokens are left -> pick EOT
         """
-        llama.llama_sampler_chain_add(
-            self.ptr,
-            llama.llama_sampler_init_infill(vocab.ptr)
+        self._chain_add(llama.llama_sampler_init_infill(vocab.ptr)
         )
 
 
     def sample(self, LlamaContext ctx, int idx) -> int:
-        """Sample and accept a token from the idx-th output of the last evaluation
+        """Sample and accept a token from the idx-th output of the last evaluation.
 
-        Shorthand for:
+        Equivalent to ``llama_sampler_sample``, which aborts the process
+        where this raises.
 
-           const auto * logits = llama_get_logits_ith(ctx, idx)
-           llama_token_data_array cur_p = { ... init from logits ... }
-           llama_sampler_apply(smpl, &cur_p)
-           return cur_p.data[cur_p.selected].id
-
-        At this point, this is mostly a convenience function.
+        Raises:
+            ValueError: ``idx`` has no logits, or the chain selected no token
+                (it has no selecting link, or a later link changed the
+                candidates).
+            RuntimeError: the sampler or context is closed.
         """
+        # a bound chain skips its backend links on the CPU, so it would
+        # silently sample wrong on any other context
+        if self._bound_ctx is not None and self._bound_ctx() is not ctx:
+            raise ValueError(
+                "chain is bound to another context for backend sampling; "
+                "use sampler.clone() with this context")
+        if self.ptr is NULL:
+            raise RuntimeError("Sampler is closed")
+        if ctx.ptr is NULL:
+            raise RuntimeError("context has been closed")
         cdef llama.llama_sampler * smpl_ptr = self.ptr
         cdef llama.llama_context * ctx_ptr = ctx.ptr
         cdef int32_t idx_c = idx
+        cdef int32_t n_vocab = llama.llama_vocab_n_tokens(
+            llama.llama_model_get_vocab(llama.llama_get_model(ctx_ptr)))
+        cdef llama.llama_token result = llama.LLAMA_TOKEN_NULL
+        cdef int rc
+        with nogil:
+            rc = _sampler_sample(smpl_ptr, ctx_ptr, idx_c, n_vocab, &self._cur, &result)
+        if rc == _SAMPLE_NO_LOGITS:
+            raise ValueError(f"no logits for output {idx}: index out of range, or its batch.logits flag was not set")
+        if rc == _SAMPLE_NONE_SELECTED:
+            raise ValueError(
+                "sampler chain selected no token: end it with a selecting sampler "
+                "(greedy, dist, mirostat, mirostat_v2 or adaptive_p) and add no "
+                "filters after it")
+        return result
+
+    def _sample_upstream(self, LlamaContext ctx, int idx) -> int:
+        """``llama_sampler_sample`` itself: the reference :meth:`sample` must
+        match. Test use only; aborts the process where :meth:`sample` raises."""
         cdef llama.llama_token result
         with nogil:
-            result = llama.llama_sampler_sample(smpl_ptr, ctx_ptr, idx_c)
+            result = llama.llama_sampler_sample(self.ptr, ctx.ptr, idx)
         return result
 
 
@@ -4101,6 +4518,11 @@ def llama_supports_rpc() -> bool:
     return llama.llama_supports_rpc()
 
 
+def llama_version() -> str:
+    """llama.cpp version compiled into the loaded library, e.g. ``"0.5.0-dev"``."""
+    return llama.llama_version().decode("utf-8")
+
+
 def llama_print_system_info() -> str:
     """Backend/CPU feature summary from llama.cpp.
 
@@ -4349,6 +4771,39 @@ cdef class GGUFContext:
         ctx.ptr = gguf.gguf_init_from_file(filename_bytes, params)
         if ctx.ptr == NULL:
             raise IOError(f"Failed to load GGUF file: {filename}")
+        ctx.owner = True
+        return ctx
+
+    @staticmethod
+    def from_fileobj(fileobj, offset=None, bint no_alloc=True):
+        """
+        Load GGUF context from an open binary file or int fd.
+
+        The GGUF may be embedded in a larger file; ``data_offset`` is then
+        relative to the start of that file. The caller's file position is
+        unchanged on return.
+
+        Args:
+            fileobj: Binary file object with ``fileno()``, or an int fd
+            offset: Byte offset of the GGUF. Defaults to the current position.
+            no_alloc: If True, don't allocate tensor data in memory
+
+        Returns:
+            GGUFContext object
+        """
+        cdef GGUFContext ctx = GGUFContext.__new__(GGUFContext)
+        cdef gguf.gguf_init_params params
+        params.no_alloc = no_alloc
+        params.ctx = NULL
+
+        # gguf's parser rejects malformed input itself, as for from_file()
+        cdef _GgufFileHandle fh = _GgufFileHandle(fileobj, offset, "GGUF", check_header=False)
+        try:
+            ctx.ptr = gguf.gguf_init_from_file_ptr(fh.fp, params)
+        finally:
+            fh.close()
+        if ctx.ptr == NULL:
+            raise IOError("Failed to load GGUF from file object")
         ctx.owner = True
         return ctx
 

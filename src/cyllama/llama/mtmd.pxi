@@ -701,7 +701,8 @@ cdef class MtmdContext:
 
         Args:
             n_tokens: Number of tokens
-            n_embd: Embedding dimension
+            n_embd: Input embedding dimension of the text model,
+                ``LlamaModel.n_embd_inp``
 
         Returns:
             List of embedding vectors
@@ -775,7 +776,7 @@ cdef class MtmdBatch:
         ...         if chunk.type != MtmdInputChunkType.TEXT:
         ...             batch.add_chunk(chunk)
         ...     batch.encode()
-        ...     embd = batch.get_output_embd(chunks[1], model.n_embd)
+        ...     embd = batch.get_output_embd(chunks[1], model.n_embd_inp)
     """
 
     cdef mtmd_batch * _batch
@@ -842,8 +843,8 @@ cdef class MtmdBatch:
 
         Args:
             chunk: A chunk previously passed to :meth:`add_chunk`.
-            n_embd: Embedding dimension of the text model, i.e.
-                ``LlamaModel.n_embd``. mtmd does not expose it on the batch,
+            n_embd: Input embedding dimension of the text model, i.e.
+                ``LlamaModel.n_embd_inp``. mtmd does not expose it on the batch,
                 so it must be supplied -- same convention as
                 :meth:`MtmdContext.get_output_embd`.
 

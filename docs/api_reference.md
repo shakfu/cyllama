@@ -963,6 +963,17 @@ print(vocab.n_vocab)       # Vocabulary size
 model.close()              # Free resources (or use `with LlamaModel(...) as model:`)
 ```
 
+`LlamaModel.from_fileobj(fileobj, offset=None, params=None)` loads from an open
+binary file or an int fd. The GGUF may be embedded in a larger file at `offset`
+(default: the current position). With mmap, the GGUF data section must sit at a
+32-byte aligned file offset; use `LLAMA_LOAD_MODE_NONE` otherwise. The caller's
+file position is unchanged.
+
+```python
+with open("bundle.bin", "rb") as f:
+    model = LlamaModel.from_fileobj(f, offset=4096)
+```
+
 ---
 
 #### `LlamaContext`
@@ -1021,6 +1032,33 @@ token_id = sampler.sample(ctx, idx)
 # Reset state
 sampler.reset()
 ```
+
+**Backend sampling [EXPERIMENTAL upstream].** A chain attached to a context runs
+inside the decode graph on the output device. `sample()` then returns the backend
+token, or finishes on the CPU from the first link that cannot be offloaded.
+Offloadable links: greedy, dist, top-k, top-p, min-p, temp, temp-ext, penalties,
+logit-bias.
+
+```python
+chain = LlamaSampler()
+chain.add_top_k(40)
+chain.add_temp(0.7)
+chain.add_dist(seed)
+
+ctx = LlamaContext(model, ctx_params, samplers={0: chain})  # or ctx.set_sampler(0, chain)
+ctx.decode(batch)
+token_id = chain.sample(ctx, -1)
+
+ctx.sampled_token_ith(-1)        # backend token, or None
+ctx.sampled_probs_ith(-1)        # aligned with sampled_candidates_ith(-1), or None
+ctx.set_sampler(0, None)         # detach
+```
+
+Attaching binds the chain to that context for life: llama.cpp never resets the
+chain's backend state. A bound chain cannot be attached again, sampled with
+another context, or modified, and cannot be closed while attached. Each case
+raises instead of aborting or sampling wrong. `chain.clone()` returns an unbound
+copy with the same configuration.
 
 ---
 
@@ -1130,6 +1168,11 @@ from cyllama.llama.llama_cpp import GGUFContext
 
 # Read existing file
 ctx = GGUFContext.from_file("model.gguf")
+
+# From an open binary file or fd, optionally embedded at an offset.
+# data_offset is then relative to the start of the containing file.
+with open("bundle.bin", "rb") as f:
+    ctx = GGUFContext.from_fileobj(f, offset=4096)
 
 # Get metadata
 metadata = ctx.get_all_metadata()
@@ -1277,6 +1320,7 @@ set by pointer and would otherwise keep only one of the two scales.
 | Method | Description |
 |--------|-------------|
 | `LlamaModel.lora_adapter_init(path)` | Load an adapter against this model |
+| `LlamaModel.lora_adapter_init_from_fileobj(fileobj, offset=None)` | Same, from an open binary file or int fd, optionally at an offset |
 | `LlamaContext.set_adapters_lora(adapters=())` | Replace the context's adapter set |
 | `LlamaContext.lora_adapters` | Adapters currently set, in the order given |
 | `LlamaAdapterLora.model` | The model that owns this adapter |
@@ -1324,7 +1368,6 @@ ctx_target = LlamaContext(model_target, ctx_params)
 params = SpeculativeParams(
     n_max=3,         # Maximum number of draft tokens
     n_min=0,         # Minimum number of draft tokens
-    p_split=0.1,     # Speculative decoding split probability
     p_min=0.0        # Minimum acceptance probability
 )
 
@@ -1338,11 +1381,12 @@ if Speculative.is_compat(ctx_target):
     spec = Speculative(params, ctx_target, ctx_draft)
 
     # Begin a speculative decoding round
-    prompt_tokens = [1, 2, 3]
+    prompt_tokens = [1, 2, 3]   # tokens the target has processed
     spec.begin(prompt_tokens)
 
-    # Generate draft tokens
-    last_token = prompt_tokens[-1]
+    # Draft continuations of the target's newest sampled token,
+    # which is not yet in prompt_tokens
+    last_token = 4
     draft_tokens = spec.draft(params, prompt_tokens, last_token)
 
     # Accept verified tokens (n_accepted from target verification)
@@ -1356,11 +1400,9 @@ if Speculative.is_compat(ctx_target):
 
 - `n_max`: Maximum number of tokens to draft (default: 3)
 
-- `n_min`: Minimum number of draft tokens (default: 0)
+- `n_min`: A shorter draft is discarded (default: 0)
 
-- `p_split`: Speculative decoding split probability (default: 0.1)
-
-- `p_min`: Minimum acceptance probability (default: 0.0)
+- `p_min`: Drafting stops when the top candidate's probability, a softmax over the draft model's top 10 logits, falls below this (default: 0.0)
 
 **Methods:**
 
@@ -1368,9 +1410,12 @@ if Speculative.is_compat(ctx_target):
 |--------|-------------|
 | `Speculative.is_compat(ctx_target)` | Static: check if target context supports speculative decoding |
 | `begin(prompt_tokens)` | Begin a speculative decoding round |
-| `draft(params, prompt_tokens, last_token_id)` | Generate draft tokens from the draft model |
+| `draft(params, prompt_tokens, last_token_id)` | Draft greedy continuations of `last_token_id`, the target's newest token, which follows `prompt_tokens` |
 | `accept(n_accepted)` | Accept the first `n_accepted` verified draft tokens |
 | `print_stats()` | Print speculative decoding performance statistics |
+
+`tests/examples/speculative_example.py` shows the full draft/verify loop around
+these calls, with `--bench` to compare against plain greedy decoding.
 
 ---
 

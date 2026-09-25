@@ -651,3 +651,48 @@ class TestEmbedderClose:
         assert emb._closed is True
         with pytest.raises(RuntimeError, match="closed"):
             emb.embed("after")
+
+
+SMALL_EMBED_MODEL = ROOT / "models" / "bge-small-en-v1.5-q8_0.gguf"
+
+
+@pytest.mark.skipif(not SMALL_EMBED_MODEL.exists(), reason="bge-small not downloaded")
+class TestPoolingMatchesLlamaCpp:
+    """Manual pooling must equal llama.cpp's own pooling of the same rows.
+
+    get_embeddings() returns only the first output row, so pooling its
+    result made MEAN equal CLS and LAST return an empty vector.
+    """
+
+    TEXT = "The quick brown fox jumps over the lazy dog"
+
+    def _llama_cpp_pooled(self, pooling_type):
+        from cyllama.llama.llama_cpp import LlamaBatch, LlamaContext, LlamaContextParams, LlamaModel
+
+        model = LlamaModel(str(SMALL_EMBED_MODEL), verbose=False)
+        params = LlamaContextParams()
+        params.n_ctx = 512
+        params.pooling_type = pooling_type
+        ctx = LlamaContext(model, params)
+        ctx.set_embeddings_mode(True)
+        tokens = model.get_vocab().tokenize(self.TEXT, add_special=True, parse_special=False)
+        batch = LlamaBatch(n_tokens=len(tokens), embd=0, n_seq_max=1)
+        for i, tok in enumerate(tokens):
+            batch.add(tok, i, [0], True)
+        ctx.decode(batch)
+        return ctx.get_embeddings_seq(0), model.n_embd_out
+
+    @pytest.mark.parametrize("pooling,pooling_type", [("mean", 1), ("cls", 2), ("last", 3)])
+    def test_matches(self, pooling, pooling_type):
+        expected, n_embd_out = self._llama_cpp_pooled(pooling_type)
+        with Embedder(str(SMALL_EMBED_MODEL), n_gpu_layers=0, pooling=pooling, normalize=False) as emb:
+            got = emb.embed(self.TEXT)
+        assert len(got) == n_embd_out
+        assert got == pytest.approx(expected, rel=1e-4, abs=1e-5)
+
+    def test_mean_differs_from_cls(self):
+        with Embedder(str(SMALL_EMBED_MODEL), n_gpu_layers=0, pooling="mean") as mean_emb:
+            mean = mean_emb.embed(self.TEXT)
+        with Embedder(str(SMALL_EMBED_MODEL), n_gpu_layers=0, pooling="cls") as cls_emb:
+            cls = cls_emb.embed(self.TEXT)
+        assert mean != pytest.approx(cls, abs=1e-3)

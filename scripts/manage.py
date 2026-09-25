@@ -140,13 +140,13 @@ PY_VER_MINOR = sys.version_info.minor
 STABLE_BUILD = getenv("STABLE_BUILD", True)
 if STABLE_BUILD:
     # known to build and work without errors, 100% tests pass
-    LLAMACPP_VERSION = "b10964"  # equivalent to  v0.4.1
+    LLAMACPP_VERSION = "b11146"  # equivalent to  v0.5.0
     WHISPERCPP_VERSION = "v1.9.4"
     SDCPP_VERSION = "master-898-2bb7294"
     SQLITEVECTOR_VERSION = "1.0.0"
 else:
     # experimental bleeding-edge builds ` = ""` means get latest
-    LLAMACPP_VERSION = "b10964"  # equivalent to v0.4.1
+    LLAMACPP_VERSION = "b11146"  # equivalent to  v0.5.0
     WHISPERCPP_VERSION = "v1.9.4"
     SDCPP_VERSION = "master-898-2bb7294"
     SQLITEVECTOR_VERSION = "1.0.0"

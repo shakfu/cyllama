@@ -42,6 +42,7 @@ cdef extern from "llama.h":
         LLAMA_VOCAB_TYPE_UGM  = 4   # T5 tokenizer based on Unigram
         LLAMA_VOCAB_TYPE_RWKV = 5   # RWKV tokenizer based on greedy tokenization
         LLAMA_VOCAB_TYPE_PLAMO2 = 6 # PLaMo-2 tokenizer based on Aho-Corasick with dynamic programming
+        LLAMA_VOCAB_TYPE_TEST   = 7 # Dummy tokenizer for testing: rolling hash of fixed-size chunks -> tokens, tokens -> hex
 
     cdef enum llama_rope_type:
         LLAMA_ROPE_TYPE_NONE   = -1
@@ -270,6 +271,10 @@ cdef extern from "llama.h":
         bint no_host          # bypass host buffer allowing extra buffers to be used
         bint no_alloc         # only load metadata and simulate memory allocations
 
+    ctypedef struct llama_sampler_seq_config:
+        llama_seq_id    seq_id
+        llama_sampler * sampler
+
     ctypedef struct llama_context_params:
         uint32_t n_ctx             # text context, 0 = from model
         uint32_t n_batch           # logical maximum batch size that can be submitted to llama_decode
@@ -316,6 +321,12 @@ cdef extern from "llama.h":
         bint kv_unified   # use a unified buffer across the input sequences when computing the attention
                           # try to disable when n_seq_max > 1 for improved performance when the sequences do not share a large prefix
                           # ref: https://github.com/ggml-org/llama.cpp/pull/14363
+
+        # [EXPERIMENTAL]
+        # backend sampler chain configuration (make sure the caller keeps the sampler chains alive)
+        # note: the samplers must be sampler chains (i.e. use llama_sampler_chain_init)
+        llama_sampler_seq_config * samplers
+        size_t                     n_samplers
 
     ctypedef struct llama_model_tensor_override:
         const char * pattern
@@ -367,6 +378,8 @@ cdef extern from "llama.h":
     cdef llama_model_quantize_params llama_model_quantize_default_params()
 
 
+    cdef const char * llama_version()
+
     # Initialize the llama + ggml backend
     # If numa is true, use NUMA optimizations
     # Call once at the start of the program
@@ -387,6 +400,13 @@ cdef extern from "llama.h":
     # If the split file name does not follow this pattern, use llama_model_load_from_splits
     cdef llama_model * llama_model_load_from_file(
             const char * path_model,
+            llama_model_params params)
+
+    # Load a model from an open FILE pointer
+    # The GGUF is read from the current position, so it can be embedded in a larger file
+    # mmap needs the GGUF data section at a file offset to be aligned to the CPU tensor alignment (32 bytes)
+    cdef llama_model * llama_model_load_from_file_ptr(
+            FILE * file,
             llama_model_params params)
 
     # Load the model from multiple splits (support custom naming scheme)
@@ -530,6 +550,9 @@ cdef extern from "llama.h":
 
     # Load a LoRA adapter from file
     cdef llama_adapter_lora * llama_adapter_lora_init(llama_model * model, const char * path_lora)
+
+    # Load a LoRA adapter from an open FILE pointer, reading from its current position
+    cdef llama_adapter_lora * llama_adapter_lora_init_from_file_ptr(llama_model * model, FILE * file)
 
     # Functions to access the adapter's GGUF metadata scalar values
     # - The functions return the length of the string on success, or -1 on failure
@@ -856,7 +879,7 @@ cdef extern from "llama.h":
     # llama_get_logits(ctx) + ctx->output_ids[i]*n_vocab
     # Negative indicies can be used to access logits in reverse order, -1 is the last logit.
     # returns NULL for invalid ids.
-    cdef float * llama_get_logits_ith( llama_context * ctx, int32_t i)
+    cdef float * llama_get_logits_ith( llama_context * ctx, int32_t i) nogil
 
     # Get all output token embeddings.
     # when pooling_type == LLAMA_POOLING_TYPE_NONE or when using a generative model,
@@ -878,6 +901,31 @@ cdef extern from "llama.h":
     # when pooling_type == LLAMA_POOLING_TYPE_RANK, returns float[n_cls_out] with the rank(s) of the sequence
     # otherwise: float[n_embd] (1-dimensional)
     cdef float * llama_get_embeddings_seq( llama_context * ctx, llama_seq_id seq_id)
+
+    #
+    # backend sampling API [EXPERIMENTAL]
+    # note: use only if the llama_context was created with at least one llama_sampler_seq_config
+    #
+
+    # Get the backend sampled token for the ith token.
+    # Returns LLAMA_TOKEN_NULL if no token was sampled.
+    cdef llama_token llama_get_sampled_token_ith(llama_context * ctx, int32_t i) nogil
+
+    # Get the backend sampled probabilities for the ith token
+    # Returns NULL if no probabilities were generated.
+    cdef float *  llama_get_sampled_probs_ith      (llama_context * ctx, int32_t i) nogil
+    cdef uint32_t llama_get_sampled_probs_count_ith(llama_context * ctx, int32_t i) nogil
+
+    # Get the backend sampled logits for the ith token
+    # Returns NULL if no logits were sampled.
+    cdef float *  llama_get_sampled_logits_ith      (llama_context * ctx, int32_t i) nogil
+    cdef uint32_t llama_get_sampled_logits_count_ith(llama_context * ctx, int32_t i) nogil
+
+    # Get the backend sampled candidates (token ids) for the ith token
+    # These are needed to map probability/logit indices to vocab token ids.
+    # Returns NULL if no candidates were sampled.
+    cdef llama_token * llama_get_sampled_candidates_ith      (llama_context * ctx, int32_t i) nogil
+    cdef uint32_t      llama_get_sampled_candidates_count_ith(llama_context * ctx, int32_t i) nogil
 
 
     # -------------------------------------------------------------------------

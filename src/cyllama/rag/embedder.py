@@ -219,7 +219,7 @@ class Embedder(EmbedderProtocol):
         self._ctx.set_embeddings_mode(True)
 
         # Cache embedding dimension and vocab
-        self._n_embd = self._model.n_embd
+        self._n_embd = self._model.n_embd_out
         self._vocab = self._model.get_vocab()
 
         # Initialize embedding cache if requested
@@ -448,8 +448,10 @@ class Embedder(EmbedderProtocol):
         # Decode batch to compute embeddings
         self._ctx.decode(batch)
 
-        # Get embeddings - we always use manual pooling for reliability
-        raw_embeddings = self._ctx.get_embeddings()
+        # Every token is an output row; get_embeddings() returns only the first.
+        raw_embeddings = []
+        for i in range(n_tokens):
+            raw_embeddings.extend(self._ctx.get_embeddings_ith(i))
 
         # Apply pooling strategy
         if self._pooling_type == PoolingType.MEAN:

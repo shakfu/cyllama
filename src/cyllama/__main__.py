@@ -162,6 +162,7 @@ def cmd_info() -> int:
             cy.ggml_backend_load_all()
         llama_ver = build_info.get("llama_cpp_version", "unknown")
         print(f"  version:       {llama_ver}")
+        print(f"  library:       {cy.llama_version()}")
         print(f"  ggml version:  {cy.ggml_version()}")
         print(f"  ggml commit:   {cy.ggml_commit()}")
         built = _get_built_backends()

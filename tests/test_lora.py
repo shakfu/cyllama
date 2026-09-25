@@ -10,6 +10,7 @@ numerically; these tests are about the wrapper, not about output quality.
 """
 
 import gc
+import os
 import struct
 
 import pytest
@@ -153,6 +154,39 @@ class TestAdapterLoading:
         adapter.close()
         # Still usable: close() did not free a pointer it does not own.
         assert adapter.meta_count() == 4
+
+
+class TestAdapterFromFileobj:
+    def test_embedded_at_offset(self, model, lora_path, tmp_path):
+        bundle = tmp_path / "bundle.bin"
+        with open(lora_path, "rb") as src:
+            bundle.write_bytes(b"\xab" * 100 + src.read() + b"\xcd" * 16)
+
+        with open(bundle, "rb") as f:
+            adapter = model.lora_adapter_init_from_fileobj(f, offset=100)
+            assert f.tell() == 0
+
+        assert adapter.meta_val_str("adapter.type") == "lora"
+        assert adapter.model is model
+
+    def test_raw_fd_at_current_position(self, model, lora_path):
+        fd = os.open(lora_path, os.O_RDONLY)
+        try:
+            adapter = model.lora_adapter_init_from_fileobj(fd)
+        finally:
+            os.close(fd)
+        assert adapter.meta_count() == 4
+
+    def test_wrong_arch_raises(self, model, tmp_path):
+        path = write_lora_gguf(tmp_path / "gpt2.gguf", arch="gpt2")
+        with open(path, "rb") as f, pytest.raises(ValueError, match="Failed to load LoRA"):
+            model.lora_adapter_init_from_fileobj(f)
+
+    def test_bad_header_raises(self, model, tmp_path):
+        path = tmp_path / "junk.bin"
+        path.write_bytes(b"\0" * 64)
+        with open(path, "rb") as f, pytest.raises(ValueError, match="valid GGUF"):
+            model.lora_adapter_init_from_fileobj(f)
 
 
 class TestAdapterLifetime:

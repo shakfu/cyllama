@@ -2,6 +2,7 @@
 
 from libc.stdint cimport uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t
 from libc.stddef cimport size_t
+from libc.stdio cimport FILE
 
 cimport ggml
 
@@ -54,6 +55,7 @@ cdef extern from "gguf.h":
 
     # Context creation and destruction
     cdef gguf_context * gguf_init_empty()
+    cdef gguf_context * gguf_init_from_file_ptr(FILE * file, gguf_init_params params)
     cdef gguf_context * gguf_init_from_file(const char * fname, gguf_init_params params)
     cdef gguf_context * gguf_init_from_buffer(const void * data, size_t size, gguf_init_params params)
     cdef void gguf_free(gguf_context * ctx)

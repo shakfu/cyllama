@@ -31,7 +31,8 @@ PXD_DIR = REPO_ROOT / "src" / "cyllama" / "llama"
 # Each case mirrors one C enum into one .pxd cdef enum.
 #   header / pxd:       files to read
 #   header_re / pxd_re: regex whose group(1) opens the enum body
-#   prefix:             enumerator name prefix (also the stop sentinel anchor)
+#   prefix:             enumerator name prefix
+#   header_stop / pxd_stop: optional regex ending the body (default: <prefix>COUNT)
 CASES = [
     {
         "id": "ggml_type",
@@ -48,6 +49,17 @@ CASES = [
         "header_open": r"enum\s+ggml_op\s*\{",
         "pxd_open": r"cdef\s+enum\s+ggml_op\s*:",
         "prefix": "GGML_OP_",
+    },
+    {
+        "id": "llama_vocab_type",
+        "header": LLAMA_INCLUDE / "llama.h",
+        "pxd": PXD_DIR / "llama.pxd",
+        "header_open": r"enum\s+llama_vocab_type\s*\{",
+        "pxd_open": r"cdef\s+enum\s+llama_vocab_type\s*:",
+        "prefix": "LLAMA_VOCAB_TYPE_",
+        # no COUNT sentinel: stop at the closing brace / the blank line after the block
+        "header_stop": r"\}",
+        "pxd_stop": r"\n[ \t]*\n",
     },
 ]
 
@@ -67,15 +79,14 @@ def _parse_int(token: str) -> int:
     return int(token, 16) if token.lower().startswith("0x") else int(token)
 
 
-def _enum_body(text: str, open_re: str, prefix: str) -> str:
+def _enum_body(text: str, open_re: str, stop_re: str) -> str:
     """Return the text of the enum body from its opening token up to and
-    including the terminating ``<prefix>COUNT`` enumerator."""
+    including the first match of ``stop_re``."""
     m = re.search(open_re, text)
     assert m is not None, f"could not locate enum opening matching {open_re!r}"
     start = m.end()
-    # Stop at the COUNT sentinel so unrelated trailing content is excluded.
-    stop = re.search(rf"{prefix}COUNT\b", text[start:])
-    assert stop is not None, f"could not find {prefix}COUNT after enum opening"
+    stop = re.search(stop_re, text[start:])
+    assert stop is not None, f"could not find {stop_re!r} after enum opening"
     return text[start : start + stop.end()]
 
 
@@ -100,8 +111,9 @@ def test_enum_mirror_matches_header(case):
     header_text = _strip_c_comments(case["header"].read_text())
     pxd_text = _strip_pxd_comments(case["pxd"].read_text())
 
-    header_body = _enum_body(header_text, case["header_open"], case["prefix"])
-    pxd_body = _enum_body(pxd_text, case["pxd_open"], case["prefix"])
+    count_stop = rf"{case['prefix']}COUNT\b"
+    header_body = _enum_body(header_text, case["header_open"], case.get("header_stop", count_stop))
+    pxd_body = _enum_body(pxd_text, case["pxd_open"], case.get("pxd_stop", count_stop))
 
     header_values = _enum_values(header_body, case["prefix"])
     pxd_values = _enum_values(pxd_body, case["prefix"])

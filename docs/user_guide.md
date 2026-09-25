@@ -509,15 +509,13 @@ ctx_draft = LlamaContext(model_draft, LlamaContextParams())
 # Setup speculative decoding
 params = SpeculativeParams(
     n_max=3,       # Maximum tokens to draft
-    p_min=0.0      # Acceptance probability
+    p_min=0.0      # stop drafting below this top-candidate probability
 )
-spec = Speculative(params, ctx_target)
+spec = Speculative(params, ctx_target, ctx_draft)
 
-# Generate draft tokens
-draft_tokens = spec.draft(
-    prompt_tokens=[1, 2, 3, 4],
-    last_token=5
-)
+# Draft continuations of the target's newest token (5), which follows
+# the tokens the target has processed ([1, 2, 3, 4])
+draft_tokens = spec.draft(params, [1, 2, 3, 4], 5)
 ```
 
 ### Memory Estimation

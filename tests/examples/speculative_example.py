@@ -1,268 +1,187 @@
 #!/usr/bin/env python3
 """
-Speculative Decoding Example
+Speculative decoding with a draft model.
 
-This example demonstrates how to use speculative decoding with cyllama to achieve
-2-3x inference speedup. Speculative decoding works by using a smaller, faster "draft"
-model to generate candidate tokens, which are then verified by a larger "target" model.
+A small draft model proposes tokens; the target model checks them all in one
+batch and keeps the longest prefix it agrees with, plus one token of its own.
+With greedy verification the output is identical to plain greedy decoding of
+the target; only the speed changes. The loop follows llama.cpp's
+examples/speculative-simple.
 
-Requirements:
-- A target model (larger, more accurate)
-- A draft model (smaller, faster, compatible vocabulary)
-
-For this example to work with actual speedup, you need two models:
-1. Target model: e.g., Llama-3.2-3B-Instruct-Q8_0.gguf
-2. Draft model: e.g., Llama-3.2-1B-Instruct-Q8_0.gguf
-
-The models must have compatible tokenizers (usually from the same model family).
+The draft model must share the target's vocabulary (same model family).
 
 Usage:
-    python speculative_example.py -m models/Llama-3.2-1B-Instruct-Q8_0.gguf
-    python speculative_example.py --target models/large.gguf --draft models/small.gguf
+    python speculative_example.py --target models/Qwen3-4B-Q8_0.gguf --draft models/Qwen3-0.6B-Q8_0.gguf
+    python speculative_example.py --target models/Llama-3.2-1B-Instruct-Q8_0.gguf --bench 3
 """
 
-import sys
-import os
 import argparse
-
-# Add parent directory to path for imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
+import time
+from dataclasses import dataclass, field
 
 from cyllama.llama.llama_cpp import (
-    LlamaModel,
+    LlamaBatch,
     LlamaContext,
     LlamaContextParams,
+    LlamaModel,
     LlamaModelParams,
+    LlamaSampler,
     Speculative,
     SpeculativeParams,
+    disable_logging,
 )
 
 
-def load_model_and_context(model_path: str, n_ctx: int = 2048, n_gpu_layers: int = 0):
-    """
-    Load a model and create a context.
+@dataclass
+class Result:
+    tokens: list = field(default_factory=list)
+    seconds: float = 0.0
+    n_drafted: int = 0
+    n_accepted: int = 0
+    n_rounds: int = 0
 
-    Args:
-        model_path: Path to the GGUF model file
-        n_ctx: Context size (default: 2048)
-        n_gpu_layers: Number of layers to offload to GPU (default: 0 for CPU)
+    @property
+    def tokens_per_second(self) -> float:
+        return len(self.tokens) / self.seconds if self.seconds else 0.0
 
-    Returns:
-        Tuple of (model, context)
-    """
-    print(f"Loading model: {model_path}")
-
-    # Configure model parameters
-    model_params = LlamaModelParams()
-    model_params.n_gpu_layers = n_gpu_layers
-
-    # Load model
-    model = LlamaModel(model_path, model_params)
-
-    # Configure context parameters
-    ctx_params = LlamaContextParams()
-    ctx_params.n_ctx = n_ctx
-    ctx_params.n_batch = 512
-
-    # Create context
-    context = LlamaContext(model, ctx_params)
-
-    print(f"  Loaded with {model.n_params} parameters")
-    print(f"  Context size: {n_ctx}")
-
-    return model, context
+    @property
+    def acceptance(self) -> float:
+        return self.n_accepted / self.n_drafted if self.n_drafted else 0.0
 
 
-def demonstrate_basic_usage(target_model_path, draft_model_path):
-    """
-    Demonstrate basic speculative decoding setup.
+def load(path: str, n_ctx: int, n_gpu_layers: int):
+    mparams = LlamaModelParams()
+    mparams.n_gpu_layers = n_gpu_layers
+    model = LlamaModel(path, mparams, verbose=False)
+    cparams = LlamaContextParams()
+    cparams.n_ctx = n_ctx
+    return model, LlamaContext(model, cparams, verbose=False)
 
-    Note: This uses the same model for both target and draft for demonstration.
-    In practice, you would use a larger model as target and smaller as draft.
-    """
-    print("=" * 70)
-    print("BASIC SPECULATIVE DECODING DEMONSTRATION")
-    print("=" * 70)
 
-    # Check if models exist
-    if not os.path.exists(target_model_path):
-        print(f"Error: Target model not found at {target_model_path}")
-        print("Please download a model first using 'make download'")
-        return
+def _greedy() -> LlamaSampler:
+    s = LlamaSampler()
+    s.add_greedy()
+    return s
 
-    print("\n1. Loading Target Model")
-    print("-" * 70)
-    target_model, target_ctx = load_model_and_context(target_model_path, n_ctx=1024)
 
-    print("\n2. Loading Draft Model")
-    print("-" * 70)
-    draft_model, draft_ctx = load_model_and_context(draft_model_path, n_ctx=1024)
+def greedy_generate(ctx: LlamaContext, prompt: list, n_predict: int) -> Result:
+    """Baseline: one target decode per generated token."""
+    vocab = ctx.model.get_vocab()
+    sampler = _greedy()
+    batch = LlamaBatch(n_tokens=len(prompt), embd=0, n_seq_max=1)
+    res = Result()
+    t0 = time.perf_counter()
 
-    print("\n3. Checking Compatibility")
-    print("-" * 70)
-    compatible = Speculative.are_compatible(target_ctx, draft_ctx)
-    print(f"Target and draft contexts compatible: {compatible}")
+    ctx.kv_cache_clear()
+    batch.set_batch(prompt, 0, False)
+    ctx.decode(batch)
+    n_past = len(prompt)
+    while len(res.tokens) < n_predict:
+        tok = sampler.sample(ctx, -1)
+        res.tokens.append(tok)
+        if vocab.is_eog(tok):
+            break
+        batch.set_batch([tok], n_past, False)
+        ctx.decode(batch)
+        n_past += 1
 
-    if not compatible:
-        print("ERROR: Models are not compatible for speculative decoding!")
-        print("Ensure both models use the same tokenizer/vocabulary.")
-        return
+    res.seconds = time.perf_counter() - t0
+    return res
 
-    print("\n4. Initializing Speculative Decoding")
-    print("-" * 70)
-    spec = Speculative(target_ctx, draft_ctx)
-    print(f"Created: {spec}")
 
-    print("\n5. Configuring Parameters")
-    print("-" * 70)
-    params = SpeculativeParams(
-        n_draft=16,  # Generate up to 16 draft tokens
-        n_reuse=256,  # Reuse up to 256 tokens from previous draft
-        p_min=0.75,  # Minimum probability to accept draft token
+def speculative_generate(
+    ctx_tgt: LlamaContext, spec: Speculative, params: SpeculativeParams, prompt: list, n_predict: int
+) -> Result:
+    """Draft with ``spec``, verify each draft in one target batch."""
+    vocab = ctx_tgt.model.get_vocab()
+    sampler = _greedy()
+    batch = LlamaBatch(n_tokens=max(len(prompt), params.n_max + 1), embd=0, n_seq_max=1)
+    res = Result()
+    t0 = time.perf_counter()
+
+    ctx_tgt.kv_cache_clear()
+    spec.begin(prompt)
+    # The target processes all but the last prompt token; that token seeds the first draft.
+    processed, id_last = list(prompt[:-1]), prompt[-1]
+    if processed:
+        batch.set_batch(processed, 0, False)
+        ctx_tgt.decode(batch)
+
+    while True:
+        n_left = n_predict - len(res.tokens)
+        draft = spec.draft(params, processed, id_last)[: n_left - 1] if n_left > 1 else []
+
+        # Score id_last and every draft token in one batch; row i predicts position i + 1.
+        batch.set_batch([id_last] + draft, len(processed), True)
+        ctx_tgt.decode(batch)
+
+        # Keep the draft prefix the target agrees with, plus the target's own next token.
+        accepted = []
+        for i in range(len(draft) + 1):
+            tok = sampler.sample(ctx_tgt, i)
+            accepted.append(tok)
+            if i == len(draft) or tok != draft[i]:
+                break
+
+        res.n_rounds += 1
+        res.n_drafted += len(draft)
+        res.n_accepted += len(accepted) - 1
+        spec.accept(len(accepted) - 1)
+
+        processed += [id_last] + accepted[:-1]
+        id_last = accepted[-1]
+        # Drop the rejected draft tokens from the target's KV cache.
+        ctx_tgt.memory_seq_rm(0, len(processed), -1)
+
+        for tok in accepted:
+            res.tokens.append(tok)
+            if vocab.is_eog(tok) or len(res.tokens) >= n_predict:
+                res.seconds = time.perf_counter() - t0
+                return res
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--target", required=True, help="target model (GGUF)")
+    parser.add_argument("--draft", help="draft model (GGUF); defaults to the target itself")
+    parser.add_argument("-p", "--prompt", default="Write a short story about a lighthouse keeper.")
+    parser.add_argument("-n", "--n-predict", type=int, default=128)
+    parser.add_argument("--n-max", type=int, default=8, help="max draft tokens per round")
+    parser.add_argument("--p-min", type=float, default=0.75, help="stop drafting below this top-token probability")
+    parser.add_argument("--ngl", type=int, default=99, help="GPU layers for both models")
+    parser.add_argument("--bench", type=int, default=0, metavar="N", help="time N runs of each mode after a warm-up")
+    args = parser.parse_args()
+
+    disable_logging()
+    n_ctx = 4096
+    model_tgt, ctx_tgt = load(args.target, n_ctx, args.ngl)
+    _, ctx_dft = load(args.draft or args.target, n_ctx, args.ngl)
+
+    vocab = model_tgt.get_vocab()
+    prompt = vocab.tokenize(args.prompt, add_special=True, parse_special=False)
+    params = SpeculativeParams(n_max=args.n_max, p_min=args.p_min)
+    spec = Speculative(params, ctx_tgt, ctx_dft)
+
+    runs = max(args.bench, 1)
+    if args.bench:
+        greedy_generate(ctx_tgt, prompt, args.n_predict)
+        speculative_generate(ctx_tgt, spec, params, prompt, args.n_predict)
+
+    base = [greedy_generate(ctx_tgt, prompt, args.n_predict) for _ in range(runs)]
+    specs = [speculative_generate(ctx_tgt, spec, params, prompt, args.n_predict) for _ in range(runs)]
+
+    print("".join(vocab.token_to_piece(t, 0, False) for t in specs[-1].tokens))
+    print()
+    b = min(base, key=lambda r: r.seconds)
+    s = min(specs, key=lambda r: r.seconds)
+    print(f"baseline:    {len(b.tokens)} tokens, {b.tokens_per_second:7.1f} tok/s")
+    print(
+        f"speculative: {len(s.tokens)} tokens, {s.tokens_per_second:7.1f} tok/s, "
+        f"acceptance {s.acceptance:.1%} ({s.n_accepted}/{s.n_drafted}), {s.n_rounds} rounds"
     )
-    print(f"Parameters: {params}")
-    print(f"  - n_draft: Maximum {params.n_draft} tokens to draft per iteration")
-    print(f"  - n_reuse: Reuse up to {params.n_reuse} tokens from previous draft")
-    print(f"  - p_min: Accept draft tokens with probability >= {params.p_min}")
-
-    print("\n6. Testing Draft Generation")
-    print("-" * 70)
-    # Example: Generate draft tokens for a simple prompt
-    # Note: Token IDs are model-specific. These are just examples.
-    prompt_tokens = [1, 791, 2232, 374]  # Example token sequence
-    last_token = 374
-
-    print(f"Input prompt tokens: {prompt_tokens}")
-    print(f"Last token ID: {last_token}")
-
-    draft_tokens = spec.gen_draft(params, prompt_tokens, last_token)
-
-    print(f"Generated draft tokens: {draft_tokens}")
-    print(f"Number of draft tokens: {len(draft_tokens)}")
-
-    print("\n7. Token Replacement Mapping (Optional)")
-    print("-" * 70)
-    print("You can add token replacements for models with different tokenizers:")
-    spec.add_replacement("hello", "hi")
-    spec.add_replacement("world", "earth")
-    print("Added replacements: 'hello'->'hi', 'world'->'earth'")
-
-    print("\n" + "=" * 70)
-    print("DEMONSTRATION COMPLETE")
-    print("=" * 70)
-
-
-def demonstrate_parameter_tuning(target_model_path):
-    """
-    Demonstrate how different parameters affect draft generation.
-    """
-    print("\n" + "=" * 70)
-    print("PARAMETER TUNING DEMONSTRATION")
-    print("=" * 70)
-
-    if not os.path.exists(target_model_path):
-        print(f"Error: Model not found at {target_model_path}")
-        return
-
-    print("\nLoading model...")
-    target_model, target_ctx = load_model_and_context(target_model_path, n_ctx=1024)
-    draft_model, draft_ctx = load_model_and_context(target_model_path, n_ctx=1024)
-
-    spec = Speculative(target_ctx, draft_ctx)
-    prompt_tokens = [1, 791, 2232, 374]
-    last_token = 374
-
-    print("\nTesting different n_draft values:")
-    print("-" * 70)
-    for n_draft in [4, 8, 16, 32]:
-        params = SpeculativeParams(n_draft=n_draft, p_min=0.75)
-        draft = spec.gen_draft(params, prompt_tokens, last_token)
-        print(f"n_draft={n_draft:2d}: Generated {len(draft):2d} tokens")
-
-    print("\nTesting different p_min values:")
-    print("-" * 70)
-    for p_min in [0.5, 0.6, 0.7, 0.8, 0.9]:
-        params = SpeculativeParams(n_draft=16, p_min=p_min)
-        draft = spec.gen_draft(params, prompt_tokens, last_token)
-        print(f"p_min={p_min:.1f}: Generated {len(draft):2d} tokens")
-
-
-def print_usage_tips():
-    """Print tips for effective speculative decoding."""
-    print("\n" + "=" * 70)
-    print("TIPS FOR EFFECTIVE SPECULATIVE DECODING")
-    print("=" * 70)
-    print("""
-1. MODEL SELECTION:
-   - Use models from the same family (e.g., Llama 3.2 1B and 3B)
-   - Draft model should be 2-4x smaller than target model
-   - Both must have compatible tokenizers
-
-2. PARAMETER TUNING:
-   - n_draft: Start with 16, increase for more speedup (but less accuracy)
-   - p_min: Start with 0.75, increase for better quality (less speedup)
-   - n_reuse: Keep at 256 for most cases
-
-3. PERFORMANCE EXPECTATIONS:
-   - Expect 1.5-3x speedup depending on models and parameters
-   - Best results with simple, predictable text
-   - Less effective for very creative/diverse outputs
-
-4. GPU USAGE:
-   - Offload both models to GPU for maximum speedup
-   - Draft model can use fewer layers if VRAM is limited
-
-5. WHEN TO USE:
-   - Long-form content generation
-   - Code generation
-   - Structured output
-   - High throughput scenarios
-
-6. WHEN NOT TO USE:
-   - Very short responses
-   - Extremely creative tasks
-   - When maximum quality is critical
-    """)
+    print(f"speedup:     {s.tokens_per_second / b.tokens_per_second:.2f}x (best of {runs})")
+    print(f"identical:   {s.tokens == b.tokens}")
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Speculative Decoding Example")
-    parser.add_argument("-m", "--model", help="Path to model file (used for both target and draft)")
-    parser.add_argument("--target", help="Path to target model file")
-    parser.add_argument("--draft", help="Path to draft model file")
-    args = parser.parse_args()
-
-    # Determine model paths
-    if args.target and args.draft:
-        target_model_path = args.target
-        draft_model_path = args.draft
-    elif args.model:
-        target_model_path = args.model
-        draft_model_path = args.model
-    else:
-        parser.error("Either -m/--model or both --target and --draft are required")
-
-    try:
-        # Run basic demonstration
-        demonstrate_basic_usage(target_model_path, draft_model_path)
-
-        # Run parameter tuning demonstration
-        demonstrate_parameter_tuning(target_model_path)
-
-        # Print usage tips
-        print_usage_tips()
-
-        print("\n" + "=" * 70)
-        print("SUCCESS: All demonstrations completed!")
-        print("=" * 70)
-
-    except FileNotFoundError as e:
-        print(f"\nError: {e}")
-        print("\nPlease ensure you have downloaded the required models:")
-        print("  make download")
-    except Exception as e:
-        print(f"\nError: {e}")
-        import traceback
-
-        traceback.print_exc()
-        sys.exit(1)
+    main()

@@ -22,9 +22,45 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+## [0.5.1]
+
+### Added
+
+- **`LlamaModel.from_fileobj()` and `LlamaModel.lora_adapter_init_from_fileobj()`** load a model or LoRA adapter from an open binary file or fd, at an optional byte offset, so a GGUF can ship inside a larger file. They wrap `llama_model_load_from_file_ptr` and `llama_adapter_lora_init_from_file_ptr`. The fd and GGUF header are validated before loading, as for paths. With mmap, the embedded data section must be 32-byte aligned in the file.
+
+- **Backend sampling** [EXPERIMENTAL upstream]: `LlamaContext(..., samplers={seq_id: chain})` and `LlamaContext.set_sampler()` attach a `LlamaSampler` chain that runs inside the decode graph. `sampled_token_ith()`, `sampled_probs_ith()`, `sampled_logits_ith()` and `sampled_candidates_ith()` read the results. `LlamaSampler.sample()` returns the backend token when there is one.
+
+  llama.cpp initialises an attached chain for that context's graph and never resets it. A second attach trips a `GGML_ASSERT` and aborts the process, and CPU sampling on any other context silently skips the offloaded links. So a chain binds to its first context: reattaching, sampling with another context, adding or removing links, and closing while attached all raise. `clone()` returns an unbound chain.
+
+- **`GGUFContext.from_fileobj()`** reads GGUF metadata from an open binary file or fd, at an optional offset. Unlike the model loader it accepts zero-tensor files, matching `from_file()`.
+
+- **`llama_version()`** returns the version compiled into the loaded llama.cpp library. `python -m cyllama info` prints it beside the build pin, which can differ in dynamic builds.
+
 ### Changed
 
+- **llama.cpp updated to `v0.5.0` (`b11146`, from `v0.4.1`).** `llama_vocab_type` gains `LLAMA_VOCAB_TYPE_TEST`, now covered by `tests/test_enum_drift.py`. The ggml RPC protocol is now major version 7 and does not interoperate with `rpc-server` from older llama.cpp.
+
 - **A source patch that no longer applies now fails the build** with git's reason, instead of logging "no longer applies" and building without the fix. The llama.cpp v0.4.0 bump lost the Metal MSL pin that way until it was caught by hand. `ggml-*.patch` no longer go to stable-diffusion.cpp's vendored ggml: shared-ggml mode does not compile it, and vendored mode compiles leejet's fork, whose layout they do not match. Without this, every static-link GPU wheel build (`SD_USE_VENDORED_GGML=1`) would fail on the Metal patch. Tests: `tests/test_build_patches.py`.
+
+### Removed
+
+- **Breaking: `SpeculativeParams.p_split`**, which had no effect: upstream reads it only for tree-based drafting, which `Speculative` does not implement. `n_min` and `p_min` are now keyword-only, so a positional call written for the old signature raises instead of setting `p_min` to the old `p_split` value.
+
+### Fixed
+
+- **`LlamaContext.save_state_seq_file()` failed on real prompts.** It stored tokens in a `uint8_t` vector and passed it to C as `llama_token*`: ids above 255 raised `OverflowError`, and smaller ids made C read four times past the buffer. `tests/test_state_files.py` round-trips both state-file formats and checks the restored cache.
+
+- **The RAG `Embedder` pooled only the first token.** `get_embeddings()` returns one output row, so MEAN pooling (the default) returned the CLS vector and LAST returned an empty vector. It now collects every row with `get_embeddings_ith()`. `tests/test_rag_embedder.py` checks all three modes against llama.cpp's own pooling.
+
+- **`TTSGenerator` produced no audio with OuteTTS 0.3-1B.** It filtered and offset audio codes with a hardcoded Qwen2 range, `151672..155772`, and ignored its own `audio_code_range` argument. OuteTTS 0.3-1B is OLMo-based, with its codes at `50307..54402`, so every code was dropped. The code range and the guide token now come from the loaded vocabulary, and explicit arguments still override them. The old range also held 4101 ids for a 4096-code vocoder. OuteTTS 1.0, which uses a different codec, now fails at load with a clear error instead of producing noise. `tests/test_tts_fix.py` now transcribes the output with whisper and checks the words; it used to check only that a non-empty WAV was written.
+
+- **Embedding accessors read `n_embd` floats per row; llama.cpp writes `n_embd_out`.** The two differ when the GGUF sets `embedding_length_out`, and for WavTokenizer, DeepSeek4 and Qwen4Exp. `get_embeddings()`, `get_embeddings_ith()` and `get_embeddings_seq()` returned truncated vectors or read past the row. For WavTokenizer (`n_embd` 512, `n_embd_out` 1282) `embd_to_audio` raised `IndexError`, so `TTSGenerator` produced no audio. `tests/test_tts_vocoder.py` decodes the default speaker's recorded codes with both WavTokenizer sizes and checks the result is speech. The mtmd `get_output_embd` docs named `n_embd`; mtmd rows are `n_embd_inp` wide.
+
+- **`LlamaSampler.sample()` aborted the process** when the chain selected no token (no greedy, dist, mirostat or adaptive-p link, or a filter after it) or the output index had no logits. Both are `GGML_ASSERT`s in `llama_sampler_sample`. `sample()` now runs the same steps in Cython and raises `ValueError`. Checking link names up front was rejected: names change after backend init, and a filter can still empty the candidates. `tests/test_sampler_sample.py` compares `sample()` against upstream's function, so an upstream change to it fails there.
+
+- **`Speculative.draft()` ignored `last_token_id`**, so every draft was one position early: its first token re-predicted `last_token_id` itself. It now decodes `last_token_id` after the prompt first, as upstream does. It also applies `p_min` and `n_min`, which were read but ignored, drafts the top candidate instead of a random draw, and accepts each token once instead of twice.
+
+- **`tests/examples/speculative_example.py` called removed APIs**, unnoticed because pytest does not collect `tests/examples`. It is now a working draft/verify loop with `--bench`, based on llama.cpp's `examples/speculative-simple`. `tests/test_speculative_example.py` runs it and checks the output equals plain greedy decoding. Qwen3-4B-Q8_0 with a Qwen3-0.6B-Q8_0 draft, CPU, 128 tokens: 1.40x at `p_min=0.75`, 1.70x at `p_min=0.5`.
 
 ## [0.5.0]
 
