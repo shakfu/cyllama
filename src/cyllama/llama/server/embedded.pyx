@@ -466,8 +466,10 @@ cdef class EmbeddedServer:
         except json.JSONDecodeError:
             conn.send_error(400, "Invalid JSON")
         except Exception as e:
+            # The message can carry model and filesystem paths; log it
+            # server-side and tell the client nothing specific.
             self._logger.error(f"Chat completion error: {e}")
-            conn.send_error(500, str(e))
+            conn.send_error(500, "Internal Server Error")
 
     def _handle_embeddings(self, conn: MongooseConnection, body: str):
         """Handle /v1/embeddings endpoint."""
@@ -524,8 +526,10 @@ cdef class EmbeddedServer:
         except json.JSONDecodeError:
             conn.send_error(400, "Invalid JSON")
         except Exception as e:
+            # The message can carry model and filesystem paths; log it
+            # server-side and tell the client nothing specific.
             self._logger.error(f"Embeddings error: {e}")
-            conn.send_error(500, str(e))
+            conn.send_error(500, "Internal Server Error")
 
     def _process_chat_completion(self, request: ChatRequest) -> ChatResponse:
         """Process chat completion using existing slot logic."""

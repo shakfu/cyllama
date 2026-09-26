@@ -933,8 +933,11 @@ cdef class LlamaModelParams:
         return self.p.load_mode
 
     @load_mode.setter
-    def load_mode(self, llama.llama_load_mode value):
-        self.p.load_mode = value
+    def load_mode(self, int value):
+        # llama_load_mode_name aborts on a value outside the enum
+        if not llama.LLAMA_LOAD_MODE_AUTO <= value <= llama.LLAMA_LOAD_MODE_DIRECT_IO:
+            raise ValueError(f"unknown load mode {value}")
+        self.p.load_mode = <llama.llama_load_mode>value
 
     @property
     def load_mode_name(self) -> str:
@@ -3397,6 +3400,24 @@ cdef class LlamaContext:
     # Memory / KV Cache Management
     # -------------------------------------------------------------------------
 
+    cdef int _check_seq(self, int seq_id, bint allow_all=False) except -1:
+        # llama.cpp checks seq_id with GGML_ASSERT, which aborts the process
+        if self.ptr is NULL:
+            raise RuntimeError("context has been closed")
+        if allow_all and seq_id == -1:
+            return 0
+        cdef uint32_t n = llama.llama_n_seq_max(self.ptr)
+        if seq_id < 0 or <uint32_t>seq_id >= n:
+            raise IndexError(f"seq_id {seq_id} is outside [0, n_seq_max={n})")
+        return 0
+
+    cdef int _check_shiftable(self) except -1:
+        # llama.cpp asserts that seq_add / seq_div positions are one-dimensional
+        rt = llama.llama_get_model_rope_type(llama.llama_get_model(self.ptr))
+        if rt in (llama.LLAMA_ROPE_TYPE_MROPE, llama.LLAMA_ROPE_TYPE_IMROPE, llama.LLAMA_ROPE_TYPE_VISION):
+            raise ValueError("position shifting is not supported for multi-dimensional (M-RoPE) positions")
+        return 0
+
     def kv_cache_clear(self, bint clear_data=True):
         """Clear the KV cache.
 
@@ -3419,8 +3440,9 @@ cdef class LlamaContext:
     def memory_seq_rm(self, int seq_id, int p0, int p1) -> bool:
         """Remove tokens from sequence in [p0, p1). Returns False if partial removal unsupported.
 
-        seq_id < 0: match any sequence. p0 < 0: from start. p1 < 0: to end.
+        seq_id -1: match any sequence. p0 < 0: from start. p1 < 0: to end.
         """
+        self._check_seq(seq_id, True)
         cdef llama.llama_memory_t mem = llama.llama_get_memory(self.ptr)
         if mem is NULL:
             return False
@@ -3428,24 +3450,30 @@ cdef class LlamaContext:
 
     def memory_seq_cp(self, int seq_id_src, int seq_id_dst, int p0, int p1):
         """Copy tokens from one sequence to another in [p0, p1)."""
+        self._check_seq(seq_id_src)
+        self._check_seq(seq_id_dst)
         cdef llama.llama_memory_t mem = llama.llama_get_memory(self.ptr)
         if mem is not NULL:
             llama.llama_memory_seq_cp(mem, <llama.llama_seq_id>seq_id_src, <llama.llama_seq_id>seq_id_dst, <llama.llama_pos>p0, <llama.llama_pos>p1)
 
     def memory_seq_keep(self, int seq_id):
         """Remove all tokens except those belonging to the specified sequence."""
+        self._check_seq(seq_id)
         cdef llama.llama_memory_t mem = llama.llama_get_memory(self.ptr)
         if mem is not NULL:
             llama.llama_memory_seq_keep(mem, <llama.llama_seq_id>seq_id)
 
     def memory_seq_add(self, int seq_id, int p0, int p1, int delta):
         """Add relative position delta to tokens in [p0, p1) of the given sequence."""
+        self._check_seq(seq_id)
+        self._check_shiftable()
         cdef llama.llama_memory_t mem = llama.llama_get_memory(self.ptr)
         if mem is not NULL:
             llama.llama_memory_seq_add(mem, <llama.llama_seq_id>seq_id, <llama.llama_pos>p0, <llama.llama_pos>p1, <llama.llama_pos>delta)
 
     def memory_seq_pos_min(self, int seq_id) -> int:
         """Returns smallest position in memory for the sequence, or -1 if empty."""
+        self._check_seq(seq_id)
         cdef llama.llama_memory_t mem = llama.llama_get_memory(self.ptr)
         if mem is NULL:
             return -1
@@ -3453,6 +3481,7 @@ cdef class LlamaContext:
 
     def memory_seq_pos_max(self, int seq_id) -> int:
         """Returns largest position in memory for the sequence, or -1 if empty."""
+        self._check_seq(seq_id)
         cdef llama.llama_memory_t mem = llama.llama_get_memory(self.ptr)
         if mem is NULL:
             return -1
@@ -3467,6 +3496,8 @@ cdef class LlamaContext:
         """
         if d <= 0:
             raise ValueError(f"divisor must be > 0, got {d}")
+        self._check_seq(seq_id)
+        self._check_shiftable()
         cdef llama.llama_memory_t mem = llama.llama_get_memory(self.ptr)
         if mem is NULL:
             return
@@ -3755,11 +3786,23 @@ cdef class LlamaSampler:
                 "modified; build a new chain instead")
         return 0
 
+    cdef bint _is_chain(self):
+        # llama_sampler_chain_* cast ctx to a chain without checking the type
+        return self.ptr is not NULL and llama.llama_sampler_chain_get(self.ptr, -1) is not NULL
+
+    cdef int _check_chain(self) except -1:
+        if self.ptr is NULL:
+            raise RuntimeError("Sampler is closed")
+        if not self._is_chain():
+            raise ValueError("sampler is not a chain; build links on a LlamaSampler()")
+        return 0
+
     cdef int _chain_add(self, llama.llama_sampler * link) except -1:
         # takes ownership of link, freeing it if the chain cannot accept it
-        if self._bound_ctx is not None:
+        if self._bound_ctx is not None or not self._is_chain():
             if link is not NULL:
                 llama.llama_sampler_free(link)
+            self._check_chain()
             self._check_unbound()
         llama.llama_sampler_chain_add(self.ptr, link)
         return 0
@@ -3777,7 +3820,7 @@ cdef class LlamaSampler:
 
     def __len__(self) -> int:
         """Number of chain links added so far."""
-        if self.ptr is NULL:
+        if not self._is_chain():
             return 0
         return llama.llama_sampler_chain_n(self.ptr)
 
@@ -3788,8 +3831,7 @@ cdef class LlamaSampler:
         must not outlive it. Useful for reading ``name()`` back to confirm
         the chain was assembled as intended.
         """
-        if self.ptr is NULL:
-            raise RuntimeError("Sampler is closed")
+        self._check_chain()
         cdef int n = llama.llama_sampler_chain_n(self.ptr)
         if i < 0:
             i += n
@@ -3811,8 +3853,7 @@ cdef class LlamaSampler:
 
         The chain no longer frees the link; the returned object does.
         """
-        if self.ptr is NULL:
-            raise RuntimeError("Sampler is closed")
+        self._check_chain()
         cdef int n = llama.llama_sampler_chain_n(self.ptr)
         if i < 0:
             i += n

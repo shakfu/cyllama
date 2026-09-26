@@ -22,6 +22,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+### Fixed
+
+- **`memory_seq_*` aborted the process on an out-of-range `seq_id`.** llama.cpp checks it with `GGML_ASSERT`, so `ctx.memory_seq_pos_max(300)` killed the interpreter. Every `memory_seq_*` method now raises `IndexError` outside `[0, n_seq_max)` (`memory_seq_rm` also accepts -1), raises `RuntimeError` on a closed context instead of dereferencing NULL, and `memory_seq_add` / `_div` raise `ValueError` for M-RoPE models, which llama.cpp also asserts against. Tests: `tests/test_native_guards.py`.
+
+- **`LlamaModelParams.load_mode` accepted any integer**, and `load_mode_name` then hit `GGML_ABORT` in `llama_load_mode_name`. The setter now raises `ValueError` outside the enum.
+
+- **A chain link could be used as a chain.** `chain_get()` returns a link, and `llama_sampler_chain_*` cast any sampler to a chain without checking, so `len()`, `add_*()`, `chain_get()` or `chain_remove()` on a link read or wrote the wrong structure. `len()` of a link is now 0 and the others raise `ValueError`.
+
+### Security
+
+- **`quarto_render` passed the model's `output_dir` to `--output-dir` unchecked.** 0.4.9 confined `input` to the output directory, but rendered output could still be written anywhere. `output_dir` now resolves relative to the input's directory and must stay under the output directory; `..` and symlinks out of it are refused.
+
+- **`EmbeddedServer` 500 responses carried exception text** from `/v1/chat/completions` and `/v1/embeddings`, which can disclose model and filesystem paths. 0.4.9 fixed only `PythonServer`. Both now return a generic message and log the detail; `tests/test_server_security.py` checks both servers live.
+
 ## [0.5.1]
 
 ### Added

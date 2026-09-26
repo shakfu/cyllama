@@ -177,6 +177,13 @@ class TestQuartoRenderLive:
         with pytest.raises(FileNotFoundError):
             quarto_render(input=str(ghost), content="", to="html")
 
+    def test_output_dir_inside_the_root_renders_there(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setenv("CYLLAMA_QUARTO_OUTPUT_DIR", str(tmp_path))
+        src = '---\ntitle: "t"\nformat: html\n---\n\nbody\n'
+
+        quarto_render(input="doc.qmd", content=src, to="html", output_dir="rendered")
+        assert (tmp_path / "rendered" / "doc.html").exists()
+
 
 class TestQuartoWriteConfinement:
     """``input`` reaches ``quarto_render`` straight from the model, and the
@@ -198,6 +205,7 @@ class TestQuartoWriteConfinement:
         with pytest.raises(ValueError, match="refusing to write outside"):
             quarto_render(input=str(escape), content=self.SRC)
         assert not escape.exists()
+        assert not escape.parent.exists()
 
     def test_dotdot_traversal_is_refused(self, root: Path):
         with pytest.raises(ValueError, match="refusing to write outside"):
@@ -231,3 +239,27 @@ class TestQuartoWriteConfinement:
     def test_refusal_names_the_configured_root(self, root: Path, tmp_path: Path):
         with pytest.raises(ValueError, match="CYLLAMA_QUARTO_OUTPUT_DIR"):
             quarto_render(input=str(tmp_path / "evil.qmd"), content=self.SRC)
+
+    def test_output_dir_absolute_outside_the_root_is_refused(self, root: Path, tmp_path: Path):
+        with pytest.raises(ValueError, match="refusing to write outside"):
+            quarto_render(content=self.SRC, output_dir=str(tmp_path / "elsewhere"))
+
+    def test_output_dir_dotdot_traversal_is_refused(self, root: Path):
+        with pytest.raises(ValueError, match="refusing to write outside"):
+            quarto_render(content=self.SRC, output_dir="../../elsewhere")
+
+    def test_output_dir_symlink_out_of_the_root_is_refused(self, root: Path, tmp_path: Path):
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        root.mkdir(parents=True, exist_ok=True)
+        (root / "link").symlink_to(outside, target_is_directory=True)
+        with pytest.raises(ValueError, match="refusing to write outside"):
+            quarto_render(content=self.SRC, output_dir="link")
+
+    def test_output_dir_on_existing_input_outside_the_root_is_refused(self, root: Path, tmp_path: Path):
+        # Render-existing mode: output_dir is relative to the input's dir,
+        # which here is outside the root.
+        src = tmp_path / "doc.qmd"
+        src.write_text(self.SRC, encoding="utf-8")
+        with pytest.raises(ValueError, match="refusing to write outside"):
+            quarto_render(input=str(src), output_dir="rendered")

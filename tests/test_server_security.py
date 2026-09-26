@@ -268,3 +268,19 @@ def test_embedded_loop_exit_by_exception_does_not_block_stop():
     finally:
         signal.signal(signal.SIGINT, saved[0])
         signal.signal(signal.SIGTERM, saved[1])
+
+
+def test_500_body_does_not_carry_exception_text(serve):
+    """A handler exception can name model and filesystem paths; the body must not."""
+    port = serve()
+    # a message without "content" raises KeyError('content') inside the handler
+    status, body = _request(
+        port,
+        "POST",
+        "/v1/chat/completions",
+        {"Content-Type": "application/json"},
+        json.dumps({"messages": [{"role": "user"}]}),
+    )
+    assert status == 500
+    assert body["error"]["message"] == "Internal Server Error"
+    assert "content" not in json.dumps(body)
