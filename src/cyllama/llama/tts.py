@@ -226,7 +226,7 @@ class TTSGenerator:
             raise ValueError(
                 f"{text!r} is not a single token in the text-to-codes model; is this an OuteTTS 0.2/0.3 model?"
             )
-        return tokens[0]
+        return int(tokens[0])
 
     def load_speaker(self, speaker_file: str) -> None:
         """Load speaker profile from JSON file"""

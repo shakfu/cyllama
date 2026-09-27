@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from cyllama.llama.llama_cpp import llama_supports_gpu_offload
 from cyllama.rag import CacheInfo, Embedder, EmbeddingResult, PoolingType
 
 
@@ -666,10 +667,13 @@ class TestPoolingMatchesLlamaCpp:
 
     TEXT = "The quick brown fox jumps over the lazy dog"
 
-    def _llama_cpp_pooled(self, pooling_type):
-        from cyllama.llama.llama_cpp import LlamaBatch, LlamaContext, LlamaContextParams, LlamaModel
+    def _llama_cpp_pooled(self, pooling_type, n_gpu_layers):
+        from cyllama.llama.llama_cpp import LlamaBatch, LlamaContext, LlamaContextParams, LlamaModel, LlamaModelParams
 
-        model = LlamaModel(str(SMALL_EMBED_MODEL), verbose=False)
+        # Must match the Embedder's backend; CPU and Metal Q8_0 matmuls differ by ~2%.
+        model_params = LlamaModelParams()
+        model_params.n_gpu_layers = n_gpu_layers
+        model = LlamaModel(str(SMALL_EMBED_MODEL), model_params, verbose=False)
         params = LlamaContextParams()
         params.n_ctx = 512
         params.pooling_type = pooling_type
@@ -682,10 +686,21 @@ class TestPoolingMatchesLlamaCpp:
         ctx.decode(batch)
         return ctx.get_embeddings_seq(0), model.n_embd_out
 
+    @pytest.mark.parametrize(
+        "n_gpu_layers",
+        [
+            pytest.param(0, id="cpu"),
+            pytest.param(
+                -1,
+                id="metal",
+                marks=pytest.mark.skipif(not llama_supports_gpu_offload(), reason="no GPU offload"),
+            ),
+        ],
+    )
     @pytest.mark.parametrize("pooling,pooling_type", [("mean", 1), ("cls", 2), ("last", 3)])
-    def test_matches(self, pooling, pooling_type):
-        expected, n_embd_out = self._llama_cpp_pooled(pooling_type)
-        with Embedder(str(SMALL_EMBED_MODEL), n_gpu_layers=0, pooling=pooling, normalize=False) as emb:
+    def test_matches(self, pooling, pooling_type, n_gpu_layers):
+        expected, n_embd_out = self._llama_cpp_pooled(pooling_type, n_gpu_layers)
+        with Embedder(str(SMALL_EMBED_MODEL), n_gpu_layers=n_gpu_layers, pooling=pooling, normalize=False) as emb:
             got = emb.embed(self.TEXT)
         assert len(got) == n_embd_out
         assert got == pytest.approx(expected, rel=1e-4, abs=1e-5)
