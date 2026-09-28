@@ -511,6 +511,22 @@ for dist, backend in {distributions!r}.items():
             sys.exit(2)
         return backend
 
+    # Prints the ggml device types after loading every backend. ggml logs to
+    # stderr, so stdout carries only this line.
+    _DEVICES_SRC = """
+from cyllama.llama import llama_cpp as cy
+cy.ggml_backend_load_all()
+print(",".join(d["type"] for d in cy.ggml_backend_dev_info()))
+"""
+
+    # Command that shows whether the driver for a GPU backend is working.
+    DRIVER_CHECKS: dict[str, str] = {
+        "cuda": "nvidia-smi",
+        "rocm": "rocm-smi",
+        "vulkan": "vulkaninfo --summary",
+        "sycl": "sycl-ls",
+    }
+
     def preflight(self, backend: str) -> str | None:
         """Import cyllama once up front; return an error message, or None if fine.
 
@@ -521,16 +537,25 @@ for dist, backend in {distributions!r}.items():
         backend is reused as-is. Linked against this backend's static libs it then
         fails to import, and without this check that arrives once per test as an
         `undefined symbol` traceback with no hint of the cause.
+
+        For a GPU backend it also requires ggml to register a GPU device. When
+        the driver is missing, ggml falls back to the CPU and every test still
+        passes.
         """
         proc = subprocess.run(
-            [*self.python_cmd(), "-c", "import cyllama"],
+            [*self.python_cmd(), "-c", self._DEVICES_SRC],
             cwd=self.paths.root,
             env={**os.environ, **self.env_for(backend)},
             capture_output=True,
             text=True,
         )
         if proc.returncode == 0:
-            return None
+            types = proc.stdout.strip().split(",")
+            if backend == "cpu" or {"GPU", "iGPU"} & set(types):
+                return None
+            check = self.DRIVER_CHECKS.get(backend)
+            hint = f"\n  Check the driver: {check}" if check else ""
+            return f"backend '{backend}' registered no GPU device (devices: {','.join(types) or 'none'}){hint}"
         detail = (proc.stderr or proc.stdout).strip().splitlines()
         tail = detail[-1] if detail else f"exit code {proc.returncode}"
         hint = ""
