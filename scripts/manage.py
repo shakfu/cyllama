@@ -1305,27 +1305,28 @@ class LlamaCppBuilder(GgmlBuilder):
         for short in enabled:
             self.copy_lib(self.build_dir, f"ggml/src/ggml-{short}", f"ggml-{short}", self.lib)
 
-    def _copy_headers(self) -> None:
-        """Copy llama.cpp public headers into the prefix include dir."""
-        self.glob_copy(self.src_dir / "common", self.include, patterns=["*.h", "*.hpp"])
-        self.glob_copy(self.src_dir / "ggml" / "include", self.include, patterns=["*.h"])
+    def _copy_headers(self, src: Optional[Path] = None, dest: Optional[Path] = None) -> None:
+        """Copy llama.cpp public headers from `src` (default src_dir) into `dest` (default include)."""
+        src = src or self.src_dir
+        dest = dest or self.include
+        self.glob_copy(src / "common", dest, patterns=["*.h", "*.hpp"])
+        self.glob_copy(src / "ggml" / "include", dest, patterns=["*.h"])
         # Main llama.h header.
-        self.glob_copy(self.src_dir / "include", self.include, patterns=["*.h"])
+        self.glob_copy(src / "include", dest, patterns=["*.h"])
         # jinja headers (required by chat.h).
-        jinja_include = self.include / "jinja"
+        jinja_include = dest / "jinja"
         jinja_include.mkdir(exist_ok=True)
-        self.glob_copy(self.src_dir / "common" / "jinja", jinja_include, patterns=["*.h", "*.hpp"])
+        self.glob_copy(src / "common" / "jinja", jinja_include, patterns=["*.h", "*.hpp"])
         # nlohmann JSON headers (required by json-partial.h).
-        nlohmann_include = self.include / "nlohmann"
+        nlohmann_include = dest / "nlohmann"
         nlohmann_include.mkdir(exist_ok=True)
-        self.glob_copy(self.src_dir / "vendor" / "nlohmann", nlohmann_include, patterns=["*.hpp"])
+        self.glob_copy(src / "vendor" / "nlohmann", nlohmann_include, patterns=["*.hpp"])
         # mtmd (multimodal) headers.
-        self.glob_copy(self.src_dir / "tools" / "mtmd", self.include, patterns=["*.h"])
+        self.glob_copy(src / "tools" / "mtmd", dest, patterns=["*.h"])
         # cpp-httplib sources, compiled into the embedded server extension.
-        httplib_include = self.include / "cpp-httplib"
+        httplib_include = dest / "cpp-httplib"
         httplib_include.mkdir(exist_ok=True)
-        self.glob_copy(self.src_dir / "vendor" / "cpp-httplib", httplib_include, patterns=["httplib.h", "httplib.cpp"])
-        self.copy_licenses()
+        self.glob_copy(src / "vendor" / "cpp-httplib", httplib_include, patterns=["httplib.h", "httplib.cpp"])
 
     def build(self, shared: bool = False) -> None:
         """main build function"""
@@ -1334,6 +1335,7 @@ class LlamaCppBuilder(GgmlBuilder):
         self.prefix.mkdir(exist_ok=True)
         self.include.mkdir(exist_ok=True)
         self._copy_headers()
+        self.copy_licenses()
         self._apply_source_patches()
 
         # Get backend-specific CMake options
@@ -1418,6 +1420,7 @@ class LlamaCppBuilder(GgmlBuilder):
         self.prefix.mkdir(exist_ok=True)
         self.include.mkdir(exist_ok=True)
         self._copy_headers()
+        self.copy_licenses()
         self._apply_source_patches()
 
         backend_options = self.get_backend_cmake_options()
@@ -1636,7 +1639,7 @@ class LlamaCppBuilder(GgmlBuilder):
             self.prefix.mkdir(exist_ok=True)
             self.include.mkdir(exist_ok=True)
             self._copy_headers()
-        elif self.src_dir.exists():
+        if self.src_dir.exists():
             self.copy_licenses()
 
         url = self._release_url()
@@ -3454,14 +3457,7 @@ class Application(ShellCmd, metaclass=MetaCommander):
 
             expected = tmp_path / "include"
             expected.mkdir()
-            builder.glob_copy(src / "common", expected, patterns=["*.h", "*.hpp"])
-            builder.glob_copy(src / "ggml" / "include", expected, patterns=["*.h"])
-            builder.glob_copy(src / "include", expected, patterns=["*.h"])
-            (expected / "jinja").mkdir(exist_ok=True)
-            builder.glob_copy(src / "common" / "jinja", expected / "jinja", patterns=["*.h", "*.hpp"])
-            (expected / "nlohmann").mkdir(exist_ok=True)
-            builder.glob_copy(src / "vendor" / "nlohmann", expected / "nlohmann", patterns=["*.hpp"])
-            builder.glob_copy(src / "tools" / "mtmd", expected, patterns=["*.h"])
+            builder._copy_headers(src, expected)
 
             committed = builder.include
             result = subprocess.run(
