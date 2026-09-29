@@ -1,118 +1,87 @@
-# Mongoose-based HTTP server for cyllama
-# High-performance alternative to Python HTTP server
+# cpp-httplib-based HTTP server for cyllama, with SSE streaming for chat completions.
 
 import json
 import logging
-import os
+import queue
 import signal
 import threading
 import time
-import sys
-from typing import Dict, List, Optional, Any, Callable
-from dataclasses import dataclass
+import uuid
+from contextlib import closing
+from typing import List
 
-# Import Mongoose C API
 from cpython.exc cimport PyErr_CheckSignals
+from cpython.ref cimport PyObject, Py_INCREF, Py_XDECREF
 
-from .mongoose cimport *
+from .http_shim cimport *
 
-# Import from Python server implementation
 from .python import (ServerConfig, ServerSlot, ChatMessage, ChatRequest, ChatResponse, ChatChoice,
-                     check_request, exposed_without_auth)
+                     check_request, exposed_without_auth, model_params, sse_chunks, stop_at)
 
-# Global shutdown flag for signal handling (following pymongoose pattern)
+# Global shutdown flag for signal handling
 _shutdown_requested = False
 
-_MONGOOSE_LOG_LEVELS = {
-    "none": MG_LL_NONE, "error": MG_LL_ERROR, "info": MG_LL_INFO,
-    "debug": MG_LL_DEBUG, "verbose": MG_LL_VERBOSE,
-}
+
+def _bind_address(host: str):
+    """Return (host, is_ipv6) for the listener: brackets stripped, family taken from the literal.
+
+    A fixed family keeps "localhost" on 127.0.0.1, as PythonServer binds it.
+    """
+    if host.startswith("[") and host.endswith("]"):
+        host = host[1:-1]
+    return host, ":" in host
 
 
-def _mongoose_log_level(logger) -> int:
-    """CYLLAMA_MONGOOSE_LOG if set, else debug when `logger` has DEBUG enabled, else errors only."""
-    name = os.environ.get("CYLLAMA_MONGOOSE_LOG", "").strip().lower()
-    if name in _MONGOOSE_LOG_LEVELS:
-        return _MONGOOSE_LOG_LEVELS[name]
-    if name:
-        logger.warning(f"Ignoring CYLLAMA_MONGOOSE_LOG={name!r}; expected one of {', '.join(_MONGOOSE_LOG_LEVELS)}")
-    return MG_LL_DEBUG if logger.isEnabledFor(logging.DEBUG) else MG_LL_ERROR
-
-
-# Mongoose defaults to MG_LL_DEBUG, which prints every connection to stdout.
-# Set here because constructing a server already logs; start() re-reads it.
-mg_log_level = _mongoose_log_level(logging.getLogger(__name__))
-
-
-def _listen_url(host: str, port: int) -> str:
-    """Build the Mongoose listen URL for exactly the configured host."""
-    if ":" in host and not host.startswith("["):
-        host = f"[{host}]"  # IPv6 literal; unbracketed colons break port parsing
-    return f"http://{host}:{port}"
-
-
-cdef class MongooseConnection:
-    """Wrapper for mg_connection pointer."""
-    cdef mg_connection *_conn
+cdef class HttpResponse:
+    """The response to one request. Valid only while its handler runs."""
+    cdef cy_http_res *_res
+    cdef readonly bint sent
 
     def __cinit__(self):
-        self._conn = NULL
+        self._res = NULL
+        self.sent = False
 
-    @property
-    def is_valid(self):
-        return self._conn != NULL
-
-    def send_json(self, data: dict, status_code: int = 200):
-        """Send JSON response."""
-        if not self.is_valid:
+    def _set(self, int status, bytes content_type, bytes body, bint close_connection=False):
+        if self._res == NULL or self.sent:
             return False
-
-        json_str = json.dumps(data)
-        headers = "Content-Type: application/json\r\n"
-
-        cdef bytes json_bytes = json_str.encode('utf-8')
-        cdef bytes headers_bytes = headers.encode('utf-8')
-
-        # Extract C pointers from bytes objects before nogil section
-        cdef const char* headers_ptr = headers_bytes
-        cdef const char* json_ptr = json_bytes
-        cdef size_t json_len = len(json_bytes)
-
-        # Send HTTP reply without GIL for better performance
-        self._send_reply_nogil(status_code, headers_ptr, json_ptr, json_len)
+        cy_http_res_set(self._res, status, content_type, body, len(body), close_connection)
+        self.sent = True
         return True
 
-    cdef void _send_reply_nogil(self, int status_code, const char* headers_ptr, const char* json_ptr,
-                                size_t json_len) nogil:
-        """Send HTTP reply without holding GIL."""
-        cyllama_mg_http_reply(self._conn, status_code, headers_ptr, json_ptr, json_len)
+    def send_json(self, data: dict, status_code: int = 200, close_connection: bool = False):
+        """Send JSON response."""
+        return self._set(status_code, b"application/json", json.dumps(data).encode("utf-8"), close_connection)
 
-    def send_error(self, status_code: int, message: str):
+    def send_error(self, status_code: int, message: str, close_connection: bool = False):
         """Send error response."""
-        error_data = {
-            "error": {
-                "type": "invalid_request_error",
-                "message": message
-            }
-        }
-        self.send_json(error_data, status_code)
+        error_data = {"error": {"type": "invalid_request_error", "message": message}}
+        return self.send_json(error_data, status_code, close_connection)
+
+    def send_stream(self, chunks, content_type: bytes = b"text/event-stream"):
+        """Stream the bytes `chunks` yields, chunked. The server closes `chunks` when the response ends."""
+        if self._res == NULL or self.sent:
+            return False
+        Py_INCREF(chunks)  # released by _stream_release
+        cy_http_res_stream(self._res, 200, content_type, <void*>chunks)
+        self.sent = True
+        return True
 
 
 cdef class EmbeddedServer:
-    """High-performance embedded HTTP server for LLM inference using Mongoose."""
+    """Embedded HTTP server for LLM inference using cpp-httplib."""
 
-    cdef mg_mgr _mgr
-    cdef mg_connection *_listener
+    cdef cy_http_server *_srv
     cdef object _config
     cdef object _model
     cdef object _embedder
     cdef list _slots
+    cdef object _free_slots  # queue.Queue of idle ServerSlots
     cdef object _logger
     cdef bint _running
-    cdef object _server_thread
+    cdef object _listen_thread
     cdef int _signal_received
     cdef bint _stop_requested
-    cdef object _loop_exited  # threading.Event, clear while wait_for_shutdown polls
+    cdef object _loop_exited  # threading.Event, clear while wait_for_shutdown runs
     cdef object _loop_ident
 
     @property
@@ -126,10 +95,9 @@ cdef class EmbeddedServer:
         self._signal_received = value
 
     def __cinit__(self):
-        cyllama_mg_mgr_init(&self._mgr)
-        self._listener = NULL
+        self._srv = NULL
         self._running = False
-        self._server_thread = None
+        self._listen_thread = None
         self._signal_received = 0
         self._stop_requested = False
         self._loop_exited = threading.Event()
@@ -137,8 +105,10 @@ cdef class EmbeddedServer:
         self._loop_ident = 0
 
     def __dealloc__(self):
-        self.stop()
-        cyllama_mg_mgr_free(&self._mgr)
+        # The listener thread holds a reference, so it has exited by now.
+        if self._srv != NULL:
+            cy_http_server_free(self._srv)
+            self._srv = NULL
 
     def __enter__(self):
         """Context manager entry."""
@@ -149,9 +119,7 @@ cdef class EmbeddedServer:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Context manager exit."""
-        self._logger.info("Context manager __exit__ called - starting graceful shutdown")
         self.stop()
-        self._logger.info("Context manager __exit__ completed")
         return False
 
     def __init__(self, config: ServerConfig):
@@ -169,10 +137,8 @@ cdef class EmbeddedServer:
             # Import here to avoid circular imports
             from ..llama_cpp import LlamaModel
 
-            # Load model
-            self._model = LlamaModel(path_model=self._config.model_path)
+            self._model = LlamaModel(path_model=self._config.model_path, params=model_params(self._config))
 
-            # Create slots using existing ServerSlot logic
             self._slots = []
             for i in range(self._config.n_parallel):
                 slot = ServerSlot(i, self._model, self._config)
@@ -198,19 +164,11 @@ cdef class EmbeddedServer:
                     f"pooling={self._embedder.pooling}"
                 )
 
-            self._logger.info("About to return True from load_model()")
             return True
 
         except Exception as e:
             self._logger.error(f"Failed to load model: {e}")
             return False
-
-    def get_available_slot(self) -> Optional[ServerSlot]:
-        """Get an available slot for processing."""
-        for slot in self._slots:
-            if not slot.is_processing:
-                return slot
-        return None
 
     def _signal_handler(self, signum, frame):
         """Handle SIGINT/SIGTERM signals for graceful shutdown."""
@@ -226,10 +184,11 @@ cdef class EmbeddedServer:
         self._logger.debug("Signal handlers registered for SIGINT and SIGTERM")
 
     def start(self) -> bool:
-        """Start the embedded server."""
+        """Load the model, bind, and serve on a background thread."""
         global _shutdown_requested
 
-        # Reset global shutdown flag
+        if self._running:
+            return True
         _shutdown_requested = False
         self._stop_requested = False
 
@@ -239,137 +198,72 @@ cdef class EmbeddedServer:
         if exposed_without_auth(self._config):
             self._logger.warning(f"Binding {self._config.host} without an API key: any host that can reach it can use it")
 
-        global mg_log_level
-        mg_log_level = _mongoose_log_level(self._logger)
-
-        # Setup signal handlers for graceful shutdown
         self._setup_signal_handlers()
 
-        try:
-            listen_addr = _listen_url(self._config.host, self._config.port)
-
-            self._logger.info(f"Attempting to bind to: {listen_addr}")
-            addr_bytes = listen_addr.encode('utf-8')
-
-            # Start HTTP listener with our event handler
-            # Store reference to self to prevent garbage collection
-            self._mgr.userdata = <void*>self
-
-            self._logger.info("Calling cyllama_mg_http_listen...")
-            self._listener = cyllama_mg_http_listen(&self._mgr, addr_bytes,
-                                                  <mg_event_handler_t>_http_event_handler,
-                                                  NULL)  # Use NULL, get server from mgr.userdata
-            self._logger.info(f"cyllama_mg_http_listen returned: {<unsigned long>self._listener}")
-
-            if self._listener == NULL:
-                self._logger.error("Failed to create HTTP listener")
-                return False
-
-            self._running = True
-            self._logger.info(f"Embedded server started on {listen_addr}")
-            return True
-
-        except Exception as e:
-            self._logger.error(f"Failed to start server: {e}")
+        host, ipv6 = _bind_address(self._config.host)
+        if self._srv != NULL:
+            cy_http_server_free(self._srv)
+        self._srv = cy_http_server_new(<void*>self, _precheck, _handle, _stream_next, _stream_release,
+                                       self._config.max_body_bytes)
+        if cy_http_server_bind(self._srv, host.encode("utf-8"), self._config.port, ipv6) != 0:
+            self._logger.error(f"Failed to bind {self._config.host}:{self._config.port}")
+            cy_http_server_free(self._srv)
+            self._srv = NULL
             return False
 
+        self._free_slots = queue.Queue()
+        for slot in self._slots:
+            self._free_slots.put(slot)
+
+        self._running = True
+        self._listen_thread = threading.Thread(target=self._listen, name="cyllama-http", daemon=True)
+        self._listen_thread.start()
+        self._logger.info(f"Embedded server started on {self._config.host}:{self._config.port}")
+        return True
+
+    def _listen(self):
+        cdef cy_http_server *srv = self._srv
+        with nogil:
+            cy_http_server_listen(srv)
+
     def stop(self):
-        """Stop the embedded server."""
-        self._logger.info("Stop method called")
-        # Mongoose is not thread-safe. Another thread must not touch the
-        # manager until the polling thread has left mg_mgr_poll.
+        """Stop the embedded server. Waits for in-flight requests; open streams end at their next chunk."""
+        # A wait_for_shutdown running on another thread must return before stop() does.
         if not self._loop_exited.is_set() and threading.get_ident() != self._loop_ident:
             self._stop_requested = True
             if not self._loop_exited.wait(timeout=5):
-                self._logger.error("Event loop did not exit within 5s; not stopping")
-                return
-        if self._running:
-            self._logger.info("Stopping embedded server...")
-            self._running = False
-
-            # Set signal to trigger event loop exit
-            if self._signal_received == 0:
-                self._signal_received = signal.SIGTERM  # Simulate SIGTERM
-
-            # Close connections
-            self._close_all_connections_from_main_thread()
-
-            # Clean up Mongoose resources
-            if self._listener:
-                self._listener = NULL
-
-            # Clear userdata reference to prevent memory leaks
-            self._mgr.userdata = NULL
-
-            self._logger.info("Embedded server stopped")
-
-    def _close_all_connections(self):
-        """Close all Mongoose connections using the documented approach."""
-        self._logger.debug("Closing all Mongoose connections...")
-
-        cdef int closed_count = self._close_connections_nogil()
-
-        self._logger.debug(f"Set closing flag on {closed_count} connections")
-
-    cdef int _close_connections_nogil(self) nogil:
-        """Close connections without GIL for better performance."""
-        cdef mg_connection *conn = self._mgr.conns
-        cdef int closed_count = 0
-
-        while conn != NULL:
-            # For shutdown, use immediate closure for faster response
-            conn.is_closing = 1
-            closed_count += 1
-            conn = conn.next
-
-        return closed_count
-
+                self._logger.error("wait_for_shutdown did not exit within 5s")
+        if not self._running:
+            return
+        if self._signal_received == 0:
+            self._signal_received = signal.SIGTERM
+        cdef cy_http_server *srv = self._srv
+        with nogil:
+            cy_http_server_stop(srv)
+        # If the join is interrupted, state is unchanged and stop() can be called again.
+        self._listen_thread.join()
+        self._running = False
+        self._listen_thread = None
+        cy_http_server_free(self._srv)
+        self._srv = NULL
+        self._logger.info("Embedded server stopped")
 
     def wait_for_shutdown(self):
-        """Wait for shutdown signal using pymongoose pattern for reliable signal handling."""
-        global _shutdown_requested
-        self._logger.info("Starting embedded server event loop...")
-
+        """Block until a signal arrives or stop() is called."""
         self._loop_ident = threading.get_ident()
         self._loop_exited.clear()
         try:
-            # Follow pymongoose pattern: check flag in Python, poll in C
-            # This ensures signal handling works correctly across the GIL boundary
             while not _shutdown_requested and not self._stop_requested:
-                # Calling a nogil function does not release the GIL; `with nogil` does.
-                # Holding it starved every other Python thread.
-                with nogil:
-                    self._poll_nogil(100)  # 100ms like pymongoose
-                # A pure-C loop never runs Python signal handlers, so Ctrl-C waited for
-                # the next request. Raises if a handler raises.
+                time.sleep(0.1)
+                # Compiled code never runs Python signal handlers on its own, and a signal
+                # delivered to another thread does not interrupt the sleep. Raises if a handler raises.
                 PyErr_CheckSignals()
         finally:
             self._logger.info(f"Exiting on signal {self._signal_received}")
-            # Close connections gracefully
-            self._close_all_connections_from_main_thread()
             self._loop_exited.set()
 
-    cdef void _poll_nogil(self, int timeout_ms) noexcept nogil:
-        """Poll Mongoose manager without GIL for maximum performance."""
-        cyllama_mg_mgr_poll(&self._mgr, timeout_ms)
-
-    def _close_all_connections_from_main_thread(self):
-        """Close all Mongoose connections from the main thread."""
-        self._logger.info("Closing all Mongoose connections from main thread...")
-
-        cdef int closed_count = self._close_connections_nogil()
-
-        self._logger.info(f"Set closing flag on {closed_count} connections")
-
-    def handle_http_request(self, conn: MongooseConnection, method: str, uri: str,
-                          headers: dict, body: bytes):
-        """Handle HTTP request using existing logic."""
-        # Before decoding the body, so an unauthenticated client gets 401, not a decode error.
-        rejection = check_request(self._config, uri, headers.get("authorization"), len(body))
-        if rejection is not None:
-            conn.send_error(*rejection)
-            return
-
+    def handle_http_request(self, conn: HttpResponse, method: str, uri: str, body: bytes):
+        """Route a request that passed check_request."""
         try:
             if method == "GET":
                 if uri == "/health":
@@ -399,7 +293,7 @@ cdef class EmbeddedServer:
             self._logger.error(f"Request handling error: {e}")
             conn.send_error(500, "Internal Server Error")
 
-    def _handle_models(self, conn: MongooseConnection):
+    def _handle_models(self, conn: HttpResponse):
         """Handle /v1/models endpoint."""
         models_data = {
             "object": "list",
@@ -414,7 +308,7 @@ cdef class EmbeddedServer:
         }
         conn.send_json(models_data)
 
-    def _handle_chat_completions(self, conn: MongooseConnection, body: str):
+    def _handle_chat_completions(self, conn: HttpResponse, body: str):
         """Handle /v1/chat/completions endpoint."""
         try:
             if not body.strip():
@@ -423,10 +317,8 @@ cdef class EmbeddedServer:
 
             data = json.loads(body)
 
-            # Parse request using existing logic
-            messages_data = data.get("messages", [])
             messages = [ChatMessage(role=msg["role"], content=msg["content"])
-                       for msg in messages_data]
+                        for msg in data.get("messages", [])]
 
             request = ChatRequest(
                 messages=messages,
@@ -434,14 +326,18 @@ cdef class EmbeddedServer:
                 max_tokens=data.get("max_tokens"),
                 temperature=data.get("temperature", 0.8),
                 top_p=data.get("top_p", 0.9),
+                min_p=data.get("min_p", 0.05),
                 stream=data.get("stream", False),
-                stop=data.get("stop")
+                stop=data.get("stop"),
+                seed=data.get("seed"),
             )
 
-            # Process using existing slot logic
-            response = self._process_chat_completion(request)
+            if request.stream:
+                prompt = self._messages_to_prompt(request.messages)
+                conn.send_stream(sse_chunks(request.model, self._generate(prompt, request)))
+                return
 
-            # Convert to dict for JSON serialization
+            response = self._process_chat_completion(request)
             response_data = {
                 "id": response.id,
                 "object": response.object,
@@ -460,7 +356,6 @@ cdef class EmbeddedServer:
                 ],
                 "usage": response.usage
             }
-
             conn.send_json(response_data)
 
         except json.JSONDecodeError:
@@ -471,7 +366,7 @@ cdef class EmbeddedServer:
             self._logger.error(f"Chat completion error: {e}")
             conn.send_error(500, "Internal Server Error")
 
-    def _handle_embeddings(self, conn: MongooseConnection, body: str):
+    def _handle_embeddings(self, conn: HttpResponse, body: str):
         """Handle /v1/embeddings endpoint."""
         if not self._config.embedding or self._embedder is None:
             conn.send_error(400, "Embeddings not enabled")
@@ -499,7 +394,6 @@ cdef class EmbeddedServer:
 
             model_name = data.get("model", self._config.model_alias)
 
-            # Generate embeddings
             results = []
             total_tokens = 0
             for i, text in enumerate(texts):
@@ -531,63 +425,39 @@ cdef class EmbeddedServer:
             self._logger.error(f"Embeddings error: {e}")
             conn.send_error(500, "Internal Server Error")
 
-    def _process_chat_completion(self, request: ChatRequest) -> ChatResponse:
-        """Process chat completion using existing slot logic."""
-        # Get available slot
-        slot = self.get_available_slot()
-        if slot is None:
-            raise RuntimeError("No available slots")
-
+    def _generate(self, prompt: str, request: ChatRequest):
+        """Yield generated text on a free slot, waiting for one. Closing it frees the slot."""
+        slot = self._free_slots.get()
         try:
-            # Use existing ServerSlot.process_and_generate logic
-            import uuid
-
-            task_id = str(uuid.uuid4())
-            slot.task_id = task_id
+            slot.task_id = str(uuid.uuid4())
             slot.is_processing = True
-
-            # Convert messages to prompt (reuse existing logic)
-            prompt = self._messages_to_prompt(request.messages)
-
-            # Generate response
-            max_tokens = request.max_tokens or 100
-            generated_text = slot.process_and_generate(prompt, max_tokens)
-
-            # Handle stop words
-            if request.stop and generated_text:
-                for stop_word in request.stop:
-                    if stop_word in generated_text:
-                        generated_text = generated_text.split(stop_word)[0]
-                        break
-
-            # Estimate token counts
-            vocab = self._model.get_vocab()
-            prompt_tokens = len(vocab.tokenize(prompt, add_special=True, parse_special=True))
-            completion_tokens = len(vocab.tokenize(generated_text, add_special=False, parse_special=False))
-
-            # Create response
-            choice = ChatChoice(
-                index=0,
-                message=ChatMessage(role="assistant", content=generated_text),
-                finish_reason="stop"
-            )
-
-            response = ChatResponse(
-                id=task_id,
-                model=request.model,
-                choices=[choice],
-                usage={
-                    "prompt_tokens": prompt_tokens,
-                    "completion_tokens": completion_tokens,
-                    "total_tokens": prompt_tokens + completion_tokens
-                }
-            )
-
-            return response
-
+            with closing(slot.stream(prompt, request.max_tokens or 100, request)) as pieces:
+                yield from stop_at(pieces, request.stop)
         finally:
-            # Reset slot
             slot.reset()
+            self._free_slots.put(slot)
+
+    def _process_chat_completion(self, request: ChatRequest) -> ChatResponse:
+        """Generate a complete, non-streamed chat response."""
+        prompt = self._messages_to_prompt(request.messages)
+        with closing(self._generate(prompt, request)) as pieces:
+            generated_text = "".join(pieces)
+
+        vocab = self._model.get_vocab()
+        prompt_tokens = len(vocab.tokenize(prompt, add_special=True, parse_special=True))
+        completion_tokens = len(vocab.tokenize(generated_text, add_special=False, parse_special=False))
+
+        return ChatResponse(
+            id=str(uuid.uuid4()),
+            model=request.model,
+            choices=[ChatChoice(index=0, message=ChatMessage(role="assistant", content=generated_text),
+                                finish_reason="stop")],
+            usage={
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+                "total_tokens": prompt_tokens + completion_tokens
+            }
+        )
 
     def _messages_to_prompt(self, messages: List[ChatMessage]) -> str:
         """Convert OpenAI messages to a prompt string."""
@@ -605,59 +475,74 @@ cdef class EmbeddedServer:
         return "\n".join(prompt_parts)
 
 
-# C callback function for HTTP events
-cdef void _http_event_handler(mg_connection *c, int ev, void *ev_data) noexcept with gil:
-    """C callback for Mongoose HTTP events.
+# httplib callbacks. They run on httplib worker threads and take the GIL.
 
-    Acquires the GIL because the surrounding `_poll_nogil` releases it
-    before calling `mg_mgr_poll`. This callback dispatches into Python
-    handlers (decoding request fields, building dicts, calling
-    `EmbeddedServer.handle_http_request`), all of which require the GIL.
-    """
-    cdef mg_http_message *hm
-    cdef EmbeddedServer server
-    cdef MongooseConnection conn_wrapper
+cdef str _text(const char *p, size_t n):
+    return p[:n].decode("utf-8", "replace") if n else ""
 
-    if c == NULL or c.mgr == NULL:
-        return
 
-    # Get server from manager userdata instead of fn_data
-    cdef mg_mgr *mgr = <mg_mgr*>c.mgr
-    if mgr.userdata == NULL:
-        return
+cdef int _precheck(void *userdata, const cy_http_req *req, cy_http_res *res) noexcept with gil:
+    """Apply check_request before httplib reads the body."""
+    cdef EmbeddedServer server = <EmbeddedServer>userdata
+    cdef HttpResponse conn = HttpResponse()
+    conn._res = res
+    try:
+        auth = req.auth[:req.auth_len].decode("latin-1") if req.auth != NULL else None
+        rejection = check_request(server._config, _text(req.path, req.path_len), auth, req.content_length)
+        if rejection is None:
+            return 0
+        # Close rather than let httplib drain an unread, possibly oversized, body.
+        conn.send_error(*rejection, close_connection=True)
+        return 1
+    except BaseException as e:
+        server._logger.error(f"Request check error: {e}")
+        conn.send_error(500, "Internal Server Error", close_connection=True)
+        return 1
+    finally:
+        conn._res = NULL
 
-    server = <EmbeddedServer>mgr.userdata
 
-    if ev == MG_EV_HTTP_MSG:
-        hm = <mg_http_message*>ev_data
-        if hm == NULL:
-            return
+cdef int _handle(void *userdata, const cy_http_req *req, cy_http_res *res) noexcept with gil:
+    cdef EmbeddedServer server = <EmbeddedServer>userdata
+    cdef HttpResponse conn = HttpResponse()
+    conn._res = res
+    try:
+        server.handle_http_request(conn, _text(req.method, req.method_len), _text(req.path, req.path_len),
+                                   req.body[:req.body_len] if req.body_len else b"")
+    except BaseException as e:
+        server._logger.error(f"Event handler error: {e}")
+        conn.send_error(500, "Internal Server Error")
+    finally:
+        conn._res = NULL
+    return 1
 
-        try:
-            # Create connection wrapper
-            conn_wrapper = MongooseConnection()
-            conn_wrapper._conn = c
 
-            # Extract request details
-            method = hm.method.buf[:hm.method.len].decode('utf-8')
-            uri = hm.uri.buf[:hm.uri.len].decode('utf-8')
+cdef int _stream_next(void *stream, cy_http_sink *sink) noexcept with gil:
+    cdef bytes chunk
+    cdef const char *data
+    cdef size_t n
+    cdef int ok
+    try:
+        chunk = next(<object>stream)
+    except StopIteration:
+        return 0
+    except BaseException as e:
+        # The status line is sent; aborting truncates the chunked body so the client sees the failure.
+        logging.getLogger(__name__).error(f"Stream error: {e}")
+        return -1
+    data = chunk
+    n = len(chunk)
+    with nogil:
+        ok = cy_http_sink_write(sink, data, n)
+    return 1 if ok else -1
 
-            # Only the headers the handlers read; keys are lowercase.
-            headers = {}
-            auth = cyllama_mg_http_get_header(hm, b"Authorization")
-            if auth != NULL:
-                headers["authorization"] = auth.buf[:auth.len].decode('latin-1')
-            body = hm.body.buf[:hm.body.len] if hm.body.len > 0 else b""
 
-            # Handle request
-            server.handle_http_request(conn_wrapper, method, uri, headers, body)
-
-        except Exception as e:
-            # Log error and send 500 response
-            if server._logger:
-                server._logger.error(f"Event handler error: {e}")
-            msg = b"Internal Server Error"
-            cyllama_mg_http_reply(c, 500, b"Content-Type: text/plain\r\n", msg, len(msg))
+cdef void _stream_release(void *stream) noexcept with gil:
+    try:
+        (<object>stream).close()  # runs the generator's finally blocks, freeing its slot
+    except BaseException as e:
+        logging.getLogger(__name__).error(f"Stream close error: {e}")
+    Py_XDECREF(<PyObject*>stream)
 
 
 # Convenience function

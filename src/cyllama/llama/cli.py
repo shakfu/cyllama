@@ -14,6 +14,7 @@ from typing import Any, List, Optional, cast
 
 from . import llama_cpp as cy
 from .token_decoder import TokenDecoder
+from ..utils.platform import resolve_n_threads
 
 
 class LlamaCLI:
@@ -172,14 +173,18 @@ class LlamaCLI:
 
         # CPU parameters
         parser.add_argument(
-            "-t", "--threads", type=int, default=4, help="number of threads to use during computation (default: 4)"
+            "-t",
+            "--threads",
+            type=int,
+            default=-1,
+            help="number of threads to use during computation, -1 = physical cores (default: -1)",
         )
         parser.add_argument(
             "-tb",
             "--threads-batch",
             type=int,
-            default=4,
-            help="number of threads to use during batch and prompt processing (default: 4)",
+            default=-1,
+            help="number of threads to use during batch and prompt processing, -1 = physical cores (default: -1)",
         )
         parser.add_argument(
             "--threads-batch-infer",
@@ -385,8 +390,8 @@ class LlamaCLI:
         ctx_params.n_ctx = args.ctx_size
         ctx_params.n_batch = args.batch_size
         ctx_params.n_ubatch = args.ubatch
-        ctx_params.n_threads = args.threads
-        ctx_params.n_threads_batch = args.threads_batch
+        ctx_params.n_threads = resolve_n_threads(args.threads)
+        ctx_params.n_threads_batch = resolve_n_threads(args.threads_batch)
         ctx_params.rope_freq_base = args.rope_freq_base
         ctx_params.rope_freq_scale = args.rope_freq_scale
         ctx_params.yarn_ext_factor = args.yarn_ext_factor

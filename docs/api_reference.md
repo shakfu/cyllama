@@ -500,17 +500,30 @@ class GenerationConfig:
     penalty_last_n: int = 64
     frequency_penalty: float = 0.0
     presence_penalty: float = 0.0
+    dry_multiplier: float = 0.0
+    dry_base: float = 1.75
+    dry_allowed_length: int = 2
+    dry_penalty_last_n: int = -1
+    dry_sequence_breakers: List[str] = ["\n", ":", '"', "*"]
+    top_n_sigma: float = -1.0
     mirostat: int = 0
     mirostat_tau: float = 5.0
     mirostat_eta: float = 0.1
     n_gpu_layers: int = -1
+    main_gpu: int = 0
+    split_mode: int = 1
+    tensor_split: Optional[List[float]] = None
     n_ctx: Optional[int] = None
-    n_batch: int = 512
-    seed: int = -1
+    n_batch: int = 2048
+    n_threads: int = -1
+    n_threads_batch: int = -1
+    seed: int = LLAMA_DEFAULT_SEED  # 0xFFFFFFFF
     stop_sequences: List[str] = field(default_factory=list)
     add_bos: bool = True
     parse_special: bool = True
 ```
+
+Defaults live in `cyllama/defaults.py`.
 
 **Attributes:**
 
@@ -532,7 +545,19 @@ class GenerationConfig:
 
 - `presence_penalty`: Penalize tokens already present in the recent window, 0.0 = disabled (default: 0.0)
 
-- `mirostat`: Mirostat sampling mode -- 0 = off, 1 = v1, 2 = v2. When enabled, replaces top_k / top_p / min_p with the mirostat sampler (default: 0)
+- `dry_multiplier`: DRY repetition penalty scale, 0.0 = disabled (default: 0.0). DRY penalizes tokens that would extend a phrase already in the context; `repeat_penalty` works per token.
+
+- `dry_base`: Exponential base for DRY penalty growth (default: 1.75)
+
+- `dry_allowed_length`: Repetitions up to this length go unpenalized (default: 2)
+
+- `dry_penalty_last_n`: Tokens scanned for repetitions; 0 = disabled, -1 = full context (default: -1)
+
+- `dry_sequence_breakers`: Strings that reset DRY's repetition tracking (default: `["\n", ":", '"', "*"]`)
+
+- `top_n_sigma`: Keep tokens within n standard deviations of the top logit; -1.0 = disabled (default: -1.0). When enabled it replaces top_k / top_p / min_p.
+
+- `mirostat`: Mirostat sampling mode -- 0 = off, 1 = v1, 2 = v2. When enabled, replaces top_k / top_p / min_p / temperature with the mirostat sampler (default: 0)
 
 - `mirostat_tau`: Mirostat target entropy (default: 5.0)
 
@@ -540,11 +565,21 @@ class GenerationConfig:
 
 - `n_gpu_layers`: GPU layers to offload (default: -1 = all)
 
-- `n_ctx`: Context window size, None = auto (default: None)
+- `main_gpu`: Primary GPU device index (default: 0)
 
-- `n_batch`: Batch size for processing (default: 512)
+- `split_mode`: Multi-GPU split -- 0 = none (`main_gpu` only), 1 = layers and KV cache, 2 = rows / tensor parallelism (default: 1)
 
-- `seed`: Random seed, -1 = random (default: -1)
+- `tensor_split`: Proportion of work per GPU, normalized by llama.cpp; `[1, 2]` gives GPU 1 two thirds (default: None = auto)
+
+- `n_ctx`: Context window size, None = prompt length + `max_tokens` (default: None)
+
+- `n_batch`: Maximum tokens per `llama_decode` call during prompt processing (default: 2048)
+
+- `n_threads`: CPU threads for generation; -1 = physical cores (default: -1). Logical cores (SMT) slow generation, which is memory-bound.
+
+- `n_threads_batch`: CPU threads for prompt processing; -1 = physical cores (default: -1). Prompt processing is compute-bound, so logical cores can help when nothing else is decoding.
+
+- `seed`: Random seed; the default `LLAMA_DEFAULT_SEED` (0xFFFFFFFF) picks a random seed per call and disables the result cache
 
 - `stop_sequences`: Strings that stop generation (default: [])
 
@@ -850,76 +885,91 @@ Tools for estimating and optimizing GPU memory usage.
 
 ### `estimate_gpu_layers()`
 
-Estimate optimal number of GPU layers for available VRAM.
+Estimate how many layers fit in the given GPU memory.
 
 ```python
 def estimate_gpu_layers(
-    model_path: str,
-    available_vram_mb: int,
-    n_ctx: int = 2048,
-    n_batch: int = 512
+    model_path: Union[str, Path],
+    gpu_memory_mb: Union[int, List[int]],
+    ctx_size: int = 2048,
+    batch_size: int = 1,
+    n_parallel: int = 1,
+    kv_cache_type: str = "f16",
+    use_mmap: bool = True,
+    verbose: bool = False,
 ) -> MemoryEstimate
 ```
 
 **Parameters:**
 
-- `model_path` (str): Path to GGUF model file
+- `model_path`: Path to GGUF model file
 
-- `available_vram_mb` (int): Available VRAM in megabytes
+- `gpu_memory_mb`: Available GPU memory in MB; a list for multiple GPUs
 
-- `n_ctx` (int): Context window size
+- `ctx_size`: Context size
 
-- `n_batch` (int): Batch size
+- `batch_size`: Batch size
+
+- `n_parallel`: Number of parallel sequences
+
+- `kv_cache_type`: KV cache precision, `"f16"` or `"f32"`
 
 **Returns:**
 
-- `MemoryEstimate`: Object with recommended settings
+- `MemoryEstimate`. Invalid input logs an error and returns an estimate with every field 0.
 
 **Example:**
 
 ```python
 from cyllama import estimate_gpu_layers
 
-estimate = estimate_gpu_layers(
-    model_path="models/llama.gguf",
-    available_vram_mb=8000,  # 8GB VRAM
-    n_ctx=2048
-)
+estimate = estimate_gpu_layers("models/llama.gguf", gpu_memory_mb=8000, ctx_size=4096)
 
-print(f"Recommended GPU layers: {estimate.n_gpu_layers}")
-print(f"Estimated VRAM usage: {estimate.vram / 1024 / 1024:.2f} MB")
+print(f"GPU layers: {estimate.layers}")
+print(f"KV cache: {estimate.vram_kv / 1024**2:.0f} MB")
 ```
 
 ---
 
 ### `estimate_memory_usage()`
 
-Estimate total memory requirements for model loading.
+Estimate memory needs without a GPU budget.
 
 ```python
 def estimate_memory_usage(
-    model_path: str,
-    n_ctx: int = 2048,
-    n_batch: int = 512,
-    n_gpu_layers: int = 0
-) -> MemoryEstimate
+    model_path: Union[str, Path],
+    ctx_size: int = 2048,
+    batch_size: int = 1,
+    verbose: bool = False,
+) -> Dict[str, Any]
+```
+
+**Returns:** a dict. Invalid input returns `{"error": "..."}`.
+
+```python
+{
+    "model_size_mb": {"f32": 4074, "f16": 2037, "q4_0": 509, "q8_0": 1018},
+    "kv_cache_mb": {"f16": 256, "f32": 512},
+    "graph_mb": 1471,
+    "parameters": {"n_embd": 2048, "n_layer": 16, "n_ff": 8192, "n_vocab": 128256, "total_params": 1067974656},
+}
 ```
 
 ---
 
 ### `MemoryEstimate` Dataclass
 
-Memory estimation results.
+Result of `estimate_gpu_layers()`.
 
 ```python
 @dataclass
 class MemoryEstimate:
-    layers: int                          # Total layers
-    graph_size: int                      # Computation graph size
-    vram: int                            # VRAM usage (bytes)
-    vram_kv: int                         # KV cache VRAM (bytes)
-    total_size: int                      # Total memory (bytes)
-    tensor_split: Optional[List[int]]    # Multi-GPU split
+    layers: int                                 # layers to offload to GPU
+    graph_size: int                             # computation graph (bytes)
+    vram: int                                   # GPU memory budget used (bytes)
+    vram_kv: int                                # KV cache for the offloaded layers (bytes)
+    total_size: int                             # weights of all layers (bytes)
+    tensor_split: Optional[List[int]] = None    # layers per GPU, multi-GPU only
 ```
 
 ---
@@ -1454,7 +1504,7 @@ server.stop()
 
 ### EmbeddedServer
 
-High-performance in-process C server built on the Mongoose HTTP library. It is compiled as a Cython extension, so it is only importable when the wheel was built with it -- `cyllama.llama.server` swallows the `ImportError` otherwise.
+In-process server built on [cpp-httplib](https://github.com/yhirose/cpp-httplib). It serves from `start()` until `stop()` on a thread pool, and streams chat completions as server-sent events when the request sets `"stream": true`. It is a compiled extension, so it is only importable when the wheel was built with it -- `cyllama.llama.server` swallows the `ImportError` otherwise.
 
 ```python
 from cyllama.llama.server import EmbeddedServer, ServerConfig

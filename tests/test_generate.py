@@ -148,11 +148,13 @@ class TestGenerationConfig:
 
     def test_validation_seed(self):
         """Test seed validation."""
-        with pytest.raises(ValueError, match="seed must be >= -1"):
+        with pytest.raises(ValueError, match="seed must be -1 or in"):
             GenerationConfig(seed=-2)
-        # Valid edge cases
-        config = GenerationConfig(seed=-1)  # random
-        assert config.seed == -1
+        with pytest.raises(ValueError, match="seed must be -1 or in"):
+            GenerationConfig(seed=0x1_0000_0000)  # does not fit the sampler's uint32
+        # Valid edge cases; -1 is normalized to the uint32 "random" sentinel
+        config = GenerationConfig(seed=-1)
+        assert config.seed == 0xFFFFFFFF
         config = GenerationConfig(seed=0)
         assert config.seed == 0
         config = GenerationConfig(seed=42)

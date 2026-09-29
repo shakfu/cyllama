@@ -55,6 +55,10 @@ DEFAULT_MAX_TOKENS: int = 512
 # Model / context
 # ---------------------------------------------------------------------------
 DEFAULT_N_GPU_LAYERS: int = -1  # -1 = offload all layers (C library default)
+# -1 = physical cores. Diverges from the C default of 4, which left most cores idle;
+# logical cores (SMT) slow decode, which is memory-bound.
+DEFAULT_N_THREADS: int = -1
+DEFAULT_N_THREADS_BATCH: int = -1
 DEFAULT_N_BATCH: int = 2048  # C library default (llama_context_default_params)
 DEFAULT_MAIN_GPU: int = 0
 DEFAULT_SPLIT_MODE: int = 1  # LLAMA_SPLIT_MODE_LAYER

@@ -11,7 +11,7 @@ from .python import (
 # Import from the launcher (external binary wrapper)
 from .launcher import ServerConfig as LauncherServerConfig, LlamaServer, LlamaServerClient, start_server
 
-# Import from the embedded server (high-performance C server using Mongoose)
+# Import from the embedded server (cpp-httplib, compiled extension)
 try:
     from .embedded import EmbeddedServer, start_embedded_server
 

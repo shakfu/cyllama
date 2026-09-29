@@ -4,21 +4,16 @@ Cyllama provides two server implementations, both offering the same OpenAI-compa
 
 ## Server Types
 
-### 1. Mongoose C Server (EmbeddedServer)
+### 1. EmbeddedServer (default)
 
-- Native C networking via the Mongoose web server library
+- [cpp-httplib](https://github.com/yhirose/cpp-httplib) (MIT), compiled as part of `make build`.
+- Thread pool: requests beyond `--n-parallel` wait for a free slot.
+- Streams chat completions as server-sent events with `"stream": true`.
 
-- High concurrency and low overhead
+### 2. PythonServer
 
-- Compiled as part of the standard `make build`
-
-### 2. Python HTTP Server (PythonServer)
-
-- Pure Python HTTP server (stdlib `http.server`)
-
-- No compiled dependencies beyond the core Cython extensions
-
-- Subject to Python GIL limitations
+- stdlib `http.server`; handles one request at a time.
+- Streams with `"stream": true`; the connection closes at the end of the stream.
 
 ## Basic Usage
 
@@ -28,10 +23,20 @@ Cyllama provides two server implementations, both offering the same OpenAI-compa
 python -m cyllama.llama.server -m models/Llama-3.2-1B-Instruct-Q8_0.gguf
 ```
 
-### Start High-Performance Mongoose Server
+### Start the Python Server
 
 ```bash
-python -m cyllama.llama.server -m models/Llama-3.2-1B-Instruct-Q8_0.gguf --server-type embedded
+python -m cyllama.llama.server -m models/Llama-3.2-1B-Instruct-Q8_0.gguf --server-type python
+```
+
+### Streaming
+
+Both servers send OpenAI `chat.completion.chunk` events, then `data: [DONE]`. Closing the connection stops generation and frees the slot.
+
+```bash
+curl -N http://127.0.0.1:8080/v1/chat/completions \
+    -H "Content-Type: application/json" \
+    -d '{"messages": [{"role": "user", "content": "Hi"}], "stream": true}'
 ```
 
 ## Advanced Configuration
@@ -54,23 +59,13 @@ With an API key set, every endpoint except `/health` requires `Authorization: Be
 - `CYLLAMA_API_KEY` environment variable, or `--api-key-file PATH`, which takes precedence. There is no `--api-key` flag: command-line arguments are visible to other local users.
 - In Python: `ServerConfig(api_key=...)`.
 
-Request bodies over `ServerConfig.max_body_bytes` (default 2 MiB) get 413. `EmbeddedServer` also drops bodies over 3 MiB, the Mongoose receive limit, without a response.
+Request bodies over `ServerConfig.max_body_bytes` (default 2 MiB) get 413. `EmbeddedServer` checks the key and `Content-Length` before it reads the body.
 
 ```bash
 curl http://host:8080/v1/models -H "Authorization: Bearer $CYLLAMA_API_KEY"
 ```
 
 There is no TLS. Across untrusted networks, put the server behind a TLS-terminating reverse proxy.
-
-### Mongoose Debug Logging
-
-`EmbeddedServer` prints only Mongoose errors. To trace connections, set `CYLLAMA_MONGOOSE_LOG` to `none`, `error`, `info`, `debug` or `verbose`:
-
-```bash
-CYLLAMA_MONGOOSE_LOG=debug python -m cyllama.llama.server -m models/Llama-3.2-1B-Instruct-Q8_0.gguf
-```
-
-Without it, enabling DEBUG on the `cyllama.llama.server.embedded` logger also selects `debug`.
 
 ### Multiple Parallel Processing Slots
 
@@ -179,7 +174,7 @@ with PythonServer(config) as server:
         time.sleep(1)
 ```
 
-The same configuration works with `EmbeddedServer` (Mongoose):
+The same configuration works with `EmbeddedServer`:
 
 ```python
 from cyllama.llama.server.embedded import EmbeddedServer
@@ -200,34 +195,15 @@ with EmbeddedServer(config) as server:
 | `embedding_pooling` | `"mean"` | Pooling strategy: `mean`, `cls`, `last`, `none` |
 | `embedding_normalize` | `True` | L2 normalize output embeddings |
 
-## Performance Comparison
+## Comparison
 
-| Feature | EmbeddedServer (Mongoose) | PythonServer |
-|---------|--------------------------|--------------|
-| Networking | Native C | Python HTTP |
-| Concurrency | High | GIL limited |
-| Memory Usage | Lower | Higher |
-| Startup Time | Fast | Fast |
-| Best For | Production, high-throughput | Development, simplicity |
+| | EmbeddedServer | PythonServer |
+|-|-|-|
+| HTTP layer | cpp-httplib thread pool | stdlib `http.server` |
+| Concurrent requests | queued onto `n_parallel` slots | one at a time |
+| Streaming (`"stream": true`) | chunked SSE | SSE, connection closes at end |
+| Requires compiled extension | yes | no |
 
-## When to Use Each
+`llama_decode`, sampling and tokenization release the GIL; the Python code between them was 0.07% of generation time in a CPU profile. Slots do not batch together, so throughput is bounded by memory bandwidth, not the GIL.
 
-### Use EmbeddedServer (Mongoose) When
-
-- Production deployments
-
-- Multiple concurrent users
-
-- High-throughput requirements
-
-- Performance is critical
-
-### Use PythonServer When
-
-- Developing or testing
-
-- Single-user applications
-
-- Simplicity is preferred
-
-- No special performance requirements
+Each slot runs `ServerConfig.n_threads` threads, by default physical cores divided by `n_parallel`. Decode is memory-bound: with Llama-3.2-1B Q8_0 on a 16-core Ryzen 9 7940HX, 8 threads matched 16, and 32 threads (SMT siblings included) cut throughput by 45%.

@@ -1,6 +1,5 @@
 """EmbeddedServer must bind exactly the configured host, never a wider address."""
 
-import ctypes
 import errno
 import signal
 import socket
@@ -8,22 +7,22 @@ import sys
 
 import pytest
 
-from cyllama.llama.server.embedded import EmbeddedServer, _listen_url
+from cyllama.llama.server.embedded import EmbeddedServer, _bind_address
 from cyllama.llama.server.python import ServerConfig
 
 
 @pytest.mark.parametrize(
     "host, expected",
     [
-        ("127.0.0.1", "http://127.0.0.1:8080"),
-        ("localhost", "http://localhost:8080"),
-        ("0.0.0.0", "http://0.0.0.0:8080"),
-        ("::1", "http://[::1]:8080"),
-        ("[::1]", "http://[::1]:8080"),
+        ("127.0.0.1", ("127.0.0.1", False)),
+        ("localhost", ("localhost", False)),
+        ("0.0.0.0", ("0.0.0.0", False)),
+        ("::1", ("::1", True)),
+        ("[::1]", ("::1", True)),
     ],
 )
-def test_listen_url(host, expected):
-    assert _listen_url(host, 8080) == expected
+def test_bind_address(host, expected):
+    assert _bind_address(host) == expected
 
 
 class _NoModelServer(EmbeddedServer):
@@ -54,7 +53,7 @@ def _can_bind(addr, port):
     "host, wildcard",
     [("127.0.0.1", False), ("localhost", False), ("0.0.0.0", True)],
 )
-def test_bind_address(host, wildcard):
+def test_bound_address(host, wildcard):
     port = _free_port()
     saved = signal.getsignal(signal.SIGINT), signal.getsignal(signal.SIGTERM)
     server = _NoModelServer(ServerConfig(model_path="unused.gguf", host=host, port=port))
@@ -65,47 +64,38 @@ def test_bind_address(host, wildcard):
         assert _can_bind("127.0.0.2", port) is not wildcard
     finally:
         server.stop()
-        del server  # __dealloc__ frees the Mongoose manager and closes the socket
         signal.signal(signal.SIGINT, saved[0])
         signal.signal(signal.SIGTERM, saved[1])
 
 
-def _start_stop():
-    """Start and stop a server on a free port, restoring signal handlers.
-
-    Mongoose logs through C stdio, which is fully buffered when stdout is not a
-    terminal, so flush it for capfd to see the output.
-    """
+@pytest.mark.skipif(not hasattr(socket, "SO_REUSEPORT"), reason="needs SO_REUSEPORT")
+def test_port_not_shared():
+    """httplib's default SO_REUSEPORT would let another socket bind the listening port."""
+    port = _free_port()
     saved = signal.getsignal(signal.SIGINT), signal.getsignal(signal.SIGTERM)
-    server = _NoModelServer(ServerConfig(model_path="unused.gguf", port=_free_port()))
+    server = _NoModelServer(ServerConfig(model_path="unused.gguf", port=port))
     try:
         assert server.start()
-        server.stop()
+        with socket.socket() as s:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+            with pytest.raises(OSError) as exc:
+                s.bind(("127.0.0.1", port))
+            assert exc.value.errno == errno.EADDRINUSE
     finally:
-        del server
-        ctypes.CDLL(None).fflush(None)
+        server.stop()
         signal.signal(signal.SIGINT, saved[0])
         signal.signal(signal.SIGTERM, saved[1])
 
 
-_needs_libc = pytest.mark.skipif(sys.platform == "win32", reason="flushes C stdio via ctypes.CDLL(None)")
-
-
-@_needs_libc
-def test_mongoose_logs_quiet_by_default(capfd, monkeypatch):
-    monkeypatch.delenv("CYLLAMA_MONGOOSE_LOG", raising=False)
-    _start_stop()
-    assert "mongoose.c" not in capfd.readouterr().out
-
-
-@_needs_libc
-@pytest.mark.parametrize("value, logged", [("debug", True), ("DEBUG", True), ("error", False), ("bogus", False)])
-def test_mongoose_log_env(capfd, monkeypatch, value, logged):
-    monkeypatch.setenv("CYLLAMA_MONGOOSE_LOG", value)
-    try:
-        _start_stop()  # start() re-reads the variable; mg_listen logs at debug
-        assert ("mg_listen" in capfd.readouterr().out) is logged
-    finally:
-        monkeypatch.delenv("CYLLAMA_MONGOOSE_LOG")
-        _start_stop()  # restore the quiet default for later tests
-        capfd.readouterr()
+def test_bind_failure_returns_false():
+    saved = signal.getsignal(signal.SIGINT), signal.getsignal(signal.SIGTERM)
+    with socket.socket() as busy:
+        busy.bind(("127.0.0.1", 0))
+        busy.listen()
+        server = _NoModelServer(ServerConfig(model_path="unused.gguf", port=busy.getsockname()[1]))
+        try:
+            assert not server.start()
+            server.stop()  # no-op after a failed start
+        finally:
+            signal.signal(signal.SIGINT, saved[0])
+            signal.signal(signal.SIGTERM, saved[1])

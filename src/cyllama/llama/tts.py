@@ -12,6 +12,7 @@ import math
 from typing import Any, Dict, List, Optional, Tuple, cast
 
 from ..defaults import DEFAULT_N_GPU_LAYERS
+from ..utils.platform import resolve_n_threads
 from . import llama_cpp as cy
 
 # WavTokenizer codebook size; OuteTTS writes code i as the token <|i|>
@@ -178,6 +179,7 @@ class TTSGenerator:
         ctx_params = cy.LlamaContextParams()
         ctx_params.n_ctx = n_ctx
         ctx_params.n_batch = n_batch
+        ctx_params.n_threads = ctx_params.n_threads_batch = resolve_n_threads()
         self.context_ttc = cy.LlamaContext(self.model_ttc, ctx_params)
 
         # Initialize codes-to-speech model
@@ -190,6 +192,7 @@ class TTSGenerator:
         ctx_params_cts.n_ctx = n_ctx
         ctx_params_cts.n_batch = n_batch
         ctx_params_cts.n_ubatch = n_batch
+        ctx_params_cts.n_threads = ctx_params_cts.n_threads_batch = resolve_n_threads()
         self.context_cts = cy.LlamaContext(self.model_cts, ctx_params_cts)
 
         # Set embedding mode for codes-to-speech

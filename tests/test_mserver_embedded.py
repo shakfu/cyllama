@@ -271,6 +271,31 @@ class TestServerSlot:
             assert result == ""  # Should return empty string on error
 
 
+class TestResourceConfig:
+    """n_threads and n_gpu_layers reach llama.cpp."""
+
+    @pytest.mark.parametrize(
+        "n_threads, n_parallel, expected", [(3, 1, 3), (3, 4, 3), (-1, 1, 16), (-1, 2, 8), (-1, 32, 1)]
+    )
+    def test_slot_threads(self, n_threads, n_parallel, expected):
+        config = ServerConfig(model_path="test.gguf", n_threads=n_threads, n_parallel=n_parallel)
+        with (
+            patch("cyllama.utils.platform.physical_cores", return_value=16),
+            patch("cyllama.llama.server.python.LlamaContext") as MockContext,
+            patch("cyllama.llama.server.python.LlamaSampler"),
+        ):
+            ServerSlot(0, Mock(), config)
+        params = MockContext.call_args.args[1]
+        assert (params.n_threads, params.n_threads_batch) == (expected, expected)
+
+    @patch("cyllama.llama.server.python.ServerSlot")
+    @patch("cyllama.llama.server.python.LlamaModel")
+    def test_n_gpu_layers(self, MockLlamaModel, MockServerSlot):
+        server = PythonServer(ServerConfig(model_path="test.gguf", n_gpu_layers=7))
+        assert server.load_model()
+        assert MockLlamaModel.call_args.kwargs["params"].n_gpu_layers == 7
+
+
 class TestPythonServer:
     """Test PythonServer class functionality."""
 
@@ -893,7 +918,7 @@ class TestPythonServerIntegration:
 
 
 # =============================================================================
-# EmbeddedServer Tests (Mongoose-based server)
+# EmbeddedServer Tests (cpp-httplib server)
 # =============================================================================
 
 

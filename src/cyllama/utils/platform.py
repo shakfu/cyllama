@@ -1,8 +1,42 @@
-"""Platform-specific runtime setup for native extension loading."""
+"""Platform-specific runtime setup: native extension loading and CPU topology."""
 
+import functools
+import os
+import subprocess
 import sys
+from pathlib import Path
 
 _initialized = False
+
+
+@functools.cache
+def physical_cores() -> int:
+    """Physical cores available to this process.
+
+    Decode is memory-bound, so SMT siblings slow it; llama.cpp's own tools default to this count.
+    """
+    if sys.platform.startswith("linux"):
+        cores = set()
+        for cpu in os.sched_getaffinity(0):
+            topo = Path(f"/sys/devices/system/cpu/cpu{cpu}/topology")
+            try:
+                cores.add(((topo / "physical_package_id").read_text(), (topo / "core_id").read_text()))
+            except OSError:
+                pass
+        if cores:
+            return len(cores)
+    elif sys.platform == "darwin":
+        try:  # performance cores only, as llama.cpp's common library counts them
+            out = subprocess.run(["sysctl", "-n", "hw.perflevel0.physicalcpu"], capture_output=True, text=True)
+            return max(1, int(out.stdout))
+        except (OSError, ValueError):
+            pass
+    return max(1, (os.cpu_count() or 2) // 2)  # assume 2-way SMT
+
+
+def resolve_n_threads(n_threads: int = -1, share: int = 1) -> int:
+    """Return `n_threads` if positive, else physical cores divided among `share` concurrent contexts."""
+    return n_threads if n_threads > 0 else max(1, physical_cores() // share)
 
 
 def ensure_native_deps() -> None:

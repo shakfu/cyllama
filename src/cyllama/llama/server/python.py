@@ -5,18 +5,16 @@ Python-based Llama.cpp Server
 High-level Python wrapper that provides llama.cpp server functionality
 using a pure Python HTTP server implementation. Uses the existing cyllama bindings
 to provide OpenAI-compatible API endpoints through a lightweight Python HTTP server.
-
-This approach avoids the complexity of wrapping cpp-httplib and complex C++ templates
-while still providing the full server functionality using the existing libllama.a linkage.
 """
 
+import codecs
 import hmac
 import ipaddress
 import json
 import time
 import threading
 import logging
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, Generator, Iterable, List, Optional, Tuple, Union
 
 if TYPE_CHECKING:
     from ...rag.embedder import Embedder
@@ -24,10 +22,14 @@ from dataclasses import dataclass, field
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse
 import uuid
+from contextlib import closing
+
+from ...utils.platform import resolve_n_threads
 
 # Import our existing cyllama bindings
 from ..llama_cpp import (
     LlamaModel,
+    LlamaModelParams,
     LlamaContext,
     LlamaSampler,
     ggml_backend_load_all,
@@ -49,8 +51,8 @@ class ServerConfig:
     # Model parameters
     n_ctx: int = 4096
     n_batch: int = 2048
-    n_threads: int = -1
-    n_gpu_layers: int = -1
+    n_threads: int = -1  # per slot; -1: physical cores / n_parallel
+    n_gpu_layers: int = -1  # -1: all layers
 
     # Server features
     embedding: bool = False
@@ -69,7 +71,14 @@ class ServerConfig:
 
     # Security
     api_key: Optional[str] = None  # if set, require "Authorization: Bearer <key>" except on /health
-    max_body_bytes: int = 2 * 1024 * 1024  # EmbeddedServer is also capped at 3 MiB by Mongoose
+    max_body_bytes: int = 2 * 1024 * 1024
+
+
+def model_params(config: ServerConfig) -> LlamaModelParams:
+    """Model load parameters for `config`."""
+    params = LlamaModelParams()
+    params.n_gpu_layers = config.n_gpu_layers
+    return params
 
 
 def check_request(
@@ -99,6 +108,52 @@ def exposed_without_auth(config: ServerConfig) -> bool:
         return not ipaddress.ip_address(config.host.strip("[]")).is_loopback
     except ValueError:
         return True  # a hostname may resolve to any interface
+
+
+def stop_at(pieces: Iterable[str], stop: Union[str, List[str], None]) -> Generator[str, None, None]:
+    """Yield `pieces` up to the earliest stop string, holding back text that may begin one."""
+    stops = [s for s in ([stop] if isinstance(stop, str) else stop or []) if s]
+    if not stops:
+        yield from pieces
+        return
+    buf = ""
+    for piece in pieces:
+        buf += piece
+        hits = [i for i in (buf.find(s) for s in stops) if i >= 0]
+        if hits:
+            if min(hits):
+                yield buf[: min(hits)]
+            return
+        # Longest suffix of buf that is a proper prefix of some stop string.
+        hold = max((k for s in stops for k in range(1, min(len(s), len(buf) + 1)) if buf.endswith(s[:k])), default=0)
+        if len(buf) > hold:
+            yield buf[: len(buf) - hold]
+            buf = buf[len(buf) - hold :]
+    if buf:
+        yield buf
+
+
+def sse_chunks(model: str, pieces: Generator[str, None, None]) -> Generator[bytes, None, None]:
+    """Encode `pieces` as OpenAI chat.completion.chunk server-sent events, then [DONE]. Closes `pieces`."""
+    chunk_id = f"chatcmpl-{uuid.uuid4()}"
+    created = int(time.time())
+
+    def event(delta: Dict[str, str], finish_reason: Optional[str] = None) -> bytes:
+        chunk = {
+            "id": chunk_id,
+            "object": "chat.completion.chunk",
+            "created": created,
+            "model": model,
+            "choices": [{"index": 0, "delta": delta, "finish_reason": finish_reason}],
+        }
+        return b"data: " + json.dumps(chunk).encode("utf-8") + b"\n\n"
+
+    with closing(pieces):
+        yield event({"role": "assistant"})
+        for piece in pieces:
+            yield event({"content": piece})
+    yield event({}, "stop")
+    yield b"data: [DONE]\n\n"
 
 
 @dataclass
@@ -159,6 +214,10 @@ class ServerSlot:
         ctx_params = LlamaContextParams()
         ctx_params.n_ctx = config.n_ctx
         ctx_params.n_batch = config.n_batch
+        # Slots decode concurrently; more threads in total than cores makes every slot slower.
+        n_threads = resolve_n_threads(config.n_threads, config.n_parallel)
+        ctx_params.n_threads = n_threads
+        ctx_params.n_threads_batch = n_threads
         self.context = LlamaContext(model, ctx_params, verbose=False)
 
         # Sampler is rebuilt per-request to support per-request parameters
@@ -194,82 +253,71 @@ class ServerSlot:
         self.task_id = None
         self.generated_tokens.clear()
         self.response_text = ""
-        # Reset the context state
+        # Reset the context state. The next prompt decodes from position 0, which
+        # llama_decode rejects while the previous request's KV entries remain.
         self.context.n_tokens = 0
+        self.context.kv_cache_clear()
 
     def process_and_generate(self, prompt: str, max_tokens: int = 100, request: Optional["ChatRequest"] = None) -> str:
         """Process prompt and generate response using the slot's context."""
         try:
-            # Rebuild sampler with per-request parameters when provided
-            if request is not None:
-                self._build_sampler(
-                    temperature=request.temperature,
-                    min_p=request.min_p,
-                    seed=request.seed,
-                )
-
-            # Use the existing context for this slot
-            context = self.context
-
-            # Tokenize the prompt
-            vocab = self.model.get_vocab()
-            prompt_tokens = vocab.tokenize(prompt, add_special=True, parse_special=True)
-
-            if not prompt_tokens:
-                return ""
-
-            if len(prompt_tokens) >= self.config.n_ctx:
-                return ""  # Prompt too long
-
-            # Create batch for the prompt (like chat.py approach)
-            batch = llama_batch_get_one(prompt_tokens, 0)  # Start from position 0
-            n_past = len(prompt_tokens)
-
-            # Decode the initial batch
-            ret = context.decode(batch)
-            if ret != 0:
-                logging.warning(f"Initial decode returned {ret}")
-                return ""
-
-            # Generation loop. Bytes, decoded once at the end: a multi-byte
-            # character can span tokens.
-            response_bytes = b""
-            generated_count = 0
-
-            for i in range(max_tokens):
-                # Check context size
-                if n_past >= context.n_ctx - 1:
-                    break
-
-                # Sample next token (like chat.py)
-                assert self.sampler is not None
-                new_token_id = self.sampler.sample(context, -1)
-
-                # Check for EOS
-                if vocab.is_eog(new_token_id):
-                    break
-
-                response_bytes += vocab.token_to_bytes(new_token_id, 0, True)
-
-                # Create batch for single token at correct position
-                batch = llama_batch_get_one([new_token_id], n_past)
-                n_past += 1
-
-                # Decode the new token
-                ret = context.decode(batch)
-                if ret != 0:
-                    logging.warning(f"Token decode returned {ret}")
-                    break
-
-                generated_count += 1
-
-            response_text = response_bytes.decode("utf-8", errors="replace")
-            self.response_text = response_text
-            return response_text
-
+            response_text = "".join(self.stream(prompt, max_tokens, request))
         except Exception as e:
             logging.error(f"Error in process_and_generate: {e}")
             return ""
+        self.response_text = response_text
+        return response_text
+
+    def stream(
+        self, prompt: str, max_tokens: int = 100, request: Optional["ChatRequest"] = None
+    ) -> Generator[str, None, None]:
+        """Yield generated text as it is produced. Yields nothing for an empty or over-long prompt."""
+        # Rebuild sampler with per-request parameters when provided
+        if request is not None:
+            self._build_sampler(
+                temperature=request.temperature,
+                min_p=request.min_p,
+                seed=request.seed,
+            )
+
+        context = self.context
+        vocab = self.model.get_vocab()
+        prompt_tokens = vocab.tokenize(prompt, add_special=True, parse_special=True)
+        if not prompt_tokens or len(prompt_tokens) >= self.config.n_ctx:
+            return
+
+        batch = llama_batch_get_one(prompt_tokens, 0)  # Start from position 0
+        n_past = len(prompt_tokens)
+        ret = context.decode(batch)
+        if ret != 0:
+            logging.warning(f"Initial decode returned {ret}")
+            return
+
+        # A multi-byte character can span tokens.
+        decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
+        for _ in range(max_tokens):
+            if n_past >= context.n_ctx - 1:
+                break
+
+            assert self.sampler is not None
+            new_token_id = self.sampler.sample(context, -1)
+            if vocab.is_eog(new_token_id):
+                break
+
+            piece = decoder.decode(vocab.token_to_bytes(new_token_id, 0, True))
+            if piece:
+                yield piece
+
+            batch = llama_batch_get_one([new_token_id], n_past)
+            n_past += 1
+            ret = context.decode(batch)
+            if ret != 0:
+                logging.warning(f"Token decode returned {ret}")
+                break
+
+        tail = decoder.decode(b"", final=True)
+        if tail:
+            yield tail
 
     def get_generated_text(self) -> str:
         """Get the generated text."""
@@ -307,7 +355,7 @@ class PythonServer:
             ggml_backend_load_all()
 
             # Load model
-            self.model = LlamaModel(path_model=self.config.model_path)
+            self.model = LlamaModel(path_model=self.config.model_path, params=model_params(self.config))
 
             # Create slots
             self.slots = []
@@ -367,13 +415,7 @@ class PythonServer:
             max_tokens = request.max_tokens or 100
             generated_text = slot.process_and_generate(prompt, max_tokens, request=request)
 
-            # Check stop words
-            if request.stop and generated_text:
-                for stop_word in request.stop:
-                    if stop_word in generated_text:
-                        # Truncate at stop word
-                        generated_text = generated_text.split(stop_word)[0]
-                        break
+            generated_text = "".join(stop_at([generated_text], request.stop))
 
             # Estimate token counts (simplified)
             assert self.model is not None
@@ -401,6 +443,20 @@ class PythonServer:
 
         finally:
             # Reset slot
+            slot.reset()
+
+    def stream_chat_completion(self, request: ChatRequest) -> Generator[str, None, None]:
+        """Yield generated text for `request`. Closing the generator frees the slot."""
+        slot = self.get_available_slot()
+        if slot is None:
+            raise RuntimeError("No available slots")
+        try:
+            slot.task_id = str(uuid.uuid4())
+            slot.is_processing = True
+            prompt = self._messages_to_prompt(request.messages)
+            with closing(slot.stream(prompt, request.max_tokens or 100, request)) as pieces:
+                yield from stop_at(pieces, request.stop)
+        finally:
             slot.reset()
 
     def _messages_to_prompt(self, messages: List[ChatMessage]) -> str:
@@ -579,6 +635,10 @@ class PythonServer:
                         seed=data.get("seed"),
                     )
 
+                    if request.stream:
+                        self._stream(server_instance.stream_chat_completion(request), request.model)
+                        return
+
                     # Process request
                     response = server_instance.process_chat_completion(request)
 
@@ -606,6 +666,24 @@ class PythonServer:
                     # server-side and tell the client nothing specific.
                     server_instance.logger.error(f"Chat completion error: {e}")
                     self._send_error(500, "Internal Server Error")
+
+            def _stream(self, pieces: Generator[str, None, None], model: str) -> None:
+                """Send `pieces` as server-sent events; the connection closes at the end."""
+                self.close_connection = True  # the body has no length, so its end is the close
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream")
+                self.send_header("Cache-Control", "no-cache")
+                self.end_headers()
+                with closing(sse_chunks(model, pieces)) as events:
+                    try:
+                        for event in events:
+                            self.wfile.write(event)
+                            self.wfile.flush()
+                    except OSError:
+                        pass  # client disconnected; closing the events stops generation
+                    except Exception as e:
+                        # Headers are sent; the truncated stream is the only error signal left.
+                        server_instance.logger.error(f"Stream error: {e}")
 
             def _handle_embeddings(self, data: Dict[str, Any]) -> None:
                 """Handle /v1/embeddings endpoint."""

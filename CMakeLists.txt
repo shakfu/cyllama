@@ -402,11 +402,8 @@ if(WITH_DYLIB)
         _find_dylib(${_name} TRUE)
     endforeach()
 
-    # cpp-httplib: intentionally NOT linked. It lives in libllama-common.a's
-    # model-download code, but cyllama does not link llama-common (only llama,
-    # mtmd, ggml) and does its HuggingFace resolution in Python. cyllama's own
-    # embedded server is Mongoose-based. Linking httplib only dragged in its
-    # OpenSSL SSLClient symbols (X509_NAME_free, ...) as dead weight.
+    # libcpp-httplib: not linked. The embedded server compiles httplib.cpp
+    # itself without OpenSSL; the prebuilt library pulls in SSLClient symbols.
 
     # Add dylib directory to link search path
     list(APPEND COMMON_LINK_DIRS "${LLAMACPP_DYLIB_DIR}")
@@ -539,7 +536,7 @@ endif()
 if(GGML_SYCL)
     # SYCL backend - add -fsycl to link flags only (not compile flags).
     # Using IntelSYCL::SYCL_CXX adds -fsycl globally which forces C files
-    # to be compiled as C++, causing duplicate symbol errors with mongoose.
+    # to be compiled as C++.
     # Instead, we add -fsycl only at link time to preserve SYCL device code
     # from libggml-sycl.a, and link libsycl.so for the runtime.
     find_library(_sycl_lib NAMES sycl
@@ -799,7 +796,14 @@ add_cython_extension(llama_cpp
     DESTINATION "cyllama/llama"
 )
 
-# embedded server extension
+# embedded server extension: cpp-httplib (MIT), staged from llama.cpp's vendor/
+# tree by scripts/manage.py. It calls no llama/ggml symbols directly, so it
+# links none of them.
+set(_HTTPLIB_DIR "${LLAMACPP_INCLUDE}/cpp-httplib")
+if(NOT EXISTS "${_HTTPLIB_DIR}/httplib.cpp")
+    message(FATAL_ERROR "cpp-httplib not found in ${_HTTPLIB_DIR}; rebuild llama.cpp deps with scripts/manage.py")
+endif()
+
 cython_transpile("${CMAKE_SOURCE_DIR}/src/cyllama/llama/server/embedded.pyx"
     LANGUAGE CXX
     OUTPUT_VARIABLE embedded_cpp
@@ -808,63 +812,24 @@ cython_transpile("${CMAKE_SOURCE_DIR}/src/cyllama/llama/server/embedded.pyx"
 
 python_add_library(embedded MODULE WITH_SOABI ${_SABI_ARGS}
     ${embedded_cpp}
-    "${CMAKE_SOURCE_DIR}/src/cyllama/llama/server/mongoose.c"
-    "${CMAKE_SOURCE_DIR}/src/cyllama/llama/server/mongoose_wrapper.c"
+    "${CMAKE_SOURCE_DIR}/src/cyllama/llama/server/http_shim.cpp"
+    "${_HTTPLIB_DIR}/httplib.cpp"
 )
 
 target_include_directories(embedded PRIVATE
-    ${COMMON_INCLUDE_DIRS}
+    "${_HTTPLIB_DIR}"
     "${CMAKE_SOURCE_DIR}/src/cyllama/llama/server"
 )
-target_link_directories(embedded PRIVATE ${COMMON_LINK_DIRS})
-if(UNIX AND NOT APPLE)
-    # Reuse the same selective whole-archive approach
-    set(_GGML_LIBS ${LIB_GGML} ${LIB_GGML_BASE} ${LIB_GGML_CPU})
-    if(GGML_METAL)
-        list(APPEND _GGML_LIBS ${LIB_GGML_BLAS} ${LIB_GGML_METAL})
-    endif()
-    if(GGML_CUDA)
-        list(APPEND _GGML_LIBS ${LIB_GGML_CUDA})
-    endif()
-    if(GGML_VULKAN)
-        list(APPEND _GGML_LIBS ${LIB_GGML_VULKAN})
-    endif()
-    if(GGML_SYCL)
-        list(APPEND _GGML_LIBS ${LIB_GGML_SYCL})
-    endif()
-    if(GGML_HIP)
-        list(APPEND _GGML_LIBS ${LIB_GGML_HIP})
-    endif()
-    if(GGML_OPENCL)
-        list(APPEND _GGML_LIBS ${LIB_GGML_OPENCL})
-    endif()
-
-    # Note: SD libs are NOT included here - SD extension links its own ggml
-    set(_OTHER_LIBS ${LIB_LLAMA} ${LIB_MTMD} ${LIB_VENDOR_HASH})
-    if(WITH_WHISPER)
-        list(APPEND _OTHER_LIBS ${LIB_WHISPER_COMMON} ${LIB_WHISPER})
-    endif()
-
-    target_link_libraries(embedded PRIVATE
-        -Wl,--whole-archive ${_GGML_LIBS} -Wl,--no-whole-archive
-        ${_OTHER_LIBS}
-        ${SYSTEM_LIBS}
-    )
-else()
-    target_link_libraries(embedded PRIVATE ${STATIC_LIBS} ${SYSTEM_LIBS})
+find_package(Threads REQUIRED)
+target_link_libraries(embedded PRIVATE Threads::Threads)
+if(WIN32)
+    target_link_libraries(embedded PRIVATE ws2_32)
 endif()
 set_target_properties(embedded PROPERTIES
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON
-)
-
-set(_embedded_rpath "${LLAMACPP_LIB};${WHISPERCPP_LIB};${SDCPP_LIB}")
-if(WITH_DYLIB AND LLAMACPP_DYLIB_DIR)
-    set(_embedded_rpath "${LLAMACPP_DYLIB_DIR};${_embedded_rpath}")
-endif()
-set_target_properties(embedded PROPERTIES
-    BUILD_RPATH "${_embedded_rpath}"
-    INSTALL_RPATH "${_embedded_rpath}"
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN ON
 )
 
 install(TARGETS embedded DESTINATION "cyllama/llama/server")

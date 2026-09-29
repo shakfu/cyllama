@@ -22,7 +22,7 @@
 
 - **Memory tools** - Estimate GPU layers and VRAM usage
 
-- **OpenAI-compatible servers** - `EmbeddedServer` (C/Mongoose) and `PythonServer` implementations
+- **OpenAI-compatible servers** - `EmbeddedServer` (cpp-httplib) and `PythonServer` implementations
 
 ## Agent Framework
 
@@ -80,7 +80,7 @@ Cyllama is structured as a layered stack. At the bottom, three C/C++ inference e
 
 - **Zero Python dependencies**: The core library has no runtime dependencies beyond Python itself. Optional integrations (LangChain, OpenAI compat) import lazily.
 
-- **Dual server strategy**: `EmbeddedServer` wraps llama.cpp's built-in Mongoose-based HTTP server for maximum performance; `PythonServer` offers a pure-Python alternative for flexibility and debugging.
+- **Two servers**: `EmbeddedServer` uses cpp-httplib and supports streaming; `PythonServer` uses stdlib `http.server` and needs no compiled HTTP code.
 
 ## Quick Example
 

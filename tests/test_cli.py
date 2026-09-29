@@ -101,7 +101,7 @@ def test_parse_args_basic(cli: LlamaCLI, test_model_path, mocker: MockerFixture)
     assert args.model == test_model_path
     assert args.ctx_size == 4096  # default
     assert args.batch_size == 2048  # default
-    assert args.threads == 4  # default
+    assert args.threads == -1  # default: physical cores
     assert args.temp == 0.8  # default
     assert args.n_predict == -1  # default
 
@@ -340,7 +340,7 @@ def test_load_model_basic(cli: LlamaCLI, test_model_path, mocker: MockerFixture)
         ctx_size=4096,
         batch_size=2048,
         ubatch=512,
-        threads=4,
+        threads=-1,
         threads_batch=4,
         rope_freq_base=0.0,
         rope_freq_scale=0.0,
@@ -357,6 +357,12 @@ def test_load_model_basic(cli: LlamaCLI, test_model_path, mocker: MockerFixture)
     )
 
     cli._load_model(args)
+
+    # -1 resolves to physical cores; an explicit count passes through.
+    from cyllama.utils.platform import physical_cores
+
+    ctx_params = mock_cy.LlamaContextParams.return_value
+    assert (ctx_params.n_threads, ctx_params.n_threads_batch) == (physical_cores(), 4)
 
     # Verify model was loaded
     assert cli.model == mock_model

@@ -26,6 +26,7 @@ from dataclasses import dataclass
 import time
 
 from .defaults import DEFAULT_N_GPU_LAYERS
+from .utils.platform import resolve_n_threads
 
 from .llama.llama_cpp import (
     LlamaModel,
@@ -140,6 +141,7 @@ class BatchGenerator:
         ctx_params.n_ctx = n_ctx
         ctx_params.n_batch = batch_size
         ctx_params.n_seq_max = n_seq_max  # Support parallel sequences
+        ctx_params.n_threads = ctx_params.n_threads_batch = resolve_n_threads()
 
         self.ctx = LlamaContext(self.model, ctx_params)
         self._closed = False

@@ -18,7 +18,27 @@ from .defaults import (
     DEFAULT_REPEAT_PENALTY,
     DEFAULT_MAX_TOKENS,
     DEFAULT_N_GPU_LAYERS,
+    DEFAULT_N_THREADS,
+    DEFAULT_N_THREADS_BATCH,
 )
+
+
+def _add_thread_args(parser: argparse.ArgumentParser) -> None:
+    """Add -t/--threads and -tb/--threads-batch, matching llama.cpp's flags."""
+    parser.add_argument(
+        "-t",
+        "--threads",
+        type=int,
+        default=DEFAULT_N_THREADS,
+        help="Threads for generation, -1 = physical cores (default: %(default)s)",
+    )
+    parser.add_argument(
+        "-tb",
+        "--threads-batch",
+        type=int,
+        default=DEFAULT_N_THREADS_BATCH,
+        help="Threads for prompt processing, -1 = physical cores (default: %(default)s)",
+    )
 
 
 @contextlib.contextmanager
@@ -279,6 +299,8 @@ def cmd_generate(args: argparse.Namespace) -> int:
         repeat_penalty=args.repeat_penalty,
         n_gpu_layers=args.n_gpu_layers,
         n_ctx=args.ctx_size,
+        n_threads=args.threads,
+        n_threads_batch=args.threads_batch,
         seed=args.seed,
     )
 
@@ -336,6 +358,8 @@ def cmd_chat(args: argparse.Namespace) -> int:
             repeat_penalty=args.repeat_penalty,
             n_gpu_layers=args.n_gpu_layers,
             n_ctx=args.ctx_size,
+            n_threads=args.threads,
+            n_threads_batch=args.threads_batch,
             seed=args.seed,
         )
 
@@ -380,6 +404,10 @@ def cmd_chat(args: argparse.Namespace) -> int:
             str(args.repeat_penalty),
             "--seed",
             str(args.seed),
+            "-t",
+            str(args.threads),
+            "-tb",
+            str(args.threads_batch),
         ]
         if args.no_stream:
             argv.append("--no-stream")
@@ -779,6 +807,7 @@ def main() -> int:
         help="Number of layers to offload to GPU, -1 = all (default: %(default)s)",
     )
     gen_parser.add_argument("-c", "--ctx-size", type=int, default=None, help="Context size in tokens (default: auto)")
+    _add_thread_args(gen_parser)
     gen_parser.add_argument(
         "--seed", type=int, default=LLAMA_DEFAULT_SEED, help="Random seed, 0xFFFFFFFF = random (default: %(default)s)"
     )
@@ -826,6 +855,7 @@ def main() -> int:
     chat_parser.add_argument(
         "-c", "--ctx-size", type=int, default=2048, help="Context size in tokens (default: %(default)s)"
     )
+    _add_thread_args(chat_parser)
     chat_parser.add_argument(
         "--seed", type=int, default=LLAMA_DEFAULT_SEED, help="Random seed, 0xFFFFFFFF = random (default: %(default)s)"
     )

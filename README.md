@@ -32,7 +32,7 @@ It combines the performance of compiled Cython wrappers with a simple, high-leve
 
 - Image/Video generation -- stable-diffusion.cpp handles image, image-edit and video models.
 
-- OpenAI-compatible servers -- EmbeddedServer (C/Mongoose) and PythonServer with chat completions and embeddings endpoints
+- OpenAI-compatible servers -- EmbeddedServer (cpp-httplib, with streaming) and PythonServer with chat completions and embeddings endpoints
 
 - Framework integrations -- OpenAI API client, LangChain LLM interface
 

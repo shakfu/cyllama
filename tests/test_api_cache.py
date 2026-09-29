@@ -263,6 +263,14 @@ class TestRandomSeedBypass:
             assert info.misses == 0
             assert info.currsize == 0
 
+    def test_explicit_minus_one_seed(self, model_path):
+        """seed=-1 generates (it overflowed the sampler's uint32) and bypasses the cache."""
+        with LLM(model_path, max_tokens=4, cache_size=10) as llm:
+            config = GenerationConfig(max_tokens=4, seed=-1)
+            llm("Hello", config=config)
+            llm("Hello", config=config)
+            assert llm.cache_info().currsize == 0
+
     def test_fixed_seed_uses_cache(self, model_path):
         """Fixed seed should use cache."""
         with LLM(model_path, max_tokens=16, cache_size=10, seed=42) as llm:

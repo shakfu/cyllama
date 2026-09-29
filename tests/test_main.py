@@ -257,6 +257,8 @@ class TestCmdGenerate:
             repeat_penalty=1.1,
             n_gpu_layers=99,
             ctx_size=None,
+            threads=-1,
+            threads_batch=-1,
             seed=-1,
             stream=False,
             json=False,
@@ -356,6 +358,8 @@ class TestCmdGenerate:
             repeat_penalty=1.3,
             n_gpu_layers=32,
             ctx_size=4096,
+            threads=6,
+            threads_batch=12,
             seed=42,
         )
 
@@ -372,6 +376,7 @@ class TestCmdGenerate:
         assert config.repeat_penalty == 1.3
         assert config.n_gpu_layers == 32
         assert config.n_ctx == 4096
+        assert (config.n_threads, config.n_threads_batch) == (6, 12)
         assert config.seed == 42
 
 
@@ -395,6 +400,8 @@ class TestCmdChat:
             repeat_penalty=1.1,
             n_gpu_layers=99,
             ctx_size=2048,
+            threads=-1,
+            threads_batch=-1,
             seed=-1,
             stream=False,
             no_stream=False,
@@ -481,13 +488,16 @@ class TestCmdChat:
         """Without -p, should delegate to llama.chat.main()."""
         from cyllama.__main__ import cmd_chat
 
-        args = self._make_args()
+        args = self._make_args(threads=3, threads_batch=5)
 
         with patch("cyllama.__main__.sys") as mock_sys, patch("cyllama.llama.chat.main") as mock_main:
             mock_sys.argv = ["cyllama", "chat"]
             ret = cmd_chat(args)
 
         mock_main.assert_called_once()
+        argv = mock_sys.argv
+        assert argv[argv.index("-t") + 1] == "3"
+        assert argv[argv.index("-tb") + 1] == "5"
 
 
 # ---------------------------------------------------------------------------

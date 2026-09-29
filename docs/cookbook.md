@@ -280,26 +280,23 @@ prompts = ["Question 1", "Question 2", "Question 3", "Question 4"] results = gen
 ```python
 from cyllama import LLM, GenerationConfig, estimate_memory_usage
 
-def create_memory_efficient_generator(model_path: str, available_memory_mb: int): """Create generator optimized for available memory."""
+def create_memory_efficient_generator(model_path: str, available_memory_mb: int):
+    """Create generator optimized for available memory."""
 
     # Estimate memory needs
-    memory_info = estimate_memory_usage(
-        model_path,
-        n_ctx=2048,
-        n_batch=512
-    )
-
-    # Adjust parameters if needed
     n_ctx = 2048
     n_batch = 512
     n_gpu_layers = -1
 
-    if memory_info.total_mb > available_memory_mb:
+    def needed_mb(ctx_size: int) -> int:
+        info = estimate_memory_usage(model_path, ctx_size=ctx_size)
+        return info["model_size_mb"]["q8_0"] + info["kv_cache_mb"]["f16"] + info["graph_mb"]
+
+    if needed_mb(n_ctx) > available_memory_mb:
         # Reduce context
         n_ctx = 1024
         n_batch = 256
         n_gpu_layers = 0  # CPU only if memory constrained
-        memory_info = estimate_memory_usage(model_path, n_ctx=n_ctx, n_batch=n_batch)
 
     config = GenerationConfig(
         n_ctx=n_ctx,

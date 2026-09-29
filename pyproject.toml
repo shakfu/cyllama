@@ -42,7 +42,7 @@ cmake.build-type = "Release"
 install.strip = true
 wheel.packages = ["src/cyllama"]
 wheel.exclude = ["*.pyx", "*.pxd", "*.pxi", "*.cpp", "*.c", "*.h", "*.hpp", "*.a", "*.lib"]
-wheel.license-files = ["LICENSE"]
+wheel.license-files = ["LICENSE", "thirdparty/*/licenses/*", "thirdparty/sqlite-vector/LICENSE.md"]
 build-dir = "build/{wheel_tag}"
 sdist.include = [
     "thirdparty/llama.cpp/include",
@@ -53,6 +53,7 @@ sdist.include = [
     "thirdparty/whisper.cpp/include",
     "thirdparty/whisper.cpp/lib",
     "thirdparty/sqlite-vector",
+    "thirdparty/*/licenses",
 ]
 sdist.exclude = [
     "bin/",

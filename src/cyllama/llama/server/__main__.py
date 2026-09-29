@@ -18,7 +18,7 @@ def main() -> int:
         "--server-type",
         choices=["python", "embedded"],
         default="embedded",
-        help="Server implementation to use: python (pure Python) or embedded (high-performance C). Default: embedded",
+        help="Server implementation to use: python (stdlib http.server) or embedded (cpp-httplib, supports streaming). Default: embedded",
     )
 
     parser.add_argument(
@@ -52,7 +52,7 @@ def main() -> int:
         try:
             from .embedded import EmbeddedServer
 
-            print("Starting embedded server (high-performance C implementation)")
+            print("Starting embedded server (cpp-httplib)")
 
             server = EmbeddedServer(config)
 
@@ -64,7 +64,7 @@ def main() -> int:
                 print(f"Embedded server running at http://{args.host}:{args.port}")
                 print("Press Ctrl+C to stop...")
 
-                # Run the Mongoose event loop - this blocks until signal received
+                # Blocks until SIGINT/SIGTERM
                 server.wait_for_shutdown()
                 print("\nShutting down embedded server...")
 
@@ -75,7 +75,7 @@ def main() -> int:
             print("\nReceived KeyboardInterrupt, shutting down...")
 
         except ImportError:
-            print("Embedded server not available. Install with 'make build' to compile Mongoose support.")
+            print("Embedded server not available. Build it with 'make build'.")
             print("Falling back to Python server...")
             args.server_type = "python"
 

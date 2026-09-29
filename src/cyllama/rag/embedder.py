@@ -9,6 +9,7 @@ from enum import IntEnum
 from typing import Any, Iterator, NamedTuple
 
 from .types import EmbedderProtocol
+from ..utils.platform import resolve_n_threads
 
 from ..llama.llama_cpp import (
     LLAMA_LOAD_MODE_MMAP,
@@ -214,6 +215,7 @@ class Embedder(EmbedderProtocol):
         ctx_params.n_ctx = n_ctx
         ctx_params.n_batch = n_batch
         ctx_params.pooling_type = 0  # NONE - we'll pool manually
+        ctx_params.n_threads = ctx_params.n_threads_batch = resolve_n_threads()
         self._ctx = LlamaContext(self._model, ctx_params)
         # Enable embedding mode on the context
         self._ctx.set_embeddings_mode(True)

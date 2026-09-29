@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Demo comparing the embedded Python server vs Mongoose C server.
+Demo comparing the Python server and the embedded cpp-httplib server.
 
 Usage:
     python server_comparison_demo.py -m models/Llama-3.2-1B-Instruct-Q8_0.gguf
@@ -47,50 +47,45 @@ def run_server_demo(model_path, server_type, port):
         process.terminate()
         stdout, stderr = process.communicate(timeout=5)
 
-        print(f"✓ {server_type.capitalize()} server started and stopped successfully")
+        print(f"{server_type.capitalize()} server started and stopped successfully")
         if "Model loaded successfully" in stderr.decode():
-            print("✓ Model loaded successfully")
+            print("Model loaded successfully")
         if f"server running at http://127.0.0.1:{port}" in stderr.decode().lower():
-            print("✓ Server listening on correct port")
+            print("Server listening on correct port")
 
     except subprocess.TimeoutExpired:
         process.kill()
-        print(f"✓ {server_type.capitalize()} server started (killed after timeout)")
+        print(f"{server_type.capitalize()} server started (killed after timeout)")
     except Exception as e:
-        print(f"✗ Error testing {server_type} server: {e}")
+        print(f"Error testing {server_type} server: {e}")
 
 
 def main(model_path):
     print("Server Comparison Demo")
     print("=====================")
     print("This demo tests both server implementations:")
-    print("1. Embedded Python server (default)")
-    print("2. Mongoose C server (high-performance)")
+    print("1. Python server (http.server)")
+    print("2. Embedded server (cpp-httplib, default)")
 
-    # Test embedded server
-    run_server_demo(model_path, "embedded", 8095)
-
-    # Test mongoose server
-    run_server_demo(model_path, "mongoose", 8096)
+    run_server_demo(model_path, "python", 8095)
+    run_server_demo(model_path, "embedded", 8096)
 
     print(f"\n{'=' * 50}")
     print("Comparison Summary:")
-    print("• Embedded Server: Python HTTP server with GIL limitations")
-    print("• Mongoose Server: High-performance C networking")
-    print("• Both use same OpenAI-compatible API")
-    print("• Both use same ServerSlot logic for LLM inference")
-    print("• Mongoose recommended for production/high-throughput use")
+    print("- Python server: stdlib http.server, one request at a time")
+    print("- Embedded server: cpp-httplib thread pool, SSE streaming (stream: true)")
+    print("- Both use the same OpenAI-compatible API and ServerSlot logic")
     print(f"{'=' * 50}")
 
     print("\nUsage examples:")
     print("# Default embedded server:")
     print("python -m cyllama.llama.server -m model.gguf")
     print()
-    print("# High-performance Mongoose server:")
-    print("python -m cyllama.llama.server -m model.gguf --server-type mongoose")
+    print("# Python server:")
+    print("python -m cyllama.llama.server -m model.gguf --server-type python")
     print()
     print("# With multiple parallel slots:")
-    print("python -m cyllama.llama.server -m model.gguf --server-type mongoose --n-parallel 4")
+    print("python -m cyllama.llama.server -m model.gguf --n-parallel 4")
 
 
 if __name__ == "__main__":

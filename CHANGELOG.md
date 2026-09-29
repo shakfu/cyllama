@@ -22,13 +22,63 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+### Added
+
+- **`cyllama generate` and `cyllama chat` take `-t/--threads` and `-tb/--threads-batch`**, as llama.cpp's tools do; -1 (the default) means physical cores. `Chat` gains matching `n_threads` / `n_threads_batch` arguments.
+
+- **Both servers stream chat completions.** With `"stream": true`, `/v1/chat/completions` returns OpenAI `chat.completion.chunk` server-sent events and `data: [DONE]`. `EmbeddedServer` uses chunked encoding; `PythonServer` closes the connection at the end. A client disconnect stops generation and frees the slot. Stop strings end the stream at their earliest match, and text that might begin one is held back.
+
+### Changed
+
+- **`EmbeddedServer` uses cpp-httplib (MIT) instead of Mongoose (GPL-2.0-only or commercial).** The wheel declared MIT but linked GPL code. cpp-httplib is staged from llama.cpp's `vendor/` tree by `scripts/manage.py`, so it tracks the pinned llama.cpp version. It was chosen over CivetWeb for its chunked-response API and because llama.cpp already uses it. Behaviour changes:
+
+  - The server accepts requests from `start()`, not only during `wait_for_shutdown()`.
+
+  - Requests run on a thread pool. Those beyond `n_parallel` wait for a free slot instead of failing with 500.
+
+  - Per-request `temperature`, `min_p` and `seed` now apply, as in `PythonServer`.
+
+  - The listener sets `SO_REUSEADDR` instead of httplib's default `SO_REUSEPORT`, which would let another process bind the same port.
+
+  - The extension no longer links llama/ggml, which it never called.
+
+- **`llama/cli.py` defaults `--threads` and `--threads-batch` to -1 (physical cores)** instead of 4.
+
+- **`PythonServer` cuts at the earliest stop string**, not the first one listed in `stop` that occurs. A bare string `stop` is now one stop string; it was iterated character by character.
+
+### Removed
+
+- `CYLLAMA_MONGOOSE_LOG`, `EmbeddedServer.get_available_slot()`, the Mongoose C examples under `tests/web/`, and three Mongoose debug scripts in `tests/examples/`.
+
 ### Fixed
+
+- **Wheels shipped without third-party license notices.** Only cyllama's LICENSE was included, although the extensions link MIT and BSD code whose licenses require the notice in binary distributions. `scripts/manage.py` now stages the notices into `thirdparty/*/licenses/`, and the wheel ships them under `dist-info/licenses/`: llama.cpp, whisper.cpp, stable-diffusion.cpp, cpp-httplib, nlohmann/json, xxHash, rotate-bits, darts-clone, oniguruma, utf8proc and sqlite-vector.
+
+- **Every high-level context ran on 4 threads**, llama.cpp's default, whatever the core count: `LLM`, `AsyncLLM`, `BatchGenerator`, `Chat`, `TTSGenerator`, `Embedder` and `Reranker`. They now use physical cores. `GenerationConfig` gains `n_threads` and `n_threads_batch` (-1 = physical cores), applied to a reused context too. For `LLM` with Llama-3.2-1B Q8_0 on a 16-core CPU, prompt processing went from 298 to about 600-850 tokens/s and generation from 32 to 40 tokens/s. Logical cores were rejected as the default: they sped up prompt processing further but cut generation by 66%.
+
+- **`GenerationConfig(seed=-1)` passed validation, then generation raised `OverflowError`** in `add_dist`, which takes a uint32. The docs advertised -1 as "random". -1 is now normalized to `LLAMA_DEFAULT_SEED` (0xFFFFFFFF), so it samples randomly and bypasses the response cache. Seeds above 0xFFFFFFFF are rejected.
+
+- **`docs/api_reference.md` was out of date.**
+
+  - The `GenerationConfig` section showed `n_batch=512` (actual 2048) and `seed=-1` (actual `0xFFFFFFFF`), and it omitted nine fields.
+
+  - `estimate_gpu_layers()` and `estimate_memory_usage()` were documented with parameters they do not take (`n_ctx`, `n_batch`, `available_vram_mb`).
+
+  - `estimate_memory_usage()` was documented as returning `MemoryEstimate`; it returns a dict.
+
+  The memory example in `docs/cookbook.md` raised `TypeError` for the same reason.
+
+- **Both servers ignored `ServerConfig.n_threads` and `n_gpu_layers`**, and so the CLI's `--gpu-layers`. Every slot ran llama.cpp's default of 4 threads. `n_threads=-1` now means physical cores divided by `n_parallel`. Physical cores, not logical: decode is memory-bound, and SMT siblings or oversubscription slowed it by up to 45% in measurement. One slot on a 16-core machine went from 24 to 36 tokens/s.
+
+- **A server slot failed every request after its first.** `ServerSlot.reset()` zeroed `n_tokens` but left the KV cache, so the next prompt, decoded from position 0, was rejected by `llama_decode`. `process_and_generate` swallowed the error, so both servers returned 200 with empty content. `reset()` now clears the KV cache.
 
 - **`memory_seq_*` aborted the process on an out-of-range `seq_id`.** llama.cpp checks it with `GGML_ASSERT`, so `ctx.memory_seq_pos_max(300)` killed the interpreter. Every `memory_seq_*` method now raises `IndexError` outside `[0, n_seq_max)` (`memory_seq_rm` also accepts -1), raises `RuntimeError` on a closed context instead of dereferencing NULL, and `memory_seq_add` / `_div` raise `ValueError` for M-RoPE models, which llama.cpp also asserts against. Tests: `tests/test_native_guards.py`.
 
 - **`LlamaModelParams.load_mode` accepted any integer**, and `load_mode_name` then hit `GGML_ABORT` in `llama_load_mode_name`. The setter now raises `ValueError` outside the enum.
 
 - **A chain link could be used as a chain.** `chain_get()` returns a link, and `llama_sampler_chain_*` cast any sampler to a chain without checking, so `len()`, `add_*()`, `chain_get()` or `chain_remove()` on a link read or wrote the wrong structure. `len()` of a link is now 0 and the others raise `ValueError`.
+
+- **`scripts/rwt.py` passed GPU runs that ran on the CPU.** With no NVIDIA kernel module loaded, `ggml_cuda_init` failed, ggml fell back to the CPU, and `test --cuda test-all` passed. The preflight now fails a GPU backend unless ggml registers a GPU or iGPU device, and names the driver check to run (`nvidia-smi` for CUDA).
 
 ### Security
 
@@ -239,6 +289,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 ### Added
 
 - **`LlamaVocab.token_to_bytes()`** returns a token's raw piece bytes. `token_to_piece()` decodes each token separately.
+
 - **`cyllama.llama.token_decoder.TokenDecoder`** decodes a token stream one token at a time. It holds the bytes of a split character until a later token completes it. `flush()` emits an unfinished character as `U+FFFD`.
 
 ### Fixed

@@ -641,6 +641,8 @@ class AbstractBuilder(ShellCmd):
     produces_static: bool = True
     produces_dynamic: bool = True
     depends_on: list[type["Builder"]]
+    # Notices for code linked into the wheel: {staged file name: path under src_dir}.
+    license_files: dict[str, str] = {}
 
     def __init__(self, version: Optional[str] = None, project: Optional[Project] = None):
         self.version = version or self.version
@@ -988,6 +990,13 @@ class AbstractBuilder(ShellCmd):
         self.setup()
         self._write_version_stamp()
 
+    def copy_licenses(self) -> None:
+        """Stage `license_files` into thirdparty/<name>/licenses/, which the wheel ships."""
+        dest = self.prefix / "licenses"
+        dest.mkdir(parents=True, exist_ok=True)
+        for name, rel in self.license_files.items():
+            shutil.copyfile(self.src_dir / rel, dest / name)
+
     def _write_version_stamp(self) -> None:
         """Record the pin `src_dir` was fetched at, for `checked_out_version`."""
         if self.version and self.src_dir.exists():
@@ -1213,6 +1222,13 @@ class LlamaCppBuilder(GgmlBuilder):
     name: str = "llama.cpp"
     version: str = LLAMACPP_VERSION
     repo_url: str = "https://github.com/ggml-org/llama.cpp.git"
+    license_files: dict[str, str] = {
+        "llama.cpp.txt": "LICENSE",
+        "cpp-httplib.txt": "vendor/cpp-httplib/LICENSE",
+        "xxhash.txt": "vendor/hash/xxhash/LICENSE",
+        "rotate-bits.txt": "vendor/hash/rotate-bits/LICENSE.md",
+        "nlohmann-json.txt": "licenses/LICENSE-jsonhpp",
+    }
     # llama.cpp installs ggml as a split build: the unified `ggml` plus
     # the `ggml-base` / `ggml-cpu` partials.
     base_libs: list[str] = ["ggml", "ggml-base", "ggml-cpu"]
@@ -1305,6 +1321,11 @@ class LlamaCppBuilder(GgmlBuilder):
         self.glob_copy(self.src_dir / "vendor" / "nlohmann", nlohmann_include, patterns=["*.hpp"])
         # mtmd (multimodal) headers.
         self.glob_copy(self.src_dir / "tools" / "mtmd", self.include, patterns=["*.h"])
+        # cpp-httplib sources, compiled into the embedded server extension.
+        httplib_include = self.include / "cpp-httplib"
+        httplib_include.mkdir(exist_ok=True)
+        self.glob_copy(self.src_dir / "vendor" / "cpp-httplib", httplib_include, patterns=["httplib.h", "httplib.cpp"])
+        self.copy_licenses()
 
     def build(self, shared: bool = False) -> None:
         """main build function"""
@@ -1336,7 +1357,7 @@ class LlamaCppBuilder(GgmlBuilder):
             CMAKE_C_VISIBILITY_PRESET="hidden",
             CMAKE_VISIBILITY_INLINES_HIDDEN=True,
             LLAMA_CURL=False,
-            LLAMA_OPENSSL=False,  # cpp-httplib is not linked into cyllama (see CMakeLists.txt), so no SSL needed
+            LLAMA_OPENSSL=False,  # the embedded server compiles cpp-httplib without SSL
             LLAMA_BUILD_SERVER=False,  # Server requires httplib
             LLAMA_BUILD_TESTS=False,  # Tests require httplib
             LLAMA_BUILD_EXAMPLES=False,  # Don't need examples
@@ -1359,8 +1380,7 @@ class LlamaCppBuilder(GgmlBuilder):
         self.lib.mkdir(parents=True, exist_ok=True)
 
         # Copy core libraries from build directory (platform-aware)
-        # Note: cpp-httplib is intentionally not copied — cyllama does not link it
-        # (see CMakeLists.txt); it only pulled in OpenSSL SSLClient symbols.
+        # libcpp-httplib is not copied: _copy_headers stages its sources instead.
         self.copy_lib(self.build_dir, "src", "llama", self.lib)
         self.copy_lib(self.build_dir, "ggml/src", "ggml", self.lib)
         self.copy_lib(self.build_dir, "ggml/src", "ggml-base", self.lib)
@@ -1420,7 +1440,7 @@ class LlamaCppBuilder(GgmlBuilder):
             GGML_BACKEND_DL=self._use_backend_dl(),
             CMAKE_POSITION_INDEPENDENT_CODE=True,
             LLAMA_CURL=False,
-            LLAMA_OPENSSL=False,  # cpp-httplib is not linked into cyllama (see CMakeLists.txt), so no SSL needed
+            LLAMA_OPENSSL=False,  # the embedded server compiles cpp-httplib without SSL
             LLAMA_BUILD_SERVER=False,
             LLAMA_BUILD_TESTS=False,
             LLAMA_BUILD_EXAMPLES=False,
@@ -1615,16 +1635,9 @@ class LlamaCppBuilder(GgmlBuilder):
             # Copy headers only (same as build() header section)
             self.prefix.mkdir(exist_ok=True)
             self.include.mkdir(exist_ok=True)
-            self.glob_copy(self.src_dir / "common", self.include, patterns=["*.h", "*.hpp"])
-            self.glob_copy(self.src_dir / "ggml" / "include", self.include, patterns=["*.h"])
-            self.glob_copy(self.src_dir / "include", self.include, patterns=["*.h"])
-            jinja_include = self.include / "jinja"
-            jinja_include.mkdir(exist_ok=True)
-            self.glob_copy(self.src_dir / "common" / "jinja", jinja_include, patterns=["*.h", "*.hpp"])
-            nlohmann_include = self.include / "nlohmann"
-            nlohmann_include.mkdir(exist_ok=True)
-            self.glob_copy(self.src_dir / "vendor" / "nlohmann", nlohmann_include, patterns=["*.hpp"])
-            self.glob_copy(self.src_dir / "tools" / "mtmd", self.include, patterns=["*.h"])
+            self._copy_headers()
+        elif self.src_dir.exists():
+            self.copy_licenses()
 
         url = self._release_url()
         if url is None:
@@ -1796,6 +1809,7 @@ class WhisperCppBuilder(GgmlBuilder):
     """build whisper.cpp"""
 
     name: str = "whisper.cpp"
+    license_files: dict[str, str] = {"whisper.cpp.txt": "LICENSE"}
     version: str = WHISPERCPP_VERSION
     repo_url: str = "https://github.com/ggml-org/whisper.cpp"
     # whisper.cpp ships a single combined `ggml` lib (no split partials).
@@ -1840,6 +1854,7 @@ class WhisperCppBuilder(GgmlBuilder):
     def build(self, shared: bool = False) -> None:
         """whisper.cpp main build function"""
         self.ensure_source()
+        self.copy_licenses()
         self.log.info(f"building {self.name}")
         self.prefix.mkdir(exist_ok=True)
         self.include.mkdir(exist_ok=True)
@@ -1886,6 +1901,12 @@ class StableDiffusionCppBuilder(GgmlBuilder):
     """build stable-diffusion.cpp"""
 
     name: str = "stable-diffusion.cpp"
+    license_files: dict[str, str] = {
+        "stable-diffusion.cpp.txt": "LICENSE",
+        "darts-clone.txt": "thirdparty/LICENSE.darts_clone.txt",
+        "oniguruma.txt": "thirdparty/oniguruma/COPYING",
+        "utf8proc.txt": "thirdparty/utf8proc/LICENSE.md",
+    }
     version: str = SDCPP_VERSION
     repo_url: str = "https://github.com/leejet/stable-diffusion.cpp.git"
     # SD installs only its own lib; ggml comes from llama.cpp by default,
@@ -2046,6 +2067,7 @@ class StableDiffusionCppBuilder(GgmlBuilder):
     def build(self, shared: bool = False, examples: bool = True) -> None:
         """stable-diffusion.cpp main build function"""
         self.ensure_source()
+        self.copy_licenses()
         self.log.info(f"building {self.name}")
 
         # Default path; --sd-vendored-ggml compiles and links SD's own ggml.

@@ -207,8 +207,7 @@ def test_embedded_loop_handles_signals_while_idle():
 
 
 def test_large_response_not_truncated(serve):
-    # Well past the 4096-byte buffer the Mongoose reply wrapper once used, and
-    # past Mongoose's 16 KiB IO chunk.
+    # Well past any single socket write.
     alias = "a" * 100_000
     port = serve(model_alias=alias)
     status, body = _request(port, "GET", "/v1/models")
@@ -228,7 +227,7 @@ def test_authenticated_invalid_utf8_body_gets_400(serve):
 
 
 def test_embedded_stop_from_other_thread_waits_for_loop():
-    """stop() must not touch the Mongoose manager while another thread polls it."""
+    """stop() from another thread must also end wait_for_shutdown."""
     saved = signal.getsignal(signal.SIGINT), signal.getsignal(signal.SIGTERM)
     port = _free_port()
     server = _NoModelEmbeddedServer(_config(port=port))
