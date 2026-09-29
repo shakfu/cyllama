@@ -991,7 +991,15 @@ float bit1_distance_hamming_avx2 (const void *v1, const void *v2, int n) {
     
     // Handle remainder with scalar
     for (; i < n; i++) {
+        #if defined(__GNUC__) || defined(__clang__)
         distance += __builtin_popcount(a[i] ^ b[i]);
+        #else
+        // cyllama patch: MSVC has no __builtin_popcount (mirrors distance-sse2.c).
+        uint8_t x = a[i] ^ b[i];
+        x = x - ((x >> 1) & 0x55);
+        x = (x & 0x33) + ((x >> 2) & 0x33);
+        distance += (x + (x >> 4)) & 0x0f;
+        #endif
     }
     
     return (float)distance;
