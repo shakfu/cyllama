@@ -688,17 +688,14 @@ class TestPoolingMatchesLlamaCpp:
 
     @pytest.mark.parametrize(
         "n_gpu_layers",
-        [
-            pytest.param(0, id="cpu"),
-            pytest.param(
-                -1,
-                id="metal",
-                marks=pytest.mark.skipif(not llama_supports_gpu_offload(), reason="no GPU offload"),
-            ),
-        ],
+        [pytest.param(0, id="cpu"), pytest.param(-1, id="metal")],
     )
     @pytest.mark.parametrize("pooling,pooling_type", [("mean", 1), ("cls", 2), ("last", 3)])
     def test_matches(self, pooling, pooling_type, n_gpu_layers):
+        # Checked here, not in a skipif: the call initializes the GPU backend,
+        # which at collection time runs for every session.
+        if n_gpu_layers and not llama_supports_gpu_offload():
+            pytest.skip("no GPU offload")
         expected, n_embd_out = self._llama_cpp_pooled(pooling_type, n_gpu_layers)
         with Embedder(str(SMALL_EMBED_MODEL), n_gpu_layers=n_gpu_layers, pooling=pooling, normalize=False) as emb:
             got = emb.embed(self.TEXT)

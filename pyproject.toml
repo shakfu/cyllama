@@ -126,6 +126,10 @@ testpaths = ["tests"]
 norecursedirs = ["examples"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
+# A hung test dumps all thread stacks and exits instead of stalling CI.
+# Collection has its own timer in tests/conftest.py.
+faulthandler_timeout = 900
+faulthandler_exit_on_timeout = true
 markers = [
     "integration: marks test as an integration test (deselect with '-m \"not integration\"')",
     "slow: marks tests as slow (deselect with '-m \"not slow\"')"

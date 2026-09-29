@@ -8,7 +8,9 @@ This module provides:
 - Custom pytest markers
 """
 
+import faulthandler
 import os
+import sys
 from pathlib import Path
 
 import pytest
@@ -261,12 +263,32 @@ def multi_turn_messages():
 # =============================================================================
 
 
+# faulthandler_timeout (pyproject.toml) covers tests only. A hang during
+# collection dumps stacks and exits after this many seconds.
+COLLECTION_TIMEOUT = 900
+_collection_timer_fd: int | None = None
+
+
 def pytest_configure(config):
-    """Register custom markers."""
+    """Register custom markers and start the collection timer."""
     config.addinivalue_line("markers", "slow: marks tests as slow (deselect with '-m \"not slow\"')")
     config.addinivalue_line("markers", "integration: marks tests as integration tests")
     config.addinivalue_line("markers", "requires_model: marks tests that require the test model")
     config.addinivalue_line("markers", "gpu: marks tests that require GPU acceleration")
+
+    # Started here, not at import: conftest is imported while pytest captures
+    # fd 2, and exit=True would discard a dump written into the capture.
+    global _collection_timer_fd
+    _collection_timer_fd = os.dup(sys.stderr.fileno())
+    faulthandler.dump_traceback_later(COLLECTION_TIMEOUT, exit=True, file=_collection_timer_fd)
+
+
+def pytest_collection_finish(session):
+    global _collection_timer_fd
+    if _collection_timer_fd is not None:
+        faulthandler.cancel_dump_traceback_later()
+        os.close(_collection_timer_fd)
+        _collection_timer_fd = None
 
 
 def pytest_collection_modifyitems(config, items):
