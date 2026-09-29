@@ -1906,13 +1906,18 @@
 <td>mid-<code>whisper_full</code> ggml abort callback</td>
 </tr>
 <tr>
+<td><code>SDContext</code> (stable-diffusion.cpp)</td>
+<td>in-process, programmatic only</td>
+<td>per-step cancel flag set by <code>sd_cancel_generation</code></td>
+</tr>
+<tr>
 <td><code>cyllama.sd</code> CLI (stable-diffusion.cpp)</td>
 <td>process isolation</td>
 <td>child process the CLI force-kills on Ctrl-C</td>
 </tr>
 </tbody>
 </table>
-<p><code>LLM</code> and <code>WhisperContext</code> present the same three members — <code>cancel()</code>, <code>cancel_requested</code>, and <code>install_sigint_handler()</code> — backed by the shared helper in <code>cyllama.utils.cancellation</code>. Stable Diffusion is the exception: its native API exposes no abort hook, so the in-process <code>SDContext</code> cannot be cancelled and only the CLI gets responsive Ctrl-C (see <a href="#stable-diffusion">Stable Diffusion</a> below).</p>
+<p><code>LLM</code> and <code>WhisperContext</code> present the same three members — <code>cancel()</code>, <code>cancel_requested</code>, and <code>install_sigint_handler()</code> — backed by the shared helper in <code>cyllama.utils.cancellation</code>. <code>SDContext</code> has <code>cancel()</code> only: Ctrl-C does not reach an in-process generation, and only the CLI stops on Ctrl-C (see <a href="#stable-diffusion">Stable Diffusion</a> below).</p>
 <h2 id="llm-llamacpp">LLM (llama.cpp)<a class="headerlink" href="#llm-llamacpp" title="Permanent link">&para;</a></h2>
 <p><code>LLM</code> supports thread-safe cancellation of an in-flight generation at two layers:</p>
 <ul>
@@ -2049,16 +2054,57 @@
 <a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="c1"># ctx is still usable for the next full().</span>
 </code></pre></div>
 <h2 id="stable-diffusion">Stable Diffusion<a class="headerlink" href="#stable-diffusion" title="Permanent link">&para;</a></h2>
-<p>stable-diffusion.cpp's <code>generate()</code> is a single native call with <strong>no abort hook</strong> — its progress callback returns <code>void</code>, so there is no way to signal "stop" mid-generation. Consequently:</p>
+<p><code>SDContext.cancel(mode=CancelMode.ALL)</code> stops an in-flight <code>generate()</code> or <code>generate_video()</code>. Call it from another thread; the generating thread releases the GIL during sampling. stable-diffusion.cpp checks the flag once per denoising step, so latency is at most one step.</p>
+<table>
+<thead>
+<tr>
+<th><code>CancelMode</code></th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ALL</code></td>
+<td>stop as soon as possible</td>
+</tr>
+<tr>
+<td><code>NEW_LATENTS</code></td>
+<td>finish the current sample, skip remaining batch latents</td>
+</tr>
+<tr>
+<td><code>RESET</code></td>
+<td>clear a pending request</td>
+</tr>
+</tbody>
+</table>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">threading</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.sd</span><span class="w"> </span><span class="kn">import</span> <span class="n">SDContext</span><span class="p">,</span> <span class="n">SDContextParams</span><span class="p">,</span> <span class="n">CancelMode</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="n">params</span> <span class="o">=</span> <span class="n">SDContextParams</span><span class="p">()</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="n">params</span><span class="o">.</span><span class="n">model_path</span> <span class="o">=</span> <span class="s2">&quot;models/sd_xl_turbo_1.0.q8_0.gguf&quot;</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="k">with</span> <span class="n">SDContext</span><span class="p">(</span><span class="n">params</span><span class="p">)</span> <span class="k">as</span> <span class="n">ctx</span><span class="p">:</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>    <span class="n">threading</span><span class="o">.</span><span class="n">Timer</span><span class="p">(</span><span class="mf">5.0</span><span class="p">,</span> <span class="n">ctx</span><span class="o">.</span><span class="n">cancel</span><span class="p">)</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>    <span class="k">try</span><span class="p">:</span>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>        <span class="n">ctx</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="n">prompt</span><span class="o">=</span><span class="s2">&quot;a cat&quot;</span><span class="p">,</span> <span class="n">sample_steps</span><span class="o">=</span><span class="mi">30</span><span class="p">)</span>
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>    <span class="k">except</span> <span class="ne">RuntimeError</span><span class="p">:</span>
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>        <span class="k">pass</span>  <span class="c1"># cancelled</span>
+</code></pre></div>
+<p>Limitations:</p>
 <ul>
 <li>
-<p><strong>The in-process API (<code>SDContext.generate()</code>, <code>text_to_image()</code>) cannot be cancelled.</strong> Called directly from Python, it blocks until the image is finished; a <code>cancel()</code> method would have nothing to drive.</p>
+<p><strong>No Ctrl-C.</strong> <code>SDContext</code> has no <code>install_sigint_handler()</code> or <code>cancel_requested</code>. SIGINT during a main-thread <code>generate()</code> is lost: the call runs to completion and returns normally.</p>
 </li>
 <li>
-<p><strong>The CLI (<code>python -m cyllama.sd</code>) is responsive to Ctrl-C</strong> via process isolation. Long, hookless commands (<code>txt2img</code>/<code>img2img</code>/<code>inpaint</code>/ <code>controlnet</code>/<code>video</code>/<code>upscale</code>/<code>convert</code>) run in a child process the parent force-kills on Ctrl-C (SIGTERM, then SIGKILL after a short grace period). The child runs in its own session, so the terminal's Ctrl-C reaches only the parent. Set <code>CYLLAMA_SD_NO_ISOLATE=1</code> to run in-process instead (e.g. for debugging or profiling).</p>
+<p><strong>Cancellation raises <code>RuntimeError</code>.</strong> <code>LLM</code> and <code>WhisperContext</code> raise <code>InterruptedError</code>; <code>SDContext</code> raises the same <code>RuntimeError("Image generation failed")</code> as a real failure.</p>
+</li>
+<li>
+<p><strong><code>upscale</code> and <code>convert</code> cannot be cancelled.</strong> They do not take an <code>sd_ctx_t</code>, so the cancel flag does not reach them.</p>
+</li>
+<li>
+<p><strong>The flag resets automatically.</strong> stable-diffusion.cpp clears it at the start of each generation, so a stale request does not cancel the next call.</p>
 </li>
 </ul>
-<p>In-process cancellation will be wired into the same <code>cancel()</code> surface once an abort hook lands upstream, tracked at <a href="https://github.com/leejet/stable-diffusion.cpp/issues/1036">leejet/stable-diffusion.cpp#1036</a> and <a href="https://github.com/shakfu/cyllama/issues/8">cyllama#8</a>.</p>
+<p>The CLI (<code>python -m cyllama.sd</code>) stops on Ctrl-C via process isolation. <code>txt2img</code>/<code>img2img</code>/<code>inpaint</code>/<code>controlnet</code>/<code>video</code>/<code>upscale</code>/<code>convert</code> run in a child process the parent force-kills on Ctrl-C (SIGTERM, then SIGKILL after a short grace period). The child runs in its own session, so the terminal's Ctrl-C reaches only the parent. Set <code>CYLLAMA_SD_NO_ISOLATE=1</code> to run in-process instead (e.g. for debugging or profiling).</p>
 <h2 id="notes-and-caveats">Notes and caveats<a class="headerlink" href="#notes-and-caveats" title="Permanent link">&para;</a></h2>
 <ul>
 <li>
@@ -2074,7 +2120,7 @@
 <p><strong>Whisper concurrency.</strong> <code>cancel()</code> only sets a flag, so it is safe to call from a signal handler or another thread while <code>full()</code> runs. A <code>WhisperContext</code> is otherwise not thread-safe (<code>full()</code> raises on concurrent use); see <a href="../threading/">Threading</a>.</p>
 </li>
 <li>
-<p><strong>Stable Diffusion.</strong> Only the CLI is cancellable, via process isolation; the in-process <code>SDContext</code> is not. See <a href="#stable-diffusion">Stable Diffusion</a> above.</p>
+<p><strong>Stable Diffusion.</strong> <code>SDContext.cancel()</code> works from another thread, but Ctrl-C reaches only the CLI. See <a href="#stable-diffusion">Stable Diffusion</a> above.</p>
 </li>
 </ul>
 

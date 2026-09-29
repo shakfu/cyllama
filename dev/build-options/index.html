@@ -1752,15 +1752,12 @@
 <p><strong>Local builds</strong> -- developer machine via <code>make</code> / <code>manage.py</code></p>
 </li>
 <li>
-<p><strong>CI wheel builds</strong> -- GitHub Actions via <code>build-gpu-wheels.yml</code> (the active workflow)</p>
+<p><strong>CI wheel builds</strong> -- GitHub Actions via <code>build-gpu-wheels-abi3.yml</code></p>
 </li>
 <li>
 <p><strong>Upstream llama.cpp</strong> -- options documented in <a href="https://github.com/ggml-org/llama.cpp/blob/master/docs/build.md">llama.cpp/docs/build.md</a></p>
 </li>
 </ol>
-<blockquote>
-<p><strong>Note:</strong> <code>build-gpu-wheels-cached.yml</code> is an experimental workflow not currently used in production. It has been synced to mirror <code>build-gpu-wheels.yml</code> (settings, flags, and cache keys), but <code>build-gpu-wheels.yml</code> remains the authoritative CI workflow.</p>
-</blockquote>
 <h2 id="build-flow-overview">Build Flow Overview<a class="headerlink" href="#build-flow-overview" title="Permanent link">&para;</a></h2>
 <p>Cyllama's build is a two-phase process:</p>
 <ol>
@@ -1977,7 +1974,7 @@
 <tr>
 <th>Option</th>
 <th>Local</th>
-<th>CI (<code>build-gpu-wheels.yml</code>)</th>
+<th>CI (<code>build-gpu-wheels-abi3.yml</code>)</th>
 <th>Upstream</th>
 </tr>
 </thead>
@@ -2197,7 +2194,7 @@
 <p>The Windows CUDA asset version defaults to <code>12.4</code> but can be overridden via the <code>LLAMACPP_CUDA_RELEASE</code> environment variable (e.g., <code>LLAMACPP_CUDA_RELEASE=13.1</code>). This only works if llama.cpp publishes a matching release asset. Users whose CUDA version has no pre-built asset should build from source (omit <code>--dynamic</code>).</p>
 <h2 id="design-decisions">Design Decisions<a class="headerlink" href="#design-decisions" title="Permanent link">&para;</a></h2>
 <h3 id="cuda-architecture-coverage-in-ci-deliberate-ptx-only-strategy">CUDA Architecture Coverage in CI -- Deliberate PTX-Only Strategy<a class="headerlink" href="#cuda-architecture-coverage-in-ci-deliberate-ptx-only-strategy" title="Permanent link">&para;</a></h3>
-<p>The active CI workflow (<code>build-gpu-wheels.yml</code>) sets <code>CMAKE_CUDA_ARCHITECTURES="75"</code>. This is <strong>deliberate</strong>, not an oversight. The history:</p>
+<p>The GPU CI workflow (<code>build-gpu-wheels-abi3.yml</code>) sets <code>CMAKE_CUDA_ARCHITECTURES="75"</code>. This is <strong>deliberate</strong>, not an oversight. The history:</p>
 <ol>
 <li>
 <p><strong>v0.2.1</strong> (<code>GGML_NATIVE=ON</code>, no explicit architectures): llama.cpp auto-detected the CI runner's GPU (sm_52), producing a 99 MB <code>libggml-cuda.so</code> with SASS for sm_52 only + PTX fallback.</p>
@@ -2314,12 +2311,8 @@
 <td>scikit-build-core config, cibuildwheel settings for CPU wheels</td>
 </tr>
 <tr>
-<td><code>.github/workflows/build-gpu-wheels.yml</code></td>
-<td>CI: GPU wheel builds (active workflow)</td>
-</tr>
-<tr>
-<td><code>.github/workflows/build-gpu-wheels-cached.yml</code></td>
-<td>CI: GPU wheel builds with caching (experimental, synced but not currently used)</td>
+<td><code>.github/workflows/build-gpu-wheels-abi3.yml</code></td>
+<td>CI: GPU wheel builds (abi3)</td>
 </tr>
 <tr>
 <td><code>docs/build_backends.md</code></td>

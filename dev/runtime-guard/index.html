@@ -1942,7 +1942,7 @@
 <a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>            <span class="s2">&quot;instead of sharing a single instance across threads.&quot;</span>
 <a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>        <span class="p">)</span>
 </code></pre></div>
-<p><code>blocking=False</code> is the load-bearing detail: a second concurrent caller fails fast instead of waiting in line. The reason for failing fast over serializing is discussed in the design-analysis section below.</p>
+<p><code>blocking=False</code> is the structural detail: a second concurrent caller fails fast instead of waiting in line. The reason for failing fast over serializing is discussed in the design-analysis section below.</p>
 <h3 id="where-the-guard-is-called">Where the guard is called<a class="headerlink" href="#where-the-guard-is-called" title="Permanent link">&para;</a></h3>
 <p>Each native-touching public method acquires the lock, runs its native call inside <code>try</code>, and releases in <code>finally</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="k">def</span><span class="w"> </span><span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">prompt</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">stream</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">on_token</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>

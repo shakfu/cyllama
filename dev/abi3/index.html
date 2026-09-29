@@ -1688,7 +1688,7 @@
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>SKBUILD_CMAKE_DEFINE=CYLLAMA_ABI3=ON
 </code></pre></div>
 <p>The default build reads neither and produces per-version wheels as today.</p>
-<p>In <code>[tool.cibuildwheel]</code> the default <code>build = "cp310-* cp311-* cp312-* cp313-* cp314-*"</code> remains untouched. The abi3 CI workflow overrides with <code>CIBW_BUILD=cp312-*</code> and the two <code>SKBUILD_*</code> variables above.</p>
+<p>In <code>[tool.cibuildwheel]</code> the default <code>build</code> is the per-version <code>"cp312-* cp313-* cp314-*"</code>, matching <code>requires-python</code>. The abi3 CI workflow overrides with <code>CIBW_BUILD=cp312-*</code> and the two <code>SKBUILD_*</code> variables above.</p>
 <h2 id="3-cython-source-changes">3. Cython source changes<a class="headerlink" href="#3-cython-source-changes" title="Permanent link">&para;</a></h2>
 <p>None. Not touching the <code>.pyx</code> files is the whole point of this design: the limited-API directive is passed at build time.</p>
 <h2 id="4-not-affected">4. Not affected<a class="headerlink" href="#4-not-affected" title="Permanent link">&para;</a></h2>
@@ -1697,7 +1697,7 @@
 <p><code>vector</code> (C shared lib, line 961) - does not use CPython API.</p>
 </li>
 <li>
-<p><code>mongoose.c</code> / <code>mongoose_wrapper.c</code> (line 727) - pure C, no CPython.</p>
+<p><code>http_shim.cpp</code> / cpp-httplib <code>httplib.cpp</code> (the <code>embedded</code> target) - C++, no CPython.</p>
 </li>
 <li>
 <p><code>scripts/manage.py</code> thirdparty builds - unchanged.</p>
@@ -1758,7 +1758,7 @@
 <p>Windows x86_64: 5 wheels/backend</p>
 </li>
 </ul>
-<p>After abi3 (when the abi3 path is used): 1/2/1 wheels per backend respectively - roughly a 5x reduction in total wheel count and a proportional reduction in CI build time and artifact storage. Because the non-abi3 path remains available, the two matrices can coexist during transition.</p>
+<p>After abi3 (when the abi3 path is used): 1/2/1 wheels per backend respectively - roughly a 5x reduction in total wheel count and a proportional reduction in CI build time and artifact storage. The per-version CI workflows have since been removed; the non-abi3 path remains for local builds only.</p>
 
 
 

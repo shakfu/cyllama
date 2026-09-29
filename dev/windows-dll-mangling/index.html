@@ -1663,19 +1663,9 @@
 
 <h1 id="windows-dll-name-mangling-include-bypasses-delvewheels-import-rewrite">Windows DLL name mangling: <code>--include</code> bypasses delvewheel's import rewrite<a class="headerlink" href="#windows-dll-name-mangling-include-bypasses-delvewheels-import-rewrite" title="Permanent link">&para;</a></h1>
 <h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
-<p>Both published GPU wheels for Windows at 0.4.2 — <code>cyllama-cuda12</code> and
-<code>cyllama-vulkan</code> — silently never load their GPU backend. The bundled plugin
-(<code>ggml-cuda.dll</code> / <code>ggml-vulkan.dll</code>) is unloadable: delvewheel mangled
-<code>ggml-base.dll</code> to <code>ggml-base-&lt;hash&gt;.dll</code> and rewrote every importer's PE import
-table to match — except <code>ggml-cuda.dll</code>, which is pulled in with <code>--include</code> and
-therefore is not part of the dependency graph delvewheel rewrites. It still
-imports the pre-mangling name, which no longer exists in the wheel.</p>
-<p>Result: <code>cyllama info</code> prints <code>built: CUDA</code> while <code>registries:</code> lists only <code>CPU</code>.
-The package installs, imports, and passes its test suite, entirely on CPU.</p>
-<p><code>windows-cuda.md</code> predicted exactly this failure and prescribed the fix
-(<code>--no-mangle</code>); the prescription was never applied. It is now, and a CUDA wheel
-built with it reports <code>registries: CPU, CUDA</code> on a clean install -- see
-Verification.</p>
+<p>Both published GPU wheels for Windows at 0.4.2 — <code>cyllama-cuda12</code> and <code>cyllama-vulkan</code> — silently never load their GPU backend. The bundled plugin (<code>ggml-cuda.dll</code> / <code>ggml-vulkan.dll</code>) is unloadable: delvewheel mangled <code>ggml-base.dll</code> to <code>ggml-base-&lt;hash&gt;.dll</code> and rewrote every importer's PE import table to match — except <code>ggml-cuda.dll</code>, which is pulled in with <code>--include</code> and therefore is not part of the dependency graph delvewheel rewrites. It still imports the pre-mangling name, which no longer exists in the wheel.</p>
+<p>Result: <code>cyllama info</code> prints <code>built: CUDA</code> while <code>registries:</code> lists only <code>CPU</code>. The package installs, imports, and passes its test suite, entirely on CPU.</p>
+<p><code>windows-cuda.md</code> predicted exactly this failure and prescribed the fix (<code>--no-mangle</code>); the prescription was never applied. It is now, and a CUDA wheel built with it reports <code>registries: CPU, CUDA</code> on a clean install -- see Verification.</p>
 <h2 id="symptoms">Symptoms<a class="headerlink" href="#symptoms" title="Permanent link">&para;</a></h2>
 <p>The only user-visible signal is a single line with an empty error string:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>load_backend: loaded CPU backend from ...\cyllama_cuda12.libs\ggml-cpu-&lt;hash&gt;.dll
@@ -1715,12 +1705,9 @@ Verification.</p>
 </tr>
 </tbody>
 </table>
-<p>All three pass in both configurations. Nothing errors; the wheel is simply slow.
-(gen 3 being <em>slower</em> on GPU is a separate, unrelated issue — likely partial
-offload thrashing an 8 GiB card.)</p>
+<p>All three pass in both configurations. Nothing errors; the wheel is simply slow. (gen 3 being <em>slower</em> on GPU is a separate, unrelated issue — likely partial offload thrashing an 8 GiB card.)</p>
 <h2 id="root-cause">Root cause<a class="headerlink" href="#root-cause" title="Permanent link">&para;</a></h2>
-<p><code>manage.py:2442-2453</code> builds the Windows repair command from
-<code>_WIN_INCLUDES</code> / <code>_WIN_EXCLUDES</code> (<code>manage.py:2211-2217</code>):</p>
+<p><code>manage.py:2442-2453</code> builds the Windows repair command from <code>_WIN_INCLUDES</code> / <code>_WIN_EXCLUDES</code> (<code>manage.py:2211-2217</code>):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>delvewheel repair -w {dest} --add-path &lt;thirdparty dynamic dirs&gt;
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>                  --include ggml-cuda.dll
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>                  --no-dll nvcuda.dll --no-dll cudart64_12.dll
@@ -1728,23 +1715,18 @@ offload thrashing an 8 GiB card.)</p>
 <a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>                  {wheel}
 </code></pre></div>
 <p>There is no <code>--no-mangle</code>.</p>
-<p>ggml's backend plugins are loaded at runtime via <code>LoadLibraryW</code>, so nothing in
-the wheel imports <code>ggml-cuda.dll</code> by name. That is why <code>--include</code> is needed at
-all (see <code>packaging.md</code>). But the two mechanisms do not compose:</p>
+<p>ggml's backend plugins are loaded at runtime via <code>LoadLibraryW</code>, so nothing in the wheel imports <code>ggml-cuda.dll</code> by name. That is why <code>--include</code> is needed at all (see <code>packaging.md</code>). But the two mechanisms do not compose:</p>
 <ul>
-<li>delvewheel mangles bundled non-system DLLs to hash-suffixed names, then
-  patches the import tables of everything <strong>in the dependency graph</strong> to match.</li>
-<li><code>--include</code> copies a file into <code>.libs</code> <strong>verbatim</strong>. It is not in the graph —
-  nothing imports it — so its own import table is never rewritten.</li>
+<li>
+<p>delvewheel mangles bundled non-system DLLs to hash-suffixed names, then patches the import tables of everything <strong>in the dependency graph</strong> to match.</p>
+</li>
+<li>
+<p><code>--include</code> copies a file into <code>.libs</code> <strong>verbatim</strong>. It is not in the graph — nothing imports it — so its own import table is never rewritten.</p>
+</li>
 </ul>
-<p><code>ggml-cuda.dll</code> therefore keeps its build-time import of <code>ggml-base.dll</code>, a name
-that no longer exists after the repair. The Windows loader cannot resolve it and
-<code>LoadLibraryW</code> fails with no useful error.</p>
+<p><code>ggml-cuda.dll</code> therefore keeps its build-time import of <code>ggml-base.dll</code>, a name that no longer exists after the repair. The Windows loader cannot resolve it and <code>LoadLibraryW</code> fails with no useful error.</p>
 <h2 id="confirmation">Confirmation<a class="headerlink" href="#confirmation" title="Permanent link">&para;</a></h2>
-<p>Independent of any runtime, from the published artifact alone. Download
-<code>cyllama_cuda12-0.4.2-cp312-abi3-win_amd64.whl</code>
-(sha256 <code>65131380f9dd0ce8405c920facda162fb987ac1bf2ab8e3cd9992b252d531672</code>),
-unzip, and parse the PE import tables:</p>
+<p>Independent of any runtime, from the published artifact alone. Download <code>cyllama_cuda12-0.4.2-cp312-abi3-win_amd64.whl</code> (sha256 <code>65131380f9dd0ce8405c920facda162fb987ac1bf2ab8e3cd9992b252d531672</code>), unzip, and parse the PE import tables:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">glob</span><span class="o">,</span><span class="w"> </span><span class="nn">os</span><span class="o">,</span><span class="w"> </span><span class="nn">pefile</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">L</span> <span class="o">=</span> <span class="s2">&quot;cyllama_cuda12.libs&quot;</span>
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="n">shipped</span> <span class="o">=</span> <span class="p">{</span><span class="n">f</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">listdir</span><span class="p">(</span><span class="n">L</span><span class="p">)}</span>
@@ -1770,33 +1752,20 @@ unzip, and parse the PE import tables:</p>
 <a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>
 <a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>ggml-cuda.dll          imports [&#39;ggml-base.dll&#39;]   &lt;-- MISSING FROM WHEEL
 </code></pre></div>
-<p>Seven files rewritten, one untouched. <code>ggml-cuda.dll</code> is also the only unmangled
-<em>filename</em> in <code>cyllama_cuda12.libs</code> — a quick visual tell that a file skipped the
-repair graph.</p>
+<p>Seven files rewritten, one untouched. <code>ggml-cuda.dll</code> is also the only unmangled <em>filename</em> in <code>cyllama_cuda12.libs</code> — a quick visual tell that a file skipped the repair graph.</p>
 <h2 id="fix">Fix<a class="headerlink" href="#fix" title="Permanent link">&para;</a></h2>
-<p>Applied in <code>manage.py</code>. A <code>--no-mangle</code> list beside the existing include/exclude
-tables:</p>
+<p>Applied in <code>manage.py</code>. A <code>--no-mangle</code> list beside the existing include/exclude tables:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">_WIN_NO_MANGLE</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span>
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>    <span class="s2">&quot;ggml.dll&quot;</span><span class="p">,</span> <span class="s2">&quot;ggml-base.dll&quot;</span><span class="p">,</span> <span class="s2">&quot;ggml-cpu.dll&quot;</span><span class="p">,</span> <span class="s2">&quot;llama.dll&quot;</span><span class="p">,</span> <span class="s2">&quot;mtmd.dll&quot;</span><span class="p">,</span>
 <a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="p">]</span>
 </code></pre></div>
-<p>and one flag in the Windows branch of <code>_run_wheel_repair</code>, <code>;</code>-joined the way
-delvewheel expects (<code>--no-mangle DLLS</code>, "DLL name(s) not to mangle,
-';'-delimited"):</p>
+<p>and one flag in the Windows branch of <code>_run_wheel_repair</code>, <code>;</code>-joined the way delvewheel expects (<code>--no-mangle DLLS</code>, "DLL name(s) not to mangle, ';'-delimited"):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="k">if</span> <span class="n">_WIN_NO_MANGLE</span><span class="p">:</span>
 <a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>    <span class="n">cmd</span> <span class="o">+=</span> <span class="p">[</span><span class="s2">&quot;--no-mangle&quot;</span><span class="p">,</span> <span class="s2">&quot;;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">_WIN_NO_MANGLE</span><span class="p">)]</span>
 </code></pre></div>
-<p>No narrower option exists: <code>--analyze-existing</code> vendors dependencies of DLLs the
-<em>build</em> placed in the wheel, not of <code>--include</code>d ones, so nothing makes
-delvewheel rewrite an <code>--include</code>d file's own import table.</p>
-<p>Pinning only <code>ggml-base.dll</code> is sufficient for today's failure, but the whole
-set is cheaper than rediscovering this per-plugin. Mangling exists to avoid
-collisions with same-named DLLs from other wheels in the same process; these
-five names are specific enough that the collision risk is negligible against a
-backend that silently does not load.</p>
-<p>Applied unconditionally rather than per-backend: the CPU wheel bundles none of
-these libs (see the audit below), so the flag is a no-op there, and one shared
-list means a future <code>--include</code>d plugin cannot reintroduce the bug.</p>
+<p>No narrower option exists: <code>--analyze-existing</code> vendors dependencies of DLLs the <em>build</em> placed in the wheel, not of <code>--include</code>d ones, so nothing makes delvewheel rewrite an <code>--include</code>d file's own import table.</p>
+<p>Pinning only <code>ggml-base.dll</code> is sufficient for today's failure, but the whole set is cheaper than rediscovering this per-plugin. Mangling exists to avoid collisions with same-named DLLs from other wheels in the same process; these five names are specific enough that the collision risk is negligible against a backend that silently does not load.</p>
+<p>Applied unconditionally rather than per-backend: the CPU wheel bundles none of these libs (see the audit below), so the flag is a no-op there, and one shared list means a future <code>--include</code>d plugin cannot reintroduce the bug.</p>
 <h2 id="audit-of-the-published-042-windows-wheels">Audit of the published 0.4.2 Windows wheels<a class="headerlink" href="#audit-of-the-published-042-windows-wheels" title="Permanent link">&para;</a></h2>
 <p>Every published Windows wheel, checked with the script above:</p>
 <table>
@@ -1825,30 +1794,15 @@ list means a future <code>--include</code>d plugin cannot reintroduce the bug.</
 </tr>
 </tbody>
 </table>
-<p><strong>Both GPU wheels are affected, identically.</strong> The vulkan job uses the same
-<code>--include</code> pattern (<code>_WIN_INCLUDES["vulkan"] = ["ggml-vulkan.dll"]</code>) with no
-<code>--no-mangle</code>, and its <code>ggml-vulkan.dll</code> is likewise the sole unmangled filename
-in its <code>.libs</code>, still importing <code>ggml-base.dll</code>. Confirmed by PE parse, not
-inferred from the shared code path.</p>
-<p>The CPU wheel is unaffected for a structural reason, not by luck: it ships no
-ggml DLLs at all — ggml is static-linked into the <code>.pyd</code> extensions — so there is
-nothing to mangle and nothing loaded by <code>LoadLibraryW</code>. That also means the CPU
-wheel cannot regress this way, and that any backend gaining a dynamically-loaded
-plugin inherits the bug.</p>
-<p>No <code>cyllama-rocm</code> or <code>cyllama-sycl</code> distributions exist on PyPI, so there is
-nothing further to check; <code>_WIN_INCLUDES</code> has no entry for them either.</p>
+<p><strong>Both GPU wheels are affected, identically.</strong> The vulkan job uses the same <code>--include</code> pattern (<code>_WIN_INCLUDES["vulkan"] = ["ggml-vulkan.dll"]</code>) with no <code>--no-mangle</code>, and its <code>ggml-vulkan.dll</code> is likewise the sole unmangled filename in its <code>.libs</code>, still importing <code>ggml-base.dll</code>. Confirmed by PE parse, not inferred from the shared code path.</p>
+<p>The CPU wheel is unaffected for a structural reason, not by luck: it ships no ggml DLLs at all — ggml is static-linked into the <code>.pyd</code> extensions — so there is nothing to mangle and nothing loaded by <code>LoadLibraryW</code>. That also means the CPU wheel cannot regress this way, and that any backend gaining a dynamically-loaded plugin inherits the bug.</p>
+<p>No <code>cyllama-rocm</code> or <code>cyllama-sycl</code> distributions exist on PyPI, so there is nothing further to check; <code>_WIN_INCLUDES</code> has no entry for them either.</p>
 <h2 id="verification-a-cuda-wheel-built-with-the-fix">Verification: a CUDA wheel built with the fix<a class="headerlink" href="#verification-a-cuda-wheel-built-with-the-fix" title="Permanent link">&para;</a></h2>
 <p>Built locally on the box described above:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>CMAKE_CUDA_ARCHITECTURES=89 python scripts/manage.py wheel_build \
 <a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>    --backend cuda --dynamic --abi3
 </code></pre></div>
-<p><code>89</code> is this card's native compute capability rather than the <code>75</code> CI pins; the
-packaging fix is architecture-independent, so this only makes the artifact local
-rather than a drop-in for the published one. Note that <code>wheel_build</code> hardcodes
-<code>SD_USE_VENDORED_GGML=0</code> for dynamic non-CPU backends, so it takes the
-from-source nvcc path rather than the <code>download_release()</code> fast path
-<code>windows-cuda.md</code> describes -- slow, but it is what the Makefile's
-<code>build-cuda-dynamic</code> does, so the artifact matches a CI-built one.</p>
+<p><code>89</code> is this card's native compute capability rather than the <code>75</code> CI pins; the packaging fix is architecture-independent, so this only makes the artifact local rather than a drop-in for the published one. Note that <code>wheel_build</code> hardcodes <code>SD_USE_VENDORED_GGML=0</code> for dynamic non-CPU backends, so it takes the from-source nvcc path rather than the <code>download_release()</code> fast path <code>windows-cuda.md</code> describes -- slow, but it is what the Makefile's <code>build-cuda-dynamic</code> does, so the artifact matches a CI-built one.</p>
 <p>The repair now emits:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>delvewheel repair -w dist --add-path thirdparty\llama.cpp\dynamic
 <a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>                  --include ggml-cuda.dll
@@ -1863,9 +1817,7 @@ from-source nvcc path rather than the <code>download_release()</code> fast path
 <a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>         vcomp140-&lt;hash&gt;.dll
 <a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>=&gt; 0 file(s) with unresolvable in-wheel imports
 </code></pre></div>
-<p>The five project libs are unmangled; the MSVC runtimes keep their hashes, which
-is the point of scoping the list rather than reaching for <code>--no-mangle-all</code> --
-cross-wheel collision protection still applies everywhere it matters.</p>
+<p>The five project libs are unmangled; the MSVC runtimes keep their hashes, which is the point of scoping the list rather than reaching for <code>--no-mangle-all</code> -- cross-wheel collision protection still applies everywhere it matters.</p>
 <p>Installed into a clean venv, with no patching of any kind:</p>
 <table>
 <thead>
@@ -1893,60 +1845,21 @@ cross-wheel collision protection still applies everywhere it matters.</p>
 </tr>
 </tbody>
 </table>
-<p>Two caveats on those numbers. <code>run_wheel_test.py</code> labels the runs <code>backend=cpu</code>
-because <code>detect_backend()</code> matches on the <code>cyllama-cuda12</code> distribution name and
-a local build is plain <code>cyllama</code>; the label is wrong, the execution is CUDA.
-And gen 3 ran at 57.8 tok/s here against 7.3 on the byte-patched published wheel
--- unexplained, and this build differs in more than one way (sm_89 vs sm_75,
-dynamic vs the published config), so the earlier gen-3 slowness should be treated
-as still open rather than fixed.</p>
+<p>Two caveats on those numbers. <code>run_wheel_test.py</code> labels the runs <code>backend=cpu</code> because <code>detect_backend()</code> matches on the <code>cyllama-cuda12</code> distribution name and a local build is plain <code>cyllama</code>; the label is wrong, the execution is CUDA. And gen 3 ran at 57.8 tok/s here against 7.3 on the byte-patched published wheel -- unexplained, and this build differs in more than one way (sm_89 vs sm_75, dynamic vs the published config), so the earlier gen-3 slowness should be treated as still open rather than fixed.</p>
 <h3 id="wheel_build-dynamic-could-not-reach-the-repair-step"><code>wheel_build --dynamic</code> could not reach the repair step<a class="headerlink" href="#wheel_build-dynamic-could-not-reach-the-repair-step" title="Permanent link">&para;</a></h3>
-<p>Building the above first required fixing an unrelated crash. <code>do_wheel_build</code>
-calls <code>do_wheel_repair</code> directly with a hand-built namespace instead of going
-through the parser:</p>
+<p>Building the above first required fixing an unrelated crash. <code>do_wheel_build</code> calls <code>do_wheel_repair</code> directly with a hand-built namespace instead of going through the parser:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="bp">self</span><span class="o">.</span><span class="n">do_wheel_repair</span><span class="p">(</span><span class="n">argparse</span><span class="o">.</span><span class="n">Namespace</span><span class="p">(</span><span class="n">backend</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">backend</span><span class="p">,</span> <span class="n">wheel</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dest_dir</span><span class="o">=</span><span class="kc">None</span><span class="p">))</span>
 </code></pre></div>
-<p><code>do_wheel_repair</code> reads <code>args.archs</code> unconditionally, so every dynamic build on
-every platform ended in <code>AttributeError: 'Namespace' object has no attribute
-'archs'</code>. It fires <em>after</em> <code>uv build</code> succeeds, which is what made it survive: it
-leaves a built-but-unrepaired wheel in <code>dist/</code> -- no bundled libs, no <code>.libs</code>
-directory -- and looks like a successful build to anyone who checks the artifact
-rather than the traceback. The namespace now passes <code>archs=None</code>.</p>
-<p>One environment snag, not a bug: <code>_run_wheel_repair</code> calls
-<code>_install("delvewheel")</code>, which shells out to <code>pip</code>. A uv-created <code>.venv</code> has no
-pip, so a local repair fails there until pip is installed. CI is unaffected --
-cibuildwheel environments have pip.</p>
+<p><code>do_wheel_repair</code> reads <code>args.archs</code> unconditionally, so every dynamic build on every platform ended in <code>AttributeError: 'Namespace' object has no attribute 'archs'</code>. It fires <em>after</em> <code>uv build</code> succeeds, which is what made it survive: it leaves a built-but-unrepaired wheel in <code>dist/</code> -- no bundled libs, no <code>.libs</code> directory -- and looks like a successful build to anyone who checks the artifact rather than the traceback. The namespace now passes <code>archs=None</code>.</p>
+<p>One environment snag, not a bug: <code>_run_wheel_repair</code> calls <code>_install("delvewheel")</code>, which shells out to <code>pip</code>. A uv-created <code>.venv</code> has no pip, so a local repair fails there until pip is installed. CI is unaffected -- cibuildwheel environments have pip.</p>
 <h2 id="unrelated-but-adjacent-cuda-runtime-dlls-are-not-bundled">Unrelated but adjacent: CUDA runtime DLLs are not bundled<a class="headerlink" href="#unrelated-but-adjacent-cuda-runtime-dlls-are-not-bundled" title="Permanent link">&para;</a></h2>
-<p><code>cudart64_12.dll</code>, <code>cublas64_12.dll</code> and <code>cublasLt64_12.dll</code> are <code>--no-dll</code>
-excluded by design — users supply the CUDA runtime. That is a deliberate choice
-(<code>windows-cuda.md</code>), not part of this bug, but it means fixing the mangling
-alone does not guarantee the backend loads on a machine without a CUDA toolkit
-on <code>PATH</code>. Worth testing separately; the verification above was done on a box
-with CUDA 12.9 installed. See also the <code>CHANGELOG</code> note about the
-<code>cudart-llama-bin-win-cuda-*</code> companion asset, which was intended to address
-this.</p>
+<p><code>cudart64_12.dll</code>, <code>cublas64_12.dll</code> and <code>cublasLt64_12.dll</code> are <code>--no-dll</code> excluded by design — users supply the CUDA runtime. That is a deliberate choice (<code>windows-cuda.md</code>), not part of this bug, but it means fixing the mangling alone does not guarantee the backend loads on a machine without a CUDA toolkit on <code>PATH</code>. Worth testing separately; the verification above was done on a box with CUDA 12.9 installed. See also the <code>CHANGELOG</code> note about the <code>cudart-llama-bin-win-cuda-*</code> companion asset, which was intended to address this.</p>
 <h2 id="why-ci-did-not-catch-it">Why CI did not catch it<a class="headerlink" href="#why-ci-did-not-catch-it" title="Permanent link">&para;</a></h2>
-<p>The guardrail already exists and is correct.
-<code>build-gpu-wheels-abi3.yml:833-853</code> installs the wheel into a clean venv and
-<code>ctypes.WinDLL()</code>-loads every <code>cyllama*.libs/ggml-*.dll</code> using the same
-<code>LoadLibraryW(path, NULL, 0)</code> semantics ggml uses in C. That is precisely the
-call that fails here, and it fails on a GPU-less runner too — no GPU or driver
-needed, since the failure is an unresolvable import, not a missing device.</p>
-<p>So the check would have caught this. What remains unverified is whether it ran:
-the whole smoke job is gated on <code>steps.check.outputs.skip</code>, derived from
-<code>inputs.cuda_windows</code>, and is skipped entirely when that input is false. The
-other Windows CUDA path, <code>build-new-wheels.yml:108</code>, uses a bare
-<code>delvewheel repair</code> with no <code>--include</code> at all — it cannot be the source, since
-the shipped wheel does contain <code>ggml-cuda.dll</code>. Checking the Actions log for the
-0.4.2 <code>cuda-windows</code> build would settle which run produced the artifact and
-whether the smoke job was skipped.</p>
-<p>Recommended follow-up regardless: make the DLL link-test a release gate rather
-than an input-gated matrix leg, so a wheel cannot be published without it.</p>
+<p>The guardrail already exists and is correct. <code>build-gpu-wheels-abi3.yml:833-853</code> installs the wheel into a clean venv and <code>ctypes.WinDLL()</code>-loads every <code>cyllama*.libs/ggml-*.dll</code> using the same <code>LoadLibraryW(path, NULL, 0)</code> semantics ggml uses in C. That is precisely the call that fails here, and it fails on a GPU-less runner too — no GPU or driver needed, since the failure is an unresolvable import, not a missing device.</p>
+<p>So the check would have caught this. What remains unverified is whether it ran: the whole smoke job is gated on <code>steps.check.outputs.skip</code>, derived from <code>inputs.cuda_windows</code>, and is skipped entirely when that input is false. The other Windows CUDA path, <code>build-new-wheels.yml:108</code>, uses a bare <code>delvewheel repair</code> with no <code>--include</code> at all — it cannot be the source, since the shipped wheel does contain <code>ggml-cuda.dll</code>. Checking the Actions log for the 0.4.2 <code>cuda-windows</code> build would settle which run produced the artifact and whether the smoke job was skipped.</p>
+<p>Recommended follow-up regardless: make the DLL link-test a release gate rather than an input-gated matrix leg, so a wheel cannot be published without it.</p>
 <h2 id="local-repair-diagnosis-only">Local repair (diagnosis only)<a class="headerlink" href="#local-repair-diagnosis-only" title="Permanent link">&para;</a></h2>
-<p>To verify a fix hypothesis against an already-installed wheel without a rebuild,
-rename the mangled file and byte-patch the import tables. PE import names are
-null-terminated strings, so replacing a longer name with a shorter one padded
-back to the original length keeps every offset valid:</p>
+<p>To verify a fix hypothesis against an already-installed wheel without a rebuild, rename the mangled file and byte-patch the import tables. PE import names are null-terminated strings, so replacing a longer name with a shorter one padded back to the original length keeps every offset valid:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">glob</span><span class="o">,</span><span class="w"> </span><span class="nn">os</span><span class="o">,</span><span class="w"> </span><span class="nn">sys</span>
 <a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="n">SP</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>                      <span class="c1"># .../site-packages</span>
 <a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="n">L</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">SP</span><span class="p">,</span> <span class="s2">&quot;cyllama_cuda12.libs&quot;</span><span class="p">)</span>
@@ -1961,37 +1874,17 @@ back to the original length keeps every offset valid:</p>
 <a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a>        <span class="k">if</span> <span class="n">old</span> <span class="ow">in</span> <span class="n">d</span><span class="p">:</span>
 <a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a>            <span class="nb">open</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="s2">&quot;wb&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">old</span><span class="p">,</span> <span class="n">new</span><span class="p">))</span>
 </code></pre></div>
-<p>Everyone moves onto <code>ggml-cuda.dll</code>'s spelling rather than the reverse, because
-a 46-byte name can shrink in place but a 14-byte one cannot grow. Afterwards
-<code>cyllama info</code> reports <code>registries: CPU, CUDA</code>.</p>
-<p><strong>Do not ship this</strong>, and do not attempt the tempting shortcut of leaving both
-filenames in place as separate copies. Two files means two <code>ggml-base</code> module
-instances with two copies of ggml's static state; the process crashes at exit
-(observed as exit code 127) once the CUDA backend actually registers.</p>
+<p>Everyone moves onto <code>ggml-cuda.dll</code>'s spelling rather than the reverse, because a 46-byte name can shrink in place but a 14-byte one cannot grow. Afterwards <code>cyllama info</code> reports <code>registries: CPU, CUDA</code>.</p>
+<p><strong>Do not ship this</strong>, and do not attempt the tempting shortcut of leaving both filenames in place as separate copies. Two files means two <code>ggml-base</code> module instances with two copies of ggml's static state; the process crashes at exit (observed as exit code 127) once the CUDA backend actually registers.</p>
 <h2 id="separate-bug-found-alongside-this-one-fixed">Separate bug found alongside this one (fixed)<a class="headerlink" href="#separate-bug-found-alongside-this-one-fixed" title="Permanent link">&para;</a></h2>
-<p>Four entry points constructed a <code>LlamaModel</code> with no preceding
-<code>ggml_backend_load_all()</code>, so llama.cpp refused to load into an empty registry:</p>
+<p>Four entry points constructed a <code>LlamaModel</code> with no preceding <code>ggml_backend_load_all()</code>, so llama.cpp refused to load into an empty registry:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>$ cyllama embed -m models/bge-small-en-v1.5-q8_0.gguf -f tests/media/corpus1.txt ...
 <a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>llama_model_load_from_file_impl: no backends are loaded. hint: use ggml_backend_load()
 <a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>ValueError: Failed to load model from file: ...
 </code></pre></div>
-<p><code>rag/embedder.py</code>, <code>rag/advanced.py</code> (<code>Reranker._ensure_model</code>), <code>memory.py</code>
-(<code>dump_metadata_json</code>) and <code>llama/server/python.py</code> (<code>Server.load_model</code>) were
-missing it; <code>llama/cli.py:354</code>, <code>llama/chat.py:95</code>, <code>sd/__init__.py:111</code>,
-<code>llama/tts.py:153</code>, <code>whisper/cli.py:380</code> and <code>batching.py:129</code> all had it. The
-registry is process-global, so the three library entry points failed only when
-nothing else had already loaded backends — which is why this survived: in a
-normal RAG flow the <code>Embedder</code> runs first and the <code>Reranker</code> inherits its
-registry.</p>
-<p><code>dump_metadata_json()</code> deserves separate mention. It catches the load failure
-and falls back to <code>_DEFAULT_METADATA</code>, so it did not raise — it returned another
-model's shape. For <code>bge-small-en-v1.5-q8_0.gguf</code> it reported
-<code>arch=llama, block_count=32, embedding_length=4096</code> against a true
-<code>arch=bert, block_count=12, embedding_length=384</code>, and <code>cyllama memory</code> sized its
-KV-cache estimate off those numbers. A wrong answer with no error, which is worse
-than the hard failure the other three gave.</p>
-<p>Backend-independent — this affected the plain <code>cyllama</code> CPU wheel too, and has
-nothing to do with the mangling bug above beyond being found while chasing it.</p>
+<p><code>rag/embedder.py</code>, <code>rag/advanced.py</code> (<code>Reranker._ensure_model</code>), <code>memory.py</code> (<code>dump_metadata_json</code>) and <code>llama/server/python.py</code> (<code>Server.load_model</code>) were missing it; <code>llama/cli.py:354</code>, <code>llama/chat.py:95</code>, <code>sd/__init__.py:111</code>, <code>llama/tts.py:153</code>, <code>whisper/cli.py:380</code> and <code>batching.py:129</code> all had it. The registry is process-global, so the three library entry points failed only when nothing else had already loaded backends — which is why this survived: in a normal RAG flow the <code>Embedder</code> runs first and the <code>Reranker</code> inherits its registry.</p>
+<p><code>dump_metadata_json()</code> deserves separate mention. It catches the load failure and falls back to <code>_DEFAULT_METADATA</code>, so it did not raise — it returned another model's shape. For <code>bge-small-en-v1.5-q8_0.gguf</code> it reported <code>arch=llama, block_count=32, embedding_length=4096</code> against a true <code>arch=bert, block_count=12, embedding_length=384</code>, and <code>cyllama memory</code> sized its KV-cache estimate off those numbers. A wrong answer with no error, which is worse than the hard failure the other three gave.</p>
+<p>Backend-independent — this affected the plain <code>cyllama</code> CPU wheel too, and has nothing to do with the mangling bug above beyond being found while chasing it.</p>
 
 
 

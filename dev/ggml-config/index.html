@@ -1735,10 +1735,9 @@
 </ul>
 <h3 id="ci-builds">CI builds<a class="headerlink" href="#ci-builds" title="Permanent link">&para;</a></h3>
 <p>CI workflows already set both variables explicitly:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># .github/workflows/build-gpu-wheels.yml:103,116</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="c1"># .github/workflows/build-new-wheels.yml:280</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="l l-Scalar l-Scalar-Plain">CMAKE_CUDA_ARCHITECTURES=&quot;75&quot;</span>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="l l-Scalar l-Scalar-Plain">GGML_NATIVE=OFF</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># .github/workflows/build-gpu-wheels-abi3.yml:144,158,552</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="l l-Scalar l-Scalar-Plain">CMAKE_CUDA_ARCHITECTURES=&quot;75&quot;</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="l l-Scalar l-Scalar-Plain">GGML_NATIVE=OFF</span>
 </code></pre></div>
 <p>This has been <code>"75"</code> (sm_75 / Turing) since the first CUDA CI workflow. Any new defaults must not override these explicit settings.</p>
 <hr />
@@ -1872,10 +1871,7 @@
 <p><code>build/llama.cpp/ggml/src/ggml-cpu/CMakeLists.txt:382</code> -- NATIVE vs BACKEND_DL incompatibility</p>
 </li>
 <li>
-<p><code>.github/workflows/build-gpu-wheels.yml:103,116</code> -- CI arch settings</p>
-</li>
-<li>
-<p><code>.github/workflows/build-new-wheels.yml:280</code> -- CI arch settings</p>
+<p><code>.github/workflows/build-gpu-wheels-abi3.yml:144,158,552</code> -- CI arch settings</p>
 </li>
 </ul>
 

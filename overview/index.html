@@ -1840,7 +1840,7 @@
 <p><strong>Memory tools</strong> - Estimate GPU layers and VRAM usage</p>
 </li>
 <li>
-<p><strong>OpenAI-compatible servers</strong> - <code>EmbeddedServer</code> (C/Mongoose) and <code>PythonServer</code> implementations</p>
+<p><strong>OpenAI-compatible servers</strong> - <code>EmbeddedServer</code> (cpp-httplib) and <code>PythonServer</code> implementations</p>
 </li>
 </ul>
 <h2 id="agent-framework">Agent Framework<a class="headerlink" href="#agent-framework" title="Permanent link">&para;</a></h2>
@@ -1943,7 +1943,7 @@
 <p><strong>Zero Python dependencies</strong>: The core library has no runtime dependencies beyond Python itself. Optional integrations (LangChain, OpenAI compat) import lazily.</p>
 </li>
 <li>
-<p><strong>Dual server strategy</strong>: <code>EmbeddedServer</code> wraps llama.cpp's built-in Mongoose-based HTTP server for maximum performance; <code>PythonServer</code> offers a pure-Python alternative for flexibility and debugging.</p>
+<p><strong>Two servers</strong>: <code>EmbeddedServer</code> uses cpp-httplib and serves concurrent requests from a thread pool; <code>PythonServer</code> uses stdlib <code>http.server</code> and needs no compiled HTTP code. Both stream chat completions.</p>
 </li>
 </ul>
 <h2 id="quick-example">Quick Example<a class="headerlink" href="#quick-example" title="Permanent link">&para;</a></h2>

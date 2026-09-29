@@ -1640,18 +1640,15 @@
 
 
 <h1 id="replacing-sqlite-vector-with-sqlite-vec">Replacing sqlite-vector with sqlite-vec<a class="headerlink" href="#replacing-sqlite-vector-with-sqlite-vec" title="Permanent link">&para;</a></h1>
-<p>Feasibility study for swapping the vendored
-<a href="https://github.com/sqliteai/sqlite-vector"><code>sqlite-vector</code></a> extension
-behind <code>SqliteVectorStore</code> for
-<a href="https://github.com/asg017/sqlite-vec"><code>sqlite-vec</code></a>.</p>
-<p>Status: <strong>investigation complete, swap not performed.</strong> A <code>SqliteVecStore</code>
-adapter shipped instead (<code>src/cyllama/rag/stores/sqlite_vec.py</code>), so users
-can opt into sqlite-vec today without cyllama committing to it as the
-default backend. This document records why, and what a full swap would
-still cost.</p>
-<p>Measurements below were taken on 2026-09-03 against sqlite-vector 1.0.0
-(the vendored copy in <code>thirdparty/sqlite-vector</code>), sqlite-vec v0.1.9 and
-sqlite-vec v0.1.10-alpha.4, on Linux x86_64 / CPython 3.13.</p>
+<p>Feasibility study for swapping the vendored <a href="https://github.com/sqliteai/sqlite-vector"><code>sqlite-vector</code></a> extension behind <code>SqliteVectorStore</code> for <a href="https://github.com/asg017/sqlite-vec"><code>sqlite-vec</code></a>.</p>
+<p>Status: <strong>investigation complete, swap not performed.</strong> A <code>SqliteVecStore</code> adapter shipped instead (<code>src/cyllama/rag/stores/sqlite_vec.py</code>), so users can opt into sqlite-vec today without cyllama committing to it as the default backend. This document records why, and what a full swap would still cost.</p>
+<p><strong>Update 2026-09-29: the license motivation no longer holds.</strong> sqlite-vector was relicensed to Apache-2.0 on 2026-09-10; 1.1.2 is the first release under it. cyllama now vendors 1.1.2, so there are no downstream commercial-license obligations. Two corrections to the record below:</p>
+<ul>
+<li>The vendored copy measured here was 0.9.93, not 1.0.0 (<code>SQLITE_VECTOR_VERSION</code> in the vendored header). The pin in <code>scripts/manage.py</code> said 1.0.0, but the vendored sources had not followed it.</li>
+<li>It ran scalar code. <code>vector_backend()</code> reported <code>CPU</code>: the AVX2/AVX-512 kernels compiled to nothing without per-file ISA flags. On the same corpus shape with 1.1.2 and those flags (<code>AVX512</code> backend), exact search went from 12.2 to 10.9 ms/query and preloaded quantized search from 1.89 to 0.49 ms/query, both at 97.4% recall@10. Exact search is bound by reading rows from SQLite, not by arithmetic.</li>
+</ul>
+<p><code>SqliteVecStore</code> stays as the option for sqlite-vec's ANN indexes. The swap analysis below remains accurate as a comparison of the two engines.</p>
+<p>Measurements below were taken on 2026-09-03 against sqlite-vector 1.0.0 (the vendored copy in <code>thirdparty/sqlite-vector</code>), sqlite-vec v0.1.9 and sqlite-vec v0.1.10-alpha.4, on Linux x86_64 / CPython 3.13.</p>
 <h2 id="motivation-the-license">Motivation: the license<a class="headerlink" href="#motivation-the-license" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -1684,33 +1681,18 @@ sqlite-vec v0.1.10-alpha.4, on Linux x86_64 / CPython 3.13.</p>
 </tr>
 </tbody>
 </table>
-<p>cyllama itself is MIT, so vendoring sqlite-vector is permitted. The
-problem is downstream: anyone who builds a commercial product on
-cyllama's RAG stack inherits an obligation to buy a license from SQLite
-Cloud, and nothing in the install flow tells them so. sqlite-vec's
-Apache-2.0/MIT dual license removes that entirely.</p>
+<p>cyllama itself is MIT, so vendoring sqlite-vector is permitted. The problem is downstream: anyone who builds a commercial product on cyllama's RAG stack inherits an obligation to buy a license from SQLite Cloud, and nothing in the install flow tells them so. sqlite-vec's Apache-2.0/MIT dual license removes that entirely.</p>
 <h2 id="candidate-assessment">Candidate assessment<a class="headerlink" href="#candidate-assessment" title="Permanent link">&para;</a></h2>
-<p>sqlite-vec as of this study: ~8.1k stars, last stable <strong>v0.1.9</strong>
-(2026-03-31), alpha <strong>v0.1.10-alpha.4</strong> (2026-05-18), 204 open issues,
-last commit 2026-05-18. Sponsored by Mozilla Builders plus Fly.io,
-Turso, SQLite Cloud and Shinkai. The README still carries an explicit
-"pre-v1, so expect breaking changes" warning.</p>
-<p>That is the main counterweight to the license win: swapping the default
-backend would trade a 1.0.0 release for a pre-1.0 one whose most recent
-release is an alpha.</p>
+<p>sqlite-vec as of this study: ~8.1k stars, last stable <strong>v0.1.9</strong> (2026-03-31), alpha <strong>v0.1.10-alpha.4</strong> (2026-05-18), 204 open issues, last commit 2026-05-18. Sponsored by Mozilla Builders plus Fly.io, Turso, SQLite Cloud and Shinkai. The README still carries an explicit "pre-v1, so expect breaking changes" warning.</p>
+<p>That is the main counterweight to the license win: swapping the default backend would trade a 1.0.0 release for a pre-1.0 one whose most recent release is an alpha.</p>
 <h2 id="architectural-difference">Architectural difference<a class="headerlink" href="#architectural-difference" title="Permanent link">&para;</a></h2>
-<p>sqlite-vector attaches to an <em>existing ordinary table</em>: you declare a
-<code>BLOB</code> column and call <code>vector_init('table', 'column', ...)</code>. sqlite-vec
-instead owns a <code>vec0</code> <strong>virtual table</strong>.</p>
+<p>sqlite-vector attaches to an <em>existing ordinary table</em>: you declare a <code>BLOB</code> column and call <code>vector_init('table', 'column', ...)</code>. sqlite-vec instead owns a <code>vec0</code> <strong>virtual table</strong>.</p>
 <p>That matters because <strong>SQLite forbids triggers on virtual tables</strong>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>sqlite&gt; CREATE TRIGGER t AFTER INSERT ON some_vec0_table BEGIN SELECT 1; END;
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>Error: cannot create triggers on virtual tables
 </code></pre></div>
-<p><code>HybridStore</code> (<code>src/cyllama/rag/advanced.py</code>) keeps its FTS5 index in
-sync with three <code>AFTER INSERT/UPDATE/DELETE</code> triggers on the embeddings
-table. Moving chunk rows into <code>vec0</code> would break that outright.</p>
-<p>The fix is to keep the base table plain and hang a <code>vec0</code> sidecar off
-it, keyed by the base table's <code>id</code>:</p>
+<p><code>HybridStore</code> (<code>src/cyllama/rag/advanced.py</code>) keeps its FTS5 index in sync with three <code>AFTER INSERT/UPDATE/DELETE</code> triggers on the embeddings table. Moving chunk rows into <code>vec0</code> would break that outright.</p>
+<p>The fix is to keep the base table plain and hang a <code>vec0</code> sidecar off it, keyed by the base table's <code>id</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">embeddings</span><span class="w"> </span><span class="p">(</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">    </span><span class="n">id</span><span class="w"> </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="w"> </span><span class="n">AUTOINCREMENT</span><span class="p">,</span>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">    </span><span class="nb">text</span><span class="w"> </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
@@ -1727,14 +1709,9 @@ it, keyed by the base table's <code>id</code>:</p>
 <a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">      </span><span class="k">WHERE</span><span class="w"> </span><span class="n">embedding</span><span class="w"> </span><span class="k">MATCH</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">k</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">?</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">v</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">v</span><span class="p">.</span><span class="n">rowid</span>
 <a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">v</span><span class="p">.</span><span class="n">distance</span><span class="w"> </span><span class="k">IS</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span><span class="w"> </span><span class="n">v</span><span class="p">.</span><span class="n">distance</span><span class="p">;</span>
 </code></pre></div>
-<p>This preserves the metadata table, the source-dedup table, the FTS5
-triggers and the overall shape of <code>search()</code>. It is also the design the
-shipped <code>SqliteVecStore</code> adapter uses.</p>
+<p>This preserves the metadata table, the source-dedup table, the FTS5 triggers and the overall shape of <code>search()</code>. It is also the design the shipped <code>SqliteVecStore</code> adapter uses.</p>
 <h2 id="feasibility-verified-against-the-real-test-suite">Feasibility: verified against the real test suite<a class="headerlink" href="#feasibility-verified-against-the-real-test-suite" title="Permanent link">&para;</a></h2>
-<p>A full port of <code>src/cyllama/rag/store.py</code> to sqlite-vec was written as a
-<strong>136-line diff</strong> and run against cyllama's own RAG tests
-(<code>test_rag_store.py</code>, <code>test_rag_advanced.py</code>, <code>test_rag_dedup.py</code>) with
-<code>SqliteVectorStore</code> monkeypatched to the port:</p>
+<p>A full port of <code>src/cyllama/rag/store.py</code> to sqlite-vec was written as a <strong>136-line diff</strong> and run against cyllama's own RAG tests (<code>test_rag_store.py</code>, <code>test_rag_advanced.py</code>, <code>test_rag_dedup.py</code>) with <code>SqliteVectorStore</code> monkeypatched to the port:</p>
 <table>
 <thead>
 <tr>
@@ -1761,61 +1738,39 @@ shipped <code>SqliteVecStore</code> adapter uses.</p>
 </tr>
 </tbody>
 </table>
-<p>All of <code>TestHybridStore</code> and the entire dedup suite passed, confirming
-the sidecar design keeps FTS5 working.</p>
-<p>The 3 failures are the same on both versions and are genuine capability
-gaps, not porting bugs:</p>
+<p>All of <code>TestHybridStore</code> and the entire dedup suite passed, confirming the sidecar design keeps FTS5 working.</p>
+<p>The 3 failures are the same on both versions and are genuine capability gaps, not porting bugs:</p>
 <ul>
-<li><code>test_dot_metric</code> and <code>test_init_all_metrics</code> — <code>vec0</code> offers cosine,
-  L2 and L1. There is no dot-product metric and no <code>vec_distance_dot()</code>.</li>
-<li><code>test_init_all_vector_types</code> — <code>vec0</code> offers float32, int8 and bit.
-  There is no <code>uint8</code>.</li>
+<li>
+<p><code>test_dot_metric</code> and <code>test_init_all_metrics</code> — <code>vec0</code> offers cosine, L2 and L1. There is no dot-product metric and no <code>vec_distance_dot()</code>.</p>
+</li>
+<li>
+<p><code>test_init_all_vector_types</code> — <code>vec0</code> offers float32, int8 and bit. There is no <code>uint8</code>.</p>
+</li>
 </ul>
-<p>Neither is used anywhere outside the tests; the defaults are cosine and
-float32, and nothing in <code>pipeline.py</code> or <code>rag.py</code> sets either.</p>
+<p>Neither is used anywhere outside the tests; the defaults are cosine and float32, and nothing in <code>pipeline.py</code> or <code>rag.py</code> sets either.</p>
 <h2 id="behavioural-differences-found">Behavioural differences found<a class="headerlink" href="#behavioural-differences-found" title="Permanent link">&para;</a></h2>
 <p>Four things bit during the port and are worth recording:</p>
 <ol>
 <li>
-<p><strong>NULL cosine distance for zero-norm vectors.</strong> <code>vec0</code> reports SQL
-   <code>NULL</code> for the cosine distance to a zero vector (mathematically
-   undefined); sqlite-vector returned a number. Unhandled, this raises
-   <code>TypeError: unsupported operand type(s) for -: 'float' and 'NoneType'</code>
-   mid-iteration, which in the concurrency test left an unfinalized
-   statement and produced a cascade of spurious <code>database is locked</code>
-   errors in the other threads. It looks like a locking bug and isn't
-   one. Handle NULL explicitly and sort it last
-   (<code>ORDER BY v.distance IS NULL, v.distance</code> — SQLite sorts NULL first
-   by default).</p>
+<p><strong>NULL cosine distance for zero-norm vectors.</strong> <code>vec0</code> reports SQL <code>NULL</code> for the cosine distance to a zero vector (mathematically undefined); sqlite-vector returned a number. Unhandled, this raises <code>TypeError: unsupported operand type(s) for -: 'float' and 'NoneType'</code> mid-iteration, which in the concurrency test left an unfinalized statement and produced a cascade of spurious <code>database is locked</code> errors in the other threads. It looks like a locking bug and isn't one. Handle NULL explicitly and sort it last (<code>ORDER BY v.distance IS NULL, v.distance</code> — SQLite sorts NULL first by default).</p>
 </li>
 <li>
-<p><strong>Blob element type must match the column.</strong> sqlite-vector accepted a
-   float32 blob for every column type and converted internally. <code>vec0</code>
-   reads a bare <code>BLOB</code> as float32 always, so an int8 vector must be
-   tagged with <code>vec_int8(?)</code> on <strong>both</strong> insert and query, or you get
-   <code>Inserted vector for the "embedding" column is expected to be of type
-   int8, but a float32 vector was provided</code>.</p>
+<p><strong>Blob element type must match the column.</strong> sqlite-vector accepted a float32 blob for every column type and converted internally. <code>vec0</code> reads a bare <code>BLOB</code> as float32 always, so an int8 vector must be tagged with <code>vec_int8(?)</code> on <strong>both</strong> insert and query, or you get <code>Inserted vector for the "embedding" column is expected to be of type int8, but a float32 vector was provided</code>.</p>
 </li>
 <li>
-<p><strong><code>float16</code> is declared but not implemented.</strong> <code>vec0</code> parses a
-   <code>float16[N]</code> column declaration without complaint, but as of v0.1.9
-   it stores those columns as float32 — <code>vec_type()</code> reports <code>float32</code>
-   and each element still occupies 4 bytes:</p>
+<p><strong><code>float16</code> is declared but not implemented.</strong> <code>vec0</code> parses a <code>float16[N]</code> column declaration without complaint, but as of v0.1.9 it stores those columns as float32 — <code>vec_type()</code> reports <code>float32</code> and each element still occupies 4 bytes:</p>
 </li>
 </ol>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>float   : stored=32B vec_type=float32 len=8
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>float16 : stored=32B vec_type=float32 len=8
 </code></pre></div>
-<p>Offering <code>vector_type="float16"</code> would promise a halving that doesn't
-   happen, so the shipped adapter rejects it.</p>
+<p>Offering <code>vector_type="float16"</code> would promise a halving that doesn't happen, so the shipped adapter rejects it.</p>
 <ol>
-<li><strong>No squared-L2 metric.</strong> Request L2 and square the distance in
-   Python; squaring is monotonic, so the ordering is identical.</li>
+<li><strong>No squared-L2 metric.</strong> Request L2 and square the distance in Python; squaring is monotonic, so the ordering is identical.</li>
 </ol>
 <h2 id="performance">Performance<a class="headerlink" href="#performance" title="Permanent link">&para;</a></h2>
-<p>20,000 vectors × 384 dimensions, cosine, k=10, 200 queries, single
-thread. Both extensions built from source with <code>-O3</code> and no explicit
-SIMD flags.</p>
+<p>20,000 vectors × 384 dimensions, cosine, k=10, 200 queries, single thread. Both extensions built from source with <code>-O3</code> and no explicit SIMD flags.</p>
 <table>
 <thead>
 <tr>
@@ -1847,14 +1802,9 @@ SIMD flags.</p>
 </tr>
 </tbody>
 </table>
-<p>sqlite-vec is ~1.7× faster on exhaustive search and produces a smaller
-database, with identical results.</p>
+<p>sqlite-vec is ~1.7× faster on exhaustive search and produces a smaller database, with identical results.</p>
 <h3 id="the-one-real-regression-quantization">The one real regression: quantization<a class="headerlink" href="#the-one-real-regression-quantization" title="Permanent link">&para;</a></h3>
-<p><code>SqliteVectorStore</code> exposes <code>quantize()</code> and <code>preload_quantization()</code>,
-backed by sqlite-vector's <code>vector_quantize()</code> / <code>vector_quantize_scan()</code>.
-sqlite-vec 0.1.9 has no equivalent: a <code>vec0</code> table is either exhaustive
-or built with an ANN index at <code>CREATE TABLE</code> time. There is no runtime
-quantization step to call.</p>
+<p><code>SqliteVectorStore</code> exposes <code>quantize()</code> and <code>preload_quantization()</code>, backed by sqlite-vector's <code>vector_quantize()</code> / <code>vector_quantize_scan()</code>. sqlite-vec 0.1.9 has no equivalent: a <code>vec0</code> table is either exhaustive or built with an ANN index at <code>CREATE TABLE</code> time. There is no runtime quantization step to call.</p>
 <p>Same corpus as above, measuring recall@10 against exact search:</p>
 <table>
 <thead>
@@ -1887,25 +1837,10 @@ quantization step to call.</p>
 </tr>
 </tbody>
 </table>
-<p><strong>Read these recall numbers with care.</strong> The corpus is random Gaussian
-vectors, which is the adversarial worst case for graph-based ANN: there
-is no cluster structure to exploit and all pairwise distances are nearly
-equal. Real embeddings cluster, and DiskANN would score far better on
-them. The comparison is still informative in one specific way:
-sqlite-vector's approach is an <em>exhaustive scan over quantized vectors</em>,
-so its recall is insensitive to how the data is distributed, whereas
-sqlite-vec's is a graph traversal and is not. A benchmark on real
-embeddings is needed before treating the DiskANN row as a verdict.</p>
-<p>Note also that the alpha's DiskANN index took 53 s (binary) and 131 s
-(int8) to build for 20k vectors inserted row by row, versus 0.1 s for a
-flat table.</p>
+<p><strong>Read these recall numbers with care.</strong> The corpus is random Gaussian vectors, which is the adversarial worst case for graph-based ANN: there is no cluster structure to exploit and all pairwise distances are nearly equal. Real embeddings cluster, and DiskANN would score far better on them. The comparison is still informative in one specific way: sqlite-vector's approach is an <em>exhaustive scan over quantized vectors</em>, so its recall is insensitive to how the data is distributed, whereas sqlite-vec's is a graph traversal and is not. A benchmark on real embeddings is needed before treating the DiskANN row as a verdict.</p>
+<p>Note also that the alpha's DiskANN index took 53 s (binary) and 131 s (int8) to build for 20k vectors inserted row by row, versus 0.1 s for a flat table.</p>
 <h2 id="cost-of-a-full-swap">Cost of a full swap<a class="headerlink" href="#cost-of-a-full-swap" title="Permanent link">&para;</a></h2>
-<p>Vendoring gets <em>simpler</em>: sqlite-vec is a single 320 KB <code>sqlite-vec.c</code>
-amalgamation plus a generated header, against sqlite-vector's eight
-source files. It compiles warning-clean with the project's existing
-flags, needs only <code>sqlite3ext.h</code>, has explicit <code>_WIN32</code> / <code>intrin.h</code>
-handling and guarded NEON/AVX paths, and produces a 165 KB <code>.so</code> versus
-sqlite-vector's 191 KB.</p>
+<p>Vendoring gets <em>simpler</em>: sqlite-vec is a single 320 KB <code>sqlite-vec.c</code> amalgamation plus a generated header, against sqlite-vector's eight source files. It compiles warning-clean with the project's existing flags, needs only <code>sqlite3ext.h</code>, has explicit <code>_WIN32</code> / <code>intrin.h</code> handling and guarded NEON/AVX paths, and produces a 165 KB <code>.so</code> versus sqlite-vector's 191 KB.</p>
 <table>
 <thead>
 <tr>
@@ -1948,43 +1883,33 @@ sqlite-vector's 191 KB.</p>
 </tr>
 </tbody>
 </table>
-<p>CI needs no changes as long as the built artifact keeps the name
-<code>vector.{so,dylib,dll}</code>: both <code>build-cibw-abi3.yml</code> and
-<code>build-gpu-wheels-abi3.yml</code> skip the ABI3 check via
-<code>p.stem.split('.')[0] == 'vector'</code>. sqlite-vec's init symbol is
-<code>sqlite3_vec_init</code>, which won't match a file named <code>vector.so</code>, so load
-it with an explicit entrypoint:</p>
+<p>CI needs no changes as long as the built artifact keeps the name <code>vector.{so,dylib,dll}</code>: both <code>build-cibw-abi3.yml</code> and <code>build-gpu-wheels-abi3.yml</code> skip the ABI3 check via <code>p.stem.split('.')[0] == 'vector'</code>. sqlite-vec's init symbol is <code>sqlite3_vec_init</code>, which won't match a file named <code>vector.so</code>, so load it with an explicit entrypoint:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">conn</span><span class="o">.</span><span class="n">load_extension</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">entrypoint</span><span class="o">=</span><span class="s2">&quot;sqlite3_vec_init&quot;</span><span class="p">)</span>
 </code></pre></div>
-<p>The <code>entrypoint</code> keyword arrived in Python 3.12; cyllama already
-requires 3.12. (mypy's stdlib stubs don't carry it yet, so the call
-needs <code># type: ignore[call-arg]</code>.)</p>
+<p>The <code>entrypoint</code> keyword arrived in Python 3.12; cyllama already requires 3.12. (mypy's stdlib stubs don't carry it yet, so the call needs <code># type: ignore[call-arg]</code>.)</p>
 <h2 id="recommendation">Recommendation<a class="headerlink" href="#recommendation" title="Permanent link">&para;</a></h2>
-<p><strong>Ship the adapter now; revisit the default later.</strong> That is what was
-done.</p>
-<p>Shipping <code>SqliteVecStore</code> in <code>cyllama.rag.stores</code> gives commercial users
-a permissively-licensed path today at zero risk to the default backend,
-and gives the project real usage data before betting the default on a
-pre-v1 dependency.</p>
+<p><strong>Ship the adapter now; revisit the default later.</strong> That is what was done.</p>
+<p>Shipping <code>SqliteVecStore</code> in <code>cyllama.rag.stores</code> gives commercial users a permissively-licensed path today at zero risk to the default backend, and gives the project real usage data before betting the default on a pre-v1 dependency.</p>
 <p>Reconsider swapping the default when either of these holds:</p>
 <ul>
-<li>sqlite-vec reaches v1.0, or the DiskANN/IVF work in the 0.1.10 line
-  lands in a stable release with recall verified on real embeddings; or</li>
-<li>the licensing situation becomes an active problem for users — at which
-  point the swap is a known ~136-line change with a green test suite
-  behind it.</li>
+<li>
+<p>sqlite-vec reaches v1.0, or the DiskANN/IVF work in the 0.1.10 line lands in a stable release with recall verified on real embeddings; or</p>
+</li>
+<li>
+<p>the licensing situation becomes an active problem for users — at which point the swap is a known ~136-line change with a green test suite behind it.</p>
+</li>
 </ul>
-<p>If the swap does happen, <code>quantize()</code> / <code>preload_quantization()</code> are the
-open design question. Options, roughly in order of preference:</p>
+<p>If the swap does happen, <code>quantize()</code> / <code>preload_quantization()</code> are the open design question. Options, roughly in order of preference:</p>
 <ol>
-<li>Deprecate them to no-ops and re-express the choice as a create-time
-   index selection (<code>SqliteVecStore(..., index="diskann")</code>), matching
-   how <code>vec0</code> actually works.</li>
-<li>Keep them raising <code>NotImplementedError</code> on the sqlite-vec backend and
-   leave them working only on the sqlite-vector one during a transition.</li>
-<li>Emulate with <code>vec_quantize_binary()</code> plus a rescore pass — measured
-   above at 30.7% recall on this corpus, so not viable without real-
-   embedding numbers that say otherwise.</li>
+<li>
+<p>Deprecate them to no-ops and re-express the choice as a create-time index selection (<code>SqliteVecStore(..., index="diskann")</code>), matching how <code>vec0</code> actually works.</p>
+</li>
+<li>
+<p>Keep them raising <code>NotImplementedError</code> on the sqlite-vec backend and leave them working only on the sqlite-vector one during a transition.</p>
+</li>
+<li>
+<p>Emulate with <code>vec_quantize_binary()</code> plus a rescore pass — measured above at 30.7% recall on this corpus, so not viable without real- embedding numbers that say otherwise.</p>
+</li>
 </ol>
 <h2 id="using-sqlite-vec-today">Using sqlite-vec today<a class="headerlink" href="#using-sqlite-vec-today" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>pip<span class="w"> </span>install<span class="w"> </span>sqlite-vec
@@ -1997,16 +1922,8 @@ open design question. Options, roughly in order of preference:</p>
 <a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>          <span class="n">generation_model</span><span class="o">=</span><span class="s2">&quot;models/llama.gguf&quot;</span><span class="p">,</span>
 <a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>          <span class="n">store</span><span class="o">=</span><span class="n">store</span><span class="p">)</span>
 </code></pre></div>
-<p>See <code>src/cyllama/rag/stores/sqlite_vec.py</code> and
-<code>tests/test_rag_sqlite_vec.py</code>. The adapter takes an <code>extension_path=</code>
-argument for pointing at your own build of the extension instead of the
-copy shipped by the PyPI package.</p>
-<p>The adapter is covered in CI by the <code>test-store-adapters</code> workflow,
-which runs its test module and the cross-backend conformance suite
-(<code>tests/test_rag_store_conformance.py</code>) against the current sqlite-vec
-release on a weekly cron. That is also the tripwire for the pre-v1
-concern above: a breaking change upstream shows up there within a week
-rather than in a user's bug report.</p>
+<p>See <code>src/cyllama/rag/stores/sqlite_vec.py</code> and <code>tests/test_rag_sqlite_vec.py</code>. The adapter takes an <code>extension_path=</code> argument for pointing at your own build of the extension instead of the copy shipped by the PyPI package.</p>
+<p>The adapter is covered in CI by the <code>test-store-adapters</code> workflow, which runs its test module and the cross-backend conformance suite (<code>tests/test_rag_store_conformance.py</code>) against the current sqlite-vec release on a weekly cron. That is also the tripwire for the pre-v1 concern above: a breaking change upstream shows up there within a week rather than in a user's bug report.</p>
 
 
 

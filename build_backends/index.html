@@ -681,6 +681,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#stable-diffusion-ggml-selection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stable Diffusion ggml selection
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1949,6 +1960,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#stable-diffusion-ggml-selection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stable Diffusion ggml selection
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2362,10 +2384,39 @@
 <tr>
 <td><code>SD_USE_VENDORED_GGML</code></td>
 <td><code>0</code></td>
-<td>Share llama.cpp's ggml with stable-diffusion (set to <code>1</code> to link SD's own vendored copy instead)</td>
+<td>Which ggml stable-diffusion.cpp uses; see <a href="#stable-diffusion-ggml-selection">Stable Diffusion ggml selection</a></td>
 </tr>
 </tbody>
 </table>
+<h3 id="stable-diffusion-ggml-selection">Stable Diffusion ggml selection<a class="headerlink" href="#stable-diffusion-ggml-selection" title="Permanent link">&para;</a></h3>
+<p><code>SD_USE_VENDORED_GGML</code> is the only switch that selects stable-diffusion.cpp's ggml. <code>manage.py build --sd-vendored-ggml</code> sets it to <code>1</code>.</p>
+<table>
+<thead>
+<tr>
+<th><code>SD_USE_VENDORED_GGML</code></th>
+<th>ggml tree SD compiles</th>
+<th><code>SD_USE_UPSTREAM_GGML</code></th>
+<th>Use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0</code> (default)</td>
+<td>llama.cpp's (<code>build/llama.cpp/ggml</code>)</td>
+<td><code>ON</code></td>
+<td>Normal builds and release wheels. llama.cpp and SD use one ggml.</td>
+</tr>
+<tr>
+<td><code>1</code></td>
+<td>SD's fork (<code>build/stable-diffusion.cpp/ggml</code>)</td>
+<td><code>OFF</code></td>
+<td>Fallback when llama.cpp's ggml does not work with SD. The static CI builds also use it.</td>
+</tr>
+</tbody>
+</table>
+<p>Do not set <code>SD_USE_UPSTREAM_GGML</code> or <code>SD_GGML_SOURCE_DIR</code> yourself. <code>scripts/manage.py</code> derives both from <code>SD_USE_VENDORED_GGML</code> and passes both on every build. Both are CMake cache variables, so passing them explicitly keeps an earlier build's cached values from overriding the switch. The SD build dir is dropped when the switch changes.</p>
+<p>Mode <code>0</code> loses the features that need SD's ggml fork: INT8 ConvRot model files are rejected, FP8 safetensors load as F16, and SageAttention is unavailable. Mode <code>1</code> restores them.</p>
+<p><code>scripts/make_xcframework.py</code> supports only mode <code>0</code>, because the xcframeworks ship one <code>Ggml.framework</code>.</p>
 <h2 id="backend-requirements">Backend Requirements<a class="headerlink" href="#backend-requirements" title="Permanent link">&para;</a></h2>
 <h3 id="cuda-nvidia-gpus">CUDA (NVIDIA GPUs)<a class="headerlink" href="#cuda-nvidia-gpus" title="Permanent link">&para;</a></h3>
 <p><strong>Requirements:</strong></p>

@@ -1695,7 +1695,7 @@
 </code></pre></div>
 <p>Without it, <code>manage.py</code> defaults to vendored ggml and SD statically embeds its own ggml with GPU kernels baked in. Observed impact on a Windows CUDA wheel with the flag missing: <code>stable_diffusion.pyd</code> was 216 MB (vendored ggml + CUDA kernels) vs. ~23 MB on Linux where SD shares the single <code>libggml-cuda-*.so</code> with llama/whisper.</p>
 <p>This also causes <code>build_config.json</code> to omit <code>llama_cpp_ggml_version</code>: with vendored ggml, <code>write_build_config</code> records only per-project vendored versions, not a single shared llama.cpp ggml version — a useful signal for auditing whether ggml is actually being shared.</p>
-<p>Reference workflows with the pattern already applied: <code>build-gpu-wheels.yml</code>, <code>build-gpu-wheels2.yml</code>.</p>
+<p>Reference workflow with the pattern already applied: <code>build-gpu-wheels-abi3.yml</code>.</p>
 <h2 id="installing-from-sdist-non-cibuildwheel-on-macos-linux">Installing from sdist (non-cibuildwheel) on macOS / Linux<a class="headerlink" href="#installing-from-sdist-non-cibuildwheel-on-macos-linux" title="Permanent link">&para;</a></h2>
 <p>Not directly supported under the current pattern: CMake does not install any dylibs into the package, and without <code>delocate</code> / <code>auditwheel</code> the extensions' <code>INSTALL_RPATH</code> points at a build-tree path that won't survive <code>pip install .</code>. Use the published wheels or an editable install.</p>
 <h2 id="references">References<a class="headerlink" href="#references" title="Permanent link">&para;</a></h2>
@@ -1713,7 +1713,7 @@
 <p><code>scripts/manage.py</code> — <code>LlamaCppBuilder.install_shared_libs</code> copies upstream dylibs into <code>thirdparty/llama.cpp/dynamic/</code> with symlinks preserved.</p>
 </li>
 <li>
-<p><code>.github/workflows/build-new-wheels.yml</code> — <code>build_vulkan_macos_intel</code> job.</p>
+<p><code>.github/workflows/build-gpu-wheels-abi3.yml</code> — <code>build_vulkan_macos_intel</code> job.</p>
 </li>
 </ul>
 

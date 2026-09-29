@@ -2775,6 +2775,18 @@
 <td>Context window size</td>
 </tr>
 <tr>
+<td><code>-t, --threads</code></td>
+<td>int</td>
+<td>-1</td>
+<td>Threads for generation (-1 = physical cores)</td>
+</tr>
+<tr>
+<td><code>-tb, --threads-batch</code></td>
+<td>int</td>
+<td>-1</td>
+<td>Threads for prompt processing (-1 = physical cores)</td>
+</tr>
+<tr>
 <td><code>--seed</code></td>
 <td>int</td>
 <td>4294967295</td>
@@ -2896,6 +2908,18 @@
 <td>int</td>
 <td>2048</td>
 <td>Context window size</td>
+</tr>
+<tr>
+<td><code>-t, --threads</code></td>
+<td>int</td>
+<td>-1</td>
+<td>Threads for generation (-1 = physical cores)</td>
+</tr>
+<tr>
+<td><code>-tb, --threads-batch</code></td>
+<td>int</td>
+<td>-1</td>
+<td>Threads for prompt processing (-1 = physical cores)</td>
 </tr>
 <tr>
 <td><code>--seed</code></td>
@@ -3258,10 +3282,17 @@
 <td><code>--server-type</code></td>
 <td>choice</td>
 <td>embedded</td>
-<td>Server implementation: <code>python</code> or <code>embedded</code></td>
+<td><code>embedded</code> (cpp-httplib, thread pool) or <code>python</code> (stdlib <code>http.server</code>)</td>
+</tr>
+<tr>
+<td><code>--api-key-file</code></td>
+<td>string</td>
+<td></td>
+<td>File holding the API key clients must send as <code>Authorization: Bearer &lt;key&gt;</code>; overrides <code>CYLLAMA_API_KEY</code></td>
 </tr>
 </tbody>
 </table>
+<p>Both server types stream chat completions when the request sets <code>"stream": true</code>. Each slot uses physical cores divided by <code>--n-parallel</code> as its thread count.</p>
 <hr />
 <h2 id="cyllama-transcribe">cyllama transcribe<a class="headerlink" href="#cyllama-transcribe" title="Permanent link">&para;</a></h2>
 <p>Transcribe audio files using whisper.cpp.</p>
@@ -4593,19 +4624,13 @@
 <td><code>--lora</code></td>
 <td>string</td>
 <td></td>
-<td>LoRA adapter path (implies <code>--no-mmap</code>)</td>
+<td>LoRA adapter path, scale 1.0 (repeatable)</td>
 </tr>
 <tr>
 <td><code>--lora-scaled</code></td>
 <td>PATH SCALE</td>
 <td></td>
-<td>LoRA adapter with custom scaling</td>
-</tr>
-<tr>
-<td><code>--lora-base</code></td>
-<td>string</td>
-<td></td>
-<td>Base model for LoRA layers</td>
+<td>LoRA adapter with custom scaling (repeatable)</td>
 </tr>
 </tbody>
 </table>
@@ -4715,14 +4740,14 @@
 <tr>
 <td><code>-t, --threads</code></td>
 <td>int</td>
-<td>4</td>
-<td>Compute threads</td>
+<td>-1</td>
+<td>Compute threads (-1 = physical cores)</td>
 </tr>
 <tr>
 <td><code>-tb, --threads-batch</code></td>
 <td>int</td>
-<td>4</td>
-<td>Batch processing threads</td>
+<td>-1</td>
+<td>Batch processing threads (-1 = physical cores)</td>
 </tr>
 <tr>
 <td><code>--no-mmap</code></td>

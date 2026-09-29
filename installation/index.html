@@ -2309,16 +2309,17 @@
 <p><strong>1. oneAPI userspace runtimes (required for <code>import cyllama</code> to succeed).</strong></p>
 <p>These provide the libraries the wheel's <code>DT_NEEDED</code> entries point at -- <code>libsycl.so.8</code>, <code>libmkl_*.so*</code>, <code>libtbb.so.12</code>, <code>libiomp5.so</code>, <code>libsvml.so</code>, <code>libimf.so</code>, <code>libintlc.so.5</code>, <code>libirng.so</code>. On Debian/Ubuntu after adding the <a href="https://www.intel.com/content/www/us/en/docs/oneapi/installation-guide-linux/current/apt-005.html">Intel oneAPI APT repo</a>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span>intel-oneapi-runtime-dpcpp-cpp<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span>intel-oneapi-runtime-mkl<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">  </span>intel-oneapi-runtime-tbb<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">  </span>intel-oneapi-runtime-openmp
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span>intel-oneapi-compiler-dpcpp-cpp-runtime-2025.3<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span>intel-oneapi-openmp-2025.3<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">  </span>intel-oneapi-mkl-core-2025.3<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">  </span>intel-oneapi-mkl-sycl-blas-2025.3
 <a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="nb">source</span><span class="w"> </span>/opt/intel/oneapi/setvars.sh
 <a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import cyllama&quot;</span><span class="w">   </span><span class="c1"># should succeed</span>
 </code></pre></div>
-<p>For RPM-based distros, use Intel's <a href="https://www.intel.com/content/www/us/en/docs/oneapi/installation-guide-linux/current/yum-dnf-zypper.html">DNF/Yum repo</a> with the same <code>intel-oneapi-runtime-*</code> package names. If you already have the full <a href="https://www.intel.com/content/www/us/en/developer/tools/oneapi/oneapi-toolkit.html">Intel oneAPI base toolkit</a> (<code>intel-basekit</code>) installed, these runtimes are included -- just source <code>setvars.sh</code>. Without these libraries on the loader path, import fails with <code>libsycl.so.8: cannot open shared object file</code> (or a similar message naming one of the other runtimes).</p>
-<p><strong>2. A SYCL-visible compute device (required for actual GPU/CPU compute, not for import).</strong></p>
-<p><code>cyllama</code> needs at least one runtime device for SYCL to dispatch kernels onto. This is hardware-conditional and lives outside the oneAPI runtime layer -- pick one of:</p>
+<p>Keep the <code>-2025.3</code> suffix. The wheel is built against oneAPI 2025.3 and links <code>libsycl.so.8</code>. The unversioned <code>intel-oneapi-runtime-*</code> packages now install 2026.x, which ships <code>libsycl.so.9</code> only. The GPU wheel CI smoke test installs this same package set.</p>
+<p>For RPM-based distros, use Intel's <a href="https://www.intel.com/content/www/us/en/docs/oneapi/installation-guide-linux/current/yum-dnf-zypper.html">DNF/Yum repo</a> with the same package names. An existing <a href="https://www.intel.com/content/www/us/en/developer/tools/oneapi/oneapi-toolkit.html">Intel oneAPI base toolkit</a> install works if it is 2025.x; <code>intel-oneapi-base-toolkit-2025.3</code> pins it. Source its <code>setvars.sh</code>. Without these libraries on the loader path, import fails with <code>libsycl.so.8: cannot open shared object file</code> (or a similar message naming one of the other runtimes).</p>
+<p><strong>2. An Intel GPU visible to SYCL.</strong></p>
+<p>ggml's SYCL backend requires a GPU device. It has no CPU fallback. Install the driver for one of:</p>
 <ul>
 <li>
 <p><strong>Intel GPU via OpenCL</strong>: install the Intel compute-runtime package providing <code>libOpenCL.so.1</code> and the Intel GPU ICD (<code>intel-opencl-icd</code> on recent Ubuntu, or the upstream <code>intel-compute-runtime</code> packages). Follow <a href="https://dgpu-docs.intel.com/driver/installation.html">Intel's GPU driver install guide</a> for your distro and GPU family (Arc, Iris Xe, Data Center GPU Max/Flex).</p>
@@ -2326,11 +2327,8 @@
 <li>
 <p><strong>Intel GPU via Level Zero</strong>: install <code>level-zero</code> and <code>intel-level-zero-gpu</code>. Same install guide.</p>
 </li>
-<li>
-<p><strong>CPU fallback (no Intel GPU)</strong>: install the Intel CPU runtime for OpenCL applications, packaged as <code>intel-oneapi-runtime-opencl</code> or the standalone CPU runtime. This is <em>not</em> a substitute for the oneAPI runtimes in step 1 -- it only adds the CPU as an OpenCL device.</p>
-</li>
 </ul>
-<p>Package names and recommended install paths drift across distro versions and Intel releases, so we link to Intel's authoritative install pages rather than hard-coding an <code>apt install</code> line we can't keep current. Without a device, import succeeds but SYCL device enumeration returns empty and any actual generation call fails.</p>
+<p>Package names and recommended install paths drift across distro versions and Intel releases, so we link to Intel's authoritative install pages rather than hard-coding an <code>apt install</code> line we can't keep current. Without a GPU, <code>import cyllama</code> succeeds, but registering backends aborts the process with <code>can not find preferred GPU platform</code>. <code>import cyllama.sd</code>, <code>cyllama info</code> and loading a model all register backends.</p>
 <p>You can verify which backend is active after installation:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>cyllama<span class="w"> </span>info
 </code></pre></div>
@@ -2384,6 +2382,7 @@
 <a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="c1"># SD shares llama.cpp&#39;s ggml by default; opt into SD&#39;s vendored copy instead</span>
 <a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="nv">SD_USE_VENDORED_GGML</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>make<span class="w"> </span>build
 </code></pre></div>
+<p><code>SD_USE_VENDORED_GGML</code> is the only ggml switch for SD. See <a href="../build_backends/#stable-diffusion-ggml-selection">Stable Diffusion ggml selection</a>.</p>
 <p><strong>Whisper support</strong> (included by default):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>make<span class="w"> </span>build<span class="w">  </span><span class="c1"># Whisper is built automatically</span>
 </code></pre></div>

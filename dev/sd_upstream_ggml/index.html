@@ -23,7 +23,7 @@
     
     
       
-        <title>Cython → nanobind: analysis and advice - cyllama</title>
+        <title>Building stable-diffusion.cpp against upstream ggml - cyllama</title>
       
     
     
@@ -74,7 +74,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#cython-nanobind-analysis-and-advice" class="md-skip">
+        <a href="#building-stable-diffusioncpp-against-upstream-ggml" class="md-skip">
           Skip to content
         </a>
       
@@ -110,7 +110,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Cython → nanobind: analysis and advice
+              Building stable-diffusion.cpp against upstream ggml
             
           </span>
         </div>
@@ -1504,10 +1504,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#current-state" class="md-nav__link">
+  <a href="#problem" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Current state
+        Problem
       
     </span>
   </a>
@@ -1515,10 +1515,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#two-independent-questions" class="md-nav__link">
+  <a href="#what-changed-upstream" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Two independent questions
+        What changed upstream
       
     </span>
   </a>
@@ -1526,160 +1526,65 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#question-1-cython-nanobind" class="md-nav__link">
+  <a href="#verification-done-2026-09-21-against-master-889-c678dfe" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Question 1: Cython → nanobind
+        Verification done (2026-09-21, against master-889-c678dfe)
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="Question 1: Cython → nanobind">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#pros" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Pros
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#cons-risks" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Cons / risks
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#effort-estimate" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Effort estimate
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#question-2-one-statically-linked-binary" class="md-nav__link">
+  <a href="#implementation-plan" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Question 2: One statically linked binary
+        Implementation plan
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="Question 2: One statically linked binary">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#what-this-gains" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        What this gains
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#what-this-does-not-gain" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        What this does not gain
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#costs" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Costs
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#recommendation" class="md-nav__link">
+  <a href="#open-risks" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Recommendation
+        Open risks
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="Recommendation">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#step-1-consolidate-to-one-binary-static-ggml-in-cython-1-week" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Step 1 — Consolidate to one binary + static ggml in Cython (1 week)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#step-2-live-with-it-for-a-release-cycle" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Step 2 — Live with it for a release cycle
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#step-3-port-to-nanobind-only-if-step-2-hurts" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Step 3 — Port to nanobind only if Step 2 hurts
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#summary-table" class="md-nav__link">
+  <a href="#outcome-2026-09-22-master-898-2bb7294" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Summary table
+        Outcome (2026-09-22, master-898-2bb7294)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#relation-to-one-ggml-refactormd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Relation to one-ggml-refactor.md
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#re-running-the-checks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Re-running the checks
       
     </span>
   </a>
@@ -1706,244 +1611,178 @@
   
 
 
-<h1 id="cython-nanobind-analysis-and-advice">Cython → nanobind: analysis and advice<a class="headerlink" href="#cython-nanobind-analysis-and-advice" title="Permanent link">&para;</a></h1>
-<p>This document analyses whether to migrate cyllama's bindings from Cython to <a href="https://github.com/wjakko/nanobind">nanobind</a>, and the related question of whether to consolidate the three extension modules into a single statically linked binary.</p>
-<h2 id="current-state">Current state<a class="headerlink" href="#current-state" title="Permanent link">&para;</a></h2>
-<p>cyllama wraps three upstreams via Cython:</p>
+<h1 id="building-stable-diffusioncpp-against-upstream-ggml">Building stable-diffusion.cpp against upstream ggml<a class="headerlink" href="#building-stable-diffusioncpp-against-upstream-ggml" title="Permanent link">&para;</a></h1>
+<p>Status: done at <code>master-898-2bb7294</code> (issue #19). See "Outcome" below.</p>
+<h2 id="problem">Problem<a class="headerlink" href="#problem" title="Permanent link">&para;</a></h2>
+<p><code>SDCPP_VERSION</code> is pinned at <code>master-816-487de75</code> (<code>scripts/manage.py</code>).
+From <code>master-817-bcc7e29</code> on, sd.cpp calls ggml APIs that only exist in
+leejet's ggml fork. cyllama compiles SD against llama.cpp's ggml
+(<code>_sync_ggml_abi</code>), so every later sd.cpp fails to compile.</p>
+<h2 id="what-changed-upstream">What changed upstream<a class="headerlink" href="#what-changed-upstream" title="Permanent link">&para;</a></h2>
+<p>Two PRs, both merged 2026-09-19:</p>
 <table>
 <thead>
 <tr>
-<th>Module</th>
-<th><code>.pyx</code> LOC</th>
-<th><code>.pxd</code> LOC</th>
-<th><code>cdef class</code>es</th>
+<th>PR</th>
+<th>First tag</th>
+<th>Effect</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>cyllama.llama</code> (+ pxi)</td>
-<td>~5,600</td>
-<td>~2,500</td>
-<td>25</td>
+<td><a href="https://github.com/leejet/stable-diffusion.cpp/pull/1999">#1999</a></td>
+<td><code>master-883-137f740</code></td>
+<td>Adds <code>SD_USE_UPSTREAM_GGML</code> and <code>SD_GGML_SOURCE_DIR</code></td>
 </tr>
 <tr>
-<td><code>cyllama.sd</code></td>
-<td>3,168</td>
-<td>433</td>
-<td>14</td>
-</tr>
-<tr>
-<td><code>cyllama.whisper</code></td>
-<td>990</td>
-<td>385</td>
-<td>10</td>
-</tr>
-<tr>
-<td><code>cyllama.llama.server</code></td>
-<td>566</td>
-<td>34</td>
-<td>(cpp-httplib)</td>
-</tr>
-<tr>
-<td><strong>Total</strong></td>
-<td><strong>~12.4K</strong></td>
-<td><strong>~3.4K</strong></td>
-<td><strong>~50</strong></td>
+<td><a href="https://github.com/leejet/stable-diffusion.cpp/pull/2001">#2001</a></td>
+<td><code>master-884-008ca5b</code></td>
+<td>Restores FP8 safetensors -&gt; F16 conversion at load time in upstream mode</td>
 </tr>
 </tbody>
 </table>
-<p>All three upstreams (llama.cpp, whisper.cpp, stable-diffusion.cpp) are pinned to the <strong>same ggml commit</strong> and currently link dynamically against a single <code>libggml.so</code>. ggml's global state (backend registry, log callback, Vulkan/Metal device tables) therefore lives exactly once in the process today.</p>
-<h2 id="two-independent-questions">Two independent questions<a class="headerlink" href="#two-independent-questions" title="Permanent link">&para;</a></h2>
-<p>The two ideas often discussed together are actually orthogonal:</p>
+<p>Details of #1999:</p>
+<ul>
+<li><code>SD_USE_UPSTREAM_GGML</code> (default <code>OFF</code>) only adds a <code>PUBLIC</code> compile
+  definition. It does not fetch or replace any ggml source.</li>
+<li><code>SD_GGML_SOURCE_DIR</code> (default <code>${CMAKE_CURRENT_SOURCE_DIR}/ggml</code>) selects the
+  ggml tree that <code>add_subdirectory</code> builds.</li>
+<li>ggml setup moves to <code>cmake/ggml.cmake</code>. It fails the configure step unless
+  the chosen tree contains <code>ggml-impl.h</code>.</li>
+<li><code>#include "ggml/src/ggml-impl.h"</code> becomes <code>#include "ggml-impl.h"</code>. The
+  private include dir now comes from the chosen tree.</li>
+<li>With <code>SD_USE_SYSTEM_GGML=ON</code>, <code>SD_GGML_SOURCE_DIR</code> must still point at the
+  matching source tree, for private headers. Upstream's <code>docs/build.md</code> says
+  the installed library must use the same <code>GGML_MAX_NAME</code>.</li>
+</ul>
+<p>Features disabled in upstream mode:</p>
+<ul>
+<li>INT8 tensorwise/convrot. Those model files are rejected at load.</li>
+<li>Native FP8 storage. FP8 safetensors load as F16, which doubles RAM and VRAM
+  for those tensors. FP8 GGUF files and FP8 <code>--type</code> requests are rejected.</li>
+<li>SageAttention (<code>ggml_sage_attn</code>, added in #2005).</li>
+</ul>
+<p>cyllama at 816 has none of these, so nothing is lost relative to today. This
+is inferred from upstream calling FP8 -&gt; F16 the "legacy" behaviour. It is
+not tested against 816.</p>
+<h2 id="verification-done-2026-09-21-against-master-889-c678dfe">Verification done (2026-09-21, against <code>master-889-c678dfe</code>)<a class="headerlink" href="#verification-done-2026-09-21-against-master-889-c678dfe" title="Permanent link">&para;</a></h2>
 <ol>
-<li>
-<p><strong>Binding-tool choice</strong> — Cython vs nanobind.</p>
-</li>
-<li>
-<p><strong>Binary layout</strong> — three extensions + shared <code>libggml.so</code> vs one extension with statically linked ggml.</p>
-</li>
+<li>Fork-only symbols. Every <code>ggml_*</code> identifier called in <code>src/</code> was compared
+   against <code>build/llama.cpp/ggml/include/*.h</code> and <code>src/ggml-impl.h</code>. Excluding
+   SD's own <code>ggml_ext_*</code> helpers, 3 functions are missing:
+   <code>ggml_mul_mat_i8_tensorwise</code>, <code>ggml_quantize_i8_convrot</code>,
+   <code>ggml_sage_attn</code>. <code>GGML_TYPE_F8_*</code> is also missing. All 5 call sites sit
+   inside <code>#ifndef SD_USE_UPSTREAM_GGML</code>:</li>
+<li><code>src/core/ggml_extend.cpp</code> (2 sites)</li>
+<li><code>src/pipeline/diffusion_engine.cpp</code></li>
+<li><code>src/model/common/ggml_block.hpp</code> (2 sites)</li>
+<li><code>src/core/util.cpp</code></li>
+<li><code>GGML_MAX_NAME</code> is still 160 (<code>CMakeLists.txt:326</code>). This matches
+   <code>StableDiffusionCppBuilder.GGML_MAX_NAME</code>.</li>
+<li>cyllama patches, checked with <code>git apply --check</code>:</li>
+<li><code>stable-diffusion.cpp-msvc-bigobj.patch</code>: applies.</li>
+<li><code>stable-diffusion.cpp-conditioner-compute-failure.patch</code>: fails.</li>
+<li><code>stable-diffusion.cpp-graph-cut-budget-clamp.patch</code>: fails.</li>
 </ol>
-<p>Each can be done without the other.</p>
-<hr />
-<h2 id="question-1-cython-nanobind">Question 1: Cython → nanobind<a class="headerlink" href="#question-1-cython-nanobind" title="Permanent link">&para;</a></h2>
-<h3 id="pros">Pros<a class="headerlink" href="#pros" title="Permanent link">&para;</a></h3>
-<ul>
-<li>
-<p><strong>Delete the <code>.pxd</code> files (~3.4K LOC).</strong> nanobind reads upstream C/C++ headers directly. No more re-declaring llama.cpp/whisper.cpp/sd.cpp APIs in parallel — no more silent drift when upstream changes a struct.</p>
-</li>
-<li>
-<p><strong>Real C++ ergonomics.</strong> <code>std::vector</code>, <code>std::function</code>, smart pointers, templates, overloads work natively. Today's Cython needs <code>libcpp.*</code> shims and awkward casts for function pointers.</p>
-</li>
-<li>
-<p><strong>Smaller binaries, faster compiles.</strong> nanobind is the leanest of the C++ binding libraries; often 2–3× faster compile and smaller <code>.so</code> than Cython-generated C++.</p>
-</li>
-<li>
-<p><strong>Better callback story.</strong> The <code>(&lt;object&gt;py_callback)(...)</code> pattern (see <code>log_callback</code>, <code>abort_callback</code>) becomes idiomatic <code>std::function&lt;...&gt;</code> with <code>nb::cpp_function</code>.</p>
-</li>
-<li>
-<p><strong>Modern toolchain.</strong> CMake-native (cyllama already uses CMake), good stub generation (<code>nanobind-stubgen</code>), better IDE/typing support.</p>
-</li>
-<li>
-<p><strong>One language: C++.</strong> No more pyx/pxi/pxd file zoo, no <code># distutils:</code> pragmas.</p>
-</li>
-</ul>
-<h3 id="cons-risks">Cons / risks<a class="headerlink" href="#cons-risks" title="Permanent link">&para;</a></h3>
-<ul>
-<li>
-<p><strong>Pure-Python-flavoured glue gets harder.</strong> Much of the <code>.pyx</code> is Python-style code (default args, optional kwargs, string decoding, list↔vector conversions). In Cython that's free; in nanobind it's C++. Some of it migrates better to a thin Python layer on top of a minimal C++ binding.</p>
-</li>
-<li>
-<p><strong><code>cpdef enum</code> blocks</strong> become <code>nb::enum_&lt;&gt;</code> — straightforward but tedious given how many there are.</p>
-</li>
-<li>
-<p><strong><code>include "*.pxi"</code></strong> (textual inclusion sharing C-level state across translation units — <code>mtmd.pxi</code>, <code>speculative.pxi</code>, <code>tts_helpers.pxi</code>) has no clean nanobind analogue. Refactor into normal C++ headers + separate binding modules with cross-module type sharing (nanobind supports it, but it's a design step).</p>
-</li>
-<li>
-<p><strong>Embedded cpp-httplib server (<code>embedded.pyx</code>, 566 LOC)</strong> — anything relying on Cython <code>nogil</code> semantics needs re-thinking with <code>nb::gil_scoped_release</code>.</p>
-</li>
-<li>
-<p><strong>Cython memoryviews → <code>nb::ndarray&lt;&gt;</code>.</strong> Different API, mostly an improvement, but every call site changes.</p>
-</li>
-<li>
-<p><strong>Stricter compiler requirement.</strong> C++17 minimum, C++20 preferred. Cython is more forgiving.</p>
-</li>
-<li>
-<p><strong>Loss of <code>.pyx</code>-level debugger / line profiling</strong> (minor).</p>
-</li>
-<li>
-<p><strong>Stub regeneration</strong> — typed Python API surface needs new stubs.</p>
-</li>
-</ul>
-<h3 id="effort-estimate">Effort estimate<a class="headerlink" href="#effort-estimate" title="Permanent link">&para;</a></h3>
-<p>Treating each <code>cdef class</code> as ~0.5–1 day once a binding template is established, plus upfront design work (module layout, ndarray strategy, callback strategy, GIL strategy):</p>
-<table>
-<thead>
-<tr>
-<th>Bucket</th>
-<th>Estimate</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Setup + first module skeleton + CMake/nanobind wiring</td>
-<td>2–4 days</td>
-</tr>
-<tr>
-<td>llama bindings (~5.6K LOC, 25 classes, mtmd, speculative)</td>
-<td>3–5 weeks</td>
-</tr>
-<tr>
-<td>stable-diffusion (3.2K LOC, 14 classes)</td>
-<td>1.5–2 weeks</td>
-</tr>
-<tr>
-<td>whisper (~1K LOC, 10 classes)</td>
-<td>3–5 days</td>
-</tr>
-<tr>
-<td>embedded cpp-httplib server (threading/IO)</td>
-<td>3–7 days</td>
-</tr>
-<tr>
-<td>Test parity, stubs, packaging (incl. Vulkan wheels), docs</td>
-<td>1–2 weeks</td>
-</tr>
-</tbody>
-</table>
-<p><strong>Total: ~6–10 weeks of full-time work</strong>, single developer, assuming the public Python API stays roughly compatible. Add 2–3 weeks if redesigning the Python surface as part of the port.</p>
-<hr />
-<h2 id="question-2-one-statically-linked-binary">Question 2: One statically linked binary<a class="headerlink" href="#question-2-one-statically-linked-binary" title="Permanent link">&para;</a></h2>
-<p>Since cyllama already pins one ggml across all three upstreams, the hardest part of consolidation is already done. Remaining work is mostly mechanical:</p>
+<p>Both failures come from #1945 (<code>31ab2b2</code>), which split
+   <code>src/core/ggml_extend.hpp</code> into <code>.h</code>/<code>.cpp</code>. Neither bug is fixed
+   upstream. <code>GGML_ASSERT(!hidden_states.empty())</code> is still in
+   <code>src/conditioning/conditioner.hpp</code>.</p>
+<p>Nothing was built or run.</p>
+<h2 id="implementation-plan">Implementation plan<a class="headerlink" href="#implementation-plan" title="Permanent link">&para;</a></h2>
 <ol>
-<li>
-<p><strong>Flip ggml from SHARED to STATIC</strong> in CMake (<code>BUILD_SHARED_LIBS=OFF</code> for the ggml subtree, or a dedicated <code>ggml_static</code> target). Ensure llama/whisper/sd all link the same static target.</p>
-</li>
-<li>
-<p><strong>Merge the three Python extensions into one <code>.so</code></strong> with three submodules. In Cython: one top-level package init, three <code>.pyx</code> compiled and linked together against the single static ggml + static llama/whisper/sd. In nanobind: natural <code>NB_MODULE</code> + <code>def_submodule</code>.</p>
-</li>
-<li>
-<p><strong>Drop <code>libggml.so</code> from the wheel</strong> and remove the RPATH / loader plumbing.</p>
-</li>
+<li><strong>Pin.</strong> Set <code>SDCPP_VERSION</code> to <code>master-884-008ca5b</code> or later in both
+   branches of <code>STABLE_BUILD</code>. Replace the "Ceiling" comment.</li>
+<li><strong>Configure.</strong> In <code>StableDiffusionCppBuilder.build()</code>, when
+   <code>uses_shared_ggml()</code>:</li>
+<li>pass <code>SD_USE_UPSTREAM_GGML=ON</code>;</li>
+<li>pass <code>SD_GGML_SOURCE_DIR=&lt;project.src&gt;/llama.cpp/ggml</code>;</li>
+<li>replace the <code>rmtree</code> + <code>copytree</code> in <code>_sync_ggml_abi()</code> with that
+     option. Keep the step that drops SD's cmake build dir, because stale
+     objects from the old ggml remain a hazard;</li>
+<li>check that <code>_apply_source_patches()</code> still patches the ggml tree that
+     actually gets compiled. After this change that is llama.cpp's tree, not
+     <code>build/stable-diffusion.cpp/ggml</code>. <code>ggml-*.patch</code> must not be applied
+     to it twice (the patcher is meant to be idempotent; confirm it).</li>
+<li>update <code>do_check_vendor()</code>'s SD special case to match.</li>
+<li><strong>Patches.</strong> Rebase <code>conditioner-compute-failure</code> and
+   <code>graph-cut-budget-clamp</code> onto the split <code>ggml_extend.h</code>/<code>.cpp</code>. Re-check
+   the <code>LLMEmbedder</code> hunks against the current line numbers.</li>
+<li><strong>Bindings.</strong> <code>include/stable-diffusion.h</code> changed between 816 and 889:</li>
+<li><code>sd_type_t</code>: adds <code>SD_TYPE_Q2_0 = 42</code>, <code>SD_TYPE_F8_E4M3 = 43</code>,
+     <code>SD_TYPE_F8_E5M2 = 44</code>. <code>SD_TYPE_COUNT</code> goes from 42 to 45.</li>
+<li>New enum values: <code>SD_LOG_VERBOSE</code>, <code>LLADA_IMAGE_SCHEDULER</code>,
+     <code>SENSENOVA_U1_FLOW_PRED</code>.</li>
+<li>New exports: <code>sample_method_to_str[]</code>, <code>scheduler_to_str[]</code>,
+     <code>sd_get_model_version_name()</code>.</li>
+<li>Context params: <code>stream_layers</code> removed. Added <code>disable_prefetch</code>,
+     <code>disable_segmented_compute</code>, <code>linear_scale</code>, <code>attn_scale</code>, <code>tokenizer</code>,
+     <code>sage_attn</code>, <code>audio_encoder_path</code>.</li>
+<li><code>max_vram</code> semantics changed. It was a graph-cut budget (0 = off,
+     -1 = auto). It is now a per-device budget, where 0 means use live free
+     VRAM. Review the Python defaults and docs that pass it.</li>
+<li>The video generation entry point gains <code>int* fps_out</code>.</li>
 </ol>
-<p><strong>Estimated effort: 3–7 days</strong> of CMake + packaging work. No binding rewrite required.</p>
-<h3 id="what-this-gains">What this gains<a class="headerlink" href="#what-this-gains" title="Permanent link">&para;</a></h3>
+<p><code>tests/test_enum_drift.py</code> should catch the enum changes. Struct field
+   changes need a manual diff against the <code>.pxd</code>.
+5. <strong>Guard.</strong> Consider having the builder check that the cloned
+   <code>cmake/ggml.cmake</code> exists. A pin moved back below 883 would then fail
+   loudly, instead of silently building the fork ggml path.
+6. <strong>Test.</strong> <code>make test</code> on CPU, then the Metal, CUDA and Vulkan wheels. The
+   GPU wheels matter most: upstream warns that some operators may be missing
+   or slower on upstream ggml.</p>
+<h2 id="open-risks">Open risks<a class="headerlink" href="#open-risks" title="Permanent link">&para;</a></h2>
 <ul>
-<li>
-<p><strong>No dynamic loader fragility.</strong> No RPATH, no <code>DT_NEEDED</code>, no auditwheel / delocate / delvewheel having to repair <code>libggml.so</code> paths. Static linking removes a category of bugs.</p>
-</li>
-<li>
-<p><strong>Smaller wheel.</strong> Modest — saves per-<code>.so</code> ELF/Mach-O overhead and some PLT/GOT churn, not ggml duplication. Probably single-digit MB.</p>
-</li>
-<li>
-<p><strong>Flat dependency graph.</strong> One <code>.so</code>, no transitive shared-lib loading.</p>
-</li>
-<li>
-<p><strong>Cross-module C++ type sharing becomes trivial.</strong> Relevant if a <code>ggml_backend_t</code> ever needs to flow between <code>cyllama.llama</code> and <code>cyllama.sd</code> without round-tripping through opaque pointers.</p>
-</li>
-<li>
-<p><strong>LTO across the boundary.</strong> With LTO on, the compiler can inline ggml calls into llama/whisper/sd call sites. Small perf win, free once static.</p>
-</li>
+<li><strong>Operator coverage.</strong> Models added after 816 may use ops that llama.cpp's
+  ggml implements only partly, or runs slowly on some backends. Upstream
+  emits a warning but does not test this combination.</li>
+<li><strong>No pinned ggml.</strong> Upstream mode means "compiles against upstream ggml",
+  not "tested against ggml X". A llama.cpp bump can break SD without any
+  change on the SD side. Keep one SD test in the suite that exercises the
+  shared-ggml path on each llama.cpp bump.</li>
+<li><strong>Maintenance.</strong> Upstream keeps the fork ggml as the default, so new
+  features will keep landing behind the fork. Each SD bump needs the
+  symbol check from "Verification done" repeated.</li>
 </ul>
-<h3 id="what-this-does-not-gain">What this does <em>not</em> gain<a class="headerlink" href="#what-this-does-not-gain" title="Permanent link">&para;</a></h3>
+<h2 id="outcome-2026-09-22-master-898-2bb7294">Outcome (2026-09-22, <code>master-898-2bb7294</code>)<a class="headerlink" href="#outcome-2026-09-22-master-898-2bb7294" title="Permanent link">&para;</a></h2>
+<p>Plan steps 1-5 were done. Differences from the plan:</p>
 <ul>
-<li>
-<p><strong>Backend-registry correctness</strong> — already correct via shared <code>libggml.so</code>.</p>
-</li>
-<li>
-<p><strong>ggml version coherence</strong> — already pinned.</p>
-</li>
-<li>
-<p><strong>"No ggml duplication"</strong> — there is no duplication today.</p>
-</li>
+<li>Both stale patches were dropped, not rebased. Upstream fixed both after
+  889: see <code>scripts/patches/README.md</code>.</li>
+<li><code>tests/test_enum_drift.py</code> covers only llama.cpp enums. SD enums need no
+  such test: they are <code>ctypedef enum</code> inside <code>cdef extern</code>, so Cython takes
+  their values from the header.</li>
+<li><code>auto_fit</code> now defaults to <code>true</code> upstream (#1942, <code>master-845</code>). The CLI's
+  <code>--auto-fit</code> became <code>on</code>/<code>off</code> to match.</li>
+<li><code>sage_attn</code> and <code>audio_encoder_path</code> are declared in the <code>.pxd</code> but not
+  exposed. SageAttention is compiled out in upstream mode, and
+  <code>audio_vae_path</code> is not exposed either.</li>
+<li><code>make_xcframework.py</code> still copies llama.cpp's ggml over SD's; it only
+  gained <code>-DSD_USE_UPSTREAM_GGML=ON</code>.</li>
 </ul>
-<h3 id="costs">Costs<a class="headerlink" href="#costs" title="Permanent link">&para;</a></h3>
-<ul>
-<li>
-<p><strong>Bigger single <code>.so</code></strong> — no lazy loading; importing <code>cyllama.whisper</code> pulls in llama+sd code too. Probably not material.</p>
-</li>
-<li>
-<p><strong>Chunkier CUDA/Vulkan build matrix.</strong> One failing backend fails the whole wheel instead of one submodule.</p>
-</li>
-<li>
-<p><strong>Loses the option to ship <code>cyllama-llama</code> / <code>cyllama-whisper</code> / <code>cyllama-sd</code> as separable PyPI packages.</strong></p>
-</li>
-</ul>
-<hr />
-<h2 id="recommendation">Recommendation<a class="headerlink" href="#recommendation" title="Permanent link">&para;</a></h2>
-<p>Treat these as two independent decisions and sequence them.</p>
-<h3 id="step-1-consolidate-to-one-binary-static-ggml-in-cython-1-week">Step 1 — Consolidate to one binary + static ggml in Cython (1 week)<a class="headerlink" href="#step-1-consolidate-to-one-binary-static-ggml-in-cython-1-week" title="Permanent link">&para;</a></h3>
-<p>Captures the loader/wheel wins immediately. Doesn't require touching binding code. De-risks any future nanobind port by establishing the single-<code>.so</code> structure first.</p>
-<h3 id="step-2-live-with-it-for-a-release-cycle">Step 2 — Live with it for a release cycle<a class="headerlink" href="#step-2-live-with-it-for-a-release-cycle" title="Permanent link">&para;</a></h3>
-<p>The strongest argument for nanobind is <strong>eliminating <code>.pxd</code> drift against upstream headers</strong>. Whether that's actually painful is something you'll feel in practice over a release or two. If <code>.pxd</code> maintenance is rarely a problem, nanobind is mostly lateral motion.</p>
-<h3 id="step-3-port-to-nanobind-only-if-step-2-hurts">Step 3 — Port to nanobind only if Step 2 hurts<a class="headerlink" href="#step-3-port-to-nanobind-only-if-step-2-hurts" title="Permanent link">&para;</a></h3>
-<p>And even then, do it one submodule at a time. A nanobind submodule and a Cython submodule can coexist in the same package during migration — there's no need for a flag-day rewrite. Whisper is the cheapest first target (~1 week) and a good spike to validate the approach before committing to llama (3–5 weeks).</p>
-<h2 id="summary-table">Summary table<a class="headerlink" href="#summary-table" title="Permanent link">&para;</a></h2>
-<table>
-<thead>
-<tr>
-<th>Action</th>
-<th>Effort</th>
-<th>Primary win</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Static ggml + single <code>.so</code> (Cython)</td>
-<td>3–7 days</td>
-<td>Loader robustness, simpler wheels</td>
-</tr>
-<tr>
-<td>Whisper module → nanobind (spike)</td>
-<td>~1 week</td>
-<td>Validate ergonomics on a small surface</td>
-</tr>
-<tr>
-<td>Full Cython → nanobind port</td>
-<td>6–10 weeks</td>
-<td>Delete <code>.pxd</code>s, modern C++ ergonomics</td>
-</tr>
-</tbody>
-</table>
+<p>Built and tested on macOS Metal (M1) only. The CUDA, Vulkan and ROCm wheels
+are not verified.</p>
+<h2 id="relation-to-one-ggml-refactormd">Relation to <code>one-ggml-refactor.md</code><a class="headerlink" href="#relation-to-one-ggml-refactormd" title="Permanent link">&para;</a></h2>
+<p><code>one-ggml-refactor.md</code> proposes building ggml once and consuming it through
+each project's <code>*_USE_SYSTEM_GGML</code>. Before #1999 that could not work for SD
+past 816, because of the fork-only calls. #1999 removes that blocker.
+Under <code>SD_USE_SYSTEM_GGML=ON</code>, SD also needs
+<code>SD_GGML_SOURCE_DIR</code> for <code>ggml-impl.h</code>, which the llama.cpp ggml tree
+provides.</p>
+<p>Recommended order: do this bump first, using <code>SD_GGML_SOURCE_DIR</code>. Do the
+one-ggml refactor as a separate change. Combining them mixes a large API
+update with a build-system change, which makes failures harder to bisect.</p>
+<h2 id="re-running-the-checks">Re-running the checks<a class="headerlink" href="#re-running-the-checks" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>git<span class="w"> </span>clone<span class="w"> </span>--filter<span class="o">=</span>blob:none<span class="w"> </span>https://github.com/leejet/stable-diffusion.cpp.git<span class="w"> </span>sd
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nb">cd</span><span class="w"> </span>sd<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>git<span class="w"> </span>checkout<span class="w"> </span>&lt;tag&gt;
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="nv">L</span><span class="o">=</span>&lt;cyllama&gt;/build/llama.cpp/ggml
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>grep<span class="w"> </span>-rhoE<span class="w"> </span><span class="s1">&#39;\bggml_[a-z0-9_]+\s*\(&#39;</span><span class="w"> </span>src<span class="w"> </span><span class="p">|</span><span class="w"> </span>sed<span class="w"> </span><span class="s1">&#39;s/\s*($//&#39;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>sort<span class="w"> </span>-u<span class="w"> </span>&gt;<span class="w"> </span>used.txt
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>cat<span class="w"> </span><span class="nv">$L</span>/include/*.h<span class="w"> </span><span class="nv">$L</span>/src/ggml-impl.h<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-oE<span class="w"> </span><span class="s1">&#39;\bggml_[a-z0-9_]+\b&#39;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>sort<span class="w"> </span>-u<span class="w"> </span>&gt;<span class="w"> </span>have.txt
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>comm<span class="w"> </span>-23<span class="w"> </span>used.txt<span class="w"> </span>have.txt<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-v<span class="w"> </span><span class="s1">&#39;^ggml_ext_&#39;</span><span class="w">   </span><span class="c1"># then confirm each is #ifndef-guarded</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>grep<span class="w"> </span>-n<span class="w"> </span>GGML_MAX_NAME<span class="w"> </span>CMakeLists.txt
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="k">for</span><span class="w"> </span>p<span class="w"> </span><span class="k">in</span><span class="w"> </span>&lt;cyllama&gt;/scripts/patches/stable-diffusion.cpp-*.patch<span class="p">;</span><span class="w"> </span><span class="k">do</span><span class="w"> </span>git<span class="w"> </span>apply<span class="w"> </span>--check<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$p</span><span class="s2">&quot;</span><span class="p">;</span><span class="w"> </span><span class="k">done</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>git<span class="w"> </span>diff<span class="w"> </span>master-816-487de75<span class="w"> </span>&lt;tag&gt;<span class="w"> </span>--<span class="w"> </span>include/stable-diffusion.h
+</code></pre></div>
 
 
 

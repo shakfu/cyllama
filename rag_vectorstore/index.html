@@ -2545,7 +2545,7 @@
 </code></pre></div>
 <p>These power the dedup logic in <code>RAG.add_documents</code> / <code>RAG.add_texts</code> (see <a href="../rag_pipeline/#corpus-deduplication">RAG Pipeline — Corpus Deduplication</a>). Most users won't call them directly.</p>
 <h2 id="quantization-for-large-datasets">Quantization for Large Datasets<a class="headerlink" href="#quantization-for-large-datasets" title="Permanent link">&para;</a></h2>
-<p>For datasets with &gt;10k vectors, quantization provides 4-5x faster search:</p>
+<p>For datasets with more than about 10k vectors, quantize the index. Preloaded quantized search was 22x faster than exact search at 97.4% recall@10 on 20k vectors (see <a href="#performance-characteristics">Performance Characteristics</a>):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="c1"># Add many vectors</span>
 <a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="n">store</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">large_embeddings</span><span class="p">,</span> <span class="n">large_texts</span><span class="p">)</span>
 <a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>
@@ -2678,7 +2678,7 @@
 </code></pre></div>
 <p>Source dedup is implemented via per-point payload fields (<code>content_hash</code>, <code>source_label</code>, <code>indexed_at</code>) so <code>RAG.add_documents</code> skips unchanged files just like on the sqlite backend. See <code>src/cyllama/rag/stores/qdrant.py</code> for the full implementation.</p>
 <h3 id="sqlite-vec">sqlite-vec<a class="headerlink" href="#sqlite-vec" title="Permanent link">&para;</a></h3>
-<p><code>SqliteVecStore</code> backs the same SQLite-file workflow as the default store, but with <a href="https://github.com/asg017/sqlite-vec">sqlite-vec</a> — which is dual MIT/Apache-2.0 licensed, unlike the vendored <code>sqlite-vector</code> extension (Elastic License 2.0: free for open-source projects, paid for commercial use). If that licensing matters for your deployment, this is the drop-in.</p>
+<p><code>SqliteVecStore</code> backs the same SQLite-file workflow as the default store, but with <a href="https://github.com/asg017/sqlite-vec">sqlite-vec</a> (MIT/Apache-2.0). Both are permissively licensed: the vendored <code>sqlite-vector</code> is Apache-2.0 from 1.1.2. Choose sqlite-vec for its ANN indexes; it lacks the <code>dot</code> metric, <code>uint8</code> vectors and <code>quantize()</code>. It stores vectors differently, so databases do not carry over between the two.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.rag</span><span class="w"> </span><span class="kn">import</span> <span class="n">RAG</span>
 <a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cyllama.rag.stores</span><span class="w"> </span><span class="kn">import</span> <span class="n">SqliteVecStore</span>
 <a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>
@@ -2770,19 +2770,33 @@
 </code></pre></div>
 <p>Sqlite-specific features (quantization, FTS5 <code>HybridStore</code>, raw <code>store.conn</code> access) stay on <code>SqliteVectorStore</code> and aren't part of the contract. Backends without a natural dedup mechanism may return <code>False</code> / <code>None</code> from <code>is_source_indexed</code> / <code>get_source_by_label</code> — the RAG layer treats that as "always re-index" and still behaves correctly, just less efficiently on repeated <code>add_documents</code> calls.</p>
 <h2 id="performance-characteristics">Performance Characteristics<a class="headerlink" href="#performance-characteristics" title="Permanent link">&para;</a></h2>
+<p>20,000 random unit vectors x 384 dimensions, cosine, k=10, 200 queries, sqlite-vector 1.1.2 on a Ryzen 9 7940HX (AVX-512 kernels):</p>
+<table>
+<thead>
+<tr>
+<th>Search</th>
+<th>ms/query</th>
+<th>recall@10</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Exact</td>
+<td>10.9</td>
+<td>100%</td>
+</tr>
+<tr>
+<td><code>quantize()</code> + <code>preload_quantization()</code></td>
+<td>0.49</td>
+<td>97.4%</td>
+</tr>
+</tbody>
+</table>
 <ul>
-<li>
-<p><strong>1M vectors, 768 dimensions</strong>: Few milliseconds query time</p>
-</li>
-<li>
-<p><strong>Memory footprint</strong>: 30-50MB regardless of dataset size</p>
-</li>
-<li>
-<p><strong>No preindexing required</strong>: Works immediately with your data</p>
-</li>
-<li>
-<p><strong>SIMD acceleration</strong>: SSE2, AVX2, NEON support</p>
-</li>
+<li>Exact search reads every row from SQLite, so its cost grows linearly with row count. Upstream reports 484 ms/query for an exact scan of 1M x 768 vectors in a file-backed database, and 37.6 ms for a preloaded quantized scan (<a href="https://github.com/sqliteai/sqlite-vector/blob/main/CHANGELOG.md">sqlite-vector CHANGELOG</a>).</li>
+<li><code>quantize(max_memory=...)</code> bounds the memory the quantization pass uses. <code>preload_quantization()</code> holds the quantized vectors in memory.</li>
+<li>No index build step: search works as soon as rows are inserted.</li>
+<li>SIMD kernels for SSE2, AVX2, AVX-512, NEON and RISC-V V; the extension picks one at load time. <code>SELECT vector_backend()</code> on <code>store.conn</code> reports which.</li>
 </ul>
 
 

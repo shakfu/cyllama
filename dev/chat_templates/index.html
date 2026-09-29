@@ -2543,7 +2543,7 @@
 <p>With the vendored jinja2 path in place, paths 3 and 4 fire much less often:</p>
 <ul>
 <li>
-<p><strong>Path 3 (system-into-user merge)</strong> still fires on Gemma 2/3 templates that explicitly call <code>raise_exception('System role not supported')</code> at the Jinja level. Both the legacy path AND the vendored Jinja path correctly propagate this exception, so the merge fallback is still load-bearing for those models.</p>
+<p><strong>Path 3 (system-into-user merge)</strong> still fires on Gemma 2/3 templates that explicitly call <code>raise_exception('System role not supported')</code> at the Jinja level. Both the legacy path AND the vendored Jinja path correctly propagate this exception, so the merge fallback is still structural for those models.</p>
 </li>
 <li>
 <p><strong>Path 4 (raw-completion degradation)</strong> fires only if BOTH chat shapes (system+user, merged user) raise template errors. With the vendored Jinja path correctly evaluating any well-formed Jinja template, this should now only fire on truly malformed embedded templates or corrupted GGUFs.</p>
