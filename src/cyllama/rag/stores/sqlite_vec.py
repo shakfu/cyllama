@@ -1,8 +1,8 @@
 """sqlite-vec adapter for :class:`~cyllama.rag.types.VectorStoreProtocol`.
 
-An MIT/Apache-2.0 licensed alternative to the vendored ``sqlite-vector``
-backend behind :class:`~cyllama.rag.store.SqliteVectorStore`. Ships
-behind an optional dependency::
+An alternative to the vendored ``sqlite-vector`` backend behind
+:class:`~cyllama.rag.store.SqliteVectorStore`, for users who want
+sqlite-vec's ANN index (approximate nearest-neighbour search). Ships behind an optional dependency::
 
     pip install sqlite-vec
 

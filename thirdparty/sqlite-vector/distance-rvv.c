@@ -16,6 +16,8 @@
 
 extern distance_function_t dispatch_distance_table[VECTOR_DISTANCE_MAX][VECTOR_TYPE_MAX];
 extern const char *distance_backend_name;
+extern turbo_lut_dot_function_t turbo_lut_dot_function;
+extern const char *turbo_lut_backend_name;
 
 // MARK: - UTILS -
 
@@ -985,11 +987,13 @@ float bit1_distance_hamming_rvv (const void *v1, const void *v2, int n) {
     // Copy the accumulator back into a scalar register
     return (float) uint64_sum_vector_u64m8(vdistance, vl);
 }
+
+
 #endif
 
 // MARK: -
 
-void init_distance_functions_rvv (void) {
+bool init_distance_functions_rvv (void) {
 #if defined(__riscv_v_intrinsic)
     dispatch_distance_table[VECTOR_DISTANCE_L2][VECTOR_TYPE_F32] = float32_distance_l2_rvv;
     dispatch_distance_table[VECTOR_DISTANCE_L2][VECTOR_TYPE_F16] = float16_distance_l2_rvv;
@@ -1024,5 +1028,11 @@ void init_distance_functions_rvv (void) {
     dispatch_distance_table[VECTOR_DISTANCE_HAMMING][VECTOR_TYPE_BIT] = bit1_distance_hamming_rvv;
     
     distance_backend_name = "RVV";
+    // the TurboQuant lookup scan is gather-bound and shared by every backend
+    turbo_lut_dot_function = turbo_lut_dot_cpu;
+    turbo_lut_backend_name = "RVV";
+    return true;
+#else
+    return false;
 #endif
 }

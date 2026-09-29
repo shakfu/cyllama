@@ -8,8 +8,11 @@
 #ifndef __VECTOR_DISTANCE_AVX2__
 #define __VECTOR_DISTANCE_AVX2__
 
+#include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 
-void init_distance_functions_avx2 (void);
+// returns true when the AVX2 kernels were compiled into this build
+bool init_distance_functions_avx2 (void);
 
 #endif

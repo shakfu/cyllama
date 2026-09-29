@@ -80,7 +80,7 @@ Cyllama is structured as a layered stack. At the bottom, three C/C++ inference e
 
 - **Zero Python dependencies**: The core library has no runtime dependencies beyond Python itself. Optional integrations (LangChain, OpenAI compat) import lazily.
 
-- **Two servers**: `EmbeddedServer` uses cpp-httplib and supports streaming; `PythonServer` uses stdlib `http.server` and needs no compiled HTTP code.
+- **Two servers**: `EmbeddedServer` uses cpp-httplib and serves concurrent requests from a thread pool; `PythonServer` uses stdlib `http.server` and needs no compiled HTTP code. Both stream chat completions.
 
 ## Quick Example
 

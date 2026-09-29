@@ -114,7 +114,7 @@ One MCP tool per high-level capability; all are thin wrappers over the existing 
 # stdio transport (Claude Desktop config: command=python, args=["-m", "cyllama.mcp"])
 def serve_stdio(options: McpServerOptions) -> None: ...
 
-# Embedded HTTP transport (mounted into the existing mongoose server)
+# Embedded HTTP transport (mounted into the existing cpp-httplib EmbeddedServer)
 class EmbeddedServer:
     def enable_mcp(
         self,
@@ -168,7 +168,7 @@ On stdio, reuse `agents/jsonrpc.py` framing. On HTTP, follow the Streamable-HTTP
 
 - **Resource surface fits naturally.** `models://local` + `model://<name>` is exactly what MCP resources are for; the introspection helpers exist.
 
-- **Reuses existing infra.** `agents/jsonrpc.py` framing plus mongoose routes mean small marginal code.
+- **Reuses existing infra.** `agents/jsonrpc.py` framing plus `EmbeddedServer` routes mean small marginal code.
 
 ### Counterweights
 

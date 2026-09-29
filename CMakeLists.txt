@@ -1009,6 +1009,28 @@ set(_VECTOR_SOURCES
 
 add_library(vector SHARED ${_VECTOR_SOURCES})
 target_include_directories(vector PRIVATE "${_VECTOR_SRC_DIR}")
+
+# The AVX2 / AVX-512 kernels are guarded by __AVX2__ / __AVX512F__, so without these
+# per-file flags they compile to nothing and x86 runs the scalar kernels. Upstream's
+# Makefile does the same; the runtime CPU check still picks which set is used. The
+# probes fail, leaving the flags off, on non-x86 and multi-arch (universal2) builds.
+if(MSVC)
+    if(CMAKE_C_COMPILER_ARCHITECTURE_ID STREQUAL "x64")
+        set_source_files_properties("${_VECTOR_SRC_DIR}/distance-avx2.c" PROPERTIES COMPILE_OPTIONS "/arch:AVX2")
+        set_source_files_properties("${_VECTOR_SRC_DIR}/distance-avx512.c" PROPERTIES COMPILE_OPTIONS "/arch:AVX512")
+    endif()
+else()
+    include(CheckCCompilerFlag)
+    check_c_compiler_flag("-mavx2 -mfma" CYLLAMA_VECTOR_HAS_AVX2)
+    check_c_compiler_flag("-mavx512f -mavx512bw -mavx512vl -mavx512dq" CYLLAMA_VECTOR_HAS_AVX512)
+    if(CYLLAMA_VECTOR_HAS_AVX2)
+        set_source_files_properties("${_VECTOR_SRC_DIR}/distance-avx2.c" PROPERTIES COMPILE_OPTIONS "-mavx2;-mfma")
+    endif()
+    if(CYLLAMA_VECTOR_HAS_AVX512)
+        set_source_files_properties("${_VECTOR_SRC_DIR}/distance-avx512.c"
+            PROPERTIES COMPILE_OPTIONS "-mavx512f;-mavx512bw;-mavx512vl;-mavx512dq")
+    endif()
+endif()
 if(MSVC)
     target_compile_options(vector PRIVATE /O2 /W3)
 else()

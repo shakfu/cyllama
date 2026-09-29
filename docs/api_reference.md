@@ -1036,8 +1036,9 @@ from cyllama.llama.llama_cpp import LlamaContext, LlamaContextParams
 ctx_params = LlamaContextParams()
 ctx_params.n_ctx = 2048
 ctx_params.n_batch = 512
-ctx_params.n_threads = 4
-ctx_params.n_threads_batch = 4
+# The C default is 4 threads. The high-level API uses physical cores:
+from cyllama.utils.platform import resolve_n_threads
+ctx_params.n_threads = ctx_params.n_threads_batch = resolve_n_threads()
 
 ctx = LlamaContext(model, ctx_params)
 
@@ -2240,10 +2241,10 @@ responses = batch_generate(
 # Estimate optimal layers
 from cyllama import estimate_gpu_layers
 
-estimate = estimate_gpu_layers("model.gguf", available_vram_mb=8000)
+estimate = estimate_gpu_layers("model.gguf", gpu_memory_mb=8000)
 
 # Use recommended settings
-config = GenerationConfig(n_gpu_layers=estimate.n_gpu_layers)
+config = GenerationConfig(n_gpu_layers=estimate.layers)
 gen = LLM("model.gguf", config=config)
 ```
 

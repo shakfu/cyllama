@@ -4,6 +4,13 @@ Feasibility study for swapping the vendored [`sqlite-vector`](https://github.com
 
 Status: **investigation complete, swap not performed.** A `SqliteVecStore` adapter shipped instead (`src/cyllama/rag/stores/sqlite_vec.py`), so users can opt into sqlite-vec today without cyllama committing to it as the default backend. This document records why, and what a full swap would still cost.
 
+**Update 2026-09-29: the license motivation no longer holds.** sqlite-vector was relicensed to Apache-2.0 on 2026-09-10; 1.1.2 is the first release under it. cyllama now vendors 1.1.2, so there are no downstream commercial-license obligations. Two corrections to the record below:
+
+* The vendored copy measured here was 0.9.93, not 1.0.0 (`SQLITE_VECTOR_VERSION` in the vendored header). The pin in `scripts/manage.py` said 1.0.0, but the vendored sources had not followed it.
+* It ran scalar code. `vector_backend()` reported `CPU`: the AVX2/AVX-512 kernels compiled to nothing without per-file ISA flags. On the same corpus shape with 1.1.2 and those flags (`AVX512` backend), exact search went from 12.2 to 10.9 ms/query and preloaded quantized search from 1.89 to 0.49 ms/query, both at 97.4% recall@10. Exact search is bound by reading rows from SQLite, not by arithmetic.
+
+`SqliteVecStore` stays as the option for sqlite-vec's ANN indexes. The swap analysis below remains accurate as a comparison of the two engines.
+
 Measurements below were taken on 2026-09-03 against sqlite-vector 1.0.0 (the vendored copy in `thirdparty/sqlite-vector`), sqlite-vec v0.1.9 and sqlite-vec v0.1.10-alpha.4, on Linux x86_64 / CPython 3.13.
 
 ## Motivation: the license

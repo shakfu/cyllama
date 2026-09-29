@@ -1,3 +1,5 @@
+// Modified by cyllama from sqlite-vector 1.1.2 (Apache-2.0): see the "cyllama:" comment.
+
 //
 //  distance-cpu.c
 //  sqlitevector
@@ -21,6 +23,8 @@
 
 const char *distance_backend_name = "CPU";
 distance_function_t dispatch_distance_table[VECTOR_DISTANCE_MAX][VECTOR_TYPE_MAX] = {0};
+const char *turbo_lut_backend_name = "CPU";
+turbo_lut_dot_function_t turbo_lut_dot_function = NULL;
 
 #define LASSQ_UPDATE(ad_) do {                            \
         double _ad = (ad_);                               \
@@ -744,6 +748,7 @@ float bit1_distance_hamming_cpu (const void *v1, const void *v2, int n) {
 // MARK: - ENTRYPOINT -
 
 #if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)
+    // cyllama: MSVC has no <cpuid.h>; __cpuidex and _xgetbv come from <intrin.h>.
     #if defined(_MSC_VER)
         #include <intrin.h>
     #else
@@ -824,7 +829,10 @@ float bit1_distance_hamming_cpu (const void *v1, const void *v2, int n) {
             bool has_avx512bw = (cpu_info[1] & (1 << 30));
             bool has_avx512vl = (cpu_info[1] & (1 << 31));
 
-            return has_avx512f && has_avx512bw && has_avx512vl;
+            // EBX Bit 17: AVX512DQ, needed by _mm512_extractf32x8_ps in the f16/bf16 kernels
+            bool has_avx512dq = (cpu_info[1] & (1 << 17));
+
+            return has_avx512f && has_avx512bw && has_avx512vl && has_avx512dq;
         #endif
     }
 
@@ -867,6 +875,54 @@ float bit1_distance_hamming_cpu (const void *v1, const void *v2, int n) {
 #endif
 
 // MARK: -
+
+static inline uint16_t turbo_lut3_index_cpu (const uint8_t *packed, int row, int packed_bytes) {
+    size_t bit_pos = (size_t)row * 12u;
+    size_t byte_pos = bit_pos / 8u;
+    int shift = (int)(bit_pos % 8u);
+    uint32_t word = 0;
+    if ((int)byte_pos < packed_bytes) word |= packed[byte_pos];
+    if ((int)byte_pos + 1 < packed_bytes) word |= (uint32_t)packed[byte_pos + 1] << 8;
+    return (uint16_t)((word >> shift) & 0x0fffu);
+}
+
+// The TurboQuant scan is a chain of table lookups: one gather per row, and on any
+// machine that is already about one load per cycle. There is nothing for SIMD to do -
+// NEON has no gather at all, and the four per-backend copies this replaces were scalar
+// gathers into a stack array plus a single vector add. What they were really buying was
+// four parallel float lanes instead of one serial double accumulator, and four
+// independent double accumulators buy the same parallelism without the accuracy loss:
+// measured within 2% of the NEON version at every bit width, and identical on every
+// backend rather than differing by up to 1.5e-4 relative depending on which one ran.
+float turbo_lut_dot_cpu (const uint8_t *packed, float scale, const float *query_lut, int lut_rows, int bits, int packed_bytes) {
+    double acc0 = 0.0, acc1 = 0.0, acc2 = 0.0, acc3 = 0.0;
+    int r = 0;
+
+    if (bits == 3) {
+        for (; r + 3 < lut_rows; r += 4) {
+            acc0 += (double)query_lut[(size_t)(r + 0) * 4096u + turbo_lut3_index_cpu(packed, r + 0, packed_bytes)];
+            acc1 += (double)query_lut[(size_t)(r + 1) * 4096u + turbo_lut3_index_cpu(packed, r + 1, packed_bytes)];
+            acc2 += (double)query_lut[(size_t)(r + 2) * 4096u + turbo_lut3_index_cpu(packed, r + 2, packed_bytes)];
+            acc3 += (double)query_lut[(size_t)(r + 3) * 4096u + turbo_lut3_index_cpu(packed, r + 3, packed_bytes)];
+        }
+        for (; r < lut_rows; ++r) {
+            acc0 += (double)query_lut[(size_t)r * 4096u + turbo_lut3_index_cpu(packed, r, packed_bytes)];
+        }
+    } else {
+        (void)packed_bytes;
+        for (; r + 3 < lut_rows; r += 4) {
+            acc0 += (double)query_lut[(size_t)(r + 0) * 256u + packed[r + 0]];
+            acc1 += (double)query_lut[(size_t)(r + 1) * 256u + packed[r + 1]];
+            acc2 += (double)query_lut[(size_t)(r + 2) * 256u + packed[r + 2]];
+            acc3 += (double)query_lut[(size_t)(r + 3) * 256u + packed[r + 3]];
+        }
+        for (; r < lut_rows; ++r) {
+            acc0 += (double)query_lut[(size_t)r * 256u + packed[r]];
+        }
+    }
+
+    return (float)(((acc0 + acc1) + (acc2 + acc3)) * (double)scale);
+}
 
 void init_cpu_functions (void) {
     distance_function_t cpu_table[VECTOR_DISTANCE_MAX][VECTOR_TYPE_MAX] = {
@@ -911,22 +967,23 @@ void init_cpu_functions (void) {
     };
     
     memcpy(dispatch_distance_table, cpu_table, sizeof(cpu_table));
+    turbo_lut_dot_function = turbo_lut_dot_cpu;
+    turbo_lut_backend_name = "CPU";
 }
 
 void init_distance_functions (bool force_cpu) {
     init_cpu_functions();
     if (force_cpu) return;
     
+    // each backend reports whether its kernels were actually compiled into this build:
+    // a tier whose ISA was not enabled at compile time installs nothing and we must keep
+    // walking down, otherwise an AVX2-capable CPU would end up on the scalar fallback
+    // even though the SSE2 kernels are available
     #if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)
-    if (cpu_supports_avx512()) {
-        init_distance_functions_avx512();
-    }
-    else if (cpu_supports_avx2()) {
-        init_distance_functions_avx2();
-    }
-    else if (cpu_supports_sse2()) {
-        init_distance_functions_sse2();
-    }
+    bool installed = false;
+    if (!installed && cpu_supports_avx512()) installed = init_distance_functions_avx512();
+    if (!installed && cpu_supports_avx2()) installed = init_distance_functions_avx2();
+    if (!installed && cpu_supports_sse2()) installed = init_distance_functions_sse2();
     #elif defined(__ARM_NEON) || defined(__aarch64__)
     if (cpu_supports_neon()) {
         init_distance_functions_neon();
@@ -937,4 +994,3 @@ void init_distance_functions (bool force_cpu) {
     }
     #endif
 }
-

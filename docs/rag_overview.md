@@ -117,7 +117,7 @@ Omit the argument to fall back to the defaults (`Embedder` over a local GGUF emb
 | `Embedder` | Generate vector embeddings from text |
 | `SqliteVectorStore` | SQLite-based vector storage with sqlite-vector (default backend; implements `VectorStoreProtocol`). `VectorStore` remains as a deprecated alias. |
 | `QdrantVectorStore` | Qdrant adapter for `VectorStoreProtocol` (optional: `pip install qdrant-client`). |
-| `SqliteVecStore` | [sqlite-vec](https://github.com/asg017/sqlite-vec) adapter for `VectorStoreProtocol` (optional: `pip install sqlite-vec`). Permissively licensed (MIT/Apache-2.0) alternative to the vendored sqlite-vector extension. |
+| `SqliteVecStore` | [sqlite-vec](https://github.com/asg017/sqlite-vec) adapter for `VectorStoreProtocol` (optional: `pip install sqlite-vec`). Alternative to the vendored sqlite-vector extension; offers ANN (approximate nearest-neighbour) indexes. |
 | `ChromaVectorStore` | [Chroma](https://github.com/chroma-core/chroma) adapter for `VectorStoreProtocol` (optional: `pip install chromadb`). Ephemeral, on-disk or remote-server transports. |
 | `PgVectorStore` | [pgvector](https://github.com/pgvector/pgvector) adapter for `VectorStoreProtocol` (optional: `pip install "psycopg[binary]" pgvector`). Native JSONB metadata, every metric including `dot`, HNSW/IVFFlat indexes. Requires a PostgreSQL server. |
 | `HybridStore` | Combined FTS5 + vector search |

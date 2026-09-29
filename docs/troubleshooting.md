@@ -105,8 +105,8 @@ ls thirdparty/llama.cpp/include/
    ```python
    from cyllama import estimate_gpu_layers
 
-   estimate = estimate_gpu_layers("model.gguf", available_vram_mb=8000)
-   print(f"Recommended: {estimate.n_gpu_layers} GPU layers")
+   estimate = estimate_gpu_layers("model.gguf", gpu_memory_mb=8000)
+   print(f"Recommended: {estimate.layers} GPU layers")
    ```
 
 3. **Use smaller quantization:** Download a more quantized model (Q4_0 < Q5_K < Q8_0 < F16).
@@ -144,6 +144,17 @@ ls thirdparty/llama.cpp/include/
    ```bash
    # Ensure Metal is available
    system_profiler SPDisplaysDataType | grep Metal
+   ```
+
+4. **On CPU, check the thread count.** The default is one thread per physical core. More threads than physical cores slow generation, which is memory-bound. This includes SMT siblings, and several `LLM` instances decoding at once. Split cores between concurrent instances:
+
+   ```python
+   from cyllama import LLM
+   from cyllama.utils.platform import physical_cores, resolve_n_threads
+
+   print(physical_cores())
+   t = resolve_n_threads(share=2)  # two LLMs decoding concurrently
+   llm = LLM("model.gguf", n_threads=t, n_threads_batch=t)
    ```
 
 ## Generation Issues

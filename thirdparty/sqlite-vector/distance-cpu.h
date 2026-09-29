@@ -47,7 +47,8 @@ typedef enum {
     VECTOR_QUANT_AUTO = 0,
     VECTOR_QUANT_U8BIT = 1,
     VECTOR_QUANT_S8BIT = 2,
-    VECTOR_QUANT_1BIT = 3
+    VECTOR_QUANT_1BIT = 3,
+    VECTOR_QUANT_TURBO = 4
 } vector_qtype;
 
 typedef enum {
@@ -61,9 +62,14 @@ typedef enum {
 #define VECTOR_DISTANCE_MAX     7
 
 typedef float (*distance_function_t)(const void *v1, const void *v2, int n);
+typedef float (*turbo_lut_dot_function_t)(const uint8_t *packed, float scale, const float *query_lut, int lut_rows, int bits, int packed_bytes);
 
 // ENTRYPOINT
 void init_distance_functions (bool force_cpu);
+
+extern turbo_lut_dot_function_t turbo_lut_dot_function;
+float turbo_lut_dot_cpu (const uint8_t *packed, float scale, const float *query_lut, int lut_rows, int bits, int packed_bytes);
+extern const char *turbo_lut_backend_name;
 
 // MARK: - FLOAT16/BFLOAT16 -
 // typedef uint16_t bfloat16_t;    // don't typedef to bfloat16_t to avoid mix with <arm_neon.h>’s native bfloat16_t

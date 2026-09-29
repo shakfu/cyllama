@@ -419,7 +419,7 @@ REMAINING PUBLIC C API DEPENDENCIES (all dynamically linkable):
 
 CUSTOM C++ (compiled into extension, no external dependency):
   tts.cpp        -- TTS helpers
-  mongoose.c     -- HTTP server
+  http_shim.cpp + httplib.cpp -- HTTP server (cpp-httplib)
 
 PURE PYTHON (no C++ compilation needed):
   json_schema_to_grammar.py -- JSON schema to GBNF grammar conversion

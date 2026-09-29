@@ -99,9 +99,12 @@ with ThreadPoolExecutor(max_workers=4) as ex:
 # ✅ One LLM per worker
 from concurrent.futures import ThreadPoolExecutor
 from cyllama import LLM
+from cyllama.utils.platform import resolve_n_threads
 
 MAX_WORKERS = 4
-llms = [LLM("model.gguf") for _ in range(MAX_WORKERS)]
+# Split the physical cores between the workers (see Pattern 1).
+threads = resolve_n_threads(share=MAX_WORKERS)
+llms = [LLM("model.gguf", n_threads=threads, n_threads_batch=threads) for _ in range(MAX_WORKERS)]
 
 def worker(args):
     idx, prompt = args
@@ -139,7 +142,9 @@ The streaming `__call__` holds the busy lock until the generator is exhausted, c
 
 ### Pattern 1: one LLM per worker (recommended for most production)
 
-This is the canonical pattern for sync web servers, batch jobs, and worker pools. See the `threading.local()` example above. Tradeoff: linear memory in worker count, but full parallel inference and zero contention.
+This is the canonical pattern for sync web servers, batch jobs, and worker pools. See the `threading.local()` example above. Tradeoff: linear memory in worker count, but no lock contention.
+
+On CPU, the workers still share cores and memory bandwidth. Each `LLM` defaults to all physical cores, so N workers decoding at once run N times too many threads. Give each `n_threads=resolve_n_threads(share=N)`, as above. On a 16-core machine, two contexts with 16 threads each decoded 28% slower in total than two with 8. `PythonServer` and `EmbeddedServer` split cores across `n_parallel` slots the same way.
 
 ### Pattern 2: `AsyncLLM` (recommended for async servers)
 

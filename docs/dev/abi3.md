@@ -96,7 +96,7 @@ None. Not touching the `.pyx` files is the whole point of this design: the limit
 
 - `vector` (C shared lib, line 961) - does not use CPython API.
 
-- `mongoose.c` / `mongoose_wrapper.c` (line 727) - pure C, no CPython.
+- `http_shim.cpp` / cpp-httplib `httplib.cpp` (the `embedded` target) - C++, no CPython.
 
 - `scripts/manage.py` thirdparty builds - unchanged.
 

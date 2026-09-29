@@ -32,7 +32,7 @@ It combines the performance of compiled Cython wrappers with a simple, high-leve
 
 - Image/Video generation -- stable-diffusion.cpp handles image, image-edit and video models.
 
-- OpenAI-compatible servers -- EmbeddedServer (cpp-httplib, with streaming) and PythonServer with chat completions and embeddings endpoints
+- OpenAI-compatible servers -- EmbeddedServer (cpp-httplib) and PythonServer, with streamed chat completions and embeddings endpoints
 
 - Framework integrations -- OpenAI API client, LangChain LLM interface
 
@@ -243,11 +243,8 @@ draft_tokens = spec.draft(params, prompt_tokens, last_token)
 ```python
 from cyllama import estimate_gpu_layers
 
-estimate = estimate_gpu_layers(
-    model_path="model.gguf",
-    available_vram_mb=8000
-)
-print(f"Recommended GPU layers: {estimate.n_gpu_layers}")
+estimate = estimate_gpu_layers("model.gguf", gpu_memory_mb=8000)
+print(f"Recommended GPU layers: {estimate.layers}")
 ```
 
 **N-gram Cache** - 2-10x speedup for repetitive text:
@@ -992,7 +989,16 @@ Contributions are welcome! Please see the [User Guide](docs/user_guide.md) for d
 
 ## License
 
-This project wraps [llama.cpp](https://github.com/ggml-org/llama.cpp), [whisper.cpp](https://github.com/ggml-org/whisper.cpp), and [stable-diffusion.cpp](https://github.com/leejet/stable-diffusion.cpp) which all follow the MIT licensing terms, as does cyllama.
+cyllama is MIT-licensed. It wraps [llama.cpp](https://github.com/ggml-org/llama.cpp), [whisper.cpp](https://github.com/ggml-org/whisper.cpp) and [stable-diffusion.cpp](https://github.com/leejet/stable-diffusion.cpp), which are MIT-licensed.
+
+Wheels also bundle code under other permissive licenses:
+
+- [sqlite-vector](https://github.com/sqliteai/sqlite-vector): Apache-2.0
+- [cpp-httplib](https://github.com/yhirose/cpp-httplib): MIT
+- code compiled into the libraries above: nlohmann/json, utf8proc and rotate-bits (MIT), xxHash and oniguruma (BSD-2-Clause), darts-clone (BSD-3-Clause)
+- vendored Python packages Jinja2 and MarkupSafe (BSD-3-Clause)
+
+Their license texts ship in the wheel under `*.dist-info/licenses/`, and in `cyllama/_vendor/` for Jinja2 and MarkupSafe.
 
 ## Note on PyPI Release History
 

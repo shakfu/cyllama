@@ -11,7 +11,7 @@ cyllama wraps three upstreams via Cython:
 | `cyllama.llama` (+ pxi)    | ~5,600     | ~2,500     | 25             |
 | `cyllama.sd`               | 3,168      | 433        | 14             |
 | `cyllama.whisper`          | 990        | 385        | 10             |
-| `cyllama.llama.server`     | 594        | 107        | (mongoose)     |
+| `cyllama.llama.server`     | 566        | 34         | (cpp-httplib)  |
 | **Total**                  | **~12.4K** | **~3.4K**  | **~50**        |
 
 All three upstreams (llama.cpp, whisper.cpp, stable-diffusion.cpp) are pinned to the **same ggml commit** and currently link dynamically against a single `libggml.so`. ggml's global state (backend registry, log callback, Vulkan/Metal device tables) therefore lives exactly once in the process today.
@@ -52,7 +52,7 @@ Each can be done without the other.
 
 - **`include "*.pxi"`** (textual inclusion sharing C-level state across translation units — `mtmd.pxi`, `speculative.pxi`, `tts_helpers.pxi`) has no clean nanobind analogue. Refactor into normal C++ headers + separate binding modules with cross-module type sharing (nanobind supports it, but it's a design step).
 
-- **Embedded mongoose server (`embedded.pyx`, 594 LOC)** — anything relying on Cython `nogil` semantics needs re-thinking with `nb::gil_scoped_release`.
+- **Embedded cpp-httplib server (`embedded.pyx`, 566 LOC)** — anything relying on Cython `nogil` semantics needs re-thinking with `nb::gil_scoped_release`.
 
 - **Cython memoryviews → `nb::ndarray<>`.** Different API, mostly an improvement, but every call site changes.
 
@@ -72,7 +72,7 @@ Treating each `cdef class` as ~0.5–1 day once a binding template is establishe
 | llama bindings (~5.6K LOC, 25 classes, mtmd, speculative) | 3–5 weeks    |
 | stable-diffusion (3.2K LOC, 14 classes)                   | 1.5–2 weeks  |
 | whisper (~1K LOC, 10 classes)                             | 3–5 days     |
-| embedded mongoose server (threading/IO)                   | 3–7 days     |
+| embedded cpp-httplib server (threading/IO)                | 3–7 days     |
 | Test parity, stubs, packaging (incl. Vulkan wheels), docs | 1–2 weeks    |
 
 **Total: ~6–10 weeks of full-time work**, single developer, assuming the public Python API stays roughly compatible. Add 2–3 weeks if redesigning the Python surface as part of the port.

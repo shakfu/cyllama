@@ -241,7 +241,7 @@ These power the dedup logic in `RAG.add_documents` / `RAG.add_texts` (see [RAG P
 
 ## Quantization for Large Datasets
 
-For datasets with >10k vectors, quantization provides 4-5x faster search:
+For datasets with more than about 10k vectors, quantize the index. Preloaded quantized search was 22x faster than exact search at 97.4% recall@10 on 20k vectors (see [Performance Characteristics](#performance-characteristics)):
 
 ```python
 # Add many vectors
@@ -375,7 +375,7 @@ Source dedup is implemented via per-point payload fields (`content_hash`, `sourc
 
 ### sqlite-vec
 
-`SqliteVecStore` backs the same SQLite-file workflow as the default store, but with [sqlite-vec](https://github.com/asg017/sqlite-vec) — which is dual MIT/Apache-2.0 licensed, unlike the vendored `sqlite-vector` extension (Elastic License 2.0: free for open-source projects, paid for commercial use). If that licensing matters for your deployment, this is the drop-in.
+`SqliteVecStore` backs the same SQLite-file workflow as the default store, but with [sqlite-vec](https://github.com/asg017/sqlite-vec) (MIT/Apache-2.0). Both are permissively licensed: the vendored `sqlite-vector` is Apache-2.0 from 1.1.2. Choose sqlite-vec for its ANN indexes; it lacks the `dot` metric, `uint8` vectors and `quantize()`. It stores vectors differently, so databases do not carry over between the two.
 
 ```python
 from cyllama.rag import RAG
@@ -459,10 +459,14 @@ Sqlite-specific features (quantization, FTS5 `HybridStore`, raw `store.conn` acc
 
 ## Performance Characteristics
 
-- **1M vectors, 768 dimensions**: Few milliseconds query time
+20,000 random unit vectors x 384 dimensions, cosine, k=10, 200 queries, sqlite-vector 1.1.2 on a Ryzen 9 7940HX (AVX-512 kernels):
 
-- **Memory footprint**: 30-50MB regardless of dataset size
+| Search | ms/query | recall@10 |
+|--------|----------|-----------|
+| Exact | 10.9 | 100% |
+| `quantize()` + `preload_quantization()` | 0.49 | 97.4% |
 
-- **No preindexing required**: Works immediately with your data
-
-- **SIMD acceleration**: SSE2, AVX2, NEON support
+- Exact search reads every row from SQLite, so its cost grows linearly with row count. Upstream reports 484 ms/query for an exact scan of 1M x 768 vectors in a file-backed database, and 37.6 ms for a preloaded quantized scan ([sqlite-vector CHANGELOG](https://github.com/sqliteai/sqlite-vector/blob/main/CHANGELOG.md)).
+- `quantize(max_memory=...)` bounds the memory the quantization pass uses. `preload_quantization()` holds the quantized vectors in memory.
+- No index build step: search works as soon as rows are inserted.
+- SIMD kernels for SSE2, AVX2, AVX-512, NEON and RISC-V V; the extension picks one at load time. `SELECT vector_backend()` on `store.conn` reports which.

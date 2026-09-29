@@ -73,6 +73,9 @@ cyllama gen -m models/llama.gguf -p "Hello" --json
 
 # Show session statistics (prompt/gen tokens, timing, tokens/sec)
 cyllama gen -m models/llama.gguf -p "Hello" --stats
+
+# CPU threads for generation / prompt processing (default: physical cores)
+cyllama gen -m models/llama.gguf -p "Hello" -t 8 -tb 16
 ```
 
 ### Chat
@@ -476,7 +479,9 @@ config = GenerationConfig(
     # Model parameters
     n_gpu_layers=-1,          # Layers to offload to GPU (-1 = all)
     n_ctx=2048,               # Context window size
-    n_batch=512,              # Batch size for processing
+    n_batch=512,              # Max tokens per decode during prompt processing (default: 2048)
+    n_threads=-1,             # Threads for generation (-1 = physical cores)
+    n_threads_batch=-1,       # Threads for prompt processing (-1 = physical cores)
 
     # Control
     seed=42,                  # Random seed (-1 = random)
@@ -526,26 +531,17 @@ Estimate GPU memory requirements:
 from cyllama import estimate_gpu_layers, estimate_memory_usage
 
 # Estimate optimal GPU layers
-estimate = estimate_gpu_layers(
-    model_path="models/llama.gguf",
-    available_vram_mb=8000,
-    n_ctx=2048
-)
+estimate = estimate_gpu_layers("models/llama.gguf", gpu_memory_mb=8000, ctx_size=2048)
 
-print(f"Recommended GPU layers: {estimate.n_gpu_layers}")
-print(f"Est. GPU memory: {estimate.gpu_memory_mb:.0f} MB")
-print(f"Est. CPU memory: {estimate.cpu_memory_mb:.0f} MB")
+print(f"Recommended GPU layers: {estimate.layers}")
+print(f"KV cache for those layers: {estimate.vram_kv / 1024**2:.0f} MB")
 
-# Detailed memory analysis
-memory_info = estimate_memory_usage(
-    model_path="models/llama.gguf",
-    n_ctx=2048,
-    n_batch=512
-)
+# Memory needs without a GPU budget (returns a dict)
+memory_info = estimate_memory_usage("models/llama.gguf", ctx_size=2048)
 
-print(f"Model size: {memory_info.model_size_mb:.0f} MB")
-print(f"KV cache: {memory_info.kv_cache_mb:.0f} MB")
-print(f"Total: {memory_info.total_mb:.0f} MB")
+print(f"Model size (q8_0): {memory_info['model_size_mb']['q8_0']} MB")
+print(f"KV cache (f16): {memory_info['kv_cache_mb']['f16']} MB")
+print(f"Compute graph: {memory_info['graph_mb']} MB")
 ```
 
 ## How LLM Generation Works

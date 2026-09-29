@@ -20,7 +20,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ---
 
-## [Unreleased]
+## [0.6.0]
 
 ### Added
 
@@ -36,6 +36,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
   - Requests run on a thread pool. Those beyond `n_parallel` wait for a free slot instead of failing with 500.
 
+  - `stop()` waits for requests in progress, but an open stream ends at its next chunk.
+
+  - `handle_http_request()` no longer takes `headers`: the API key and body size are checked before the body is read.
+
   - Per-request `temperature`, `min_p` and `seed` now apply, as in `PythonServer`.
 
   - The listener sets `SO_REUSEADDR` instead of httplib's default `SO_REUSEPORT`, which would let another process bind the same port.
@@ -43,6 +47,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - The extension no longer links llama/ggml, which it never called.
 
 - **`llama/cli.py` defaults `--threads` and `--threads-batch` to -1 (physical cores)** instead of 4.
+
+- **Vendored sqlite-vector upgraded to 1.1.2, which is Apache-2.0.** The shipped copy was 0.9.93 under a modified Elastic License 2.0, which required a paid license for commercial production use; the `manage.py` pin said 1.0.0, but the sources had not followed it. Upstream relicensed on 2026-09-10, and earlier releases keep the old terms. The three local patches (`_GNU_SOURCE`, and two MSVC fixes in `sqlite-vector.c` and `distance-cpu.c`) are reapplied and marked `cyllama:`. Existing databases, including quantized ones, open unchanged. The docs no longer present `SqliteVecStore` as the permissively licensed alternative; it remains the option for ANN indexes.
+
+  The CMake build now compiles `distance-avx2.c` and `distance-avx512.c` with their ISA flags, as upstream's Makefile does. Without them the SIMD kernels compiled to nothing and x86 ran the scalar fallback (`vector_backend()` reported `CPU`). On 20k x 384 cosine vectors, preloaded quantized search went from 1.89 to 0.49 ms/query at unchanged recall; exact search, bound by SQLite row reads, from 12.2 to 10.9 ms/query.
 
 - **`PythonServer` cuts at the earliest stop string**, not the first one listed in `stop` that occurs. A bare string `stop` is now one stop string; it was iterated character by character.
 
@@ -54,7 +62,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 - **Wheels shipped without third-party license notices.** Only cyllama's LICENSE was included, although the extensions link MIT and BSD code whose licenses require the notice in binary distributions. `scripts/manage.py` now stages the notices into `thirdparty/*/licenses/`, and the wheel ships them under `dist-info/licenses/`: llama.cpp, whisper.cpp, stable-diffusion.cpp, cpp-httplib, nlohmann/json, xxHash, rotate-bits, darts-clone, oniguruma, utf8proc and sqlite-vector.
 
-- **Every high-level context ran on 4 threads**, llama.cpp's default, whatever the core count: `LLM`, `AsyncLLM`, `BatchGenerator`, `Chat`, `TTSGenerator`, `Embedder` and `Reranker`. They now use physical cores. `GenerationConfig` gains `n_threads` and `n_threads_batch` (-1 = physical cores), applied to a reused context too. For `LLM` with Llama-3.2-1B Q8_0 on a 16-core CPU, prompt processing went from 298 to about 600-850 tokens/s and generation from 32 to 40 tokens/s. Logical cores were rejected as the default: they sped up prompt processing further but cut generation by 66%.
+- **Every high-level context ran on 4 threads**, llama.cpp's default, whatever the core count: `LLM`, `AsyncLLM`, `BatchGenerator`, `Chat`, `TTSGenerator`, `Embedder` and `Reranker`. They now use physical cores. `GenerationConfig` gains `n_threads` and `n_threads_batch` (-1 = physical cores), applied to a reused context too. For `LLM` with Llama-3.2-1B Q8_0 on a 16-core CPU, prompt processing went from 298 to about 600-850 tokens/s and generation from 32 to 40 tokens/s. Physical cores over logical because generation is memory-bound: SMT siblings sped up prompt processing further but cut generation by 66%.
 
 - **`GenerationConfig(seed=-1)` passed validation, then generation raised `OverflowError`** in `add_dist`, which takes a uint32. The docs advertised -1 as "random". -1 is now normalized to `LLAMA_DEFAULT_SEED` (0xFFFFFFFF), so it samples randomly and bypasses the response cache. Seeds above 0xFFFFFFFF are rejected.
 
@@ -68,7 +76,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
   The memory example in `docs/cookbook.md` raised `TypeError` for the same reason.
 
-- **Both servers ignored `ServerConfig.n_threads` and `n_gpu_layers`**, and so the CLI's `--gpu-layers`. Every slot ran llama.cpp's default of 4 threads. `n_threads=-1` now means physical cores divided by `n_parallel`. Physical cores, not logical: decode is memory-bound, and SMT siblings or oversubscription slowed it by up to 45% in measurement. One slot on a 16-core machine went from 24 to 36 tokens/s.
+- **Both servers ignored `ServerConfig.n_threads` and `n_gpu_layers`**, and so the CLI's `--gpu-layers`. Every slot ran llama.cpp's default of 4 threads. `n_threads=-1` now means physical cores divided by `n_parallel`, so concurrent slots do not oversubscribe the CPU. One slot on a 16-core machine went from 24 to 36 tokens/s.
 
 - **A server slot failed every request after its first.** `ServerSlot.reset()` zeroed `n_tokens` but left the KV cache, so the next prompt, decoded from position 0, was rejected by `llama_decode`. `process_and_generate` swallowed the error, so both servers returned 200 with empty content. `reset()` now clears the KV cache.
 
@@ -81,6 +89,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 - **`scripts/rwt.py` passed GPU runs that ran on the CPU.** With no NVIDIA kernel module loaded, `ggml_cuda_init` failed, ggml fell back to the CPU, and `test --cuda test-all` passed. The preflight now fails a GPU backend unless ggml registers a GPU or iGPU device, and names the driver check to run (`nvidia-smi` for CUDA).
 
 ### Security
+
+- **sqlite-vector 1.1.2 brings upstream's 1.1.0 audit fixes**: two crashes and four memory-safety defects, per upstream's CHANGELOG. They affect the `vector` extension behind `SqliteVectorStore`; cyllama shipped 0.9.93 before.
 
 - **`quarto_render` passed the model's `output_dir` to `--output-dir` unchecked.** 0.4.9 confined `input` to the output directory, but rendered output could still be written anywhere. `output_dir` now resolves relative to the input's directory and must stay under the output directory; `..` and symlinks out of it are refused.
 

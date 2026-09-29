@@ -143,13 +143,13 @@ if STABLE_BUILD:
     LLAMACPP_VERSION = "b11146"  # equivalent to  v0.5.0
     WHISPERCPP_VERSION = "v1.9.4"
     SDCPP_VERSION = "master-898-2bb7294"
-    SQLITEVECTOR_VERSION = "1.0.0"
+    SQLITEVECTOR_VERSION = "1.1.2"
 else:
     # experimental bleeding-edge builds ` = ""` means get latest
     LLAMACPP_VERSION = "b11146"  # equivalent to  v0.5.0
     WHISPERCPP_VERSION = "v1.9.4"
     SDCPP_VERSION = "master-898-2bb7294"
-    SQLITEVECTOR_VERSION = "1.0.0"
+    SQLITEVECTOR_VERSION = "1.1.2"
 if PLATFORM == "Darwin":
     MACOSX_DEPLOYMENT_TARGET = setenv("MACOSX_DEPLOYMENT_TARGET", "12.6")
 DEBUG = getenv("DEBUG", default=True)

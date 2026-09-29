@@ -389,14 +389,10 @@ MODEL = "models/Llama-3.2-1B-Instruct-Q8_0.gguf"
 
 if __name__ == "__main__":
     # Estimate for 8GB VRAM
-    estimate = estimate_gpu_layers(
-        model_path=MODEL,
-        available_vram_mb=8000,
-        n_ctx=2048
-    )
+    estimate = estimate_gpu_layers(MODEL, gpu_memory_mb=8000, ctx_size=2048)
 
     print(f"Model: {MODEL}")
-    print(f"Recommended GPU layers: {estimate.n_gpu_layers}")
+    print(f"Recommended GPU layers: {estimate.layers}")
     print(f"Estimated VRAM: {estimate.vram / 1024 / 1024:.0f} MB")
 ```
 

@@ -8,8 +8,11 @@
 #ifndef __VECTOR_DISTANCE_NEON__
 #define __VECTOR_DISTANCE_NEON__
 
+#include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 
-void init_distance_functions_neon (void);
+// returns true when the NEON kernels were compiled into this build
+bool init_distance_functions_neon (void);
 
 #endif

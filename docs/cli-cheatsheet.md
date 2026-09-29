@@ -38,6 +38,8 @@ echo "Hello" | cyllama gen -m models/llama.gguf
 | `--repeat-penalty` | float | 1.0 | Repetition penalty (1.0 = disabled) |
 | `-ngl, --n-gpu-layers` | int | -1 | GPU layers to offload (-1 = all) |
 | `-c, --ctx-size` | int | (auto) | Context window size |
+| `-t, --threads` | int | -1 | Threads for generation (-1 = physical cores) |
+| `-tb, --threads-batch` | int | -1 | Threads for prompt processing (-1 = physical cores) |
 | `--seed` | int | 4294967295 | Random seed (0xFFFFFFFF = random) |
 | `--stream` | flag | | Stream tokens to stdout |
 | `--json` | flag | | Output as JSON with stats |
@@ -73,6 +75,8 @@ Interactive mode streams tokens by default. Single-turn mode (`-p`) buffers the 
 | `--repeat-penalty` | float | 1.0 | Repetition penalty (1.0 = disabled) |
 | `-ngl, --n-gpu-layers` | int | -1 | GPU layers to offload (-1 = all) |
 | `-c, --ctx-size` | int | 2048 | Context window size |
+| `-t, --threads` | int | -1 | Threads for generation (-1 = physical cores) |
+| `-tb, --threads-batch` | int | -1 | Threads for prompt processing (-1 = physical cores) |
 | `--seed` | int | 4294967295 | Random seed (0xFFFFFFFF = random) |
 | `--stream` | flag | | Stream tokens in single-turn mode (`-p`) |
 | `--no-stream` | flag | | Buffer full response in interactive mode |
@@ -216,7 +220,10 @@ cyllama server -m models/llama.gguf --port 9090 --server-type python
 | `--ctx-size` | int | 2048 | Context window size |
 | `--gpu-layers` | int | -1 | GPU layers to offload |
 | `--n-parallel` | int | 1 | Number of parallel processing slots |
-| `--server-type` | choice | embedded | Server implementation: `python` or `embedded` |
+| `--server-type` | choice | embedded | `embedded` (cpp-httplib, thread pool) or `python` (stdlib `http.server`) |
+| `--api-key-file` | string | | File holding the API key clients must send as `Authorization: Bearer <key>`; overrides `CYLLAMA_API_KEY` |
+
+Both server types stream chat completions when the request sets `"stream": true`. Each slot uses physical cores divided by `--n-parallel` as its thread count.
 
 ---
 
@@ -702,8 +709,8 @@ python -m cyllama.llama.cli -m models/llama.gguf -i      # interactive mode
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
-| `-t, --threads` | int | 4 | Compute threads |
-| `-tb, --threads-batch` | int | 4 | Batch processing threads |
+| `-t, --threads` | int | -1 | Compute threads (-1 = physical cores) |
+| `-tb, --threads-batch` | int | -1 | Batch processing threads (-1 = physical cores) |
 | `--no-mmap` | flag | | Do not memory-map model |
 | `--mlock` | flag | | Lock model in RAM |
 | `--numa` | flag | | NUMA optimizations |

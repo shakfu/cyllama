@@ -8,8 +8,11 @@
 #ifndef __VECTOR_DISTANCE_RVV__
 #define __VECTOR_DISTANCE_RVV__
 
+#include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 
-void init_distance_functions_rvv (void);
+// returns true when the RVV kernels were compiled into this build
+bool init_distance_functions_rvv (void);
 
 #endif

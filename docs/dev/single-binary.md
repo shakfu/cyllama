@@ -153,7 +153,7 @@ python_add_library(_core MODULE WITH_SOABI ${_SABI_ARGS}
     ${llama_cpp}
     ${whisper_cpp}
     ${sd_cpp}
-    ${EMBEDDED_SOURCES}      # mongoose etc. — no longer a separate .so
+    ${EMBEDDED_SOURCES}      # http_shim.cpp, httplib.cpp — no longer a separate .so
 )
 
 target_include_directories(_core PRIVATE ${COMMON_INCLUDE_DIRS} ...)
