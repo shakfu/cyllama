@@ -1,6 +1,7 @@
 .DS_Store
 
 bin/
+.models/
 models/
 models
 thirdparty/llama-cpp-python
