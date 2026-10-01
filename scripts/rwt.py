@@ -976,7 +976,7 @@ class TestSuite:
         """z_turbo cpu-offload + flash-attn."""
         return self.run_sd(
             "3",
-            ["-v", "--offload-to-cpu", "--diffusion-fa", "-p", "a lovely plump blue-eyed cat"],
+            ["--offload-to-cpu", "--diffusion-fa", "-p", "a lovely plump blue-eyed cat"],
             backend,
             timeout,
         )
