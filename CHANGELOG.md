@@ -20,6 +20,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- **Qwen3-TTS and Pocket TTS via libmtmd audio generation.** `cyllama tts -m backbone.gguf -mm mmproj.gguf -p "..."` matches llama.cpp's `llama-tts`. The Python API is `cyllama.llama.tts.MtmdTTSGenerator`, built on the new `MtmdAudioGenerator` binding and `MtmdContext.gen_audio_info`. It is a separate class from `TTSGenerator` because the two share no model format or vocoder. Upstream marks this API experimental. Sampling defaults come from the model's `general.sampling.*` metadata, as `llama-tts` does. With a fixed seed only the first utterance per generator is reproducible: the mmproj RNG reseeds only when the seed changes.
+
+---
+
 ## [0.6.0]
 
 ### Added

@@ -5,6 +5,7 @@
 
 from libc.stdint cimport uint32_t, int32_t, int64_t
 from libc.stddef cimport size_t
+from libcpp cimport bool as cppbool
 
 from .ggml cimport ggml_log_level, ggml_log_callback
 from .llama cimport llama_model, llama_context, llama_token, llama_pos, llama_seq_id, llama_flash_attn_type
@@ -158,6 +159,19 @@ cdef extern from "mtmd.h":
 
     cdef mtmd_caps mtmd_get_cap_from_file(const char * mmproj_fname)
 
+    # EXPERIMENTAL: audio generation (TTS) pipeline info
+    ctypedef enum mtmd_gen_audio_type:
+        MTMD_GEN_AUDIO_TYPE_NONE
+        MTMD_GEN_AUDIO_TYPE_QWEN3TTS
+        MTMD_GEN_AUDIO_TYPE_POCKETTTS
+
+    ctypedef struct mtmd_gen_audio_info:
+        mtmd_gen_audio_type type
+        int32_t sample_rate
+        const char * model_variant  # may be NULL
+
+    cdef mtmd_gen_audio_info mtmd_gen_audio_get_info(const mtmd_context * ctx)
+
     # Test function
     cdef mtmd_input_chunks * mtmd_test_create_input_chunks()
 
@@ -205,6 +219,48 @@ cdef extern from "mtmd-helper.h":
     cdef int32_t mtmd_helper_video_read_next(mtmd_helper_video * ctx,
                                              mtmd_bitmap ** out_bitmap,
                                              char ** out_text) nogil
+
+    # EXPERIMENTAL: audio generation (TTS) helper
+    ctypedef struct mtmd_helper_gen_audio:
+        pass
+
+    ctypedef enum mtmd_helper_gen_audio_outtype:
+        MTMD_HELPER_GEN_AUDIO_OUTTYPE_PCM  # raw float32 PCM
+        MTMD_HELPER_GEN_AUDIO_OUTTYPE_WAV  # WAV PCM 16-bit LE, mono
+
+    ctypedef struct mtmd_helper_gen_audio_inp:
+        llama_seq_id seq_id
+        const char * prompt
+        size_t prompt_len
+        mtmd_bitmap * speaker_ref  # optional, can be NULL
+        const char * lang          # optional, can be NULL
+        int32_t top_k
+        float top_p
+        uint32_t seed              # UINT32_MAX for random
+        mtmd_helper_gen_audio_outtype out_type
+
+    cdef mtmd_helper_gen_audio * mtmd_helper_gen_audio_init(llama_context * lctx, mtmd_context * mctx)
+    cdef void mtmd_helper_gen_audio_free(mtmd_helper_gen_audio * ctx)
+    cdef void mtmd_helper_gen_audio_reset(mtmd_helper_gen_audio * ctx)
+    cdef int32_t mtmd_helper_gen_audio_set_input(mtmd_helper_gen_audio * ctx,
+                                                 const mtmd_helper_gen_audio_inp * inp) nogil
+
+    # returns: >0 = prompt tokens remaining, 0 = done, <0 = error
+    cdef int32_t mtmd_helper_gen_audio_step_prompt(mtmd_helper_gen_audio * ctx, int32_t n_batch) nogil
+
+    # h_state_out is NULL if no frame was generated
+    cdef int32_t mtmd_helper_gen_audio_step_gen(mtmd_helper_gen_audio * ctx,
+                                                llama_token sampled,
+                                                const float * h_state_in,
+                                                const float ** h_state_out,
+                                                cppbool * out_stop) nogil
+
+    # out_data is valid until the next get_output() or reset() call
+    cdef int32_t mtmd_helper_gen_audio_get_output(mtmd_helper_gen_audio * ctx,
+                                                  int32_t * out_sample_rate,
+                                                  const char ** out_data,
+                                                  size_t * out_data_len,
+                                                  int64_t * out_n_samples) nogil
 
     # return true if model can be used for chat
     cdef bint mtmd_helper_model_can_chat(llama_context * lctx, mtmd_context * mctx)

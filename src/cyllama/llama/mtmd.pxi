@@ -29,6 +29,13 @@ class MtmdInputChunkType(IntEnum):
     AUDIO = MTMD_INPUT_CHUNK_TYPE_AUDIO
 
 
+class MtmdGenAudioType(IntEnum):
+    """Audio generation pipeline exposed by an mmproj."""
+    NONE = MTMD_GEN_AUDIO_TYPE_NONE
+    QWEN3TTS = MTMD_GEN_AUDIO_TYPE_QWEN3TTS
+    POCKETTTS = MTMD_GEN_AUDIO_TYPE_POCKETTTS
+
+
 cdef class MtmdContextParams:
     """Parameters for creating an mtmd context."""
 
@@ -516,6 +523,18 @@ cdef class MtmdContext:
         return mtmd_get_audio_sample_rate(self._ctx)
 
     @property
+    def gen_audio_info(self) -> dict:
+        """Audio generation pipeline: ``type`` (MtmdGenAudioType), ``sample_rate``, ``model_variant``."""
+        if self._ctx is NULL:
+            raise RuntimeError("Context not initialized")
+        cdef mtmd_gen_audio_info inf = mtmd_gen_audio_get_info(self._ctx)
+        return {
+            "type": MtmdGenAudioType(inf.type),
+            "sample_rate": inf.sample_rate,
+            "model_variant": inf.model_variant.decode('utf-8') if inf.model_variant is not NULL else None,
+        }
+
+    @property
     def marker(self) -> str:
         """Get the media marker string used by this context.
 
@@ -993,6 +1012,165 @@ cdef class MtmdVideo:
             mtmd_helper_video_free(self._video)
             self._video = NULL
         self._ctx_ref = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+        return False
+
+
+cdef class MtmdAudioGenerator:
+    """Audio generation (TTS) driven by a backbone LlamaContext and an mmproj.
+
+    EXPERIMENTAL upstream API. The caller owns backbone sampling: after
+    the prompt is processed, sample a token from ``llama_ctx`` and pass it
+    to :meth:`step_gen` once per frame. The context must output embeddings
+    (``llama_ctx.set_embeddings_mode(True)``).
+
+    Example:
+        >>> gen = MtmdAudioGenerator(llama_ctx, mtmd_ctx)
+        >>> gen.set_input("Hello")
+        >>> while gen.step_prompt(512) > 0: pass
+        >>> while gen.step_gen(sampler.sample(llama_ctx, -1)): pass
+        >>> wav = gen.get_output()
+    """
+
+    cdef mtmd_helper_gen_audio * _gen
+    cdef llama.llama_context * _lctx
+    cdef const float * _h_state  # backbone hidden state fed to the next step_gen()
+    cdef bint _prompt_done
+    cdef object _llama_ctx_ref
+    cdef object _mtmd_ctx_ref
+
+    def __cinit__(self):
+        self._gen = NULL
+        self._lctx = NULL
+        self._h_state = NULL
+        self._prompt_done = False
+
+    def __init__(self, LlamaContext llama_ctx, MtmdContext mtmd_ctx):
+        if mtmd_ctx._ctx is NULL:
+            raise RuntimeError("MtmdContext is closed")
+        if mtmd_gen_audio_get_info(mtmd_ctx._ctx).type == MTMD_GEN_AUDIO_TYPE_NONE:
+            raise ValueError("mmproj does not support audio generation")
+        self._gen = mtmd_helper_gen_audio_init(llama_ctx.ptr, mtmd_ctx._ctx)
+        if self._gen is NULL:
+            raise RuntimeError("Failed to initialize audio generator")
+        self._lctx = llama_ctx.ptr
+        self._llama_ctx_ref = llama_ctx
+        self._mtmd_ctx_ref = mtmd_ctx
+
+    def __dealloc__(self):
+        if self._gen is not NULL:
+            mtmd_helper_gen_audio_free(self._gen)
+            self._gen = NULL
+
+    cdef _check_open(self):
+        if self._gen is NULL:
+            raise RuntimeError("Audio generator is closed")
+
+    def set_input(self, prompt: str, MtmdBitmap speaker = None,
+                  lang: Optional[str] = None, int top_k = 0, float top_p = 0.0,
+                  uint32_t seed = 0xFFFFFFFF, wav: bool = True) -> None:
+        """Start a new utterance; discards any previous state.
+
+        Args:
+            prompt: Text to speak.
+            speaker: Optional reference audio bitmap for voice cloning.
+            lang: Optional language code or name (pipeline-dependent).
+            top_k: Code-predictor top-k; 0 uses the pipeline default.
+            top_p: Code-predictor top-p; 0 uses the pipeline default.
+            seed: Code-predictor seed; 0xFFFFFFFF for random.
+            wav: Output 16-bit WAV bytes if True, else raw float32 PCM.
+        """
+        self._check_open()
+        cdef bytes prompt_b = prompt.encode('utf-8')
+        cdef bytes lang_b = lang.encode('utf-8') if lang else b""
+        cdef mtmd_helper_gen_audio_inp inp
+        inp.seq_id = 0
+        inp.prompt = prompt_b
+        inp.prompt_len = len(prompt_b)
+        inp.speaker_ref = NULL
+        if speaker is not None:
+            inp.speaker_ref = speaker._bitmap
+        inp.lang = NULL
+        if lang:
+            inp.lang = lang_b
+        inp.top_k = top_k
+        inp.top_p = top_p
+        inp.seed = seed
+        inp.out_type = MTMD_HELPER_GEN_AUDIO_OUTTYPE_WAV if wav else MTMD_HELPER_GEN_AUDIO_OUTTYPE_PCM
+        self._h_state = NULL
+        self._prompt_done = False
+        cdef int32_t result
+        with nogil:
+            result = mtmd_helper_gen_audio_set_input(self._gen, &inp)
+        if result != 0:
+            raise RuntimeError(f"Audio generator set_input failed with error code: {result}")
+
+    def step_prompt(self, int32_t n_batch) -> int:
+        """Decode up to ``n_batch`` prompt tokens. Returns the number remaining."""
+        self._check_open()
+        if n_batch <= 0:
+            raise ValueError("n_batch must be positive")
+        cdef int32_t result
+        with nogil:
+            result = mtmd_helper_gen_audio_step_prompt(self._gen, n_batch)
+        if result < 0:
+            raise RuntimeError(f"Audio generator prompt processing failed with error code: {result}")
+        if result == 0:
+            self._prompt_done = True
+        return result
+
+    def step_gen(self, int sampled) -> bool:
+        """Generate one frame from a backbone token. Returns False when generation ends."""
+        self._check_open()
+        if not self._prompt_done:
+            raise RuntimeError("step_prompt() must return 0 before step_gen()")
+        if self._h_state is NULL:
+            self._h_state = llama.llama_get_embeddings_ith(self._lctx, -1)
+            if self._h_state is NULL:
+                raise RuntimeError("No backbone embeddings; enable embeddings on the LlamaContext")
+        cdef const float * h_next = NULL
+        cdef cppbool stop = False
+        cdef int32_t result
+        with nogil:
+            result = mtmd_helper_gen_audio_step_gen(self._gen, sampled, self._h_state, &h_next, &stop)
+        if result != 0:
+            raise RuntimeError(f"Audio generator step_gen failed with error code: {result}")
+        self._h_state = h_next
+        return not stop and h_next is not NULL
+
+    def get_output(self) -> bytes:
+        """Vocode the generated frames. Returns WAV or float32 PCM bytes per set_input()."""
+        self._check_open()
+        cdef int32_t sample_rate = 0
+        cdef const char * data = NULL
+        cdef size_t data_len = 0
+        cdef int32_t result
+        with nogil:
+            result = mtmd_helper_gen_audio_get_output(self._gen, &sample_rate, &data, &data_len, NULL)
+        if result != 0:
+            raise RuntimeError(f"Audio generator get_output failed with error code: {result}")
+        return data[:data_len] if data_len > 0 else b""
+
+    def reset(self) -> None:
+        """Discard the current utterance."""
+        self._check_open()
+        mtmd_helper_gen_audio_reset(self._gen)
+        self._h_state = NULL
+        self._prompt_done = False
+
+    def close(self) -> None:
+        """Release the native generator. Idempotent."""
+        if self._gen is not NULL:
+            mtmd_helper_gen_audio_free(self._gen)
+            self._gen = NULL
+        self._h_state = NULL
+        self._llama_ctx_ref = None
+        self._mtmd_ctx_ref = None
 
     def __enter__(self):
         return self
