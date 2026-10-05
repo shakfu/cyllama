@@ -24,7 +24,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Added
 
+- **`rwt.py` records every `test` run in a SQLite database shared with inferna's `rwt.py` and chimera's `rat.py`.** The default path is `~/config/runs/db.sqlite`; `$RUNS_DB` overrides it and `--no-record` turns it off. Each run stores target, backend, version, the sha256 of the installed wheel's `RECORD` (it tells two builds of one version apart; an editable install's `RECORD` does not change on rebuild, so the git commit and dirty flag identify those), git commit, host, wall time and exit code. Each case stores its status (pass, fail, timeout or skip) and seconds; a gen case also stores the numbers from its `--stats` table (token counts, prompt and generation time, tokens/s), parsed from a copy of its stderr. Each image an sd case writes stores its size and sha256; the seed is fixed, so an unchanged hash means an identical image. Rows are written as each case ends, so an interrupted run keeps its finished cases. `runs diff` compares two runs case by case, including tokens/s:
+
+  ```sh
+  rwt.py runs                # recent runs of this project
+  rwt.py runs diff           # latest run vs the previous one with the same backend and target
+  rwt.py runs diff 12 15     # any two runs, across projects too
+  rwt.py report               # HTML report, opened in the browser (-o FILE, --no-open)
+  ```
+
+  The report opens with a version comparison: per backend and target, the newest version against the next one below it. A case is a regression when its median moves at least 10% and leaves the range of the older version's runs; a 10% threshold alone would flag noise when an old version has few runs.
+
+- **`rwt.py install --version X` / `run --version X`** installs release X of the backend's distribution (`--cuda --version 0.5.1` -> `cyllama-cuda12==0.5.1`). It records a baseline for the version comparison; `--wheel` could pin a version too, but needs the backend's distribution name spelled out, which differs per backend.
+
 - **Qwen3-TTS and Pocket TTS via libmtmd audio generation.** `cyllama tts -m backbone.gguf -mm mmproj.gguf -p "..."` matches llama.cpp's `llama-tts`. The Python API is `cyllama.llama.tts.MtmdTTSGenerator`, built on the new `MtmdAudioGenerator` binding and `MtmdContext.gen_audio_info`. It is a separate class from `TTSGenerator` because the two share no model format or vocoder. Upstream marks this API experimental. Sampling defaults come from the model's `general.sampling.*` metadata, as `llama-tts` does. With a fixed seed only the first utterance per generator is reproducible: the mmproj RNG reseeds only when the seed changes.
+
+### Fixed
+
+- **TTS vocoder output could contain values near 1e18.** `irfft` took its transform length from its input. A WavTokenizer row is 1282 floats, so it ran a 1282-point transform that read 1284 floats, two past the end of the buffer. Whatever lay there entered every frame: usually a denormal, once about 1e18, which failed `test_tts_vocoder.py` only on some heap layouts. Frames were also 1282 samples instead of `n_fft = 1280`. `irfft(inp_cplx, n)` now takes the length explicitly and raises `ValueError` on an input shorter than the `2 * (n // 2 + 1)` floats it reads. Direct callers of `irfft` must pass `n`.
+
+- **`LlamaContext.encode` raises on an aborted encode.** It raised only on negative return codes, but `llama_encode` returns 2 when an abort callback stops it, leaving the output buffer from the previous call. Code 2 now raises `InterruptedError` and any other non-zero code `RuntimeError`, as `decode` already did.
 
 ---
 

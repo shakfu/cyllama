@@ -76,7 +76,7 @@ def embd_to_audio(embd: List[float], n_codes: int, n_embd: int, n_threads: int =
     for l in range(n_codes):
         # Apply IRFFT to get time-domain signal
         frame_spec = ST[l * n_embd : (l + 1) * n_embd]
-        frame_audio = cy.irfft(frame_spec)  # Cython version only takes inp_cplx parameter
+        frame_audio = cy.irfft(frame_spec, n_fft)
 
         # Apply window
         windowed_frame = [frame_audio[i] * hann[i] for i in range(n_fft)]

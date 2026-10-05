@@ -39,9 +39,20 @@ def twiddle_factors(float real, float imag, int k, int N) -> tuple:
 	tts.twiddle(&real_val, &imag_val, k, N)
 	return (real_val, imag_val)
 
-def irfft(list inp_cplx) -> list:
-	cdef int n = len(inp_cplx)
-	cdef float* input_data = <float*>malloc(n * sizeof(float))
+def irfft(list inp_cplx, int n) -> list:
+	"""Inverse real DFT of length `n` from the first n // 2 + 1 complex bins of
+	`inp_cplx` (interleaved real, imaginary). Returns `n` samples.
+
+	Raises:
+		ValueError: `n` is not positive, or `inp_cplx` holds fewer than the
+			2 * (n // 2 + 1) floats the transform reads.
+	"""
+	if n <= 0:
+		raise ValueError(f"irfft length must be positive, got {n}")
+	cdef int n_in = 2 * (n // 2 + 1)
+	if len(inp_cplx) < n_in:
+		raise ValueError(f"irfft of length {n} reads {n_in} floats; got {len(inp_cplx)}")
+	cdef float* input_data = <float*>malloc(n_in * sizeof(float))
 	cdef float* output_data = <float*>malloc(n * sizeof(float))
 	if not input_data or not output_data:
 		free(input_data)
@@ -49,7 +60,7 @@ def irfft(list inp_cplx) -> list:
 		raise MemoryError("Failed to allocate memory for IRFFT")
 
 	try:
-		for i in range(n):
+		for i in range(n_in):
 			input_data[i] = float(inp_cplx[i])
 
 		tts.irfft(n, input_data, output_data)

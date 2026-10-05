@@ -3271,16 +3271,22 @@ cdef class LlamaContext:
         """Processes a batch of tokens with the encoder part of the encoder-decoder model.
 
         Stores the encoder output internally for later use by the decoder cross-attention layers.
-          0 - success
-        < 0 - error
+
+        Raises:
+            InterruptedError: aborted by abort_callback (return code 2).
+            RuntimeError: any other non-zero return code.
         """
         cdef llama.llama_context * ctx_ptr = self.ptr
         cdef llama.llama_batch c_batch = batch.p
         cdef int32_t res
         with nogil:
             res = llama.llama_encode(ctx_ptr, c_batch)
-        if res < 0:
-            raise RuntimeError("error encoding batch")
+        # A positive code is a failure too: 2 means the compute was aborted, and
+        # the output buffer then holds whatever it held before.
+        if res == 2:
+            raise InterruptedError("llama_encode aborted by abort_callback")
+        if res != 0:
+            raise RuntimeError(f"llama_encode failed with code {res}")
 
     def decode(self, LlamaBatch batch) -> int:
         """Run llama_decode on a batch.

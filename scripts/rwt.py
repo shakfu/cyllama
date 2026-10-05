@@ -71,24 +71,36 @@ Examples:
 from __future__ import annotations
 
 import argparse
+import hashlib
+import html
 import importlib.metadata as md
+import json
 import math
 import os
+import platform
 import re
 import shutil
+import sqlite3
+import statistics
 import struct
 import subprocess
 import sys
+import threading
 import time
 import urllib.request
+import uuid
+import webbrowser
 import zlib
 from collections import Counter
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 SCRIPT_NAME = Path(__file__).name
+# The `project` column in the shared run history; see RunLog.
+PROJECT = "cyllama"
 
 
 # ---------------------------------------------------------------------------
@@ -181,6 +193,928 @@ def channel_stddevs(pixels: bytes, channels: int) -> list[float]:
         mean = sum(v * k for v, k in hist.items()) / n
         result.append(math.sqrt(sum(k * (v - mean) ** 2 for v, k in hist.items()) / n))
     return result
+
+
+# ---------------------------------------------------------------------------
+# run history (keep identical across cyllama/inferna rwt.py and chimera rat.py)
+# ---------------------------------------------------------------------------
+
+
+class RunLog:
+    """Run history in one SQLite database shared by rwt.py and rat.py.
+
+    Every project writes to the same file, so `runs diff` compares any two runs:
+    two versions, two backends, or two projects. Rows are written as each case
+    ends; a run with no `finished_at` was interrupted. A database error disables
+    recording with a warning and never fails the test run.
+    """
+
+    SCHEMA_VERSION = 1
+    SCHEMA = """
+CREATE TABLE IF NOT EXISTS runs (
+    id              INTEGER PRIMARY KEY,
+    session         TEXT NOT NULL,  -- shared by the test steps of one `run`
+    project         TEXT NOT NULL,
+    target          TEXT NOT NULL,
+    backend         TEXT NOT NULL,
+    version         TEXT,
+    artifact        TEXT,           -- distribution name, or binary path
+    artifact_sha256 TEXT,           -- wheel RECORD, or binary
+    git_commit      TEXT,
+    git_dirty       INTEGER,
+    host            TEXT NOT NULL,
+    platform        TEXT NOT NULL,
+    argv            TEXT NOT NULL,  -- JSON
+    extra           TEXT,           -- JSON, project-specific
+    started_at      TEXT NOT NULL,  -- UTC ISO 8601
+    finished_at     TEXT,
+    seconds         REAL,
+    rc              INTEGER
+);
+CREATE TABLE IF NOT EXISTS cases (
+    id      INTEGER PRIMARY KEY,
+    run_id  INTEGER NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+    family  TEXT NOT NULL,
+    n       TEXT NOT NULL,
+    status  TEXT NOT NULL,  -- pass | fail | timeout | skip
+    rc      INTEGER,
+    seconds REAL NOT NULL,
+    detail  TEXT
+);
+CREATE TABLE IF NOT EXISTS outputs (
+    id      INTEGER PRIMARY KEY,
+    case_id INTEGER NOT NULL REFERENCES cases(id) ON DELETE CASCADE,
+    name    TEXT NOT NULL,
+    bytes   INTEGER NOT NULL,
+    sha256  TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS metrics (
+    id      INTEGER PRIMARY KEY,
+    case_id INTEGER NOT NULL REFERENCES cases(id) ON DELETE CASCADE,
+    name    TEXT NOT NULL,  -- e.g. tokens_per_second
+    value   REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS runs_by_key ON runs(project, backend, target, id);
+CREATE INDEX IF NOT EXISTS cases_by_run ON cases(run_id);
+CREATE INDEX IF NOT EXISTS outputs_by_case ON outputs(case_id);
+CREATE INDEX IF NOT EXISTS metrics_by_case ON metrics(case_id);
+"""
+
+    def __init__(self, project: str, path: Path | None = None) -> None:
+        self.project = project
+        self.path = path or self.default_path()
+        self.enabled = True
+        self.session = uuid.uuid4().hex[:12]
+        self.run_id: int | None = None
+        self._db: sqlite3.Connection | None = None
+        self._started = 0.0
+
+    @staticmethod
+    def default_path() -> Path:
+        """``$RUNS_DB``, else ``~/config/runs/db.sqlite``.
+
+        Not under ``~/.config``: snap-packaged browsers cannot read hidden
+        directories, so a report written beside the database would not open.
+        """
+        return Path(os.environ.get("RUNS_DB") or "~/config/runs/db.sqlite").expanduser()
+
+    # -- plumbing -----------------------------------------------------------
+
+    def connect(self) -> sqlite3.Connection:
+        if self._db is None:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            db = sqlite3.connect(self.path, timeout=30)
+            db.row_factory = sqlite3.Row
+            db.execute("PRAGMA foreign_keys = ON")
+            # WAL lets a run in one project write while another project's run reads.
+            db.execute("PRAGMA journal_mode = WAL")
+            found = db.execute("PRAGMA user_version").fetchone()[0]
+            if found > self.SCHEMA_VERSION:
+                db.close()
+                raise sqlite3.DatabaseError(f"{self.path} has schema {found}; this script knows {self.SCHEMA_VERSION}")
+            db.executescript(self.SCHEMA)
+            db.execute(f"PRAGMA user_version = {self.SCHEMA_VERSION}")
+            self._db = db
+        return self._db
+
+    def _tx(self, fn: Callable[[sqlite3.Connection], Any]) -> Any:
+        """Run `fn` in one transaction; on any database error, stop recording."""
+        if not self.enabled:
+            return None
+        try:
+            db = self.connect()
+            with db:
+                return fn(db)
+        except (sqlite3.Error, OSError) as e:
+            print(f"warning: run history disabled ({self.path}): {e}", file=sys.stderr)
+            self.enabled = False
+            return None
+
+    @staticmethod
+    def now() -> str:
+        return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+    @staticmethod
+    def sha256(path: Path) -> str:
+        h = hashlib.sha256()
+        with open(path, "rb") as f:
+            for block in iter(lambda: f.read(1 << 20), b""):
+                h.update(block)
+        return h.hexdigest()
+
+    @staticmethod
+    def git_state(root: Path) -> tuple[str | None, bool | None]:
+        """(HEAD commit, has uncommitted changes) of `root`; (None, None) outside git."""
+        try:
+            head = subprocess.run(
+                ["git", "-C", str(root), "rev-parse", "HEAD"], capture_output=True, text=True, timeout=10
+            )
+            if head.returncode != 0:
+                return None, None
+            status = subprocess.run(
+                ["git", "-C", str(root), "status", "--porcelain", "--untracked-files=no"],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return None, None
+        return head.stdout.strip(), bool(status.stdout.strip())
+
+    # -- recording ----------------------------------------------------------
+
+    def start(
+        self,
+        target: str,
+        backend: str,
+        root: Path,
+        version: str | None = None,
+        artifact: str | None = None,
+        artifact_sha256: str | None = None,
+        extra: dict[str, Any] | None = None,
+    ) -> None:
+        commit, dirty = self.git_state(root)
+        self._started = time.monotonic()
+        row = (
+            self.session,
+            self.project,
+            target,
+            backend,
+            version,
+            artifact,
+            artifact_sha256,
+            commit,
+            None if dirty is None else int(dirty),
+            platform.node(),
+            f"{sys.platform}-{platform.machine()}",
+            json.dumps(sys.argv[1:]),
+            json.dumps(extra or {}, sort_keys=True),
+            self.now(),
+        )
+        self.run_id = self._tx(
+            lambda db: (
+                db.execute(
+                    "INSERT INTO runs (session, project, target, backend, version, artifact, artifact_sha256,"
+                    " git_commit, git_dirty, host, platform, argv, extra, started_at)"
+                    " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    row,
+                ).lastrowid
+            )
+        )
+
+    @staticmethod
+    def status(rc: int, skipped: str | None) -> str:
+        if skipped is not None:
+            return "skip"
+        if rc == 124:  # Env.run's timeout code
+            return "timeout"
+        return "pass" if rc == 0 else "fail"
+
+    def case(
+        self,
+        family: str,
+        n: str,
+        rc: int,
+        seconds: float,
+        skipped: str | None = None,
+        outputs: Sequence[Path] = (),
+        metrics: dict[str, float] | None = None,
+    ) -> None:
+        """Record one case, its `metrics`, and the size and sha256 of each output it left on disk."""
+        if self.run_id is None:
+            return
+        run_id = self.run_id
+        files = [(p.name, p.stat().st_size, self.sha256(p)) for p in outputs if p.is_file()]
+
+        def write(db: sqlite3.Connection) -> None:
+            case_id = db.execute(
+                "INSERT INTO cases (run_id, family, n, status, rc, seconds, detail) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (run_id, family, n, self.status(rc, skipped), None if skipped else rc, seconds, skipped),
+            ).lastrowid
+            db.executemany(
+                "INSERT INTO outputs (case_id, name, bytes, sha256) VALUES (?, ?, ?, ?)",
+                [(case_id, *f) for f in files],
+            )
+            db.executemany(
+                "INSERT INTO metrics (case_id, name, value) VALUES (?, ?, ?)",
+                [(case_id, k, v) for k, v in sorted((metrics or {}).items())],
+            )
+
+        self._tx(write)
+
+    def finish(self, rc: int) -> None:
+        if self.run_id is None:
+            return
+        row = (self.now(), time.monotonic() - self._started, rc, self.run_id)
+        self._tx(lambda db: db.execute("UPDATE runs SET finished_at = ?, seconds = ?, rc = ? WHERE id = ?", row))
+        self.run_id = None
+
+    # -- reporting ----------------------------------------------------------
+
+    def _query(self, sql: str, params: Sequence[Any] = ()) -> list[sqlite3.Row]:
+        if not self.path.exists():
+            return []
+        return self.connect().execute(sql, params).fetchall()
+
+    def print_list(self, limit: int, backend: str | None = None, all_projects: bool = False) -> int:
+        rows = self._query(
+            "SELECT r.*, COUNT(c.id) AS ran, COALESCE(SUM(c.status = 'pass'), 0) AS passed"
+            " FROM runs r LEFT JOIN cases c ON c.run_id = r.id"
+            " WHERE (? OR r.project = ?) AND (? IS NULL OR r.backend = ?)"
+            " GROUP BY r.id ORDER BY r.id DESC LIMIT ?",
+            (all_projects, self.project, backend, backend, limit),
+        )
+        if not rows:
+            print(f"no runs recorded in {self.path}")
+            return 0
+        print(
+            f"{'id':>5}  {'started (UTC)':<19}  {'project':<8}  {'backend':<7}  {'version':<12}  "
+            f"{'target':<16}  {'passed':>6}  {'secs':>7}  rc"
+        )
+        for r in reversed(rows):
+            secs = f"{r['seconds']:.1f}" if r["seconds"] is not None else "-"
+            rc = "-" if r["rc"] is None else str(r["rc"])
+            print(
+                f"{r['id']:>5}  {r['started_at'][:19]:<19}  {r['project']:<8}  {r['backend']:<7}  "
+                f"{(r['version'] or '?'):<12}  {r['target']:<16}  {r['passed']:>3}/{r['ran']:<2}  {secs:>7}  {rc}"
+            )
+        return 0
+
+    def _resolve_pair(self, a: int | None, b: int | None, backend: str | None) -> tuple[sqlite3.Row, sqlite3.Row]:
+        """Runs `a` and `b`. Missing `b` is this project's latest finished run;
+        missing `a` is the finished run before `b` with the same project, backend
+        and target."""
+
+        def one(sql: str, params: Sequence[Any], what: str) -> sqlite3.Row:
+            rows = self._query(sql, params)
+            if not rows:
+                raise LookupError(f"no {what} in {self.path}")
+            return rows[0]
+
+        if b is None:
+            run_b = one(
+                "SELECT * FROM runs WHERE project = ? AND (? IS NULL OR backend = ?) AND finished_at IS NOT NULL"
+                " ORDER BY id DESC LIMIT 1",
+                (self.project, backend, backend),
+                f"finished {self.project} run",
+            )
+        else:
+            run_b = one("SELECT * FROM runs WHERE id = ?", (b,), f"run {b}")
+        if a is None:
+            run_a = one(
+                "SELECT * FROM runs WHERE project = ? AND backend = ? AND target = ? AND id < ?"
+                " AND finished_at IS NOT NULL ORDER BY id DESC LIMIT 1",
+                (run_b["project"], run_b["backend"], run_b["target"], run_b["id"]),
+                f"earlier {run_b['project']} {run_b['backend']} {run_b['target']} run to compare run {run_b['id']} with",
+            )
+        else:
+            run_a = one("SELECT * FROM runs WHERE id = ?", (a,), f"run {a}")
+        return run_a, run_b
+
+    def _cases(
+        self, run_id: int
+    ) -> dict[tuple[str, str], tuple[sqlite3.Row, dict[str, sqlite3.Row], dict[str, float]]]:
+        cases = self._query("SELECT * FROM cases WHERE run_id = ? ORDER BY id", (run_id,))
+        result = {}
+        for c in cases:
+            outs = self._query("SELECT * FROM outputs WHERE case_id = ?", (c["id"],))
+            mets = self._query("SELECT name, value FROM metrics WHERE case_id = ?", (c["id"],))
+            result[(c["family"], c["n"])] = (c, {o["name"]: o for o in outs}, {m["name"]: m["value"] for m in mets})
+        return result
+
+    def print_diff(self, a: int | None = None, b: int | None = None, backend: str | None = None) -> int:
+        try:
+            run_a, run_b = self._resolve_pair(a, b, backend)
+        except LookupError as e:
+            print(f"error: {e}", file=sys.stderr)
+            return 2
+
+        def short(value: Any, n: int = 12) -> str:
+            return "-" if value is None else str(value)[:n]
+
+        def secs(value: float | None) -> str:
+            return "-" if value is None else f"{value:.1f}"
+
+        def commit(r: sqlite3.Row) -> str:
+            return short(r["git_commit"], 10) + ("+dirty" if r["git_dirty"] else "")
+
+        fields: list[tuple[str, Callable[[sqlite3.Row], str]]] = [
+            ("run", lambda r: str(r["id"])),
+            ("started", lambda r: r["started_at"][:19]),
+            ("project", lambda r: r["project"]),
+            ("backend", lambda r: r["backend"]),
+            ("target", lambda r: r["target"]),
+            ("version", lambda r: short(r["version"], 30)),
+            ("artifact", lambda r: short(r["artifact_sha256"])),
+            ("commit", commit),
+            ("host", lambda r: r["host"]),
+            ("seconds", lambda r: secs(r["seconds"])),
+            ("rc", lambda r: short(r["rc"])),
+        ]
+        for label, get in fields:
+            va, vb = get(run_a), get(run_b)
+            mark = "*" if va != vb and label not in ("run", "started") else " "
+            print(f"{mark} {label:<9}{va:<32}{vb}")
+
+        print(f"\n  {'case':<14}{'A':<9}{'B':<9}{'secs A':>8}{'secs B':>8}{'delta':>9}  tok/s, outputs")
+        for row in self._diff_rows(run_a["id"], run_b["id"]):
+            mark = " " if row["status_a"] == row["status_b"] else "*"
+            print(
+                f"{mark} {row['case']:<14}{row['status_a']:<9}{row['status_b']:<9}"
+                f"{secs(row['secs_a']):>8}{secs(row['secs_b']):>8}{row['delta']:>9}  {', '.join(row['notes'])}".rstrip()
+            )
+        return 0
+
+    # rwt.py's tokens/s is end to end; rat.py's generation rate excludes prompt
+    # time. Different names keep the two from being compared.
+    RATES: tuple[tuple[str, str], ...] = (
+        ("tokens_per_second", "tok/s"),
+        ("generation_tokens_per_second", "gen tok/s"),
+    )
+
+    def _diff_rows(self, id_a: int, id_b: int) -> list[dict[str, Any]]:
+        """One row per case of runs `id_a` and `id_b`: statuses, seconds, notes."""
+
+        def secs(value: float | None) -> str:
+            return "-" if value is None else f"{value:.1f}"
+
+        cases_a, cases_b = self._cases(id_a), self._cases(id_b)
+        rows = []
+        for key in [*cases_a, *(k for k in cases_b if k not in cases_a)]:
+            ca, outs_a, mets_a = cases_a.get(key, (None, {}, {}))
+            cb, outs_b, mets_b = cases_b.get(key, (None, {}, {}))
+            sa = ca["seconds"] if ca is not None else None
+            sb = cb["seconds"] if cb is not None else None
+            notes = []
+            for metric, label in self.RATES:
+                ta, tb = mets_a.get(metric), mets_b.get(metric)
+                if ta is not None or tb is not None:
+                    change = f" ({100 * (tb - ta) / ta:+.1f}%)" if ta and tb is not None else ""
+                    notes.append(f"{label} {secs(ta)} -> {secs(tb)}{change}")
+            for name in sorted({*outs_a, *outs_b}):
+                oa, ob = outs_a.get(name), outs_b.get(name)
+                if oa is None or ob is None:
+                    notes.append(f"{name} {'new' if oa is None else 'missing'}")
+                elif oa["sha256"] != ob["sha256"]:
+                    notes.append(f"{name} changed ({oa['bytes']} -> {ob['bytes']} bytes)")
+                else:
+                    notes.append(f"{name} identical")
+            rows.append(
+                {
+                    "case": " ".join(key),
+                    "status_a": ca["status"] if ca is not None else "-",
+                    "status_b": cb["status"] if cb is not None else "-",
+                    "secs_a": sa,
+                    "secs_b": sb,
+                    "delta": f"{100 * (sb - sa) / sa:+.1f}%" if sa and sb is not None else "",
+                    "notes": notes,
+                }
+            )
+        return rows
+
+    # -- html report --------------------------------------------------------
+
+    REPORT_CSS = """
+:root {
+  color-scheme: light;
+  --surface: #fcfcfb; --surface-2: #f3f2ef; --border: #e2e1dc;
+  --text: #0b0b0b; --text-2: #52514e; --text-3: #7a7974;
+  --series: #2a78d6; --grid: #e8e7e3;
+  --good: #006300; --critical: #b52f2f;
+  --b-cuda: #2a78d6; --b-vulkan: #eb6834; --b-cpu: #1baf7a; --b-metal: #eda100; --b-rocm: #e87ba4; --b-sycl: #008300;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --surface: #1a1a19; --surface-2: #232322; --border: #3a3a37;
+    --text: #ffffff; --text-2: #c3c2b7; --text-3: #8f8e86;
+    --series: #3987e5; --grid: #2e2e2c;
+    --good: #4fbf4f; --critical: #e66767;
+    --b-cuda: #3987e5; --b-vulkan: #d95926; --b-cpu: #199e70; --b-metal: #c98500; --b-rocm: #d55181; --b-sycl: #008300;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface: #1a1a19; --surface-2: #232322; --border: #3a3a37;
+  --text: #ffffff; --text-2: #c3c2b7; --text-3: #8f8e86;
+  --series: #3987e5; --grid: #2e2e2c;
+  --good: #4fbf4f; --critical: #e66767;
+  --b-cuda: #3987e5; --b-vulkan: #d95926; --b-cpu: #199e70; --b-metal: #c98500; --b-rocm: #d55181; --b-sycl: #008300;
+}
+* { box-sizing: border-box; }
+body { margin: 0; padding: 24px 16px 48px; background: var(--surface); color: var(--text);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 1200px; margin: 0 auto; }
+h1 { font-size: 22px; margin: 0 0 4px; }
+h2 { font-size: 17px; margin: 40px 0 4px; padding-top: 16px; border-top: 1px solid var(--border); }
+h3 { font-size: 14px; margin: 20px 0 8px; color: var(--text-2); font-weight: 600; }
+.meta { color: var(--text-2); margin: 0 0 16px; }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 13px; }
+th, td { padding: 4px 10px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
+th { color: var(--text-2); font-weight: 600; }
+td.num, th.num { text-align: right; }
+td.notes { white-space: normal; min-width: 240px; color: var(--text-2); }
+.pass { color: var(--good); } .fail, .timeout { color: var(--critical); font-weight: 600; }
+.skip, .none { color: var(--text-3); }
+.changed { background: var(--surface-2); }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+figure { margin: 0; padding: 10px 12px 6px; background: var(--surface-2); border-radius: 8px; }
+figcaption { font-size: 13px; font-weight: 600; }
+figcaption span { color: var(--text-2); font-weight: 400; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 6px 0 10px; font-size: 12px; color: var(--text-2); }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+.cmp-row { display: grid; grid-template-columns: 90px 1fr; gap: 10px; padding: 5px 0; border-top: 1px solid var(--border); }
+.cmp-case { font-size: 13px; padding-top: 1px; }
+.cmp-bar { display: flex; align-items: center; gap: 6px; height: 16px; font-size: 11px;
+  color: var(--text-2); font-variant-numeric: tabular-nums; }
+.cmp-bar + .cmp-bar { margin-top: 2px; }
+.regression, .now-failing { color: var(--critical); font-weight: 600; }
+.improvement, .now-passing { color: var(--good); font-weight: 600; }
+.within-noise { color: var(--text-3); }
+.scroll + .meta { margin-top: 12px; }
+tr.flag td { background: var(--surface-2); }
+.cmp-bar .fill { height: 10px; border-radius: 0 3px 3px 0; min-width: 2px; }
+svg { display: block; width: 100%; height: auto; overflow: visible; }
+svg .axis { fill: var(--text-3); font-size: 10px; }
+svg .gridline { stroke: var(--grid); stroke-width: 1; }
+svg .release { stroke: var(--text-3); stroke-width: 1; stroke-dasharray: 3 3; }
+svg .line { fill: none; stroke: var(--series); stroke-width: 2; stroke-linejoin: round; }
+svg .dot { fill: var(--series); stroke: var(--surface-2); stroke-width: 2; }
+svg .hit { fill: transparent; cursor: default; }
+svg .hit:hover + .dot, svg .dot.on { r: 6; }
+#tip { position: fixed; pointer-events: none; display: none; z-index: 10; padding: 6px 8px;
+  background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px;
+  font-size: 12px; white-space: pre; box-shadow: 0 2px 8px rgb(0 0 0 / 0.15); }
+"""
+
+    REPORT_JS = """
+const tip = document.getElementById("tip");
+document.addEventListener("mouseover", (e) => {
+  const t = e.target.closest(".hit");
+  if (!t) return;
+  tip.textContent = t.dataset.tip;
+  tip.style.display = "block";
+});
+document.addEventListener("mousemove", (e) => {
+  if (tip.style.display !== "block") return;
+  const x = Math.min(e.clientX + 12, window.innerWidth - tip.offsetWidth - 8);
+  tip.style.left = x + "px";
+  tip.style.top = (e.clientY + 14) + "px";
+});
+document.addEventListener("mouseout", (e) => {
+  if (e.target.closest(".hit")) tip.style.display = "none";
+});
+"""
+
+    @staticmethod
+    def _svg_trend(points: list[tuple[str, float | None, str, str]], unit: str) -> str:
+        """Line chart of one measure over runs; each point is (x label, value, tooltip,
+        version). A None value (a failed or skipped case) breaks the line rather than
+        plotting a time that measures nothing. A dashed line marks each version change."""
+        w, h, left, right, top, bottom = 300, 140, 40, 8, 18, 20
+        values = [p[1] for p in points if p[1] is not None]
+        # Two gridline steps, each 1, 2, 2.5 or 5 times a power of ten.
+        raw = max(max(values), 1e-9) / 2
+        mag = 10 ** math.floor(math.log10(raw))
+        step = next(f * mag for f in (1, 2, 2.5, 5, 10) if f * mag >= raw)
+        top_value = 2 * step
+        n = len(points)
+
+        def x(i: int) -> float:
+            return left + (w - left - right) * (i / (n - 1) if n > 1 else 0.5)
+
+        def y(v: float) -> float:
+            return top + (h - top - bottom) * (1 - v / top_value)
+
+        parts = [f'<svg viewBox="0 0 {w} {h}" role="img" aria-label="{html.escape(unit)} per run">']
+        for v in (0, step, top_value):
+            parts.append(f'<line class="gridline" x1="{left}" x2="{w - right}" y1="{y(v):.1f}" y2="{y(v):.1f}"/>')
+            parts.append(f'<text class="axis" x="{left - 6}" y="{y(v) + 3:.1f}" text-anchor="end">{v:g}</text>')
+        for i in range(1, n):
+            if points[i][3] != points[i - 1][3]:
+                xv = (x(i - 1) + x(i)) / 2
+                parts.append(f'<line class="release" x1="{xv:.1f}" x2="{xv:.1f}" y1="{top - 4}" y2="{h - bottom}"/>')
+                parts.append(
+                    f'<text class="axis" x="{xv + 3:.1f}" y="{top - 6}">{html.escape(points[i][3][:16])}</text>'
+                )
+        for i in {0, n - 1}:
+            parts.append(
+                f'<text class="axis" x="{x(i):.1f}" y="{h - 4}" text-anchor="middle">{html.escape(points[i][0])}</text>'
+            )
+        segment: list[str] = []
+        for i, (_, v, _, _) in enumerate([*points, ("", None, "", "")]):
+            if v is not None:
+                segment.append(f"{x(i):.1f},{y(v):.1f}")
+            elif segment:
+                if len(segment) > 1:
+                    parts.append(f'<polyline class="line" points="{" ".join(segment)}"/>')
+                segment = []
+        for i, (_, v, tip, _) in enumerate(points):
+            if v is not None:
+                parts.append(
+                    f'<circle class="hit" cx="{x(i):.1f}" cy="{y(v):.1f}" r="11" data-tip="{html.escape(tip)}"/>'
+                )
+                parts.append(f'<circle class="dot" cx="{x(i):.1f}" cy="{y(v):.1f}" r="4"/>')
+        parts.append("</svg>")
+        return "".join(parts)
+
+    # A version is a regression (or improvement) on a measure when its median moves
+    # by at least this much AND lands outside the range of the previous version's
+    # runs. The second condition keeps one noisy run from deciding the verdict.
+    REGRESSION_PCT = 10.0
+
+    @staticmethod
+    def _version_key(version: str) -> tuple[int, ...]:
+        """Numeric parts of `version`, for ordering: "0.10.1" sorts above "0.9.3".
+        Pre-release suffixes are not understood ("0.6.0rc1" sorts above "0.6.0")."""
+        return tuple(int(part) for part in re.findall(r"\d+", version))
+
+    def _version_rows(self, group: list[sqlite3.Row]) -> tuple[str, str, int, int, list[dict[str, Any]]] | None:
+        """Compare the newest version in `group` (finished runs of one project,
+        backend and target) with the next version below it.
+
+        Versions are ordered by number, not by when they were tested, so a
+        baseline recorded after the release it precedes still compares the
+        right way round. Returns (previous, current, runs of previous, runs of
+        current, rows), or None when the group has one version. Each row is one
+        case and measure.
+        """
+        versions = sorted({r["version"] or "?" for r in group}, key=self._version_key)
+        if len(versions) < 2:
+            return None
+        previous, current = versions[-2], versions[-1]
+        runs_prev = [r for r in group if (r["version"] or "?") == previous]
+        runs_cur = [r for r in group if (r["version"] or "?") == current]
+        cases_prev = [self._cases(r["id"]) for r in runs_prev]
+        cases_cur = [self._cases(r["id"]) for r in runs_cur]
+        keys = list(dict.fromkeys(k for c in [*cases_cur, *cases_prev] for k in c))
+
+        # (label, metric or None for seconds, higher is better)
+        measures: list[tuple[str, str | None, bool]] = [
+            ("seconds", None, False),
+            *((label, metric, True) for metric, label in self.RATES),
+        ]
+        rows: list[dict[str, Any]] = []
+        for key in keys:
+            entries_prev = [c[key] for c in cases_prev if key in c]
+            entries_cur = [c[key] for c in cases_cur if key in c]
+            passed_prev = any(e[0]["status"] == "pass" for e in entries_prev)
+            passed_cur = any(e[0]["status"] == "pass" for e in entries_cur)
+            hashes_prev = {o["sha256"] for e in entries_prev for o in e[1].values()}
+            hashes_cur = {o["sha256"] for e in entries_cur for o in e[1].values()}
+            note = "image changed" if hashes_prev and hashes_cur and hashes_prev != hashes_cur else ""
+            if entries_prev and entries_cur and passed_prev != passed_cur:
+                rows.append(
+                    {
+                        "case": " ".join(key),
+                        "measure": "status",
+                        "prev": None,
+                        "cur": None,
+                        "n_prev": len(entries_prev),
+                        "n_cur": len(entries_cur),
+                        "delta": None,
+                        "verdict": "now failing" if passed_prev else "now passing",
+                        "note": note,
+                    }
+                )
+                continue
+            for label, metric, higher_better in measures:
+
+                def values(entries: list[Any], metric: str | None = metric) -> list[float]:
+                    out = []
+                    for c, _, m in entries:
+                        v = c["seconds"] if metric is None else m.get(metric)
+                        if c["status"] == "pass" and v is not None:
+                            out.append(v)
+                    return out
+
+                vp, vc = values(entries_prev), values(entries_cur)
+                if not vp or not vc:
+                    continue
+                a, b = statistics.median(vp), statistics.median(vc)
+                delta = 100 * (b - a) / a if a else 0.0
+                worse = delta < 0 if higher_better else delta > 0
+                outside = b < min(vp) or b > max(vp)
+                if abs(delta) >= self.REGRESSION_PCT and outside:
+                    verdict = "regression" if worse else "improvement"
+                else:
+                    verdict = "within noise"
+                rows.append(
+                    {
+                        "case": " ".join(key),
+                        "measure": label,
+                        "prev": a,
+                        "cur": b,
+                        "n_prev": len(vp),
+                        "n_cur": len(vc),
+                        "delta": delta,
+                        "verdict": verdict,
+                        "note": note if metric is None else "",
+                    }
+                )
+        return previous, current, len(runs_prev), len(runs_cur), rows
+
+    # Backend -> CSS colour token. Colour follows the backend, never its position
+    # among the backends a chart happens to show.
+    BACKEND_ORDER: tuple[str, ...] = ("cuda", "vulkan", "cpu", "metal", "rocm", "sycl")
+
+    @classmethod
+    def _html_backends(
+        cls,
+        title: str,
+        note: str,
+        runs: dict[str, sqlite3.Row],
+        rows: list[tuple[str, dict[str, tuple[float | None, str]]]],
+    ) -> str:
+        """Grouped horizontal bars: one row per case, one bar per backend. Each row
+        is scaled to its own longest bar; the value label carries the magnitude."""
+        esc = html.escape
+        backends = sorted(runs, key=lambda b: cls.BACKEND_ORDER.index(b) if b in cls.BACKEND_ORDER else 99)
+        parts = [f"<figure><figcaption>{esc(title)} <span>{esc(note)}</span></figcaption>", '<div class="legend">']
+        for b in backends:
+            r = runs[b]
+            parts.append(
+                f'<span><i style="background: var(--b-{esc(b)}, var(--text-3))"></i>{esc(b)} '
+                f"(run {r['id']}, {esc(r['version'] or '?')})</span>"
+            )
+        parts.append("</div>")
+        for case, values in rows:
+            top = max((v for v, _ in values.values() if v is not None), default=0.0) or 1.0
+            parts.append(f'<div class="cmp-row"><div class="cmp-case">{esc(case)}</div><div>')
+            for b in backends:
+                value, status = values.get(b, (None, "not run"))
+                if value is None:
+                    tip = f"{case}  {b}\n{status}"
+                    parts.append(f'<div class="cmp-bar hit" data-tip="{esc(tip)}">{esc(status)}</div>')
+                    continue
+                tip = f"{case}  {b}\nrun {runs[b]['id']}  {runs[b]['version'] or '?'}\n{value:.2f}"
+                parts.append(
+                    f'<div class="cmp-bar hit" data-tip="{esc(tip)}"><span class="fill" '
+                    f'style="width: calc((100% - 48px) * {value / top:.4f}); background: var(--b-{esc(b)}, var(--text-3))">'
+                    f"</span>{value:.1f}</div>"
+                )
+            parts.append("</div></div>")
+        parts.append("</figure>")
+        return "".join(parts)
+
+    def _html_versions(self, runs: list[sqlite3.Row]) -> list[str]:
+        """The "version over version" section: per project, backend and target,
+        the latest version against the one tested before it."""
+        esc = html.escape
+        groups: dict[tuple[str, str, str], list[sqlite3.Row]] = {}
+        for r in reversed(runs):  # oldest first
+            if r["finished_at"] is not None:
+                groups.setdefault((r["project"], r["backend"], r["target"]), []).append(r)
+        compared, single = [], []
+        for (project, backend, target), group in groups.items():
+            result = self._version_rows(group)
+            name = f"{project} / {backend} / {target}"
+            if result is None:
+                single.append(f"{name} ({group[-1]['version'] or '?'}, {len(group)} run{'s' * (len(group) != 1)})")
+            else:
+                compared.append((name, result))
+
+        out = [
+            "<h2>Version over version</h2>",
+            f'<p class="meta">Same project, backend and target; the newest version against the next one below '
+            f"it, by version number. Medians over passing runs. A regression or improvement moves the median by at least "
+            f"{self.REGRESSION_PCT:g}% and leaves the range of the previous version's runs. Builds that share a "
+            f"version string count as one version.</p>",
+        ]
+        if compared:
+            flagged = [
+                f"{name}: {sum(r['verdict'] in ('regression', 'now failing') for r in rows)} regression(s)"
+                for name, (_, _, _, _, rows) in compared
+                if any(r["verdict"] in ("regression", "now failing") for r in rows)
+            ]
+            out.append(
+                '<p class="regression">' + esc("; ".join(flagged)) + "</p>"
+                if flagged
+                else '<p class="improvement">No regressions.</p>'
+            )
+        for name, (previous, current, n_prev, n_cur, rows) in compared:
+            out.append(
+                f"<h3>{esc(name)}: {esc(previous)} ({n_prev} run{'s' * (n_prev != 1)}) &rarr; "
+                f"{esc(current)} ({n_cur} run{'s' * (n_cur != 1)})</h3>"
+            )
+            out.append(
+                '<div class="scroll"><table><tr><th>case</th><th>measure</th>'
+                f'<th class="num">{esc(previous)}</th><th class="num">{esc(current)}</th>'
+                '<th class="num">change</th><th>verdict</th><th>note</th></tr>'
+            )
+            for r in rows:
+                cls = r["verdict"].replace(" ", "-")
+                flag = ' class="flag"' if r["verdict"] != "within noise" else ""
+                prev = "-" if r["prev"] is None else f"{r['prev']:.2f} <small>(n={r['n_prev']})</small>"
+                cur = "-" if r["cur"] is None else f"{r['cur']:.2f} <small>(n={r['n_cur']})</small>"
+                delta = "" if r["delta"] is None else f"{r['delta']:+.1f}%"
+                out.append(
+                    f"<tr{flag}><td>{esc(r['case'])}</td><td>{esc(r['measure'])}</td>"
+                    f'<td class="num">{prev}</td><td class="num">{cur}</td><td class="num">{delta}</td>'
+                    f'<td class="{cls}">{esc(r["verdict"])}</td><td class="notes">{esc(r["note"])}</td></tr>'
+                )
+            out.append("</table></div>")
+        if single:
+            out.append(
+                '<p class="meta">One version recorded so far, so nothing to compare: '
+                + esc("; ".join(single))
+                + ". Test the next version on the same backend and target to compare.</p>"
+            )
+        return out
+
+    def write_report(self, out: Path, limit: int, backend: str | None = None, all_projects: bool = False) -> bool:
+        """Write a self-contained HTML report: recent runs, then per project,
+        backend and target the latest-vs-previous diff and a trend per case.
+        Returns False, writing nothing, when there are no runs to report."""
+        esc = html.escape
+        runs = self._query(
+            "SELECT * FROM runs WHERE (? OR project = ?) AND (? IS NULL OR backend = ?) ORDER BY id DESC",
+            (all_projects, self.project, backend, backend),
+        )
+        if not runs:
+            print(f"no runs recorded in {self.path}")
+            return False
+
+        def cls(status: str) -> str:
+            return status if status in ("pass", "fail", "timeout", "skip") else "none"
+
+        def secs(value: float | None) -> str:
+            return "-" if value is None else f"{value:.1f}"
+
+        body = [
+            "<h1>Run history</h1>",
+            f'<p class="meta">{esc(str(self.path))} &middot; generated {esc(self.now())} &middot; '
+            f"{len(runs)} runs{'' if all_projects else ' of ' + esc(self.project)}</p>",
+            *self._html_versions(runs),
+            "<h3>Recent runs</h3>",
+            '<div class="scroll"><table><tr><th class="num">id</th><th>started (UTC)</th><th>project</th>'
+            '<th>backend</th><th>version</th><th>target</th><th>commit</th><th class="num">passed</th>'
+            '<th class="num">secs</th><th>result</th></tr>',
+        ]
+        counts = {
+            r["run_id"]: (r["ran"], r["passed"])
+            for r in self._query(
+                "SELECT run_id, COUNT(*) AS ran, SUM(status = 'pass') AS passed FROM cases GROUP BY run_id"
+            )
+        }
+        for r in runs[:limit]:
+            ran, passed = counts.get(r["id"], (0, 0))
+            result = (
+                "running or interrupted" if r["rc"] is None else ("pass" if r["rc"] == 0 else f"fail (rc={r['rc']})")
+            )
+            commit = (r["git_commit"] or "-")[:10] + ("+dirty" if r["git_dirty"] else "")
+            body.append(
+                f'<tr><td class="num">{r["id"]}</td><td>{esc(r["started_at"][:19])}</td><td>{esc(r["project"])}</td>'
+                f"<td>{esc(r['backend'])}</td><td>{esc(r['version'] or '?')}</td><td>{esc(r['target'])}</td>"
+                f'<td>{esc(commit)}</td><td class="num">{passed}/{ran}</td><td class="num">{secs(r["seconds"])}</td>'
+                f'<td class="{cls("pass" if r["rc"] == 0 else "none" if r["rc"] is None else "fail")}">{esc(result)}</td></tr>'
+            )
+        body.append("</table></div>")
+
+        # Latest finished run of each backend, per project and target.
+        latest: dict[tuple[str, str], dict[str, sqlite3.Row]] = {}
+        for r in runs:  # newest first, so the first run seen per backend is its latest
+            if r["finished_at"] is not None:
+                latest.setdefault((r["project"], r["target"]), {}).setdefault(r["backend"], r)
+        for (project, target), by_backend in latest.items():
+            if len(by_backend) < 2:
+                continue
+            cases = {b: self._cases(r["id"]) for b, r in by_backend.items()}
+            keys = list(dict.fromkeys(k for c in cases.values() for k in c))
+            body.append(f"<h2>{esc(project)} &middot; {esc(target)} &middot; backends side by side</h2>")
+            body.append('<div class="grid">')
+            measures: list[tuple[str, str, str | None]] = [
+                ("seconds", "lower is faster", None),
+                *((label, "higher is faster", metric) for metric, label in self.RATES),
+            ]
+            for title, direction, metric in measures:
+                rows = []
+                for key in keys:
+                    values: dict[str, tuple[float | None, str]] = {}
+                    for b, c in cases.items():
+                        entry = c.get(key)
+                        if entry is None:
+                            values[b] = (None, "not run")
+                        elif entry[0]["status"] != "pass":
+                            values[b] = (None, entry[0]["status"])
+                        else:
+                            value = entry[0]["seconds"] if metric is None else entry[2].get(metric)
+                            values[b] = (value, "pass" if value is not None else "no value")
+                    if metric is not None and all(v is None for v, _ in values.values()):
+                        continue  # no backend recorded this metric for the case
+                    rows.append((" ".join(key), values))
+                if rows:
+                    body.append(
+                        self._html_backends(
+                            f"{title}", f"latest run per backend; {direction}; bars scaled per case", by_backend, rows
+                        )
+                    )
+            body.append("</div>")
+
+        groups: dict[tuple[str, str, str], list[sqlite3.Row]] = {}
+        for r in runs:
+            if r["finished_at"] is not None:
+                groups.setdefault((r["project"], r["backend"], r["target"]), []).append(r)
+        for (project, run_backend, target), group in groups.items():
+            group = list(reversed(group[:limit]))  # oldest first, for the trend
+            latest = group[-1]
+            body.append(f"<h2>{esc(project)} &middot; {esc(run_backend)} &middot; {esc(target)}</h2>")
+            body.append(
+                f'<p class="meta">{len(group)} finished runs shown &middot; latest {esc(latest["version"] or "?")} '
+                f"on {esc(latest['host'])}, {esc(latest['started_at'][:19])} UTC</p>"
+            )
+            if len(group) < 2:
+                body.append(
+                    '<p class="meta">One finished run. The diff and trend charts appear after the next run '
+                    "of this project, backend and target.</p>"
+                )
+            else:
+                prev = group[-2]
+                body.append(f"<h3>Run {latest['id']} vs run {prev['id']}</h3>")
+                body.append(
+                    '<div class="scroll"><table><tr><th>case</th>'
+                    f'<th>run {prev["id"]}</th><th>run {latest["id"]}</th><th class="num">secs {prev["id"]}</th>'
+                    f'<th class="num">secs {latest["id"]}</th><th class="num">delta</th><th>tok/s, outputs</th></tr>'
+                )
+                for row in self._diff_rows(prev["id"], latest["id"]):
+                    changed = ' class="changed"' if row["status_a"] != row["status_b"] else ""
+                    body.append(
+                        f"<tr{changed}><td>{esc(row['case'])}</td>"
+                        f'<td class="{cls(row["status_a"])}">{esc(row["status_a"])}</td>'
+                        f'<td class="{cls(row["status_b"])}">{esc(row["status_b"])}</td>'
+                        f'<td class="num">{secs(row["secs_a"])}</td><td class="num">{secs(row["secs_b"])}</td>'
+                        f'<td class="num">{esc(row["delta"])}</td><td class="notes">{esc(", ".join(row["notes"]))}</td></tr>'
+                    )
+                body.append("</table></div>")
+
+            per_run = [(r, self._cases(r["id"])) for r in group]
+            keys = list(per_run[-1][1])
+            figures = []
+            for key in keys:
+                series: list[tuple[str, str, Callable[[Any, dict[str, float]], float | None]]] = [
+                    ("seconds", "s", lambda c, m: c["seconds"] if c["status"] == "pass" else None),
+                    *(
+                        (label, label, lambda c, m, metric=metric: m.get(metric) if c["status"] == "pass" else None)
+                        for metric, label in self.RATES
+                    ),
+                ]
+                for title, unit, get in series:
+                    points: list[tuple[str, float | None, str, str]] = []
+                    for r, cases in per_run:
+                        entry = cases.get(key)
+                        value = get(entry[0], entry[2]) if entry is not None else None
+                        status = entry[0]["status"] if entry is not None else "not run"
+                        hashes = ", ".join(f"{n} {o['sha256'][:8]}" for n, o in entry[1].items()) if entry else ""
+                        tip = (
+                            f"run {r['id']}  {r['version'] or '?'}\n{r['started_at'][:19]} UTC\n"
+                            + (f"{value:.2f} {unit}" if value is not None else status)
+                            + (f"\n{hashes}" if hashes else "")
+                        )
+                        points.append((str(r["id"]), value, tip, r["version"] or "?"))
+                    if sum(p[1] is not None for p in points) < 2:
+                        continue
+                    figures.append(
+                        f"<figure><figcaption>{esc(' '.join(key))} <span>{esc(title)}</span></figcaption>"
+                        f"{self._svg_trend(points, unit)}</figure>"
+                    )
+            if figures:
+                body.append(
+                    "<h3>Trend per case (x: run id; dashed line: new version; failed and skipped runs leave a gap)</h3>"
+                )
+                body.append(f'<div class="grid">{"".join(figures)}</div>')
+
+        page = (
+            '<!doctype html>\n<html lang="en"><head><meta charset="utf-8">'
+            '<meta name="viewport" content="width=device-width, initial-scale=1">'
+            f"<title>Run history</title><style>{self.REPORT_CSS}</style></head>"
+            f'<body><main>{"".join(body)}</main><div id="tip" role="tooltip"></div>'
+            f"<script>{self.REPORT_JS}</script></body></html>\n"
+        )
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(page, encoding="utf-8")
+        print(f"wrote {out}")
+        return True
 
 
 # ---------------------------------------------------------------------------
@@ -319,6 +1253,8 @@ for dist, backend in {distributions!r}.items():
         # Left unset, uv picks its own default, which is not necessarily the
         # version a given wheel was built for.
         self.venv_python_version = venv_python_version
+        # While set, `run` copies each child's stderr here as well as to ours.
+        self.capture: bytearray | None = None
         # Resolve `uv` once. Everything this script shells out to Python for is
         # routed through `uv run` so it executes inside the project's uv venv
         # regardless of how the script itself was launched.
@@ -420,16 +1356,38 @@ for dist, backend in {distributions!r}.items():
         full_env.setdefault("PYTHONIOENCODING", "utf-8")
         if env:
             full_env.update(env)
-        proc = subprocess.Popen(cmd, cwd=self.paths.root, env=full_env, start_new_session=os.name != "nt")
+        capture = self.capture
+        proc = subprocess.Popen(
+            cmd,
+            cwd=self.paths.root,
+            env=full_env,
+            start_new_session=os.name != "nt",
+            stderr=subprocess.PIPE if capture is not None else None,
+        )
+        reader = None
+        if capture is not None:
+            reader = threading.Thread(target=self._tee, args=(proc.stderr, capture), daemon=True)
+            reader.start()
         try:
             rc = proc.wait(timeout=timeout)
         except subprocess.TimeoutExpired:
             print(f"error: command timed out after {timeout}s", file=sys.stderr)
             self._kill_tree(proc)
             rc = 124  # conventional timeout exit code
+        if reader is not None:
+            reader.join(timeout=10)
         if check and rc != 0:
             sys.exit(rc)
         return rc
+
+    @staticmethod
+    def _tee(pipe: Any, sink: bytearray) -> None:
+        """Copy `pipe` to our stderr as it arrives, appending it to `sink`."""
+        out = sys.stderr.buffer
+        for chunk in iter(lambda: pipe.read1(1 << 16), b""):
+            out.write(chunk)
+            out.flush()
+            sink += chunk
 
     def cyllama(self, argv: list[str], env: dict[str, str] | None = None, timeout: float | None = None) -> int:
         return self.run([*self.python_cmd(), "-m", "cyllama", *argv], env=env, timeout=timeout)
@@ -479,6 +1437,32 @@ for dist, backend in {distributions!r}.items():
             except md.PackageNotFoundError:
                 continue
         return None
+
+    _DIST_SRC = """
+import hashlib, importlib.metadata as md
+for name in {names!r}:
+    try:
+        d = md.distribution(name)
+    except md.PackageNotFoundError:
+        continue
+    print(name, d.version, hashlib.sha256((d.read_text("RECORD") or "").encode()).hexdigest())
+    break
+"""
+
+    def installed_dist(self) -> tuple[str, str, str] | None:
+        """(distribution, version, sha256 of its RECORD) in the environment under test.
+
+        RECORD holds a hash of every installed file, so its hash tells two builds
+        of one version apart. An editable install's RECORD does not change on rebuild.
+        """
+        proc = subprocess.run(
+            [*self.python_cmd(), "-c", self._DIST_SRC.format(names=list(self.DISTRIBUTIONS))],
+            cwd=self.paths.root,
+            capture_output=True,
+            text=True,
+        )
+        parts = proc.stdout.split()
+        return (parts[0], parts[1], parts[2]) if proc.returncode == 0 and len(parts) == 3 else None
 
     def env_for(self, backend: str) -> dict[str, str]:
         """Return default env overrides for a backend, skipping keys the
@@ -825,10 +1809,10 @@ class TestSuite:
     # wall clock and mostly re-exercise the same three modules, so the third --
     # cpu-offload plus flash-attn, the most machinery of the three -- stands in
     # for all of them. gen-3 is left out rather than the family being named as a
-    # whole: `gemma-e4b` has no configured download source, so on a machine
-    # without that file already on disk the case is a skip, and a skip is rc=2 --
-    # which would stop the sequence before `clean` over a missing model rather
-    # than a bad wheel.
+    # whole: `gemma-e4b` is a 5.5 GB download, the largest gen model and the one
+    # least likely to be on disk. If the download fails the case is a skip, and a
+    # skip is rc=2 -- which would stop the sequence before `clean` over a missing
+    # model rather than a bad wheel.
     FAST_TARGETS: tuple[str, ...] = ("test-gen-1", "test-gen-2", "test-sd-3")
 
     # Z-Image-Turbo is distilled for 8 steps without guidance (upstream
@@ -839,6 +1823,27 @@ class TestSuite:
     # Below this in every channel an image is blank: black from a NaN render, or
     # one flat colour. A real render is in the tens.
     SD_MIN_STDDEV = 2.0
+
+    # Rows of the `--stats` table the gen cases print -> metric names in the
+    # run history. Times are seconds.
+    STATS_ROWS: dict[str, str] = {
+        "Prompt tokens": "prompt_tokens",
+        "Generated tokens": "generated_tokens",
+        "Prompt eval time": "prompt_seconds",
+        "Generation time": "generation_seconds",
+        "Total time": "total_seconds",
+        "Tokens/second": "tokens_per_second",
+    }
+
+    @classmethod
+    def parse_stats(cls, text: str) -> dict[str, float]:
+        """Metrics from the last `--stats` table in `text`; empty if there is none."""
+        metrics: dict[str, float] = {}
+        for m in re.finditer(r"^\s+([A-Za-z/ ]+?)\s+\|\s+([0-9.]+)", text, re.MULTILINE):
+            name = cls.STATS_ROWS.get(m.group(1))
+            if name:
+                metrics[name] = float(m.group(2))
+        return metrics
 
     # Human-readable section headings for the generated Makefile's help text.
     FAMILY_TITLES: dict[str, str] = {
@@ -1229,7 +2234,7 @@ class MakefileRenderer:
             backends,
             [f"run-{b}" for b in backends],
             [f"run-{b}-fast" for b in backends],
-            ["list-models", "list-tests", "download"],
+            ["list-models", "list-tests", "download", "runs", "runs-diff", "report"],
             *family_targets.values(),
             ["test-all"],
         ]
@@ -1277,6 +2282,9 @@ class MakefileRenderer:
         add('\t@echo ""')
         add('\t@echo "    list         - list test targets and models"')
         add('\t@echo "    test-all     - run every test in every family"')
+        add('\t@echo "    runs         - list recorded runs"')
+        add('\t@echo "    runs-diff    - compare the latest run with the one before it"')
+        add('\t@echo "    report       - write an HTML report of the run history and open it"')
 
         self.rule("sync", "sync")
         self.rule("info", "info")
@@ -1290,6 +2298,9 @@ class MakefileRenderer:
         self.rule("list-models", "list models")
         self.rule("list-tests", "list tests")
         self.rule("download", "download all")
+        self.rule("runs", "runs list")
+        self.rule("runs-diff", "runs diff")
+        self.rule("report", "report")
         for target in self.suite.targets():
             if target != "test-all":
                 self.rule(target, f"test {target}")
@@ -1324,6 +2335,7 @@ class Cli:
         self.env = Env(self.paths)
         self.models = ModelRegistry(self.paths)
         self.suite = TestSuite(self.env, self.models)
+        self.runlog = RunLog(PROJECT)
 
     # -- configuration ------------------------------------------------------
 
@@ -1415,6 +2427,9 @@ class Cli:
         return [str(resolved)]
 
     def cmd_install(self, args: argparse.Namespace) -> int:
+        if args.version and args.wheel:
+            print("error: --version and --wheel both say what to install; give one", file=sys.stderr)
+            return 2
         spec = self.resolve_install_spec(args)
         if spec is None:
             # No --wheel: the backend names the distribution to fetch from the index.
@@ -1426,7 +2441,8 @@ class Cli:
                     file=sys.stderr,
                 )
                 return 2
-            spec = [self.env.BACKENDS[backend]]
+            dist = self.env.BACKENDS[backend]
+            spec = [f"{dist}=={args.version}" if args.version else dist]
         return self.env.pip_install(spec, upgrade=args.upgrade, reinstall=args.reinstall, extra=args.extra)
 
     # -- registries ---------------------------------------------------------
@@ -1513,16 +2529,39 @@ class Cli:
         red = "\033[31m" if color else ""
         reset = "\033[0m" if color else ""
 
+        if not args.no_record:
+            dist = self.env.installed_dist()
+            self.runlog.start(
+                target=args.target,
+                backend=backend,
+                root=self.paths.root,
+                version=dist[1] if dist else None,
+                artifact=dist[0] if dist else None,
+                artifact_sha256=dist[2] if dist else None,
+                extra={"venv": str(self.env.venv) if self.env.venv else None, "env": self.env.env_for(backend)},
+            )
+
         results: list[tuple[str, str, int, float]] = []
         for k, case in runs:
             print(f"\n=== {k} test {case} (backend={backend}) ===")
             started = time.monotonic()
+            skipped: str | None = None
+            # Only the gen cases print `--stats`; every other case keeps a
+            # terminal stderr.
+            self.env.capture = bytearray() if k == "gen" else None
             try:
                 rc = self.suite.run_case(k, case, backend, args.timeout)
             except ModelSourceUnavailable as e:
                 print(f"skip: {e}", file=sys.stderr)
                 rc = 2
-            results.append((k, case, rc, time.monotonic() - started))
+                skipped = str(e)
+            finally:
+                captured, self.env.capture = self.env.capture, None
+            secs = time.monotonic() - started
+            results.append((k, case, rc, secs))
+            outputs = [self.paths.root / self.suite.sd_output(case)] if k == "sd" else []
+            metrics = self.suite.parse_stats(captured.decode("utf-8", "replace")) if captured else {}
+            self.runlog.case(k, case, rc, secs, skipped, outputs, metrics)
             if rc != 0 and args.fail_fast:
                 break
 
@@ -1536,7 +2575,28 @@ class Cli:
         passed = sum(1 for r in results if r[2] == 0)
         total = sum(r[3] for r in results)
         print(f"{passed}/{len(results)} passed in {total:.1f}s")
+        self.runlog.finish(worst)
         return worst
+
+    def cmd_runs(self, args: argparse.Namespace) -> int:
+        backend = getattr(args, "backend", None)
+        if args.action == "list":
+            if args.ids:
+                print("error: `runs list` takes no ids", file=sys.stderr)
+                return 2
+            return self.runlog.print_list(args.limit, backend, args.all_projects)
+        if len(args.ids) > 2:
+            print("error: `runs diff` takes at most two ids", file=sys.stderr)
+            return 2
+        ids: list[int | None] = [None] * (2 - len(args.ids)) + list(args.ids)
+        return self.runlog.print_diff(ids[0], ids[1], backend)
+
+    def cmd_report(self, args: argparse.Namespace) -> int:
+        out = Path(args.output).expanduser() if args.output else self.runlog.path.with_name("report.html")
+        written = self.runlog.write_report(out, args.limit, getattr(args, "backend", None), args.all_projects)
+        if written and not args.no_open:
+            webbrowser.open(out.resolve().as_uri())
+        return 0
 
     # -- run ----------------------------------------------------------------
 
@@ -1583,6 +2643,8 @@ class Cli:
                 verb, _, target = name.partition(" ")
                 if verb == "clean" and args.keep_images:
                     target = "--keep-images"
+                elif verb == "install" and args.version:
+                    target = f"--version {args.version}"
                 print(f"would run: {SCRIPT_NAME} {verb}{where}{' ' + target if target else ''}")
             print()
             for _, step in steps[1 : 1 + len(targets)]:
@@ -1654,6 +2716,14 @@ class Cli:
             "the index (--cuda -> cyllama-cuda12).",
         )
         i.add_argument(
+            "--version",
+            metavar="X",
+            default=None,
+            help="release of the backend's distribution to install (--cuda --version 0.5.2 -> "
+            "cyllama-cuda12==0.5.2), e.g. to record a baseline for a version comparison. "
+            "Default: the latest release.",
+        )
+        i.add_argument(
             "--with",
             dest="extra",
             action="append",
@@ -1713,6 +2783,11 @@ class Cli:
             "--no-color",
             action="store_true",
             help="disable colored PASS/FAIL output in the summary",
+        )
+        t.add_argument(
+            "--no-record",
+            action="store_true",
+            help=f"do not record the run in the run history ({RunLog.default_path()})",
         )
         return t
 
@@ -1807,6 +2882,55 @@ class Cli:
             + " in place of test-all, skipping the image cases that dominate the wall clock",
         )
         r.set_defaults(func=self.cmd_run)
+
+        rs = sub.add_parser(
+            "runs",
+            help=f"list recorded runs, or diff two of them (history in {RunLog.default_path()})",
+        )
+        rs.add_argument("action", nargs="?", choices=["list", "diff"], default="list")
+        rs.add_argument(
+            "ids",
+            nargs="*",
+            type=int,
+            metavar="ID",
+            help="diff: `B` compares B with the run before it; `A B` compares the two; "
+            "none compares the latest run with the one before it",
+        )
+        rs.add_argument(
+            "-n",
+            "--limit",
+            type=int,
+            default=20,
+            help="list: how many runs (default: 20)",
+        )
+        rs.add_argument(
+            "--all-projects",
+            action="store_true",
+            help="list: include every project's runs, not only " + PROJECT + "'s",
+        )
+        rs.set_defaults(func=self.cmd_runs)
+
+        rep = sub.add_parser("report", help="write an HTML report of the run history and open it in the browser")
+        rep.add_argument(
+            "-o",
+            "--output",
+            metavar="FILE",
+            help=f"where to write it (default: {RunLog.default_path().with_name('report.html')})",
+        )
+        rep.add_argument(
+            "-n",
+            "--limit",
+            type=int,
+            default=20,
+            help="recent runs listed, and runs per project/backend/target trend (default: 20)",
+        )
+        rep.add_argument(
+            "--all-projects",
+            action="store_true",
+            help="include every project's runs, not only " + PROJECT + "'s",
+        )
+        rep.add_argument("--no-open", action="store_true", help="write the report without opening it")
+        rep.set_defaults(func=self.cmd_report)
 
         return p
 
