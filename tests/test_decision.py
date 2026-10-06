@@ -30,7 +30,10 @@ needs_laya = pytest.mark.skipif(not LAYA.exists(), reason=f"{LAYA.name} not foun
 
 def _model_param(dtype):
     path = MODELS_DIR / MODEL_FILES[dtype]
-    return pytest.param(dtype, marks=pytest.mark.skipif(not path.exists(), reason=f"{path.name} not found"))
+    marks = [pytest.mark.skipif(not path.exists(), reason=f"{path.name} not found")]
+    if dtype in ("lev", "kev"):
+        marks.append(pytest.mark.slow)  # 4B models, 4.5 GB each
+    return pytest.param(dtype, marks=marks)
 
 
 ALL_TYPES = [_model_param(t) for t in MODEL_FILES]
