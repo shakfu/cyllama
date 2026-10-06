@@ -4,7 +4,7 @@ LangChain Agent Integration
 Provides adapters to use cyllama agents with LangChain's agent framework.
 """
 
-from typing import Any, Dict, List, cast
+from typing import Any, Dict, List
 
 from ..agents import ReActAgent, ConstrainedAgent, Tool as CyllaTool
 from ..api import LLM as CyllamaLLMCore
@@ -60,7 +60,7 @@ def cyllama_tool_to_langchain(cyllama_tool: CyllaTool) -> Any:
     from pydantic import Field, create_model
 
     # Create field definitions
-    field_definitions = {}
+    field_definitions: Dict[str, Any] = {}
     for param_name, param_info in properties.items():
         param_type = param_info.get("type", "string")
         param_desc = param_info.get("description", "")
@@ -120,9 +120,8 @@ def langchain_tool_to_cyllama(langchain_tool: Any) -> CyllaTool:
 
             args_schema = langchain_tool.args_schema
             if isinstance(args_schema, type) and issubclass(args_schema, BaseModel):
-                # mypy can't refine to BaseModel subclass after the runtime
-                # check; cast to satisfy the model_json_schema attribute lookup.
-                schema_dict = cast("type[BaseModel]", args_schema).model_json_schema()
+                model_cls: type[BaseModel] = args_schema
+                schema_dict = model_cls.model_json_schema()
                 if "properties" in schema_dict:
                     schema["properties"] = schema_dict["properties"]
                 if "required" in schema_dict:

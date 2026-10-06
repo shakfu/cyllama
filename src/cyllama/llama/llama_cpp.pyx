@@ -65,6 +65,8 @@ include "speculative.pxi"
 # constants
 # -----------------------------------------------------------------------------
 
+LLAMA_TOKEN_NULL = llama.LLAMA_TOKEN_NULL
+
 cpdef enum:
     GGML_DEFAULT_N_THREADS = 4
     GGML_MAX_DIMS = 4

@@ -6,6 +6,24 @@
 
 - [ ] **Unpin stable-diffusion.cpp via `SD_USE_UPSTREAM_GGML`** (next release, not 0.4.10) -- `SDCPP_VERSION` is stuck at `master-816-487de75` because later sd.cpp calls fork-only ggml APIs. Upstream [#1999](https://github.com/leejet/stable-diffusion.cpp/pull/1999) and [#2001](https://github.com/leejet/stable-diffusion.cpp/pull/2001) (from `master-884-008ca5b`) guard those calls. Analysis, plan and re-check commands: `docs/dev/sd_upstream_ggml.md`. Trigger: upstream mode has some real-world use; re-run the doc's checks at the chosen tag first.
 
+### Binding hazards found in the inferna cross-check (2026-10-06)
+
+Each crashes, aborts or reads freed or out-of-bounds memory from Python input. inferna guards all seven; its fixes are uncommitted in `~/projects/personal/inferna` (`src/inferna/{whisper,sd}/*.cpp`, `src/inferna/utils/validation.py`). Upstream issue drafts: inferna `docs/dev/issues/`.
+
+- [ ] **`convert_model()` segfaults without `tensor_type_rules`** -- `stable_diffusion.pyx:3633` (`convert_model`) and `:3731` (`convert_model_with_components`) pass `rules_ptr = NULL` when the argument is `None`. sd.cpp's `export_loaded_model` builds a `std::string` from it (`convert.cpp:332`), so every call without rules crashes in `strlen(NULL)`. Observed in inferna. Fix: pass `b""`.
+
+- [ ] **`load_imatrix()` trusts the file's lengths** -- `stable_diffusion.pyx:3782` checks only that the file exists. sd.cpp reads each entry's name length unchecked: `len = -1` writes `name_as_vec[-1]`; a huge `len` or `nval` allocates without bound. Fix: walk the file first (inferna `validate_imatrix_file`). `save_imatrix()` also ignores write errors; opening the path in Python first surfaces an unwritable one.
+
+- [ ] **A whisper model passed to `WhisperVadContext` aborts the process** -- `whisper_cpp.pyx:294` runs `validate_whisper_file`, which checks only the magic both formats share. The VAD loader reads whisper's `n_vocab` as its model-type length and ends in `GGML_ASSERT(obj_new) failed` (observed with `ggml-base.en.bin`). Fix: also require a short printable model-type string after the magic (inferna `validate_whisper_vad_file`).
+
+- [ ] **`WhisperContext.encode()` accepts a negative offset** -- `whisper_cpp.pyx:1518`. whisper.cpp clamps the mel offset only from above, so a negative one reads before the mel buffer. Fix: raise `ValueError` for `offset < 0`.
+
+- [ ] **Result getters do not check indices** -- `full_get_segment_t0/t1/text` (`:1762`, `:1778`), `full_n_tokens`, the token getters (`:1811`) and `full_get_vad_segment_t0/t1` (`:1725`). whisper.cpp indexes its vectors unchecked, so an index one past the end reads out of bounds. The `full_get_segment_text` docstring says an out-of-range index returns `""`; it does not. Fix: check against `full_n_segments()` / `full_n_tokens(i)` / `full_n_vad_segments()` and raise `IndexError`.
+
+- [ ] **`lang_auto_detect()` returns a language for English-only models** -- `:1665`. `*.en` vocabularies have no language tokens, so whisper.cpp scores unrelated tokens and returns a meaningless id. Fix: raise `ValueError` when `not is_multilingual()`.
+
+- [ ] **`WhisperState(ctx)` segfaults after `ctx.close()`** -- `:1858` passes `ctx._c_ctx` (NULL after close) to `whisper_init_state`, which dereferences it. Fix: raise when `ctx._c_ctx == NULL`. If `WhisperState` gains transcription methods (inferna added `full()` and the result getters), `WhisperContext.close()` must also refuse while states are open: each state calls into the context's model.
+
 ## Medium
 
 - [ ] **Ctrl-C does not interrupt in-process `SDContext` generation** ([#8](https://github.com/shakfu/cyllama/issues/8)) -- `SDContext.cancel()` works from another thread (0.3.3; upstream PR [#1124](https://github.com/leejet/stable-diffusion.cpp/pull/1124)), and the CLI stops on Ctrl-C via process isolation. Remaining: (1) `install_sigint_handler()` and `cancel_requested` via `cyllama.utils.cancellation`; SIGINT during a main-thread `generate()` is currently lost and the call returns normally. (2) Raise `InterruptedError` on cancel instead of `RuntimeError("Image generation failed")`, matching `LLM`/`WhisperContext`. (3) `tests/test_sd_cancel.py` that cancels a running generation; only `test_cancel_reset_is_safe` exists. (4) Wire into the cyllama-desktop sidecar's `asyncio.CancelledError` path. CLI isolation stays: `upscale`/`convert` take no `sd_ctx_t` and cannot be cancelled.

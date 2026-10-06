@@ -434,7 +434,7 @@ class Reranker(RerankerProtocol):
         Mirrors ``format_prompt_rerank`` in llama.cpp's
         ``tools/server/server-common.cpp``.
         """
-        from ..llama.llama_cpp import _TOKEN_NULL
+        from ..llama.llama_cpp import LLAMA_TOKEN_NULL
 
         vocab = self._vocab
 
@@ -444,7 +444,7 @@ class Reranker(RerankerProtocol):
 
         # EOS separates the two fields; models without one fall back to SEP.
         eos_token = vocab.token_eos()
-        if eos_token == _TOKEN_NULL:
+        if eos_token == LLAMA_TOKEN_NULL:
             eos_token = vocab.token_sep()
 
         tokens: list[int] = []

@@ -696,7 +696,7 @@ document.addEventListener("mouseout", (e) => {
         values = [p[1] for p in points if p[1] is not None]
         # Two gridline steps, each 1, 2, 2.5 or 5 times a power of ten.
         raw = max(max(values), 1e-9) / 2
-        mag = 10 ** math.floor(math.log10(raw))
+        mag = 10.0 ** math.floor(math.log10(raw))
         step = next(f * mag for f in (1, 2, 2.5, 5, 10) if f * mag >= raw)
         top_value = 2 * step
         n = len(points)
@@ -708,9 +708,9 @@ document.addEventListener("mouseout", (e) => {
             return top + (h - top - bottom) * (1 - v / top_value)
 
         parts = [f'<svg viewBox="0 0 {w} {h}" role="img" aria-label="{html.escape(unit)} per run">']
-        for v in (0, step, top_value):
-            parts.append(f'<line class="gridline" x1="{left}" x2="{w - right}" y1="{y(v):.1f}" y2="{y(v):.1f}"/>')
-            parts.append(f'<text class="axis" x="{left - 6}" y="{y(v) + 3:.1f}" text-anchor="end">{v:g}</text>')
+        for g in (0, step, top_value):
+            parts.append(f'<line class="gridline" x1="{left}" x2="{w - right}" y1="{y(g):.1f}" y2="{y(g):.1f}"/>')
+            parts.append(f'<text class="axis" x="{left - 6}" y="{y(g) + 3:.1f}" text-anchor="end">{g:g}</text>')
         for i in range(1, n):
             if points[i][3] != points[i - 1][3]:
                 xv = (x(i - 1) + x(i)) / 2
@@ -923,16 +923,16 @@ document.addEventListener("mouseout", (e) => {
                 f'<th class="num">{esc(previous)}</th><th class="num">{esc(current)}</th>'
                 '<th class="num">change</th><th>verdict</th><th>note</th></tr>'
             )
-            for r in rows:
-                cls = r["verdict"].replace(" ", "-")
-                flag = ' class="flag"' if r["verdict"] != "within noise" else ""
-                prev = "-" if r["prev"] is None else f"{r['prev']:.2f} <small>(n={r['n_prev']})</small>"
-                cur = "-" if r["cur"] is None else f"{r['cur']:.2f} <small>(n={r['n_cur']})</small>"
-                delta = "" if r["delta"] is None else f"{r['delta']:+.1f}%"
+            for row in rows:
+                cls = row["verdict"].replace(" ", "-")
+                flag = ' class="flag"' if row["verdict"] != "within noise" else ""
+                prev = "-" if row["prev"] is None else f"{row['prev']:.2f} <small>(n={row['n_prev']})</small>"
+                cur = "-" if row["cur"] is None else f"{row['cur']:.2f} <small>(n={row['n_cur']})</small>"
+                delta = "" if row["delta"] is None else f"{row['delta']:+.1f}%"
                 out.append(
-                    f"<tr{flag}><td>{esc(r['case'])}</td><td>{esc(r['measure'])}</td>"
+                    f"<tr{flag}><td>{esc(row['case'])}</td><td>{esc(row['measure'])}</td>"
                     f'<td class="num">{prev}</td><td class="num">{cur}</td><td class="num">{delta}</td>'
-                    f'<td class="{cls}">{esc(r["verdict"])}</td><td class="notes">{esc(r["note"])}</td></tr>'
+                    f'<td class="{cls}">{esc(row["verdict"])}</td><td class="notes">{esc(row["note"])}</td></tr>'
                 )
             out.append("</table></div>")
         if single:
@@ -993,15 +993,15 @@ document.addEventListener("mouseout", (e) => {
         body.append("</table></div>")
 
         # Latest finished run of each backend, per project and target.
-        latest: dict[tuple[str, str], dict[str, sqlite3.Row]] = {}
+        latest_by_target: dict[tuple[str, str], dict[str, sqlite3.Row]] = {}
         for r in runs:  # newest first, so the first run seen per backend is its latest
             if r["finished_at"] is not None:
-                latest.setdefault((r["project"], r["target"]), {}).setdefault(r["backend"], r)
-        for (project, target), by_backend in latest.items():
+                latest_by_target.setdefault((r["project"], r["target"]), {}).setdefault(r["backend"], r)
+        for (project, target), by_backend in latest_by_target.items():
             if len(by_backend) < 2:
                 continue
-            cases = {b: self._cases(r["id"]) for b, r in by_backend.items()}
-            keys = list(dict.fromkeys(k for c in cases.values() for k in c))
+            cases_by_backend = {b: self._cases(r["id"]) for b, r in by_backend.items()}
+            keys = list(dict.fromkeys(k for c in cases_by_backend.values() for k in c))
             body.append(f"<h2>{esc(project)} &middot; {esc(target)} &middot; backends side by side</h2>")
             body.append('<div class="grid">')
             measures: list[tuple[str, str, str | None]] = [
@@ -1012,7 +1012,7 @@ document.addEventListener("mouseout", (e) => {
                 rows = []
                 for key in keys:
                     values: dict[str, tuple[float | None, str]] = {}
-                    for b, c in cases.items():
+                    for b, c in cases_by_backend.items():
                         entry = c.get(key)
                         if entry is None:
                             values[b] = (None, "not run")

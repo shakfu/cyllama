@@ -111,16 +111,8 @@ from .llama.llama_cpp import (
 )
 from .llama.token_decoder import TokenDecoder
 
-# Alias the vendored jinja2 TemplateError so the chat-template fallback
-# inside _apply_template can catch it without paying the import cost on
-# every call. The vendored jinja2 lives at cyllama._vendor.jinja2 and is
-# pure Python, so this import is cheap and always succeeds -- but we
-# guard with try/except anyway so a corrupted vendor directory doesn't
-# break api.py module loading.
-try:
-    from cyllama._vendor.jinja2.exceptions import TemplateError as _JinjaTemplateError
-except ImportError:  # pragma: no cover - vendor directory should always exist
-    _JinjaTemplateError = type("_JinjaTemplateError", (Exception,), {})
+# Module-level so the chat-template fallback in _apply_template can catch it.
+from cyllama._vendor.jinja2.exceptions import TemplateError as _JinjaTemplateError
 
 
 @dataclass
@@ -1685,8 +1677,7 @@ class LLM:
                 raise ValueError(f"Message at index {i} missing 'content' key")
 
         compiled = env.from_string(template_str)
-        return cast(
-            str,
+        return str(
             compiled.render(
                 messages=messages,
                 bos_token=bos_token,
@@ -2184,8 +2175,7 @@ def _apply_jinja_template_standalone(
     env.globals["strftime_now"] = strftime_now
 
     compiled = env.from_string(template_str)
-    return cast(
-        str,
+    return str(
         compiled.render(
             messages=messages,
             bos_token=bos_token,

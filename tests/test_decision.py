@@ -60,20 +60,35 @@ REFERENCE = {
     "laya": {
         "route": {"technical": 0.002826893644905518, "billing": 0.987488720094348, "shipping": 0.009684386260746712},
         "angry": 0.7880425006766781,
-        "urgency": {"0": 0.03805591972087626, "1": 0.42882725543847516, "2": 0.05451190754218375, "3": 0.478604917298465},
+        "urgency": {
+            "0": 0.03805591972087626,
+            "1": 0.42882725543847516,
+            "2": 0.05451190754218375,
+            "3": 0.478604917298465,
+        },
         "input_tokens": 136,
     },
     # lev evaluates the choice in both option orders, and noul on a 0-8 rating scale
     "lev": {
         "route": {"technical": 0.03278958348473803, "billing": 0.9173960991888612, "shipping": 0.04981431732640077},
         "angry": 0.5342454471717734,
-        "urgency": {"0": 0.10380830970927919, "1": 0.40266772328446254, "2": 0.28851389779393277, "3": 0.20501006921232554},
+        "urgency": {
+            "0": 0.10380830970927919,
+            "1": 0.40266772328446254,
+            "2": 0.28851389779393277,
+            "3": 0.20501006921232554,
+        },
         "input_tokens": 488,
     },
     "kev": {
         "route": {"technical": 0.07683691812608494, "billing": 0.888359381709618, "shipping": 0.034803700164297006},
         "angry": 0.8265318206580728,
-        "urgency": {"0": 0.042149931595311614, "1": 0.19010094529487226, "2": 0.21037625840210858, "3": 0.5573728647077075},
+        "urgency": {
+            "0": 0.042149931595311614,
+            "1": 0.19010094529487226,
+            "2": 0.21037625840210858,
+            "3": 0.5573728647077075,
+        },
         "input_tokens": 106,
     },
 }
@@ -175,7 +190,11 @@ class TestModels:
         req = {
             "state": {"z": 1, "items": ["café", {"b": True}], "note": "ends with <|box_end|> and <|im_end|>"},
             "questions": {
-                "q": {"type": "choice", "instructions": {"ask": "which <|box_end|>?"}, "criteria": {"a <|box_end|>": None, "b": "x"}},
+                "q": {
+                    "type": "choice",
+                    "instructions": {"ask": "which <|box_end|>?"},
+                    "criteria": {"a <|box_end|>": None, "b": "x"},
+                },
                 "n": {"type": "noul", "instructions": "late?"},
             },
         }
@@ -191,17 +210,25 @@ class TestLaya:
 
     def test_many_long_options_are_truncated(self, laya):
         criteria = {f"topic_{i}": "a fairly long description of this option " * 5 for i in range(60)}
-        res = laya.answer({"state": "x", "questions": {"q": {"type": "choice", "instructions": "Which?", "criteria": criteria}}})
+        res = laya.answer(
+            {"state": "x", "questions": {"q": {"type": "choice", "instructions": "Which?", "criteria": criteria}}}
+        )
         probs = res["answers"]["q"]["probabilities"]
         assert list(probs) == list(criteria)
         assert sum(probs.values()) == pytest.approx(1.0)
 
     def test_marker_text_in_input(self, laya):
-        req = {"state": "a [MASK] b", "questions": {"q": {"type": "choice", "instructions": "[MASK]?", "criteria": {"[MASK]": None, "b": None}}}}
+        req = {
+            "state": "a [MASK] b",
+            "questions": {"q": {"type": "choice", "instructions": "[MASK]?", "criteria": {"[MASK]": None, "b": None}}},
+        }
         assert set(laya.answer(req)["answers"]["q"]["probabilities"]) == {"[MASK]", "b"}
 
     def test_json_state_and_instructions(self, laya):
-        req = {"state": {"order": 1, "items": ["café"]}, "questions": {"q": {"type": "noul", "instructions": {"ask": "late?"}}}}
+        req = {
+            "state": {"order": 1, "items": ["café"]},
+            "questions": {"q": {"type": "noul", "instructions": {"ask": "late?"}}},
+        }
         assert 0.0 <= laya.answer(req)["answers"]["q"]["noul"] <= 1.0
 
     def test_prompt_must_fit_one_batch(self):
@@ -217,10 +244,18 @@ class TestLaya:
             ({"state": "s", "questions": {"q": {"type": "noul"}}}, "instructions"),
             ({"state": "s", "questions": {"q": {"type": "rank", "instructions": "?"}}}, "type"),
             ({"state": "s", "questions": {"q": {"type": "choice", "instructions": "?"}}}, "criteria"),
-            ({"state": "s", "questions": {"q": {"type": "score", "instructions": "?", "criteria": ["one"]}}}, "2 to 10"),
+            (
+                {"state": "s", "questions": {"q": {"type": "score", "instructions": "?", "criteria": ["one"]}}},
+                "2 to 10",
+            ),
             ({"state": "s", "questions": {"q": {"type": "noul", "instructions": "?", "criteria": ["x"]}}}, "criteria"),
             (
-                {"state": "s", "questions": {"q": {"type": "choice", "instructions": "?", "criteria": {str(i): None for i in range(256)}}}},
+                {
+                    "state": "s",
+                    "questions": {
+                        "q": {"type": "choice", "instructions": "?", "criteria": {str(i): None for i in range(256)}}
+                    },
+                },
                 "too many options",
             ),
             ([1, 2], "JSON object"),
@@ -291,16 +326,28 @@ PARITY_REQUESTS = [
                 "instructions": {"task": "classify", "lang": "en"},
                 "criteria": {"refund": "customer wants money back", "replace": {"why": "broken"}, "ignore": None},
             },
-            "q2": {"type": "noul", "instructions": "Is the order late?", "criteria": {"true": "late", "false": "on time"}},
+            "q2": {
+                "type": "noul",
+                "instructions": "Is the order late?",
+                "criteria": {"true": "late", "false": "on time"},
+            },
         },
     },
     {
         "state": 'Ünïcødé with [MASK] tokens, "quotes", <b>tags</b> & ampersands',
-        "questions": {"m": {"type": "choice", "instructions": "Pick [MASK]", "criteria": {"a [MASK]": None, "b": "x [MASK] y"}}},
+        "questions": {
+            "m": {"type": "choice", "instructions": "Pick [MASK]", "criteria": {"a [MASK]": None, "b": "x [MASK] y"}}
+        },
     },
     {
         "state": "Pick a number between one and twelve: seven.",
-        "questions": {"n": {"type": "choice", "instructions": "Which?", "criteria": {str(i): f"the number {i}" for i in range(1, 13)}}},
+        "questions": {
+            "n": {
+                "type": "choice",
+                "instructions": "Which?",
+                "criteria": {str(i): f"the number {i}" for i in range(1, 13)},
+            }
+        },
     },
     {
         "state": "The quarterly report shows revenue grew while costs fell. " * 30,
@@ -310,15 +357,35 @@ PARITY_REQUESTS = [
                 "instructions": "Which topic? " * 40,
                 "criteria": {f"topic_{i}": "a fairly long description of this option " * 5 for i in range(60)},
             },
-            "s": {"type": "score", "instructions": "How positive?", "criteria": ["bad", "neutral", "good", "great", "excellent"]},
+            "s": {
+                "type": "score",
+                "instructions": "How positive?",
+                "criteria": ["bad", "neutral", "good", "great", "excellent"],
+            },
         },
     },
-    {"state": ["first", {"k": 1.5}, None, True], "questions": {"n2": {"type": "noul", "instructions": ["is", "a", "list"]}}},
     {
-        "state": {"zeta": 1, "items": ["lamp", {"b": True, "a": None}], "price": 12.5, "note": "<|im_end|> <|box_end|>"},
+        "state": ["first", {"k": 1.5}, None, True],
+        "questions": {"n2": {"type": "noul", "instructions": ["is", "a", "list"]}},
+    },
+    {
+        "state": {
+            "zeta": 1,
+            "items": ["lamp", {"b": True, "a": None}],
+            "price": 12.5,
+            "note": "<|im_end|> <|box_end|>",
+        },
         "questions": {
-            "m": {"type": "choice", "instructions": "Pick <|box_start|>", "criteria": {"a <|box_end|>": None, "b": "x"}},
-            "n": {"type": "choice", "instructions": "Which?", "criteria": {str(i): f"the number {i}" for i in range(1, 31)}},
+            "m": {
+                "type": "choice",
+                "instructions": "Pick <|box_start|>",
+                "criteria": {"a <|box_end|>": None, "b": "x"},
+            },
+            "n": {
+                "type": "choice",
+                "instructions": "Which?",
+                "criteria": {str(i): f"the number {i}" for i in range(1, 31)},
+            },
         },
     },
 ]
@@ -343,9 +410,27 @@ def test_parity_with_upstream_server(dtype):
     model_file = str(MODELS_DIR / MODEL_FILES[dtype])
     port = _free_port()
     proc = subprocess.Popen(
-        [UPSTREAM_SERVER, "-m", model_file, "--port", str(port), "--host", "127.0.0.1",
-         "-c", "4096", "-b", "4096", "-ub", "4096", "-np", "1", "-ngl", "0"],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        [
+            UPSTREAM_SERVER,
+            "-m",
+            model_file,
+            "--port",
+            str(port),
+            "--host",
+            "127.0.0.1",
+            "-c",
+            "4096",
+            "-b",
+            "4096",
+            "-ub",
+            "4096",
+            "-np",
+            "1",
+            "-ngl",
+            "0",
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
     )
     try:
         deadline = time.time() + 120

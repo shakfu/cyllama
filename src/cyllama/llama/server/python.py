@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Any, Dict, Generator, Iterable, List, Optional
 
 if TYPE_CHECKING:
     from ...rag.embedder import Embedder
+    from ..decision import DecisionModel
 from dataclasses import dataclass, field
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse
@@ -337,7 +338,7 @@ class PythonServer:
         self.model: Optional[LlamaModel] = None
         self.slots: List[ServerSlot] = []
         self.embedder: Optional["Embedder"] = None  # Initialized when config.embedding is True
-        self.decision = None  # DecisionModel when the model is a supported decision model
+        self.decision: Optional["DecisionModel"] = None  # set when the model is a supported decision model
 
         # HTTP server
         self.httpd: Optional[HTTPServer] = None
@@ -615,7 +616,7 @@ class PythonServer:
 
             def _handle_models(self) -> None:
                 """Handle /v1/models endpoint."""
-                models_data = {
+                models_data: Dict[str, Any] = {
                     "object": "list",
                     "data": [
                         {

@@ -99,19 +99,25 @@ def _kev_text(val: Any) -> str:
     return _KEV_SPECIAL.sub("<¦\\1¦>", _kev_render(val))
 
 
-def _tojson(value, ensure_ascii=False, indent=None, separators=None, sort_keys=False):
+def _tojson(
+    value: Any,
+    ensure_ascii: bool = False,
+    indent: Optional[int] = None,
+    separators: Optional[Tuple[str, str]] = None,
+    sort_keys: bool = False,
+) -> str:
     # same defaults as llama.cpp's jinja engine: no key sorting, no ASCII escaping
     return json.dumps(value, ensure_ascii=ensure_ascii, indent=indent, separators=separators, sort_keys=sort_keys)
 
 
-def _confidence_choice(probs: list) -> float:
+def _confidence_choice(probs: list[float]) -> float:
     if len(probs) < 2:
         return 1.0
     uniform = 1.0 / len(probs)
     return max(0.0, (max(probs) - uniform) / (1.0 - uniform))
 
 
-def _confidence_score(probs: list) -> float:
+def _confidence_score(probs: list[float]) -> float:
     if len(probs) < 2:
         return 1.0
     n = len(probs)
@@ -175,7 +181,7 @@ class DecisionModel:
         env.filters["tojson"] = _tojson
         self._template = env.from_string(source)
 
-        self.temperatures = {}
+        self.temperatures: dict[str, float] = {}
         for i in range(model.meta_count()):
             key = model.meta_key_by_index(i)
             if key.startswith(prefix + "temperature."):
@@ -184,8 +190,8 @@ class DecisionModel:
                     raise ValueError(f"invalid decision temperature: {key} = {temp}")
                 self.temperatures[key[len(prefix + "temperature.") :]] = temp
 
-        self.labels: list = []  # lev: one label token per output
-        self.label_texts: list = []
+        self.labels: list[int] = []  # lev: one label token per output
+        self.label_texts: list[str] = []
         self.text_marker = ""
         self.n_options_max = _MAX_OPTIONS
         if self.type == "lev":
@@ -235,7 +241,7 @@ class DecisionModel:
 
     # -- request parsing -----------------------------------------------------
 
-    def _parse_questions(self, body: dict) -> list:
+    def _parse_questions(self, body: dict[str, Any]) -> list[dict[str, Any]]:
         if body.get("state") is None:
             raise ValueError('"state" must be provided')
         questions = body.get("questions")
@@ -244,7 +250,8 @@ class DecisionModel:
 
         parsed = []
         for qid, q in questions.items():
-            def err(msg, qid=qid):
+
+            def err(msg: str, qid: str = qid) -> ValueError:
                 return ValueError(f"questions.{qid}: {msg}")
 
             if not isinstance(q, dict):
@@ -275,18 +282,18 @@ class DecisionModel:
 
     # -- prompt --------------------------------------------------------------
 
-    def _n_variants(self, question: dict) -> int:
+    def _n_variants(self, question: dict[str, Any]) -> int:
         # lev shows the options of a choice in 2 orders, to cancel the preference for the first label
         if self.type == "lev" and question["type"] == "choice" and len(question["options"]) > 1:
             return 2
         return 1
 
-    def _n_outputs(self, question: dict) -> int:
+    def _n_outputs(self, question: dict[str, Any]) -> int:
         if self.type == "lev" and question["type"] == "noul":
             return _LEV_N_RATINGS
         return len(question["options"])
 
-    def _render_options(self, question: dict, variant: int) -> list:
+    def _render_options(self, question: dict[str, Any], variant: int) -> list[dict[str, Any]]:
         opts = question["options"] if variant == 0 else question["options"][::-1]
         out = []
         for i, (key, desc) in enumerate(opts):
@@ -300,7 +307,7 @@ class DecisionModel:
             out.append(option)
         return out
 
-    def _render(self, state: Any, question: dict, variant: int) -> str:
+    def _render(self, state: Any, question: dict[str, Any], variant: int) -> str:
         inp = {
             "id": question["id"],
             "type": question["type"],
@@ -317,9 +324,9 @@ class DecisionModel:
             # the input must not contain the marker of the options
             inp = _replace_text(inp, self.text_marker, " ")
         inp["images"] = []
-        return self._template.render(**inp)
+        return str(self._template.render(**inp))
 
-    def _laya_tokens(self, tokens: list, n_options: int):
+    def _laya_tokens(self, tokens: list[int], n_options: int) -> Tuple[list[int], list[int]]:
         """Cut question and options to max_head_tokens as in training; return (tokens, marker positions).
 
         The prompt is: [cls] question [sep] ([marker] option)* [sep] state [sep]
@@ -339,7 +346,7 @@ class DecisionModel:
 
         options = [tokens[markers[i] : (markers[i + 1] if i + 1 < n_options else opts_end)] for i in range(n_options)]
 
-        def set_max(n_max):
+        def set_max(n_max: int) -> int:
             for i, opt in enumerate(options):
                 options[i] = opt[:n_max]
             return sum(len(o) for o in options)
@@ -360,7 +367,7 @@ class DecisionModel:
 
     # -- evaluation ----------------------------------------------------------
 
-    def _decode(self, tokens: list, all_outputs: bool):
+    def _decode(self, tokens: list[int], all_outputs: bool) -> None:
         if len(tokens) > self.n_batch:
             raise ValueError(f"prompt has {len(tokens)} tokens, the batch size is {self.n_batch}; increase n_ctx")
         self.ctx.kv_cache_clear()
@@ -369,7 +376,7 @@ class DecisionModel:
             batch.add_token(tok, i, output=all_outputs or i == len(tokens) - 1)
         self.ctx.process(batch)
 
-    def _evaluate(self, state: Any, question: dict, variant: int) -> Tuple[list, int]:
+    def _evaluate(self, state: Any, question: dict[str, Any], variant: int) -> Tuple[list[float], int]:
         """Return the raw scores of one variant of ``question`` and its prompt length."""
         tokens = self.vocab.tokenize(self._render(state, question, variant), add_special=False, parse_special=True)
         if self.type == "lev":
@@ -395,7 +402,7 @@ class DecisionModel:
             scores.append(sum(q[i] * k[n + i] for i in range(n)) / scale)
         return scores, len(tokens)
 
-    def _temperature(self, question: dict) -> float:
+    def _temperature(self, question: dict[str, Any]) -> float:
         n = len(question["options"])
         if self.type == "lev":
             bucket = "small" if n <= 8 else "mid" if n <= 26 else "large"
@@ -406,7 +413,7 @@ class DecisionModel:
                 return self.temperatures[name]
         return 1.0
 
-    def _format(self, question: dict, variants: list) -> dict:
+    def _format(self, question: dict[str, Any], variants: list[list[float]]) -> dict[str, Any]:
         # softmax over the outputs of each variant, then the average of the variants
         n = self._n_outputs(question)
         temp = self._temperature(question)
@@ -441,7 +448,7 @@ class DecisionModel:
             answer["confidence"] = _confidence_score(probs)
         return answer
 
-    def answer(self, request: dict) -> dict:
+    def answer(self, request: Any) -> dict[str, Any]:
         """Answer a ``/v1/systemone`` request body.
 
         Returns:
@@ -467,7 +474,9 @@ class DecisionModel:
         return {"answers": answers, "usage": {"input_tokens": n_input, "output_tokens": 0}}
 
 
-def load_decision_model(model: LlamaModel, n_ctx: int, logger: Optional[logging.Logger] = None) -> Optional[DecisionModel]:
+def load_decision_model(
+    model: LlamaModel, n_ctx: int, logger: Optional[logging.Logger] = None
+) -> Optional[DecisionModel]:
     """Return a :class:`DecisionModel` for ``model``, or ``None`` if it is not a supported decision model."""
     dtype = get_decision_type(model)
     if dtype is None:
@@ -479,7 +488,7 @@ def load_decision_model(model: LlamaModel, n_ctx: int, logger: Optional[logging.
         return None
 
 
-def systemone_response(decision: Optional[DecisionModel], data: Any, model_name: str) -> Tuple[int, dict]:
+def systemone_response(decision: Optional[DecisionModel], data: Any, model_name: str) -> Tuple[int, dict[str, Any]]:
     """Status and body for a ``/v1/systemone`` request, with llama-server's status codes."""
     if decision is None:
         return 501, {"error": {"type": "not_supported_error", "message": "the model is not a supported decision model"}}

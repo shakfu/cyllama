@@ -281,6 +281,70 @@ class TestReranker:
             assert reranker.model_path == "model.gguf"
 
 
+class _StubVocab:
+    """Vocab with fixed special tokens; tokenize() maps each word to its length."""
+
+    BOS, EOS, SEP = 1, 2, 3
+
+    def __init__(self, eos=EOS, add_bos=True, add_eos=True, add_sep=False):
+        self.eos = eos
+        self.add_bos, self.add_eos, self.add_sep = add_bos, add_eos, add_sep
+
+    def tokenize(self, text, add_special, parse_special):
+        return [len(word) for word in text.split()]
+
+    def token_bos(self):
+        return self.BOS
+
+    def token_eos(self):
+        return self.eos
+
+    def token_sep(self):
+        return self.SEP
+
+    def get_add_bos(self):
+        return self.add_bos
+
+    def get_add_eos(self):
+        return self.add_eos
+
+    def get_add_sep(self):
+        return self.add_sep
+
+
+class TestRerankerPromptTokens:
+    """_build_prompt_tokens against a stub vocab, so no model is required."""
+
+    @staticmethod
+    def _reranker(vocab, template=None):
+        reranker = Reranker(model_path="model.gguf")
+        reranker._vocab = vocab
+        reranker._rerank_template = template
+        return reranker
+
+    def test_eos_separates_fields(self):
+        tokens = self._reranker(_StubVocab())._build_prompt_tokens("ab c", "def")
+        assert tokens == [_StubVocab.BOS, 2, 1, _StubVocab.EOS, 3, _StubVocab.EOS]
+
+    def test_sep_added_when_vocab_requests_it(self):
+        tokens = self._reranker(_StubVocab(add_sep=True))._build_prompt_tokens("ab", "def")
+        assert tokens == [_StubVocab.BOS, 2, _StubVocab.EOS, _StubVocab.SEP, 3, _StubVocab.EOS]
+
+    def test_falls_back_to_sep_without_eos(self):
+        from cyllama.llama.llama_cpp import LLAMA_TOKEN_NULL
+
+        vocab = _StubVocab(eos=LLAMA_TOKEN_NULL)
+        tokens = self._reranker(vocab)._build_prompt_tokens("ab", "def")
+        assert tokens == [_StubVocab.BOS, 2, _StubVocab.SEP, 3, _StubVocab.SEP]
+
+    def test_template_substitutes_query_and_document(self):
+        vocab = _StubVocab()
+        vocab.tokenize = MagicMock(return_value=[7])
+        reranker = self._reranker(vocab, template="q: {query} d: {document}")
+        assert reranker._build_prompt_tokens("ab", "def") == [7]
+        vocab.tokenize.assert_called_once_with("q: ab d: def", add_special=False, parse_special=True)
+
+
 @_skip_no_extension
 class TestHybridStore:
     """Test HybridStore class."""

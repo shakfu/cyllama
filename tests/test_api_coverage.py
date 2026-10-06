@@ -55,7 +55,7 @@ def _header_symbols(text: str, macro: str, prefix: str) -> dict:
     for stmt in text.split(";"):
         if macro not in stmt or "DEPRECATED" in stmt:
             continue
-        m = re.search(rf"\b({prefix}\w+)\s*\(", stmt[stmt.index(macro):])
+        m = re.search(rf"\b({prefix}\w+)\s*\(", stmt[stmt.index(macro) :])
         if m:
             functions.add(m.group(1))
     return {
@@ -83,7 +83,7 @@ def _header_fields(text: str, prefix: str) -> dict:
         while depth:
             depth += {"{": 1, "}": -1}.get(text[i], 0)
             i += 1
-        body = re.sub(r"\bunion\s*\{|\}", "", text[m.end():i - 1])  # pxd flattens unions
+        body = re.sub(r"\bunion\s*\{|\}", "", text[m.end() : i - 1])  # pxd flattens unions
         fields[m.group(1)] = {n for d in body.split(";") if d.strip() and (n := _member_name(d))}
     return fields
 
@@ -156,9 +156,7 @@ def test_struct_fields_declared(header, struct):
     d = PARSED[header]
     if struct in d["skipped"] or struct not in d["pxd_fields"]:
         pytest.skip("struct not declared; reported by test_symbols_declared")
-    missing = sorted(
-        f for f in d["fields"][struct] - d["pxd_fields"][struct] if f"{struct}.{f}" not in d["skipped"]
-    )
+    missing = sorted(f for f in d["fields"][struct] - d["pxd_fields"][struct] if f"{struct}.{f}" not in d["skipped"])
     assert not missing, f"{struct} fields not declared in {d['pxd']}: {missing}"
 
 

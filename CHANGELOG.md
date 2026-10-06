@@ -46,6 +46,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
   The port uses only `llama.h`. openjev and nimble raise `NotImplementedError` because no test models were checked. clef needs `llama_batch_ext_set_decision_order`, which is only in llama.cpp's internal `llama-ext.h`. `LlamaVocab.token_mask()` is new.
 
+- **`LLAMA_TOKEN_NULL`** is exported from `cyllama.llama.llama_cpp`, with its value read from `llama.h`. `LlamaVocab.token_eos()` and the other special-token getters return it when the vocab has no such token.
+
 - **`make llama-server`** builds upstream `llama-server` (CPU) from the llama.cpp tree cyllama compiles, then runs the decision-model parity tests against it. Both run only when the binary is (re)built, which a llama.cpp upgrade triggers; a failed check deletes the binary so the next run repeats it.
 
 - **`tests/test_api_coverage.py`** fails when a non-deprecated function, enum, struct, typedef or struct field in `llama.h`, `mtmd.h`, `mtmd-helper.h` or `gguf.h` is missing from its `.pxd`. It checks names only, not signatures. New declarations: `mtmd_tokenize_from_parts`, `mtmd_input_chunk_save`/`load`/`get_placeholder`, lazy and mergeable bitmaps, `mtmd_gen_audio_process`, `mtmd_helper_support_video`, the missing `mtmd_context_params` fields, `gguf_init_from_callback` and `gguf_write_to_file_ptr`. An upgrade that adds API now fails `make test` until it is declared or listed in `SKIPPED` with a reason.
@@ -69,7 +71,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 - **llama.cpp updated to `v0.6.0` (`b11429`, from `v0.5.0`).** Session files are now `LLAMA_SESSION_VERSION` 11 and sequence state files `LLAMA_STATE_SEQ_VERSION` 4. Files saved with v0.5.0 fail to load with `RuntimeError`. `llama_sampler` is now a forward-declared `cdef struct` in `llama.pxd`, so its `iface` member is readable.
 
-- **`NgramCache` moved to `cyllama.llama.ngram_cache`.** It is pure Python and binds nothing, so it no longer sits in the `llama_cpp` extension; `from cyllama.llama.llama_cpp import NgramCache` still works. Its API docs named `from_file()` and `clear()`, which never existed; they now show `load()` and `merge()`.
+- **`NgramCache` moved to `cyllama.llama.ngram_cache`.** It is pure Python and binds nothing, so it no longer sits in the `llama_cpp` extension; `from cyllama.llama.llama_cpp import NgramCache` still works. Its API docs named `from_file()` and `clear()`, which never existed; they now show `load()` and `merge()`. `update(print_progress=True)` never printed anything; the parameter is now documented as ignored.
+
+- **`make typecheck` and plain `mypy src/ scripts/` both pass.** `make typecheck` uses `--follow-imports=skip`, which types vendored jinja2 and pydantic as `Any` and hid 9 errors. The vendored jinja2 `TemplateError` import in `api.py` and `chat.py` lost its `ImportError` fallback. A broken `_vendor` directory now fails `import cyllama`; before, it failed at the first chat-template render, which imports jinja2 without a guard.
 
 ### Deprecated
 

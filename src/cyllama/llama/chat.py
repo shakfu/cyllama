@@ -42,10 +42,7 @@ from .llama_cpp import (
 from .token_decoder import TokenDecoder
 
 # Vendored jinja2 for chat-template rendering (same path as api.py).
-try:
-    from cyllama._vendor.jinja2.exceptions import TemplateError as _JinjaTemplateError
-except ImportError:  # pragma: no cover
-    _JinjaTemplateError = type("_JinjaTemplateError", (Exception,), {})
+from cyllama._vendor.jinja2.exceptions import TemplateError as _JinjaTemplateError
 
 
 SLASH_COMMANDS: Tuple[Tuple[str, str], ...] = (
@@ -255,8 +252,7 @@ class Chat:
                 msg_dicts.append({"role": msg.role, "content": msg.content})
 
         compiled = env.from_string(template_str)
-        return cast(
-            str,
+        return str(
             compiled.render(
                 messages=msg_dicts,
                 bos_token=bos_token,
