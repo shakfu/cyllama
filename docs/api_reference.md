@@ -1169,6 +1169,26 @@ batch = llama_batch_get_one(tokens, pos_offset=0)
 
 ---
 
+#### `LlamaBatchExt`
+
+Extended batch bound to one context, run with `LlamaContext.process()`. Entries carry a token id or an input embedding. Embedding entries of M-RoPE models take 4 positions (`batch.n_pos_per_embd`); all others take one.
+
+```python
+from cyllama.llama.llama_cpp import LlamaBatchExt, LLAMA_PROCESS_TYPE_DECODE
+
+batch = LlamaBatchExt(ctx)
+for i, tok in enumerate(tokens):
+    batch.add_token(tok, i, seq_id=0, output=(i == len(tokens) - 1))
+batch.add_embd(vector, len(tokens))   # model.n_embd_inp floats
+batch.add_seq(0, 1)                   # share entry 0 with seq 1 (needs kv_unified)
+ctx.process(batch, LLAMA_PROCESS_TYPE_DECODE)
+logits = ctx.get_logits_ith(-1)
+```
+
+`set_embd_state()` (MTP, deepstack hidden state) is declared upstream but not implemented in llama.cpp v0.6.0; it raises `RuntimeError`.
+
+---
+
 ### Backend Management
 
 ```python
@@ -1242,7 +1262,24 @@ ctx.write_to_file("custom.gguf", only_meta=True)
 ctx = GGUFContext.from_file("model.gguf")
 ctx.set_val_str("custom.metadata", "updated")
 ctx.write_to_file("modified.gguf")
+
+# Arrays
+ctx.set_arr_str("tokenizer.ggml.tokens", ["a", "b"])
+ctx.set_arr_data("custom.sections", GGUF_TYPE_UINT32, [8, 8, 8, 8])
 ```
+
+#### Models from metadata: `LlamaModel.from_user`
+
+Builds a model from a `GGUFContext` holding only metadata. llama.cpp creates the architecture's tensors and calls the callback once per tensor with a `GgmlTensor` view (`name`, `shape`, `type`, `type_name`, `n_elements`, `nbytes`, `set_data()`), valid only during that call. An exception in the callback stops loading and is re-raised.
+
+```python
+def fill(t):
+    t.set_data(bytes(t.nbytes))   # zeros; any buffer of exactly t.nbytes
+
+model = LlamaModel.from_user(metadata, fill)
+```
+
+`tests/synthetic_models.py` builds tiny random-weight models this way, e.g. `synthetic_model("qwen2vl")` for M-RoPE tests.
 
 ---
 
@@ -1304,29 +1341,20 @@ download_model(
 
 ### N-gram Cache
 
-Pattern-based token prediction for 2-10x speedup on repetitive text.
+Draft tokens by n-gram lookup over tokens already seen; no draft model needed. Pure Python, in `cyllama.llama.ngram_cache` (also importable from `cyllama.llama.llama_cpp`). Cache files use the format of llama.cpp's `llama-lookup-create`.
 
 ```python
-from cyllama.llama.llama_cpp import NgramCache
+from cyllama.llama.ngram_cache import NgramCache
 
-# Create cache
 cache = NgramCache()
+cache.update(tokens, ngram_min=1, ngram_max=4)     # learn from tokens seen so far
+draft_tokens = cache.draft(tokens, n_draft=8)      # predicted continuation of tokens[-1]
 
-# Learn patterns from token sequences
-tokens = [1, 2, 3, 4, 5, 6, 7, 8]
-cache.update(tokens, ngram_min=2, ngram_max=4)
-
-# Predict likely continuations
-input_tokens = [1, 2, 3]
-draft_tokens = cache.draft(input_tokens, n_draft=16)
-
-# Save/load cache
 cache.save("patterns.bin")
-loaded_cache = NgramCache.from_file("patterns.bin")
-
-# Clear cache
-cache.clear()
+cache.merge(NgramCache.load("patterns.bin"))
 ```
+
+`NgramDrafter` in `tests/examples/speculative_example.py` (`--ngram`) uses it for speculative decoding.
 
 ---
 
@@ -1398,6 +1426,8 @@ python -m cyllama.llama.cli -m models/llama.gguf \
 
 ### Speculative Decoding
 
+> **Deprecated.** `Speculative` and `SpeculativeParams` will be removed in the next release. `tests/examples/speculative_example.py` implements the draft/verify loop on the public API.
+
 Use draft model for 2-3x inference speedup.
 
 ```python
@@ -1465,8 +1495,38 @@ if Speculative.is_compat(ctx_target):
 | `accept(n_accepted)` | Accept the first `n_accepted` verified draft tokens |
 | `print_stats()` | Print speculative decoding performance statistics |
 
-`tests/examples/speculative_example.py` shows the full draft/verify loop around
-these calls, with `--bench` to compare against plain greedy decoding.
+`tests/examples/speculative_example.py` shows the full draft/verify loop, with
+`--bench` to compare against plain greedy decoding.
+
+---
+
+### Decision Models
+
+A decision model answers typed questions about a `state` in one forward pass, without generating text. `DecisionModel` takes the request body of llama.cpp's `/v1/systemone` endpoint (TypeSafe System One API) and returns the same answers. Question types: `choice` (pick an option), `score` (expected level of 2 to 10), `noul` (probability of true).
+
+```python
+from cyllama.llama.decision import DecisionModel, get_decision_type
+
+dm = DecisionModel("models/Laya-Q8_0.gguf", n_ctx=2048)
+result = dm.answer({
+    "state": "Customer message: I was charged twice for my order last week and nobody has replied.",
+    "questions": {
+        "route": {"type": "choice", "instructions": "Which team should handle this?",
+                  "criteria": {"technical": None, "billing": None, "shipping": None}},
+        "angry": {"type": "noul", "instructions": "Is the customer angry?"},
+        "urgency": {"type": "score", "instructions": "How urgent is this?",
+                    "criteria": ["can wait", "this week", "today", "right now"]},
+    },
+})
+result["answers"]["route"]["choice"]   # "billing"
+result["answers"]["angry"]["noul"]     # 0.79
+```
+
+- Supported types: `laya` (including Julia-1), `lev` and `kev`. `get_decision_type(model)` reads the `<arch>.decision.type` metadata and returns `None` for other models.
+- Not supported yet: `openjev` and `nimble`, which raise `NotImplementedError`. `clef` needs a batch API that is not in `llama.h`; use `LlamaServer` (an upstream `llama-server` process) for it.
+- `make llama-server` builds upstream `llama-server` from the same llama.cpp tree, then checks that `DecisionModel` answers match it for every decision model present in `models/`.
+- The whole prompt of a question is evaluated in one batch, so it must fit in `n_ctx`. An invalid request raises `ValueError`.
+- `PythonServer` and `EmbeddedServer` serve `POST /v1/systemone` when their model is a supported decision model. They return 400 for an invalid request and 501 for other models, as `llama-server` does. `/v1/models` then reports `architecture.output_modalities: ["decisions"]`.
 
 ---
 

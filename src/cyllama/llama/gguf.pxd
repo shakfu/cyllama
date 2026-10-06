@@ -58,6 +58,13 @@ cdef extern from "gguf.h":
     cdef gguf_context * gguf_init_from_file_ptr(FILE * file, gguf_init_params params)
     cdef gguf_context * gguf_init_from_file(const char * fname, gguf_init_params params)
     cdef gguf_context * gguf_init_from_buffer(const void * data, size_t size, gguf_init_params params)
+
+    # read up to len bytes at offset into output, return the number of bytes read
+    ctypedef size_t (*gguf_reader_callback_t)(void * userdata, void * output, uint64_t offset, size_t len)
+    # max_chunk_read 0 means no limit
+    cdef gguf_context * gguf_init_from_callback(gguf_reader_callback_t callback, void * userdata,
+                                                size_t max_chunk_read, uint64_t max_expected_size,
+                                                gguf_init_params params)
     cdef void gguf_free(gguf_context * ctx)
 
     # Utility functions
@@ -138,5 +145,6 @@ cdef extern from "gguf.h":
 
     # File writing
     cdef bint gguf_write_to_file(const gguf_context * ctx, const char * fname, bint only_meta)
+    cdef bint gguf_write_to_file_ptr(const gguf_context * ctx, FILE * file, bint only_meta)
     cdef size_t gguf_get_meta_size(const gguf_context * ctx)
     cdef void gguf_get_meta_data(const gguf_context * ctx, void * data)

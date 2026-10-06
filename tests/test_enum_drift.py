@@ -61,6 +61,16 @@ CASES = [
         "header_stop": r"\}",
         "pxd_stop": r"\n[ \t]*\n",
     },
+    {
+        "id": "llama_process_type",
+        "header": LLAMA_INCLUDE / "llama.h",
+        "pxd": PXD_DIR / "llama.pxd",
+        "header_open": r"enum\s+llama_process_type\s*\{",
+        "pxd_open": r"cdef\s+enum\s+llama_process_type\s*:",
+        "prefix": "LLAMA_PROCESS_TYPE_",
+        "header_stop": r"\}",
+        "pxd_stop": r"\n[ \t]*\n",
+    },
 ]
 
 

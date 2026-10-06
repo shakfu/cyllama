@@ -9,6 +9,7 @@ from libcpp.memory cimport unique_ptr as std_unique_ptr
 from libcpp.set cimport set as std_set
 
 cimport ggml
+cimport gguf
 
 #------------------------------------------------------------------------------
 # constants
@@ -25,7 +26,7 @@ cdef extern from "llama.h":
     ctypedef struct llama_vocab: pass
     ctypedef struct llama_model: pass
     ctypedef struct llama_context: pass
-    ctypedef struct llama_sampler: pass
+    cdef struct llama_sampler  # forward declaration, defined with llama_sampler_i below
     ctypedef struct llama_memory_i: pass
 
     ctypedef llama_memory_i * llama_memory_t
@@ -236,6 +237,10 @@ cdef extern from "llama.h":
         LLAMA_MODEL_META_KEY_SAMPLING_MIROSTAT_TAU
         LLAMA_MODEL_META_KEY_SAMPLING_MIROSTAT_ETA
 
+    cdef enum llama_process_type:
+        LLAMA_PROCESS_TYPE_ENCODE
+        LLAMA_PROCESS_TYPE_DECODE
+
     ctypedef struct llama_model_kv_override: # FLATTENED nested union enum
         llama_model_kv_override_type tag
         char key[128]
@@ -246,7 +251,7 @@ cdef extern from "llama.h":
 
     ctypedef struct llama_model_tensor_buft_override:
        const char * pattern
-       # ggml_backend_buffer_type_t buft # TODO
+       ggml.ggml_backend_buffer_type_t buft
 
     ctypedef struct llama_model_params:
         ggml.ggml_backend_dev_t * devices   # NULL-terminated list of devices to use for offloading (if NULL, all available devices are used)
@@ -270,6 +275,7 @@ cdef extern from "llama.h":
         bint use_extra_bufts  # use extra buffer types (used for weight repacking)
         bint no_host          # bypass host buffer allowing extra buffers to be used
         bint no_alloc         # only load metadata and simulate memory allocations
+        bint load_mtp         # whether to load MTP layers
 
     ctypedef struct llama_sampler_seq_config:
         llama_seq_id    seq_id
@@ -281,6 +287,8 @@ cdef extern from "llama.h":
         uint32_t n_ubatch          # physical maximum batch size
         uint32_t n_seq_max         # max number of sequences (i.e. distinct states for recurrent models)
         uint32_t n_rs_seq          # number of recurrent-state snapshots per seq for rollback (0 = no rollback) [EXPERIMENTAL]
+        uint32_t n_outputs_max         # max outputs in a ubatch (0 = n_batch)
+        uint32_t n_outputs_max_per_seq # max outputs per sequence (0 = n_outputs_max)
         int32_t n_threads          # number of threads to use for generation
         int32_t n_threads_batch    # number of threads to use for batch processing
 
@@ -297,6 +305,7 @@ cdef extern from "llama.h":
         float    yarn_beta_fast   # YaRN low correction dim
         float    yarn_beta_slow   # YaRN high correction dim
         uint32_t yarn_orig_ctx    # YaRN original context size
+        float    defrag_thold     # [DEPRECATED] defragment the KV cache if holes/size > thold, <= 0 disabled (default)
 
         ggml.ggml_backend_sched_eval_callback cb_eval
         void * cb_eval_user_data
@@ -327,6 +336,10 @@ cdef extern from "llama.h":
         # note: the samplers must be sampler chains (i.e. use llama_sampler_chain_init)
         llama_sampler_seq_config * samplers
         size_t                     n_samplers
+
+        # a source/target/parent context
+        # can be utilized in various ways, for example by sharing results or llama_memory between 2 contexts
+        llama_context * ctx_other
 
     ctypedef struct llama_model_tensor_override:
         const char * pattern
@@ -398,6 +411,17 @@ cdef extern from "llama.h":
     # Load the model from a file
     # If the file is split into multiple parts, the file name must follow this pattern: <name>-%05d-of-%05d.gguf
     # If the split file name does not follow this pattern, use llama_model_load_from_splits
+    ctypedef void (*llama_model_set_tensor_data_t)(ggml.ggml_tensor * tensor, void * userdata)
+
+    # Create a new model from GGUF metadata as well as a function to set the tensor data
+    #   - tensors are created as GGML_TYPE_F32 by default,
+    #     override by adding a tensor with the same name but a different name to the context
+    cdef llama_model * llama_model_init_from_user(
+            gguf.gguf_context * metadata,
+            llama_model_set_tensor_data_t set_tensor_data,
+            void * set_tensor_data_ud,
+            llama_model_params params)
+
     cdef llama_model * llama_model_load_from_file(
             const char * path_model,
             llama_model_params params)
@@ -837,6 +861,44 @@ cdef extern from "llama.h":
     # < -1 - fatal error (processed ubatches will remain in the context's memory)
     cdef int32_t llama_decode(llama_context * ctx, llama_batch batch) nogil
 
+    #
+    # Extended batch API
+    #
+
+    ctypedef struct llama_batch_ext: pass
+
+    ctypedef struct llama_embd:
+        const float * data
+        size_t n_rows  # number of embedding rows in data
+        size_t n_embd  # size of one row
+
+    cdef llama_batch_ext * llama_batch_ext_init(llama_context * ctx)
+    cdef void llama_batch_ext_free(llama_batch_ext * batch)
+    cdef void llama_batch_ext_clear(llama_batch_ext * batch)
+
+    # Add an input token to the batch; the caller must set pos with llama_batch_ext_set_pos()
+    # Returns the batch index (>= 0), or -1 batch full, -2 invalid token/embd, -3 invalid seq_id
+    cdef int32_t llama_batch_ext_add(llama_batch_ext * batch, llama_seq_id seq_id)
+    cdef int32_t llama_batch_ext_add_token(llama_batch_ext * batch, llama_seq_id seq_id, llama_token id)
+    cdef int32_t llama_batch_ext_add_embd(llama_batch_ext * batch, llama_seq_id seq_id, llama_embd embd)
+
+    # Add the token at idx to another sequence id; call before the _set() functions
+    cdef bint llama_batch_ext_add_seq(llama_batch_ext * batch, int32_t idx, llama_seq_id seq_id)
+
+    cdef bint llama_batch_ext_set_embd_token(llama_batch_ext * batch, int32_t idx, llama_embd embd)
+
+    # Extra hidden state carried over from a previous stage (MTP, Qwen3 VL deepstack)
+    cdef bint llama_batch_ext_set_embd_state(llama_batch_ext * batch, int32_t idx, llama_embd embd)
+
+    cdef bint llama_batch_ext_set_output_embd(llama_batch_ext * batch, int32_t idx, bint value)
+    cdef bint llama_batch_ext_set_output_logits(llama_batch_ext * batch, int32_t idx, bint value)
+
+    # M-RoPE models: embedding tokens take multiple positions, text tokens one
+    cdef bint llama_batch_ext_set_pos(llama_batch_ext * batch, int32_t idx, const llama_pos * pos)
+
+    # Return values are the same as llama_decode()
+    cdef int32_t llama_process(llama_context * ctx, llama_process_type type, llama_batch_ext * batch) nogil
+
     # Set the number of threads used for decoding
     # n_threads is the number of threads used for generation (single token)
     # n_threads_batch is the number of threads used for prompt and batch processing (multiple tokens)
@@ -855,6 +917,9 @@ cdef extern from "llama.h":
     # Set whether to use causal attention or not
     # If set to true, the model will only attend to the past tokens
     cdef void llama_set_causal_attn( llama_context * ctx, bint causal_attn)
+
+    # Returns whether the context is currently using causal attention
+    cdef bint llama_get_causal_attn(const llama_context * ctx)
 
     # Set abort callback
     cdef void llama_set_abort_callback( llama_context * ctx, ggml.ggml_abort_callback abort_callback, void * abort_callback_data)
@@ -1082,6 +1147,12 @@ cdef extern from "llama.h":
 
     ctypedef void * llama_sampler_context_t
 
+    ctypedef struct llama_sampler_data:
+        ggml.ggml_tensor * logits
+        ggml.ggml_tensor * probs
+        ggml.ggml_tensor * sampled
+        ggml.ggml_tensor * candidates
+
     # user code can implement the interface below in order to create custom llama_sampler
     ctypedef struct llama_sampler_i:
         const char *           (*name)  (const llama_sampler * smpl)                                 # can be NULL
@@ -1091,7 +1162,15 @@ cdef extern from "llama.h":
         llama_sampler *        (*clone) (const llama_sampler * smpl)                                 # can be NULL if ctx is NULL
         void                   (*free)  (      llama_sampler * smpl)
 
-    ctypedef struct llama_sampler:
+        # [EXPERIMENTAL] backend sampling interface
+        bint (*backend_init)(llama_sampler * smpl, ggml.ggml_backend_buffer_type_t buft, uint32_t n_outputs_max_per_seq)
+        void (*backend_accept)(llama_sampler * smpl, ggml.ggml_context * ctx, ggml.ggml_cgraph * gf, ggml.ggml_tensor * selected_token)
+        void (*backend_apply)(llama_sampler * smpl, ggml.ggml_context * ctx, ggml.ggml_cgraph * gf, llama_sampler_data * data)
+        void (*backend_set_input)(llama_sampler * smpl)
+        void (*backend_reset)(llama_sampler * smpl)
+        void (*copy_state)(const llama_sampler * src, llama_sampler * dst)
+
+    cdef struct llama_sampler:
         llama_sampler_i * iface
         llama_sampler_context_t ctx
 
@@ -1107,6 +1186,7 @@ cdef extern from "llama.h":
     cdef void                   llama_sampler_apply (      llama_sampler * smpl, llama_token_data_array * cur_p) nogil
     cdef void                   llama_sampler_reset (      llama_sampler * smpl)
     cdef llama_sampler *        llama_sampler_clone (const llama_sampler * smpl)
+    cdef void                   llama_sampler_copy  (const llama_sampler * src, llama_sampler * dst)
     # important: do not free if the sampler has been added to a llama_sampler_chain (via llama_sampler_chain_add)
     cdef void                   llama_sampler_free  (      llama_sampler * smpl)
 

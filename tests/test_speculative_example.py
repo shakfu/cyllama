@@ -11,8 +11,6 @@ from pathlib import Path
 
 import pytest
 
-from cyllama.llama.llama_cpp import Speculative, SpeculativeParams
-
 _spec = importlib.util.spec_from_file_location(
     "speculative_example", Path(__file__).parent / "examples" / "speculative_example.py"
 )
@@ -35,13 +33,13 @@ def setup(model_path):
 
 @pytest.mark.parametrize(
     "params",
-    [SpeculativeParams(n_max=4), SpeculativeParams(n_max=8, p_min=0.75)],
+    [dict(n_max=4), dict(n_max=8, p_min=0.75)],
     ids=["n_max=4", "n_max=8,p_min=0.75"],
 )
 def test_matches_greedy_decoding(setup, params):
     ctx_tgt, ctx_dft, prompt, baseline = setup
-    spec = Speculative(params, ctx_tgt, ctx_dft)
-    res = example.speculative_generate(ctx_tgt, spec, params, prompt, N_PREDICT)
+    drafter = example.Drafter(ctx_dft, **params)
+    res = example.speculative_generate(ctx_tgt, drafter, prompt, N_PREDICT)
 
     assert res.tokens == baseline.tokens
     assert len(res.tokens) == N_PREDICT
@@ -49,3 +47,19 @@ def test_matches_greedy_decoding(setup, params):
     assert res.acceptance > 0.9
     # each round yields its accepted draft tokens plus one target token
     assert res.n_accepted + res.n_rounds >= len(res.tokens)
+
+
+def test_ngram_drafter_matches_greedy_decoding(model_path):
+    model, ctx = example.load(model_path, n_ctx=512, n_gpu_layers=0)
+    prompt = model.get_vocab().tokenize(
+        "Repeat this line four times: the quick brown fox jumps over the lazy dog.",
+        add_special=True,
+        parse_special=False,
+    )
+    baseline = example.greedy_generate(ctx, prompt, N_PREDICT)
+    res = example.speculative_generate(ctx, example.NgramDrafter(n_max=8), prompt, N_PREDICT)
+
+    assert res.tokens == baseline.tokens
+    # the repeated line is in the context, so lookups find accepted drafts
+    assert res.n_accepted > 0
+    assert res.n_rounds < len(res.tokens)

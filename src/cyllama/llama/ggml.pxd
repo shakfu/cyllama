@@ -338,6 +338,9 @@ cdef extern from "ggml-backend.h":
 
     ctypedef struct ggml_backend_buffer_type: pass
     ctypedef struct ggml_backend_buffer: pass
+
+    # write size bytes into the tensor's backend buffer (host or device) at offset
+    cdef void ggml_backend_tensor_set(ggml_tensor * tensor, const void * data, size_t offset, size_t size)
     ctypedef struct ggml_backend_event: pass
     ctypedef struct ggml_backend: pass
     ctypedef struct ggml_backend_reg: pass
@@ -479,6 +482,12 @@ cdef extern from "ggml-cpu.h":
 
     cdef ggml_tensor * ggml_new_i32(ggml_context * ctx, int32_t value)
     cdef ggml_tensor * ggml_new_f32(ggml_context * ctx, float value)
+
+    cdef int64_t ggml_nelements(const ggml_tensor * tensor)
+    cdef size_t ggml_nbytes(const ggml_tensor * tensor)
+    cdef int ggml_n_dims(const ggml_tensor * tensor)
+    cdef const char * ggml_get_name(const ggml_tensor * tensor)
+    cdef const char * ggml_type_name(ggml_type type)
 
     cdef ggml_tensor * ggml_set_i32 (ggml_tensor * tensor, int32_t value)
     cdef ggml_tensor * ggml_set_f32 (ggml_tensor * tensor, float value)

@@ -495,33 +495,14 @@ config = GenerationConfig(
 
 ### Speculative Decoding
 
-2-3x speedup with compatible models:
+A small draft model proposes tokens; the target verifies them in one batch. `tests/examples/speculative_example.py` implements this on the public API (`Drafter` and `speculative_generate`):
 
-```python
-from cyllama.llama.llama_cpp import (
-    LlamaModel, LlamaContext, LlamaModelParams, LlamaContextParams,
-    Speculative, SpeculativeParams
-)
-
-# Load target (main) model
-model_target = LlamaModel("models/llama-3b.gguf", LlamaModelParams())
-ctx_target = LlamaContext(model_target, LlamaContextParams())
-
-# Load draft (smaller, faster) model
-model_draft = LlamaModel("models/llama-1b.gguf", LlamaModelParams())
-ctx_draft = LlamaContext(model_draft, LlamaContextParams())
-
-# Setup speculative decoding
-params = SpeculativeParams(
-    n_max=3,       # Maximum tokens to draft
-    p_min=0.0      # stop drafting below this top-candidate probability
-)
-spec = Speculative(params, ctx_target, ctx_draft)
-
-# Draft continuations of the target's newest token (5), which follows
-# the tokens the target has processed ([1, 2, 3, 4])
-draft_tokens = spec.draft(params, [1, 2, 3, 4], 5)
+```sh
+python tests/examples/speculative_example.py --target models/Qwen3-4B-Q8_0.gguf \
+    --draft models/Qwen3-0.6B-Q8_0.gguf --bench 3
 ```
+
+The `Speculative` class is deprecated and will be removed in the next release.
 
 ### Memory Estimation
 

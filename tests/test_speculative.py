@@ -18,6 +18,9 @@ from cyllama.llama.llama_cpp import (
     SpeculativeParams,
 )
 
+# Speculative is deprecated; these tests cover it until removal.
+pytestmark = pytest.mark.filterwarnings("ignore:Speculative is deprecated:DeprecationWarning")
+
 
 class TestSpeculativeParams:
     """Tests for SpeculativeParams class."""
@@ -175,6 +178,13 @@ class TestSpeculativeDraft:
         ctx_params = LlamaContextParams()
         ctx_params.n_ctx = self.N_CTX
         return Speculative(SpeculativeParams(), LlamaContext(model, ctx_params), LlamaContext(model, ctx_params))
+
+    @pytest.mark.filterwarnings("default")
+    def test_construction_warns_deprecated(self, model):
+        ctx_params = LlamaContextParams()
+        ctx_params.n_ctx = self.N_CTX
+        with pytest.warns(DeprecationWarning, match="speculative_example.py"):
+            Speculative(SpeculativeParams(), LlamaContext(model, ctx_params), LlamaContext(model, ctx_params))
 
     @pytest.fixture(scope="class")
     def prompt(self, model):

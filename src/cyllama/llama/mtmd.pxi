@@ -744,7 +744,7 @@ cdef class MtmdContext:
         return embeddings
 
     def eval_chunks(self, LlamaContext llama_ctx, MtmdInputChunks chunks, n_past: int = 0,
-                    seq_id: int = 0, n_batch: int = 32, logits_last: bool = True) -> int:
+                    seq_id: int = 0, n_batch: Optional[int] = None, logits_last: bool = True) -> int:
         """Evaluate chunks using helper function.
 
         Args:
@@ -752,14 +752,23 @@ cdef class MtmdContext:
             chunks: Input chunks to evaluate
             n_past: Number of past tokens
             seq_id: Sequence ID
-            n_batch: Batch size
+            n_batch: Tokens per decode call; the context's n_batch when None
             logits_last: Whether to compute logits only for last token
 
         Returns:
             New n_past value after evaluation
+
+        Raises:
+            ValueError: a media chunk needs non-causal attention and does not
+                fit in one batch (``n_batch`` and the context's ``n_ubatch``).
         """
         if self._ctx is NULL:
             raise RuntimeError("Context not initialized")
+        if n_batch is None:
+            n_batch = llama.llama_n_batch(llama_ctx.ptr)
+        if n_batch <= 0:
+            raise ValueError("n_batch must be positive")
+        self._check_non_causal_fit(llama_ctx, chunks, n_batch)
 
         cdef llama_context* ctx_ptr = llama_ctx.ptr
 
@@ -773,6 +782,28 @@ cdef class MtmdContext:
             raise RuntimeError(f"Chunk evaluation failed with error code: {result}")
 
         return new_n_past
+
+    cdef int _check_non_causal_fit(self, LlamaContext llama_ctx, MtmdInputChunks chunks, int n_batch) except -1:
+        # A non-causal media chunk must be decoded in one ubatch: split across
+        # decode calls its tokens cannot attend to each other, and over n_ubatch
+        # llama.cpp aborts the process (GGML_ASSERT).
+        cdef uint32_t n_ubatch = llama.llama_n_ubatch(llama_ctx.ptr)
+        cdef size_t i, n
+        cdef const mtmd_input_chunk * chunk
+        cdef size_t limit = min(<size_t>n_batch, <size_t>n_ubatch)
+        for i in range(mtmd_input_chunks_size(chunks._chunks)):
+            chunk = mtmd_input_chunks_get(chunks._chunks, i)
+            if mtmd_input_chunk_get_type(chunk) == MTMD_INPUT_CHUNK_TYPE_TEXT:
+                continue
+            if not mtmd_decode_use_non_causal(self._ctx, chunk):
+                continue
+            n = mtmd_input_chunk_get_n_tokens(chunk)
+            if n > limit:
+                raise ValueError(
+                    f"chunk {i} needs {n} tokens in one batch because this model uses non-causal "
+                    f"attention on media (n_batch={n_batch}, n_ubatch={n_ubatch}); raise both to at "
+                    f"least {n}, or lower MtmdContextParams.image_max_tokens")
+        return 0
 
 
 cdef class MtmdBatch:

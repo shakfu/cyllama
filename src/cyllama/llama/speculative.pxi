@@ -9,6 +9,7 @@ that are verified by the target model, potentially providing 2-3x speedup.
 """
 
 from libc.math cimport expf
+import warnings
 from typing import List, Optional
 
 
@@ -62,6 +63,8 @@ class SpeculativeParams:
 cdef class Speculative:
     """Speculative decoding manager using the public llama API.
 
+    Deprecated: will be removed in the next release.
+
     Uses a draft model context to generate candidate tokens quickly, which are
     then verified by the target model. Manages KV cache state for both models.
 
@@ -94,6 +97,13 @@ cdef class Speculative:
             ValueError: If the context is not compatible
             RuntimeError: If initialization fails (e.g., no draft context provided)
         """
+        warnings.warn(
+            "Speculative is deprecated and will be removed in the next release; "
+            "see tests/examples/speculative_example.py for a draft/verify loop "
+            "built on the public API",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         if not self.is_compat(ctx_target):
             raise ValueError("Target context is not compatible for speculative decoding")
 

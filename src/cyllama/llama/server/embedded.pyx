@@ -74,6 +74,7 @@ cdef class EmbeddedServer:
     cdef object _config
     cdef object _model
     cdef object _embedder
+    cdef object _decision
     cdef list _slots
     cdef object _free_slots  # queue.Queue of idle ServerSlots
     cdef object _logger
@@ -126,6 +127,7 @@ cdef class EmbeddedServer:
         self._config = config
         self._model = None
         self._embedder = None
+        self._decision = None
         self._slots = []
         self._logger = logging.getLogger(__name__)
 
@@ -138,6 +140,10 @@ cdef class EmbeddedServer:
             from ..llama_cpp import LlamaModel
 
             self._model = LlamaModel(path_model=self._config.model_path, params=model_params(self._config))
+
+            from ..decision import load_decision_model
+
+            self._decision = load_decision_model(self._model, self._config.n_ctx, self._logger)
 
             self._slots = []
             for i in range(self._config.n_parallel):
@@ -274,7 +280,7 @@ cdef class EmbeddedServer:
                     conn.send_error(404, "Not Found")
 
             elif method == "POST":
-                if uri not in ("/v1/chat/completions", "/v1/embeddings"):
+                if uri not in ("/v1/chat/completions", "/v1/embeddings", "/v1/systemone"):
                     conn.send_error(404, "Not Found")
                     return
                 try:
@@ -284,6 +290,8 @@ cdef class EmbeddedServer:
                     return
                 if uri == "/v1/chat/completions":
                     self._handle_chat_completions(conn, text)
+                elif uri == "/v1/systemone":
+                    self._handle_systemone(conn, text)
                 else:
                     self._handle_embeddings(conn, text)
             else:
@@ -306,6 +314,9 @@ cdef class EmbeddedServer:
                 }
             ]
         }
+        if self._decision is not None:
+            # clients detect decision models this way, as with llama-server
+            models_data["data"][0]["architecture"] = {"output_modalities": ["decisions"]}
         conn.send_json(models_data)
 
     def _handle_chat_completions(self, conn: HttpResponse, body: str):
@@ -365,6 +376,18 @@ cdef class EmbeddedServer:
             # server-side and tell the client nothing specific.
             self._logger.error(f"Chat completion error: {e}")
             conn.send_error(500, "Internal Server Error")
+
+    def _handle_systemone(self, conn: HttpResponse, body: str):
+        """Handle /v1/systemone (decision models)."""
+        from ..decision import systemone_response
+
+        try:
+            data = json.loads(body) if body.strip() else None
+        except json.JSONDecodeError:
+            conn.send_error(400, "Invalid JSON")
+            return
+        status, payload = systemone_response(self._decision, data, self._config.model_alias)
+        conn.send_json(payload, status)
 
     def _handle_embeddings(self, conn: HttpResponse, body: str):
         """Handle /v1/embeddings endpoint."""

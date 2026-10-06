@@ -7,7 +7,7 @@ from libc.stdint cimport uint32_t, int32_t, int64_t
 from libc.stddef cimport size_t
 from libcpp cimport bool as cppbool
 
-from .ggml cimport ggml_log_level, ggml_log_callback
+from .ggml cimport ggml_log_level, ggml_log_callback, ggml_backend_dev_t, ggml_backend_sched_eval_callback
 from .llama cimport llama_model, llama_context, llama_token, llama_pos, llama_seq_id, llama_flash_attn_type
 
 # Forward declarations for Cython classes from llama_cpp
@@ -43,8 +43,16 @@ cdef extern from "mtmd.h":
         bint add_special
         bint parse_special
 
+    ctypedef struct mtmd_input_part:
+        # only text or bitmap can be set, not both
+        const mtmd_input_text * text
+        const mtmd_bitmap * bitmap
+
+    ctypedef bint (*mtmd_progress_callback)(float progress, void * user_data)
+
     ctypedef struct mtmd_context_params:
         bint use_gpu
+        ggml_backend_dev_t device
         bint print_timings
         int n_threads
         const char * image_marker  # deprecated
@@ -54,6 +62,11 @@ cdef extern from "mtmd.h":
         int image_max_tokens  # maximum number of tokens for image input (default: read from metadata)
         bint warmup  # whether to run a warmup encode pass after initialization
         int32_t batch_max_tokens  # maximum number of output tokens in a batch (default: 1024)
+        ggml_backend_sched_eval_callback cb_eval
+        void * cb_eval_user_data
+        # Called with a progress value between 0.0 and 1.0; returning false aborts loading
+        mtmd_progress_callback progress_callback
+        void * progress_callback_user_data
 
     # Constants and defaults
     cdef const char * mtmd_default_marker()
@@ -84,6 +97,15 @@ cdef extern from "mtmd.h":
     cdef void mtmd_bitmap_free(mtmd_bitmap * bitmap)
     cdef const char * mtmd_bitmap_get_id(const mtmd_bitmap * bitmap)
     cdef void mtmd_bitmap_set_id(mtmd_bitmap * bitmap, const char * id)
+    # if true, video models may merge this bitmap with an adjacent mergeable one (temporal merge)
+    cdef void mtmd_bitmap_set_mergeable(mtmd_bitmap * bitmap, bint mergeable)
+
+    # Lazy bitmap: holds no data, expanded by mtmd_tokenize through the callback.
+    # The callback returns 0 on success, -1 on EOF, -2 on error.
+    ctypedef int (*mtmd_bitmap_lazy_callback)(size_t chunk_idx, void * user_data,
+                                              mtmd_bitmap ** out_bitmap, char ** out_text)
+    cdef mtmd_bitmap * mtmd_bitmap_init_lazy(const mtmd_context * ctx, const char * id,
+                                             void * user_data, mtmd_bitmap_lazy_callback callback)
 
     # Input chunks management
     cdef mtmd_input_chunks * mtmd_input_chunks_init()
@@ -102,6 +124,11 @@ cdef extern from "mtmd.h":
     # Input chunk management
     cdef mtmd_input_chunk * mtmd_input_chunk_copy(const mtmd_input_chunk * chunk)
     cdef void mtmd_input_chunk_free(mtmd_input_chunk * chunk)
+    cdef mtmd_input_chunk * mtmd_input_chunk_get_placeholder(const mtmd_input_chunk * chunk)
+    # metadata only; a loaded chunk is a placeholder. out_buf may be NULL to query the size.
+    cdef int32_t mtmd_input_chunk_save(const mtmd_input_chunk * chunk, char * out_buf,
+                                       size_t out_len, size_t * expected_out_len)
+    cdef mtmd_input_chunk * mtmd_input_chunk_load(const char * buf, size_t len)
 
     # Image tokens queries
     cdef size_t mtmd_image_tokens_get_n_tokens(const mtmd_image_tokens * image_tokens)
@@ -125,6 +152,13 @@ cdef extern from "mtmd.h":
                           const mtmd_input_text * text,
                           const mtmd_bitmap ** bitmaps,
                           size_t n_bitmaps)
+
+    # as mtmd_tokenize, from text and bitmap parts instead of media markers; per-part add_special is ignored
+    cdef int32_t mtmd_tokenize_from_parts(const mtmd_context * ctx,
+                                          mtmd_input_chunks * output,
+                                          const mtmd_input_part ** parts,
+                                          size_t n_parts,
+                                          bint add_special)
 
     cdef int32_t mtmd_encode(mtmd_context * ctx,
                         const mtmd_image_tokens * image_tokens)  # deprecated
@@ -171,6 +205,44 @@ cdef extern from "mtmd.h":
         const char * model_variant  # may be NULL
 
     cdef mtmd_gen_audio_info mtmd_gen_audio_get_info(const mtmd_context * ctx)
+
+    ctypedef enum mtmd_gen_process_type:
+        MTMD_GEN_PROCESS_TYPE_GEN_CODE  # h_state to semantic (codes, mel-spectrogram, etc.)
+        MTMD_GEN_PROCESS_TYPE_GEN_WAV   # semantic to PCM audio
+
+    ctypedef struct mtmd_gen_inp:
+        mtmd_gen_process_type type
+        # GEN_CODE
+        int32_t code0
+        float * embd
+        int32_t top_k
+        float top_p
+        uint32_t seed
+        float temp
+        # GEN_WAV: codes (discrete) or feats (continuous), depending on the pipeline
+        int32_t * codes
+        size_t n_codes
+        const float * feats
+        size_t n_feats
+        const char * state_data
+        size_t state_size
+
+    ctypedef struct mtmd_gen_out:
+        # owned by the context, valid until the next process() call
+        const int32_t * codes
+        size_t n_codes
+        const float * feats
+        size_t n_feats
+        const float * embd
+        bint is_eos
+        const float * audio
+        size_t n_samples
+        const char * state_data
+        size_t state_size
+
+    cdef mtmd_gen_inp mtmd_gen_inp_default(const mtmd_context * ctx)
+    # stateless: the caller manages state and accumulates audio frames
+    cdef int32_t mtmd_gen_audio_process(mtmd_context * ctx, const mtmd_gen_inp * inp, mtmd_gen_out * out)
 
     # Test function
     cdef mtmd_input_chunks * mtmd_test_create_input_chunks()
@@ -268,6 +340,9 @@ cdef extern from "mtmd-helper.h":
     # Logging
     cdef void mtmd_helper_log_set(ggml_log_callback log_callback, void * user_data)
 
+    # true if this build includes video support (MTMD_VIDEO at compile time)
+    cdef bint mtmd_helper_support_video(const mtmd_context * ctx)
+
     # Bitmap loading returns a wrapper struct holding the bitmap (and an
     # optional video context, unused here).
     cdef struct mtmd_helper_bitmap_wrapper:
@@ -312,6 +387,17 @@ cdef extern from "mtmd-helper.h":
                                           bint logits_last,
                                           llama_pos * new_n_past)
 
+    # one decoded sub-batch of embeddings, passed to mtmd_helper_post_decode_callback
+    ctypedef struct mtmd_helper_embd_batch:
+        int32_t n_tokens
+        const float * embd   # [n_tokens, n_embd]
+        int32_t n_embd
+        const llama_pos * pos  # [n_pos, n_tokens], section-major
+        int32_t n_pos          # 4 for M-RoPE models, 1 otherwise
+        llama_seq_id seq_id
+
+    ctypedef int32_t (*mtmd_helper_post_decode_callback)(const mtmd_helper_embd_batch * batch, void * user_data)
+
     cdef int32_t mtmd_helper_decode_image_chunk(mtmd_context * ctx,
                                            llama_context * lctx,
                                            const mtmd_input_chunk * chunk,
@@ -319,4 +405,6 @@ cdef extern from "mtmd-helper.h":
                                            llama_pos n_past,
                                            llama_seq_id seq_id,
                                            int32_t n_batch,
-                                           llama_pos * new_n_past)
+                                           llama_pos * new_n_past,
+                                           mtmd_helper_post_decode_callback callback,
+                                           void * user_data)

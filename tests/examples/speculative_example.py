@@ -2,34 +2,42 @@
 """
 Speculative decoding with a draft model.
 
-A small draft model proposes tokens; the target model checks them all in one
-batch and keeps the longest prefix it agrees with, plus one token of its own.
+A drafter proposes tokens; the target model checks them all in one batch and
+keeps the longest prefix it agrees with, plus one token of its own. Two
+drafters are shown: a small draft model (``Drafter``) and an n-gram lookup
+over the tokens seen so far (``NgramDrafter``), which needs no second model.
 With greedy verification the output is identical to plain greedy decoding of
 the target; only the speed changes. The loop follows llama.cpp's
-examples/speculative-simple.
+examples/speculative-simple, built on the public API only (no libcommon).
 
 The draft model must share the target's vocabulary (same model family).
+N-gram drafting pays off on repetitive output (code, lists, quoting the prompt).
 
 Usage:
     python speculative_example.py --target models/Qwen3-4B-Q8_0.gguf --draft models/Qwen3-0.6B-Q8_0.gguf
     python speculative_example.py --target models/Llama-3.2-1B-Instruct-Q8_0.gguf --bench 3
+    python speculative_example.py --target models/Llama-3.2-1B-Instruct-Q8_0.gguf --ngram
 """
 
 import argparse
+import heapq
+import math
 import time
 from dataclasses import dataclass, field
 
 from cyllama.llama.llama_cpp import (
     LlamaBatch,
+    LlamaBatchExt,
     LlamaContext,
     LlamaContextParams,
     LlamaModel,
     LlamaModelParams,
     LlamaSampler,
-    Speculative,
-    SpeculativeParams,
     disable_logging,
 )
+from cyllama.llama.ngram_cache import NgramCache
+
+DRAFT_TOP_K = 10
 
 
 @dataclass
@@ -89,18 +97,101 @@ def greedy_generate(ctx: LlamaContext, prompt: list, n_predict: int) -> Result:
     return res
 
 
-def speculative_generate(
-    ctx_tgt: LlamaContext, spec: Speculative, params: SpeculativeParams, prompt: list, n_predict: int
-) -> Result:
-    """Draft with ``spec``, verify each draft in one target batch."""
+class Drafter:
+    """Draft-model speculator, as upstream's draft-simple with greedy drafting.
+
+    Extends the target's newest token with the draft model's top candidate.
+    Stops at ``n_max`` tokens, at an end-of-generation token, or when the top
+    candidate's probability (softmax over the top 10 logits) falls below
+    ``p_min``. A draft shorter than ``n_min`` is discarded. The draft KV cache
+    keeps the longest prefix shared with the previous call.
+    """
+
+    def __init__(self, ctx: LlamaContext, n_max: int = 3, n_min: int = 0, p_min: float = 0.0):
+        self.ctx, self.n_max, self.n_min, self.p_min = ctx, n_max, n_min, p_min
+        self.vocab = ctx.model.get_vocab()
+        self.sampler = LlamaSampler()
+        self.sampler.add_top_k(DRAFT_TOP_K)
+        self.sampler.add_greedy()
+        self.cached = []  # tokens in the draft KV cache
+
+    def _decode(self, tokens: list, pos0: int, logits_last: bool):
+        batch = LlamaBatchExt(self.ctx)
+        for i, tok in enumerate(tokens):
+            batch.add_token(tok, pos0 + i, output=logits_last and i == len(tokens) - 1)
+        self.ctx.process(batch)
+
+    def _top_p(self) -> float:
+        top = heapq.nlargest(DRAFT_TOP_K, self.ctx.get_logits_ith(-1))
+        return 1.0 / sum(math.exp(x - top[0]) for x in top)
+
+    def draft(self, processed: list, id_last: int) -> list:
+        """Return draft tokens predicted to follow ``processed + [id_last]``."""
+        n_ctx = self.ctx.n_ctx - self.n_max
+        prompt = processed[-n_ctx:] if len(processed) > n_ctx else processed
+
+        reuse = 0
+        for a, b in zip(self.cached, prompt):
+            if a != b:
+                break
+            reuse += 1
+        if reuse == 0:
+            self.ctx.kv_cache_clear()
+        elif reuse < len(self.cached):
+            self.ctx.memory_seq_rm(0, reuse, -1)
+        if len(prompt) > reuse:
+            self._decode(prompt[reuse:], reuse, False)
+
+        n_past = len(prompt)
+        self._decode([id_last], n_past, True)
+        self.cached = list(prompt) + [id_last]
+        self.sampler.reset()
+
+        result = []
+        while len(result) < self.n_max:
+            if self.p_min > 0.0 and self._top_p() < self.p_min:
+                break
+            tok = self.sampler.sample(self.ctx, -1)
+            result.append(tok)
+            if self.vocab.is_eog(tok) or len(result) == self.n_max:
+                break
+            self._decode([tok], n_past + len(result), True)
+            self.cached.append(tok)
+
+        return result if len(result) >= self.n_min else []
+
+
+class NgramDrafter:
+    """Draft-model-free speculator: n-gram lookup over the tokens seen so far.
+
+    Mirrors llama.cpp's lookup decoding with only the context cache. The cache
+    is reset when ``processed`` no longer extends the tokens it has seen.
+    """
+
+    def __init__(self, n_max: int = 8, ngram_min: int = 1, ngram_max: int = 4):
+        self.n_max, self.ngram_min, self.ngram_max = n_max, ngram_min, ngram_max
+        self.cache = NgramCache()
+        self.seen = []
+
+    def draft(self, processed: list, id_last: int) -> list:
+        """Return draft tokens predicted to follow ``processed + [id_last]``."""
+        tokens = list(processed) + [id_last]
+        if tokens[: len(self.seen)] != self.seen:
+            self.cache, self.seen = NgramCache(), []
+        self.cache.update(tokens, self.ngram_min, self.ngram_max, nnew=len(tokens) - len(self.seen))
+        self.seen = tokens
+        return self.cache.draft(tokens, n_draft=self.n_max, ngram_min=self.ngram_min, ngram_max=self.ngram_max)
+
+
+def speculative_generate(ctx_tgt: LlamaContext, drafter, prompt: list, n_predict: int) -> Result:
+    """Draft with ``drafter``, verify each draft in one target batch."""
     vocab = ctx_tgt.model.get_vocab()
     sampler = _greedy()
-    batch = LlamaBatch(n_tokens=max(len(prompt), params.n_max + 1), embd=0, n_seq_max=1)
+    batch = LlamaBatch(n_tokens=max(len(prompt), drafter.n_max + 1), embd=0, n_seq_max=1)
     res = Result()
     t0 = time.perf_counter()
 
     ctx_tgt.kv_cache_clear()
-    spec.begin(prompt)
     # The target processes all but the last prompt token; that token seeds the first draft.
     processed, id_last = list(prompt[:-1]), prompt[-1]
     if processed:
@@ -109,7 +200,7 @@ def speculative_generate(
 
     while True:
         n_left = n_predict - len(res.tokens)
-        draft = spec.draft(params, processed, id_last)[: n_left - 1] if n_left > 1 else []
+        draft = drafter.draft(processed, id_last)[: n_left - 1] if n_left > 1 else []
 
         # Score id_last and every draft token in one batch; row i predicts position i + 1.
         batch.set_batch([id_last] + draft, len(processed), True)
@@ -126,7 +217,6 @@ def speculative_generate(
         res.n_rounds += 1
         res.n_drafted += len(draft)
         res.n_accepted += len(accepted) - 1
-        spec.accept(len(accepted) - 1)
 
         processed += [id_last] + accepted[:-1]
         id_last = accepted[-1]
@@ -144,6 +234,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--target", required=True, help="target model (GGUF)")
     parser.add_argument("--draft", help="draft model (GGUF); defaults to the target itself")
+    parser.add_argument("--ngram", action="store_true", help="draft by n-gram lookup instead of a draft model")
     parser.add_argument("-p", "--prompt", default="Write a short story about a lighthouse keeper.")
     parser.add_argument("-n", "--n-predict", type=int, default=128)
     parser.add_argument("--n-max", type=int, default=8, help="max draft tokens per round")
@@ -155,20 +246,22 @@ def main():
     disable_logging()
     n_ctx = 4096
     model_tgt, ctx_tgt = load(args.target, n_ctx, args.ngl)
-    _, ctx_dft = load(args.draft or args.target, n_ctx, args.ngl)
 
     vocab = model_tgt.get_vocab()
     prompt = vocab.tokenize(args.prompt, add_special=True, parse_special=False)
-    params = SpeculativeParams(n_max=args.n_max, p_min=args.p_min)
-    spec = Speculative(params, ctx_tgt, ctx_dft)
+    if args.ngram:
+        drafter = NgramDrafter(n_max=args.n_max)
+    else:
+        _, ctx_dft = load(args.draft or args.target, n_ctx, args.ngl)
+        drafter = Drafter(ctx_dft, n_max=args.n_max, p_min=args.p_min)
 
     runs = max(args.bench, 1)
     if args.bench:
         greedy_generate(ctx_tgt, prompt, args.n_predict)
-        speculative_generate(ctx_tgt, spec, params, prompt, args.n_predict)
+        speculative_generate(ctx_tgt, drafter, prompt, args.n_predict)
 
     base = [greedy_generate(ctx_tgt, prompt, args.n_predict) for _ in range(runs)]
-    specs = [speculative_generate(ctx_tgt, spec, params, prompt, args.n_predict) for _ in range(runs)]
+    specs = [speculative_generate(ctx_tgt, drafter, prompt, args.n_predict) for _ in range(runs)]
 
     print("".join(vocab.token_to_piece(t, 0, False) for t in specs[-1].tokens))
     print()

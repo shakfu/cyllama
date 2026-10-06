@@ -142,6 +142,23 @@ memray:
 leaks: $(MODEL)
 	@uv run python scripts/leak_check.py --cycles 10 --threshold 20
 
+# Upstream llama-server (CPU), built from the llama.cpp tree cyllama compiles,
+# then used as the reference for the decision-model parity tests. Both run only
+# when the binary is (re)built; the version file makes a llama.cpp upgrade rebuild it.
+LLAMA_SERVER := build/llama-server/bin/llama-server
+
+.PHONY: llama-server
+
+llama-server: $(LLAMA_SERVER)
+
+$(LLAMA_SERVER): $(LIBLAMMA) $(wildcard build/llama.cpp/.cyllama-version)
+	@cmake -S build/llama.cpp -B build/llama-server -DCMAKE_BUILD_TYPE=Release \
+		-DLLAMA_BUILD_SERVER=ON -DLLAMA_BUILD_TOOLS=ON -DLLAMA_BUILD_TESTS=OFF \
+		-DLLAMA_BUILD_EXAMPLES=OFF -DBUILD_SHARED_LIBS=OFF -DLLAMA_CURL=OFF
+	@cmake --build build/llama-server --target llama-server -j
+	@CYLLAMA_UPSTREAM_SERVER=$@ uv run pytest tests/test_decision.py -k parity -v || { rm -f $@; exit 1; }
+	@touch $@
+
 # =============================================================================
 # Code quality
 # =============================================================================

@@ -3,7 +3,7 @@
 
 
 from libc.stdint cimport uint8_t, int32_t, int64_t, uint32_t, uint64_t
-from libc.string cimport strlen
+from libc.string cimport strlen, strcmp
 from libc.stdlib cimport malloc, calloc, realloc, free
 from libc.stdio cimport FILE, fdopen, fclose
 from libcpp.vector cimport vector as std_vector
@@ -16,9 +16,11 @@ cimport llama
 cimport gguf
 
 
+import array
 import io
 import os
 import stat
+import struct
 import traceback
 import weakref
 # from enum import Enum
@@ -96,6 +98,29 @@ cpdef enum:
     LLAMA_LAZY_MODE_OFF = 0        # always read the whole tensor up front
     LLAMA_LAZY_MODE_AUTO = 1       # lazy only for marked tensors larger than 4 GiB (requires mmap)
     LLAMA_LAZY_MODE_ON = 2         # read the rows of tensors marked by the arch on demand (requires mmap)
+
+cpdef enum:
+    GGUF_TYPE_UINT8 = 0
+    GGUF_TYPE_INT8 = 1
+    GGUF_TYPE_UINT16 = 2
+    GGUF_TYPE_INT16 = 3
+    GGUF_TYPE_UINT32 = 4
+    GGUF_TYPE_INT32 = 5
+    GGUF_TYPE_FLOAT32 = 6
+    GGUF_TYPE_BOOL = 7
+    GGUF_TYPE_STRING = 8
+    GGUF_TYPE_ARRAY = 9
+    GGUF_TYPE_UINT64 = 10
+    GGUF_TYPE_INT64 = 11
+    GGUF_TYPE_FLOAT64 = 12
+
+cpdef enum:
+    LLAMA_CONTEXT_TYPE_DEFAULT = 0
+    LLAMA_CONTEXT_TYPE_MTP = 1
+
+cpdef enum:
+    LLAMA_PROCESS_TYPE_ENCODE = 0
+    LLAMA_PROCESS_TYPE_DECODE = 1
 
 
 # callbacks
@@ -475,6 +500,53 @@ cdef class GgmlTensor:
         wrapper.ptr = ptr
         return wrapper
 
+    cdef int _check(self) except -1:
+        if self.ptr is NULL:
+            raise ValueError("tensor view is no longer valid")
+        return 0
+
+    @property
+    def name(self) -> str:
+        self._check()
+        return ggml.ggml_get_name(self.ptr).decode("utf-8", errors="replace")
+
+    @property
+    def type(self) -> int:
+        """ggml_type of the tensor data."""
+        self._check()
+        return self.ptr.type
+
+    @property
+    def type_name(self) -> str:
+        self._check()
+        return ggml.ggml_type_name(self.ptr.type).decode()
+
+    @property
+    def shape(self) -> tuple:
+        """Elements per dimension, innermost first (ggml ``ne`` order)."""
+        self._check()
+        return tuple(self.ptr.ne[i] for i in range(ggml.ggml_n_dims(self.ptr)))
+
+    @property
+    def n_elements(self) -> int:
+        self._check()
+        return ggml.ggml_nelements(self.ptr)
+
+    @property
+    def nbytes(self) -> int:
+        self._check()
+        return ggml.ggml_nbytes(self.ptr)
+
+    def set_data(self, data):
+        """Copy ``data`` (any contiguous buffer of exactly ``nbytes`` bytes) into the tensor."""
+        self._check()
+        cdef const unsigned char[::1] view = memoryview(data).cast("B")
+        cdef size_t n = view.shape[0]
+        if n != ggml.ggml_nbytes(self.ptr):
+            raise ValueError(f"tensor '{self.name}' needs {ggml.ggml_nbytes(self.ptr)} bytes, got {n}")
+        if n:
+            ggml.ggml_backend_tensor_set(self.ptr, &view[0], 0, n)
+
 
 cdef class GgmlThreadPoolParams:
     # NOTE: should this be a * ptr
@@ -809,6 +881,168 @@ cdef class LlamaBatch:
             self.p.logits[self.p.n_tokens - 1] = True
 
 
+cdef const float[::1] _as_float_view(object data):
+    try:
+        return data
+    except (TypeError, ValueError):
+        return array.array("f", data)
+
+
+cdef class LlamaBatchExt:
+    """Extended batch bound to one context; run it with :meth:`LlamaContext.process`.
+
+    Entries carry a token id or an input embedding. Embedding entries of
+    M-RoPE models take ``GGML_MROPE_SECTIONS`` (4) positions; all other
+    entries take one. Embedding data is copied into the batch.
+    """
+    cdef llama.llama_batch_ext * ptr
+    cdef readonly LlamaContext ctx
+    cdef readonly int n_pos_per_embd
+    cdef int _n_tokens
+    cdef bint _rejected
+
+    def __cinit__(self):
+        self.ptr = NULL
+        self._n_tokens = 0
+        self._rejected = False
+
+    def __init__(self, LlamaContext ctx not None):
+        if ctx.ptr is NULL:
+            raise ValueError("context has been freed or is invalid (NULL pointer)")
+        self.ptr = llama.llama_batch_ext_init(ctx.ptr)
+        if self.ptr is NULL:
+            raise MemoryError("llama_batch_ext_init returned NULL")
+        # the batch keeps pointers into the context (memory, vocab)
+        self.ctx = ctx
+        rt = llama.llama_get_model_rope_type(llama.llama_get_model(ctx.ptr))
+        self.n_pos_per_embd = 4 if rt in (llama.LLAMA_ROPE_TYPE_MROPE, llama.LLAMA_ROPE_TYPE_IMROPE) else 1
+
+    def __dealloc__(self):
+        if self.ptr is not NULL:
+            llama.llama_batch_ext_free(self.ptr)
+            self.ptr = NULL
+
+    def __len__(self):
+        return self._n_tokens
+
+    cdef int _check_usable(self) except -1:
+        if self._rejected:
+            raise ValueError("batch holds a rejected entry; call clear()")
+        return 0
+
+    cdef int _check_add(self, int32_t idx) except -1:
+        if idx == -2:
+            # upstream keeps the rejected entry in the batch
+            self._rejected = True
+        if idx == -1:
+            raise ValueError("batch is full (n_batch entries)")
+        if idx == -2:
+            raise ValueError("invalid token id or embedding size")
+        if idx == -3:
+            raise ValueError("invalid seq_id (must be in [0, n_seq_max))")
+        if idx < 0:
+            raise RuntimeError(f"llama_batch_ext add failed with code {idx}")
+        self._n_tokens += 1
+        return 0
+
+    @staticmethod
+    def _positions(pos, int n_pos) -> list:
+        positions = [pos] if isinstance(pos, int) else list(pos)
+        if len(positions) != n_pos:
+            raise ValueError(f"expected {n_pos} position(s), got {len(positions)}")
+        return positions
+
+    cdef int _set_pos(self, int32_t idx, list positions) except -1:
+        # upstream reads 1 or n_pos_per_embd entries; a full local array keeps that in bounds
+        cdef llama.llama_pos buf[4]
+        cdef int i
+        for i in range(4):
+            buf[i] = positions[i] if i < len(positions) else 0
+        if not llama.llama_batch_ext_set_pos(self.ptr, idx, buf):
+            raise IndexError(f"invalid batch index {idx}")
+        return 0
+
+    def clear(self):
+        """Remove all entries."""
+        llama.llama_batch_ext_clear(self.ptr)
+        self._n_tokens = 0
+        self._rejected = False
+
+    def add_token(self, int token, pos, int seq_id=0, bint output=False) -> int:
+        """Add a token entry at position ``pos``. Returns the batch index."""
+        self._check_usable()
+        positions = LlamaBatchExt._positions(pos, 1)
+        cdef int32_t idx = llama.llama_batch_ext_add_token(self.ptr, seq_id, token)
+        self._check_add(idx)
+        self._set_pos(idx, positions)
+        self.set_output(idx, output)
+        return idx
+
+    def add_embd(self, data, pos, int seq_id=0, bint output=False) -> int:
+        """Add an embedding entry of ``n_embd_inp`` floats. Returns the batch index.
+
+        ``pos`` is an int, or ``n_pos_per_embd`` positions for M-RoPE models.
+        """
+        self._check_usable()
+        positions = LlamaBatchExt._positions(pos, self.n_pos_per_embd)
+        cdef const float[::1] view = _as_float_view(data)
+        cdef llama.llama_embd embd
+        embd.data = &view[0] if view.shape[0] else NULL
+        embd.n_rows = 1
+        embd.n_embd = view.shape[0]
+        cdef int32_t idx = llama.llama_batch_ext_add_embd(self.ptr, seq_id, embd)
+        self._check_add(idx)
+        self._set_pos(idx, positions)
+        self.set_output(idx, output)
+        return idx
+
+    def add_seq(self, int idx, int seq_id):
+        """Add the entry at ``idx`` to another sequence; call before the set_* methods."""
+        if not llama.llama_batch_ext_add_seq(self.ptr, idx, seq_id):
+            raise ValueError(f"invalid batch index {idx} or seq_id {seq_id}")
+
+    def set_embd_token(self, int idx, data):
+        """Attach a token embedding to a token entry; can be set once per entry."""
+        cdef const float[::1] view = _as_float_view(data)
+        cdef llama.llama_embd embd
+        embd.data = &view[0] if view.shape[0] else NULL
+        embd.n_rows = 1
+        embd.n_embd = view.shape[0]
+        if not llama.llama_batch_ext_set_embd_token(self.ptr, idx, embd):
+            raise ValueError(f"cannot set embedding at index {idx} (bad index, size, or already set)")
+
+    def set_embd_state(self, int idx, data, int n_rows=1):
+        """Attach extra hidden state (MTP, deepstack); not yet implemented upstream."""
+        cdef const float[::1] view = _as_float_view(data)
+        cdef llama.llama_embd embd
+        if n_rows <= 0 or view.shape[0] % n_rows:
+            raise ValueError(f"data length {view.shape[0]} is not a multiple of n_rows={n_rows}")
+        embd.data = &view[0] if view.shape[0] else NULL
+        embd.n_rows = n_rows
+        embd.n_embd = view.shape[0] // n_rows
+        if not llama.llama_batch_ext_set_embd_state(self.ptr, idx, embd):
+            raise RuntimeError("llama_batch_ext_set_embd_state failed (unimplemented in this llama.cpp)")
+
+    def set_output(self, int idx, bint value=True):
+        """Request logits and embeddings for the entry at ``idx``."""
+        if not llama.llama_batch_ext_set_output_logits(self.ptr, idx, value):
+            raise IndexError(f"invalid batch index {idx}")
+
+    def set_output_embd(self, int idx, bint value=True):
+        """Upstream currently treats this the same as :meth:`set_output`."""
+        if not llama.llama_batch_ext_set_output_embd(self.ptr, idx, value):
+            raise IndexError(f"invalid batch index {idx}")
+
+    def set_pos(self, int idx, pos):
+        """Overwrite the position(s) of an embedding entry, or the position of a token entry."""
+        if not 0 <= idx < self._n_tokens:
+            raise IndexError(f"invalid batch index {idx}")
+        n = len(pos) if not isinstance(pos, int) else 1
+        if n not in (1, self.n_pos_per_embd):
+            raise ValueError(f"expected 1 or {self.n_pos_per_embd} position(s), got {n}")
+        self._set_pos(idx, LlamaBatchExt._positions(pos, n))
+
+
 cdef class LlamaModelKvOverride:
     cdef llama.llama_model_kv_override * ptr
     cdef bint owner
@@ -1105,9 +1339,19 @@ cdef class LlamaModelParams:
     def no_alloc(self, value: bool):
         self.p.no_alloc = value
 
+    @property
+    def load_mtp(self) -> bool:
+        """Load MTP (multi-token prediction) layers"""
+        return self.p.load_mtp
+
+    @load_mtp.setter
+    def load_mtp(self, value: bool):
+        self.p.load_mtp = value
+
 
 cdef class LlamaContextParams:
     cdef llama.llama_context_params p
+    cdef LlamaContext _ctx_other
 
     def __init__(self):
         self.p = llama.llama_context_default_params()
@@ -1155,6 +1399,56 @@ cdef class LlamaContextParams:
     @n_seq_max.setter
     def n_seq_max(self, value: int):
         self.p.n_seq_max = value
+
+    @property
+    def n_rs_seq(self) -> int:
+        """recurrent-state snapshots per seq for rollback, 0 = no rollback [EXPERIMENTAL]."""
+        return self.p.n_rs_seq
+
+    @n_rs_seq.setter
+    def n_rs_seq(self, value: int):
+        self.p.n_rs_seq = value
+
+    @property
+    def n_outputs_max(self) -> int:
+        """max outputs in a ubatch, 0 = n_batch."""
+        return self.p.n_outputs_max
+
+    @n_outputs_max.setter
+    def n_outputs_max(self, value: int):
+        self.p.n_outputs_max = value
+
+    @property
+    def n_outputs_max_per_seq(self) -> int:
+        """max outputs per sequence, 0 = n_outputs_max."""
+        return self.p.n_outputs_max_per_seq
+
+    @n_outputs_max_per_seq.setter
+    def n_outputs_max_per_seq(self, value: int):
+        self.p.n_outputs_max_per_seq = value
+
+    @property
+    def ctx_type(self) -> int:
+        """context type, LLAMA_CONTEXT_TYPE_DEFAULT or LLAMA_CONTEXT_TYPE_MTP."""
+        return self.p.ctx_type
+
+    @ctx_type.setter
+    def ctx_type(self, int value):
+        if value not in (LLAMA_CONTEXT_TYPE_DEFAULT, LLAMA_CONTEXT_TYPE_MTP):
+            raise ValueError(f"invalid ctx_type {value}")
+        self.p.ctx_type = <llama.llama_context_type>value
+
+    @property
+    def ctx_other(self):
+        """source/target/parent context, e.g. the target of an MTP context."""
+        return self._ctx_other
+
+    @ctx_other.setter
+    def ctx_other(self, LlamaContext value):
+        if value is not None and value.ptr is NULL:
+            raise ValueError("ctx_other has been freed or is invalid (NULL pointer)")
+        self._ctx_other = value
+        self.p.ctx_other = value.ptr if value is not None else NULL
 
     @property
     def n_threads(self) -> int:
@@ -1647,6 +1941,10 @@ cdef class LlamaVocab:
         """sentence separator"""
         return llama.llama_vocab_sep(self.ptr)
 
+    def token_mask(self) -> int:
+        """mask"""
+        return llama.llama_vocab_mask(self.ptr)
+
     def token_nl(self) -> int:
         """next-line"""
         return llama.llama_vocab_nl(self.ptr)
@@ -1955,6 +2253,22 @@ cdef class _GgufFileHandle:
             self.fp = NULL
 
 
+cdef void _set_tensor_data_trampoline(ggml.ggml_tensor * tensor, void * user_data) noexcept with gil:
+    # Errors cannot cross the C boundary: keep the first one, skip later tensors,
+    # and let LlamaModel.from_user free the model and re-raise it.
+    cdef list state = <list>user_data
+    cdef GgmlTensor view
+    if state[1] is not None:
+        return
+    view = GgmlTensor.from_ptr(tensor)
+    try:
+        state[0](view)
+    except BaseException as e:
+        state[1] = e
+    finally:
+        view.ptr = NULL
+
+
 cdef class LlamaModel:
     """cython wrapper for llama.llama_model."""
     cdef llama.llama_model * ptr
@@ -2078,6 +2392,41 @@ cdef class LlamaModel:
                 "GGUF data section must sit at a 32-byte aligned file offset. "
                 "Run with verbose=True to see detailed errors from llama.cpp."
             )
+        model._initialize_cache()
+        return model
+
+    @staticmethod
+    def from_user(GGUFContext metadata not None, set_tensor_data not None,
+                  params: Optional[LlamaModelParams] = None, verbose: bool = True) -> LlamaModel:
+        """Build a model from GGUF metadata, with tensor data supplied by a callback.
+
+        llama.cpp creates the architecture's tensors (F32 unless ``metadata``
+        lists a tensor of the same name with another type) and calls
+        ``set_tensor_data(tensor)`` once per tensor with a :class:`GgmlTensor`
+        view, valid only during that call. Useful for synthetic test models.
+
+        Raises:
+            ValueError: llama.cpp rejected the metadata.
+            Exception: the first exception raised by ``set_tensor_data``.
+        """
+        if not callable(set_tensor_data):
+            raise TypeError("set_tensor_data must be callable")
+        if metadata.ptr is NULL:
+            raise ValueError("GGUF context has been freed or is invalid (NULL pointer)")
+        cdef LlamaModel model = LlamaModel.__new__(LlamaModel)
+        model.path_model = None
+        model.params = params if params else LlamaModelParams()
+        model.verbose = verbose
+        state = [set_tensor_data, None]  # [callback, first exception]
+        model.ptr = llama.llama_model_init_from_user(
+            metadata.ptr, _set_tensor_data_trampoline, <void *>state, model.params.p)
+        if state[1] is not None:
+            model.close()
+            raise state[1]
+        if model.ptr is NULL:
+            raise ValueError(
+                "llama_model_init_from_user failed; run with a log callback "
+                "to see llama.cpp's reason (often a missing metadata key)")
         model._initialize_cache()
         return model
 
@@ -2582,6 +2931,7 @@ cdef class LlamaContext:
     # seq_id -> LlamaSampler attached for backend sampling. llama.cpp keeps
     # only the raw chain pointer, so these wrappers must outlive self.ptr.
     cdef object _backend_samplers
+    cdef object _ctx_other
     # LlamaSampler binds to its context by weak reference
     cdef object __weakref__
 
@@ -2617,6 +2967,8 @@ cdef class LlamaContext:
         self.model = model
         self.params = params if params else LlamaContextParams()
         self.verbose = verbose
+        # the C context keeps cparams.ctx_other; hold it even if params changes later
+        self._ctx_other = self.params._ctx_other
 
         # KV cache memory pre-check. llama.cpp's allocator does not always
         # return NULL on OOM -- on some platforms it segfaults inside the
@@ -3324,6 +3676,38 @@ cdef class LlamaContext:
 
         return res
 
+    def process(self, LlamaBatchExt batch not None, int process_type=LLAMA_PROCESS_TYPE_DECODE) -> int:
+        """Run llama_process on an extended batch built for this context.
+
+        Return codes and exceptions match :meth:`decode`.
+        """
+        if batch.ctx is not self:
+            raise ValueError("batch was created for a different context")
+        batch._check_usable()
+        if process_type not in (LLAMA_PROCESS_TYPE_ENCODE, LLAMA_PROCESS_TYPE_DECODE):
+            raise ValueError(f"invalid process_type {process_type}")
+        cdef llama.llama_context * ctx_ptr = self.ptr
+        cdef llama.llama_batch_ext * c_batch = batch.ptr
+        cdef llama.llama_process_type c_type = <llama.llama_process_type>process_type
+        cdef int32_t res
+        with nogil:
+            res = llama.llama_process(ctx_ptr, c_type, c_batch)
+
+        self.n_tokens = len(batch)
+
+        if res == 1:
+            raise ValueError(
+                "could not find a KV slot for the batch "
+                "(try reducing the size of the batch or increase the context)"
+            )
+        if res == 2:
+            raise InterruptedError("llama_process aborted by abort_callback")
+        if res == -1:
+            raise ValueError("llama_process rejected invalid input batch")
+        if res < 0:
+            raise RuntimeError(f"llama_process failed with code {res}")
+        return res
+
     def set_n_threads(self, n_threads: int, n_threads_batch: int):
         """Set the number of threads used for decoding
 
@@ -3353,6 +3737,10 @@ cdef class LlamaContext:
         If set to true, the model will only attend to the past tokens
         """
         llama.llama_set_causal_attn(self.ptr, causal_attn)
+
+    def get_causal_attn(self) -> bool:
+        """Return whether the context is currently using causal attention."""
+        return llama.llama_get_causal_attn(self.ptr)
 
     def set_abort_callback(self, object py_abort_callback):
         """Set abort callback.
@@ -3738,6 +4126,20 @@ cdef int _sampler_sample(llama.llama_sampler * smpl, llama.llama_context * ctx, 
     return 0
 
 
+cdef bint _same_sampler_shape(llama.llama_sampler * a, llama.llama_sampler * b):
+    cdef int32_t i, n
+    if a.iface != b.iface:
+        return False
+    if strcmp(llama.llama_sampler_name(a), b"chain") == 0:
+        n = llama.llama_sampler_chain_n(a)
+        if n != llama.llama_sampler_chain_n(b):
+            return False
+        for i in range(n):
+            if not _same_sampler_shape(llama.llama_sampler_chain_get(a, i), llama.llama_sampler_chain_get(b, i)):
+                return False
+    return True
+
+
 cdef class LlamaSampler:
     """cython wrapper for llama.llama_sampler."""
     cdef llama.llama_sampler * ptr
@@ -3899,6 +4301,16 @@ cdef class LlamaSampler:
         wrapper.ptr = smplr
         wrapper.owner = True
         return wrapper
+
+    def copy_to(self, LlamaSampler dst not None):
+        """Copy this sampler's mutable state (RNG, history) into ``dst``.
+
+        ``dst`` must be the same sampler type with the same configuration.
+        """
+        # llama_sampler_copy aborts the process on a type or chain-shape mismatch
+        if not _same_sampler_shape(self.ptr, dst.ptr):
+            raise TypeError("cannot copy state between samplers of different types or chain layouts")
+        llama.llama_sampler_copy(self.ptr, dst.ptr)
 
     def get_seed(self) -> int:
         """Returns the seed used by the sampler if applicable, LLAMA_DEFAULT_SEED otherwise"""
@@ -4739,6 +5151,13 @@ def llama_flash_attn_type_name(llama.llama_flash_attn_type flash_attn_type) -> s
 # GGUF File Format API
 #------------------------------------------------------------------------------
 
+_GGUF_ARR_FORMATS = {
+    GGUF_TYPE_UINT8: "B", GGUF_TYPE_INT8: "b", GGUF_TYPE_UINT16: "H", GGUF_TYPE_INT16: "h",
+    GGUF_TYPE_UINT32: "I", GGUF_TYPE_INT32: "i", GGUF_TYPE_FLOAT32: "f", GGUF_TYPE_BOOL: "?",
+    GGUF_TYPE_UINT64: "Q", GGUF_TYPE_INT64: "q", GGUF_TYPE_FLOAT64: "d",
+}
+
+
 cdef class GGUFContext:
     """
     Wrapper for GGUF file format context.
@@ -5017,6 +5436,30 @@ cdef class GGUFContext:
         key_bytes = key.encode('utf-8')
         value_bytes = value.encode('utf-8')
         gguf.gguf_set_val_str(self.ptr, key_bytes, value_bytes)
+
+    def set_arr_str(self, str key, list values):
+        """Set a string array value."""
+        encoded = [v.encode('utf-8') for v in values]
+        cdef const char ** ptrs = <const char **>malloc(max(len(encoded), 1) * sizeof(char *))
+        if ptrs is NULL:
+            raise MemoryError()
+        cdef Py_ssize_t i
+        try:
+            for i in range(len(encoded)):
+                ptrs[i] = encoded[i]
+            gguf.gguf_set_arr_str(self.ptr, key.encode('utf-8'), ptrs, len(encoded))
+        finally:
+            free(ptrs)
+
+    def set_arr_data(self, str key, int gguf_type, values):
+        """Set a numeric or bool array value; ``gguf_type`` is a ``GGUF_TYPE_*`` constant."""
+        fmt = _GGUF_ARR_FORMATS.get(gguf_type)
+        if fmt is None:
+            raise ValueError(f"gguf_type {gguf_type} is not a numeric or bool type")
+        values = list(values)
+        cdef bytes packed = struct.pack(f"<{len(values)}{fmt}", *values)
+        cdef const char * data = packed
+        gguf.gguf_set_arr_data(self.ptr, key.encode('utf-8'), <gguf.gguf_type>gguf_type, data, len(values))
 
     def set_val_bool(self, str key, bint value):
         """Set boolean value."""
@@ -5567,283 +6010,5 @@ def resolve_docker_model(docker_repo):
     return dest_path
 
 
-# =============================================================================
-# N-gram Cache API (pure Python implementation)
-# =============================================================================
-
-_NGRAM_MIN = 1
-_NGRAM_MAX = 4
-_NGRAM_STATIC = 2
-_TOKEN_NULL = -1  # LLAMA_TOKEN_NULL
-
-
-def _make_ngram(tokens, size):
-    """Create a padded n-gram tuple of length _NGRAM_MAX."""
-    result = list(tokens[:size])
-    while len(result) < _NGRAM_MAX:
-        result.append(_TOKEN_NULL)
-    return tuple(result)
-
-
-class NgramCache:
-    """N-gram cache for accelerating text generation with repeated patterns.
-
-    N-gram caching stores patterns of previously generated tokens and uses them
-    to predict likely continuations, speeding up generation when text contains
-    repetitive patterns.
-
-    Example:
-        cache = NgramCache()
-        tokens = [1, 2, 3, 4, 5, 2, 3, 4]
-        cache.update(tokens, ngram_min=2, ngram_max=4)
-
-        inp = [1, 2]
-        draft = cache.draft(inp, n_draft=5, ngram_min=2, ngram_max=4)
-
-        cache.save("cache.bin")
-        cache2 = NgramCache.load("cache.bin")
-        cache.merge(cache2)
-    """
-
-    def __init__(self):
-        # dict[tuple[int,...], dict[int, int]] : ngram -> {next_token: count}
-        self._data = {}
-
-    def update(self, tokens, ngram_min=2, ngram_max=4, nnew=None, print_progress=False):
-        """Update the n-gram cache with new tokens.
-
-        Args:
-            tokens: List of token IDs to add to the cache
-            ngram_min: Minimum n-gram size (default: 2)
-            ngram_max: Maximum n-gram size (default: 4, max: 4)
-            nnew: Number of new tokens appended (default: len(tokens))
-            print_progress: Print progress to stderr (default: False)
-        """
-        if nnew is None:
-            nnew = len(tokens)
-
-        ngram_min = max(_NGRAM_MIN, min(ngram_min, _NGRAM_MAX))
-        ngram_max = max(_NGRAM_MIN, min(ngram_max, _NGRAM_MAX))
-
-        n = len(tokens)
-        data = self._data
-
-        for ngram_size in range(ngram_min, ngram_max + 1):
-            i_start = max(n - nnew, ngram_size)
-            for i in range(i_start, n):
-                ngram = _make_ngram(tokens[i - ngram_size:i], ngram_size)
-                next_token = tokens[i]
-                part = data.get(ngram)
-                if part is None:
-                    data[ngram] = {next_token: 1}
-                else:
-                    part[next_token] = part.get(next_token, 0) + 1
-
-    def draft(self, inp, n_draft=16, ngram_min=2, ngram_max=4,
-              context_cache=None, dynamic_cache=None, static_cache=None):
-        """Draft tokens using n-gram prediction.
-
-        Args:
-            inp: Input tokens generated so far
-            n_draft: Maximum number of tokens to draft (default: 16)
-            ngram_min: Minimum n-gram size (default: 2)
-            ngram_max: Maximum n-gram size (default: 4)
-            context_cache: NgramCache based on current context (default: self)
-            dynamic_cache: NgramCache based on previous generations (default: empty)
-            static_cache: NgramCache from large corpus for validation (default: empty)
-
-        Returns:
-            List of drafted token IDs
-        """
-        ngram_min = max(_NGRAM_MIN, min(ngram_min, _NGRAM_MAX))
-        ngram_max = max(_NGRAM_MIN, min(ngram_max, _NGRAM_MAX))
-
-        ctx_data = (context_cache if context_cache is not None else self)._data
-        dyn_data = (dynamic_cache if dynamic_cache is not None else NgramCache())._data
-        sta_data = (static_cache if static_cache is not None else NgramCache())._data
-
-        # Seed: last input token
-        if len(inp) > 0:
-            draft_tokens = [inp[-1]]
-        else:
-            draft_tokens = [0]
-
-        # Threshold tables (indexed by ngram_size - 1)
-        min_sample_lax    = [2, 2, 1, 1]
-        min_percent_lax   = [66, 50, 50, 50]
-        min_sample_strict  = [4, 3, 2, 2]
-        min_percent_strict = [75, 66, 66, 66]
-
-        combined = list(inp) + []
-
-        while len(draft_tokens) - 1 < n_draft:
-            # Reconstruct the full sequence for lookup
-            combined_seq = list(inp) + draft_tokens[1:]
-            drafted = False
-
-            # 1. Try context cache (lax thresholds)
-            for ngram_size in range(ngram_max, ngram_min - 1, -1):
-                idx = ngram_size - 1
-                if len(combined_seq) < ngram_size:
-                    continue
-                ngram = _make_ngram(combined_seq[-ngram_size:], ngram_size)
-                part = ctx_data.get(ngram)
-                if part is None:
-                    continue
-
-                # Find best token (optionally weighted by static cache)
-                best_token = _TOKEN_NULL
-                best_score = -1
-                sum_count = 0
-                for tok, cnt in part.items():
-                    sum_count += cnt
-                    sta_part = sta_data.get(_make_ngram(combined_seq[-_NGRAM_STATIC:], _NGRAM_STATIC)) if len(combined_seq) >= _NGRAM_STATIC else None
-                    sta_cnt = sta_part.get(tok, 0) if sta_part else 0
-                    score = cnt * max(1, sta_cnt)
-                    if score > best_score:
-                        best_score = score
-                        best_token = tok
-
-                if best_token == _TOKEN_NULL:
-                    continue
-
-                max_count = part.get(best_token, 0)
-                if sum_count >= min_sample_lax[idx] and 100 * max_count >= min_percent_lax[idx] * sum_count:
-                    draft_tokens.append(best_token)
-                    drafted = True
-                    break
-
-            if drafted:
-                continue
-
-            # 2. Try dynamic cache (strict thresholds)
-            for ngram_size in range(ngram_max, ngram_min - 1, -1):
-                idx = ngram_size - 1
-                if len(combined_seq) < ngram_size:
-                    continue
-                ngram = _make_ngram(combined_seq[-ngram_size:], ngram_size)
-                part = dyn_data.get(ngram)
-                if part is None:
-                    continue
-
-                best_token = _TOKEN_NULL
-                best_score = -1
-                sum_count = 0
-                for tok, cnt in part.items():
-                    sum_count += cnt
-                    sta_part = sta_data.get(_make_ngram(combined_seq[-_NGRAM_STATIC:], _NGRAM_STATIC)) if len(combined_seq) >= _NGRAM_STATIC else None
-                    sta_cnt = sta_part.get(tok, 0) if sta_part else 0
-                    score = cnt * max(1, sta_cnt)
-                    if score > best_score:
-                        best_score = score
-                        best_token = tok
-
-                if best_token == _TOKEN_NULL:
-                    continue
-
-                max_count = part.get(best_token, 0)
-                if sum_count >= min_sample_strict[idx] and 100 * max_count >= min_percent_strict[idx] * sum_count:
-                    draft_tokens.append(best_token)
-                    drafted = True
-                    break
-
-            if drafted:
-                continue
-
-            # 3. Try static cache only (2-gram)
-            if len(combined_seq) >= _NGRAM_STATIC:
-                ngram = _make_ngram(combined_seq[-_NGRAM_STATIC:], _NGRAM_STATIC)
-                part = sta_data.get(ngram)
-                if part:
-                    best_token = _TOKEN_NULL
-                    best_count = -1
-                    sum_count = 0
-                    for tok, cnt in part.items():
-                        sum_count += cnt
-                        if cnt > best_count:
-                            best_count = cnt
-                            best_token = tok
-                    if (best_token != _TOKEN_NULL and
-                            sum_count >= min_sample_lax[1] and
-                            100 * best_count >= 50 * sum_count):
-                        draft_tokens.append(best_token)
-                        continue
-
-            # No source could draft
-            break
-
-        return draft_tokens[1:]  # skip seed token
-
-    def save(self, filename):
-        """Save the n-gram cache to a binary file (compatible with C++ format).
-
-        Args:
-            filename: Path where to save the cache
-        """
-        import struct
-        with open(filename, 'wb') as f:
-            for ngram, part in self._data.items():
-                # Write 4 tokens (int32 each)
-                for t in ngram:
-                    f.write(struct.pack('<i', t))
-                # Write number of token->count pairs
-                f.write(struct.pack('<i', len(part)))
-                for token, count in part.items():
-                    f.write(struct.pack('<i', token))
-                    f.write(struct.pack('<i', count))
-
-    @staticmethod
-    def load(filename):
-        """Load an n-gram cache from a binary file.
-
-        Args:
-            filename: Path from which to load the cache
-
-        Returns:
-            NgramCache instance with loaded data
-        """
-        import struct
-        cache = NgramCache()
-        ngram_bytes = _NGRAM_MAX * 4  # 4 int32s
-        with open(filename, 'rb') as f:
-            while True:
-                data = f.read(ngram_bytes)
-                if len(data) < ngram_bytes:
-                    break
-                tokens = struct.unpack('<' + 'i' * _NGRAM_MAX, data)
-                ngram = tuple(tokens)
-                ntokens_data = f.read(4)
-                if len(ntokens_data) < 4:
-                    break
-                ntokens = struct.unpack('<i', ntokens_data)[0]
-                part = {}
-                for _ in range(ntokens):
-                    entry = f.read(8)
-                    if len(entry) < 8:
-                        break
-                    tok, cnt = struct.unpack('<ii', entry)
-                    part[tok] = cnt
-                cache._data[ngram] = part
-        return cache
-
-    def merge(self, other):
-        """Merge another n-gram cache into this one.
-
-        Args:
-            other: Another NgramCache to merge into this cache
-        """
-        if not isinstance(other, NgramCache):
-            raise TypeError("Can only merge with another NgramCache")
-
-        for ngram, part_add in other._data.items():
-            part_target = self._data.get(ngram)
-            if part_target is None:
-                self._data[ngram] = dict(part_add)
-            else:
-                for token, count in part_add.items():
-                    part_target[token] = part_target.get(token, 0) + count
-
-    def __repr__(self):
-        return f"<NgramCache at {hex(id(self))}>"
-
-
+# N-gram cache: pure Python, re-exported here for existing imports
+from cyllama.llama.ngram_cache import NgramCache  # noqa: E402,F401

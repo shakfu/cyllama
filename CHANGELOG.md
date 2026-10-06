@@ -24,6 +24,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Added
 
+- **`LlamaBatchExt` and `LlamaContext.process()`** bind llama.cpp's extended batch API. Entries carry a token id or an input embedding, may belong to several sequences, and M-RoPE embedding entries take 4 positions. `llama_decode` now converts each `llama_batch` to this form internally. `set_embd_state()` is bound but upstream v0.6.0 leaves it unimplemented, so it raises.
+
+  ```python
+  batch = LlamaBatchExt(ctx)
+  batch.add_token(tok, pos, seq_id=0, output=True)
+  ctx.process(batch)
+  ```
+
+- **Remaining `llama.h` symbols are bound.** New: `LlamaContext.get_causal_attn()`, `LlamaSampler.copy_to()`, `LlamaModelParams.load_mtp`, and `LlamaContextParams.n_rs_seq` / `n_outputs_max` / `n_outputs_max_per_seq` / `ctx_type` / `ctx_other`. The backend-sampler hooks of `llama_sampler_i` are declared in `llama.pxd` only. `copy_to()` checks sampler type and chain layout first, because `llama_sampler_copy` aborts the process on a mismatch.
+
+- **`LlamaModel.from_user()`** builds a model from GGUF metadata, with tensor data written by a Python callback (`llama_model_init_from_user`). The callback gets a `GgmlTensor` view, which gains `name`, `shape`, `type`, `type_name`, `n_elements`, `nbytes` and `set_data()`. The view is invalidated after the call, and the first exception the callback raises stops loading and is re-raised. `GGUFContext` gains `set_arr_str()` and `set_arr_data()`, with `GGUF_TYPE_*` constants. `tests/synthetic_models.py` uses these to build tiny random-weight models in about 0.2 s; `synthetic_model("qwen2vl")` covers the M-RoPE batch path that the downloaded test models do not.
+
+- **`NgramDrafter` in `tests/examples/speculative_example.py`** (`--ngram`) drafts by n-gram lookup with `NgramCache`, without a draft model.
+
+- **Decision models (`cyllama.llama.decision`)** answer llama.cpp's `/v1/systemone` requests in-process: typed `choice`, `score` and `noul` questions, scored in one forward pass. `DecisionModel(path).answer(request)` supports `laya` (also Julia-1), `lev` and `kev`. `PythonServer` and `EmbeddedServer` serve `POST /v1/systemone` for such models. Answers match upstream `llama-server` b11429, with identical token counts. The largest difference is 3e-7 (kev). The checked requests include JSON states, special-token text, 30 and 60 options, and laya's truncated prompts.
+
+  ```python
+  DecisionModel("models/Laya-Q8_0.gguf").answer({"state": "...", "questions": {...}})
+  ```
+
+  The port uses only `llama.h`. openjev and nimble raise `NotImplementedError` because no test models were checked. clef needs `llama_batch_ext_set_decision_order`, which is only in llama.cpp's internal `llama-ext.h`. `LlamaVocab.token_mask()` is new.
+
+- **`make llama-server`** builds upstream `llama-server` (CPU) from the llama.cpp tree cyllama compiles, then runs the decision-model parity tests against it. Both run only when the binary is (re)built, which a llama.cpp upgrade triggers; a failed check deletes the binary so the next run repeats it.
+
+- **`tests/test_api_coverage.py`** fails when a non-deprecated function, enum, struct, typedef or struct field in `llama.h`, `mtmd.h`, `mtmd-helper.h` or `gguf.h` is missing from its `.pxd`. It checks names only, not signatures. New declarations: `mtmd_tokenize_from_parts`, `mtmd_input_chunk_save`/`load`/`get_placeholder`, lazy and mergeable bitmaps, `mtmd_gen_audio_process`, `mtmd_helper_support_video`, the missing `mtmd_context_params` fields, `gguf_init_from_callback` and `gguf_write_to_file_ptr`. An upgrade that adds API now fails `make test` until it is declared or listed in `SKIPPED` with a reason.
+
 - **`rwt.py` records every `test` run in a SQLite database shared with inferna's `rwt.py` and chimera's `rat.py`.** The default path is `~/config/runs/db.sqlite`; `$RUNS_DB` overrides it and `--no-record` turns it off. Each run stores target, backend, version, the sha256 of the installed wheel's `RECORD` (it tells two builds of one version apart; an editable install's `RECORD` does not change on rebuild, so the git commit and dirty flag identify those), git commit, host, wall time and exit code. Each case stores its status (pass, fail, timeout or skip) and seconds; a gen case also stores the numbers from its `--stats` table (token counts, prompt and generation time, tokens/s), parsed from a copy of its stderr. Each image an sd case writes stores its size and sha256; the seed is fixed, so an unchanged hash means an identical image. Rows are written as each case ends, so an interrupted run keeps its finished cases. `runs diff` compares two runs case by case, including tokens/s:
 
   ```sh
@@ -39,7 +65,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 - **Qwen3-TTS and Pocket TTS via libmtmd audio generation.** `cyllama tts -m backbone.gguf -mm mmproj.gguf -p "..."` matches llama.cpp's `llama-tts`. The Python API is `cyllama.llama.tts.MtmdTTSGenerator`, built on the new `MtmdAudioGenerator` binding and `MtmdContext.gen_audio_info`. It is a separate class from `TTSGenerator` because the two share no model format or vocoder. Upstream marks this API experimental. Sampling defaults come from the model's `general.sampling.*` metadata, as `llama-tts` does. With a fixed seed only the first utterance per generator is reproducible: the mmproj RNG reseeds only when the seed changes.
 
+### Changed
+
+- **llama.cpp updated to `v0.6.0` (`b11429`, from `v0.5.0`).** Session files are now `LLAMA_SESSION_VERSION` 11 and sequence state files `LLAMA_STATE_SEQ_VERSION` 4. Files saved with v0.5.0 fail to load with `RuntimeError`. `llama_sampler` is now a forward-declared `cdef struct` in `llama.pxd`, so its `iface` member is readable.
+
+- **`NgramCache` moved to `cyllama.llama.ngram_cache`.** It is pure Python and binds nothing, so it no longer sits in the `llama_cpp` extension; `from cyllama.llama.llama_cpp import NgramCache` still works. Its API docs named `from_file()` and `clear()`, which never existed; they now show `load()` and `merge()`.
+
+### Deprecated
+
+- **`Speculative` and `SpeculativeParams`** will be removed in the next release. They copied `common/speculative` without linking `libcommon`, nothing in cyllama called them, and each upstream fix needed a manual port. `tests/examples/speculative_example.py` now implements drafting (`Drafter`) and verification on the public API, and stops drafting at an end-of-generation token.
+
 ### Fixed
+
+- **Images for non-causal multimodal models were decoded in 32-token pieces.** For gemma3, and gemma4 apart from E2B/E4B, image tokens must attend to each other in one ubatch. `MtmdContext.eval_chunks` defaulted to `n_batch=32`, so a 256-token gemma3 image was decoded as 8 calls, and early pieces could not see later ones. `n_batch` now defaults to the context's `n_batch`. A non-causal media chunk larger than `n_batch` or `n_ubatch` raises `ValueError`; past `n_ubatch`, llama.cpp would abort the process (`GGML_ASSERT`). Upstream caps `image_max_tokens` in its server and CLI, not in libmtmd (#29773). Reasoned from source; no non-causal mmproj was available to test.
+
+- **`mtmd_helper_decode_image_chunk` was declared with 8 parameters; the header has 10** (a post-decode callback and its user data). The declaration was unused, so it compiled; a caller would have failed to build.
 
 - **TTS vocoder output could contain values near 1e18.** `irfft` took its transform length from its input. A WavTokenizer row is 1282 floats, so it ran a 1282-point transform that read 1284 floats, two past the end of the buffer. Whatever lay there entered every frame: usually a denormal, once about 1e18, which failed `test_tts_vocoder.py` only on some heap layouts. Frames were also 1282 samples instead of `n_fft = 1280`. `irfft(inp_cplx, n)` now takes the length explicitly and raises `ValueError` on an input shorter than the `2 * (n // 2 + 1)` floats it reads. Direct callers of `irfft` must pass `n`.
 
