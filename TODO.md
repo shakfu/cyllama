@@ -4,26 +4,6 @@
 
 ## High
 
-- [ ] **Unpin stable-diffusion.cpp via `SD_USE_UPSTREAM_GGML`** (next release, not 0.4.10) -- `SDCPP_VERSION` is stuck at `master-816-487de75` because later sd.cpp calls fork-only ggml APIs. Upstream [#1999](https://github.com/leejet/stable-diffusion.cpp/pull/1999) and [#2001](https://github.com/leejet/stable-diffusion.cpp/pull/2001) (from `master-884-008ca5b`) guard those calls. Analysis, plan and re-check commands: `docs/dev/sd_upstream_ggml.md`. Trigger: upstream mode has some real-world use; re-run the doc's checks at the chosen tag first.
-
-### Binding hazards found in the inferna cross-check (2026-10-06)
-
-Each crashes, aborts or reads freed or out-of-bounds memory from Python input. inferna guards all seven; its fixes are uncommitted in `~/projects/personal/inferna` (`src/inferna/{whisper,sd}/*.cpp`, `src/inferna/utils/validation.py`). Upstream issue drafts: inferna `docs/dev/issues/`.
-
-- [ ] **`convert_model()` segfaults without `tensor_type_rules`** -- `stable_diffusion.pyx:3633` (`convert_model`) and `:3731` (`convert_model_with_components`) pass `rules_ptr = NULL` when the argument is `None`. sd.cpp's `export_loaded_model` builds a `std::string` from it (`convert.cpp:332`), so every call without rules crashes in `strlen(NULL)`. Observed in inferna. Fix: pass `b""`.
-
-- [ ] **`load_imatrix()` trusts the file's lengths** -- `stable_diffusion.pyx:3782` checks only that the file exists. sd.cpp reads each entry's name length unchecked: `len = -1` writes `name_as_vec[-1]`; a huge `len` or `nval` allocates without bound. Fix: walk the file first (inferna `validate_imatrix_file`). `save_imatrix()` also ignores write errors; opening the path in Python first surfaces an unwritable one.
-
-- [ ] **A whisper model passed to `WhisperVadContext` aborts the process** -- `whisper_cpp.pyx:294` runs `validate_whisper_file`, which checks only the magic both formats share. The VAD loader reads whisper's `n_vocab` as its model-type length and ends in `GGML_ASSERT(obj_new) failed` (observed with `ggml-base.en.bin`). Fix: also require a short printable model-type string after the magic (inferna `validate_whisper_vad_file`).
-
-- [ ] **`WhisperContext.encode()` accepts a negative offset** -- `whisper_cpp.pyx:1518`. whisper.cpp clamps the mel offset only from above, so a negative one reads before the mel buffer. Fix: raise `ValueError` for `offset < 0`.
-
-- [ ] **Result getters do not check indices** -- `full_get_segment_t0/t1/text` (`:1762`, `:1778`), `full_n_tokens`, the token getters (`:1811`) and `full_get_vad_segment_t0/t1` (`:1725`). whisper.cpp indexes its vectors unchecked, so an index one past the end reads out of bounds. The `full_get_segment_text` docstring says an out-of-range index returns `""`; it does not. Fix: check against `full_n_segments()` / `full_n_tokens(i)` / `full_n_vad_segments()` and raise `IndexError`.
-
-- [ ] **`lang_auto_detect()` returns a language for English-only models** -- `:1665`. `*.en` vocabularies have no language tokens, so whisper.cpp scores unrelated tokens and returns a meaningless id. Fix: raise `ValueError` when `not is_multilingual()`.
-
-- [ ] **`WhisperState(ctx)` segfaults after `ctx.close()`** -- `:1858` passes `ctx._c_ctx` (NULL after close) to `whisper_init_state`, which dereferences it. Fix: raise when `ctx._c_ctx == NULL`. If `WhisperState` gains transcription methods (inferna added `full()` and the result getters), `WhisperContext.close()` must also refuse while states are open: each state calls into the context's model.
-
 ## Medium
 
 - [ ] **Ctrl-C does not interrupt in-process `SDContext` generation** ([#8](https://github.com/shakfu/cyllama/issues/8)) -- `SDContext.cancel()` works from another thread (0.3.3; upstream PR [#1124](https://github.com/leejet/stable-diffusion.cpp/pull/1124)), and the CLI stops on Ctrl-C via process isolation. Remaining: (1) `install_sigint_handler()` and `cancel_requested` via `cyllama.utils.cancellation`; SIGINT during a main-thread `generate()` is currently lost and the call returns normally. (2) Raise `InterruptedError` on cancel instead of `RuntimeError("Image generation failed")`, matching `LLM`/`WhisperContext`. (3) `tests/test_sd_cancel.py` that cancels a running generation; only `test_cancel_reset_is_safe` exists. (4) Wire into the cyllama-desktop sidecar's `asyncio.CancelledError` path. CLI isolation stays: `upscale`/`convert` take no `sd_ctx_t` and cannot be cancelled.
@@ -36,7 +16,7 @@ Each crashes, aborts or reads freed or out-of-bounds memory from Python input. i
 
 ### Wheel / Packaging
 
-- [ ] **Centralize ggml backend registration in `ensure_backends_loaded()`** -- the 0.2.17 hotfix calls `ggml_backend_load_all()` from `src/cyllama/sd/__init__.py` to fix the post-`master-592` "No devices found!" regression. The loader logic itself lives inside the sd Cython module (`src/cyllama/sd/stable_diffusion.pyx:170-191`), duplicating path resolution that also exists in `src/cyllama/_internal/backend_dl.py` (`libs_to_load`). The proper fix is to extract a single `ensure_backends_loaded()` helper into `_internal/backend_dl.py` (idempotent, env-var opt-out e.g. `CYLLAMA_DISABLE_GPU=1`) and call it once from `cyllama.utils.platform.ensure_native_deps()` so llama / whisper / sd all share one registration path. Then drop or thin-wrap the sd-local `ggml_backend_load_all` Python shim. Trigger: next time llama.cpp or whisper.cpp upstreams switch to runtime backend discovery (sd.cpp already did in [#1448](https://github.com/leejet/stable-diffusion.cpp/pull/1448)) -- doing this proactively avoids a repeat of the 0.2.16 SD regression.
+- [ ] **Centralize ggml backend registration in `ensure_backends_loaded()`** -- the 0.2.17 hotfix calls `ggml_backend_load_all()` from `src/cyllama/sd/__init__.py` to fix the post-`master-592` "No devices found!" regression. The loader logic itself lives inside the sd Cython module (`src/cyllama/sd/stable_diffusion.pyx:205`), duplicating path resolution that also exists in `src/cyllama/_internal/backend_dl.py` (`libs_to_load`). The proper fix is to extract a single `ensure_backends_loaded()` helper into `_internal/backend_dl.py` (idempotent, env-var opt-out e.g. `CYLLAMA_DISABLE_GPU=1`) and call it once from `cyllama.utils.platform.ensure_native_deps()` so llama / whisper / sd all share one registration path. Then drop or thin-wrap the sd-local `ggml_backend_load_all` Python shim. Trigger: next time llama.cpp or whisper.cpp upstreams switch to runtime backend discovery (sd.cpp already did in [#1448](https://github.com/leejet/stable-diffusion.cpp/pull/1448)) -- doing this proactively avoids a repeat of the 0.2.16 SD regression.
 
 ### CI / Workflows
 
@@ -68,19 +48,15 @@ Each crashes, aborts or reads freed or out-of-bounds memory from Python input. i
 
 ## Low
 
-### Wheel / Packaging
-
-- [ ] stable-diffusion.cpp uses compile-time `#ifdef SD_USE_CUDA` for backend selection instead of dynamic `ggml_backend_load_all()` like llama.cpp and whisper.cpp -- propose dynamic backend discovery upstream or patch locally for consistency *(NOTE: superseded by sd.cpp `master-592` [#1448](https://github.com/leejet/stable-diffusion.cpp/pull/1448) which made the switch -- verify this item can be closed)*
-
 ### Explore
 
-- [ ] MCP server (`cyllama/mcp/`): expose local inference (`complete`, `chat`, `embed`, `transcribe`, `generate_image`) as MCP tools and model listing as resources. Two transports: stdio entrypoint for subprocess clients (Claude Desktop), and Streamable-HTTP routes mounted on `EmbeddedServer` (`src/cyllama/llama/server/embedded.pyx`) for Claude Code / remote clients. Reuse `agents/jsonrpc.py` framing and the high-level API in `src/cyllama/api.py` -- no new heavy deps. (Client side already shipped: `LLM.add_mcp_server()` in `src/cyllama/api.py:1378` wraps `agents/mcp.py` for non-agent callers.)
+- [ ] MCP server (`cyllama/mcp/`): expose local inference (`complete`, `chat`, `embed`, `transcribe`, `generate_image`) as MCP tools and model listing as resources. Two transports: stdio entrypoint for subprocess clients (Claude Desktop), and Streamable-HTTP routes mounted on `EmbeddedServer` (`src/cyllama/llama/server/embedded.pyx`) for Claude Code / remote clients. Reuse `agents/jsonrpc.py` framing and the high-level API in `src/cyllama/api.py` -- no new heavy deps. (Client side already shipped: `LLM.add_mcp_server()` in `src/cyllama/api.py:1720` wraps `agents/mcp.py` for non-agent callers.)
 
 ### Agent framework
 
-- [ ] **Stop-pattern migration in `_extract_answer`** -- `src/cyllama/agents/react.py` keeps a hand-maintained list of ~24 hallucination stop-patterns (code blocks, `Note:`, `Let's`, `def `, `class `, etc.) and post-processes generated text against them. The principled fix is to extend `GenerationConfig.stop_sequences` for the answer-extraction generation step instead; the default config already wires `stop_sequences` for `Observation:` patterns (`react.py:200-206`) and `LLM.__call__` honors them (`api.py:1276` runs `_find_stop_sequence`). Sketch: `cfg = replace(self.generation_config, stop_sequences=self.generation_config.stop_sequences + [...])` for the answer turn only; the regex strip becomes a fallback for models that ignore stop sequences. Trigger: refactor the next time the stop-pattern list grows from a new model-specific failure mode -- accreting another regex is the wrong response.
+- [ ] **Stop-pattern migration in `_extract_answer`** -- `src/cyllama/agents/react.py` keeps a hand-maintained list of ~24 hallucination stop-patterns (code blocks, `Note:`, `Let's`, `def `, `class `, etc.) and post-processes generated text against them. The principled fix is to extend `GenerationConfig.stop_sequences` for the answer-extraction generation step instead; the default config already wires `stop_sequences` for `Observation:` patterns (`react.py:228`) and `LLM.__call__` honors them (`api.py:1348` runs `_find_stop_sequence`). Sketch: `cfg = replace(self.generation_config, stop_sequences=self.generation_config.stop_sequences + [...])` for the answer turn only; the regex strip becomes a fallback for models that ignore stop sequences. Trigger: refactor the next time the stop-pattern list grows from a new model-specific failure mode -- accreting another regex is the wrong response.
 
-- [ ] **MCP SSE transport** -- `src/cyllama/agents/mcp.py` implements `McpStdioConnection` (line 148) and `McpHttpConnection` (line 271) but `McpTransportType.SSE` (line 38) is reserved-but-unwired. A symmetric `McpSseConnection` would slot in next to the HTTP one, dispatched from `McpClient._connect_server` (line 400). Bulk of the cost is an integration test harness with a real SSE-speaking MCP server; the protocol class itself is small. Trigger: an MCP server you want to use exposes SSE-only. The ecosystem is mostly stdio/HTTP today, so this is unlikely soon.
+- [ ] **MCP SSE transport** -- `src/cyllama/agents/mcp.py` implements `McpStdioConnection` (line 150) and `McpHttpConnection` (line 358) but `McpTransportType.SSE` (line 40) is reserved-but-unwired. A symmetric `McpSseConnection` would slot in next to the HTTP one, dispatched from `McpClient._connect_server` (line 481). Bulk of the cost is an integration test harness with a real SSE-speaking MCP server; the protocol class itself is small. Trigger: an MCP server you want to use exposes SSE-only. The ecosystem is mostly stdio/HTTP today, so this is unlikely soon.
 
 - [ ] **ACP protocol-version negotiation** -- `src/cyllama/agents/acp.py` hardcodes `ACP_PROTOCOL_VERSION = "2025-01-01"` (line 53) and embeds it directly in initialize responses (line 480). The module is marked experimental for this and other reasons, so the warning currently buys time -- but if ACP graduates from POC to a genuinely-used integration point, parameterize on the client's announced version (negotiate during initialize). Trigger: an ACP client surfaces with a different version. (A reference-client conformance test was also flagged but doesn't belong in a TODO until a harness target exists.)
 
@@ -98,7 +74,7 @@ Each crashes, aborts or reads freed or out-of-bounds memory from Python input. i
 
 - [ ] **`ReflectionLoop.stream()` per-attempt `source` labels.** Today `composition.py` sets `event.source = "worker"` / `"critic"` (role only -- see `_reflect_loop` in `composition.py`). Downstream consumers (cyllama-desktop today) want `worker-1` / `critic-1` / `worker-2` / etc. so the trace renderer can distinguish attempts. ~5 LoC change: `f"worker-{attempt + 1}"` in the source-tagging block. Same surface for ReflectionLoop's async variant if/when it lands. Trigger: a consumer wants per-attempt distinction (cyllama-desktop already does -- it currently reimplements the loop in the sidecar for this reason).
 
-- [ ] **Document `SemanticMemory`'s actual RAG-shaped protocol.** The class docstring says it wraps a `cyllama.rag.RAG` instance; in practice the implementation only calls `.add_texts(texts, metadata, split)` and `.search(query, k, threshold)` on the wrapped object. Any duck-typed shape works, but the docstring buries this. `cyllama-desktop`'s sidecar built a ~20 LoC `_MemoryRagShim` around its `Embedder` + `SqliteVectorStore` precisely because a real `RAG` instance requires a `generation_model` it doesn't have. Two changes: (a) docstring rewrite stating the protocol; (b) optional `MemoryRagProtocol` (or similar) type alias under `agents.memory` that consumers can use for type checking. Trigger: a follow-up doc pass.
+- [ ] **`MemoryRagProtocol` type alias for `SemanticMemory`'s backing store.** The class docstring states the duck-typed protocol (`add_texts(texts, metadata, split)`, `search(query, k)`), but there is no type for consumers to check against. `cyllama-desktop`'s sidecar wraps its `Embedder` + `SqliteVectorStore` in a ~20 LoC `_MemoryRagShim` because a real `RAG` requires a `generation_model`. Trigger: a follow-up doc pass.
 
 - [ ] **`ContractPolicy.from_name(s)` classmethod.** Today consumers wanting to map a UI string (`"OBSERVE"`, etc.) to a `ContractPolicy` enum member call `getattr(ContractPolicy, name)` and handle the `AttributeError` themselves. A `from_name` factory + a `Literal["IGNORE", "OBSERVE", "ENFORCE", "QUICK_ENFORCE"]` type alias would tighten the boundary and remove the boilerplate from every consumer. ~10 LoC. Trigger: the next consumer that has to do this dance.
 
@@ -117,27 +93,3 @@ Each crashes, aborts or reads freed or out-of-bounds memory from Python input. i
 ### RAG Scaling (see docs/dev/scaling_rag.md)
 
 - [ ] Sharding for 1M+ vector workloads
-
-## Agent framework
-
-These three items are the residue of `AGENT_TOOL_REVIEW.md` after every concrete proposal landed or was explicitly dropped. Each has a clear trigger; none is urgent.
-
-### Pattern-coverage refinements (future, no urgency)
-
-These are residual refinements documented under each pattern's "Gap" line in `docs/agents/patterns.md`. None block the pattern; each is a possible extension when a use case appears.
-
-**Note:** every entry in this section should land in `inferna` too. The two projects share the agent layer byte-identical modulo namespace; refinements ported one-way only would drift the surfaces.
-
-### Pattern gaps -- explicitly **not on the roadmap**
-
-These appear in `docs/agents/patterns.md` but won't be addressed without a forcing use case. Listed here to make the position explicit rather than implicit.
-
-- **Tree of Thoughts (ToT)** -- requires public `LlamaContext.snapshot()` / `restore()` (currently absent at the API surface) plus a branching agent loop that maintains a frontier of candidate states with scoring. Significant new machinery; non-trivial value for cyllama's typical user. Skip unless a user with a concrete ToT use case shows up.
-
-- **Autonomous / AutoGPT-style** -- structurally opposed to cyllama's design stance (bounded loops, loop detection, max_iterations, contracts for budget invariants). Unbounded goal-decomposition is what the framework actively prevents. Document the stance, don't accommodate it.
-
-## CI / Workflows
-
-### Wheel Coverage (additional backend variants)
-
-Gap analysis vs. llama.cpp b8893 release assets. Ordered by effort/payoff.

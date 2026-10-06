@@ -45,6 +45,14 @@ class WhisperGretype:
     CHAR_ALT = wh.WHISPER_GRETYPE_CHAR_ALT
 
 
+def _validate_vad_params(WhisperFullParams params):
+    """whisper_full loads params.vad_model_path itself; a non-VAD model aborts there."""
+    if params.vad and params.vad_model_path:
+        from cyllama.utils.validation import validate_whisper_vad_file
+
+        validate_whisper_vad_file(params.vad_model_path)
+
+
 def _validate_pcm_samples(samples):
     """Validate a mono 16 kHz float32 PCM buffer before binding a memoryview.
 
@@ -286,12 +294,12 @@ cdef class WhisperVadContext:
         self._c_ctx = NULL
 
     def __init__(self, model_path, WhisperVadContextParams params=None):
-        from cyllama.utils.validation import validate_whisper_file
+        from cyllama.utils.validation import validate_whisper_vad_file
 
         if params is None:
             params = WhisperVadContextParams()
 
-        validate_whisper_file(model_path, kind="VAD model")
+        validate_whisper_vad_file(model_path)
 
         model_path_bytes = model_path.encode('utf-8')
         self._c_ctx = wh.whisper_vad_init_from_file_with_params(
@@ -1266,6 +1274,12 @@ cdef class WhisperContext:
         self.close()
         return False
 
+    cdef wh.whisper_context * _ptr(self) except NULL:
+        # every method reads the pointer here, so none can pass NULL after close()
+        if self._c_ctx == NULL:
+            raise RuntimeError("WhisperContext is closed")
+        return self._c_ctx
+
     def version(self):
         """whisper.cpp library version string (e.g. ``"1.7.0"``)."""
         return wh.whisper_version().decode('utf-8')
@@ -1280,15 +1294,15 @@ cdef class WhisperContext:
 
     def n_vocab(self):
         """Number of tokens in the model's vocabulary."""
-        return wh.whisper_n_vocab(self._c_ctx)
+        return wh.whisper_n_vocab(self._ptr())
 
     def n_text_ctx(self):
         """Maximum text-decoder context length in tokens."""
-        return wh.whisper_n_text_ctx(self._c_ctx)
+        return wh.whisper_n_text_ctx(self._ptr())
 
     def n_audio_ctx(self):
         """Audio-encoder context length in mel frames."""
-        return wh.whisper_n_audio_ctx(self._c_ctx)
+        return wh.whisper_n_audio_ctx(self._ptr())
 
     def is_multilingual(self):
         """True if the loaded model supports non-English input.
@@ -1296,46 +1310,46 @@ cdef class WhisperContext:
         ``.en`` checkpoints (e.g. ``ggml-base.en.bin``) return False;
         the equivalent multilingual checkpoints return True.
         """
-        return bool(wh.whisper_is_multilingual(self._c_ctx))
+        return bool(wh.whisper_is_multilingual(self._ptr()))
 
     def model_n_vocab(self):
-        return wh.whisper_model_n_vocab(self._c_ctx)
+        return wh.whisper_model_n_vocab(self._ptr())
 
     def model_n_audio_ctx(self):
-        return wh.whisper_model_n_audio_ctx(self._c_ctx)
+        return wh.whisper_model_n_audio_ctx(self._ptr())
 
     def model_n_audio_state(self):
-        return wh.whisper_model_n_audio_state(self._c_ctx)
+        return wh.whisper_model_n_audio_state(self._ptr())
 
     def model_n_audio_head(self):
-        return wh.whisper_model_n_audio_head(self._c_ctx)
+        return wh.whisper_model_n_audio_head(self._ptr())
 
     def model_n_audio_layer(self):
-        return wh.whisper_model_n_audio_layer(self._c_ctx)
+        return wh.whisper_model_n_audio_layer(self._ptr())
 
     def model_n_text_ctx(self):
-        return wh.whisper_model_n_text_ctx(self._c_ctx)
+        return wh.whisper_model_n_text_ctx(self._ptr())
 
     def model_n_text_state(self):
-        return wh.whisper_model_n_text_state(self._c_ctx)
+        return wh.whisper_model_n_text_state(self._ptr())
 
     def model_n_text_head(self):
-        return wh.whisper_model_n_text_head(self._c_ctx)
+        return wh.whisper_model_n_text_head(self._ptr())
 
     def model_n_text_layer(self):
-        return wh.whisper_model_n_text_layer(self._c_ctx)
+        return wh.whisper_model_n_text_layer(self._ptr())
 
     def model_n_mels(self):
-        return wh.whisper_model_n_mels(self._c_ctx)
+        return wh.whisper_model_n_mels(self._ptr())
 
     def model_ftype(self):
-        return wh.whisper_model_ftype(self._c_ctx)
+        return wh.whisper_model_ftype(self._ptr())
 
     def model_type(self):
-        return wh.whisper_model_type(self._c_ctx)
+        return wh.whisper_model_type(self._ptr())
 
     def model_type_readable(self):
-        return wh.whisper_model_type_readable(self._c_ctx).decode('utf-8')
+        return wh.whisper_model_type_readable(self._ptr()).decode('utf-8')
 
     def token_to_str(self, int token):
         """Render a single token id back to its text fragment.
@@ -1343,53 +1357,53 @@ cdef class WhisperContext:
         Returns ``""`` for tokens with no string form (e.g. special tokens
         like ``<|endoftext|>`` if the model returns NULL for them).
         """
-        cdef const char * result = wh.whisper_token_to_str(self._c_ctx, token)
+        cdef const char * result = wh.whisper_token_to_str(self._ptr(), token)
         if result == NULL:
             return ""
         return result.decode('utf-8')
 
     def token_eot(self):
         """End-of-transcript special token id (``<|endoftext|>``)."""
-        return wh.whisper_token_eot(self._c_ctx)
+        return wh.whisper_token_eot(self._ptr())
 
     def token_sot(self):
         """Start-of-transcript special token id (``<|startoftranscript|>``)."""
-        return wh.whisper_token_sot(self._c_ctx)
+        return wh.whisper_token_sot(self._ptr())
 
     def token_solm(self):
         """Start-of-language-model special token id."""
-        return wh.whisper_token_solm(self._c_ctx)
+        return wh.whisper_token_solm(self._ptr())
 
     def token_prev(self):
         """``<|prev|>`` special token id (used to feed prior context)."""
-        return wh.whisper_token_prev(self._c_ctx)
+        return wh.whisper_token_prev(self._ptr())
 
     def token_nosp(self):
         """``<|nospeech|>`` special token id."""
-        return wh.whisper_token_nosp(self._c_ctx)
+        return wh.whisper_token_nosp(self._ptr())
 
     def token_not(self):
         """``<|notimestamps|>`` special token id."""
-        return wh.whisper_token_not(self._c_ctx)
+        return wh.whisper_token_not(self._ptr())
 
     def token_beg(self):
         """``<|0.00|>`` segment-begin special token id (timestamp anchor)."""
-        return wh.whisper_token_beg(self._c_ctx)
+        return wh.whisper_token_beg(self._ptr())
 
     def token_lang(self, int lang_id):
         """Token id for the language tag corresponding to ``lang_id``.
 
         ``lang_id`` is the integer id from :meth:`lang_id`.
         """
-        return wh.whisper_token_lang(self._c_ctx, lang_id)
+        return wh.whisper_token_lang(self._ptr(), lang_id)
 
     def token_translate(self):
         """``<|translate|>`` task-token id."""
-        return wh.whisper_token_translate(self._c_ctx)
+        return wh.whisper_token_translate(self._ptr())
 
     def token_transcribe(self):
         """``<|transcribe|>`` task-token id."""
-        return wh.whisper_token_transcribe(self._c_ctx)
+        return wh.whisper_token_transcribe(self._ptr())
 
     def tokenize(self, str text, int max_tokens=512):
         """Tokenize ``text`` to a list of whisper token ids.
@@ -1423,7 +1437,7 @@ cdef class WhisperContext:
             raise MemoryError("Failed to allocate token buffer")
 
         try:
-            n_tokens = wh.whisper_tokenize(self._c_ctx, text_bytes, tokens, cap)
+            n_tokens = wh.whisper_tokenize(self._ptr(), text_bytes, tokens, cap)
             # The C ABI returns -needed when the buffer is too small; grow
             # and retry once with the size it asked for.
             if n_tokens < 0:
@@ -1433,7 +1447,7 @@ cdef class WhisperContext:
                 if grown is NULL:
                     raise MemoryError("Failed to grow token buffer")
                 tokens = grown
-                n_tokens = wh.whisper_tokenize(self._c_ctx, text_bytes, tokens, needed)
+                n_tokens = wh.whisper_tokenize(self._ptr(), text_bytes, tokens, needed)
                 if n_tokens < 0:
                     raise RuntimeError(
                         f"Tokenization failed: buffer of {needed} tokens still "
@@ -1449,7 +1463,7 @@ cdef class WhisperContext:
     def token_count(self, str text):
         """Count the tokens ``text`` would produce, without allocating."""
         text_bytes = text.encode('utf-8')
-        return wh.whisper_token_count(self._c_ctx, text_bytes)
+        return wh.whisper_token_count(self._ptr(), text_bytes)
 
     def lang_max_id(self):
         """Largest valid language id (use as upper bound when iterating)."""
@@ -1508,7 +1522,7 @@ cdef class WhisperContext:
         self._try_acquire_busy()
         try:
             result = wh.whisper_pcm_to_mel(
-                self._c_ctx, c_samples, n_samples, n_threads)
+                self._ptr(), c_samples, n_samples, n_threads)
         finally:
             self._busy_lock.release()
         if result != 0:
@@ -1528,15 +1542,19 @@ cdef class WhisperContext:
             n_threads: CPU threads for the encoder pass.
 
         Raises:
+            ValueError: ``offset`` is negative.
             RuntimeError: Encoding failed (non-zero return from
                 ``whisper_encode``).
             RuntimeError: Another thread is currently using this context
                 (``WhisperContext`` is not thread-safe).
         """
+        if offset < 0:
+            # whisper.cpp clamps the offset only from above; a negative one reads before the mel buffer
+            raise ValueError(f"offset must be >= 0, got {offset}")
         self._try_acquire_busy()
         cdef int result = 0
         try:
-            result = wh.whisper_encode(self._c_ctx, offset, n_threads)
+            result = wh.whisper_encode(self._ptr(), offset, n_threads)
         finally:
             self._busy_lock.release()
         if result != 0:
@@ -1555,7 +1573,8 @@ cdef class WhisperContext:
         Raises:
             TypeError: samples is not a numpy float32 array (when numpy
                 is the input type) or fails the buffer-protocol bind.
-            ValueError: samples is not 1-D, not C-contiguous, or empty.
+            ValueError: samples is not 1-D, not C-contiguous, or empty,
+                or ``params.vad_model_path`` is not a VAD model.
         """
         cdef const float * c_samples = NULL
         cdef int n_samples = 0
@@ -1568,12 +1587,12 @@ cdef class WhisperContext:
             params = WhisperFullParams()
 
         _validate_pcm_samples(samples)
+        _validate_vad_params(params)
 
         samples_view = samples
         c_samples = &samples_view[0]
         n_samples = len(samples)
 
-        ctx = self._c_ctx
         c_params = params._c_params
 
         # Install the nogil cancellation abort-callback for the duration of
@@ -1588,6 +1607,7 @@ cdef class WhisperContext:
 
         self._try_acquire_busy()
         try:
+            ctx = self._ptr()  # after the busy lock: close() cannot free it before the call
             with nogil:
                 result = wh.whisper_full(ctx, c_params, c_samples, n_samples)
         finally:
@@ -1617,7 +1637,8 @@ cdef class WhisperContext:
             n_processors: Number of parallel workers. Must be >= 1.
 
         Raises:
-            ValueError: n_processors < 1, or samples fails validation.
+            ValueError: n_processors < 1, samples fails validation, or
+                ``params.vad_model_path`` is not a VAD model.
             RuntimeError: whisper.cpp reported a failure.
         """
         cdef const float * c_samples = NULL
@@ -1635,12 +1656,12 @@ cdef class WhisperContext:
             params = WhisperFullParams()
 
         _validate_pcm_samples(samples)
+        _validate_vad_params(params)
 
         samples_view = samples
         c_samples = &samples_view[0]
         n_samples = len(samples)
 
-        ctx = self._c_ctx
         c_params = params._c_params
 
         # Same cancellation wiring as full(); whisper_full_parallel forwards
@@ -1651,6 +1672,7 @@ cdef class WhisperContext:
 
         self._try_acquire_busy()
         try:
+            ctx = self._ptr()  # after the busy lock: close() cannot free it before the call
             with nogil:
                 result = wh.whisper_full_parallel(
                     ctx, c_params, c_samples, n_samples, c_n_processors)
@@ -1686,7 +1708,7 @@ cdef class WhisperContext:
         # English-only checkpoints have no language tokens, so upstream
         # happily returns an arbitrary id with near-uniform probabilities
         # rather than failing. Refuse instead of handing back noise.
-        if not wh.whisper_is_multilingual(self._c_ctx):
+        if not wh.whisper_is_multilingual(self._ptr()):
             raise RuntimeError(
                 "lang_auto_detect requires a multilingual model; this "
                 "checkpoint is English-only (.en). Use a non-.en model."
@@ -1698,7 +1720,7 @@ cdef class WhisperContext:
             raise MemoryError("Failed to allocate language probability array")
         try:
             result = wh.whisper_lang_auto_detect(
-                self._c_ctx, offset_ms, n_threads, probs)
+                self._ptr(), offset_ms, n_threads, probs)
             if result < 0:
                 raise RuntimeError(
                     f"Language auto-detection failed with error {result}")
@@ -1712,6 +1734,18 @@ cdef class WhisperContext:
     # (whisper.cpp returns whatever the uninitialized state contains).
     # ------------------------------------------------------------------
 
+    cdef int _check_segment(self, int i_segment) except -1:
+        # whisper.cpp indexes its result vectors unchecked
+        if not 0 <= i_segment < wh.whisper_full_n_segments(self._ptr()):
+            raise IndexError(f"segment index {i_segment} out of range")
+        return 0
+
+    cdef int _check_token(self, int i_segment, int i_token) except -1:
+        self._check_segment(i_segment)
+        if not 0 <= i_token < wh.whisper_full_n_tokens(self._ptr(), i_segment):
+            raise IndexError(f"token index {i_token} out of range for segment {i_segment}")
+        return 0
+
     def full_n_vad_segments(self):
         """Number of speech segments the internal VAD kept.
 
@@ -1720,25 +1754,25 @@ cdef class WhisperContext:
         VAD spans, distinct from the transcription segments counted by
         :meth:`full_n_segments`.
         """
-        return wh.whisper_full_n_vad_segments(self._c_ctx)
+        return wh.whisper_full_n_vad_segments(self._ptr())
 
     def full_get_vad_segment_t0(self, int i):
         """Start of VAD segment ``i`` in **10 ms units**, in original audio time.
 
         ``i`` must be in ``[0, full_n_vad_segments())``.
         """
-        if not 0 <= i < wh.whisper_full_n_vad_segments(self._c_ctx):
+        if not 0 <= i < wh.whisper_full_n_vad_segments(self._ptr()):
             raise IndexError(f"VAD segment index {i} out of range")
-        return wh.whisper_full_get_vad_segment_t0(self._c_ctx, i)
+        return wh.whisper_full_get_vad_segment_t0(self._ptr(), i)
 
     def full_get_vad_segment_t1(self, int i):
         """End of VAD segment ``i`` in **10 ms units**, in original audio time.
 
         ``i`` must be in ``[0, full_n_vad_segments())``.
         """
-        if not 0 <= i < wh.whisper_full_n_vad_segments(self._c_ctx):
+        if not 0 <= i < wh.whisper_full_n_vad_segments(self._ptr()):
             raise IndexError(f"VAD segment index {i} out of range")
-        return wh.whisper_full_get_vad_segment_t1(self._c_ctx, i)
+        return wh.whisper_full_get_vad_segment_t1(self._ptr(), i)
 
     def full_n_segments(self):
         """Number of segments in the most recent transcription.
@@ -1747,7 +1781,7 @@ cdef class WhisperContext:
         start/end timestamps. Use as the upper bound for iterating with
         :meth:`full_get_segment_text`, :meth:`full_get_segment_t0`, etc.
         """
-        return wh.whisper_full_n_segments(self._c_ctx)
+        return wh.whisper_full_n_segments(self._ptr())
 
     def full_lang_id(self):
         """Detected language id of the most recent transcription.
@@ -1757,7 +1791,7 @@ cdef class WhisperContext:
         Returns -1 if the model didn't run language detection
         (e.g. ``.en`` checkpoint, or ``language`` was forced in params).
         """
-        return wh.whisper_full_lang_id(self._c_ctx)
+        return wh.whisper_full_lang_id(self._ptr())
 
     def full_get_segment_t0(self, int i_segment):
         """Start time of segment ``i_segment`` in **10 ms units**.
@@ -1766,22 +1800,24 @@ cdef class WhisperContext:
         timebase -- not milliseconds. ``i_segment`` must be in
         ``[0, full_n_segments())``.
         """
-        return wh.whisper_full_get_segment_t0(self._c_ctx, i_segment)
+        self._check_segment(i_segment)
+        return wh.whisper_full_get_segment_t0(self._ptr(), i_segment)
 
     def full_get_segment_t1(self, int i_segment):
         """End time of segment ``i_segment`` in **10 ms units**.
 
         Divide by 100 to get seconds. See :meth:`full_get_segment_t0`.
         """
-        return wh.whisper_full_get_segment_t1(self._c_ctx, i_segment)
+        self._check_segment(i_segment)
+        return wh.whisper_full_get_segment_t1(self._ptr(), i_segment)
 
     def full_get_segment_text(self, int i_segment):
         """Transcribed text of segment ``i_segment`` as a UTF-8 string.
 
-        Returns ``""`` if the C side returned NULL (out-of-range index
-        or empty segment).
+        Raises ``IndexError`` if ``i_segment`` is out of range.
         """
-        cdef const char * result = wh.whisper_full_get_segment_text(self._c_ctx, i_segment)
+        self._check_segment(i_segment)
+        cdef const char * result = wh.whisper_full_get_segment_text(self._ptr(), i_segment)
         if result == NULL:
             return ""
         return result.decode('utf-8')
@@ -1792,21 +1828,24 @@ cdef class WhisperContext:
         Use as the upper bound for iterating with
         :meth:`full_get_token_text` / :meth:`full_get_token_id` / etc.
         """
-        return wh.whisper_full_n_tokens(self._c_ctx, i_segment)
+        self._check_segment(i_segment)
+        return wh.whisper_full_n_tokens(self._ptr(), i_segment)
 
     def full_get_token_text(self, int i_segment, int i_token):
         """Text fragment for token ``i_token`` of segment ``i_segment``.
 
         Returns ``""`` if the C side returned NULL.
         """
-        cdef const char * result = wh.whisper_full_get_token_text(self._c_ctx, i_segment, i_token)
+        self._check_token(i_segment, i_token)
+        cdef const char * result = wh.whisper_full_get_token_text(self._ptr(), i_segment, i_token)
         if result == NULL:
             return ""
         return result.decode('utf-8')
 
     def full_get_token_id(self, int i_segment, int i_token):
         """Vocabulary id for token ``i_token`` of segment ``i_segment``."""
-        return wh.whisper_full_get_token_id(self._c_ctx, i_segment, i_token)
+        self._check_token(i_segment, i_token)
+        return wh.whisper_full_get_token_id(self._ptr(), i_segment, i_token)
 
     def full_get_token_data(self, int i_segment, int i_token):
         """Full :class:`WhisperTokenData` for one token.
@@ -1816,7 +1855,8 @@ cdef class WhisperContext:
         enabled in :class:`WhisperContextParams`) the DTW-aligned start
         and end times.
         """
-        cdef wh.whisper_token_data c_data = wh.whisper_full_get_token_data(self._c_ctx, i_segment, i_token)
+        self._check_token(i_segment, i_token)
+        cdef wh.whisper_token_data c_data = wh.whisper_full_get_token_data(self._ptr(), i_segment, i_token)
 
         data = WhisperTokenData()
         data._c_data = c_data
@@ -1827,7 +1867,8 @@ cdef class WhisperContext:
 
         Convenience accessor; same as ``full_get_token_data(...).p``.
         """
-        return wh.whisper_full_get_token_p(self._c_ctx, i_segment, i_token)
+        self._check_token(i_segment, i_token)
+        return wh.whisper_full_get_token_p(self._ptr(), i_segment, i_token)
 
     def full_get_segment_no_speech_prob(self, int i_segment):
         """No-speech probability for segment ``i_segment`` in ``[0.0, 1.0]``.
@@ -1836,7 +1877,8 @@ cdef class WhisperContext:
         than spoken content. Usable as a confidence filter to drop
         spurious segments from the output.
         """
-        return wh.whisper_full_get_segment_no_speech_prob(self._c_ctx, i_segment)
+        self._check_segment(i_segment)
+        return wh.whisper_full_get_segment_no_speech_prob(self._ptr(), i_segment)
 
     def print_timings(self):
         """Print accumulated timing breakdown to stderr.
@@ -1845,11 +1887,11 @@ cdef class WhisperContext:
         wall-clock totals. Useful for profiling. Timings accumulate
         across calls; use :meth:`reset_timings` to zero them.
         """
-        wh.whisper_print_timings(self._c_ctx)
+        wh.whisper_print_timings(self._ptr())
 
     def reset_timings(self):
         """Zero out the timing counters reported by :meth:`print_timings`."""
-        wh.whisper_reset_timings(self._c_ctx)
+        wh.whisper_reset_timings(self._ptr())
 
 cdef class WhisperState:
     cdef wh.whisper_state * _c_state
@@ -1857,7 +1899,7 @@ cdef class WhisperState:
 
     def __init__(self, WhisperContext ctx):
         self._ctx = ctx
-        self._c_state = wh.whisper_init_state(ctx._c_ctx)
+        self._c_state = wh.whisper_init_state(ctx._ptr())
 
         if self._c_state == NULL:
             raise RuntimeError("Failed to initialize whisper state")

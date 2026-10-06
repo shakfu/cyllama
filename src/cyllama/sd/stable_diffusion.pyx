@@ -3630,7 +3630,7 @@ def convert_model(
     cdef bytes vae_bytes
     cdef bytes rules_bytes
     cdef const char* vae_ptr = NULL
-    cdef const char* rules_ptr = NULL
+    cdef const char* rules_ptr = b""  # sd.cpp builds a std::string from it; NULL segfaults
 
     if vae_path:
         vae_bytes = vae_path.encode('utf-8')
@@ -3728,7 +3728,7 @@ def convert_model_with_components(
     cdef const char* t5xxl_ptr = NULL
     cdef const char* diffusion_ptr = NULL
     cdef const char* vae_ptr = NULL
-    cdef const char* rules_ptr = NULL
+    cdef const char* rules_ptr = b""  # sd.cpp builds a std::string from it; NULL segfaults
 
     if model_path:
         model_bytes = model_path.encode('utf-8')
@@ -3783,15 +3783,25 @@ def load_imatrix(imatrix_path: str) -> bool:
     """Load an importance matrix from disk for use during quantization.
 
     Returns True if the file was loaded successfully.
+
+    Raises:
+        FileNotFoundError: The file does not exist.
+        ValueError: The file's lengths are inconsistent; sd.cpp does not check them.
     """
-    if not os.path.exists(imatrix_path):
-        raise FileNotFoundError(f"imatrix file not found: {imatrix_path}")
+    from cyllama.utils.validation import validate_imatrix_file
+
+    validate_imatrix_file(imatrix_path)
     cdef bytes path_bytes = imatrix_path.encode('utf-8')
     return c_load_imatrix(path_bytes)
 
 
 def save_imatrix(imatrix_path: str) -> None:
-    """Save the currently collected importance matrix to disk."""
+    """Save the currently collected importance matrix to disk.
+
+    Raises:
+        OSError: The path cannot be written; sd.cpp ignores write errors.
+    """
+    open(imatrix_path, "ab").close()  # append mode: surfaces errors without truncating
     cdef bytes path_bytes = imatrix_path.encode('utf-8')
     c_save_imatrix(path_bytes)
 

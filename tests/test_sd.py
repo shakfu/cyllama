@@ -1565,6 +1565,31 @@ class TestConvertModel:
                 diffusion_model_path="/nonexistent/diffusion.safetensors",
             )
 
+    @staticmethod
+    def _tiny_safetensors(path):
+        """One 2x2 F32 tensor: enough for sd.cpp to load and export."""
+        import json
+        import struct
+
+        header = json.dumps(
+            {"first_stage_model.decoder.conv_in.weight": {"dtype": "F32", "shape": [2, 2], "data_offsets": [0, 16]}}
+        ).encode()
+        path.write_bytes(struct.pack("<Q", len(header)) + header + struct.pack("<4f", 1, 2, 3, 4))
+        return str(path)
+
+    def test_convert_without_tensor_type_rules(self, tmp_path):
+        """sd.cpp builds a std::string from the rules pointer; NULL segfaulted."""
+        src = self._tiny_safetensors(tmp_path / "tiny.safetensors")
+        out = tmp_path / "out.gguf"
+        assert convert_model(src, str(out), SDType.F16)
+        assert out.stat().st_size > 0
+
+    def test_convert_with_components_without_tensor_type_rules(self, tmp_path):
+        src = self._tiny_safetensors(tmp_path / "tiny.safetensors")
+        out = tmp_path / "out.gguf"
+        assert convert_model_with_components(str(out), SDType.F16, vae_path=src)
+        assert out.stat().st_size > 0
+
 
 class TestImatrixAndDevices:
     """Test imatrix collection helpers and backend device enumeration."""
@@ -1595,6 +1620,41 @@ class TestImatrixAndDevices:
     def test_save_imatrix_importable(self):
         """save_imatrix is importable and callable."""
         assert save_imatrix is not None
+
+    @staticmethod
+    def _imatrix(path, name=b"t", nval=2, n_entries=1, name_len=None, n_floats=None):
+        import struct
+
+        n_floats = nval if n_floats is None else n_floats
+        body = struct.pack("<i", n_entries)
+        body += struct.pack("<i", len(name) if name_len is None else name_len) + name
+        body += struct.pack("<ii", 1, nval) + struct.pack(f"<{n_floats}f", *range(n_floats))
+        path.write_bytes(body + struct.pack("<i", 1))
+        return str(path)
+
+    def test_load_imatrix_valid(self, tmp_path):
+        assert load_imatrix(self._imatrix(tmp_path / "ok.imatrix"))
+
+    @pytest.mark.parametrize(
+        "kwargs",
+        [
+            {"n_entries": 0},
+            {"name_len": -1},
+            {"name_len": 1 << 30},
+            {"nval": 0, "n_floats": 0},
+            {"nval": 1 << 30, "n_floats": 2},
+            {"n_entries": 2},
+        ],
+        ids=["no-entries", "negative-name-len", "huge-name-len", "zero-nval", "huge-nval", "truncated"],
+    )
+    def test_load_imatrix_rejects_bad_lengths(self, tmp_path, kwargs):
+        """sd.cpp trusts these lengths: out-of-bounds writes or unbounded allocation."""
+        with pytest.raises(ValueError, match="not a valid imatrix"):
+            load_imatrix(self._imatrix(tmp_path / "bad.imatrix", **kwargs))
+
+    def test_save_imatrix_unwritable_path_raises(self, tmp_path):
+        with pytest.raises(OSError):
+            save_imatrix(str(tmp_path / "missing-dir" / "out.imatrix"))
 
 
 class TestConvenienceFunctions:

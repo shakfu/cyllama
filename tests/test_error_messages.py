@@ -131,6 +131,28 @@ class TestValidationHelper:
         # success, so the call completing with a None return is the signal.
         assert validate_model_file(garbage_file, expected_magic=None) is None
 
+    @pytest.mark.parametrize(
+        "header, ok",
+        [
+            (b"lmgg" + (10).to_bytes(4, "little") + b"silero-16k", True),
+            (b"lmgg" + (51864).to_bytes(4, "little") + b"\x00" * 64, False),  # whisper: n_vocab
+            (b"lmgg" + (5).to_bytes(4, "little") + b"ab\x00\x01c", False),
+            (b"lmgg" + (40).to_bytes(4, "little") + b"short", False),
+            (b"GGUF" + b"\x00" * 64, False),
+        ],
+        ids=["silero", "whisper", "unprintable", "truncated", "gguf"],
+    )
+    def test_whisper_vad_header(self, tmp_path: Path, header: bytes, ok: bool):
+        from cyllama.utils.validation import validate_whisper_vad_file
+
+        p = tmp_path / "vad.bin"
+        p.write_bytes(header)
+        if ok:
+            validate_whisper_vad_file(str(p))
+        else:
+            with pytest.raises(ValueError):
+                validate_whisper_vad_file(str(p))
+
 
 # ---------------------------------------------------------------------------
 # LLM (high-level wrapper) — bad inputs

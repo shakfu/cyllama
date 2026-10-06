@@ -89,6 +89,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 - **`LlamaContext.encode` raises on an aborted encode.** It raised only on negative return codes, but `llama_encode` returns 2 when an abort callback stops it, leaving the output buffer from the previous call. Code 2 now raises `InterruptedError` and any other non-zero code `RuntimeError`, as `decode` already did.
 
+- **Seven Python inputs crashed the process or read or wrote out of bounds in the whisper and sd bindings.** The C++ libraries check none of them; each is now handled before the call:
+
+  - `convert_model()` and `convert_model_with_components()` without `tensor_type_rules` segfaulted on every call: sd.cpp builds a `std::string` from the rules pointer, which was `NULL`. It is now `""`.
+  - `load_imatrix()` passed sd.cpp a file whose name and value lengths it trusts. A negative name length wrote before its buffer, and a huge one allocated without bound. The file is now walked first and a bad length raises `ValueError`. `save_imatrix()` now raises `OSError` for an unwritable path; sd.cpp ignored write errors.
+  - A whisper transcription model passed to `WhisperVadContext`, or as `WhisperFullParams.vad_model_path`, aborted in `GGML_ASSERT`. Both formats share the ggml magic, so the old check passed; the VAD check now also requires the model-type string that follows it. Both raise `ValueError`.
+  - `WhisperContext.encode()` with a negative offset read before the mel buffer; whisper.cpp clamps the offset only from above. It raises `ValueError`.
+  - The segment and token result getters read past their vectors for an out-of-range index. They raise `IndexError`. `full_get_segment_text()` was documented to return `""` there.
+  - Every `WhisperContext` method that uses the context passed `NULL` to whisper.cpp after `close()`, as did `WhisperState(ctx)`. They raise `RuntimeError`. `full()` and `full_parallel()` also read the pointer before taking the lock that `close()` takes, so a `close()` from another thread in between freed it before the call.
+
 ---
 
 ## [0.6.0]

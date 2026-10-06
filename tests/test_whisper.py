@@ -742,3 +742,112 @@ class TestWhisperCancellation:
         finally:
             del ctx
             gc.collect()
+
+
+class TestNativeBoundsChecks:
+    """Inputs whisper.cpp does not check: each used to read out of bounds,
+    dereference NULL or abort the process."""
+
+    @pytest.fixture
+    def transcribed(self, whisper_model_path, sample_audio_path):
+        import gc
+
+        samples, _ = load_wav_file(sample_audio_path)
+        ctx = wh.WhisperContext(whisper_model_path)
+        ctx.full(samples)
+        yield ctx
+        ctx.close()
+        del ctx
+        gc.collect()
+
+    def test_segment_getters_reject_out_of_range(self, transcribed):
+        n = transcribed.full_n_segments()
+        assert n > 0
+        for getter in (
+            transcribed.full_get_segment_t0,
+            transcribed.full_get_segment_t1,
+            transcribed.full_get_segment_text,
+            transcribed.full_n_tokens,
+            transcribed.full_get_segment_no_speech_prob,
+        ):
+            getter(n - 1)
+            for bad in (n, -1):
+                with pytest.raises(IndexError):
+                    getter(bad)
+
+    def test_token_getters_reject_out_of_range(self, transcribed):
+        n_seg = transcribed.full_n_segments()
+        n_tok = transcribed.full_n_tokens(0)
+        for getter in (
+            transcribed.full_get_token_text,
+            transcribed.full_get_token_id,
+            transcribed.full_get_token_data,
+            transcribed.full_get_token_p,
+        ):
+            getter(0, n_tok - 1)
+            for seg, tok in ((0, n_tok), (0, -1), (n_seg, 0), (-1, 0)):
+                with pytest.raises(IndexError):
+                    getter(seg, tok)
+
+    def test_encode_rejects_negative_offset(self, transcribed):
+        with pytest.raises(ValueError):
+            transcribed.encode(-1, 1)
+
+    # Methods that use no whisper_context, so they work after close().
+    CONTEXT_FREE = {
+        "cancel",
+        "close",
+        "install_sigint_handler",
+        "lang_id",
+        "lang_max_id",
+        "lang_str",
+        "lang_str_full",
+        "system_info",
+        "version",
+    }
+
+    def test_every_method_on_closed_context_raises(self, whisper_model_path):
+        """close() sets the pointer to NULL; each method must refuse it, not pass it on."""
+        import inspect
+
+        args_by_name = {"samples": np.zeros(16000, dtype=np.float32), "text": "hi", "lang": "en", "params": None}
+        ctx = wh.WhisperContext(whisper_model_path)
+        ctx.close()
+        checked = []
+        for name in sorted(dir(wh.WhisperContext)):
+            method = getattr(wh.WhisperContext, name)
+            if name.startswith("_") or name in self.CONTEXT_FREE or not callable(method):
+                continue
+            params = list(inspect.signature(method).parameters.values())[1:]
+            args = [args_by_name.get(p.name, 0) for p in params if p.default is inspect.Parameter.empty]
+            with pytest.raises(RuntimeError, match="closed"):
+                getattr(ctx, name)(*args)
+            checked.append(name)
+        assert len(checked) > 40
+
+    def test_state_on_closed_context_raises(self, whisper_model_path):
+        ctx = wh.WhisperContext(whisper_model_path)
+        ctx.close()
+        with pytest.raises(RuntimeError, match="closed"):
+            wh.WhisperState(ctx)
+
+    def test_whisper_model_rejected_as_vad_context(self, whisper_model_path):
+        with pytest.raises(ValueError, match="VAD"):
+            wh.WhisperVadContext(whisper_model_path)
+
+    def test_whisper_model_rejected_as_vad_model_path(self, whisper_model_path, sample_audio_path):
+        import gc
+
+        samples, _ = load_wav_file(sample_audio_path)
+        params = wh.WhisperFullParams()
+        params.vad = True
+        params.vad_model_path = whisper_model_path
+        ctx = wh.WhisperContext(whisper_model_path)
+        try:
+            for run in (lambda: ctx.full(samples, params), lambda: ctx.full_parallel(samples, params, 1)):
+                with pytest.raises(ValueError, match="VAD"):
+                    run()
+        finally:
+            ctx.close()
+        del ctx
+        gc.collect()
