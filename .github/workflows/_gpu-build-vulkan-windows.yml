@@ -107,6 +107,16 @@ jobs:
         shell: bash
         run: ls -lah wheelhouse/
 
+      # Fails the job if any bundled DLL imports a name not in the wheel --
+      # e.g. an --include'd backend plugin still importing a DLL that
+      # delvewheel renamed (the 0.4.2 ggml-vulkan.dll -> ggml-base.dll bug).
+      - name: Audit built wheels
+        shell: bash
+        run: |
+          for w in wheelhouse/*.whl; do
+            python3 scripts/audit_wheel.py "$w"
+          done
+
       - name: Upload wheels
         uses: actions/upload-artifact@v7
         with:

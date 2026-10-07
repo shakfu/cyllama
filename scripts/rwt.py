@@ -1968,8 +1968,18 @@ class TestSuite:
         # helps because that is a compute buffer, not weights (`te=cpu,vae=cpu`
         # fails identically). Tiling is what shrinks it.
         #
-        # Measured on an 8 GiB RTX 4060 at 20 steps, cfg 7.0: 3.17 s/it, 69 s end
-        # to end. `--auto-fit` also fits but declines the GPU altogether on a
+        # On an 8 GiB RTX 4060 (Windows) this passes with CUDA and is EXPECTED TO
+        # FAIL with Vulkan; inferna and chimera behave the same way. The run stops
+        # at sd.cpp's model-manager capacity check, not in an allocation: the
+        # check wants the segment's need plus a fixed 512 MB margin (1298 MB at
+        # z_image.prelude) against the backend's reported free memory, and Vulkan
+        # reports ~1.1 GiB less free than the resident weights explain (1168 MB),
+        # so it is ~130 MB short. Not a regression; do not "fix" it by changing
+        # these args -- `--diffusion-fa` passes (17 s) but tests something else,
+        # and `--max-vram` only moves the failure to a later segment.
+        #
+        # Measured earlier on the same card at 20 steps, cfg 7.0: 3.17 s/it, 69 s
+        # end to end. `--auto-fit` also fits but declines the GPU altogether on a
         # single-GPU box (~143 s/it), which no wheel-test timeout would survive.
         return self.run_sd("1", ["--params-backend", "te=cpu", "--vae-tiling", "-p", "a lovely cat"], backend, timeout)
 

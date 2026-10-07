@@ -2273,12 +2273,19 @@ _WIN_EXCLUDES: dict[str, list[str]] = {
 # one shared list means a future --include'd plugin cannot reintroduce the bug.
 # Confirmed broken in the published 0.4.2 cuda12 and vulkan Windows wheels; see
 # windows-dll-mangling.md.
+#
+# msvcp140.dll is here for the same reason: the plugins import it by its real
+# name, and the mangled copy is invisible to them, so on a machine without the
+# VC++ redistributable they would not load. Keeping the real name gives up
+# delvewheel's isolation -- if another package has already loaded an older
+# msvcp140.dll into the process, the loader reuses that one instead.
 _WIN_NO_MANGLE: list[str] = [
     "ggml.dll",
     "ggml-base.dll",
     "ggml-cpu.dll",
     "llama.dll",
     "mtmd.dll",
+    "msvcp140.dll",
 ]
 
 # GPU backends share a manylinux platform override -- their SDK libs

@@ -24,6 +24,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 We really should be releasing this as a minor version bump to 0.7.0  but we have decided to track llama.cpp releases so this time is maybe ok to make a mistake.
 
+### Added
+
+- **`scripts/audit_wheel.py` checks built wheels' external dependencies,** ported from inferna. On Windows it reads the import and delay-import tables of every `.dll`/`.pyd` in the wheel directly from the PE headers, so it needs neither pefile nor dumpbin. Each imported DLL must be one of:
+
+  - a file of exactly that name in the wheel;
+  - a Windows system DLL;
+  - `python3*.dll` or `vcruntime140*.dll`, which the interpreter supplies;
+  - a driver runtime the backend expects (`vulkan-1.dll` for vulkan, `nvcuda.dll` plus `_WIN_EXCLUDES` for cuda).
+
+  It ignores delvewheel's `-<hash>.dll` suffixes on purpose, so a plugin still importing a renamed DLL (the 0.4.2 `ggml-base.dll` bug in `docs/dev/windows-dll-mangling.md`) fails the audit. Visual C++ redistributables never count as system DLLs, even when present in System32. The existing `ctypes.WinDLL()` smoke test cannot catch that case, because the runner it runs on has the redistributable. A new "Audit built wheels" step runs the script in `_gpu-build-vulkan-windows.yml` and `_gpu-build-cuda-windows.yml` before upload. The Linux (`readelf`) and macOS (`otool`) checks came along with the port but are not wired into any workflow yet; they have not been run against cyllama's wheels. Covered by `tests/test_audit_wheel.py`.
+
+### Fixed
+
+- **`ggml-vulkan.dll` imported the C++ runtime under a name the wheel does not ship.** In the 0.6.1 vulkan wheel it imports `MSVCP140.dll`, but delvewheel bundles only `msvcp140-a4c2229b....dll` and never rewrites the imports of an `--include`d plugin. This is the same mechanism as the 0.4.2 `ggml-base.dll` bug, one dependency further down. It loads on any machine with the Visual C++ redistributable in System32, so neither builds nor tests noticed; on a machine without it, the Vulkan backend would not load. The cuda wheel adds `ggml-cuda.dll` the same way and is likely affected too; it has not been checked. `msvcp140.dll` is now in `_WIN_NO_MANGLE` in `scripts/manage.py`. That gives up some of delvewheel's isolation: if another package has already loaded an older `msvcp140.dll` into the process, the loader reuses it.
+
 ## [0.6.1]
 
 ### Added

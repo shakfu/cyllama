@@ -202,6 +202,21 @@ So the check would have caught this. What remains unverified is whether it ran: 
 
 Recommended follow-up regardless: make the DLL link-test a release gate rather than an input-gated matrix leg, so a wheel cannot be published without it.
 
+## Follow-up: `msvcp140.dll`, and a static audit (0.6.1)
+
+The same failure, one dependency further down. In the 0.6.1 vulkan wheel `ggml-vulkan.dll` imports `MSVCP140.dll` by its real name, but delvewheel bundles only `msvcp140-a4c2229bdc2a2a630acdc095b4d86008.dll`. Nothing fails on a dev box or a CI runner, because both have the Visual C++ redistributable in System32 and the loader finds it there. On a machine without the redistributable, `ggml-vulkan.dll` would not load even with the `--no-mangle` fix above. The CUDA plugin is built the same way, so it very likely has the same problem.
+
+That is also why the `ctypes.WinDLL()` smoke test cannot catch it: it runs on a runner that has the redistributable. `msvcp140.dll` is now in `_WIN_NO_MANGLE` too. Unlike the ggml names, this one gives something up: if another package has already loaded an older `msvcp140.dll` into the process, the loader reuses it, and that is exactly the collision mangling exists to prevent. Linking the plugins' C++ runtime statically would avoid both problems, at the cost of a build change.
+
+`scripts/audit_wheel.py` (ported from inferna, which shipped the `ggml-base.dll` bug in its own 0.6.1 vulkan wheel) now checks this without loading anything. It reads the import tables of every `.dll`/`.pyd` in the wheel and fails if an import is not one of:
+
+- a file of exactly that name in the wheel;
+- a Windows system DLL;
+- `python3*.dll` or `vcruntime140*.dll`, which the interpreter supplies;
+- a driver runtime the backend expects (`vulkan-1.dll`, `nvcuda.dll`, `_WIN_EXCLUDES`).
+
+Visual C++ redistributables never count as system DLLs, even when present in System32. The audit runs in both Windows GPU workflows before the upload step.
+
 ## Local repair (diagnosis only)
 
 To verify a fix hypothesis against an already-installed wheel without a rebuild, rename the mangled file and byte-patch the import tables. PE import names are null-terminated strings, so replacing a longer name with a shorter one padded back to the original length keeps every offset valid:
