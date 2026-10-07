@@ -22,6 +22,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+## [0.6.1]
+
 ### Added
 
 - **`LlamaBatchExt` and `LlamaContext.process()`** bind llama.cpp's extended batch API. Entries carry a token id or an input embedding, may belong to several sequences, and M-RoPE embedding entries take 4 positions. `llama_decode` now converts each `llama_batch` to this form internally. `set_embd_state()` is bound but upstream v0.6.0 leaves it unimplemented, so it raises.
