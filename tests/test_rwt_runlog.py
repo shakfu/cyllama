@@ -2,6 +2,7 @@
 
 import hashlib
 import importlib.util
+import os
 import sqlite3
 import sys
 from pathlib import Path
@@ -214,7 +215,8 @@ def test_env_run_tees_stderr_when_capturing(rwt, tmp_path, capfd):
     script = "import sys; print('out'); sys.stderr.write('err-line\\n'); sys.exit(3)"
     env.capture = bytearray()
     assert env.run([sys.executable, "-c", script]) == 3
-    assert bytes(env.capture) == b"err-line\n"
+    # The child writes stderr in text mode, so Windows emits CRLF.
+    assert bytes(env.capture) == b"err-line" + os.linesep.encode()
     seen = capfd.readouterr()
     assert "err-line" in seen.err and "out" in seen.out
     env.capture = None
