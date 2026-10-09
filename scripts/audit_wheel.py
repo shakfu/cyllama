@@ -291,7 +291,7 @@ def _pe_imports(path: Path) -> set[str]:
             return set()
         (n_dirs,) = struct.unpack_from("<I", data, opt + n_dirs_off)
         dirs = opt + n_dirs_off + 4
-        sections = []
+        sections: list[tuple[int, int, int]] = []
         for i in range(n_sections):
             off = opt + opt_size + 40 * i
             vsize, vaddr, rawsize, rawptr = struct.unpack_from("<IIII", data, off + 8)
