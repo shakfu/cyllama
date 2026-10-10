@@ -11,6 +11,7 @@ import os
 import signal
 import socket
 import subprocess
+import sys
 import time
 import urllib.error
 import urllib.request
@@ -28,11 +29,23 @@ LAYA = MODELS_DIR / MODEL_FILES["laya"]
 needs_laya = pytest.mark.skipif(not LAYA.exists(), reason=f"{LAYA.name} not found")
 
 
+def _is_apple_m1():
+    if sys.platform != "darwin":
+        return False
+    cpu = subprocess.run(["sysctl", "-n", "machdep.cpu.brand_string"], capture_output=True, text=True).stdout
+    return cpu.startswith("Apple M1")
+
+
+# lev/kev hit a Metal OOM on a 16 GB M1, which fails every later model load in the process
+IS_APPLE_M1 = _is_apple_m1()
+
+
 def _model_param(dtype):
     path = MODELS_DIR / MODEL_FILES[dtype]
     marks = [pytest.mark.skipif(not path.exists(), reason=f"{path.name} not found")]
     if dtype in ("lev", "kev"):
         marks.append(pytest.mark.slow)  # 4B models, 4.5 GB each
+        marks.append(pytest.mark.skipif(IS_APPLE_M1, reason=f"{path.name}: Metal OOM on Apple M1"))
     return pytest.param(dtype, marks=marks)
 
 
