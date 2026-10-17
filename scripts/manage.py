@@ -2237,6 +2237,8 @@ _EXCLUDES_LINUX: dict[str, list[str]] = {
         # transitively alongside libsvml/libimf. Defensive: a no-op if it
         # isn't in the closure.
         "libirng.so",
+        # oneDNN, linked by ggml-sycl for flash attention and GEMM.
+        "libdnnl.so.3",
     ],
     "opencl": ["libOpenCL.so.1", "libgomp.so.1"],
     "metal": [],

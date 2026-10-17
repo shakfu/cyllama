@@ -22,6 +22,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+### Fixed
+
+- **SYCL wheel build failed after the llama.cpp bump to `b11669`.** Upstream now aborts CMake when oneDNN is missing and `GGML_SYCL_DNN=ON` (the default); it used to fall back silently to the slower MKL flash-attention path. CI now builds against `intel-oneapi-dnnl-devel-2025.3` rather than passing `-DGGML_SYCL_DNN=OFF`, which upstream reports costs 20-40% prefill on long prompts. `libdnnl.so.3` is not vendored, so SYCL hosts must also install `intel-oneapi-dnnl-2025.3`.
+
 ## [0.7.0]
 
 ### Added

@@ -56,18 +56,19 @@ All GPU variants install the same `cyllama` Python package -- only the compiled 
 
 #### `cyllama-sycl` host prerequisites
 
-The SYCL wheel deliberately does not vendor the [Intel oneAPI](https://www.intel.com/content/www/us/en/developer/tools/oneapi/oneapi-toolkit.html) runtime (`libsycl`, MKL, TBB, `libiomp5`, the Intel compiler runtimes). The full vendored stack exceeds PyPI's 100 MB per-file cap, and the GPU-coupled pieces must match the host driver anyway. The host therefore has to supply two things, and they live in separate registers.
+The SYCL wheel deliberately does not vendor the [Intel oneAPI](https://www.intel.com/content/www/us/en/developer/tools/oneapi/oneapi-toolkit.html) runtime (`libsycl`, MKL, oneDNN, TBB, `libiomp5`, the Intel compiler runtimes). The full vendored stack exceeds PyPI's 100 MB per-file cap, and the GPU-coupled pieces must match the host driver anyway. The host therefore has to supply two things, and they live in separate registers.
 
 **1. oneAPI userspace runtimes (required for `import cyllama` to succeed).**
 
-These provide the libraries the wheel's `DT_NEEDED` entries point at -- `libsycl.so.8`, `libmkl_*.so*`, `libtbb.so.12`, `libiomp5.so`, `libsvml.so`, `libimf.so`, `libintlc.so.5`, `libirng.so`. On Debian/Ubuntu after adding the [Intel oneAPI APT repo](https://www.intel.com/content/www/us/en/docs/oneapi/installation-guide-linux/current/apt-005.html):
+These provide the libraries the wheel's `DT_NEEDED` entries point at -- `libsycl.so.8`, `libmkl_*.so*`, `libdnnl.so.3`, `libtbb.so.12`, `libiomp5.so`, `libsvml.so`, `libimf.so`, `libintlc.so.5`, `libirng.so`. On Debian/Ubuntu after adding the [Intel oneAPI APT repo](https://www.intel.com/content/www/us/en/docs/oneapi/installation-guide-linux/current/apt-005.html):
 
 ```bash
 sudo apt install \
   intel-oneapi-compiler-dpcpp-cpp-runtime-2025.3 \
   intel-oneapi-openmp-2025.3 \
   intel-oneapi-mkl-core-2025.3 \
-  intel-oneapi-mkl-sycl-blas-2025.3
+  intel-oneapi-mkl-sycl-blas-2025.3 \
+  intel-oneapi-dnnl-2025.3
 source /opt/intel/oneapi/setvars.sh
 python -c "import cyllama"   # should succeed
 ```

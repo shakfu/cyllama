@@ -83,7 +83,7 @@ jobs:
             dnf install -y ccache &&
             rpm --import https://yum.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB &&
             dnf config-manager --add-repo https://yum.repos.intel.com/oneapi &&
-            dnf install -y intel-oneapi-dpcpp-cpp-2025.3 intel-oneapi-mkl-devel-2025.3 &&
+            dnf install -y intel-oneapi-dpcpp-cpp-2025.3 intel-oneapi-mkl-devel-2025.3 intel-oneapi-dnnl-devel-2025.3 &&
             if [ -f /project/thirdparty/.deps-complete ]; then echo "=== Deps cached, skipping build ==="; exit 0; fi &&
             CI_PYTHON=$(ls -d /opt/python/cp3*/bin | head -1) &&
             $CI_PYTHON/pip install cmake ninja &&

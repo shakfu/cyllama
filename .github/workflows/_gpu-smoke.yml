@@ -231,7 +231,8 @@ jobs:
             intel-oneapi-compiler-dpcpp-cpp-runtime-2025.3 \
             intel-oneapi-openmp-2025.3 \
             intel-oneapi-mkl-core-2025.3 \
-            intel-oneapi-mkl-sycl-blas-2025.3
+            intel-oneapi-mkl-sycl-blas-2025.3 \
+            intel-oneapi-dnnl-2025.3
           source /opt/intel/oneapi/setvars.sh
           echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" >> "$GITHUB_ENV"
 
