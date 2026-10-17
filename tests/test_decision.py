@@ -1,12 +1,13 @@
 """Decision models (cyllama.llama.decision) and the /v1/systemone server route.
 
-Expected answers are pinned from upstream llama-server b11429 on CPU. Each
+Expected answers are pinned from upstream llama-server b11669 on CPU. Each
 model's tests skip when its file is not in models/. `make llama-server` builds
 upstream llama-server and then runs test_parity_* against it live; to rerun
 them without a rebuild, set CYLLAMA_UPSTREAM_SERVER=build/llama-server/bin/llama-server.
 """
 
 import json
+import math
 import os
 import signal
 import socket
@@ -19,12 +20,17 @@ import urllib.request
 import pytest
 
 import cyllama.llama.llama_cpp as cy
-from cyllama.llama.decision import DecisionModel, get_decision_type
+from cyllama.llama.decision import DecisionModel, get_decision_type, systemone_response
 from cyllama.llama.server import EmbeddedServer, PythonServer, ServerConfig
 from conftest import MODELS_DIR
-from synthetic_models import synthetic_metadata
+from synthetic_models import save_synthetic_model, synthetic_metadata, synthetic_model
 
-MODEL_FILES = {"laya": "Laya-Q8_0.gguf", "lev": "lev-Q8_0.gguf", "kev": "Kev-4B-Q8_0.gguf"}
+MODEL_FILES = {
+    "laya": "Laya-Q8_0.gguf",
+    "lev": "lev-Q8_0.gguf",
+    "kev": "Kev-4B-Q8_0.gguf",
+    "lfm2-d1-omni": "d1-omni-600M-Q8_0.gguf",
+}
 LAYA = MODELS_DIR / MODEL_FILES["laya"]
 needs_laya = pytest.mark.skipif(not LAYA.exists(), reason=f"{LAYA.name} not found")
 
@@ -68,16 +74,16 @@ README_REQUEST = {
     },
 }
 
-# answers to README_REQUEST from llama-server b11429 on CPU
+# answers to README_REQUEST from llama-server b11669 on CPU
 REFERENCE = {
     "laya": {
-        "route": {"technical": 0.002826893644905518, "billing": 0.987488720094348, "shipping": 0.009684386260746712},
-        "angry": 0.7880425006766781,
+        "route": {"technical": 0.002645999136237623, "billing": 0.9877295044860257, "shipping": 0.00962449637773663},
+        "angry": 0.7870874820229915,
         "urgency": {
-            "0": 0.03805591972087626,
-            "1": 0.42882725543847516,
-            "2": 0.05451190754218375,
-            "3": 0.478604917298465,
+            "0": 0.03708144101697737,
+            "1": 0.46304134918865114,
+            "2": 0.049762526823041595,
+            "3": 0.45011468297132995,
         },
         "input_tokens": 136,
     },
@@ -103,6 +109,17 @@ REFERENCE = {
             "3": 0.5573728647077075,
         },
         "input_tokens": 106,
+    },
+    "lfm2-d1-omni": {
+        "route": {"technical": 0.0012363145224966168, "billing": 0.9987139813165001, "shipping": 4.970416100308494e-05},
+        "angry": 0.3794288830523013,
+        "urgency": {
+            "0": 0.005675338866501018,
+            "1": 0.9865855906695629,
+            "2": 0.003307158356302457,
+            "3": 0.004431912107633534,
+        },
+        "input_tokens": 152,
     },
 }
 UPSTREAM = REFERENCE["laya"]
@@ -179,6 +196,152 @@ class TestDecisionType:
             model = cy.LlamaModel.from_user(md, lambda t: t.set_data(bytes(t.nbytes)), verbose=False)
         with pytest.raises(ValueError, match="systemone"):
             DecisionModel(model)
+
+
+# random-weight models with the "test" tokenizer, for the types without a downloaded model
+SYNTHETIC_TYPES = ("pplx-decider", "vllm-d3", "lfm2-d1")
+SYNTHETIC_TEMPLATE = (
+    "{{ state if state is string else state | tojson }}\n"
+    "{{ instructions if instructions is string else instructions | tojson }}\n"
+    "{% for o in options %}{{ o.label }}: {{ o.key }}"
+    "{% if o.description is not none %} - {{ o.description if o.description is string else o.description | tojson }}"
+    "{% endif %}\n{% endfor %}Answer:"
+)
+SCORE_BIAS = {"score_bias.4.1": 2.0, "score_bias.4.3": -1.5}
+
+
+def _synthetic_extra(dtype, **decision):
+    extra = {"llama.decision.type": dtype, "tokenizer.chat_template.systemone": SYNTHETIC_TEMPLATE}
+    extra.update({f"llama.decision.{k}": v for k, v in decision.items()})
+    return extra
+
+
+def _synthetic_decision(dtype, cache_prompt=True, **decision):
+    model = synthetic_model(stdev=0.5, n_ctx=4096, extra=_synthetic_extra(dtype, **decision))
+    return DecisionModel(model, n_ctx=4096, n_gpu_layers=0, cache_prompt=cache_prompt)
+
+
+@pytest.fixture(scope="module")
+def synthetic_file(tmp_path_factory):
+    """Path of a GGUF file of a synthetic decision model, with a score bias, by type."""
+    root = tmp_path_factory.mktemp("decision")
+
+    def make(dtype):
+        path = root / f"{dtype}.gguf"
+        if not path.exists():
+            save_synthetic_model(path, stdev=0.5, n_ctx=4096, extra=_synthetic_extra(dtype, **SCORE_BIAS))
+        return path
+
+    return make
+
+
+class TestSynthetic:
+    @pytest.mark.parametrize("dtype", SYNTHETIC_TYPES)
+    def test_answers(self, dtype):
+        a = _synthetic_decision(dtype).answer(README_REQUEST)["answers"]
+        assert list(a["route"]["probabilities"]) == ["technical", "billing", "shipping"]
+        assert sum(a["route"]["probabilities"].values()) == pytest.approx(1.0)
+        assert sum(a["urgency"]["probabilities"].values()) == pytest.approx(1.0)
+        assert 0.0 <= a["angry"]["noul"] <= 1.0
+
+    def test_score_bias(self):
+        # a bias b_i multiplies the probability of level i by exp(b_i / T), T = 1 here
+        plain = _synthetic_decision("pplx-decider").answer(README_REQUEST)["answers"]
+        biased = _synthetic_decision("pplx-decider", **SCORE_BIAS).answer(README_REQUEST)["answers"]
+        bias = [0.0, 2.0, 0.0, -1.5]
+        weights = [p * math.exp(b) for p, b in zip(plain["urgency"]["probabilities"].values(), bias)]
+        expected = [w / sum(weights) for w in weights]
+        assert list(biased["urgency"]["probabilities"].values()) == pytest.approx(expected, abs=1e-9)
+        assert biased["route"] == plain["route"]  # score questions only
+
+    def test_score_bias_of_other_level_count_is_ignored(self):
+        plain = _synthetic_decision("pplx-decider").answer(README_REQUEST)["answers"]
+        other = _synthetic_decision("pplx-decider", **{"score_bias.3.0": 5.0}).answer(README_REQUEST)["answers"]
+        assert other["urgency"] == plain["urgency"]
+
+    @pytest.mark.parametrize("key", ["score_bias.4.4", "score_bias.1.0", "score_bias.4", "score_bias.x.0"])
+    def test_invalid_score_bias(self, key):
+        with pytest.raises(ValueError, match="score bias"):
+            _synthetic_decision("pplx-decider", **{key: 1.0})
+
+    @pytest.mark.parametrize("dtype, ok", [("vllm-d3", True), ("lfm2-d1", True), ("pplx-decider", False)])
+    def test_null_state(self, dtype, ok):
+        dm = _synthetic_decision(dtype)
+        req = {"state": None, "questions": {"q": {"type": "noul", "instructions": "?"}}}
+        if ok:
+            assert 0.0 <= dm.answer(req)["answers"]["q"]["noul"] <= 1.0
+        else:
+            with pytest.raises(ValueError, match="state"):
+                dm.answer(req)
+        with pytest.raises(ValueError, match="state"):
+            dm.answer({"questions": req["questions"]})
+
+    def test_vllm_d3(self):
+        dm = _synthetic_decision("vllm-d3")
+        a = dm.answer(
+            {
+                "state": "s",
+                "questions": {
+                    "q": {"type": "score", "criteria": [{"b": 1, "a": "é"}, None, "plain"]}
+                },  # no instructions
+            }
+        )["answers"]["q"]
+        assert a["legend"] == {"0": '{"a":"é","b":1}', "1": "null", "2": "plain"}
+        probs = list(a["probabilities"].values())
+        entropy = -sum(p * math.log(p) for p in probs)
+        assert a["confidence"] == pytest.approx(1.0 - entropy / math.log(3))
+        with pytest.raises(ValueError, match="instructions"):
+            _synthetic_decision("pplx-decider").answer({"state": "s", "questions": {"q": {"type": "noul"}}})
+
+    def test_lfm2_d1_labels(self):
+        dm = _synthetic_decision("lfm2-d1")
+        texts, groups = dm._d1_labels({"type": "choice", "options": [("x", None), ("y", None)]})
+        assert texts == ["x", "y"]  # single letters are their own labels
+        texts, _ = dm._d1_labels({"type": "choice", "options": [("one", None), ("two", None)]})
+        assert texts == ["A", "B"]
+        firsts = [g[0] for g in groups]
+        assert len(set(firsts)) == len(firsts)
+
+    def test_cache_prompt(self, monkeypatch):
+        long_req = PARITY_REQUESTS[4]
+        req = {"state": long_req["state"], "questions": {"s": long_req["questions"]["s"]}}
+        cold = _synthetic_decision("pplx-decider", cache_prompt=False)
+        first = cold.answer(req)
+        cold.answer(long_req)
+        assert cold.answer(req) == first  # repeatable
+
+        warm = _synthetic_decision("pplx-decider")
+        n_past = []
+        decode = warm._decode
+        monkeypatch.setattr(warm, "_decode", lambda *a, **kw: n_past.append(decode(*a, **kw)) or n_past[-1])
+        assert warm.answer(req) == first  # nothing cached yet
+        warm.answer(long_req)
+        warm.answer(req)
+        assert n_past[0] == 0 and min(n_past[1:]) > 0  # the prompts start with the same state
+
+    @pytest.mark.parametrize(
+        "extra",
+        [
+            {"images": ["data:image/png;base64,AAAA"]},
+            {"files": ["data:audio/wav;base64,AAAA"]},
+            {"state": [{"role": "user", "content": [{"type": "image_url", "image_url": {"url": "data:,"}}]}]},
+            {"state": {"messages": [{"role": "user", "content": [{"type": "input_audio", "input_audio": {}}]}]}},
+        ],
+    )
+    def test_media_is_refused(self, extra):
+        dm = _synthetic_decision("pplx-decider")
+        req = {**README_REQUEST, **extra}
+        with pytest.raises(NotImplementedError, match="not supported"):
+            dm.answer(req)
+        status, body = systemone_response(dm, req, "m")
+        assert status == 501 and body["error"]["type"] == "not_supported_error"
+
+    def test_media_errors(self):
+        dm = _synthetic_decision("pplx-decider")
+        for extra, match in [({"videos": ["x"]}, "videos"), ({"images": "x"}, "array")]:
+            with pytest.raises(ValueError, match=match):
+                dm.answer({**README_REQUEST, **extra})
+        dm.answer({**README_REQUEST, "images": [], "videos": None})
 
 
 class TestModels:
@@ -402,8 +565,8 @@ PARITY_REQUESTS = [
         },
     },
 ]
-# truncation of many long options is specific to laya, and slow on the 4B models
-LAYA_ONLY = {4}
+# many long options: cut to fit by laya and lfm2-d1-omni, slow on the 4B models
+SKIP_4B = {4}
 
 
 def _assert_close(mine, theirs, path=""):
@@ -418,9 +581,10 @@ def _assert_close(mine, theirs, path=""):
 
 
 @pytest.mark.skipif(not UPSTREAM_SERVER, reason="CYLLAMA_UPSTREAM_SERVER not set")
-@pytest.mark.parametrize("dtype", ALL_TYPES)
-def test_parity_with_upstream_server(dtype):
-    model_file = str(MODELS_DIR / MODEL_FILES[dtype])
+@pytest.mark.parametrize("dtype", ALL_TYPES + list(SYNTHETIC_TYPES))
+def test_parity_with_upstream_server(dtype, synthetic_file):
+    model_file = str(synthetic_file(dtype) if dtype in SYNTHETIC_TYPES else MODELS_DIR / MODEL_FILES[dtype])
+    mine = DecisionModel(model_file, n_ctx=4096, n_gpu_layers=0)
     port = _free_port()
     proc = subprocess.Popen(
         [
@@ -435,8 +599,8 @@ def test_parity_with_upstream_server(dtype):
             "4096",
             "-b",
             "4096",
-            "-ub",
-            "4096",
+            "-ub",  # the ubatch split changes the results by more than float rounding
+            str(mine.ctx.n_ubatch),
             "-np",
             "1",
             "-ngl",
@@ -454,10 +618,10 @@ def test_parity_with_upstream_server(dtype):
             except (urllib.error.URLError, ConnectionError):
                 assert proc.poll() is None and time.time() < deadline, "upstream llama-server did not start"
                 time.sleep(0.2)
-        # CPU on both sides, so the results agree to float rounding
-        mine = DecisionModel(model_file, n_ctx=4096, n_gpu_layers=0)
+        # CPU on both sides, so the results agree to float rounding. Both reuse the KV
+        # prefix of the last prompt, so the requests go in the same order to both
         for i, req in enumerate(PARITY_REQUESTS):
-            if i in LAYA_ONLY and dtype != "laya":
+            if i in SKIP_4B and dtype in ("lev", "kev"):
                 continue
             status, theirs = _post(port, "/v1/systemone", req)
             assert status == 200

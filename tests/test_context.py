@@ -17,6 +17,8 @@ def test_context(model_path):
     assert ctx.n_seq_max == 1
     # State size for an empty context (no tokens evaluated yet)
     assert ctx.get_state_size() == 17
+    perf = ctx.get_perf_data()
+    assert perf["n_reallocs_same"] == 0 and perf["n_reallocs_diff"] == 0  # nothing decoded yet
     # context params
     cy.llama_backend_free()
 
@@ -33,6 +35,8 @@ def test_context_params_set():
     params.n_threads = 8
     params.n_batch = 1024
     params.n_ctx = 1024
+    params.moe_cache_size = 1 << 30
     assert params.n_threads == 8
     assert params.n_batch == 1024
     assert params.n_ctx == 1024
+    assert params.moe_cache_size == 1 << 30

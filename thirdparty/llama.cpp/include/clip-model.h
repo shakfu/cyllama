@@ -71,6 +71,7 @@ struct clip_hparams {
     std::vector<clip_image_size> image_res_candidates;
     int32_t preproc_min_tiles = 0;
     int32_t preproc_max_tiles = 0;
+    int32_t max_slice_nums = 9; // llava-uhd slice cap; per-model, carried in the GGUF
     int32_t preproc_tile_size = 0; // local tile size (deepseek-ocr)
     resize_algo image_resize_algo_rf = RESIZE_ALGO_BICUBIC;
     resize_algo image_resize_algo_ov = RESIZE_ALGO_BICUBIC;
@@ -565,7 +566,7 @@ struct clip_model {
     // embeddings
     ggml_tensor * class_embedding = nullptr;
     ggml_tensor * patch_embeddings_0 = nullptr;
-    ggml_tensor * patch_embeddings_1 = nullptr;  // second Conv2D kernel when we decouple Conv3D along temporal dimension (Qwen2VL)
+    ggml_tensor * patch_embeddings_1 = nullptr;  // additional patch kernel; interpretation is model-specific (Qwen2VL, Nemotron Omni)
     ggml_tensor * patch_bias = nullptr;
     ggml_tensor * position_embeddings = nullptr;
     ggml_tensor * norm_embd_w = nullptr;
@@ -614,6 +615,7 @@ struct clip_model {
 
     ggml_tensor * image_newline = nullptr;
     ggml_tensor * view_seperator = nullptr;
+    ggml_tensor * tok_embd_sep = nullptr; // [n_embd_text, n_sep] rows of the text model tok_embd (MiniCPM-V 4.7)
 
 
     // Yi type models with mlp+normalization projection
@@ -623,6 +625,10 @@ struct clip_model {
     ggml_tensor * mm_3_b = nullptr;
     ggml_tensor * mm_4_w = nullptr;
     ggml_tensor * mm_4_b = nullptr;
+    ggml_tensor * mm_5_w = nullptr;
+    ggml_tensor * mm_5_b = nullptr;
+    ggml_tensor * mm_6_w = nullptr;
+    ggml_tensor * mm_6_b = nullptr;
 
     // GLMV-Edge projection
     ggml_tensor * mm_model_adapter_conv_w = nullptr;

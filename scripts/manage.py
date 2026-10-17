@@ -146,7 +146,7 @@ if STABLE_BUILD:
     SQLITEVECTOR_VERSION = "1.1.2"
 else:
     # experimental bleeding-edge builds ` = ""` means get latest
-    LLAMACPP_VERSION = "b11429"  # equivalent to  v0.6.0
+    LLAMACPP_VERSION = "b11429"  # equivalent to  v0.7.0
     WHISPERCPP_VERSION = "v1.9.4"
     SDCPP_VERSION = "master-898-2bb7294"
     SQLITEVECTOR_VERSION = "1.1.2"

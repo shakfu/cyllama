@@ -1589,6 +1589,15 @@ cdef class LlamaContextParams:
     def type_v(self, ggml.ggml_type value):
         self.p.type_v = value
 
+    @property
+    def moe_cache_size(self) -> int:
+        """device cache in bytes for the experts kept in host memory, 0 = disabled [EXPERIMENTAL]"""
+        return self.p.moe_cache_size
+
+    @moe_cache_size.setter
+    def moe_cache_size(self, size_t value):
+        self.p.moe_cache_size = value
+
     # @property
     # def logits_all(self) -> bool:
     #     """the llama_decode() call computes all logits, not just the last one (DEPRECATED - set llama_batch.logits instead)"""
@@ -4037,7 +4046,7 @@ cdef class LlamaContext:
         """Get performance data as a dictionary.
 
         Returns a dict with keys: t_start_ms, t_load_ms, t_p_eval_ms,
-        t_eval_ms, n_p_eval, n_eval, n_reused.
+        t_eval_ms, n_p_eval, n_eval, n_reused, n_reallocs_same, n_reallocs_diff.
         """
         cdef llama.llama_perf_context_data data = llama.llama_perf_context(self.ptr)
         return {
@@ -4048,6 +4057,8 @@ cdef class LlamaContext:
             "n_p_eval": data.n_p_eval,
             "n_eval": data.n_eval,
             "n_reused": data.n_reused,
+            "n_reallocs_same": data.n_reallocs_same,
+            "n_reallocs_diff": data.n_reallocs_diff,
         }
 
     def print_perf_data(self):

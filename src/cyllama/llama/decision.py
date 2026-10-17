@@ -12,8 +12,12 @@ Supported, each checked against upstream llama-server:
   choice is evaluated with its options in both orders.
 - ``kev``: scaled dot product of the hidden states of the last token and of
   the end token of each option.
+- ``pplx-decider``, ``vllm-d3``: lev's label path, one option order.
+- ``lfm2-d1``: logits of the label tokens of each option, the maximum per option.
+- ``lfm2-d1-omni``: laya's embedding rows, prompt pieces cut to token budgets.
 
-openjev and nimble use lev's label path but are untested; clef needs
+Text only: a request with images or audio is refused. openjev and nimble use
+lev's label path but are untested; clef and vllm-decision2 need
 ``llama_batch_ext_set_decision_order``, which is not in ``llama.h``.
 """
 
@@ -30,14 +34,37 @@ from cyllama._vendor.jinja2.sandbox import ImmutableSandboxedEnvironment
 
 from .llama_cpp import LlamaBatchExt, LlamaContext, LlamaContextParams, LlamaModel, LlamaModelParams
 
-DECISION_TYPES = ("openjev", "lev", "kev", "nimble", "laya", "clef")
-SUPPORTED_TYPES = ("laya", "lev", "kev")
+DECISION_TYPES = (
+    "openjev",
+    "lev",
+    "kev",
+    "nimble",
+    "laya",
+    "clef",
+    "pplx-decider",
+    "vllm-decision2",
+    "vllm-d3",
+    "lfm2-d1",
+    "lfm2-d1-omni",
+)
+SUPPORTED_TYPES = ("laya", "lev", "kev", "pplx-decider", "vllm-d3", "lfm2-d1", "lfm2-d1-omni")
+_LABEL_TYPES = ("lev", "pplx-decider", "vllm-d3")  # one label token per option, A..Z then AA..ZZ
+_EMBD_TYPES = ("laya", "kev", "lfm2-d1-omni")  # read the embeddings output
+_NULL_STATE_TYPES = ("lfm2-d1", "lfm2-d1-omni", "vllm-d3")  # e.g. to ask about images only
 
 _QUESTION_TYPES = ("choice", "score", "noul")  # index is the laya output column
 _LAYA_MAX_OPTION_TOKENS = 48
 _MAX_OPTIONS = 255
 _LEV_N_RATINGS = 9  # lev reads noul from a rating scale: 0 = certainly no, 8 = certainly yes
-_KEV_SPECIAL = re.compile(r"<\|([A-Za-z0-9_]+)\|>")
+_SPECIAL = re.compile(r"<\|([A-Za-z0-9_]+)\|>")
+
+# lfm2-d1-omni: text between the pieces of the prompt, and at the start of the pieces cut to a budget
+_D1OMNI_MARKER = "<<d1omni:"
+_D1OMNI_SEP = "<<d1omni:sep>>"
+_D1OMNI_MARK_STATE = "<<d1omni:state>>"
+_D1OMNI_MARK_QUESTION = "<<d1omni:question>>"
+_D1OMNI_MARK_OPTION = "<<d1omni:option>>"
+_D1OMNI_MAX_TOKENS = 16384
 
 
 def get_decision_type(model: LlamaModel) -> Optional[str]:
@@ -94,9 +121,46 @@ def _kev_render(val: Any, indent: int = 0) -> str:
     return json.dumps(val)
 
 
+def _escape_special(text: str) -> str:
+    # write "<|name|>" with U+00A6 in place of "|", so text from the request is not parsed as special tokens
+    return _SPECIAL.sub("<¦\\1¦>", text)
+
+
 def _kev_text(val: Any) -> str:
-    # special tokens written in the text must not be parsed as such
-    return _KEV_SPECIAL.sub("<¦\\1¦>", _kev_render(val))
+    return _escape_special(_kev_render(val))
+
+
+def _d1omni_escape(val: Any) -> Any:
+    # keys too (d1-omni prompt.py: escape)
+    if isinstance(val, str):
+        return _escape_special(val)
+    if isinstance(val, list):
+        return [_d1omni_escape(v) for v in val]
+    if isinstance(val, dict):
+        return {_escape_special(k): _d1omni_escape(v) for k, v in val.items()}
+    return val
+
+
+def _check_media(body: dict[str, Any]) -> None:
+    """Refuse image, audio and video input, which upstream reads with mtmd."""
+    videos = body.get("videos")
+    if videos is not None and not (isinstance(videos, (list, dict)) and not videos):
+        raise ValueError('"videos" is not supported')
+    for key in ("files", "images"):
+        files = body.get(key)
+        if files is not None and not isinstance(files, list):
+            raise ValueError(f'"{key}" must be an array')
+        if files:
+            raise NotImplementedError("image and audio input are not supported for decisions")
+    state = body.get("state")
+    messages = state.get("messages") if isinstance(state, dict) else state
+    if not isinstance(messages, list):
+        return
+    for msg in messages:
+        content = msg.get("content") if isinstance(msg, dict) else None
+        for part in content if isinstance(content, list) else []:
+            if isinstance(part, dict) and part.get("type") in ("image_url", "input_audio") and part["type"] in part:
+                raise NotImplementedError("image and audio input are not supported for decisions")
 
 
 def _tojson(
@@ -115,6 +179,14 @@ def _confidence_choice(probs: list[float]) -> float:
         return 1.0
     uniform = 1.0 / len(probs)
     return max(0.0, (max(probs) - uniform) / (1.0 - uniform))
+
+
+def _confidence_entropy(probs: list[float]) -> float:
+    # vllm-d3: normalized entropy, as in the reference implementation
+    if len(probs) < 2:
+        return 1.0
+    entropy = -sum(p * math.log(p) for p in probs if p > 0.0)
+    return max(0.0, min(1.0, 1.0 - entropy / math.log(len(probs))))
 
 
 def _confidence_score(probs: list[float]) -> float:
@@ -143,6 +215,7 @@ class DecisionModel:
         n_ctx: int = 4096,
         n_gpu_layers: int = -1,
         n_threads: Optional[int] = None,
+        cache_prompt: bool = True,
     ):
         """
         Args:
@@ -151,6 +224,10 @@ class DecisionModel:
                 batch, so it must fit.
             n_gpu_layers: Layers to offload when ``model`` is a path.
             n_threads: CPU threads; llama.cpp's default when ``None``.
+            cache_prompt: As llama-server, a causal model keeps the KV cache of
+                the prefix shared with the previous prompt, so answers depend on
+                earlier questions by float rounding. ``False`` evaluates every
+                prompt from the start: slower, and repeatable.
 
         Raises:
             ValueError: ``model`` is not a decision model, or lacks required metadata.
@@ -182,6 +259,7 @@ class DecisionModel:
         self._template = env.from_string(source)
 
         self.temperatures: dict[str, float] = {}
+        self.score_bias: dict[int, list[float]] = {}  # number of levels -> offset of each level
         for i in range(model.meta_count()):
             key = model.meta_key_by_index(i)
             if key.startswith(prefix + "temperature."):
@@ -189,12 +267,22 @@ class DecisionModel:
                 if temp <= 0.0:
                     raise ValueError(f"invalid decision temperature: {key} = {temp}")
                 self.temperatures[key[len(prefix + "temperature.") :]] = temp
+            elif key.startswith(prefix + "score_bias."):
+                parts = key[len(prefix + "score_bias.") :].split(".")
+                n, level = (
+                    (int(p) for p in parts)
+                    if len(parts) == 2 and all(p.isascii() and p.isdigit() for p in parts)
+                    else (0, 0)
+                )
+                if not 2 <= n <= 255 or level >= n:
+                    raise ValueError(f"invalid decision score bias: {key}")
+                self.score_bias.setdefault(n, [0.0] * n)[level] = float(model.meta_val_str_by_index(i))
 
         self.labels: list[int] = []  # lev: one label token per output
         self.label_texts: list[str] = []
         self.text_marker = ""
         self.n_options_max = _MAX_OPTIONS
-        if self.type == "lev":
+        if self.type in _LABEL_TYPES:
             # label codes are A..Z then AA..ZZ, only the ones that are a single token are used
             codes = [chr(a) for a in range(65, 91)] + [chr(a) + chr(b) for a in range(65, 91) for b in range(65, 91)]
             for code in codes:
@@ -221,11 +309,15 @@ class DecisionModel:
                 self.max_head_tokens = 0
             if self.max_head_tokens <= 0:
                 raise ValueError("decision model has no valid max_head_tokens")
+        elif self.type == "lfm2-d1-omni":
+            self.token_marker = self.vocab.token_mask()
+            if self.token_marker < 0:
+                raise ValueError("decision model has no mask token")
 
         cparams = LlamaContextParams()
         cparams.n_ctx = n_ctx
         cparams.n_batch = n_ctx
-        if self.type in ("laya", "kev"):
+        if self.type in _EMBD_TYPES:
             # read from the embeddings output: every prompt token is an output, in one ubatch
             cparams.n_ubatch = n_ctx
             cparams.embeddings = True
@@ -235,14 +327,17 @@ class DecisionModel:
         if n_threads is not None:
             cparams.n_threads = n_threads
             cparams.n_threads_batch = n_threads
+        cparams.swa_full = False  # llama-server's default, it decides which prefixes the memory keeps
         self.ctx = LlamaContext(model, cparams, verbose=False)
         self.n_batch = n_ctx
+        self.cache_prompt = cache_prompt
+        self._cached: list[int] = []  # the prompt in the KV cache
         self._lock = threading.Lock()  # one context, so one request at a time
 
     # -- request parsing -----------------------------------------------------
 
     def _parse_questions(self, body: dict[str, Any]) -> list[dict[str, Any]]:
-        if body.get("state") is None:
+        if "state" not in body or (body["state"] is None and self.type not in _NULL_STATE_TYPES):
             raise ValueError('"state" must be provided')
         questions = body.get("questions")
         if not isinstance(questions, dict) or not questions:
@@ -256,7 +351,7 @@ class DecisionModel:
 
             if not isinstance(q, dict):
                 raise err("must be an object")
-            if q.get("instructions") is None:
+            if q.get("instructions") is None and self.type != "vllm-d3":  # its prompt has a default question
                 raise err('"instructions" must be provided')
             qtype = q.get("type")
             criteria = q.get("criteria")
@@ -272,12 +367,19 @@ class DecisionModel:
                 if criteria is not None and not isinstance(criteria, dict):
                     raise err('"criteria" must be an object')
                 criteria = criteria or {}
-                options = [(k, criteria.get(k)) for k in ("false", "true")]
+                options = []
+                for k in ("false", "true"):
+                    desc = criteria.get(k)
+                    if k not in criteria and self.type == "lfm2-d1-omni":
+                        desc = criteria.get("yes" if k == "true" else "no")
+                    options.append((k, desc))
+                if self.type == "lfm2-d1":
+                    options.reverse()  # true first
             else:
                 raise err('"type" must be one of: choice, score, noul')
             if len(options) > self.n_options_max:
                 raise err(f"too many options ({len(options)}), this model supports at most {self.n_options_max}")
-            parsed.append({"id": qid, "type": qtype, "instructions": q["instructions"], "options": options})
+            parsed.append({"id": qid, "type": qtype, "instructions": q.get("instructions"), "options": options})
         return parsed
 
     # -- prompt --------------------------------------------------------------
@@ -293,8 +395,70 @@ class DecisionModel:
             return _LEV_N_RATINGS
         return len(question["options"])
 
+    def _tokenize_label(self, text: str) -> list[int]:
+        return list(self.vocab.tokenize(text, add_special=False, parse_special=False))
+
+    def _d1_labels(self, question: dict[str, Any]) -> Tuple[list[str], list[list[int]]]:
+        """lfm2-d1: label text and label tokens of each option, codes as in prompt.py of the model repo."""
+
+        def single_tokens(forms: list[str]) -> list[int]:
+            out: list[int] = []
+            for form in forms:
+                toks = self._tokenize_label(form)
+                if len(toks) == 1 and toks[0] not in out:
+                    out.append(toks[0])
+            return out
+
+        texts: list[str] = []
+        groups: list[list[int]] = []
+        options = question["options"]
+        if question["type"] != "choice":
+            for key, _ in options:
+                if question["type"] == "score":
+                    group = single_tokens([key])
+                else:
+                    group = single_tokens(["yes", "Yes", "YES"] if key == "true" else ["no", "No", "NO"])
+                if not group:
+                    raise RuntimeError(f"decision label is not a single token: {key}")
+                texts.append(key)
+                groups.append(group)
+            return texts, groups
+
+        n = len(options)
+        if all(len(k.encode()) == 1 and k.isalpha() for k, _ in options):
+            codes = [k for k, _ in options]
+        elif n <= 26:
+            codes = [chr(65 + i) for i in range(n)]
+        else:
+            codes = [f"{i:02d}" for i in range(n)]
+        letters = [chr(c) for c in range(65, 91)]
+        pool = (
+            letters
+            + [f"{i:02d}" for i in range(100)]
+            + [chr(c) for c in range(97, 123)]
+            + [f"#{i}" for i in range(200)]
+            + [a + b for a in letters for b in letters]
+        )
+
+        used: list[int] = []
+
+        def take(code: str) -> bool:
+            toks = self._tokenize_label(code)
+            if len(toks) != 1 or toks[0] in used:
+                return False
+            used.append(toks[0])
+            texts.append(code)
+            groups.append(toks + [t for t in single_tokens([" " + code]) if t != toks[0]])
+            return True
+
+        for code in codes:
+            if not take(code) and not any(take(c) for c in pool):
+                raise ValueError(f"no single-token label left for {n} options")
+        return texts, groups
+
     def _render_options(self, question: dict[str, Any], variant: int) -> list[dict[str, Any]]:
         opts = question["options"] if variant == 0 else question["options"][::-1]
+        label_texts = self._d1_labels(question)[0] if self.type == "lfm2-d1" else self.label_texts
         out = []
         for i, (key, desc) in enumerate(opts):
             option = {"key": key, "description": desc}
@@ -302,8 +466,8 @@ class DecisionModel:
                 option["key"] = _kev_text(key)
                 if desc is not None:
                     option["description"] = _kev_text(desc)
-            if self.label_texts:
-                option["label"] = self.label_texts[i]
+            if label_texts:
+                option["label"] = label_texts[i]
             out.append(option)
         return out
 
@@ -323,6 +487,15 @@ class DecisionModel:
         if self.text_marker:
             # the input must not contain the marker of the options
             inp = _replace_text(inp, self.text_marker, " ")
+        if self.type == "lfm2-d1-omni":
+            inp = _replace_text(_d1omni_escape(inp), _D1OMNI_MARKER, "<<d1omni ")
+            inp.update(
+                audio=False,
+                sep=_D1OMNI_SEP,
+                mark_state=_D1OMNI_MARK_STATE,
+                mark_question=_D1OMNI_MARK_QUESTION,
+                mark_option=_D1OMNI_MARK_OPTION,
+            )
         inp["images"] = []
         return str(self._template.render(**inp))
 
@@ -365,40 +538,122 @@ class DecisionModel:
         out += tokens[opts_end:]
         return out, positions
 
+    def _d1omni_tokens(self, prompt: str, n_options: int) -> Tuple[list[int], list[int]]:
+        """Cut each piece of the prompt to its budget as in training (d1-omni prompt.py: encode); return (tokens, marker positions).
+
+        The state gets the room that is left.
+        """
+        invalid = RuntimeError("unexpected layout of the decision prompt")
+        pieces = prompt.split(_D1OMNI_SEP)
+        if pieces[0] != "":  # the media markers, none here
+            raise invalid
+        n_max = _D1OMNI_MAX_TOKENS
+        # the options get max(96, min(24 n + 32, max / 2)) tokens, shared evenly
+        n_budget = max(96, min(24 * n_options + 32, n_max // 2))
+        n_option_max = max(2, (n_budget - 3 * n_options) // n_options)
+        n_question_max = max(16, n_budget)
+
+        head: list[int] = []
+        body: Optional[list[int]] = None
+        tail: list[int] = []
+        for piece in pieces[1:]:
+            n_piece_max = None
+            is_state = piece.startswith(_D1OMNI_MARK_STATE)
+            if is_state:
+                piece = piece[len(_D1OMNI_MARK_STATE) :]
+            elif piece.startswith(_D1OMNI_MARK_QUESTION):
+                piece = piece[len(_D1OMNI_MARK_QUESTION) :]
+                n_piece_max = n_question_max
+            elif piece.startswith(_D1OMNI_MARK_OPTION):
+                piece = piece[len(_D1OMNI_MARK_OPTION) :]
+                n_piece_max = n_option_max
+            toks = self.vocab.tokenize(piece, add_special=False, parse_special=True)[:n_piece_max]
+            if is_state:
+                if body is not None:
+                    raise invalid
+                body = toks
+            else:
+                (head if body is None else tail).extend(toks)
+        if body is None:
+            raise invalid
+
+        n_room = n_max - min(n_max, len(head) + len(tail))
+        tokens = (head + body[:n_room] + tail)[:n_max]
+        markers = [i for i, t in enumerate(tokens) if t == self.token_marker]
+        if len(markers) != n_options:
+            raise ValueError("the options do not fit in the context")
+        return tokens, markers
+
     # -- evaluation ----------------------------------------------------------
 
-    def _decode(self, tokens: list[int], all_outputs: bool) -> None:
+    def _decode(self, tokens: list[int], all_outputs: bool, pos_first: int = -1) -> int:
+        """Evaluate ``tokens``; return n_past, the number of tokens reused from the KV cache.
+
+        Batch index i is prompt position n_past + i. ``pos_first`` is the first position
+        that is read, -1 if only the last one.
+        """
         if len(tokens) > self.n_batch:
             raise ValueError(f"prompt has {len(tokens)} tokens, the batch size is {self.n_batch}; increase n_ctx")
-        self.ctx.kv_cache_clear()
+        n_past = 0
+        # llama-server: a non-causal context reads the whole prompt in one batch, it reuses nothing
+        if self.cache_prompt and self.ctx.get_causal_attn():
+            n_past = next(
+                (i for i, (a, b) in enumerate(zip(self._cached, tokens)) if a != b), min(len(self._cached), len(tokens))
+            )
+            if pos_first >= 0:
+                n_past = min(n_past, pos_first)
+            if n_past > 0:
+                # the memory must still hold what the first new token attends to (SWA, recurrent state);
+                # a decision has no checkpoint to restore, so the prompt is evaluated again
+                n_swa = self.model.n_swa
+                pos_eval = n_past if n_past < len(tokens) else n_past - 1
+                if self.ctx.memory_seq_pos_min(0) >= max(0, pos_eval - n_swa + 2 if n_swa > 0 else pos_eval):
+                    n_past = 0
+            n_past = min(n_past, len(tokens) - 1)  # evaluate at least one token
+        self._cached = []
+        if n_past == 0:
+            self.ctx.kv_cache_clear()
+        else:
+            self.ctx.memory_seq_rm(0, n_past, -1)
         batch = LlamaBatchExt(self.ctx)
-        for i, tok in enumerate(tokens):
-            batch.add_token(tok, i, output=all_outputs or i == len(tokens) - 1)
+        for i in range(n_past, len(tokens)):
+            batch.add_token(tokens[i], i, output=all_outputs or i == len(tokens) - 1)
         self.ctx.process(batch)
+        self._cached = list(tokens)
+        return n_past
 
     def _evaluate(self, state: Any, question: dict[str, Any], variant: int) -> Tuple[list[float], int]:
         """Return the raw scores of one variant of ``question`` and its prompt length."""
-        tokens = self.vocab.tokenize(self._render(state, question, variant), add_special=False, parse_special=True)
-        if self.type == "lev":
+        prompt = self._render(state, question, variant)
+        column = _QUESTION_TYPES.index(question["type"])
+        if self.type == "lfm2-d1-omni":
+            tokens, markers = self._d1omni_tokens(prompt, len(question["options"]))
+            n_past = self._decode(tokens, all_outputs=True, pos_first=markers[0])
+            return [self.ctx.get_embeddings_ith(m - n_past)[column] for m in markers], len(tokens)
+        tokens = self.vocab.tokenize(prompt, add_special=False, parse_special=True)
+        if self.type in _LABEL_TYPES:
             self._decode(tokens, all_outputs=False)
             logits = self.ctx.get_logits_ith(-1)
             return [logits[t] for t in self.labels[: self._n_outputs(question)]], len(tokens)
+        if self.type == "lfm2-d1":
+            self._decode(tokens, all_outputs=False)
+            logits = self.ctx.get_logits_ith(-1)
+            return [max(logits[t] for t in group) for group in self._d1_labels(question)[1]], len(tokens)
         if self.type == "laya":
             tokens, markers = self._laya_tokens(tokens, len(question["options"]))
-            self._decode(tokens, all_outputs=True)
-            column = _QUESTION_TYPES.index(question["type"])
-            return [self.ctx.get_embeddings_ith(m)[column] for m in markers], len(tokens)
+            n_past = self._decode(tokens, all_outputs=True, pos_first=markers[0])
+            return [self.ctx.get_embeddings_ith(m - n_past)[column] for m in markers], len(tokens)
         # kev: an option is read at its end token, the question at the last token
         markers = [i for i, t in enumerate(tokens) if t == self.token_marker]
         if len(markers) != len(question["options"]):
             raise RuntimeError("unexpected layout of the decision prompt")
-        self._decode(tokens, all_outputs=True)
-        q = self.ctx.get_embeddings_ith(len(tokens) - 1)
+        n_past = self._decode(tokens, all_outputs=True, pos_first=markers[0])
+        q = self.ctx.get_embeddings_ith(len(tokens) - 1 - n_past)
         n = len(q) // 2
         scale = math.sqrt(n)
         scores = []
         for m in markers:
-            k = self.ctx.get_embeddings_ith(m)
+            k = self.ctx.get_embeddings_ith(m - n_past)
             scores.append(sum(q[i] * k[n + i] for i in range(n)) / scale)
         return scores, len(tokens)
 
@@ -417,10 +672,13 @@ class DecisionModel:
         # softmax over the outputs of each variant, then the average of the variants
         n = self._n_outputs(question)
         temp = self._temperature(question)
+        bias = self.score_bias.get(n) if question["type"] == "score" else None
         probs = [0.0] * n
         for v, scores in enumerate(variants):
             if any(math.isnan(s) for s in scores):
                 raise RuntimeError("the model could not evaluate the decision")
+            if bias:
+                scores = [s + b for s, b in zip(scores, bias)]
             top = max(scores)
             p = [math.exp((s - top) / temp) for s in scores]
             total = sum(p)
@@ -440,12 +698,19 @@ class DecisionModel:
         if question["type"] == "choice":
             answer["choice"] = keys[probs.index(max(probs))]
             answer["probabilities"] = probabilities
-            answer["confidence"] = _confidence_choice(probs)
+            answer["confidence"] = _confidence_entropy(probs) if self.type == "vllm-d3" else _confidence_choice(probs)
         else:
             answer["score"] = sum(i * x for i, x in enumerate(probs))
-            answer["legend"] = {k: d for k, d in question["options"]}
+            if self.type == "vllm-d3":
+                # non-text descriptions as canonical JSON text
+                answer["legend"] = {
+                    k: d if isinstance(d, str) else json.dumps(_sort_keys(d), ensure_ascii=False, separators=(",", ":"))
+                    for k, d in question["options"]
+                }
+            else:
+                answer["legend"] = {k: d for k, d in question["options"]}
             answer["probabilities"] = probabilities
-            answer["confidence"] = _confidence_score(probs)
+            answer["confidence"] = _confidence_entropy(probs) if self.type == "vllm-d3" else _confidence_score(probs)
         return answer
 
     def answer(self, request: Any) -> dict[str, Any]:
@@ -456,10 +721,12 @@ class DecisionModel:
 
         Raises:
             ValueError: invalid request, or a prompt that does not fit in one batch.
+            NotImplementedError: the request has images or audio.
         """
         if not isinstance(request, dict):
             raise ValueError("request must be a JSON object")
         questions = self._parse_questions(request)
+        _check_media(request)
         state = request["state"]
         answers = {}
         n_input = 0
@@ -496,4 +763,6 @@ def systemone_response(decision: Optional[DecisionModel], data: Any, model_name:
         result = decision.answer(data)
     except ValueError as e:
         return 400, {"error": {"type": "invalid_request_error", "message": str(e)}}
+    except NotImplementedError as e:
+        return 501, {"error": {"type": "not_supported_error", "message": str(e)}}
     return 200, {"model": model_name, **result}

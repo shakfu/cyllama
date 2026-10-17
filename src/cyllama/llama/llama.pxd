@@ -44,6 +44,7 @@ cdef extern from "llama.h":
         LLAMA_VOCAB_TYPE_RWKV = 5   # RWKV tokenizer based on greedy tokenization
         LLAMA_VOCAB_TYPE_PLAMO2 = 6 # PLaMo-2 tokenizer based on Aho-Corasick with dynamic programming
         LLAMA_VOCAB_TYPE_TEST   = 7 # Dummy tokenizer for testing: rolling hash of fixed-size chunks -> tokens, tokens -> hex
+        LLAMA_VOCAB_TYPE_PLAMO3 = 8 # PLaMo-3 tokenizer with pre-segmentation and dynamic programming
 
     cdef enum llama_rope_type:
         LLAMA_ROPE_TYPE_NONE   = -1
@@ -312,6 +313,8 @@ cdef extern from "llama.h":
 
         ggml.ggml_type type_k # data type for K cache [EXPERIMENTAL]
         ggml.ggml_type type_v # data type for V cache [EXPERIMENTAL]
+
+        size_t moe_cache_size # device cache in bytes for the experts kept in host memory, split among the devices like the layers, 0 = disabled [EXPERIMENTAL]
 
         # Abort callback
         # if it returns true, execution of llama_decode() will be aborted
@@ -1396,6 +1399,8 @@ cdef extern from "llama.h":
         int32_t n_p_eval   # number of prompt tokens
         int32_t n_eval     # number of generated tokens
         int32_t n_reused   # number of times a ggml compute graph had been reused
+        int32_t n_reallocs_same # number of graph reallocations during inference with an unchanged graph size
+        int32_t n_reallocs_diff # number of graph reallocations during inference with a changed graph size
 
     ctypedef struct llama_perf_sampler_data:
         double t_sample_ms # time needed for sampling in ms

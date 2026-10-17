@@ -9,6 +9,7 @@ model. Covers architectures the downloaded test models do not, e.g. M-RoPE.
 import random
 import struct
 import zlib
+from typing import Optional
 
 import cyllama.llama.llama_cpp as cy
 
@@ -64,7 +65,38 @@ def synthetic_metadata(
     return g
 
 
-def synthetic_model(arch: str = "llama", *, seed: int = 0, stdev: float = 0.1, **sizes) -> cy.LlamaModel:
-    """Build a tiny random-weight model of ``arch``; ``sizes`` go to :func:`synthetic_metadata`."""
+def _set_extra(g: cy.GGUFContext, extra: dict) -> None:
+    for key, value in extra.items():
+        if isinstance(value, str):
+            g.set_val_str(key, value)
+        else:
+            g.set_val_f32(key, value)
+
+
+def synthetic_model(
+    arch: str = "llama", *, seed: int = 0, stdev: float = 0.1, extra: Optional[dict] = None, **sizes
+) -> cy.LlamaModel:
+    """Build a tiny random-weight model of ``arch``.
+
+    Args:
+        extra: more metadata, str values as strings, others as f32.
+        sizes: go to :func:`synthetic_metadata`.
+    """
     with synthetic_metadata(arch, **sizes) as metadata:
+        _set_extra(metadata, extra or {})
         return cy.LlamaModel.from_user(metadata, _fill(seed, stdev), verbose=False)
+
+
+def save_synthetic_model(path, arch: str = "llama", *, extra: Optional[dict] = None, **kwargs) -> None:
+    """Write :func:`synthetic_model` to a GGUF file, ``extra`` metadata included."""
+    path = str(path)
+    cy.model_save_to_file(synthetic_model(arch, **kwargs), path)
+    # the file has only the keys libllama reads: rewrite its header with the extra keys
+    with cy.GGUFContext.from_file(path) as g:
+        with open(path, "rb") as f:
+            f.seek(g.data_offset)
+            data = f.read()
+        _set_extra(g, extra or {})
+        g.write_to_file(path, only_meta=True)
+    with open(path, "ab") as f:
+        f.write(data)

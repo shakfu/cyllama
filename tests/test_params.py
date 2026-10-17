@@ -204,6 +204,7 @@ def test_default_context_params():
     assert params.yarn_orig_ctx == 0
     assert params.type_k == 1  # GGML_TYPE_F16 = 1
     assert params.type_v == 1  # GGML_TYPE_F16 = 1
+    assert params.moe_cache_size == 0  # disabled
     assert params.offload_kqv == True
     assert params.no_perf == True
 

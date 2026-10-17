@@ -1522,10 +1522,13 @@ result["answers"]["route"]["choice"]   # "billing"
 result["answers"]["angry"]["noul"]     # 0.79
 ```
 
-- Supported types: `laya` (including Julia-1), `lev` and `kev`. `get_decision_type(model)` reads the `<arch>.decision.type` metadata and returns `None` for other models.
-- Not supported yet: `openjev` and `nimble`, which raise `NotImplementedError`. `clef` needs a batch API that is not in `llama.h`; use `LlamaServer` (an upstream `llama-server` process) for it.
-- `make llama-server` builds upstream `llama-server` from the same llama.cpp tree, then checks that `DecisionModel` answers match it for every decision model present in `models/`.
+- Supported types: `laya` (including Julia-1), `lev`, `kev`, `pplx-decider`, `vllm-d3`, `lfm2-d1` and `lfm2-d1-omni`. `get_decision_type(model)` reads the `<arch>.decision.type` metadata and returns `None` for other models.
+- `<arch>.decision.score_bias.<n_levels>.<level>` metadata adds an offset to that level's score before the softmax, for score questions with `n_levels` levels.
+- Not supported yet: `openjev` and `nimble`, which raise `NotImplementedError`. `clef` and `vllm-decision2` need a batch API that is not in `llama.h`; use `LlamaServer` (an upstream `llama-server` process) for them.
+- Text only. A request with images or audio (`files`, `images`, or `image_url`/`input_audio` parts in chat-message state) raises `NotImplementedError`, and the servers return 501.
+- `make llama-server` builds upstream `llama-server` from the same llama.cpp tree, then checks that `DecisionModel` answers match it for every decision model present in `models/`, and for synthetic `pplx-decider`, `vllm-d3` and `lfm2-d1` models.
 - The whole prompt of a question is evaluated in one batch, so it must fit in `n_ctx`. An invalid request raises `ValueError`.
+- `cache_prompt=True` (default) follows `llama-server`: a causal model keeps the KV cache of the prefix shared with the previous prompt, across requests too. Answers then depend on earlier questions by float rounding. `cache_prompt=False` evaluates every prompt from the start, so the same request always gets the same answer.
 - `PythonServer` and `EmbeddedServer` serve `POST /v1/systemone` when their model is a supported decision model. They return 400 for an invalid request and 501 for other models, as `llama-server` does. `/v1/models` then reports `architecture.output_modalities: ["decisions"]`.
 
 ---
