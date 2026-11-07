@@ -133,6 +133,9 @@ class LlamaServer:
     """
     Wrapper for the llama.cpp server binary.
 
+    Wheels do not ship ``llama-server``. Build it with ``make llama-server``,
+    put one on ``PATH``, or pass ``server_binary``.
+
     Provides easy management of the llama-server subprocess with OpenAI-compatible
     API endpoints for LLM inference, embeddings, and other features.
 
@@ -180,6 +183,7 @@ class LlamaServer:
         candidates = [
             cyllama_root / "thirdparty" / "llama.cpp" / "bin" / "llama-server",
             cyllama_root / "build" / "llama.cpp" / "bin" / "llama-server",
+            cyllama_root / "build" / "llama-server" / "bin" / "llama-server",  # make llama-server
             Path("llama-server"),  # In PATH
         ]
 

@@ -9,7 +9,7 @@ Based on OuteTTS model for high-quality text-to-speech synthesis.
 import sys
 import argparse
 import math
-from typing import Any, Dict, List, Optional, Tuple, cast
+from typing import Any, Dict, Iterator, List, Optional, Tuple, cast
 
 from ..defaults import DEFAULT_N_GPU_LAYERS, LLAMA_DEFAULT_SEED
 from ..utils.platform import resolve_n_threads
@@ -641,11 +641,17 @@ class MtmdTTSGenerator:
         sampler.add_dist(self.seed)
         return sampler
 
-    def generate(self, text: str, output_file: Optional[str] = None) -> bytes:
-        """Synthesize ``text``. Returns 16-bit mono WAV bytes, also written to ``output_file`` if given."""
+    def _decode(self, text: str, stream: bool) -> Iterator[bytes]:
+        """Run one utterance, yielding each non-empty output chunk."""
         self.context.kv_cache_clear()
         self.generator.set_input(
-            text, speaker=self.speaker, lang=self.lang, top_k=self.top_k, top_p=self.top_p, seed=self.seed
+            text,
+            speaker=self.speaker,
+            lang=self.lang,
+            top_k=self.top_k,
+            top_p=self.top_p,
+            seed=self.seed,
+            stream=stream,
         )
         while self.generator.step_prompt(self.n_batch) > 0:
             pass
@@ -653,12 +659,31 @@ class MtmdTTSGenerator:
         sampler = self._make_sampler()
         try:
             for _ in range(self.n_predict):
-                if not self.generator.step_gen(sampler.sample(self.context, -1)):
+                more = self.generator.step_gen(sampler.sample(self.context, -1))
+                if stream and (chunk := self.generator.get_output()):
+                    yield chunk
+                if not more:
                     break
         finally:
             sampler.close()
 
-        wav = cast(bytes, self.generator.get_output())
+        if stream:
+            self.generator.flush()
+        if chunk := self.generator.get_output():
+            yield chunk
+
+    def stream(self, text: str) -> Iterator[bytes]:
+        """Synthesize ``text``, yielding 16-bit mono WAV chunks as they are vocoded.
+
+        The first chunk starts with a WAV header whose sizes are 0xFFFFFFFF
+        (unknown length), as for a pipe. Qwen3-TTS yields one chunk per
+        72 frames (6 s). Do not call :meth:`generate` before the iterator ends.
+        """
+        return self._decode(text, stream=True)
+
+    def generate(self, text: str, output_file: Optional[str] = None) -> bytes:
+        """Synthesize ``text``. Returns 16-bit mono WAV bytes, also written to ``output_file`` if given."""
+        wav = b"".join(self._decode(text, stream=False))
         if output_file:
             with open(output_file, "wb") as f:
                 f.write(wav)

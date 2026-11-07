@@ -22,7 +22,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+### Added
+
+- **`MtmdContext.capabilities`** -- a dict of the model/mmproj pairing's input, output and chat capabilities, from upstream `mtmd_helper_get_capabilities()`. `model_can_chat()` now uses it; upstream deprecated the function it called.
+
+- **Streaming TTS: `MtmdTTSGenerator.stream(text)`** yields WAV chunks as they are vocoded, so playback can start before the utterance ends. Qwen3-TTS yields one chunk per 72 frames (6 s). The low-level API is `MtmdAudioGenerator.set_input(stream=True)` plus `flush()`. Upstream's new `voice` input is not wrapped: the `mtmd` helper ignores it, and only `libcommon`'s TTS chat-template rendering, which cyllama does not bind, reads it.
+
+- **`get_mmproj_caps()` reports `gen_audio`**, so a TTS projector can be detected without building a context.
+
 ### Fixed
+
+- **`MtmdAudioGenerator.set_input()` failed with error code 1 after the llama.cpp bump to `b11960`.** Upstream added fields to `mtmd_helper_gen_audio_inp`, and the stack-allocated struct left them uninitialized. A garbage `n_past > 0` makes upstream reject the input. The struct now starts from `mtmd_helper_gen_audio_inp_default()`.
+
+- **`LlamaServer` did not find a binary built by `make llama-server`**, which writes `build/llama-server/bin/llama-server`, a path auto-detection did not search. Wheels do not ship the binary; the docstring now says so.
 
 - **SYCL wheel build failed after the llama.cpp bump to `b11669`.** Upstream now aborts CMake when oneDNN is missing and `GGML_SYCL_DNN=ON` (the default); it used to fall back silently to the slower MKL flash-attention path. CI now builds against `intel-oneapi-dnnl-devel-2025.3` rather than passing `-DGGML_SYCL_DNN=OFF`, which upstream reports costs 20-40% prefill on long prompts. `libdnnl.so.3` is not vendored, so SYCL hosts must also install `intel-oneapi-dnnl-2025.3`.
 

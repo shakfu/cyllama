@@ -67,6 +67,10 @@ def test_audio_generator_api():
     info = mtmd.gen_audio_info
     assert info["type"] == cy.MtmdGenAudioType.QWEN3TTS
     assert info["sample_rate"] == 24000
+    assert cy.get_mmproj_caps(str(MMPROJ))["gen_audio"] is True
+    caps = mtmd.capabilities
+    assert caps["audio_gen"] is True and caps["audio_gen_spk_ref"] is True
+    assert caps["vision"] is False and caps["audio_stream"] is False
 
     gen = cy.MtmdAudioGenerator(ctx, mtmd)
     gen.set_input(TEXT)
@@ -105,3 +109,26 @@ def test_speaker_file_changes_voice(tmp_path):
     out = tmp_path / "cloned.wav"
     out.write_bytes(wavs[1])
     assert _words(_transcribe(out)) == _words(TEXT)
+
+
+def test_stream_output():
+    from cyllama.llama.tts import MtmdTTSGenerator
+
+    # longer than one 72-frame (6 s) code2wav window, so audio arrives before flush()
+    text = " ".join([TEXT] * 4)
+    with MtmdTTSGenerator(str(MODEL), str(MMPROJ), ngl=99, seed=1234) as gen:
+        chunks = list(gen.stream(text))
+        assert gen.generator.get_output() == b""  # nothing new after the final chunk
+        # generate() still works after a stream on the same context
+        assert gen.generate(TEXT)[:4] == b"RIFF"
+    gc.collect()
+
+    # flush() adds at most one chunk, so two or more means streaming happened
+    assert len(chunks) >= 2 and all(chunks)
+    head = chunks[0]
+    assert head[:4] == b"RIFF" and head[36:40] == b"data"
+    assert head[40:44] == b"\xff\xff\xff\xff"  # unknown-length sentinel
+    assert all(not c.startswith(b"RIFF") for c in chunks[1:])
+
+    pcm = b"".join(chunks)[44:]
+    assert len(pcm) / 2 / 24000 > 6.0

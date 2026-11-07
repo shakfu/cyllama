@@ -563,6 +563,26 @@ cdef class MtmdContext:
             return False
         return mtmd_decode_use_mrope(self._ctx)
 
+    @property
+    def capabilities(self) -> dict:
+        """Model/mmproj capabilities: ``chat``, ``vision``, ``audio``, ``video``,
+        ``audio_stream``, ``text_gen``, ``audio_gen``, ``audio_gen_spk_ref``.
+
+        ``video`` is also False when the build lacks MTMD_VIDEO.
+        ``audio_gen_spk_ref`` means a speaker reference is used for voice cloning.
+        """
+        if self._ctx is NULL:
+            raise RuntimeError("Context not initialized")
+        cdef LlamaModel model = self._model_ref
+        if model.ptr is NULL:
+            raise RuntimeError("LlamaModel is closed")
+        cdef mtmd_helper_cap c = mtmd_helper_get_capabilities(model.ptr, self._ctx)
+        return {
+            "chat": c.chat, "vision": c.vision, "audio": c.audio, "video": c.video,
+            "audio_stream": c.audio_stream, "text_gen": c.text_gen,
+            "audio_gen": c.audio_gen, "audio_gen_spk_ref": c.audio_gen_spk_ref,
+        }
+
     def model_can_chat(self, LlamaContext llama_ctx) -> bool:
         """Whether the paired text model can be used for chat.
 
@@ -571,7 +591,7 @@ cdef class MtmdContext:
         """
         if self._ctx is NULL:
             raise RuntimeError("Context not initialized")
-        return mtmd_helper_model_can_chat(llama_ctx.ptr, self._ctx)
+        return mtmd_helper_get_capabilities(llama.llama_get_model(llama_ctx.ptr), self._ctx).chat
 
     def batch(self) -> MtmdBatch:
         """Create a batch for encoding several media chunks in one pass.
@@ -1104,7 +1124,7 @@ cdef class MtmdAudioGenerator:
 
     def set_input(self, prompt: str, MtmdBitmap speaker = None,
                   lang: Optional[str] = None, int top_k = 0, float top_p = 0.0,
-                  uint32_t seed = 0xFFFFFFFF, wav: bool = True) -> None:
+                  uint32_t seed = 0xFFFFFFFF, wav: bool = True, stream: bool = False) -> None:
         """Start a new utterance; discards any previous state.
 
         Args:
@@ -1115,11 +1135,16 @@ cdef class MtmdAudioGenerator:
             top_p: Code-predictor top-p; 0 uses the pipeline default.
             seed: Code-predictor seed; 0xFFFFFFFF for random.
             wav: Output 16-bit WAV bytes if True, else raw float32 PCM.
+            stream: If True, each :meth:`get_output` returns only audio produced
+                since the previous call, possibly empty. WAV output then sends the
+                header once, with an unknown-length size. Call :meth:`flush`
+                after the last :meth:`step_gen`.
         """
         self._check_open()
         cdef bytes prompt_b = prompt.encode('utf-8')
         cdef bytes lang_b = lang.encode('utf-8') if lang else b""
-        cdef mtmd_helper_gen_audio_inp inp
+        # start from upstream defaults so fields added upstream are initialized
+        cdef mtmd_helper_gen_audio_inp inp = mtmd_helper_gen_audio_inp_default()
         inp.seq_id = 0
         inp.prompt = prompt_b
         inp.prompt_len = len(prompt_b)
@@ -1133,6 +1158,7 @@ cdef class MtmdAudioGenerator:
         inp.top_p = top_p
         inp.seed = seed
         inp.out_type = MTMD_HELPER_GEN_AUDIO_OUTTYPE_WAV if wav else MTMD_HELPER_GEN_AUDIO_OUTTYPE_PCM
+        inp.stream = stream
         self._h_state = NULL
         self._prompt_done = False
         cdef int32_t result
@@ -1175,7 +1201,10 @@ cdef class MtmdAudioGenerator:
         return not stop and h_next is not NULL
 
     def get_output(self) -> bytes:
-        """Vocode the generated frames. Returns WAV or float32 PCM bytes per set_input()."""
+        """Vocode the generated frames. Returns WAV or float32 PCM bytes per set_input().
+
+        In stream mode, returns only new audio; see :meth:`set_input`.
+        """
         self._check_open()
         cdef int32_t sample_rate = 0
         cdef const char * data = NULL
@@ -1186,6 +1215,15 @@ cdef class MtmdAudioGenerator:
         if result != 0:
             raise RuntimeError(f"Audio generator get_output failed with error code: {result}")
         return data[:data_len] if data_len > 0 else b""
+
+    def flush(self) -> None:
+        """Vocode buffered frames now. In stream mode, call before the last get_output()."""
+        self._check_open()
+        cdef int32_t result
+        with nogil:
+            result = mtmd_helper_gen_audio_flush(self._gen)
+        if result != 0:
+            raise RuntimeError(f"Audio generator flush failed with error code: {result}")
 
     def reset(self) -> None:
         """Discard the current utterance."""
@@ -1224,11 +1262,11 @@ def get_mmproj_caps(mmproj_path: str) -> dict:
     before paying for :class:`MtmdContext` initialization.
 
     Returns:
-        A dict with ``vision`` and ``audio`` booleans.
+        A dict with ``vision``, ``audio`` (inputs) and ``gen_audio`` (TTS) booleans.
     """
     if not os.path.exists(mmproj_path):
         raise FileNotFoundError(f"Multimodal projector file not found: {mmproj_path}")
 
     cdef bytes path_bytes = mmproj_path.encode('utf-8')
     cdef mtmd_caps caps = mtmd_get_cap_from_file(<const char*>path_bytes)
-    return {"vision": bool(caps.inp_vision), "audio": bool(caps.inp_audio)}
+    return {"vision": bool(caps.inp_vision), "audio": bool(caps.inp_audio), "gen_audio": bool(caps.gen_audio)}

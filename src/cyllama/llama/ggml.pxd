@@ -196,6 +196,7 @@ cdef extern from "ggml.h":
         GGML_OP_DSV4_HC_COMB
         GGML_OP_DSV4_HC_PRE
         GGML_OP_DSV4_HC_POST
+        GGML_OP_TOP_K_MASK
 
         GGML_OP_UNARY
 

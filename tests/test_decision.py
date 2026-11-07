@@ -74,16 +74,16 @@ README_REQUEST = {
     },
 }
 
-# answers to README_REQUEST from llama-server b11669 on CPU
+# answers to README_REQUEST from llama-server on CPU: laya at b11960, the others at b11669
 REFERENCE = {
     "laya": {
-        "route": {"technical": 0.002645999136237623, "billing": 0.9877295044860257, "shipping": 0.00962449637773663},
-        "angry": 0.7870874820229915,
+        "route": {"technical": 0.0027778267852351826, "billing": 0.9873963845675627, "shipping": 0.009825788647202125},
+        "angry": 0.7831579958311968,
         "urgency": {
-            "0": 0.03708144101697737,
-            "1": 0.46304134918865114,
-            "2": 0.049762526823041595,
-            "3": 0.45011468297132995,
+            "0": 0.03797997546081091,
+            "1": 0.4639874325598967,
+            "2": 0.046881873544190295,
+            "3": 0.4511507184351022,
         },
         "input_tokens": 136,
     },
@@ -123,7 +123,9 @@ REFERENCE = {
     },
 }
 UPSTREAM = REFERENCE["laya"]
-TOL = 2e-3  # GPU backends differ from the CPU reference in the last digits
+# GPU backends differ from the CPU reference: laya on M1 Metal at b11960 is 3.2e-3 off in
+# `angry`, with cyllama equal to upstream llama-server on each backend
+TOL = 5e-3
 
 _loaded = {}
 

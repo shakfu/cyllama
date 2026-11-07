@@ -29,7 +29,7 @@ CASES = {
             "mtmd_memory_usage": "C++ only (std::map), marked unstable upstream",
             **{
                 f"mtmd_{n}_deleter": "C++ unique_ptr helper"
-                for n in ("context", "bitmap", "batch", "input_chunk", "input_chunks")
+                for n in ("context", "bitmap", "batch", "input_chunk", "input_chunks", "audio_stream", "gen_state")
             },
         },
     },

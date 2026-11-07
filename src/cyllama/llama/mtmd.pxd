@@ -8,7 +8,7 @@ from libc.stddef cimport size_t
 from libcpp cimport bool as cppbool
 
 from .ggml cimport ggml_log_level, ggml_log_callback, ggml_backend_dev_t, ggml_backend_sched_eval_callback
-from .llama cimport llama_model, llama_context, llama_token, llama_pos, llama_seq_id, llama_flash_attn_type
+from .llama cimport llama_model, llama_context, llama_token, llama_pos, llama_seq_id, llama_flash_attn_type, llama_logit_bias
 
 # Forward declarations for Cython classes from llama_cpp
 # We'll import these at runtime to avoid circular imports
@@ -86,6 +86,25 @@ cdef extern from "mtmd.h":
     cdef bint mtmd_support_audio(const mtmd_context * ctx)
     cdef int mtmd_get_audio_sample_rate(const mtmd_context * ctx)
 
+    # how the frames and timestamps of a video are laid out in the prompt
+    ctypedef enum mtmd_video_template:
+        MTMD_VIDEO_TEMPLATE_DEFAULT
+        MTMD_VIDEO_TEMPLATE_LFM3
+        MTMD_VIDEO_TEMPLATE_LFM3_OMNI
+
+    # recommended video input for the model; 0 fields mean "no preference"
+    ctypedef struct mtmd_video_config:
+        mtmd_video_template tmpl
+        float fps
+        int32_t n_frames
+        int32_t frame_width
+        int32_t frame_height
+
+    # src_n_frames and src_fps can be <= 0 if unknown
+    cdef mtmd_video_config mtmd_get_video_config(const mtmd_context * ctx,
+                                                 int32_t src_width, int32_t src_height,
+                                                 int32_t src_n_frames, float src_fps)
+
     # Bitmap management
     cdef mtmd_bitmap * mtmd_bitmap_init(uint32_t nx, uint32_t ny, const unsigned char * data)
     cdef mtmd_bitmap * mtmd_bitmap_init_from_audio(size_t n_samples, const float * data)
@@ -99,6 +118,8 @@ cdef extern from "mtmd.h":
     cdef void mtmd_bitmap_set_id(mtmd_bitmap * bitmap, const char * id)
     # if true, video models may merge this bitmap with an adjacent mergeable one (temporal merge)
     cdef void mtmd_bitmap_set_mergeable(mtmd_bitmap * bitmap, bint mergeable)
+    # video frames must be both mergeable and is_video
+    cdef void mtmd_bitmap_set_is_video(mtmd_bitmap * bitmap, bint is_video)
 
     # Lazy bitmap: holds no data, expanded by mtmd_tokenize through the callback.
     # The callback returns 0 on success, -1 on EOF, -2 on error.
@@ -190,14 +211,44 @@ cdef extern from "mtmd.h":
     ctypedef struct mtmd_caps:
         bint inp_vision
         bint inp_audio
+        bint gen_audio
 
     cdef mtmd_caps mtmd_get_cap_from_file(const char * mmproj_fname)
+
+    # EXPERIMENTAL: realtime audio input (streaming transcription)
+    cdef bint mtmd_support_audio_stream(const mtmd_context * ctx)
+
+    ctypedef struct mtmd_audio_stream:
+        pass
+
+    ctypedef struct mtmd_audio_stream_params:
+        int32_t step_ms              # audio per encoder call (default 320)
+        const llama_token * prompt   # tokens that open the stream (default none)
+        size_t n_prompt
+
+    cdef mtmd_audio_stream_params mtmd_audio_stream_params_default()
+    # returns NULL on failure
+    cdef mtmd_audio_stream * mtmd_audio_stream_init(mtmd_context * ctx, mtmd_audio_stream_params params)
+    cdef void mtmd_audio_stream_free(mtmd_audio_stream * stream)
+    # PCM F32 at mtmd_get_audio_sample_rate(); 0 = ok, 1 = stream ended
+    cdef int32_t mtmd_audio_stream_push(mtmd_audio_stream * stream, const float * samples, size_t n_samples) nogil
+    # end=False keeps the stream open; 0 = ok, 1 = stream ended
+    cdef int32_t mtmd_audio_stream_flush(mtmd_audio_stream * stream, cppbool end) nogil
+    # >0 rows ready, 0 needs audio, -1 end of stream, -2 error
+    cdef int32_t mtmd_audio_stream_step(mtmd_audio_stream * stream, llama_token last_token) nogil
+    # n_rows * llama_model_n_embd_inp(model) floats
+    cdef const float * mtmd_audio_stream_get_output_embd(const mtmd_audio_stream * stream)
+    cdef bint mtmd_audio_stream_is_seq_start(const mtmd_audio_stream * stream)
+    cdef int64_t mtmd_audio_stream_get_n_rows(const mtmd_audio_stream * stream)
+    cdef int64_t mtmd_audio_stream_get_n_rows_flushed(const mtmd_audio_stream * stream)
 
     # EXPERIMENTAL: audio generation (TTS) pipeline info
     ctypedef enum mtmd_gen_audio_type:
         MTMD_GEN_AUDIO_TYPE_NONE
         MTMD_GEN_AUDIO_TYPE_QWEN3TTS
         MTMD_GEN_AUDIO_TYPE_POCKETTTS
+        MTMD_GEN_AUDIO_TYPE_SOPRANO
+        MTMD_GEN_AUDIO_TYPE_LFM3A
 
     ctypedef struct mtmd_gen_audio_info:
         mtmd_gen_audio_type type
@@ -217,18 +268,17 @@ cdef extern from "mtmd.h":
         float * embd
         int32_t top_k
         float top_p
-        uint32_t seed
         float temp
+        float penalty_repeat   # repetition penalty of sampled codes, <= 1 is off
+        int32_t penalty_last_n # frames the penalty looks back on
         # GEN_WAV: codes (discrete) or feats (continuous), depending on the pipeline
         int32_t * codes
         size_t n_codes
         const float * feats
         size_t n_feats
-        const char * state_data
-        size_t state_size
 
     ctypedef struct mtmd_gen_out:
-        # owned by the context, valid until the next process() call
+        # owned by the state, valid until the next process() call with it
         const int32_t * codes
         size_t n_codes
         const float * feats
@@ -237,12 +287,24 @@ cdef extern from "mtmd.h":
         bint is_eos
         const float * audio
         size_t n_samples
-        const char * state_data
-        size_t state_size
+
+    ctypedef struct mtmd_gen_state:
+        pass
+
+    ctypedef struct mtmd_gen_state_params:
+        uint32_t seed  # UINT32_MAX for random
+
+    cdef mtmd_gen_state_params mtmd_gen_state_params_default()
+    # returns NULL if the model does not support audio generation
+    cdef mtmd_gen_state * mtmd_gen_state_init(mtmd_context * ctx, mtmd_gen_state_params params)
+    cdef void mtmd_gen_state_free(mtmd_gen_state * state)
+    # cold start; keeps the RNG stream
+    cdef void mtmd_gen_state_reset(mtmd_gen_state * state)
 
     cdef mtmd_gen_inp mtmd_gen_inp_default(const mtmd_context * ctx)
-    # stateless: the caller manages state and accumulates audio frames
-    cdef int32_t mtmd_gen_audio_process(mtmd_context * ctx, const mtmd_gen_inp * inp, mtmd_gen_out * out)
+    # one step; updates state in place
+    cdef int32_t mtmd_gen_audio_process(mtmd_context * ctx, mtmd_gen_state * state,
+                                        const mtmd_gen_inp * inp, mtmd_gen_out * out) nogil
 
     # Test function
     cdef mtmd_input_chunks * mtmd_test_create_input_chunks()
@@ -265,6 +327,7 @@ cdef extern from "mtmd-helper.h":
         float fps_target
         const char * ffmpeg_bin_dir
         int64_t timestamp_interval_ms
+        bint no_soundtrack  # frames only, for models that hear the soundtrack (LFM3-Omni)
 
     cdef mtmd_helper_video_init_params mtmd_helper_video_init_params_default()
 
@@ -300,16 +363,29 @@ cdef extern from "mtmd-helper.h":
         MTMD_HELPER_GEN_AUDIO_OUTTYPE_PCM  # raw float32 PCM
         MTMD_HELPER_GEN_AUDIO_OUTTYPE_WAV  # WAV PCM 16-bit LE, mono
 
+    # output of a response that continues a sequence (n_past > 0)
+    ctypedef enum mtmd_helper_gen_audio_out_mode:
+        MTMD_HELPER_GEN_AUDIO_OUT_AUTO
+        MTMD_HELPER_GEN_AUDIO_OUT_TEXT
+        MTMD_HELPER_GEN_AUDIO_OUT_AUDIO
+        MTMD_HELPER_GEN_AUDIO_OUT_MIXED
+
     ctypedef struct mtmd_helper_gen_audio_inp:
+        bint stream                # if true, get_output() after each step_gen()
         llama_seq_id seq_id
         const char * prompt
         size_t prompt_len
+        int32_t n_past             # > 0: continue a sequence (LFM3-Audio only)
+        mtmd_helper_gen_audio_out_mode out_mode  # n_past > 0 only
         mtmd_bitmap * speaker_ref  # optional, can be NULL
         const char * lang          # optional, can be NULL
+        const char * voice         # optional, can be NULL, model-dependent
         int32_t top_k
         float top_p
         uint32_t seed              # UINT32_MAX for random
         mtmd_helper_gen_audio_outtype out_type
+
+    cdef mtmd_helper_gen_audio_inp mtmd_helper_gen_audio_inp_default()
 
     cdef mtmd_helper_gen_audio * mtmd_helper_gen_audio_init(llama_context * lctx, mtmd_context * mctx)
     cdef void mtmd_helper_gen_audio_free(mtmd_helper_gen_audio * ctx)
@@ -334,14 +410,31 @@ cdef extern from "mtmd-helper.h":
                                                   size_t * out_data_len,
                                                   int64_t * out_n_samples) nogil
 
-    # return true if model can be used for chat
-    cdef bint mtmd_helper_model_can_chat(llama_context * lctx, mtmd_context * mctx)
+    # true if the next step_gen() takes a sampled text token, false if it makes an audio frame
+    cdef bint mtmd_helper_gen_audio_next_is_text(mtmd_helper_gen_audio * ctx)
+    # bias for caller-sampled text tokens; n_bias receives its size
+    cdef const llama_logit_bias * mtmd_helper_gen_audio_get_logit_bias(mtmd_helper_gen_audio * ctx, size_t * n_bias)
+    # bias for text sampled while transcribing a prompted audio stream; returns its size
+    cdef int32_t mtmd_helper_audio_stream_get_logit_bias(const mtmd_context * mctx, const llama_model * model,
+                                                         llama_logit_bias * out, int32_t n_max)
+    # force buffered codes through code2wav; call once before the last get_output() in stream mode
+    cdef int32_t mtmd_helper_gen_audio_flush(mtmd_helper_gen_audio * ctx) nogil
+
+    ctypedef struct mtmd_helper_cap:
+        bint chat              # false for tts-only and realtime transcription models
+        bint vision
+        bint audio
+        bint video             # also depends on the MTMD_VIDEO build option
+        bint audio_stream
+        bint text_gen
+        bint audio_gen
+        bint audio_gen_spk_ref # accepts a speaker reference for voice cloning
+
+    # mctx can be NULL (text-only model)
+    cdef mtmd_helper_cap mtmd_helper_get_capabilities(const llama_model * model, const mtmd_context * mctx)
 
     # Logging
     cdef void mtmd_helper_log_set(ggml_log_callback log_callback, void * user_data)
-
-    # true if this build includes video support (MTMD_VIDEO at compile time)
-    cdef bint mtmd_helper_support_video(const mtmd_context * ctx)
 
     # Bitmap loading returns a wrapper struct holding the bitmap (and an
     # optional video context, unused here).

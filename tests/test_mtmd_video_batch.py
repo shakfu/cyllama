@@ -65,8 +65,7 @@ def clip(tmp_path_factory):
 class TestMmprojCaps:
     def test_reports_modalities_without_loading_context(self):
         caps = cy.get_mmproj_caps(str(MMPROJ))
-        assert set(caps) == {"vision", "audio"}
-        assert caps["vision"] is True
+        assert caps == {"vision": True, "audio": caps["audio"], "gen_audio": False}
 
     def test_agrees_with_loaded_context(self, vision):
         _, mctx = vision
@@ -77,6 +76,28 @@ class TestMmprojCaps:
     def test_missing_file_raises(self):
         with pytest.raises(FileNotFoundError):
             cy.get_mmproj_caps("not-a-real-mmproj.gguf")
+
+
+class TestCapabilities:
+    def test_vision_model(self, vision):
+        _, mctx = vision
+        caps = mctx.capabilities
+        assert set(caps) == {
+            "chat",
+            "vision",
+            "audio",
+            "video",
+            "audio_stream",
+            "text_gen",
+            "audio_gen",
+            "audio_gen_spk_ref",
+        }
+        assert all(type(v) is bool for v in caps.values())
+        assert caps["vision"] is True and caps["chat"] is True and caps["text_gen"] is True
+        assert caps["audio_gen"] is False and caps["audio_gen_spk_ref"] is False
+        assert caps["audio"] == mctx.supports_audio
+        # video needs vision, plus the MTMD_VIDEO build option
+        assert caps["video"] in (False, caps["vision"])
 
 
 class TestModelCanChat:

@@ -50,6 +50,20 @@ Two separate failures, both on 3.13 and 3.15:
 
 The CPU result is further off than Metal, so this is not a GPU-tolerance issue. The llama.cpp pin matches the reference. The M1 reports `hw.optional.arm.FEAT_I8MM: 0`. M2 and later have I8MM, and ggml uses different Q8_0 kernels when it is present. Inference, unconfirmed: the reference was captured on an I8MM machine, and the summation order differs. To confirm, run the CPU check on the M5 Pro.
 
+### Update at b11960 (2026-11-06)
+
+Measured on the M1 against upstream `llama-server` built from the same tree (`make llama-server` build steps):
+
+| `laya`, README request | CPU | Metal |
+|-|-|-|
+| `angry`, upstream | 0.783158 | 0.786313 |
+| `angry`, cyllama | 0.783158 | 0.786313 |
+| `urgency["0"]`, upstream / cyllama | 0.037980 | 0.040133 |
+
+cyllama equals upstream to 1e-5 on CPU (`test_parity_with_upstream_server[laya]`) and to 1e-9 on Metal. The code is not the cause. The CPU-to-Metal gap is up to 3.2e-3, so `TOL = 2e-3` cannot hold for one CPU reference. `REFERENCE["laya"]` is now the b11960 M1 CPU answer, and `TOL` is 5e-3.
+
+Still open: the new reference comes from an M1, which has no I8MM. If the I8MM inference above is right, the M5 Pro CPU answer will differ from it. Item 2 below now checks that.
+
 ## Change
 
 `tests/test_decision.py` now skips `lev` and `kev` when `machdep.cpu.brand_string` starts with `Apple M1`. That prefix also matches M1 Pro/Max/Ultra, including 32-64 GB machines that may not OOM. Test lev/kev on the M5 Pro. The `laya` drift is left failing; it is not a memory issue.
@@ -60,8 +74,7 @@ Run on the M5 Pro (or any non-M1 machine with more RAM) and record results here:
 
 1. `uv run pytest tests/test_decision.py -m slow` with `lev` and `kev` present. Do they pass, and is GPU memory sufficient?
 2. Laya CPU check: `DecisionModel('models/Laya-Q8_0.gguf', n_gpu_layers=0).answer(README_REQUEST)["answers"]["angry"]`.
-   - 0.788043 (within 2e-3): the reference depends on the hardware. Decide: per-machine reference, or skip on M1.
-   - Otherwise: investigate the code. Do not widen `TOL`.
+   - Compare with the b11960 M1 CPU value, 0.783158. A difference beyond float rounding means the CPU reference depends on the hardware. Decide: per-machine reference, or a CPU tolerance.
 3. Same check with `n_gpu_layers=-1` (Metal).
 4. Decide the skip condition: keep `Apple M1` prefix, or gate on memory (`hw.memsize` or Metal `recommendedMaxWorkingSetSize`).
 5. Still open from the 3.15 run: replace `asyncio.iscoroutinefunction` in `src/cyllama/agents/workflow.py`; retry langchain on 3.15 once `ormsgpack` ships cp315 wheels; test the cp312-abi3 wheel on 3.15.
