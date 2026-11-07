@@ -54,7 +54,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: thirdparty/
-          key: deps-abi3-cuda-windows-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage.py', '.github/workflows/_gpu-build-cuda-windows.yml') }}
+          key: deps-abi3-cuda-windows-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage.py', 'scripts/patches/*.patch', '.github/workflows/_gpu-build-cuda-windows.yml') }}
 
       - name: Install CUDA Toolkit 12.4
         uses: Jimver/cuda-toolkit@8022558310ea543e35132143092835585f60e628 # v0.2.21

@@ -54,7 +54,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: thirdparty/
-          key: deps-abi3-vulkan-windows-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage.py', '.github/workflows/_gpu-build-vulkan-windows.yml') }}
+          key: deps-abi3-vulkan-windows-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage.py', 'scripts/patches/*.patch', '.github/workflows/_gpu-build-vulkan-windows.yml') }}
 
       - name: Install Vulkan SDK
         shell: pwsh

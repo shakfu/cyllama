@@ -34,6 +34,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 - **`MtmdAudioGenerator.set_input()` failed with error code 1 after the llama.cpp bump to `b11960`.** Upstream added fields to `mtmd_helper_gen_audio_inp`, and the stack-allocated struct left them uninitialized. A garbage `n_past > 0` makes upstream reject the input. The struct now starts from `mtmd_helper_gen_audio_inp_default()`.
 
+- **ROCm 6.3 wheel failed to compile at `b11960`** (`__ballot_sync` undeclared in `topk-moe.cu`). `llama.cpp-hip-ballot-sync.patch` backports upstream's one-line fix (`78febbad9d`); see `scripts/patches/README.md`. The GPU deps cache keys now hash `scripts/patches/*.patch`, because a cache hit skips the deps build and so silently drops a new patch.
+
 - **`check-vendor` CI failed after its header checks passed.** On git 2.56, temp-dir cleanup raised ENOTEMPTY on the last clone, most likely from detached auto-maintenance. The clones now run with auto maintenance and gc off, and cleanup errors no longer fail the job.
 
 - **`LlamaServer` did not find a binary built by `make llama-server`**, which writes `build/llama-server/bin/llama-server`, a path auto-detection did not search. Wheels do not ship the binary; the docstring now says so.
