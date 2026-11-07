@@ -3446,12 +3446,15 @@ class Application(ShellCmd, metaclass=MetaCommander):
         builder = LlamaCppBuilder()
         others = [WhisperCppBuilder(), StableDiffusionCppBuilder()]
 
-        with tempfile.TemporaryDirectory() as tmp:
+        # No auto maintenance/gc: git 2.56 on CI left a background writer in the last
+        # clone, so the temp-dir cleanup failed with ENOTEMPTY after the checks passed.
+        git_clone = ["git", "-c", "maintenance.auto=false", "-c", "gc.auto=0", "clone"]
+
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             tmp_path = Path(tmp)
             # Clone into a scratch dir so local build/ state is not disturbed.
             clone_cmd = [
-                "git",
-                "clone",
+                *git_clone,
                 "--depth",
                 "1",
                 "--branch",
@@ -3493,8 +3496,7 @@ class Application(ShellCmd, metaclass=MetaCommander):
                 dest = tmp_path / other.name
                 subprocess.run(
                     [
-                        "git",
-                        "clone",
+                        *git_clone,
                         "--depth",
                         "1",
                         "--branch",
