@@ -1091,6 +1091,7 @@ class LLM:
         sampler_params.no_perf = not self.verbose
 
         sampler = LlamaSampler(sampler_params)
+        sampler.add_suppress_tokens(self.vocab)
 
         # Both history-based samplers below document "-1 = whole context", but
         # libllama never implements that: llama_sampler_init_penalties and
@@ -2135,8 +2136,12 @@ def _apply_jinja_template_standalone(
     template_str: str,
     messages: List[Dict[str, str]],
     add_generation_prompt: bool = True,
+    **variables: Any,
 ) -> str:
-    """Render a chat template via vendored jinja2 for the standalone apply_chat_template path."""
+    """Render a chat template via vendored jinja2 for the standalone apply_chat_template path.
+
+    ``variables`` are extra template inputs, e.g. ``language`` and ``voice`` for a "tts" template.
+    """
     import json
     from datetime import datetime
 
@@ -2181,6 +2186,7 @@ def _apply_jinja_template_standalone(
             bos_token=bos_token,
             eos_token=eos_token,
             add_generation_prompt=add_generation_prompt,
+            **variables,
         ),
     )
 
@@ -2306,6 +2312,7 @@ def simple(
     sparams.no_perf = False
 
     smplr = cy.LlamaSampler(sparams)
+    smplr.add_suppress_tokens(vocab)
     smplr.add_greedy()
 
     # print the prompt token-by-token

@@ -71,6 +71,36 @@ CASES = [
         "header_stop": r"\}",
         "pxd_stop": r"\n[ \t]*\n",
     },
+    {
+        "id": "llama_ftype",
+        "header": LLAMA_INCLUDE / "llama.h",
+        "pxd": PXD_DIR / "llama.pxd",
+        "header_open": r"enum\s+llama_ftype\s*\{",
+        "pxd_open": r"cdef\s+enum\s+llama_ftype\s*:",
+        "prefix": "LLAMA_FTYPE_",
+        "header_stop": r"LLAMA_FTYPE_GUESSED\b",
+        "pxd_stop": r"LLAMA_FTYPE_GUESSED\b",
+    },
+    {
+        "id": "mtmd_gen_audio_type",
+        "header": LLAMA_INCLUDE / "mtmd.h",
+        "pxd": PXD_DIR / "mtmd.pxd",
+        "header_open": r"enum\s+mtmd_gen_audio_type\s*\{",
+        "pxd_open": r"ctypedef\s+enum\s+mtmd_gen_audio_type\s*:",
+        "prefix": "MTMD_GEN_AUDIO_TYPE_",
+        "header_stop": r"\}",
+        "pxd_stop": r"\n[ \t]*\n",
+    },
+    {
+        "id": "mtmd_video_template",
+        "header": LLAMA_INCLUDE / "mtmd.h",
+        "pxd": PXD_DIR / "mtmd.pxd",
+        "header_open": r"enum\s+mtmd_video_template\s*\{",
+        "pxd_open": r"ctypedef\s+enum\s+mtmd_video_template\s*:",
+        "prefix": "MTMD_VIDEO_TEMPLATE_",
+        "header_stop": r"\}",
+        "pxd_stop": r"\n[ \t]*\n",
+    },
 ]
 
 
@@ -148,3 +178,14 @@ def test_enum_mirror_matches_header(case):
         f"Update {case['pxd'].relative_to(REPO_ROOT)} to match "
         f"{case['header'].relative_to(REPO_ROOT)}."
     )
+
+
+def test_mtmd_gen_audio_type_python_enum_covers_c_enum():
+    """``MtmdGenAudioType(info.type)`` raises ValueError for any C value the IntEnum lacks."""
+    from cyllama.llama.llama_cpp import MtmdGenAudioType
+
+    pxd_text = _strip_pxd_comments((PXD_DIR / "mtmd.pxd").read_text())
+    body = _enum_body(pxd_text, r"ctypedef\s+enum\s+mtmd_gen_audio_type\s*:", r"\n[ \t]*\n")
+    c_values = _enum_values(body, "MTMD_GEN_AUDIO_TYPE_")
+    py_values = {f"MTMD_GEN_AUDIO_TYPE_{m.name}": m.value for m in MtmdGenAudioType}
+    assert py_values == c_values

@@ -88,22 +88,6 @@ A skipped patch was silent then, so this surfaced as nothing at all; a
 non-matching patch now fails the build. It was removed
 once whisper.cpp `v1.9.4`, the last tree on the old shape, adopted the new one.
 
-### `llama.cpp-hip-ballot-sync.patch`
-
-**Target:** `ggml/src/ggml-cuda/vendors/hip.h` (llama.cpp `b11960`). Not a
-`ggml-*` patch: whisper.cpp `v1.9.4` calls `__ballot_sync` only in `fattn.cu`,
-which excludes HIP.
-
-**Problem:** the ROCm 6.3 wheel fails to compile `topk-moe.cu:118` with
-`use of undeclared identifier '__ballot_sync'`. The grouped-experts code from
-[#29181](https://github.com/ggml-org/llama.cpp/pull/29181) is guarded by
-`HIP_VERSION >= 60300000`. ROCm declares the `*_sync` warp builtins by default
-only from 7.0, and `hip.h` mapped every other `*_sync` but not this one.
-
-**Fix:** map `__ballot_sync` to `__ballot` below ROCm 7.0. This is upstream
-`78febbad9d` ([#31259](https://github.com/ggml-org/llama.cpp/pull/31259)),
-one day after `b11960`. Delete the patch at the next llama.cpp bump.
-
 ### `stable-diffusion.cpp-msvc-bigobj.patch`
 
 **Target:** `CMakeLists.txt` (stable-diffusion.cpp `master-812-ea7f0c8`)

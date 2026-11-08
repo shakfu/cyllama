@@ -6,8 +6,9 @@ Note: Some tests require actual model files and may be skipped if not available.
 """
 
 import pytest
-from pathlib import Path
 from unittest.mock import Mock, patch
+
+from conftest import GEMMA4_MMPROJ, GEMMA4_MODEL
 
 # pytest.skip("Skipping test_mtmd test for now", allow_module_level=True)
 
@@ -455,11 +456,6 @@ class TestErrorHandling:
                 with pytest.raises(ValueError):
                     processor._load_audio_bitmap({"invalid": "type"})
 
-
-# Anchored to this file, not the cwd: see the note in conftest.py.
-_ROOT = Path(__file__).resolve().parent.parent
-GEMMA4_MODEL = _ROOT / "models" / "gemma-4-E4B-it-Q4_K_M.gguf"
-GEMMA4_MMPROJ = _ROOT / "models" / "mmproj-gemma-4-E4B-it-BF16.gguf"
 
 _gemma4_available = GEMMA4_MODEL.exists() and GEMMA4_MMPROJ.exists()
 skip_no_gemma4 = pytest.mark.skipif(not _gemma4_available, reason="gemma-4 model or mmproj not found in models/")

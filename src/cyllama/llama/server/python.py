@@ -244,6 +244,7 @@ class ServerSlot:
 
         sampler_params = LlamaSamplerChainParams()
         self.sampler = LlamaSampler(sampler_params)
+        self.sampler.add_suppress_tokens(self.model.get_vocab())
         self.sampler.add_min_p(min_p, 1)
         self.sampler.add_temp(temperature)
         self.sampler.add_dist(seed if seed is not None else 1337)

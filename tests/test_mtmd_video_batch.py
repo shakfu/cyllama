@@ -8,16 +8,14 @@ and synthesise their own clip rather than shipping a binary fixture.
 import gc
 import shutil
 import subprocess
-from pathlib import Path
+import sys
 
 import pytest
 
 import cyllama.llama.llama_cpp as cy
 
-# Anchored to this file, not the cwd: see the note in conftest.py.
-ROOT = Path(__file__).resolve().parent.parent
-VISION_MODEL = ROOT / "models" / "gemma-4-E4B-it-Q4_K_M.gguf"
-MMPROJ = ROOT / "models" / "mmproj-gemma-4-E4B-it-BF16.gguf"
+from conftest import GEMMA4_MMPROJ as MMPROJ
+from conftest import GEMMA4_MODEL as VISION_MODEL
 
 HAS_VISION = VISION_MODEL.exists() and MMPROJ.exists()
 HAS_FFMPEG = shutil.which("ffmpeg") is not None and shutil.which("ffprobe") is not None
@@ -167,14 +165,59 @@ class TestMtmdVideo:
         with pytest.raises(FileNotFoundError):
             mctx.open_video("not-a-real-video.mp4")
 
+    @staticmethod
+    def _items(video):
+        with video:
+            return [(kind, value.data if kind != "text" else value) for kind, value in video]
+
+    def test_buffer_matches_file(self, vision, clip):
+        _, mctx = vision
+        from_file = self._items(mctx.open_video(str(clip), fps_target=1.0))
+        from_buf = self._items(mctx.open_video_buffer(clip.read_bytes(), fps_target=1.0))
+        assert [k for k, _ in from_buf].count("image") == 3
+        assert from_buf == from_file
+
+    def test_buffer_rejects_empty_and_garbage(self, vision):
+        _, mctx = vision
+        with pytest.raises(ValueError):
+            mctx.open_video_buffer(b"")
+        with pytest.raises(RuntimeError, match="Failed to open video"):
+            mctx.open_video_buffer(b"not a video" * 100)
+
+    def test_no_soundtrack_reads_frames_only(self, vision, clip):
+        # the clip is silent and gemma-4 does not hear soundtracks, so this checks the
+        # option is accepted and changes nothing for frames; the audio path needs LFM3-Omni
+        _, mctx = vision
+        items = self._items(mctx.open_video(str(clip), fps_target=1.0, no_soundtrack=True))
+        assert "audio" not in [k for k, _ in items]
+        assert items == self._items(mctx.open_video(str(clip), fps_target=1.0))
+
+    def test_read_after_mtmd_close_raises(self, vision, clip):
+        model, _ = vision
+        # its own context: closing the module fixture's would break later tests
+        mctx = cy.MtmdContext(str(MMPROJ), model, cy.MtmdContextParams())
+        video = mctx.open_video(str(clip), fps_target=1.0)
+        mctx.close()
+        with pytest.raises(RuntimeError, match="MtmdContext is closed"):
+            video.read_next()
+        with pytest.raises(RuntimeError, match="MtmdContext is closed"):
+            video.info
+        video.close()
+        del video, mctx
+        gc.collect()
+
 
 class TestMtmdBatch:
     @staticmethod
     def _media_chunks(mctx, bitmaps):
         chunks = mctx.tokenize(mctx.marker * len(bitmaps), bitmaps, True, True)
         media = [chunks[i] for i in range(len(chunks)) if chunks[i].type != cy.MtmdInputChunkType.TEXT]
-        # Keep `chunks` alive: the batch borrows the chunk pointers.
         return chunks, media
+
+    @staticmethod
+    def _image(seed):
+        side = 64
+        return cy.MtmdBitmap.create_image(side, side, bytes((seed + i) % 256 for i in range(side * side * 3)))
 
     @pytest.fixture
     def bitmaps(self, vision, clip):
@@ -222,6 +265,46 @@ class TestMtmdBatch:
             batch.encode()
             with pytest.raises(ValueError):
                 batch.get_output_embd(media[0], 0)
+
+    def test_chunk_view_keeps_container_alive(self, vision):
+        _, mctx = vision
+        chunks = mctx.tokenize(mctx.marker, [self._image(0)], True, True)
+        before = sys.getrefcount(chunks)
+        view = chunks[len(chunks) - 1]
+        assert sys.getrefcount(chunks) == before + 1
+        n_tokens = view.n_tokens
+        del chunks
+        gc.collect()
+        assert view.n_tokens == n_tokens
+
+    def test_batch_keeps_chunks_alive(self, vision):
+        model, mctx = vision
+
+        def first_media(chunks):
+            return next(chunks[i] for i in range(len(chunks)) if chunks[i].type != cy.MtmdInputChunkType.TEXT)
+
+        kept = mctx.tokenize(mctx.marker, [self._image(7)], True, True)
+        with mctx.batch() as batch:
+            batch.add_chunk(first_media(kept))
+            batch.encode()
+            expected = batch.get_output_embd(first_media(kept), model.n_embd)
+
+        batch = mctx.batch()
+        chunks = mctx.tokenize(mctx.marker, [self._image(7)], True, True)
+        chunk = first_media(chunks)
+        before = sys.getrefcount(chunk)
+        batch.add_chunk(chunk)
+        assert sys.getrefcount(chunk) == before + 1
+        # drop the container; before the fix its chunks were freed here
+        del chunks
+        gc.collect()
+        churn = [mctx.tokenize(mctx.marker, [self._image(i)], True, True) for i in range(8)]
+        batch.encode()
+        assert batch.get_output_embd(chunk, model.n_embd) == expected
+        batch.close()
+        assert sys.getrefcount(chunk) == before
+        del churn, chunk, kept
+        gc.collect()
 
     def test_use_after_close_raises(self, vision):
         _, mctx = vision

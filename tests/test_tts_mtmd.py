@@ -72,6 +72,15 @@ def test_audio_generator_api():
     assert caps["audio_gen"] is True and caps["audio_gen_spk_ref"] is True
     assert caps["vision"] is False and caps["audio_stream"] is False
 
+    # the Base variant clones from a reference clip and has no predefined voices
+    assert info["n_voices"] == 0
+    assert mtmd.gen_audio_voices() == []
+    with pytest.raises(ValueError, match="unknown voice"):
+        mtmd.gen_audio_voice("female")
+    ref = cy.MtmdBitmap.from_file(mtmd, str(ROOT / "tests" / "samples" / "jfk.wav"))
+    assert ref.is_audio is True and ref.is_voice is False
+    del ref
+
     gen = cy.MtmdAudioGenerator(ctx, mtmd)
     gen.set_input(TEXT)
     with pytest.raises(RuntimeError, match="step_prompt"):
@@ -132,3 +141,50 @@ def test_stream_output():
 
     pcm = b"".join(chunks)[44:]
     assert len(pcm) / 2 / 24000 > 6.0
+
+
+def test_voice_arguments_are_validated():
+    from cyllama.llama.tts import MtmdTTSGenerator
+
+    with pytest.raises(ValueError, match="cannot be used together"):
+        MtmdTTSGenerator(str(MODEL), str(MMPROJ), voice="female", speaker_file="x.wav")
+    with pytest.raises(ValueError, match="no predefined voices"):
+        MtmdTTSGenerator(str(MODEL), str(MMPROJ), ngl=99, voice="female")
+    gc.collect()
+
+
+def test_continuation_api_on_a_tts_only_pipeline():
+    import cyllama.llama.llama_cpp as cy
+
+    cy.ggml_backend_load_all()
+    model_params = cy.LlamaModelParams()
+    model_params.n_gpu_layers = 99
+    model = cy.LlamaModel(str(MODEL), model_params)
+    ctx_params = cy.LlamaContextParams()
+    ctx_params.n_ctx = 1024
+    ctx = cy.LlamaContext(model, ctx_params)
+    ctx.set_embeddings_mode(True)
+    mtmd = cy.MtmdContext(str(MMPROJ), model)
+    gen = cy.MtmdAudioGenerator(ctx, mtmd)
+
+    with pytest.raises(ValueError, match="requires n_past"):
+        gen.set_input(TEXT, out_mode=cy.MtmdGenAudioOutMode.TEXT)
+    with pytest.raises(ValueError, match="n_past"):
+        gen.set_input(TEXT, n_past=-1)
+    with pytest.raises(ValueError):
+        gen.set_input(TEXT, n_past=4, out_mode=99)
+    # only LFM3-Audio continues a sequence
+    with pytest.raises(RuntimeError, match="only LFM3-Audio"):
+        gen.set_input(TEXT, n_past=4)
+
+    gen.set_input(TEXT)
+    assert gen.get_logit_bias() == []
+    while gen.step_prompt(512) > 0:
+        pass
+    # a TTS utterance has no text steps
+    assert gen.next_is_text() is False
+
+    gen.close()
+    mtmd.close()
+    del gen, mtmd, ctx, model
+    gc.collect()

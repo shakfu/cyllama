@@ -201,6 +201,7 @@ class TTSGenerator:
         # Initialize sampler for text-to-codes generation
         sampler_params = cy.LlamaSamplerChainParams()
         self.sampler = cy.LlamaSampler(sampler_params)
+        self.sampler.add_suppress_tokens(self.model_ttc.get_vocab())
         self.sampler.add_top_k(4)
         self.sampler.add_temp(0.8)
         self.sampler.add_dist(1337)  # Use fixed seed
@@ -566,7 +567,7 @@ lovely<|t_0.56|><|code_start|><|634|><|596|><|1766|><|1556|><|1306|><|1285|><|14
 class MtmdTTSGenerator:
     """Text-to-speech through libmtmd audio generation: a backbone model plus an mmproj.
 
-    Supports the pipelines llama.cpp's ``llama-tts`` supports (Qwen3-TTS, Pocket TTS).
+    Supports the pipelines llama.cpp's ``llama-tts`` supports (Qwen3-TTS, Pocket TTS, Soprano, LFM3-Audio, Chatterbox).
     Sampling arguments left as None take the model's ``general.sampling.*``
     metadata, then llama.cpp's defaults, as ``llama-tts`` does. ``top_k`` and
     ``top_p`` also drive the mmproj code predictor.
@@ -582,6 +583,7 @@ class MtmdTTSGenerator:
         n_predict: int = 512,
         lang: Optional[str] = None,
         speaker_file: Optional[str] = None,
+        voice: Optional[str] = None,
         top_k: Optional[int] = None,
         top_p: Optional[float] = None,
         min_p: Optional[float] = None,
@@ -592,12 +594,17 @@ class MtmdTTSGenerator:
 
         Args:
             n_predict: Maximum number of audio frames per utterance.
-            lang: Language code or name, e.g. ``"en"`` (Qwen3-TTS only).
+            lang: Language code or name, e.g. ``"en"`` (Qwen3-TTS, LFM3-Audio, Chatterbox multilingual).
             speaker_file: Reference audio (wav, mp3) for voice cloning.
+            voice: Predefined voice name; see ``mtmd.gen_audio_voices()``. A model
+                with predefined voices uses the first when neither ``voice`` nor
+                ``speaker_file`` is given. Exclusive with ``speaker_file``.
             seed: Sampling seed; ``LLAMA_DEFAULT_SEED`` for random. Only the first
                 ``generate()`` call is reproducible: the mmproj RNG reseeds only
                 when the seed changes.
         """
+        if voice and speaker_file:
+            raise ValueError("voice and speaker_file cannot be used together")
         cy.ggml_backend_load_all()
 
         model_params = cy.LlamaModelParams()
@@ -616,6 +623,16 @@ class MtmdTTSGenerator:
         self.generator = cy.MtmdAudioGenerator(self.context, self.mtmd)
         self.sample_rate: int = self.mtmd.gen_audio_info["sample_rate"]
         self.speaker = cy.MtmdBitmap.from_file(self.mtmd, speaker_file) if speaker_file else None
+        # as llama-tts: a model with predefined voices needs one, the first by default
+        voices = self.mtmd.gen_audio_voices()
+        if voice and not voices:
+            raise ValueError(f"voice {voice!r} given, but the model has no predefined voices")
+        self.voice = voice or (voices[0] if voices and not speaker_file else None)
+        if self.voice:
+            self.speaker = self.mtmd.gen_audio_voice(self.voice)
+        # as common_chat_get_tts_prompt: a model with a "tts" template (LFM3-Audio) speaks its rendering,
+        # which names the voice and language; the pipeline rejects raw text
+        self.tts_template = self.model.get_default_chat_template_by_name("tts")
 
         meta = self.model.metadata()
 
@@ -634,6 +651,8 @@ class MtmdTTSGenerator:
 
     def _make_sampler(self) -> Any:
         sampler = cy.LlamaSampler(cy.LlamaSamplerChainParams())
+        # Chatterbox suppresses its text vocab, else <|endoftext|> ends the utterance at once
+        sampler.add_suppress_tokens(self.model.get_vocab())
         sampler.add_top_k(self.top_k)
         sampler.add_top_p(self.top_p, 1)
         sampler.add_min_p(self.min_p, 1)
@@ -645,7 +664,7 @@ class MtmdTTSGenerator:
         """Run one utterance, yielding each non-empty output chunk."""
         self.context.kv_cache_clear()
         self.generator.set_input(
-            text,
+            self.render_prompt(text),
             speaker=self.speaker,
             lang=self.lang,
             top_k=self.top_k,
@@ -671,6 +690,20 @@ class MtmdTTSGenerator:
             self.generator.flush()
         if chunk := self.generator.get_output():
             yield chunk
+
+    def render_prompt(self, text: str) -> str:
+        """The prompt the backbone decodes: ``text``, or its "tts" template rendering if the model has one."""
+        if not self.tts_template:
+            return text
+        from ..api import _apply_jinja_template_standalone
+
+        return _apply_jinja_template_standalone(
+            self.model,
+            self.tts_template,
+            [{"role": "user", "content": text}],
+            language=self.lang or "",
+            voice=self.voice or "",
+        )
 
     def stream(self, text: str) -> Iterator[bytes]:
         """Synthesize ``text``, yielding 16-bit mono WAV chunks as they are vocoded.
@@ -711,7 +744,9 @@ def main() -> None:
     parser.add_argument("-m", "--model", required=True, help="Path to text-to-codes (or backbone) model file")
     vocoder = parser.add_mutually_exclusive_group(required=True)
     vocoder.add_argument("-mv", "--vocoder-model", help="OuteTTS: path to WavTokenizer codes-to-speech model")
-    vocoder.add_argument("-mm", "--mmproj", help="Qwen3-TTS / Pocket TTS: path to mmproj file")
+    vocoder.add_argument(
+        "-mm", "--mmproj", help="libmtmd TTS (Qwen3-TTS, Pocket TTS, LFM3-Audio, ...): path to mmproj file"
+    )
     parser.add_argument("-p", "--prompt", required=True, help="Text to synthesize")
     parser.add_argument("-o", "--output", default="output.wav", help="Output WAV file")
     parser.add_argument("-c", "--context", type=int, help="Context size (default: 8192, mmproj: 4096)")
@@ -723,7 +758,8 @@ def main() -> None:
     parser.add_argument(
         "--speaker-file", help="OuteTTS: speaker profile JSON; mmproj: reference audio (wav, mp3) for voice cloning"
     )
-    parser.add_argument("--lang", help="mmproj: language code, e.g. en (Qwen3-TTS only)")
+    parser.add_argument("--lang", help="mmproj: language code, e.g. en (Qwen3-TTS, LFM3-Audio)")
+    parser.add_argument("--voice", help="mmproj: predefined voice name (default: the model's first, if any)")
     parser.add_argument(
         "--use-guide-tokens", action="store_true", default=True, help="Use guide tokens to prevent hallucinations"
     )
@@ -742,6 +778,7 @@ def main() -> None:
                 n_predict=args.n_predict or 512,
                 lang=args.lang,
                 speaker_file=args.speaker_file,
+                voice=args.voice,
             ) as gen:
                 wav = gen.generate(args.prompt, args.output)
                 seconds = (len(wav) - 44) / 2 / gen.sample_rate

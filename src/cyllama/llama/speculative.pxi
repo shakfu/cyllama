@@ -104,11 +104,13 @@ cdef class Speculative:
             DeprecationWarning,
             stacklevel=2,
         )
+        ctx_target._check_open()
         if not self.is_compat(ctx_target):
             raise ValueError("Target context is not compatible for speculative decoding")
 
         if ctx_draft is None:
             raise RuntimeError("Failed to initialize speculative decoding: no draft context provided")
+        ctx_draft._check_open()
 
         self.ctx_tgt = ctx_target
         self.ctx_dft = ctx_draft
@@ -227,6 +229,8 @@ cdef class Speculative:
             ValueError: ``last_token_id`` is not in the draft vocabulary.
             RuntimeError: a draft-model decode failed.
         """
+        self.ctx_tgt._check_open()
+        self.ctx_dft._check_open()
         cdef int n_max = params.n_max
         cdef int n_min = params.n_min
         cdef float p_min = params.p_min

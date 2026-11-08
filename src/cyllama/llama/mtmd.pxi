@@ -34,6 +34,17 @@ class MtmdGenAudioType(IntEnum):
     NONE = MTMD_GEN_AUDIO_TYPE_NONE
     QWEN3TTS = MTMD_GEN_AUDIO_TYPE_QWEN3TTS
     POCKETTTS = MTMD_GEN_AUDIO_TYPE_POCKETTTS
+    SOPRANO = MTMD_GEN_AUDIO_TYPE_SOPRANO
+    LFM3A = MTMD_GEN_AUDIO_TYPE_LFM3A
+    CHATTERBOX = MTMD_GEN_AUDIO_TYPE_CHATTERBOX
+
+
+class MtmdGenAudioOutMode(IntEnum):
+    """What a response that continues a sequence (``n_past > 0``) outputs."""
+    AUTO = MTMD_HELPER_GEN_AUDIO_OUT_AUTO    # the model switches between text and audio itself
+    TEXT = MTMD_HELPER_GEN_AUDIO_OUT_TEXT
+    AUDIO = MTMD_HELPER_GEN_AUDIO_OUT_AUDIO
+    MIXED = MTMD_HELPER_GEN_AUDIO_OUT_MIXED  # interleaved text and audio
 
 
 cdef class MtmdContextParams:
@@ -248,6 +259,7 @@ cdef class MtmdBitmap:
             raise FileNotFoundError(f"File not found: {file_path}")
 
         cdef MtmdBitmap bitmap = MtmdBitmap()
+        _require_mtmd(mtmd_ctx)
         cdef MtmdContext ctx = <MtmdContext>mtmd_ctx
         cdef bytes path_bytes = file_path.encode('utf-8')
         cdef mtmd_helper_init_opt opt = mtmd_helper_init_opt_default()
@@ -272,6 +284,7 @@ cdef class MtmdBitmap:
             MtmdBitmap instance
         """
         cdef MtmdBitmap bitmap = MtmdBitmap()
+        _require_mtmd(mtmd_ctx)
         cdef MtmdContext ctx = <MtmdContext>mtmd_ctx
         cdef const unsigned char* buf_ptr = <const unsigned char*>data
         cdef size_t buf_len = len(data)
@@ -318,6 +331,13 @@ cdef class MtmdBitmap:
         return mtmd_bitmap_is_audio(self._bitmap)
 
     @property
+    def is_voice(self) -> bool:
+        """Check if this is a predefined-voice bitmap (see :meth:`MtmdContext.gen_audio_voice`)."""
+        if self._bitmap is NULL:
+            raise RuntimeError("Bitmap not initialized")
+        return mtmd_bitmap_is_voice(self._bitmap)
+
+    @property
     def id(self) -> Optional[str]:
         """Get bitmap ID."""
         if self._bitmap is NULL:
@@ -343,10 +363,12 @@ cdef class MtmdInputChunk:
 
     cdef const mtmd_input_chunk * _chunk
     cdef bint _owner
+    cdef object _parent  # the MtmdInputChunks that owns a borrowed _chunk
 
     def __init__(self):
         self._chunk = NULL
         self._owner = False
+        self._parent = None
 
     def __dealloc__(self):
         if self._chunk is not NULL and self._owner:
@@ -436,6 +458,7 @@ cdef class MtmdInputChunks:
         cdef MtmdInputChunk chunk = MtmdInputChunk()
         chunk._chunk = mtmd_input_chunks_get(self._chunks, idx)
         chunk._owner = False  # Managed by chunks container
+        chunk._parent = self
 
         return chunk
 
@@ -488,6 +511,14 @@ cdef class MtmdContext:
             mtmd_free(self._ctx)
             self._ctx = NULL
 
+    cdef int _check_open(self) except -1:
+        if self._ctx is NULL:
+            raise RuntimeError("Context not initialized")
+        # mtmd_context keeps the llama_model pointer; LlamaModel.close() frees it regardless
+        if (<LlamaModel>self._model_ref).ptr is NULL:
+            raise RuntimeError("LlamaModel is closed")
+        return 0
+
     def close(self):
         """Release the underlying mtmd context immediately. Idempotent."""
         if self._ctx is not NULL:
@@ -524,15 +555,42 @@ cdef class MtmdContext:
 
     @property
     def gen_audio_info(self) -> dict:
-        """Audio generation pipeline: ``type`` (MtmdGenAudioType), ``sample_rate``, ``model_variant``."""
-        if self._ctx is NULL:
-            raise RuntimeError("Context not initialized")
+        """Audio generation pipeline: ``type`` (MtmdGenAudioType), ``sample_rate``, ``model_variant``, ``n_voices``."""
+        self._check_open()
         cdef mtmd_gen_audio_info inf = mtmd_gen_audio_get_info(self._ctx)
         return {
             "type": MtmdGenAudioType(inf.type),
             "sample_rate": inf.sample_rate,
             "model_variant": inf.model_variant.decode('utf-8') if inf.model_variant is not NULL else None,
+            "n_voices": inf.n_voices,
         }
+
+    def gen_audio_voices(self) -> list:
+        """Names of the predefined voices of the audio generation pipeline; empty if none."""
+        self._check_open()
+        names = []
+        cdef int32_t i = 0
+        cdef const char * name = mtmd_gen_audio_voice_name(self._ctx, i)
+        while name is not NULL:
+            names.append(name.decode('utf-8'))
+            i += 1
+            name = mtmd_gen_audio_voice_name(self._ctx, i)
+        return names
+
+    def gen_audio_voice(self, name: str) -> MtmdBitmap:
+        """Predefined voice as a bitmap, to pass as ``speaker`` to :meth:`MtmdAudioGenerator.set_input`.
+
+        Names match case-insensitively. Raises ValueError for an unknown name.
+        """
+        self._check_open()
+        cdef bytes name_b = name.encode('utf-8')
+        cdef mtmd_bitmap * bmp = mtmd_gen_audio_get_voice(self._ctx, name_b)
+        if bmp is NULL:
+            raise ValueError(f"unknown voice {name!r}; available: {self.gen_audio_voices()}")
+        cdef MtmdBitmap bitmap = MtmdBitmap()
+        bitmap._bitmap = bmp
+        bitmap._owner = True
+        return bitmap
 
     @property
     def marker(self) -> str:
@@ -542,8 +600,7 @@ cdef class MtmdContext:
         or a custom one set via ``MtmdContextParams``) that must appear in the
         prompt text wherever media is to be inserted.
         """
-        if self._ctx is NULL:
-            raise RuntimeError("Context not initialized")
+        self._check_open()
         cdef const char* marker = mtmd_get_marker(self._ctx)
         if marker is NULL:
             raise RuntimeError("Failed to get media marker")
@@ -571,11 +628,8 @@ cdef class MtmdContext:
         ``video`` is also False when the build lacks MTMD_VIDEO.
         ``audio_gen_spk_ref`` means a speaker reference is used for voice cloning.
         """
-        if self._ctx is NULL:
-            raise RuntimeError("Context not initialized")
+        self._check_open()
         cdef LlamaModel model = self._model_ref
-        if model.ptr is NULL:
-            raise RuntimeError("LlamaModel is closed")
         cdef mtmd_helper_cap c = mtmd_helper_get_capabilities(model.ptr, self._ctx)
         return {
             "chat": c.chat, "vision": c.vision, "audio": c.audio, "video": c.video,
@@ -589,8 +643,8 @@ cdef class MtmdContext:
         Some mmproj/model pairings are encode-only (embedding or
         classification projectors) and have no usable chat path.
         """
-        if self._ctx is NULL:
-            raise RuntimeError("Context not initialized")
+        self._check_open()
+        _require_llama_ctx(llama_ctx)
         return mtmd_helper_get_capabilities(llama.llama_get_model(llama_ctx.ptr), self._ctx).chat
 
     def batch(self) -> MtmdBatch:
@@ -598,8 +652,7 @@ cdef class MtmdContext:
 
         See :class:`MtmdBatch`.
         """
-        if self._ctx is NULL:
-            raise RuntimeError("Context not initialized")
+        self._check_open()
         cdef mtmd_batch * b = mtmd_batch_init(self._ctx)
         if b is NULL:
             raise RuntimeError("Failed to create mtmd batch")
@@ -608,9 +661,33 @@ cdef class MtmdContext:
         batch._ctx_ref = self
         return batch
 
+    cdef mtmd_helper_video_init_params _video_params(self, float fps_target, int64_t timestamp_interval_ms,
+                                                     bint no_soundtrack, const char * ffmpeg_bin_dir):
+        cdef mtmd_helper_video_init_params params = mtmd_helper_video_init_params_default()
+        if fps_target > 0:
+            params.fps_target = fps_target
+        if timestamp_interval_ms > 0:
+            params.timestamp_interval_ms = timestamp_interval_ms
+        params.no_soundtrack = no_soundtrack
+        params.ffmpeg_bin_dir = ffmpeg_bin_dir
+        return params
+
+    cdef MtmdVideo _wrap_video(self, mtmd_helper_video * vid, str source):
+        if vid is NULL:
+            raise RuntimeError(
+                f"Failed to open video: {source}. Check that it is a readable video "
+                "and that ffmpeg/ffprobe are installed and on PATH "
+                "(or pass ffmpeg_bin_dir)."
+            )
+        cdef MtmdVideo video = MtmdVideo.__new__(MtmdVideo)
+        video._video = vid
+        video._ctx_ref = self
+        return video
+
     def open_video(self, path: str, fps_target: float = 0.0,
                    ffmpeg_bin_dir: Optional[str] = None,
-                   timestamp_interval_ms: int = 0) -> MtmdVideo:
+                   timestamp_interval_ms: int = 0,
+                   no_soundtrack: bool = False) -> MtmdVideo:
         """Open a video file and iterate it as frames plus timestamp text.
 
         Requires ``ffmpeg`` and ``ffprobe`` on the system. See
@@ -624,40 +701,48 @@ cdef class MtmdContext:
                 None searches PATH.
             timestamp_interval_ms: Emit a text chunk like ``"[10m50.5s]"``
                 at this interval; <= 0 uses the helper default (5000 ms).
+            no_soundtrack: Read frames only, also for models that hear a
+                video's soundtrack (LFM3-Omni).
         """
-        if self._ctx is NULL:
-            raise RuntimeError("Context not initialized")
+        self._check_open()
         if not os.path.exists(path):
             raise FileNotFoundError(f"Video file not found: {path}")
-
-        cdef mtmd_helper_video_init_params params = mtmd_helper_video_init_params_default()
-        if fps_target > 0:
-            params.fps_target = fps_target
-        if timestamp_interval_ms > 0:
-            params.timestamp_interval_ms = <int64_t>timestamp_interval_ms
-
-        cdef bytes dir_bytes
-        if ffmpeg_bin_dir is not None:
-            dir_bytes = ffmpeg_bin_dir.encode('utf-8')
-            params.ffmpeg_bin_dir = <const char*>dir_bytes
-
+        cdef bytes dir_bytes = ffmpeg_bin_dir.encode('utf-8') if ffmpeg_bin_dir is not None else None
+        cdef mtmd_helper_video_init_params params = self._video_params(
+            fps_target, timestamp_interval_ms, no_soundtrack,
+            <const char *>dir_bytes if dir_bytes is not None else NULL)
         cdef bytes path_bytes = path.encode('utf-8')
         cdef const char * c_path = <const char*>path_bytes
         cdef mtmd_context * ctx = self._ctx
         cdef mtmd_helper_video * vid
         with nogil:
             vid = mtmd_helper_video_init(ctx, c_path, params)
-        if vid is NULL:
-            raise RuntimeError(
-                f"Failed to open video: {path}. Check that the file is readable "
-                "and that ffmpeg/ffprobe are installed and on PATH "
-                "(or pass ffmpeg_bin_dir)."
-            )
+        return self._wrap_video(vid, path)
 
-        cdef MtmdVideo video = MtmdVideo.__new__(MtmdVideo)
-        video._video = vid
-        video._ctx_ref = self
-        return video
+    def open_video_buffer(self, data: bytes, fps_target: float = 0.0,
+                          ffmpeg_bin_dir: Optional[str] = None,
+                          timestamp_interval_ms: int = 0,
+                          no_soundtrack: bool = False) -> MtmdVideo:
+        """Open an in-memory video (e.g. MP4 bytes); otherwise as :meth:`open_video`.
+
+        Upstream copies the buffer and pipes it to ffmpeg, which cannot seek a
+        pipe, so seeking decodes and discards frames up to the target.
+        """
+        self._check_open()
+        if not data:
+            raise ValueError("data is empty")
+        cdef bytes dir_bytes = ffmpeg_bin_dir.encode('utf-8') if ffmpeg_bin_dir is not None else None
+        cdef mtmd_helper_video_init_params params = self._video_params(
+            fps_target, timestamp_interval_ms, no_soundtrack,
+            <const char *>dir_bytes if dir_bytes is not None else NULL)
+        cdef bytes buf = bytes(data)
+        cdef const unsigned char * c_buf = <const unsigned char *>buf
+        cdef size_t n = len(buf)
+        cdef mtmd_context * ctx = self._ctx
+        cdef mtmd_helper_video * vid
+        with nogil:
+            vid = mtmd_helper_video_init_from_buf(ctx, c_buf, n, params)
+        return self._wrap_video(vid, f"<{n}-byte buffer>")
 
     def tokenize(self, text: str, bitmaps: List[MtmdBitmap],
                  add_special: bool = True, parse_special: bool = True) -> MtmdInputChunks:
@@ -673,8 +758,7 @@ cdef class MtmdContext:
             MtmdInputChunks containing the tokenized input
         """
         cdef MtmdBitmap bitmap_obj
-        if self._ctx is NULL:
-            raise RuntimeError("Context not initialized")
+        self._check_open()
 
         # Prepare input text structure
         cdef mtmd_input_text input_text
@@ -730,8 +814,7 @@ cdef class MtmdContext:
         Returns:
             0 on success, non-zero on error
         """
-        if self._ctx is NULL:
-            raise RuntimeError("Context not initialized")
+        self._check_open()
 
         return mtmd_encode_chunk(self._ctx, chunk._chunk)
 
@@ -746,8 +829,7 @@ cdef class MtmdContext:
         Returns:
             List of embedding vectors
         """
-        if self._ctx is NULL:
-            raise RuntimeError("Context not initialized")
+        self._check_open()
 
         cdef float* embd_ptr = mtmd_get_output_embd(self._ctx)
         if embd_ptr is NULL:
@@ -782,8 +864,8 @@ cdef class MtmdContext:
             ValueError: a media chunk needs non-causal attention and does not
                 fit in one batch (``n_batch`` and the context's ``n_ubatch``).
         """
-        if self._ctx is NULL:
-            raise RuntimeError("Context not initialized")
+        self._check_open()
+        _require_llama_ctx(llama_ctx)
         if n_batch is None:
             n_batch = llama.llama_n_batch(llama_ctx.ptr)
         if n_batch <= 0:
@@ -826,6 +908,22 @@ cdef class MtmdContext:
         return 0
 
 
+cdef int _require_mtmd(object ctx) except -1:
+    """Raise if a child's MtmdContext, or its LlamaModel, was closed explicitly."""
+    cdef MtmdContext c = <MtmdContext?>ctx  # TypeError, not a crash, for a wrong type
+    if c is None or c._ctx is NULL:
+        raise RuntimeError("MtmdContext is closed")
+    return c._check_open()
+
+
+cdef int _require_llama_ctx(LlamaContext ctx) except -1:
+    if ctx is None or ctx.ptr is NULL:
+        raise RuntimeError("LlamaContext is closed")
+    if ctx.model is not None and ctx.model.ptr is NULL:
+        raise RuntimeError("LlamaModel is closed")
+    return 0
+
+
 cdef class MtmdBatch:
     """Encode several media chunks in a single mmproj pass.
 
@@ -834,8 +932,8 @@ cdef class MtmdBatch:
     for multi-image prompts and for video, where every sampled frame is
     its own chunk.
 
-    Chunks are borrowed, not owned: the batch never frees them, so the
-    :class:`MtmdInputChunks` they came from must outlive the batch.
+    The batch never frees its chunks but keeps them, and so their
+    :class:`MtmdInputChunks`, alive until :meth:`close`.
 
     Create via :meth:`MtmdContext.batch`; a batch belongs to the context
     that made it and cannot be shared across contexts.
@@ -851,10 +949,12 @@ cdef class MtmdBatch:
 
     cdef mtmd_batch * _batch
     cdef object _ctx_ref  # keeps the owning MtmdContext alive
+    cdef list _chunks     # mtmd_batch holds raw pointers to these
 
     def __cinit__(self):
         self._batch = NULL
         self._ctx_ref = None
+        self._chunks = []
 
     def __dealloc__(self):
         if self._batch is not NULL:
@@ -872,11 +972,13 @@ cdef class MtmdBatch:
         """
         if self._batch is NULL:
             raise RuntimeError("Batch is closed")
+        _require_mtmd(self._ctx_ref)
         if chunk._chunk is NULL:
             raise RuntimeError("Chunk not initialized")
 
         cdef int32_t result = mtmd_batch_add_chunk(self._batch, chunk._chunk)
         if result == 0:
+            self._chunks.append(chunk)
             return
         if result == 2:
             raise ValueError(
@@ -900,6 +1002,7 @@ cdef class MtmdBatch:
         """
         if self._batch is NULL:
             raise RuntimeError("Batch is closed")
+        _require_mtmd(self._ctx_ref)
 
         cdef mtmd_batch * b = self._batch
         cdef int32_t result
@@ -925,6 +1028,7 @@ cdef class MtmdBatch:
         """
         if self._batch is NULL:
             raise RuntimeError("Batch is closed")
+        _require_mtmd(self._ctx_ref)
         if chunk._chunk is NULL:
             raise RuntimeError("Chunk not initialized")
         if n_embd <= 0:
@@ -950,6 +1054,7 @@ cdef class MtmdBatch:
         if self._batch is not NULL:
             mtmd_batch_free(self._batch)
             self._batch = NULL
+        self._chunks = []
         self._ctx_ref = None
 
     def __enter__(self):
@@ -1000,6 +1105,7 @@ cdef class MtmdVideo:
         """
         if self._video is NULL:
             raise RuntimeError("Video is closed")
+        _require_mtmd(self._ctx_ref)
         cdef mtmd_helper_video_info inf = mtmd_helper_video_get_info(self._video)
         return {
             "width": inf.width,
@@ -1012,14 +1118,16 @@ cdef class MtmdVideo:
         """Read the next item from the stream.
 
         Returns:
-            ``("image", MtmdBitmap)`` or ``("text", str)`` for each item,
-            or ``None`` at end of stream.
+            ``("image", MtmdBitmap)``, ``("audio", MtmdBitmap)`` (soundtrack, for
+            models that hear it) or ``("text", str)`` for each item, or ``None``
+            at end of stream.
 
         Raises:
             RuntimeError: The decoder reported an error.
         """
         if self._video is NULL:
             raise RuntimeError("Video is closed")
+        _require_mtmd(self._ctx_ref)
 
         cdef mtmd_bitmap * out_bitmap = NULL
         cdef char * out_text = NULL
@@ -1037,7 +1145,7 @@ cdef class MtmdVideo:
             bitmap = MtmdBitmap()
             bitmap._bitmap = out_bitmap
             bitmap._owner = True
-            return ("image", bitmap)
+            return ("audio" if mtmd_bitmap_is_audio(out_bitmap) else "image", bitmap)
 
         if out_text is not NULL:
             try:
@@ -1102,8 +1210,8 @@ cdef class MtmdAudioGenerator:
         self._prompt_done = False
 
     def __init__(self, LlamaContext llama_ctx, MtmdContext mtmd_ctx):
-        if mtmd_ctx._ctx is NULL:
-            raise RuntimeError("MtmdContext is closed")
+        _require_mtmd(mtmd_ctx)
+        _require_llama_ctx(llama_ctx)
         if mtmd_gen_audio_get_info(mtmd_ctx._ctx).type == MTMD_GEN_AUDIO_TYPE_NONE:
             raise ValueError("mmproj does not support audio generation")
         self._gen = mtmd_helper_gen_audio_init(llama_ctx.ptr, mtmd_ctx._ctx)
@@ -1121,15 +1229,20 @@ cdef class MtmdAudioGenerator:
     cdef _check_open(self):
         if self._gen is NULL:
             raise RuntimeError("Audio generator is closed")
+        # the helper holds raw pointers to both contexts
+        _require_mtmd(self._mtmd_ctx_ref)
+        _require_llama_ctx(self._llama_ctx_ref)
 
     def set_input(self, prompt: str, MtmdBitmap speaker = None,
                   lang: Optional[str] = None, int top_k = 0, float top_p = 0.0,
-                  uint32_t seed = 0xFFFFFFFF, wav: bool = True, stream: bool = False) -> None:
-        """Start a new utterance; discards any previous state.
+                  uint32_t seed = 0xFFFFFFFF, wav: bool = True, stream: bool = False,
+                  int32_t n_past = 0, out_mode = MtmdGenAudioOutMode.AUTO) -> None:
+        """Start a new utterance or response; discards any previous generator state.
 
         Args:
             prompt: Text to speak.
-            speaker: Optional reference audio bitmap for voice cloning.
+            speaker: Optional reference audio bitmap for voice cloning, or a voice
+                bitmap from :meth:`MtmdContext.gen_audio_voice`.
             lang: Optional language code or name (pipeline-dependent).
             top_k: Code-predictor top-k; 0 uses the pipeline default.
             top_p: Code-predictor top-p; 0 uses the pipeline default.
@@ -1139,8 +1252,27 @@ cdef class MtmdAudioGenerator:
                 since the previous call, possibly empty. WAV output then sends the
                 header once, with an unknown-length size. Call :meth:`flush`
                 after the last :meth:`step_gen`.
+            n_past: > 0 continues sequence 0 after ``n_past`` positions, with
+                ``prompt`` as raw text (LFM3-Audio only). The response may then mix
+                text and audio; see :meth:`next_is_text` and :meth:`get_logit_bias`.
+            out_mode: What a continuation outputs (:class:`MtmdGenAudioOutMode`).
+                Requires ``n_past > 0``. LFM3-Audio speaks answers only in ``MIXED``
+                mode with the system prompt ``Respond with interleaved text and
+                audio.``; ``AUDIO`` under another system prompt yields unintelligible
+                speech. See the LFM3-Audio-2B model card.
+
+        Raises:
+            ValueError: ``n_past`` is negative, or ``out_mode`` is set without ``n_past``.
+            RuntimeError: Upstream rejected the input, e.g. a continuation on a
+                pipeline other than LFM3-Audio.
         """
         self._check_open()
+        if n_past < 0:
+            raise ValueError(f"n_past must be >= 0, got {n_past}")
+        cdef int c_out_mode = int(MtmdGenAudioOutMode(out_mode))
+        if n_past == 0 and c_out_mode != MTMD_HELPER_GEN_AUDIO_OUT_AUTO:
+            # upstream reads out_mode only when continuing a sequence
+            raise ValueError("out_mode requires n_past > 0")
         cdef bytes prompt_b = prompt.encode('utf-8')
         cdef bytes lang_b = lang.encode('utf-8') if lang else b""
         # start from upstream defaults so fields added upstream are initialized
@@ -1159,13 +1291,38 @@ cdef class MtmdAudioGenerator:
         inp.seed = seed
         inp.out_type = MTMD_HELPER_GEN_AUDIO_OUTTYPE_WAV if wav else MTMD_HELPER_GEN_AUDIO_OUTTYPE_PCM
         inp.stream = stream
+        inp.n_past = n_past
+        inp.out_mode = <mtmd_helper_gen_audio_out_mode>c_out_mode
         self._h_state = NULL
         self._prompt_done = False
         cdef int32_t result
         with nogil:
             result = mtmd_helper_gen_audio_set_input(self._gen, &inp)
         if result != 0:
-            raise RuntimeError(f"Audio generator set_input failed with error code: {result}")
+            hint = " (only LFM3-Audio can continue a sequence)" if n_past > 0 else ""
+            raise RuntimeError(f"Audio generator set_input failed with error code: {result}{hint}")
+
+    def next_is_text(self) -> bool:
+        """True if the next :meth:`step_gen` takes a text token sampled from the backbone logits.
+
+        False if it generates an audio frame; then pass ``LLAMA_TOKEN_NULL``.
+        Only a continuation (``n_past > 0``) has text steps.
+        """
+        self._check_open()
+        return mtmd_helper_gen_audio_next_is_text(self._gen)
+
+    def get_logit_bias(self) -> list:
+        """``(token, bias)`` pairs to apply when sampling text tokens, for :meth:`LlamaSampler.add_logit_bias`.
+
+        For example, a text-only response suppresses the switch to audio. Valid after
+        :meth:`set_input`; empty when the pipeline sets none.
+        """
+        self._check_open()
+        cdef size_t n = 0
+        cdef const llama_logit_bias * bias = mtmd_helper_gen_audio_get_logit_bias(self._gen, &n)
+        if bias is NULL:
+            return []
+        return [(bias[i].token, bias[i].bias) for i in range(n)]
 
     def step_prompt(self, int32_t n_batch) -> int:
         """Decode up to ``n_batch`` prompt tokens. Returns the number remaining."""
@@ -1182,7 +1339,12 @@ cdef class MtmdAudioGenerator:
         return result
 
     def step_gen(self, int sampled) -> bool:
-        """Generate one frame from a backbone token. Returns False when generation ends."""
+        """Advance one step. Returns False when generation ends.
+
+        ``sampled`` is the backbone token: a text token when :meth:`next_is_text`
+        is True, else the pipeline's audio token, or ``LLAMA_TOKEN_NULL`` for
+        pipelines that generate from the hidden state alone.
+        """
         self._check_open()
         if not self._prompt_done:
             raise RuntimeError("step_prompt() must return 0 before step_gen()")

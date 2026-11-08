@@ -37,7 +37,10 @@ CASES = {
         "macro": "MTMD_API",
         "prefix": "mtmd_",
         "pxd": "mtmd.pxd",
-        "skipped": {f"mtmd_helper_{n}_deleter": "C++ unique_ptr helper" for n in ("gen_audio", "video")},
+        "skipped": {
+            **{f"mtmd_helper_{n}_deleter": "C++ unique_ptr helper" for n in ("gen_audio", "video")},
+            **{f"mtmd_helper_video_{n}": "C++ only test API, not for applications" for n in ("src", "seq")},
+        },
     },
     "gguf.h": {"macro": "GGML_API", "prefix": "gguf_", "pxd": "gguf.pxd", "skipped": {}},
 }

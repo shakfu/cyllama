@@ -5,6 +5,7 @@
 from libc.stdint cimport uint8_t, int32_t, int64_t, uint32_t, uint64_t
 from libc.string cimport strlen, strcmp
 from libc.stdlib cimport malloc, calloc, realloc, free
+from libc.math cimport INFINITY
 from libc.stdio cimport FILE, fdopen, fclose
 from libcpp.vector cimport vector as std_vector
 from libcpp.string cimport string as std_string
@@ -1897,10 +1898,20 @@ cdef class LlamaVocab:
     """
     cdef llama.llama_vocab * ptr
     cdef bint owner
+    cdef object _model  # the LlamaModel that owns ptr
+
+    cdef int _check_open(self) except -1:
+        if self.ptr is NULL:
+            raise RuntimeError("LlamaVocab is not initialized")
+        # the vocab is freed with its model
+        if self._model is not None and (<LlamaModel>self._model).ptr is NULL:
+            raise RuntimeError("LlamaModel is closed")
+        return 0
 
     def __cinit__(self):
         self.ptr = NULL
         self.owner = False
+        self._model = None
 
     @staticmethod
     cdef LlamaVocab from_ptr(llama.llama_vocab *ptr, bint owner=False):
@@ -1911,69 +1922,86 @@ cdef class LlamaVocab:
 
     @property
     def vocab_type(self) -> llama_vocab_type:
+        self._check_open()
         return int(llama.llama_get_vocab_type(self.ptr))
 
     @property
     def n_vocab(self) -> int:
+        self._check_open()
         return llama.llama_vocab_n_tokens(self.ptr)
 
     def get_text(self, llama.llama_token token) -> str:
+        self._check_open()
         return llama.llama_vocab_get_text(self.ptr, token).decode("utf-8")
 
     def get_score(self, llama.llama_token token) -> float:
+        self._check_open()
         return llama.llama_vocab_get_score(self.ptr, token)
 
     def get_attr(self, llama.llama_token token) -> llama.llama_token_attr:
+        self._check_open()
         return llama.llama_vocab_get_attr(self.ptr, token)
 
     def is_eog(self, llama.llama_token token) -> bool:
         """Check if the token is supposed to end generation (end-of-generation, eg. EOS, EOT, etc.)"""
+        self._check_open()
         return llama.llama_vocab_is_eog(self.ptr, token)
 
     def is_control(self, llama.llama_token token) -> bool:
         """Identify if Token Id is a control token or a render-able token"""
+        self._check_open()
         return llama.llama_vocab_is_control(self.ptr, token)
 
     # Special tokens
 
     def token_bos(self) -> int:
         """beginning-of-sentence"""
+        self._check_open()
         return llama.llama_vocab_bos(self.ptr)
 
     def token_eos(self) -> int:
         """end-of-sentence"""
+        self._check_open()
         return llama.llama_vocab_eos(self.ptr)
 
     def token_eot(self) -> int:
         """end-of-turn"""
+        self._check_open()
         return llama.llama_vocab_eot(self.ptr)
 
     def token_sep(self) -> int:
         """sentence separator"""
+        self._check_open()
         return llama.llama_vocab_sep(self.ptr)
 
     def token_mask(self) -> int:
         """mask"""
+        self._check_open()
         return llama.llama_vocab_mask(self.ptr)
 
     def token_nl(self) -> int:
         """next-line"""
+        self._check_open()
         return llama.llama_vocab_nl(self.ptr)
 
     def token_pad(self) -> int:
         """padding"""
+        self._check_open()
         return llama.llama_vocab_pad(self.ptr)
 
     def get_add_bos(self) -> bool:
         """add beginning-of-sentence token"""
+        self._check_open()
         return llama.llama_vocab_get_add_bos(self.ptr)
 
     def get_add_eos(self) -> bool:
         """add end-of-sentence token"""
+        self._check_open()
         return llama.llama_vocab_get_add_eos(self.ptr)
 
     def get_add_sep(self) -> bool:
         """add separator token"""
+        self._check_open()
         return llama.llama_vocab_get_add_sep(self.ptr)
 
     def get_suppress_tokens(self) -> list[int]:
@@ -1984,6 +2012,7 @@ cdef class LlamaVocab:
         :meth:`LlamaSampler.add_logit_bias` with a large negative bias to
         honour them.
         """
+        self._check_open()
         cdef int32_t n_suppress = 0
         cdef const llama.llama_token * toks = llama.llama_vocab_get_suppress_tokens(
             self.ptr, &n_suppress)
@@ -1994,21 +2023,27 @@ cdef class LlamaVocab:
     # infill tokens
 
     def fim_prefix(self) -> int:
+        self._check_open()
         return llama.llama_vocab_fim_pre(self.ptr)
 
     def fim_middle(self) -> int:
+        self._check_open()
         return llama.llama_vocab_fim_mid(self.ptr)
 
     def fim_suffix(self) -> int:
+        self._check_open()
         return llama.llama_vocab_fim_suf(self.ptr)
 
     def fim_pad(self) -> int:
+        self._check_open()
         return llama.llama_vocab_fim_pad(self.ptr)
 
     def fim_rep(self) -> int:
+        self._check_open()
         return llama.llama_vocab_fim_rep(self.ptr)
 
     def fim_sep(self) -> int:
+        self._check_open()
         return llama.llama_vocab_fim_sep(self.ptr)
 
     # Tokenization
@@ -2023,6 +2058,7 @@ cdef class LlamaVocab:
         Returns the number of tokens on success, no more than n_tokens_max
         Returns a negative number on failure - the number of tokens that would have been returned
         """
+        self._check_open()
         # Pre-allocate with reasonable maximum (most texts are much shorter than vocab size)
         cdef int max_tokens = min(self.n_vocab, len(text) * 2 + 100)  # Conservative estimate
         cdef llama.llama_token * tokens = <llama.llama_token *>malloc(sizeof(llama.llama_token) * max_tokens)
@@ -2095,6 +2131,7 @@ cdef class LlamaVocab:
 
     def token_to_bytes(self, token: int, lstrip: int = 0, special: bool = False) -> bytes:
         """Token Id -> raw piece bytes, as ``token_to_piece`` without decoding."""
+        self._check_open()
         cdef char stackbuf[128]
         cdef int32_t length = llama.llama_token_to_piece(
             self.ptr, token, stackbuf, 128, lstrip, special
@@ -2131,6 +2168,7 @@ cdef class LlamaVocab:
         @return Returns the number of chars/bytes on success, no more than text_len_max.
         @return Returns a negative number on failure - the number of chars/bytes that would have been returned.
         """
+        self._check_open()
         cdef str result = ""
         cdef char * buf = <char *>malloc(sizeof(char) * text_len_max)
         if buf is NULL:
@@ -2299,6 +2337,11 @@ cdef class LlamaModel:
     cdef uint64_t _cached_size
     cdef bint _cache_initialized
 
+    cdef int _check_open(self) except -1:
+        if self.ptr is NULL:
+            raise RuntimeError("LlamaModel is closed")
+        return 0
+
     def __cinit__(self):
         self.ptr = NULL
         self.owner = True
@@ -2465,28 +2508,33 @@ cdef class LlamaModel:
 
     @property
     def rope_type(self) -> llama_rope_type:
+        self._check_open()
         return int(llama.llama_get_model_rope_type(self.ptr))
 
     @property
     def n_ctx_train(self) -> int:
+        self._check_open()
         if self._cache_initialized:
             return self._cached_n_ctx_train
         return llama.llama_model_n_ctx_train(self.ptr)
 
     @property
     def n_embd(self) -> int:
+        self._check_open()
         if self._cache_initialized:
             return self._cached_n_embd
         return llama.llama_model_n_embd(self.ptr)
 
     @property
     def n_embd_inp(self) -> int:
+        self._check_open()
         if self._cache_initialized:
             return self._cached_n_embd_inp
         return llama.llama_model_n_embd_inp(self.ptr)
 
     @property
     def n_layer(self) -> int:
+        self._check_open()
         if self._cache_initialized:
             return self._cached_n_layer
         return llama.llama_model_n_layer(self.ptr)
@@ -2494,16 +2542,19 @@ cdef class LlamaModel:
     @property
     def n_layer_nextn(self) -> int:
         """Number of nextn (multi-token-prediction) layers in the model."""
+        self._check_open()
         return llama.llama_model_n_layer_nextn(self.ptr)
 
     @property
     def n_head(self) -> int:
+        self._check_open()
         if self._cache_initialized:
             return self._cached_n_head
         return llama.llama_model_n_head(self.ptr)
 
     @property
     def n_head_kv(self) -> int:
+        self._check_open()
         if self._cache_initialized:
             return self._cached_n_head_kv
         return llama.llama_model_n_head_kv(self.ptr)
@@ -2515,6 +2566,7 @@ cdef class LlamaModel:
         Differs from :attr:`n_embd` for models whose output projection is
         not square with the residual stream.
         """
+        self._check_open()
         return llama.llama_model_n_embd_out(self.ptr)
 
     @property
@@ -2525,6 +2577,7 @@ cdef class LlamaModel:
         many positions of KV per SWA layer, so the KV cache is far smaller
         than ``n_ctx`` would suggest.
         """
+        self._check_open()
         return llama.llama_model_n_swa(self.ptr)
 
     @property
@@ -2534,6 +2587,7 @@ cdef class LlamaModel:
         Only meaningful for classifier/reranker models; upstream leaves this
         undefined for generative models, where it reads as 1.
         """
+        self._check_open()
         return llama.llama_model_n_cls_out(self.ptr)
 
     def cls_label(self, uint32_t i) -> Optional[str]:
@@ -2541,6 +2595,7 @@ cdef class LlamaModel:
 
         Valid for ``i < n_cls_out``.
         """
+        self._check_open()
         if i >= llama.llama_model_n_cls_out(self.ptr):
             raise IndexError(f"classifier output index {i} out of range")
         cdef const char * label = llama.llama_model_cls_label(self.ptr, i)
@@ -2551,11 +2606,13 @@ cdef class LlamaModel:
     @property
     def rope_freq_scale_train(self) -> float:
         """Get the model's RoPE frequency scaling factor"""
+        self._check_open()
         return llama.llama_model_rope_freq_scale_train(self.ptr)
 
     @property
     def desc(self) -> str:
         """Get a string describing the model type"""
+        self._check_open()
         cdef char buf[1024]
         llama.llama_model_desc(self.ptr, buf, 1024)
         return buf.decode("utf-8")
@@ -2563,6 +2620,7 @@ cdef class LlamaModel:
     @property
     def size(self) -> int:
         """Returns the total size of all the tensors in the model in bytes"""
+        self._check_open()
         if self._cache_initialized:
             return self._cached_size
         return <uint64_t>llama.llama_model_size(self.ptr)
@@ -2570,6 +2628,7 @@ cdef class LlamaModel:
     @property
     def n_params(self) -> int:
         """Returns the total number of parameters in the model"""
+        self._check_open()
         if self._cache_initialized:
             return self._cached_n_params
         return <uint64_t>llama.llama_model_n_params(self.ptr)
@@ -2577,11 +2636,13 @@ cdef class LlamaModel:
     @property
     def ftype(self) -> int:
         """Model file type (quantization) as a llama_ftype enum value."""
+        self._check_open()
         return <int>llama.llama_model_ftype(self.ptr)
 
     @property
     def ftype_name(self) -> str:
         """Model file type (quantization) as a string, e.g. 'Q8_0'."""
+        self._check_open()
         cdef const char* name = llama.llama_ftype_name(
             llama.llama_model_ftype(self.ptr))
         if name is NULL:
@@ -2597,8 +2658,11 @@ cdef class LlamaModel:
     # vocab
 
     def get_vocab(self) -> LlamaVocab:
+        self._check_open()
         cdef llama.llama_vocab * vocab = <llama.llama_vocab *>llama.llama_model_get_vocab(self.ptr)
-        return LlamaVocab.from_ptr(vocab)
+        cdef LlamaVocab wrapper = LlamaVocab.from_ptr(vocab)
+        wrapper._model = self
+        return wrapper
 
     # sampling
 
@@ -2621,6 +2685,7 @@ cdef class LlamaModel:
             FileNotFoundError: If the LoRA adapter file does not exist.
             ValueError: If loading the LoRA adapter fails.
         """
+        self._check_open()
         if not os.path.exists(path_lora):
             raise FileNotFoundError(f"LoRA adapter file not found: {path_lora}")
 
@@ -2650,6 +2715,7 @@ cdef class LlamaModel:
             ValueError: If the fd is not a regular file, the offset is out of
                 range, the GGUF header is invalid, or llama.cpp fails to load.
         """
+        self._check_open()
         cdef _GgufFileHandle fh = _GgufFileHandle(fileobj, offset, "LoRA adapter")
         cdef llama.llama_adapter_lora * ptr
         try:
@@ -2670,6 +2736,7 @@ cdef class LlamaModel:
         returned in full rather than silently truncated. Raises
         ``ValueError`` if the key is not present in the model.
         """
+        self._check_open()
         cdef bytes key_bytes = key.encode("utf-8")
         cdef const char * key_c = key_bytes
         cdef size_t cap = 128
@@ -2697,10 +2764,12 @@ cdef class LlamaModel:
 
     def meta_count(self):
         """Get the number of metadata key/value pairs"""
+        self._check_open()
         return llama.llama_model_meta_count(self.ptr)
 
     def meta_key_by_index(self, int index) -> str:
         """Get metadata key name by index. Grows the buffer on demand."""
+        self._check_open()
         cdef size_t cap = 128
         cdef char * buf = <char *>malloc(cap)
         cdef char * tmp
@@ -2726,6 +2795,7 @@ cdef class LlamaModel:
 
     def meta_val_str_by_index(self, int index) -> str:
         """Get metadata value (as string) by index. Grows the buffer on demand."""
+        self._check_open()
         cdef size_t cap = 128
         cdef char * buf = <char *>malloc(cap)
         cdef char * tmp
@@ -2753,24 +2823,29 @@ cdef class LlamaModel:
 
     def has_encoder(self) -> bool:
         """Returns true if the model contains an encoder that requires llama_encode() call"""
+        self._check_open()
         return llama.llama_model_has_encoder(self.ptr)
 
     def has_decoder(self) -> bool:
         """Returns true if the model contains a decoder that requires llama_decode() call."""
+        self._check_open()
         return llama.llama_model_has_decoder(self.ptr)
 
     def decoder_start_token(self) -> int:
         """For encoder-decoder models, this function returns id of the token that must be provided
         to the decoder to start generating output sequence. For other models, it returns -1.
         """
+        self._check_open()
         return llama.llama_model_decoder_start_token(self.ptr)
 
     def is_recurrent(self) -> bool:
         """Returns true if the model is recurrent (like Mamba, RWKV, etc.)"""
+        self._check_open()
         return llama.llama_model_is_recurrent(self.ptr)
 
     def is_hybrid(self) -> bool:
         """Returns true if the model is hybrid (like Jamba, Granite, etc.)"""
+        self._check_open()
         return llama.llama_model_is_hybrid(self.ptr)
 
     # chat template
@@ -2843,6 +2918,7 @@ cdef class LlamaModel:
 
         Return empty string if not present.
         """
+        self._check_open()
         cdef const char * res = llama.llama_model_chat_template(self.ptr, NULL)
         if res:
             return res.decode()
@@ -2853,6 +2929,7 @@ cdef class LlamaModel:
 
         Return empty string if not present.
         """
+        self._check_open()
         cdef const char * res = llama.llama_model_chat_template(self.ptr, name.encode())
         if res:
             return res.decode()
@@ -2861,6 +2938,7 @@ cdef class LlamaModel:
     # Extra
 
     def metadata(self) -> dict[str, str]:
+        self._check_open()
         metadata: dict[str, str] = {}
         cdef size_t buffer_size = 1024
         cdef int nbytes
@@ -2945,6 +3023,14 @@ cdef class LlamaContext:
     cdef object _ctx_other
     # LlamaSampler binds to its context by weak reference
     cdef object __weakref__
+
+    cdef int _check_open(self) except -1:
+        if self.ptr is NULL:
+            raise RuntimeError("LlamaContext is closed")
+        # llama_context keeps the model's weights; LlamaModel.close() frees them regardless
+        if self.model is not None and self.model.ptr is NULL:
+            raise RuntimeError("LlamaModel is closed")
+        return 0
 
     def __cinit__(self):
         self.ptr = NULL
@@ -3127,8 +3213,7 @@ cdef class LlamaContext:
             ValueError: the chain is closed or already bound, or ``seq_id``
                 is out of range.
         """
-        if self.ptr is NULL:
-            raise RuntimeError("context has been closed")
+        self._check_open()
         cdef LlamaSampler smpl = None
         if sampler is not None and self._backend_samplers.get(seq_id) is sampler:
             return True
@@ -3156,15 +3241,13 @@ cdef class LlamaContext:
 
     def sampled_token_ith(self, int i) -> Optional[int]:
         """Backend-sampled token for output ``i``, or None if none was sampled."""
-        if self.ptr is NULL:
-            raise RuntimeError("context has been closed")
+        self._check_open()
         cdef llama.llama_token tok = llama.llama_get_sampled_token_ith(self.ptr, i)
         return None if tok == llama.LLAMA_TOKEN_NULL else tok
 
     def sampled_probs_ith(self, int i) -> Optional[list[float]]:
         """Backend probabilities for output ``i``, aligned with :meth:`sampled_candidates_ith`."""
-        if self.ptr is NULL:
-            raise RuntimeError("context has been closed")
+        self._check_open()
         cdef float * data = llama.llama_get_sampled_probs_ith(self.ptr, i)
         cdef uint32_t n = llama.llama_get_sampled_probs_count_ith(self.ptr, i)
         if data is NULL or n == 0:
@@ -3173,8 +3256,7 @@ cdef class LlamaContext:
 
     def sampled_logits_ith(self, int i) -> Optional[list[float]]:
         """Backend logits for output ``i``, aligned with :meth:`sampled_candidates_ith`."""
-        if self.ptr is NULL:
-            raise RuntimeError("context has been closed")
+        self._check_open()
         cdef float * data = llama.llama_get_sampled_logits_ith(self.ptr, i)
         cdef uint32_t n = llama.llama_get_sampled_logits_count_ith(self.ptr, i)
         if data is NULL or n == 0:
@@ -3183,8 +3265,7 @@ cdef class LlamaContext:
 
     def sampled_candidates_ith(self, int i) -> Optional[list[int]]:
         """Vocab token ids indexing :meth:`sampled_probs_ith` / :meth:`sampled_logits_ith`."""
-        if self.ptr is NULL:
-            raise RuntimeError("context has been closed")
+        self._check_open()
         cdef llama.llama_token * data = llama.llama_get_sampled_candidates_ith(self.ptr, i)
         cdef uint32_t n = llama.llama_get_sampled_candidates_count_ith(self.ptr, i)
         if data is NULL or n == 0:
@@ -3200,32 +3281,39 @@ cdef class LlamaContext:
 
     @property
     def n_ctx(self) -> int:
+        self._check_open()
         return llama.llama_n_ctx(self.ptr)
 
     @property
     def n_ctx_seq(self) -> int:
+        self._check_open()
         return llama.llama_n_ctx_seq(self.ptr)
 
     @property
     def n_batch(self) -> int:
+        self._check_open()
         return llama.llama_n_batch(self.ptr)
 
     @property
     def n_ubatch(self) -> int:
+        self._check_open()
         return llama.llama_n_ubatch(self.ptr)
 
     @property
     def n_seq_max(self) -> int:
+        self._check_open()
         return llama.llama_n_seq_max(self.ptr)
 
     @property
     def pooling_type(self) -> int:
+        self._check_open()
         return <llama.llama_pooling_type>llama.llama_get_pooling_type(self.ptr)
 
     # Manage Threadpools
     # -------------------------------------------------------------------------
 
     def attach_threadpool(self, GgmlThreadPool threadpool, GgmlThreadPool threadpool_batch):
+        self._check_open()
         # Retain Python references so the underlying ggml_threadpool*
         # pointers passed to the C side stay valid for the life of the
         # context (or until detach_threadpool replaces them).
@@ -3234,6 +3322,7 @@ cdef class LlamaContext:
         llama.llama_attach_threadpool(self.ptr, threadpool.ptr, threadpool_batch.ptr)
 
     def detach_threadpool(self):
+        self._check_open()
         llama.llama_detach_threadpool(self.ptr)
         self._threadpool = None
         self._threadpool_batch = None
@@ -3247,6 +3336,7 @@ cdef class LlamaContext:
         (logits, embedding and kv_cache)
         Only use when saving the state, not when restoring it, otherwise the size may be too small.
         """
+        self._check_open()
         return llama.llama_state_get_size(self.ptr)
 
     def get_state_data(self) -> bytes:
@@ -3263,6 +3353,7 @@ cdef class LlamaContext:
         Raises ``MemoryError`` if the temporary buffer cannot be
         allocated.
         """
+        self._check_open()
         cdef size_t required_size = llama.llama_state_get_size(self.ptr)
         cdef uint8_t * dst = NULL
         cdef size_t copied = 0
@@ -3287,6 +3378,7 @@ cdef class LlamaContext:
         the buffer protocol that decays to ``const uint8_t *``).
         Returns the number of bytes read by the C library.
         """
+        self._check_open()
         cdef const uint8_t * src
         cdef Py_ssize_t n
         cdef bytes data_bytes
@@ -3313,6 +3405,7 @@ cdef class LlamaContext:
         Raises:
             FileNotFoundError: If the session file does not exist.
         """
+        self._check_open()
         if not os.path.exists(path_session):
             raise FileNotFoundError(f"Session state file not found: {path_session}")
 
@@ -3358,6 +3451,7 @@ cdef class LlamaContext:
         Raises:
             FileNotFoundError: If the parent directory does not exist.
         """
+        self._check_open()
         parent_dir = os.path.dirname(path_session)
         if parent_dir and not os.path.exists(parent_dir):
             raise FileNotFoundError(f"Parent directory does not exist: {parent_dir}")
@@ -3373,6 +3467,7 @@ cdef class LlamaContext:
 
     def get_state_seq_size(self, int seq_id) -> int:
         """Get the exact size needed to copy the KV cache of a single sequence"""
+        self._check_open()
         return llama.llama_state_seq_get_size(self.ptr, seq_id)
 
     def get_state_seq_data(self, int seq_id) -> bytes:
@@ -3381,6 +3476,7 @@ cdef class LlamaContext:
         Returns the sequence state as ``bytes`` (single allocation,
         round-trips cleanly through ``set_state_seq_data``).
         """
+        self._check_open()
         cdef size_t required_size = llama.llama_state_seq_get_size(self.ptr, seq_id)
         cdef uint8_t * dst = NULL
         cdef size_t copied = 0
@@ -3409,6 +3505,7 @@ cdef class LlamaContext:
         Raises ``ValueError`` if the C library returns 0 (per its
         documented contract: "Zero: Failed to load").
         """
+        self._check_open()
         cdef bytes data_bytes = bytes(src)
         cdef size_t n = len(data_bytes)
         cdef const uint8_t * src_ptr = <const uint8_t *><const char *>data_bytes
@@ -3429,6 +3526,7 @@ cdef class LlamaContext:
             FileNotFoundError: If the parent directory does not exist.
             ValueError: If saving fails.
         """
+        self._check_open()
         parent_dir = os.path.dirname(filepath)
         if parent_dir and not os.path.exists(parent_dir):
             raise FileNotFoundError(f"Parent directory does not exist: {parent_dir}")
@@ -3460,6 +3558,7 @@ cdef class LlamaContext:
         Raises:
             FileNotFoundError: If the sequence state file does not exist.
         """
+        self._check_open()
         if not os.path.exists(filepath):
             raise FileNotFoundError(f"Sequence state file not found: {filepath}")
 
@@ -3495,6 +3594,7 @@ cdef class LlamaContext:
 
     def get_state_seq_size_with_flags(self, int seq_id, int flags) -> int:
         """get state sequence size from seq_id and flags"""
+        self._check_open()
         return llama.llama_state_seq_get_size_ext(self.ptr, seq_id, flags)
 
     def get_state_seq_data_with_flags(self, int seq_id, int flags) -> bytes:
@@ -3503,6 +3603,7 @@ cdef class LlamaContext:
         Returns the sequence state as ``bytes`` (single allocation,
         round-trips cleanly through ``set_state_seq_data_with_flags``).
         """
+        self._check_open()
         cdef size_t required_size = llama.llama_state_seq_get_size_ext(self.ptr, seq_id, flags)
         cdef uint8_t * dst = NULL
         cdef size_t size = 0
@@ -3526,6 +3627,7 @@ cdef class LlamaContext:
         ``src`` must be a ``bytes`` object (or anything ``bytes(src)``
         accepts).
         """
+        self._check_open()
         cdef bytes data_bytes = bytes(src)
         cdef size_t n = len(data_bytes)
         cdef const uint8_t * src_ptr = <const uint8_t *><const char *>data_bytes
@@ -3556,6 +3658,7 @@ cdef class LlamaContext:
                 adapter appears twice.
             RuntimeError: llama.cpp rejected the set.
         """
+        self._check_open()
         cdef list pairs
         cdef Py_ssize_t n
         cdef Py_ssize_t i
@@ -3639,6 +3742,7 @@ cdef class LlamaContext:
             InterruptedError: aborted by abort_callback (return code 2).
             RuntimeError: any other non-zero return code.
         """
+        self._check_open()
         cdef llama.llama_context * ctx_ptr = self.ptr
         cdef llama.llama_batch c_batch = batch.p
         cdef int32_t res
@@ -3665,6 +3769,7 @@ cdef class LlamaContext:
         context's memory state; the caller can probe them via
         ``llama_memory_seq_pos_min/max`` if needed.
         """
+        self._check_open()
         cdef llama.llama_context * ctx_ptr = self.ptr
         cdef llama.llama_batch c_batch = batch.p
         cdef int32_t res
@@ -3692,6 +3797,7 @@ cdef class LlamaContext:
 
         Return codes and exceptions match :meth:`decode`.
         """
+        self._check_open()
         if batch.ctx is not self:
             raise ValueError("batch was created for a different context")
         batch._check_usable()
@@ -3725,14 +3831,17 @@ cdef class LlamaContext:
         n_threads is the number of threads used for generation (single token)
         n_threads_batch is the number of threads used for prompt and batch processing (multiple tokens)
         """
+        self._check_open()
         llama.llama_set_n_threads(self.ptr, n_threads, n_threads_batch)
 
     def n_threads(self):
         """Get the number of threads used for generation of a single token."""
+        self._check_open()
         return llama.llama_n_threads(self.ptr)
 
     def n_threads_batch(self):
         """Get the number of threads used for prompt and batch processing (multiple token)."""
+        self._check_open()
         return llama.llama_n_threads_batch(self.ptr)
 
     def set_embeddings_mode(self, embeddings: bool):
@@ -3740,6 +3849,7 @@ cdef class LlamaContext:
 
         If true, embeddings will be returned but logits will not
         """
+        self._check_open()
         llama.llama_set_embeddings(self.ptr, embeddings)
 
     def set_causal_attn(self, causal_attn: bool):
@@ -3747,10 +3857,12 @@ cdef class LlamaContext:
 
         If set to true, the model will only attend to the past tokens
         """
+        self._check_open()
         llama.llama_set_causal_attn(self.ptr, causal_attn)
 
     def get_causal_attn(self) -> bool:
         """Return whether the context is currently using causal attention."""
+        self._check_open()
         return llama.llama_get_causal_attn(self.ptr)
 
     def set_abort_callback(self, object py_abort_callback):
@@ -3760,6 +3872,7 @@ cdef class LlamaContext:
         retain a Python reference here so the callable cannot be
         collected while the context still polls it.
         """
+        self._check_open()
         self._abort_callback = py_abort_callback
         llama.llama_set_abort_callback(self.ptr,
             <ggml.ggml_abort_callback>&abort_callback, <void*>py_abort_callback)
@@ -3778,6 +3891,7 @@ cdef class LlamaContext:
         callback that consults whatever state you want and pass it to
         ``set_abort_callback()`` instead.
         """
+        self._check_open()
         # Drop any prior user-supplied abort callback ref since the C
         # side no longer references it.
         self._abort_callback = None
@@ -3800,6 +3914,7 @@ cdef class LlamaContext:
         This is automatically done when using one of the functions below to obtain the computation results
         and is not necessary to call it explicitly in most cases
         """
+        self._check_open()
         llama.llama_synchronize(self.ptr)
 
     # Memory / KV Cache Management
@@ -3807,8 +3922,7 @@ cdef class LlamaContext:
 
     cdef int _check_seq(self, int seq_id, bint allow_all=False) except -1:
         # llama.cpp checks seq_id with GGML_ASSERT, which aborts the process
-        if self.ptr is NULL:
-            raise RuntimeError("context has been closed")
+        self._check_open()
         if allow_all and seq_id == -1:
             return 0
         cdef uint32_t n = llama.llama_n_seq_max(self.ptr)
@@ -3838,6 +3952,7 @@ cdef class LlamaContext:
             This is useful for reusing a context across multiple independent
             generations without the overhead of context recreation.
         """
+        self._check_open()
         cdef llama.llama_memory_t mem = llama.llama_get_memory(self.ptr)
         if mem is not NULL:
             llama.llama_memory_clear(mem, clear_data)
@@ -3847,6 +3962,7 @@ cdef class LlamaContext:
 
         seq_id -1: match any sequence. p0 < 0: from start. p1 < 0: to end.
         """
+        self._check_open()
         self._check_seq(seq_id, True)
         cdef llama.llama_memory_t mem = llama.llama_get_memory(self.ptr)
         if mem is NULL:
@@ -3855,6 +3971,7 @@ cdef class LlamaContext:
 
     def memory_seq_cp(self, int seq_id_src, int seq_id_dst, int p0, int p1):
         """Copy tokens from one sequence to another in [p0, p1)."""
+        self._check_open()
         self._check_seq(seq_id_src)
         self._check_seq(seq_id_dst)
         cdef llama.llama_memory_t mem = llama.llama_get_memory(self.ptr)
@@ -3863,6 +3980,7 @@ cdef class LlamaContext:
 
     def memory_seq_keep(self, int seq_id):
         """Remove all tokens except those belonging to the specified sequence."""
+        self._check_open()
         self._check_seq(seq_id)
         cdef llama.llama_memory_t mem = llama.llama_get_memory(self.ptr)
         if mem is not NULL:
@@ -3870,6 +3988,7 @@ cdef class LlamaContext:
 
     def memory_seq_add(self, int seq_id, int p0, int p1, int delta):
         """Add relative position delta to tokens in [p0, p1) of the given sequence."""
+        self._check_open()
         self._check_seq(seq_id)
         self._check_shiftable()
         cdef llama.llama_memory_t mem = llama.llama_get_memory(self.ptr)
@@ -3878,6 +3997,7 @@ cdef class LlamaContext:
 
     def memory_seq_pos_min(self, int seq_id) -> int:
         """Returns smallest position in memory for the sequence, or -1 if empty."""
+        self._check_open()
         self._check_seq(seq_id)
         cdef llama.llama_memory_t mem = llama.llama_get_memory(self.ptr)
         if mem is NULL:
@@ -3886,6 +4006,7 @@ cdef class LlamaContext:
 
     def memory_seq_pos_max(self, int seq_id) -> int:
         """Returns largest position in memory for the sequence, or -1 if empty."""
+        self._check_open()
         self._check_seq(seq_id)
         cdef llama.llama_memory_t mem = llama.llama_get_memory(self.ptr)
         if mem is NULL:
@@ -3899,6 +4020,7 @@ cdef class LlamaContext:
         down into fewer positions. ``p0 < 0`` means from the start,
         ``p1 < 0`` means to the end.
         """
+        self._check_open()
         if d <= 0:
             raise ValueError(f"divisor must be > 0, got {d}")
         self._check_seq(seq_id)
@@ -3917,6 +4039,7 @@ cdef class LlamaContext:
         for context-shift style eviction: recurrent and some hybrid models
         have no shiftable KV cache, and shifting them silently corrupts state.
         """
+        self._check_open()
         cdef llama.llama_memory_t mem = llama.llama_get_memory(self.ptr)
         if mem is NULL:
             return False
@@ -3937,6 +4060,7 @@ cdef class LlamaContext:
         underlying buffer (row 0 of the ``[n_outputs, n_vocab]``
         matrix). For multi-output batches use ``get_logits_ith``.
         """
+        self._check_open()
         cdef int n_vocab = llama.llama_vocab_n_tokens(
             llama.llama_model_get_vocab(self.model.ptr))
         cdef float * logits = llama.llama_get_logits(self.ptr)
@@ -3955,6 +4079,7 @@ cdef class LlamaContext:
         Negative indicies can be used to access logits in reverse order, -1 is the last logit.
         returns NULL for invalid ids.
         """
+        self._check_open()
         cdef int n_vocab = llama.llama_vocab_n_tokens(
             llama.llama_model_get_vocab(self.model.ptr))
         cdef float * logits = llama.llama_get_logits_ith(self.ptr, i)
@@ -3974,6 +4099,7 @@ cdef class LlamaContext:
         embeddings are available (no decode requested outputs, or the
         pooling configuration produced none).
         """
+        self._check_open()
         cdef int n_embd = self.model.n_embd_out
         cdef float * embds = llama.llama_get_embeddings(self.ptr)
         if embds is NULL:
@@ -3990,6 +4116,7 @@ cdef class LlamaContext:
         Negative indicies can be used to access embeddings in reverse order, -1 is the last embedding.
         returns NULL for invalid ids.
         """
+        self._check_open()
         cdef int n_embd = self.model.n_embd_out
         cdef float * embds = llama.llama_get_embeddings_ith(self.ptr, i)
         cdef std_vector[float] vec
@@ -4014,6 +4141,7 @@ cdef class LlamaContext:
           only way to read a reranker model's relevance score.
         * any other pooling mode -- ``n_embd_out`` floats.
         """
+        self._check_open()
         cdef int n_out
         cdef float * embds = llama.llama_get_embeddings_seq(self.ptr, seq_id)
         if embds is NULL:
@@ -4048,6 +4176,7 @@ cdef class LlamaContext:
         Returns a dict with keys: t_start_ms, t_load_ms, t_p_eval_ms,
         t_eval_ms, n_p_eval, n_eval, n_reused, n_reallocs_same, n_reallocs_diff.
         """
+        self._check_open()
         cdef llama.llama_perf_context_data data = llama.llama_perf_context(self.ptr)
         return {
             "t_start_ms": data.t_start_ms,
@@ -4063,10 +4192,12 @@ cdef class LlamaContext:
 
     def print_perf_data(self):
         """print performance data"""
+        self._check_open()
         llama.llama_perf_context_print(self.ptr)
 
     def reset_perf_data(self):
         """reset performance data"""
+        self._check_open()
         llama.llama_perf_context_reset(self.ptr)
 
 
@@ -4166,12 +4297,26 @@ cdef class LlamaSampler:
     cdef bint _attached
     # candidate buffer reused across sample() calls
     cdef std_vector[llama.llama_token_data] _cur
+    # vocabs whose raw pointer a link holds (grammar, dry, infill)
+    cdef list _keepalive
+    # the chain a chain_get() view borrows its link from
+    cdef object _parent
+
+    cdef int _check_open(self) except -1:
+        if self.ptr is NULL:
+            raise RuntimeError("LlamaSampler is closed")
+        # a chain_get() view borrows its link from the chain
+        if self._parent is not None and (<LlamaSampler>self._parent).ptr is NULL:
+            raise RuntimeError("the sampler chain this link belongs to is closed")
+        return 0
 
     def __cinit__(self):
         self.ptr = NULL
         self.owner = True
         self._bound_ctx = None
         self._attached = False
+        self._keepalive = []
+        self._parent = None
 
     def __init__(self, params: Optional[LlamaSamplerChainParams] = None):
         cdef LlamaSamplerChainParams _params
@@ -4237,6 +4382,7 @@ cdef class LlamaSampler:
 
     def name(self) -> str:
         """Get sampler name"""
+        self._check_open()
         return llama.llama_sampler_name(self.ptr).decode()
 
     def __len__(self) -> int:
@@ -4252,6 +4398,7 @@ cdef class LlamaSampler:
         must not outlive it. Useful for reading ``name()`` back to confirm
         the chain was assembled as intended.
         """
+        self._check_open()
         self._check_chain()
         cdef int n = llama.llama_sampler_chain_n(self.ptr)
         if i < 0:
@@ -4267,6 +4414,8 @@ cdef class LlamaSampler:
         view.ptr = link
         view.owner = False  # the chain frees it, not us
         view.params = self.params
+        view._keepalive = list(self._keepalive)
+        view._parent = self
         return view
 
     def chain_remove(self, int i) -> LlamaSampler:
@@ -4274,6 +4423,7 @@ cdef class LlamaSampler:
 
         The chain no longer frees the link; the returned object does.
         """
+        self._check_open()
         self._check_chain()
         cdef int n = llama.llama_sampler_chain_n(self.ptr)
         if i < 0:
@@ -4290,10 +4440,12 @@ cdef class LlamaSampler:
         detached.ptr = link
         detached.owner = True  # ownership transferred out of the chain
         detached.params = self.params
+        detached._keepalive = list(self._keepalive)
         return detached
 
     def accept(self, llama.llama_token token):
         """Accept llama token"""
+        self._check_open()
         cdef llama.llama_sampler * smpl_ptr = self.ptr
         cdef llama.llama_token tok = token
         with nogil:
@@ -4303,16 +4455,19 @@ cdef class LlamaSampler:
 
     def reset(self):
         """Reset sampler"""
+        self._check_open()
         llama.llama_sampler_reset(self.ptr)
 
     def clone(self) -> LlamaSampler:
         """clone sampler"""
+        self._check_open()
         cdef llama.llama_sampler * smplr = llama.llama_sampler_clone(self.ptr)
         if smplr is NULL:
             raise RuntimeError("llama_sampler_clone returned NULL")
         cdef LlamaSampler wrapper = LlamaSampler.__new__(LlamaSampler)
         wrapper.ptr = smplr
         wrapper.owner = True
+        wrapper._keepalive = list(self._keepalive)
         return wrapper
 
     def copy_to(self, LlamaSampler dst not None):
@@ -4320,6 +4475,7 @@ cdef class LlamaSampler:
 
         ``dst`` must be the same sampler type with the same configuration.
         """
+        self._check_open()
         # llama_sampler_copy aborts the process on a type or chain-shape mismatch
         if not _same_sampler_shape(self.ptr, dst.ptr):
             raise TypeError("cannot copy state between samplers of different types or chain layouts")
@@ -4327,6 +4483,7 @@ cdef class LlamaSampler:
 
     def get_seed(self) -> int:
         """Returns the seed used by the sampler if applicable, LLAMA_DEFAULT_SEED otherwise"""
+        self._check_open()
         return llama.llama_sampler_get_seed(self.ptr)
 
     def add_greedy(self):
@@ -4341,6 +4498,7 @@ cdef class LlamaSampler:
 
         This should be at the end of the chain.
         """
+        self._check_open()
         self._chain_add(llama.llama_sampler_init_dist(seed))
 
     # DEPRECATED
@@ -4487,6 +4645,7 @@ cdef class LlamaSampler:
             # call; llama.cpp copies them into the sampler's own storage.
             for i in range(num_breakers):
                 breaker_array[i] = <const char *>(<bytes>breakers[i])
+            self._keepalive.append(vocab)
             self._chain_add(llama.llama_sampler_init_dry(
                     vocab.ptr,
                     dry_multiplier,
@@ -4502,6 +4661,7 @@ cdef class LlamaSampler:
 
     def add_grammar(self, LlamaVocab vocab, str grammar_str, str grammar_root):
         """Add grammer chain link"""
+        self._keepalive.append(vocab)
         self._chain_add(llama.llama_sampler_init_grammar(
                 vocab.ptr, grammar_str.encode(), grammar_root.encode()))
 
@@ -4549,6 +4709,7 @@ cdef class LlamaSampler:
                 pattern_array[i] = <const char *>(<bytes>patterns[i])
             for i in range(num_tokens):
                 token_array[i] = tokens[i]
+            self._keepalive.append(vocab)
             self._chain_add(llama.llama_sampler_init_grammar_lazy_patterns(
                     vocab.ptr,
                     grammar_str.encode(),
@@ -4615,6 +4776,27 @@ cdef class LlamaSampler:
         else:
             self._chain_add(llama.llama_sampler_init_logit_bias(n_vocab, 0, NULL))
 
+    def add_suppress_tokens(self, LlamaVocab vocab) -> None:
+        """Bias the model's suppress tokens to -inf, as upstream ``common_sampler`` does.
+
+        Adds no link when the model declares none (``tokenizer.ggml.suppress_tokens``).
+        """
+        cdef int32_t n = 0
+        cdef const llama.llama_token * toks = llama.llama_vocab_get_suppress_tokens(vocab.ptr, &n)
+        if toks is NULL or n <= 0:
+            return
+        cdef llama.llama_logit_bias * bias = <llama.llama_logit_bias *>malloc(n * sizeof(llama.llama_logit_bias))
+        if bias is NULL:
+            raise MemoryError("Failed to allocate suppress-token bias array")
+        cdef int32_t i
+        try:
+            for i in range(n):
+                bias[i].token = toks[i]
+                bias[i].bias = -INFINITY
+            self._chain_add(llama.llama_sampler_init_logit_bias(vocab.n_vocab, n, bias))
+        finally:
+            free(bias)
+
     def add_infill(self, LlamaVocab vocab):
         """This sampler is meant to be used for fill-in-the-middle infilling
 
@@ -4638,6 +4820,7 @@ cdef class LlamaSampler:
         3. discard non-EOG tokens with low prob
         4. if no tokens are left -> pick EOT
         """
+        self._keepalive.append(vocab)
         self._chain_add(llama.llama_sampler_init_infill(vocab.ptr)
         )
 
@@ -4685,6 +4868,7 @@ cdef class LlamaSampler:
     def _sample_upstream(self, LlamaContext ctx, int idx) -> int:
         """``llama_sampler_sample`` itself: the reference :meth:`sample` must
         match. Test use only; aborts the process where :meth:`sample` raises."""
+        self._check_open()
         cdef llama.llama_token result
         with nogil:
             result = llama.llama_sampler_sample(self.ptr, ctx.ptr, idx)
@@ -4705,6 +4889,7 @@ cdef class LlamaSampler:
 
         Returns a dict with keys: t_sample_ms, n_sample.
         """
+        self._check_open()
         cdef llama.llama_perf_sampler_data data = llama.llama_perf_sampler(self.ptr)
         return {
             "t_sample_ms": data.t_sample_ms,
@@ -4715,12 +4900,14 @@ cdef class LlamaSampler:
         """
         # NOTE: the following work only with samplers constructed via llama_sampler_chain_init
         """
+        self._check_open()
         llama.llama_perf_sampler_print(self.ptr)
 
     def reset_perf_data(self):
         """
         # NOTE: the following work only with samplers constructed via llama_sampler_chain_init
         """
+        self._check_open()
         llama.llama_perf_sampler_reset(self.ptr)
 
 
@@ -4742,6 +4929,14 @@ cdef class LlamaAdapterLora:
     # Strong reference to the owning LlamaModel. Never None for adapters
     # produced by LlamaModel.lora_adapter_init().
     cdef readonly object model
+
+    cdef int _check_open(self) except -1:
+        if self.ptr is NULL:
+            raise RuntimeError("LlamaAdapterLora is closed")
+        # llama_model_free deletes every adapter registered to the model
+        if self.model is not None and (<LlamaModel>self.model).ptr is NULL:
+            raise RuntimeError("LlamaModel is closed")
+        return 0
 
     def __cinit__(self):
         self.ptr = NULL
@@ -4795,6 +4990,7 @@ cdef class LlamaAdapterLora:
 
     def meta_val_str(self, str key) -> str:
         """Get metadata value as a string by key name"""
+        self._check_open()
         assert key != "", "key must not be an empty string"
         cdef char buf[512]
         cdef int32_t str_len = llama.llama_adapter_meta_val_str(self.ptr, key.encode(), buf, 512)
@@ -4805,10 +5001,12 @@ cdef class LlamaAdapterLora:
 
     def meta_count(self) -> int:
         """Get the number of metadata key/value pairs"""
+        self._check_open()
         return llama.llama_adapter_meta_count(self.ptr)
 
     def meta_key_by_index(self, int idx = 0) -> str:
         """Get metadata key name by index"""
+        self._check_open()
         cdef char buf[512]
         cdef int32_t str_len = llama.llama_adapter_meta_key_by_index(self.ptr, idx, buf, 512)
         if str_len == -1:
@@ -4817,6 +5015,7 @@ cdef class LlamaAdapterLora:
 
     def meta_val_str_by_index(self, int idx = 0) -> str:
         """Get metadata value as a string by index"""
+        self._check_open()
         cdef char buf[512]
         cdef int32_t str_len = llama.llama_adapter_meta_val_str_by_index(self.ptr, idx, buf, 512)
         if str_len == -1:
@@ -4828,6 +5027,7 @@ cdef class LlamaAdapterLora:
     @property
     def n_alora_invocation_tokens(self) -> int:
         """Length of the aLoRA invocation sequence; 0 for a plain LoRA."""
+        self._check_open()
         return llama.llama_adapter_get_alora_n_invocation_tokens(self.ptr)
 
     @property
@@ -4836,6 +5036,7 @@ cdef class LlamaAdapterLora:
 
         An aLoRA only takes effect once these tokens appear in the prompt.
         """
+        self._check_open()
         cdef uint64_t n = llama.llama_adapter_get_alora_n_invocation_tokens(self.ptr)
         cdef const llama.llama_token * toks
         if n == 0:

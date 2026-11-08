@@ -20,6 +20,42 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ---
 
+## [0.9.0]
+
+### Added
+
+- **Predefined TTS voices.** `MtmdContext.gen_audio_voices()` lists them and `gen_audio_voice(name)` returns a voice bitmap to pass as `speaker`. `gen_audio_info` reports `n_voices`, and `MtmdBitmap.is_voice` identifies these bitmaps. `MtmdTTSGenerator` and the TTS CLI take `voice` / `--voice`, which cannot be combined with `speaker_file`. Without either, a model with voices uses its first voice, as `llama-tts` does. Upstream `b12110` removed the `voice` string input and now selects voices through `speaker_ref`.
+
+- **In-memory video and frames-only reading.** `MtmdContext.open_video_buffer(data)` reads a video from bytes; upstream pipes it to ffmpeg, so seeking decodes up to the target. `open_video()` and `open_video_buffer()` take `no_soundtrack=True` to skip the soundtrack of models that hear it (LFM3-Omni), and `MtmdVideo` now yields soundtrack bitmaps as `"audio"`, not `"image"`.
+
+- **LFM3-Audio continuation.** `MtmdAudioGenerator.set_input(n_past=..., out_mode=MtmdGenAudioOutMode.TEXT)` continues sequence 0 with a text, audio, mixed or model-chosen response. Before each `step_gen()`, `next_is_text()` says whether to pass a text token sampled from the backbone, with the bias from `get_logit_bias()`, or `LLAMA_TOKEN_NULL`. `out_mode` without `n_past` raises `ValueError`, since upstream ignores it.
+
+### Changed
+
+- **llama.cpp updated to `v0.9.0` (`b12110`, from `v0.8.0`).** The `.pxd` files declare `GGML_TYPE_F8_E4M3`, `LLAMA_FTYPE_MOSTLY_F8_E4M3` (42), `MTMD_VIDEO_TEMPLATE_QWEN3VL`, `MTMD_GEN_AUDIO_TYPE_CHATTERBOX` and the new mtmd voice and gen-state functions. `GGML_TYPE_COUNT` is now 44, which is also the default of `LlamaModelQuantizeParams.output_tensor_type` and `token_embedding_type`. Enum drift tests now also cover `llama_ftype`, `mtmd_gen_audio_type` and `mtmd_video_template`.
+
+- **Every sampler chain now applies the model's suppress tokens.** `LlamaSampler.add_suppress_tokens(vocab)` biases `tokenizer.ggml.suppress_tokens` to `-inf`, matching upstream `common_sampler`. It is called first in `LLM`, `BatchGenerator`, `ConstrainedAgent`, the chat and CLI tools, `PythonServer` and both TTS generators. Output changes only for models that declare the key; among llama.cpp's converters those are MiniMax-Text-01/M1, Gemma 4 Unified and Chatterbox.
+
+### Removed
+
+- **`llama.cpp-hip-ballot-sync.patch`.** `b12110` includes the upstream fix it backported.
+
+### Fixed
+
+- **`MtmdTTSGenerator` failed on LFM3-Audio with `set_input` error 1.** The pipeline only accepts a prompt rendered from the model's "tts" chat template, which carries the voice and language. The generator now renders that template when the model has one, as `llama-tts` does through `common_chat_get_tts_prompt`. Output for `LFM3-Audio-2B` is byte-identical to `llama-tts` at the same seed.
+
+- **Use-after-free in `MtmdBatch`.** An `MtmdInputChunk` from `MtmdInputChunks[i]` borrowed its pointer but held no reference to the container, and `mtmd_batch` stores raw chunk pointers. Dropping the container freed chunks that the view or a batch still used. Views now keep their container alive, and a batch keeps its added chunks until `close()`.
+
+- **`LlamaVocab` and vocab-based sampler links could outlive their model.** `LlamaModel.get_vocab()` kept no reference to the model, so `LlamaModel(path).get_vocab()` read freed memory once the temporary model was collected. Upstream's grammar, DRY and infill samplers store the raw vocab pointer, and the chain kept nothing alive. Vocabs now keep their model, and those links keep their vocab, also through `clone()`, `chain_get()` and `chain_remove()`.
+
+- **Closed native objects crashed instead of raising.** `close()` sets the pointer to NULL, but 130 methods of `LlamaModel`, `LlamaVocab`, `LlamaContext`, `LlamaAdapterLora` and `LlamaSampler` used it unchecked. Closing a model also freed what its contexts, vocabs and LoRA adapters point into. These methods now raise `RuntimeError` naming the closed object, as do `Speculative` and `LlamaSampler.chain_get()` views, which now also keep their chain alive. The old `LlamaContext` message "context has been closed" is now "LlamaContext is closed".
+
+- **mtmd objects used freed memory after an explicit `close()` of their parent.** `MtmdBatch`, `MtmdVideo` and `MtmdAudioGenerator` held references to their `MtmdContext` (and the generator to its `LlamaContext`), but `close()` frees the native context regardless. `MtmdContext` had the same problem with its `LlamaModel`. Each now raises `RuntimeError` naming the closed parent. `MtmdBitmap.from_file()` and `from_buffer()` also check their context, and raise `TypeError` for a non-`MtmdContext` instead of crashing.
+
+- **`MtmdTTSGenerator` produced header-only WAVs with Chatterbox.** The model marks its 50,276 text tokens in `tokenizer.ggml.suppress_tokens`. `llama-tts` blocks them through `common_sampler`, but cyllama's chain did not. `<|endoftext|>` was then the first token sampled (p = 0.78), and the utterance ended before any frame. The TTS sampler now applies them (see Changed).
+
+- **`MtmdContext.gen_audio_info` raised `ValueError` for Soprano and LFM3-Audio projectors.** `MtmdGenAudioType` lacked those members; it now covers the C enum, and a test checks it.
+
 ## [0.8.0]
 
 ### Added

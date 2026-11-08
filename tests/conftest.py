@@ -30,6 +30,13 @@ SAMPLES_DIR = TESTS_DIR / "samples"
 # Default model path constant (for use in subprocesses where fixtures aren't available)
 DEFAULT_MODEL = str(MODELS_DIR / "Llama-3.2-1B-Instruct-Q8_0.gguf")
 
+# gemma-4 vision model: the first quant present, else the Q4 name so skip reasons stay stable
+GEMMA4_MODEL = next(
+    (p for q in ("Q4_K_M", "Q5_K_M") if (p := MODELS_DIR / f"gemma-4-E4B-it-{q}.gguf").exists()),
+    MODELS_DIR / "gemma-4-E4B-it-Q4_K_M.gguf",
+)
+GEMMA4_MMPROJ = MODELS_DIR / "mmproj-gemma-4-E4B-it-BF16.gguf"
+
 
 # =============================================================================
 # Core Fixtures

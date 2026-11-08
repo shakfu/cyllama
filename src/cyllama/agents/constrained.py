@@ -134,6 +134,7 @@ class GrammarConstrainedLLM(LLM):
         # The grammar sampler filters logits to only allow tokens that match
         # the grammar, then subsequent samplers select from valid tokens.
         self._sampler.add_grammar(self.vocab, grammar, grammar_root)
+        self._sampler.add_suppress_tokens(self.vocab)
 
         # Add penalties if configured
         if config.repeat_penalty != 1.0:

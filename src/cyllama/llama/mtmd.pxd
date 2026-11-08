@@ -91,6 +91,7 @@ cdef extern from "mtmd.h":
         MTMD_VIDEO_TEMPLATE_DEFAULT
         MTMD_VIDEO_TEMPLATE_LFM3
         MTMD_VIDEO_TEMPLATE_LFM3_OMNI
+        MTMD_VIDEO_TEMPLATE_QWEN3VL
 
     # recommended video input for the model; 0 fields mean "no preference"
     ctypedef struct mtmd_video_config:
@@ -113,6 +114,8 @@ cdef extern from "mtmd.h":
     cdef const unsigned char * mtmd_bitmap_get_data(const mtmd_bitmap * bitmap)
     cdef size_t mtmd_bitmap_get_n_bytes(const mtmd_bitmap * bitmap)
     cdef bint mtmd_bitmap_is_audio(const mtmd_bitmap * bitmap)
+    # voice bitmap: nx = n_embd, ny = rows, F32 rows, id is the voice name
+    cdef bint mtmd_bitmap_is_voice(const mtmd_bitmap * bitmap)
     cdef void mtmd_bitmap_free(mtmd_bitmap * bitmap)
     cdef const char * mtmd_bitmap_get_id(const mtmd_bitmap * bitmap)
     cdef void mtmd_bitmap_set_id(mtmd_bitmap * bitmap, const char * id)
@@ -249,13 +252,21 @@ cdef extern from "mtmd.h":
         MTMD_GEN_AUDIO_TYPE_POCKETTTS
         MTMD_GEN_AUDIO_TYPE_SOPRANO
         MTMD_GEN_AUDIO_TYPE_LFM3A
+        MTMD_GEN_AUDIO_TYPE_CHATTERBOX
 
     ctypedef struct mtmd_gen_audio_info:
         mtmd_gen_audio_type type
         int32_t sample_rate
         const char * model_variant  # may be NULL
+        int32_t n_voices            # predefined voices
 
     cdef mtmd_gen_audio_info mtmd_gen_audio_get_info(const mtmd_context * ctx)
+    # returns element count (0 if not found); out may be NULL to query the size
+    cdef size_t mtmd_gen_audio_read_tensor(mtmd_context * ctx, const char * name, float * out, size_t n_max)
+    # NULL when idx is out of range
+    cdef const char * mtmd_gen_audio_voice_name(const mtmd_context * ctx, int32_t idx)
+    # caller frees; NULL if there is no such voice
+    cdef mtmd_bitmap * mtmd_gen_audio_get_voice(const mtmd_context * ctx, const char * name)
 
     ctypedef enum mtmd_gen_process_type:
         MTMD_GEN_PROCESS_TYPE_GEN_CODE  # h_state to semantic (codes, mel-spectrogram, etc.)
@@ -300,6 +311,8 @@ cdef extern from "mtmd.h":
     cdef void mtmd_gen_state_free(mtmd_gen_state * state)
     # cold start; keeps the RNG stream
     cdef void mtmd_gen_state_reset(mtmd_gen_state * state)
+    # copy the last encode's speaker clip or voice into state; non-zero if there was none
+    cdef int32_t mtmd_gen_state_set_ref(mtmd_context * ctx, mtmd_gen_state * state)
 
     cdef mtmd_gen_inp mtmd_gen_inp_default(const mtmd_context * ctx)
     # one step; updates state in place
@@ -377,9 +390,8 @@ cdef extern from "mtmd-helper.h":
         size_t prompt_len
         int32_t n_past             # > 0: continue a sequence (LFM3-Audio only)
         mtmd_helper_gen_audio_out_mode out_mode  # n_past > 0 only
-        mtmd_bitmap * speaker_ref  # optional, can be NULL
+        mtmd_bitmap * speaker_ref  # optional, can be NULL: audio to clone, or a voice bitmap
         const char * lang          # optional, can be NULL
-        const char * voice         # optional, can be NULL, model-dependent
         int32_t top_k
         float top_p
         uint32_t seed              # UINT32_MAX for random

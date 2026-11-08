@@ -308,7 +308,7 @@ Text-to-speech synthesis.
 ```bash
 cyllama tts -m models/tts.gguf -mv models/vocoder.gguf -p "Hello world"
 cyllama tts -m models/tts.gguf -mv models/vocoder.gguf -p "Hello" -o speech.wav
-# Qwen3-TTS / Pocket TTS (backbone + mmproj)
+# libmtmd TTS: Qwen3-TTS, Pocket TTS, LFM3-Audio, Chatterbox (backbone + mmproj)
 cyllama tts -m models/Qwen3-TTS-12Hz-1.7B-Base-Q8_0.gguf -mm models/mmproj-Qwen3-TTS-12Hz-1.7B-Base-Q8_0.gguf -p "Hello" -o speech.wav
 ```
 
@@ -318,7 +318,7 @@ cyllama tts -m models/Qwen3-TTS-12Hz-1.7B-Base-Q8_0.gguf -mm models/mmproj-Qwen3
 |------|------|---------|-------------|
 | `-m, --model` | string | (required) | Path to text-to-codes or backbone model |
 | `-mv, --vocoder-model` | string | | OuteTTS: path to codes-to-speech model |
-| `-mm, --mmproj` | string | | Qwen3-TTS / Pocket TTS: path to mmproj |
+| `-mm, --mmproj` | string | | libmtmd TTS: path to mmproj |
 | `-p, --prompt` | string | (required) | Text to synthesize |
 | `-o, --output` | string | output.wav | Output WAV file |
 | `-c, --context` | int | 8192 (`-mm`: 4096) | Context size |
@@ -326,7 +326,8 @@ cyllama tts -m models/Qwen3-TTS-12Hz-1.7B-Base-Q8_0.gguf -mm models/mmproj-Qwen3
 | `-ngl, --n-gpu-layers` | int | -1 | GPU layers to offload (-1 = all) |
 | `-n, --n-predict` | int | 4096 (`-mm`: 512) | Max tokens, or audio frames with `-mm` |
 | `--speaker-file` | string | | OuteTTS: speaker profile JSON; `-mm`: reference audio for voice cloning |
-| `--lang` | string | en | `-mm` only: language code (Qwen3-TTS) |
+| `--lang` | string | en | `-mm` only: language code (Qwen3-TTS, LFM3-Audio) |
+| `--voice` | string | first | `-mm` only: predefined voice name; exclusive with `--speaker-file` |
 | `--use-guide-tokens` | flag | (on) | Use guide tokens (prevents hallucinations) |
 | `--no-guide-tokens` | flag | | Disable guide tokens |
 

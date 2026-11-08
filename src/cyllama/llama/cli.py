@@ -417,6 +417,7 @@ class LlamaCLI:
         sampler_params.no_perf = args.no_perf
 
         self.sampler = cy.LlamaSampler(sampler_params)
+        self.sampler.add_suppress_tokens(self.vocab)
 
         # Add sampling methods - start with greedy for simplicity
         self.sampler.add_greedy()

@@ -277,6 +277,7 @@ class BatchGenerator:
         # Create sampler
         sampler_params = LlamaSamplerChainParams()
         sampler = LlamaSampler(sampler_params)
+        sampler.add_suppress_tokens(self.vocab)
 
         if config.temperature == 0.0:
             sampler.add_greedy()

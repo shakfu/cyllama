@@ -116,6 +116,7 @@ class Chat:
         # Initialize sampler with caller-provided parameters
         sampler_params = LlamaSamplerChainParams()
         self.sampler = LlamaSampler(sampler_params)
+        self.sampler.add_suppress_tokens(self.vocab)
         if repeat_penalty != 1.0:
             self.sampler.add_penalties(self.vocab.n_vocab, 64, repeat_penalty, 0.0, 0.0)
         self.sampler.add_top_k(top_k)
