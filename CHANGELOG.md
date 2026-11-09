@@ -20,6 +20,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- **Release notes link the upstream versions** ([#20](https://github.com/shakfu/cyllama/issues/20)). `scripts/release_notes.py` appends an `## Upstream versions` section that links the release tag of each pinned llama.cpp, whisper.cpp, stable-diffusion.cpp and sqlite-vector version.
+
+### Changed
+
+- **Upstream version pins moved to `scripts/versions.toml`.** `scripts/manage.py` and `scripts/release_notes.py` both read it. A TOML file over a `versions.py` module because it is data any tool can read with `tomllib`, without running code. Deps cache keys and the `check-vendor` and `build-cibw-abi3` path filters now include it, so a version bump still invalidates cached builds. The manylinux `before-all` interpreter moves from cp310 to cp312, because `tomllib` needs 3.11+.
+
+### Removed
+
+- **`STABLE_BUILD` environment variable.** Its two branches in `scripts/manage.py` held identical pins.
+
 ## [0.9.0]
 
 ### Added

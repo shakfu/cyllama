@@ -19,6 +19,7 @@ on:
   pull_request:
     paths:
       - 'scripts/manage.py'
+      - 'scripts/versions.toml'
       - 'thirdparty/llama.cpp/include/**'
       - 'thirdparty/whisper.cpp/include/**'
       - 'thirdparty/stable-diffusion.cpp/include/**'
@@ -27,6 +28,7 @@ on:
     branches: [main, dev]
     paths:
       - 'scripts/manage.py'
+      - 'scripts/versions.toml'
       - 'thirdparty/llama.cpp/include/**'
       - 'thirdparty/whisper.cpp/include/**'
       - 'thirdparty/stable-diffusion.cpp/include/**'

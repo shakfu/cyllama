@@ -54,7 +54,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: thirdparty/
-          key: deps-abi3-sycl-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage.py', 'scripts/patches/*.patch', '.github/workflows/_gpu-build-sycl.yml') }}
+          key: deps-abi3-sycl-${{ inputs.link_mode }}-${{ hashFiles('scripts/manage.py', 'scripts/versions.toml', 'scripts/patches/*.patch', '.github/workflows/_gpu-build-sycl.yml') }}
 
       - name: Set up Python
         uses: actions/setup-python@v7

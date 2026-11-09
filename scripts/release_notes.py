@@ -4,7 +4,9 @@
 Looks up the literal `## [<version>]` heading in CHANGELOG.md, captures
 the block up to the next `## [` heading, strips leading/trailing blank
 lines, prepends a `## Changes since the last Release` header
-(configurable), and writes the result to the output path.
+(configurable), appends an `## Upstream versions` section linking the
+pinned dependency tags read from scripts/versions.toml, and writes the
+result to the output path.
 
 Falls back to `## [Unreleased]` if the version-named section is missing
 or empty — useful when a tag was pushed before the heading was renamed.
@@ -23,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+import tomllib
 from pathlib import Path
 from typing import Optional
 
@@ -46,6 +49,29 @@ def extract_section(changelog_text: str, version: str) -> Optional[str]:
         if in_section:
             out.append(line)
     return "\n".join(out) if in_section else None
+
+
+# (versions.toml key, display name, GitHub repo)
+UPSTREAMS: tuple[tuple[str, str, str], ...] = (
+    ("llama_cpp", "llama.cpp", "ggml-org/llama.cpp"),
+    ("whisper_cpp", "whisper.cpp", "ggml-org/whisper.cpp"),
+    ("stable_diffusion_cpp", "stable-diffusion.cpp", "leejet/stable-diffusion.cpp"),
+    ("sqlite_vector", "sqlite-vector", "sqliteai/sqlite-vector"),
+)
+
+
+def upstream_versions(pins: dict[str, str]) -> list[tuple[str, str, str]]:
+    """Return (name, tag, release_url) for each upstream in UPSTREAMS.
+
+    Raises KeyError if `pins` lacks one.
+    """
+    return [(name, pins[key], f"https://github.com/{repo}/releases/tag/{pins[key]}") for key, name, repo in UPSTREAMS]
+
+
+def format_upstreams(versions: list[tuple[str, str, str]]) -> str:
+    lines = ["## Upstream versions", ""]
+    lines += [f"- {name}: [{tag}]({url})" for name, tag, url in versions]
+    return "\n".join(lines)
 
 
 def strip_blank_edges(text: str) -> str:
@@ -81,9 +107,15 @@ def main(argv: Optional[list[str]] = None) -> int:
         default="Changes since the last Release",
         help='Text after the leading "## " on line 1 of the output (default: "%(default)s").',
     )
+    parser.add_argument(
+        "--versions",
+        default="scripts/versions.toml",
+        help="Path to the pinned upstream versions (default: %(default)s).",
+    )
     args = parser.parse_args(argv)
 
     text = Path(args.changelog).read_text()
+    upstreams = format_upstreams(upstream_versions(tomllib.loads(Path(args.versions).read_text())))
 
     section = extract_section(text, args.version)
     if section is None or not section.strip():
@@ -101,7 +133,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         return 2
 
     body = strip_blank_edges(section)
-    Path(args.output).write_text(f"## {args.header}\n\n{body}\n")
+    Path(args.output).write_text(f"## {args.header}\n\n{body}\n\n{upstreams}\n")
     print(f"wrote {args.output} ({len(body.splitlines())} body lines)")
     return 0
 

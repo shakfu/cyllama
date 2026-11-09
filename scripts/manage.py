@@ -75,6 +75,7 @@ import re
 import shutil
 import sysconfig
 import tempfile
+import tomllib
 import stat
 import subprocess
 import sys
@@ -137,19 +138,12 @@ PLATFORM = platform.system()
 ARCH = platform.machine()
 PY_VER_MINOR = sys.version_info.minor
 
-STABLE_BUILD = getenv("STABLE_BUILD", True)
-if STABLE_BUILD:
-    # known to build and work without errors, 100% tests pass
-    LLAMACPP_VERSION = "b12110"  # equivalent to  v0.9.0
-    WHISPERCPP_VERSION = "v1.9.4"
-    SDCPP_VERSION = "master-898-2bb7294"
-    SQLITEVECTOR_VERSION = "1.1.2"
-else:
-    # experimental bleeding-edge builds ` = ""` means get latest
-    LLAMACPP_VERSION = "b12110"  # equivalent to  v0.9.0
-    WHISPERCPP_VERSION = "v1.9.4"
-    SDCPP_VERSION = "master-898-2bb7294"
-    SQLITEVECTOR_VERSION = "1.1.2"
+with open(Path(__file__).resolve().parent / "versions.toml", "rb") as _f:
+    _VERSIONS = tomllib.load(_f)
+LLAMACPP_VERSION: str = _VERSIONS["llama_cpp"]
+WHISPERCPP_VERSION: str = _VERSIONS["whisper_cpp"]
+SDCPP_VERSION: str = _VERSIONS["stable_diffusion_cpp"]
+SQLITEVECTOR_VERSION: str = _VERSIONS["sqlite_vector"]
 if PLATFORM == "Darwin":
     MACOSX_DEPLOYMENT_TARGET = setenv("MACOSX_DEPLOYMENT_TARGET", "12.6")
 DEBUG = getenv("DEBUG", default=True)
