@@ -91,7 +91,7 @@ jobs:
             ls -d /opt/rocm-* | head -1 | xargs -I{} ln -sf {} /opt/rocm &&
             ln -sf /usr/lib/gcc/x86_64-redhat-linux/8/libstdc++.a /opt/rocm/lib/libstdc++.a &&
             if [ -f /project/thirdparty/.deps-complete ]; then echo "=== Deps cached, skipping build ==="; exit 0; fi &&
-            CI_PYTHON=$(ls -d /opt/python/cp3*/bin | head -1) &&
+            CI_PYTHON=/opt/python/cp312-cp312/bin &&
             $CI_PYTHON/pip install cmake ninja &&
             PATH=/opt/rocm/bin:$CI_PYTHON:$PATH
             LIBRARY_PATH=/usr/lib/gcc/x86_64-redhat-linux/8:$LIBRARY_PATH

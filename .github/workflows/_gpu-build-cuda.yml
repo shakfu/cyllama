@@ -90,7 +90,7 @@ jobs:
             yum install -y cuda-nvcc-12-4 cuda-cudart-devel-12-4 cuda-driver-devel-12-4 libcublas-devel-12-4 &&
             ln -s /usr/local/cuda-12.4 /usr/local/cuda &&
             if [ -f /project/thirdparty/.deps-complete ]; then echo "=== Deps cached, skipping build ==="; exit 0; fi &&
-            CI_PYTHON=$(ls -d /opt/python/cp3*/bin | head -1) &&
+            CI_PYTHON=/opt/python/cp312-cp312/bin &&
             $CI_PYTHON/pip install cmake ninja &&
             PATH=/usr/local/cuda/bin:$CI_PYTHON:$PATH
             CCACHE_DIR=/project/.ccache

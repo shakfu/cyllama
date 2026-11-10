@@ -34,6 +34,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 - **`STABLE_BUILD` environment variable.** Its two branches in `scripts/manage.py` held identical pins.
 
+### Fixed
+
+- **Linux GPU `before-all` interpreter pinned to cp312.** The cuda, rocm, sycl and vulkan-linux workflows picked `ls -d /opt/python/cp3*/bin | head -1`, which sorts lexically and selects cp310. That has no `tomllib`, so `manage.py ci_before_all` would fail at import.
+
 ## [0.9.0]
 
 ### Added
