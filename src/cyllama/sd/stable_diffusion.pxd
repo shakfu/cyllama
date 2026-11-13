@@ -150,11 +150,11 @@ cdef extern from "stable-diffusion.h":
     ctypedef struct sd_tiling_params_t:
         bint enabled
         bint temporal_tiling
-        int tile_size_x
-        int tile_size_y
+        int tile_size_w             # pixels, encode and decode; 0 uses 256
+        int tile_size_h
         float target_overlap
-        float rel_size_x
-        float rel_size_y
+        float rel_size_w            # > 0 overrides tile_size: <= 1 fraction, > 1 tile count
+        float rel_size_h
         const char* extra_tiling_args
 
     ctypedef struct sd_embedding_t:
@@ -214,10 +214,12 @@ cdef extern from "stable-diffusion.h":
         const char* rpc_servers
         const char* model_args
         bint disable_segmented_compute
+        bint batched_cfg            # cond + uncond CFG branches in one batched UNet forward
         float linear_scale
         float attn_scale
         const char* tokenizer
         bint sage_attn
+        int conditioning_cache_size  # cached conditioning entries per context; 0 disables (default 4)
 
     ctypedef struct sd_audio_t:
         uint32_t sample_rate
@@ -395,6 +397,15 @@ cdef extern from "stable-diffusion.h":
 
     ctypedef void (*sd_log_cb_t)(sd_log_level_t level, const char* text, void* data)
     ctypedef void (*sd_progress_cb_t)(int step, int steps, float time, void* data)
+    # Strings and the event are valid only during the callback; total == 0 means unknown.
+    ctypedef struct sd_generation_progress_t:
+        const char* stage
+        const char* detail
+        const char* unit
+        int sample_pass
+        int64_t completed
+        int64_t total
+    ctypedef void (*sd_generation_progress_cb_t)(const sd_generation_progress_t* progress, void* data)
     ctypedef void (*sd_preview_cb_t)(int step, int frame_count, sd_image_t* frames, bint is_noisy, void* data)
 
     # =========================================================================
@@ -403,6 +414,8 @@ cdef extern from "stable-diffusion.h":
 
     void sd_set_log_callback(sd_log_cb_t sd_log_cb, void* data)
     void sd_set_progress_callback(sd_progress_cb_t cb, void* data)
+    # Context-local; register or clear only while the context is idle.
+    void sd_set_generation_progress_callback(sd_ctx_t* ctx, sd_generation_progress_cb_t cb, void* data)
     void sd_set_preview_callback(sd_preview_cb_t cb, preview_t mode, int interval, bint denoised, bint noisy, void* data)
 
     # =========================================================================
@@ -462,6 +475,22 @@ cdef extern from "stable-diffusion.h":
     void free_sd_ctx(sd_ctx_t* sd_ctx)
     void free_sd_audio(sd_audio_t* audio)
 
+    # Results own their pixels, audio and generation_info; set to NULL on failure.
+    ctypedef struct sd_image_result_t:
+        sd_image_t image
+        char* generation_info       # owned UTF-8 JSON, sdcpp.generation/v1
+    ctypedef struct sd_image_generation_result_t:
+        sd_image_result_t* items
+        int count
+    ctypedef struct sd_video_generation_result_t:
+        sd_image_t* frames
+        int frame_count
+        sd_audio_t* audio
+        int fps
+        char* generation_info
+    void free_sd_image_generation_result(sd_image_generation_result_t* result)
+    void free_sd_video_generation_result(sd_video_generation_result_t* result)
+
     sample_method_t sd_get_default_sample_method(const sd_ctx_t* sd_ctx)
     scheduler_t sd_get_default_scheduler(const sd_ctx_t* sd_ctx, sample_method_t sample_method)
     const char* sd_get_model_version_name(const sd_ctx_t* sd_ctx)
@@ -470,7 +499,7 @@ cdef extern from "stable-diffusion.h":
     # Functions - Image generation
     # =========================================================================
 
-    bint generate_image(sd_ctx_t* sd_ctx, const sd_img_gen_params_t* sd_img_gen_params, sd_image_t** images_out, int* num_images_out) nogil
+    bint generate_image(sd_ctx_t* sd_ctx, const sd_img_gen_params_t* sd_img_gen_params, sd_image_generation_result_t** result_out) nogil
 
     ctypedef enum sd_cancel_mode_t:
         SD_CANCEL_ALL
@@ -483,7 +512,7 @@ cdef extern from "stable-diffusion.h":
     # Functions - Video generation
     # =========================================================================
 
-    bint generate_video(sd_ctx_t* sd_ctx, const sd_vid_gen_params_t* sd_vid_gen_params, sd_image_t** frames_out, int* num_frames_out, sd_audio_t** audio_out, int* fps_out) nogil
+    bint generate_video(sd_ctx_t* sd_ctx, const sd_vid_gen_params_t* sd_vid_gen_params, sd_video_generation_result_t** result_out) nogil
 
     # =========================================================================
     # Functions - Upscaling
@@ -496,7 +525,7 @@ cdef extern from "stable-diffusion.h":
                                       const char* backend,
                                       const char* params_backend)
     void free_upscaler_ctx(upscaler_ctx_t* upscaler_ctx)
-    bint upscale(upscaler_ctx_t* upscaler_ctx, sd_image_t input_image, uint32_t upscale_factor, sd_image_t** images_out, int* num_images_out) nogil
+    bint upscale(upscaler_ctx_t* upscaler_ctx, sd_image_t input_image, uint32_t upscale_factor, sd_image_generation_result_t** result_out) nogil
     int get_upscale_factor(upscaler_ctx_t* upscaler_ctx)
 
     # =========================================================================
@@ -521,8 +550,7 @@ cdef extern from "stable-diffusion.h":
                        sd_image_t input_image,
                        const sd_adetailer_params_t* adetailer_params,
                        const sd_img_gen_params_t* inpaint_params,
-                       sd_image_t** images_out,
-                       int* num_images_out) nogil
+                       sd_image_generation_result_t** result_out) nogil
 
     # =========================================================================
     # Functions - Model conversion
@@ -545,7 +573,9 @@ cdef extern from "stable-diffusion.h":
                                  sd_type_t output_type,
                                  const char* tensor_type_rules,
                                  bint convert_name,
-                                 int n_threads)
+                                 int n_threads,
+                                 const sd_lora_t* loras,
+                                 int lora_count)
 
     # =========================================================================
     # Functions - Preprocessing

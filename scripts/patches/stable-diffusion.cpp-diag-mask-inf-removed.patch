@@ -1,0 +1,27 @@
+diff --git a/src/model/vae/minimax_h3_audio_vae.hpp b/src/model/vae/minimax_h3_audio_vae.hpp
+index d5eb0d0..c3df140 100644
+--- a/src/model/vae/minimax_h3_audio_vae.hpp
++++ b/src/model/vae/minimax_h3_audio_vae.hpp
+@@ -2,6 +2,7 @@
+ #define __SD_MODEL_VAE_MINIMAX_H3_AUDIO_VAE_HPP__
+ 
+ #include <array>
++#include <limits>
+ #include <string>
+ #include <vector>
+ 
+@@ -171,9 +172,12 @@ namespace MiniMaxH3 {
+             auto v = ggml_add(ctx->ggml_ctx, qkv[2], bias_shape(params["v_bias"]));
+ 
+             int64_t sequence = x->ne[1];
+-            auto mask        = ggml_diag_mask_inf(ctx->ggml_ctx,
++            // ggml_diag_mask_inf was removed from upstream ggml; same causal mask.
++            auto mask        = ggml_tri(ctx->ggml_ctx,
++                                        ggml_fill(ctx->ggml_ctx,
+                                                   ggml_ext_zeros(ctx, sequence, sequence, 1, 1),
+-                                                  0);
++                                                  -std::numeric_limits<float>::infinity()),
++                                        GGML_TRI_TYPE_UPPER);
+             auto attn_out    = ggml_ext_attention_ext(ctx,
+                                                       q,
+                                                       k,

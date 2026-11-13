@@ -24,11 +24,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Added
 
+- **SD generation metadata, per-context progress, and two context params.** `SDImage.generation_info` holds the upstream `sdcpp.generation/v1` JSON (seed, sampler, size) for each generated image. `SDContext.set_generation_progress_callback` receives `SDGenerationProgress(stage, detail, unit, sample_pass, completed, total)` events for that context only; the process-wide `set_progress_callback` lets two contexts overwrite each other and does not report stages. `SDContextParams.batched_cfg` (no effect on Metal, where upstream disables it) and `SDContextParams.conditioning_cache_size` expose the matching `sd_ctx_params_t` fields.
+
 - **Release notes link the upstream versions** ([#20](https://github.com/shakfu/cyllama/issues/20)). `scripts/release_notes.py` appends an `## Upstream versions` section that links the release tag of each pinned llama.cpp, whisper.cpp, stable-diffusion.cpp and sqlite-vector version.
 
 ### Changed
 
 - **llama.cpp bumped to `b12359` (v1.0.0).** New `llama.h` functions (NextN / DFlash speculative-decoding API, `llama_batch_ext_add_embd_row`, `llama_batch_ext_set_embd_state_row`) are declared in the `.pxd` files only. `MtmdResampler` wraps `mtmd_helper_resampler_*`, a stateful mono float32 resampler for converting capture-rate audio to `MtmdContext.audio_sample_rate`. `LlamaContextParams.moe_cache_cpu_share`, `MtmdGenAudioType.DRAMA3` and a `temp` argument to `MtmdAudioGenerator.set_input` are exposed. Without `DRAMA3`, reading the gen-audio info of a Drama3 mmproj raised `ValueError`. Removed upstream and dropped from the `.pxd` files: `llama_context_params.defrag_thold`, `llama_vocab_cls`, and `GGML_OP_ADD1` / `GGML_OP_DIAG_MASK_INF` / `GGML_OP_DIAG_MASK_ZERO`. stable-diffusion.cpp needs a new patch to compile against this ggml; see `scripts/patches/README.md`.
+
+- **stable-diffusion.cpp bumped to `master-1094-3bad892`.** `SDImageGenParams.vae_tile_size` is now in image pixels (0 uses 256); it was in latent units. A value of 32 meant 256 px tiles and now means 32 px tiles. The documented 512x512 default used to exceed the latent and tile nothing, and now gives 512 px tiles. Generation results are freed with the upstream `free_sd_*_generation_result` instead of per-image `free()`. Not exposed: video upscaling, control types, the prompt-image callback, `flash_attn_mode` / `conv_direct_mode`, and LoRAs in `convert_with_components`.
 
 - **Upstream version pins moved to `scripts/versions.toml`.** `scripts/manage.py` and `scripts/release_notes.py` both read it. A TOML file over a `versions.py` module because it is data any tool can read with `tomllib`, without running code. Deps cache keys and the `check-vendor` and `build-cibw-abi3` path filters now include it, so a version bump still invalidates cached builds. The manylinux `before-all` interpreter moves from cp310 to cp312, because `tomllib` needs 3.11+.
 

@@ -88,51 +88,27 @@ A skipped patch was silent then, so this surfaced as nothing at all; a
 non-matching patch now fails the build. It was removed
 once whisper.cpp `v1.9.4`, the last tree on the old shape, adopted the new one.
 
-### `stable-diffusion.cpp-msvc-bigobj.patch`
+### `stable-diffusion.cpp-diag-mask-inf-removed.patch`
 
-**Target:** `CMakeLists.txt` (stable-diffusion.cpp `master-812-ea7f0c8`)
+**Target:** `src/model/vae/minimax_h3_audio_vae.hpp` (stable-diffusion.cpp
+`master-1094-3bad892`, built against llama.cpp `b12359`)
 
-**Problem:** `src/stable-diffusion.cpp` has grown past the 65,279-section
-limit of the COFF object format, so the Windows wheel build dies with
-`error C1128: number of sections exceeded object file format limit: compile
-with /bigobj`. llama.cpp hit the same wall long ago and carries `/bigobj` in
-its own top-level `CMakeLists.txt`; stable-diffusion.cpp's `if (MSVC)` block
-sets `/MP` and `/utf-8` but not `/bigobj`.
+**Problem:** llama.cpp `b12359` removed `ggml_diag_mask_inf` and its op
+(`GGML_OP_DIAG_MASK_INF`). The MiniMax H3 audio VAE still calls it, so the
+shared-ggml build fails to compile.
 
-**Fix:** Add `/bigobj` alongside `/utf-8`, using the same
-`COMPILE_LANGUAGE` generator expressions so the scoping matches its
-neighbours. Upstreamable as-is.
+**Fix:** Build the causal mask as `ggml_tri(ggml_fill(zeros, -inf), UPPER)`.
+Both write -inf where `i0 > i1` and 0 elsewhere. The CPU and Metal `tri`
+kernels select rather than multiply, so there is no `-inf * 0` NaN. Both ggml
+trees have `ggml_tri` and `ggml_fill`, so the patch is unconditional and
+upstreamable. Untested on a model: no test exercises this VAE.
 
-**Why a patch and not a CMake cache variable:** passing
-`-DCMAKE_CXX_FLAGS=/bigobj` from `manage.py` would *replace* the value CMake
-initialises for MSVC (`/DWIN32 /D_WINDOWS /W3 /GR /EHsc`) rather than append
-to it, silently dropping `/EHsc` and changing unwind semantics for the whole
-tree. `add_compile_options()` is purely additive.
+Two stable-diffusion.cpp patches were dropped at `master-1094-3bad892`, both
+fixed upstream:
 
-### `stable-diffusion.cpp-upstream-ggml-removed-ops.patch`
-
-**Target:** `src/core/ggml_extend.h`, `src/model/vae/minimax_h3_audio_vae.hpp`
-(stable-diffusion.cpp `master-898-2bb7294`, built against llama.cpp `b12359`)
-
-**Problem:** llama.cpp `b12359` removed three ggml functions SD still calls.
-Shared-ggml builds fail to compile:
-
-- `ggml_mul_mat_set_prec`, `ggml_flash_attn_ext_set_prec`: deprecated in
-  `b12110` in favour of `ggml_prec_set_acc`.
-- `ggml_diag_mask_inf`: the op itself (`GGML_OP_DIAG_MASK_INF`) is gone.
-
-**Fix:** Under `SD_USE_UPSTREAM_GGML` only:
-
-- Alias both setters to `ggml_prec_set_acc`. It writes the same `op_params`
-  slot for `MUL_MAT` (0) and `FLASH_ATTN_EXT` (3).
-- Build the causal mask as `ggml_tri(ggml_fill(zeros, -inf), UPPER)`. Both
-  write -inf where `i0 > i1` and 0 elsewhere. The CPU and Metal `tri` kernels
-  select rather than multiply, so no `-inf * 0` NaN.
-
-Vendored mode keeps the original calls; leejet's ggml fork lacks
-`ggml_prec_set_acc`. Upstream SD master already uses `ggml_prec_set_acc` but
-still calls `ggml_diag_mask_inf`. Drop the first hunk on the next SD bump; the
-second stays until upstream SD moves off the removed op.
+- `msvc-bigobj`: upstream adds `/bigobj` to the SD library target.
+- `upstream-ggml-removed-ops` (precision-setter half): SD now calls
+  `ggml_prec_set_acc`. Its `ggml_diag_mask_inf` half is the patch above.
 
 Two stable-diffusion.cpp patches were dropped at `master-898-2bb7294`, both
 fixed upstream:

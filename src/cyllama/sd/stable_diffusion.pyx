@@ -10,6 +10,7 @@ Provides Python bindings for image generation using Stable Diffusion models.
 import os
 import logging
 import traceback
+from collections import namedtuple
 from typing import Optional, List, Callable, Union
 from enum import IntEnum
 
@@ -322,6 +323,32 @@ def set_progress_callback(callback: Optional[Callable[[int, int, float], None]])
         sd_set_progress_callback(NULL, NULL)
 
 
+SDGenerationProgress = namedtuple(
+    "SDGenerationProgress", ["stage", "detail", "unit", "sample_pass", "completed", "total"])
+SDGenerationProgress.__doc__ = """One generation progress event (see SDContext.set_generation_progress_callback).
+
+``total == 0`` means unknown. ``sample_pass`` counts from 1 since registration.
+String fields are ``None`` when upstream leaves them unset.
+"""
+
+
+cdef inline object _opt_str(const char* s):
+    return s.decode("utf-8", "replace") if s != NULL else None
+
+
+cdef void _c_generation_progress_callback(const sd_generation_progress_t* p, void* data) noexcept with gil:
+    """Forward a context-local progress event to the Python callable in ``data``.
+
+    Catches BaseException; see ``_c_log_callback`` for rationale.
+    """
+    try:
+        (<object>data)(SDGenerationProgress(
+            _opt_str(p.stage), _opt_str(p.detail), _opt_str(p.unit),
+            p.sample_pass, p.completed, p.total))
+    except BaseException:
+        traceback.print_exc()
+
+
 # =============================================================================
 # SDImage class
 # =============================================================================
@@ -334,10 +361,21 @@ cdef class SDImage:
     """
     cdef sd_image_t _image
     cdef bint _owns_data
+    cdef object _generation_info
 
     def __cinit__(self):
         memset(&self._image, 0, sizeof(sd_image_t))
         self._owns_data = False
+        self._generation_info = None
+
+    @property
+    def generation_info(self) -> Optional[str]:
+        """Generation metadata as JSON (``sdcpp.generation/v1``), or None.
+
+        Copied from upstream results (generation, upscaling, adetailing) when
+        upstream supplies it; None otherwise, e.g. for images built in Python.
+        """
+        return self._generation_info
 
     def __dealloc__(self):
         if self._owns_data and self._image.data != NULL:
@@ -893,6 +931,39 @@ cdef class SDImage:
         return img
 
 
+cdef list _take_image_result(sd_image_generation_result_t* res):
+    """Move each result image into an owning SDImage, then free the result.
+
+    Pixels moved to an SDImage are NULLed in ``res`` so the upstream free skips
+    them; on an exception it frees the rest.
+    """
+    images = []
+    cdef int i
+    try:
+        for i in range(res.count):
+            img = SDImage._from_c_image(res.items[i].image, owns_data=True)
+            res.items[i].image.data = NULL
+            (<SDImage>img)._generation_info = _opt_str(res.items[i].generation_info)
+            images.append(img)
+    finally:
+        free_sd_image_generation_result(res)
+    return images
+
+
+cdef list _take_video_result(sd_video_generation_result_t* res):
+    """Move each frame into an owning SDImage, then free the result (audio included)."""
+    frames = []
+    cdef int i
+    try:
+        for i in range(res.frame_count):
+            img = SDImage._from_c_image(res.frames[i], owns_data=True)
+            res.frames[i].data = NULL
+            frames.append(img)
+    finally:
+        free_sd_video_generation_result(res)
+    return frames
+
+
 # =============================================================================
 # SDContextParams class
 # =============================================================================
@@ -1431,6 +1502,30 @@ cdef class SDContextParams:
     @disable_segmented_compute.setter
     def disable_segmented_compute(self, value: bool):
         self._params.disable_segmented_compute = value
+
+    @property
+    def batched_cfg(self) -> bool:
+        """Run the conditional and unconditional CFG branches in one batched
+        UNet forward when supported (default True).
+
+        No effect on Metal: upstream disables batching there (sd.cpp #2149).
+        """
+        return self._params.batched_cfg
+
+    @batched_cfg.setter
+    def batched_cfg(self, value: bool):
+        self._params.batched_cfg = value
+
+    @property
+    def conditioning_cache_size(self) -> int:
+        """Maximum cached conditioning entries per context; 0 disables (default 4)."""
+        return self._params.conditioning_cache_size
+
+    @conditioning_cache_size.setter
+    def conditioning_cache_size(self, int value):
+        if value < 0:
+            raise ValueError(f"conditioning_cache_size must be >= 0, got {value}")
+        self._params.conditioning_cache_size = value
 
     @property
     def linear_scale(self) -> float:
@@ -2054,14 +2149,14 @@ cdef class SDImageGenParams:
 
     @property
     def vae_tile_size(self) -> tuple:
-        """VAE tile size (x, y)."""
-        return (self._params.vae_tiling_params.tile_size_x,
-                self._params.vae_tiling_params.tile_size_y)
+        """VAE tile size (width, height) in image pixels; 0 uses 256."""
+        return (self._params.vae_tiling_params.tile_size_w,
+                self._params.vae_tiling_params.tile_size_h)
 
     @vae_tile_size.setter
     def vae_tile_size(self, value: tuple):
-        self._params.vae_tiling_params.tile_size_x = value[0]
-        self._params.vae_tiling_params.tile_size_y = value[1]
+        self._params.vae_tiling_params.tile_size_w = value[0]
+        self._params.vae_tiling_params.tile_size_h = value[1]
 
     @property
     def vae_tile_overlap(self) -> float:
@@ -2293,14 +2388,17 @@ cdef class SDImageGenParams:
 
     @property
     def vae_tile_rel_size(self) -> tuple:
-        """VAE tile relative size (x, y)."""
-        return (self._params.vae_tiling_params.rel_size_x,
-                self._params.vae_tiling_params.rel_size_y)
+        """VAE relative tile size (width, height); > 0 overrides vae_tile_size.
+
+        <= 1 is a fraction of the dimension, > 1 a target tile count.
+        """
+        return (self._params.vae_tiling_params.rel_size_w,
+                self._params.vae_tiling_params.rel_size_h)
 
     @vae_tile_rel_size.setter
     def vae_tile_rel_size(self, value: tuple):
-        self._params.vae_tiling_params.rel_size_x = value[0]
-        self._params.vae_tiling_params.rel_size_y = value[1]
+        self._params.vae_tiling_params.rel_size_w = value[0]
+        self._params.vae_tiling_params.rel_size_h = value[1]
 
     # --- Extended cache parameters ---
 
@@ -2671,6 +2769,7 @@ cdef class SDContext:
     """
     cdef sd_ctx_t* _ctx
     cdef SDContextParams _params
+    cdef object _gen_progress_cb  # keeps the callable passed as C `data` alive
     # `readonly` so external code (notably the concurrency-guard
     # regression tests) can call `_busy_lock.acquire(blocking=False)` /
     # `release()` to simulate "another thread is in flight" without
@@ -3000,49 +3099,24 @@ cdef class SDContext:
         # fields onto `params` itself.
         params._params.sample_params = params._sample_params._params
 
-        cdef sd_image_t* result = NULL
-        cdef int num_images = 0
+        cdef sd_image_generation_result_t* result = NULL
         cdef bint ok = False
         cdef sd_ctx_t* ctx_ptr = self._ctx
         cdef sd_img_gen_params_t* params_ptr = &params._params
         self._try_acquire_busy()
         try:
             with nogil:
-                ok = generate_image(ctx_ptr, params_ptr, &result, &num_images)
+                ok = generate_image(ctx_ptr, params_ptr, &result)
         finally:
             self._busy_lock.release()
-        if not ok or result == NULL or num_images < 1:
+        if result == NULL:
+            raise RuntimeError("Image generation failed")
+        images = _take_image_result(result)
+        if not ok or not images:
             raise RuntimeError("Image generation failed")
 
-        # Convert results to Python list, validating each image. The
-        # outer ``result`` array is malloc'd by the C library and must
-        # be freed even if the per-image wrapping raises mid-iteration;
-        # any C-allocated images we have NOT yet wrapped would otherwise
-        # leak.
-        images = []
-        cdef int i
-        cdef int n_invalid = 0
-        cdef int wrapped = 0
-        try:
-            for i in range(num_images):
-                img = SDImage._from_c_image(result[i], owns_data=True)
-                wrapped = i + 1
-                if not img.is_valid:
-                    n_invalid += 1
-                images.append(img)
-        except BaseException:
-            # Free unwrapped C image data so they don't leak; wrapped
-            # ones are owned by SDImage and freed via their __dealloc__.
-            for i in range(wrapped, num_images):
-                if result[i].data != NULL:
-                    free(result[i].data)
-            raise
-        finally:
-            # Always free the outer array (individual image data, when
-            # wrapped successfully, is now owned by the SDImage objects).
-            free(result)
-
-        if n_invalid == num_images:
+        cdef int n_invalid = sum(1 for img in images if not img.is_valid)
+        if n_invalid == len(images):
             raise RuntimeError(
                 "Image generation failed: all images have invalid data. "
                 "This usually means GPU memory allocation failed (out of memory). "
@@ -3058,6 +3132,31 @@ cdef class SDContext:
             )
 
         return images
+
+    def set_generation_progress_callback(
+            self, callback: Optional[Callable[[SDGenerationProgress], None]]) -> None:
+        """Set this context's progress callback, or clear it with None.
+
+        Unlike the process-wide :func:`set_progress_callback`, it applies only
+        to this context and reports the stage (sampling, hires, VAE decode).
+        Exceptions raised by ``callback`` are printed, not propagated.
+
+        Raises:
+            RuntimeError: The context is closed or in use by another thread.
+        """
+        if self._ctx == NULL:
+            raise RuntimeError("SDContext is closed")
+        # upstream: register or clear only while the context is idle
+        self._try_acquire_busy()
+        try:
+            if callback is None:
+                sd_set_generation_progress_callback(self._ctx, NULL, NULL)
+            else:
+                sd_set_generation_progress_callback(
+                    self._ctx, _c_generation_progress_callback, <void*>callback)
+            self._gen_progress_cb = callback
+        finally:
+            self._busy_lock.release()
 
     def close(self):
         """Release the underlying ``sd_ctx_t`` immediately. Idempotent.
@@ -3189,48 +3288,25 @@ cdef class SDContext:
             vid_params.end_image = end_image._image
 
         # Generate video
-        cdef int num_frames_out = 0
-        cdef sd_image_t* result = NULL
-        cdef sd_audio_t* audio_out = NULL
+        cdef sd_video_generation_result_t* result = NULL
         cdef bint ok = False
         cdef sd_ctx_t* ctx_ptr = self._ctx
         cdef sd_vid_gen_params_t* vid_params_ptr = &vid_params
         self._try_acquire_busy()
         try:
             with nogil:
-                ok = generate_video(ctx_ptr, vid_params_ptr, &result, &num_frames_out, &audio_out, NULL)
+                ok = generate_video(ctx_ptr, vid_params_ptr, &result)
         finally:
             self._busy_lock.release()
-
-        # We don't expose generated audio; release it if the library allocated any.
-        if audio_out != NULL:
-            free_sd_audio(audio_out)
-
-        if not ok or result == NULL:
+        if result == NULL:
+            raise RuntimeError("Video generation failed")
+        # Generated audio is not exposed; the result free releases it.
+        frames = _take_video_result(result)
+        if not ok:
             raise RuntimeError("Video generation failed")
 
-        # Convert results to Python list, validating each frame. See
-        # ``generate`` for the same try/finally rationale: keep the
-        # outer free correct even if per-frame wrapping raises.
-        frames = []
-        cdef int i
-        cdef int n_invalid = 0
-        cdef int wrapped = 0
-        try:
-            for i in range(num_frames_out):
-                frame = SDImage._from_c_image(result[i], owns_data=True)
-                wrapped = i + 1
-                if not frame.is_valid:
-                    n_invalid += 1
-                frames.append(frame)
-        except BaseException:
-            for i in range(wrapped, num_frames_out):
-                if result[i].data != NULL:
-                    free(result[i].data)
-            raise
-        finally:
-            free(result)
-
+        cdef int num_frames_out = len(frames)
+        cdef int n_invalid = sum(1 for f in frames if not f.is_valid)
         if n_invalid == num_frames_out:
             raise RuntimeError(
                 "Video generation failed: all frames have invalid data. "
@@ -3362,29 +3438,16 @@ cdef class Upscaler:
         cdef upscaler_ctx_t* ctx_ptr = self._ctx
         cdef sd_image_t input_img = image._image
         cdef uint32_t factor_c = <uint32_t>factor
-        cdef sd_image_t* out_images = NULL
-        cdef int num_out = 0
+        cdef sd_image_generation_result_t* out = NULL
         cdef bint ok = False
-        cdef int j
         with nogil:
-            ok = upscale(ctx_ptr, input_img, factor_c, &out_images, &num_out)
-
-        if not ok or out_images == NULL or num_out < 1 or out_images[0].data == NULL:
-            if out_images != NULL:
-                for j in range(num_out):
-                    if out_images[j].data != NULL:
-                        free(out_images[j].data)
-                free(out_images)
+            ok = upscale(ctx_ptr, input_img, factor_c, &out)
+        if out == NULL:
             raise RuntimeError("Upscaling failed")
-
-        # `out_images[0].data` is handed to the SDImage (owns_data=True);
-        # free any extra images' data plus the outer array.
-        result = SDImage._from_c_image(out_images[0], owns_data=True)
-        for j in range(1, num_out):
-            if out_images[j].data != NULL:
-                free(out_images[j].data)
-        free(out_images)
-        return result
+        images = _take_image_result(out)
+        if not ok or not images or not (<SDImage>images[0])._image.data:
+            raise RuntimeError("Upscaling failed")
+        return images[0]
 
     def __enter__(self):
         """Context manager entry."""
@@ -3520,10 +3583,8 @@ cdef class Adetailer:
         cdef sd_ctx_t* sd_ptr = sd_ctx._ctx
         cdef sd_image_t input_img = image._image
         cdef sd_img_gen_params_t* gen_ptr = &inpaint_params._params
-        cdef sd_image_t* out_images = NULL
-        cdef int num_out = 0
+        cdef sd_image_generation_result_t* out = NULL
         cdef bint ok = False
-        cdef int j
 
         # adetail_image drives the diffusion context through several inpaint
         # passes with the GIL released, so it must take the same
@@ -3532,30 +3593,14 @@ cdef class Adetailer:
         try:
             with nogil:
                 ok = adetail_image(ad_ptr, sd_ptr, input_img, &ad_params,
-                                   gen_ptr, &out_images, &num_out)
+                                   gen_ptr, &out)
         finally:
             sd_ctx._busy_lock.release()
 
+        results = _take_image_result(out) if out != NULL else []
         if not ok:
-            if out_images != NULL:
-                for j in range(num_out):
-                    if out_images[j].data != NULL:
-                        free(out_images[j].data)
-                free(out_images)
             raise RuntimeError("Adetailer pass failed")
-
-        if out_images == NULL or num_out < 1:
-            # No detections is a legitimate outcome, not an error.
-            if out_images != NULL:
-                free(out_images)
-            return []
-
-        # Each image's `data` is handed to an SDImage (owns_data=True);
-        # only the outer array is freed here.
-        results = []
-        for j in range(num_out):
-            results.append(SDImage._from_c_image(out_images[j], owns_data=True))
-        free(out_images)
+        # An empty list (no detections) is a legitimate outcome, not an error.
         return results
 
     def __enter__(self):
@@ -3766,7 +3811,9 @@ def convert_model_with_components(
         <sd_type_t>output_type,
         rules_ptr,
         convert_name,
-        n_threads
+        n_threads,
+        NULL,
+        0
     )
 
     if not success:
